@@ -26,6 +26,34 @@ logger = logging.getLogger(__name__)
 # Ensure ModelScope uses our configured models directory
 os.environ["MODELSCOPE_CACHE"] = settings.MODELS_DIR
 
+# FunASR 模型配置
+FUNASR_MODELS = {
+    "paraformer-zh": {
+        "model_id": "damo/speech_paraformer-large_asr_nat-zh-cn-16k-common-vocab8404-pytorch",
+        "description": "基础模型，通用场景",
+        "size": "~220MB",
+        "language": "zh",
+    },
+    "paraformer-zh-plus": {
+        "model_id": "damo/speech_paraformer-large-vad-punc_asr_nat-zh-cn-16k-common-vocab8404-pytorch",
+        "description": "增强模型，带 VAD 和标点",
+        "size": "~500MB",
+        "language": "zh",
+    },
+    "paraformer-zh-streaming": {
+        "model_id": "damo/speech_paraformer-large_asr_nat-zh-cn-16k-common-vocab8404-online",
+        "description": "流式模型，实时识别",
+        "size": "~220MB",
+        "language": "zh",
+    },
+    "paraformer-zh-en": {
+        "model_id": "damo/speech_paraformer-large_asr_nat-zh-cn-16k-common-vocab8404-pytorch",
+        "description": "中英混合模型",
+        "size": "~220MB",
+        "language": "zh-en",
+    },
+}
+
 
 def _get_bundled_models_path() -> Optional[Path]:
     """
@@ -98,40 +126,6 @@ def _copy_bundled_models_if_needed():
     except Exception as e:
         logger.warning(f"Failed to copy bundled models: {e}")
         # Don't raise - we'll just download the models instead
-
-# FunASR 模型配置
-FUNASR_MODELS = {
-    "paraformer-zh": {
-        "model_id": "damo/speech_paraformer-large_asr_nat-zh-cn-16k-common-vocab8404-pytorch",
-        "description": "基础模型，通用场景",
-        "size": "~220MB",
-        "language": "zh",
-    },
-    "paraformer-zh-plus": {
-        "model_id": "damo/speech_paraformer-large-vad-punc_asr_nat-zh-cn-16k-common-vocab8404-pytorch",
-        "description": "增强模型，带 VAD 和标点",
-        "size": "~500MB",
-        "language": "zh",
-    },
-    "paraformer-zh-streaming": {
-        "model_id": "damo/speech_paraformer-large_asr_nat-zh-cn-16k-common-vocab8404-online",
-        "description": "流式模型，实时识别",
-        "size": "~220MB",
-        "language": "zh",
-    },
-    "paraformer-en": {
-        "model_id": "damo/speech_paraformer-large_asr_nat-en-16k-common-vocab10020",
-        "description": "英文模型",
-        "size": "~220MB",
-        "language": "en",
-    },
-    "paraformer-zh-en": {
-        "model_id": "damo/speech_paraformer-large_asr_nat-zh-cn-16k-common-vocab8404-pytorch",
-        "description": "中英混合模型",
-        "size": "~220MB",
-        "language": "zh-en",
-    },
-}
 
 
 class FunASRProvider(BaseSTTProvider):
@@ -228,8 +222,8 @@ class FunASRProvider(BaseSTTProvider):
                 VoiceLocale.ZH_CN: ["paraformer-zh", "paraformer-zh-plus", "paraformer-zh-streaming", "paraformer-zh-en"],
                 VoiceLocale.ZH_TW: ["paraformer-zh", "paraformer-zh-plus"],
                 VoiceLocale.ZH_HK: ["paraformer-zh", "paraformer-zh-plus"],
-                VoiceLocale.EN_US: ["paraformer-en"],
-                VoiceLocale.EN_GB: ["paraformer-en"],
+                VoiceLocale.EN_US: ["paraformer-zh-en"],
+                VoiceLocale.EN_GB: ["paraformer-zh-en"],
                 VoiceLocale.AUTO: list(FUNASR_MODELS.keys()),
             }
             return lang_map.get(language, list(FUNASR_MODELS.keys()))
@@ -242,8 +236,8 @@ class FunASRProvider(BaseSTTProvider):
             VoiceLocale.ZH_CN: "paraformer-zh",
             VoiceLocale.ZH_TW: "paraformer-zh",
             VoiceLocale.ZH_HK: "paraformer-zh",
-            VoiceLocale.EN_US: "paraformer-en",
-            VoiceLocale.EN_GB: "paraformer-en",
+            VoiceLocale.EN_US: "paraformer-zh-en",
+            VoiceLocale.EN_GB: "paraformer-zh-en",
             VoiceLocale.AUTO: "paraformer-zh",
         }
         return defaults.get(language, "paraformer-zh")

@@ -1,3 +1,12 @@
+"""
+EvoContextMiddleware - Unified context hydration with Predictive Memory Loading.
+
+This module implements the Pre-Supervisor optimization strategy:
+1. Predictive Memory Loading: Semantic search results are pre-loaded in background
+   during LangGraph initialization, reducing ~800ms Neo4j query to ~1ms Redis read.
+2. Layered Caching: Static data (skills, telemetry) cached vs Dynamic data (blackboard) fresh.
+"""
+
 import logging
 import time
 from typing import Any, Optional
@@ -23,8 +32,10 @@ class EvoContextMiddleware:
     @staticmethod
     async def hydrate(state: dict, config: RunnableConfig) -> dict:
         """
-        Layered context hydration with caching.
+        Layered context hydration with caching and predictive memory loading.
         
+        Optimizations:
+        - Predictive Memory: Tries Redis cache first (populated by bg task in chat_endpoint)
         - Static layer (cacheable): Project concepts, skills, telemetry
         - Dynamic layer (always fresh): Blackboard, execution state, messages
         """
@@ -56,40 +67,76 @@ class EvoContextMiddleware:
 
         project_id = ctx.project_id or DEFAULT_PROJECT_ID
         session_id = config.get("configurable", {}).get("run_id", ctx.request_id)
+        thread_id = ctx.thread_id
 
-        # 2. Static Layer (with caching)
-        # These don't change during a request, safe to cache
-        async def _load_static_data():
-            """Load static context data."""
-            data = {}
+        # Extract last human message for memory operations
+        last_human_msg = ""
+        messages = state.get("messages", [])
+        for msg in reversed(messages):
+            if hasattr(msg, "type") and msg.type == "human":
+                last_human_msg = msg.content
+                break
+
+        # 2. Memory Loading (Predictive Cache Strategy)
+        # Try pre-loaded cache first (populated by bg task), fallback to direct query
+        memory_data = {}
+        if last_human_msg and settings.USE_NEO4J_MEMORY and not state.get("is_subtask"):
+            memory_start = time.time()
             
-            # Extract last human message for memory search
-            last_human_msg = ""
-            messages = state.get("messages", [])
-            for msg in reversed(messages):
-                if hasattr(msg, "type") and msg.type == "human":
-                    last_human_msg = msg.content
-                    break
+            # Try predictive cache first
+            from app.core.engine.predictive_memory_loader import get_predictive_memory, clear_predictive_memory
             
-            # Memory hydration (only if not subtask)
-            if last_human_msg and settings.USE_NEO4J_MEMORY and not state.get("is_subtask"):
+            current_run_id = config.get("configurable", {}).get("run_id")
+            cached_memory = await get_predictive_memory(
+                thread_id=thread_id,
+                human_message=last_human_msg,
+                project_id=project_id,
+                run_id=current_run_id
+            )
+            
+            if cached_memory:
+                # Cache hit! Use pre-loaded data
+                memory_data['project_concepts'] = cached_memory.get('concepts')
+                memory_data['episodes'] = cached_memory.get('episodes')
+                
+                memory_elapsed = (time.time() - memory_start) * 1000
+                logger.info(f"[Middleware] ✓ Memory from predictive cache in {memory_elapsed:.1f}ms")
+                
+                # Clear cache to prevent reuse (one-time use per request)
+                await clear_predictive_memory(thread_id)
+            else:
+                # Cache miss - fallback to direct Neo4j query
+                logger.debug(f"[Middleware] Predictive cache miss, falling back to Neo4j query")
+                
                 from app.core.memory import memory_manager
                 
                 concepts = await memory_manager.long_term.search_concepts(last_human_msg, project_id)
                 if concepts:
-                    data['project_concepts'] = "\n".join([
+                    memory_data['project_concepts'] = "\n".join([
                         f"- **{c.name}**: {c.description}" for c in concepts[:3]
                     ])
                 
                 episodes = await memory_manager.episodic.search_episodes(last_human_msg, project_id, limit=3)
                 if episodes:
-                    current_run_id = config.get("configurable", {}).get("run_id")
                     filtered = [
                         e for e in episodes
                         if getattr(e, "source_message_id", None) != current_run_id
                     ]
                     if filtered:
-                        data['episodes'] = "\n".join([e.summary for e in filtered[:2]])
+                        memory_data['episodes'] = "\n".join([e.summary for e in filtered[:2]])
+                
+                memory_elapsed = (time.time() - memory_start) * 1000
+                logger.info(f"[Middleware] ✓ Memory from Neo4j in {memory_elapsed:.1f}ms")
+
+        # 3. Static Layer (with caching)
+        # These don't change during a request, safe to cache
+        async def _load_static_data():
+            """Load static context data (excluding memory which is handled above)."""
+            data = {}
+            
+            # Inject pre-loaded memory data
+            if memory_data:
+                data.update(memory_data)
             
             # Skills index
             from app.core.learning.discovery import skill_discovery
@@ -120,7 +167,7 @@ class EvoContextMiddleware:
         ctx.metadata["active_skills"] = static_layer.active_skills_index
         ctx.metadata["environment_telemetry"] = static_layer.environment_telemetry
         
-        # 3. Dynamic Layer (always fresh, never cached)
+        # 4. Dynamic Layer (always fresh, never cached)
         # These change between nodes and must be current
         dynamic_layer = LayeredContextCache.get_dynamic_layer(state)
         
@@ -128,15 +175,15 @@ class EvoContextMiddleware:
         ctx.metadata["execution_ticket"] = dynamic_layer.execution_ticket
         ctx.metadata["iteration_count"] = dynamic_layer.iteration_count
         
-        # 4. Environment Hydration (always run for plugin discovery)
+        # 5. Environment Hydration (always run for plugin discovery)
         from app.core.context.plugins import plugin_registry
         plugin_registry.hydrate_context(ctx)
 
-        # 5. State Harmonization
+        # 6. State Harmonization
         if not blackboard.get("verification") and state.get("verification_status"):
             blackboard["verification"] = state.get("verification_status")
 
-        # 6. Metadata Reset (Industrial Hardening)
+        # 7. Metadata Reset (Industrial Hardening)
         is_retry = config.get("metadata", {}).get("is_retry", False)
         
         if (state.get("is_retry") or is_retry) and not state.get("is_subtask"):
@@ -156,7 +203,7 @@ class EvoContextMiddleware:
                     logger.debug(f"[Middleware] Resetting terminal metadata '{key}' for new run.")
                     del blackboard["metadata"][key]
 
-        # 7. Ticket Synchronization
+        # 8. Ticket Synchronization
         execution_ticket = state.get("execution_ticket")
         if execution_ticket and not blackboard.get("ticket"):
             blackboard["ticket"] = execution_ticket

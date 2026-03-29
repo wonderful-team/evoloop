@@ -83,13 +83,21 @@ route_to(
     target="worker",
     reason="Implement the login scraper in scraper.py",
     skill_id=8,  # Workspace Expert
-    authorized_tools=["edit_file", "search_skills", "execute_command"],
+    authorized_tools=["read_file", "edit_file", "multiedit_file", "apply_patch_file", "execute_command"],
     context={
         "focus_paths": ["src/scraper.py"],
         "acceptance_criteria": ["Scraper handles timeouts", "Tests pass"]
     }
 )
 ```
+
+**Tool Selection Guide for Code Editing:**
+When authorizing tools for file editing tasks, include the appropriate tool based on complexity:
+- `edit_file`: Single, isolated changes to one part of a file (simple fixes)
+- `multiedit_file`: **RECOMMENDED** for multiple edits to the SAME file (atomic, efficient)
+- `apply_patch_file`: Complex structural changes (multiple files, renames, moves)
+
+**Always grant ALL THREE editing tools** for Workspace Operator tasks unless there's a specific security reason to restrict them.
 
 **Example 2: Desktop Automation (Workspace Operator):**
 ```python
@@ -135,6 +143,8 @@ Choose `role_name` based on the task:
 - **Android Task**: Sense device status → Find SOPs in `android` namespace → Grant `mobile_control`.
 - **MacOS/Desktop Task**: Sense app list → Grant `macos_control` or `terminal`.
   **IMPORTANT**: MUST include `agent_config={"role_name": "Workspace Operator"}` to enable Desktop Automation Protocol.
+- **Code/File Editing Task**: Grant **ALL** editing tools: `read_file`, `edit_file`, `multiedit_file`, `apply_patch_file`, `write_file`, `execute_command`.
+  **CRITICAL**: Worker cannot use tools you don't authorize. If you only grant `edit_file`, Worker cannot use `multiedit_file` even for multi-edit tasks.
 - **Web/Scraping Task**: Grant `browser_control` or `read_url_content`.
 - **Memory Pressure**: Use `compress_history` to prune the context window.
 - **Context Recovery**: Use `search_history(query="...")` when user refers to "第X轮" / "刚才" / "之前说的" to understand the historical context before routing.

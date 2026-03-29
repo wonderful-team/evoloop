@@ -43,6 +43,8 @@ nodes:
       - "read_file"
       - "write_file"
       - "edit_file"
+      - "multiedit_file"
+      - "apply_patch_file"
       - "list_directory"
       - "manage_directory"
       - "search_files"

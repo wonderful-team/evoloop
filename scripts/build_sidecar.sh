@@ -51,12 +51,35 @@ if ! python3 -c "import PyInstaller" 2>/dev/null; then
   python3 -m pip install pyinstaller
 fi
 
-# 3. Build with PyInstaller using uv
+# Check NumPy version (torch 2.2 requires NumPy 1.x)
+echo -e "${YELLOW}🔍 Checking NumPy version...${NC}"
+NUMPY_VERSION=$(python3 -c "import numpy; print(numpy.__version__)" 2>/dev/null || echo "")
+if [ -n "$NUMPY_VERSION" ]; then
+  NUMPY_MAJOR=$(echo "$NUMPY_VERSION" | cut -d. -f1)
+  if [ "$NUMPY_MAJOR" = "2" ]; then
+    echo -e "${YELLOW}⚠️  NumPy 2.x detected, downgrading to 1.26.4 for torch compatibility...${NC}"
+    uv pip install "numpy==1.26.4" --force-reinstall || \
+      python3 -m pip install "numpy==1.26.4" --force-reinstall
+    echo -e "${GREEN}✅ NumPy downgraded to 1.26.4${NC}"
+  else
+    echo -e "${GREEN}✅ NumPy 1.x already installed (${NUMPY_VERSION})${NC}"
+  fi
+fi
+
+# 3. Ensure NumPy 1.x before building (PyInstaller isolated process needs this)
+echo -e "${YELLOW}🔧 Ensuring NumPy 1.x compatibility...${NC}"
+python3 -c "import numpy; print(f'NumPy version: {numpy.__version__}')"
+
+# Set environment variable to help PyInstaller find correct NumPy
+export PYTHONPATH="${PWD}:${PYTHONPATH}"
+
+# 4. Build with PyInstaller using uv
 echo -e "${BLUE}📦 Building with PyInstaller...${NC}"
 echo -e "${YELLOW}   This may take several minutes...${NC}"
 
 if [ -f "evoloop-backend.spec" ]; then
-  uv run pyinstaller evoloop-backend.spec --clean
+  # Use --noconfirm and ensure we're using the correct Python
+  python3 -m PyInstaller evoloop-backend.spec --clean --noconfirm
 else
   echo -e "${RED}❌ PyInstaller spec file not found${NC}"
   exit 1
@@ -78,7 +101,11 @@ fi
 # 6. Set permissions
 chmod +x "../${TAURI_BIN_DIR}/${TARGET_BINARY}"
 
-# 7. Show file size
+# 7. Sign the binary (ad-hoc signing for local development)
+echo -e "${YELLOW}🔏 Signing binary...${NC}"
+codesign --force --sign - "../${TAURI_BIN_DIR}/${TARGET_BINARY}" 2>/dev/null || echo -e "${YELLOW}⚠️  Could not sign binary${NC}"
+
+# 8. Show file size
 FILE_SIZE=$(du -h "../${TAURI_BIN_DIR}/${TARGET_BINARY}" | cut -f1)
 echo -e "${BLUE}📊 Binary size: ${FILE_SIZE}${NC}"
 

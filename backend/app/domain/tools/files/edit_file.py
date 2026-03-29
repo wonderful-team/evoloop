@@ -8,6 +8,8 @@ from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import InjectedToolArg
 
 from app.core.tools import evoloop_tool, get_working_directory
+import asyncio
+
 from app.domain.tools.utils.editing.engine import EditEngine
 from app.i18n.service import i18n
 from app.utils.file import (
@@ -18,6 +20,9 @@ from app.utils.file import (
 from app.utils.file import get_file_stats
 
 from .utils import resolve_and_validate_path
+
+# Keep references to background tasks to prevent GC
+_background_tasks: set[asyncio.Task] = set()
 
 
 class MatchConfidence(Enum):
@@ -205,7 +210,7 @@ async def handle_edit(
     config: RunnableConfig | None = None,
 ) -> str:
     """
-    Edit file with optional hash verification for concurrent modification detection.
+    Edit file with cascading fuzzy matching and optional hash verification.
     """
     from app.utils import render_template
 
@@ -227,20 +232,34 @@ async def handle_edit(
     try:
         from app.domain.codebase.exploration.engine import get_exploration_engine
 
-        # Use new verification-based edit
-        result = apply_edit_with_verification(
-            file_path=target_path,
-            old_string=target,
-            new_string=content,
-            expected_hash=expected_hash,
-            allow_multiple=allow_multiple
+        # Read current content and hash
+        file_content, _, stats = safe_read_with_hash(target_path)
+
+        # Early hash verification (fast fail)
+        if expected_hash and stats.content_hash != expected_hash:
+            template_context = {
+                "success": False,
+                "path": path,
+                "message": "File was modified by another process since last read.",
+                "details": (
+                    f"Current hash: {stats.content_hash[:8]}...\n"
+                    f"Expected: {expected_hash[:8]}...\n"
+                    f"Please re-read the file and try again."
+                ),
+                "labels": i18n.get("domain_tools.files.edit_labels") or {}
+            }
+            return render_template("files/edit_result.prompt.j2", **template_context)
+
+        # Main path: cascading fuzzy matching via EditEngine
+        match_success, new_content, log = EditEngine.apply_replacement(
+            file_content, target, content, replace_all=allow_multiple
         )
 
         template_context = {
-            "success": result["success"],
+            "success": match_success,
             "path": path,
-            "replaced_count": result.get("replaced_count", 1),
-            "new_hash": result.get("new_hash", "")[:8] if result.get("new_hash") else None,
+            "replaced_count": 1,
+            "new_hash": None,
             "diagnostics": None,
             "message": None,
             "log": None,
@@ -249,76 +268,61 @@ async def handle_edit(
             "labels": i18n.get("domain_tools.files.edit_labels") or {}
         }
 
-        if result["success"]:
-            template_context["message"] = i18n.get("domain_tools.files.edit_success", path=path)
+        if not match_success:
+            # Distinguish multiple occurrences from plain not-found
+            if "appears" in log.lower() and "times" in log.lower():
+                return i18n.get("domain_tools.files.edit_multiple_found", count="multiple")
 
-            # Optional Semantic Validation
-            if verify_types:
+            template_context.update({
+                "success": False,
+                "message": template_context["labels"].get("strict_fail", "EDIT FAILED: Could not find the target text in file."),
+                "log": f"Technical details: {log}",
+                "causes": [c.format(path=path) for c in (i18n.get("domain_tools.files.edit_causes") or [])],
+                "hints": [h.format(path=path) for h in (i18n.get("domain_tools.files.edit_hints") or [])]
+            })
+            return render_template("files/edit_result.prompt.j2", **template_context)
+
+        # Write with verification (optimistic lock at write time)
+        write_result = write_file_with_verification(
+            new_content, target_path, expected_hash=expected_hash
+        )
+
+        if not write_result["success"]:
+            return f"⚠️ Edit matched but write failed: {write_result.get('message')}"
+
+        template_context.update({
+            "success": True,
+            "message": i18n.get("domain_tools.files.edit_success", path=path),
+            "new_hash": write_result.get("new_hash", "")[:8] if write_result.get("new_hash") else None,
+            "log": log
+        })
+
+        # Optional Semantic Validation (async)
+        if verify_types:
+            async def _async_type_check():
                 try:
                     engine = get_exploration_engine()
                     repo_path = get_working_directory(config)
                     diagnostics = await engine.check_types(target_path, repo_path)
-                    template_context["diagnostics"] = diagnostics
+                    if diagnostics:
+                        import logging
+                        logger = logging.getLogger(__name__)
+                        logger.info(f"[Async Type Check] {path}: {len(diagnostics)} diagnostic(s) found")
+                        for d in diagnostics[:3]:
+                            logger.info(f"  - {d.get('severity', 'info')}: {d.get('message', '')[:50]}")
                 except Exception as e:
                     import logging
-                    logging.getLogger(__name__).debug(f"Integrated type check failed: {e}")
-
-            return render_template("files/edit_result.prompt.j2", **template_context)
-        else:
-            error = result.get("error", "UNKNOWN")
-            message = result.get("message", "Edit failed")
-
-            if error == "HASH_MISMATCH":
-                template_context["message"] = message
-                template_context["details"] = (
-                    f"Current hash: {result.get('current_hash', 'unknown')[:8]}...\n"
-                    f"Expected: {result.get('expected_hash', 'unknown')[:8]}...\n"
-                    f"Please re-read the file and try again."
-                )
-                return render_template("files/edit_result.prompt.j2", **template_context)
+                    logging.getLogger(__name__).debug(f"[Async Type Check] Failed: {e}")
             
-            elif error == "STRING_NOT_FOUND":
-                # Try fuzzy fallback
-                file_content, _, stats = safe_read_with_hash(target_path)
-                success, new_content, log = EditEngine.apply_replacement(
-                    file_content, target, content, replace_all=allow_multiple
-                )
-                if success:
-                    # Write with verification
-                    write_result = write_file_with_verification(
-                        new_content, target_path, expected_hash=stats.content_hash
-                    )
-                    if write_result["success"]:
-                        template_context.update({
-                            "success": True,
-                            "message": f"{i18n.get('domain_tools.files.edit_success', path=path)} (fuzzy match)",
-                            "log": log
-                        })
-                        if verify_types:
-                            try:
-                                engine = get_exploration_engine()
-                                repo_path = get_working_directory(config)
-                                template_context["diagnostics"] = await engine.check_types(target_path, repo_path)
-                            except Exception:
-                                pass
-                        return render_template("files/edit_result.prompt.j2", **template_context)
-                    else:
-                        return f"⚠️ Fuzzy match succeeded but write failed: {write_result.get('message')}"
-
-                # Strict fail report using i18n
-                template_context.update({
-                    "success": False,
-                    "message": template_context["labels"].get("strict_fail", "EDIT FAILED: Could not find the target text in file."),
-                    "log": f"Technical details: {log}",
-                    "causes": [c.format(path=path) for c in (i18n.get("domain_tools.files.edit_causes") or [])],
-                    "hints": [h.format(path=path) for h in (i18n.get("domain_tools.files.edit_hints") or [])]
-                })
-                return render_template("files/edit_result.prompt.j2", **template_context)
+            # Fire and forget - keep reference to prevent GC
+            task = asyncio.create_task(_async_type_check())
+            _background_tasks.add(task)
+            task.add_done_callback(_background_tasks.discard)
             
-            elif error == "MULTIPLE_OCCURRENCES":
-                return i18n.get("domain_tools.files.edit_multiple_found", count=result.get("count", "multiple"))
-            else:
-                return f"❌ Edit failed: {message}"
+            # Add a note that type check is running in background
+            template_context["diagnostics"] = [{"severity": "info", "message": "Type check running in background..."}]
+
+        return render_template("files/edit_result.prompt.j2", **template_context)
 
     except Exception as e:
         return i18n.get("domain_tools.files.edit_error", error=str(e))
@@ -368,26 +372,40 @@ async def edit_file(
     config: Annotated[RunnableConfig, InjectedToolArg] = None,
 ) -> str:
     """
-    Edit a file by replacing a specific block of text.
+    Performs string replacements in files with automatic cascading fuzzy matching.
+
+    Usage:
+    - You MUST use read_file at least once in the conversation before editing.
+    - ALWAYS prefer editing existing files in the codebase. NEVER write new files unless explicitly required.
+    - The tool uses cascading fuzzy matching (exact → line-trimmed → block-anchor → context-aware → indentation-flexible).
+      Provide enough surrounding context in `target` to ensure uniqueness.
+    - If `target` is found multiple times and you don't want to replace all, provide a larger unique block.
+    - The edit will FAIL if no matching strategy can locate the target text.
+
+    When to use:
+    - Use this for single, isolated changes to one part of a file.
+    - For multiple changes to the same file, use multiedit_file instead.
+    - For complex multi-block structural changes, use apply_patch_file instead.
+    - Do NOT use this tool for auto-generated content (like running formatters); use Bash or Write instead.
 
     Args:
         path: Target file path. **REQUIRED**
-        target: The exact text to find. **REQUIRED**
+        target: The text to find. Include surrounding lines for uniqueness. **REQUIRED**
         replacement: The new content. **REQUIRED**
-        allow_multiple: If True, replaces ALL occurrences.
-        expected_hash: Expected content hash for concurrent modification detection.
+        allow_multiple: Replace ALL occurrences of the matched text.
+        expected_hash: Optional content hash for concurrent modification detection.
                       Get this from read_file output to ensure you're editing the latest version.
         dry_run: If True, preview the change without actually modifying the file.
-                 Use this to verify the edit will work as expected.
+                 Only use this for uncertain complex edits; simple edits should be applied directly.
         verify_types: If True (default), perform a semantic type check after the edit.
                       Requires an active LSP for the language.
 
     Examples:
-        # Preview first (recommended for uncertain edits)
-        edit_file(path="src/main.py", target="old()", replacement="new()", dry_run=True)
+        # Simple edit (default path)
+        edit_file(path="src/main.py", target="def old():", replacement="def new():")
         
-        # Then apply
-        edit_file(path="src/main.py", target="old()", replacement="new()")
+        # Preview only for uncertain changes
+        edit_file(path="src/main.py", target="old()", replacement="new()", dry_run=True)
     """
     # HYPER-ROBUST VALIDATION
     if not path or target is None or replacement is None:

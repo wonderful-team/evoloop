@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import time
 from collections.abc import Callable
@@ -121,6 +122,21 @@ class EvoCloudManager:
         self._projects_cache_time = 0.0
         logger.debug("[EvoCloud] Projects cache invalidated")
 
+    async def _fallback_upload_log(self, device_id: int, thread_id: str, log_type: str, 
+                                   content: Any, name: str | None, command_id: int | None,
+                                   project_id: int | None):
+        """
+        Async fallback upload for when Celery is unavailable.
+        Runs as fire-and-forget task to not block main flow.
+        """
+        try:
+            await self.api.upload_log(device_id, thread_id, log_type, content, 
+                                      name=name, command_id=command_id, project_id=project_id)
+            logger.info(f"[EvoCloud] Fallback upload succeeded for {log_type}")
+        except Exception as fallback_ex:
+            # Last resort: log locally, don't propagate error
+            logger.error(f"[EvoCloud] Fallback upload also failed for {log_type}: {fallback_ex}")
+
     async def _fetch_projects_from_api(self) -> list[dict]:
         """Internal method to fetch projects from API."""
         import os
@@ -234,9 +250,15 @@ class EvoCloudManager:
                 )
                 logger.debug(f"Dispatched cloud log persistence for {log_type} to Celery")
             except Exception as ex:
-                logger.warning(f"Failed to dispatch cloud log to Celery: {ex}. Falling back to sync.")
-                # Fallback to direct call if Celery fails
-                await self.api.upload_log(target_device_id, thread_id, log_type, content, name=name, command_id=command_id, project_id=project_id)
+                logger.warning(f"Failed to dispatch cloud log to Celery: {ex}. Falling back to async background upload.")
+                # Fallback: Fire-and-forget to prevent blocking the main flow
+                # This ensures API responsiveness even if EvoCloud API is slow/down
+                asyncio.create_task(
+                    self._fallback_upload_log(
+                        target_device_id, thread_id, log_type, content, 
+                        name, command_id, project_id
+                    )
+                )
 
     async def scan_projects(self) -> list[dict]:
         """

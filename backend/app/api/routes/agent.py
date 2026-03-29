@@ -258,6 +258,24 @@ async def chat_endpoint(
         except Exception as e:
             logger.warning(f"Failed to fetch skill {req.skill_id}: {e}")
 
+    # ==========================================================================
+    # OPTIMIZATION: Predictive Memory Loading
+    # Start background task to pre-load semantic search results from Neo4j.
+    # This runs in parallel with LangGraph initialization (~100ms), effectively
+    # hiding the ~800ms Neo4j query latency.
+    # ==========================================================================
+    from app.core.engine.predictive_memory_loader import predictive_memory_load
+    
+    run_id = f"run-{req.thread_id}-{int(time.time())}"
+    bg_tasks.add_task(
+        predictive_memory_load,
+        thread_id=req.thread_id,
+        project_id=req.project_id or DEFAULT_PROJECT_ID,
+        human_message=req.message,
+        run_id=run_id
+    )
+    logger.debug(f"[ChatEndpoint] Spawned predictive memory loading for thread {req.thread_id}")
+
     # Use Unified Dispatcher
     return await _prepare_and_dispatch(
         thread_id=req.thread_id,
@@ -691,6 +709,14 @@ async def webhook_endpoint(req: WebhookRequest, bg_tasks: BackgroundTasks):
         new_project = req.payload.get("new_project", {})
         new_path = new_project.get("path")
         if new_path:
+            # CRITICAL: Invalidate project cache to prevent stale path overwrite
+            # Background: _setup_project_context() in background_agent.py calls
+            # evocloud_manager.get_project_by_id() which uses 60s TTL cache.
+            # Without invalidation, the cache may return old path and overwrite
+            # the new_path we just set here, causing Agent to operate on wrong directory.
+            evocloud_manager.invalidate_projects_cache()
+            logger.info(f"[Webhook] Project cache invalidated due to project_switched event")
+
             thread_context_store.set_working_directory(tid, new_path)
             # Dispatch Indexing Task directly from here if needed
 

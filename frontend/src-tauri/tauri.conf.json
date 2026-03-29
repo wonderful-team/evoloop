@@ -47,10 +47,15 @@
       "icons/icon.ico"
     ],
     "resources": {
-      "../../backend": "backend-source"
+      "../../backend/app": "backend-source/app",
+      "models": "models"
     },
     "externalBin": [
       "binaries/evoloop-backend"
-    ]
+    ],
+    "macOS": {
+      "signingIdentity": "-",
+      "entitlements": "entitlements.plist"
+    }
   }
 }

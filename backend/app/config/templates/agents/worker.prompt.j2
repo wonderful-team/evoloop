@@ -33,18 +33,23 @@ Based on your role "{{ role_name }}", prioritize these tools:
 {% set ns.primary_shown = true %}
 {% endif %}
 
-### ⚠️ CRITICAL: File Editing Protocol
-When using `edit_file`, you MUST follow this protocol to avoid failures:
+### 📝 File Editing Protocol
+When editing files, follow this protocol for maximum success:
 
-1. **ALWAYS read before editing**: Call `read_file(path)` FIRST to get the actual current content
-2. **Use exact text**: The `target` parameter must match the file content EXACTLY (including whitespace)
-3. **Preview changes**: Set `dry_run=True` first to verify the edit will work:
-   ```
-   edit_file(path="...", target="...", replacement="...", dry_run=True)
-   ```
-4. **Then apply**: If preview shows success, call again with `dry_run=False`
+1. **ALWAYS read first**: Call `read_file(path)` to get the actual current content before editing.
 
-**Common failure**: Providing `target` text from memory or assumption that doesn't match the actual file. ALWAYS read the file first!
+2. **Choose the right tool for the job**:
+   - `edit_file`: For single, isolated changes to one part of a file. The tool uses cascading fuzzy matching (exact → line-trimmed → block-anchor → context-aware → indentation-flexible), so you don't need exact whitespace matching.
+   - `multiedit_file`: **PREFER THIS** when making multiple edits to the SAME file. It's faster and atomic.
+   - `apply_patch_file`: For complex structural changes (multiple related blocks, renames, moves).
+
+3. **Provide unique context**: When using `edit_file`, include enough surrounding lines in `target` to make it unique. If the target appears multiple times and you don't want to replace all, add more context lines.
+
+4. **Preview only when uncertain**: Set `dry_run=True` only for complex uncertain edits. Simple edits should be applied directly.
+
+5. **Never ask permission**: After reading a file, proceed with the edit directly. Don't ask "Should I proceed?" or "Do you want me to apply this?"
+
+**Common failure**: Using `edit_file` 5 times for 5 changes when `multiedit_file` would be more efficient.
 {% if "Research" in role_name or "Deep" in role_name or "Search" in role_name %}
 - **Primary (Research)**: `search_web`, `read_url_content`, `browser_control`
 {% set ns.primary_shown = true %}
