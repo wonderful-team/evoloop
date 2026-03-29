@@ -143,14 +143,18 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
     # ==============================================================================
 
     async def on_llm_start(self, serialized: dict[str, Any], prompts: list[str], **kwargs: Any) -> None:
-        """Run when LLM starts running."""
+        """Run when LLM starts running.
+        
+        Note: We no longer record "Thinking..." steps to reduce noise.
+        Only actual tool executions are tracked.
+        """
         if self.thread_id and self.monitor:
             await self.monitor.check_cancellation(self.thread_id)
 
             # Deduplicate nested LLM calls
             if self.active_llm_run_id is None:
                 self.active_llm_run_id = kwargs.get("run_id")
-                self.llm_task_id = await self.monitor.add_step(self.thread_id, "Thinking...", "ai")
+                # Removed: self.llm_task_id = await self.monitor.add_step(self.thread_id, "Thinking...", "ai")
 
     async def on_llm_new_token(self, token: str, **kwargs: Any) -> None:
         """Run on new LLM token."""
@@ -269,29 +273,20 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
             self._publish_buffer = ""
 
         run_id = kwargs.get("run_id")
-        if self.thread_id and self.llm_task_id and self.monitor:
-            if run_id == self.active_llm_run_id:
-                await self.monitor.update_step(self.thread_id, self.llm_task_id, "done")
-                self.llm_task_id = None
-                self.active_llm_run_id = None
-                self._current_stream_buffer = ""
+        # Note: We no longer record "Thinking..." steps, so no update needed
+        if run_id == self.active_llm_run_id:
+            self.active_llm_run_id = None
+            self._current_stream_buffer = ""
 
     async def on_llm_error(self, error: BaseException, **kwargs: Any) -> None:
         """Run when LLM errors."""
         logger.error(f"LLM Error in thread {self.thread_id}: {error}", exc_info=True)
 
         run_id = kwargs.get("run_id")
-        if self.thread_id and self.llm_task_id and self.monitor:
-            if run_id == self.active_llm_run_id:
-                exc_name = type(error).__name__
-                if "Interrupt" in exc_name or "GraphInterrupt" in exc_name:
-                    await self.monitor.update_step(self.thread_id, self.llm_task_id, "done")
-                else:
-                    await self.monitor.update_step(self.thread_id, self.llm_task_id, "failed", details=str(error))
-                
-                self.llm_task_id = None
-                self.active_llm_run_id = None
-                self._current_stream_buffer = ""
+        # Note: We no longer record "Thinking..." steps, so no update needed
+        if run_id == self.active_llm_run_id:
+            self.active_llm_run_id = None
+            self._current_stream_buffer = ""
 
     async def on_tool_start(self, serialized: dict[str, Any], input_str: str, **kwargs: Any) -> None:
         """Run when tool starts running."""
@@ -315,13 +310,9 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
                 pass
 
         # Create activity step
+        # Note: We no longer create Phase headers ("► Execution Phase"), only record actual tool executions
         if self.thread_id and self.monitor:
-            parent_id = getattr(self, "_current_phase_task_id", None)
-            if parent_id is None:
-                parent_id = await self.monitor.add_step(self.thread_id, "► Execution Phase", "node")
-                self._current_phase_task_id = parent_id
-
-            self.tool_task_id = await self.monitor.add_step(self.thread_id, friendly_name, "tool", parent_id=parent_id)
+            self.tool_task_id = await self.monitor.add_step(self.thread_id, friendly_name, "tool")
 
         # Extract path info
         data = None
@@ -464,62 +455,27 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
             ))
 
     async def on_chain_start(self, serialized: dict[str, Any], inputs: dict[str, Any], **kwargs: Any) -> None:
-        """Run when chain (node) starts running."""
-        metadata = kwargs.get("metadata", {})
-        node_name = metadata.get("langgraph_node")
-
-        if node_name and self.thread_id and self.monitor:
-            standard_node_names = {
-                "supervisor": "Supervisor Phase",
-                "finish": "Completion Phase",
-                "chat": "Interaction Phase",
-                "flash_brain": "Cognitive Awakening",
-            }
-
-            phase_name = standard_node_names.get(node_name)
-            
-            if node_name == "worker" or not phase_name:
-                execution_ticket = inputs.get("execution_ticket") or {}
-                agent_config = execution_ticket.get("agent_config") or {}
-                role_name = agent_config.get("role_name")
-                
-                if role_name:
-                    phase_name = f"{role_name} Phase"
-                else:
-                    phase_name = f"{node_name.replace('_', ' ').title()} Phase"
-
-            friendly_name = f"► {phase_name}"
-            ignorable_nodes = ("__start__", "__end__", "language_router")
-            
-            if node_name not in ignorable_nodes:
-                run_id = kwargs.get("run_id")
-                task_id = await self.monitor.add_step(self.thread_id, friendly_name, "node")
-                self._active_nodes[run_id] = (task_id, node_name)
-                self._current_phase_task_id = task_id
+        """Run when chain (node) starts running.
+        
+        Note: We no longer record Phase headers ("► Supervisor Phase", etc.) to reduce noise.
+        Only actual tool executions are tracked.
+        """
+        # Phase headers tracking removed - only track actual tool executions
+        pass
 
     async def on_chain_end(self, outputs: dict[str, Any], **kwargs: Any) -> None:
-        """Run when chain ends running."""
-        run_id = kwargs.get("run_id")
-        if run_id in self._active_nodes:
-            task_id, node_name = self._active_nodes[run_id]
-            if self.thread_id and self.monitor:
-                await self.monitor.update_step(self.thread_id, task_id, "done")
-                if getattr(self, "_current_phase_task_id", None) == task_id:
-                    self._current_phase_task_id = None
-            del self._active_nodes[run_id]
+        """Run when chain ends running.
+        
+        Note: Phase headers tracking removed, this is now a no-op.
+        """
+        pass
 
     async def on_chain_error(self, error: BaseException, **kwargs: Any) -> None:
-        """Run when chain errors."""
-        run_id = kwargs.get("run_id")
-        if run_id in self._active_nodes:
-            task_id, node_name = self._active_nodes[run_id]
-            if self.thread_id and self.monitor:
-                exc_name = type(error).__name__
-                if "Interrupt" in exc_name or "GraphInterrupt" in exc_name:
-                    await self.monitor.update_step(self.thread_id, task_id, "done")
-                else:
-                    await self.monitor.update_step(self.thread_id, task_id, "failed", details=str(error))
-            del self._active_nodes[run_id]
+        """Run when chain errors.
+        
+        Note: Phase headers tracking removed, this is now a no-op.
+        """
+        pass
 
     async def on_text(self, text: str, **kwargs: Any) -> None:
         """Run on arbitrary text."""

@@ -1,4 +1,4 @@
-import { BookOpen, Play, Trash2, Edit, Terminal, TrendingUp, Info, Sparkles, Layout } from "lucide-react"
+import { BookOpen, Play, Trash2, Edit, Terminal, TrendingUp, Info, Sparkles, Layout, Paperclip } from "lucide-react"
 import type React from "react"
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
@@ -29,6 +29,7 @@ interface SkillLibraryDialogProps {
   trigger?: React.ReactNode
   threadId: string
   projectId?: number
+  onSelectSkill?: (skill: LearnedSkill) => void  // New: attach skill instead of running
 }
 
 
@@ -38,6 +39,7 @@ export function SkillLibraryDialog({
   trigger,
   threadId,
   projectId,
+  onSelectSkill,
 }: SkillLibraryDialogProps) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
@@ -293,14 +295,30 @@ export function SkillLibraryDialog({
 
                   {/* Footer Actions */}
                   <div className="p-4 border-t bg-card mt-auto flex gap-3 shadow-[0_-4px_12px_rgba(0,0,0,0.05)] z-10">
-                    <Button
-                      variant="default"
-                      className="flex-1 h-9 font-medium shadow-sm"
-                      onClick={(e) => handleRunClick(selectedSkill, e)}
-                    >
-                      <Play className="h-4 w-4 mr-2 fill-current" />
-                      {t("common.run")}
-                    </Button>
+                    {onSelectSkill ? (
+                      // Attach mode: mount skill to input
+                      <Button
+                        variant="default"
+                        className="flex-1 h-9 font-medium shadow-sm"
+                        onClick={() => {
+                          onSelectSkill(selectedSkill)
+                          onOpenChange?.(false)
+                        }}
+                      >
+                        <Paperclip className="h-4 w-4 mr-2" />
+                        {t("chat.attachSkill", '挂载技能')}
+                      </Button>
+                    ) : (
+                      // Run mode: execute skill immediately
+                      <Button
+                        variant="default"
+                        className="flex-1 h-9 font-medium shadow-sm"
+                        onClick={(e) => handleRunClick(selectedSkill, e)}
+                      >
+                        <Play className="h-4 w-4 mr-2 fill-current" />
+                        {t("common.run")}
+                      </Button>
+                    )}
                     <Button
                       variant="outline"
                       className="h-9 px-3"

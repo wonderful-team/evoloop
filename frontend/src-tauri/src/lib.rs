@@ -30,6 +30,11 @@ mod commands;
 mod screen_recorder;
 mod sidecar;
 mod tray;
+#[cfg(desktop)]
+mod global_shortcut;
+
+#[cfg(desktop)]
+use global_shortcut::GLOBAL_SHORTCUT_MANAGER;
 
 // ===== App State =====
 
@@ -118,6 +123,93 @@ async fn show_main_window(app: tauri::AppHandle) -> Result<(), String> {
 #[tauri::command]
 #[cfg(mobile)]
 async fn show_main_window() -> Result<(), String> {
+    Ok(())
+}
+
+// ===== Global Voice Shortcut Commands =====
+
+#[tauri::command]
+#[cfg(desktop)]
+async fn start_voice_shortcut_listener(app: tauri::AppHandle) -> Result<(), String> {
+    GLOBAL_SHORTCUT_MANAGER.set_app_handle(app);
+    GLOBAL_SHORTCUT_MANAGER.start_listening();
+    Ok(())
+}
+
+#[tauri::command]
+#[cfg(desktop)]
+async fn stop_voice_shortcut_listener() -> Result<(), String> {
+    GLOBAL_SHORTCUT_MANAGER.stop_listening();
+    Ok(())
+}
+
+#[tauri::command]
+#[cfg(desktop)]
+async fn set_voice_shortcut_key(key: String) -> Result<(), String> {
+    GLOBAL_SHORTCUT_MANAGER.set_target_key(key);
+    Ok(())
+}
+
+#[tauri::command]
+#[cfg(desktop)]
+async fn set_voice_shortcut_duration(duration_ms: u64) -> Result<(), String> {
+    GLOBAL_SHORTCUT_MANAGER.set_press_duration(duration_ms);
+    Ok(())
+}
+
+#[tauri::command]
+#[cfg(desktop)]
+async fn set_voice_shortcut_mode(mode: String) -> Result<(), String> {
+    use crate::global_shortcut::TriggerMode;
+    let trigger_mode = match mode.as_str() {
+        "longPress" => TriggerMode::LongPress,
+        "doubleClick" => TriggerMode::DoubleClick,
+        _ => TriggerMode::DoubleClick, // Default to double click
+    };
+    GLOBAL_SHORTCUT_MANAGER.set_trigger_mode(trigger_mode);
+    Ok(())
+}
+
+#[tauri::command]
+#[cfg(desktop)]
+async fn set_voice_shortcut_interval(interval_ms: u64) -> Result<(), String> {
+    GLOBAL_SHORTCUT_MANAGER.set_double_click_interval(interval_ms);
+    Ok(())
+}
+
+#[tauri::command]
+#[cfg(mobile)]
+async fn start_voice_shortcut_listener() -> Result<(), String> {
+    Err("Voice shortcut is not supported on mobile".to_string())
+}
+
+#[tauri::command]
+#[cfg(mobile)]
+async fn stop_voice_shortcut_listener() -> Result<(), String> {
+    Ok(())
+}
+
+#[tauri::command]
+#[cfg(mobile)]
+async fn set_voice_shortcut_key(_key: String) -> Result<(), String> {
+    Ok(())
+}
+
+#[tauri::command]
+#[cfg(mobile)]
+async fn set_voice_shortcut_duration(_duration_ms: u64) -> Result<(), String> {
+    Ok(())
+}
+
+#[tauri::command]
+#[cfg(mobile)]
+async fn set_voice_shortcut_mode(_mode: String) -> Result<(), String> {
+    Ok(())
+}
+
+#[tauri::command]
+#[cfg(mobile)]
+async fn set_voice_shortcut_interval(_interval_ms: u64) -> Result<(), String> {
     Ok(())
 }
 
@@ -406,6 +498,13 @@ pub fn run() {
             commands::sidecar::sidecar_is_ready,
             commands::sidecar::sidecar_get_status,
             commands::sidecar::sidecar_restart,
+            // Voice shortcut commands
+            start_voice_shortcut_listener,
+            stop_voice_shortcut_listener,
+            set_voice_shortcut_key,
+            set_voice_shortcut_duration,
+            set_voice_shortcut_mode,
+            set_voice_shortcut_interval,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");

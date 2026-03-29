@@ -135,6 +135,20 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str = "sk-dummy-key-for-local-dev"
     OPENAI_BASE_URL: str = "http://localhost:1234/v1"
     OPENAI_MODEL_NAME: str = "gpt-4o"
+    
+    # Voice/TTS Configuration
+    TTS_PROVIDER: str = "auto"  # auto | system-tts | edge-tts
+    TTS_DEFAULT_VOICE: str = "zh-CN-Tingting"  # macOS 系统语音: 婷婷
+    TTS_DEFAULT_SPEED: float = 1.0  # 0.5 - 2.0
+    
+    # Voice/STT Configuration (FunASR - local, Chinese optimized)
+    FUNASR_MODEL: str = "paraformer-zh"  # paraformer-zh | paraformer-zh-plus | paraformer-zh-streaming
+    FUNASR_DEVICE: str = "cpu"  # cpu | cuda
+    
+    # AI Models Storage Configuration
+    MODELS_DIR: Annotated[str, BeforeValidator(expand_path)] = Field(
+        default_factory=lambda: os.path.expanduser("~/.evoloop/models"),
+    )  # Directory for storing AI models (FunASR, embeddings, etc.)
 
     # Embedding Configuration
     EMBEDDING_PROVIDER: Literal["openai", "ollama", "dashscope", "huggingface", "local"] = "openai"
@@ -335,6 +349,13 @@ class Settings(BaseSettings):
         path = os.path.join(self.APP_DATA_DIR, "library")
         os.makedirs(path, exist_ok=True)
         return path
+
+    @model_validator(mode="after")
+    def _setup_modelscope_cache(self) -> Self:
+        """Set ModelScope cache directory to MODELS_DIR for FunASR models."""
+        # Set environment variable for modelscope to use our models directory
+        os.environ["MODELSCOPE_CACHE"] = self.MODELS_DIR
+        return self
 
     # Logic Limits
     MEMORY_SEARCH_LIMIT: int = 5

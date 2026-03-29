@@ -31,11 +31,63 @@ import { Avatar, AvatarFallback, AvatarImage } from "@evoloop/shared/components/
 import { Button } from "@evoloop/shared/components/ui/button"
 import { TestReportCard } from "./Artifacts/TestReportCard"
 import { MessageContent } from "./MessageContent"
-import { ExecutionSteps } from "./ExecutionSteps"
+import { VoiceMessage } from "./VoiceMessage"
 import { SourcesFooter } from "./SourcesFooter"
 import { AgentProcess, AgentProcessStep } from "./AgentProcess"
 import { AnalysisResultMessage } from "./AnalysisResultMessage"
 import { useShowThinking } from "../UserSettings/AppearanceSettings"
+import { TTSButton } from "./TTSButton"
+import { useAutoSpeak, useTTS } from "@/hooks/useTTS"
+import { useEffect } from "react"
+
+// Convert StepItem (from backend steps_snapshot) to AgentProcessStep format
+function convertStepsToAgentProcess(steps: Array<{
+  id: number
+  name: string
+  status: string
+  type?: string
+  time?: string
+  details?: string
+}>): AgentProcessStep[] {
+  return steps.map((step) => {
+    const tool = step.name?.replace("Using ", "") || "unknown"
+    let input: any = null
+    
+    // Try to extract input from details (for historical records)
+    if (step.details) {
+      try {
+        const detailsJson = JSON.parse(step.details)
+        // If details has input field, use it
+        if (detailsJson.input) {
+          input = detailsJson.input
+        }
+        // Otherwise, try to extract key fields as input
+        else if (detailsJson.query || detailsJson.url || detailsJson.path || detailsJson.command) {
+          input = {
+            query: detailsJson.query,
+            url: detailsJson.url,
+            path: detailsJson.path,
+            command: detailsJson.command,
+            target: detailsJson.target,
+          }
+        }
+      } catch {
+        // Not JSON, keep input as null
+      }
+    }
+    
+    return {
+      id: step.id,
+      tool,
+      tool_name: step.name,
+      input,
+      output: step.details || "",
+      status: step.status as "success" | "failure" | "running" | "done" | "failed" | "cancelled",
+      duration: step.time ? parseFloat(step.time) * 1000 : undefined,
+      type: step.type as "node" | "tool" | "ai" | "skill" | undefined,
+    }
+  })
+}
 
 // Unified Tool Execution Section - combines real-time steps and historical snapshot
 function ToolExecutionSection({ msg }: { msg: Message }) {
@@ -49,8 +101,10 @@ function ToolExecutionSection({ msg }: { msg: Message }) {
 
   if (!hasRealtimeSteps && !hasSnapshot) return null
 
-  // Determine which steps to display
-  const displaySteps = hasRealtimeSteps ? msg.steps! : msg.steps_snapshot!
+  // Convert snapshot steps to AgentProcessStep format if needed
+  const displaySteps: AgentProcessStep[] = hasRealtimeSteps
+    ? msg.steps!
+    : convertStepsToAgentProcess(msg.steps_snapshot!)
   const isRealtime = hasRealtimeSteps
 
   // Calculate status counts
@@ -76,33 +130,37 @@ function ToolExecutionSection({ msg }: { msg: Message }) {
 
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen} className="w-full min-w-0">
-      <CollapsibleTrigger asChild>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50 flex items-center gap-2 w-full justify-start"
-        >
-          {icon}
-          <span className="font-medium">{statusText}</span>
-          {isOpen ? (
-            <ChevronDown className="h-3.5 w-3.5 ml-auto" />
-          ) : (
+      {isOpen ? (
+        <AgentProcess
+          steps={displaySteps}
+          isStreaming={isRealtime && displaySteps.some((s) => s.status === "running")}
+          header={
+            <CollapsibleTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 px-3 text-xs text-muted-foreground hover:text-foreground hover:bg-transparent flex items-center gap-2 w-full justify-start rounded-none"
+              >
+                {icon}
+                <span className="font-medium">{statusText}</span>
+                <ChevronDown className="h-3.5 w-3.5 ml-auto" />
+              </Button>
+            </CollapsibleTrigger>
+          }
+        />
+      ) : (
+        <CollapsibleTrigger asChild>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50 flex items-center gap-2 w-full justify-start"
+          >
+            {icon}
+            <span className="font-medium">{statusText}</span>
             <ChevronRight className="h-3.5 w-3.5 ml-auto" />
-          )}
-        </Button>
-      </CollapsibleTrigger>
-      <CollapsibleContent className="mt-1 min-w-0">
-        {isRealtime ? (
-          // Real-time steps use AgentProcess for richer display
-          <AgentProcess
-            steps={msg.steps!}
-            isStreaming={msg.steps!.some((s) => s.status === "running")}
-          />
-        ) : (
-          // Historical snapshot uses ExecutionSteps
-          <ExecutionSteps steps={msg.steps_snapshot as any} />
-        )}
-      </CollapsibleContent>
+          </Button>
+        </CollapsibleTrigger>
+      )}
     </Collapsible>
   )
 }
@@ -117,11 +175,31 @@ export interface Message {
   timestamp?: string // ISO timestamp from backend
   run_id?: string // Deep Linking
   parent_id?: number // Parent message ID for threading
+  node_source?: "chat" | "finish" | "worker" | "supervisor" | "aggregator" | string // 👈 Agent 节点来源，用于语音播报过滤
   references?: Array<{ // Persistent message references
     id: string
-    type: string // memory, file, knowledge, image
-    target_id: string // URL or path for images
+    type: string // memory, file, knowledge, image, audio
+    target_id: string // URL or path for images/audio
     target_name: string
+    metadata?: { // Additional metadata for audio, etc.
+      duration?: number
+      waveform?: number[]
+      transcript?: string
+      [key: string]: any
+    }
+  }>
+  attachments?: Array<{ // For voice messages and other attachments
+    id: string
+    type: string
+    url: string
+    name: string
+    metadata?: {
+      duration?: number
+      waveform?: number[]
+      transcript?: string
+      localPath?: string
+      [key: string]: any
+    }
   }>
   originalRole?: string // Kept for filtering
   steps_snapshot?: Array<{
@@ -137,6 +215,7 @@ export interface Message {
   steps?: AgentProcessStep[] // Tool execution steps
   tool_calls?: any[] // Tool calls for real-time matching
   has_file_operations?: boolean // Whether this message has associated file operations (for Rewind/Retry)
+  status?: "pending" | "streaming" | "completed" | "failed" // Message generation status
 }
 
 interface ChatMessageItemProps {
@@ -237,6 +316,20 @@ const ChatMessageItem = memo(
                     }
                   }
 
+                  // Check for voice message attachments
+                  const voiceAttachment = msg.attachments?.find(att => att.type === 'audio')
+                  if (voiceAttachment) {
+                    return (
+                      <VoiceMessage
+                        audioUrl={voiceAttachment.url}
+                        duration={voiceAttachment.metadata?.duration || 0}
+                        waveform={voiceAttachment.metadata?.waveform}
+                        transcript={voiceAttachment.metadata?.transcript || msg.content !== '[语音消息]' ? msg.content : undefined}
+                        isUser={msg.role === "human"}
+                      />
+                    )
+                  }
+
                   // Strip <think> tags for display if they were extracted above
                   let cleanContent = msg.content
                   if (!msg.thinking && msg.content.includes("<think>")) {
@@ -323,6 +416,11 @@ const ChatMessageItem = memo(
             >
               <Copy className="h-4 w-4" />
             </Button>
+
+            {/* TTS Button - For AI messages */}
+            {msg.role === "ai" && msg.content && (
+              <TTSButton text={msg.content} size="md" />
+            )}
 
             {/* Exposed Retry Button - Only for user messages */}
             {onRetry && msg.role === "human" && (
@@ -427,4 +525,56 @@ const ChatMessageItem = memo(
 
 ChatMessageItem.displayName = "ChatMessageItem"
 
-export { ChatMessageItem }
+// 👇 全局 Set，用于记录已播报的消息 ID（跨组件、跨会话）
+const globalSpokenMessageIds = new Set<string | number>()
+
+// 👇 记录页面加载时间，只播报加载后收到的消息
+const pageLoadTime = Date.now()
+
+// Wrapper component with auto-speak functionality
+function SmartChatMessageItem(props: ChatMessageItemProps) {
+  const { msg } = props
+  const { autoSpeak } = useAutoSpeak()
+  const { speak, isSpeaking } = useTTS()
+  
+  // Auto-speak AI messages when they complete
+  // 👇 只播报 chat 和 finish 节点的消息，过滤掉 worker/supervisor 的技术性内容
+  useEffect(() => {
+    // 👇 检查是否已经播报过这条消息（全局去重）
+    if (globalSpokenMessageIds.has(msg.id)) {
+      return
+    }
+    
+    // 👇 检查消息是否在页面加载前就已存在（历史消息不播报）
+    // 如果消息没有 timestamp 或者 timestamp 早于页面加载时间，认为是历史消息
+    const messageTime = msg.timestamp ? new Date(msg.timestamp).getTime() : 0
+    if (messageTime > 0 && messageTime < pageLoadTime) {
+      // 标记为已播报（跳过）
+      globalSpokenMessageIds.add(msg.id)
+      return
+    }
+    
+    if (
+      autoSpeak && 
+      msg.role === "ai" && 
+      msg.content && 
+      (!msg.status || msg.status === "completed") &&
+      !isSpeaking &&
+      // 只播报 chat 和 finish 节点的消息
+      (msg.node_source === "chat" || msg.node_source === "finish" || !msg.node_source)
+    ) {
+      // Small delay to not interrupt the user
+      const timer = setTimeout(() => {
+        speak(msg.content)
+        // 标记为已播报
+        globalSpokenMessageIds.add(msg.id)
+      }, 500)
+      
+      return () => clearTimeout(timer)
+    }
+  }, [autoSpeak, msg.role, msg.content, msg.status, isSpeaking, speak, msg.node_source, msg.id, msg.timestamp])
+  
+  return <ChatMessageItem {...props} />
+}
+
+export { ChatMessageItem, SmartChatMessageItem }

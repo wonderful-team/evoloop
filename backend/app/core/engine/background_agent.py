@@ -243,11 +243,17 @@ async def run_agent_background(thread_id: str, inputs: dict[str, Any]):
             # Phase 4 Autonomy: Persist the subconscious Context Pool to cache before exiting/suspending
             await ContextManager.save_to_redis(thread_id)
 
-            # Snapshot & Finish
+            # Snapshot & Finish - Save remaining steps to the final message
+            # Note: Most steps have already been attributed to intermediate messages
+            # via _attribute_pending_steps_to_previous_message. Only the steps
+            # since the last AI message need to be saved here.
             activity_data = await activity_monitor.get_activity(thread_id)
             steps_snapshot = activity_data.get("steps", [])
             if steps_snapshot:
-                await db_callback.snapshot_steps_to_last_message(steps_snapshot)
+                # Get the remaining steps that haven't been attributed yet
+                remaining_steps = steps_snapshot[db_callback._last_attributed_step_index:]
+                if remaining_steps:
+                    await db_callback.snapshot_steps_to_last_message(remaining_steps)
 
             # [PERFORMANCE FIX] Optimized delay for message persistence:
             # - EMBEDDED_MODE: snapshot_steps_to_last_message already awaits task completion (result.get())

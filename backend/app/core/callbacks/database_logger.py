@@ -25,6 +25,10 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
     """
     Callback Handler that logs user-friendly messages to the database.
     Acts as a View Layer sanitizer.
+    
+    Implements "Real-time Attribution" (方案 A): Steps are attributed to the 
+    AI message that was active when they were executed, rather than all 
+    accumulating on the final summary message.
     """
 
     def __init__(self, thread_id: str, project_id: int, start_sequence: int = 0, run_id: str = None):
@@ -33,6 +37,7 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
         self.run_id = run_id  # Associate messages with specific execution runs
         self._sequence_counter = start_sequence  # Track message order within thread
         self._tool_store = tool_state_store
+        self._last_attributed_step_index = 0  # Track which steps have been attributed
 
     async def on_llm_new_token(self, token: str, **kwargs: Any) -> Any:
         pass
@@ -96,6 +101,26 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
                 thinking = think_match.group(1).strip()
                 content = content.replace(think_match.group(0), "").strip()
 
+            # 1.1 Parse Audit (<audit>) - Implementation of structured audit separation
+            # We move audit results to the 'thinking' field so they are stored but not shown as main chat content.
+            audit_match = re.search(r"<audit>(.*?)</audit>", content, re.DOTALL | re.IGNORECASE)
+            if audit_match:
+                audit_content = audit_match.group(1).strip()
+                # Append to 'thinking' if thinking already exists (e.g. from <think> tag)
+                if thinking:
+                    thinking = f"{thinking}\n\n--- Audit ---\n{audit_content}"
+                else:
+                    thinking = audit_content
+                content = content.replace(audit_match.group(0), "").strip()
+
+            # 1.2 Parse Report (<report>) - Extract report as primary content
+            report_match = re.search(r"<report>(.*?)</report>", content, re.DOTALL | re.IGNORECASE)
+            if report_match:
+                content = report_match.group(1).strip()
+            
+            # 1.3 Cleanup: Remove any other technical XML tags (like <thought>, <status>, etc.)
+            content = re.sub(r"<[^>]+>", "", content).strip()
+
             # 1.5 Filter out technical 'SESSION COMPLETE' messages from chat history.
             # These are critical for Imitation Learning but should not be shown to users.
             if content and (content.strip().startswith("✅ SESSION COMPLETE") or content.strip().startswith("❌ SESSION COMPLETE")):
@@ -135,11 +160,22 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
 
             # Persist to DB
             tool_calls = getattr(message, "tool_calls", None)
+            
+            # 👇 提取 node_source 用于语音播报过滤
+            node_source = None
+            if hasattr(message, "metadata") and message.metadata:
+                node_source = message.metadata.get("node_source")
+            
+            # Before saving new AI message, attribute pending steps to the previous AI message
+            # This implements "Real-time Attribution" (方案 A)
+            await self._attribute_pending_steps_to_previous_message()
+            
             await self._save_log(
                 role="ai",  # Normalized role value
                 content=content,
                 thinking=thinking,
                 tool_calls=tool_calls,
+                node_source=node_source,  # 👈 传递节点来源
             )
 
         except Exception:
@@ -237,6 +273,7 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
         references: list[dict] | None = None,
         tool_calls: list | None = None,
         action_type: str = "text",
+        node_source: str | None = None,  # 👈 添加节点来源参数
     ):
         # Sanitize content for PostgreSQL (remove NUL bytes)
         if content:
@@ -309,6 +346,7 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
                     "type": frontend_type,
                     "action_type": action_type,
                     "tool_calls": tool_calls,
+                    "node_source": node_source,  # 👈 添加节点来源，用于前端语音播报过滤
                 }
 
                 # Fire and forget
@@ -330,6 +368,46 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
             logging.getLogger(__name__).error(f"CRITICAL: Failed to publish message event or offload to background: {e}", exc_info=True)
             # We don't re-raise to avoid killing the agent execution loop,
             # but this error will now be visible in logs.
+
+    async def _attribute_pending_steps_to_previous_message(self):
+        """
+        Attribute pending steps from Activity Monitor to the previous AI message.
+        
+        This implements "Real-time Attribution" (方案 A): Instead of accumulating
+        all steps on the final summary message, steps are attributed to the AI 
+        message that was active when they were executed.
+        """
+        if not self.thread_id:
+            return
+        
+        try:
+            from app.core.monitoring.activity import activity_monitor
+            
+            # Get current activity state including all steps
+            activity_data = await activity_monitor.get_activity(self.thread_id)
+            all_steps = activity_data.get("steps", [])
+            
+            # Find new steps since last attribution
+            new_steps = all_steps[self._last_attributed_step_index:]
+            
+            if new_steps:
+                # Update our tracker before sending to Celery
+                self._last_attributed_step_index = len(all_steps)
+                
+                # Send to background task to attribute to previous message
+                # Uses the same task as final snapshot, but now it appends instead of overwrites
+                celery_app.send_task(
+                    "engine_snapshot_steps",
+                    kwargs={
+                        "thread_id": self.thread_id,
+                        "project_id": self.project_id,
+                        "run_id": self.run_id,
+                        "steps": new_steps
+                    }
+                )
+                logger.debug(f"[DatabaseCallback] Attributed {len(new_steps)} steps to previous message")
+        except Exception as e:
+            logger.warning(f"[DatabaseCallback] Failed to attribute pending steps: {e}")
 
     async def snapshot_steps_to_last_message(self, steps: list):
         """

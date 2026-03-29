@@ -52,6 +52,26 @@ export type BindClientRequest = {
     client_id: string;
 };
 
+export type Body_audio_text_to_speech_stream = {
+    text: string;
+    voice_id?: string;
+    speed?: number;
+    format?: string;
+};
+
+export type Body_audio_transcribe_audio = {
+    file: (Blob | File);
+    language?: string;
+    model?: string;
+    prompt?: (string | null);
+    provider?: (string | null);
+};
+
+export type Body_audio_transcribe_stream = {
+    file: (Blob | File);
+    language?: string;
+};
+
 export type Body_files_upload_file = {
     file: (Blob | File);
 };
@@ -126,6 +146,7 @@ export type ChatRequest = {
     attachments?: (Array<{
     [key: string]: unknown;
 }> | null);
+    skill_id?: (number | null);
     revert_files?: boolean;
 };
 
@@ -511,6 +532,9 @@ export type ReferenceItem = {
     type: string;
     target_id: string;
     target_name: string;
+    metadata?: ({
+    [key: string]: unknown;
+} | null);
 };
 
 export type RenameRequest = {
@@ -826,6 +850,34 @@ export type ToolStep = {
     duration?: (number | null);
 };
 
+/**
+ * 语音识别响应
+ */
+export type TranscriptionResponse = {
+    text: string;
+    duration: number;
+    language: string;
+    confidence?: (number | null);
+};
+
+/**
+ * 语音合成请求
+ */
+export type TTSRequest = {
+    text: string;
+    voice_id?: string;
+    speed?: number;
+    format?: string;
+};
+
+/**
+ * 语音合成响应
+ */
+export type TTSResponse = {
+    url: string;
+    duration?: (number | null);
+};
+
 export type UpdateSkillRequest = {
     name?: (string | null);
     description?: (string | null);
@@ -987,6 +1039,40 @@ export type AgentWebhookEndpointData = {
 };
 
 export type AgentWebhookEndpointResponse = (unknown);
+
+export type AudioListVoicesResponse = (unknown);
+
+export type AudioTextToSpeechData = {
+    requestBody: TTSRequest;
+};
+
+export type AudioTextToSpeechResponse = (TTSResponse);
+
+export type AudioTextToSpeechStreamData = {
+    formData: Body_audio_text_to_speech_stream;
+};
+
+export type AudioTextToSpeechStreamResponse = (unknown);
+
+export type AudioGetTtsFileData = {
+    filename: string;
+};
+
+export type AudioGetTtsFileResponse = (unknown);
+
+export type AudioListSttProvidersResponse = (unknown);
+
+export type AudioTranscribeAudioData = {
+    formData: Body_audio_transcribe_audio;
+};
+
+export type AudioTranscribeAudioResponse = (TranscriptionResponse);
+
+export type AudioTranscribeStreamData = {
+    formData: Body_audio_transcribe_stream;
+};
+
+export type AudioTranscribeStreamResponse = (unknown);
 
 export type AuthGetCaptchaConfigResponse = (unknown);
 
@@ -1850,8 +1936,6 @@ export type SystemApplyLlmConfigResponse = (unknown);
 export type SystemResetKnowledgeBaseResponse = (unknown);
 
 export type SystemGetCloudStatusResponse = (unknown);
-
-export type SystemTraceCloudLinkResponse = (unknown);
 
 export type SystemGetAvailableLlmModelsResponse = (unknown);
 

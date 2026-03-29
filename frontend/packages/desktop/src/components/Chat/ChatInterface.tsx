@@ -32,7 +32,6 @@ import { MessageList } from "./MessageList"
 import { ChatSidebar, type Thread } from "./ChatSidebar"
 import { ContextPanel } from "./ContextPanel"
 import { BreadcrumbStatus } from "./BreadcrumbStatus"
-import { SessionOutcomeBanner } from "./SessionOutcomeBanner"
 
 import { DiffDrawer } from "./DiffDrawer"
 import { RewindConfirmDialog } from "./RewindConfirmDialog"
@@ -56,7 +55,6 @@ export function ChatInterface() {
   // --- Store State (Granular Selectors to avoid full re-renders) ---
   const activeThreadId = useChatStore((s) => s.threadId)
   const messages = useChatStore((s) => s.messages)
-  const finalOutcome = useChatStore((s) => s.finalOutcome)
   const status = useChatStore((s) => s.status)
   const steps = useChatStore((s) => s.steps)
   const streamedContent = useChatStore((s) => s.streamedContent)
@@ -81,7 +79,7 @@ export function ChatInterface() {
     return !isGlobalMode
   })
   const scrollRef = useRef<HTMLDivElement>(null)
-  const chatInputRef = useRef<ChatInputAreaHandle>(null)
+  const chatInputRef = useRef<ChatInputAreaHandle | null>(null)
 
   // Smart Scroll State
   const [isUserScrolled, setIsUserScrolled] = useState(false)
@@ -493,7 +491,6 @@ export function ChatInterface() {
               data-tour="chat-messages"
             >
               <div className="space-y-6 px-4 sm:px-6 lg:px-8 pb-1 pt-4 min-w-0">
-                {status === "idle" && <SessionOutcomeBanner outcome={finalOutcome} />}
                 <MessageList
                   messages={messages}
                   isAgentWorking={status === "running" || status === "interrupted" || status === "summarizing"}
@@ -568,12 +565,13 @@ export function ChatInterface() {
               onSend={handleSendMessage}
               onStop={stopAgent}
               isAgentWorking={status === "running" || status === "summarizing"}
-              isSending={false} // Store handles optimistic, no separate loading state needed here
-              isStopPending={false} // Immediate
+              isSending={false}
+              isStopPending={false}
               currentProject={currentProject}
               activeThreadId={activeThreadId || undefined}
               disabled={status === "interrupted"}
               isGlobalMode={isGlobalMode}
+
             />
           </div>
         </ResizablePanel>

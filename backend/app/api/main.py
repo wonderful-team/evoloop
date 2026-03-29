@@ -2,6 +2,7 @@ from fastapi import APIRouter
 
 from app.api.routes import (
     agent,
+    audio,
     auth_proxy,
     brain,
     conversations,
@@ -75,3 +76,6 @@ api_router.include_router(brain.router, prefix="/brain", tags=["brain"])
 
 # Ghost Text (Phase 4: Inline Code Completion)
 api_router.include_router(ghost_text.router, tags=["ghost-text"])
+
+# Audio Processing (Voice Messages)
+api_router.include_router(audio.router, prefix="/audio", tags=["audio"])

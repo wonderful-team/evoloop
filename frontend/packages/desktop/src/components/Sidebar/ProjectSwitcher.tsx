@@ -71,12 +71,35 @@ function getIndexingStatusDisplay(project: Project, t: (key: string) => string) 
   }
 }
 
-export function ProjectSwitcher() {
+interface ProjectSwitcherProps {
+  /** Control dialog open state externally */
+  open?: boolean
+  /** Callback when open state changes */
+  onOpenChange?: (open: boolean) => void
+  /** Callback when a project is selected */
+  onSelect?: (project: Project) => void
+}
+
+export function ProjectSwitcher({ 
+  open: controlledOpen, 
+  onOpenChange,
+  onSelect 
+}: ProjectSwitcherProps = {}) {
   const { t } = useTranslation()
   const { projects, currentProject, setProject, fetchProjects, isGlobalMode } =
     useProjectStore()
-  const [open, setOpen] = React.useState(false)
+  const [internalOpen, setInternalOpen] = React.useState(false)
   const [searchQuery, setSearchQuery] = React.useState("")
+
+  // Support both controlled and uncontrolled modes
+  const isControlled = controlledOpen !== undefined
+  const open = isControlled ? controlledOpen : internalOpen
+  const setOpen = (value: boolean) => {
+    if (!isControlled) {
+      setInternalOpen(value)
+    }
+    onOpenChange?.(value)
+  }
 
   const navigate = useNavigate()
 
@@ -97,6 +120,14 @@ export function ProjectSwitcher() {
   )
 
   const handleSelect = (project: Project) => {
+    // Call custom onSelect if provided
+    if (onSelect) {
+      onSelect(project)
+      setOpen(false)
+      return
+    }
+    
+    // Default behavior: set project in store
     // All projects from 'switchable' filter can be selected
     // (global project is also allowed)
     setProject(project)
@@ -105,78 +136,81 @@ export function ProjectSwitcher() {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button
-          variant="outline"
-          role="combobox"
-          aria-expanded={open}
-          className="w-full justify-between h-10 px-3 bg-background"
-        >
-          <div className="flex items-center gap-2 overflow-hidden">
-            <div className="flex aspect-square size-5 items-center justify-center rounded bg-primary/10 text-primary">
-              {isGlobalMode ? (
-                <Globe className="size-3.5" />
-              ) : (
-                <Folder className="size-3.5" />
-              )}
-            </div>
-            <span className="truncate font-medium">
-              {isGlobalMode
-                ? t("projectSwitcher.global", "全局")
-                : currentProject?.name || t("projectSwitcher.select")}
-            </span>
-            {(() => {
-              // Don't show status badges for global mode
-              if (isGlobalMode) return null
+      {/* Only show trigger button in uncontrolled mode (Sidebar usage) */}
+      {!isControlled && (
+        <DialogTrigger asChild>
+          <Button
+            variant="outline"
+            role="combobox"
+            aria-expanded={open}
+            className="w-full justify-between h-10 px-3 bg-background"
+          >
+            <div className="flex items-center gap-2 overflow-hidden">
+              <div className="flex aspect-square size-5 items-center justify-center rounded bg-primary/10 text-primary">
+                {isGlobalMode ? (
+                  <Globe className="size-3.5" />
+                ) : (
+                  <Folder className="size-3.5" />
+                )}
+              </div>
+              <span className="truncate font-medium">
+                {isGlobalMode
+                  ? t("projectSwitcher.global", "全局")
+                  : currentProject?.name || t("projectSwitcher.select")}
+              </span>
+              {(() => {
+                // Don't show status badges for global mode
+                if (isGlobalMode) return null
 
-              const idxStatus = currentProject ? getIndexingStatusDisplay(currentProject, t) : null
-              if (!currentProject?.exists_locally && currentProject?.local_status === "DISCONNECTED") {
-                return (
-                  <Badge
-                    variant="outline"
-                    className="ml-2 h-5 text-[10px] px-1.5 font-normal text-muted-foreground border-muted hidden sm:inline-flex gap-1"
-                  >
-                    <Unlink className="h-3 w-3" /> {t("projectSwitcher.disconnected", "离线")}
-                  </Badge>
-                )
-              } else if (idxStatus) {
-                return (
-                  <Badge
-                    variant="secondary"
-                    className={cn(
-                      "ml-2 h-5 text-[10px] px-1.5 font-normal hidden sm:inline-flex gap-1",
-                      idxStatus.className
-                    )}
-                  >
-                    {idxStatus.icon} {idxStatus.text}
-                  </Badge>
-                )
-              } else if (currentProject?.summarization_status === "running" ||
-                currentProject?.summarization_status === "summarizing") {
-                return (
-                  <Badge
-                    variant="secondary"
-                    className="ml-2 h-5 text-[10px] px-1.5 font-normal bg-purple-100 text-purple-700 hidden sm:inline-flex gap-1"
-                  >
-                    <ListTodo className="h-3 w-3 animate-pulse" /> {t("projectSwitcher.analyzing")}
-                  </Badge>
-                )
-              } else if (currentProject?.status_text) {
-                return (
-                  <Badge
-                    variant="secondary"
-                    className="ml-2 h-5 text-[10px] px-1.5 font-normal text-muted-foreground hidden sm:inline-flex"
-                  >
-                    {currentProject.status_text}
-                  </Badge>
-                )
-              }
-              return null
-            })()}
-          </div>
-          <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
-        </Button>
-      </DialogTrigger>
+                const idxStatus = currentProject ? getIndexingStatusDisplay(currentProject, t) : null
+                if (!currentProject?.exists_locally && currentProject?.local_status === "DISCONNECTED") {
+                  return (
+                    <Badge
+                      variant="outline"
+                      className="ml-2 h-5 text-[10px] px-1.5 font-normal text-muted-foreground border-muted hidden sm:inline-flex gap-1"
+                    >
+                      <Unlink className="h-3 w-3" /> {t("projectSwitcher.disconnected", "离线")}
+                    </Badge>
+                  )
+                } else if (idxStatus) {
+                  return (
+                    <Badge
+                      variant="secondary"
+                      className={cn(
+                        "ml-2 h-5 text-[10px] px-1.5 font-normal hidden sm:inline-flex gap-1",
+                        idxStatus.className
+                      )}
+                    >
+                      {idxStatus.icon} {idxStatus.text}
+                    </Badge>
+                  )
+                } else if (currentProject?.summarization_status === "running" ||
+                  currentProject?.summarization_status === "summarizing") {
+                  return (
+                    <Badge
+                      variant="secondary"
+                      className="ml-2 h-5 text-[10px] px-1.5 font-normal bg-purple-100 text-purple-700 hidden sm:inline-flex gap-1"
+                    >
+                      <ListTodo className="h-3 w-3 animate-pulse" /> {t("projectSwitcher.analyzing")}
+                    </Badge>
+                  )
+                } else if (currentProject?.status_text) {
+                  return (
+                    <Badge
+                      variant="secondary"
+                      className="ml-2 h-5 text-[10px] px-1.5 font-normal text-muted-foreground hidden sm:inline-flex"
+                    >
+                      {currentProject.status_text}
+                    </Badge>
+                  )
+                }
+                return null
+              })()}
+            </div>
+            <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+          </Button>
+        </DialogTrigger>
+      )}
       <DialogContent className="sm:max-w-4xl max-h-[80vh] flex flex-col p-0 gap-0 overflow-hidden">
         <div className="p-4 border-b">
           <DialogHeader className="mb-4">

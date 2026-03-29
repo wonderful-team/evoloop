@@ -443,6 +443,9 @@ async def create_project(req: CreateProjectRequest, _token: TokenDep):
         if res.get("code") != 0:
             logger.warning(f"Failed to sync project creation to Member Center: {res}")
 
+        # Invalidate cache to ensure fresh data
+        evocloud_manager.invalidate_projects_cache()
+
         # Re-scan to get ID/Color
         projects = await evocloud_manager.scan_projects()
         new_proj = next((p for p in projects if p["name"] == req.name), None)
@@ -495,6 +498,8 @@ async def delete_project(project_id: int):
     try:
         res = await evocloud_manager.api.delete_project(project_id)
         if res.get("code") == 0:
+            # Invalidate cache to ensure fresh data on next request
+            evocloud_manager.invalidate_projects_cache()
             return {"status": "success", "id": project_id}
         else:
             raise HTTPException(500, f"Failed to delete project: {res.get('message')}")

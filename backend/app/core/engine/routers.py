@@ -80,6 +80,9 @@ def route_supervisor(state: AgentState) -> str | list[Send]:
             if subtask.get("dependencies"):
                 subtask_parameters["dependencies"] = subtask["dependencies"]
             
+            # Inherit historical context from parent task's execution_ticket (if available)
+            parent_ticket = blackboard.get("ticket", {})
+            
             ticket = {
                 "ticket_type": "subtask",
                 "topic": subtask["intent"],
@@ -88,6 +91,9 @@ def route_supervisor(state: AgentState) -> str | list[Send]:
                 "agent_config": agent_config,
                 "acceptance_criteria": subtask_acceptance_criteria if subtask_acceptance_criteria else None,
                 "parameters": subtask_parameters if subtask_parameters else None,
+                # Inherit historical context from parent task for continuity
+                "historical_context": parent_ticket.get("historical_context") if parent_ticket else None,
+                "referenced_tech": parent_ticket.get("referenced_tech") if parent_ticket else None,
             }
 
             sends.append(Send(RoutingTarget.WORKER, {

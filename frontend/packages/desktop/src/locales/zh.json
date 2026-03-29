@@ -504,7 +504,10 @@
       "path": "路径",
       "show": "详情",
       "executing": "执行中: {{tool}}...",
-      "target": "目标"
+      "target": "目标",
+      "param": "参数",
+      "output": "输出",
+      "initializing": "初始化中..."
     },
     "sidebar": {
       "tabChats": "对话",
@@ -514,7 +517,7 @@
       "untitled": "未命名对话",
       "tabFiles": "文件",
       "projectFiles": "项目文件",
-      "agentChanges": "Agent 变更",
+      "agentChanges": "文件变更",
       "noProject": "未选择项目",
       "searchPlaceholder": "搜索对话...",
       "copiedPath": "已复制路径: {{path}}",
@@ -844,7 +847,8 @@
     "status": {
       "indexing": "索引中",
       "analyzing": "分析中",
-      "indexed": "已索引"
+      "indexed": "已索引",
+      "indexPending": "待索引"
     },
     "overview": {
       "title": "项目概览",
@@ -1157,6 +1161,7 @@
     "unknown": "未知",
     "tasks": "任务",
     "indexing": "索引中",
+    "indexPending": "待索引",
     "showing": "显示 {{count}} 个项目",
     "desktopSearchPlaceholder": "按名称或描述搜索项目...",
     "never": "从未",
@@ -1169,7 +1174,6 @@
     "manage": "管理",
     "indexed": "已索引",
     "indexFailed": "索引失败",
-    "indexPending": "待索引",
     "lastIndexed": "上次索引: {{time}}"
   },
   "pending": {

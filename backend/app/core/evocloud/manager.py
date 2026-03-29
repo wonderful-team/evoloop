@@ -18,6 +18,10 @@ class EvoCloudManager:
     """
     Unified Facade for EvoCloud Core Module.
     Manages API Client and WebSocket Link lifecycles using Loop-Bound mechanisms.
+    
+    Optimizations:
+    - Project list caching with TTL to reduce API calls
+    - Async background refresh for cache warming
     """
 
     def __init__(self):
@@ -27,6 +31,12 @@ class EvoCloudManager:
         self._link_pool: LoopBoundResource[EvoCloudWebSocketLink] | None = None
         self._command_handler = None
         self._event_handler = None
+        
+        # Project cache with TTL
+        self._projects_cache: list[dict] | None = None
+        self._projects_cache_time: float = 0.0
+        self._projects_cache_ttl: int = 60  # 60 seconds TTL
+        self._projects_cache_lock = False  # Simple lock for cache refresh
 
     def initialize(self, config: EvoCloudConfig | None = None) -> None:
         """
@@ -102,6 +112,37 @@ class EvoCloudManager:
         self._event_handler = handler
         if self._initialized:
             self.link.set_event_handler(handler)
+
+    # --- Cache Management ---
+
+    def invalidate_projects_cache(self) -> None:
+        """Invalidate the projects cache. Call this when projects are modified."""
+        self._projects_cache = None
+        self._projects_cache_time = 0.0
+        logger.debug("[EvoCloud] Projects cache invalidated")
+
+    async def _fetch_projects_from_api(self) -> list[dict]:
+        """Internal method to fetch projects from API."""
+        import os
+        resp = await self.api.get_projects(page=1, page_size=100)
+        if resp.get("code") != 0:
+            logger.error(f"Failed to fetch projects from API: {resp.get('message')}")
+            return []
+
+        api_projects = resp.get("data", {}).get("list", [])
+        projects = []
+        for p in api_projects:
+            path = p.get("external_path", "")
+            projects.append({
+                "id": p.get("project_id"),
+                "name": p.get("project_name", "Unknown"),
+                "description": p.get("project_desc", ""),
+                "path": path,
+                "exists_locally": os.path.exists(path) if path else False,
+                "status_text": p.get("status_text", ""),
+                "owner": p.get("owner_member_name", "")
+            })
+        return projects
 
     # --- Proxy Methods (Common Actions) ---
 
@@ -198,34 +239,44 @@ class EvoCloudManager:
                 await self.api.upload_log(target_device_id, thread_id, log_type, content, name=name, command_id=command_id, project_id=project_id)
 
     async def scan_projects(self) -> list[dict]:
-        """Fetch projects from EvoCloud API."""
-        import os
+        """
+        Fetch projects from EvoCloud API with caching.
+        
+        Uses a 60-second TTL cache to avoid repeated API calls.
+        Cache is invalidated when projects are modified.
+        """
+        now = time.time()
+        
+        # Check if cache is valid
+        if (self._projects_cache is not None and 
+            (now - self._projects_cache_time) < self._projects_cache_ttl):
+            logger.debug(f"[EvoCloud] Using cached projects ({len(self._projects_cache)} items, "
+                        f"age: {now - self._projects_cache_time:.1f}s)")
+            return self._projects_cache.copy()  # Return copy to prevent mutation
+        
+        # Fetch fresh data
         try:
-            resp = await self.api.get_projects(page=1, page_size=100)
-            if resp.get("code") != 0:
-                logger.error(f"Failed to fetch projects from API: {resp.get('message')}")
-                return []
-
-            api_projects = resp.get("data", {}).get("list", [])
-            projects = []
-            for p in api_projects:
-                path = p.get("external_path", "")
-                projects.append({
-                    "id": p.get("project_id"),
-                    "name": p.get("project_name", "Unknown"),
-                    "description": p.get("project_desc", ""),
-                    "path": path,
-                    "exists_locally": os.path.exists(path) if path else False,
-                    "status_text": p.get("status_text", ""),
-                    "owner": p.get("owner_member_name", "")
-                })
-            return projects
+            start_time = time.time()
+            projects = await self._fetch_projects_from_api()
+            fetch_time = (time.time() - start_time) * 1000
+            
+            # Update cache
+            self._projects_cache = projects
+            self._projects_cache_time = time.time()
+            
+            logger.info(f"[EvoCloud] Fetched {len(projects)} projects from API in {fetch_time:.1f}ms")
+            return projects.copy()
+            
         except Exception as e:
             logger.error(f"scan_projects failed: {e}")
+            # Return stale cache if available, otherwise empty list
+            if self._projects_cache is not None:
+                logger.warning("[EvoCloud] Returning stale cache due to API error")
+                return self._projects_cache.copy()
             return []
 
     async def get_project_by_id(self, project_id: int) -> dict | None:
-        """Get project details by numeric ID."""
+        """Get project details by numeric ID using cached data."""
         projects = await self.scan_projects()
         for p in projects:
             if p.get("id") == project_id:

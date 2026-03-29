@@ -107,6 +107,7 @@ class SupervisorNode:
             max_steps=settings.SUPERVISOR_AGENT_MAX_STEPS,
             name="Supervisor",
             temperature=0.2,  # Balanced: strict tool calling + natural clarification
+            node_source="supervisor",  # 👈 标记为 supervisor 节点
         )
 
         # Increment logical iteration counter

@@ -1,4 +1,4 @@
-import { Play, XCircle, CheckCircle2, MessageCircleQuestion, Ban } from "lucide-react"
+import { Play, XCircle, CheckCircle2, MessageCircleQuestion, Ban, FolderGit2 } from "lucide-react"
 import { useState } from "react"
 import { MessageContent } from "./MessageContent"
 import { useTranslation } from "react-i18next"
@@ -8,14 +8,22 @@ import { Textarea } from "@evoloop/shared/components/ui/textarea"
 import { RadioGroup, RadioGroupItem } from "@evoloop/shared/components/ui/radio-group"
 import { Label } from "@evoloop/shared/components/ui/label"
 import { useChatStore } from "@/stores/chatStore"
+import { useProjectStore, type Project } from "@/stores/projectStore"
+import { ProjectSwitcher } from "@/components/Sidebar/ProjectSwitcher"
 
 export interface HumanRequestCardProps {
     request: {
         id: string
-        type: "text" | "choice" | "confirmation" | "approval" | "text_input" | "confirm"
+        type: "text" | "choice" | "confirmation" | "approval" | "text_input" | "confirm" | "project_switch"
         prompt: string
         options?: string[]
         context?: string
+        payload?: {
+            allow_global?: boolean
+            suggested_project_id?: number
+            show_project_list?: boolean
+            temporary?: boolean
+        }
     }
 }
 
@@ -23,13 +31,45 @@ export function HumanRequestCard({ request }: HumanRequestCardProps) {
     const { t } = useTranslation()
     const resumeAgent = useChatStore((s) => s.resumeAgent)
     const cancelHumanRequest = useChatStore((s) => s.cancelHumanRequest)
+    const setProject = useProjectStore((s) => s.setProject)
     const [input, setInput] = useState("")
     const [isSubmitting, setIsSubmitting] = useState(false)
+    
+    // Project switch state
+    const [showProjectSwitcher, setShowProjectSwitcher] = useState(false)
+    const [selectedProject, setSelectedProject] = useState<Project | null>(null)
 
     const handleResponse = async (response: string) => {
         setIsSubmitting(true)
         try {
             await resumeAgent(response)
+        } finally {
+            setIsSubmitting(false)
+        }
+    }
+    
+    const handleProjectSelect = async (project: Project) => {
+        setSelectedProject(project)
+        setShowProjectSwitcher(false)
+        
+        setIsSubmitting(true)
+        try {
+            // Check if this is a temporary project switch (Scheme C)
+            const isTemporary = request.payload?.temporary === true
+            
+            if (isTemporary) {
+                // Scheme C: Pass project info via JSON
+                const tempContext = {
+                    type: "temp_project",
+                    project_id: project.id,
+                    project_name: project.name,
+                }
+                await resumeAgent(JSON.stringify(tempContext))
+            } else {
+                // Scheme A: Full project switch - set project in store and pass project_id
+                setProject(project)
+                await resumeAgent(String(project.id))
+            }
         } finally {
             setIsSubmitting(false)
         }
@@ -89,6 +129,43 @@ export function HumanRequestCard({ request }: HumanRequestCardProps) {
                         ))}
                     </RadioGroup>
                 )}
+                
+                {/* Project Switch Input */}
+                {request.type === "project_switch" && (
+                    <div className="space-y-3">
+                        {!selectedProject ? (
+                            <>
+                                <Button
+                                    variant="outline"
+                                    onClick={() => setShowProjectSwitcher(true)}
+                                    className="w-full justify-start gap-2"
+                                    disabled={isSubmitting}
+                                >
+                                    <FolderGit2 className="h-4 w-4" />
+                                    {t("chat.interrupted.selectProject", "Select Project")}
+                                </Button>
+                                {/* External ProjectSwitcher Dialog */}
+                                <ProjectSwitcher 
+                                    open={showProjectSwitcher}
+                                    onOpenChange={setShowProjectSwitcher}
+                                    onSelect={handleProjectSelect}
+                                />
+                            </>
+                        ) : (
+                            <div className="p-3 rounded-md border bg-primary/5 border-primary/20">
+                                <p className="text-xs text-muted-foreground mb-1">
+                                    {t("chat.interrupted.projectSelected", "Selected project")}:
+                                </p>
+                                <p className="font-medium text-sm">{selectedProject.name}</p>
+                                {selectedProject.path && (
+                                    <p className="text-xs text-muted-foreground truncate">
+                                        {selectedProject.path}
+                                    </p>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                )}
             </CardContent>
 
             <CardFooter className="flex justify-end gap-2 pt-0">
@@ -139,6 +216,8 @@ export function HumanRequestCard({ request }: HumanRequestCardProps) {
                         </Button>
                     </>
                 )}
+                
+                {/* Project Switch - No extra button needed, auto-submits on selection */}
             </CardFooter>
         </Card>
     )

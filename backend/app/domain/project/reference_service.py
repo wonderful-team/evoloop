@@ -91,6 +91,20 @@ class ReferenceService:
                 })
                 reference_notes.append(f"Audio Attachment: {att_name}")
 
+            # 5. Skill Attachments
+            elif att_type == "skill":
+                metadata = att.get("metadata", {})
+                skill_id = metadata.get("skill_id") or att_id
+                skill_name = metadata.get("skill_name") or att_name
+                # Add skill as a reference note for the LLM
+                reference_notes.append(f"Skill: {skill_name} (ID: {skill_id})")
+                # Also add to quotes data for template rendering
+                quotes_data.append({
+                    "type": "Skill",
+                    "name": skill_name,
+                    "content": f"Using learned skill: {skill_name}"
+                })
+
             else:
                 reference_notes.append(f"Attachment ({att_type}): {att_name}")
         

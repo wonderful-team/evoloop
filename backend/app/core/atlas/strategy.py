@@ -138,3 +138,23 @@ class AtlasStrategyStore:
         except Exception as e:
             logger.error(f"Failed to delete strategy for {bundle_id}: {e}")
             return False
+
+    @classmethod
+    async def init_default_strategies(cls):
+        """Initialize default strategies for common apps."""
+        logger.info("[AtlasStrategy] Initializing default strategies...")
+        # Common apps with known stable infrastructure
+        defaults = [
+            AppStrategy(
+                bundle_id="com.tencent.xinWeChat",
+                platform="macos",
+                hints={"has_search_bar": True, "search_bar_location": "top"}
+            ),
+            AppStrategy(
+                bundle_id="com.apple.Safari",
+                platform="macos",
+                hints={"has_search_bar": True}
+            )
+        ]
+        for s in defaults:
+            await cls.save_strategy(s)

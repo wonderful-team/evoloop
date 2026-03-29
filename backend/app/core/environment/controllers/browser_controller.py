@@ -424,8 +424,50 @@ class BrowserController:
                     elements = page.locator(loc)
                     count = await elements.count()
                     logger.info(f"[Browser] Found {count} elements for selector: {loc}")
+                    
+                    # Optimization: Use batch JS evaluation instead of individual calls
+                    # This reduces communication overhead from 2*N round-trips to 1
+                    max_elements = min(count, 20)  # Limit to 20 for safety
+                    
+                    js_batch_get_elements = """
+                    (params) => {
+                        const selector = params.selector;
+                        const maxCount = params.maxCount;
+                        const elements = document.querySelectorAll(selector);
+                        const results = [];
+                        for (let i = 0; i < Math.min(elements.length, maxCount); i++) {
+                            const el = elements[i];
+                            const rect = el.getBoundingClientRect();
+                            results.push({
+                                index: i,
+                                selector: selector + ':nth-of-type(' + (i + 1) + ')',
+                                text: el.innerText ? el.innerText.substring(0, 100) : '',
+                                x: rect.x,
+                                y: rect.y,
+                                width: rect.width,
+                                height: rect.height
+                            });
+                        }
+                        return results;
+                    }
+                    """
+                    
+                    # Fallback to CSS selector if the locator is simple enough
+                    # For complex Playwright selectors, we use the original method
+                    if loc.startswith('[data-testid=') or loc.startswith('.') or loc.startswith('#') or ',' in loc:
+                        # Try batch JS approach
+                        try:
+                            batch_results = await page.evaluate(js_batch_get_elements, {
+                                "selector": loc,
+                                "maxCount": max_elements
+                            })
+                            return json.dumps(batch_results)
+                        except Exception as js_e:
+                            logger.debug(f"[Browser] Batch JS failed, falling back: {js_e}")
+                    
+                    # Fallback: Original serial approach for complex selectors
                     results = []
-                    for i in range(min(count, 20)): # Limit to 20 for safety
+                    for i in range(max_elements):
                         el = elements.nth(i)
                         box = await el.bounding_box()
                         txt = await el.inner_text()

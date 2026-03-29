@@ -32,6 +32,7 @@ from app.models import (
     Message,
     MessageReference,
 )
+from app.models.learning import LearnedSkill
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +47,7 @@ class ChatRequest(BaseModel):
     checkpoint_id: str | None = None
     message_id: int | None = None  # Targeted retry/edit support
     attachments: list[dict[str, Any]] | None = None  # [{"url": "...", "type": "image"}]
+    skill_id: int | None = None  # Attach a learned skill to the message
     revert_files: bool = True  # For retry/undo support
 
 
@@ -155,6 +157,7 @@ async def _prepare_and_dispatch(
                         ref_type = att.get("type", "file")
                         target_id = att.get("url") or att.get("id") or "unknown"
                         target_name = att.get("name") or target_id
+                        metadata = att.get("metadata")  # Extract metadata for audio, images, etc.
 
                         ref = MessageReference(
                             id=str(uuid.uuid4()),
@@ -162,6 +165,7 @@ async def _prepare_and_dispatch(
                             type=ref_type,
                             target_id=str(target_id),
                             target_name=str(target_name),
+                            metadata=metadata,
                         )
                         session.add(ref)
 
@@ -233,13 +237,34 @@ async def chat_endpoint(
     )
     ContextManager.set(ctx)
 
+    # Process skill_id if provided
+    attachments = req.attachments or []
+    if req.skill_id:
+        # Fetch skill info and add as attachment
+        try:
+            async with session_scope() as session:
+                skill = await session.get(LearnedSkill, req.skill_id)
+                if skill:
+                    attachments.append({
+                        "id": str(skill.id),
+                        "type": "skill",
+                        "name": skill.name,
+                        "metadata": {
+                            "skill_id": skill.id,
+                            "skill_name": skill.name,
+                            "description": skill.description
+                        }
+                    })
+        except Exception as e:
+            logger.warning(f"Failed to fetch skill {req.skill_id}: {e}")
+
     # Use Unified Dispatcher
     return await _prepare_and_dispatch(
         thread_id=req.thread_id,
         project_id=req.project_id,
         bg_tasks=bg_tasks,
         message_content=req.message,
-        attachments=req.attachments,
+        attachments=attachments,
         command_id=req.command_id,
         checkpoint_id=req.checkpoint_id,
         is_retry=False,

@@ -6,6 +6,7 @@ from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import BaseTool
 
 from app.core.evocloud.callback_handler import EvoCloudCallbackHandler
+from app.core.tools.cache import tool_cache
 
 logger = logging.getLogger(__name__)
 
@@ -21,13 +22,12 @@ class ToolExecutor:
 
     async def execute(self, tool: BaseTool, args: dict[str, Any] | str, config: RunnableConfig) -> Any:
         """
-        Execute a tool and ensure distinct 'tool_start' and 'tool_end' feedback is sent.
+        Execute a tool with optional caching and ensure distinct 'tool_start' and 'tool_end' feedback.
 
         Args:
             tool: The LangChain tool instance.
             args: Arguments for the tool.
             config: RunnableConfig, must contain 'callbacks' to work effectively with standard LC mechanisms.
-                    However, we also manually trigger specific logs if the handler is found.
         """
         callbacks = config.get("callbacks", []) if config else []
         evoloop_handler: EvoCloudCallbackHandler | None = None
@@ -37,21 +37,18 @@ class ToolExecutor:
         if isinstance(callbacks, list):
             callback_list = callbacks
         elif hasattr(callbacks, "handlers"):
-            # Handle AsyncCallbackManager/CallbackManager
             callback_list = callbacks.handlers
 
-        # Find EvoCloud handler to force-feed logs if needed
+        # Find EvoCloud handler
         for cb in callback_list:
             if isinstance(cb, EvoCloudCallbackHandler):
                 evoloop_handler = cb
                 break
 
         tool_name = tool.name
-
-        # Helper to format input string
         input_str = json.dumps(args, ensure_ascii=False) if isinstance(args, dict) else str(args)
 
-        # 1. Log Start (Manual enforcement to guarantee UI update)
+        # 1. Log Start
         if evoloop_handler:
             try:
                 await evoloop_handler.on_tool_start(
@@ -61,30 +58,48 @@ class ToolExecutor:
             except Exception as e:
                 logger.error(f"Failed to log tool start: {e}")
 
-        # 2. Execute
-        try:
-            # We assume the tool itself handles exceptions via @evoloop_tool,
-            # but we allow bubbling if raw execution
-            output = await tool.ainvoke(args, config=config)
-        except InterruptedError:
-            raise
-        except Exception as e:
-            # Learn from failure to create dynamic boundary
+        # 2. Execute with caching
+        async def _do_execute():
             try:
-                from app.core.environment.boundaries import boundary_manager
-                await boundary_manager.on_tool_failure(tool_name, e, context={
-                    "args": str(args)[:200]  # Truncate for safety
-                })
-            except Exception as boundary_err:
-                logger.debug(f"Boundary learning failed: {boundary_err}")
+                return await tool.ainvoke(args, config=config)
+            except InterruptedError:
+                raise
+            except Exception as e:
+                # Learn from failure
+                try:
+                    from app.core.environment.boundaries import boundary_manager
+                    await boundary_manager.on_tool_failure(tool_name, e, context={
+                        "args": str(args)[:200]
+                    })
+                except Exception as boundary_err:
+                    logger.debug(f"Boundary learning failed: {boundary_err}")
+                return f"Error executing {tool_name}: {str(e)}"
 
-            output = f"Error executing {tool_name}: {str(e)}"
+        # Normalize args to dict for caching
+        args_dict = args if isinstance(args, dict) else {"_arg": args}
+        
+        # Execute with cache
+        output, cache_meta = await tool_cache.execute(
+            tool_name=tool_name,
+            args=args_dict,
+            execute_fn=_do_execute,
+            config=config
+        )
 
-        # 3. Log End
+        # 3. Log End (include cache status)
         if evoloop_handler:
             try:
-                await evoloop_handler.on_tool_end(output=str(output))
+                cache_indicator = " [CACHED]" if cache_meta.get('cached') else ""
+                await evoloop_handler.on_tool_end(
+                    output=str(output) + cache_indicator
+                )
             except Exception as e:
                 logger.error(f"Failed to log tool end: {e}")
+
+        # Log cache hit for monitoring
+        if cache_meta.get('cached'):
+            logger.info(f"[ToolExecutor] 🎯 Cache hit: {tool_name} "
+                       f"(age: {cache_meta.get('age_seconds', 0):.1f}s, "
+                       f"accesses: {cache_meta.get('access_count', 1)})")
 
         return output

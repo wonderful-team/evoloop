@@ -46,6 +46,7 @@ class AgentEngine:
         temperature: float = 0.7,
         name: str = "Agent",
         is_subtask: bool = False,
+        node_source: str = None,  # 👈 添加节点来源标记，用于语音播报过滤
     ) -> dict[str, Any]:
         """
         Executes the standard Agent ReAct loop.
@@ -101,7 +102,7 @@ class AgentEngine:
             # [CRITICAL FIX] Single-shot execution for subtasks
             # Eliminates loop conditions: no second turn = no repetition
             logger.info(f"[{name}] 🎯 Single-shot mode (subtask) - executing immediately")
-            return await AgentEngine._execute_single_shot(
+            result = await AgentEngine._execute_single_shot(
                 llm_with_tools=llm_with_tools,
                 tool_map=tool_map,
                 messages=repaired_messages,
@@ -112,7 +113,7 @@ class AgentEngine:
             )
         else:
             # Standard ReAct loop for main tasks
-            return await AgentEngine._execute_react_loop(
+            result = await AgentEngine._execute_react_loop(
                 llm_with_tools=llm_with_tools,
                 tool_map=tool_map,
                 messages=repaired_messages,
@@ -122,34 +123,22 @@ class AgentEngine:
                 name=name,
                 state=state,
             )
+        
+        # 👇 添加节点来源标记到 AI 消息
+        if node_source:
+            for msg in result.get("messages", []):
+                if isinstance(msg, AIMessage) and msg.content:
+                    if not hasattr(msg, "metadata"):
+                        msg.metadata = {}
+                    if msg.metadata is None:
+                        msg.metadata = {}
+                    msg.metadata["node_source"] = node_source
+        
+        return result
 
     @staticmethod
     def _setup_callbacks(config: RunnableConfig) -> RunnableConfig:
         """Inject TraceCallbackHandler for Imitation/Reinforcement Learning."""
-        # try:
-        #     from app.core.learning.trace_recorder import TraceCallbackHandler
-        #
-        #     thread_id = config.get("configurable", {}).get("thread_id", "unknown")
-        #     if thread_id and thread_id != "unknown":
-        #         trace_handler = TraceCallbackHandler(thread_id)
-        #
-        #         # Safely update callbacks
-        #         existing_callbacks = config.get("callbacks", []) or []
-        #         if not isinstance(existing_callbacks, list):
-        #             if hasattr(existing_callbacks, "handlers"):
-        #                 existing_callbacks = existing_callbacks.handlers
-        #             else:
-        #                 existing_callbacks = [existing_callbacks]
-        #
-        #         # Check duplication
-        #         has_tracer = any(isinstance(c, TraceCallbackHandler) for c in existing_callbacks)
-        #
-        #         if not has_tracer:
-        #             config = config.copy()
-        #             config["callbacks"] = existing_callbacks + [trace_handler]
-        # except Exception as e:
-        #     logger.warning(f"Failed to inject TraceCallbackHandler: {e}")
-
         return config
 
     @staticmethod

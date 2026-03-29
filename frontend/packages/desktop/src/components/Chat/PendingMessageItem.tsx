@@ -3,7 +3,7 @@ import { Bot, Brain, ChevronDown, ChevronRight, Loader2, Terminal } from "lucide
 import { Avatar, AvatarFallback, AvatarImage } from "@evoloop/shared/components/ui/avatar"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@evoloop/shared/components/ui/collapsible"
 import { Button } from "@evoloop/shared/components/ui/button"
-import { ExecutionSteps } from "./ExecutionSteps"
+import { AgentProcess } from "./AgentProcess"
 import { MessageContent } from "./MessageContent"
 import { ArtifactsList } from "./Artifacts/ArtifactsList"
 import { ThoughtCard } from "./ThoughtCard"
@@ -106,32 +106,51 @@ export const PendingMessageItem = memo(() => {
                         onOpenChange={setStepsOpen}
                         className="w-full"
                     >
-                        {/* Compact Summary Bar */}
-                        <CollapsibleTrigger asChild>
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50 flex items-center gap-2 w-full justify-start"
-                            >
-                                <Terminal className="h-3.5 w-3.5" />
-                                <span className="font-medium">
-                                    {runningStepsCount > 0
-                                        ? t("chat.steps.executing", "Executing") + ` ${runningStepsCount} ${t("chat.steps.tools", "tools")}...`
-                                        : completedStepsCount === steps.length
-                                            ? t("chat.steps.completed", "Completed") + ` ${steps.length} ${t("chat.steps.tools", "tools")}`
-                                            : t("chat.steps.progress", "Progress") + ` ${completedStepsCount}/${steps.length}`
-                                    }
-                                </span>
-                                {stepsOpen ? (
-                                    <ChevronDown className="h-3.5 w-3.5 ml-auto" />
-                                ) : (
+                        {stepsOpen ? (
+                            <AgentProcess 
+                                steps={steps} 
+                                isStreaming={steps.some((s) => s.status === "running")}
+                                header={
+                                    <CollapsibleTrigger asChild>
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="h-8 px-3 text-xs text-muted-foreground hover:text-foreground hover:bg-transparent flex items-center gap-2 w-full justify-start rounded-none"
+                                        >
+                                            <Terminal className="h-3.5 w-3.5" />
+                                            <span className="font-medium">
+                                                {runningStepsCount > 0
+                                                    ? t("chat.steps.executing", "Executing") + ` ${runningStepsCount} ${t("chat.steps.tools", "tools")}...`
+                                                    : completedStepsCount === steps.length
+                                                        ? t("chat.steps.completed", "Completed") + ` ${steps.length} ${t("chat.steps.tools", "tools")}`
+                                                        : t("chat.steps.progress", "Progress") + ` ${completedStepsCount}/${steps.length}`
+                                                }
+                                            </span>
+                                            <ChevronDown className="h-3.5 w-3.5 ml-auto" />
+                                        </Button>
+                                    </CollapsibleTrigger>
+                                }
+                            />
+                        ) : (
+                            <CollapsibleTrigger asChild>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50 flex items-center gap-2 w-full justify-start"
+                                >
+                                    <Terminal className="h-3.5 w-3.5" />
+                                    <span className="font-medium">
+                                        {runningStepsCount > 0
+                                            ? t("chat.steps.executing", "Executing") + ` ${runningStepsCount} ${t("chat.steps.tools", "tools")}...`
+                                            : completedStepsCount === steps.length
+                                                ? t("chat.steps.completed", "Completed") + ` ${steps.length} ${t("chat.steps.tools", "tools")}`
+                                                : t("chat.steps.progress", "Progress") + ` ${completedStepsCount}/${steps.length}`
+                                        }
+                                    </span>
                                     <ChevronRight className="h-3.5 w-3.5 ml-auto" />
-                                )}
-                            </Button>
-                        </CollapsibleTrigger>
-                        <CollapsibleContent className="mt-1">
-                            <ExecutionSteps steps={steps as any} />
-                        </CollapsibleContent>
+                                </Button>
+                            </CollapsibleTrigger>
+                        )}
                     </Collapsible>
                 )}
 

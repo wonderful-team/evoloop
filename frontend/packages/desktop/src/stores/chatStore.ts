@@ -4,8 +4,19 @@ import i18n from "@evoloop/shared/i18n"
 import { AgentService, ConversationsService } from "@/client"
 import { ChatConnection } from "@/lib/ChatConnection"
 import type { Message } from "@/components/Chat/ChatMessageItem"
-import type { StepItem } from "@/components/Chat/ExecutionSteps"
 import type { StreamState, StreamEvent } from "@/types/stream"
+
+// Step item type for activity tracking
+export interface StepItem {
+    id: number
+    name: string
+    status: "running" | "done" | "failed" | "cancelled"
+    type: "node" | "tool" | "ai" | "skill"
+    parent_id?: number
+    time: string
+    details?: string
+    input?: any  // Tool input parameters (for real-time steps)
+}
 
 interface ChatState {
     // --- Data ---
@@ -307,21 +318,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
         // 1. Optimistic Update
         const tempId = Date.now()
 
-        // Construct display content for local optimistic UI (Markdown fallback)
-        let displayContent = content
-        if (attachments.length > 0) {
-            const attachmentLinks = attachments
-                .map((att) => att.type === 'image' ? `![Image](${att.url})` : `[${att.type === 'message' ? 'Message' : 'File'}: ${att.name || att.url}]`)
-                .join("\n")
-            displayContent = displayContent
-                ? `${displayContent}\n${attachmentLinks}`
-                : attachmentLinks
-        }
+        // Construct display content for local optimistic UI
+        // For voice messages, use the content directly (which is the transcript)
+        const displayContent = content
 
         const newMessage: Message = {
             id: tempId,
             role: "human",
             content: displayContent,
+            attachments: attachments.length > 0 ? attachments : undefined,
         }
 
         set((state) => ({

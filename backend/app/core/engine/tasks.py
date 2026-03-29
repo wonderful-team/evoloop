@@ -108,7 +108,12 @@ def snapshot_steps_task(
     run_id: str | None,
     steps: list
 ):
-    """Background task to persist executed steps to the last AI message."""
+    """Background task to persist executed steps to the last AI message.
+    
+    Note: This now APPENDS to existing steps rather than overwriting,
+    supporting the "Real-time Attribution" (方案 A) design where steps
+    are incrementally attributed to the AI message active when they ran.
+    """
     async def _run():
         try:
             from app.models import Message
@@ -138,7 +143,11 @@ def snapshot_steps_task(
                         }
                         for t in steps
                     ]
-                    last_msg.steps_snapshot = serialized_steps
+                    
+                    # Append to existing steps instead of overwriting
+                    existing_steps = last_msg.steps_snapshot or []
+                    last_msg.steps_snapshot = existing_steps + serialized_steps
+                    
             logger.debug(f"[Celery] Snapshotted {len(steps)} steps for thread {thread_id}")
         except Exception as e:
             logger.error(f"[Celery] Failed to snapshot steps: {e}")

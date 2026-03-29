@@ -31,6 +31,7 @@ async def chat_node(state: AgentState, config: RunnableConfig) -> dict[str, Any]
         name="Chat",
         max_steps=1,       # Single turn, no loop
         is_subtask=False,  # Not a tool-based subtask
+        node_source="chat",  # 👈 标记为 chat 节点，用于语音播报过滤
     )
 
     return {

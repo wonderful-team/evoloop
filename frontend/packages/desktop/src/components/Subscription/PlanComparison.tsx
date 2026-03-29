@@ -25,10 +25,11 @@ export const PlanComparison = ({ plans, currentLevelId, onSelect, isLoading }: P
   const { t } = useTranslation()
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
       {plans.map((plan) => {
         const isCurrent = plan.level_id === currentLevelId
-        const isPro = plan.level_id > 1
+        const isFree = parseFloat(plan.price) === 0
+        const isPro = !isFree && plan.level_id > 1
 
         return (
           <Card key={plan.level_id} className={`relative flex flex-col transition-all duration-300 ${isCurrent ? "border-primary bg-primary/[0.02] shadow-sm ring-1 ring-primary" : "border-border hover:border-primary/30 hover:bg-muted/10"}`}>
@@ -43,17 +44,23 @@ export const PlanComparison = ({ plans, currentLevelId, onSelect, isLoading }: P
             <CardHeader className="space-y-1.5">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-lg font-bold tracking-tight">{plan.level_name}</CardTitle>
-                {isPro && (
+                {!isFree && (
                     <div className="p-1.5 rounded-full bg-primary/10 text-primary">
                         <Crown className="h-4 w-4" />
                     </div>
                 )}
               </div>
               <div className="flex items-baseline gap-1.5 py-2">
-                <span className="text-3xl font-bold tracking-tighter">¥{plan.price}</span>
-                <span className="text-[13px] text-muted-foreground font-medium">{t("subscription.plan.perMonth", "/月")}</span>
+                {parseFloat(plan.price) === 0 ? (
+                  <span className="text-3xl font-bold tracking-tighter text-primary">{t("subscription.plan.free", "免费")}</span>
+                ) : (
+                  <>
+                    <span className="text-3xl font-bold tracking-tighter">¥{plan.price}</span>
+                    <span className="text-[13px] text-muted-foreground font-medium">{t("subscription.plan.perMonth", "/月")}</span>
+                  </>
+                )}
               </div>
-              {parseFloat(plan.market_price) > parseFloat(plan.price) && (
+              {parseFloat(plan.market_price) > parseFloat(plan.price) && parseFloat(plan.price) > 0 && (
                 <div className="flex items-center gap-2">
                     <span className="line-through text-xs text-muted-foreground/60 italic">
                          ¥{plan.market_price}
@@ -99,7 +106,12 @@ export const PlanComparison = ({ plans, currentLevelId, onSelect, isLoading }: P
                 disabled={isCurrent || isLoading}
                 onClick={() => onSelect(plan.level_id)}
               >
-                {isCurrent ? t("subscription.plan.active", "当前使用中") : t("subscription.plan.upgrade", "立即升级")}
+                {isCurrent 
+                  ? t("subscription.plan.active", "当前使用中") 
+                  : isFree 
+                    ? t("subscription.plan.startFree", "立即使用")
+                    : t("subscription.plan.upgrade", "立即升级")
+                }
               </Button>
             </CardFooter>
           </Card>

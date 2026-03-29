@@ -15,6 +15,18 @@ For Agent file editing, use:
 from app.core.ghost_text.suggester import suggest_ghost_text, ghost_suggester
 
 
+async def _resolve_and_validate_path(file_path: str) -> str | None:
+    """
+    Resolve and validate file path for IDE integration.
+    Ensures the file is within the working directory.
+    """
+    from app.domain.tools.files.utils import resolve_and_validate_path
+    try:
+        return await resolve_and_validate_path(file_path, None)
+    except ValueError:
+        return None
+
+
 async def suggest_inline_completion(
     file_path: str,
     cursor_line: int,
@@ -28,7 +40,7 @@ async def suggest_inline_completion(
     It is NOT an Agent tool - use edit_file() for Agent file editing.
     
     Args:
-        file_path: Path to the file being edited
+        file_path: Path to the file being edited (must be within working directory)
         cursor_line: Current line number (1-indexed)
         cursor_column: Current column position (0-indexed)
         current_line_text: Text of current line up to cursor (optional)
@@ -41,10 +53,15 @@ async def suggest_inline_completion(
     if not file_path or cursor_line < 1 or cursor_column < 0:
         return json.dumps({"error": "Invalid parameters"})
     
+    # Validate path is within working directory
+    validated_path = await _resolve_and_validate_path(file_path)
+    if not validated_path:
+        return json.dumps({"error": "File path is outside the working directory"})
+    
     # Auto-detect current line text if not provided
     if current_line_text is None:
         try:
-            with open(file_path, 'r', encoding='utf-8') as f:
+            with open(validated_path, 'r', encoding='utf-8') as f:
                 lines = f.readlines()
                 if cursor_line <= len(lines):
                     current_line_text = lines[cursor_line - 1][:cursor_column]
@@ -77,7 +94,7 @@ async def preview_edit_ghost(
     It is NOT an Agent tool - use edit_file(dry_run=True) for Agent preview.
     
     Args:
-        file_path: Path to the file
+        file_path: Path to the file (must be within working directory)
         edit_description: Natural language description (e.g., "add docstring")
         cursor_line: Current line number
         cursor_column: Current column position
@@ -87,14 +104,19 @@ async def preview_edit_ghost(
     """
     import json
     
+    # Validate path is within working directory
+    validated_path = await _resolve_and_validate_path(file_path)
+    if not validated_path:
+        return json.dumps({"error": "File path is outside the working directory"})
+    
     try:
-        with open(file_path, 'r', encoding='utf-8') as f:
+        with open(validated_path, 'r', encoding='utf-8') as f:
             lines = f.readlines()
         
         position = sum(len(line) for line in lines[:cursor_line-1]) + cursor_column
         
         suggestion = await ghost_suggester.suggest_edit_preview(
-            file_path=file_path,
+            file_path=validated_path,
             edit_description=edit_description,
             cursor_position=position
         )

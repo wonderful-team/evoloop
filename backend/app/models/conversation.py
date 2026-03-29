@@ -69,9 +69,10 @@ class MessageReference(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)  # UUID
     message_id: Mapped[int] = mapped_column(ForeignKey("messages.id"), index=True)
-    type: Mapped[str] = mapped_column(String(50))  # memory, tool, knowledge, file
-    target_id: Mapped[str] = mapped_column(String(255))  # ID or Name of the item
+    type: Mapped[str] = mapped_column(String(50))  # memory, tool, knowledge, file, audio, image
+    target_id: Mapped[str] = mapped_column(String(255))  # ID or Name of the item (URL for audio/images)
     target_name: Mapped[str] = mapped_column(String(255))  # Human readable name
+    meta_data: Mapped[dict | None] = mapped_column(JSON, default=None)  # Additional metadata (duration, transcript, etc.)
     timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     message: Mapped["Message"] = relationship(back_populates="references")

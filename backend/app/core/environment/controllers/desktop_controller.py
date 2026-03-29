@@ -8,6 +8,7 @@ Extracted from app.domain.tools.environment.desktop to allow:
 """
 import ast
 import asyncio
+import functools
 import logging
 import math
 import os
@@ -60,7 +61,7 @@ async def _trigger_atlas_harvest_macos(bundle_id: str):
             logger.debug(f"[AtlasHarvest] Failed to get AX tree for {bundle_id}")
             return
         try:
-            elements_data = ast.literal_eval(ax_output.replace("missing value", "None"))
+            elements_data = await _async_literal_eval(ax_output.replace("missing value", "None"))
         except Exception:
             logger.debug(f"[AtlasHarvest] Failed to parse AX tree for {bundle_id}")
             return
@@ -81,6 +82,19 @@ async def _trigger_atlas_harvest_macos(bundle_id: str):
 
 
 # ─────────────────────────────────────────────
+#  Helper Functions
+# ─────────────────────────────────────────────
+
+async def _async_literal_eval(data: str) -> Any:
+    """Parse string data using ast.literal_eval in a thread pool.
+    
+    This prevents blocking the event loop when parsing large AX Trees.
+    """
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(None, functools.partial(ast.literal_eval, data))
+
+
+# ─────────────────────────────────────────────
 #  DesktopController
 # ─────────────────────────────────────────────
 
@@ -92,113 +106,212 @@ class DesktopController:
     the singleton `macos_driver` from infrastructure.
     """
 
+    # ─────────────────────────────────────────────
+    #  Tri-Engine Resolution (Parallel)
+    # ─────────────────────────────────────────────
+
     @classmethod
-    async def _resolve_element(cls, name: str, role: str | None = None) -> dict | str:
-        """Tri-Engine element resolution: AX Tree → Atlas → OCR."""
-
-        # 1. Try Live Accessibility Tree (Fastest and Native)
-        raw_tree = await asyncio.to_thread(macos_driver.dump_ax_tree)
-        if not raw_tree or "Error" in raw_tree:
-            return ControllerResponse.error(f"Failed to dump Accessibility Tree: {raw_tree}")
-
+    async def _try_ax_tree(cls, name: str, role: str | None = None) -> dict | None:
+        """Try to resolve element using AX Tree. Returns result or None."""
         try:
-            elements = ast.literal_eval(raw_tree.replace("missing value", "None"))
-        except Exception as e:
-            logger.error(f"[Desktop] Failed to parse AX Tree: {e}")
-            return ControllerResponse.error(f"AX Tree parsing failed: {e}")
+            raw_tree = await asyncio.wait_for(
+                asyncio.to_thread(macos_driver.dump_ax_tree),
+                timeout=3.0
+            )
+            if not raw_tree or "Error" in raw_tree:
+                return None
 
-        target_norm = normalize_text(name)
-        candidates = []
-        for el in elements:
-            el_name = normalize_text(el.get("name", ""))
-            el_role = str(el.get("role", "")).lower()
-            if el_name == target_norm:
-                score = 100
-            elif target_norm in el_name:
-                score = 50
-            else:
-                continue
-            if role and role.lower() in el_role:
-                score += 10
-            candidates.append((score, el))
+            elements = await _async_literal_eval(raw_tree.replace("missing value", "None"))
+            target_norm = normalize_text(name)
+            candidates = []
 
-        if candidates:
-            candidates.sort(key=lambda x: x[0], reverse=True)
-            best_el = candidates[0][1]
-            res = {}
-            if "path" in best_el:
-                res["type"] = "path"
-                res["value"] = best_el["path"]
-            bounds = best_el.get("bounds", [])
-            if len(bounds) == 4:
-                res["x"] = int(bounds[0] + bounds[2] / 2)
-                res["y"] = int(bounds[1] + bounds[3] / 2)
-                if "type" not in res:
-                    res["type"] = "coords"
-            if res:
-                return res
-
-        # 2. Try App Atlas Fallback
-        try:
-            app_info = macos_driver.get_current_app()
-            bundle_id = app_info.get("bundle_id")
-            if bundle_id:
-                is_dynamic = await atlas_engine.is_dynamic_app(bundle_id, "macos")
-                if is_dynamic:
-                    strategy = await atlas_engine.get_app_strategy(bundle_id, "macos")
-                    if strategy:
-                        infra_elem = strategy.get_infrastructure_element(name)
-                        if infra_elem and (infra_elem.get("resource_id") or infra_elem.get("ax_path")):
-                            return {"type": "path", "value": infra_elem.get("resource_id") or infra_elem.get("ax_path")}
-                        strat = strategy.get_strategy_for(name)
-                        if strat:
-                            return {"strategy": strat.strategy_type, "parameters": strat.parameters, "source": "atlas_strategy"}
+            for el in elements:
+                el_name = normalize_text(el.get("name", ""))
+                el_role = str(el.get("role", "")).lower()
+                if el_name == target_norm:
+                    score = 100
+                elif target_norm in el_name:
+                    score = 50
                 else:
-                    summary = await atlas_engine.store.get_app_summary(bundle_id, platform="macos")
-                    if summary and "states" in summary:
-                        for state in summary["states"]:
-                            full_state = await atlas_engine.store.get_state_detail(bundle_id, state["id"], platform="macos")
-                            if full_state and "elements" in full_state:
-                                for el in full_state["elements"]:
-                                    el_name = str(el.get("label") or el.get("text") or el.get("name") or "").lower()
-                                    if name.lower() in el_name:
-                                        if el.get("os_identifier") or el.get("ax_path"):
-                                            return {"type": "path", "value": el.get("os_identifier") or el.get("ax_path")}
-                                        break
-        except Exception as e:
-            logger.debug(f"[Desktop] Atlas fallback failed: {e}")
+                    continue
+                if role and role.lower() in el_role:
+                    score += 10
+                candidates.append((score, el))
 
-        # 3. Try Local Vision OCR
+            if candidates:
+                candidates.sort(key=lambda x: x[0], reverse=True)
+                best_el = candidates[0][1]
+                res = {}
+                if "path" in best_el:
+                    res["type"] = "path"
+                    res["value"] = best_el["path"]
+                bounds = best_el.get("bounds", [])
+                if len(bounds) == 4:
+                    res["x"] = int(bounds[0] + bounds[2] / 2)
+                    res["y"] = int(bounds[1] + bounds[3] / 2)
+                    if "type" not in res:
+                        res["type"] = "coords"
+                if res:
+                    logger.debug(f"[Desktop] AX Tree resolved '{name}': {res}")
+                    return res
+            return None
+        except asyncio.TimeoutError:
+            logger.debug(f"[Desktop] AX Tree timeout for '{name}'")
+            return None
+        except Exception as e:
+            logger.debug(f"[Desktop] AX Tree failed for '{name}': {e}")
+            return None
+
+    @classmethod
+    async def _try_atlas(cls, name: str) -> dict | None:
+        """Try to resolve element using App Atlas. Returns result or None."""
+        try:
+            app_info = await asyncio.to_thread(macos_driver.get_current_app)
+            bundle_id = app_info.get("bundle_id")
+            if not bundle_id:
+                return None
+
+            is_dynamic = await asyncio.wait_for(
+                atlas_engine.is_dynamic_app(bundle_id, "macos"),
+                timeout=1.0
+            )
+
+            if is_dynamic:
+                strategy = await asyncio.wait_for(
+                    atlas_engine.get_app_strategy(bundle_id, "macos"),
+                    timeout=1.0
+                )
+                if strategy:
+                    infra_elem = strategy.get_infrastructure_element(name)
+                    if infra_elem and (infra_elem.get("resource_id") or infra_elem.get("ax_path")):
+                        return {"type": "path", "value": infra_elem.get("resource_id") or infra_elem.get("ax_path")}
+                    strat = strategy.get_strategy_for(name)
+                    if strat:
+                        return {"strategy": strat.strategy_type, "parameters": strat.parameters, "source": "atlas_strategy"}
+            else:
+                summary = await asyncio.wait_for(
+                    atlas_engine.store.get_app_summary(bundle_id, platform="macos"),
+                    timeout=1.0
+                )
+                if summary and "states" in summary:
+                    for state in summary["states"][:3]:  # Limit to first 3 states
+                        full_state = await asyncio.wait_for(
+                            atlas_engine.store.get_state_detail(bundle_id, state["id"], platform="macos"),
+                            timeout=0.5
+                        )
+                        if full_state and "elements" in full_state:
+                            for el in full_state["elements"]:
+                                el_name = str(el.get("label") or el.get("text") or el.get("name") or "").lower()
+                                if name.lower() in el_name:
+                                    if el.get("os_identifier") or el.get("ax_path"):
+                                        return {"type": "path", "value": el.get("os_identifier") or el.get("ax_path")}
+            return None
+        except asyncio.TimeoutError:
+            logger.debug(f"[Desktop] Atlas timeout for '{name}'")
+            return None
+        except Exception as e:
+            logger.debug(f"[Desktop] Atlas failed for '{name}': {e}")
+            return None
+
+    @classmethod
+    async def _try_ocr(cls, name: str) -> dict | None:
+        """Try to resolve element using Vision OCR. Returns result or None."""
         temp_img = None
         try:
-            app_info = macos_driver.get_current_app()
+            app_info = await asyncio.to_thread(macos_driver.get_current_app)
             bounds_str = app_info.get("bounds")
             win_x, win_y = 0, 0
+
             if bounds_str:
                 try:
                     win_x, win_y, _, _ = map(int, bounds_str.split(","))
-                    temp_img = macos_driver.screenshot(region=bounds_str)
+                    temp_img = await asyncio.to_thread(macos_driver.screenshot, region=bounds_str)
                 except ValueError:
-                    temp_img = macos_driver.screenshot()
+                    temp_img = await asyncio.to_thread(macos_driver.screenshot)
             else:
-                temp_img = macos_driver.screenshot()
+                temp_img = await asyncio.to_thread(macos_driver.screenshot)
 
-            result = await vision_engine.process(VisionTask.OCR, temp_img)
+            result = await asyncio.wait_for(
+                vision_engine.process(VisionTask.OCR, temp_img),
+                timeout=5.0
+            )
+
             target_name = normalize_text(name)
             if result.success:
                 for el in result.elements:
                     if target_name in normalize_text(el.text):
-                        logger.info(f"[Desktop] Resolved '{name}' via OCR → Absolute ({win_x + el.x}, {win_y + el.y})")
+                        logger.info(f"[Desktop] OCR resolved '{name}' → ({win_x + el.x}, {win_y + el.y})")
                         return {"type": "coords", "x": win_x + el.x, "y": win_y + el.y}
+            return None
+        except asyncio.TimeoutError:
+            logger.debug(f"[Desktop] OCR timeout for '{name}'")
+            return None
         except Exception as e:
-            logger.debug(f"[Desktop] Vision OCR fallback failed: {e}")
+            logger.debug(f"[Desktop] OCR failed for '{name}': {e}")
+            return None
         finally:
-            # Ensure screenshot is always cleaned up
             if temp_img:
                 cleanup_file(temp_img)
 
-        logger.error(f"[Desktop] Failed to resolve '{name}'.")
-        return ControllerResponse.not_found(name, item_type="element")
+    @classmethod
+    async def _resolve_element(cls, name: str, role: str | None = None) -> dict | str:
+        """
+        Tri-Engine element resolution: AX Tree + Atlas + OCR (Parallel).
+        
+        All three engines run concurrently with individual timeouts.
+        Returns the fastest successful result.
+        """
+        logger.info(f"[Desktop] Resolving element '{name}' with parallel tri-engine...")
+        start_time = time.time()
+
+        # Launch all three engines concurrently
+        ax_task = asyncio.create_task(cls._try_ax_tree(name, role))
+        atlas_task = asyncio.create_task(cls._try_atlas(name))
+        ocr_task = asyncio.create_task(cls._try_ocr(name))
+
+        # Wait for the first successful result
+        pending = {ax_task, atlas_task, ocr_task}
+        result = None
+        completed_sources = []
+
+        while pending:
+            # Wait for any task to complete
+            done, pending = await asyncio.wait(
+                pending, 
+                return_when=asyncio.FIRST_COMPLETED
+            )
+
+            for task in done:
+                try:
+                    res = task.result()
+                    # Track which engine completed
+                    if task == ax_task:
+                        completed_sources.append("AX")
+                    elif task == atlas_task:
+                        completed_sources.append("Atlas")
+                    else:
+                        completed_sources.append("OCR")
+
+                    if res:  # Successful resolution
+                        result = res
+                        # Cancel remaining tasks
+                        for p in pending:
+                            p.cancel()
+                        break
+                except Exception as e:
+                    logger.debug(f"[Desktop] Engine task failed: {e}")
+
+            if result:
+                break
+
+        elapsed = time.time() - start_time
+
+        if result:
+            logger.info(f"[Desktop] Resolved '{name}' via {completed_sources[-1]} in {elapsed:.2f}s")
+            return result
+
+        logger.error(f"[Desktop] Failed to resolve '{name}' after {elapsed:.2f}s (tried: {completed_sources})")
+        return ControllerResponse.error(f"Could not resolve element '{name}'")
 
     @classmethod
     async def execute(
@@ -548,7 +661,7 @@ class DesktopController:
                     raw_tree = await asyncio.to_thread(macos_driver.dump_ax_tree)
                     if not raw_tree or "Error" in raw_tree:
                         return ControllerResponse.error(f"Failed to dump Accessibility Tree: {raw_tree}")
-                    elements = ast.literal_eval(raw_tree.replace("missing value", "None"))
+                    elements = await _async_literal_eval(raw_tree.replace("missing value", "None"))
                     if not isinstance(elements, list):
                         return ControllerResponse.error("AX Tree format unexpected.")
                     filtered_elements = elements
@@ -626,7 +739,7 @@ class DesktopController:
             raw_tree = await asyncio.to_thread(macos_driver.dump_ax_tree)
             if not raw_tree or "Error" in raw_tree:
                 return ControllerResponse.error("Verification Failed: Could not dump AX Tree.", details=str(raw_tree))
-            elements = ast.literal_eval(raw_tree)
+            elements = await _async_literal_eval(raw_tree)
             found_element = False
             found_text = False
             for el in elements:
@@ -667,7 +780,7 @@ class DesktopController:
                     await asyncio.sleep(0.5)
                     continue
                 try:
-                    elements = ast.literal_eval(raw_tree.replace("missing value", "None"))
+                    elements = await _async_literal_eval(raw_tree.replace("missing value", "None"))
                 except Exception:
                     await asyncio.sleep(0.5)
                     continue

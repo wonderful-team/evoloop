@@ -56,6 +56,16 @@ async def create_checkpoint(
     if not name or not file_paths:
         return "Error: 'name' and 'file_paths' are required."
     
+    # Validate all file paths are within working directory
+    from app.domain.tools.files.utils import resolve_and_validate_path
+    validated_paths = []
+    for fp in file_paths:
+        try:
+            validated = await resolve_and_validate_path(fp, config)
+            validated_paths.append(validated)
+        except ValueError as e:
+            return f"Error: Invalid file path '{fp}': {e}"
+    
     # Get context
     ctx = ContextManager.current()
     thread_id = ctx.thread_id or "default"
@@ -65,7 +75,7 @@ async def create_checkpoint(
         checkpoint = await checkpoint_manager.create_checkpoint(
             thread_id=thread_id,
             name=name,
-            file_paths=file_paths,
+            file_paths=validated_paths,
             description=description,
             project_id=project_id,
             created_by="manual"

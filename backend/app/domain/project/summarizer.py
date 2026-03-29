@@ -148,6 +148,8 @@ async def _summarize_project_logic(name: str, path: str):
                     # This is an async call call now
                     await evocloud_manager.api.update_project(project_id, description)
                     logger.info(f"[ProjectSummarizer] Uploaded summary for {name}")
+                    # Invalidate cache to reflect updated description
+                    evocloud_manager.invalidate_projects_cache()
                 except Exception as up_e:
                     logger.error(f"Failed to upload summary: {up_e}")
         else:

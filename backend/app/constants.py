@@ -124,7 +124,7 @@ DOC_TEXT_EXTENSIONS = [
     ".md", ".mdx", ".rst", ".txt", ".sql", ".xsq",
 ]
 
-# Extensions allowed for logic-less document management (e.g. facades.write_document)
+# Extensions allowed for documentation files (used by write_file for validation)
 ALLOWED_DOC_EXTENSIONS = [
     ".md", ".txt", ".json", ".yaml", ".yml", ".csv", ".html", ".htm", ".css",
     ".xml", ".rst", ".toml", ".ini", ".log",

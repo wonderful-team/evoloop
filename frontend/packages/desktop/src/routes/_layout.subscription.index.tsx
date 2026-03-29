@@ -72,10 +72,10 @@ function SubscriptionDashboard() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto px-6 py-8 space-y-10 animate-in fade-in duration-500">
+    <div className="space-y-8 animate-in fade-in duration-500">
       {/* 1. Subscription Overview */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-        <div className="lg:col-span-2 space-y-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 items-stretch">
+        <div className="lg:col-span-2 flex flex-col gap-4">
            <SubscriptionStatus 
              detail={detail} 
              onManage={() => {
@@ -84,26 +84,25 @@ function SubscriptionDashboard() {
              }}
            />
            
-           <Alert className="bg-primary/5 border-primary/10 shadow-sm transition-all hover:bg-primary/10">
-             <Info className="h-4 w-4 text-primary" />
-             <AlertTitle className="text-primary font-bold text-sm tracking-tight">{t("subscription.notice.title", "会员权益说明")}</AlertTitle>
-             <AlertDescription className="text-muted-foreground text-[13px] leading-relaxed mt-1">
-                {t("subscription.notice.desc", "会员等级直接决定了您的 AI 每日调用额度和上下文窗口大小。专业版及以上用户可享受优先处理权并优先体验最新推出的 AI 模型。")}
+           <Alert className="bg-muted/50 border-border py-2.5">
+             <Info className="h-4 w-4 text-muted-foreground shrink-0" />
+             <AlertDescription className="text-xs text-muted-foreground leading-normal">
+                {t("subscription.notice.desc", "会员等级决定 AI 调用额度和上下文窗口大小，专业版及以上享受优先处理权。")}
              </AlertDescription>
            </Alert>
         </div>
 
         {/* 2. Quota Usage Breakdown */}
-        <div className="lg:col-span-1 h-full">
+        <div className="lg:col-span-1">
           <QuotaCard quota={quota} />
         </div>
       </div>
 
       {/* 3. Pricing & Upgrade Section */}
-      <div id="plans-section" className="space-y-8 pt-10 border-t border-border/50">
-        <div className="flex flex-col gap-1.5 text-center sm:text-left">
-          <h2 className="text-2xl font-bold tracking-tight text-foreground">{t("subscription.plans.title", "订阅方案")}</h2>
-          <p className="text-muted-foreground text-[15px]">{t("subscription.plans.desc", "选择最适合您的 AI 创作与开发套餐")}</p>
+      <div id="plans-section" className="space-y-6 pt-8 border-t border-border">
+        <div className="flex flex-col gap-1">
+          <h2 className="text-xl font-semibold tracking-tight">{t("subscription.plans.title", "订阅方案")}</h2>
+          <p className="text-muted-foreground text-sm">{t("subscription.plans.desc", "选择最适合您的 AI 创作与开发套餐")}</p>
         </div>
         
         <PlanComparison 

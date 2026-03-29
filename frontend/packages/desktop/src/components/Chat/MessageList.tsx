@@ -2,7 +2,7 @@ import { useMemo } from "react"
 import { useTranslation } from "react-i18next"
 import { Bot, HelpCircle, FileText, ListTodo, Search, Loader2 } from "lucide-react"
 import { Button } from "@evoloop/shared/components/ui/button"
-import { ChatMessageItem, type Message } from "./ChatMessageItem"
+import { SmartChatMessageItem, type Message } from "./ChatMessageItem"
 import { PendingMessageItem } from "./PendingMessageItem"
 
 interface MessageListProps {
@@ -134,7 +134,7 @@ export function MessageList({
                             </div>
                         )}
 
-                        <ChatMessageItem
+                        <SmartChatMessageItem
                             msg={msg}
                             isGrouped={msg.isGrouped}
                             showAvatar={msg.showAvatar}

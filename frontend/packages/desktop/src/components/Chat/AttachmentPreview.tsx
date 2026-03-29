@@ -1,11 +1,20 @@
 import { File as FileIcon, X, MessageSquare, Music } from "lucide-react"
 import { cn } from "@evoloop/shared/lib/utils"
+import { useTranslation } from "react-i18next"
 
 export interface Attachment {
   id: string
-  url: string
+  url: string | number  // Can be string (URL) or number (skill ID)
   name: string
-  type: "image" | "file" | "reference" | "message" | "audio"
+  type: "image" | "file" | "reference" | "message" | "audio" | "skill"
+  metadata?: {
+    duration?: number
+    waveform?: number[]
+    localPath?: string
+    skill_id?: number
+    skill_name?: string
+    [key: string]: any
+  }
 }
 
 interface AttachmentPreviewProps {
@@ -17,6 +26,7 @@ export function AttachmentPreview({
   attachments,
   onRemove,
 }: AttachmentPreviewProps) {
+  const { t } = useTranslation()
   if (attachments.length === 0) return null
 
   return (
@@ -32,18 +42,22 @@ export function AttachmentPreview({
                 ? "bg-purple-500/10 border-purple-500/20 text-purple-700 dark:text-purple-400"
                 : att.type === "audio"
                   ? "bg-amber-500/10 border-amber-500/20 text-amber-700 dark:text-amber-400"
-                  : "bg-blue-500/10 border-blue-500/20 text-blue-700 dark:text-blue-400"
+                  : att.type === "skill"
+                    ? "bg-indigo-500/10 border-indigo-500/20 text-indigo-700 dark:text-indigo-400"
+                    : "bg-blue-500/10 border-blue-500/20 text-blue-700 dark:text-blue-400"
           )}
           title={att.name}
         >
           {att.type === "image" ? (
             <div className="relative w-4 h-4 overflow-hidden rounded-sm shrink-0">
-              <img src={att.url} alt={t("common.preview")} className="w-full h-full object-cover" />
+              <img src={String(att.url)} alt={t("common.preview")} className="w-full h-full object-cover" />
             </div>
           ) : att.type === "message" ? (
             <MessageSquare className="w-3.5 h-3.5 shrink-0 opacity-70" />
           ) : att.type === "audio" ? (
             <Music className="w-3.5 h-3.5 shrink-0 text-amber-500" />
+          ) : att.type === "skill" ? (
+            <span className="w-3.5 h-3.5 shrink-0 text-purple-500 font-bold text-[10px]">S</span>
           ) : (
             <FileIcon className="w-3.5 h-3.5 shrink-0 opacity-70" />
           )}

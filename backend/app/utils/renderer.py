@@ -1,32 +1,23 @@
 """
 Response rendering utilities using Jinja2 templates.
 
-This module provides standardized response rendering functions used across
-the application for consistent output formatting.
+⚠️ DEPRECATED: This module is deprecated. Use `app.utils.template` instead.
+
+This module now re-exports functions from `app.utils.template` for backward compatibility.
 """
-import os
+import warnings
 from typing import Any
-from jinja2 import Environment, FileSystemLoader
 
-# Setup Jinja2 Environment for response templates
-_TEMPLATE_DIR = os.path.join(
-    os.path.dirname(__file__), "..", "config", "templates"
-)
-_jinja_env = Environment(loader=FileSystemLoader(_TEMPLATE_DIR))
+# Re-export from template.py to avoid duplicate Environment instances
+from app.utils.template import render_template
+
+__all__ = ["render_template"]
 
 
-def render_template(template_name: str, **kwargs: Any) -> str:
-    """
-    Render a template with the given context.
-
-    Args:
-        template_name: Name of the template file (e.g., "report/response.prompt.j2")
-        **kwargs: Template context variables
-
-    Returns:
-        Rendered template string
-
-    Raises:
-        jinja2.TemplateNotFound: If the template does not exist
-    """
-    return _jinja_env.get_template(template_name).render(**kwargs)
+def _deprecated_warning():
+    """Warn about deprecated module usage."""
+    warnings.warn(
+        "app.utils.renderer is deprecated. Use app.utils.template instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )

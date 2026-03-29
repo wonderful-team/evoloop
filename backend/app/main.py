@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import time
 from contextlib import asynccontextmanager
 from typing import Any, cast
 
@@ -41,6 +42,16 @@ from sqlmodel import SQLModel
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+async def _warm_evocloud_cache():
+    """Background task to warm EvoCloud projects cache."""
+    try:
+        from app.core.evocloud import evocloud_manager
+        projects = await evocloud_manager.scan_projects()
+        logger.info(f"[Startup] ✓ EvoCloud projects cache warmed: {len(projects)} projects")
+    except Exception as e:
+        logger.warning(f"[Startup] EvoCloud cache warming failed: {e}")
 
 
 @asynccontextmanager
@@ -342,6 +353,41 @@ async def lifespan(_app: FastAPI):
         device_watcher.start()
     except Exception as e:
         logger.warning(f"Failed to start Device Watcher: {e}")
+
+    # 9. Pre-Supervisor Optimizations - Cache Warming
+    # Warm up caches that are safe to preload (no query-dependent data)
+    try:
+        logger.info("[Startup] Warming up caches for Pre-Supervisor optimization...")
+        start_warm = time.time()
+        
+        # 9.1 Skill Discovery Cache - Preload all active skills
+        try:
+            from app.core.learning.discovery import skill_discovery
+            skills = await skill_discovery.get_active_skills_list()
+            logger.info(f"[Startup] ✓ Skills cache warmed: {len(skills)} skills")
+        except Exception as e:
+            logger.warning(f"[Startup] Failed to warm skills cache: {e}")
+        
+        # 9.2 System Config Cache - Preload language preference
+        try:
+            lang_pref = SystemConfigService.get_language_preference()
+            logger.info(f"[Startup] ✓ User preferences cached: language={lang_pref}")
+        except Exception as e:
+            logger.warning(f"[Startup] Failed to cache user preferences: {e}")
+        
+        # 9.3 EvoCloud Projects Cache - Async background fetch
+        try:
+            if evocloud_manager.get_token():
+                # Fire and forget - don't block startup
+                asyncio.create_task(_warm_evocloud_cache())
+        except Exception as e:
+            logger.warning(f"[Startup] Failed to start EvoCloud cache warming: {e}")
+        
+        warm_time = (time.time() - start_warm) * 1000
+        logger.info(f"[Startup] Cache warming completed in {warm_time:.1f}ms")
+        
+    except Exception as e:
+        logger.warning(f"[Startup] Cache warming failed: {e}")
 
     yield
 

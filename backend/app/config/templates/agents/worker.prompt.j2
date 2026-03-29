@@ -401,7 +401,14 @@ The Supervisor has provided background information from previous conversation:
 {%- endif %}
 
 ## 📝 Final Reporting
-Once the criteria in the Mission Ticket are met, provide a concise summary of the actions taken and the results achieved. Your report should be clear, natural language — no special formatting tags are required.
+Once the criteria in the Mission Ticket are met:
+
+- **DO NOT** generate a detailed summary report
+- **DO NOT** use phrases like "任务已完成" or "总结"
+- **DO** provide a brief confirmation (1-2 sentences max) or simply return the final result
+- **Example**: "✅ Chrome opened and 10 AI news items extracted." or just the extracted data
+
+**Remember**: The Finish node will generate the comprehensive summary. Your job is to execute and confirm, not to summarize.
 
 ## 🧭 Reading Your Mission Ticket
 The Supervisor has handed you an **ExecutionTicket**. It contains:

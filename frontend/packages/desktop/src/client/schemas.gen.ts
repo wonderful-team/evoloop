@@ -230,6 +230,96 @@ export const BindClientRequestSchema = {
     title: 'BindClientRequest'
 } as const;
 
+export const Body_audio_text_to_speech_streamSchema = {
+    properties: {
+        text: {
+            type: 'string',
+            title: 'Text'
+        },
+        voice_id: {
+            type: 'string',
+            title: 'Voice Id',
+            default: 'zh-CN-XiaoxiaoNeural'
+        },
+        speed: {
+            type: 'number',
+            title: 'Speed',
+            default: 1
+        },
+        format: {
+            type: 'string',
+            title: 'Format',
+            default: 'mp3'
+        }
+    },
+    type: 'object',
+    required: ['text'],
+    title: 'Body_audio-text_to_speech_stream'
+} as const;
+
+export const Body_audio_transcribe_audioSchema = {
+    properties: {
+        file: {
+            type: 'string',
+            format: 'binary',
+            title: 'File'
+        },
+        language: {
+            type: 'string',
+            title: 'Language',
+            default: 'auto'
+        },
+        model: {
+            type: 'string',
+            title: 'Model',
+            default: 'auto'
+        },
+        prompt: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Prompt'
+        },
+        provider: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Provider'
+        }
+    },
+    type: 'object',
+    required: ['file'],
+    title: 'Body_audio-transcribe_audio'
+} as const;
+
+export const Body_audio_transcribe_streamSchema = {
+    properties: {
+        file: {
+            type: 'string',
+            format: 'binary',
+            title: 'File'
+        },
+        language: {
+            type: 'string',
+            title: 'Language',
+            default: 'auto'
+        }
+    },
+    type: 'object',
+    required: ['file'],
+    title: 'Body_audio-transcribe_stream'
+} as const;
+
 export const Body_files_upload_fileSchema = {
     properties: {
         file: {
@@ -539,6 +629,17 @@ export const ChatRequestSchema = {
                 }
             ],
             title: 'Attachments'
+        },
+        skill_id: {
+            anyOf: [
+                {
+                    type: 'integer'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Skill Id'
         },
         revert_files: {
             type: 'boolean',
@@ -1879,6 +1980,18 @@ export const ReferenceItemSchema = {
         target_name: {
             type: 'string',
             title: 'Target Name'
+        },
+        metadata: {
+            anyOf: [
+                {
+                    additionalProperties: true,
+                    type: 'object'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Metadata'
         }
     },
     type: 'object',
@@ -2733,6 +2846,58 @@ export const SystemConfigSchema = {
     title: 'SystemConfig'
 } as const;
 
+export const TTSRequestSchema = {
+    properties: {
+        text: {
+            type: 'string',
+            title: 'Text'
+        },
+        voice_id: {
+            type: 'string',
+            title: 'Voice Id',
+            default: 'zh-CN-XiaoxiaoNeural'
+        },
+        speed: {
+            type: 'number',
+            title: 'Speed',
+            default: 1
+        },
+        format: {
+            type: 'string',
+            title: 'Format',
+            default: 'mp3'
+        }
+    },
+    type: 'object',
+    required: ['text'],
+    title: 'TTSRequest',
+    description: '语音合成请求'
+} as const;
+
+export const TTSResponseSchema = {
+    properties: {
+        url: {
+            type: 'string',
+            title: 'Url'
+        },
+        duration: {
+            anyOf: [
+                {
+                    type: 'number'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Duration'
+        }
+    },
+    type: 'object',
+    required: ['url'],
+    title: 'TTSResponse',
+    description: '语音合成响应'
+} as const;
+
 export const TaskCreateRequestSchema = {
     properties: {
         project_id: {
@@ -3355,6 +3520,38 @@ export const ToolStepSchema = {
     type: 'object',
     required: ['id', 'tool', 'input', 'output'],
     title: 'ToolStep'
+} as const;
+
+export const TranscriptionResponseSchema = {
+    properties: {
+        text: {
+            type: 'string',
+            title: 'Text'
+        },
+        duration: {
+            type: 'number',
+            title: 'Duration'
+        },
+        language: {
+            type: 'string',
+            title: 'Language'
+        },
+        confidence: {
+            anyOf: [
+                {
+                    type: 'number'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Confidence'
+        }
+    },
+    type: 'object',
+    required: ['text', 'duration', 'language'],
+    title: 'TranscriptionResponse',
+    description: '语音识别响应'
 } as const;
 
 export const UpdateSkillRequestSchema = {

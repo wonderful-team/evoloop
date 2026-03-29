@@ -504,7 +504,10 @@
       "path": "Path",
       "show": "Details",
       "executing": "Executing: {{tool}}...",
-      "target": "Target"
+      "target": "Target",
+      "param": "Param",
+      "output": "Output",
+      "initializing": "Initializing..."
     },
     "sidebar": {
       "tabChats": "Chats",
@@ -514,7 +517,7 @@
       "untitled": "Untitled Chat",
       "tabFiles": "Files",
       "projectFiles": "Project Files",
-      "agentChanges": "Agent Changes",
+      "agentChanges": "File Changes",
       "noProject": "No project selected",
       "searchPlaceholder": "Search conversations...",
       "copiedPath": "Copied path: {{path}}",
@@ -844,7 +847,8 @@
     "status": {
       "indexing": "Indexing",
       "analyzing": "Analyzing",
-      "indexed": "Indexed"
+      "indexed": "Indexed",
+      "indexPending": "Pending"
     },
     "overview": {
       "title": "Project Overview",
@@ -1157,6 +1161,7 @@
     "unknown": "Unknown",
     "tasks": "tasks",
     "indexing": "Indexing",
+    "indexPending": "Pending",
     "showing": "Showing {{count}} projects",
     "desktopSearchPlaceholder": "Search projects by name or description...",
     "never": "Never",
@@ -1169,7 +1174,6 @@
     "manage": "Manage",
     "indexed": "Indexed",
     "indexFailed": "Index Failed",
-    "indexPending": "Pending",
     "lastIndexed": "Last indexed: {{time}}"
   },
   "pending": {

@@ -44,6 +44,7 @@ class ReferenceItem(BaseModel):
     type: str
     target_id: str
     target_name: str
+    metadata: dict | None = None  # Additional metadata (duration, transcript, waveform, etc.)
 
 
 def get_tool_display_name(tool_name: str) -> str | None:
@@ -251,6 +252,7 @@ async def get_conversation_messages(
                             type=ref.type,
                             target_id=ref.target_id,
                             target_name=ref.target_name,
+                            metadata=ref.metadata,
                         )
                         for ref in m.references
                     ]

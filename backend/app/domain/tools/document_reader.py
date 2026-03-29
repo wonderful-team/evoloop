@@ -41,18 +41,19 @@ def _resolve_project_path(file_path: str) -> str:
 
 def inspect_document(file_path: str) -> str:
     """
+    [INTERNAL USE ONLY - Not exposed as Agent tool]
     Inspect a document to get its metadata and structure without reading the full content.
     Useful for planning how to read large files.
 
     Args:
-        file_path (str): Absolute path to the file.
+        file_path (str): Absolute path to the file (must be resolved and validated by caller).
 
     Returns:
         str: JSON formatted metadata.
     """
     try:
-        resolved_path = _resolve_project_path(file_path)
-        real_path = ensure_local_path(resolved_path)
+        # Note: file_path should already be resolved and validated by the caller
+        real_path = ensure_local_path(file_path)
     except Exception as e:
         return json_utils.dumps({"error": str(e)})
 
@@ -83,24 +84,41 @@ def inspect_document(file_path: str) -> str:
         return json_utils.dumps({"error": str(e)})
 
 
-def query_excel_sql(file_path: str, sql_query: str) -> str:
+@evoloop_tool(
+    is_pollable=True,
+    name_map={"zh": "查询Excel", "en": "Query Excel SQL"}
+)
+async def query_excel_sql(file_path: str, sql_query: str) -> str:
     """
-    Execute a SQL query on an Excel file.
+    Execute a SQL query on an Excel file using an in-memory SQLite database.
+    
+    This is designed for efficiently querying large Excel files (>500MB) without loading
+    the entire file into context. The Excel data is loaded into a temporary SQLite
+    database for fast SQL querying.
+
     The table name is strictly 'data'. If the Excel has multiple sheets,
-    this tool currently loads the first sheet by default unless specified otherwise
-    (Future: support sheet selection).
+    this tool currently loads the first sheet by default.
 
     Args:
-        file_path: Path to Excel file or URL.
-        sql_query: SQL query string (e.g., "SELECT * FROM data LIMIT 5", "SELECT col1, SUM(col2) FROM data GROUP BY col1").
+        file_path: Path to the Excel file (.xlsx, .xls). **REQUIRED**
+        sql_query: SQL query string. **REQUIRED**
+                 Examples: "SELECT * FROM data LIMIT 5"
+                          "SELECT col1, SUM(col2) FROM data GROUP BY col1"
+                          "SELECT * FROM data WHERE age > 18"
 
     Returns:
-        JSON string of the result.
+        JSON string of the query results.
+    
+    Example:
+        query_excel_sql(file_path="sales_data.xlsx", sql_query="SELECT * FROM data WHERE revenue > 10000")
     """
+    # Import here to avoid circular imports
+    from app.domain.tools.files.utils import resolve_and_validate_path
+    
     try:
-        resolved_path = _resolve_project_path(file_path)
-        real_path = ensure_local_path(resolved_path)
-    except Exception as e:
+        # Resolve and validate path for security
+        real_path = await resolve_and_validate_path(file_path, None)
+    except ValueError as e:
         return f"Error: {str(e)}"
 
     if not os.path.exists(real_path):
@@ -131,23 +149,23 @@ def query_excel_sql(file_path: str, sql_query: str) -> str:
         return f"SQL Execution Error: {str(e)}"
 
 
-@evoloop_tool(
-    is_pollable=True,
-    name_map={"zh": "读取文档", "en": "Read Document"}
-)
 async def read_document(file_path: str, start_page: int | None = None, end_page: int | None = None) -> str:
     """
+    [INTERNAL USE ONLY - Not exposed as Agent tool]
     Read and parse content from various document formats (PDF, DOCX, XLSX, MD, TXT, HTML, PY, JS, IMG, etc.).
     Returns the content converted to Markdown format.
+    
+    This function is called internally by read_file for special document formats.
+    It should NOT be called directly by the Agent.
 
     Args:
-        file_path (str): Path to the file or URL.
+        file_path (str): Path to the file (must be resolved and validated by caller).
         start_page (int, optional): Start page for PDF (1-based).
         end_page (int, optional): End page for PDF (1-based).
     """
     try:
-        real_path = _resolve_project_path(file_path)
-        real_path = ensure_local_path(real_path)
+        # Note: file_path should already be resolved and validated by the caller (read_file)
+        real_path = ensure_local_path(file_path)
 
         if os.path.isdir(real_path):
             return _list_directory(real_path)

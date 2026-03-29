@@ -194,6 +194,7 @@ class WorkerNode:
                 name=f"Worker-{role_name}",
                 max_steps=1 if agent_config.get("is_subtask") else settings.WORKER_AGENT_MAX_STEPS,
                 is_subtask=agent_config.get("is_subtask", False),
+                node_source="worker",  # 👈 标记为 worker 节点
             )
 
             # 5. Unified Dispatching (Phase 2)
@@ -347,22 +348,13 @@ class WorkerNode:
                 }
         
         # 所有步骤完成
+        # NOTE: Worker should NOT generate detailed summaries.
+        # Return minimal content - Finish node will generate the comprehensive summary.
         final_result = results[-1] if results else {"output": "No output"}
-        summary_lines = [
-            f"✅ Workflow completed ({len(skills)} steps)",
-            "",
-            "Execution Summary:"
-        ]
-        for i, r in enumerate(results):
-            status_icon = "✅" if r["status"] == "success" else "❌"
-            output_preview = r["output"][:100] + "..." if len(r["output"]) > 100 else r["output"]
-            summary_lines.append(f"  {status_icon} Step {i+1} [{r['skill_name']}]: {output_preview}")
-        
-        summary_lines.append("")
-        summary_lines.append(f"Final Output:\n{final_result.get('output', '')}")
+        brief_confirmation = f"✅ Completed {len(skills)} step(s)."
         
         return {
-            "messages": [AIMessage(content="\n".join(summary_lines))],
+            "messages": [AIMessage(content=brief_confirmation)],
             "next_node": RoutingTarget.FINISH,
             "workflow_results": results
         }
@@ -392,17 +384,16 @@ class WorkerNode:
         else:
             worker_outcome = "success"
 
-        from app.utils import render_template
-        summary = render_template(
-            "report/response.prompt.j2",
-            success=(worker_outcome == "success"),
-            message=f"{role_name} Report",
-            details=content,
-            note=f"Tools used: {len(tool_history)}"
-        )
+        # Note: Worker should NOT generate summary reports.
+        # Summary generation is the responsibility of the Finish node.
+        # Worker only returns a brief progress update, NOT detailed summaries.
+
+        # Force minimal content - ignore LLM's verbose output
+        # The Finish node will generate the comprehensive summary
+        worker_content = f"✅ {role_name} completed."
 
         return_state: dict[str, Any] = {
-            "messages": [AIMessage(content=summary)],
+            "messages": [AIMessage(content=worker_content)],
             "next_node": routing_target or RoutingTarget.FINISH,
         }
 

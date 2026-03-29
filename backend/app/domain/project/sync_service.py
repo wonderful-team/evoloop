@@ -437,6 +437,8 @@ class ProjectSyncService:
                         path=dest_path
                     )
                     logger.info("[ProjectSync] Cloud Project Updated.")
+                    # Invalidate cache to reflect updated project info
+                    evocloud_manager.invalidate_projects_cache()
                 except Exception as e:
                     logger.error(f"[ProjectSync] Cloud Update Failed: {e}")
 

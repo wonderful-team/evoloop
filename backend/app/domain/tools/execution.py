@@ -1,33 +1,109 @@
 import asyncio
 import logging
+import os
 from typing import Any, Annotated
 
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import InjectedToolArg
 
-from app.core.tools import evoloop_tool
+from app.core.config import settings
+from app.core.context import ContextManager
+from app.core.tools import evoloop_tool, get_working_directory
 from app.utils import ControllerResponse, SkillResponse, render_template
 
 logger = logging.getLogger(__name__)
 
 
-async def _execute_command(command: str) -> tuple[str, str, int]:
+# Dangerous patterns that should be blocked
+_BLOCKED_PATTERNS = [
+    # Attempts to write to common system directories
+    "> /etc/", "> /usr/", "> /bin/", "> /sbin/", "> /lib",
+    # Attempts to modify system files
+    "rm -rf /", "rm -rf /*", "> ~/.bashrc", "> ~/.zshrc",
+    # Attempts to write outside workspace using relative escapes
+    ".. /", "../ /", 
+]
+
+
+def _is_dangerous_command(command: str) -> tuple[bool, str]:
+    """
+    Check if a command contains dangerous patterns.
+    Returns (is_dangerous, reason).
+    """
+    cmd_lower = command.lower()
+    
+    for pattern in _BLOCKED_PATTERNS:
+        if pattern in cmd_lower:
+            return True, f"Command contains blocked pattern: {pattern}"
+    
+    # Check for attempts to write to Desktop, Documents, Downloads in global mode
+    # This prevents bypassing file write restrictions via shell redirection
+    ctx = ContextManager.current()
+    home_dir = os.path.expanduser("~")
+    restricted_dirs = [
+        os.path.join(home_dir, "Desktop"),
+        os.path.join(home_dir, "Documents"), 
+        os.path.join(home_dir, "Downloads"),
+        os.path.join(home_dir, "Desktop"),
+    ]
+    
+    # Check for shell redirection to restricted paths
+    if ">" in command or ">>" in command:
+        for restricted in restricted_dirs:
+            if restricted in command or restricted.replace(home_dir, "~") in command:
+                return True, f"Cannot write to {restricted} using execute_command. Use write_file tool instead."
+    
+    return False, ""
+
+
+async def _execute_command(command: str, config: RunnableConfig | None = None) -> tuple[str, str, int]:
     """
     Internal function to execute a shell command.
     Used by execute_command tool and other internal operations.
+    
+    Commands are executed within the working directory context.
+    In global mode, uses WORKSPACE_ROOT as the working directory.
     
     Returns:
         tuple: (stdout, stderr, returncode)
     """
     logger.info(f"Execution [Command]: {command}")
+    
+    # Security check for dangerous commands
+    is_dangerous, reason = _is_dangerous_command(command)
+    if is_dangerous:
+        logger.warning(f"Blocked dangerous command: {command}")
+        return "", f"Security Error: {reason}", 1
 
     try:
         from app.core.execution import SandboxFactory
+        from app.infrastructure.config.service import SystemConfigService
+        
+        # Determine working directory
+        # In global mode, use WORKSPACE_ROOT to ensure commands run in a safe location
+        ctx = ContextManager.current()
+        working_dir = get_working_directory(config)
+        
+        if ctx.project_id == 0 or (ctx.project_id is None and working_dir == "."):
+            db_workspace_root = SystemConfigService.get_value("WORKSPACE_ROOT")
+            workspace_root = db_workspace_root if db_workspace_root else settings.WORKSPACE_ROOT
+            if workspace_root:
+                working_dir = workspace_root
+                logger.info(f"Global mode: Using WORKSPACE_ROOT as working directory: {working_dir}")
 
         sandbox = SandboxFactory.get_sandbox()
+        
+        # Prepend cd command to ensure command runs in correct directory
+        # This is a soft enforcement - sophisticated escapes are still possible
+        # but this prevents accidental writes to wrong locations
+        if working_dir and working_dir != ".":
+            # Use subshell to isolate directory change
+            wrapped_command = f"cd {working_dir} && {command}"
+        else:
+            wrapped_command = command
 
         # Run via Sandbox (handles stateful CWD/ENV if using LocalSandbox)
-        stdout, stderr, returncode = await asyncio.to_thread(sandbox.run_command, command)
+        stdout, stderr, returncode = await asyncio.to_thread(sandbox.run_command, wrapped_command)
         
         return stdout, stderr, returncode
 
@@ -62,12 +138,18 @@ def _format_command_result(stdout: str, stderr: str, returncode: int) -> str:
     summary_template="database_logger.tool_summary.execute_command",
     name_map={"zh": "执行命令", "en": "Execute Command"}
 )
-async def execute_command(command: str) -> str:
+async def execute_command(
+    command: str,
+    config: Annotated[RunnableConfig, InjectedToolArg] = None,
+) -> str:
     """
     Execute a shell command (e.g., 'pytest', 'npm install', 'ls -la', 'git status').
 
     This is your primary tool for navigating the OS, running scripts, building projects,
     and executing standard operating procedures including Git operations.
+    
+    In global mode, commands are executed within WORKSPACE_ROOT for safety.
+    Use dedicated file tools for file operations rather than shell redirection.
 
     WARNING: Use dedicated tools for standard operations when available:
     - File Editing -> Use `edit_file` / `write_file`.
@@ -83,7 +165,7 @@ async def execute_command(command: str) -> str:
         execute_command(command="pytest tests/")
         execute_command(command="npm install")
     """
-    stdout, stderr, returncode = await _execute_command(command)
+    stdout, stderr, returncode = await _execute_command(command, config)
     return _format_command_result(stdout, stderr, returncode)
 
 

@@ -10,8 +10,10 @@ from app.utils.file import resolve_path
 async def resolve_and_validate_path(path: str, config: RunnableConfig | None = None) -> str:
     """
     Resolve path and perform security check.
-    In global mode, prompts user to select/create a project via HITL.
-    Raises ValueError on security violation, resolution failure, or user cancellation.
+    
+    File operations do NOT require a project - they only need a safe base path.
+    In global mode, uses WORKSPACE_ROOT as the base directory.
+    Raises ValueError on security violation or resolution failure.
     """
     # Handle Agent Hallucinations (treating system root dependencies)
     if path.strip() == "/" or path.strip() == "":
@@ -19,30 +21,18 @@ async def resolve_and_validate_path(path: str, config: RunnableConfig | None = N
 
     root = get_working_directory(config)
 
-    # Global Mode Check: If working directory is not set, prompt user to select/create project
+    # In global mode (project_id is 0 or None, and root is current dir),
+    # use WORKSPACE_ROOT as the base directory for file operations.
+    # File operations don't require a project - they just need a safe workspace.
     ctx = ContextManager.current()
     if ctx.project_id == 0 or (ctx.project_id is None and root == "."):
         from app.infrastructure.config.service import SystemConfigService
-        from app.core.monitoring.ui_actions import require_project_for_tool
 
         db_workspace_root = SystemConfigService.get_value("WORKSPACE_ROOT")
         workspace_root = db_workspace_root if db_workspace_root else settings.WORKSPACE_ROOT
 
-        if root == "." or root == workspace_root:
-            # Global mode detected - request project via HITL
-            result = await require_project_for_tool(
-                tool_name="file_operation",
-                tool_category="file_operation",
-                prompt="📁 **文件操作需要项目**\n\n当前处于全局模式，文件操作需要在特定项目中进行。请选择一个项目继续："
-            )
-
-            if isinstance(result, str):
-                # User cancelled or error
-                raise ValueError(f"❌ 文件操作已取消：{result}")
-
-            # Project selected via HITL (temp project is set automatically)
-            # Re-resolve working directory with new project context
-            root = get_working_directory(config)
+        if workspace_root:
+            root = workspace_root
 
     target_path = resolve_path(path, base_path=root)
 

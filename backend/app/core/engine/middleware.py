@@ -1,5 +1,5 @@
 import logging
-import uuid
+import time
 from typing import Any, Optional
 
 from langchain_core.runnables import RunnableConfig
@@ -7,6 +7,7 @@ from langchain_core.runnables import RunnableConfig
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.config import settings
 from app.core.context import ContextManager, EvoContext
+from app.core.engine.context_cache import LayeredContextCache
 from app.infrastructure.config.service import SystemConfigService
 from app.utils.id import gen_uuid
 
@@ -22,13 +23,17 @@ class EvoContextMiddleware:
     @staticmethod
     async def hydrate(state: dict, config: RunnableConfig) -> dict:
         """
-        Hydrates the EvoContext and consolidates session state.
+        Layered context hydration with caching.
+        
+        - Static layer (cacheable): Project concepts, skills, telemetry
+        - Dynamic layer (always fresh): Blackboard, execution state, messages
         """
+        start_time = time.time()
+        
         # 1. Resolve or Create Context
         ctx = ContextManager.current()
         blackboard = state.get("blackboard") or {}
         
-        # If we are in a fresh run, context was lost, or this is an isolated subtask
         if ctx.request_id == "global-fallback" or state.get("is_subtask"):
             project_id = state.get("project_id")
             if project_id is None:
@@ -38,7 +43,6 @@ class EvoContextMiddleware:
                 blackboard.get("working_directory") or 
                 config.get("configurable", {}).get("working_directory")
             )
-            # [Phase 5] Prioritize state's thread_id (for subtask isolation)
             thread_id = state.get("thread_id") or config.get("configurable", {}).get("thread_id")
 
             ctx = EvoContext(
@@ -48,74 +52,119 @@ class EvoContextMiddleware:
                 request_id=f"run-{gen_uuid()[:8]}"
             )
             ContextManager.set(ctx)
-            logger.info(f"[Middleware] 🧪 Context Initialized: project_id={project_id}, wd={working_directory}")
+            logger.info(f"[Middleware] 🧪 Context Initialized: project_id={project_id}")
 
-        # 2. Unified Environment Hydration (Plug-in Discovery)
+        project_id = ctx.project_id or DEFAULT_PROJECT_ID
+        session_id = config.get("configurable", {}).get("run_id", ctx.request_id)
+
+        # 2. Static Layer (with caching)
+        # These don't change during a request, safe to cache
+        async def _load_static_data():
+            """Load static context data."""
+            data = {}
+            
+            # Extract last human message for memory search
+            last_human_msg = ""
+            messages = state.get("messages", [])
+            for msg in reversed(messages):
+                if hasattr(msg, "type") and msg.type == "human":
+                    last_human_msg = msg.content
+                    break
+            
+            # Memory hydration (only if not subtask)
+            if last_human_msg and settings.USE_NEO4J_MEMORY and not state.get("is_subtask"):
+                from app.core.memory import memory_manager
+                
+                concepts = await memory_manager.long_term.search_concepts(last_human_msg, project_id)
+                if concepts:
+                    data['project_concepts'] = "\n".join([
+                        f"- **{c.name}**: {c.description}" for c in concepts[:3]
+                    ])
+                
+                episodes = await memory_manager.episodic.search_episodes(last_human_msg, project_id, limit=3)
+                if episodes:
+                    current_run_id = config.get("configurable", {}).get("run_id")
+                    filtered = [
+                        e for e in episodes
+                        if getattr(e, "source_message_id", None) != current_run_id
+                    ]
+                    if filtered:
+                        data['episodes'] = "\n".join([e.summary for e in filtered[:2]])
+            
+            # Skills index
+            from app.core.learning.discovery import skill_discovery
+            data['active_skills'] = await skill_discovery.get_active_skills_list()
+            
+            # Environment telemetry
+            from app.core.environment import get_awakened_state
+            env_state = get_awakened_state()
+            if env_state:
+                data['telemetry'] = {
+                    "android": [{"id": d.device_id, "reachable": d.is_reachable} 
+                               for d in env_state.android_devices],
+                    "macos": bool(env_state.macos),
+                    "network": env_state.network.internet_connected if env_state.network else False
+                }
+            
+            return data
+        
+        # Load static layer with caching
+        static_layer = await LayeredContextCache.get_static_layer(
+            session_id=session_id,
+            project_id=project_id,
+            loader_fn=_load_static_data
+        )
+        
+        # Apply static layer to context
+        ctx.metadata["project_concepts"] = static_layer.project_concepts
+        ctx.metadata["active_skills"] = static_layer.active_skills_index
+        ctx.metadata["environment_telemetry"] = static_layer.environment_telemetry
+        
+        # 3. Dynamic Layer (always fresh, never cached)
+        # These change between nodes and must be current
+        dynamic_layer = LayeredContextCache.get_dynamic_layer(state)
+        
+        ctx.metadata["blackboard"] = dynamic_layer.blackboard
+        ctx.metadata["execution_ticket"] = dynamic_layer.execution_ticket
+        ctx.metadata["iteration_count"] = dynamic_layer.iteration_count
+        
+        # 4. Environment Hydration (always run for plugin discovery)
         from app.core.context.plugins import plugin_registry
         plugin_registry.hydrate_context(ctx)
 
-        # 3. Collaborative Memory Hydration
-        # Extract last human message for semantic search
-        last_human_msg = ""
-        messages = state.get("messages", [])
-        for msg in reversed(messages):
-            if hasattr(msg, "type") and msg.type == "human":
-                last_human_msg = msg.content
-                break
-
-        if last_human_msg and settings.USE_NEO4J_MEMORY and not state.get("is_subtask"):
-            from app.core.memory import memory_manager
-            project_id = ctx.project_id or 1
-
-            # Semantic search for relevant concepts and past episodes
-            concepts = await memory_manager.long_term.search_concepts(last_human_msg, project_id)
-            if concepts:
-                ctx.metadata["project_concepts"] = "\n".join([f"- **{c.name}**: {c.description}" for c in concepts[:3]])
-
-            # Fetch recent episodic snippets for grounding
-            episodes = await memory_manager.episodic.search_episodes(last_human_msg, project_id, limit=3)
-            if episodes:
-                # [Deep Fix] Filter out episodes from the CURRENT run attempt to prevent "Session concluded" pollution
-                current_run_id = config.get("configurable", {}).get("run_id")
-                filtered = [
-                    e for e in episodes
-                    if getattr(e, "source_message_id", None) != current_run_id
-                ]
-                if filtered:
-                    ctx.metadata["episodic_memory_raw"] = "\n".join([e.summary for e in filtered[:2]])
-
-        # 4. Standard Capability Hydration (SOP Index)
-        from app.core.learning.discovery import skill_discovery
-        ctx.metadata["active_skills"] = await skill_discovery.get_active_skills_list()
-
-        # 5. State Harmonization (Blackboard Pattern - Phase 4 Consolidation)
+        # 5. State Harmonization
         if not blackboard.get("verification") and state.get("verification_status"):
             blackboard["verification"] = state.get("verification_status")
 
-        # 4b. Metadata Reset (Industrial Hardening)
-        # Clear terminal status markers from previous runs to prevent misaligned prompts on retry
+        # 6. Metadata Reset (Industrial Hardening)
         is_retry = config.get("metadata", {}).get("is_retry", False)
         
         if (state.get("is_retry") or is_retry) and not state.get("is_subtask"):
             logger.info("[Middleware] 🔄 Retry detected: Performing deep blackboard cleanup.")
             for key in ["ticket", "verification", "route_reason"]:
                 blackboard[key] = None
-
             if "metadata" in blackboard:
                 for key in ["final_outcome", "shadow_audit"]:
                     if key in blackboard["metadata"]:
                         del blackboard["metadata"][key]
+            # Also invalidate static cache on retry
+            LayeredContextCache.invalidate_static(session_id)
+            
         elif "metadata" in blackboard and not state.get("is_subtask"):
             for key in ["final_outcome", "shadow_audit"]:
                 if key in blackboard["metadata"]:
                     logger.debug(f"[Middleware] Resetting terminal metadata '{key}' for new run.")
                     del blackboard["metadata"][key]
 
-        # 6. Ticket Synchronization (UI/Prompt Hardening)
+        # 7. Ticket Synchronization
         execution_ticket = state.get("execution_ticket")
         if execution_ticket and not blackboard.get("ticket"):
-            logger.debug("[Middleware] Syncing top-level execution_ticket to blackboard.")
             blackboard["ticket"] = execution_ticket
 
         state["blackboard"] = blackboard
+        
+        # Log performance
+        duration_ms = (time.time() - start_time) * 1000
+        logger.debug(f"[Middleware] Hydration completed in {duration_ms:.1f}ms")
+        
         return state

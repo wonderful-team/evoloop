@@ -484,10 +484,17 @@ class MobileController:
                                     return {"strategy": strat.strategy_type, "parameters": strat.parameters, "source": "atlas_strategy"}
                             elif not atlas_info["is_stale"] and atlas_info["summary"] and "states" in atlas_info["summary"]:
                                 for state in atlas_info["summary"]["states"][:3]:
-                                    detail = await atlas_engine.store.get_state_detail(atlas_info["bundle_id"], state["id"], platform="android")
-                                    for el in detail.get("elements", []):
-                                        if name.lower() in str(el.get("label", "")).lower():
-                                            return {"x": el["x"], "y": el["y"]}
+                                    try:
+                                        detail = await asyncio.wait_for(
+                                            atlas_engine.store.get_state_detail(atlas_info["bundle_id"], state["id"], platform="android"),
+                                            timeout=2.0
+                                        )
+                                        for el in detail.get("elements", []):
+                                            if name.lower() in str(el.get("label", "")).lower():
+                                                return {"x": el["x"], "y": el["y"]}
+                                    except asyncio.TimeoutError:
+                                        logger.debug(f"[Mobile] Atlas state detail timeout for state {state['id']}")
+                                        continue
                         except Exception:
                             pass
 
@@ -507,6 +514,9 @@ class MobileController:
                                         return {"x": el.x, "y": el.y}
                         except Exception as e:
                             logger.debug(f"[Mobile] OCR attempt {ocr_attempts} failed: {e}")
+
+                    # Prevent busy-waiting if element is found quickly
+                    await asyncio.sleep(0.05)
 
                 return render_template("report/response.prompt.j2", success=False, message=f"Could not find element '{name}' on device.")
 
