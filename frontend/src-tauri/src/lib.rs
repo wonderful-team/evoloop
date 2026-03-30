@@ -30,6 +30,7 @@ mod commands;
 mod screen_recorder;
 mod sidecar;
 mod tray;
+mod version;
 #[cfg(desktop)]
 mod global_shortcut;
 
@@ -512,6 +513,12 @@ pub fn run() {
             set_voice_shortcut_duration,
             set_voice_shortcut_mode,
             set_voice_shortcut_interval,
+            // Version commands
+            version::get_version_info,
+            version::get_version,
+            version::is_stage,
+            version::compare_versions,
+            version::needs_update,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");
