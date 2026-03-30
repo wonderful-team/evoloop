@@ -20,6 +20,9 @@ class EvoCloudConfig(BaseModel):
     # Path Configuration
     app_data_dir: str | None = None
 
+    # SSL Configuration (for development)
+    ssl_verify: bool = True
+
 
 class CommandData(BaseModel):
     """Structure of a command received from Cloud."""

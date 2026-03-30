@@ -56,7 +56,8 @@ class EvoCloudManager:
                 api_secret=settings.EVOCLOUD_API_SECRET,
                 device_name=settings.EVOCLOUD_DEVICE_NAME,
                 access_token=settings.EVOCLOUD_ACCESS_TOKEN,
-                app_data_dir=str(settings.APP_DATA_DIR)
+                app_data_dir=str(settings.APP_DATA_DIR),
+                ssl_verify=getattr(settings, 'EVOCLOUD_SSL_VERIFY', True)
             )
 
         self._config = config

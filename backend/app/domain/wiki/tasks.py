@@ -29,7 +29,7 @@ def generate_wiki_task(project_id: int, topic: str, force_regenerate: bool = Fal
             await activity_monitor.update_agent_state(sys_tid, "WIKI", "Generating Wiki", "Deep Research in progress...")
 
             # Instantiate LLM inside the worker process
-            llm = get_default_llm()
+            llm = await get_default_llm()
 
             # Run async service
             await wiki_service.generate_wiki(

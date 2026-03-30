@@ -146,7 +146,7 @@ class DirectorySummarizer:
     async def generate_summary(self, dir_path: str, child_summaries: list[str]) -> str:
         from app.utils import render_template
         
-        llm = get_default_llm()
+        llm = await get_default_llm()
 
         prompt_text = render_template(
             "codebase/directory_summary.prompt.j2",

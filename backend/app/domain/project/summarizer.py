@@ -12,7 +12,7 @@ from app.core.monitoring.activity import activity_monitor
 from app.domain.codebase.filter import FileFilter
 from app.domain.project.service import project_context_manager
 from app.infrastructure.database.graph.driver import get_graph_db
-from app.infrastructure.llm.factory import LLMFactory
+from app.infrastructure.llm.factory import LLMFactory, get_default_llm
 from app.utils import file as file_utils
 from app.utils import json as json_utils
 from app.utils.async_utils import flush_loop_bound_resources
@@ -116,10 +116,9 @@ async def _summarize_project_logic(name: str, path: str):
             arch_summary=arch_summary
         )
 
-        llm = LLMFactory.create_llm(temperature=0.3)
+        llm = get_default_llm(temperature=0.3)
         response = await llm.ainvoke(prompt_text)
-        
-        from app.core.output.parsers import JsonOutputParser
+
         parser = JsonOutputParser()
         result = parser.parse(response.content if hasattr(response, 'content') else str(response))
 

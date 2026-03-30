@@ -5,6 +5,7 @@ Subscribes to project events to trigger indexing operations.
 This decouples IndexingManager from ProjectSyncService.
 """
 
+import asyncio
 import logging
 
 from app.core.events.base import BaseEvent
@@ -40,7 +41,8 @@ class IndexingEventHandler:
             from app.domain.codebase.indexing.manager import indexing_manager
 
             await indexing_manager.start_watching(event.path, event.repo_id)
-            await indexing_manager.run_indexing_background(event.repo_id)
+            # Fire and forget - don't await background indexing
+            asyncio.create_task(indexing_manager.run_indexing_background(event.repo_id))
 
             logger.info(f"[IndexingHandler] Started watching and indexing: {event.path}")
         except Exception as e:

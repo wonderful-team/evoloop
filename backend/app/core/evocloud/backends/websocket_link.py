@@ -3,11 +3,13 @@ import json
 import logging
 import os
 import platform
+import ssl
 from collections.abc import Callable
 from typing import Any
 
+import certifi
 import websockets
-from websockets.legacy.client import WebSocketClientProtocol
+from websockets.client import ClientConnection
 
 from app.core.evocloud.interfaces.client import EvoCloudClientProtocol
 from app.core.evocloud.interfaces.link import DeviceLinkProtocol
@@ -39,7 +41,7 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
         self.client_id: str | None = None
 
         # Connection
-        self.ws: WebSocketClientProtocol | None = None
+        self.ws: ClientConnection | None = None
         self._running = False
         self._reconnect_delay = 5
 
@@ -133,10 +135,14 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
         self._running = False
         if self.ws:
             try:
-                await self.ws.close()
+                # Close with timeout to avoid hanging
+                await asyncio.wait_for(self.ws.close(), timeout=2.0)
+            except asyncio.TimeoutError:
+                logger.debug("[EvoCloud] WS close timed out, forcing disconnect")
             except Exception as e:
-                logger.warning(f"Error closing WS: {e}")
-            self.ws = None
+                logger.debug(f"[EvoCloud] Error closing WS: {e}")
+            finally:
+                self.ws = None
 
     async def _register_device(self) -> bool:
         os_info = f"{platform.system()} {platform.release()}"
@@ -161,11 +167,22 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
         base_delay = 5
         max_delay = 60
 
+        # SSL context for WebSocket connection
+        ssl_context = None
+        if self.config.ws_url.startswith("wss://"):
+            if not self.config.ssl_verify:
+                # Create unverified SSL context for development
+                ssl_context = ssl._create_unverified_context()
+                logger.debug("[EvoCloud] SSL verification disabled for WebSocket (unverified context)")
+            else:
+                # Use certifi to ensure we have valid CA certificates
+                ssl_context = ssl.create_default_context(cafile=certifi.where())
+
         while self._running:
             try:
                 logger.info(f"[EvoCloud) Connecting WS to {self.config.ws_url}...")
 
-                async with websockets.connect(self.config.ws_url) as ws:
+                async with websockets.connect(self.config.ws_url, ssl=ssl_context) as ws:
                     self.ws = ws
                     logger.info("[EvoCloud] WS Connected. Sending handshake...")
 
@@ -183,8 +200,16 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
                     retry_count = 0  # Reset on success
                     async for message in ws:
                         await self._handle_ws_message(str(message))
+            except ssl.SSLError as e:
+                logger.error(f"[EvoCloud] SSL Certificate Error: {e}")
+                if not self.config.ssl_verify:
+                    logger.error("[EvoCloud] SSL verification is already disabled, but error persists")
+                else:
+                    logger.info("[EvoCloud] Tip: Set EVOCLOUD_SSL_VERIFY=false to disable SSL verification (development only)")
             except Exception as e:
                 logger.warning(f"[EvoCloud] WS Connection Error: {e}")
+            finally:
+                self.ws = None
 
             if self._running:
                 # Exponential backoff

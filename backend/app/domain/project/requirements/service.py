@@ -31,7 +31,7 @@ async def breakdown_requirements_to_tasks(
     analysis_data = analysis.analysis_data
 
     # Prepare prompt using Jinja2 template
-    llm = get_default_llm()
+    llm = await get_default_llm()
 
     prompt = render_breakdown_prompt(
         title=analysis_data.get("title", "Untitled"),

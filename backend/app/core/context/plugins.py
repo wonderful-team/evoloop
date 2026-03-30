@@ -1,4 +1,5 @@
 import logging
+import time
 from typing import Protocol
 
 from app.core.context.manager import EvoContext
@@ -19,10 +20,19 @@ class ContextPlugin(Protocol):
 
 
 class ContextPluginRegistry:
-    """Registry for all context plugins."""
+    """
+    Registry for all context plugins.
+    
+    Optimization:
+    - Caches hydration results with 5s TTL to avoid redundant plugin execution
+      across multiple prompt builders in the same request.
+    """
 
     def __init__(self):
         self._plugins: list[ContextPlugin] = []
+        # Cache for hydration results: (thread_id, project_id) -> (result, timestamp)
+        self._hydration_cache: dict[tuple[str, int], tuple[dict, float]] = {}
+        self._cache_ttl: float = 5.0  # 5 seconds TTL
 
     def register(self, plugin: ContextPlugin) -> None:
         self._plugins.append(plugin)
@@ -31,13 +41,46 @@ class ContextPluginRegistry:
     def hydrate_context(self, ctx: EvoContext) -> None:
         """
         Run all registered plugins to populate the given context.
-        This provides a dependency-inversed way to load domain knowledge.
+        Uses caching to avoid redundant execution within the same request.
         """
+        # Generate cache key from context identifiers
+        cache_key = (ctx.thread_id, ctx.project_id or 0)
+        now = time.time()
+        
+        # Check cache
+        if cache_key in self._hydration_cache:
+            cached_result, cached_time = self._hydration_cache[cache_key]
+            if now - cached_time < self._cache_ttl:
+                # Cache hit: Apply cached values
+                logger.debug(f"[PluginRegistry] Cache hit for {cache_key}")
+                if "environment_block" in cached_result:
+                    ctx.environment_block = cached_result["environment_block"]
+                return
+            else:
+                # Cache expired
+                logger.debug(f"[PluginRegistry] Cache expired for {cache_key}")
+                del self._hydration_cache[cache_key]
+        
+        # Cache miss: Run all plugins
+        logger.debug(f"[PluginRegistry] Cache miss, hydrating {len(self._plugins)} plugins")
+        
         for plugin in self._plugins:
             try:
                 plugin.hydrate(ctx)
             except Exception as e:
                 logger.error(f"Error executing ContextPlugin {plugin.__class__.__name__}: {e}")
+        
+        # Cache the result
+        self._hydration_cache[cache_key] = (
+            {"environment_block": ctx.environment_block},
+            now
+        )
+        
+        # Cleanup old cache entries (simple LRU)
+        if len(self._hydration_cache) > 100:
+            oldest_key = min(self._hydration_cache.keys(), 
+                           key=lambda k: self._hydration_cache[k][1])
+            del self._hydration_cache[oldest_key]
 
 
 # Global registry instance

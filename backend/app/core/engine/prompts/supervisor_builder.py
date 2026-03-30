@@ -74,16 +74,12 @@ class SupervisorPromptBuilder:
         # 3. Protocol & Sys Info Prep
         is_global_mode = self.project_id == 0 or self.project_id is None
 
-        # 3.1 Fetch Telemetry (Sensors)
+        # 3.1 Fetch Telemetry (Sensors) - Using cached snapshot for efficiency
         telemetry_data = {}
         try:
             if state:
-                # Raw status (not pre-rendered text)
-                telemetry_data = {
-                    "android": [{"id": d.device_id, "reachable": d.is_reachable} for d in state.android_devices],
-                    "macos": bool(state.macos),
-                    "network": state.network.internet_connected if state.network else False
-                }
+                # Use cached telemetry snapshot (1-second TTL) to avoid redundant computation
+                telemetry_data = state.get_telemetry_snapshot()
                 # Get installed apps for macOS (for app name resolution)
                 if state.macos and state.macos.installed_apps:
                     macos_apps = state.macos.installed_apps[:50]

@@ -13,7 +13,7 @@ from langchain_core.runnables import RunnableConfig
 
 from app.constants import RoutingTarget
 from app.core.tools import evoloop_tool
-from app.infrastructure.llm.factory import LLMFactory
+from app.infrastructure.llm.factory import LLMFactory, get_default_llm
 from app.i18n.service import i18n
 from app.utils.text import extract_json_from_markdown
 
@@ -151,7 +151,7 @@ async def decompose_task(
     
     Returns a SpawnPlan that triggers the parallel execution engine.
     """
-    llm = LLMFactory.create_llm(temperature=0.3)
+    llm = get_default_llm(temperature=0.3)
 
     # 2. Call LLM
     from app.utils import render_template
@@ -235,7 +235,7 @@ async def aggregate_results(
     if aggregation_strategy == "concatenate":
         return {"status": "success", "aggregated": "\n\n---\n\n".join([str(r.get("result", r)) for r in results])}
 
-    llm = LLMFactory.create_llm(temperature=0.3)
+    llm = get_default_llm(temperature=0.3)
 
     from app.utils import render_template
     prompt = render_template(

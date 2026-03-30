@@ -270,27 +270,24 @@ class IndexingManager:
     async def run_indexing_background(self, repo_id: int):
         """
         Helper to run indexing in a fire-and-forget background task.
-        Switching to Celery dispatch.
+        
+        NOTE: This is an async method but should NOT be awaited by caller.
+        Use asyncio.create_task(run_indexing_background(...)) instead.
         """
-        # We need project_id.
-        # Since this is async/sync mismatch (run_indexing_background is traditionally sync called from main),
-        # but here we made it async in previous tools?
-        # Original sig was: def run_indexing_background(self, repo_id: int)
-        # It used asyncio.create_task.
-        # Now we want to call dispatch_full_index (sync).
-        # We need to fetch Repo to get Project ID first. This requires DB.
-        # DB access is async.
-        # So we wraps it.
-
+        # Fire and forget - create task without awaiting
         asyncio.create_task(self._resolve_and_dispatch(repo_id))
 
     async def _resolve_and_dispatch(self, repo_id: int):
-        async with AsyncSessionLocal() as session:
-            repo = await session.get(Repository, repo_id)
-            if repo and repo.project_id:
-                self.dispatch_full_index(repo.project_id)
-            else:
-                logger.warning(f"Could not resolve project for repo {repo_id}, skipping dispatch")
+        """Async helper to resolve repo and dispatch indexing."""
+        try:
+            async with AsyncSessionLocal() as session:
+                repo = await session.get(Repository, repo_id)
+                if repo and repo.project_id:
+                    self.dispatch_full_index(repo.project_id)
+                else:
+                    logger.warning(f"Could not resolve project for repo {repo_id}, skipping dispatch")
+        except Exception as e:
+            logger.error(f"Error in _resolve_and_dispatch for repo {repo_id}: {e}")
 
 
 # Global Instance

@@ -41,11 +41,8 @@ class WorkerPromptBuilder:
         telemetry_data = {}
         try:
             if state:
-                telemetry_data = {
-                    "android": [{"id": d.device_id, "reachable": d.is_reachable} for d in state.android_devices],
-                    "macos": bool(state.macos),
-                    "network": state.network.internet_connected if state.network else False
-                }
+                # Use cached telemetry snapshot (1-second TTL) to avoid redundant computation
+                telemetry_data = state.get_telemetry_snapshot()
         except Exception as e:
             logger.warning(f"[WorkerPrompt] Failed to fetch telemetry: {e}")
 

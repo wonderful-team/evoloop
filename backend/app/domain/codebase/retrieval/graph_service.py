@@ -16,7 +16,7 @@ from langchain_core.prompts.prompt import PromptTemplate
 
 from app.core.config import settings
 from app.infrastructure.database.graph.driver import get_graph_db
-from app.infrastructure.llm.factory import LLMFactory
+from app.infrastructure.llm.factory import LLMFactory, get_default_llm
 
 logger = logging.getLogger(__name__)
 
@@ -155,7 +155,7 @@ Relationships:
 
         from langchain_neo4j import GraphCypherQAChain
 
-        llm = LLMFactory.create_llm(temperature=0)
+        llm = get_default_llm(temperature=0)
 
         from app.utils import render_template
         prompt_text = render_template(

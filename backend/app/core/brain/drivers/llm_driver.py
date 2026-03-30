@@ -8,7 +8,7 @@ from langchain_core.messages import SystemMessage, HumanMessage
 
 from app.core.brain.drivers.abstract import BaseBrainDriver
 from app.core.config import settings
-from app.infrastructure.llm.factory import LLMFactory
+from app.infrastructure.llm.factory import get_default_llm
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +32,7 @@ class ReflectiveDriver(BaseBrainDriver):
 
         try:
             # factory.create_llm() returns a LangChain Runnable
-            model = LLMFactory.create_llm(temperature=0.3)
+            model = get_default_llm(temperature=0.3)
 
             messages = []
             if system_prompt:

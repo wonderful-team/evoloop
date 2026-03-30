@@ -244,11 +244,6 @@ async def lifespan(_app: FastAPI):
             repo = await service.get_or_create_repo(default_path, repo_name)
             await indexing_manager.start_watching(default_path, repo.id)
 
-            # NOTE: Deep indexing is deferred until after user login
-            # to avoid wasting resources on projects user may not care about.
-            # File watching is active, so changes will be captured.
-            # await indexing_manager.run_indexing_background(repo.id)
-
     except Exception as e:
         logger.error(f"Failed to start startup watcher: {e}")
 

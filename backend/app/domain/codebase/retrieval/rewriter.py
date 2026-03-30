@@ -3,7 +3,7 @@ import logging
 from langchain_core.messages import HumanMessage
 
 from app.core.config import settings
-from app.infrastructure.llm.factory import LLMFactory
+from app.infrastructure.llm.factory import LLMFactory, get_default_llm
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +18,7 @@ class QueryRewriter:
     def __init__(self):
         # Use a cheap/fast model for rewriting if possible (e.g. gpt-3.5-turbo or haiku)
         # For now, default to configured GENERAL_AGENT_MODEL
-        self.llm = LLMFactory.create_llm(temperature=0.0)
+        self.llm = get_default_llm(temperature=0.0)
         self.enabled = settings.ENABLE_QUERY_REWRITING
 
     async def rewrite(self, query: str) -> str:

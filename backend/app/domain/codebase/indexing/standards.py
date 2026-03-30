@@ -3,7 +3,7 @@ import os
 import random
 
 from app.core.memory import memory_manager
-from app.infrastructure.llm.factory import LLMFactory
+from app.infrastructure.llm.factory import LLMFactory, get_default_llm
 from app.utils.file import read_file_content
 from app.utils import render_template
 
@@ -31,7 +31,7 @@ class ProjectStandardsAnalyst:
         # 2. Analysis Step handled below in Step 3
 
         # 3. LLM Analysis
-        llm = LLMFactory.create_llm(temperature=0.1)  # Low temp for factual analysis
+        llm = get_default_llm(temperature=0.1)  # Low temp for factual analysis
 
         # Prepare file info for template
         files_info = []

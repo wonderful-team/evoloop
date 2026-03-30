@@ -11,10 +11,20 @@ from pydantic import (
     HttpUrl,
     PostgresDsn,
     computed_field,
+    field_validator,
     model_validator,
 )
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing_extensions import Self
+
+
+# PyInstaller support: Detect bundled environment
+def _get_env_file_path():
+    """Get .env file path for dev or PyInstaller environment."""
+    import sys
+    if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+        return os.path.join(sys._MEIPASS, '.env')
+    return '../.env'
 
 
 def parse_cors(v: Any) -> list[str] | str:
@@ -34,7 +44,7 @@ def expand_path(v: Any) -> str:
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         # Use top level .env file (one level above ./backend/)
-        env_file="../.env",
+        env_file=_get_env_file_path(),
         env_ignore_empty=True,
         extra="ignore",
     )
@@ -56,9 +66,18 @@ class Settings(BaseSettings):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def all_cors_origins(self) -> list[str]:
-        return [str(origin).rstrip("/") for origin in self.BACKEND_CORS_ORIGINS] + [self.FRONTEND_HOST]
+        origins = [str(origin).rstrip("/") for origin in self.BACKEND_CORS_ORIGINS] + [self.FRONTEND_HOST]
+        # Add Tauri desktop app origins for embedded mode
+        if self.EMBEDDED_MODE:
+            origins.extend([
+                "tauri://localhost",
+                "https://tauri.localhost",
+                "http://localhost",
+                "http://127.0.0.1",
+            ])
+        return origins
 
-    PROJECT_NAME: str
+    PROJECT_NAME: str = "EvoLoop"
     SENTRY_DSN: HttpUrl | None = None
 
     # --- Database Configuration (Postgres or SQLite) ---
@@ -70,8 +89,11 @@ class Settings(BaseSettings):
     DB_ECHO: bool = False  # Added for EvoLoop compatibility
 
     # SQLite (for embedded mode)
+    # Allow override via env var for dev/prod isolation
     SQLITE_PATH: Annotated[str, BeforeValidator(expand_path)] = Field(
-        default_factory=lambda: os.path.expanduser("~/.evoloop/backend.db"),
+        default_factory=lambda: os.path.expanduser(
+            os.getenv("SQLITE_DB_PATH", "~/.evoloop/backend.db")
+        ),
     )
 
     # LanceDB (for embedded vector storage)
@@ -238,6 +260,14 @@ class Settings(BaseSettings):
     # Client / Device Info
     EVOCLOUD_ACCESS_TOKEN: str | None = Field(None, validation_alias="EVOCLOUD_ACCESS_TOKEN")
     EVOCLOUD_DEVICE_NAME: str | None = Field("EvoLoop-Desktop", validation_alias="EVOCLOUD_DEVICE_NAME")
+    EVOCLOUD_SSL_VERIFY: bool = Field(True, validation_alias="EVOCLOUD_SSL_VERIFY")
+
+    @field_validator("EVOCLOUD_SSL_VERIFY", mode="before")
+    @classmethod
+    def parse_ssl_verify(cls, v):
+        if isinstance(v, str):
+            return v.lower() in ("true", "1", "yes", "on")
+        return bool(v)
 
     # --- Deprecated Configuration (Phase 4 Cleanup) ---
     USE_CLIENT_FOR_TOOLS: bool = False  # @deprecated: Will be replaced by dynamic transport selection

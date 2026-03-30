@@ -61,7 +61,7 @@ async def analyze_project_requirement_document(
                 return json.dumps({"error": f"Failed to read document: {e}"})
 
         # Call LLM analysis using Jinja2 template
-        llm = get_default_llm()
+        llm = await get_default_llm()
 
         prompt = render_analysis_prompt(
             document_content=doc.raw_content[:15000],

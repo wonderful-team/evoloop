@@ -10,7 +10,7 @@ from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 
 from app.core.config import settings
 from app.infrastructure.database.sql.database import session_scope
-from app.infrastructure.llm.factory import LLMFactory
+from app.infrastructure.llm.factory import LLMFactory, get_default_llm
 from app.core.learning.prompts import prompt_builder
 from app.models.learning import LearnedSkill
 
@@ -244,7 +244,7 @@ class SkillDiscovery:
         system_prompt = prompt_builder.build_discovery_prompt(prompt_vars)
 
         try:
-            llm = LLMFactory.create_llm(temperature=0.0)
+            llm = get_default_llm(temperature=0.0)
             messages = [
                 SystemMessage(content=system_prompt)
             ]

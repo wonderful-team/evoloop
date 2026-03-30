@@ -100,7 +100,7 @@ class DynamicAppTriage(BaseExplorer):
         from app.utils import render_template
 
         try:
-            llm = get_default_llm()
+            llm = await get_default_llm()
             llm.temperature = 0
 
             prompt = render_template("planning/dynamic_app_triage.prompt.j2", app_ids=app_ids)

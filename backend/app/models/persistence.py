@@ -1,5 +1,4 @@
-from sqlalchemy import Integer, LargeBinary, Text
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import Integer, LargeBinary, Text, JSON
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.infrastructure.database.sql.database import Base
@@ -13,8 +12,8 @@ class Checkpoint(Base):
     checkpoint_id: Mapped[str] = mapped_column(Text, primary_key=True)
     parent_checkpoint_id: Mapped[str | None] = mapped_column(Text, nullable=True)
     type: Mapped[str | None] = mapped_column(Text)
-    checkpoint: Mapped[dict] = mapped_column(JSONB)
-    checkpoint_metadata: Mapped[dict] = mapped_column("metadata", JSONB, default={})
+    checkpoint: Mapped[dict] = mapped_column(JSON)
+    checkpoint_metadata: Mapped[dict] = mapped_column("metadata", JSON, default={})
 
 
 class CheckpointWrite(Base):

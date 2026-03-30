@@ -56,8 +56,8 @@ class AgentEngine:
                        Subtasks must execute tools immediately in one turn.
         """
 
-        # 1. Initialize LLM
-        llm = LLMFactory.create_llm(model_name=model, temperature=temperature)
+        # 1. Initialize LLM (with instance caching for performance)
+        llm = await LLMFactory.create_llm(model_name=model, temperature=temperature)
         if tools:
             llm_with_tools = llm.bind_tools(tools)
             tool_map = {t.name: t for t in tools}

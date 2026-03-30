@@ -71,5 +71,20 @@ class EmbedderFactory:
             model = SystemConfigService.get_value("EMBEDDING_MODEL") or "nomic-embed-text"
             return OllamaEmbedder(base_url=base_url, model=model)
 
+        elif provider == "lm-studio" or provider == "lmstudio":
+            # LM Studio uses OpenAI-compatible API
+            base_url = SystemConfigService.get_value("EMBEDDING_BASE_URL") or "http://localhost:1234/v1"
+            model = SystemConfigService.get_value("EMBEDDING_MODEL") or "text-embedding-nomic-embed-text-v1.5"
+            api_key = SystemConfigService.get_value("EMBEDDING_API_KEY") or "lm-studio"
+            dim_val = SystemConfigService.get_value("EMBEDDING_DIMENSIONS")
+            dimensions = int(dim_val) if dim_val else settings.EMBEDDING_DIMENSIONS
+            
+            return GenericOpenAIEmbedder(
+                api_key=api_key,
+                base_url=base_url,
+                model=model,
+                dimensions=dimensions
+            )
+
         else:
             raise ValueError(f"Unknown Embedding Provider: {provider}")

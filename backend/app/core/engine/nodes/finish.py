@@ -340,11 +340,8 @@ async def _comprehensive_audit(state: AgentState, config: RunnableConfig) -> dic
     env_state = get_awakened_state()
     telemetry_data = {}
     if env_state:
-        telemetry_data = {
-            "android": [{"id": d.device_id, "reachable": d.is_reachable} for d in env_state.android_devices],
-            "macos": bool(env_state.macos),
-            "network": env_state.network.internet_connected if env_state.network else False
-        }
+        # Use cached telemetry snapshot (1-second TTL) to avoid redundant computation
+        telemetry_data = env_state.get_telemetry_snapshot()
 
     builder = FinishPromptBuilder(
         current_plan=current_plan,

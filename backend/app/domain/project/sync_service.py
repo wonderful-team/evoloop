@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 
@@ -593,7 +594,8 @@ class ProjectSyncService:
                 # This handles cases where previous indexing failed or was interrupted
                 if repo.indexing_status in ("pending", "failed") or not repo.last_indexed_at:
                     logger.info(f"[ProjectSync] Project {repo.name} indexing status is {repo.indexing_status}, triggering background indexing")
-                    await indexing_manager.run_indexing_background(repo.id)
+                    # Fire and forget - don't await background indexing
+                    asyncio.create_task(indexing_manager.run_indexing_background(repo.id))
             except Exception as e:
                 logger.error(f"[ProjectSync] Failed to restart watcher for {p}: {e}")
 
