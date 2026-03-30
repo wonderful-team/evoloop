@@ -120,7 +120,10 @@ export default function StartupScreen({ onReady }: StartupScreenProps) {
                     onReady()
                 }, 800)
             } catch (e) {
-                // Ignore connection refused
+                // Log error for debugging but don't spam console
+                if (e instanceof Error && !e.message?.includes('Network Error')) {
+                    console.error('Health check failed:', e)
+                }
             }
         }
 

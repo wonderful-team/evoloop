@@ -5,16 +5,48 @@ use std::thread;
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager};
 
+/// Backend state
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum BackendState {
+    Idle,
+    Starting,
+    Ready,
+    Failed,
+}
+
+/// Check if a port is already in use
+fn is_port_in_use(port: u16) -> bool {
+    use std::net::TcpListener;
+    TcpListener::bind(format!("127.0.0.1:{}", port)).is_err()
+}
+
+/// Kill any existing evoloop-backend process
+fn kill_existing_backend() {
+    #[cfg(unix)]
+    {
+        use std::process::Command;
+        // Try graceful kill first
+        let _ = Command::new("pkill")
+            .args(["-15", "-f", "evoloop-backend"])
+            .output();
+        
+        thread::sleep(Duration::from_millis(500));
+        
+        // Force kill if still running
+        let _ = Command::new("pkill")
+            .args(["-9", "-f", "evoloop-backend"])
+            .output();
+        
+        // Wait for port release
+        thread::sleep(Duration::from_millis(500));
+    }
+}
+
 /// Backend Manager - Manages the Python Backend process lifecycle
-///
-/// Responsibilities:
-/// - Start Backend HTTP Server (using fixed port 8000)
-/// - Monitor Backend health via HTTP
-/// - Provide port to Frontend
 pub struct SidecarClient {
-    pub process: Arc<Mutex<Option<std::process::Child>>>,
-    pub ready: Arc<Mutex<bool>>,
-    pub app_handle: Option<AppHandle>,
+    process: Arc<Mutex<Option<std::process::Child>>>,
+    state: Arc<Mutex<BackendState>>,
+    app_handle: Option<AppHandle>,
 }
 
 /// Default Backend port
@@ -29,113 +61,217 @@ impl SidecarClient {
     pub fn new() -> Self {
         Self {
             process: Arc::new(Mutex::new(None)),
-            ready: Arc::new(Mutex::new(false)),
+            state: Arc::new(Mutex::new(BackendState::Idle)),
             app_handle: None,
         }
     }
 
+    /// Get current state
+    pub fn get_state(&self) -> BackendState {
+        *self.state.lock().unwrap()
+    }
+
+    /// Check if Backend is ready
+    pub fn is_ready(&self) -> bool {
+        self.get_state() == BackendState::Ready
+    }
+
     /// Start the Backend HTTP Server (fixed port 8000)
     pub fn start(&mut self, app: &AppHandle, _python_path: Option<&str>) -> Result<(), String> {
-        let backend_dir = get_backend_dir(app)?;
+        // Development mode: skip sidecar start, assume dev server is running externally
+        // Run with: ./bin/evo dev (in backend directory)
+        if cfg!(debug_assertions) {
+            log::info!("Development mode: skipping sidecar start, using external dev server");
+            *self.state.lock().unwrap() = BackendState::Ready;
+            let _ = app.emit("backend-ready", get_backend_url());
+            return Ok(());
+        }
 
-        // Try to find python in .venv
-        let venv_python = backend_dir.join(".venv").join("bin").join("python3");
-        let python_exe = if venv_python.exists() {
-            venv_python.to_string_lossy().to_string()
-        } else {
-            "python3".to_string()
-        };
+        // Check current state
+        {
+            let state = self.state.lock().unwrap();
+            if *state == BackendState::Starting || *state == BackendState::Ready {
+                log::info!("Backend is already {:?}, skipping start", *state);
+                return Ok(());
+            }
+        }
 
-        log::info!(
-            "Starting Backend from: {} using {} on port {}",
-            backend_dir.display(),
-            python_exe,
-            BACKEND_PORT
-        );
+        // Set state to Starting
+        *self.state.lock().unwrap() = BackendState::Starting;
+        log::info!("Starting backend...");
 
-        let child = std::process::Command::new(&python_exe)
-            .args(&["-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", &BACKEND_PORT.to_string()])
-            .current_dir(&backend_dir)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .map_err(|e| format!("Failed to spawn Backend: {}", e))?;
+        // Clean up any existing processes
+        if is_port_in_use(BACKEND_PORT) {
+            log::warn!("Port {} is in use, cleaning up...", BACKEND_PORT);
+            kill_existing_backend();
+        }
 
-        // Store process
+        // Double-check port is free
+        if is_port_in_use(BACKEND_PORT) {
+            let err = format!("Port {} is still in use after cleanup", BACKEND_PORT);
+            log::error!("{}", err);
+            *self.state.lock().unwrap() = BackendState::Failed;
+            return Err(err);
+        }
+
+        // Spawn the process
+        let child = self.spawn_backend(app)?;
+        
+        // Store process and app handle
         *self.process.lock().unwrap() = Some(child);
         self.app_handle = Some(app.clone());
 
-        // Start stdout reader thread (for logging)
-        let stdout = self
-            .process
-            .lock()
-            .unwrap()
-            .as_mut()
-            .unwrap()
-            .stdout
-            .take()
-            .ok_or("Failed to get stdout")?;
+        // Start log readers
+        self.start_log_readers(app);
 
+        // Start health check
+        self.start_health_check(app);
+
+        Ok(())
+    }
+
+    /// Spawn the backend process
+    fn spawn_backend(&self, app: &AppHandle) -> Result<std::process::Child, String> {
+        if cfg!(debug_assertions) {
+            // Development mode
+            let backend_dir = get_backend_dir(app)?;
+            let venv_python = backend_dir.join(".venv").join("bin").join("python3");
+            let python_exe = if venv_python.exists() {
+                venv_python.to_string_lossy().to_string()
+            } else {
+                "python3".to_string()
+            };
+
+            log::info!("Starting Backend (dev) from: {}", backend_dir.display());
+
+            std::process::Command::new(&python_exe)
+                .args(&["-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", &BACKEND_PORT.to_string()])
+                .current_dir(&backend_dir)
+                .stdin(Stdio::piped())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .spawn()
+                .map_err(|e| format!("Failed to spawn Backend: {}", e))
+        } else {
+            // Production mode
+            let exe_path = std::env::current_exe()
+                .map_err(|e| format!("Failed to get current exe path: {}", e))?;
+            let sidecar_path = exe_path
+                .parent()
+                .ok_or("Failed to get exe parent dir")?
+                .join("evoloop-backend");
+
+            log::info!("Starting sidecar from: {}", sidecar_path.display());
+
+            // Get app directories
+            let app_data_dir = app.path().app_data_dir()
+                .map_err(|e| format!("Failed to get app data dir: {}", e))?;
+            let workspace_dir = app_data_dir.join("workspace");
+            let db_path = app_data_dir.join("backend.db");
+
+            std::fs::create_dir_all(&workspace_dir).ok();
+
+            std::process::Command::new(&sidecar_path)
+                .args(&["--host", "127.0.0.1", "--port", &BACKEND_PORT.to_string()])
+                .env("EMBEDDED_MODE", "true")
+                .env("WORKSPACE_ROOT", &workspace_dir)
+                .env("SQLITE_DB_PATH", &db_path)
+                .env("PROJECT_NAME", "EvoLoop")
+                .stdin(Stdio::piped())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .spawn()
+                .map_err(|e| format!("Failed to spawn sidecar: {}", e))
+        }
+    }
+
+    /// Start log reader threads
+    fn start_log_readers(&self, _app: &AppHandle) {
+        // Clone Arc for stdout thread
+        let process_stdout = Arc::clone(&self.process);
         thread::spawn(move || {
-            let reader = BufReader::new(stdout);
-            for line in reader.lines() {
-                if let Ok(text) = line {
-                    log::debug!("[BACKEND STDOUT] {}", text);
+            let stdout = {
+                let mut guard = process_stdout.lock().unwrap();
+                guard.as_mut().and_then(|c| c.stdout.take())
+            };
+            
+            if let Some(stdout) = stdout {
+                let reader = BufReader::new(stdout);
+                for line in reader.lines() {
+                    if let Ok(text) = line {
+                        log::debug!("[BACKEND STDOUT] {}", text);
+                    }
                 }
             }
         });
 
-        // Start stderr reader thread (for logging)
-        let stderr = self
-            .process
-            .lock()
-            .unwrap()
-            .as_mut()
-            .unwrap()
-            .stderr
-            .take()
-            .ok_or("Failed to get stderr")?;
-
-        let app_handle = app.clone();
+        // Clone Arc for stderr thread
+        let process_stderr = Arc::clone(&self.process);
+        let app_handle = self.app_handle.clone();
         thread::spawn(move || {
-            let reader = BufReader::new(stderr);
-            for line in reader.lines() {
-                if let Ok(text) = line {
-                    log::error!("[BACKEND STDERR] {}", text);
-                    let _ = app_handle.emit("backend-stderr", text);
+            let stderr = {
+                let mut guard = process_stderr.lock().unwrap();
+                guard.as_mut().and_then(|c| c.stderr.take())
+            };
+            
+            if let Some(stderr) = stderr {
+                let reader = BufReader::new(stderr);
+                for line in reader.lines() {
+                    if let Ok(text) = line {
+                        log::error!("[BACKEND STDERR] {}", text);
+                        if let Some(ref app) = app_handle {
+                            let _ = app.emit("backend-stderr", text);
+                        }
+                    }
                 }
             }
         });
+    }
 
-        // Wait for Backend to be ready via HTTP health check
+    /// Start async health check
+    fn start_health_check(&self, app: &AppHandle) {
+        let state = Arc::clone(&self.state);
+        let process = Arc::clone(&self.process);
         let app_handle = app.clone();
+
         tauri::async_runtime::spawn(async move {
             let client = reqwest::Client::new();
             let health_url = format!("{}/api/v1/system/health", get_backend_url());
 
             // Try for 30 seconds
-            for _ in 0..60 {
+            let mut success = false;
+            for i in 0..60 {
                 match client.get(&health_url).timeout(Duration::from_secs(2)).send().await {
                     Ok(response) if response.status().is_success() => {
                         log::info!("Backend is ready on port {}", BACKEND_PORT);
+                        *state.lock().unwrap() = BackendState::Ready;
                         let _ = app_handle.emit("backend-ready", get_backend_url());
-                        return;
+                        success = true;
+                        break;
                     }
-                    _ => {
-                        tokio::time::sleep(Duration::from_millis(500)).await;
+                    Ok(response) => {
+                        log::debug!("Health check returned status: {}", response.status());
+                    }
+                    Err(e) => {
+                        if i % 10 == 0 {
+                            log::debug!("Health check attempt {} failed: {}", i, e);
+                        }
                     }
                 }
+                tokio::time::sleep(Duration::from_millis(500)).await;
             }
 
-            log::error!("Backend failed to become ready within 30 seconds");
-            let _ = app_handle.emit("backend-error", "Timeout waiting for Backend to start");
+            if !success {
+                log::error!("Backend failed to become ready within 30 seconds");
+                *state.lock().unwrap() = BackendState::Failed;
+                let _ = app_handle.emit("backend-error", "Timeout waiting for Backend to start");
+                
+                // Clean up the failed process
+                if let Some(mut child) = process.lock().unwrap().take() {
+                    let _ = child.kill();
+                }
+            }
         });
-
-        // Mark as started (not necessarily ready yet)
-        *self.ready.lock().unwrap() = true;
-        log::info!("Backend process started, waiting for HTTP readiness...");
-        Ok(())
     }
 
     /// Wait for Backend to be ready
@@ -143,25 +279,18 @@ impl SidecarClient {
         let start = std::time::Instant::now();
         let timeout = std::time::Duration::from_secs(timeout_secs);
 
-        let client = reqwest::Client::new();
-        let health_url = format!("{}/api/v1/system/health", get_backend_url());
-
         loop {
             if start.elapsed() > timeout {
-                return Err(format!(
-                    "Timeout waiting for Backend ready ({}s)",
-                    timeout_secs
-                ));
+                return Err(format!("Timeout waiting for Backend ready ({}s)", timeout_secs));
             }
 
-            match client.get(&health_url).timeout(Duration::from_secs(2)).send().await {
-                Ok(response) if response.status().is_success() => {
-                    return Ok(());
-                }
-                _ => {
-                    tokio::time::sleep(Duration::from_millis(100)).await;
-                }
+            match self.get_state() {
+                BackendState::Ready => return Ok(()),
+                BackendState::Failed => return Err("Backend failed to start".to_string()),
+                _ => {}
             }
+
+            tokio::time::sleep(Duration::from_millis(100)).await;
         }
     }
 
@@ -169,19 +298,35 @@ impl SidecarClient {
     pub fn stop(&self) -> Result<(), String> {
         log::info!("Stopping Backend...");
 
+        // Update state first
+        *self.state.lock().unwrap() = BackendState::Idle;
+
         if let Some(mut child) = self.process.lock().unwrap().take() {
+            let pid = child.id();
+            
+            #[cfg(unix)]
+            {
+                use std::process::Command;
+                // Try process group kill
+                let pgid = -(pid as i32);
+                unsafe {
+                    libc::killpg(pgid, libc::SIGTERM);
+                    libc::kill(pid as i32, libc::SIGTERM);
+                }
+                thread::sleep(Duration::from_millis(500));
+                
+                // Force kill
+                let _ = Command::new("pkill")
+                    .args(["-9", "-f", "evoloop-backend"])
+                    .output();
+            }
+            
             let _ = child.kill();
             let _ = child.wait();
         }
 
-        *self.ready.lock().unwrap() = false;
         log::info!("Backend stopped");
         Ok(())
-    }
-
-    /// Check if Backend is ready (quick check, not HTTP)
-    pub fn is_ready(&self) -> bool {
-        *self.ready.lock().unwrap()
     }
 
     /// Get Backend port (always 8000)
@@ -206,8 +351,8 @@ impl SidecarClient {
 impl Clone for SidecarClient {
     fn clone(&self) -> Self {
         Self {
-            process: self.process.clone(),
-            ready: self.ready.clone(),
+            process: Arc::clone(&self.process),
+            state: Arc::clone(&self.state),
             app_handle: self.app_handle.clone(),
         }
     }
@@ -219,47 +364,28 @@ impl Default for SidecarClient {
     }
 }
 
-fn get_backend_dir(app: &AppHandle) -> Result<std::path::PathBuf, String> {
-    // 1. In development, we want the actual backend directory
-    if cfg!(debug_assertions) {
-        if let Ok(exe_path) = std::env::current_exe() {
-            let mut curr = exe_path.as_path();
-            // Traverse up from target/debug/EvoLoop to find the project root
-            while let Some(parent) = curr.parent() {
-                // Skip anything inside "target"
-                if parent
-                    .to_string_lossy()
-                    .contains("/target/")
-                    || parent.to_string_lossy().ends_with("/target")
-                {
-                    curr = parent;
-                    continue;
-                }
-                let backend_path = parent.join("backend");
-                if backend_path.is_dir() && backend_path.join("app").is_dir() {
-                    return Ok(backend_path);
-                }
+fn get_backend_dir(_app: &AppHandle) -> Result<std::path::PathBuf, String> {
+    // Development mode only: find backend from project directory
+    if let Ok(exe_path) = std::env::current_exe() {
+        let mut curr = exe_path.as_path();
+        while let Some(parent) = curr.parent() {
+            if parent.to_string_lossy().contains("/target/")
+                || parent.to_string_lossy().ends_with("/target")
+            {
                 curr = parent;
-                // Don't go above root
-                if parent.parent().is_none() {
-                    break;
-                }
+                continue;
+            }
+            let backend_path = parent.join("backend");
+            if backend_path.is_dir() && backend_path.join("app").is_dir() {
+                return Ok(backend_path);
+            }
+            curr = parent;
+            if parent.parent().is_none() {
+                break;
             }
         }
     }
 
-    // 2. Check if backend is in app resources
-    let resource_dir = app
-        .path()
-        .resource_dir()
-        .map_err(|e| format!("Failed to get resource dir: {}", e))?;
-
-    let backend_in_resources = resource_dir.join("backend-source");
-    if backend_in_resources.exists() {
-        return Ok(backend_in_resources);
-    }
-
-    // 3. Fallback: assume backend is in current working directory
     let cwd_backend = std::env::current_dir()
         .map_err(|e| format!("Failed to get cwd: {}", e))?
         .join("backend");
@@ -268,7 +394,5 @@ fn get_backend_dir(app: &AppHandle) -> Result<std::path::PathBuf, String> {
         return Ok(cwd_backend);
     }
 
-    Err(format!(
-        "Could not find backend directory. Tried resources and traversing from executable."
-    ))
+    Err("Could not find backend directory. For production builds, use the evoloop-backend binary.".to_string())
 }

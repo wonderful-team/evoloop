@@ -450,6 +450,13 @@ pub fn run() {
             if let WindowEvent::CloseRequested { api, .. } = event {
                 #[cfg(desktop)]
                 if window.label() == "main" {
+                    // Stop backend before closing
+                    let app_handle = window.app_handle();
+                    let state = app_handle.state::<AppServiceState>();
+                    if let Some(client) = state.sidecar_client.lock().unwrap().take() {
+                        let _ = client.stop();
+                    }
+                    
                     let _ = window.hide();
                     #[cfg(target_os = "macos")]
                     window.app_handle().set_activation_policy(tauri::ActivationPolicy::Accessory).ok();
@@ -525,9 +532,13 @@ pub fn run() {
             // Stop global observer
             state.global_observer.stop();
 
-            // Stop sidecar client
+            // Stop sidecar client and wait for it to finish
             if let Some(client) = state.sidecar_client.lock().unwrap().take() {
-                let _ = client.stop();
+                if let Err(e) = client.stop() {
+                    log::error!("Failed to stop backend: {}", e);
+                }
+                // Give it time to clean up
+                std::thread::sleep(std::time::Duration::from_millis(1000));
             }
 
             let mut children = state.children.lock().unwrap();
@@ -544,6 +555,15 @@ pub fn run() {
                     let _ = rec_child.kill();
                     let _ = rec_child.wait();
                 }
+            }
+            
+            // Force kill any remaining evoloop-backend processes
+            #[cfg(unix)]
+            {
+                use std::process::Command;
+                let _ = Command::new("pkill")
+                    .args(["-9", "-f", "evoloop-backend"])
+                    .output();
             }
         }
         _ => {}

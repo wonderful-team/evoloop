@@ -13,6 +13,7 @@ NC='\033[0m' # No Color
 DEV_MODE=false
 WITH_MODELS=false
 DOWNLOAD_MODELS=false
+CLEAN=false
 MODELS_LIST="paraformer-zh"
 
 # Parse arguments
@@ -35,6 +36,10 @@ while [[ $# -gt 0 ]]; do
                 shift
             fi
             ;;
+        --clean|-c)
+            CLEAN=true
+            shift
+            ;;
         --help|-h)
             echo "EvoLoop Build Script"
             echo ""
@@ -47,6 +52,7 @@ while [[ $# -gt 0 ]]; do
             echo "                            Available: paraformer-zh, paraformer-zh-plus,"
             echo "                                      paraformer-zh-streaming"
             echo "                            Default: paraformer-zh"
+            echo "  --clean, -c               Clean all previous build artifacts before building"
             echo "  --help, -h                Show this help message"
             echo ""
             echo "Examples:"
@@ -55,6 +61,8 @@ while [[ $# -gt 0 ]]; do
             echo "  $0 --download-models                  # Download default model and build with it"
             echo "  $0 --download-models paraformer-zh,paraformer-zh-plus --with-models"
             echo "  $0 --dev                              # Run development server"
+            echo "  $0 --clean                            # Clean build without models"
+            echo "  $0 --clean --with-models              # Clean build with models"
             exit 0
             ;;
         *)
@@ -75,6 +83,42 @@ if [ -f "/usr/bin/xattr" ]; then
     export PATH="/usr/bin:$PATH"
 fi
 
+# Clean build artifacts if requested
+if [ "$CLEAN" = true ]; then
+    echo -e "${YELLOW}╔══════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${YELLOW}║          Cleaning Build Artifacts                            ║${NC}"
+    echo -e "${YELLOW}╚══════════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+    
+    # Stop running processes
+    echo -e "${BLUE}🛑 Stopping running processes...${NC}"
+    pkill -9 -f "evoloop-backend" 2>/dev/null || true
+    pkill -9 -f "EvoLoop" 2>/dev/null || true
+    sleep 1
+    echo -e "${GREEN}✅ Processes stopped${NC}"
+    
+    # Clean backend build artifacts (保留 spec 和 hooks 文件)
+    echo -e "${BLUE}🧹 Cleaning backend build artifacts...${NC}"
+    cd backend
+    rm -rf build dist __pycache__ .pytest_cache 2>/dev/null || true
+    # 注意: 保留 evoloop-backend.spec 和 hooks/ 目录
+    cd ..
+    echo -e "${GREEN}✅ Backend cleaned${NC}"
+    
+    # Clean frontend build artifacts
+    echo -e "${BLUE}🧹 Cleaning frontend build artifacts...${NC}"
+    cd frontend
+    rm -rf src-tauri/target dist node_modules/.vite .turbo 2>/dev/null || true
+    # Recreate empty models directory (required by tauri.conf.json)
+    rm -rf src-tauri/models 2>/dev/null || true
+    mkdir -p src-tauri/models
+    touch src-tauri/models/.gitkeep
+    cd ..
+    echo -e "${GREEN}✅ Frontend cleaned${NC}"
+    
+    echo ""
+fi
+
 echo -e "${BLUE}╔══════════════════════════════════════════════════════════════╗${NC}"
 echo -e "${BLUE}║          EvoLoop Complete Build Process                      ║${NC}"
 echo -e "${BLUE}╚══════════════════════════════════════════════════════════════╝${NC}"
@@ -85,6 +129,7 @@ echo -e "${CYAN}Build Configuration:${NC}"
 echo -e "  Dev Mode:       $DEV_MODE"
 echo -e "  With Models:    $WITH_MODELS"
 echo -e "  Download Models: $DOWNLOAD_MODELS"
+echo -e "  Clean Build:    $CLEAN"
 if [ "$DOWNLOAD_MODELS" = true ]; then
     echo -e "  Models List:    $MODELS_LIST"
 fi
@@ -112,21 +157,17 @@ echo -e "${YELLOW}┌───────────────────�
 echo -e "${YELLOW}│ Pre-build: Checking NumPy version                           │${NC}"
 echo -e "${YELLOW}└─────────────────────────────────────────────────────────────┘${NC}"
 
-# Activate virtual environment if exists
-if [ -f "backend/.venv/bin/activate" ]; then
-    source backend/.venv/bin/activate
-fi
+# Force arm64 architecture for Apple Silicon
+export PYTHON_CMD="arch -arm64 backend/.venv/bin/python"
 
-NUMPY_VERSION=$(python3 -c "import numpy; print(numpy.__version__)" 2>/dev/null || echo "")
+# Check NumPy version (arm64)
+echo -e "${YELLOW}🔍 Checking NumPy version (arm64)...${NC}"
+NUMPY_VERSION=$($PYTHON_CMD -c "import numpy; print(numpy.__version__)" 2>/dev/null || echo "")
 if [ -n "$NUMPY_VERSION" ]; then
     NUMPY_MAJOR=$(echo "$NUMPY_VERSION" | cut -d. -f1)
     if [ "$NUMPY_MAJOR" = "2" ]; then
         echo -e "${YELLOW}⚠️  NumPy 2.x detected (${NUMPY_VERSION}), downgrading to 1.26.4...${NC}"
-        if command -v uv &> /dev/null; then
-            uv pip install "numpy==1.26.4" --force-reinstall
-        else
-            python3 -m pip install "numpy==1.26.4" --force-reinstall
-        fi
+        $PYTHON_CMD -m pip install "numpy==1.26.4" --force-reinstall
         echo -e "${GREEN}✅ NumPy downgraded to 1.26.4${NC}"
     else
         echo -e "${GREEN}✅ NumPy 1.x already installed (${NUMPY_VERSION})${NC}"
@@ -245,13 +286,16 @@ else
     if [ "$WITH_MODELS" = true ]; then
         echo -e "${CYAN}   Including AI models in the bundle${NC}"
     fi
-    # Run Tauri build for arm64, but handle bundle failures gracefully
-    if npm run tauri build -- --target aarch64-apple-darwin; then
+    # Run Tauri build for arm64 - only build app, NOT dmg
+    # We will create DMG manually after fixing the app bundle
+    echo -e "${BLUE}🔨 Building app bundle...${NC}"
+    if npm run tauri build -- --target aarch64-apple-darwin --bundles app; then
         echo ""
-        echo -e "${GREEN}🎉 Tauri build successful!${NC}"
+        echo -e "${GREEN}🎉 Tauri app build successful!${NC}"
     else
         echo ""
-        echo -e "${YELLOW}⚠️  Tauri bundle failed, attempting manual bundling...${NC}"
+        echo -e "${YELLOW}⚠️  Tauri build failed${NC}"
+        exit 1
     fi
     
     # Fix libvosk.dylib in the app bundle
@@ -264,44 +308,52 @@ else
         fi
     fi
     
-    # Fix libvosk.dylib and sign the app bundle
+    # Fix app bundle (frontend resources, libvosk, models)
     echo ""
-    echo -e "${YELLOW}🔧 Fixing libvosk.dylib...${NC}"
+    echo -e "${YELLOW}🔧 Fixing app bundle...${NC}"
     if [ -d "$APP_BUNDLE" ]; then
-        # Create Frameworks directory and copy libvosk.dylib
-        mkdir -p "$APP_BUNDLE/Contents/Frameworks"
-        if [ -f "../src-tauri/libs/libvosk.dylib" ]; then
-            cp "../src-tauri/libs/libvosk.dylib" "$APP_BUNDLE/Contents/Frameworks/"
-        elif [ -f "src-tauri/libs/libvosk.dylib" ]; then
-            cp "src-tauri/libs/libvosk.dylib" "$APP_BUNDLE/Contents/Frameworks/"
+        # Copy frontend resources
+        echo -e "${BLUE}  Copying frontend assets...${NC}"
+        mkdir -p "$APP_BUNDLE/Contents/Resources/assets"
+        cp -R "dist/assets/"* "$APP_BUNDLE/Contents/Resources/assets/"
+        mkdir -p "$APP_BUNDLE/Contents/Resources/packages/desktop"
+        cp "dist/packages/desktop/index.html" "$APP_BUNDLE/Contents/Resources/packages/desktop/"
+        cp "dist/manifest.json" "$APP_BUNDLE/Contents/Resources/" 2>/dev/null || true
+        
+        # Copy models if --with-models
+        if [ "$WITH_MODELS" = true ] && [ -d "src-tauri/models" ]; then
+            echo -e "${BLUE}  Copying models...${NC}"
+            mkdir -p "$APP_BUNDLE/Contents/Resources/models"
+            cp -R "src-tauri/models/"* "$APP_BUNDLE/Contents/Resources/models/"
         fi
         
-        # Fix library path
-        install_name_tool -change "libvosk.dylib" "@executable_path/../Frameworks/libvosk.dylib" "$APP_BUNDLE/Contents/MacOS/EvoLoop" 2>/dev/null || true
+        # Fix libvosk.dylib library path (Tauri copies it via frameworks config, but doesn't fix the path)
+        echo -e "${BLUE}  Fixing libvosk.dylib path...${NC}"
+        if [ -f "$APP_BUNDLE/Contents/Frameworks/libvosk.dylib" ]; then
+            install_name_tool -change "libvosk.dylib" "@executable_path/../Frameworks/libvosk.dylib" "$APP_BUNDLE/Contents/MacOS/EvoLoop" 2>/dev/null || true
+        fi
         
         # Sign the app bundle
         echo -e "${YELLOW}🔏 Signing application bundle...${NC}"
         codesign --force --deep --sign - "$APP_BUNDLE" 2>/dev/null || true
-        echo -e "${GREEN}✅ App bundle signed${NC}"
+        echo -e "${GREEN}✅ App bundle ready${NC}"
         
-        # Create DMG manually if it doesn't exist
+        # Create DMG manually (Tauri doesn't create it since we used --bundles app)
         DMG_PATH="src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/EvoLoop_0.1.0_aarch64.dmg"
-        if [ ! -f "$DMG_PATH" ]; then
-            echo ""
-            echo -e "${YELLOW}📦 Creating DMG...${NC}"
-            mkdir -p "src-tauri/target/aarch64-apple-darwin/release/bundle/dmg"
-            hdiutil create -volname "EvoLoop" -srcfolder "$APP_BUNDLE" -ov -format UDZO "$DMG_PATH" 2>/dev/null || {
-                echo -e "${YELLOW}⚠️  DMG creation may have issues, but app is ready${NC}"
-            }
-            if [ -f "$DMG_PATH" ]; then
-                echo -e "${GREEN}✅ DMG created${NC}"
-            fi
-        fi
+        echo ""
+        echo -e "${YELLOW}📦 Creating DMG...${NC}"
+        mkdir -p "src-tauri/target/aarch64-apple-darwin/release/bundle/dmg"
+        rm -f "$DMG_PATH"
+        hdiutil create -volname "EvoLoop" -srcfolder "$APP_BUNDLE" -ov -format UDZO "$DMG_PATH" || {
+            echo -e "${RED}❌ DMG creation failed${NC}"
+            exit 1
+        }
+        echo -e "${GREEN}✅ DMG created${NC}"
         
         # Copy DMG to dist folder
         if [ -f "$DMG_PATH" ]; then
-            mkdir -p "../dist"
-            cp "$DMG_PATH" "../dist/"
+            mkdir -p "dist"
+            cp "$DMG_PATH" "dist/"
             echo -e "${GREEN}✅ DMG copied to dist folder${NC}"
         fi
     else

@@ -1,27 +1,20 @@
 #!/usr/bin/env python3
 """
-EvoLoop 统一运行入口
-====================
-
-支持多种运行模式：
-- api: 启动 API 服务器
-- worker: 启动 Celery Worker
-- export-openapi: 导出 OpenAPI 文档
-
-用法：
-    python bin/run.py api
-    python bin/run.py worker
-    python bin/run.py export-openapi
+EvoLoop 统一运行入口 (ARM64)
 """
 
 import argparse
+import multiprocessing
 import os
 import sys
 from pathlib import Path
 
-# 确保项目根目录在路径中
 PROJECT_DIR = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_DIR))
+
+# 强制使用 spawn 方式启动子进程
+if multiprocessing.get_start_method(allow_none=True) != "spawn":
+    multiprocessing.set_start_method("spawn", force=True)
 
 
 def run_api():
@@ -78,7 +71,7 @@ def export_openapi():
 
 def main():
     parser = argparse.ArgumentParser(
-        description="EvoLoop Unified Runner",
+        description="EvoLoop Runner",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:

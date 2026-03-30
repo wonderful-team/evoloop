@@ -7,7 +7,7 @@
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:5173",
     "beforeBuildCommand": "npm run build",
-    "frontendDist": "../dist/packages/desktop"
+    "frontendDist": "../dist"
   },
   "app": {
     "windows": [
@@ -15,7 +15,7 @@
         "title": "EvoLoop",
         "width": 1200,
         "height": 800,
-        "url": "index.html",
+        "url": "packages/desktop/index.html",
         "maximized": true
       }
     ],
@@ -47,16 +47,17 @@
       "icons/icon.ico"
     ],
     "resources": {
-      "../../backend/app": "backend-source/app",
-      "models": "models",
-      "libs/libvosk.dylib": "../Frameworks/libvosk.dylib"
+      "models": "models"
     },
     "externalBin": [
       "binaries/evoloop-backend"
     ],
     "macOS": {
       "signingIdentity": "-",
-      "entitlements": "entitlements.plist"
+      "entitlements": "entitlements.plist",
+      "frameworks": [
+        "libs/libvosk.dylib"
+      ]
     }
   }
 }
