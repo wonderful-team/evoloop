@@ -455,7 +455,7 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
         return await self.request(
             "POST",
             "/subscription/api/subscription/createOrder",
-            data={"level_id": level_id, "auto_renew": 1 if auto_renew else 0}
+            data={"level_id": level_id, "auto_renew": 1 if auto_renew else 0, "app_type": "pc"}
         )
 
     async def check_subscription_order_status(self, order_id: str) -> dict:
