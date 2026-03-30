@@ -58,7 +58,7 @@ function LibraryPage() {
             queryClient.invalidateQueries({ queryKey: ["globalMemorySearch"] })
         },
         onError: (err: any) => {
-            toast.error(t("common.error", `Upload failed: ${err.message}`))
+            toast.error(t("common.error.message", "Upload failed") + `: ${err.message}`)
         }
     })
 
@@ -70,7 +70,7 @@ function LibraryPage() {
             queryClient.invalidateQueries({ queryKey: ["globalMemorySearch"] })
         },
         onError: (err: any) => {
-            toast.error(t("common.error", `Delete failed: ${err.message}`))
+            toast.error(t("common.error.message", "Delete failed") + `: ${err.message}`)
         }
     })
 
