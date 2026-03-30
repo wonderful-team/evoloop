@@ -10,18 +10,6 @@
       "current": "Current Password"
     },
     "general": {
-      "intentThreshold": {
-        "description": "Lower = Faster (More matching). Higher = Smarter (More LLM fallback). Default: 0.35",
-        "label": "Intent Threshold (0.0 - 1.0)"
-      },
-      "planApproval": {
-        "description": "If unchecked, the agent will auto-execute generated plans without waiting for your confirmation.",
-        "label": "Require Plan Approval"
-      },
-      "agentBehavior": {
-        "description": "Configure how the agent interacts with you.",
-        "title": "Agent Behavior (HITL)"
-      },
       "browseError": "Failed to open directory selector",
       "selectLanguageDesc": "Select your preferred interface language.",
       "success": "Settings saved successfully",

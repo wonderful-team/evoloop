@@ -32,7 +32,7 @@ error() { echo -e "${RED}❌${NC} $1"; }
 case "${1:-help}" in
     dev)
         info "启动开发服务器 (arm64)..."
-        RELOAD=false arch -arm64 .venv/bin/python bin/run.py api
+        RELOAD=true arch -arm64 .venv/bin/python bin/run.py api
         ;;
     
     worker)

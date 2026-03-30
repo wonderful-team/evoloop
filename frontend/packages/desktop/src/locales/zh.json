@@ -10,19 +10,7 @@
       "current": "当前密码"
     },
     "general": {
-      "intentThreshold": {
-        "description": "越低 = 越快（更多匹配）。越高 = 越智能（更多 LLM 兜底）。默认值: 0.35",
-        "label": "意图阈值 (0.0 - 1.0)"
-      },
       "projectsRootDesc": "由于实现需要，需要此目录的读写权限。",
-      "planApproval": {
-        "description": "如果取消勾选，Agent 将自动执行生成的计划，无需等待您的确认。",
-        "label": "需要计划审批"
-      },
-      "agentBehavior": {
-        "description": "配置 Agent 与您交互的方式。",
-        "title": "Agent 行为 (HITL)"
-      },
       "browseError": "打开目录选择器失败",
       "selectLanguageDesc": "选择您偏好的界面语言。",
       "success": "设置保存成功",
