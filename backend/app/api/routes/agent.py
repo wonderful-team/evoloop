@@ -15,6 +15,7 @@ from app.api.deps import (
     CurrentUserOptional,
     verify_guest_access,
 )
+from app.constants import DEFAULT_PROJECT_ID
 from app.core.context import thread_context_store
 from app.core.context.manager import ContextManager, EvoContext
 

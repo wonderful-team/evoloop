@@ -25,18 +25,18 @@ class EmbeddingConfigService:
             from app.infrastructure.embeddings.openai import GenericOpenAIEmbedder
 
             embedder = None
-            if provider in ["openai", "generic", "qwen"]:
-                # Use settings dimensions or provider default
+            if provider == "ollama":
+                # Ollama uses its own native API format
+                embedder = OllamaEmbedder(base_url=base_url, model=model)
+            else:
+                # All other providers (openai, generic, qwen, lmstudio, vllm, etc.)
+                # use OpenAI-compatible API format
                 embedder = GenericOpenAIEmbedder(
                     api_key=api_key or "dummy",
                     base_url=base_url,
                     model=model,
                     dimensions=settings.EMBEDDING_DIMENSIONS,
                 )
-            elif provider == "ollama":
-                embedder = OllamaEmbedder(base_url=base_url, model=model)
-            else:
-                raise ValueError("Unknown provider")
 
             # Test Embedding
             vec = await embedder.embed_query("test connection")

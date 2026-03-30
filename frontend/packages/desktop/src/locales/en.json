@@ -51,13 +51,21 @@
       "title": "Theme Preferences",
       "description": "Customize the look and feel of the application.",
       "system": "System",
-      "dark": "Dark"
+      "dark": "Dark",
+      "chatDisplay": "Chat Display",
+      "chatDisplayDesc": "Customize how chat messages are displayed",
+      "showThinking": "Show Thinking Process",
+      "showThinkingDesc": "Display the AI's reasoning process in chat"
     },
     "danger": {
       "kb_reset_title": "Reset Knowledge Base & Index",
       "description": "Permanently delete your account and all associated data.",
+      "kb_reset_desc": "Wipe all indexed code and memory concepts. Use this if the AI seems confused or hallucinations persist.",
       "kb_reset_error": "Failed to wipe Knowledge Base.",
       "kb_reset_btn": "Reset Knowledge Base",
+      "kb_reset_success": "Knowledge Base wiped successfully.",
+      "kb_reset_confirm_title": "Are you absolutely sure?",
+      "kb_reset_confirm_desc": "This will delete all indexed code, file summaries, and memory concepts. The system will need to re-index everything from scratch.",
       "title": "Delete Account"
     },
     "embedding": {
@@ -91,6 +99,62 @@
       "select_model": "Select Model",
       "select_model_placeholder": "Choose a model...",
       "custom": "Custom"
+    },
+    "tts": {
+      "title": "Text-to-Speech",
+      "description": "Configure AI voice output settings",
+      "autoSpeak": "Auto-speak AI responses",
+      "autoSpeakDesc": "Automatically read AI messages aloud when they arrive",
+      "speechRate": "Speech Rate",
+      "slow": "Slow",
+      "normal": "Normal",
+      "fast": "Fast",
+      "voice": "Voice Selection",
+      "voiceDesc": "Choose your preferred AI voice",
+      "note": "TTS uses Microsoft Edge speech synthesis. Completely free, no API key required."
+    },
+    "voice": {
+      "wakeWordTitle": "Wake Word Settings",
+      "wakeWordDesc": "Set a voice wake word to activate voice input",
+      "enableWakeWord": "Enable Wake Word",
+      "enableWakeWordDesc": "Continuously listen to microphone, automatically start recording when wake word is detected",
+      "wakeWordLabel": "Wake Word",
+      "wakeWordPlaceholder": "e.g., Hey Evo",
+      "wakeWordHint": "Recommended: 2-4 character phrase with clear pronunciation",
+      "testWakeWord": "Test Wake Word",
+      "startListening": "Start Listening",
+      "stopListening": "Stop Listening",
+      "listening": "Listening...",
+      "wakeWordDetected": "Wake word detected!",
+      "heard": "Heard",
+      "notSupported": "Your browser does not support speech recognition. Please use Chrome, Edge, or Safari.",
+      "shortcutTitle": "Shortcut Settings (Tauri)",
+      "shortcutDesc": "Set double-click or long-press shortcut to quickly activate voice input",
+      "enableShortcut": "Enable Shortcut",
+      "enableDoubleClickDesc": "Double-click shortcut to start recording, single click to end",
+      "enableLongPressDesc": "Long-press shortcut to start recording, release to end",
+      "triggerMode": "Trigger Mode",
+      "doubleClick": "Double Click",
+      "longPress": "Long Press",
+      "shortcutKey": "Shortcut Key",
+      "doubleClickHint": "Recommended: Double-click Ctrl is the most convenient",
+      "longPressHint": "Recommended: Long-press F1-F12 function keys or Meta(Command/Windows) key",
+      "doubleClickInterval": "Double-click Interval",
+      "pressDuration": "Long-press Duration",
+      "testShortcut": "Test Shortcut",
+      "recording": "Recording...",
+      "doubleClickInstruction": "Double-click {key} to start recording",
+      "longPressInstruction": "Long-press {key} to start recording",
+      "tauriOnly": "This feature requires running in EvoLoop desktop app. System shortcuts are not available in browser.",
+      "shortcutDisabled": "Shortcut disabled",
+      "shortcutEnabled": "Shortcut enabled",
+      "shortcutStarted": "Shortcut activated, starting recording...",
+      "shortcutEnded": "Recording ended",
+      "tauriRequired": "Shortcut feature requires Tauri app",
+      "wakeWordSaved": "Wake word saved",
+      "fast": "Fast",
+      "normal": "Normal",
+      "slow": "Slow"
     },
     "tabs": {
       "password": "Password",
@@ -237,7 +301,8 @@
       "expertGuidePlaceholder": "Write markdown instructions for the agent... e.g. \\n1. Go to github.com\\n2. Click the 'New Repository' button",
       "macroPlaceholder": "[{ 'event_type': 'click', 'target_selector': '.btn' }]",
       "invalidMacroJson": "Macro script must be valid JSON",
-      "invalidMacroYaml": "Macro script must be valid YAML"
+      "invalidMacroYaml": "Macro script must be valid YAML",
+      "noContent": "No content available"
     },
     "mirror": {
       "title": "Android Mirror Console",
@@ -293,6 +358,11 @@
     "toolsCount": "{{count}} tools",
     "successCount": "{{count}} success",
     "stopRecording": "Stop",
+    "noAnnotations": "No annotations",
+    "noAnnotationsDesc": "No annotations available for this recording",
+    "regionAnnotations": "Region Annotations",
+    "videoRecordingFailed": "Video recording failed",
+    "processing": "Processing...",
     "noSkills": "No skills found. Try recording actions to synthesize a new skill.",
     "import": {
       "title": "Import External Skills",
@@ -377,6 +447,7 @@
     "openVideoFailed": "Failed to open video: "
   },
   "todos": {
+    "executeTaskPrefix": "Execute: ",
     "create": {
       "categoryPlaceholder": "Category",
       "success": "Todo created",
@@ -496,6 +567,10 @@
     "next": "Next"
   },
   "chat": {
+    "autoSend": "Auto Send",
+    "attachSkill": "Attach Skill",
+    "skillAttached": "Skill attached",
+    "noLinks": "No links",
     "process": {
       "hide": "Collapse",
       "query": "Search",
@@ -522,11 +597,13 @@
       "searchPlaceholder": "Search conversations...",
       "copiedPath": "Copied path: {{path}}",
       "globalFiles": "Global Mode",
-      "globalNoFiles": "File browsing not available in global mode"
+      "globalNoFiles": "File browsing not available in global mode",
+      "workspaceFiles": "Workspace Files"
     },
     "resourceRemoved": "Resource removed",
     "agentStopped": "Chat stopped",
     "status": {
+      "ready": "Ready",
       "resuming": "Agent resuming...",
       "cancelling": "Cancelling request...",
       "working": "Working...",
@@ -542,7 +619,8 @@
       "stopAgent": "Failed to stop agent",
       "resumeAgent": "Failed to resume agent",
       "cancelHitl": "Failed to cancel request",
-      "connection": "Connection Error: {{error}}"
+      "connection": "Connection Error: {{error}}",
+      "cancelFailed": "Failed to cancel operation"
     },
     "loadingHistory": "Loading history...",
     "scrollToLoadMore": "Scroll up to load more history",
@@ -627,7 +705,11 @@
       "stopAgentSuccess": "Stopped",
       "rewindSuccess": "Rewinded",
       "filesReverted": "{{count}} files reverted",
-      "messageNotLoaded": "Message for this step not loaded in view"
+      "messageNotLoaded": "Message for this step not loaded in view",
+      "agentThinking": "Agent is thinking...",
+      "conceptName": "Concept Name",
+      "memorizeConfirm": "Save this concept to memory?",
+      "save": "Save"
     },
     "rewind": {
       "confirmTitle": "Confirm Rewind",
@@ -664,13 +746,18 @@
     "stateContext": "Context",
     "toolsDynamic": "dynamic",
     "messageList": {
-      "copy": "Copy"
+      "copy": "Copy",
+      "clickToOpen": "Click to open",
+      "imageViewer": "Image Viewer",
+      "toolExecution": "Tool Execution",
+      "audioNotSupported": "Audio playback not supported"
     },
     "noPinnedFiles": "Right click files in file explorer to pin them here.",
     "pinnedFiles": "Pinned Files",
     "stateWorkDir": "Work Dir",
     "stateEmpty": "Empty",
     "sources": {
+      "imagePreview": "Image Preview",
       "more": "more",
       "showLess": "Show less",
       "title": "Sources:"
@@ -689,6 +776,44 @@
     "toolsTitle": "Runtime Tools",
     "hitl": {
       "waiting": "Agent is waiting for your input..."
+    },
+    "tts": {
+      "autoSpeak": "Auto Speak",
+      "autoSpeakOn": "Auto speak enabled",
+      "autoSpeakOff": "Auto speak disabled",
+      "settings": "TTS Settings",
+      "voice": "Voice",
+      "speed": "Speed",
+      "speak": "Speak",
+      "stop": "Stop",
+      "preview": "Preview",
+      "error": "TTS Error",
+      "playbackError": "Playback error"
+    },
+    "voice": {
+      "standby": "Voice input standby",
+      "listening": "Listening...",
+      "transcribing": "Transcribing...",
+      "transcribed": "Transcribed",
+      "transcribe": "Transcribe",
+      "transcribeFailed": "Transcription failed",
+      "recordingFailed": "Recording failed",
+      "recordingError": "Recording error",
+      "noProject": "Please select a project first",
+      "permissionDenied": "Microphone permission denied",
+      "tooShort": "Recording too short",
+      "cancelled": "Recording cancelled",
+      "sentSuccess": "Voice message sent",
+      "slideUpToCancel": "Slide up to cancel",
+      "releaseToCancel": "Release to cancel",
+      "switchToText": "Switch to text",
+      "switchToVoice": "Switch to voice",
+      "retranscribe": "Retranscribe",
+      "expand": "Expand",
+      "wakeWordActive": "Wake word active",
+      "wakeWordDetected": "Wake word detected",
+      "wakeWordStatus": "Say the wake word to start recording",
+      "uploadFailed": "Voice upload failed"
     },
     "interrupted": {
       "title": "Agent Paused",
@@ -775,7 +900,15 @@
     "time": {
       "justNow": "Just now",
       "minutesAgo": "{{count}}m ago",
-      "hoursAgo": "{{count}}h ago"
+      "hoursAgo": "{{count}}h ago",
+      "unknown": "Unknown time"
+    },
+    "error": {
+      "unknown": "Unknown error",
+      "message": "An error occurred",
+      "goHome": "Go Home",
+      "oops": "Oops!",
+      "title": "Error"
     },
     "copyCode": "Copy Code",
     "openContextPanel": "Open Context Panel",
@@ -786,9 +919,17 @@
       "running": "RUNNING",
       "title": "Status"
     },
-    "error": {
-      "unknown": "Unknown error",
-      "message": "An error occurred"
+    "ok": "OK",
+    "approve": "Approve",
+    "reject": "Reject",
+    "submit": "Submit",
+    "manage": "Manage",
+    "themes": {
+      "toggle": "Toggle theme",
+      "appearance": "Appearance",
+      "dark": "Dark",
+      "light": "Light",
+      "system": "System"
     },
     "next": "Next",
     "previous": "Previous",
@@ -798,7 +939,12 @@
     }
   },
   "projects": {
+    "title": "Projects",
+    "noProjects": "No projects found.",
     "actions": {
+      "logTime": "Log Time",
+      "viewGantt": "View Gantt",
+      "viewTasks": "View Tasks",
       "deleteSuccess": "Project deleted successfully",
       "confirmTitle": "Are you sure?",
       "deleteConfirm": "Delete",
@@ -848,7 +994,12 @@
       "indexing": "Indexing",
       "analyzing": "Analyzing",
       "indexed": "Indexed",
-      "indexPending": "Pending"
+      "indexPending": "Pending",
+      "indexFailed": "Index Failed",
+      "lastIndexed": "Last indexed"
+    },
+    "requirements": {
+      "title": "Requirements"
     },
     "overview": {
       "title": "Project Overview",
@@ -998,6 +1149,11 @@
     "analysis": {
       "badge": "Requirement Analysis",
       "untitled": "Untitled Requirement",
+      "edited": "Edited",
+      "summary": "Summary",
+      "tasksSynced": "Tasks synced",
+      "title": "Analysis",
+      "version": "Version",
       "functionalRequirements": "Functional Requirements",
       "userStories": "User Stories",
       "technicalSuggestions": "Technical Suggestions",
@@ -1076,6 +1232,10 @@
     "regenerate": "Re-Generate All",
     "lastUpdated": "Last updated",
     "selectPage": "Select a page to view",
+    "nav": "Navigation",
+    "topic": {
+      "full_documentation": "Full Documentation"
+    },
     "toast": {
       "start": "Wiki generation started! It will run in the background.",
       "error": "Failed to start generation"
@@ -1135,6 +1295,19 @@
     "openInSystemApp": "Open in System App",
     "library": "Library"
   },
+  "table": {
+    "noResults": "No results found.",
+    "of": "of",
+    "page": "Page",
+    "rowsPerPage": "Rows per page",
+    "showing": "Showing {{start}} to {{end}} of {{total}} entries",
+    "sr": {
+      "first": "Go to first page",
+      "last": "Go to last page",
+      "next": "Go to next page",
+      "previous": "Go to previous page"
+    }
+  },
   "library": {
     "title": "Library",
     "subtitle": "Search across all project memories, documentation, and indexed knowledge.",
@@ -1174,7 +1347,65 @@
     "manage": "Manage",
     "indexed": "Indexed",
     "indexFailed": "Index Failed",
-    "lastIndexed": "Last indexed: {{time}}"
+    "lastIndexed": "Last indexed: {{time}}",
+    "title": "Switch Project",
+    "noProjects": "No projects found.",
+    "disconnected": "Disconnected"
+  },
+  "subscription": {
+    "title": "Subscription",
+    "subtitle": "Manage your subscription plan and billing",
+    "notice": {
+      "desc": "Please complete the payment to continue using the service"
+    },
+    "payment": {
+      "title": "Payment",
+      "desc": "Complete your payment securely",
+      "successTitle": "Payment Successful",
+      "successDesc": "Thank you for your payment",
+      "thankYou": "Thank you!",
+      "error": "Payment failed",
+      "pollNotice": "Processing payment..."
+    },
+    "plan": {
+      "current": "Current Plan",
+      "active": "Active",
+      "upgrade": "Upgrade",
+      "startFree": "Start Free",
+      "free": "Free",
+      "perMonth": "/month",
+      "defaultDesc": "Basic features included",
+      "featuresInclude": "Features include",
+      "discount": "Discount"
+    },
+    "plans": {
+      "title": "Plans",
+      "desc": "Choose the plan that fits your needs"
+    },
+    "privilege": {
+      "unlimitedChat": "Unlimited chat",
+      "cloudSync": "Cloud synchronization",
+      "advancedModels": "Advanced AI models",
+      "codeAnalysis": "Code analysis"
+    },
+    "quota": {
+      "title": "Quota",
+      "description": "Your usage quota",
+      "aiQuota": "AI Quota",
+      "unlimited": "Unlimited"
+    },
+    "status": {
+      "active": "Active",
+      "expired": "Expired",
+      "expireAt": "Expires at",
+      "expiredAt": "Expired at",
+      "autoRenewOn": "Auto-renewal on",
+      "renew": "Renew",
+      "upgradeNow": "Upgrade Now",
+      "manage": "Manage",
+      "freeTitle": "Free Plan",
+      "freeDesc": "Basic features available"
+    }
   },
   "pending": {
     "items": {
@@ -1211,6 +1442,9 @@
   "app": {
     "name": "EvoLoop"
   },
+  "footer": {
+    "copyright": "Copyright © 2025 EvoLoop. All rights reserved."
+  },
   "auth": {
     "recover": {
       "submit": "Continue",
@@ -1228,7 +1462,18 @@
       "fullNameRequired": "Full Name is required",
       "invalidEmail": "Invalid email address",
       "passwordsNoMatch": "The passwords don't match",
-      "passwordMin8": "Password must be at least 8 characters"
+      "passwordMin8": "Password must be at least 8 characters",
+      "passwordRequired": "Password is required",
+      "usernameRequired": "Username or Email is required"
+    },
+    "signup": {
+      "pageTitle": "Sign Up - EvoLoop"
+    },
+    "resetPassword": {
+      "pageTitle": "Reset Password - EvoLoop"
+    },
+    "recoverPassword": {
+      "pageTitle": "Recover Password - EvoLoop"
     },
     "reset": {
       "notImplemented": "Password update not implemented in SDK",
@@ -1248,12 +1493,36 @@
       "fullNamePlaceholder": "User",
       "desktopTitle": "Create an account",
       "confirmPasswordPlaceholder": "Confirm Password",
-      "pageTitle": "Sign Up - EvoLoop"
+      "pageTitle": "Sign Up - EvoLoop",
+      "hasAccount": "Already have an account?",
+      "login": "Log in",
+      "submit": "Sign Up"
     },
     "login": {
       "emailOrUsername": "Email or Username",
       "desktopTitle": "Login to your account",
-      "pageTitle": "Log In - EvoLoop"
+      "pageTitle": "Log In - EvoLoop",
+      "expiresIn": "Expires in {{seconds}}s",
+      "loginSuccess": "Login successful",
+      "orContinueWith": "Or continue with",
+      "processing": "Processing...",
+      "qrExpired": "QR code expired",
+      "refresh": "Refresh",
+      "retry": "Retry",
+      "scanWithWechat": "Scan with WeChat",
+      "scannedConfirm": "Scanned, please confirm on your phone",
+      "wechatInstructions1": "Open WeChat on your phone",
+      "wechatInstructions2": "Tap 'Discover' > 'Scan'",
+      "wechatInstructions3": "Point camera at QR code",
+      "wechatLogin": "WeChat Login",
+      "wechatQRCodeError": "Failed to load QR code",
+      "wechatScanDesc": "Scan the QR code to login instantly",
+      "wechatScanTitle": "WeChat Scan",
+      "forgotPassword": "Forgot Password?",
+      "noAccount": "Don't have an account?",
+      "passwordPlaceholder": "Password",
+      "signUp": "Sign Up",
+      "submit": "Login"
     }
   },
   "tour": {
@@ -1303,6 +1572,12 @@
   "system": {
     "initializationDesc": "Please configure the following system settings to proceed.",
     "initializationTitle": "System Integration Required"
+  },
+  "editor": {
+    "line": "Line",
+    "column": "Column",
+    "ghostHint": "AI suggestion...",
+    "thinking": "Thinking..."
   },
   "macroEditor": {
     "steps": "{{count}} steps",

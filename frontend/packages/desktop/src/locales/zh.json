@@ -51,13 +51,21 @@
       "title": "主题偏好",
       "description": "自定义应用程序的外观和感觉。",
       "system": "跟随系统",
-      "dark": "深色"
+      "dark": "深色",
+      "chatDisplay": "对话显示",
+      "chatDisplayDesc": "自定义对话消息的显示方式",
+      "showThinking": "显示思考过程",
+      "showThinkingDesc": "在对话中显示 AI 的推理过程"
     },
     "danger": {
       "kb_reset_title": "重置知识库 & 索引",
       "description": "永久删除账户及所有关联数据。",
+      "kb_reset_desc": "清除所有已索引的代码和记忆概念。当 AI 出现困惑或持续幻觉时使用此功能。",
       "kb_reset_error": "重置失败，请查看控制台日志。",
       "kb_reset_btn": "重置知识库",
+      "kb_reset_success": "知识库清除成功。",
+      "kb_reset_confirm_title": "您确定吗？",
+      "kb_reset_confirm_desc": "这将删除所有已索引的代码、文件摘要和记忆概念。系统需要从头开始重新索引所有内容。",
       "title": "删除账户"
     },
     "embedding": {
@@ -91,6 +99,62 @@
       "select_model": "选择模型",
       "select_model_placeholder": "请选择模型...",
       "custom": "自定义"
+    },
+    "tts": {
+      "title": "语音合成 (TTS)",
+      "description": "配置 AI 语音输出设置",
+      "autoSpeak": "自动朗读 AI 回复",
+      "autoSpeakDesc": "当 AI 消息到达时自动朗读",
+      "speechRate": "语速",
+      "slow": "慢",
+      "normal": "正常",
+      "fast": "快",
+      "voice": "语音选择",
+      "voiceDesc": "选择您偏好的 AI 语音",
+      "note": "TTS 使用 Microsoft Edge 语音合成。完全免费，无需 API 密钥。"
+    },
+    "voice": {
+      "wakeWordTitle": "唤醒词设置",
+      "wakeWordDesc": "设置语音唤醒词，说出唤醒词即可激活语音输入",
+      "enableWakeWord": "启用唤醒词",
+      "enableWakeWordDesc": "持续监听麦克风，检测到唤醒词时自动开始录音",
+      "wakeWordLabel": "唤醒词",
+      "wakeWordPlaceholder": "例如：你好 Evo",
+      "wakeWordHint": "建议使用 2-4 个字的短语，发音清晰易识别",
+      "testWakeWord": "测试唤醒词",
+      "startListening": "开始监听",
+      "stopListening": "停止监听",
+      "listening": "正在监听...",
+      "wakeWordDetected": "检测到唤醒词！",
+      "heard": "听到",
+      "notSupported": "您的浏览器不支持语音识别功能。请使用 Chrome、Edge 或 Safari 浏览器。",
+      "shortcutTitle": "快捷键设置 (Tauri)",
+      "shortcutDesc": "设置双击或长按快捷键快速激活语音输入",
+      "enableShortcut": "启用快捷键",
+      "enableDoubleClickDesc": "双击快捷键开始录音，单击结束",
+      "enableLongPressDesc": "长按快捷键开始录音，松手结束",
+      "triggerMode": "触发方式",
+      "doubleClick": "双击",
+      "longPress": "长按",
+      "shortcutKey": "快捷键",
+      "doubleClickHint": "推荐：双击 Ctrl 是最方便的操作方式",
+      "longPressHint": "推荐：长按 F1-F12 功能键或 Meta(Command/Windows) 键",
+      "doubleClickInterval": "双击间隔时间",
+      "pressDuration": "长按持续时间",
+      "testShortcut": "测试快捷键",
+      "recording": "正在录音...",
+      "doubleClickInstruction": "双击 {key} 键开始录音",
+      "longPressInstruction": "长按 {key} 键开始录音",
+      "tauriOnly": "此功能需要在 EvoLoop 桌面应用中运行，浏览器中无法使用系统级快捷键。",
+      "shortcutDisabled": "快捷键已禁用",
+      "shortcutEnabled": "快捷键已启用",
+      "shortcutStarted": "快捷键激活，开始录音...",
+      "shortcutEnded": "录音结束",
+      "tauriRequired": "快捷键功能需要在 Tauri 应用中运行",
+      "wakeWordSaved": "唤醒词已保存",
+      "fast": "快",
+      "normal": "正常",
+      "slow": "慢"
     },
     "tabs": {
       "password": "密码",
@@ -237,7 +301,8 @@
       "expertGuidePlaceholder": "为智能体编写 Markdown 指令... 例如：\n1. 访问 github.com\n2. 点击 'New Repository' 按钮",
       "macroPlaceholder": "[{ 'event_type': 'click', 'target_selector': '.btn' }]",
       "invalidMacroJson": "宏脚本必须是有效的 JSON",
-      "invalidMacroYaml": "宏脚本必须是有效的 YAML"
+      "invalidMacroYaml": "宏脚本必须是有效的 YAML",
+      "noContent": "没有可用内容"
     },
     "mirror": {
       "title": "Android 镜像控制台",
@@ -293,6 +358,11 @@
     "toolsCount": "{{count}} 个工具",
     "successCount": "{{count}} 次成功",
     "stopRecording": "停止",
+    "noAnnotations": "暂无标注",
+    "noAnnotationsDesc": "此录制没有可用标注",
+    "regionAnnotations": "区域标注",
+    "videoRecordingFailed": "视频录制失败",
+    "processing": "处理中...",
     "noSkills": "暂无技能。尝试录制一段操作来合成新技能。",
     "import": {
       "title": "导入外部技能",
@@ -377,6 +447,7 @@
     "openVideoFailed": "打开视频失败："
   },
   "todos": {
+    "executeTaskPrefix": "执行: ",
     "create": {
       "categoryPlaceholder": "分类",
       "success": "待办事项已创建",
@@ -496,6 +567,10 @@
     "next": "下一步"
   },
   "chat": {
+    "autoSend": "自动发送",
+    "attachSkill": "附加技能",
+    "skillAttached": "技能已附加",
+    "noLinks": "没有链接",
     "process": {
       "hide": "收起",
       "query": "搜索",
@@ -522,11 +597,13 @@
       "searchPlaceholder": "搜索对话...",
       "copiedPath": "已复制路径: {{path}}",
       "globalFiles": "全局模式",
-      "globalNoFiles": "文件浏览在全局模式下不可用"
+      "globalNoFiles": "文件浏览在全局模式下不可用",
+      "workspaceFiles": "工作区文件"
     },
     "resourceRemoved": "资源已移除",
     "agentStopped": "对话已停止",
     "status": {
+      "ready": "就绪",
       "resuming": "智能体正在恢复...",
       "cancelling": "正在取消请求...",
       "working": "工作中...",
@@ -542,7 +619,8 @@
       "stopAgent": "停止智能体失败",
       "resumeAgent": "恢复智能体失败",
       "cancelHitl": "取消请求失败",
-      "connection": "连接错误: {{error}}"
+      "connection": "连接错误: {{error}}",
+      "cancelFailed": "取消操作失败"
     },
     "loadingHistory": "加载历史消息...",
     "scrollToLoadMore": "向上滚动加载更多历史消息",
@@ -627,7 +705,11 @@
       "stopAgentSuccess": "已停止",
       "rewindSuccess": "已撤回",
       "filesReverted": "{{count}} 个文件已恢复",
-      "messageNotLoaded": "此步骤的消息未在视图中加载"
+      "messageNotLoaded": "此步骤的消息未在视图中加载",
+      "agentThinking": "智能体正在思考...",
+      "conceptName": "概念名称",
+      "memorizeConfirm": "将此概念保存到记忆？",
+      "save": "保存"
     },
     "rewind": {
       "confirmTitle": "确认撤回",
@@ -664,13 +746,18 @@
     "stateContext": "上下文",
     "toolsDynamic": "动态加载",
     "messageList": {
-      "copy": "复制"
+      "copy": "复制",
+      "clickToOpen": "点击打开",
+      "imageViewer": "图片查看器",
+      "toolExecution": "工具执行",
+      "audioNotSupported": "不支持音频播放"
     },
     "noPinnedFiles": "在文件浏览器中右键点击文件可将其置顶至此。",
     "pinnedFiles": "置顶文件",
     "stateWorkDir": "工作目录",
     "stateEmpty": "空",
     "sources": {
+      "imagePreview": "图片预览",
       "more": "更多",
       "showLess": "收起",
       "title": "来源："
@@ -689,6 +776,44 @@
     "toolsTitle": "运行时工具",
     "hitl": {
       "waiting": "Agent 正在等待您的输入..."
+    },
+    "tts": {
+      "autoSpeak": "自动朗读",
+      "autoSpeakOn": "自动朗读已开启",
+      "autoSpeakOff": "自动朗读已关闭",
+      "settings": "语音合成设置",
+      "voice": "语音",
+      "speed": "语速",
+      "speak": "朗读",
+      "stop": "停止",
+      "preview": "预览",
+      "error": "语音合成错误",
+      "playbackError": "播放错误"
+    },
+    "voice": {
+      "standby": "语音输入待机中",
+      "listening": "正在听...",
+      "transcribing": "正在转录...",
+      "transcribed": "转录完成",
+      "transcribe": "转录",
+      "transcribeFailed": "转录失败",
+      "recordingFailed": "录制失败",
+      "recordingError": "录制错误",
+      "noProject": "请先选择项目",
+      "permissionDenied": "麦克风权限被拒绝",
+      "tooShort": "录制时间太短",
+      "cancelled": "录制已取消",
+      "sentSuccess": "语音消息已发送",
+      "slideUpToCancel": "上滑取消",
+      "releaseToCancel": "松手取消",
+      "switchToText": "切换到文字",
+      "switchToVoice": "切换到语音",
+      "retranscribe": "重新转录",
+      "expand": "展开",
+      "wakeWordActive": "唤醒词已激活",
+      "wakeWordDetected": "检测到唤醒词",
+      "wakeWordStatus": "说出唤醒词开始录音",
+      "uploadFailed": "语音上传失败"
     },
     "interrupted": {
       "title": "Agent 已暂停",
@@ -775,7 +900,15 @@
     "time": {
       "justNow": "刚刚",
       "minutesAgo": "{{count}} 分钟前",
-      "hoursAgo": "{{count}} 小时前"
+      "hoursAgo": "{{count}} 小时前",
+      "unknown": "未知时间"
+    },
+    "error": {
+      "unknown": "未知错误",
+      "message": "出错了",
+      "goHome": "返回首页",
+      "oops": "哎呀!",
+      "title": "错误"
     },
     "copyCode": "复制代码",
     "openContextPanel": "打开上下文面板",
@@ -786,9 +919,17 @@
       "running": "运行中",
       "title": "状态"
     },
-    "error": {
-      "unknown": "未知错误",
-      "message": "出错了"
+    "ok": "确定",
+    "approve": "批准",
+    "reject": "拒绝",
+    "submit": "提交",
+    "manage": "管理",
+    "themes": {
+      "toggle": "切换主题",
+      "appearance": "外观",
+      "dark": "深色",
+      "light": "浅色",
+      "system": "跟随系统"
     },
     "next": "下一页",
     "previous": "上一页",
@@ -798,7 +939,12 @@
     }
   },
   "projects": {
+    "title": "项目",
+    "noProjects": "未找到项目。",
     "actions": {
+      "logTime": "记录工时",
+      "viewGantt": "查看甘特图",
+      "viewTasks": "查看任务",
       "deleteSuccess": "项目删除成功",
       "confirmTitle": "确认删除？",
       "deleteConfirm": "删除",
@@ -848,7 +994,12 @@
       "indexing": "索引中",
       "analyzing": "分析中",
       "indexed": "已索引",
-      "indexPending": "待索引"
+      "indexPending": "待索引",
+      "indexFailed": "索引失败",
+      "lastIndexed": "上次索引"
+    },
+    "requirements": {
+      "title": "需求"
     },
     "overview": {
       "title": "项目概览",
@@ -998,6 +1149,11 @@
     "analysis": {
       "badge": "需求分析结果",
       "untitled": "未命名需求",
+      "edited": "已编辑",
+      "summary": "摘要",
+      "tasksSynced": "任务已同步",
+      "title": "分析",
+      "version": "版本",
       "functionalRequirements": "功能需求",
       "userStories": "用户故事",
       "technicalSuggestions": "技术建议",
@@ -1076,6 +1232,10 @@
     "regenerate": "重新生成全部",
     "lastUpdated": "最后更新",
     "selectPage": "请选择页面查看",
+    "nav": "导航",
+    "topic": {
+      "full_documentation": "项目完整文档"
+    },
     "toast": {
       "start": "百科生成已开始！将在后台运行。",
       "error": "启动生成失败"
@@ -1135,6 +1295,19 @@
     "openInSystemApp": "在系统应用中打开",
     "library": "知识库"
   },
+  "table": {
+    "noResults": "未找到结果。",
+    "of": "页，共",
+    "page": "第",
+    "rowsPerPage": "每页行数",
+    "showing": "显示第 {{start}} 到 {{end}} 条，共 {{total}} 条",
+    "sr": {
+      "first": "跳转到第一页",
+      "last": "跳转到最后一页",
+      "next": "下一页",
+      "previous": "上一页"
+    }
+  },
   "library": {
     "title": "知识库",
     "subtitle": "跨项目搜索所有记录的内存、文档和索引知识。",
@@ -1174,7 +1347,65 @@
     "manage": "管理",
     "indexed": "已索引",
     "indexFailed": "索引失败",
-    "lastIndexed": "上次索引: {{time}}"
+    "lastIndexed": "上次索引: {{time}}",
+    "title": "切换项目",
+    "noProjects": "未找到项目。",
+    "disconnected": "已断开连接"
+  },
+  "subscription": {
+    "title": "订阅",
+    "subtitle": "管理您的订阅计划和账单",
+    "notice": {
+      "desc": "请完成支付以继续使用服务"
+    },
+    "payment": {
+      "title": "支付",
+      "desc": "安全完成您的支付",
+      "successTitle": "支付成功",
+      "successDesc": "感谢您的支付",
+      "thankYou": "感谢您！",
+      "error": "支付失败",
+      "pollNotice": "正在处理支付..."
+    },
+    "plan": {
+      "current": "当前计划",
+      "active": "有效",
+      "upgrade": "升级",
+      "startFree": "免费开始",
+      "free": "免费版",
+      "perMonth": "/月",
+      "defaultDesc": "包含基本功能",
+      "featuresInclude": "包含功能",
+      "discount": "折扣"
+    },
+    "plans": {
+      "title": "计划",
+      "desc": "选择适合您的计划"
+    },
+    "privilege": {
+      "unlimitedChat": "无限对话",
+      "cloudSync": "云端同步",
+      "advancedModels": "高级 AI 模型",
+      "codeAnalysis": "代码分析"
+    },
+    "quota": {
+      "title": "配额",
+      "description": "您的使用配额",
+      "aiQuota": "AI 配额",
+      "unlimited": "无限制"
+    },
+    "status": {
+      "active": "有效",
+      "expired": "已过期",
+      "expireAt": "过期时间",
+      "expiredAt": "已过期于",
+      "autoRenewOn": "自动续费已开启",
+      "renew": "续订",
+      "upgradeNow": "立即升级",
+      "manage": "管理",
+      "freeTitle": "免费版",
+      "freeDesc": "基本功能可用"
+    }
   },
   "pending": {
     "items": {
@@ -1211,6 +1442,9 @@
   "app": {
     "name": "EvoLoop"
   },
+  "footer": {
+    "copyright": "Copyright © 2025 EvoLoop. All rights reserved."
+  },
   "auth": {
     "recover": {
       "submit": "继续",
@@ -1228,7 +1462,18 @@
       "fullNameRequired": "全名不能为空",
       "invalidEmail": "无效的电子邮件地址",
       "passwordsNoMatch": "两次输入的密码不一致",
-      "passwordMin8": "密码长度至少为 8 位"
+      "passwordMin8": "密码长度至少为 8 位",
+      "passwordRequired": "请输入密码",
+      "usernameRequired": "用户名或邮箱不能为空"
+    },
+    "signup": {
+      "pageTitle": "注册 - EvoLoop"
+    },
+    "resetPassword": {
+      "pageTitle": "重置密码 - EvoLoop"
+    },
+    "recoverPassword": {
+      "pageTitle": "找回密码 - EvoLoop"
     },
     "reset": {
       "notImplemented": "SDK 未实现密码更新功能",
@@ -1248,12 +1493,36 @@
       "fullNamePlaceholder": "User",
       "desktopTitle": "创建新账户",
       "confirmPasswordPlaceholder": "确认密码",
-      "pageTitle": "注册 - EvoLoop"
+      "pageTitle": "注册 - EvoLoop",
+      "hasAccount": "已有账号？",
+      "login": "登录",
+      "submit": "注册"
     },
     "login": {
       "emailOrUsername": "邮箱或用户名",
       "desktopTitle": "登录您的账户",
-      "pageTitle": "登录 - EvoLoop"
+      "pageTitle": "登录 - EvoLoop",
+      "expiresIn": "{{seconds}}秒后过期",
+      "loginSuccess": "登录成功",
+      "orContinueWith": "或使用以下方式继续",
+      "processing": "处理中...",
+      "qrExpired": "二维码已过期",
+      "refresh": "刷新",
+      "retry": "重试",
+      "scanWithWechat": "请使用微信扫一扫",
+      "scannedConfirm": "已扫描，请在手机上确认",
+      "wechatInstructions1": "打开手机微信",
+      "wechatInstructions2": "点击\"发现\" > \"扫一扫\"",
+      "wechatInstructions3": "将摄像头对准二维码",
+      "wechatLogin": "微信登录",
+      "wechatQRCodeError": "二维码加载失败",
+      "wechatScanDesc": "扫描二维码即可快速登录",
+      "wechatScanTitle": "微信扫码",
+      "forgotPassword": "忘记密码？",
+      "noAccount": "还没有账号？",
+      "passwordPlaceholder": "密码",
+      "signUp": "立即注册",
+      "submit": "登录"
     }
   },
   "tour": {
@@ -1303,6 +1572,12 @@
   "system": {
     "initializationDesc": "请配置以下系统设置以继续。",
     "initializationTitle": "需要系统集成"
+  },
+  "editor": {
+    "line": "行",
+    "column": "列",
+    "ghostHint": "AI 建议...",
+    "thinking": "思考中..."
   },
   "macroEditor": {
     "steps": "{{count}} 步",
