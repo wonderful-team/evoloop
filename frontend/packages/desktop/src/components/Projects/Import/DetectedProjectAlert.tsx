@@ -12,11 +12,13 @@ import {
 } from "@evoloop/shared/components/ui/dialog"
 import { toast } from "sonner"
 import { useProjectImportStore } from "@/stores/projectImportStore"
+import { useSetupWizard } from "@/components/Wizard/SetupWizardContext"
 import { isLoggedIn } from "@/hooks/useAuth"
 import { cn } from "@evoloop/shared/lib/utils"
 
 export function DetectedProjectAlert() {
   const { t } = useTranslation()
+  const { shouldSuppressOtherDialogs } = useSetupWizard()
   const [isOpen, setIsOpen] = useState(false)
   const [importingIds, setImportingIds] = useState<Set<number>>(new Set())
 
@@ -49,7 +51,13 @@ export function DetectedProjectAlert() {
   }, [fetchDetected])
 
   // Show dialog when new projects detected (only when logged in)
+  // Suppressed if setup wizard is open (it has higher priority)
   useEffect(() => {
+    // Don't show if setup wizard is open
+    if (shouldSuppressOtherDialogs()) {
+      setIsOpen(false)
+      return
+    }
     // Only show dialog if user is logged in
     if (!isLoggedIn()) {
       return
@@ -61,7 +69,7 @@ export function DetectedProjectAlert() {
       }, 1000)
       return () => clearTimeout(timer)
     }
-  }, [hasNewDetected, detectedProjects.length, isOpen])
+  }, [hasNewDetected, detectedProjects.length, isOpen, shouldSuppressOtherDialogs])
 
   // 过滤掉已处理的项目
   const visibleProjects = detectedProjects.filter((p) => !dismissedProjectIds.has(p.id))

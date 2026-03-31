@@ -9,6 +9,7 @@ import { desktopTourSteps } from "@/components/Common/tourSteps"
 import AppSidebar from "@/components/Sidebar/AppSidebar"
 import { SidebarInset, SidebarProvider } from "@evoloop/shared/components/ui/sidebar"
 import { SetupWizard, useSetupRequired } from "@/components/Wizard"
+import { useSetupWizard } from "@/components/Wizard/SetupWizardContext"
 import useAuth from "@/hooks/useAuth"
 import { GlobalRecorderManager } from "@/components/Learning/GlobalRecorderManager"
 
@@ -22,6 +23,7 @@ function Layout() {
   const pathname = router.location.pathname
   const { user } = useAuth()
   const { required: setupRequired, loading: setupLoading } = useSetupRequired()
+  const { setIsWizardOpen } = useSetupWizard()
   const [showWizard, setShowWizard] = useState(false)
   const [hasShownWizard, setHasShownWizard] = useState(false)
 
@@ -32,13 +34,20 @@ function Layout() {
     pathname.includes("/todos") ||
     pathname.startsWith("/learning/skills")
 
-  // Show wizard when setup is required (only once per session)
+  // Sync wizard state with context
   useEffect(() => {
-    if (!setupLoading && setupRequired && user && !hasShownWizard) {
+    setIsWizardOpen(showWizard)
+  }, [showWizard, setIsWizardOpen])
+
+  // Show wizard when setup is required (only once per session)
+  // Exclude settings page as user is already configuring manually
+  useEffect(() => {
+    const isSettingsPage = pathname === "/settings"
+    if (!setupLoading && setupRequired && user && !hasShownWizard && !isSettingsPage) {
       setShowWizard(true)
       setHasShownWizard(true)
     }
-  }, [setupRequired, setupLoading, user, hasShownWizard])
+  }, [setupRequired, setupLoading, user, hasShownWizard, pathname])
 
   return (
     <SpotlightTourProvider steps={desktopTourSteps}>

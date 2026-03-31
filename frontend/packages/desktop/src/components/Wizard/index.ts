@@ -5,3 +5,7 @@ export {
     markSetupCompleted,
     resetSetupCompleted,
 } from "./useSetupRequired"
+export {
+    SetupWizardProvider,
+    useSetupWizard,
+} from "./SetupWizardContext"

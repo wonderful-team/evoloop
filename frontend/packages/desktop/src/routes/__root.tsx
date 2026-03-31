@@ -4,6 +4,7 @@ import NotFound from "@evoloop/shared/components/NotFound"
 import { useState } from "react"
 import StartupScreen from "@/components/Startup/StartupScreen"
 import { DetectedProjectAlert } from "@/components/Projects/Import"
+import { SetupWizardProvider } from "@/components/Wizard"
 
 export const Route = createRootRoute({
   component: RootComponent,
@@ -19,10 +20,10 @@ function RootComponent() {
   }
 
   return (
-    <>
+    <SetupWizardProvider>
       <HeadContent />
       <Outlet />
       <DetectedProjectAlert />
-    </>
+    </SetupWizardProvider>
   )
 }

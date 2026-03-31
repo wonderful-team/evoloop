@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { type SystemConfig, SystemService } from "@/client"
 import GeneralSettings from "@/components/Settings/GeneralSettings"
+import { useSetupWizard } from "@/components/Wizard/SetupWizardContext"
 import {
   AlertDialog,
   AlertDialogContent,
@@ -20,6 +21,7 @@ export default function InitializationCheck({
 }) {
   const { t } = useTranslation()
   const { user } = useAuth()
+  const { shouldSuppressOtherDialogs } = useSetupWizard()
   const [open, setOpen] = useState(false)
 
   const { data: config, isLoading } = useQuery({
@@ -29,6 +31,12 @@ export default function InitializationCheck({
   })
 
   useEffect(() => {
+    // Don't show if setup wizard is open (it has higher priority)
+    if (shouldSuppressOtherDialogs()) {
+      setOpen(false)
+      return
+    }
+
     if (!isLoading && config) {
       const configMap: Record<string, string> = {}
       if (Array.isArray(config)) {
@@ -46,7 +54,7 @@ export default function InitializationCheck({
         setOpen(false)
       }
     }
-  }, [config, isLoading])
+  }, [config, isLoading, shouldSuppressOtherDialogs])
 
   // If loading, we just show children or a loader.
   // Showing children might briefly flash improper state, but better than blocking.
