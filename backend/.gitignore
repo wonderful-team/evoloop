@@ -12,3 +12,6 @@ htmlcov
 /app/core/engine/.evoloop.pid
 /.evoloop.pid
 /evoloop-backend.spec
+/openapi.json
+/.solidlsp/
+/.claude/

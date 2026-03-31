@@ -1,0 +1,44 @@
+{
+  "timestamp": "2026-03-22T23:14:06.995142",
+  "type": "direct_llm_test",
+  "session_id": "direct_test_20260322_231404",
+  "scenario": "code_generation",
+  "status": "success",
+  "total_tokens": 640,
+  "cost_usd": 0.00024,
+  "rounds": [
+    {
+      "round": 1,
+      "user": "帮我写一个 Python 函数，计算斐波那契数列",
+      "ai_preview": "当然！这是一个递归实现的斐波那契函数：\n\n```python\ndef fibonacci(n):\n    if n <= 1:\n        return n\n    return fibonacci(n-1) + fibonacci(n-2)\n```\n\n使用方法：\n```python\nprint(fibonacci(10))  # 输出: 55\n```",
+      "time_ms": 1234,
+      "tokens": 245,
+      "code_extracted": true,
+      "exec_success": true,
+      "anomaly": "none",
+      "anomaly_detail": ""
+    },
+    {
+      "round": 2,
+      "user": "改成递归方式",
+      "ai_preview": "当然！这是一个递归实现的斐波那契函数：\n\n```python\ndef fibonacci(n):\n    if n <= 1:\n        return n\n    return fibonacci(n-1) + fibonacci(n-2)\n```\n\n使用方法：\n```python\nprint(fibonacci(10))  # 输出: 55\n```",
+      "time_ms": 1100,
+      "tokens": 245,
+      "code_extracted": true,
+      "exec_success": true,
+      "anomaly": "none",
+      "anomaly_detail": ""
+    },
+    {
+      "round": 3,
+      "user": "优化一下性能",
+      "ai_preview": "这是一个响应示例",
+      "time_ms": 800,
+      "tokens": 150,
+      "code_extracted": false,
+      "exec_success": false,
+      "anomaly": "quality_issue",
+      "anomaly_detail": "响应过短"
+    }
+  ]
+}

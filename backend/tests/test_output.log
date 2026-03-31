@@ -1,0 +1,26 @@
+SCRIPT STARTED
+IMPORTING handle_edit...
+/Users/huangjinhuan/项目/develop-assistant.cn/evoloop/backend/.venv/lib/python3.11/site-packages/pydantic/_internal/_config.py:383: UserWarning: Valid config keys have changed in V2:
+* 'allow_population_by_field_name' has been renamed to 'validate_by_name'
+  warnings.warn(message, UserWarning)
+[PipelineManager] Vision OCR enabled (slow performance)
+DEBUG: edit_file.py imports start
+DEBUG: app.core.tools import
+DEBUG: EditEngine import
+DEBUG: i18n import
+DEBUG: app.utils.file import
+DEBUG: .utils import
+DEBUG: edit_file.py imports end
+IMPORT SUCCESS
+
+--- Test 1: Valid Edit ---
+RESULT 1:
+✅ Successfully edited test_lsp_integration.py
+   Replaced 1 occurrence(s)
+   New hash: e1ac459a...
+
+--- Test 2: Invalid Edit (Syntax Error) ---
+RESULT 2:
+✅ Successfully edited test_lsp_integration.py
+   Replaced 1 occurrence(s)
+   New hash: 38f26813...

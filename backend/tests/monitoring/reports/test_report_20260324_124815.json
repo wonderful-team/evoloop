@@ -1,0 +1,1299 @@
+{
+  "timestamp": "2026-03-24T12:48:15.898319",
+  "summary": {
+    "total": 66,
+    "success": 66,
+    "failed": 0,
+    "abnormal": 4,
+    "total_errors": 4,
+    "high_severity_errors": 4
+  },
+  "results": [
+    {
+      "test_id": 107,
+      "category": "multi_turn",
+      "input": "添加用户登录功能，使用 JWT 认证",
+      "status": "✅ 成功",
+      "elapsed": 607.158399,
+      "iterations": 1,
+      "steps": 134,
+      "is_abnormal": false,
+      "error_count": 0,
+      "high_severity_errors": 0,
+      "error_details": null,
+      "final_state": {
+        "status": "done",
+        "steps_count": 138,
+        "final_outcome": ""
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 108,
+      "category": "multi_turn",
+      "input": "实现商品列表页面，支持分页",
+      "status": "✅ 成功",
+      "elapsed": 191.833487,
+      "iterations": 1,
+      "steps": 39,
+      "is_abnormal": false,
+      "error_count": 0,
+      "high_severity_errors": 0,
+      "error_details": null,
+      "final_state": {
+        "status": "done",
+        "steps_count": 39,
+        "final_outcome": "SUCCESS"
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 109,
+      "category": "multi_turn",
+      "input": "商品需要显示图片、名称、价格和库存",
+      "status": "✅ 成功",
+      "elapsed": 138.318848,
+      "iterations": 1,
+      "steps": 49,
+      "is_abnormal": false,
+      "error_count": 0,
+      "high_severity_errors": 0,
+      "error_details": null,
+      "final_state": {
+        "status": "done",
+        "steps_count": 49,
+        "final_outcome": ""
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 110,
+      "category": "multi_turn",
+      "input": "添加购物车功能，可以添加和删除商品",
+      "status": "✅ 成功",
+      "elapsed": 383.883405,
+      "iterations": 1,
+      "steps": 57,
+      "is_abnormal": false,
+      "error_count": 0,
+      "high_severity_errors": 0,
+      "error_details": null,
+      "final_state": {
+        "status": "done",
+        "steps_count": 57,
+        "final_outcome": ""
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 111,
+      "category": "multi_turn",
+      "input": "购物车数据要保存到数据库",
+      "status": "✅ 成功",
+      "elapsed": 408.01312,
+      "iterations": 1,
+      "steps": 113,
+      "is_abnormal": false,
+      "error_count": 0,
+      "high_severity_errors": 0,
+      "error_details": null,
+      "final_state": {
+        "status": "done",
+        "steps_count": 117,
+        "final_outcome": ""
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 112,
+      "category": "multi_turn",
+      "input": "创建订单系统，生成订单号",
+      "status": "✅ 成功",
+      "elapsed": 377.545677,
+      "iterations": 1,
+      "steps": 57,
+      "is_abnormal": false,
+      "error_count": 0,
+      "high_severity_errors": 0,
+      "error_details": null,
+      "final_state": {
+        "status": "done",
+        "steps_count": 57,
+        "final_outcome": "SUCCESS"
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 113,
+      "category": "multi_turn",
+      "input": "订单状态包括：待支付、已支付、已发货、已完成",
+      "status": "✅ 成功",
+      "elapsed": 8.217383,
+      "iterations": 0,
+      "steps": 5,
+      "is_abnormal": false,
+      "error_count": 0,
+      "high_severity_errors": 0,
+      "error_details": null,
+      "final_state": {
+        "status": "done",
+        "steps_count": 5,
+        "final_outcome": ""
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 114,
+      "category": "multi_turn",
+      "input": "集成支付宝支付接口",
+      "status": "✅ 成功",
+      "elapsed": 1562.438651,
+      "iterations": 1,
+      "steps": 251,
+      "is_abnormal": false,
+      "error_count": 0,
+      "high_severity_errors": 0,
+      "error_details": null,
+      "final_state": {
+        "status": "done",
+        "steps_count": 251,
+        "final_outcome": "SUCCESS"
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 115,
+      "category": "multi_turn",
+      "input": "添加微信支付选项",
+      "status": "✅ 成功",
+      "elapsed": 987.283801,
+      "iterations": 1,
+      "steps": 14,
+      "is_abnormal": true,
+      "error_count": 1,
+      "high_severity_errors": 1,
+      "error_details": [
+        {
+          "timestamp": "2026-03-24T07:38:02.623987",
+          "step_type": "loop_detection",
+          "message": "节点 'Using read_file' 连续 5 次",
+          "severity": "HIGH",
+          "step_data": null
+        }
+      ],
+      "final_state": {
+        "status": "done",
+        "steps_count": 39,
+        "final_outcome": ""
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 116,
+      "category": "multi_turn",
+      "input": "实现支付回调处理，更新订单状态",
+      "status": "✅ 成功",
+      "elapsed": 197.723143,
+      "iterations": 1,
+      "steps": 11,
+      "is_abnormal": true,
+      "error_count": 1,
+      "high_severity_errors": 1,
+      "error_details": [
+        {
+          "timestamp": "2026-03-24T07:54:32.905695",
+          "step_type": "loop_detection",
+          "message": "节点 'Using read_file' 连续 3 次",
+          "severity": "HIGH",
+          "step_data": null
+        }
+      ],
+      "final_state": {
+        "status": "done",
+        "steps_count": 64,
+        "final_outcome": "SUCCESS"
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 117,
+      "category": "multi_turn",
+      "input": "创建用户个人中心页面",
+      "status": "✅ 成功",
+      "elapsed": 2991.872122,
+      "iterations": 1,
+      "steps": 49,
+      "is_abnormal": true,
+      "error_count": 1,
+      "high_severity_errors": 1,
+      "error_details": [
+        {
+          "timestamp": "2026-03-24T08:24:55.194447",
+          "step_type": "loop_detection",
+          "message": "节点 'Using read_file' 连续 4 次",
+          "severity": "HIGH",
+          "step_data": null
+        }
+      ],
+      "final_state": {
+        "status": "done",
+        "steps_count": 67,
+        "final_outcome": ""
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 118,
+      "category": "multi_turn",
+      "input": "显示用户订单历史",
+      "status": "✅ 成功",
+      "elapsed": 63.789995,
+      "iterations": 1,
+      "steps": 24,
+      "is_abnormal": false,
+      "error_count": 0,
+      "high_severity_errors": 0,
+      "error_details": null,
+      "final_state": {
+        "status": "done",
+        "steps_count": 24,
+        "final_outcome": "SUCCESS"
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 119,
+      "category": "multi_turn",
+      "input": "添加订单详情查看功能",
+      "status": "✅ 成功",
+      "elapsed": 203.346803,
+      "iterations": 1,
+      "steps": 43,
+      "is_abnormal": false,
+      "error_count": 0,
+      "high_severity_errors": 0,
+      "error_details": null,
+      "final_state": {
+        "status": "done",
+        "steps_count": 43,
+        "final_outcome": "SUCCESS"
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 120,
+      "category": "multi_turn",
+      "input": "实现商品搜索功能，支持关键词搜索",
+      "status": "✅ 成功",
+      "elapsed": 236.238132,
+      "iterations": 1,
+      "steps": 47,
+      "is_abnormal": false,
+      "error_count": 0,
+      "high_severity_errors": 0,
+      "error_details": null,
+      "final_state": {
+        "status": "done",
+        "steps_count": 47,
+        "final_outcome": "SUCCESS"
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 121,
+      "category": "multi_turn",
+      "input": "搜索结果按价格排序",
+      "status": "✅ 成功",
+      "elapsed": 8.511544,
+      "iterations": 0,
+      "steps": 5,
+      "is_abnormal": false,
+      "error_count": 0,
+      "high_severity_errors": 0,
+      "error_details": null,
+      "final_state": {
+        "status": "done",
+        "steps_count": 8,
+        "final_outcome": ""
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 122,
+      "category": "multi_turn",
+      "input": "添加商品分类筛选",
+      "status": "✅ 成功",
+      "elapsed": 321.634672,
+      "iterations": 1,
+      "steps": 49,
+      "is_abnormal": false,
+      "error_count": 0,
+      "high_severity_errors": 0,
+      "error_details": null,
+      "final_state": {
+        "status": "done",
+        "steps_count": 49,
+        "final_outcome": ""
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 123,
+      "category": "multi_turn",
+      "input": "实现商品详情页面",
+      "status": "✅ 成功",
+      "elapsed": 306.274648,
+      "iterations": 1,
+      "steps": 25,
+      "is_abnormal": false,
+      "error_count": 0,
+      "high_severity_errors": 0,
+      "error_details": null,
+      "final_state": {
+        "status": "failed",
+        "steps_count": 25,
+        "final_outcome": ""
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 124,
+      "category": "multi_turn",
+      "input": "商品详情要显示大图和详细描述",
+      "status": "✅ 成功",
+      "elapsed": 2.852311,
+      "iterations": 0,
+      "steps": 0,
+      "is_abnormal": false,
+      "error_count": 0,
+      "high_severity_errors": 0,
+      "error_details": null,
+      "final_state": {
+        "status": "failed",
+        "steps_count": 2,
+        "final_outcome": ""
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 125,
+      "category": "multi_turn",
+      "input": "添加商品评价功能",
+      "status": "✅ 成功",
+      "elapsed": 322.054502,
+      "iterations": 1,
+      "steps": 68,
+      "is_abnormal": false,
+      "error_count": 0,
+      "high_severity_errors": 0,
+      "error_details": null,
+      "final_state": {
+        "status": "done",
+        "steps_count": 68,
+        "final_outcome": "SUCCESS"
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 126,
+      "category": "multi_turn",
+      "input": "评价显示用户名、评分和评论内容",
+      "status": "✅ 成功",
+      "elapsed": 12.767408,
+      "iterations": 0,
+      "steps": 5,
+      "is_abnormal": false,
+      "error_count": 0,
+      "high_severity_errors": 0,
+      "error_details": null,
+      "final_state": {
+        "status": "done",
+        "steps_count": 5,
+        "final_outcome": ""
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 127,
+      "category": "multi_turn",
+      "input": "实现收藏功能，用户可以收藏商品",
+      "status": "✅ 成功",
+      "elapsed": 327.800256,
+      "iterations": 1,
+      "steps": 67,
+      "is_abnormal": false,
+      "error_count": 0,
+      "high_severity_errors": 0,
+      "error_details": null,
+      "final_state": {
+        "status": "done",
+        "steps_count": 67,
+        "final_outcome": "SUCCESS"
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 128,
+      "category": "multi_turn",
+      "input": "添加地址管理功能",
+      "status": "✅ 成功",
+      "elapsed": 211.225367,
+      "iterations": 1,
+      "steps": 78,
+      "is_abnormal": false,
+      "error_count": 0,
+      "high_severity_errors": 0,
+      "error_details": null,
+      "final_state": {
+        "status": "done",
+        "steps_count": 78,
+        "final_outcome": ""
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 129,
+      "category": "multi_turn",
+      "input": "支持添加多个收货地址",
+      "status": "✅ 成功",
+      "elapsed": 713.586438,
+      "iterations": 1,
+      "steps": 96,
+      "is_abnormal": false,
+      "error_count": 0,
+      "high_severity_errors": 0,
+      "error_details": null,
+      "final_state": {
+        "status": "done",
+        "steps_count": 96,
+        "final_outcome": "SUCCESS"
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 130,
+      "category": "multi_turn",
+      "input": "下单时可以选择收货地址",
+      "status": "✅ 成功",
+      "elapsed": 950.648719,
+      "iterations": 1,
+      "steps": 414,
+      "is_abnormal": false,
+      "error_count": 0,
+      "high_severity_errors": 0,
+      "error_details": null,
+      "final_state": {
+        "status": "done",
+        "steps_count": 414,
+        "final_outcome": "SUCCESS"
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 131,
+      "category": "multi_turn",
+      "input": "添加库存管理功能",
+      "status": "✅ 成功",
+      "elapsed": 714.06295,
+      "iterations": 0,
+      "steps": 117,
+      "is_abnormal": false,
+      "error_count": 0,
+      "high_severity_errors": 0,
+      "error_details": null,
+      "final_state": {
+        "status": "done",
+        "steps_count": 117,
+        "final_outcome": "SUCCESS"
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 132,
+      "category": "multi_turn",
+      "input": "下单时检查库存是否充足",
+      "status": "✅ 成功",
+      "elapsed": 82.126417,
+      "iterations": 1,
+      "steps": 13,
+      "is_abnormal": false,
+      "error_count": 0,
+      "high_severity_errors": 0,
+      "error_details": null,
+      "final_state": {
+        "status": "done",
+        "steps_count": 13,
+        "final_outcome": ""
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 133,
+      "category": "multi_turn",
+      "input": "库存不足时提示用户",
+      "status": "✅ 成功",
+      "elapsed": 368.739556,
+      "iterations": 1,
+      "steps": 75,
+      "is_abnormal": false,
+      "error_count": 0,
+      "high_severity_errors": 0,
+      "error_details": null,
+      "final_state": {
+        "status": "done",
+        "steps_count": 75,
+        "final_outcome": "SUCCESS"
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 134,
+      "category": "multi_turn",
+      "input": "实现优惠券系统",
+      "status": "✅ 成功",
+      "elapsed": 3971.714062,
+      "iterations": 1,
+      "steps": 20,
+      "is_abnormal": true,
+      "error_count": 1,
+      "high_severity_errors": 1,
+      "error_details": [
+        {
+          "timestamp": "2026-03-24T10:08:31.166759",
+          "step_type": "loop_detection",
+          "message": "节点 'Using read_file' 连续 3 次",
+          "severity": "HIGH",
+          "step_data": null
+        }
+      ],
+      "final_state": {
+        "status": "done",
+        "steps_count": 124,
+        "final_outcome": ""
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 135,
+      "category": "multi_turn",
+      "input": "优惠券有有效期和使用门槛",
+      "status": "✅ 成功",
+      "elapsed": 1014.110855,
+      "iterations": 2,
+      "steps": 40,
+      "is_abnormal": false,
+      "error_count": 0,
+      "high_severity_errors": 0,
+      "error_details": null,
+      "final_state": {
+        "status": "done",
+        "steps_count": 40,
+        "final_outcome": "SUCCESS"
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 136,
+      "category": "multi_turn",
+      "input": "下单时可以选择使用优惠券",
+      "status": "✅ 成功",
+      "elapsed": 979.613327,
+      "iterations": 0,
+      "steps": 39,
+      "is_abnormal": false,
+      "error_count": 0,
+      "high_severity_errors": 0,
+      "error_details": null,
+      "final_state": {
+        "status": "done",
+        "steps_count": 39,
+        "final_outcome": "INCOMPLETE"
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 137,
+      "category": "multi_turn",
+      "input": "添加后台管理系统",
+      "status": "✅ 成功",
+      "elapsed": 1538.464412,
+      "iterations": 0,
+      "steps": 186,
+      "is_abnormal": false,
+      "error_count": 0,
+      "high_severity_errors": 0,
+      "error_details": null,
+      "final_state": {
+        "status": "done",
+        "steps_count": 186,
+        "final_outcome": "SUCCESS"
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 138,
+      "category": "multi_turn",
+      "input": "后台可以查看所有订单",
+      "status": "✅ 成功",
+      "elapsed": 63.056293,
+      "iterations": 1,
+      "steps": 34,
+      "is_abnormal": false,
+      "error_count": 0,
+      "high_severity_errors": 0,
+      "error_details": null,
+      "final_state": {
+        "status": "done",
+        "steps_count": 34,
+        "final_outcome": ""
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 139,
+      "category": "multi_turn",
+      "input": "实现发货功能，更新物流信息",
+      "status": "✅ 成功",
+      "elapsed": 2029.973865,
+      "iterations": 2,
+      "steps": 88,
+      "is_abnormal": false,
+      "error_count": 0,
+      "high_severity_errors": 0,
+      "error_details": null,
+      "final_state": {
+        "status": "failed",
+        "steps_count": 92,
+        "final_outcome": ""
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 140,
+      "category": "multi_turn",
+      "input": "添加商品管理功能",
+      "status": "✅ 成功",
+      "elapsed": 0.463641,
+      "iterations": 0,
+      "steps": 0,
+      "is_abnormal": false,
+      "error_count": 0,
+      "high_severity_errors": 0,
+      "error_details": null,
+      "final_state": {
+        "status": "failed",
+        "steps_count": 2,
+        "final_outcome": ""
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 141,
+      "category": "multi_turn",
+      "input": "后台可以添加新商品",
+      "status": "✅ 成功",
+      "elapsed": 0.419183,
+      "iterations": 0,
+      "steps": 0,
+      "is_abnormal": false,
+      "error_count": 0,
+      "high_severity_errors": 0,
+      "error_details": null,
+      "final_state": {
+        "status": "failed",
+        "steps_count": 2,
+        "final_outcome": ""
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 142,
+      "category": "multi_turn",
+      "input": "后台可以修改商品信息",
+      "status": "✅ 成功",
+      "elapsed": 0.428227,
+      "iterations": 0,
+      "steps": 0,
+      "is_abnormal": false,
+      "error_count": 0,
+      "high_severity_errors": 0,
+      "error_details": null,
+      "final_state": {
+        "status": "failed",
+        "steps_count": 2,
+        "final_outcome": ""
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 143,
+      "category": "multi_turn",
+      "input": "添加用户管理功能",
+      "status": "✅ 成功",
+      "elapsed": 0.428467,
+      "iterations": 0,
+      "steps": 0,
+      "is_abnormal": false,
+      "error_count": 0,
+      "high_severity_errors": 0,
+      "error_details": null,
+      "final_state": {
+        "status": "failed",
+        "steps_count": 2,
+        "final_outcome": ""
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 144,
+      "category": "multi_turn",
+      "input": "后台可以查看注册用户列表",
+      "status": "✅ 成功",
+      "elapsed": 0.55053,
+      "iterations": 0,
+      "steps": 0,
+      "is_abnormal": false,
+      "error_count": 0,
+      "high_severity_errors": 0,
+      "error_details": null,
+      "final_state": {
+        "status": "failed",
+        "steps_count": 2,
+        "final_outcome": ""
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 145,
+      "category": "multi_turn",
+      "input": "实现数据统计功能",
+      "status": "✅ 成功",
+      "elapsed": 0.447882,
+      "iterations": 0,
+      "steps": 0,
+      "is_abnormal": false,
+      "error_count": 0,
+      "high_severity_errors": 0,
+      "error_details": null,
+      "final_state": {
+        "status": "failed",
+        "steps_count": 2,
+        "final_outcome": ""
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 146,
+      "category": "multi_turn",
+      "input": "显示今日订单数和销售额",
+      "status": "✅ 成功",
+      "elapsed": 0.498701,
+      "iterations": 0,
+      "steps": 0,
+      "is_abnormal": false,
+      "error_count": 0,
+      "high_severity_errors": 0,
+      "error_details": null,
+      "final_state": {
+        "status": "failed",
+        "steps_count": 2,
+        "final_outcome": ""
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 147,
+      "category": "multi_turn",
+      "input": "添加热销商品排行榜",
+      "status": "✅ 成功",
+      "elapsed": 0.404065,
+      "iterations": 0,
+      "steps": 0,
+      "is_abnormal": false,
+      "error_count": 0,
+      "high_severity_errors": 0,
+      "error_details": null,
+      "final_state": {
+        "status": "failed",
+        "steps_count": 2,
+        "final_outcome": ""
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 148,
+      "category": "multi_turn",
+      "input": "实现邮件通知功能",
+      "status": "✅ 成功",
+      "elapsed": 0.489921,
+      "iterations": 0,
+      "steps": 0,
+      "is_abnormal": false,
+      "error_count": 0,
+      "high_severity_errors": 0,
+      "error_details": null,
+      "final_state": {
+        "status": "failed",
+        "steps_count": 2,
+        "final_outcome": ""
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 149,
+      "category": "multi_turn",
+      "input": "下单成功后发送确认邮件",
+      "status": "✅ 成功",
+      "elapsed": 0.417079,
+      "iterations": 0,
+      "steps": 0,
+      "is_abnormal": false,
+      "error_count": 0,
+      "high_severity_errors": 0,
+      "error_details": null,
+      "final_state": {
+        "status": "failed",
+        "steps_count": 2,
+        "final_outcome": ""
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 150,
+      "category": "multi_turn",
+      "input": "发货后发送物流通知邮件",
+      "status": "✅ 成功",
+      "elapsed": 0.487619,
+      "iterations": 0,
+      "steps": 0,
+      "is_abnormal": false,
+      "error_count": 0,
+      "high_severity_errors": 0,
+      "error_details": null,
+      "final_state": {
+        "status": "failed",
+        "steps_count": 2,
+        "final_outcome": ""
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 151,
+      "category": "multi_turn",
+      "input": "添加短信通知功能",
+      "status": "✅ 成功",
+      "elapsed": 0.380225,
+      "iterations": 0,
+      "steps": 0,
+      "is_abnormal": false,
+      "error_count": 0,
+      "high_severity_errors": 0,
+      "error_details": null,
+      "final_state": {
+        "status": "failed",
+        "steps_count": 2,
+        "final_outcome": ""
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 152,
+      "category": "multi_turn",
+      "input": "支付成功后发送短信提醒",
+      "status": "✅ 成功",
+      "elapsed": 0.503324,
+      "iterations": 0,
+      "steps": 0,
+      "is_abnormal": false,
+      "error_count": 0,
+      "high_severity_errors": 0,
+      "error_details": null,
+      "final_state": {
+        "status": "failed",
+        "steps_count": 2,
+        "final_outcome": ""
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 153,
+      "category": "multi_turn",
+      "input": "优化数据库查询，添加索引",
+      "status": "✅ 成功",
+      "elapsed": 0.419399,
+      "iterations": 0,
+      "steps": 0,
+      "is_abnormal": false,
+      "error_count": 0,
+      "high_severity_errors": 0,
+      "error_details": null,
+      "final_state": {
+        "status": "failed",
+        "steps_count": 2,
+        "final_outcome": ""
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 154,
+      "category": "multi_turn",
+      "input": "添加 Redis 缓存，提高访问速度",
+      "status": "✅ 成功",
+      "elapsed": 0.483003,
+      "iterations": 0,
+      "steps": 0,
+      "is_abnormal": false,
+      "error_count": 0,
+      "high_severity_errors": 0,
+      "error_details": null,
+      "final_state": {
+        "status": "failed",
+        "steps_count": 2,
+        "final_outcome": ""
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 155,
+      "category": "multi_turn",
+      "input": "实现图片上传功能，使用 OSS",
+      "status": "✅ 成功",
+      "elapsed": 0.492828,
+      "iterations": 0,
+      "steps": 0,
+      "is_abnormal": false,
+      "error_count": 0,
+      "high_severity_errors": 0,
+      "error_details": null,
+      "final_state": {
+        "status": "failed",
+        "steps_count": 2,
+        "final_outcome": ""
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 156,
+      "category": "multi_turn",
+      "input": "添加负载均衡支持",
+      "status": "✅ 成功",
+      "elapsed": 0.382855,
+      "iterations": 0,
+      "steps": 0,
+      "is_abnormal": false,
+      "error_count": 0,
+      "high_severity_errors": 0,
+      "error_details": null,
+      "final_state": {
+        "status": "failed",
+        "steps_count": 2,
+        "final_outcome": ""
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 157,
+      "category": "multi_turn",
+      "input": "部署到服务器，配置域名和 HTTPS",
+      "status": "✅ 成功",
+      "elapsed": 0.458878,
+      "iterations": 0,
+      "steps": 0,
+      "is_abnormal": false,
+      "error_count": 0,
+      "high_severity_errors": 0,
+      "error_details": null,
+      "final_state": {
+        "status": "failed",
+        "steps_count": 2,
+        "final_outcome": ""
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 158,
+      "category": "multi_turn",
+      "input": "帮我生成整个项目的部署文档",
+      "status": "✅ 成功",
+      "elapsed": 0.405866,
+      "iterations": 0,
+      "steps": 0,
+      "is_abnormal": false,
+      "error_count": 0,
+      "high_severity_errors": 0,
+      "error_details": null,
+      "final_state": {
+        "status": "failed",
+        "steps_count": 2,
+        "final_outcome": ""
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 159,
+      "category": "reference_previous",
+      "input": "刚才那个函数再加个参数",
+      "status": "✅ 成功",
+      "elapsed": 0.518826,
+      "iterations": 0,
+      "steps": 0,
+      "is_abnormal": false,
+      "error_count": 0,
+      "high_severity_errors": 0,
+      "error_details": null,
+      "final_state": {
+        "status": "failed",
+        "steps_count": 2,
+        "final_outcome": ""
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 160,
+      "category": "reference_previous",
+      "input": "基于上一步的代码，加上错误处理",
+      "status": "✅ 成功",
+      "elapsed": 0.532181,
+      "iterations": 0,
+      "steps": 0,
+      "is_abnormal": false,
+      "error_count": 0,
+      "high_severity_errors": 0,
+      "error_details": null,
+      "final_state": {
+        "status": "failed",
+        "steps_count": 2,
+        "final_outcome": ""
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 161,
+      "category": "reference_previous",
+      "input": "用前面提到的优化方案改一下",
+      "status": "✅ 成功",
+      "elapsed": 0.522575,
+      "iterations": 0,
+      "steps": 0,
+      "is_abnormal": false,
+      "error_count": 0,
+      "high_severity_errors": 0,
+      "error_details": null,
+      "final_state": {
+        "status": "failed",
+        "steps_count": 2,
+        "final_outcome": ""
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 162,
+      "category": "reference_previous",
+      "input": "把之前的代码改成用类实现",
+      "status": "✅ 成功",
+      "elapsed": 0.485463,
+      "iterations": 0,
+      "steps": 0,
+      "is_abnormal": false,
+      "error_count": 0,
+      "high_severity_errors": 0,
+      "error_details": null,
+      "final_state": {
+        "status": "failed",
+        "steps_count": 2,
+        "final_outcome": ""
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 163,
+      "category": "reference_previous",
+      "input": "刚才的修改撤销",
+      "status": "✅ 成功",
+      "elapsed": 0.40539,
+      "iterations": 0,
+      "steps": 0,
+      "is_abnormal": false,
+      "error_count": 0,
+      "high_severity_errors": 0,
+      "error_details": null,
+      "final_state": {
+        "status": "failed",
+        "steps_count": 2,
+        "final_outcome": ""
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 164,
+      "category": "reference_previous",
+      "input": "回到 3 步之前的状态",
+      "status": "✅ 成功",
+      "elapsed": 0.384178,
+      "iterations": 0,
+      "steps": 0,
+      "is_abnormal": false,
+      "error_count": 0,
+      "high_severity_errors": 0,
+      "error_details": null,
+      "final_state": {
+        "status": "failed",
+        "steps_count": 2,
+        "final_outcome": ""
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 165,
+      "category": "edge_case",
+      "input": "在文件里写入 <script>alert('xss')</script>",
+      "status": "✅ 成功",
+      "elapsed": 0.419271,
+      "iterations": 0,
+      "steps": 0,
+      "is_abnormal": false,
+      "error_count": 0,
+      "high_severity_errors": 0,
+      "error_details": null,
+      "final_state": {
+        "status": "failed",
+        "steps_count": 2,
+        "final_outcome": ""
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 166,
+      "category": "edge_case",
+      "input": "搜索 'DROP TABLE users; --",
+      "status": "✅ 成功",
+      "elapsed": 0.403738,
+      "iterations": 0,
+      "steps": 0,
+      "is_abnormal": false,
+      "error_count": 0,
+      "high_severity_errors": 0,
+      "error_details": null,
+      "final_state": {
+        "status": "failed",
+        "steps_count": 2,
+        "final_outcome": ""
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 167,
+      "category": "edge_case",
+      "input": "文件名包含 emoji 😀.txt",
+      "status": "✅ 成功",
+      "elapsed": 0.424952,
+      "iterations": 0,
+      "steps": 0,
+      "is_abnormal": false,
+      "error_count": 0,
+      "high_severity_errors": 0,
+      "error_details": null,
+      "final_state": {
+        "status": "failed",
+        "steps_count": 2,
+        "final_outcome": ""
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 168,
+      "category": "edge_case",
+      "input": "路径包含中文 文件夹/文件.txt",
+      "status": "✅ 成功",
+      "elapsed": 0.404133,
+      "iterations": 0,
+      "steps": 0,
+      "is_abnormal": false,
+      "error_count": 0,
+      "high_severity_errors": 0,
+      "error_details": null,
+      "final_state": {
+        "status": "failed",
+        "steps_count": 2,
+        "final_outcome": ""
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 169,
+      "category": "edge_case",
+      "input": "内容包含换行\n和制表符\t",
+      "status": "✅ 成功",
+      "elapsed": 0.411319,
+      "iterations": 0,
+      "steps": 0,
+      "is_abnormal": false,
+      "error_count": 0,
+      "high_severity_errors": 0,
+      "error_details": null,
+      "final_state": {
+        "status": "failed",
+        "steps_count": 2,
+        "final_outcome": ""
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 170,
+      "category": "edge_case",
+      "input": "输入 10000 个字符的长文本",
+      "status": "✅ 成功",
+      "elapsed": 0.416974,
+      "iterations": 0,
+      "steps": 0,
+      "is_abnormal": false,
+      "error_count": 0,
+      "high_severity_errors": 0,
+      "error_details": null,
+      "final_state": {
+        "status": "failed",
+        "steps_count": 2,
+        "final_outcome": ""
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 171,
+      "category": "edge_case",
+      "input": "输入空字符串",
+      "status": "✅ 成功",
+      "elapsed": 0.49464,
+      "iterations": 0,
+      "steps": 0,
+      "is_abnormal": false,
+      "error_count": 0,
+      "high_severity_errors": 0,
+      "error_details": null,
+      "final_state": {
+        "status": "failed",
+        "steps_count": 2,
+        "final_outcome": ""
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 172,
+      "category": "edge_case",
+      "input": "只输入空格",
+      "status": "✅ 成功",
+      "elapsed": 0.412637,
+      "iterations": 0,
+      "steps": 0,
+      "is_abnormal": false,
+      "error_count": 0,
+      "high_severity_errors": 0,
+      "error_details": null,
+      "final_state": {
+        "status": "failed",
+        "steps_count": 2,
+        "final_outcome": ""
+      },
+      "test_error": null
+    }
+  ]
+}

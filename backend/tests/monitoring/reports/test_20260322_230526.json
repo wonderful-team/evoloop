@@ -1,0 +1,20 @@
+{
+  "timestamp": "2026-03-22T23:05:26.392947",
+  "results": [
+    {
+      "id": "TEST-001",
+      "status": "NO_BACKEND",
+      "time": 0
+    },
+    {
+      "id": "TEST-002",
+      "status": "NO_BACKEND",
+      "time": 0
+    },
+    {
+      "id": "TEST-003",
+      "status": "NO_BACKEND",
+      "time": 0
+    }
+  ]
+}

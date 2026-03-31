@@ -1,0 +1,298 @@
+{
+  "timestamp": "2026-03-25T02:45:28.190259",
+  "summary": {
+    "total": 15,
+    "success": 15,
+    "failed": 0,
+    "abnormal": 0,
+    "total_errors": 0,
+    "high_severity_errors": 0
+  },
+  "results": [
+    {
+      "test_id": 158,
+      "category": "multi_turn",
+      "input": "帮我生成整个项目的部署文档",
+      "status": "✅ 成功",
+      "elapsed": 813.637411,
+      "iterations": 0,
+      "steps": 36,
+      "is_abnormal": false,
+      "error_count": 0,
+      "high_severity_errors": 0,
+      "error_details": null,
+      "final_state": {
+        "status": "done",
+        "steps_count": 36,
+        "final_outcome": "INCOMPLETE"
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 159,
+      "category": "reference_previous",
+      "input": "刚才那个函数再加个参数",
+      "status": "✅ 成功",
+      "elapsed": 6.956712,
+      "iterations": 0,
+      "steps": 11,
+      "is_abnormal": false,
+      "error_count": 0,
+      "high_severity_errors": 0,
+      "error_details": null,
+      "final_state": {
+        "status": "done",
+        "steps_count": 11,
+        "final_outcome": ""
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 160,
+      "category": "reference_previous",
+      "input": "基于上一步的代码，加上错误处理",
+      "status": "✅ 成功",
+      "elapsed": 10.962411,
+      "iterations": 0,
+      "steps": 13,
+      "is_abnormal": false,
+      "error_count": 0,
+      "high_severity_errors": 0,
+      "error_details": null,
+      "final_state": {
+        "status": "done",
+        "steps_count": 13,
+        "final_outcome": ""
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 161,
+      "category": "reference_previous",
+      "input": "用前面提到的优化方案改一下",
+      "status": "✅ 成功",
+      "elapsed": 12.097085,
+      "iterations": 0,
+      "steps": 19,
+      "is_abnormal": false,
+      "error_count": 0,
+      "high_severity_errors": 0,
+      "error_details": null,
+      "final_state": {
+        "status": "done",
+        "steps_count": 19,
+        "final_outcome": ""
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 162,
+      "category": "reference_previous",
+      "input": "把之前的代码改成用类实现",
+      "status": "✅ 成功",
+      "elapsed": 12.957843,
+      "iterations": 0,
+      "steps": 22,
+      "is_abnormal": false,
+      "error_count": 0,
+      "high_severity_errors": 0,
+      "error_details": null,
+      "final_state": {
+        "status": "done",
+        "steps_count": 22,
+        "final_outcome": ""
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 163,
+      "category": "reference_previous",
+      "input": "刚才的修改撤销",
+      "status": "✅ 成功",
+      "elapsed": 10.680794,
+      "iterations": 0,
+      "steps": 16,
+      "is_abnormal": false,
+      "error_count": 0,
+      "high_severity_errors": 0,
+      "error_details": null,
+      "final_state": {
+        "status": "done",
+        "steps_count": 16,
+        "final_outcome": ""
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 164,
+      "category": "reference_previous",
+      "input": "回到 3 步之前的状态",
+      "status": "✅ 成功",
+      "elapsed": 10.755391,
+      "iterations": 0,
+      "steps": 14,
+      "is_abnormal": false,
+      "error_count": 0,
+      "high_severity_errors": 0,
+      "error_details": null,
+      "final_state": {
+        "status": "done",
+        "steps_count": 14,
+        "final_outcome": ""
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 165,
+      "category": "edge_case",
+      "input": "在文件里写入 <script>alert('xss')</script>",
+      "status": "✅ 成功",
+      "elapsed": 25.5462,
+      "iterations": 1,
+      "steps": 7,
+      "is_abnormal": false,
+      "error_count": 0,
+      "high_severity_errors": 0,
+      "error_details": null,
+      "final_state": {
+        "status": "done",
+        "steps_count": 11,
+        "final_outcome": ""
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 166,
+      "category": "edge_case",
+      "input": "搜索 'DROP TABLE users; --",
+      "status": "✅ 成功",
+      "elapsed": 10.30057,
+      "iterations": 0,
+      "steps": 5,
+      "is_abnormal": false,
+      "error_count": 0,
+      "high_severity_errors": 0,
+      "error_details": null,
+      "final_state": {
+        "status": "done",
+        "steps_count": 9,
+        "final_outcome": ""
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 167,
+      "category": "edge_case",
+      "input": "文件名包含 emoji 😀.txt",
+      "status": "✅ 成功",
+      "elapsed": 11.904644,
+      "iterations": 0,
+      "steps": 11,
+      "is_abnormal": false,
+      "error_count": 0,
+      "high_severity_errors": 0,
+      "error_details": null,
+      "final_state": {
+        "status": "done",
+        "steps_count": 15,
+        "final_outcome": ""
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 168,
+      "category": "edge_case",
+      "input": "路径包含中文 文件夹/文件.txt",
+      "status": "✅ 成功",
+      "elapsed": 18.104375,
+      "iterations": 1,
+      "steps": 21,
+      "is_abnormal": false,
+      "error_count": 0,
+      "high_severity_errors": 0,
+      "error_details": null,
+      "final_state": {
+        "status": "done",
+        "steps_count": 21,
+        "final_outcome": ""
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 169,
+      "category": "edge_case",
+      "input": "内容包含换行\n和制表符\t",
+      "status": "✅ 成功",
+      "elapsed": 8.553132,
+      "iterations": 1,
+      "steps": 9,
+      "is_abnormal": false,
+      "error_count": 0,
+      "high_severity_errors": 0,
+      "error_details": null,
+      "final_state": {
+        "status": "done",
+        "steps_count": 13,
+        "final_outcome": ""
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 170,
+      "category": "edge_case",
+      "input": "输入 10000 个字符的长文本",
+      "status": "✅ 成功",
+      "elapsed": 6.880289,
+      "iterations": 0,
+      "steps": 5,
+      "is_abnormal": false,
+      "error_count": 0,
+      "high_severity_errors": 0,
+      "error_details": null,
+      "final_state": {
+        "status": "done",
+        "steps_count": 5,
+        "final_outcome": ""
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 171,
+      "category": "edge_case",
+      "input": "输入空字符串",
+      "status": "✅ 成功",
+      "elapsed": 2.747503,
+      "iterations": 0,
+      "steps": 0,
+      "is_abnormal": false,
+      "error_count": 0,
+      "high_severity_errors": 0,
+      "error_details": null,
+      "final_state": {
+        "status": "done",
+        "steps_count": 5,
+        "final_outcome": ""
+      },
+      "test_error": null
+    },
+    {
+      "test_id": 172,
+      "category": "edge_case",
+      "input": "只输入空格",
+      "status": "✅ 成功",
+      "elapsed": 2.991533,
+      "iterations": 0,
+      "steps": 0,
+      "is_abnormal": false,
+      "error_count": 0,
+      "high_severity_errors": 0,
+      "error_details": null,
+      "final_state": {
+        "status": "done",
+        "steps_count": 5,
+        "final_outcome": ""
+      },
+      "test_error": null
+    }
+  ]
+}
