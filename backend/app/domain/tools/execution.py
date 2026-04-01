@@ -1,7 +1,11 @@
 import asyncio
 import logging
 import os
-from typing import Any, Annotated
+import signal
+import time
+import uuid
+from datetime import datetime
+from typing import Any, Annotated, Optional, Union
 
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import InjectedToolArg
@@ -9,6 +13,7 @@ from langchain_core.tools import InjectedToolArg
 from app.core.config import settings
 from app.core.context import ContextManager
 from app.core.tools import evoloop_tool, get_working_directory
+from app.core.tools.background import task_manager, TaskType, TaskStatus
 from app.utils import ControllerResponse, SkillResponse, render_template
 
 logger = logging.getLogger(__name__)
@@ -133,6 +138,17 @@ def _format_command_result(stdout: str, stderr: str, returncode: int) -> str:
         return ControllerResponse.error(status_msg, details=output_details)
 
 
+def _get_thread_id(config: Optional[RunnableConfig]) -> str:
+    """Extract thread_id from config or context."""
+    if config and "configurable" in config:
+        thread_id = config["configurable"].get("thread_id")
+        if thread_id:
+            return thread_id
+    
+    ctx = ContextManager.current()
+    return ctx.thread_id or ctx.request_id or "default"
+
+
 @evoloop_tool(
     is_state_mutating=True,
     summary_template="database_logger.tool_summary.execute_command",
@@ -140,6 +156,8 @@ def _format_command_result(stdout: str, stderr: str, returncode: int) -> str:
 )
 async def execute_command(
     command: str,
+    background: bool = False,
+    timeout: int = 60,
     config: Annotated[RunnableConfig, InjectedToolArg] = None,
 ) -> str:
     """
@@ -156,17 +174,492 @@ async def execute_command(
     - File Reading -> Use `read_file`.
     - Directory Operations -> Use `list_directory` / `manage_directory`.
 
-    Use this for execution tasks like running tests, builds, scripts, Git commands,
-    or when you need direct shell access beyond what specialized tools provide.
+    Args:
+        command: The shell command to execute
+        background: If True, run in background and return task_id immediately.
+                   Use for long-running commands like builds (npm run build, docker build).
+        timeout: Maximum execution time in seconds (default: 60, max: 3600).
+                For background tasks, this is the background timeout.
 
     Examples:
+        # Quick commands (default)
         execute_command(command="git status")
-        execute_command(command="git commit -m 'fix: bug'")
-        execute_command(command="pytest tests/")
-        execute_command(command="npm install")
+        
+        # Long-running build (background mode)
+        execute_command(command="npm run build", background=True, timeout=300)
+        
+        # Docker build
+        execute_command(command="docker build -t myapp .", background=True, timeout=600)
     """
-    stdout, stderr, returncode = await _execute_command(command, config)
-    return _format_command_result(stdout, stderr, returncode)
+    # Validate timeout
+    timeout = min(max(timeout, 10), 3600)  # Clamp between 10s and 1 hour
+    
+    if background:
+        # Background mode: create task and return immediately
+        return await _execute_in_background(command, timeout, config)
+    else:
+        # Smart mode: try sync first, auto-extend if needed
+        return await _execute_smart(command, timeout, config)
+
+
+async def _execute_in_background(
+    command: str, 
+    timeout: int, 
+    config: Optional[RunnableConfig]
+) -> str:
+    """
+    Execute command in background mode.
+    Creates a task and returns immediately with task_id.
+    """
+    thread_id = _get_thread_id(config)
+    
+    # Create background task
+    task = await task_manager.create_task(
+        task_type=TaskType.COMMAND,
+        title=f"执行: {command[:60]}{'...' if len(command) > 60 else ''}",
+        description=f"命令: {command}",
+        tool_name="execute_command",
+        thread_id=thread_id,
+        timeout_seconds=timeout,
+    )
+    
+    # Start execution in background
+    asyncio.create_task(_run_command_background(task, command, timeout, config))
+    
+    return (
+        f"🚀 后台任务已启动\n\n"
+        f"任务ID: `{task.task_id}`\n"
+        f"命令: `{command}`\n"
+        f"超时: {timeout}秒\n\n"
+        f"查询状态: `query_command_status('{task.task_id}')`\n"
+        f"取消任务: `cancel_command('{task.task_id}')`"
+    )
+
+
+async def _run_command_background(
+    task, 
+    command: str, 
+    timeout: int,
+    config: Optional[RunnableConfig]
+):
+    """Run command in background and update task status."""
+    try:
+        # Determine working directory
+        ctx = ContextManager.current()
+        working_dir = get_working_directory(config)
+        
+        if ctx.project_id == 0 or (ctx.project_id is None and working_dir == "."):
+            from app.infrastructure.config.service import SystemConfigService
+            db_workspace_root = SystemConfigService.get_value("WORKSPACE_ROOT")
+            workspace_root = db_workspace_root if db_workspace_root else settings.WORKSPACE_ROOT
+            if workspace_root:
+                working_dir = workspace_root
+        
+        # Wrap command with cd
+        if working_dir and working_dir != ".":
+            wrapped_command = f"cd {working_dir} && {command}"
+        else:
+            wrapped_command = command
+        
+        # Start process
+        process = await asyncio.create_subprocess_shell(
+            wrapped_command,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            preexec_fn=os.setsid,  # Create new process group for clean termination
+        )
+        
+        # Mark as started
+        await task_manager.start_task(task.task_id, process.pid)
+        
+        # Setup cancel callback
+        def cancel_callback():
+            try:
+                os.killpg(os.getpgid(process.pid), signal.SIGTERM)
+            except ProcessLookupError:
+                pass  # Process already exited
+        
+        task.set_cancel_callback(cancel_callback)
+        
+        # Read output
+        async def read_stream(stream, is_stderr=False):
+            prefix = "[stderr] " if is_stderr else ""
+            while True:
+                try:
+                    line = await asyncio.wait_for(stream.readline(), timeout=1.0)
+                    if not line:
+                        break
+                    output = prefix + line.decode('utf-8', errors='replace').rstrip()
+                    task_manager.append_output(task.task_id, output)
+                except asyncio.TimeoutError:
+                    # Check if process still running
+                    if process.returncode is not None:
+                        break
+                    continue
+        
+        # Read both streams concurrently
+        await asyncio.gather(
+            read_stream(process.stdout, is_stderr=False),
+            read_stream(process.stderr, is_stderr=True),
+        )
+        
+        # Wait for completion with timeout
+        try:
+            exit_code = await asyncio.wait_for(process.wait(), timeout=timeout)
+            
+            if exit_code == 0:
+                await task_manager.complete_task(task.task_id, result={"exit_code": 0})
+            else:
+                await task_manager.fail_task(
+                    task.task_id, 
+                    error=f"Command exited with code {exit_code}"
+                )
+        except asyncio.TimeoutError:
+            # Kill the process group
+            try:
+                os.killpg(os.getpgid(process.pid), signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            await task_manager.timeout_task(task.task_id)
+            
+    except Exception as e:
+        logger.error(f"Background command error: {e}", exc_info=True)
+        await task_manager.fail_task(task.task_id, error=str(e))
+
+
+async def _execute_smart(
+    command: str, 
+    timeout: int, 
+    config: Optional[RunnableConfig]
+) -> str:
+    """
+    Smart execution mode:
+    1. Try to execute with initial timeout (60s)
+    2. If still running, give periodic feedback to agent
+    3. If total timeout exceeded, suggest background mode
+    """
+    thread_id = _get_thread_id(config)
+    
+    # Phase 1: Quick execution (up to 60s or specified timeout, whichever is smaller)
+    quick_timeout = min(timeout, 60)
+    
+    try:
+        # Try quick execution
+        stdout, stderr, returncode = await _execute_command_with_timeout(
+            command, quick_timeout, config
+        )
+        return _format_command_result(stdout, stderr, returncode)
+        
+    except asyncio.TimeoutError:
+        # Command is taking longer than quick_timeout
+        # Create a background task to continue execution
+        
+        if timeout <= quick_timeout:
+            # No more time allowed, fail
+            return (
+                f"⏰ 命令执行超时（{quick_timeout}秒）\n\n"
+                f"命令: `{command}`\n\n"
+                f"建议: 此命令可能需要更长时间，请使用后台模式:\n"
+                f"`execute_command(command='{command}', background=True, timeout=300)`"
+            )
+        
+        # Continue in background-like mode but with agent feedback
+        task = await task_manager.create_task(
+            task_type=TaskType.COMMAND,
+            title=f"执行: {command[:60]}{'...' if len(command) > 60 else ''}",
+            description=f"命令: {command}",
+            tool_name="execute_command",
+            thread_id=thread_id,
+            timeout_seconds=timeout,
+        )
+        
+        # Start process
+        ctx = ContextManager.current()
+        working_dir = get_working_directory(config)
+        
+        if ctx.project_id == 0 or (ctx.project_id is None and working_dir == "."):
+            from app.infrastructure.config.service import SystemConfigService
+            db_workspace_root = SystemConfigService.get_value("WORKSPACE_ROOT")
+            workspace_root = db_workspace_root if db_workspace_root else settings.WORKSPACE_ROOT
+            if workspace_root:
+                working_dir = workspace_root
+        
+        if working_dir and working_dir != ".":
+            wrapped_command = f"cd {working_dir} && {command}"
+        else:
+            wrapped_command = command
+        
+        process = await asyncio.create_subprocess_shell(
+            wrapped_command,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            preexec_fn=os.setsid,
+        )
+        
+        await task_manager.start_task(task.task_id, process.pid)
+        
+        # Setup cancel callback
+        def cancel_callback():
+            try:
+                os.killpg(os.getpgid(process.pid), signal.SIGTERM)
+            except ProcessLookupError:
+                pass
+        
+        task.set_cancel_callback(cancel_callback)
+        
+        # Collect output for remaining time
+        remaining_time = timeout - quick_timeout
+        start_time = time.time()
+        
+        async def read_with_timeout():
+            async def read_stream(stream, is_stderr=False):
+                prefix = "[stderr] " if is_stderr else ""
+                while True:
+                    try:
+                        line = await asyncio.wait_for(stream.readline(), timeout=1.0)
+                        if not line:
+                            break
+                        output = prefix + line.decode('utf-8', errors='replace').rstrip()
+                        task_manager.append_output(task.task_id, output)
+                    except asyncio.TimeoutError:
+                        if process.returncode is not None:
+                            break
+                        continue
+            
+            await asyncio.gather(
+                read_stream(process.stdout, is_stderr=False),
+                read_stream(process.stderr, is_stderr=True),
+            )
+        
+        # Wait for completion or timeout
+        try:
+            await asyncio.wait_for(read_with_timeout(), timeout=remaining_time)
+            exit_code = await asyncio.wait_for(process.wait(), timeout=5)
+            
+            if exit_code == 0:
+                await task_manager.complete_task(task.task_id, result={"exit_code": 0})
+                output = task.get_recent_output(n=100)
+                return (
+                    f"✅ 命令执行完成（总耗时: {task.elapsed_seconds}秒）\n\n"
+                    f"最后输出:\n```\n{output}\n```"
+                )
+            else:
+                await task_manager.fail_task(task.task_id, error=f"Exit code: {exit_code}")
+                output = task.get_recent_output(n=50)
+                return (
+                    f"❌ 命令执行失败（退出码: {exit_code}）\n\n"
+                    f"最后输出:\n```\n{output}\n```"
+                )
+                
+        except asyncio.TimeoutError:
+            # Total timeout exceeded
+            try:
+                os.killpg(os.getpgid(process.pid), signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            await task_manager.timeout_task(task.task_id)
+            
+            output = task.get_recent_output(n=30)
+            return (
+                f"⏰ 命令执行超时（总限制: {timeout}秒）\n\n"
+                f"命令仍在后台运行，但已超过最大等待时间。\n"
+                f"任务ID: `{task.task_id}`\n\n"
+                f"最近输出:\n```\n{output}\n```\n\n"
+                f"查询完整状态: `query_command_status('{task.task_id}')`"
+            )
+
+
+async def _execute_command_with_timeout(
+    command: str, 
+    timeout: int, 
+    config: Optional[RunnableConfig]
+) -> tuple[str, str, int]:
+    """
+    Execute command with specified timeout.
+    Raises asyncio.TimeoutError if timeout exceeded.
+    """
+    # Security check
+    is_dangerous, reason = _is_dangerous_command(command)
+    if is_dangerous:
+        return "", f"Security Error: {reason}", 1
+    
+    # Determine working directory
+    ctx = ContextManager.current()
+    working_dir = get_working_directory(config)
+    
+    if ctx.project_id == 0 or (ctx.project_id is None and working_dir == "."):
+        from app.infrastructure.config.service import SystemConfigService
+        db_workspace_root = SystemConfigService.get_value("WORKSPACE_ROOT")
+        workspace_root = db_workspace_root if db_workspace_root else settings.WORKSPACE_ROOT
+        if workspace_root:
+            working_dir = workspace_root
+    
+    if working_dir and working_dir != ".":
+        wrapped_command = f"cd {working_dir} && {command}"
+    else:
+        wrapped_command = command
+    
+    # Run with timeout
+    process = await asyncio.create_subprocess_shell(
+        wrapped_command,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    
+    try:
+        stdout, stderr = await asyncio.wait_for(
+            process.communicate(),
+            timeout=timeout
+        )
+        return (
+            stdout.decode('utf-8', errors='replace'),
+            stderr.decode('utf-8', errors='replace'),
+            process.returncode
+        )
+    except asyncio.TimeoutError:
+        # Kill process on timeout
+        try:
+            process.kill()
+            await process.wait()
+        except:
+            pass
+        raise
+
+
+@evoloop_tool(
+    is_pollable=True,
+    summary_template="database_logger.tool_summary.query_command_status",
+    name_map={"zh": "查询命令状态", "en": "Query Command Status"}
+)
+async def query_command_status(
+    task_id: str,
+    include_output: bool = True,
+    output_lines: int = 50,
+    config: Annotated[RunnableConfig, InjectedToolArg] = None,
+) -> str:
+    """
+    Query the status of a background command task.
+    
+    Use this to check the progress or result of a command that was started
+    with background=True.
+    
+    Args:
+        task_id: The task ID returned by execute_command(background=True)
+        include_output: Whether to include recent output (default: True)
+        output_lines: Number of output lines to include (default: 50, max: 200)
+    
+    Examples:
+        query_command_status("cmd-a1b2c3d4")
+        query_command_status("cmd-a1b2c3d4", output_lines=100)
+    """
+    task = task_manager.get_task(task_id)
+    
+    if not task:
+        return f"❌ 任务不存在: `{task_id}`\n\n可能原因:\n1. 任务ID错误\n2. 任务已完成超过24小时（已自动清理）\n3. 任务属于其他对话"
+    
+    # Status icons
+    icons = {
+        TaskStatus.PENDING: "⏳",
+        TaskStatus.RUNNING: "▶️",
+        TaskStatus.COMPLETED: "✅",
+        TaskStatus.FAILED: "❌",
+        TaskStatus.CANCELLED: "🚫",
+        TaskStatus.TIMEOUT: "⏰",
+    }
+    icon = icons.get(task.status, "❓")
+    
+    # Build response
+    lines = [
+        f"{icon} 任务状态: {task.status.value}",
+        "",
+        f"任务ID: `{task.task_id}`",
+        f"命令: `{task.title}`",
+        f"耗时: {task.elapsed_seconds}秒",
+    ]
+    
+    if task.status == TaskStatus.RUNNING:
+        lines.append(f"进程ID: {task.process_id}")
+    
+    lines.append("")
+    
+    # Include output if requested
+    if include_output and task.output_buffer:
+        n = min(output_lines, 200)
+        output = task.get_recent_output(n)
+        lines.append(f"最近输出（最后{n}行）:")
+        lines.append("```")
+        lines.append(output if output else "（无输出）")
+        lines.append("```")
+        lines.append("")
+    
+    # Result or error
+    if task.status == TaskStatus.COMPLETED:
+        lines.append("✅ 命令执行成功")
+        if task.result:
+            lines.append(f"结果: {task.result}")
+    elif task.status == TaskStatus.FAILED:
+        lines.append(f"❌ 执行失败: {task.error_message or '未知错误'}")
+    elif task.status == TaskStatus.CANCELLED:
+        lines.append("🚫 任务已取消")
+    elif task.status == TaskStatus.TIMEOUT:
+        lines.append("⏰ 任务超时")
+    elif task.status == TaskStatus.RUNNING:
+        lines.append("💡 提示: 任务仍在运行，10秒后再次查询查看最新状态")
+    
+    return "\n".join(lines)
+
+
+@evoloop_tool(
+    is_pollable=True,
+    summary_template="database_logger.tool_summary.cancel_command",
+    name_map={"zh": "取消命令", "en": "Cancel Command"}
+)
+async def cancel_command(
+    task_id: str,
+    force: bool = False,
+    config: Annotated[RunnableConfig, InjectedToolArg] = None,
+) -> str:
+    """
+    Cancel a running background command.
+    
+    Args:
+        task_id: The task ID to cancel
+        force: If True, use SIGKILL immediately instead of SIGTERM (default: False)
+    
+    Examples:
+        cancel_command("cmd-a1b2c3d4")
+        cancel_command("cmd-a1b2c3d4", force=True)  # Force kill
+    """
+    task = task_manager.get_task(task_id)
+    
+    if not task:
+        return f"❌ 任务不存在: `{task_id}`"
+    
+    if task.is_completed:
+        return (
+            f"⚠️ 任务已完成，无法取消\n\n"
+            f"状态: {task.status.value}\n"
+            f"完成时间: {task.completed_at}"
+        )
+    
+    # Try to cancel
+    success = await task_manager.cancel_task(task_id)
+    
+    if success:
+        if force and task.process_id:
+            # Force kill if requested
+            try:
+                os.killpg(os.getpgid(task.process_id), signal.SIGKILL)
+            except ProcessLookupError:
+                pass  # Process already gone
+        
+        return (
+            f"✅ 任务已取消\n\n"
+            f"任务ID: `{task_id}`\n"
+            f"命令: `{task.title}`"
+        )
+    else:
+        return f"❌ 无法取消任务（当前状态: {task.status.value}）"
 
 
 @evoloop_tool(

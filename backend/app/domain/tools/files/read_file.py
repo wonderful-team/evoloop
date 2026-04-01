@@ -1,3 +1,10 @@
+"""
+Read File Tool - Thin wrapper over core.file operations.
+
+This module provides the tool interface for reading files.
+All heavy lifting is done by app.core.file module.
+"""
+
 import os
 import re
 from typing import Annotated
@@ -5,14 +12,15 @@ from langchain_core.tools import InjectedToolArg
 from langchain_core.runnables import RunnableConfig
 
 from app.core.tools import evoloop_tool
+from app.core.file import (
+    read_file as core_read_file,
+    get_file_info,
+    get_large_file_preview,
+    FileStatus,
+    LARGE_FILE_THRESHOLD,
+)
 from app.domain.tools.document_reader import read_document
 from app.i18n.service import i18n
-from app.utils.file import (
-    read_file_content as utils_read_file,
-    get_file_stats,
-    get_large_file_preview,
-    LARGE_FILE_THRESHOLD
-)
 
 from .utils import resolve_and_validate_path
 
@@ -33,7 +41,6 @@ async def handle_read(
         return str(e)
 
     # Smart routing: if it looks like a doc, use read_document logic
-    # Note: target_path is already resolved and validated by resolve_and_validate_path
     if path.lower().endswith((".pdf", ".docx", ".doc", ".xlsx", ".xls")):
         return await read_document(
             file_path=target_path,
@@ -41,8 +48,9 @@ async def handle_read(
             end_page=end_line
         )
 
+    # Check existence
     if not os.path.exists(target_path):
-        # Smart Error Handling
+        # Smart Error Handling - suggest similar files
         parent_dir = os.path.dirname(target_path)
         if os.path.exists(parent_dir):
             try:
@@ -64,12 +72,12 @@ async def handle_read(
                 pass
         return i18n.get("domain_tools.files.read_not_found", path=path)
 
+    # Check if it's a large file (use core.file for size info)
     try:
-        # Check if it's a large file
-        file_size = os.path.getsize(target_path)
+        file_info = get_file_info(target_path)
 
         # For large files without pagination, return preview
-        if file_size > LARGE_FILE_THRESHOLD and start_line is None and end_line is None:
+        if file_info.is_large and start_line is None and end_line is None:
             preview = get_large_file_preview(target_path)
             stats = preview["stats"]
             outline = preview["outline"]
@@ -90,19 +98,43 @@ Use `read_file(path='{path}', start_line=N, end_line=M)` to read specific line r
             header += f"\n--- Preview (first ~100 lines) ---\n"
             return header + preview["preview"]
 
-        # Normal read with metadata
-        file_content, encoding, metadata = utils_read_file(target_path, start_line, end_line)
+        # Normal read using core.file
+        result = core_read_file(target_path, start_line, end_line)
 
+        if result.status == FileStatus.NOT_FOUND:
+            return i18n.get("domain_tools.files.read_not_found", path=path)
+
+        if result.status == FileStatus.ENCODING_ERROR:
+            return i18n.get("domain_tools.files.read_error", error=result.error_message)
+
+        if result.status == FileStatus.ERROR:
+            return i18n.get("domain_tools.files.read_error", error=result.error_message)
+
+        # Format output with metadata
         if include_metadata:
+            meta_start = result.metadata.total_lines  # Will be updated below
+            meta_end = result.metadata.total_lines
+
+            # Calculate actual line range
+            if result.content:
+                lines_read = result.content.count('\n')
+                if not result.content.endswith('\n'):
+                    lines_read += 1
+            else:
+                lines_read = 0
+
+            start = start_line or 1
+            end = min(start + lines_read - 1, result.metadata.total_lines)
+
             meta_str = f"""
-[File: {path} | Lines {metadata['start_line']}-{metadata['end_line']} of {metadata['total_lines']} | Hash: {metadata['content_hash'][:8]}...]
+[File: {path} | Lines {start}-{end} of {result.metadata.total_lines} | Hash: {result.metadata.content_hash}...]
 """
-            if metadata.get("has_more"):
-                meta_str += f"[Use start_line={metadata['end_line'] + 1} to read more]\n"
+            if end < result.metadata.total_lines:
+                meta_str += f"[Use start_line={end + 1} to read more]\n"
 
-            return meta_str + "\n" + file_content
+            return meta_str + "\n" + result.content
 
-        return file_content
+        return result.content
 
     except Exception as e:
         return i18n.get("domain_tools.files.read_error", error=str(e))

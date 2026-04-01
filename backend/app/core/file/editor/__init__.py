@@ -1,0 +1,40 @@
+"""
+Core file editing engine - Fuzzy matching and replacement strategies.
+
+This module provides the foundational editing capabilities used by file tools.
+"""
+
+from .engine import EditEngine
+from .strategies import (
+    STRATEGIES,
+    simple_replacer,
+    line_trimmed_replacer,
+    block_anchor_replacer,
+    whitespace_normalized_replacer,
+    trimmed_boundary_replacer,
+    escape_normalized_replacer,
+    context_aware_replacer,
+    indentation_flexible_replacer,
+    multi_occurrence_replacer,
+)
+from .algorithms import levenshtein
+
+__all__ = [
+    # Main engine
+    "EditEngine",
+    
+    # Strategy list and individual strategies
+    "STRATEGIES",
+    "simple_replacer",
+    "line_trimmed_replacer",
+    "block_anchor_replacer",
+    "whitespace_normalized_replacer",
+    "trimmed_boundary_replacer",
+    "escape_normalized_replacer",
+    "context_aware_replacer",
+    "indentation_flexible_replacer",
+    "multi_occurrence_replacer",
+    
+    # Algorithms
+    "levenshtein",
+]

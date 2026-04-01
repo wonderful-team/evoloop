@@ -13,9 +13,9 @@ from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import InjectedToolArg
 
 from app.core.tools import evoloop_tool, get_working_directory
-from app.domain.tools.utils.editing.engine import EditEngine
+from app.core.file.editor import EditEngine
+from app.core.file import safe_read_with_hash, write_file_with_verification
 from app.i18n.service import i18n
-from app.utils.file import safe_read_with_hash, write_file_with_verification
 
 from .utils import resolve_and_validate_path
 

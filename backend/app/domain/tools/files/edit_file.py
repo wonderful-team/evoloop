@@ -10,14 +10,13 @@ from langchain_core.tools import InjectedToolArg
 from app.core.tools import evoloop_tool, get_working_directory
 import asyncio
 
-from app.domain.tools.utils.editing.engine import EditEngine
-from app.i18n.service import i18n
-from app.utils.file import (
-    apply_edit_with_verification,
+from app.core.file.editor import EditEngine
+from app.core.file import (
     safe_read_with_hash,
     write_file_with_verification,
+    get_file_info,  # Replaces get_file_stats
 )
-from app.utils.file import get_file_stats
+from app.i18n.service import i18n
 
 from .utils import resolve_and_validate_path
 

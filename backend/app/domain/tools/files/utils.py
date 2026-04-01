@@ -3,8 +3,8 @@ from langchain_core.runnables import RunnableConfig
 from app.core.config import settings
 from app.core.context import ContextManager
 from app.core.tools import get_working_directory
+from app.core.file import resolve_path
 from app.i18n.service import i18n
-from app.utils.file import resolve_path
 
 
 async def resolve_and_validate_path(path: str, config: RunnableConfig | None = None) -> str:

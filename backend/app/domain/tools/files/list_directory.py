@@ -1,14 +1,28 @@
+"""
+Directory listing and management tools - Thin wrapper over core.file operations.
+
+This module provides the tool interface for directory operations.
+All heavy lifting is done by app.core.file module.
+"""
+
 import os
-import shutil
 from typing import Annotated, Literal
 
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import InjectedToolArg
 
 from app.core.tools import evoloop_tool, get_working_directory
+from app.core.file import (
+    list_directory as core_list_directory,
+    create_directory as core_create_directory,
+    delete_directory as core_delete_directory,
+    delete_file as core_delete_file,
+    move_path as core_move_path,
+    generate_tree as core_generate_tree,
+    resolve_path,
+    DirectoryStatus,
+)
 from app.i18n.service import i18n
-from app.utils.file import resolve_path
-from app.utils.process import run_command as utils_run_cmd
 
 from .utils import resolve_and_validate_path
 
@@ -20,7 +34,7 @@ async def handle_list(
     with_symbols: bool = False,
     config: RunnableConfig | None = None,
 ) -> str:
-    """Handle file listing operations."""
+    """Handle file listing operations using core.file module."""
     try:
         target_path = await resolve_and_validate_path(path, config)
     except ValueError as e:
@@ -30,28 +44,29 @@ async def handle_list(
         return f"Error: Path does not exist: {path}"
 
     if not tree:
-        # Simple ls logic
-        cmd = ["ls", target_path]
-        res = utils_run_cmd(cmd)
-        if not res.success:
-            return f"Error: {res.stderr}"
-        return res.stdout[:2000]
-
+        # Simple flat listing using core.file
+        entries = list(core_list_directory(target_path, recursive=False))
+        lines = [f"{e.name}/" if e.is_dir else e.name for e in entries]
+        return '\n'.join(lines[:200])  # Limit output
     else:
-        # Tree view logic
-        from app.domain.project.tree_generator import AnnotatedTreeGenerator
-
-        try:
-            generator = AnnotatedTreeGenerator(
-                target_path,
-                max_depth=max_depth,
-                with_symbols=with_symbols,
-                file_limit=50,
-            )
-            tree_output = await generator.generate()
-            return tree_output
-        except Exception as e:
-            return f"Error generating tree: {e}"
+        # Tree view using core.file
+        # For with_symbols=True, fall back to existing tree generator
+        if with_symbols:
+            from app.domain.project.tree_generator import AnnotatedTreeGenerator
+            try:
+                generator = AnnotatedTreeGenerator(
+                    target_path,
+                    max_depth=max_depth,
+                    with_symbols=True,
+                    file_limit=50,
+                )
+                tree_output = await generator.generate()
+                return tree_output
+            except Exception as e:
+                return f"Error generating annotated tree: {e}"
+        else:
+            # Use core.file tree generation
+            return core_generate_tree(target_path, max_depth=max_depth)
 
 
 async def handle_directory_operation(
@@ -60,7 +75,7 @@ async def handle_directory_operation(
     destination: str | None = None,
     config: RunnableConfig | None = None,
 ) -> str:
-    """Handle directory/file operations (mkdir, delete, move)."""
+    """Handle directory/file operations using core.file module."""
     root = get_working_directory(config)
 
     try:
@@ -69,24 +84,29 @@ async def handle_directory_operation(
         return str(e)
 
     if action == "mkdir":
-        try:
-            os.makedirs(target_path, exist_ok=True)
+        result = core_create_directory(target_path, exist_ok=True)
+        if result.success:
             return i18n.get("domain_tools.files.fs_create_dir_success", path=path)
-        except Exception as e:
-            return i18n.get("domain_tools.files.fs_create_dir_error", error=str(e))
+        else:
+            return i18n.get("domain_tools.files.fs_create_dir_error", error=result.message)
 
     elif action == "delete":
         if not os.path.exists(target_path):
             return i18n.get("domain_tools.files.fs_not_found", path=path)
-        try:
-            if os.path.isdir(target_path):
-                shutil.rmtree(target_path)
+        
+        # Determine if it's a file or directory
+        if os.path.isdir(target_path):
+            result = core_delete_directory(target_path, recursive=True)
+            if result.success:
                 return i18n.get("domain_tools.files.fs_delete_dir_success", path=path)
             else:
-                os.remove(target_path)
+                return i18n.get("domain_tools.files.fs_delete_error", error=result.message)
+        else:
+            result = core_delete_file(target_path)
+            if result.success:
                 return i18n.get("domain_tools.files.fs_delete_file_success", path=path)
-        except Exception as e:
-            return i18n.get("domain_tools.files.fs_delete_error", error=str(e))
+            else:
+                return i18n.get("domain_tools.files.fs_delete_error", error=result.message)
 
     elif action == "move":
         if not destination:
@@ -103,11 +123,11 @@ async def handle_directory_operation(
         if not os.path.exists(target_path):
             return i18n.get("domain_tools.files.fs_move_src_not_found", path=path)
 
-        try:
-            shutil.move(target_path, dest_path)
+        result = core_move_path(target_path, dest_path)
+        if result.success:
             return i18n.get("domain_tools.files.fs_move_success", src=path, dest=destination)
-        except Exception as e:
-            return i18n.get("domain_tools.files.fs_move_error", error=str(e))
+        else:
+            return i18n.get("domain_tools.files.fs_move_error", error=result.message)
 
     return i18n.get("domain_tools.files.fs_unknown_action", action=action)
 

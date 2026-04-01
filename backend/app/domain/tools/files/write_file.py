@@ -1,10 +1,20 @@
+"""
+Write File Tool - Thin wrapper over core.file operations.
+
+This module provides the tool interface for writing files.
+All heavy lifting is done by app.core.file module.
+"""
+
 from typing import Annotated
 from langchain_core.tools import InjectedToolArg
 from langchain_core.runnables import RunnableConfig
 
 from app.core.tools import evoloop_tool
+from app.core.file import (
+    write_file as core_write_file,
+    FileStatus,
+)
 from app.i18n.service import i18n
-from app.utils.file import write_file_contents as utils_write_file
 
 from .utils import resolve_and_validate_path
 
@@ -15,14 +25,23 @@ async def handle_write(
     content: str | None = None,
     config: RunnableConfig | None = None,
 ) -> str:
-    """Handle file write operation."""
+    """Handle file write operation using core.file module."""
     if content is None:
         return i18n.get("domain_tools.files.write_content_required", action=action)
 
     try:
         target_path = await resolve_and_validate_path(path, config)
-        utils_write_file(content, target_path)
-        return i18n.get("domain_tools.files.write_success", path=path)
+
+        # Use core.file for the actual write operation
+        result = core_write_file(target_path, content)
+
+        if result.status == FileStatus.SUCCESS:
+            return i18n.get("domain_tools.files.write_success", path=path)
+        elif result.status == FileStatus.PERMISSION_DENIED:
+            return i18n.get("domain_tools.files.write_error", error=result.error_message)
+        else:
+            return i18n.get("domain_tools.files.write_error", error=result.error_message)
+
     except Exception as e:
         return i18n.get("domain_tools.files.write_error", error=str(e))
 
@@ -60,6 +79,14 @@ async def write_file(
             "You MUST provide 'path' AND 'content'.\n"
             "CORRECT USAGE: write_file(path='path/to/file.ext', content='file content', overwrite=True)\n"
             "ACTION: Retry the tool call immediately with correct arguments."
+        )
+
+    # Check overwrite constraint
+    import os
+    if not overwrite and os.path.exists(path):
+        return (
+            f"Error: File '{path}' already exists. "
+            "Use overwrite=True to replace it, or choose a different path."
         )
 
     # Note: handle_write needs standard args. We rely on global config resolution.
