@@ -57,6 +57,10 @@ class AgentEngine:
         """
 
         # 1. Initialize LLM (with instance caching for performance)
+        # Get model from config if not provided directly (for model selection support)
+        if model is None:
+            model = config.get("configurable", {}).get("model")
+        
         llm = await LLMFactory.create_llm(model_name=model, temperature=temperature)
         if tools:
             llm_with_tools = llm.bind_tools(tools)

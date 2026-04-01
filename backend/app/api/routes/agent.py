@@ -44,6 +44,7 @@ class ChatRequest(BaseModel):
     thread_id: str
     message: str
     project_id: int | None = 1
+    model: str | None = None  # User selected model (optional)
     command_id: int | None = None
     checkpoint_id: str | None = None
     message_id: int | None = None  # Targeted retry/edit support
@@ -85,6 +86,7 @@ async def _prepare_and_dispatch(
     goal_prefix: str = "",
     is_retry: bool = False,
     skip_message_persistence: bool = False,
+    model: str | None = None,
 ) -> dict:
     """
     Unified dispatcher for Agent runs (Chat & Retry).
@@ -198,6 +200,7 @@ async def _prepare_and_dispatch(
             "checkpoint_id": checkpoint_id,
             "is_retry": True,
             "goal": goal,
+            "model": model,  # Pass user selected model
         }
     else:
         # New chat: Include messages for LangGraph
@@ -208,6 +211,7 @@ async def _prepare_and_dispatch(
             "checkpoint_id": checkpoint_id,
             "is_retry": False,
             "goal": goal,
+            "model": model,  # Pass user selected model
         }
 
     bg_tasks.add_task(run_agent_background, thread_id, inputs)
@@ -287,6 +291,7 @@ async def chat_endpoint(
         command_id=req.command_id,
         checkpoint_id=req.checkpoint_id,
         is_retry=False,
+        model=req.model,  # Pass user selected model
     )
 
 
@@ -395,6 +400,7 @@ async def retry_chat(req: ChatRequest, bg_tasks: BackgroundTasks):
         goal_prefix="Retry: ",
         is_retry=True,
         skip_message_persistence=True,
+        model=req.model,  # Pass user selected model (if any)
     )
 
     result["files_reverted"] = files_reverted

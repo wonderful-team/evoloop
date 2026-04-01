@@ -1,7 +1,7 @@
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@evoloop/shared/components/ui/card"
 import { Button } from "@evoloop/shared/components/ui/button"
 import { Badge } from "@evoloop/shared/components/ui/badge"
-import { Check, Crown } from "lucide-react"
+import { Check, Crown, AlertCircle } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
 interface Plan {
@@ -17,26 +17,47 @@ interface Plan {
 interface PlanComparisonProps {
   plans: Plan[]
   currentLevelId?: number
+  currentPlanPrice?: number  // 新增：当前方案价格
   onSelect: (levelId: number) => void
   isLoading?: boolean
 }
 
-export const PlanComparison = ({ plans, currentLevelId, onSelect, isLoading }: PlanComparisonProps) => {
+export const PlanComparison = ({ plans, currentLevelId, currentPlanPrice = 0, onSelect, isLoading }: PlanComparisonProps) => {
   const { t } = useTranslation()
+
+  // 获取当前方案的价格（用于降级检测）
+  const currentPrice = currentPlanPrice || parseFloat(plans.find(p => p.level_id === currentLevelId)?.price || "0")
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
       {plans.map((plan) => {
         const isCurrent = plan.level_id === currentLevelId
         const isFree = parseFloat(plan.price) === 0
-        const isPro = !isFree && plan.level_id > 1
+        
+        // 判断是否是降级（目标价格低于当前价格，且当前有付费订阅）
+        const targetPrice = parseFloat(plan.price)
+        const hasActiveSubscription = currentPrice > 0
+        const isDowngrade = hasActiveSubscription && targetPrice < currentPrice
+        
+        // 判断是否允许选择：当前使用 或 升级（价格>=当前），禁止降级
+        const canSelect = isCurrent || !isDowngrade
 
         return (
-          <Card key={plan.level_id} className={`relative flex flex-col transition-all duration-300 ${isCurrent ? "border-primary bg-primary/[0.02] shadow-sm ring-1 ring-primary" : "border-border hover:border-primary/30 hover:bg-muted/10"}`}>
+          <Card key={plan.level_id} className={`relative flex flex-col transition-all duration-300 ${isCurrent ? "border-primary bg-primary/[0.02] shadow-sm ring-1 ring-primary" : isDowngrade ? "opacity-60 grayscale" : "border-border hover:border-primary/30 hover:bg-muted/10"}`}>
             {isCurrent && (
               <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-10">
                 <Badge variant="default" className="bg-primary text-primary-foreground font-bold px-3 py-0.5 shadow-sm border-none">
                   {t("subscription.plan.current", "当前方案")}
+                </Badge>
+              </div>
+            )}
+            
+            {/* 降级提示 */}
+            {isDowngrade && (
+              <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-10">
+                <Badge variant="secondary" className="bg-muted text-muted-foreground font-bold px-3 py-0.5 shadow-sm border">
+                  <AlertCircle className="h-3 w-3 mr-1" />
+                  {t("subscription.plan.downgrade", "无法降级")}
                 </Badge>
               </div>
             )}
@@ -99,20 +120,35 @@ export const PlanComparison = ({ plans, currentLevelId, onSelect, isLoading }: P
               </div>
             </CardContent>
 
-            <CardFooter className="pt-4">
+            <CardFooter className="pt-4 flex flex-col gap-2">
               <Button 
                 variant={isCurrent ? "outline" : "default"}
-                className={`w-full h-10 font-bold transition-all ${isCurrent ? "border-primary/20 text-primary hover:bg-primary/5" : "bg-primary hover:bg-primary/90 shadow-md shadow-primary/10"}`}
-                disabled={isCurrent || isLoading}
-                onClick={() => onSelect(plan.level_id)}
+                className={`w-full h-10 font-bold transition-all ${
+                  isCurrent 
+                    ? "border-primary/20 text-primary hover:bg-primary/5" 
+                    : isDowngrade
+                      ? "bg-muted text-muted-foreground cursor-not-allowed"
+                      : "bg-primary hover:bg-primary/90 shadow-md shadow-primary/10"
+                }`}
+                disabled={isCurrent || !canSelect || isLoading}
+                onClick={() => !isCurrent && canSelect && onSelect(plan.level_id)}
+                title={isDowngrade ? t("subscription.plan.downgradeTooltip", "请先取消当前订阅，到期后自动降级") : undefined}
               >
                 {isCurrent 
                   ? t("subscription.plan.active", "当前使用中") 
-                  : isFree 
-                    ? t("subscription.plan.startFree", "立即使用")
-                    : t("subscription.plan.upgrade", "立即升级")
+                  : isDowngrade
+                    ? t("subscription.plan.cannotDowngrade", "不可降级")
+                    : isFree 
+                      ? t("subscription.plan.startFree", "立即使用")
+                      : t("subscription.plan.subscribe", "立即订阅")
                 }
               </Button>
+              {/* 升级退差价提示 - 仅在有当前订阅且不是当前套餐时显示 */}
+              {!isFree && !isCurrent && !isDowngrade && hasActiveSubscription && (
+                <p className="text-[11px] text-muted-foreground text-center">
+                  {t("subscription.plan.upgradeRefund", "升级退差价")}
+                </p>
+              )}
             </CardFooter>
           </Card>
         )

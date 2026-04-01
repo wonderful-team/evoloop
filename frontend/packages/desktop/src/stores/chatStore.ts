@@ -5,6 +5,7 @@ import { AgentService, ConversationsService } from "@/client"
 import { ChatConnection } from "@/lib/ChatConnection"
 import type { Message } from "@/components/Chat/ChatMessageItem"
 import type { StreamState, StreamEvent } from "@/types/stream"
+import { llmPlatformService } from "@/services/llmPlatform"
 
 // Step item type for activity tracking
 export interface StepItem {
@@ -55,6 +56,9 @@ interface ChatState {
     isConnected: boolean
     connectionStatus: string
 
+    // Model Selection
+    selectedModel: string | null // User selected model for this chat
+
     // Throttling Logic
     _streamBuffer: string
     _flushTimeout: any
@@ -70,6 +74,7 @@ interface ChatState {
     resumeAgent: (userInput?: string) => Promise<void>
     cancelHumanRequest: (reason?: string) => Promise<void>
     clearContent: () => void
+    setSelectedModel: (model: string | null) => void // Set user selected model
 
     // internal sse handlers (called by ChatConnection)
     _setConnectionStatus: (connected: boolean, status: string) => void
@@ -95,6 +100,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
     isLoadingHistory: false,
     firstMessageId: null,
     totalMessageCount: null,
+
+    // Model Selection
+    selectedModel: llmPlatformService.getSelectedModel(),
 
     status: "idle",
     steps: [],
@@ -311,7 +319,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     },
 
     sendMessage: async (content, attachments: any[] = []) => {
-        const { threadId, projectId } = get()
+        const { threadId, projectId, selectedModel } = get()
         // Allow projectId to be 0 (global mode), but not null/undefined
         if (!threadId || projectId === null || projectId === undefined || (!content.trim() && attachments.length === 0)) return
 
@@ -341,7 +349,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
                     message: content, // Send raw text (backend handles merging)
                     thread_id: threadId,
                     project_id: projectId,
-                    attachments: attachments // Pass structured attachments
+                    attachments: attachments, // Pass structured attachments
+                    model: selectedModel, // Pass user selected model
                 },
             }) as any
 
@@ -441,6 +450,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
                 overallProgress: 0,
             },
         })
+    },
+
+    setSelectedModel: (model: string | null) => {
+        // Update local state
+        set({ selectedModel: model })
+        // Persist to service (which saves to localStorage)
+        llmPlatformService.setSelectedModel(model)
     },
 
     // --- Internal Handlers ---

@@ -1344,11 +1344,15 @@
     "title": "Subscription",
     "subtitle": "Manage your subscription plan and billing",
     "notice": {
-      "desc": "Please complete the payment to continue using the service"
+      "desc": "Please complete the payment to continue using the service",
+      "benefits": "Membership tier determines AI quota and context window size. Pro and above enjoy priority processing. Remaining balance will be refunded when upgrading."
     },
     "payment": {
       "title": "Payment",
       "desc": "Complete your payment securely",
+      "renewTitle": "Renew {{name}}",
+      "subscribeTitle": "Subscribe {{name}}",
+      "renewDesc": "Validity period will be extended after renewal",
       "successTitle": "Payment Successful",
       "successDesc": "Thank you for your payment",
       "thankYou": "Thank you!",
@@ -1357,14 +1361,19 @@
     },
     "plan": {
       "current": "Current Plan",
-      "active": "Active",
+      "active": "Currently Active",
       "upgrade": "Upgrade",
+      "subscribe": "Subscribe Now",
+      "upgradeRefund": "Upgrade with price difference refund",
       "startFree": "Start Free",
       "free": "Free",
       "perMonth": "/month",
       "defaultDesc": "Basic features included",
       "featuresInclude": "Features include",
-      "discount": "Discount"
+      "discount": "Discount",
+      "downgrade": "Cannot Downgrade",
+      "cannotDowngrade": "Downgrade Not Allowed",
+      "downgradeTooltip": "Please cancel current subscription first. Auto-downgrade after expiry."
     },
     "plans": {
       "title": "Plans",
@@ -1385,14 +1394,20 @@
     "status": {
       "active": "Active",
       "expired": "Expired",
+      "expiringSoon": "Expiring Soon",
       "expireAt": "Expires at",
       "expiredAt": "Expired at",
       "autoRenewOn": "Auto-renewal on",
       "renew": "Renew",
+      "renewNow": "Renew Now",
       "upgradeNow": "Upgrade Now",
       "manage": "Manage",
       "freeTitle": "Free Plan",
-      "freeDesc": "Basic features available"
+      "freeDesc": "Upgrade to Pro for more powerful AI capabilities"
+    },
+    "renew": {
+      "urgent": "Your subscription will expire in {days} days, please renew as soon as possible",
+      "reminder": "Your subscription will expire in {days} days"
     }
   },
   "pending": {

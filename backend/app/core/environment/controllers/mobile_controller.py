@@ -15,7 +15,6 @@ import time
 from typing import Any, Dict, List, Optional, Tuple
 
 
-from app.constants import RISK_KEYWORDS
 from app.core.atlas import atlas_engine
 from app.core.atlas.models import AtlasApp
 from app.core.context import ContextManager
@@ -260,13 +259,6 @@ class MobileController:
                     map_observed_ui_task.delay(image_source=screenshot_path, device_id=device_id, platform="android", bundle_id=bundle_id)
                 except Exception as e:
                     logger.warning(f"[Harvest] Failed to trigger: {e}")
-
-            async def check_risk_confirmation(name: str | None = None, input_val: str | None = None) -> str | None:
-                """Phase 6: Interactive Safety Guard."""
-                for t in [t for t in [name, input_val] if t]:
-                    if any(kw.lower() in t.lower() for kw in RISK_KEYWORDS):
-                        return f"ERR_CONFIRMATION_REQUIRED: The action involves sensitive operations ('{t}'). Please ask the user to confirm before proceeding with this specific step."
-                return None
 
             async def _normalize_coordinates(
                 px: int | float | None,
@@ -576,8 +568,6 @@ class MobileController:
                 return await finish_action(result_msg)
 
             elif action in ["tap", "click"]:
-                if risk_error := await check_risk_confirmation(name=element_name):
-                    return risk_error
                 base_pkg = await _get_effective_package()
                 tx, ty = await _normalize_coordinates(x, y)
                 if element_name:
@@ -597,8 +587,6 @@ class MobileController:
                 )
 
             elif action == "long_press":
-                if risk_error := await check_risk_confirmation(name=element_name):
-                    return risk_error
                 base_pkg = await _get_effective_package()
                 tx, ty = await _normalize_coordinates(x, y)
                 if element_name:
@@ -621,8 +609,6 @@ class MobileController:
                 )
 
             elif action == "swipe":
-                if risk_error := await check_risk_confirmation(name=element_name):
-                    return risk_error
                 if any(v is None for v in [x, y, x2, y2]):
                     return ControllerResponse.error("Swipe requires x, y, x2, y2.")
                 rx, ry = await _normalize_coordinates(x, y)
@@ -691,8 +677,6 @@ class MobileController:
             elif action == "input_text":
                 if not text:
                     return ControllerResponse.missing_param("text")
-                if risk_error := await check_risk_confirmation(name=element_name, input_val=text):
-                    return risk_error
                 base_pkg = await _get_effective_package()
                 if element_name:
                     resolved = await resolve_element(element_name, element_role, timeout_val=timeout, expected_pkg=base_pkg)
@@ -834,8 +818,6 @@ class MobileController:
                     """Execute a single intent step. Returns error message or None on success."""
                     act = it.get("action")
                     tgt = it.get("target") or it.get("element_name")
-                    if risk_error := await check_risk_confirmation(name=tgt, input_val=it.get("text")):
-                        return risk_error
 
                     if act == "click" and tgt:
                         resolved = await resolve_element(tgt, expected_pkg=base_pkg, timeout_val=timeout)

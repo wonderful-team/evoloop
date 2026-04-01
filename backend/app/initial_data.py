@@ -105,6 +105,9 @@ def _seed_llm_config(SystemConfigService):
         SystemConfigService.set_value("LLM_BASE_URL", settings.OPENAI_BASE_URL, "LLM API Base URL")
         SystemConfigService.set_value("LLM_MODEL", settings.OPENAI_MODEL_NAME, "LLM Model Name")
         SystemConfigService.set_value("LLM_API_KEY", settings.OPENAI_API_KEY, "LLM API Key")
+        
+        # Config type: "platform" (use EvoLoop Gateway) or "custom" (use own API key)
+        SystemConfigService.set_value("LLM_CONFIG_TYPE", "custom", "LLM Config Type (platform, custom)")
 
         # Vision model (reuse main model if not specified)
         vision_model = getattr(settings, 'VISION_MODEL', settings.OPENAI_MODEL_NAME)

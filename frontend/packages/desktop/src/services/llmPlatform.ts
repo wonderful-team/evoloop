@@ -1,0 +1,162 @@
+/**
+ * LLM Platform Service - 管理模型选择和配置
+ * 
+ * 功能:
+ * - 获取可用模型列表 (平台模型 + 自定义模型)
+ * - 管理用户选择的模型
+ * - 持久化用户选择到 localStorage
+ */
+
+import { SystemService } from "@/client"
+import { toast } from "sonner"
+
+export interface LLMModel {
+  id: string
+  name: string
+  model: string
+  type: "platform" | "custom"
+  provider?: string
+  vision_model?: string | null
+  description?: string
+  icon?: string
+  available?: boolean
+  quota_required?: boolean
+  supports_streaming?: boolean
+  supports_vision?: boolean
+  supports_functions?: boolean
+  context_window?: number
+}
+
+const STORAGE_KEY = "evoloop_selected_model"
+
+class LLMPlatformService {
+  private models: LLMModel[] = []
+  private selectedModel: string | null = null
+  private lastFetchTime = 0
+  private readonly CACHE_TTL = 5 * 60 * 1000 // 5 minutes
+  private currentConfigType: string = "custom"
+
+  constructor() {
+    // 从 localStorage 恢复用户选择
+    this.selectedModel = localStorage.getItem(STORAGE_KEY)
+  }
+
+  /**
+   * 获取系统配置类型 (platform/custom)
+   */
+  private async getConfigType(): Promise<string> {
+    try {
+      const config = await SystemService.getSystemConfig()
+      const configTypeItem = config.find((item: any) => item.key === "LLM_CONFIG_TYPE")
+      return configTypeItem?.value || "custom"
+    } catch (error) {
+      console.error("[LLMPlatform] Failed to get config type:", error)
+      return "custom"
+    }
+  }
+
+  /**
+   * 获取可用模型列表
+   * 根据系统配置自动过滤 (platform 模式只显示平台模型)
+   */
+  async fetchModels(): Promise<LLMModel[]> {
+    // 检查缓存
+    const now = Date.now()
+    if (this.models.length > 0 && now - this.lastFetchTime < this.CACHE_TTL) {
+      return this.models
+    }
+
+    try {
+      // 获取当前配置类型
+      this.currentConfigType = await this.getConfigType()
+      
+      // 根据配置类型获取模型列表
+      // 注意: 使用 fetch 直接调用 API，因为自动生成的客户端可能不支持参数
+      const baseUrl = import.meta.env.VITE_API_BASE_URL || ''
+      const response = await fetch(`${baseUrl}/api/v1/system/llm/models?config_type=${this.currentConfigType}`, {
+        credentials: 'include',
+      })
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`)
+      }
+      
+      const data = await response.json()
+      
+      if (data?.models) {
+        this.models = data.models as LLMModel[]
+        this.lastFetchTime = now
+        
+        // 如果当前选择的模型不在列表中，清除选择
+        if (this.selectedModel && !this.models.find(m => m.model === this.selectedModel)) {
+          this.selectedModel = null
+          localStorage.removeItem(STORAGE_KEY)
+        }
+        
+        return this.models
+      }
+      return []
+    } catch (error) {
+      console.error("[LLMPlatform] Failed to fetch models:", error)
+      toast.error("获取模型列表失败")
+      return []
+    }
+  }
+
+  /**
+   * 获取缓存的模型列表 (不触发网络请求)
+   */
+  getCachedModels(): LLMModel[] {
+    return this.models
+  }
+
+  /**
+   * 获取当前选择的模型
+   */
+  getSelectedModel(): string | null {
+    return this.selectedModel
+  }
+
+  /**
+   * 设置当前选择的模型
+   */
+  setSelectedModel(modelId: string | null): void {
+    this.selectedModel = modelId
+    if (modelId) {
+      localStorage.setItem(STORAGE_KEY, modelId)
+    } else {
+      localStorage.removeItem(STORAGE_KEY)
+    }
+  }
+
+  /**
+   * 获取模型详情
+   */
+  getModelById(modelId: string): LLMModel | undefined {
+    return this.models.find(m => m.model === modelId)
+  }
+
+  /**
+   * 获取平台模型列表 (需要配额的)
+   */
+  getPlatformModels(): LLMModel[] {
+    return this.models.filter(m => m.type === "platform")
+  }
+
+  /**
+   * 获取自定义模型列表 (用户自己的 API Key)
+   */
+  getCustomModels(): LLMModel[] {
+    return this.models.filter(m => m.type === "custom")
+  }
+
+  /**
+   * 清除缓存
+   */
+  clearCache(): void {
+    this.models = []
+    this.lastFetchTime = 0
+  }
+}
+
+export const llmPlatformService = new LLMPlatformService()

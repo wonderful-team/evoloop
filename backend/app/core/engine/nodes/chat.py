@@ -21,12 +21,16 @@ async def chat_node(state: AgentState, config: RunnableConfig) -> dict[str, Any]
     prompt_builder = ChatPromptBuilder()
     system_prompt = prompt_builder.build()
 
+    # Get user selected model from config (if any)
+    model = config.get("configurable", {}).get("model")
+
     # Use AgentEngine for unified execution (single-shot mode, no tools)
     result = await AgentEngine.run_node(
         state=state,
         config=config,
         system_prompt=system_prompt,
         tools=[],  # Chat node does not use tools
+        model=model,  # Use user selected model
         temperature=0.7,
         name="Chat",
         max_steps=1,       # Single turn, no loop

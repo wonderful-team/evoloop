@@ -69,10 +69,10 @@ class LLMFactory:
     _cache_misses = 0
 
     @staticmethod
-    def _generate_cache_key(provider: str, base_url: str, model_name: str, 
+    def _generate_cache_key(config_type: str, provider: str, base_url: str, model_name: str,
                            temperature: float, **kwargs) -> str:
         """Generate unique cache key from LLM configuration."""
-        key_data = f"{provider}:{base_url}:{model_name}:{temperature}:{sorted(kwargs.items())}"
+        key_data = f"{config_type}:{provider}:{base_url}:{model_name}:{temperature}:{sorted(kwargs.items())}"
         return hashlib.md5(key_data.encode()).hexdigest()[:16]
 
     @staticmethod
@@ -82,6 +82,10 @@ class LLMFactory:
         
         Prioritizes SystemConfig (Dynamic) > Settings (Env Checks).
         Returns cached instance if configuration matches.
+        
+        Supports two modes:
+        - platform: Use EvoLoop Gateway (API key from identity service)
+        - custom: Use user's own API key
         """
         from app.infrastructure.config.service import SystemConfigService
 
@@ -90,10 +94,24 @@ class LLMFactory:
         base_url = SystemConfigService.get_value("LLM_BASE_URL")
         model_name = model_name or SystemConfigService.get_value("LLM_MODEL")
         api_key = SystemConfigService.get_value("LLM_API_KEY")
+        config_type = SystemConfigService.get_value("LLM_CONFIG_TYPE", "custom")  # platform | custom
 
-        # Generate cache key
+        # 2. Platform Mode: Use EvoLoop Gateway
+        if config_type == "platform":
+            return await LLMFactory._create_platform_llm(
+                model_name=model_name,
+                temperature=temperature,
+                **kwargs
+            )
+
+        # Generate cache key (include model_name to ensure different models get different instances)
         cache_key = LLMFactory._generate_cache_key(
-            provider, base_url, model_name, temperature, **kwargs
+            config_type,  # platform vs custom are different cache namespaces
+            provider, 
+            base_url, 
+            model_name,  # User-selected model must be part of cache key
+            temperature, 
+            **kwargs
         )
         
         # Check cache with lock for thread safety
@@ -119,6 +137,7 @@ class LLMFactory:
                 model_name=model_name,
                 api_key=api_key,
                 temperature=temperature,
+                config_type=config_type,  # Pass config_type to enforce OpenAI-compatible channel for custom mode
                 **kwargs
             )
             
@@ -135,10 +154,78 @@ class LLMFactory:
             return instance
 
     @staticmethod
-    def _create_llm_internal(provider: str, base_url: str, model_name: str, 
-                            api_key: str, temperature: float, **kwargs):
-        """Internal method to create LLM instance (without caching)."""
+    async def _create_platform_llm(model_name: str, temperature: float, **kwargs):
+        """
+        Create LLM instance for platform mode (using EvoLoop Gateway).
         
+        Uses Gateway's /gateway/v1 endpoints with user's token.
+        """
+        from app.core.evocloud import evocloud_manager
+        
+        # Get token from identity service
+        token = evocloud_manager.get_token()
+        if not token:
+            raise ValueError("Not authenticated with EvoLoop platform. Please login first.")
+        
+        # Get gateway URL from config or use default
+        gateway_url = evocloud_manager.api.root_url if evocloud_manager.api else ""
+        if not gateway_url:
+            raise ValueError("EvoLoop Gateway URL not configured")
+        
+        # Ensure model is available in platform
+        from app.infrastructure.config.llm_platform_service import llm_platform_service
+        platform_model = llm_platform_service.get_model_by_id(model_name)
+        
+        if platform_model:
+            if not platform_model.available:
+                raise ValueError(f"Model {model_name} is not available. Please check your quota.")
+        else:
+            # 模型不在平台列表中，记录警告但仍尝试使用
+            # Gateway 会验证模型是否有效
+            logger.warning(f"[LLMFactory] Model {model_name} not found in platform cache, "
+                          f"will try anyway. Gateway will validate.")
+        
+        # Create OpenAI-compatible client pointing to Gateway
+        return AdaptiveChatOpenAI(
+            api_key=token,  # Use platform token as API key
+            base_url=f"{gateway_url}/gateway/v1",
+            model=model_name,
+            temperature=temperature,
+            streaming=True,
+            http_async_client=_HTTP_CLIENT_POOL.get(),
+        )
+
+    @staticmethod
+    def _create_llm_internal(provider: str, base_url: str, model_name: str, 
+                            api_key: str, temperature: float, config_type: str = "custom",
+                            **kwargs):
+        """Internal method to create LLM instance (without caching).
+        
+        Args:
+            provider: The provider name (openai, anthropic, deepseek, etc.)
+            base_url: API base URL
+            model_name: Model identifier
+            api_key: API key
+            temperature: Temperature setting
+            config_type: 'platform' or 'custom'. In custom mode, always use OpenAI-compatible channel.
+            **kwargs: Additional arguments
+        """
+        
+        # 🎯 CUSTOM MODE: Always use OpenAI-compatible channel
+        # Users can configure any provider, but we use the OpenAI-compatible endpoint
+        # Most providers (DeepSeek, Moonshot, SiliconFlow, Anthropic via adapter) support this
+        if config_type == "custom":
+            logger.info(f"[LLMFactory] Custom mode: Using OpenAI-compatible channel for {provider}/{model_name}")
+            return AdaptiveChatOpenAI(
+                api_key=api_key,
+                base_url=base_url,
+                model=model_name,
+                temperature=temperature,
+                streaming=True,
+                http_async_client=_HTTP_CLIENT_POOL.get(),
+            )
+        
+        # PLATFORM MODE: Use provider-specific protocol for optimal compatibility
         # Anthropic / Claude Protocol Support (Zhipu, Kimi, etc.)
         if provider in ["anthropic", "kimi"] or "api/anthropic" in (base_url or ""):
             from app.infrastructure.llm.anthropic_adapter import CompatibleChatAnthropic

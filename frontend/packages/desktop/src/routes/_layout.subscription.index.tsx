@@ -5,10 +5,11 @@ import { SubscriptionStatus } from "@/components/Subscription/SubscriptionStatus
 import { PlanComparison } from "@/components/Subscription/PlanComparison"
 import { useTranslation } from "react-i18next"
 import { useState, useEffect, useRef } from "react"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@evoloop/shared/components/ui/dialog"
-import { Alert, AlertDescription, AlertTitle } from "@evoloop/shared/components/ui/alert"
-import { Info, Loader2, CheckCircle2, Zap } from "lucide-react"
+import { Dialog, DialogContent } from "@evoloop/shared/components/ui/dialog"
+import { Alert, AlertDescription } from "@evoloop/shared/components/ui/alert"
+import { Info, Loader2, CheckCircle2, Timer, RefreshCw } from "lucide-react"
 import { Button } from "@evoloop/shared/components/ui/button"
+import { Badge } from "@evoloop/shared/components/ui/badge"
 
 export const Route = createFileRoute("/_layout/subscription/")({
   component: SubscriptionDashboard,
@@ -16,31 +17,74 @@ export const Route = createFileRoute("/_layout/subscription/")({
 
 function SubscriptionDashboard() {
   const { t } = useTranslation()
-  const { detail, plans, quota, isLoading, createOrderMutation, checkOrderStatus, refetchDetail, refetchQuota } = useSubscription()
+  const { 
+    detail, 
+    plans, 
+    quota, 
+    isLoading, 
+    createOrderMutation, 
+    checkOrderStatus, 
+    refetchDetail, 
+    refetchQuota 
+  } = useSubscription()
+  
+  // 支付弹窗状态
   const [showPayment, setShowPayment] = useState(false)
   const [paymentSuccess, setPaymentSuccess] = useState(false)
+  const [qrCountdown, setQrCountdown] = useState(3600)
+  const [isQrExpired, setIsQrExpired] = useState(false)
+  const [isRenewalMode, setIsRenewalMode] = useState(false) // 是否是续费模式
   const pollTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const countdownTimerRef = useRef<NodeJS.Timeout | null>(null)
 
+  // 处理选择方案：直接创建订单并显示支付弹窗
   const handleSelectPlan = async (levelId: number) => {
+    // 判断是否是续费（选择当前相同的套餐）
+    const isRenewing = levelId === detail?.level_id
+    setIsRenewalMode(isRenewing)
     setShowPayment(true)
     setPaymentSuccess(false)
     try {
-        await createOrderMutation.mutateAsync(levelId)
+      await createOrderMutation.mutateAsync(levelId)
     } catch (e) {
-        console.error("Order creation failed", e)
+      console.error("Order creation failed", e)
     }
   }
+
+  // 二维码倒计时 - 微信支付二维码实际有效期为1小时（3600秒）
+  useEffect(() => {
+    if (showPayment && !paymentSuccess && !isQrExpired) {
+      setQrCountdown(3600) // 1小时 = 3600秒，与后端一致
+      setIsQrExpired(false)
+      
+      countdownTimerRef.current = setInterval(() => {
+        setQrCountdown((prev) => {
+          if (prev <= 1) {
+            setIsQrExpired(true)
+            if (countdownTimerRef.current) clearInterval(countdownTimerRef.current)
+            return 0
+          }
+          return prev - 1
+        })
+      }, 1000)
+    }
+
+    return () => {
+      if (countdownTimerRef.current) clearInterval(countdownTimerRef.current)
+    }
+  }, [showPayment, createOrderMutation.data, paymentSuccess])
 
   // Polling for payment status
   useEffect(() => {
     const orderId = (createOrderMutation.data as any)?.data?.order_id
     
-    if (showPayment && orderId && !paymentSuccess) {
+    if (showPayment && orderId && !paymentSuccess && !isQrExpired) {
         pollTimerRef.current = setInterval(async () => {
             const status = await checkOrderStatus(orderId)
             if (status?.is_paid) {
                 setPaymentSuccess(true)
                 if (pollTimerRef.current) clearInterval(pollTimerRef.current)
+                if (countdownTimerRef.current) clearInterval(countdownTimerRef.current)
                 
                 // Refresh data
                 setTimeout(() => {
@@ -54,7 +98,36 @@ function SubscriptionDashboard() {
     return () => {
         if (pollTimerRef.current) clearInterval(pollTimerRef.current)
     }
-  }, [showPayment, createOrderMutation.data, paymentSuccess])
+  }, [showPayment, createOrderMutation.data, paymentSuccess, isQrExpired])
+
+  // 重新获取订单（二维码过期后）
+  const handleRefreshOrder = async () => {
+    const levelId = (createOrderMutation.variables as any)
+    if (levelId) {
+      setIsQrExpired(false)
+      setQrCountdown(3600)
+      try {
+        await createOrderMutation.mutateAsync(levelId)
+      } catch (e) {
+        console.error("Order refresh failed", e)
+      }
+    }
+  }
+
+  // 格式化倒计时显示
+  const formatCountdown = (seconds: number) => {
+    if (seconds >= 3600) {
+      const hours = Math.floor(seconds / 3600)
+      const mins = Math.floor((seconds % 3600) / 60)
+      return `${hours}小时${mins}分后失效`
+    } else if (seconds >= 60) {
+      const mins = Math.floor(seconds / 60)
+      const secs = seconds % 60
+      return `${mins}分${secs}秒后失效`
+    } else {
+      return `${seconds}秒后失效`
+    }
+  }
 
   const handleClosePayment = () => {
     setShowPayment(false)
@@ -71,6 +144,11 @@ function SubscriptionDashboard() {
     )
   }
 
+  // 获取订单数据
+  const orderData = (createOrderMutation.data as any)?.data
+  const isUpgrade = orderData?.is_upgrade
+  const upgradeInfo = orderData?.upgrade_info
+
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       {/* 1. Subscription Overview */}
@@ -82,12 +160,18 @@ function SubscriptionDashboard() {
                 const element = document.getElementById('plans-section');
                 element?.scrollIntoView({ behavior: 'smooth' });
              }}
+             onRenew={() => {
+                // 续费当前套餐
+                if (detail?.level_id) {
+                  handleSelectPlan(detail.level_id)
+                }
+             }}
            />
            
            <Alert className="bg-muted/50 border-border py-2.5">
              <Info className="h-4 w-4 text-muted-foreground shrink-0" />
              <AlertDescription className="text-xs text-muted-foreground leading-normal">
-                {t("subscription.notice.desc", "会员等级决定 AI 调用额度和上下文窗口大小，专业版及以上享受优先处理权。")}
+                {t("subscription.notice.benefits")}
              </AlertDescription>
            </Alert>
         </div>
@@ -108,6 +192,7 @@ function SubscriptionDashboard() {
         <PlanComparison 
           plans={plans} 
           currentLevelId={detail?.level_id}
+          currentPlanPrice={parseFloat(plans.find((p: any) => p.level_id === detail?.level_id)?.price || "0")}
           onSelect={handleSelectPlan}
           isLoading={createOrderMutation.isPending}
         />
@@ -116,77 +201,157 @@ function SubscriptionDashboard() {
       {/* Payment Dialog */}
       <Dialog open={showPayment} onOpenChange={handleClosePayment}>
         <DialogContent className="sm:max-w-md border-border bg-background/95 backdrop-blur-xl">
-          <DialogHeader className="space-y-2">
-            <DialogTitle className="text-xl font-bold tracking-tight">
-                {paymentSuccess ? t("subscription.payment.successTitle", "支付成功") : t("subscription.payment.title", "确认订单")}
-            </DialogTitle>
-            <DialogDescription className="text-[13px]">
-                {paymentSuccess 
-                    ? t("subscription.payment.successDesc", "您的订阅已激活，会员权益已即时生效")
-                    : t("subscription.payment.desc", "请扫描下方二维码完成支付以激活您的订阅")
-                }
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="flex flex-col items-center justify-center p-6 space-y-8">
-             {paymentSuccess ? (
-                <div className="flex flex-col items-center space-y-6 animate-in zoom-in duration-300">
-                    <div className="h-24 w-24 bg-primary/10 rounded-full flex items-center justify-center ring-8 ring-primary/5">
-                        <CheckCircle2 className="h-12 w-12 text-primary" />
-                    </div>
-                    <p className="text-center text-sm text-muted-foreground max-w-[240px] leading-relaxed">
-                        {t("subscription.payment.thankYou", "感谢您的订阅！现在您可以享受更强大的 AI 能力。")}
-                    </p>
-                    <Button onClick={handleClosePayment} className="w-full bg-primary hover:bg-primary/90 font-bold h-11">
-                        {t("common.ok", "确定")}
-                    </Button>
+          {paymentSuccess ? (
+            <div className="flex flex-col items-center space-y-6 p-6 animate-in zoom-in duration-300">
+                <div className="h-24 w-24 bg-primary/10 rounded-full flex items-center justify-center ring-8 ring-primary/5">
+                    <CheckCircle2 className="h-12 w-12 text-primary" />
                 </div>
-             ) : (
-                <>
-                    <div className="relative group">
-                        {createOrderMutation.isPending ? (
-                            <div className="h-52 w-52 bg-muted/30 animate-pulse rounded-2xl flex items-center justify-center border border-border/50">
-                                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                            </div>
-                        ) : (createOrderMutation.data as any)?.data?.qrcode ? (
-                            <div className="p-5 bg-white rounded-2xl shadow-xl ring-1 ring-border/10 relative transition-transform hover:scale-[1.02] duration-300">
-                                <img 
-                                    src={(createOrderMutation.data as any).data.qrcode} 
-                                    alt="Payment QR" 
-                                    className="h-48 w-48"
-                                />
-                                {/* Bottom Indicator */}
-                                <div className="absolute -bottom-2 -right-2 bg-primary text-white p-1 rounded-full shadow-lg">
-                                     <Zap size={14} fill="white" />
+                <div className="text-center space-y-2">
+                    <h3 className="text-lg font-bold">{t("subscription.payment.successTitle", "支付成功")}</h3>
+                    <p className="text-sm text-muted-foreground">
+                        {t("subscription.payment.successDesc", "您的订阅已激活，会员权益已即时生效")}
+                    </p>
+                </div>
+                {isUpgrade && upgradeInfo?.refund_amount > 0 && (
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-center w-full">
+                        <p className="text-sm text-green-700">
+                        ¥{upgradeInfo.refund_amount} 已退还到您的账户余额
+                        </p>
+                    </div>
+                )}
+                <Button onClick={handleClosePayment} className="w-full bg-primary hover:bg-primary/90 font-bold h-11">
+                    {t("common.ok", "确定")}
+                </Button>
+            </div>
+          ) : (
+            <div className="flex flex-col">
+                {/* 标题 */}
+                <div className="px-6 pt-6 pb-4">
+                    <h3 className="text-lg font-semibold">
+                        {isRenewalMode 
+                          ? t("subscription.payment.renewTitle", { name: orderData?.order?.level_name || "" })
+                          : t("subscription.payment.subscribeTitle", { name: orderData?.order?.level_name || "" })
+                        }
+                    </h3>
+                    {isRenewalMode && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                            {t("subscription.payment.renewDesc")}
+                        </p>
+                    )}
+                </div>
+                
+                {/* 二维码区域 */}
+                <div className="flex flex-col items-center gap-2 pb-6">
+                    {createOrderMutation.isPending ? (
+                        <div className="h-44 w-44 bg-muted/30 animate-pulse rounded-xl flex items-center justify-center border border-border/50">
+                            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                        </div>
+                    ) : orderData?.qrcode ? (
+                        <div className={`p-3 bg-white rounded-xl shadow-sm ring-1 ring-border/20 relative ${isQrExpired ? 'opacity-50' : ''}`}>
+                            <img 
+                                src={orderData.qrcode} 
+                                alt="Payment QR" 
+                                className="h-40 w-40"
+                            />
+                            {isQrExpired && (
+                                <div className="absolute inset-0 bg-background/80 backdrop-blur-sm rounded-xl flex flex-col items-center justify-center gap-2">
+                                    <Timer className="h-8 w-8 text-muted-foreground" />
+                                    <span className="text-xs text-muted-foreground">二维码已过期</span>
+                                    <Button 
+                                        size="sm" 
+                                        variant="outline" 
+                                        onClick={handleRefreshOrder}
+                                        disabled={createOrderMutation.isPending}
+                                    >
+                                        <RefreshCw className="h-3 w-3 mr-1" />
+                                        重新获取
+                                    </Button>
                                 </div>
-                            </div>
+                            )}
+                        </div>
+                    ) : (
+                        <div className="h-44 w-44 bg-muted/40 rounded-xl flex items-center justify-center text-muted-foreground text-xs text-center p-4 border border-dashed">
+                            {t("subscription.payment.error", "获取支付失败")}
+                        </div>
+                    )}
+                    {!isQrExpired && (
+                        <p className={`text-[11px] ${qrCountdown <= 60 ? 'text-destructive font-medium' : 'text-muted-foreground'}`}>
+                            {qrCountdown > 0 ? formatCountdown(qrCountdown) : '二维码已失效'}
+                        </p>
+                    )}
+                </div>
+                
+                {/* 支付信息区域 */}
+                <div className="px-6 pb-6 space-y-4">
+                    {/* 支付方式和价格 */}
+                    <div className="flex items-center justify-between pb-3 border-b border-border">
+                        <span className="text-sm font-medium">微信扫码支付</span>
+                        <span className="text-xl font-bold">¥{isUpgrade && upgradeInfo ? upgradeInfo.net_amount || "0.00" : orderData?.order?.order_money || "0.00"}</span>
+                    </div>
+                    
+                    {/* 条款列表 */}
+                    <ul className="space-y-2 text-xs text-muted-foreground">
+                        {isUpgrade && upgradeInfo ? (
+                            // 升级场景
+                            <>
+                                <li className="flex gap-2">
+                                    <span className="text-primary">•</span>
+                                    <span>升级补差价：新套餐 ¥{upgradeInfo.pay_amount} - 原套餐剩余 ¥{upgradeInfo.refund_amount}</span>
+                                </li>
+                                <li className="flex gap-2">
+                                    <span className="text-primary">•</span>
+                                    <span>原套餐剩余¥{upgradeInfo.refund_amount}将在支付成功后退还到余额</span>
+                                </li>
+                                <li className="flex gap-2">
+                                    <span className="text-primary">•</span>
+                                    <span>升级后套餐期限累加，额外配额自动补差</span>
+                                </li>
+                            </>
+                        ) : isRenewalMode ? (
+                            // 续费场景
+                            <>
+                                <li className="flex gap-2">
+                                    <span className="text-primary">•</span>
+                                    <span>续费 ¥{orderData?.order?.order_money || "0"}/月</span>
+                                </li>
+                                <li className="flex gap-2">
+                                    <span className="text-primary">•</span>
+                                    <span>续费后有效期延长，额度叠加</span>
+                                </li>
+                                <li className="flex gap-2">
+                                    <span className="text-primary">•</span>
+                                    <span>原剩余有效期将累加，不会浪费</span>
+                                </li>
+                            </>
                         ) : (
-                            <div className="h-52 w-52 bg-muted/40 rounded-2xl flex items-center justify-center text-muted-foreground text-xs text-center p-6 border border-dashed">
-                                {t("subscription.payment.error", "获取支付方式失败，请重试")}
-                            </div>
+                            // 新购场景
+                            <>
+                                <li className="flex gap-2">
+                                    <span className="text-primary">•</span>
+                                    <span>开通会员订阅：¥{orderData?.order?.order_money || "0"}/月</span>
+                                </li>
+                                <li className="flex gap-2">
+                                    <span className="text-primary">•</span>
+                                    <span>有效期自支付成功日起计算</span>
+                                </li>
+                            </>
                         )}
+                        <li className="flex gap-2">
+                            <span className="text-primary">•</span>
+                            <span>会员服务属于虚拟商品，一经支付无法退款，请你谅解</span>
+                        </li>
+                    </ul>
+                    
+                    {/* 支付状态提示 */}
+                    <div className="pt-2 flex items-center justify-center gap-2 text-xs text-muted-foreground">
+                        <Loader2 className="h-3 w-3 animate-spin text-primary" />
+                        <span>正在等待支付结果...</span>
                     </div>
-
-                    <div className="text-center space-y-4">
-                        <div className="flex items-baseline justify-center gap-1.5 translate-x-2">
-                            <span className="text-sm font-bold text-muted-foreground">¥</span>
-                            <span className="text-4xl font-black text-primary tracking-tighter">
-                                {(createOrderMutation.data as any)?.data?.order?.order_money || "0.00"}
-                            </span>
-                        </div>
-                        <div className="px-5 py-2.5 bg-primary/5 rounded-full inline-flex items-center gap-2.5 border border-primary/10 ring-4 ring-primary/[0.02]">
-                            <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
-                            <span className="text-[11px] font-bold text-primary uppercase tracking-wider">
-                                {t("subscription.payment.pollNotice", "正在等待支付结果")}
-                            </span>
-                        </div>
-                    </div>
-                </>
-             )}
-          </div>
+                </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>
   )
 }
-

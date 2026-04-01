@@ -151,6 +151,7 @@ async def run_agent_background(thread_id: str, inputs: dict[str, Any]):
                 "thread_id": thread_id,
                 "working_directory": working_dir,
                 "run_id": run_id, # Track the specific run attempt
+                "model": inputs.get("model"),  # User selected model (optional)
             },
             "metadata": {
                 "project_id": project_id,

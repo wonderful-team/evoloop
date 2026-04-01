@@ -186,11 +186,15 @@ class WorkerNode:
                 worker_state = state.copy()
             worker_state["messages"] = messages
 
+            # Get user selected model from config (if any)
+            model = config.get("configurable", {}).get("model")
+
             engine_result = await AgentEngine.run_node(
                 state=worker_state,
                 config=config,
                 system_prompt=system_prompt,
                 tools=tools,
+                model=model,  # Use user selected model
                 name=f"Worker-{role_name}",
                 max_steps=1 if agent_config.get("is_subtask") else settings.WORKER_AGENT_MAX_STEPS,
                 is_subtask=agent_config.get("is_subtask", False),
@@ -302,11 +306,15 @@ class WorkerNode:
                 worker_state = copy.deepcopy(state) if agent_config.get("is_subtask") else state.copy()
                 worker_state["messages"] = messages
                 
+                # Get user selected model from config (if any)
+                model = config.get("configurable", {}).get("model")
+                
                 engine_result = await AgentEngine.run_node(
                     state=worker_state,
                     config=config,
                     system_prompt=system_prompt,
                     tools=tools,
+                    model=model,  # Use user selected model
                     name=f"Worker-{role_name}-Step{i+1}",
                     max_steps=1 if agent_config.get("is_subtask") else settings.WORKER_AGENT_MAX_STEPS,
                     is_subtask=agent_config.get("is_subtask", False),

@@ -1344,11 +1344,15 @@
     "title": "订阅",
     "subtitle": "管理您的订阅计划和账单",
     "notice": {
-      "desc": "请完成支付以继续使用服务"
+      "desc": "请完成支付以继续使用服务",
+      "benefits": "会员等级决定 AI 调用额度和上下文窗口大小，专业版及以上享受优先处理权。升级时原套餐剩余金额将自动退还到余额。"
     },
     "payment": {
       "title": "支付",
       "desc": "安全完成您的支付",
+      "renewTitle": "续费 {{name}}",
+      "subscribeTitle": "订阅 {{name}}",
+      "renewDesc": "续费后有效期将延长",
       "successTitle": "支付成功",
       "successDesc": "感谢您的支付",
       "thankYou": "感谢您！",
@@ -1357,14 +1361,19 @@
     },
     "plan": {
       "current": "当前计划",
-      "active": "有效",
+      "active": "当前使用中",
       "upgrade": "升级",
-      "startFree": "免费开始",
+      "subscribe": "立即订阅",
+      "upgradeRefund": "升级退差价",
+      "startFree": "立即使用",
       "free": "免费版",
       "perMonth": "/月",
       "defaultDesc": "包含基本功能",
       "featuresInclude": "包含功能",
-      "discount": "折扣"
+      "discount": "折扣",
+      "downgrade": "无法降级",
+      "cannotDowngrade": "不可降级",
+      "downgradeTooltip": "请先取消当前订阅，到期后自动降级"
     },
     "plans": {
       "title": "计划",

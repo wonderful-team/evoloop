@@ -99,11 +99,15 @@ class SupervisorNode:
         )
         dynamic_prompt = await prompt_builder.build(config)
 
+        # Get user selected model from config (if any)
+        model = config.get("configurable", {}).get("model")
+
         engine_result = await AgentEngine.run_node(
             state=state,
             config=config,
             system_prompt=dynamic_prompt,
             tools=tools,
+            model=model,  # Use user selected model
             max_steps=settings.SUPERVISOR_AGENT_MAX_STEPS,
             name="Supervisor",
             temperature=0.2,  # Balanced: strict tool calling + natural clarification

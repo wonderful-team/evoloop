@@ -1,10 +1,15 @@
+import time
+
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
 from app.api.deps import get_current_user
-from app.constants import PRESET_EMBEDDING_MODELS, PRESET_LLM_MODELS
 from app.infrastructure.config import EmbeddingConfigService, LLMConfigService
 from app.infrastructure.config.service import SystemConfigService
+from app.infrastructure.config.llm_platform_service import (
+    get_available_llm_models,
+    get_available_embedding_models,
+)
 from app.models.config import SystemConfig
 
 router = APIRouter(prefix="/system", tags=["system"])
@@ -137,22 +142,33 @@ async def get_cloud_status():
 
 
 @router.get("/llm/models")
-async def get_available_llm_models():
+async def get_llm_models(config_type: str = None):
     """
-    获取可用的 LLM 模型列表（简化选择模式）
+    获取可用的 LLM 模型列表
+    
+    Args:
+        config_type: 配置类型过滤 (platform/custom)
+                    platform - 只返回平台提供的模型
+                    custom - 只返回自定义模型
+                    不传则根据系统配置自动过滤
+    
+    返回:
+        符合条件的模型列表
     """
+    models = await get_available_llm_models(config_type=config_type)
     return {
-        "models": PRESET_LLM_MODELS,
-        "last_updated": "2024-03-17"
+        "models": models,
+        "last_updated": time.strftime("%Y-%m-%d")
     }
 
 
 @router.get("/embedding/models")
-async def get_available_embedding_models():
+async def get_embedding_models():
     """
-    获取可用的 Embedding 模型列表（简化选择模式）
+    获取可用的 Embedding 模型列表（包含平台模型和自定义模型）
     """
+    models = await get_available_embedding_models()
     return {
-        "models": PRESET_EMBEDDING_MODELS,
-        "last_updated": "2024-03-17"
+        "models": models,
+        "last_updated": time.strftime("%Y-%m-%d")
     }

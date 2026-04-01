@@ -95,6 +95,24 @@ async def get_subscription_plans(_token: TokenDep):
     return await evocloud_manager.api.get_subscription_plans()
 
 
+@router.post("/subscription/upgrade-preview")
+async def calculate_upgrade_price(target_level_id: int, _token: TokenDep):
+    """计算升级价格预览（支付前调用）
+    
+    返回：
+    - current_level: 当前等级信息
+    - target_level: 目标等级信息
+    - upgrade_calculation: 升级计算详情
+        - is_upgrade: 是否是升级
+        - pay_amount: 需支付金额
+        - refund_amount: 将退还金额
+        - net_amount: 净支付金额
+        - total_duration: 总有效期（天）
+        - quota_diff: 额度补差
+    """
+    return await evocloud_manager.api.calculate_upgrade_price(target_level_id)
+
+
 @router.get("/subscription/status")
 async def get_subscription_status(_token: TokenDep):
     """获取订阅状态"""

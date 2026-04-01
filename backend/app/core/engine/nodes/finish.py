@@ -364,11 +364,15 @@ async def _comprehensive_audit(state: AgentState, config: RunnableConfig) -> dic
     focused_state = dict(state)
     focused_state["messages"] = windowed_messages
     
+    # Get user selected model from config (if any)
+    model = config.get("configurable", {}).get("model")
+    
     result = await AgentEngine.run_node(
         state=focused_state,
         config=config,
         system_prompt=system_prompt,
         tools=tools,
+        model=model,  # Use user selected model
         name="Session Reviewer",
         max_steps=settings.FINISH_AGENT_MAX_STEPS,
         node_source="finish",

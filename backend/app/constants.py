@@ -504,34 +504,14 @@ class RoutingTarget(str, Enum):
     SPAWN_SUBTASKS = "spawn_subtasks"
 
 
-TASK_TYPES = [
-    "code_generation",
-    "bug_fix",
-    "code_explanation",
-    "refactoring",
-    "architecture_analysis",
-]
-
-ROUTING_TARGETS = {
-    RoutingTarget.OPERATOR: "Primary worker for coding, testing, and architecture.",
-    RoutingTarget.DEEP_RESEARCHER: "Web search and information gathering.",
-    RoutingTarget.DOCUMENTER: "Documentation and wiki generation.",
-    RoutingTarget.CHAT: "Ambiguous requests requiring clarification.",
-    RoutingTarget.FINISH: "Task completion.",
-    RoutingTarget.WORKER: "Universal Worker — neutral executor that acquires expertise via Skills and ExecutionTicket.",
-    RoutingTarget.FLASH_BRAIN: "Fast, low-cost reasoning or memory lookup.",
-    RoutingTarget.SUPERVISOR: "Decision-making hub of the agent system.",
-    RoutingTarget.AGGREGATOR: "Collects and joins results from parallel subtasks.",
-    RoutingTarget.SPAWN_SUBTASKS: "Internal state for launching parallel execution.",
-}
-
-WORKFLOW_STATUS = ["pending", "running", "completed", "failed", "cancelled"]
-
-
 # ====================== AI Model Capabilities ======================
 
 # Preset LLM Models for Simple Selection Mode
-# type: "platform" = 平台托管，用户只需选择
+# 
+# NOTE: "platform" type models are now fetched dynamically from EvoLoop Gateway API.
+# This list only contains "custom" type models that require user's own API Key.
+#
+# type: "platform" = 平台托管，从 EvoLoop Gateway 动态获取 (不再在此列表中定义)
 # type: "custom" = 需要用户填写 API Key 的第三方模型
 PRESET_LLM_MODELS = [
     {
@@ -774,10 +754,3 @@ LANGUAGE_MAP = {
     "en": "English",
     "zh": "Mandarin Chinese (中文)",
 }
-
-# ====================== Mobile / Reactor Constants ======================
-# High-risk keywords for interactive safety guard
-RISK_KEYWORDS = [
-    "delete", "pay", "transfer", "uninstall", "buy", "confirm payment",
-    "删除", "支付", "转账", "卸载", "买", "清除"
-]

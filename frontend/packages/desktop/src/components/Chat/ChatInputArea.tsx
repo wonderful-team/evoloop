@@ -10,11 +10,13 @@ import { type Attachment, AttachmentPreview } from "./AttachmentPreview"
 import { ReferencePicker, type ReferenceItem } from "./ReferencePicker"
 import { RecordingButton } from "./RecordingButton"
 import { VoiceRecorderButton } from "./VoiceRecorderButton"
+import { ModelSelector } from "./ModelSelector"
 import { useAutoSpeak, useTTS } from "@/hooks/useTTS"
 import { useWakeWord, useWakeWordSettings } from "@/hooks/useWakeWord"
 import { useTauriVoiceShortcut, useTauriVoiceShortcutSettings } from "@/hooks/useTauriVoiceShortcut"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@evoloop/shared/components/ui/tooltip"
 import { Separator } from "@evoloop/shared/components/ui/separator"
+import { useChatStore } from "@/stores/chatStore"
 import axios from "axios"
 
 interface ChatInputAreaProps {
@@ -468,6 +470,8 @@ export const ChatInputArea = memo(
                     </div>
                   </>
                 )}
+                {/* Model Selector */}
+                <ModelSelectorWrapper isSending={isSending} />
               </div>
 
               {/* Right Group: Action */}
@@ -621,5 +625,19 @@ export const ChatInputArea = memo(
     )
   })
 )
+
+// Wrapper component for ModelSelector that connects to chatStore
+function ModelSelectorWrapper({ isSending }: { isSending: boolean }) {
+  const selectedModel = useChatStore((state) => state.selectedModel)
+  const setSelectedModel = useChatStore((state) => state.setSelectedModel)
+
+  return (
+    <ModelSelector
+      value={selectedModel}
+      onChange={setSelectedModel}
+      disabled={isSending}
+    />
+  )
+}
 
 ChatInputArea.displayName = "ChatInputArea"
