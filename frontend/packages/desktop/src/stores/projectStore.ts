@@ -142,6 +142,7 @@ interface ProjectState {
   currentProject: Project | null
   isLoading: boolean
   isGlobalMode: boolean
+  _fetchingPromise: Promise<void> | null  // 请求去重锁
 
   fetchProjects: (filterType?: 'switchable' | 'cloud_only' | 'disconnected') => Promise<void>
   setProject: (project: Project) => void
@@ -155,11 +156,19 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   currentProject: null,
   isLoading: false,
   isGlobalMode: false,
+  _fetchingPromise: null,
 
   fetchProjects: async (filterType?: 'switchable' | 'cloud_only' | 'disconnected') => {
-    set({ isLoading: true })
-    try {
-      const token = localStorage.getItem("access_token")
+    // 如果已有请求在进行中，复用该 Promise（请求去重）
+    if (get()._fetchingPromise) {
+      return get()._fetchingPromise!
+    }
+
+    // 创建新的请求 Promise
+    const promise = (async () => {
+      set({ isLoading: true })
+      try {
+        const token = localStorage.getItem("access_token")
       let rawList: any[] = []
 
       if (token) {
@@ -255,26 +264,34 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
           set({ currentProject: GLOBAL_PROJECT, isGlobalMode: true })
         }
       }
-      // Priority 4: First time - default to Global Mode (as requested)
-      else if (localProjects.length > 0) {
-        // No previous selection found, default to GLOBAL mode
-        console.log('[ProjectStore] No previous selection, defaulting to Global Mode')
-        saveLastSelectedProjectId(0) // Save global mode
-        set({ currentProject: GLOBAL_PROJECT, isGlobalMode: true })
-      } else if (list.length > 0) {
-        // No local projects but have cloud projects - select first
-        const first = list[0]
-        saveLastSelectedProjectId(first.id)
-        set({ currentProject: first, isGlobalMode: false })
-      } else {
-        // No projects at all - global mode
-        saveLastSelectedProjectId(0)
-        set({ currentProject: GLOBAL_PROJECT, isGlobalMode: true })
+        // Priority 4: First time - default to Global Mode (as requested)
+        else if (localProjects.length > 0) {
+          // No previous selection found, default to GLOBAL mode
+          console.log('[ProjectStore] No previous selection, defaulting to Global Mode')
+          saveLastSelectedProjectId(0) // Save global mode
+          set({ currentProject: GLOBAL_PROJECT, isGlobalMode: true })
+        } else if (list.length > 0) {
+          // No local projects but have cloud projects - select first
+          const first = list[0]
+          saveLastSelectedProjectId(first.id)
+          set({ currentProject: first, isGlobalMode: false })
+        } else {
+          // No projects at all - global mode
+          saveLastSelectedProjectId(0)
+          set({ currentProject: GLOBAL_PROJECT, isGlobalMode: true })
+        }
+      } catch (error) {
+        console.error("Failed to fetch projects", error)
+        set({ projects: [], isLoading: false })
+      } finally {
+        // 清除请求锁
+        set({ _fetchingPromise: null })
       }
-    } catch (error) {
-      console.error("Failed to fetch projects", error)
-      set({ projects: [], isLoading: false })
-    }
+    })()
+
+    // 保存 Promise 到 state
+    set({ _fetchingPromise: promise })
+    return promise
   },
 
   setProject: (project) => {

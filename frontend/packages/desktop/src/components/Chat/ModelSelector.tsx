@@ -50,8 +50,8 @@ export function ModelSelector({ value, onChange, disabled }: ModelSelectorProps)
   const platformModels = models.filter((m) => m.type === "platform" && m.available !== false)
   const customModels = models.filter((m) => m.type === "custom")
 
-  // 获取当前选中的模型信息
-  const selectedModel = models.find((m) => m.model === value)
+  // 获取当前选中的模型信息 (使用 id 而不是 model，以区分 platform 和 custom)
+  const selectedModel = models.find((m) => m.id === value)
 
   return (
     <TooltipProvider delayDuration={100}>
@@ -74,7 +74,7 @@ export function ModelSelector({ value, onChange, disabled }: ModelSelectorProps)
                 ) : (
                   <Brain className="h-3.5 w-3.5 mr-1 text-muted-foreground" />
                 )}
-                <SelectValue placeholder={t("chat.modelSelector.placeholder", "选择模型")}>
+                <SelectValue placeholder={t("chat.modelSelector.placeholder")}>
                   {selectedModel ? (
                     <span className="flex items-center gap-1 truncate">
                       {selectedModel.name}
@@ -84,7 +84,7 @@ export function ModelSelector({ value, onChange, disabled }: ModelSelectorProps)
                     </span>
                   ) : (
                     <span className="text-muted-foreground">
-                      {t("chat.modelSelector.default", "默认模型")}
+                      {t("chat.modelSelector.default")}
                     </span>
                   )}
                 </SelectValue>
@@ -94,9 +94,9 @@ export function ModelSelector({ value, onChange, disabled }: ModelSelectorProps)
                 <SelectItem value="default" className="text-xs">
                   <span className="flex items-center gap-2">
                     <Brain className="h-3.5 w-3.5 text-muted-foreground" />
-                    {t("chat.modelSelector.default", "默认模型")}
+                    {t("chat.modelSelector.default")}
                     <span className="text-muted-foreground ml-auto text-[10px]">
-                      {t("chat.modelSelector.systemDefault", "系统配置")}
+                      {t("chat.modelSelector.systemDefault")}
                     </span>
                   </span>
                 </SelectItem>
@@ -106,12 +106,12 @@ export function ModelSelector({ value, onChange, disabled }: ModelSelectorProps)
                   <>
                     <SelectGroup>
                       <SelectLabel className="text-[10px] uppercase tracking-wider text-muted-foreground/70">
-                        {t("chat.modelSelector.platformModels", "平台模型")}
+                        {t("chat.modelSelector.platformModels")}
                       </SelectLabel>
                       {platformModels.map((model) => (
                         <SelectItem
-                          key={model.model}
-                          value={model.model}
+                          key={model.id}
+                          value={model.id}
                           className="text-xs py-2"
                           disabled={model.available === false}
                         >
@@ -128,7 +128,7 @@ export function ModelSelector({ value, onChange, disabled }: ModelSelectorProps)
                                   <Star className="h-3 w-3 text-amber-500 fill-amber-500 flex-shrink-0" />
                                 </TooltipTrigger>
                                 <TooltipContent side="right">
-                                  <p className="text-xs">{t("chat.modelSelector.requiresQuota", "需要配额")}</p>
+                                  <p className="text-xs">{t("chat.modelSelector.requiresQuota")}</p>
                                 </TooltipContent>
                               </Tooltip>
                             )}
@@ -144,12 +144,12 @@ export function ModelSelector({ value, onChange, disabled }: ModelSelectorProps)
                   <>
                     <SelectGroup>
                       <SelectLabel className="text-[10px] uppercase tracking-wider text-muted-foreground/70">
-                        {t("chat.modelSelector.customModels", "自定义模型")}
+                        {t("chat.modelSelector.customModels")}
                       </SelectLabel>
                       {customModels.map((model) => (
                         <SelectItem
-                          key={model.model}
-                          value={model.model}
+                          key={model.id}
+                          value={model.id}
                           className="text-xs py-2"
                         >
                           <span className="flex items-center gap-2 w-full">
@@ -167,7 +167,7 @@ export function ModelSelector({ value, onChange, disabled }: ModelSelectorProps)
 
                 {models.length === 0 && !isLoading && (
                   <div className="px-2 py-3 text-xs text-muted-foreground text-center">
-                    {t("chat.modelSelector.noModels", "暂无可用模型")}
+                    {t("chat.modelSelector.noModels")}
                   </div>
                 )}
               </SelectContent>
@@ -177,7 +177,7 @@ export function ModelSelector({ value, onChange, disabled }: ModelSelectorProps)
         <TooltipContent side="top">
           <p className="text-xs">
             {selectedModel?.description ||
-              t("chat.modelSelector.tooltip", "选择用于此对话的 AI 模型")}
+              t("chat.modelSelector.tooltip")}
           </p>
         </TooltipContent>
       </Tooltip>

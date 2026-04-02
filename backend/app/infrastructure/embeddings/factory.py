@@ -11,13 +11,39 @@ logger = logging.getLogger(__name__)
 
 class EmbedderFactory:
     @staticmethod
-    def get_embedder() -> BaseEmbedder:
+    def get_embedder(model_name: str | None = None) -> BaseEmbedder:
         """
         Factory to create the configured Embedder.
         Priority:
-        1. System Config (DB)
-        2. Environment Variables (Settings)
+        1. Explicit model_name (if provided and starts with custom-)
+        2. System Config (DB)
+        3. Environment Variables (Settings)
+        
+        Args:
+            model_name: Optional model identifier. Supports custom-embedding-{provider}-{model} format.
         """
+        # 🔍 Auto-detect custom embedding model by ID prefix
+        if model_name and model_name.startswith("custom-embedding-"):
+            # Parse custom-embedding-{provider}-{model}
+            parts = model_name.split("-", 3)
+            if len(parts) >= 4:
+                provider = parts[2]
+                actual_model = parts[3]
+                logger.debug(f"[EmbeddingFactory] Detected custom embedding: provider={provider}, model={actual_model}")
+
+                # Get custom embedding config from SystemConfig
+                base_url = SystemConfigService.get_value("EMBEDDING_BASE_URL")
+                api_key = SystemConfigService.get_value("EMBEDDING_API_KEY")
+                dim_val = SystemConfigService.get_value("EMBEDDING_DIMENSIONS")
+                dimensions = int(dim_val) if dim_val else settings.EMBEDDING_DIMENSIONS
+
+                return GenericOpenAIEmbedder(
+                    api_key=api_key or settings.EMBEDDING_API_KEY,
+                    base_url=base_url or settings.OPENAI_BASE_URL,
+                    model=actual_model,
+                    dimensions=dimensions
+                )
+
         # 1. Try DB Config (handle case where DB tables don't exist yet)
         try:
             provider = SystemConfigService.get_value("EMBEDDING_PROVIDER")

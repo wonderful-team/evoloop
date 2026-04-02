@@ -4,9 +4,10 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
 from app.api.deps import get_current_user
-from app.infrastructure.config import EmbeddingConfigService, LLMConfigService
+from app.infrastructure.config import EmbeddingConfigService
+from app.infrastructure.llm import LLMConfigService
 from app.infrastructure.config.service import SystemConfigService
-from app.infrastructure.config.llm_platform_service import (
+from app.infrastructure.llm.platform_service import (
     get_available_llm_models,
     get_available_embedding_models,
 )

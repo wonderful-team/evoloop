@@ -10,7 +10,6 @@ from pathlib import Path
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage
 
-from app.core.config import settings
 from app.infrastructure.llm.factory import LLMFactory
 
 logger = logging.getLogger(__name__)
@@ -21,22 +20,6 @@ class VisionLLMFactory:
     Factory for creating Vision-capable LLM instances.
     Supports GPT-4V, Claude 3, and other multimodal models.
     """
-
-    # Known vision-capable models
-    VISION_MODELS = {
-        "openai": [
-            "gpt-4o",
-            "gpt-4-turbo",
-            "gpt-4-vision-preview",
-            "gpt-4o-mini"
-        ],
-        "anthropic": [
-            "claude-3-opus",
-            "claude-3-sonnet",
-            "claude-3-haiku",
-            "claude-3-5-sonnet",
-        ],
-    }
 
     @staticmethod
     def create_vision_llm(
@@ -86,9 +69,7 @@ class VisionLLMFactory:
         return mime_types.get(ext, "image/png")
 
     @staticmethod
-    def create_image_message(
-        image_path: str, prompt: str = "Describe this image in detail."
-    ) -> HumanMessage:
+    def create_image_message(image_path: str, prompt: str = "Describe this image in detail.") -> HumanMessage:
         """
         Create a HumanMessage with image content for Vision LLM.
 
@@ -106,12 +87,10 @@ class VisionLLMFactory:
             media_type = VisionLLMFactory.get_image_media_type(image_path)
             image_url = f"data:{media_type};base64,{base64_image}"
 
-        return HumanMessage(
-            content=[
-                {"type": "image_url", "image_url": {"url": image_url}},
-                {"type": "text", "text": prompt},
-            ]
-        )
+        return HumanMessage(content=[
+            {"type": "image_url", "image_url": {"url": image_url}},
+            {"type": "text", "text": prompt},
+        ])
 
     @staticmethod
     def create_multi_image_message(image_paths: list[str], prompt: str) -> HumanMessage:
@@ -130,12 +109,10 @@ class VisionLLMFactory:
         for path in image_paths:
             base64_image = VisionLLMFactory.encode_image(path)
             media_type = VisionLLMFactory.get_image_media_type(path)
-            content.append(
-                {
-                    "type": "image_url",
-                    "image_url": {"url": f"data:{media_type};base64,{base64_image}"},
-                }
-            )
+            content.append({
+                "type": "image_url",
+                "image_url": {"url": f"data:{media_type};base64,{base64_image}"},
+            })
 
         content.append({"type": "text", "text": prompt})
 

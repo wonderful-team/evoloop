@@ -7,7 +7,6 @@
  * - 持久化用户选择到 localStorage
  */
 
-import { SystemService } from "@/client"
 import { toast } from "sonner"
 
 export interface LLMModel {
@@ -34,7 +33,7 @@ class LLMPlatformService {
   private selectedModel: string | null = null
   private lastFetchTime = 0
   private readonly CACHE_TTL = 5 * 60 * 1000 // 5 minutes
-  private currentConfigType: string = "custom"
+  private fetchPromise: Promise<LLMModel[]> | null = null  // 请求去重锁
 
   constructor() {
     // 从 localStorage 恢复用户选择
@@ -42,22 +41,8 @@ class LLMPlatformService {
   }
 
   /**
-   * 获取系统配置类型 (platform/custom)
-   */
-  private async getConfigType(): Promise<string> {
-    try {
-      const config = await SystemService.getSystemConfig()
-      const configTypeItem = config.find((item: any) => item.key === "LLM_CONFIG_TYPE")
-      return configTypeItem?.value || "custom"
-    } catch (error) {
-      console.error("[LLMPlatform] Failed to get config type:", error)
-      return "custom"
-    }
-  }
-
-  /**
    * 获取可用模型列表
-   * 根据系统配置自动过滤 (platform 模式只显示平台模型)
+   * 后端返回所有模型 (platform + custom)，前端按需过滤显示
    */
   async fetchModels(): Promise<LLMModel[]> {
     // 检查缓存
@@ -66,41 +51,49 @@ class LLMPlatformService {
       return this.models
     }
 
-    try {
-      // 获取当前配置类型
-      this.currentConfigType = await this.getConfigType()
-      
-      // 根据配置类型获取模型列表
-      // 注意: 使用 fetch 直接调用 API，因为自动生成的客户端可能不支持参数
-      const baseUrl = import.meta.env.VITE_API_BASE_URL || ''
-      const response = await fetch(`${baseUrl}/api/v1/system/llm/models?config_type=${this.currentConfigType}`, {
-        credentials: 'include',
-      })
-      
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`)
-      }
-      
-      const data = await response.json()
-      
-      if (data?.models) {
-        this.models = data.models as LLMModel[]
-        this.lastFetchTime = now
-        
-        // 如果当前选择的模型不在列表中，清除选择
-        if (this.selectedModel && !this.models.find(m => m.model === this.selectedModel)) {
-          this.selectedModel = null
-          localStorage.removeItem(STORAGE_KEY)
-        }
-        
-        return this.models
-      }
-      return []
-    } catch (error) {
-      console.error("[LLMPlatform] Failed to fetch models:", error)
-      toast.error("获取模型列表失败")
-      return []
+    // 请求去重：如果已有请求在进行中，复用该 Promise
+    if (this.fetchPromise) {
+      return this.fetchPromise
     }
+
+    // 创建新的请求
+    this.fetchPromise = (async () => {
+      try {
+        const baseUrl = import.meta.env.VITE_API_BASE_URL || ''
+        const response = await fetch(`${baseUrl}/api/v1/system/llm/models`, {
+          credentials: 'include',
+        })
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`)
+        }
+
+        const data = await response.json()
+
+        if (data?.models) {
+          this.models = data.models as LLMModel[]
+          this.lastFetchTime = now
+
+          // 如果当前选择的模型不在列表中，清除选择
+          if (this.selectedModel && !this.models.find(m => m.model === this.selectedModel)) {
+            this.selectedModel = null
+            localStorage.removeItem(STORAGE_KEY)
+          }
+
+          return this.models
+        }
+        return []
+      } catch (error) {
+        console.error("[LLMPlatform] Failed to fetch models:", error)
+        toast.error("获取模型列表失败")
+        return []
+      } finally {
+        // 清除请求锁
+        this.fetchPromise = null
+      }
+    })()
+
+    return this.fetchPromise
   }
 
   /**

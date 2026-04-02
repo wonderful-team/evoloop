@@ -559,6 +559,16 @@
     "attachSkill": "附加技能",
     "skillAttached": "技能已附加",
     "noLinks": "没有链接",
+    "modelSelector": {
+      "placeholder": "选择模型",
+      "default": "默认模型",
+      "systemDefault": "系统配置",
+      "platformModels": "平台模型",
+      "customModels": "自定义模型",
+      "requiresQuota": "需要配额",
+      "noModels": "暂无可用模型",
+      "tooltip": "选择用于此对话的 AI 模型"
+    },
     "process": {
       "hide": "收起",
       "query": "搜索",
@@ -612,6 +622,21 @@
     },
     "loadingHistory": "加载历史消息...",
     "scrollToLoadMore": "向上滚动加载更多历史消息",
+    "welcome": {
+      "projectReady": "项目 [{{name}}] 已就绪，准备好进行下一轮进化了吗？",
+      "globalReady": "全局模式已就绪，准备好开启智能探索了吗？",
+      "subtitle": "我是您的自主智能体，今天我们要如何加速项目进展？",
+      "systemAwareness": "系统感知状态",
+      "health": "环境健康度",
+      "topApps": "高频上下文应用",
+      "deviceBridge": "跨端设备联动",
+      "connectedViaAdb": "已通过 ADB 连接",
+      "noDevices": "未发现同步设备",
+      "syncDevice": "同步新设备",
+      "skillEvolution": "进化中的技能库",
+      "totalSkills": "{{count}} 项活跃技能",
+      "teachMe": "教导 Agent 新技能"
+    },
     "context": {
       "starter": {
         "analyzeDesc": "探索架构与文件",
@@ -924,7 +949,10 @@
     "processing": "处理中...",
     "tool": {
       "defaultName": "工具"
-    }
+    },
+    "cpu": "CPU",
+    "ram": "内存",
+    "viewAll": "查看全部"
   },
   "projects": {
     "title": "项目",

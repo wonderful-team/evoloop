@@ -559,6 +559,16 @@
     "attachSkill": "Attach Skill",
     "skillAttached": "Skill attached",
     "noLinks": "No links",
+    "modelSelector": {
+      "placeholder": "Select Model",
+      "default": "Default Model",
+      "systemDefault": "System Default",
+      "platformModels": "Platform Models",
+      "customModels": "Custom Models",
+      "requiresQuota": "Requires Quota",
+      "noModels": "No models available",
+      "tooltip": "Select AI model for this conversation"
+    },
     "process": {
       "hide": "Collapse",
       "query": "Search",
@@ -612,6 +622,21 @@
     },
     "loadingHistory": "Loading history...",
     "scrollToLoadMore": "Scroll up to load more history",
+    "welcome": {
+      "projectReady": "Project [{{name}}] is ready. Ready to Evolve?",
+      "globalReady": "Global Mode is active. Ready to start exploring?",
+      "subtitle": "I am your autonomous agent. How can we accelerate our progress today?",
+      "systemAwareness": "System Awareness",
+      "health": "Environment Health",
+      "topApps": "High-Context Apps",
+      "deviceBridge": "Device Bridge",
+      "connectedViaAdb": "Connected via ADB",
+      "noDevices": "No devices found",
+      "syncDevice": "Sync New Device",
+      "skillEvolution": "Skill Evolution",
+      "totalSkills": "{{count}} Active Skills",
+      "teachMe": "Teach Me a New Skill"
+    },
     "context": {
       "starter": {
         "analyzeDesc": "Explore architecture & files",
@@ -924,7 +949,10 @@
     "processing": "Processing...",
     "tool": {
       "defaultName": "Tool"
-    }
+    },
+    "cpu": "CPU",
+    "ram": "RAM",
+    "viewAll": "View All"
   },
   "projects": {
     "title": "Projects",
