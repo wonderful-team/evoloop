@@ -2,6 +2,18 @@
 #
 # EvoLoop CLI 工具 (ARM64 版本)
 # ============================
+# 封装常用开发命令，统一通过 evo 命令访问
+#
+# 安装:
+#   chmod +x evo
+#   sudo ln -s $(pwd)/evo /usr/local/bin/evo
+#
+# 使用:
+#   evo help              显示帮助
+#   evo dev               启动开发服务器
+#   evo test              运行测试
+#   evo clean             清理系统
+#
 
 set -e
 
@@ -16,63 +28,865 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 CYAN='\033[0;36m'
-NC='\033[0m'
+NC='\033[0m' # No Color
 
 # 脚本目录
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$PROJECT_DIR"
 
-# 辅助函数
-info() { echo -e "${BLUE}ℹ${NC} $1"; }
-success() { echo -e "${GREEN}✅${NC} $1"; }
-error() { echo -e "${RED}❌${NC} $1"; }
+# 帮助信息
+show_help() {
+    cat << 'EOF'
+╔══════════════════════════════════════════════════════════════╗
+║                    EvoLoop CLI 工具                          ║
+╠══════════════════════════════════════════════════════════════╣
+║                                                              ║
+║  【开发环境】                                                 ║
+║    evo install          安装依赖                             ║
+║    evo start            一键启动所有服务（后台+日志）        ║
+║    evo stop             停止所有服务                         ║
+║    evo logs             查看服务日志                         ║
+║    evo status           查看服务运行状态                     ║
+║                                                              ║
+║    evo dev              启动开发服务器（前台）               ║
+║    evo worker           启动 Celery Worker（前台）           ║
+║    evo beat             启动 Celery Beat（前台）             ║
+║                                                              ║
+║  【代码质量】                                                 ║
+║    evo lint             运行代码检查                         ║
+║    evo format           格式化代码                           ║
+║    evo check            全面代码检查                         ║
+║    evo fix              自动修复代码问题                     ║
+║                                                              ║
+║  【测试】                                                     ║
+║    evo test             运行测试套件                         ║
+║    evo test-cov         运行测试并生成覆盖率报告              ║
+║    evo test-e2e         运行端到端测试                       ║
+║    evo test-brain       运行 Brain 模块测试                  ║
+║    evo test-atlas       运行 Atlas 模块测试                  ║
+║                                                              ║
+║  【数据库】                                                   ║
+║    evo db init          初始化数据库                         ║
+║    evo db migrate       运行数据库迁移                       ║
+║    evo db reset         重置数据库                           ║
+║    evo db seed          填充测试数据                         ║
+║                                                              ║
+║  【知识库】                                                   ║
+║    evo kb reset         清空并重建知识库索引                 ║
+║    evo kb clean         仅清空知识库                         ║
+║    evo kb rebuild       仅重建知识库索引                     ║
+║    evo kb reindex       重新索引所有项目                     ║
+║                                                              ║
+║  【系统清理】                                                 ║
+║    evo clean            清理运行时缓存                       ║
+║    evo clean all        完整系统清理                         ║
+║    evo clean dry        预览清理内容                         ║
+║    evo clean skills         清理技能数据（含 trace_events）  ║
+║    evo clean memory         清理记忆数据                     ║
+║    evo clean index          清理项目索引(资源/仓库/代码)     ║
+║    evo clean todos           清理待办事项                   ║
+║    evo clean conversations   清理对话（10张关联表）           ║
+║    evo clean expired         清理过期截图和录制               ║
+║    evo clean help           查看完整清理命令列表             ║
+║                                                              ║
+║  【存储管理】                                                 ║
+║    evo storage stats    查看存储统计                         ║
+║    evo storage clean    清理过期存储文件                     ║
+║    evo storage test     测试存储功能                         ║
+║                                                              ║
+║  【Atlas/Mobile】                                           ║
+║    evo atlas test       运行 Atlas 端到端测试                ║
+║    evo atlas mobile     运行 Atlas 移动端测试                ║
+║    evo atlas clear      清空 Atlas 数据                      ║
+║                                                              ║
+║  【Brain】                                                   ║
+║    evo brain test       运行 Brain 完整测试                  ║
+║    evo brain real       运行 Brain 实机测试                  ║
+║    evo brain letta      运行 Brain Letta 测试                ║
+║                                                              ║
+║  【验证】                                                     ║
+║    evo verify skill     验证技能执行                         ║
+║    evo verify storage   验证存储系统                         ║
+║    evo verify vector    验证向量维度                         ║
+║    evo verify peekaboo  验证 Peekaboo                        ║
+║                                                              ║
+║  【演示】                                                     ║
+║    evo demo final       最终演示                             ║
+║    evo demo phase3      阶段3演示                            ║
+║    evo demo mobile      移动端演示                           ║
+║                                                              ║
+║  【运行（生产模式）】                                         ║
+║    evo run api          启动 API 服务器（生产模式）          ║
+║    evo run worker       启动 Worker（生产模式）              ║
+║                                                              ║
+║  【导出】                                                     ║
+║    evo export openapi   导出 OpenAPI 文档到前端              ║
+║                                                              ║
+║  【环境】                                                     ║
+║    evo doctor           检测开发环境依赖                     ║
+║    evo setup            一键配置开发环境                     ║
+║                                                              ║
+╚══════════════════════════════════════════════════════════════╝
+EOF
+}
+
+# 打印带颜色的信息
+info() {
+    echo -e "${BLUE}ℹ${NC} $1"
+}
+
+success() {
+    echo -e "${GREEN}✓${NC} $1"
+}
+
+warning() {
+    echo -e "${YELLOW}⚠${NC} $1"
+}
+
+error() {
+    echo -e "${RED}✗${NC} $1"
+}
+
+# 检查 uv 是否安装
+check_uv() {
+    if ! command -v uv &> /dev/null; then
+        error "uv 未安装，请先安装 uv"
+        exit 1
+    fi
+}
 
 # 主命令处理
 case "${1:-help}" in
-    dev)
-        info "启动开发服务器 (arm64)..."
-        RELOAD=true arch -arm64 .venv/bin/python bin/run.py api
+    help|-h|--help)
+        show_help
         ;;
-    
-    worker)
-        info "启动 Celery Worker (arm64)..."
-        arch -arm64 .venv/bin/python bin/run.py worker
-        ;;
-    
+
+    # ==================== 开发环境 ====================
     install)
-        info "安装依赖 (arm64)..."
-        arch -arm64 .venv/bin/python -m pip install -r requirements.txt 2>/dev/null || \
-            arch -arm64 .venv/bin/python -m pip install \
-                fastapi uvicorn pydantic sqlmodel celery redis \
-                langchain langchain-core langgraph numpy pandas
+        info "安装依赖..."
+        arch -arm64 .venv/bin/pip install -r requirements.txt 2>/dev/null || arch -arm64 .venv/bin/pip install -e .
+        info "创建数据库目录..."
+        mkdir -p ~/.evoloop/database
         success "安装完成"
         ;;
-    
+
+    dev)
+        info "启动开发服务器..."
+        RELOAD=true arch -arm64 .venv/bin/python bin/run.py api
+        ;;
+
+    worker)
+        info "启动 Celery Worker..."
+        arch -arm64 .venv/bin/python bin/run.py worker
+        ;;
+
+    beat)
+        info "启动 Celery Beat（定时任务调度）..."
+        echo " Beat 用于周期性任务调度（如定时清理、检查）"
+        echo " 注意：Beat 只负责调度，任务执行仍需 Worker"
+        arch -arm64 .venv/bin/celery -A app.infrastructure.queue.celery beat -l info
+        ;;
+
+    start)
+        info "一键启动所有服务..."
+
+        # 创建日志目录
+        LOG_DIR="$PROJECT_DIR/logs"
+        mkdir -p "$LOG_DIR"
+
+        # 检查服务是否已在运行
+        if pgrep -f "python bin/run.py api" > /dev/null; then
+            warning "API 服务已在运行"
+        else
+            info "启动 API 服务..."
+            nohup arch -arm64 .venv/bin/python bin/run.py api > "$LOG_DIR/api.log" 2>&1 &
+            echo $! > "$LOG_DIR/api.pid"
+            sleep 2
+            if pgrep -f "python bin/run.py api" > /dev/null; then
+                success "API 服务启动成功 (PID: $(cat $LOG_DIR/api.pid))"
+            else
+                error "API 服务启动失败，查看日志: $LOG_DIR/api.log"
+            fi
+        fi
+
+        if pgrep -f "python bin/run.py worker" > /dev/null; then
+            warning "Worker 服务已在运行"
+        else
+            info "启动 Worker 服务..."
+            nohup arch -arm64 .venv/bin/python bin/run.py worker > "$LOG_DIR/worker.log" 2>&1 &
+            echo $! > "$LOG_DIR/worker.pid"
+            sleep 2
+            if pgrep -f "python bin/run.py worker" > /dev/null; then
+                success "Worker 服务启动成功 (PID: $(cat $LOG_DIR/worker.pid))"
+            else
+                error "Worker 服务启动失败，查看日志: $LOG_DIR/worker.log"
+            fi
+        fi
+
+        if pgrep -f "celery.*beat" > /dev/null; then
+            warning "Beat 服务已在运行"
+        else
+            info "启动 Beat 服务..."
+            nohup arch -arm64 .venv/bin/celery -A app.infrastructure.queue.celery beat -l info > "$LOG_DIR/beat.log" 2>&1 &
+            echo $! > "$LOG_DIR/beat.pid"
+            sleep 2
+            if pgrep -f "celery.*beat" > /dev/null; then
+                success "Beat 服务启动成功 (PID: $(cat $LOG_DIR/beat.pid))"
+            else
+                error "Beat 服务启动失败，查看日志: $LOG_DIR/beat.log"
+            fi
+        fi
+
+        echo ""
+        info "日志文件位置:"
+        echo "  API:    $LOG_DIR/api.log"
+        echo "  Worker: $LOG_DIR/worker.log"
+        echo "  Beat:   $LOG_DIR/beat.log"
+        echo ""
+        info "查看日志: evo logs"
+        info "停止服务: evo stop"
+        ;;
+
+    stop)
+        info "停止所有服务..."
+        LOG_DIR="$PROJECT_DIR/logs"
+
+        # 尝试从 pid 文件停止
+        if [ -f "$LOG_DIR/api.pid" ]; then
+            kill $(cat "$LOG_DIR/api.pid") 2>/dev/null || true
+            rm -f "$LOG_DIR/api.pid"
+        fi
+        if [ -f "$LOG_DIR/worker.pid" ]; then
+            kill $(cat "$LOG_DIR/worker.pid") 2>/dev/null || true
+            rm -f "$LOG_DIR/worker.pid"
+        fi
+        if [ -f "$LOG_DIR/beat.pid" ]; then
+            kill $(cat "$LOG_DIR/beat.pid") 2>/dev/null || true
+            rm -f "$LOG_DIR/beat.pid"
+        fi
+
+        # 兜底：强制终止
+        pkill -f "python bin/run.py api" 2>/dev/null || true
+        pkill -f "python bin/run.py worker" 2>/dev/null || true
+        pkill -f "celery.*beat" 2>/dev/null || true
+        success "服务已停止"
+        ;;
+
+    logs)
+        LOG_DIR="$PROJECT_DIR/logs"
+        if [ ! -d "$LOG_DIR" ]; then
+            error "日志目录不存在，请先运行: evo start"
+            exit 1
+        fi
+
+        case "${2:-}" in
+            api)
+                tail -f "$LOG_DIR/api.log"
+                ;;
+            worker)
+                tail -f "$LOG_DIR/worker.log"
+                ;;
+            beat)
+                tail -f "$LOG_DIR/beat.log"
+                ;;
+            ""|all)
+                info "查看所有日志（按 Ctrl+C 退出）..."
+                tail -f "$LOG_DIR"/*.log 2>/dev/null || error "没有日志文件"
+                ;;
+            *)
+                error "未知日志类型: ${2:-}"
+                echo "可用类型: api, worker, beat, all"
+                exit 1
+                ;;
+        esac
+        ;;
+
+    status)
+        info "服务运行状态:"
+        echo ""
+
+        check_service() {
+            local name="$1"
+            local pattern="$2"
+            local pid_file="$3"
+
+            if pgrep -f "$pattern" > /dev/null; then
+                local pid=$(pgrep -f "$pattern" | head -1)
+                success "$name: 运行中 (PID: $pid)"
+                return 0
+            else
+                error "$name: 未运行"
+                return 1
+            fi
+        }
+
+        check_service "API    " "python bin/run.py api"
+        check_service "Worker " "python bin/run.py worker"
+        check_service "Beat   " "celery.*beat"
+
+        echo ""
+        LOG_DIR="$PROJECT_DIR/logs"
+        if [ -d "$LOG_DIR" ]; then
+            info "日志目录: $LOG_DIR"
+            ls -lh "$LOG_DIR"/*.log 2>/dev/null || echo "  无日志文件"
+        fi
+        ;;
+
+    # ==================== 代码质量 ====================
+    lint)
+        info "运行代码检查..."
+        arch -arm64 .venv/bin/ruff check app scripts
+        ;;
+
+    format)
+        info "格式化代码..."
+        arch -arm64 .venv/bin/ruff check app scripts --fix
+        arch -arm64 .venv/bin/ruff format app scripts
+        success "格式化完成"
+        ;;
+
+    check)
+        info "运行全面代码检查..."
+        echo "🔍 Running Ruff check..."
+        arch -arm64 .venv/bin/ruff check app
+        echo "✨ Running Pyright analysis..."
+        arch -arm64 .venv/bin/pyright app
+        success "所有检查通过"
+        ;;
+
+    fix)
+        info "自动修复代码问题..."
+        arch -arm64 .venv/bin/ruff check app scripts --fix
+        success "修复完成"
+        ;;
+
+    # ==================== 测试 ====================
     test)
-        info "运行测试 (arm64)..."
-        arch -arm64 .venv/bin/python -m pytest tests/ -v
+        case "${2:-}" in
+            cov)
+                info "运行测试并生成覆盖率报告..."
+                arch -arm64 .venv/bin/coverage run -m pytest tests/
+                arch -arm64 .venv/bin/coverage report
+                arch -arm64 .venv/bin/coverage html
+                ;;
+            e2e)
+                info "运行端到端测试..."
+                arch -arm64 .venv/bin/pytest tests/e2e/ -v
+                ;;
+            brain)
+                info "运行 Brain 模块测试..."
+                arch -arm64 .venv/bin/python scripts/test_brain_full.py
+                ;;
+            atlas)
+                info "运行 Atlas 模块测试..."
+                arch -arm64 .venv/bin/python scripts/test_atlas_e2e.py
+                ;;
+            *)
+                info "运行测试套件..."
+                arch -arm64 .venv/bin/pytest tests/ -v
+                ;;
+        esac
         ;;
-    
-    shell|bash)
-        info "进入 arm64 Python shell..."
-        arch -arm64 /bin/bash
+
+    # ==================== 数据库 ====================
+    db)
+        case "${2:-}" in
+            init)
+                info "初始化数据库..."
+                arch -arm64 .venv/bin/python scripts/init_test_db.py
+                ;;
+            migrate)
+                info "运行数据库迁移..."
+                arch -arm64 .venv/bin/alembic upgrade head
+                ;;
+            reset)
+                info "重置数据库..."
+                arch -arm64 .venv/bin/python app/backend_pre_start.py
+                arch -arm64 .venv/bin/alembic upgrade head
+                arch -arm64 .venv/bin/python app/initial_data.py
+                ;;
+            seed)
+                info "填充测试数据..."
+                arch -arm64 .venv/bin/python scripts/seed_test_data.py
+                ;;
+            *)
+                error "未知数据库命令: ${2:-}"
+                echo "可用命令: init, migrate, reset, seed"
+                exit 1
+                ;;
+        esac
         ;;
-    
+
+    # ==================== 知识库 ====================
+    kb)
+        case "${2:-}" in
+            reset)
+                info "清空并重建知识库索引..."
+                arch -arm64 .venv/bin/python scripts/reset_and_rebuild.py
+                ;;
+            clean)
+                info "仅清空知识库..."
+                arch -arm64 .venv/bin/python scripts/reset_and_rebuild.py --clean-only
+                ;;
+            rebuild)
+                info "仅重建知识库索引..."
+                arch -arm64 .venv/bin/python scripts/reset_and_rebuild.py --rebuild-only
+                ;;
+            reindex)
+                info "重新索引所有项目..."
+                arch -arm64 .venv/bin/python scripts/reindex_all.py
+                ;;
+            *)
+                error "未知知识库命令: ${2:-}"
+                echo "可用命令: reset, clean, rebuild, reindex"
+                exit 1
+                ;;
+        esac
+        ;;
+
+    # ==================== 系统清理 ====================
+    clean)
+        case "${2:-}" in
+            all)
+                warning "即将执行完整系统清理（包括数据库和文件）"
+                read -p "确定继续? (yes/no): " confirm
+                if [ "$confirm" = "yes" ]; then
+                    arch -arm64 .venv/bin/python scripts/cleanup_system.py --all --confirm
+                else
+                    info "已取消"
+                fi
+                ;;
+            dry)
+                info "预览清理内容..."
+                arch -arm64 .venv/bin/python scripts/cleanup_system.py --dry-run --all
+                ;;
+            redis)
+                info "清理 Redis 缓存..."
+                arch -arm64 .venv/bin/python scripts/cleanup_system.py --redis
+                ;;
+            cache)
+                info "清理 FileCache 缓存 (Embedded Mode)..."
+                arch -arm64 .venv/bin/python scripts/cleanup_system.py --cache
+                ;;
+            sqlite)
+                info "清理 SQLite 表 (Embedded Mode)..."
+                arch -arm64 .venv/bin/python scripts/cleanup_system.py --sqlite
+                ;;
+            neo4j)
+                info "清理 Neo4j 文件索引..."
+                arch -arm64 .venv/bin/python scripts/cleanup_system.py --neo4j
+                ;;
+            memory)
+                info "清理记忆数据..."
+                warning "这将删除所有概念、执行历史和用户偏好"
+                read -p "确定继续? (yes/no): " confirm
+                if [ "$confirm" = "yes" ]; then
+                    arch -arm64 .venv/bin/python scripts/cleanup_system.py --memory
+                else
+                    info "已取消"
+                fi
+                ;;
+            keychain)
+                info "清理 Keychain 登录凭据..."
+                warning "这将删除 cloud_token, device_key, member_id"
+                read -p "确定继续? (yes/no): " confirm
+                if [ "$confirm" = "yes" ]; then
+                    arch -arm64 .venv/bin/python scripts/cleanup_system.py --keychain
+                else
+                    info "已取消"
+                fi
+                ;;
+            skills)
+                info "清理技能数据..."
+                arch -arm64 .venv/bin/python scripts/cleanup_system.py --skills
+                ;;
+            index)
+                info "清理文件索引..."
+                arch -arm64 .venv/bin/python scripts/cleanup_system.py --index
+                ;;
+            messages)
+                info "清理消息历史..."
+                arch -arm64 .venv/bin/python scripts/cleanup_system.py --messages
+                ;;
+            jobs)
+                info "清理任务队列..."
+                arch -arm64 .venv/bin/python scripts/cleanup_system.py --jobs
+                ;;
+            screenshots|sc)
+                info "清理截图..."
+                arch -arm64 .venv/bin/python scripts/cleanup_system.py --screenshots
+                ;;
+            recordings|rec)
+                info "清理屏幕录制..."
+                arch -arm64 .venv/bin/python scripts/cleanup_system.py --recordings
+                ;;
+            knowledge|kb)
+                info "清理知识库文件..."
+                arch -arm64 .venv/bin/python scripts/cleanup_system.py --knowledge
+                ;;
+            brain)
+                info "清理 Brain Memory..."
+                arch -arm64 .venv/bin/python scripts/cleanup_system.py --brain
+                ;;
+            todos)
+                info "清理待办事项..."
+                arch -arm64 .venv/bin/python scripts/cleanup_system.py --todos
+                ;;
+            conversations|conv)
+                info "清理对话及相关数据..."
+                warning "这将删除 conversations, messages, plans, file_operations, checkpoints 等10张表数据"
+                read -p "确定继续? (yes/no): " confirm
+                if [ "$confirm" = "yes" ]; then
+                    arch -arm64 .venv/bin/python scripts/cleanup_system.py --conversations
+                else
+                    info "已取消"
+                fi
+                ;;
+            expired)
+                info "清理过期截图和录制..."
+                arch -arm64 .venv/bin/python scripts/cleanup_system.py --expired-only --screenshots --recordings
+                ;;
+            runtime|"")
+                info "清理运行时缓存..."
+                arch -arm64 .venv/bin/python scripts/cleanup_runtime.py 2>/dev/null || arch -arm64 .venv/bin/python scripts/cleanup_system.py --cache
+                ;;
+            help|-h|--help)
+                echo "╔══════════════════════════════════════════════════════════════╗"
+                echo "║                    EvoLoop 清理命令                          ║"
+                echo "╠══════════════════════════════════════════════════════════════╣"
+                echo "║                                                              ║"
+                echo "║  【完整清理】                                                 ║"
+                echo "║    evo clean all              完整系统清理（所有组件）       ║"
+                echo "║    evo clean dry              预览将被清理的内容             ║"
+                echo "║                                                              ║"
+                echo "║  【数据库】                                                   ║"
+                echo "║    evo clean redis            清理 Redis 缓存 (Full Mode)    ║"
+                echo "║    evo clean cache            清理 FileCache (Embedded Mode) ║"
+                echo "║    evo clean sqlite           清理 SQLite 表 (Embedded Mode) ║"
+                echo "║    evo clean neo4j            清理 Neo4j 文件索引            ║"
+                echo "║    evo clean memory           清理记忆数据(概念/历史/偏好)   ║"
+                echo "║    evo clean keychain         清理 Keychain 登录凭据         ║"
+                echo "║    evo clean skills           清理技能数据（含 trace_events）║"
+                echo "║    evo clean index            清理项目索引(资源/仓库/代码)   ║"
+                echo "║    evo clean messages         清理消息历史                   ║"
+                echo "║    evo clean jobs             清理任务队列                   ║"
+                echo "║                                                              ║"
+                echo "║  【文件系统】                                                 ║"
+                echo "║    evo clean screenshots      清理截图(sc)                   ║"
+                echo "║    evo clean recordings       清理屏幕录制(rec)              ║"
+                echo "║    evo clean knowledge        清理知识库文件(kb)             ║"
+                echo "║    evo clean brain            清理 Brain Memory              ║"
+                echo "║    evo clean todos            清理待办事项                   ║"
+                echo "║    evo clean conversations    清理对话（10张关联表）           ║"
+                echo "║    evo clean expired          清理过期截图和录制             ║"
+                echo "║                                                              ║"
+                echo "║  【运行时】                                                   ║"
+                echo "║    evo clean runtime          清理运行时缓存(默认)           ║"
+                echo "║                                                              ║"
+                echo "╚══════════════════════════════════════════════════════════════╝"
+                ;;
+            *)
+                error "未知清理命令: ${2:-}"
+                echo ""
+                echo "常用命令:"
+                echo "  evo clean all            完整系统清理"
+                echo "  evo clean dry            预览清理内容"
+                echo "  evo clean skills         清理技能数据（含 trace_events）"
+                echo "  evo clean memory         清理记忆数据"
+                echo "  evo clean todos          清理待办事项"
+                echo "  evo clean conversations  清理对话（10张关联表）"
+                echo "  evo clean expired        清理过期文件"
+                echo ""
+                echo "查看完整列表: evo clean help"
+                exit 1
+                ;;
+        esac
+        ;;
+
+    # ==================== 存储管理 ====================
+    storage)
+        case "${2:-}" in
+            stats)
+                arch -arm64 .venv/bin/python scripts/manage_screenshots.py stats
+                ;;
+            clean)
+                arch -arm64 .venv/bin/python scripts/manage_screenshots.py cleanup
+                ;;
+            test)
+                arch -arm64 .venv/bin/python scripts/manage_screenshots.py test
+                ;;
+            *)
+                error "未知存储命令: ${2:-}"
+                echo "可用命令: stats, clean, test"
+                exit 1
+                ;;
+        esac
+        ;;
+
+    # ==================== Atlas ====================
+    atlas)
+        case "${2:-}" in
+            test)
+                arch -arm64 .venv/bin/python scripts/test_atlas_e2e.py
+                ;;
+            mobile)
+                arch -arm64 .venv/bin/python scripts/test_atlas_mobile.py
+                ;;
+            clear)
+                arch -arm64 .venv/bin/python scripts/clear_atlas.py
+                ;;
+            *)
+                error "未知 Atlas 命令: ${2:-}"
+                echo "可用命令: test, mobile, clear"
+                exit 1
+                ;;
+        esac
+        ;;
+
+    # ==================== Brain ====================
+    brain)
+        case "${2:-}" in
+            test)
+                arch -arm64 .venv/bin/python scripts/test_brain_full.py
+                ;;
+            real)
+                arch -arm64 .venv/bin/python scripts/test_brain_real.py
+                ;;
+            letta)
+                arch -arm64 .venv/bin/python scripts/test_brain_letta.py
+                ;;
+            *)
+                error "未知 Brain 命令: ${2:-}"
+                echo "可用命令: test, real, letta"
+                exit 1
+                ;;
+        esac
+        ;;
+
+    # ==================== 验证 ====================
+    verify)
+        case "${2:-}" in
+            skill)
+                arch -arm64 .venv/bin/python scripts/verification/verify_skill_execution.py
+                ;;
+            storage)
+                arch -arm64 .venv/bin/python scripts/verify_storage.py
+                ;;
+            vector)
+                arch -arm64 .venv/bin/python scripts/verify_vector_opt.py
+                ;;
+            peekaboo)
+                arch -arm64 .venv/bin/python scripts/verify_peekaboo.py
+                ;;
+            *)
+                error "未知验证命令: ${2:-}"
+                echo "可用命令: skill, storage, vector, peekaboo"
+                exit 1
+                ;;
+        esac
+        ;;
+
+    # ==================== 演示 ====================
+    demo)
+        case "${2:-}" in
+            final)
+                arch -arm64 .venv/bin/python scripts/demo_final.py
+                ;;
+            phase3)
+                arch -arm64 .venv/bin/python scripts/demo_phase3.py
+                ;;
+            mobile)
+                arch -arm64 .venv/bin/python scripts/demo_mobile_reactor.py
+                ;;
+            *)
+                error "未知演示命令: ${2:-}"
+                echo "可用命令: final, phase3, mobile"
+                exit 1
+                ;;
+        esac
+        ;;
+
+    # ==================== 运行（生产模式）====================
+    run)
+        error "后端 'run' 命令已弃用。生产环境侧边栏请在 'client' 目录下使用 'evoloop-client.spec' 打包运行。"
+        exit 1
+        ;;
+
+    # ==================== 导出 ====================
+    export)
+        case "${2:-}" in
+            openapi)
+                info "导出 OpenAPI 文档..."
+                arch -arm64 .venv/bin/python bin/run.py export-openapi
+                ;;
+            *)
+                error "未知导出命令: ${2:-}"
+                echo "可用命令: openapi"
+                exit 1
+                ;;
+        esac
+        ;;
+
+    # ==================== 环境检测与配置 ====================
+    doctor)
+        echo "╔══════════════════════════════════════════════════════════╗"
+        echo "║           EvoLoop 环境诊断                               ║"
+        echo "╚══════════════════════════════════════════════════════════╝"
+        echo ""
+
+        ALL_GOOD=true
+
+        # 检测操作系统
+        info "操作系统: $(uname -s) $(uname -r)"
+
+        # 检测 Python
+        if command -v python3 &> /dev/null; then
+            PYTHON_VERSION=$(python3 --version 2>&1)
+            success "$PYTHON_VERSION"
+        else
+            error "Python 3 未安装"
+            ALL_GOOD=false
+        fi
+
+        # 检测 uv
+        if command -v uv &> /dev/null; then
+            UV_VERSION=$(uv --version 2>&1)
+            success "uv: $UV_VERSION"
+        else
+            error "uv 未安装"
+            echo "   安装: curl -LsSf https://astral.sh/uv/install.sh | sh"
+            ALL_GOOD=false
+        fi
+
+        # 检测 Docker
+        if command -v docker &> /dev/null; then
+            DOCKER_VERSION=$(docker --version | awk '{print $3}' | tr -d ',')
+            success "Docker: $DOCKER_VERSION"
+        else
+            warning "Docker 未安装 (可选，用于容器化部署)"
+        fi
+
+        # 检测 Docker Compose
+        if command -v docker-compose &> /dev/null || docker compose version &> /dev/null; then
+            success "Docker Compose: 已安装"
+        else
+            warning "Docker Compose 未安装 (可选)"
+        fi
+
+        # 检测 Node.js
+        if command -v node &> /dev/null; then
+            NODE_VERSION=$(node --version)
+            success "Node.js: $NODE_VERSION"
+        else
+            warning "Node.js 未安装 (前端开发需要)"
+        fi
+
+        # 检测数据库目录
+        if [ -d "$HOME/.evoloop/database" ]; then
+            success "数据库目录: $HOME/.evoloop/database"
+        else
+            info "数据库目录不存在，将在首次运行时创建"
+        fi
+
+        # 检测 .env 文件
+        if [ -f ".env" ]; then
+            success ".env 配置文件: 存在"
+        else
+            warning ".env 配置文件不存在"
+            echo "   创建: cp .env.example .env"
+        fi
+
+        echo ""
+        if $ALL_GOOD; then
+            success "环境检查通过！可以开始开发了"
+        else
+            error "环境检查未通过，请安装缺失的依赖"
+            exit 1
+        fi
+        ;;
+
     arch)
         echo "当前架构: $(arch)"
-        echo "Python 架构: $(arch -arm64 .venv/bin/python -c 'import platform; print(platform.machine())')"
+        echo "Python 架构: $(arch -arm64 .venv/bin/python -c 'import platform; print(platform.machine())' 2>/dev/null || .venv/bin/python -c 'import platform; print(platform.machine())')"
         ;;
-    
-    *)
-        echo "EvoLoop CLI (ARM64)"
+
+    setup)
+        echo "╔══════════════════════════════════════════════════════════╗"
+        echo "║           EvoLoop 开发环境配置                           ║"
+        echo "╚══════════════════════════════════════════════════════════╝"
         echo ""
-        echo "Usage:"
-        echo "  evo dev       启动开发服务器"
-        echo "  evo worker    启动 Celery Worker"
-        echo "  evo install   安装依赖"
-        echo "  evo test      运行测试"
-        echo "  evo shell     进入 arm64 shell"
-        echo "  evo arch      显示架构信息"
+
+        # 步骤 1: 检查 uv
+        if ! command -v uv &> /dev/null; then
+            info "安装 uv..."
+            curl -LsSf https://astral.sh/uv/install.sh | sh
+            export PATH="$HOME/.cargo/bin:$PATH"
+        fi
+
+        # 步骤 2: 安装依赖
+        # 步骤 2: 安装 Python 依赖
+        info "安装 Python 依赖..."
+        arch -arm64 .venv/bin/pip install -e . || arch -arm64 .venv/bin/pip install -r requirements.txt
+
+        # 步骤 3: 创建数据库目录
+        info "创建数据目录..."
+        mkdir -p ~/.evoloop/database ~/.evoloop/skills ~/.evoloop/screenshots
+
+        # 步骤 4: 复制 .env
+        if [ ! -f ".env" ]; then
+            info "创建 .env 配置文件..."
+            if [ -f ".env.example" ]; then
+                cp .env.example .env
+                # 生成随机密钥
+                if command -v openssl &> /dev/null; then
+                    SECRET_KEY=$(openssl rand -base64 32)
+                    sed -i.bak "s/SECRET_KEY=.*/SECRET_KEY=$SECRET_KEY/" .env 2>/dev/null || true
+                    rm -f .env.bak
+                fi
+                success ".env 创建完成"
+                warning "请编辑 .env 文件配置数据库连接信息"
+            else
+                error ".env.example 不存在"
+            fi
+        else
+            success ".env 已存在"
+        fi
+
+        # 步骤 5: 初始化数据库（可选）
+        echo ""
+        read -p "是否初始化数据库? (y/N) " -n 1 -r
+        echo
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            info "初始化数据库..."
+            arch -arm64 .venv/bin/python app/backend_pre_start.py 2>/dev/null || true
+            arch -arm64 .venv/bin/alembic upgrade head 2>/dev/null || true
+            success "数据库初始化完成"
+        fi
+
+        echo ""
+        success "开发环境配置完成！"
+        echo ""
+        echo "常用命令:"
+        echo "  evo dev        启动开发服务器"
+        echo "  evo worker     启动 Celery Worker"
+        echo "  evo doctor     检查环境"
+        ;;
+
+    # ==================== 工具 ====================
+    debug)
+        arch -arm64 .venv/bin/python scripts/debug_messages.py
+        ;;
+
+    analyze)
+        arch -arm64 .venv/bin/python scripts/analyze_loop.py
+        ;;
+
+    # ==================== 未知命令 ====================
+    *)
+        error "未知命令: $1"
+        echo ""
+        show_help
+        exit 1
         ;;
 esac

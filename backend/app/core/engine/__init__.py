@@ -182,7 +182,7 @@ class AgentEngine:
             logger.warning("[AgentEngine] No history messages (only System Prompt). Skipping LLM call to prevent API errors.")
             return {"messages": []}
 
-        logger.info(f"--- [AgentEngine] System Prompt ---\n{system_prompt}\n-----------------------------------------------------")
+        logger.debug(f"--- [AgentEngine] System Prompt ---\n{system_prompt}\n-----------------------------------------------------")
 
         new_messages = []
         local_tool_history = []

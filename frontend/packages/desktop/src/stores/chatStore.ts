@@ -40,6 +40,7 @@ interface ChatState {
     | "interrupted"
     | "summarizing"
     | "indexing"
+    | "quota_exhausted"  // LLM quota exhausted state
     | "unknown"
     steps: StepItem[]
     finalOutcome: string | null // Session outcome: SUCCESS | FAILED | INCOMPLETE
@@ -47,6 +48,12 @@ interface ChatState {
     activeMemories: Array<{ id: string; name: string }> // Active memory highlights
     artifacts: Array<{ id: number; name: string; type: string; status: string; path?: string }> // Generated artifacts
     humanRequest: any | null // HITL Request (now includes project_switch, confirm, etc.)
+    quotaExhaustedInfo: {  // Quota exhausted information
+        title: string
+        message: string
+        hint: string
+        actionText: string
+    } | null
     agentState: { mode: string; task_name: string; task_status: string; details?: any } | null // Current agent state
     thoughts: any[] // Transient Thoughts history
 
@@ -84,6 +91,7 @@ interface ChatState {
     _addArtifact: (artifact: any) => void  // Incremental artifact update
     _updateStatus: (status: any) => void  // Incremental status update
     _setHumanRequest: (request: any) => void
+    _setQuotaExhausted: (info: { title: string; message: string; hint: string; actionText: string }) => void
     _appendMessage: (msg: any) => void // Append message to chat
     _truncateMessages: (index: number) => void // Optimistic truncate for rewind
     _setError: (error: string) => void
@@ -112,6 +120,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     activeMemories: [],
     artifacts: [],
     humanRequest: null,
+    quotaExhaustedInfo: null,
     agentState: null,
     thoughts: [],
 
@@ -319,7 +328,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     },
 
     sendMessage: async (content, attachments: any[] = []) => {
-        const { threadId, projectId, selectedModel } = get()
+        const { threadId, projectId, selectedModel, status } = get()
         // Allow projectId to be 0 (global mode), but not null/undefined
         if (!threadId || projectId === null || projectId === undefined || (!content.trim() && attachments.length === 0)) return
 
@@ -443,6 +452,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             finalOutcome: null, 
             streamedContent: "", 
             humanRequest: null,
+            quotaExhaustedInfo: null,
             streamState: {
                 events: [],
                 currentThinking: null,
@@ -644,6 +654,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
         const newStatus = statusEvent.status || statusEvent
         if (!newStatus) return
 
+        // Special handling for quota_exhausted - do not normalize
+        if (newStatus === "quota_exhausted") {
+            set({ status: "quota_exhausted" })
+            return
+        }
+
         // Normalize backend status to frontend status
         let normalizedStatus = newStatus
         if (["done", "failed", "cancelled"].includes(newStatus)) {
@@ -673,7 +689,22 @@ export const useChatStore = create<ChatState>((set, get) => ({
             return
         }
 
+        // When leaving quota_exhausted state, clear the info
+        if (prevStatus === "quota_exhausted" && normalizedStatus !== "quota_exhausted") {
+            set({ status: normalizedStatus, quotaExhaustedInfo: null })
+            return
+        }
+
         set({ status: normalizedStatus })
+    },
+
+    _setQuotaExhausted: (info: { title: string; message: string; hint: string; actionText: string }) => {
+        set({ 
+            status: "quota_exhausted",
+            quotaExhaustedInfo: info,
+            streamedContent: "",
+            steps: [],
+        })
     },
 
     _appendMessage: (rawMsg: any) => {
@@ -877,6 +908,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
                         currentTool: null,
                         overallProgress: 100,
                     }
+                })
+                break
+
+            case 'quota_exhausted':
+                // Handle quota exhausted event from backend
+                get()._setQuotaExhausted({
+                    title: event.title || i18n.t("quota.title", "Quota Exhausted"),
+                    message: event.message || i18n.t("quota.message", "Your LLM quota has been exhausted."),
+                    hint: event.hint || i18n.t("quota.hint", "Please contact the administrator to add more quota."),
+                    actionText: event.action_text || i18n.t("quota.action", "Check Quota"),
                 })
                 break
 

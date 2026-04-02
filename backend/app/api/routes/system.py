@@ -79,7 +79,8 @@ async def apply_embedding_config(req: EmbeddingConfigRequest):
 
 # --- LLM Config ---
 class LLMConfigRequest(BaseModel):
-    provider: str = Field(..., description="openai, anthropic, ollama, qwen_dashscope, generic")
+    provider: str = Field(..., description="供应商名称: openai, anthropic, moonshot, deepseek")
+    provider_type: str = Field(default="openai", description="协议类型: openai | anthropic")
     base_url: str = Field(..., description="API Base URL")
     model: str = Field(..., description="Model Name")
     vision_model: str | None = Field(None, description="Vision Model Name (e.g. gpt-4o)")
@@ -105,13 +106,21 @@ async def apply_llm_config(req: LLMConfigRequest):
     """
     Apply new LLM config.
     """
-    await LLMConfigService.applied_llm_config(
-        provider=req.provider,
-        base_url=req.base_url,
-        model=req.model,
-        vision_model=req.vision_model,
-        api_key=req.api_key,
-    )
+    # Save provider_type for Custom mode
+    SystemConfigService.set_value("LLM_PROVIDER", req.provider)
+    SystemConfigService.set_value("LLM_PROVIDER_TYPE", req.provider_type)
+    SystemConfigService.set_value("LLM_BASE_URL", req.base_url)
+    SystemConfigService.set_value("LLM_MODEL", req.model)
+
+    if req.vision_model:
+        SystemConfigService.set_value("VISION_MODEL", req.vision_model)
+    if req.api_key:
+        SystemConfigService.set_value("LLM_API_KEY", req.api_key)
+
+    # Clear LLM Factory cache
+    from app.infrastructure.llm.factory import LLMFactory
+    LLMFactory.clear_cache()
+
     return {"status": "applied", "message": "LLM Configuration applied successfully."}
 
 

@@ -12,6 +12,7 @@ from app.core.context.manager import ContextManager
 from app.core.engine import AgentEngine
 from app.core.engine.prompts.finish import FinishPromptBuilder
 from app.core.engine.state import AgentState
+from app.infrastructure.llm.factory import LLMFactory
 from app.core.monitoring.activity import activity_monitor
 from app.core.tools.manager import tool_manager
 from app.constants import DEFAULT_PROJECT_ID
@@ -69,10 +70,10 @@ def _extract_final_summary(messages: list) -> str:
             content = content.replace("```", "").strip()
             
             return content[:2000]
-    return i18n.get("finish.session_concluded", default="Session concluded.")
+    return i18n.get("finish.session_concluded")
 
 
-def _trigger_session_recording(ctx, config: RunnableConfig, summary: str, original_skill_id: int | None = None, execution_ticket: dict | None = None):
+async def _trigger_session_recording(ctx, config: RunnableConfig, summary: str, original_skill_id: int | None = None, execution_ticket: dict | None = None):
     """Trigger async side-effects when session ends."""
     try:
         thread_id = ctx.thread_id
@@ -83,16 +84,12 @@ def _trigger_session_recording(ctx, config: RunnableConfig, summary: str, origin
 
         message_id = config.get("configurable", {}).get("run_id") or gen_uuid()
 
-        from app.core.brain.filesystem.manager import BrainFileSystem
-        from app.core.brain.filesystem.protocol import MemoryZone, MemoryFile
-        from app.core.brain.tasks import consolidate_memory
+        from app.core.memory import memory_manager
+        from app.core.memory.models import MemoryEntry, MemoryType, PrivacyLevel
         from app.core.engine.tasks import record_episode_task, reconcile_skill_macro_task
 
         try:
-            fs = BrainFileSystem(settings.BRAIN_MEMORY_ROOT)
-            fs.initialize()
-            task_path = f"{MemoryZone.WORKING.value}/{MemoryFile.TASK.value}"
-            
+            # Save session summary as a PROJECT memory
             task_description = summary
             if execution_ticket:
                 ticket_topic = execution_ticket.get("topic")
@@ -102,10 +99,21 @@ def _trigger_session_recording(ctx, config: RunnableConfig, summary: str, origin
                 elif ticket_reason and len(ticket_reason) > 10:
                     task_description = f"Task: {ticket_reason}\n\nOutcome:\n{summary}"
             
-            fs.write_file(task_path, task_description)
-            logger.info(f"Finish: 🧠 Synced session summary to Brain memory: {task_path}")
-        except Exception as brain_err:
-            logger.warning(f"Finish: Failed to sync to brain memory: {brain_err}")
+            entry = MemoryEntry(
+                id=f"mem_session_{message_id[:8]}",
+                type=MemoryType.PROJECT,
+                privacy=PrivacyLevel.TEAM if project_id else PrivacyLevel.PRIVATE,
+                title=f"Session Summary {thread_id[:8]}",
+                content=task_description,
+                description=summary[:200],
+                project_id=project_id,
+                source="session",
+                source_message_id=message_id,
+            )
+            await memory_manager.save_memory(entry)
+            logger.info(f"Finish: 🧠 Synced session summary to memory: {entry.id}")
+        except Exception as mem_err:
+            logger.warning(f"Finish: Failed to sync to memory: {mem_err}")
 
         record_episode_task.delay(
             thread_id=thread_id,
@@ -123,7 +131,6 @@ def _trigger_session_recording(ctx, config: RunnableConfig, summary: str, origin
                 thread_id=thread_id
             )
             
-        consolidate_memory.delay(source_message_id=message_id)
         logger.info(f"Finish: ✅ Session recording triggered for thread {thread_id}")
 
     except Exception as e:
@@ -205,11 +212,11 @@ class LayeredAuditor:
                 triggers.append("error_detected")
                 break
         
-        ticket = blackboard.get("ticket", {})
+        ticket = blackboard.get("ticket") or {}
         if ticket.get("complexity") == "high":
             triggers.append("high_complexity")
         
-        verification = blackboard.get("verification", {})
+        verification = blackboard.get("verification") or {}
         if verification.get("status") in ("failed", "error"):
             triggers.append("verification_failed")
         
@@ -454,7 +461,7 @@ async def finish_node(state: AgentState, config: RunnableConfig):
     metadata = config.get("metadata", {})
     original_skill_id = metadata.get("original_skill_id")
     blackboard_ticket = blackboard.get("ticket") or state.get("execution_ticket")
-    _trigger_session_recording(ctx, config, summary, original_skill_id=original_skill_id, execution_ticket=blackboard_ticket)
+    await _trigger_session_recording(ctx, config, summary, original_skill_id=original_skill_id, execution_ticket=blackboard_ticket)
 
     # Cleanup pollution
     messages_to_return = list(messages)

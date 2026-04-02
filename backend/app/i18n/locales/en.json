@@ -311,6 +311,12 @@
         "execution_failed": "Agent execution failed.",
         "error_details": "Error Details",
         "retry_prompt": "Please try again or contact support.",
+        "quota_exhausted_title": "Quota Exhausted",
+        "quota_exhausted_desc": "Your LLM quota has been exhausted.",
+        "quota_exhausted_hint": "Please contact the administrator to add more quota, or check your usage in the dashboard.",
+        "quota_exhausted_action": "Check Quota",
+        "retryable_error_title": "API Connectivity Issue",
+        "retryable_error_desc": "I encountered a transient error while communicating with the LLM.",
         "technical_markers": [
             "SESSION COMPLETE",
             "MISSION END",

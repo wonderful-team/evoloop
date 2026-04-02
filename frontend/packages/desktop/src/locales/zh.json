@@ -78,6 +78,7 @@
       "connection_error": "连接错误",
       "save_failed": "保存配置失败",
       "saved": "LLM 配置已保存",
+      "autoSelected": "已自动选择模型: {{model}}",
       "test_connection": "测试连接",
       "provider_placeholder": "选择提供商",
       "apply_btn": "应用更改",
@@ -168,6 +169,7 @@
       "apiKeyDesc": "密钥将安全存储。如不修改请留空。",
       "provider": "提供商",
       "providerHint": "例如：openai、anthropic 或任何自定义提供商",
+      "providerType": "协议类型",
       "modelName": "模型名称",
       "baseUrl": "API 地址",
       "apiKey": "API 密钥",
@@ -563,6 +565,7 @@
       "placeholder": "选择模型",
       "default": "默认模型",
       "systemDefault": "系统配置",
+      "selectModel": "请选择模型",
       "platformModels": "平台模型",
       "customModels": "自定义模型",
       "requiresQuota": "需要配额",
@@ -846,6 +849,24 @@
       "noProjects": "没有可用的项目",
       "projectSelected": "已选择项目。点击继续以执行。",
       "confirmQuestion": "是否确认继续？"
+    },
+    "quota": {
+      "title": "配额已耗尽",
+      "banner": {
+        "title": "配额已耗尽",
+        "message": "请添加更多配额以继续"
+      },
+      "card": {
+        "title": "配额已耗尽",
+        "message": "您的 LLM 配额已耗尽。",
+        "hint": "请联系管理员添加更多配额。",
+        "info": "添加配额后，您可以：",
+        "option1": "点击下方「继续」按钮",
+        "option2": "或直接发送新消息",
+        "checkQuota": "查看配额",
+        "continue": "继续"
+      },
+      "continuePrompt": "继续"
     },
     "notification": {
       "prefix": "EvoLoop: "
@@ -1392,7 +1413,7 @@
       "active": "当前使用中",
       "upgrade": "升级",
       "subscribe": "立即订阅",
-      "upgradeRefund": "升级退差价",
+      "upgradeRefund": "支持升级退差价",
       "startFree": "立即使用",
       "free": "免费版",
       "perMonth": "/月",

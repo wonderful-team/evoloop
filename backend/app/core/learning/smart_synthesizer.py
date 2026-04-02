@@ -1,10 +1,6 @@
 import logging
-from typing import Any, Dict, List, Optional
 import json
-
-from app.core.learning.trace_recorder import ActionTrace
-# Assuming a generic LLM service exist or importing from brain nodes
-# from app.core.brain.llm import llm_service 
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 

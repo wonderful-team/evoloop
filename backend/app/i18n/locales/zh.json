@@ -312,6 +312,12 @@
         "execution_failed": "Agent 执行失败。",
         "error_details": "错误详情",
         "retry_prompt": "请重试或联系支持。",
+        "quota_exhausted_title": "配额已耗尽",
+        "quota_exhausted_desc": "您的 LLM 配额已耗尽。",
+        "quota_exhausted_hint": "请联系管理员添加更多配额，或在仪表板中查看使用情况。",
+        "quota_exhausted_action": "查看配额",
+        "retryable_error_title": "API 连接问题",
+        "retryable_error_desc": "与 LLM 通信时遇到临时错误。",
         "technical_markers": [
             "SESSION COMPLETE",
             "任务结束",

@@ -1,0 +1,52 @@
+{# Memory Retrieval Selection Prompt Template #}
+{# Inspired by Claude Code's findRelevantMemories #}
+You are selecting memories that will be useful for processing the user's current query.
+
+## User Query
+
+```
+{{ query }}
+```
+
+## Available Memories
+
+{% for memory in memories %}
+### {{ loop.index }}. {{ memory.title }}
+- **Type**: {{ memory.type }}
+- **Description**: {{ memory.description }}
+- **Last Updated**: {{ memory.updated_at }}
+{% endfor %}
+
+## Recently Used Tools
+
+{% if recent_tools %}{{ recent_tools | join(", ") }}{% else %}None{% endif %}
+
+## Your Task
+
+Select up to {{ max_selections }} memories that will clearly be useful for processing the user's query.
+
+### Selection Criteria:
+
+1. **Relevance**: The memory directly relates to the query topic
+2. **Recency**: More recent memories are preferred for time-sensitive topics
+3. **Specificity**: Memories with specific details are preferred over vague ones
+4. **Diversity**: Include different types if multiple are relevant
+
+### What to Skip:
+
+- Memories about tools currently being used (redundant)
+- Memories that are clearly outdated or superseded
+- Memories only tangentially related to the query
+
+## Output Format
+
+Return a JSON array of indices (1-based) of the selected memories:
+
+```json
+{
+  "selected_indices": [1, 3, 5],
+  "reasoning": "Brief explanation of why these memories were selected"
+}
+```
+
+If no memories are relevant, return: `{"selected_indices": [], "reasoning": "No relevant memories found"}`

@@ -20,15 +20,16 @@ class PlatformModel:
     model_id: str
     display_name: str
     provider_name: str
-    model_type: str  # llm, embedding, vision
-    config_type: str  # evoloop, custom
-    context_window: int
-    max_tokens: int
-    supports_streaming: bool
-    supports_vision: bool
-    supports_functions: bool
-    description: str
-    icon: str
+    provider_type: str = "openai"  # openai | anthropic
+    model_type: str = "llm"  # llm, embedding, vision
+    config_type: str = "evoloop"  # evoloop, custom
+    context_window: int = 8192
+    max_tokens: int = 4096
+    supports_streaming: bool = True
+    supports_vision: bool = False
+    supports_functions: bool = True
+    description: str = ""
+    icon: str = "default"
     available: bool = True
     quota_required: bool = True
 
@@ -80,6 +81,7 @@ class LLMPlatformService:
                     model_id=m.get("model_id", ""),
                     display_name=m.get("display_name", ""),
                     provider_name=m.get("provider_name", ""),
+                    provider_type=m.get("provider_type", "openai"),
                     model_type=m.get("model_type", "llm"),
                     config_type=m.get("config_type", "evoloop"),
                     context_window=m.get("context_window", 8192),
@@ -148,6 +150,7 @@ async def get_available_llm_models(config_type: str = None) -> List[Dict[str, An
             "name": m.display_name,
             "type": "platform",
             "provider": m.provider_name,
+            "provider_type": m.provider_type,
             "model": m.model_id,
             "vision_model": m.model_id if m.supports_vision else None,
             "description": m.description or f"使用 EvoLoop 平台提供的 {m.display_name}",
@@ -162,6 +165,7 @@ async def get_available_llm_models(config_type: str = None) -> List[Dict[str, An
     
     # 2. 获取 Custom 模型（用户自己配置的）
     custom_provider = SystemConfigService.get_value("LLM_PROVIDER")
+    custom_provider_type = SystemConfigService.get_value("LLM_PROVIDER_TYPE", "openai")
     custom_model = SystemConfigService.get_value("LLM_MODEL")
     custom_base_url = SystemConfigService.get_value("LLM_BASE_URL")
     custom_api_key = SystemConfigService.get_value("LLM_API_KEY")
@@ -178,16 +182,17 @@ async def get_available_llm_models(config_type: str = None) -> List[Dict[str, An
             "name": f"{custom_model} (Custom)",
             "type": "custom",
             "provider": custom_provider,
+            "provider_type": custom_provider_type,
             "model": custom_model,
             "vision_model": vision_model if vision_model != custom_model else None,
             "description": f"使用自己的 {custom_provider.upper()} API Key",
             "icon": custom_provider,
             "available": True,
-            "quota_required": False,  # custom 模型不需要配额
-            "supports_streaming": True,  # 假设支持
-            "supports_vision": custom_provider in ["openai", "anthropic"],  # 根据 provider 判断
-            "supports_functions": custom_provider in ["openai", "anthropic"],
-            "context_window": 128000 if "gpt-4" in custom_model else 8192,  # 简单推断
+            "quota_required": False,
+            "supports_streaming": True,
+            "supports_vision": custom_provider_type in ["openai", "anthropic"],
+            "supports_functions": custom_provider_type in ["openai", "anthropic"],
+            "context_window": 128000 if "gpt-4" in custom_model else 8192,
         })
     
     return result

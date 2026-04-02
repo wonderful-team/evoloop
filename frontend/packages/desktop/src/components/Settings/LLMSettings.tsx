@@ -38,6 +38,7 @@ interface PresetModel {
   name: string
   type: "platform" | "custom"
   provider: string
+  provider_type: "openai" | "anthropic"
   base_url: string
   model: string
   vision_model: string
@@ -68,6 +69,7 @@ export function LLMSettings() {
     defaultValues: {
       selectedModel: "",  // preset model id or "custom"
       provider: "openai", // actual provider for custom mode
+      provider_type: "openai", // protocol type: openai | anthropic
       base_url: "",
       model: "",
       vision_model: "",
@@ -104,11 +106,14 @@ export function LLMSettings() {
             m.base_url === currentBaseUrl
         )
 
+        const currentProviderType = (configMap.LLM_PROVIDER_TYPE || "openai") as "openai" | "anthropic"
+
         if (matchingPreset) {
           // Use preset model
           form.reset({
             selectedModel: matchingPreset.id,
             provider: matchingPreset.provider,
+            provider_type: matchingPreset.provider_type || "openai",
             base_url: currentBaseUrl,
             model: currentModel,
             vision_model: currentVisionModel,
@@ -119,11 +124,27 @@ export function LLMSettings() {
           form.reset({
             selectedModel: "custom",
             provider: currentProvider || "openai",
+            provider_type: currentProviderType,
             base_url: currentBaseUrl,
             model: currentModel,
             vision_model: currentVisionModel,
             api_key: currentApiKey,
           })
+        } else if (presetModels.length > 0) {
+          // Auto-select first available platform model
+          const firstPlatform = presetModels.find((m) => m.type === "platform")
+          if (firstPlatform) {
+            form.reset({
+              selectedModel: firstPlatform.id,
+              provider: firstPlatform.provider,
+              provider_type: firstPlatform.provider_type || "openai",
+              base_url: firstPlatform.base_url,
+              model: firstPlatform.model,
+              vision_model: firstPlatform.vision_model || "",
+              api_key: "",
+            })
+            toast.info(t("settings.llm.autoSelected", { model: firstPlatform.name }))
+          }
         }
       } catch (error) {
         console.error("Failed to load LLM config", error)
@@ -132,7 +153,7 @@ export function LLMSettings() {
     if (presetModels.length > 0) {
       fetchConfig()
     }
-  }, [presetModels.length, form])
+  }, [presetModels.length, form, t])
 
   // Handle model selection
   const handleModelSelect = (value: string) => {
@@ -142,6 +163,7 @@ export function LLMSettings() {
     if (value === "custom") {
       // Clear custom fields for user to fill
       form.setValue("provider", "openai")
+      form.setValue("provider_type", "openai")
       form.setValue("base_url", "")
       form.setValue("model", "")
       form.setValue("vision_model", "")
@@ -152,6 +174,7 @@ export function LLMSettings() {
     const preset = presetModels.find((m) => m.id === value)
     if (preset) {
       form.setValue("provider", preset.provider)
+      form.setValue("provider_type", preset.provider_type || "openai")
       form.setValue("base_url", preset.base_url)
       form.setValue("model", preset.model)
       form.setValue("vision_model", preset.vision_model)
@@ -166,6 +189,7 @@ export function LLMSettings() {
     // Get actual provider - either from preset or custom
     const preset = presetModels.find((m) => m.id === values.selectedModel)
     const actualProvider = preset ? preset.provider : values.provider
+    const actualProviderType = preset ? (preset.provider_type || "openai") : values.provider_type
     const actualBaseUrl = preset ? preset.base_url : values.base_url
     const actualModel = preset ? preset.model : values.model
 
@@ -173,6 +197,7 @@ export function LLMSettings() {
       const res: any = await SystemService.testLlmConnection({
         requestBody: {
           provider: actualProvider,
+          provider_type: actualProviderType,
           base_url: actualBaseUrl,
           model: actualModel,
           api_key: values.api_key,
@@ -208,6 +233,7 @@ export function LLMSettings() {
     // Get actual config - either from preset or custom
     const preset = presetModels.find((m) => m.id === values.selectedModel)
     const actualProvider = preset ? preset.provider : values.provider
+    const actualProviderType = preset ? (preset.provider_type || "openai") : values.provider_type
     const actualBaseUrl = preset ? preset.base_url : values.base_url
     const actualModel = preset ? preset.model : values.model
     const actualVisionModel = preset ? preset.vision_model : values.vision_model
@@ -216,6 +242,7 @@ export function LLMSettings() {
       await SystemService.applyLlmConfig({
         requestBody: {
           provider: actualProvider,
+          provider_type: actualProviderType,
           base_url: actualBaseUrl,
           model: actualModel,
           vision_model: actualVisionModel,
@@ -310,6 +337,33 @@ export function LLMSettings() {
                   />
                   <FormField
                     control={form.control}
+                    name="provider_type"
+                    render={({ field }) => (
+                      <FormItem className="space-y-1">
+                        <FormLabel className="text-xs">{t("settings.modelFields.providerType")}</FormLabel>
+                        <Select
+                          value={field.value}
+                          onValueChange={field.onChange}
+                        >
+                          <FormControl>
+                            <SelectTrigger className="h-8">
+                              <SelectValue placeholder="openai" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="openai">OpenAI 兼容</SelectItem>
+                            <SelectItem value="anthropic">Anthropic Claude</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <FormField
+                    control={form.control}
                     name="base_url"
                     render={({ field }) => (
                       <FormItem className="space-y-1">
@@ -321,9 +375,6 @@ export function LLMSettings() {
                       </FormItem>
                     )}
                   />
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
                   <FormField
                     control={form.control}
                     name="model"
@@ -337,20 +388,21 @@ export function LLMSettings() {
                       </FormItem>
                     )}
                   />
-                  <FormField
-                    control={form.control}
-                    name="vision_model"
-                    render={({ field }) => (
-                      <FormItem className="space-y-1">
-                        <FormLabel className="text-xs">{t("settings.modelFields.visionModel")}</FormLabel>
-                        <FormControl>
-                          <Input placeholder="gpt-4o" {...field} className="h-8" />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
                 </div>
+
+                <FormField
+                  control={form.control}
+                  name="vision_model"
+                  render={({ field }) => (
+                    <FormItem className="space-y-1">
+                      <FormLabel className="text-xs">{t("settings.modelFields.visionModel")}</FormLabel>
+                      <FormControl>
+                        <Input placeholder="gpt-4o" {...field} className="h-8" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
               </div>
             )}
 

@@ -59,8 +59,8 @@ export function ModelSelector({ value, onChange, disabled }: ModelSelectorProps)
         <TooltipTrigger asChild>
           <div className="flex items-center">
             <Select
-              value={value || "default"}
-              onValueChange={(val) => onChange(val === "default" ? null : val)}
+              value={value || ""}
+              onValueChange={(val) => onChange(val || null)}
               disabled={disabled || isLoading}
             >
               <SelectTrigger
@@ -84,23 +84,12 @@ export function ModelSelector({ value, onChange, disabled }: ModelSelectorProps)
                     </span>
                   ) : (
                     <span className="text-muted-foreground">
-                      {t("chat.modelSelector.default")}
+                      {t("chat.modelSelector.selectModel")}
                     </span>
                   )}
                 </SelectValue>
               </SelectTrigger>
               <SelectContent align="start" className="w-[280px]">
-                {/* 默认选项 */}
-                <SelectItem value="default" className="text-xs">
-                  <span className="flex items-center gap-2">
-                    <Brain className="h-3.5 w-3.5 text-muted-foreground" />
-                    {t("chat.modelSelector.default")}
-                    <span className="text-muted-foreground ml-auto text-[10px]">
-                      {t("chat.modelSelector.systemDefault")}
-                    </span>
-                  </span>
-                </SelectItem>
-
                 {/* 平台模型 */}
                 {platformModels.length > 0 && (
                   <>
@@ -157,6 +146,11 @@ export function ModelSelector({ value, onChange, disabled }: ModelSelectorProps)
                             <span className="flex-1 truncate">{model.name}</span>
                             <span className="text-[10px] text-muted-foreground flex-shrink-0">
                               {model.provider}
+                              {model.provider_type && model.provider_type !== "openai" && (
+                                <span className="ml-1 px-1 py-0.5 bg-muted rounded text-[9px]">
+                                  {model.provider_type}
+                                </span>
+                              )}
                             </span>
                           </span>
                         </SelectItem>

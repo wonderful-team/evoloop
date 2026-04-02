@@ -15,6 +15,7 @@ export interface LLMModel {
   model: string
   type: "platform" | "custom"
   provider?: string
+  provider_type?: string
   vision_model?: string | null
   description?: string
   icon?: string

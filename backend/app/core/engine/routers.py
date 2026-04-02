@@ -113,7 +113,7 @@ def route_supervisor(state: AgentState) -> str | list[Send]:
         return sends
 
     # ... Standard cognitive routing follows
-    terminal_nodes = (RoutingTarget.CHAT, RoutingTarget.FINISH, RoutingTarget.FLASH_BRAIN, RoutingTarget.SUPERVISOR)
+    terminal_nodes = (RoutingTarget.CHAT, RoutingTarget.FINISH, RoutingTarget.SUPERVISOR)
     if next_node in terminal_nodes:
         return next_node
 

@@ -35,9 +35,6 @@ TASK_MODULE_MAP = {
     "engine_reconcile_skill_macro": "app.core.engine.tasks",
     "engine_scheduler_tick": "app.core.engine.tasks",
     "run_autonomous_task_execution": "app.core.engine.tasks",
-    # Brain tasks
-    "brain_consolidate_memory": "app.core.brain.tasks",
-    "brain_summarize_thread": "app.core.brain.tasks",
     # Atlas tasks
     "atlas_explore_app": "app.core.atlas.tasks",
     "atlas_execute_exploration": "app.core.atlas.tasks",
@@ -360,19 +357,6 @@ def _register_local_tasks(app: LocalCelery):
         logger.warning(f"[LocalCelery] Failed to register engine tasks: {e}")
 
     try:
-        # Brain tasks - dynamically import to avoid circular imports
-        brain_tasks = importlib.import_module('app.core.brain.tasks')
-        func = getattr(brain_tasks, 'consolidate_memory', None)
-
-        if func is not None:
-            name = "brain_consolidate_memory"
-            if name not in app.tasks:
-                app.tasks[name] = LocalTask(func, name=name, bind=False)
-                logger.info("[LocalCelery] Registered brain tasks")
-    except Exception as e:
-        logger.warning(f"[LocalCelery] Failed to register brain tasks: {e}")
-
-    try:
         # Vision cleanup tasks - dynamically import to avoid circular imports
         vision_cleanup = importlib.import_module('app.core.vision.cleanup')
 
@@ -419,7 +403,6 @@ def create_celery_app() -> TaskScheduler:
             "app.domain.project.summarizer",
             "app.domain.project.sync_tasks",
             "app.domain.wiki.tasks",
-            "app.core.brain.tasks",
             "app.core.engine.tasks",
             "app.core.atlas.tasks",
             "app.core.vision.cleanup",

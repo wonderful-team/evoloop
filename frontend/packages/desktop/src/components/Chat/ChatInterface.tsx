@@ -27,6 +27,8 @@ import { useChatStore } from "@/stores/chatStore"
 import { useProjectStore } from "@/stores/projectStore"
 import { Button } from "@evoloop/shared/components/ui/button"
 import { HITLBanner } from "./HITLBanner"
+import { QuotaExhaustedBanner } from "./QuotaExhaustedBanner"
+import { QuotaExhaustedCard } from "./QuotaExhaustedCard"
 import { ChatInputArea, type ChatInputAreaHandle } from "./ChatInputArea"
 import { MessageList } from "./MessageList"
 import { ChatSidebar, type Thread } from "./ChatSidebar"
@@ -483,6 +485,7 @@ export function ChatInterface() {
             {/* Breadcrumb Status */}
             <BreadcrumbStatus />
             <HITLBanner />
+            <QuotaExhaustedBanner />
 
             <div
               className="flex-1 overflow-y-auto min-h-0 min-w-0 scroll-smooth"
@@ -493,7 +496,7 @@ export function ChatInterface() {
               <div className="space-y-6 px-4 sm:px-6 lg:px-8 pb-1 pt-4 min-w-0">
                 <MessageList
                   messages={messages}
-                  isAgentWorking={status === "running" || status === "interrupted" || status === "summarizing"}
+                  isAgentWorking={status === "running" || status === "interrupted" || status === "summarizing" || status === "quota_exhausted"}
                   hasMoreHistory={hasMoreHistory}
                   isLoadingHistory={isLoadingHistory}
                   onAddToMemory={(txt) => {
@@ -540,6 +543,13 @@ export function ChatInterface() {
                   onQuote={(msg) => handleQuoteMessage(msg)}
                   onStarterClick={(text) => sendMessage(text)}
                 />
+                {/* Quota Exhausted Card - Shows when quota is exhausted */}
+                {/* Wrapped in container to match HumanRequestCard width (same as PendingMessageItem structure) */}
+                <div className="group relative flex gap-3 items-start mb-6">
+                  <div className="relative flex-1 max-w-full min-w-0">
+                    <QuotaExhaustedCard />
+                  </div>
+                </div>
               </div>
             </div>
 

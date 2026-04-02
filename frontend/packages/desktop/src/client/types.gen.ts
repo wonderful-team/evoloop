@@ -60,7 +60,7 @@ export type Body_audio_text_to_speech_stream = {
 };
 
 export type Body_audio_transcribe_audio = {
-    file: (Blob | File);
+    file: string;
     language?: string;
     model?: string;
     prompt?: (string | null);
@@ -68,20 +68,20 @@ export type Body_audio_transcribe_audio = {
 };
 
 export type Body_audio_transcribe_stream = {
-    file: (Blob | File);
+    file: string;
     language?: string;
 };
 
 export type Body_files_upload_file = {
-    file: (Blob | File);
+    file: string;
 };
 
 export type Body_learning_upload_screenshot = {
-    file: (Blob | File);
+    file: string;
 };
 
 export type Body_library_upload_library_file = {
-    file: (Blob | File);
+    file: string;
     current_user?: User;
 };
 
@@ -95,17 +95,7 @@ export type Body_login_login_access_token = {
 };
 
 export type Body_project_requirements_upload_requirement_document = {
-    file: (Blob | File);
-};
-
-export type BrainRequest = {
-    query: string;
-    max_depth?: number;
-};
-
-export type BrainResponse = {
-    response: string;
-    mode?: string;
+    file: string;
 };
 
 export type CancelHITLRequest = {
@@ -140,6 +130,7 @@ export type ChatRequest = {
     thread_id: string;
     message: string;
     project_id?: (number | null);
+    model?: (string | null);
     command_id?: (number | null);
     checkpoint_id?: (string | null);
     message_id?: (number | null);
@@ -438,9 +429,13 @@ export type InlineCompletionResponse = {
 
 export type LLMConfigRequest = {
     /**
-     * openai, anthropic, ollama, qwen_dashscope, generic
+     * 供应商名称: openai, anthropic, moonshot, deepseek
      */
     provider: string;
+    /**
+     * 协议类型: openai | anthropic
+     */
+    provider_type?: string;
     /**
      * API Base URL
      */
@@ -969,6 +964,10 @@ export type ValidationError = {
     loc: Array<(string | number)>;
     msg: string;
     type: string;
+    input?: unknown;
+    ctx?: {
+        [key: string]: unknown;
+    };
 };
 
 export type WebhookRequest = {
@@ -1129,12 +1128,6 @@ export type AuthResetPasswordData = {
 };
 
 export type AuthResetPasswordResponse = (unknown);
-
-export type BrainChatWithBrainData = {
-    requestBody: BrainRequest;
-};
-
-export type BrainChatWithBrainResponse = (BrainResponse);
 
 export type ConversationsListConversationsData = {
     projectId?: (number | null);
@@ -1623,6 +1616,12 @@ export type MemberCancelCancellationResponse = (unknown);
 
 export type MemberGetSubscriptionPlansResponse = (unknown);
 
+export type MemberCalculateUpgradePriceData = {
+    targetLevelId: number;
+};
+
+export type MemberCalculateUpgradePriceResponse = (unknown);
+
 export type MemberGetSubscriptionStatusResponse = (unknown);
 
 export type MemberGetSubscriptionDetailResponse = (unknown);
@@ -1937,9 +1936,13 @@ export type SystemResetKnowledgeBaseResponse = (unknown);
 
 export type SystemGetCloudStatusResponse = (unknown);
 
-export type SystemGetAvailableLlmModelsResponse = (unknown);
+export type SystemGetLlmModelsData = {
+    configType?: string;
+};
 
-export type SystemGetAvailableEmbeddingModelsResponse = (unknown);
+export type SystemGetLlmModelsResponse = (unknown);
+
+export type SystemGetEmbeddingModelsResponse = (unknown);
 
 export type TasksGetProjectTasksData = {
     page?: number;

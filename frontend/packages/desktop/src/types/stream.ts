@@ -12,7 +12,8 @@ export type StreamEventType =
   | 'tool_error'
   | 'checkpoint'
   | 'progress'
-  | 'complete';
+  | 'complete'
+  | 'quota_exhausted';
 
 export interface StreamEvent {
   type: StreamEventType;
@@ -20,6 +21,10 @@ export interface StreamEvent {
   data?: Record<string, any>;
   progress?: number;  // 0-100
   timestamp: number;
+  // Quota exhausted specific fields
+  title?: string;
+  hint?: string;
+  action_text?: string;
 }
 
 export interface StreamState {

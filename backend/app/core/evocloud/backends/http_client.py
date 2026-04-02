@@ -32,6 +32,15 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
         self._log_queue: asyncio.Queue = asyncio.Queue(maxsize=1000)
         self._flush_task: asyncio.Task | None = None
 
+    @property
+    def root_url(self) -> str:
+        url = self.base_url.rstrip("/")
+        if url.endswith("/gateway"):
+            return url[:-len("/gateway")]
+        elif url.endswith("/member"):
+            return url[:-len("/member")]
+        return url
+
     async def get_client(self) -> httpx.AsyncClient:
         """Get httpx client bound to current event loop"""
         if self._client is None or self._client.is_closed:
@@ -106,11 +115,7 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
         gateway_prefixes = ["/api/v1/user", "/api/v1/quota", "/api/v1/auth/verify", "/ws", "/health"]
         is_gateway = any(endpoint.startswith(p) for p in gateway_prefixes)
 
-        prefix = "/gateway"
-        if prefix in self.base_url:
-            root_url = self.base_url.split(prefix)[0].rstrip("/")
-        else:
-            root_url = self.base_url.rstrip("/")
+        root_url = self.root_url
 
         if is_gateway:
             current_base = f"{root_url}/gateway"
@@ -450,6 +455,14 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
         """获取可用订阅计划列表"""
         return await self.request("GET", "/subscription/api/subscription/plans")
 
+    async def calculate_upgrade_price(self, target_level_id: int) -> dict:
+        """计算升级价格预览（支付前调用）"""
+        return await self.request(
+            "POST",
+            "/subscription/api/plan/calculateUpgradePrice",
+            data={"target_level_id": target_level_id}
+        )
+
     async def create_subscription_order(self, level_id: int, auto_renew: bool = False) -> dict:
         """创建订阅订单"""
         return await self.request(
@@ -495,6 +508,17 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
         """获取 AI 配额使用历史"""
         params = {"page": page, "page_size": page_size}
         return await self.request("GET", "/subscription/api/aiQuota/getUsageHistory", params=params)
+
+    # ==================== LLM Platform APIs ====================
+
+    async def get_llm_models(self) -> dict:
+        """
+        从 EvoLoop Gateway 获取 LLM 和 Embedding 模型列表
+        
+        Returns:
+            {"code": 0, "data": {"models": [...]}, "message": "..."}
+        """
+        return await self.request("GET", "/evolooplink/api/llm/getModels")
 
     # ==================== Log APIs ====================
 

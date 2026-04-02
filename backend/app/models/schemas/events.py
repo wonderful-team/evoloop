@@ -64,6 +64,15 @@ class HumanRequestEvent(EventBase):
     # }
 
 
+# --- Quota Exhausted Event ---
+class QuotaExhaustedEvent(EventBase):
+    type: Literal["quota_exhausted"] = "quota_exhausted"
+    title: str = "Quota Exhausted"
+    message: str = "Your LLM quota has been exhausted."
+    hint: str = "Please contact the administrator to add more quota."
+    action_text: str = "Check Quota"
+
+
 # Union type for easy parsing if needed
 StreamEvent = (
     StepEvent
@@ -73,4 +82,5 @@ StreamEvent = (
     | StatusEvent
     | MessageEvent
     | HumanRequestEvent
+    | QuotaExhaustedEvent
 )

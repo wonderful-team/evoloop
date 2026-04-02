@@ -4,7 +4,6 @@ import time
 from collections.abc import Callable
 from typing import Any
 
-from app.infrastructure.queue.celery import celery_app
 from app.core.config import settings
 from app.core.context.manager import ContextManager
 from app.core.evocloud.backends.http_client import EvoCloudHTTPClient
@@ -237,6 +236,7 @@ class EvoCloudManager:
         # Persistent storage (DB) - Offloaded to Celery
         if persistent:
             try:
+                from app.infrastructure.queue.celery import celery_app
                 celery_app.send_task(
                     "engine_upload_cloud_log",
                     kwargs={

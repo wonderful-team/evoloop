@@ -150,9 +150,6 @@ def _ensure_scanned():
         # Scan all domain-specific application logic for @evoloop_tool
         REGISTRY.scan("app.domain")
 
-        # Scan Brain Tools (Memory, Retrieval) in core
-        REGISTRY.scan("app.core.brain.tools")
-
         # Scan Engine Tools (Dynamic Planning)
         REGISTRY.scan("app.core.engine.tools")
 

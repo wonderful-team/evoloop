@@ -78,6 +78,7 @@
       "connection_error": "Connection Error",
       "save_failed": "Failed to save configuration",
       "saved": "LLM Configuration Saved",
+      "autoSelected": "Auto-selected model: {{model}}",
       "test_connection": "Test Connection",
       "provider_placeholder": "Select a provider",
       "apply_btn": "Apply Changes",
@@ -168,6 +169,7 @@
       "apiKeyDesc": "Key is stored securely. Leave blank if not changing.",
       "provider": "Provider",
       "providerHint": "e.g. openai, anthropic, or any custom provider",
+      "providerType": "Protocol Type",
       "modelName": "Model Name",
       "baseUrl": "Base URL",
       "apiKey": "API Key",
@@ -563,6 +565,7 @@
       "placeholder": "Select Model",
       "default": "Default Model",
       "systemDefault": "System Default",
+      "selectModel": "Please select a model",
       "platformModels": "Platform Models",
       "customModels": "Custom Models",
       "requiresQuota": "Requires Quota",
@@ -846,6 +849,24 @@
       "noProjects": "No available projects",
       "projectSelected": "Project selected. Click Resume to continue.",
       "confirmQuestion": "Do you want to continue?"
+    },
+    "quota": {
+      "title": "Quota Exhausted",
+      "banner": {
+        "title": "Quota Exhausted",
+        "message": "Please add more quota to continue"
+      },
+      "card": {
+        "title": "Quota Exhausted",
+        "message": "Your LLM quota has been exhausted.",
+        "hint": "Please contact administrator to add more quota.",
+        "info": "After adding quota, you can:",
+        "option1": "Click \"Continue\" below",
+        "option2": "Or simply send a new message",
+        "checkQuota": "Check Quota",
+        "continue": "Continue"
+      },
+      "continuePrompt": "Continue"
     },
     "notification": {
       "prefix": "EvoLoop: "

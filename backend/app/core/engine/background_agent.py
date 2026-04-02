@@ -24,6 +24,7 @@ from app.i18n.service import i18n
 # Graph
 from app.core.globals import get_graph
 from app.core.monitoring.activity import activity_monitor
+from app.infrastructure.cache import cache
 from app.infrastructure.database.sql.database import session_scope
 from app.models import Conversation, Message
 from app.utils.id import gen_uuid
@@ -338,6 +339,7 @@ async def _upload_final_log(graph, config, thread_id, command_id, project_id):
 async def _handle_task_exception(thread_id: str, project_id: int, e: Exception):
     """Handle exceptions during graph execution (Phase 5: Global Error Boundaries)."""
     from app.core.exceptions import AgentHumanInterruptException
+    from app.models.schemas.events import QuotaExhaustedEvent
 
     # Check for context
     exc_name = type(e).__name__
@@ -348,32 +350,55 @@ async def _handle_task_exception(thread_id: str, project_id: int, e: Exception):
         return
 
     logger.error(f"Error running thread {thread_id}: {e}", exc_info=True)
-    await activity_monitor.end_run(thread_id, "failed")
-
-    # 1. Distinguish between Retryable and Fatal Errors
+    
+    # 1. Distinguish between Retryable, Quota Exhausted, and Fatal Errors
+    is_quota_exhausted = "quota_exhausted" in error_str or "insufficient quota" in error_str
     is_retryable = any(kw in error_str for kw in [
         "timeout", "rate limit", "connection error", "api_error", 
         "unavailable", "overloaded", "socket", "httpx"
     ])
     
+    # 2. Handle Quota Exhausted - Special flow
+    if is_quota_exhausted:
+        logger.warning(f"[QuotaExhausted] Thread {thread_id} hit quota limit")
+        
+        # Set special status (does not pollute message history)
+        await activity_monitor.end_run(thread_id, "quota_exhausted")
+        
+        # Publish special event for UI
+        await cache.publish(
+            f"chat:{thread_id}:events",
+            QuotaExhaustedEvent(
+                type="quota_exhausted",
+                title=i18n.get('core_engine.quota_exhausted_title'),
+                message=i18n.get('core_engine.quota_exhausted_desc'),
+                hint=i18n.get('core_engine.quota_exhausted_hint'),
+                action_text=i18n.get('core_engine.quota_exhausted_action'),
+            ).model_dump_json()
+        )
+        return
+    
+    # 3. Handle other errors
+    await activity_monitor.end_run(thread_id, "failed")
+    
     if is_retryable:
         user_message = (
-            f"{i18n.get('icons.warning', default='⚠️')} **{i18n.get('core_engine.retryable_error_title', default='API Connectivity Issue')}**: "
-            f"{i18n.get('core_engine.retryable_error_desc', default='I encountered a transient error while communicating with the LLM.')}\n\n"
+            f"{i18n.get('icons.warning')} **{i18n.get('core_engine.retryable_error_title')}**: "
+            f"{i18n.get('core_engine.retryable_error_desc')}\n\n"
             f"> {str(e)}\n\n"
             f"I have paused execution to prevent state corruption. You can try to **Resume** this task."
         )
         action_type = "warning"
     else:
         user_message = (
-            f"{i18n.get('icons.failed', default='❌')} **{i18n.get('core_engine.system_error_title', default='System Error')}**: "
-            f"{i18n.get('core_engine.execution_failed', default='Agent execution failed due to a logic or configuration error.')}\n\n"
-            f"{i18n.get('core_engine.error_details', default='Error Details')}:\n> {str(e)}\n\n"
-            f"{i18n.get('core_engine.retry_prompt', default='Please try again or contact support.')}"
+            f"{i18n.get('icons.failed')} **{i18n.get('core_engine.system_error_title')}**: "
+            f"{i18n.get('core_engine.execution_failed')}\n\n"
+            f"{i18n.get('core_engine.error_details')}:\n> {str(e)}\n\n"
+            f"{i18n.get('core_engine.retry_prompt')}"
         )
         action_type = "system"
 
-    # 2. Persist to DB
+    # 4. Persist to DB
     await _persist_system_error(thread_id, project_id, user_message, action_type=action_type)
 
 

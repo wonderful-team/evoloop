@@ -103,9 +103,6 @@ nodes:
   - id: "chat"
     path: "app.core.engine.nodes.chat.chat_node"
 
-  - id: "flash_brain"
-    path: "app.core.brain.node.flash_brain_node"
-
   - id: "aggregator"
     path: "app.core.engine.nodes.aggregator.aggregator_node"
 
@@ -118,7 +115,6 @@ edges:
       chat: "chat"
       supervisor: "supervisor"
       finish: "finish"
-      flash_brain: "flash_brain"
       worker: "worker"
       aggregator: "aggregator"
       spawn_subtasks: "worker"  # Dynamic subtasks map to worker (handled by Send)
@@ -140,11 +136,6 @@ edges:
 
   # 5. Aggregator -> Supervisor (Aggregator reports merged results back)
   - from: "aggregator"
-    to: "supervisor"
-    type: "simple"
-
-  # 6. Flash Brain -> Supervisor
-  - from: "flash_brain"
     to: "supervisor"
     type: "simple"
 

@@ -4,9 +4,7 @@ from pathlib import Path
 
 from sqlalchemy import delete, select
 
-from app.core.brain.cleanup import BrainCleanupHandler
 from app.core.interfaces.cleanup import ICleanupHandler
-from app.core.memory import memory_manager
 from app.infrastructure.database.sql.database import session_scope
 from app.models.file_operation import FileOperation
 from app.models.todo import TodoItem
@@ -78,31 +76,31 @@ class CleanupOrchestrator:
         self._register_default_handlers()
 
     def _register_default_handlers(self):
-        # 1. Brain Module Handler
-        try:
-            self.handlers.append(BrainCleanupHandler())
-        except Exception as e:
-            logger.error(f"Failed to register BrainCleanupHandler: {e}")
-
-        # 2. Episode Handler (Memory Module)
-        class EpisodeCleanupHandler(ICleanupHandler):
+        # 1. Memory Handler (replaces Brain + Episode handlers)
+        class MemoryCleanupHandler(ICleanupHandler):
             async def cleanup(self, message_ids: list[str], **kwargs) -> int:
+                """Cleanup memories linked to rolled-back messages."""
                 try:
-                    count = 0
-                    # 1. Cleanup by SQL message IDs (legacy/fallback)
-                    count += await memory_manager.long_term.delete_episodes_by_message_ids(message_ids)
+                    from app.core.memory import memory_manager
                     
-                    # 2. Cleanup by Run IDs (Modern/Root Cause Fix)
-                    run_ids = kwargs.get("run_ids", [])
-                    if run_ids:
-                        count += await memory_manager.long_term.delete_episodes_by_run_ids(run_ids)
+                    count = 0
+                    # Find memories linked to these message IDs
+                    for msg_id in message_ids:
+                        # Search for memories with matching source_message_id
+                        results = await memory_manager.search_memories(
+                            query=f"source_message_id:{msg_id}",
+                            limit=100
+                        )
+                        for mem in results:
+                            if await memory_manager.delete_memory(mem.id):
+                                count += 1
                     
                     return count
                 except Exception as e:
-                    logger.error(f"Episode cleanup failed: {e}")
+                    logger.error(f"Memory cleanup failed: {e}")
                     return 0
 
-        self.handlers.append(EpisodeCleanupHandler())
+        self.handlers.append(MemoryCleanupHandler())
 
         # 3. Todo Handler (Domain/Engine Module)
         class TodoCleanupHandler(ICleanupHandler):

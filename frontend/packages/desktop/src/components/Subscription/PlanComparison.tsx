@@ -146,7 +146,7 @@ export const PlanComparison = ({ plans, currentLevelId, currentPlanPrice = 0, on
               {/* 升级退差价提示 - 仅在有当前订阅且不是当前套餐时显示 */}
               {!isFree && !isCurrent && !isDowngrade && hasActiveSubscription && (
                 <p className="text-[11px] text-muted-foreground text-center">
-                  {t("subscription.plan.upgradeRefund", "升级退差价")}
+                  {t("subscription.plan.upgradeRefund")}
                 </p>
               )}
             </CardFooter>

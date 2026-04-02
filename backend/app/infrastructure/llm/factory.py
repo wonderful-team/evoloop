@@ -79,265 +79,127 @@ class LLMFactory:
     @staticmethod
     async def create_llm(model_name: str | None = None, temperature: float = 0.3, **kwargs):
         """
-        Create a standard LLM instance with caching.
+        Create a standard LLM instance.
         
-        Prioritizes SystemConfig (Dynamic) > Settings (Env Checks).
-        Returns cached instance if configuration matches.
-        
-        Supports two modes:
-        - platform: Use EvoLoop Gateway (API key from identity service)
-        - custom: Use user's own API key
+        Architecture:
+        - Platform Mode: Backend → Gateway (OpenAI format) → Gateway handles protocol translation
+        - Custom Mode: Backend → Direct connection (Backend handles protocol selection)
         """
-        from app.infrastructure.config.service import SystemConfigService
-
-        # 🔍 Auto-detect custom model by ID prefix
-        # If model_name starts with 'custom-', force custom mode regardless of config_type
         logger.debug(f"[LLMFactory] Creating LLM with model_name={model_name}")
+        
+        # Detect Custom model by ID prefix
         if model_name and model_name.startswith("custom-"):
-            # Extract actual model name from custom-{provider}-{model}
-            parts = model_name.split("-", 2)
-            if len(parts) >= 3:
-                custom_provider = parts[1]
-                actual_model = parts[2]
-                logger.info(f"[LLMFactory] Detected custom model: provider={custom_provider}, model={actual_model}")
+            return await LLMFactory._create_custom_llm(model_name, temperature, **kwargs)
 
-                # Custom 模式：从 SystemConfig 获取用户配置的 base_url 和 api_key
-                custom_base_url = SystemConfigService.get_value("LLM_BASE_URL")
-                custom_api_key = SystemConfigService.get_value("LLM_API_KEY")
-                
-                logger.info(f"[LLMFactory] Custom config: base_url={custom_base_url}, api_key={'***' if custom_api_key else 'MISSING'}")
-
-                if not custom_base_url or not custom_api_key:
-                    raise ValueError(
-                        f"Custom model '{actual_model}' requires LLM_BASE_URL and LLM_API_KEY to be configured"
-                    )
-
-                return LLMFactory._create_llm_internal(
-                    provider=custom_provider,
-                    base_url=custom_base_url,
-                    model_name=actual_model,
-                    api_key=custom_api_key,
-                    temperature=temperature,
-                    config_type="custom",
-                    **kwargs
-                )
-
-        # 1. Fetch Config (for non-custom model selection)
-        provider = SystemConfigService.get_value("LLM_PROVIDER")
-        base_url = SystemConfigService.get_value("LLM_BASE_URL")
-        model_name = model_name or SystemConfigService.get_value("LLM_MODEL")
-        api_key = SystemConfigService.get_value("LLM_API_KEY")
-        config_type = SystemConfigService.get_value("LLM_CONFIG_TYPE", "custom")  # platform | custom
-
-        # 2. Platform Mode: Use EvoLoop Gateway
-        if config_type == "platform":
-            return await LLMFactory._create_platform_llm(
-                model_name=model_name,
-                temperature=temperature,
-                **kwargs
-            )
-        
-        # 3. Custom Mode (Legacy): LLM_CONFIG_TYPE=custom
-        # This supports the old configuration method where users set provider/base_url/api_key in SystemConfig
-        if config_type == "custom" and provider and base_url and api_key:
-            logger.debug(f"[LLMFactory] Legacy custom mode: provider={provider}, model={model_name}")
-            return LLMFactory._create_llm_internal(
-                provider=provider,
-                base_url=base_url,
-                model_name=model_name,
-                api_key=api_key,
-                temperature=temperature,
-                config_type="custom",
-                **kwargs
-            )
-
-        # Generate cache key (include model_name to ensure different models get different instances)
-        cache_key = LLMFactory._generate_cache_key(
-            config_type,  # platform vs custom are different cache namespaces
-            provider, 
-            base_url, 
-            model_name,  # User-selected model must be part of cache key
-            temperature, 
-            **kwargs
-        )
-        
-        # Check cache with lock for thread safety
-        if cache_key in LLMFactory._instance_cache:
-            LLMFactory._cache_hits += 1
-            logger.debug(f"[LLMFactory] Cache hit for {cache_key} (hits: {LLMFactory._cache_hits})")
-            return LLMFactory._instance_cache[cache_key]
-        
-        async with LLMFactory._cache_lock:
-            # Double-check after acquiring lock
-            if cache_key in LLMFactory._instance_cache:
-                LLMFactory._cache_hits += 1
-                return LLMFactory._instance_cache[cache_key]
-            
-            LLMFactory._cache_misses += 1
-            logger.info(f"[LLMFactory] Creating new LLM instance: {provider}/{model_name} "
-                       f"(hits: {LLMFactory._cache_hits}, misses: {LLMFactory._cache_misses})")
-
-            # Create new instance
-            instance = LLMFactory._create_llm_internal(
-                provider=provider,
-                base_url=base_url,
-                model_name=model_name,
-                api_key=api_key,
-                temperature=temperature,
-                config_type=config_type,  # Pass config_type to enforce OpenAI-compatible channel for custom mode
-                **kwargs
-            )
-            
-            # Cache the instance
-            LLMFactory._instance_cache[cache_key] = instance
-            
-            # Limit cache size to prevent memory leak
-            if len(LLMFactory._instance_cache) > 10:
-                # Remove oldest entry (simple FIFO)
-                oldest_key = next(iter(LLMFactory._instance_cache))
-                del LLMFactory._instance_cache[oldest_key]
-                logger.debug(f"[LLMFactory] Evicted oldest cache entry: {oldest_key}")
-            
-            return instance
+        # Platform Mode: Always use OpenAI format to Gateway
+        return await LLMFactory._create_platform_llm(model_name, temperature, **kwargs)
 
     @staticmethod
-    async def _create_platform_llm(model_name: str, temperature: float, **kwargs):
+    async def _create_platform_llm(model_name: str | None, temperature: float, **kwargs):
         """
-        Create LLM instance for platform mode (using EvoLoop Gateway).
-        Uses Gateway's /gateway/v1 endpoints with user's token.
+        Platform Mode: Always use OpenAI format to Gateway.
+        Gateway handles protocol translation based on provider_type.
         """
         from app.core.evocloud import evocloud_manager
+        from app.infrastructure.config.service import SystemConfigService
         
-        # Get token from identity service
         token = evocloud_manager.get_token()
         if not token:
             raise ValueError("Not authenticated with EvoLoop platform. Please login first.")
         
-        # Get gateway URL from config or use default
         gateway_url = evocloud_manager.api.root_url if evocloud_manager.api else ""
         if not gateway_url:
             raise ValueError("EvoLoop Gateway URL not configured")
         
-        # Ensure model is available in platform
-        from app.infrastructure.llm.platform_service import llm_platform_service
-        platform_model = llm_platform_service.get_model_by_id(model_name)
+        # If no model_name provided, get from system config or auto-select first available
+        if not model_name:
+            model_name = SystemConfigService.get_value("LLM_MODEL")
+            
+            # Auto-select first available platform model if not configured
+            if not model_name:
+                # Use evocloud API directly to avoid circular import
+                try:
+                    resp = await evocloud_manager.api.get_llm_models()
+                    if resp.get("code", -1) == 0:
+                        models_data = resp.get("data", {}).get("models", [])
+                        for m in models_data:
+                            if m.get("config_type") == "evoloop" and m.get("model_type") == "llm":
+                                model_name = m.get("model_id")
+                                logger.info(f"[LLMFactory] Auto-selected first available model: {model_name}")
+                                break
+                except Exception as e:
+                    logger.warning(f"[LLMFactory] Failed to fetch platform models: {e}")
+                
+                if not model_name:
+                    raise ValueError(
+                        "No LLM model available. Please configure a model in Settings > LLM Model."
+                    )
+            else:
+                logger.info(f"[LLMFactory] Using configured model: {model_name}")
         
-        if platform_model:
-            if not platform_model.available:
-                raise ValueError(f"Model {model_name} is not available. Please check your quota.")
-        else:
-            # 模型不在平台列表中，记录警告但仍尝试使用
-            # Gateway 会验证模型是否有效
-            logger.warning(f"[LLMFactory] Model {model_name} not found in platform cache, "
-                          f"will try anyway. Gateway will validate.")
-        
-        # Create OpenAI-compatible client pointing to Gateway
+        # Backend always sends OpenAI format to Gateway
+        # Gateway handles protocol translation (OpenAI ↔ Anthropic)
+        # streaming 参数可从 kwargs 传入，默认为 False
+        streaming = kwargs.get("streaming", False)
         return AdaptiveChatOpenAI(
-            api_key=token,  # Use platform token as API key
+            api_key=token,
             base_url=f"{gateway_url}/gateway/v1",
             model=model_name,
             temperature=temperature,
-            streaming=True,
+            streaming=streaming,
             http_async_client=_HTTP_CLIENT_POOL.get(),
         )
 
     @staticmethod
-    def _create_llm_internal(
-        provider: str, base_url: str, model_name: str, api_key: str,
-        temperature: float, config_type: str = "custom", **kwargs
-    ):
-        """Internal method to create LLM instance (without caching).
-        
-        Args:
-            provider: The provider name (openai, anthropic, deepseek, etc.)
-            base_url: API base URL
-            model_name: Model identifier
-            api_key: API key
-            temperature: Temperature setting
-            config_type: 'platform' or 'custom'. In custom mode, always use OpenAI-compatible channel.
-            **kwargs: Additional arguments
+    async def _create_custom_llm(model_name: str, temperature: float, **kwargs):
         """
+        Custom Mode: Direct connection to provider.
+        Backend selects adapter based on provider_type.
+        """
+        from app.infrastructure.config.service import SystemConfigService
         
-        # 🎯 CUSTOM MODE: Use appropriate adapter based on provider
-        if config_type == "custom":
-            normalized_base_url = base_url.rstrip("/")
-            
-            # Kimi uses Anthropic-compatible protocol (similar to test_llm_connection)
-            if provider in ["anthropic", "kimi"] or "api/anthropic" in (base_url or ""):
-                from app.infrastructure.llm.anthropic_adapter import CompatibleChatAnthropic
-                logger.info(f"[LLMFactory] Custom mode (Anthropic): provider={provider}, model={model_name}")
-                return CompatibleChatAnthropic(
-                    api_key=api_key,
-                    base_url=normalized_base_url,
-                    model_name=model_name,
-                    temperature=temperature,
-                    streaming=True,
-                    http_async_client=_HTTP_CLIENT_POOL.get(),
-                )
-            
-            # Default: OpenAI-compatible channel
-            logger.info(f"[LLMFactory] Custom mode (OpenAI): provider={provider}, model={model_name}")
-            return AdaptiveChatOpenAI(
-                api_key=api_key,
-                base_url=normalized_base_url,
-                model=model_name,
-                temperature=temperature,
-                streaming=True,
-                http_async_client=_HTTP_CLIENT_POOL.get(),
-            )
+        # Parse custom-{provider}-{model}
+        parts = model_name.split("-", 2)
+        if len(parts) < 3:
+            raise ValueError(f"Invalid custom model ID: {model_name}")
         
-        # PLATFORM MODE: Use provider-specific protocol for optimal compatibility
-        # Anthropic / Claude Protocol Support (Zhipu, Kimi, etc.)
-        if provider in ["anthropic", "kimi"] or "api/anthropic" in (base_url or ""):
+        custom_provider = parts[1]
+        actual_model = parts[2]
+        
+        # Get configuration
+        provider_type = SystemConfigService.get_value("LLM_PROVIDER_TYPE", "openai")
+        base_url = SystemConfigService.get_value("LLM_BASE_URL")
+        api_key = SystemConfigService.get_value("LLM_API_KEY")
+        
+        if not base_url or not api_key:
+            raise ValueError(f"Custom model '{actual_model}' requires LLM_BASE_URL and LLM_API_KEY")
+        
+        logger.info(f"[LLMFactory] Custom mode: provider={custom_provider}, type={provider_type}, model={actual_model}")
+        
+        # streaming 参数可从 kwargs 传入，默认为 False
+        streaming = kwargs.get("streaming", False)
+        
+        # Select adapter based on provider_type
+        if provider_type == "anthropic":
             from app.infrastructure.llm.anthropic_adapter import CompatibleChatAnthropic
-
-            # Check for Zhipu GLM-4 (requires response patching)
-            if "bigmodel.cn" in (base_url or ""):
-                return CompatibleChatAnthropic(
-                    api_key=api_key,
-                    base_url=base_url,
-                    model_name=model_name,
-                    temperature=temperature,
-                    streaming=False,
-                    fix_tool_args_list=True,
-                    repair_history=True,
-                    timeout=300.0,
-                    http_async_client=_HTTP_CLIENT_POOL.get(),
-                )
-
-            # Check for Kimi / Moonshot
-            if any(domain in (base_url or "") for domain in ["moonshot.cn", "kimi.ai", "kimi.com"]):
-                return CompatibleChatAnthropic(
-                    api_key=api_key,
-                    base_url=base_url,
-                    model_name=model_name,
-                    temperature=temperature,
-                    streaming=False,
-                    fix_tool_args_list=False,
-                    repair_history=True,
-                    timeout=300.0,
-                    http_async_client=_HTTP_CLIENT_POOL.get(),
-                )
-
             return CompatibleChatAnthropic(
                 api_key=api_key,
-                base_url=base_url,
-                model_name=model_name,
+                base_url=base_url.rstrip("/"),
+                model_name=actual_model,
                 temperature=temperature,
-                streaming=False,
-                timeout=300.0,
+                streaming=streaming,
                 http_async_client=_HTTP_CLIENT_POOL.get(),
             )
-
-        # Default: OpenAI Compatible (Adaptive)
-        return AdaptiveChatOpenAI(
-            api_key=api_key,
-            base_url=base_url,
-            model=model_name,
-            temperature=temperature,
-            streaming=True,
-            http_async_client=_HTTP_CLIENT_POOL.get(),
-        )
+        else:
+            # openai, deepseek, moonshot, etc.
+            return AdaptiveChatOpenAI(
+                api_key=api_key,
+                base_url=base_url.rstrip("/"),
+                model=actual_model,
+                temperature=temperature,
+                streaming=streaming,
+                http_async_client=_HTTP_CLIENT_POOL.get(),
+            )
 
     @staticmethod
     def get_cache_stats() -> dict:
@@ -376,7 +238,7 @@ class LLMFactory:
             openai_api_base=base_url,
             model_name=model_name,
             temperature=temperature,
-            max_tokens=512
+            max_tokens=8192
         )
 
 

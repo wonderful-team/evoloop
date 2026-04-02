@@ -5,7 +5,7 @@ import { SubscriptionStatus } from "@/components/Subscription/SubscriptionStatus
 import { PlanComparison } from "@/components/Subscription/PlanComparison"
 import { useTranslation } from "react-i18next"
 import { useState, useEffect, useRef } from "react"
-import { Dialog, DialogContent } from "@evoloop/shared/components/ui/dialog"
+import { Dialog, DialogContent, DialogTitle } from "@evoloop/shared/components/ui/dialog"
 import { Alert, AlertDescription } from "@evoloop/shared/components/ui/alert"
 import { Info, Loader2, CheckCircle2, Timer, RefreshCw } from "lucide-react"
 import { Button } from "@evoloop/shared/components/ui/button"
@@ -201,6 +201,13 @@ function SubscriptionDashboard() {
       {/* Payment Dialog */}
       <Dialog open={showPayment} onOpenChange={handleClosePayment}>
         <DialogContent className="sm:max-w-md border-border bg-background/95 backdrop-blur-xl">
+          <DialogTitle className="sr-only">
+            {paymentSuccess
+              ? t("subscription.payment.successTitle", "支付成功")
+              : isRenewalMode
+                ? t("subscription.payment.renewTitle", { name: orderData?.order?.level_name || "" })
+                : t("subscription.payment.subscribeTitle", { name: orderData?.order?.level_name || "" })}
+          </DialogTitle>
           {paymentSuccess ? (
             <div className="flex flex-col items-center space-y-6 p-6 animate-in zoom-in duration-300">
                 <div className="h-24 w-24 bg-primary/10 rounded-full flex items-center justify-center ring-8 ring-primary/5">

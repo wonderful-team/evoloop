@@ -174,7 +174,7 @@ def repair_message_history(messages: list[BaseMessage]) -> list[BaseMessage]:
         if isinstance(msg, HumanMessage | AIMessage) and open_tool_calls:
             for tcid, tname in list(open_tool_calls.items()):
                 final_repaired.append(ToolMessage(
-                    content=i18n.get("core_utils.interrupted_tool_response", default="[System: Result omitted or context interrupted. Respond to remaining context.]"),
+                    content=i18n.get("core_utils.interrupted_tool_response"),
                     tool_call_id=tcid,
                     name=tname
                 ))
@@ -196,7 +196,7 @@ def repair_message_history(messages: list[BaseMessage]) -> list[BaseMessage]:
         logger.warning(f"🔧 [Repair] History ends with dangling tool calls. Injecting dummy responses.")
         for tcid, tname in list(open_tool_calls.items()):
             final_repaired.append(ToolMessage(
-                content=i18n.get("core_utils.interrupted_tool_response", default="[System: Result omitted or context interrupted. Respond to remaining context.]"),
+                content=i18n.get("core_utils.interrupted_tool_response"),
                 tool_call_id=tcid,
                 name=tname
             ))

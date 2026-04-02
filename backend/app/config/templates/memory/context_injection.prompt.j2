@@ -1,0 +1,32 @@
+{# Memory Context Injection Template #}
+{# Used for formatting memories to be injected into context #}
+{% if user_memories %}
+## User Profile
+
+{% for mem in user_memories %}- {{ mem.content | truncate(200) }}{% endfor %}
+{% endif %}
+
+{% if feedback_memories %}
+## Guidance & Feedback
+
+{% for mem in feedback_memories %}- **{{ mem.title }}**: {{ mem.description }}{% endfor %}
+{% endif %}
+
+{% if project_memories %}
+## Project Context
+
+{% for mem in project_memories %}
+### {{ mem.title }}
+{{ mem.content | truncate(300) }}
+{% endfor %}
+{% endif %}
+
+{% if reference_memories %}
+## External References
+
+{% for mem in reference_memories %}- **{{ mem.title }}**: {{ mem.content | truncate(150) }}{% endfor %}
+{% endif %}
+
+{% if not (user_memories or feedback_memories or project_memories or reference_memories) %}
+{# No memories to display #}
+{% endif %}

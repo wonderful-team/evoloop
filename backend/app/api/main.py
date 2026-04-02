@@ -4,7 +4,6 @@ from app.api.routes import (
     agent,
     audio,
     auth_proxy,
-    brain,
     conversations,
     devices,
     files,
@@ -70,9 +69,6 @@ api_router.include_router(stream.router, tags=["stream"])
 
 # Wiki Generation
 api_router.include_router(wiki.router, prefix="/wiki", tags=["wiki"])
-
-# Cognitive Brain (Flash Mode)
-api_router.include_router(brain.router, prefix="/brain", tags=["brain"])
 
 # Ghost Text (Phase 4: Inline Code Completion)
 api_router.include_router(ghost_text.router, tags=["ghost-text"])

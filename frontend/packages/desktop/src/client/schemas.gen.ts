@@ -261,7 +261,7 @@ export const Body_audio_transcribe_audioSchema = {
     properties: {
         file: {
             type: 'string',
-            format: 'binary',
+            contentMediaType: 'application/octet-stream',
             title: 'File'
         },
         language: {
@@ -306,7 +306,7 @@ export const Body_audio_transcribe_streamSchema = {
     properties: {
         file: {
             type: 'string',
-            format: 'binary',
+            contentMediaType: 'application/octet-stream',
             title: 'File'
         },
         language: {
@@ -324,7 +324,7 @@ export const Body_files_upload_fileSchema = {
     properties: {
         file: {
             type: 'string',
-            format: 'binary',
+            contentMediaType: 'application/octet-stream',
             title: 'File'
         }
     },
@@ -337,7 +337,7 @@ export const Body_learning_upload_screenshotSchema = {
     properties: {
         file: {
             type: 'string',
-            format: 'binary',
+            contentMediaType: 'application/octet-stream',
             title: 'File'
         }
     },
@@ -350,7 +350,7 @@ export const Body_library_upload_library_fileSchema = {
     properties: {
         file: {
             type: 'string',
-            format: 'binary',
+            contentMediaType: 'application/octet-stream',
             title: 'File'
         },
         current_user: {
@@ -423,47 +423,13 @@ export const Body_project_requirements_upload_requirement_documentSchema = {
     properties: {
         file: {
             type: 'string',
-            format: 'binary',
+            contentMediaType: 'application/octet-stream',
             title: 'File'
         }
     },
     type: 'object',
     required: ['file'],
     title: 'Body_project-requirements-upload_requirement_document'
-} as const;
-
-export const BrainRequestSchema = {
-    properties: {
-        query: {
-            type: 'string',
-            title: 'Query'
-        },
-        max_depth: {
-            type: 'integer',
-            title: 'Max Depth',
-            default: 3
-        }
-    },
-    type: 'object',
-    required: ['query'],
-    title: 'BrainRequest'
-} as const;
-
-export const BrainResponseSchema = {
-    properties: {
-        response: {
-            type: 'string',
-            title: 'Response'
-        },
-        mode: {
-            type: 'string',
-            title: 'Mode',
-            default: 'fast'
-        }
-    },
-    type: 'object',
-    required: ['response'],
-    title: 'BrainResponse'
 } as const;
 
 export const CancelHITLRequestSchema = {
@@ -581,6 +547,17 @@ export const ChatRequestSchema = {
             ],
             title: 'Project Id',
             default: 1
+        },
+        model: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Model'
         },
         command_id: {
             anyOf: [
@@ -1608,7 +1585,13 @@ export const LLMConfigRequestSchema = {
         provider: {
             type: 'string',
             title: 'Provider',
-            description: 'openai, anthropic, ollama, qwen_dashscope, generic'
+            description: '供应商名称: openai, anthropic, moonshot, deepseek'
+        },
+        provider_type: {
+            type: 'string',
+            title: 'Provider Type',
+            description: '协议类型: openai | anthropic',
+            default: 'openai'
         },
         base_url: {
             type: 'string',
@@ -4035,6 +4018,13 @@ export const ValidationErrorSchema = {
         type: {
             type: 'string',
             title: 'Error Type'
+        },
+        input: {
+            title: 'Input'
+        },
+        ctx: {
+            type: 'object',
+            title: 'Context'
         }
     },
     type: 'object',
