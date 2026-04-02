@@ -1898,7 +1898,17 @@ export type SymbolsGenerateSymbolWikiData = {
 
 export type SymbolsGenerateSymbolWikiResponse = (unknown);
 
+export type SystemStatusResponse = {
+    cpu_percent: number;
+    ram_percent: number;
+    ram_used_gb: number;
+    ram_total_gb: number;
+    status: string;
+};
+
 export type SystemGetSystemConfigResponse = (Array<SystemConfig>);
+
+export type SystemGetSystemStatusResponse = (SystemStatusResponse);
 
 export type SystemUpdateSystemConfigData = {
     requestBody: SystemConfig;

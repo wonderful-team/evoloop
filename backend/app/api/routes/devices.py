@@ -3,6 +3,10 @@ from pydantic import BaseModel
 
 from app.api.deps import TokenDep
 from app.core.evocloud import evocloud_manager
+from app.core.environment.discovery import EnvironmentProbe
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class BindClientRequest(BaseModel):
@@ -20,11 +24,49 @@ class SendCommandRequest(BaseModel):
 
 @router.get("/")
 async def get_devices(token: TokenDep):
-    """List devices connected to account"""
-    res = await evocloud_manager.api.get_devices()
-    if res.get("code") != 0:
-        raise HTTPException(500, res.get("message"))
-    return res.get("data", [])
+    """List devices connected to account (Cloud + Local ADB)"""
+    # 1. Fetch Cloud Devices
+    cloud_res = await evocloud_manager.api.get_devices()
+    devices = []
+    if cloud_res.get("code") == 0:
+        devices = cloud_res.get("data", [])
+        for d in devices:
+            d["connection_type"] = "cloud"
+            d["status"] = "online"
+
+    # 2. Fetch Local ADB Devices (from AwakenedState cache)
+    try:
+        from app.core.environment import get_awakened_state
+        state = get_awakened_state()
+        local_devices = state.android_devices if state else []
+        
+        for ld in local_devices:
+            # Check if already in cloud list by serial/device_id
+            exists = False
+            for cd in devices:
+                # Some APIs use 'serial', some use 'device_id'. We check both.
+                if str(cd.get("serial")) == ld.device_id or str(cd.get("id")) == ld.device_id:
+                    cd["connection_type"] = "adb"
+                    cd["status"] = "online"
+                    cd["battery_percent"] = ld.battery_percent
+                    exists = True
+                    break
+            
+            if not exists:
+                devices.append({
+                    "id": ld.device_id,
+                    "device_id": ld.device_id,
+                    "serial": ld.device_id,
+                    "model": ld.model,
+                    "os_version": ld.os_version,
+                    "status": "online" if ld.is_reachable else "offline",
+                    "connection_type": "adb",
+                    "battery_percent": ld.battery_percent
+                })
+    except Exception as e:
+        logger.warning(f"Failed to merge local devices: {e}")
+
+    return devices
 
 
 @router.post("/{device_id}/command")

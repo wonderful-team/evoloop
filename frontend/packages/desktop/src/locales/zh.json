@@ -634,6 +634,7 @@
       "topApps": "高频上下文应用",
       "deviceBridge": "跨端设备联动",
       "connectedViaAdb": "已通过 ADB 连接",
+      "cloudSynced": "云端已同步",
       "noDevices": "未发现同步设备",
       "syncDevice": "同步新设备",
       "skillEvolution": "进化中的技能库",

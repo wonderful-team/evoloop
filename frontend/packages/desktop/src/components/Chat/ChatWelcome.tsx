@@ -24,7 +24,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@evoloop/shared/compon
 import { Badge } from "@evoloop/shared/components/ui/badge";
 import { useProjectStore } from '@/stores/projectStore';
 import { useQuery } from '@tanstack/react-query';
-import { DevicesService, LearningService } from '@/client';
+import { DevicesService, LearningService, SystemService } from '@/client';
 
 interface ChatWelcomeProps {
   onStarterClick: (text: string) => void;
@@ -45,6 +45,13 @@ export const ChatWelcome: React.FC<ChatWelcomeProps> = ({ onStarterClick }) => {
   const { data: skills } = useQuery({
     queryKey: ['learnedSkills'],
     queryFn: () => LearningService.listSkills({ pageSize: 4 }),
+  });
+
+  // Fetch System Status
+  const { data: systemStatus } = useQuery({
+    queryKey: ['systemStatus'],
+    queryFn: () => SystemService.getSystemStatus(),
+    refetchInterval: 5000,
   });
 
   const containerVariants = {
@@ -102,13 +109,13 @@ export const ChatWelcome: React.FC<ChatWelcomeProps> = ({ onStarterClick }) => {
                 <div className="space-y-1">
                   <div className="flex justify-between text-[10px] uppercase tracking-wider text-muted-foreground/60">
                     <span>{t('chat.welcome.health')}</span>
-                    <span className="font-bold">98%</span>
+                    <span className="font-bold">{systemStatus?.status === 'ok' ? '98%' : '--'}</span>
                   </div>
                   <div className="h-1 w-full bg-muted/50 rounded-full overflow-hidden">
                     <motion.div 
                       className="h-full bg-primary/40" 
                       initial={{ width: 0 }} 
-                      animate={{ width: '98%' }} 
+                      animate={{ width: systemStatus?.status === 'ok' ? '98%' : '0%' }} 
                       transition={{ duration: 1, delay: 0.5 }}
                     />
                   </div>
@@ -116,11 +123,11 @@ export const ChatWelcome: React.FC<ChatWelcomeProps> = ({ onStarterClick }) => {
                 <div className="grid grid-cols-2 gap-2 pt-2">
                   <div className="p-2 rounded-lg bg-background/50 border border-border/50">
                     <div className="text-[10px] text-muted-foreground">{t('common.cpu')}</div>
-                    <div className="text-sm font-semibold">12%</div>
+                    <div className="text-sm font-semibold">{systemStatus ? `${Math.round(systemStatus.cpu_percent)}%` : '--'}</div>
                   </div>
                   <div className="p-2 rounded-lg bg-background/50 border border-border/50">
                     <div className="text-[10px] text-muted-foreground">{t('common.ram')}</div>
-                    <div className="text-sm font-semibold">4.1 / 16GB</div>
+                    <div className="text-sm font-semibold">{systemStatus ? `${systemStatus.ram_used_gb} / ${systemStatus.ram_total_gb}GB` : '--'}</div>
                   </div>
                 </div>
                 <div className="pt-2">
@@ -147,20 +154,31 @@ export const ChatWelcome: React.FC<ChatWelcomeProps> = ({ onStarterClick }) => {
                   {t('chat.welcome.deviceBridge')}
                 </CardTitle>
              </CardHeader>
-             <CardContent className="flex flex-col items-center justify-center pt-4 pb-6 space-y-4">
+              <CardContent className="flex flex-col items-center justify-center pt-4 pb-6 space-y-4">
                 {devices && (devices as any).length > 0 ? (
-                  <>
-                    <div className="relative">
-                      <div className="w-16 h-24 rounded-xl border-2 border-primary/30 flex flex-col items-center justify-center bg-background/80 shadow-lg group-hover:border-primary/60 transition-colors">
-                        <Smartphone size={32} className="text-primary/70" />
-                        <div className="absolute -top-1 -right-1 w-3 h-3 bg-emerald-500 rounded-full border-2 border-background animate-pulse" />
-                      </div>
-                    </div>
-                    <div className="text-center">
-                       <div className="text-sm font-bold">Pixel 7 Pro</div>
-                       <div className="text-[10px] text-muted-foreground uppercase">{t('chat.welcome.connectedViaAdb')}</div>
-                    </div>
-                  </>
+                  (() => {
+                    const primaryDevice = (devices as any)[0];
+                    return (
+                      <>
+                        <div className="relative">
+                          <div className={`w-16 h-24 rounded-xl border-2 ${primaryDevice.status === 'online' ? 'border-primary/30' : 'border-muted/30'} flex flex-col items-center justify-center bg-background/80 shadow-lg group-hover:border-primary/60 transition-colors`}>
+                            <Smartphone size={32} className={primaryDevice.status === 'online' ? 'text-primary/70' : 'text-muted-foreground/40'} />
+                            {primaryDevice.status === 'online' && (
+                              <div className="absolute -top-1 -right-1 w-3 h-3 bg-emerald-500 rounded-full border-2 border-background animate-pulse" />
+                            )}
+                          </div>
+                        </div>
+                        <div className="text-center">
+                           <div className="text-sm font-bold truncate max-w-[120px]">{primaryDevice.model || 'Unknown Device'}</div>
+                           <div className="text-[10px] text-muted-foreground uppercase">
+                              {primaryDevice.connection_type === 'adb' 
+                                ? t('chat.welcome.connectedViaAdb') 
+                                : t('chat.welcome.cloudSynced')}
+                           </div>
+                        </div>
+                      </>
+                    );
+                  })()
                 ) : (
                   <div className="text-center py-4 opacity-40">
                     <Smartphone size={48} className="mx-auto mb-2 opacity-20" />

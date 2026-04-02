@@ -1,4 +1,5 @@
 import time
+import psutil
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
@@ -14,6 +15,31 @@ from app.infrastructure.llm.platform_service import (
 from app.models.config import SystemConfig
 
 router = APIRouter(prefix="/system", tags=["system"])
+
+
+class SystemStatusResponse(BaseModel):
+    cpu_percent: float
+    ram_percent: float
+    ram_used_gb: float
+    ram_total_gb: float
+    status: str = "ok"
+
+
+@router.get("/status", dependencies=[Depends(get_current_user)])
+def get_system_status() -> SystemStatusResponse:
+    """
+    Get real-time system CPU and RAM usage.
+    """
+    cpu_percent = psutil.cpu_percent(interval=None)
+    ram = psutil.virtual_memory()
+    
+    return SystemStatusResponse(
+        cpu_percent=cpu_percent,
+        ram_percent=ram.percent,
+        ram_used_gb=round(ram.used / (1024**3), 2),
+        ram_total_gb=round(ram.total / (1024**3), 2),
+        status="ok"
+    )
 
 
 @router.get("/config", dependencies=[Depends(get_current_user)])

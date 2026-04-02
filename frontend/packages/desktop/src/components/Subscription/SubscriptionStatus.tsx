@@ -16,11 +16,10 @@ interface SubscriptionDetail {
 interface SubscriptionStatusProps {
   detail?: SubscriptionDetail
   isLoading?: boolean
-  onManage: () => void
   onRenew?: () => void
 }
 
-export const SubscriptionStatus = ({ detail, isLoading, onManage, onRenew }: SubscriptionStatusProps) => {
+export const SubscriptionStatus = ({ detail, isLoading, onRenew }: SubscriptionStatusProps) => {
   const { t } = useTranslation()
 
   if (isLoading) {
@@ -45,7 +44,7 @@ export const SubscriptionStatus = ({ detail, isLoading, onManage, onRenew }: Sub
                 {t("subscription.status.freeDesc")}
               </p>
             </div>
-            <Button onClick={onManage} size="sm" className="shrink-0">
+            <Button onClick={onRenew} size="sm" className="shrink-0">
                 {t("subscription.status.upgradeNow")}
             </Button>
           </div>
@@ -104,9 +103,6 @@ export const SubscriptionStatus = ({ detail, isLoading, onManage, onRenew }: Sub
             )}
           </div>
           <div className="flex items-center gap-2">
-             <Button variant="outline" size="sm" onClick={onManage}>
-                {t("subscription.status.manage")}
-             </Button>
              {!isExpired && onRenew && (
                 <Button size="sm" onClick={onRenew} variant={isExpiringSoon ? "default" : "secondary"}>
                   {isExpiringSoon ? t("subscription.status.renewNow") : t("subscription.status.renew")}

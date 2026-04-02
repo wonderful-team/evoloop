@@ -156,10 +156,6 @@ function SubscriptionDashboard() {
         <div className="lg:col-span-2 flex flex-col gap-4">
            <SubscriptionStatus 
              detail={detail} 
-             onManage={() => {
-                const element = document.getElementById('plans-section');
-                element?.scrollIntoView({ behavior: 'smooth' });
-             }}
              onRenew={() => {
                 // 续费当前套餐
                 if (detail?.level_id) {

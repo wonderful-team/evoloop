@@ -634,6 +634,7 @@
       "topApps": "High-Context Apps",
       "deviceBridge": "Device Bridge",
       "connectedViaAdb": "Connected via ADB",
+      "cloudSynced": "Cloud Synced",
       "noDevices": "No devices found",
       "syncDevice": "Sync New Device",
       "skillEvolution": "Skill Evolution",
