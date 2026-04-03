@@ -29,7 +29,7 @@ cd ../../..
 
 echo ""
 echo "=== 开发环境已启动 ==="
-echo "后端: http://localhost:8000"
+echo "后端: http://localhost:20160"
 echo "前端: 正在启动..."
 echo ""
 echo "按 Ctrl+C 停止所有服务"

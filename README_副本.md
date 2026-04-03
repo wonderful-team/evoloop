@@ -548,8 +548,8 @@ async def swipe_screen(
 ## 📚 API 文档
 
 启动后端后访问:
-- **Swagger UI**: http://localhost:8000/docs
-- **ReDoc**: http://localhost:8000/redoc
+- **Swagger UI**: http://localhost:20160/docs
+- **ReDoc**: http://localhost:20160/redoc
 
 ---
 

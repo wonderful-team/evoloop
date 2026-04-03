@@ -365,7 +365,7 @@ uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 # fastapi dev app/main.py
 ```
 
-服务启动后，访问 http://localhost:8000/docs 查看 API 文档。
+服务启动后，访问 http://localhost:20160/docs 查看 API 文档。
 
 #### 4.4 启动 Celery Worker (新终端)
 
@@ -665,8 +665,8 @@ edges:
 ## 📚 API 文档
 
 启动后端后访问:
-- **Swagger UI**: http://localhost:8000/docs
-- **ReDoc**: http://localhost:8000/redoc
+- **Swagger UI**: http://localhost:20160/docs
+- **ReDoc**: http://localhost:20160/redoc
 
 主要 API 端点:
 
