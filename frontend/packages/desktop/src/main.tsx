@@ -21,7 +21,7 @@ import { routeTree } from "./routeTree.gen"
 i18n.addResourceBundle("en", "translation", enLocal, true, true)
 i18n.addResourceBundle("zh", "translation", zhLocal, true, true)
 
-OpenAPI.BASE = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000"
+OpenAPI.BASE = import.meta.env.VITE_API_URL || "http://127.0.0.1:20160"
 OpenAPI.TOKEN = async () => {
   return localStorage.getItem("access_token") || ""
 }

@@ -82,7 +82,7 @@
           "url": "https://api.evoloop.cn/**"
         },
         {
-          "url": "http://localhost:8000/**"
+          "url": "http://localhost:20160/**"
         }
       ]
     },
