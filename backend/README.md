@@ -272,7 +272,7 @@ alembic history
 
 - [evo CLI 完整文档](./docs/EVO_CLI.md)
 - [系统清理指南](./docs/SCRIPTS_CLEANUP_PLAN.md)
-- [API 文档](http://localhost:8000/docs)（启动后访问）
+- [API 文档](http://localhost:20160/docs)（启动后访问）
 
 ## Email Templates
 
