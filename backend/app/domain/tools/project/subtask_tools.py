@@ -1,0 +1,377 @@
+"""
+Agent tools for hierarchical subtask management.
+
+These tools allow Agent to:
+1. Create complex tasks with subtasks
+2. Track task progress
+3. Get next executable task
+4. Update task completion status
+"""
+
+import json
+import logging
+from typing import Optional
+
+from app.core.context.manager import ContextManager
+from app.core.tools import evoloop_tool
+from app.domain.project.subtask_service import subtask_service
+from app.utils.id import gen_uuid
+
+logger = logging.getLogger(__name__)
+
+
+@evoloop_tool(
+    is_state_mutating=True,
+    name_map={"zh": "创建层级任务", "en": "Create Hierarchical Task"}
+)
+async def create_task_with_subtasks(
+    title: str,
+    description: str = "",
+    subtasks_json: str = "[]",
+    priority: str = "medium",
+    estimated_hours: int = 0
+) -> str:
+    """
+    Create a parent task with subtasks for complex work breakdown.
+    
+    Use this when the user asks for something that requires multiple steps.
+    Break down complex requirements into manageable subtasks.
+    
+    Args:
+        title: Main task title
+        description: Task description
+        subtasks_json: JSON array of subtasks [{"title": "...", "description": "...", "estimated_hours": n}]
+        priority: high/medium/low
+        estimated_hours: Total estimated hours
+        
+    Example:
+        title: "实现用户登录功能"
+        description: "完整的用户登录模块开发"
+        subtasks_json: '[
+            {"title": "设计用户表结构", "description": "创建用户表和索引", "estimated_hours": 2},
+            {"title": "实现登录API", "description": "POST /api/login", "estimated_hours": 3},
+            {"title": "前端登录页面", "description": "登录表单和验证", "estimated_hours": 3}
+        ]'
+        priority: "high"
+        estimated_hours: 8
+        
+    Returns:
+        Success message with task ID and subtask count
+    """
+    try:
+        # Parse subtasks
+        subtasks = json.loads(subtasks_json) if subtasks_json else []
+        if not isinstance(subtasks, list):
+            return "Error: subtasks_json must be a JSON array"
+            
+        # Get project context
+        ctx = ContextManager.current()
+        project_id = ctx.project_id or 1
+        
+        # Create task with subtasks
+        task = await subtask_service.create_task_with_subtasks(
+            project_id=project_id,
+            analysis_id=f"agent-{gen_uuid()}",
+            title=title,
+            description=description,
+            priority=priority,
+            estimated_hours=estimated_hours,
+            subtasks=subtasks,
+            created_by="agent"
+        )
+        
+        # Format response
+        subtask_count = len(task.subtasks) if hasattr(task, 'subtasks') else 0
+        
+        if subtask_count > 0:
+            subtask_list = "\n".join([
+                f"  {i+1}. {s.task_data.get('title', 'Untitled')}"
+                for i, s in enumerate(task.subtasks)
+            ])
+            return f"""✅ Created task "{title}" with {subtask_count} subtasks
+
+Task ID: {task.id}
+
+Subtasks:
+{subtask_list}
+
+You can track progress by asking "show task tree {task.id[:8]}"""
+        else:
+            return f"✅ Created task \"{title}\"\n\nTask ID: {task.id}"
+            
+    except json.JSONDecodeError:
+        return "Error: subtasks_json is not valid JSON. Format: [{\"title\": \"...\", \"estimated_hours\": n}]"
+    except Exception as e:
+        logger.error(f"[SubtaskTool] Failed to create task: {e}")
+        return f"Error creating task: {str(e)}"
+
+
+@evoloop_tool(
+    name_map={"zh": "获取任务树", "en": "Get Task Tree"}
+)
+async def get_task_tree_summary(task_id: str) -> str:
+    """
+    Get hierarchical view of a task and its subtasks with progress.
+    
+    Use this to check task status and see overall progress.
+    
+    Args:
+        task_id: Task ID (full UUID or first 8 characters)
+        
+    Example:
+        task_id: "abc12345"
+        
+    Returns:
+        Formatted task tree with progress indicators
+    """
+    try:
+        # Handle partial ID
+        if len(task_id) < 36:
+            # Try to find by prefix
+            from sqlalchemy import select
+            from app.domain.project.requirements.models import ProjectRequirementTask
+            from app.infrastructure.database.sql.database import AsyncSessionLocal
+            
+            async with AsyncSessionLocal() as session:
+                result = await session.execute(
+                    select(ProjectRequirementTask).where(
+                        ProjectRequirementTask.id.like(f"{task_id}%")
+                    )
+                )
+                task = result.scalar_one_or_none()
+                if task:
+                    task_id = task.id
+                else:
+                    return f"Error: Task with ID prefix '{task_id}' not found"
+        
+        tree = await subtask_service.get_task_tree(task_id)
+        
+        if not tree:
+            return f"Error: Task {task_id} not found"
+            
+        # Format tree as text
+        def format_tree(node, depth=0, is_last=True):
+            indent = "  " * depth
+            prefix = "└── " if is_last else "├── "
+            
+            # Progress indicator
+            if node["status"] == "completed":
+                status_icon = "✅"
+            elif node["status"] == "in_progress":
+                status_icon = "🔄"
+            elif node["status"] == "failed":
+                status_icon = "❌"
+            else:
+                status_icon = "⏳"
+                
+            line = f"{indent}{prefix}{status_icon} {node['title']} ({node['progress']}%)\n"
+            
+            children = node.get("subtasks", [])
+            for i, child in enumerate(children):
+                line += format_tree(child, depth + 1, i == len(children) - 1)
+                
+            return line
+            
+        summary = f"""📋 Task Tree: {tree['title']}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Overall Progress: {tree['progress']}%
+Status: {tree['status']}
+
+{format_tree(tree, 0, True)}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"""
+        
+        return summary
+        
+    except Exception as e:
+        logger.error(f"[SubtaskTool] Failed to get task tree: {e}")
+        return f"Error getting task tree: {str(e)}"
+
+
+@evoloop_tool(
+    is_state_mutating=True,
+    name_map={"zh": "更新任务进度", "en": "Update Task Progress"}
+)
+async def update_task_completion(
+    task_id: str,
+    status: str,
+    result_summary: str = "",
+    progress: Optional[int] = None
+) -> str:
+    """
+    Update task status and progress.
+    
+    Use this when you complete a task or subtask.
+    
+    Args:
+        task_id: Task ID or "current" to use active task
+        status: pending/in_progress/completed/failed
+        result_summary: Brief summary of what was done
+        progress: Progress percentage (0-100), auto-calculated if not provided
+        
+    Example:
+        task_id: "abc12345"
+        status: "completed"
+        result_summary: "Implemented user authentication with JWT tokens"
+        
+    Returns:
+        Success message with updated progress
+    """
+    try:
+        # Handle "current" keyword
+        if task_id == "current":
+            # Try to get from context
+            ctx = ContextManager.current()
+            # TODO: Track current task in context
+            return "Error: Please specify task_id. Use get_next_executable_task to find the task to work on."
+        
+        # Handle partial ID
+        if len(task_id) < 36:
+            from sqlalchemy import select
+            from app.domain.project.requirements.models import ProjectRequirementTask
+            from app.infrastructure.database.sql.database import AsyncSessionLocal
+            
+            async with AsyncSessionLocal() as session:
+                result = await session.execute(
+                    select(ProjectRequirementTask).where(
+                        ProjectRequirementTask.id.like(f"{task_id}%")
+                    )
+                )
+                task = result.scalar_one_or_none()
+                if task:
+                    task_id = task.id
+                else:
+                    return f"Error: Task with ID prefix '{task_id}' not found"
+        
+        # Auto-set progress based on status
+        if progress is None:
+            if status == "completed":
+                progress = 100
+            elif status == "pending":
+                progress = 0
+                
+        success = await subtask_service.update_task_progress(
+            task_id=task_id,
+            status=status,
+            progress=progress,
+            result=result_summary
+        )
+        
+        if not success:
+            return f"Error: Task {task_id} not found"
+            
+        # Get updated tree to show parent progress
+        tree = await subtask_service.get_task_tree(task_id)
+        if tree and tree.get("is_parent"):
+            return f"✅ Updated task to {status} ({progress}%)\n\nParent task overall progress: {tree['progress']}%"
+        else:
+            return f"✅ Updated task to {status} ({progress}%)"
+            
+    except Exception as e:
+        logger.error(f"[SubtaskTool] Failed to update task: {e}")
+        return f"Error updating task: {str(e)}"
+
+
+@evoloop_tool(
+    name_map={"zh": "获取待执行任务", "en": "Get Next Executable Task"}
+)
+async def get_next_executable_task() -> str:
+    """
+    Get the next task ready for execution.
+    
+    Use this to find what to work on next.
+    Returns the first pending subtask in order.
+    
+    Returns:
+        Task details or message if no pending tasks
+    """
+    try:
+        ctx = ContextManager.current()
+        project_id = ctx.project_id or 1
+        
+        task = await subtask_service.get_next_executable_task(project_id)
+        
+        if not task:
+            return "🎉 No pending tasks! All tasks are completed or in progress."
+            
+        prefix = "└── " if task.get("is_subtask") else ""
+        parent_info = f"\nPart of: {task['parent_title']}" if task.get("parent_title") else ""
+        
+        return f"""📌 Next Task to Execute:
+
+{prefix}{task['title']}
+
+ID: {task['id'][:8]}
+Description: {task['description'] or 'No description'}{parent_info}
+
+Use this ID with update_task_completion when done."""
+        
+    except Exception as e:
+        logger.error(f"[SubtaskTool] Failed to get next task: {e}")
+        return f"Error getting next task: {str(e)}"
+
+
+@evoloop_tool(
+    name_map={"zh": "列出项目任务", "en": "List Project Tasks"}
+)
+async def list_project_tasks(
+    status_filter: str = "all",
+    limit: int = 20
+) -> str:
+    """
+    List root tasks for the current project.
+    
+    Use this to get an overview of project tasks.
+    
+    Args:
+        status_filter: all/pending/in_progress/completed/failed
+        limit: Maximum number of tasks to show
+        
+    Returns:
+        Formatted task list
+    """
+    try:
+        from sqlalchemy import select
+        from app.domain.project.requirements.models import ProjectRequirementTask
+        from app.infrastructure.database.sql.database import AsyncSessionLocal
+        
+        ctx = ContextManager.current()
+        project_id = ctx.project_id or 1
+        
+        async with AsyncSessionLocal() as session:
+            query = select(ProjectRequirementTask).where(
+                ProjectRequirementTask.project_id == project_id,
+                ProjectRequirementTask.parent_id.is_(None)
+            ).order_by(ProjectRequirementTask.created_at.desc()).limit(limit)
+            
+            if status_filter != "all":
+                query = query.where(ProjectRequirementTask.status == status_filter)
+                
+            result = await session.execute(query)
+            tasks = result.scalars().all()
+            
+            if not tasks:
+                return "No tasks found in this project."
+                
+            lines = [f"📋 Project Tasks ({len(tasks)} total):\n"]
+            
+            for t in tasks:
+                if t.status == "completed":
+                    icon = "✅"
+                elif t.status == "in_progress":
+                    icon = "🔄"
+                elif t.status == "failed":
+                    icon = "❌"
+                else:
+                    icon = "⏳"
+                    
+                title = t.task_data.get("title", "Untitled")
+                progress = t.progress
+                
+                lines.append(f"{icon} {title} ({progress}%) - ID: {t.id[:8]}")
+                
+            lines.append(f"\nUse get_task_tree_summary with task ID to see subtasks.")
+            
+            return "\n".join(lines)
+            
+    except Exception as e:
+        logger.error(f"[SubtaskTool] Failed to list tasks: {e}")
+        return f"Error listing tasks: {str(e)}"
