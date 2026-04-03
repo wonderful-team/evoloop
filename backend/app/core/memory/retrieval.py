@@ -136,7 +136,7 @@ class MemoryRetrievalService:
             )
             
             # Call LLM
-            llm = get_default_llm(temperature=0.3)
+            llm = await get_default_llm(temperature=0.3)
             response = await llm.ainvoke([
                 {"role": "system", "content": "You are a memory relevance selector."},
                 {"role": "user", "content": prompt},
@@ -228,12 +228,24 @@ class MemoryRetrievalService:
         entries: List[MemoryEntry],
         query: str,
     ) -> List[MemoryEntry]:
-        """Sort entries by relevance to query."""
-        query_words = set(query.lower().split())
+        """Sort entries by relevance to query (with freshness boost)."""
+        from datetime import datetime
+        import math
         
-        def score(entry: MemoryEntry) -> int:
+        query_words = set(query.lower().split())
+        now = datetime.utcnow()
+        
+        def score(entry: MemoryEntry) -> float:
+            # Base relevance score
             text = f"{entry.title} {entry.description} {entry.content}".lower()
-            return sum(1 for word in query_words if word in text)
+            relevance = sum(1 for word in query_words if word in text)
+            
+            # Freshness boost (exponential decay, 30-day half-life)
+            # Newer memories get up to +2.0 boost
+            age_days = (now - entry.updated_at).days
+            freshness_boost = 2.0 * math.exp(-age_days / 30.0)
+            
+            return relevance + freshness_boost
         
         return sorted(entries, key=score, reverse=True)
     

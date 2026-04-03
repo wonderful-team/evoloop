@@ -29,6 +29,8 @@ dependencies = [
     "tree-sitter>=0.23.0",
     "google-genai>=1.0.0", # Adjusted version constraint for broad compatibility
     "openai>=1.30.0",
+    # Task Queue (Embedded mode: Huey + SQLite, Full mode: Celery + Redis)
+    "huey[sqlite]>=2.5.0"  # Lightweight task queue for embedded mode
     "anthropic>=0.25.0",
     "edge-tts>=7.0.0",  # Text-to-Speech (Microsoft Edge, free)
     "tree-sitter-python>=0.21.0",

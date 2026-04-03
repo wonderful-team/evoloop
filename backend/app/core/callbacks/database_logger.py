@@ -10,7 +10,7 @@ from langchain_core.callbacks import AsyncCallbackHandler
 from langchain_core.messages import BaseMessage
 from langchain_core.outputs import LLMResult
 
-from app.infrastructure.queue.celery import celery_app
+from app.infrastructure.queue.factory import get_scheduler
 from app.core.config import settings
 from app.core.context import tool_state_store
 from app.core.evocloud import evocloud_manager
@@ -308,7 +308,7 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
             # to prevent blocking the agent loop with IO.
 
             # Send to Background
-            celery_app.send_task(
+            get_scheduler().send_task(
                 "engine_persist_message",
                 kwargs={
                     "thread_id": self.thread_id,
@@ -396,7 +396,7 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
                 
                 # Send to background task to attribute to previous message
                 # Uses the same task as final snapshot, but now it appends instead of overwrites
-                celery_app.send_task(
+                get_scheduler().send_task(
                     "engine_snapshot_steps",
                     kwargs={
                         "thread_id": self.thread_id,
@@ -421,7 +421,7 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
             return
 
         try:
-            result = celery_app.send_task(
+            result = get_scheduler().send_task(
                 "engine_snapshot_steps",
                 kwargs={
                     "thread_id": self.thread_id,

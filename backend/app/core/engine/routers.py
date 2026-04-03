@@ -94,6 +94,8 @@ def route_supervisor(state: AgentState) -> str | list[Send]:
                 # Inherit historical context from parent task for continuity
                 "historical_context": parent_ticket.get("historical_context") if parent_ticket else None,
                 "referenced_tech": parent_ticket.get("referenced_tech") if parent_ticket else None,
+                # Note: MCP servers are NOT inherited by subtasks
+                # Each subtask must explicitly request MCP servers via use_mcp_server
             }
 
             sends.append(Send(RoutingTarget.WORKER, {

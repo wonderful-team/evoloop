@@ -243,16 +243,21 @@ class LLMFactory:
 
 
 # Global instance for easy import if needed, or prefer using Factory.create()
-def get_default_llm(temperature: float = 0.3):
-    """Get default LLM (async wrapper for backward compatibility)."""
+def get_default_llm(temperature: float = 0.3, **kwargs):
+    """Get default LLM (async wrapper for backward compatibility).
+    
+    Args:
+        temperature: Sampling temperature
+        **kwargs: Additional arguments passed to LLMFactory.create_llm (e.g., max_tokens)
+    """
     import asyncio
     try:
         loop = asyncio.get_event_loop()
         if loop.is_running():
             # If in async context, use create_task
-            return asyncio.create_task(LLMFactory.create_llm(temperature=temperature))
+            return asyncio.create_task(LLMFactory.create_llm(temperature=temperature, **kwargs))
         else:
-            return loop.run_until_complete(LLMFactory.create_llm(temperature=temperature))
+            return loop.run_until_complete(LLMFactory.create_llm(temperature=temperature, **kwargs))
     except RuntimeError:
         # No event loop, create new one
-        return asyncio.run(LLMFactory.create_llm(temperature=temperature))
+        return asyncio.run(LLMFactory.create_llm(temperature=temperature, **kwargs))

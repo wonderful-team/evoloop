@@ -37,17 +37,26 @@ def run_api():
 
 
 def run_worker():
-    """启动 Celery Worker。"""
-    from app.infrastructure.queue.celery import celery_app
-
-    print("Starting Celery Worker...")
-    argv = [
-        "worker",
-        "--loglevel=info",
-        "--pool=solo",
-        "--queues=celery",
-    ]
-    celery_app.worker_main(argv=argv)
+    """启动任务队列 Worker（独立进程）。"""
+    import subprocess
+    
+    # Run worker as separate process using scripts/run_worker.py
+    # This avoids issues with signal handling and thread safety
+    worker_script = PROJECT_DIR / "scripts" / "run_worker.py"
+    
+    # Pass through command line arguments
+    cmd = [sys.executable, "-m", "scripts.run_worker"] + sys.argv[2:]
+    
+    print("Starting Task Queue Worker (separate process)...")
+    print(f"Command: {' '.join(cmd)}")
+    
+    try:
+        subprocess.run(cmd, check=True)
+    except subprocess.CalledProcessError as e:
+        print(f"Worker exited with code {e.returncode}", file=sys.stderr)
+        sys.exit(e.returncode)
+    except KeyboardInterrupt:
+        print("\nWorker interrupted")
 
 
 def export_openapi():
@@ -75,15 +84,21 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python bin/run.py api              # Start API server
-  python bin/run.py worker           # Start Celery worker
-  python bin/run.py export-openapi   # Export OpenAPI schema
+  python bin/run.py api                       # Start API server
+  python bin/run.py worker                    # Start Task Queue Worker
+  python bin/run.py worker --workers=4        # Start Worker with 4 workers
+  python bin/run.py export-openapi            # Export OpenAPI schema
 
 Environment Variables:
-  HOST        API host (default: 0.0.0.0)
-  PORT        API port (default: 8000)
-  WORKERS     Number of workers (default: 1)
-  RELOAD      Enable auto-reload (default: false)
+  HOST                  API host (default: 0.0.0.0)
+  PORT                  API port (default: 8000)
+  WORKERS               Number of API workers (default: 1)
+  RELOAD                Enable auto-reload (default: false)
+  TASK_QUEUE_BACKEND    Task queue backend (huey/celery/local/auto)
+
+Note:
+  Worker now runs as separate process for better stability.
+  Use 'python bin/run.py worker --workers=2' to start worker.
         """,
     )
 

@@ -5,9 +5,19 @@ import os
 from langchain_core.output_parsers import JsonOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 
-from app.infrastructure.queue.celery import celery_app
+# Unified task queue (Huey in embedded mode, Celery in full mode)
+from app.infrastructure.queue.factory import get_scheduler
+
+# Get scheduler instance
+_task_scheduler = get_scheduler()
+
+# Create task decorator
+def _task(name, **kwargs):
+    def decorator(f):
+        return _task_scheduler.task(f, name=name, **kwargs)
+    return decorator
 from app.core.evocloud import evocloud_manager
-from app.core.memory import memory_manager
+from app.core.memory import MemoryContainer, MemoryConfig
 from app.core.monitoring.activity import activity_monitor
 from app.domain.codebase.filter import FileFilter
 from app.domain.project.service import project_context_manager
@@ -55,6 +65,7 @@ async def _summarize_project_logic(name: str, path: str):
         sys_tid, "Summarizing", "Project Analysis", "Gathering Context..."
     )
 
+    container = None
     try:
         # 1. Fetch Deep Architectural Summary from Graph (if available)
         arch_summary = "Not available yet."
@@ -116,7 +127,7 @@ async def _summarize_project_logic(name: str, path: str):
             arch_summary=arch_summary
         )
 
-        llm = get_default_llm(temperature=0.3)
+        llm = await get_default_llm(temperature=0.3)
         response = await llm.ainvoke(prompt_text)
 
         parser = JsonOutputParser()
@@ -155,13 +166,16 @@ async def _summarize_project_logic(name: str, path: str):
             logger.warning(f"[ProjectSummarizer] Could not resolve Project ID for {name}, using default 1")
 
         # 5. Save Concepts to Memory
+        container = MemoryContainer(MemoryConfig.from_settings())
+        await container.initialize()
+        manager = container.memory_manager
         for c in concepts:
             c_name = c.get("name")
             c_desc = c.get("description")
             if c_name and c_desc:
                 from app.core.memory.interfaces.long_term import Concept
                 concept = Concept(c_name, c_desc, project_id, [path])
-                await memory_manager.long_term.store_concept(concept)
+                await manager.long_term.store_concept(concept)
 
         # Done
         await activity_monitor.end_run(sys_tid, "done")
@@ -171,10 +185,13 @@ async def _summarize_project_logic(name: str, path: str):
         await activity_monitor.end_run(sys_tid, "failed")
         # Re-raise to let Celery know it failed (triggering retries if configured)
         raise e
+    finally:
+        if container:
+            await container.shutdown()
 
 
 # --- Celery Task ---
-@celery_app.task(name="summarize_project")
+@_task(name="summarize_project")
 def summarize_project_task(name: str, path: str):
     """
     Celery task wrapper for project summarization.
@@ -218,7 +235,7 @@ class ProjectSummarizer:
             return
 
         # Dispatch to Celery
-        summarize_project_task.delay(name, path)
+        _task_scheduler.send_task("summarize_project", args=(name, path))
         self._processed.add(path)  # Optimistically mark as processed
         logger.debug(f"[ProjectSummarizer] Dispatched {name} to Celery queue")
 

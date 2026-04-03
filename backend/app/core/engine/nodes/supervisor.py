@@ -15,7 +15,7 @@ from app.core.config import settings
 from app.core.engine import AgentEngine
 from app.core.engine.message_utils import get_message_text, get_last_human_message
 from app.core.engine.state import AgentState
-from app.core.memory import memory_manager
+# Note: memory_manager is no longer imported globally. Use container.memory_manager() when needed.
 from app.core.tools.manager import tool_manager
 from app.constants import DEFAULT_PROJECT_ID, RoutingTarget
 from app.i18n.service import i18n
@@ -39,7 +39,7 @@ class SupervisorNode:
         project_id = state.get("project_id", DEFAULT_PROJECT_ID)
         messages = list(state.get("messages", []))
         # Unified Hydration (Phase 1 Optimization)
-        from app.core.engine.middleware import EvoContextMiddleware
+        from app.core.engine.context_hydrator import EvoContextMiddleware
         state = await EvoContextMiddleware.hydrate(state, config)
         logger.info("[Supervisor] 📂 Context utilized from unified Middleware.")
 

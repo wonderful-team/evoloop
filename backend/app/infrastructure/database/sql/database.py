@@ -48,7 +48,9 @@ AsyncSessionLocal = async_sessionmaker(
 
 # Base Model
 class Base(DeclarativeBase):
-    pass
+    # Suppress warnings about delete operations that match 0 rows
+    # This can happen with concurrent deletes or when the row is already deleted
+    __mapper_args__ = {"confirm_deleted_rows": False}
 
 
 # Dependency for FastAPI

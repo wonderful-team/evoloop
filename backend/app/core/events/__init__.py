@@ -14,6 +14,7 @@ from app.core.events.base import (
 from app.core.events.registry import (
     AgentEventType,
     AwakeningEventType,
+    FileSystemEventType,
     IndexingEventType,
     ProjectEventType,
     SystemEventType,
@@ -37,4 +38,5 @@ __all__ = [
     "IndexingEventType",
     "AgentEventType",
     "MacroEventType",
+    "FileSystemEventType",
 ]

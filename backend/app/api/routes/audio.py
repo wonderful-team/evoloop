@@ -11,10 +11,11 @@ import tempfile
 import os
 from typing import Optional
 
-from fastapi import APIRouter, File, HTTPException, UploadFile, Form
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, Form
 from fastapi.responses import StreamingResponse, FileResponse
 from pydantic import BaseModel
 
+from app.api.deps import require_benefit
 from app.core.voice import (
     get_tts_provider,
     get_stt_provider,
@@ -68,7 +69,7 @@ async def list_voices():
         raise HTTPException(500, f"Failed to list voices: {str(e)}")
 
 
-@router.post("/tts", response_model=TTSResponse)
+@router.post("/tts", response_model=TTSResponse, dependencies=[Depends(require_benefit("voice"))])
 async def text_to_speech(request: TTSRequest):
     """
     文字转语音（返回音频文件 URL）
@@ -161,6 +162,12 @@ async def text_to_speech_stream(
     try:
         provider = get_tts_provider()
         
+        # 检查文本内容（清理后）
+        from app.core.voice.utils import optimize_for_tts
+        cleaned_text = optimize_for_tts(text)
+        if not cleaned_text or not cleaned_text.strip():
+            raise HTTPException(400, "Text is empty after processing. Please provide valid text content.")
+        
         # 确定语言
         locale = VoiceLocale.ZH_CN
         if voice_id.startswith("en-"):
@@ -247,7 +254,7 @@ async def list_stt_providers():
         raise HTTPException(500, f"Failed to list providers: {str(e)}")
 
 
-@router.post("/transcribe", response_model=TranscriptionResponse)
+@router.post("/transcribe", response_model=TranscriptionResponse, dependencies=[Depends(require_benefit("voice"))])
 async def transcribe_audio(
     file: UploadFile = File(...),
     language: str = Form("auto"),

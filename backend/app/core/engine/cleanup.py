@@ -81,21 +81,27 @@ class CleanupOrchestrator:
             async def cleanup(self, message_ids: list[str], **kwargs) -> int:
                 """Cleanup memories linked to rolled-back messages."""
                 try:
-                    from app.core.memory import memory_manager
+                    from app.core.memory import MemoryContainer, MemoryConfig
                     
-                    count = 0
-                    # Find memories linked to these message IDs
-                    for msg_id in message_ids:
-                        # Search for memories with matching source_message_id
-                        results = await memory_manager.search_memories(
-                            query=f"source_message_id:{msg_id}",
-                            limit=100
-                        )
-                        for mem in results:
-                            if await memory_manager.delete_memory(mem.id):
-                                count += 1
-                    
-                    return count
+                    container = MemoryContainer(MemoryConfig.from_settings())
+                    await container.initialize()
+                    try:
+                        memory_manager = container.memory_manager
+                        count = 0
+                        # Find memories linked to these message IDs
+                        for msg_id in message_ids:
+                            # Search for memories with matching source_message_id
+                            results = await memory_manager.search_memories(
+                                query=f"source_message_id:{msg_id}",
+                                limit=100
+                            )
+                            for mem in results:
+                                if await memory_manager.delete_memory(mem.id):
+                                    count += 1
+                        
+                        return count
+                    finally:
+                        await container.shutdown()
                 except Exception as e:
                     logger.error(f"Memory cleanup failed: {e}")
                     return 0

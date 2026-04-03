@@ -9,17 +9,14 @@ from langchain_core.messages import SystemMessage
 
 from app.infrastructure.llm.factory import get_default_llm
 
-# Conditional import for Celery (embedded mode compatibility)
-try:
-    from celery import shared_task
-except ImportError:
-    from app.infrastructure.queue.celery import shared_task
+# Unified task queue (Huey in embedded mode, Celery in full mode)
+from app.infrastructure.queue.factory import shared_task
 from sqlalchemy import text, select, desc, func
 
 from app.core.config import settings
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.learning.trace_recorder import sync_thread_to_graph
-from app.core.memory import memory_manager
+
 from app.core.memory.interfaces.long_term import Concept as MemConcept
 from app.core.environment.events import UiTreeObservedEvent, event_bus
 from app.infrastructure.database.sql.database import session_scope
@@ -201,7 +198,14 @@ def harvest_concepts_task(concepts_data: list[dict], project_id: int):
                         logger.debug(f"Dehydrated {name} into summary: {summary}")
 
                 mem_concept = MemConcept(name, description, project_id, [])
-                await memory_manager.long_term.store_concept(mem_concept)
+                # Create container and store concept
+                from app.core.memory import MemoryContainer, MemoryConfig
+                container = MemoryContainer(MemoryConfig.from_settings())
+                await container.initialize()
+                try:
+                    await container.memory_manager.long_term.store_concept(mem_concept)
+                finally:
+                    await container.shutdown()
                 logger.info(f"Harvested concept: {name}")
             except Exception as e:
                 logger.warning(f"Failed to store concept {name}: {e}")
@@ -396,7 +400,12 @@ def persist_message_task(
 
             logger.debug(f"[Celery] Persisted message {sequence_number} with {len(references or [])} refs for thread {thread_id}")
         except Exception as e:
-            logger.error(f"[Celery] Failed to persist message: {e}")
+            error_msg = f"[Celery] Failed to persist message: {type(e).__name__}: {e}"
+            logger.error(error_msg)
+            # Print as fallback to ensure error is visible even if logger level is high
+            print(f"ERROR: {error_msg}", flush=True)
+            import traceback
+            traceback.print_exc()
 
     async def _run_with_flush():
         try:
@@ -459,7 +468,7 @@ def git_harvest_task(cwd: str, project_id: int):
 
         # 2. Extract
         try:
-            llm = get_default_llm(temperature=0.0)
+            llm = await get_default_llm(temperature=0.0)
             structured_llm = llm.with_structured_output(ExtractionResult)
             user_lang = SystemConfigService.get_language_preference()
 
@@ -475,10 +484,17 @@ def git_harvest_task(cwd: str, project_id: int):
             ]))
 
             if isinstance(result, ExtractionResult) and result.concepts:
-                for concept in result.concepts:
-                    mem_concept = MemConcept(concept.name, concept.description, project_id, concept.related_files)
-                    await memory_manager.long_term.store_concept(mem_concept)
-                    logger.info(f"[Celery] Harvested concept: {concept.name}")
+                # Create container and store concepts
+                from app.core.memory import MemoryContainer, MemoryConfig
+                container = MemoryContainer(MemoryConfig.from_settings())
+                await container.initialize()
+                try:
+                    for concept in result.concepts:
+                        mem_concept = MemConcept(concept.name, concept.description, project_id, concept.related_files)
+                        await container.memory_manager.long_term.store_concept(mem_concept)
+                        logger.info(f"[Celery] Harvested concept: {concept.name}")
+                finally:
+                    await container.shutdown()
         except Exception as e:
             logger.error(f"[Celery] Harvest extraction failed: {e}")
 

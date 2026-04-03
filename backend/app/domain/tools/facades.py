@@ -5,7 +5,7 @@ from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import InjectedToolArg
 
 from app.core.context.manager import ContextManager
-from app.core.memory import memory_manager
+from app.core.memory import MemoryContainer, MemoryConfig
 from app.core.monitoring.ui_actions import require_project_for_tool
 from app.core.tools import evoloop_tool
 from app.utils import ProjectManagementFormatter
@@ -45,10 +45,16 @@ async def consult_architecture(path: str = ""):
             return result  # User cancelled
         pid = result
 
-    info = await memory_manager.graph.get_directory_info(pid, path)
-
+    container = MemoryContainer(MemoryConfig.from_settings())
+    await container.initialize()
     try:
-        return ProjectManagementFormatter.architecture_summary(info)
-    except Exception as e:
-        logger.error(f"Failed to render architecture report: {e}")
-        return f"Architecture info for {path}"
+        manager = container.memory_manager
+        info = await manager.graph.get_directory_info(pid, path)
+
+        try:
+            return ProjectManagementFormatter.architecture_summary(info)
+        except Exception as e:
+            logger.error(f"Failed to render architecture report: {e}")
+            return f"Architecture info for {path}"
+    finally:
+        await container.shutdown()

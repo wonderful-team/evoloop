@@ -111,8 +111,8 @@ class VisionEngine:
 
             # Dispatch to Celery background worker to offload OCR/Neo4j processing
             try:
-                from app.infrastructure.queue.celery import celery_app
-                celery_app.send_task(
+                from app.infrastructure.queue.factory import get_scheduler
+                get_scheduler().send_task(
                     "app.core.atlas.tasks.map_observed_ui",
                     args=(
                         image_source,

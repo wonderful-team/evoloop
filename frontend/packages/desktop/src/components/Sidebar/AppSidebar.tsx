@@ -17,6 +17,8 @@ import {
   useSidebar,
 } from "@evoloop/shared/components/ui/sidebar"
 import useAuth from "@/hooks/useAuth"
+// 注意：Sidebar 不再根据权限过滤菜单，所有功能都显示
+// 权限控制统一由后端处理，前端捕获错误后提示升级
 import { type Item, Main } from "./Main"
 import { User } from "./User"
 

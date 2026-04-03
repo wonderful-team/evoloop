@@ -27,15 +27,28 @@ export function DetectedProjectAlert() {
     hasNewDetected,
     dismissedProjectIds,
     isLoading,
+    isDiscoveryEnabled,
     fetchDetected,
     importProject,
     ignoreProject,
     dismissProject,
     dismissAllProjects,
+    checkDiscoveryEnabled,
   } = useProjectImportStore()
 
-  // Poll for new detected projects every 30 seconds (only when logged in)
+  // Check discovery config on mount
   useEffect(() => {
+    checkDiscoveryEnabled()
+  }, [checkDiscoveryEnabled])
+
+  // Poll for new detected projects every 30 seconds (only when logged in and discovery enabled)
+  useEffect(() => {
+    // Skip if discovery is disabled
+    if (isDiscoveryEnabled === false) {
+      console.debug("[DetectedProjectAlert] Discovery disabled, skipping poll")
+      return
+    }
+    
     // Only check for detected projects if user is logged in
     if (!isLoggedIn()) {
       return
@@ -48,20 +61,35 @@ export function DetectedProjectAlert() {
       }
     }, 30000)
     return () => clearInterval(interval)
-  }, [fetchDetected])
+  }, [fetchDetected, isDiscoveryEnabled])
 
-  // Show dialog when new projects detected (only when logged in)
+  // Close dialog when discovery is disabled
+  useEffect(() => {
+    if (isDiscoveryEnabled === false && isOpen) {
+      setIsOpen(false)
+    }
+  }, [isDiscoveryEnabled, isOpen])
+
+  // Show dialog when new projects detected (only when logged in and discovery enabled)
   // Suppressed if setup wizard is open (it has higher priority)
   useEffect(() => {
+    // Don't show if discovery is disabled
+    if (isDiscoveryEnabled === false) {
+      setIsOpen(false)
+      return
+    }
+    
     // Don't show if setup wizard is open
     if (shouldSuppressOtherDialogs()) {
       setIsOpen(false)
       return
     }
+    
     // Only show dialog if user is logged in
     if (!isLoggedIn()) {
       return
     }
+    
     if (hasNewDetected && detectedProjects.length > 0 && !isOpen) {
       // Small delay to not interrupt user immediately
       const timer = setTimeout(() => {
@@ -69,7 +97,7 @@ export function DetectedProjectAlert() {
       }, 1000)
       return () => clearTimeout(timer)
     }
-  }, [hasNewDetected, detectedProjects.length, isOpen, shouldSuppressOtherDialogs])
+  }, [hasNewDetected, detectedProjects.length, isOpen, shouldSuppressOtherDialogs, isDiscoveryEnabled])
 
   // 过滤掉已处理的项目
   const visibleProjects = detectedProjects.filter((p) => !dismissedProjectIds.has(p.id))

@@ -244,7 +244,7 @@ class SkillDiscovery:
         system_prompt = prompt_builder.build_discovery_prompt(prompt_vars)
 
         try:
-            llm = get_default_llm(temperature=0.0)
+            llm = await get_default_llm(temperature=0.0)
             messages = [
                 SystemMessage(content=system_prompt)
             ]

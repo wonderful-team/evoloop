@@ -218,17 +218,25 @@ def smart_window_slice(
     window_size: int | None = None,
     max_total_chars: int = MAX_CONTEXT_CHARS,
     model: str | None = None,
+    thread_id: str | None = None,
+    user_id: str | None = None,
+    project_id: int | None = None,
 ) -> list[BaseMessage]:
     """
     Slice the message list to a window size, ensuring no (AI -> Tool) pair is split.
     If the window start falls on a ToolMessage, it backtracks to include the parent AIMessage.
     Also enforces a character-based limit (max_total_chars) to prevent Token overflow.
 
+    CRITICAL: Triggers PreCompact hook before slicing to save state.
+
     Args:
         messages: Full list of messages.
         window_size: Explicit window size. If None, derived from ModelProfile.
         max_total_chars: Maximum total characters allowed in the resulting slice.
         model: Model name for profile-aware window sizing.
+        thread_id: Thread ID for hook context.
+        user_id: User ID for hook context.
+        project_id: Project ID for hook context.
 
     Returns:
         Sliced list of messages.
@@ -239,6 +247,24 @@ def smart_window_slice(
     if len(messages) <= effective_window:
         sliced_msgs = messages
     else:
+        # CRITICAL: Trigger PreCompact hook BEFORE context is lost
+        # This saves task progress, decisions, and state
+        if len(messages) > effective_window:
+            try:
+                from app.core.engine.hooks import hook_system, HookEvent, HookContext
+                hook_ctx = HookContext(
+                    thread_id=thread_id or "unknown",
+                    user_id=user_id,
+                    project_id=project_id,
+                    messages=messages,
+                )
+                # Fire and forget - don't block window slicing
+                import asyncio
+                asyncio.create_task(hook_system.trigger(HookEvent.PRE_COMPACT, hook_ctx))
+                logger.debug(f"[Window] PreCompact hook triggered for {thread_id}")
+            except Exception as e:
+                logger.warning(f"[Window] PreCompact hook failed: {e}")
+        
         start_index = max(0, len(messages) - effective_window)
         # Backtrack if starting on a ToolMessage
         while start_index > 0 and isinstance(messages[start_index], ToolMessage):

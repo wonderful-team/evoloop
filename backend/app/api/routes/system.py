@@ -208,3 +208,68 @@ async def get_embedding_models():
         "models": models,
         "last_updated": time.strftime("%Y-%m-%d")
     }
+
+
+# --- Project Discovery Config ---
+class ProjectDiscoveryConfigResponse(BaseModel):
+    enabled: bool
+    source: str  # "env" | "config" | "default"
+
+
+@router.get("/project-discovery/config", dependencies=[Depends(get_current_user)])
+async def get_project_discovery_config():
+    """
+    获取项目自动发现功能的配置状态。
+    
+    Returns:
+        enabled: 是否启用项目发现
+        source: 配置来源 (env-环境变量, config-系统配置, default-默认值)
+    """
+    from app.core.config import settings
+    from app.domain.project.discovery_manager import PROJECT_DISCOVERY_CONFIG_KEY
+    
+    # Check environment variable first
+    if not settings.ENABLE_PROJECT_DISCOVERY:
+        return ProjectDiscoveryConfigResponse(enabled=False, source="env")
+    
+    # Then check system config
+    config_value = SystemConfigService.get_value(PROJECT_DISCOVERY_CONFIG_KEY)
+    if config_value is not None:
+        enabled = config_value.lower() in ("true", "1", "yes", "on")
+        return ProjectDiscoveryConfigResponse(enabled=enabled, source="config")
+    
+    # Default: enabled
+    return ProjectDiscoveryConfigResponse(enabled=True, source="default")
+
+
+class ProjectDiscoveryConfigRequest(BaseModel):
+    enabled: bool
+
+
+@router.post("/project-discovery/config", dependencies=[Depends(get_current_user)])
+async def set_project_discovery_config(req: ProjectDiscoveryConfigRequest):
+    """
+    设置项目自动发现功能的启用/禁用状态。
+    
+    Note: 如果通过环境变量 DISABLED，此处设置将无效（环境变量优先级最高）
+    """
+    from app.core.config import settings
+    from app.domain.project.discovery_manager import discovery_manager
+    
+    # Check if disabled by environment variable
+    if not settings.ENABLE_PROJECT_DISCOVERY:
+        return {
+            "success": False,
+            "message": "Project discovery is disabled by environment variable (ENABLE_PROJECT_DISCOVERY=false). Cannot enable via API.",
+            "enabled": False,
+            "locked": True
+        }
+    
+    # Set the configuration
+    success = await discovery_manager.set_discovery_enabled(req.enabled)
+    
+    return {
+        "success": success,
+        "enabled": req.enabled,
+        "message": f"Project discovery {'enabled' if req.enabled else 'disabled'} successfully"
+    }

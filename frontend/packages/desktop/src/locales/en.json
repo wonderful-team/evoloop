@@ -32,7 +32,9 @@
       "workspaceRoot": "Workspace Root Directory",
       "workspaceRootPlaceholder": "/path/to/workspace",
       "workspaceRootDesc": "The workspace directory for project operations.",
-      "deviceName": "Device Name"
+      "deviceName": "Device Name",
+      "projectDiscoveryEnabled": "Enable Project Auto-Discovery",
+      "projectDiscoveryEnabledDesc": "Automatically detect new projects in the workspace directory. When disabled, you'll need to import projects manually."
     },
     "appearance": {
       "light": "Light",
@@ -639,7 +641,17 @@
       "syncDevice": "Sync New Device",
       "skillEvolution": "Skill Evolution",
       "totalSkills": "{{count}} Active Skills",
-      "teachMe": "Teach Me a New Skill"
+      "teachMe": "Teach Me a New Skill",
+      "nav": {
+        "projects": "Project Management",
+        "projectsDesc": "Manage all development projects",
+        "todos": "To-do Items",
+        "todosDesc": "Track progress and automations",
+        "knowledge": "Knowledge Base",
+        "knowledgeDesc": "Access memory, docs & assets",
+        "skills": "Skill Center",
+        "skillsDesc": "Train and upgrade agent skills"
+      }
     },
     "context": {
       "starter": {

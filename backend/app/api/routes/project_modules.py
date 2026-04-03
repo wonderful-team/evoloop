@@ -1,7 +1,7 @@
-from fastapi import APIRouter, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel
 
-from app.api.deps import TokenDep
+from app.api.deps import TokenDep, require_benefit
 from app.core.evocloud import evocloud_manager
 
 router = APIRouter()
@@ -38,7 +38,7 @@ async def get_budget_overview(project_id: int, token: TokenDep = None):
     return await evocloud_manager.api.get_budget_overview(project_id)
 
 
-@router.get("/timesheet/list")
+@router.get("/timesheet/list", dependencies=[Depends(require_benefit("timesheet"))])
 async def get_timesheet_list(
     project_id: int,
     page: int = 1,
@@ -54,7 +54,7 @@ async def get_timesheet_list(
     return res.get("data", {})
 
 
-@router.post("/timesheet/quick_add")
+@router.post("/timesheet/quick_add", dependencies=[Depends(require_benefit("timesheet"))])
 async def quick_add_timesheet(
     req: TimesheetQuickAddRequest, authorization: str | None = Header(None)
 ):

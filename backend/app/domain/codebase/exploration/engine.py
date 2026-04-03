@@ -9,7 +9,6 @@ import logging
 from pathlib import Path
 from typing import Optional
 
-from app.core.memory import memory_manager
 from app.utils.process import run_command
 from app.constants import DEFAULT_EXCLUDED_DIRS
 

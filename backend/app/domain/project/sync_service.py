@@ -479,13 +479,21 @@ class ProjectSyncService:
         Handles creation/deletion that occurred while service was offline.
 
         Modified: Only starts indexing for already-imported projects.
-        Newly detected projects are created with DETECTED status.
+        Newly detected projects are created with DETECTED status (if discovery enabled).
         Respects user's ignored project choices.
         """
         if not root_path or not os.path.exists(root_path):
             logger.warning(f"[ProjectSync] Root path {root_path} invalid. Skipping reconciliation.")
             return
 
+        # Check if project discovery is enabled
+        from app.infrastructure.config.service import SystemConfigService
+        discovery_config = SystemConfigService.get_value("PROJECT_DISCOVERY_ENABLED")
+        is_discovery_enabled = discovery_config is None or discovery_config.lower() in ("true", "1", "yes", "on")
+        
+        if not is_discovery_enabled:
+            logger.info(f"[ProjectSync] Project discovery is disabled. Skipping new project detection.")
+        
         logger.info(f"[ProjectSync] Starting Reconciliation on {root_path}...")
 
         # 1. Scan Filesystem (Direct subdirectories only)
@@ -521,20 +529,25 @@ class ProjectSyncService:
         fs_paths = {os.path.abspath(p) for p in fs_projects}
 
         # A. New Projects (In FS, Not in DB)
-        # Create as DETECTED, don't start indexing
+        # Create as DETECTED only if discovery is enabled, don't start indexing
         # But skip if this path was previously ignored
         new_paths = fs_paths - known_paths
-        for p in new_paths:
-            # Check if this path matches an ignored project (by name match)
-            # This handles the case where user deleted and re-created a project
-            if self._is_ignored_path(p, ignored_paths):
-                logger.info(f"[ProjectSync] Skipping previously ignored project: {p}")
-                # Create as IGNORED to maintain user choice
-                await self._create_ignored_project(p)
-                continue
+        if is_discovery_enabled:
+            for p in new_paths:
+                # Check if this path matches an ignored project (by name match)
+                # This handles the case where user deleted and re-created a project
+                if self._is_ignored_path(p, ignored_paths):
+                    logger.info(f"[ProjectSync] Skipping previously ignored project: {p}")
+                    # Create as IGNORED to maintain user choice
+                    await self._create_ignored_project(p)
+                    continue
 
-            logger.info(f"[ProjectSync] Found offline creation: {p}")
-            await self.handle_project_created(p)
+                logger.info(f"[ProjectSync] Found offline creation: {p}")
+                await self.handle_project_created(p)
+        else:
+            # Discovery disabled - only log how many projects were found but not created
+            if new_paths:
+                logger.info(f"[ProjectSync] Found {len(new_paths)} new projects but discovery is disabled. Skipping.")
 
         # B. Restored Projects (In DB as DISCONNECTED, but now in FS)
         for p in known_paths & fs_paths:

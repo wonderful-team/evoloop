@@ -73,7 +73,7 @@ class AgentEngine:
         config = AgentEngine._setup_callbacks(config)
 
         # 2.1 Unified Hydration (Phase 1 Optimization)
-        from app.core.engine.middleware import EvoContextMiddleware
+        from app.core.engine.context_hydrator import EvoContextMiddleware
         state = await EvoContextMiddleware.hydrate(state, config)
         logger.info(f"[{name}] 🧪 Context Hydrated via Middleware")
 
@@ -92,10 +92,15 @@ class AgentEngine:
         pruned_messages = prune_redundant_results(raw_messages)
 
         # 3.2 Smart Windowing (Delegated to utils, with character limit)
+        # Extract context info for PreCompact hook
+        ctx_config = config.get("configurable", {})
         windowed_messages = smart_window_slice(
             pruned_messages, 
             window_size=DEFAULT_WINDOW_SIZE,
-            max_total_chars=MAX_CONTEXT_CHARS 
+            max_total_chars=MAX_CONTEXT_CHARS,
+            thread_id=ctx_config.get("thread_id"),
+            user_id=ctx_config.get("user_id"),
+            project_id=ctx_config.get("project_id"),
         )
 
         # 3.2 Repair Orphaned Tool Messages (Delegated to utils)
@@ -313,6 +318,34 @@ class AgentEngine:
                 if tool:
                     try:
                         thread_id = config.get("configurable", {}).get("thread_id", "unknown")
+                        user_id = config.get("configurable", {}).get("user_id")
+                        project_id = config.get("configurable", {}).get("project_id")
+                        
+                        # === HOOK: PreToolUse ===
+                        # Can block dangerous operations
+                        from app.core.engine.hooks import hook_system, HookEvent, HookContext
+                        pre_ctx = HookContext(
+                            thread_id=thread_id,
+                            user_id=user_id,
+                            project_id=project_id,
+                            tool_name=tool_name,
+                            tool_input=tool_args,
+                            tool_use_id=tool_id,
+                            blackboard=state.get("blackboard", {}),
+                        )
+                        pre_result = await hook_system.trigger(HookEvent.PRE_TOOL_USE, pre_ctx, blocking=True)
+                        if pre_result.block:
+                            logger.warning(f"[{name}] 🚫 Tool {tool_name} blocked by hook: {pre_result.message}")
+                            return ToolMessage(
+                                content=f"Error: Tool execution blocked - {pre_result.message}",
+                                tool_call_id=tool_id,
+                                name=tool_name,
+                                id=gen_uuid(),
+                            )
+                        # Update context if modified
+                        if pre_result.modified_context:
+                            tool_args = pre_result.modified_context.tool_input or tool_args
+                        
                         snapshot_paths = get_tool_affected_paths(tool_name, tool_args)
 
                         # Capture Snapshots
@@ -322,6 +355,20 @@ class AgentEngine:
 
                         # Execute Tool
                         content = await executor.execute(tool, tool_args, config=config)
+                        
+                        # === HOOK: PostToolUse ===
+                        # Log success and trigger side effects
+                        post_ctx = HookContext(
+                            thread_id=thread_id,
+                            user_id=user_id,
+                            project_id=project_id,
+                            tool_name=tool_name,
+                            tool_input=tool_args,
+                            tool_result=content,
+                            tool_use_id=tool_id,
+                            blackboard=state.get("blackboard", {}),
+                        )
+                        asyncio.create_task(hook_system.trigger(HookEvent.POST_TOOL_USE, post_ctx))
 
                         # --- Diff Tracking (Calculated Sync, Persisted Async) ---
                         for path in snapshot_paths:
@@ -331,9 +378,9 @@ class AgentEngine:
                                     logger.info(f"📝 Diff Detected ({operation}) on {path} (Persisting in Background)")
                                     # Offload DB Write to Celery
                                     try:
-                                        from app.infrastructure.queue.celery import celery_app
+                                        from app.infrastructure.queue.factory import get_scheduler
                                         msg_id = config.get("configurable", {}).get("run_id") or tool_id
-                                        celery_app.send_task(
+                                        get_scheduler().send_task(
                                             "engine_persist_file_operation",
                                             kwargs={
                                                 "thread_id": thread_id,
@@ -351,6 +398,21 @@ class AgentEngine:
 
                     except Exception as e:
                         content = f"Error executing {tool_name}: {e}"
+                        
+                        # === HOOK: PostToolUseFailure ===
+                        # Log failure for debugging
+                        fail_ctx = HookContext(
+                            thread_id=thread_id,
+                            user_id=user_id,
+                            project_id=project_id,
+                            tool_name=tool_name,
+                            tool_input=tool_args,
+                            tool_use_id=tool_id,
+                            error=e,
+                            error_message=str(e),
+                            blackboard=state.get("blackboard", {}),
+                        )
+                        asyncio.create_task(hook_system.trigger(HookEvent.POST_TOOL_USE_FAILURE, fail_ctx))
                 else:
                     content = f"Error: Tool {tool_name} not found."
 
@@ -524,6 +586,9 @@ class AgentEngine:
             tool_name = tc["name"]
             tool_args = tc["args"]
             tool_id = tc["id"]
+            thread_id = config.get("configurable", {}).get("thread_id", "unknown")
+            user_id = config.get("configurable", {}).get("user_id")
+            project_id = config.get("configurable", {}).get("project_id")
 
             tool_sig = f"{tool_name}:{json.dumps(tool_args, sort_keys=True)}"
             local_tool_history.append(tool_sig)
@@ -535,9 +600,60 @@ class AgentEngine:
                 content = f"Error: Tool {tool_name} not found."
             else:
                 try:
+                    # === HOOK: PreToolUse ===
+                    from app.core.engine.hooks import hook_system, HookEvent, HookContext
+                    pre_ctx = HookContext(
+                        thread_id=thread_id,
+                        user_id=user_id,
+                        project_id=project_id,
+                        tool_name=tool_name,
+                        tool_input=tool_args,
+                        tool_use_id=tool_id,
+                        blackboard=state.get("blackboard", {}),
+                    )
+                    pre_result = await hook_system.trigger(HookEvent.PRE_TOOL_USE, pre_ctx, blocking=True)
+                    if pre_result.block:
+                        content = f"Error: Tool execution blocked - {pre_result.message}"
+                        return ToolMessage(
+                            content=truncate_message_content(str(content)),
+                            tool_call_id=tool_id,
+                            name=tool_name,
+                            id=gen_uuid(),
+                        )
+                    if pre_result.modified_context:
+                        tool_args = pre_result.modified_context.tool_input or tool_args
+                    
                     content = await executor.execute(tool, tool_args, config=config)
+                    
+                    # === HOOK: PostToolUse ===
+                    post_ctx = HookContext(
+                        thread_id=thread_id,
+                        user_id=user_id,
+                        project_id=project_id,
+                        tool_name=tool_name,
+                        tool_input=tool_args,
+                        tool_result=content,
+                        tool_use_id=tool_id,
+                        blackboard=state.get("blackboard", {}),
+                    )
+                    asyncio.create_task(hook_system.trigger(HookEvent.POST_TOOL_USE, post_ctx))
+                    
                 except Exception as e:
                     content = f"Error executing {tool_name}: {e}"
+                    
+                    # === HOOK: PostToolUseFailure ===
+                    fail_ctx = HookContext(
+                        thread_id=thread_id,
+                        user_id=user_id,
+                        project_id=project_id,
+                        tool_name=tool_name,
+                        tool_input=tool_args,
+                        tool_use_id=tool_id,
+                        error=e,
+                        error_message=str(e),
+                        blackboard=state.get("blackboard", {}),
+                    )
+                    asyncio.create_task(hook_system.trigger(HookEvent.POST_TOOL_USE_FAILURE, fail_ctx))
 
             # Inject run_id
             metadata = {"run_id": run_id} if run_id else {}

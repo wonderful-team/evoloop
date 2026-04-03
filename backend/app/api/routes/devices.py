@@ -1,7 +1,7 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from app.api.deps import TokenDep
+from app.api.deps import TokenDep, require_benefit
 from app.core.evocloud import evocloud_manager
 from app.core.environment.discovery import EnvironmentProbe
 import logging
@@ -69,7 +69,7 @@ async def get_devices(token: TokenDep):
     return devices
 
 
-@router.post("/{device_id}/command")
+@router.post("/{device_id}/command", dependencies=[Depends(require_benefit("mobile_control"))])
 async def send_command(device_id: int, req: SendCommandRequest, token: TokenDep):
     """Send remote command"""
     res = await evocloud_manager.api.send_command_to_device(device_id, req.dict())

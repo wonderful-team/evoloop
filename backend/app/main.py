@@ -30,7 +30,7 @@ from app.core.events.bridge import register_event_bridge
 from app.core.evocloud import evocloud_manager
 from app.core.globals import set_graph
 from app.core.persistence import set_checkpointer, set_db_pool
-from app.core.tools.mcp.client import mcp_client_manager
+from app.core.mcp import mcp_client_manager
 from app.domain.codebase.indexing.manager import indexing_manager
 from app.domain.project.discovery_manager import discovery_manager
 from app.domain.project.summarizer import project_summarizer
@@ -42,6 +42,9 @@ from sqlmodel import SQLModel
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Global app reference for lifespan access
+_app = None
 
 
 async def _warm_evocloud_cache():
@@ -55,7 +58,10 @@ async def _warm_evocloud_cache():
 
 
 @asynccontextmanager
-async def lifespan(_app: FastAPI):
+async def lifespan(app: FastAPI):
+    global _app
+    _app = app
+
     # --- Startup ---
     logger.info("Initializing EvoLoop resources...")
 
@@ -94,13 +100,21 @@ async def lifespan(_app: FastAPI):
         logger.warning(f"Failed to register config handlers: {e}")
 
     # 2. Graph/Memory Init
+    memory_container = None
     try:
-        from app.core.memory import memory_manager
-
-        await memory_manager.initialize()
-        logger.info("Memory Service schema initialized.")
+        from app.core.memory import MemoryContainer, MemoryConfig
+        
+        # Create and initialize memory container
+        memory_container = MemoryContainer(MemoryConfig.from_settings())
+        await memory_container.initialize()
+        
+        # Store container in app state for later access
+        _app.state.memory_container = memory_container
+        
+        logger.info("Memory Service initialized via Container.")
     except Exception as e:
-        logger.warning(f"Failed to initialize Memory Service schema: {e}")
+        logger.warning(f"Failed to initialize Memory Service: {e}")
+        memory_container = None
 
     # 2.5 Agent Awakening - Environment & Capability Awareness
     try:
@@ -192,10 +206,13 @@ async def lifespan(_app: FastAPI):
     await project_summarizer.start_worker()
 
     # 5. MCP Clients
-    try:
-        await mcp_client_manager.connect_all()
-    except Exception as e:
-        logger.error(f"Failed to connect to MCP servers: {e}")
+    # Note: MCP servers are now connected on-demand via use_mcp_server tool
+    # This prevents startup hanging due to npx package downloads
+    logger.info("MCP servers will be connected on-demand (lazy loading)")
+    # try:
+    #     await mcp_client_manager.connect_all()
+    # except Exception as e:
+    #     logger.error(f"Failed to connect to MCP servers: {e}")
 
     # 6. Watchers
     logger.info("Initializing File Watchers...")
@@ -384,6 +401,11 @@ async def lifespan(_app: FastAPI):
     except Exception as e:
         logger.warning(f"[Startup] Cache warming failed: {e}")
 
+    # 10. Task Queue Worker
+    # Note: Worker runs as separate process, started via: python -m scripts.run_worker
+    # See scripts/run_worker.py for standalone worker startup
+    logger.info("[Startup] Task Queue Worker should be started separately via 'python -m scripts.run_worker'")
+
     yield
 
     # --- Shutdown ---
@@ -424,12 +446,22 @@ async def lifespan(_app: FastAPI):
     except Exception as e:
         logger.warning(f"Failed to stop EvoLoop Link: {e}")
 
+    # Note: Worker is managed separately, not started within lifespan
+
     # Close database connections
     if db_pool:
         await db_pool.close()
     if _sqlite_conn:
         await _sqlite_conn.close()
         logger.info("SQLite checkpointer connection closed")
+
+    # Shutdown Memory Container
+    if memory_container:
+        try:
+            await memory_container.shutdown()
+            logger.info("Memory Container shutdown.")
+        except Exception as e:
+            logger.warning(f"Failed to shutdown Memory Container: {e}")
 
 
 def custom_generate_unique_id(route: APIRoute) -> str:

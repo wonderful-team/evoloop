@@ -1,8 +1,8 @@
 """
-Memory Tools - Individual tools for memory management.
+Memory Tools - Conversation history search.
 
-This module provides standalone tools for memory operations,
-replacing the monolithic manage_memory facade.
+Note: Long-term memory (remember/recall) has been moved to 
+app.core.engine.tools.memory_tools for simplified architecture.
 """
 from typing import Annotated
 
@@ -10,13 +10,8 @@ from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import InjectedToolArg
 
 from app.core.context.manager import ContextManager
-from app.core.memory import memory_manager
+from app.core.memory import MemoryContainer, MemoryConfig
 from app.core.tools import evoloop_tool
-from app.domain.tools.memory import (
-    add_concept_impl,
-    find_related_episodes_impl,
-    save_preference_impl,
-)
 from app.utils import ContentFormatter
 
 
@@ -37,7 +32,7 @@ async def search_history(
     Useful for recalling past decisions, requirements, or code snippets discussed earlier.
 
     CRITICAL: This tool automatically searches the CURRENT conversation thread by default.
-    You do NOT need to provide thread_id unless you want to search a different conversation.
+    You DO NOT need to provide thread_id unless you want to search a different conversation.
 
     WHEN TO USE:
     - User refers to "之前说的" / "刚才讨论的" / "第X轮" / "earlier" / "previously"
@@ -53,7 +48,7 @@ async def search_history(
     
     ❌ BAD:  "刚才的错误处理" → too vague
     ✅ GOOD:  "try-catch" or "exception" → specific technical terms
-    
+
     Tips:
     1. Extract technical terms, not positional references ("第X轮")
     2. Use multiple specific keywords rather than one long phrase
@@ -86,110 +81,23 @@ async def search_history(
     # Get thread_id from context if not provided
     ctx = ContextManager.current()
     target_thread = thread_id or ctx.thread_id
-    
-    results = await memory_manager.search_messages(query, target_thread, limit)
-    
-    if not results:
-        return ContentFormatter.chat_search_results(query, [])
-    
-    return ContentFormatter.chat_search_results(query, results)
+
+    container = MemoryContainer(MemoryConfig.from_settings())
+    await container.initialize()
+    try:
+        manager = container.memory_manager
+        results = await manager.search_messages(query, target_thread, limit)
+        
+        if not results:
+            return ContentFormatter.chat_search_results(query, [])
+        
+        return ContentFormatter.chat_search_results(query, results)
+    finally:
+        await container.shutdown()
 
 
-@evoloop_tool(
-    is_state_mutating=True,
-    is_memory_tool=True,
-    summary_template="database_logger.tool_summary.save_preference",
-    name_map={"zh": "保存偏好", "en": "Save Preference"}
-)
-async def save_preference(
-    key: str,
-    value: str,
-    description: str = "",
-) -> str:
-    """
-    Save a user preference or instruction to long-term memory.
-    
-    Use this when the user expresses a preference you should remember
-    for future tasks, such as coding style, preferred technologies, etc.
-    
-    Args:
-        key: The preference name/identifier (e.g., "code_style", "preferred_db").
-        value: The preference value (e.g., "Use Pydantic v2", "PostgreSQL").
-        description: Optional detailed description of the preference.
-    
-    Example:
-        save_preference(
-            key="code_style",
-            value="Use type hints and Pydantic models",
-            description="Always add type annotations to function parameters"
-        )
-    """
-    if not key or not value:
-        return "Error: Both 'key' and 'value' are required."
-    
-    return await save_preference_impl(key=key, value=value, description=description)
-
-
-@evoloop_tool(
-    is_state_mutating=True,
-    is_memory_tool=True,
-    summary_template="database_logger.tool_summary.add_concept",
-    name_map={"zh": "添加概念", "en": "Add Concept"}
-)
-async def add_concept(
-    name: str,
-    description: str,
-) -> str:
-    """
-    Add a knowledge concept or term to the Project's Knowledge Graph.
-    
-    Use this to store important technical concepts, architecture decisions,
-    or domain knowledge discovered during the conversation.
-    
-    Args:
-        name: The concept name (e.g., "Auth Flow", "Database Schema").
-        description: Detailed description of the concept.
-    
-    Example:
-        add_concept(
-            name="JWT Authentication",
-            description="Uses JWT tokens with 15-minute expiry, refresh tokens valid for 7 days"
-        )
-    """
-    if not name or not description:
-        return "Error: Both 'name' and 'description' are required."
-    
-    return await add_concept_impl(name=name, description=description)
-
-
-@evoloop_tool(
-    is_pollable=True,
-    is_memory_tool=True,
-    summary_template="database_logger.tool_summary.find_related_episodes",
-    name_map={"zh": "查找相关历史", "en": "Find Related Episodes"}
-)
-async def find_related_episodes(
-    concept_name: str,
-) -> str:
-    """
-    Find historical tasks related to a concept.
-    
-    Use this to discover past work, decisions, or discussions related to
-    a specific concept in the project's knowledge graph.
-    
-    Args:
-        concept_name: The concept name to search for related episodes.
-    
-    Example:
-        find_related_episodes(concept_name="Authentication")
-    """
-    if not concept_name:
-        return "Error: 'concept_name' is required."
-    
-    return await find_related_episodes_impl(concept_name=concept_name)
-
-
-# NOTE: The following functions are available in memory.py but not exposed as standalone tools
-# to keep the tool set focused. They can be added later if needed:
-# - get_user_preferences_impl: Retrieve all user preferences
-# - search_concepts_impl: Search the project's Concept Graph
+# NOTE: The following long-term memory tools have been consolidated into 
+# app.core.engine.tools.memory_tools for a simplified "remember/recall" interface:
+# - save_preference → use 'remember' instead
+# - add_concept → use 'remember' instead  
+# - find_related_episodes → use 'recall' instead

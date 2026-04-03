@@ -89,7 +89,8 @@ async def read_wiki_page(
 
 @evoloop_tool(
     is_state_mutating=True,
-    name_map={"zh": "写入Wiki页面", "en": "Write Wiki Page"}
+    name_map={"zh": "写入Wiki页面", "en": "Write Wiki Page"},
+    required_benefit="wiki_generation"
 )
 async def write_wiki_page(
     title: str,

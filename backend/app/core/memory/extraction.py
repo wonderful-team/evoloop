@@ -27,14 +27,20 @@ class MemoryExtractionService:
     to analyze conversation history and extract valuable information worth remembering.
     """
     
-    def __init__(self, storage: Optional[FileMemoryStorage] = None):
+    def __init__(
+        self,
+        storage: Optional[FileMemoryStorage] = None,
+        config: Optional['MemoryConfig'] = None,
+    ):
         """
         Initialize extraction service.
         
         Args:
             storage: Memory storage backend. Creates default if not provided.
+            config: Memory configuration. Uses default if not provided.
         """
         self.storage = storage or FileMemoryStorage()
+        self.config = config
     
     async def extract_from_conversation(
         self,
@@ -187,7 +193,7 @@ class MemoryExtractionService:
         """
         from app.infrastructure.llm.factory import get_default_llm
         
-        llm = get_default_llm(temperature=0.3)
+        llm = await get_default_llm(temperature=0.3)
         
         # Build messages for LLM
         messages = [

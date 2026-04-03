@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import CurrentUser
+from app.api.deps import CurrentUser, require_benefit
 from app.core.config import settings
 from app.domain.codebase.indexing.service import IndexingService
 from app.infrastructure.database.sql.database import get_db
@@ -30,7 +30,7 @@ async def get_library_repo(db: AsyncSession) -> Repository:
     return repo
 
 
-@router.get("/files")
+@router.get("/files", dependencies=[Depends(require_benefit("knowledge_base"))])
 async def list_library_files(
     db: AsyncSession = Depends(get_db),
     current_user: User = CurrentUser,
@@ -54,7 +54,7 @@ async def list_library_files(
     ]
 
 
-@router.post("/upload")
+@router.post("/upload", dependencies=[Depends(require_benefit("knowledge_base"))])
 async def upload_library_file(
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
@@ -85,7 +85,7 @@ async def upload_library_file(
     return {"message": "File uploaded and indexed successfully", "filename": file.filename}
 
 
-@router.delete("/files/{file_id}")
+@router.delete("/files/{file_id}", dependencies=[Depends(require_benefit("knowledge_base"))])
 async def delete_library_file(
     file_id: int,
     db: AsyncSession = Depends(get_db),

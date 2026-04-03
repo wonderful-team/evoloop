@@ -435,6 +435,18 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
         """获取会员功能权限"""
         return await self.request("GET", "/subscription/api/subscription/permissions")
 
+    async def get_member_benefits(self) -> dict:
+        """获取会员完整权益信息"""
+        return await self.request("GET", "/subscription/api/subscription/benefits")
+
+    async def check_benefit(self, code: str) -> dict:
+        """检查单项权益"""
+        return await self.request(
+            "POST",
+            "/subscription/api/subscription/checkBenefit",
+            data={"code": code}
+        )
+
     async def check_feature_permission(self, feature: str) -> dict:
         """检查特定功能权限"""
         return await self.request(

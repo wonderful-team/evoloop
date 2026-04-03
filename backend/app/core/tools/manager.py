@@ -31,7 +31,7 @@ class ToolManager:
         Get tools for a specific agent role, handling Progressive Disclosure automatically.
         Nodes no longer need to manually parse execution_tickets or talk to MCP.
         """
-        from app.core.tools.mcp.client import mcp_client_manager
+        from app.core.mcp import mcp_client_manager
         from app.core.tools.registry import get_node_tools as _legacy_get_node_tools
 
         # 1. Fetch statically configured tools for this role (Native + specifically requested MCP if defined in yaml)
@@ -60,13 +60,12 @@ class ToolManager:
             if requested_servers or all_requested_tools:
                 try:
 
-                    # We need to run get_tools_for synchronously, or rather, it assumes
+                    # We need to run get_tools synchronously, or rather, it assumes
                     # mcp_client_manager.get_tools() which returns cached tools is sufficient
                     # if ensure_connected was called previously (e.g. by `use_mcp_server`).
 
-                    # Instead of awaiting here (since get_node_tools in Registry wasn't strictly async initially,
-                    # but wait, Operator '_get_tools' was async). Let's fetch from cached tools first.
-                    all_mcp = mcp_client_manager.get_tools()
+                    # Use get_all_tools() instead of get_tools() to avoid async call in sync context
+                    all_mcp = mcp_client_manager.get_all_tools()
 
                     # Filter for only what was requested to protect context
                     for t in all_mcp:
@@ -111,7 +110,7 @@ class ToolManager:
         WARNING: Do NOT use this to build Prompts (Prompt Explosion).
         Used purely for `search_native_tools` tool-lookup.
         """
-        from app.core.tools.mcp.client import mcp_client_manager
+        from app.core.mcp import mcp_client_manager
         from app.core.tools.registry import get_all_tools as _legacy_get_all_tools
 
         native_tools = _legacy_get_all_tools()
@@ -124,7 +123,7 @@ class ToolManager:
         Build a markdown section listing available and active MCP servers.
         Used by PromptBuilders to give the agent awareness of external plugins.
         """
-        from app.core.tools.mcp.client import mcp_client_manager
+        from app.core.mcp import mcp_client_manager
 
         mcp_inventory = []
         if hasattr(mcp_client_manager, '_server_configs'):

@@ -1,0 +1,475 @@
+"""
+Huey Task Queue Implementation for EvoLoop (Embedded Mode).
+
+Replaces LocalCelery with Huey + SQLite for persistent task execution
+without external dependencies like Redis.
+
+Features:
+- Task persistence via SQLite
+- Automatic retries with exponential backoff
+- Periodic/scheduled tasks
+- Task result storage
+- Compatible with Celery-style API
+"""
+
+import asyncio
+import functools
+import logging
+from pathlib import Path
+from typing import Any, Callable, Coroutine, Optional, Union
+
+from app.core.config import settings
+
+logger = logging.getLogger(__name__)
+
+# Lazy import huey to avoid import errors if not installed
+try:
+    from huey import SqliteHuey, Huey
+    from huey.api import Task
+    from huey.exceptions import HueyException
+    HUEY_AVAILABLE = True
+except ImportError:
+    HUEY_AVAILABLE = False
+    SqliteHuey = None
+    Huey = None
+    Task = None
+    HueyException = Exception
+
+from app.infrastructure.queue.base import TaskScheduler, SyncTaskMixin, TaskResult
+
+
+class HueyTaskResult(TaskResult):
+    """
+    Task result wrapper for Huey tasks.
+    Compatible with Celery AsyncResult interface.
+    """
+
+    def __init__(self, huey_task: Task, huey_instance: Huey):
+        self._task = huey_task
+        self._huey = huey_instance
+        self.id = huey_task.id
+
+    async def get(self, timeout: float = None, propagate: bool = True) -> Any:
+        """
+        Wait for and return the task result.
+        
+        Args:
+            timeout: Maximum time to wait in seconds
+            propagate: If True, re-raise exceptions; if False, return them
+            
+        Returns:
+            Task return value
+            
+        Raises:
+            TimeoutError: If timeout is reached
+            Exception: Task exception if propagate=True
+        """
+        import time
+        
+        start_time = time.time()
+        check_interval = 0.1  # Check every 100ms
+        
+        while True:
+            result = self._huey.result(self.id, preserve=True)
+            
+            if result is not None:
+                # Task completed
+                if isinstance(result, Exception):
+                    if propagate:
+                        raise result
+                    return result
+                return result
+            
+            # Check timeout
+            if timeout is not None:
+                elapsed = time.time() - start_time
+                if elapsed >= timeout:
+                    raise TimeoutError(f"Task {self.id} timed out after {timeout}s")
+            
+            await asyncio.sleep(check_interval)
+
+    def ready(self) -> bool:
+        """Return True if the task has completed."""
+        result = self._huey.result(self.id, preserve=True)
+        return result is not None
+
+    def successful(self) -> bool:
+        """Return True if the task completed successfully."""
+        result = self._huey.result(self.id, preserve=True)
+        if result is None:
+            return False
+        return not isinstance(result, Exception)
+
+
+class HueyTaskScheduler(TaskScheduler, SyncTaskMixin):
+    """
+    Huey-based task scheduler for embedded mode.
+    
+    Provides Celery-compatible API using Huey + SQLite as backend.
+    Supports:
+    - Task persistence
+    - Automatic retries
+    - Delayed execution
+    - Periodic tasks (via Huey consumer)
+    """
+
+    def __init__(self, name: str = "evoloop_huey"):
+        if not HUEY_AVAILABLE:
+            raise ImportError(
+                "Huey is not installed. Install with: pip install huey[sqlite]"
+            )
+        
+        self.name = name
+        self._huey: Optional[SqliteHuey] = None
+        self._tasks: dict[str, Callable] = {}
+        self._init_huey()
+
+    def _init_huey(self):
+        """Initialize Huey with SQLite storage."""
+        # Use ~/.evoloop/task_queue.db for task storage
+        db_path = Path(settings.SQLITE_PATH).parent / "task_queue.db"
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        self._huey = SqliteHuey(
+            name=self.name,
+            filename=str(db_path),
+            # Immediate mode for better concurrency
+            immediate=False,
+            # Store results
+            results=True,
+            # Result expiration (7 days)
+            store_none=False,
+        )
+        
+        logger.info(f"[Huey] Initialized with SQLite at {db_path}")
+
+    def task(
+        self,
+        func: Callable = None,
+        *,
+        name: str = None,
+        bind: bool = False,
+        retries: int = 0,
+        retry_delay: int = 0,
+        **options
+    ) -> Callable:
+        """
+        Decorator to register a function as a task.
+        
+        Args:
+            func: Function to register
+            name: Override task name
+            bind: If True, first argument is task instance (self)
+            retries: Number of retries on failure
+            retry_delay: Delay between retries in seconds
+            **options: Additional options
+            
+        Returns:
+            Task wrapper
+        """
+        def decorator(f: Callable) -> Callable:
+            task_name = name or f"{f.__module__}.{f.__name__}"
+            
+            # Wrap with Huey decorator FIRST
+            @self._huey.task(
+                name=task_name,
+                retries=retries,
+                retry_delay=retry_delay,
+            )
+            def huey_wrapper(*args, **kwargs):
+                # Handle async functions
+                if asyncio.iscoroutinefunction(f):
+                    return self._run_async_task(f, bind, *args, **kwargs)
+                else:
+                    # Sync function
+                    if bind:
+                        return f(None, *args, **kwargs)
+                    return f(*args, **kwargs)
+            
+            # Store task info with the Huey-wrapped function
+            # This is crucial for send_task to find the registered task
+            self._tasks[task_name] = {
+                'func': huey_wrapper,  # Store huey_wrapper, not f!
+                'name': task_name,
+                'bind': bind,
+                'retries': retries,
+                'retry_delay': retry_delay,
+            }
+            
+            # Also store on the original function for discovery
+            f._huey_task_name = task_name
+            f._huey_wrapper = huey_wrapper
+            
+            # Add Celery-compatible methods
+            huey_wrapper.delay = lambda *a, **kw: self._create_result(
+                huey_wrapper(*a, **kw)
+            )
+            huey_wrapper.apply_async = lambda args=None, kwargs=None, **opts: \
+                self._create_result(huey_wrapper(*(args or ()), **(kwargs or {})))
+            
+            huey_wrapper.__name__ = f.__name__
+            huey_wrapper.__module__ = f.__module__  # Critical: preserve original module
+            huey_wrapper.__doc__ = f.__doc__
+            huey_wrapper.name = task_name
+            
+            logger.debug(f"[Huey] Registered task: {task_name}")
+            return huey_wrapper
+
+        if func is not None:
+            return decorator(func)
+        return decorator
+
+    def _run_async_task(self, func: Callable, bind: bool, *args, **kwargs):
+        """Run async function in Huey worker with enhanced error handling."""
+        import traceback
+        
+        # Huey workers run in separate threads/processes
+        # We need to run the async function properly
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+        
+        try:
+            if bind:
+                result = loop.run_until_complete(func(None, *args, **kwargs))
+            else:
+                result = loop.run_until_complete(func(*args, **kwargs))
+            return result
+        except Exception as e:
+            # Log the full exception for debugging
+            error_msg = f"[Huey] Task execution failed: {func.__name__}: {type(e).__name__}: {e}"
+            logger.error(error_msg)
+            logger.error(f"[Huey] Full traceback:\n{traceback.format_exc()}")
+            # Re-raise to let Huey handle retries
+            raise
+
+    def _create_result(self, huey_task: Task) -> HueyTaskResult:
+        """Create a result wrapper for a Huey task."""
+        return HueyTaskResult(huey_task, self._huey)
+
+    def send_task(
+        self,
+        name: str,
+        args: tuple = None,
+        kwargs: dict = None,
+        _retry_count: int = 0,
+        **options
+    ) -> HueyTaskResult:
+        """
+        Send a task by name.
+        
+        Args:
+            name: Fully qualified task name
+            args: Positional arguments
+            kwargs: Keyword arguments
+            _retry_count: Internal retry counter (do not use)
+            **options: Additional options
+            
+        Returns:
+            TaskResult handle
+            
+        Raises:
+            ValueError: If task name is unknown or max retries exceeded
+        """
+        args = args or ()
+        kwargs = kwargs or {}
+        
+        # Load task if not already loaded
+        if name not in self._tasks:
+            self._load_task_module(name)
+        
+        if name not in self._tasks:
+            raise ValueError(f"Unknown task: {name}")
+        
+        task_info = self._tasks[name]
+        huey_wrapper = task_info['func']  # This is the Huey-wrapped function
+        
+        # Execute the task directly using the stored Huey wrapper
+        # The huey_wrapper is already registered with Huey via @self._huey.task()
+        try:
+            # huey_wrapper when called will enqueue the task via Huey
+            huey_task = huey_wrapper(*args, **kwargs)
+            logger.debug(f"[Huey] Task {name} dispatched via stored wrapper")
+            return self._create_result(huey_task)
+            
+        except Exception as e:
+            # If execution fails, log and re-raise
+            logger.error(f"[Huey] Task {name} execution failed: {e}")
+            raise
+
+    def _load_task_module(self, task_name: str) -> bool:
+        """Load task module dynamically."""
+        from app.infrastructure.queue.celery import TASK_MODULE_MAP
+        
+        if task_name in TASK_MODULE_MAP:
+            module_path = TASK_MODULE_MAP[task_name]
+            try:
+                __import__(module_path)
+                logger.debug(f"[Huey] Loaded module for {task_name}: {module_path}")
+                return True
+            except Exception as e:
+                logger.warning(f"[Huey] Failed to load {module_path}: {e}")
+                return False
+        
+        # Try to infer from task name
+        if "." in task_name:
+            parts = task_name.rsplit(".", 1)
+            if len(parts) == 2:
+                module_path, _ = parts
+                try:
+                    __import__(module_path)
+                    return True
+                except Exception:
+                    pass
+        return False
+
+    def start(self, **kwargs):
+        """Start the Huey consumer."""
+        logger.info("[Huey] Starting consumer...")
+        # In embedded mode, consumer is started separately
+        # This method is mainly for API compatibility
+        pass
+
+    def worker_main(self, **kwargs):
+        """Run as worker process."""
+        logger.info("[Huey] Starting worker main...")
+        
+        # Pre-load all task modules to ensure tasks are registered
+        self._preload_task_modules()
+        
+        # Start the Huey consumer
+        from huey.consumer import Consumer
+        
+        # Disable signal handling for thread safety (non-main thread)
+        # Use simple worker type to avoid signal issues
+        consumer_kwargs = {
+            'workers': kwargs.get('workers', 2),
+            'worker_type': kwargs.get('worker_type', 'thread'),
+            'initial_delay': kwargs.get('initial_delay', 0.1),
+            'max_delay': kwargs.get('max_delay', 10),
+            'backoff': kwargs.get('backoff', 1.15),
+            'scheduler_interval': kwargs.get('scheduler_interval', 1),
+            'periodic': kwargs.get('periodic', True),
+            'check_worker_health': kwargs.get('check_worker_health', True),
+            'health_check_interval': kwargs.get('health_check_interval', 10),
+        }
+        
+        consumer = Consumer(self._huey, **consumer_kwargs)
+        
+        # Override signal handling to avoid errors in non-main thread
+        import signal
+        consumer._set_signal_handlers = lambda: None  # Disable signal handlers
+        
+        consumer.run()
+    
+    def _preload_task_modules(self):
+        """Pre-load all task modules to register tasks in worker process."""
+        from app.infrastructure.queue.celery import TASK_MODULE_MAP
+        
+        logger.info("[Huey] Pre-loading task modules...")
+        loaded_count = 0
+        
+        # Load all modules from TASK_MODULE_MAP
+        for task_name, module_path in TASK_MODULE_MAP.items():
+            try:
+                __import__(module_path)
+                loaded_count += 1
+                logger.debug(f"[Huey] Loaded module: {module_path}")
+            except Exception as e:
+                logger.warning(f"[Huey] Failed to load {module_path}: {e}")
+        
+        # Also try to load common task modules
+        common_modules = [
+            'app.core.engine.tasks',
+            'app.core.atlas.tasks',
+            'app.domain.wiki.tasks',
+            'app.domain.codebase.indexing.tasks',
+            'app.domain.project.sync_tasks',
+            'app.tasks.memory_tasks',
+        ]
+        
+        for module_path in common_modules:
+            try:
+                if module_path not in [m for m in TASK_MODULE_MAP.values()]:
+                    __import__(module_path)
+                    loaded_count += 1
+                    logger.debug(f"[Huey] Loaded common module: {module_path}")
+            except Exception as e:
+                logger.debug(f"[Huey] Optional module not loaded: {module_path}: {e}")
+        
+        logger.info(f"[Huey] Pre-loaded {loaded_count} task modules")
+
+    def get_huey(self) -> SqliteHuey:
+        """Get the underlying Huey instance."""
+        return self._huey
+
+    def periodic_task(self, cron: str, name: str = None, **kwargs):
+        """
+        Decorator for periodic tasks.
+        
+        Args:
+            cron: Cron expression (e.g., '0 * * * *' for hourly)
+            name: Task name
+            **kwargs: Additional options
+        """
+        from huey import crontab
+        
+        def decorator(f: Callable):
+            task_name = name or f"{f.__module__}.{f.__name__}"
+            
+            @self._huey.periodic_task(crontab(cron), name=task_name, **kwargs)
+            def periodic_wrapper():
+                if asyncio.iscoroutinefunction(f):
+                    return self._run_async_task(f, False)
+                return f()
+            
+            periodic_wrapper.__name__ = f.__name__
+            periodic_wrapper.__doc__ = f.__doc__
+            return periodic_wrapper
+        
+        return decorator
+
+
+def get_huey_scheduler() -> HueyTaskScheduler:
+    """Get or create global Huey scheduler instance.
+    
+    Uses factory.get_scheduler() to ensure single instance across the app.
+    """
+    from app.infrastructure.queue.factory import get_scheduler
+    scheduler = get_scheduler()
+    if not isinstance(scheduler, HueyTaskScheduler):
+        raise RuntimeError(f"Expected HueyTaskScheduler, got {type(scheduler).__name__}")
+    return scheduler
+
+
+# Compatibility: shared_task decorator
+def shared_task(
+    func: Callable = None,
+    *,
+    name: str = None,
+    bind: bool = False,
+    retries: int = 0,
+    retry_delay: int = 0,
+    **options
+):
+    """
+    Compatible shared_task decorator for Huey.
+    Works with both Celery and Huey.
+    """
+    scheduler = get_huey_scheduler()
+    
+    def decorator(f):
+        return scheduler.task(
+            f,
+            name=name,
+            bind=bind,
+            retries=retries,
+            retry_delay=retry_delay,
+            **options
+        )
+    
+    if func is not None:
+        return decorator(func)
+    return decorator

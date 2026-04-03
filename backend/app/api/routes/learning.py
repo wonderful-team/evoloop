@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any, cast
 from uuid import uuid4
 
-from fastapi import APIRouter, BackgroundTasks, Body, File, HTTPException, Query, Request, Response, UploadFile
+from fastapi import Depends, APIRouter, BackgroundTasks, Body, File, HTTPException, Query, Request, Response, UploadFile
 from pydantic import BaseModel
 from sqlalchemy import or_, func, select, update
 
@@ -30,6 +30,7 @@ from app.core.learning.multimodal_synthesizer import (
     MultimodalSkillSynthesizer,
     RecordingSession,
 )
+from app.api.deps import require_benefit
 from app.core.environment.controllers.mirror_session import mirror_manager
 from app.domain.tools.human_input import (
     cancel_request,
@@ -383,7 +384,7 @@ class UploadScreenshotResponse(BaseModel):
     message: str
 
 
-@router.post("/traces/start", response_model=StartRecordingResponse)
+@router.post("/traces/start", response_model=StartRecordingResponse, dependencies=[Depends(require_benefit("skill_learning"))])
 async def start_recording(body: StartRecordingRequest):
     """
     Start a new recording session for imitation learning.
@@ -458,7 +459,7 @@ class SkillResponse(BaseModel):
     is_active: bool
 
 
-@router.post("/skills/synthesize")
+@router.post("/skills/synthesize", dependencies=[Depends(require_benefit("skill_learning"))])
 async def synthesize_skill(body: SynthesizeRequest):
     """
     Synthesize a new skill from a trace sequence.
@@ -521,7 +522,7 @@ async def synthesize_skill(body: SynthesizeRequest):
         await skill_discovery.reload()
 
 
-@router.post("/skills/import")
+@router.post("/skills/import", dependencies=[Depends(require_benefit("skill_learning"))])
 async def import_skills(body: ImportSkillsRequest):
     """
     Bulk import skills from a local directory (containing SKILL.md folders).
@@ -947,7 +948,7 @@ async def list_mirror_devices():
     }
 
 
-@router.post("/mirror/start")
+@router.post("/mirror/start", dependencies=[Depends(require_benefit("desktop_control"))])
 async def start_mirror_session(body: StartMirrorRequest):
     """Start a scrcpy mirroring session."""
     session = await mirror_manager.create_session(body.device_id, record_video=body.record_video)
@@ -969,7 +970,7 @@ async def start_mirror_session(body: StartMirrorRequest):
     }
 
 
-@router.post("/mirror/start-recording")
+@router.post("/mirror/start-recording", dependencies=[Depends(require_benefit("skill_learning"))])
 async def start_mirror_recording(body: StartMirrorRecordingRequest):
     """
     [NEW] Start event recording for an active mirror session.

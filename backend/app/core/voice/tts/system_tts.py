@@ -133,8 +133,15 @@ class SystemTTSProvider(BaseTTSProvider):
         
         # 清理 Markdown 格式
         text = optimize_for_tts(options.text)
-        if not text.strip():
-            raise RuntimeError("Text is empty after processing")
+        if not text or not text.strip():
+            logger.warning("TTS synthesis skipped: text is empty after processing")
+            # Return empty result instead of raising error
+            return TTSSResult(
+                audio_data=b"",
+                content_type="audio/mpeg",
+                duration_ms=0,
+                char_count=0,
+            )
         
         # 获取声音 ID
         voice_id = options.voice_id

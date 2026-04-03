@@ -1,5 +1,6 @@
 import json
 import logging
+import time
 from collections.abc import Generator
 from datetime import datetime
 from typing import Annotated
@@ -136,67 +137,272 @@ CurrentUserOptional = Annotated[User | None, Depends(get_current_user_optional)]
 
 # ==================== Subscription Permission Dependencies ====================
 
-async def check_feature_permission(feature: str, token: TokenDep) -> bool:
+# 权益到所需套餐的映射
+BENEFIT_PLAN_MAP = {
+    "browser_control": "极客版",
+    "voice": "极客版",
+    "skill_learning": "极客版",
+    "knowledge_base": "极客版",
+    "desktop_control": "专家版",
+    "mobile_control": "专家版",
+    "wiki_generation": "创作者版",
+    "gantt": "企业版",
+    "timesheet": "企业版",
+}
+
+# 权益中文名称映射
+BENEFIT_NAME_MAP = {
+    "browser_control": "浏览器控制",
+    "desktop_control": "桌面控制",
+    "mobile_control": "手机控制",
+    "voice": "语音交互",
+    "skill_learning": "技能学习",
+    "wiki_generation": "Wiki生成",
+    "gantt": "甘特图",
+    "timesheet": "工时表",
+    "knowledge_base": "知识库",
+}
+
+# 权益缓存配置
+BENEFIT_CACHE_TTL = 30  # 30秒缓存，平衡性能和实时性
+_benefits_cache: dict[str, tuple[dict, float]] = {}  # token -> (data, timestamp)
+
+
+def _get_cache_key(token: str) -> str:
+    """生成缓存键"""
+    import hashlib
+    return hashlib.md5(token.encode()).hexdigest()[:16]
+
+
+def _get_cached_benefits(token: str) -> dict | None:
+    """获取缓存的权益数据"""
+    cache_key = _get_cache_key(token)
+    if cache_key in _benefits_cache:
+        data, timestamp = _benefits_cache[cache_key]
+        if time.time() - timestamp < BENEFIT_CACHE_TTL:
+            return data
+    return None
+
+
+def _set_cached_benefits(token: str, data: dict) -> None:
+    """设置权益缓存"""
+    cache_key = _get_cache_key(token)
+    _benefits_cache[cache_key] = (data, time.time())
+
+
+def invalidate_benefits_cache(token: str | None = None) -> None:
     """
-    检查会员是否有特定订阅功能权限
+    使权益缓存失效
     
     Args:
-        feature: 功能标识，如 "ai_chat", "premium_content" 等
+        token: 如果提供，仅使该token的缓存失效；否则清除所有缓存
+    """
+    global _benefits_cache
+    if token:
+        cache_key = _get_cache_key(token)
+        _benefits_cache.pop(cache_key, None)
+        logger.debug(f"[Benefits] Cache invalidated for token: {cache_key}")
+    else:
+        _benefits_cache.clear()
+        logger.info("[Benefits] All cache cleared")
+
+
+async def get_member_benefits(token: str, force_refresh: bool = False) -> dict:
+    """
+    获取会员权益配置
+    
+    Args:
+        token: JWT token
+        force_refresh: 是否强制刷新缓存
+        
+    Returns:
+        权益数据字典
+    """
+    # 1. 尝试从缓存获取
+    if not force_refresh:
+        cached = _get_cached_benefits(token)
+        if cached:
+            logger.debug("[Benefits] Using cached benefits data")
+            return cached
+    
+    # 2. 从API获取
+    try:
+        result = await evocloud_manager.api.get_member_benefits()
+        if result.get("code") == 0:
+            data = result.get("data", {})
+            # 更新缓存
+            _set_cached_benefits(token, data)
+            return data
+        return {}
+    except Exception as e:
+        logger.error(f"获取会员权益失败: {e}")
+        # 如果API失败，尝试返回缓存数据（即使已过期）
+        cached = _get_cached_benefits(token)
+        if cached:
+            logger.warning("[Benefits] API failed, using stale cache")
+            return cached
+        return {}
+
+
+async def check_benefit(benefit_code: str, token: TokenDep) -> bool:
+    """
+    检查会员是否拥有特定权益
+    
+    Args:
+        benefit_code: 权益编码，如 "desktop_control", "voice" 等
         token: JWT token
         
     Returns:
-        True if has permission, False otherwise
+        True if has benefit, False otherwise
     """
     try:
-        result = await evocloud_manager.api.check_feature_permission(feature)
-        if result.get("code") == 0:
-            return result.get("data", {}).get("has_permission", False)
+        benefits_data = await get_member_benefits(token)
+        benefits = benefits_data.get("benefits", {})
+        
+        # 检查权益值
+        value = benefits.get(benefit_code, False)
+        
+        # 布尔类型直接返回
+        if isinstance(value, bool):
+            return value
+        
+        # 数值类型：大于0表示有权限
+        if isinstance(value, (int, float)):
+            return value > 0
+        
+        # 字符串类型：true/on/1 表示有权限
+        if isinstance(value, str):
+            return value.lower() in ("true", "on", "1", "yes")
+        
         return False
     except Exception as e:
-        logger.error(f"检查功能权限失败 [{feature}]: {e}")
+        logger.error(f"检查权益失败 [{benefit_code}]: {e}")
         return False
+
+
+async def check_multiple_benefits(benefit_codes: list[str], token: TokenDep) -> dict[str, bool]:
+    """
+    批量检查多项权益（性能优化：只查询一次API）
+    
+    Args:
+        benefit_codes: 权益编码列表
+        token: JWT token
+        
+    Returns:
+        dict: {benefit_code: has_access}
+        
+    Example:
+        >>> results = await check_multiple_benefits(["voice", "desktop_control"], token)
+        >>> print(results)  # {"voice": True, "desktop_control": False}
+    """
+    try:
+        benefits_data = await get_member_benefits(token)
+        benefits = benefits_data.get("benefits", {})
+        
+        result = {}
+        for code in benefit_codes:
+            value = benefits.get(code, False)
+            
+            # 统一转换为bool
+            if isinstance(value, bool):
+                result[code] = value
+            elif isinstance(value, (int, float)):
+                result[code] = value > 0
+            elif isinstance(value, str):
+                result[code] = value.lower() in ("true", "on", "1", "yes")
+            else:
+                result[code] = False
+                
+        return result
+    except Exception as e:
+        logger.error(f"批量检查权益失败: {e}")
+        return {code: False for code in benefit_codes}
+
+
+def create_benefit_error_detail(benefit_code: str, current_level: str | None = None) -> dict:
+    """
+    创建统一的权益错误详情
+    
+    Args:
+        benefit_code: 权益编码
+        current_level: 当前用户等级（可选）
+        
+    Returns:
+        标准化的错误详情字典
+    """
+    return {
+        "code": "BENEFIT_REQUIRED",
+        "feature": benefit_code,
+        "feature_name": BENEFIT_NAME_MAP.get(benefit_code, benefit_code),
+        "message": f"需要订阅「{BENEFIT_NAME_MAP.get(benefit_code, benefit_code)}」功能才能使用此功能",
+        "required_plan": BENEFIT_PLAN_MAP.get(benefit_code, "更高等级订阅"),
+        "current_level": current_level or "免费用户",
+        "upgrade_url": "#/subscription",
+    }
+
+
+def raise_benefit_required(benefit_code: str, current_level: str | None = None):
+    """
+    抛出统一的权益不足异常
+    
+    Args:
+        benefit_code: 权益编码
+        current_level: 当前用户等级（可选）
+        
+    Raises:
+        HTTPException: 403 Forbidden with standardized detail
+    """
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail=create_benefit_error_detail(benefit_code, current_level)
+    )
+
+
+def require_benefit(benefit_code: str):
+    """
+    FastAPI 依赖工厂：要求特定权益
+    
+    Usage:
+        @router.post("/desktop/control")
+        async def desktop_control(
+            req: Request,
+            _: bool = Depends(require_benefit("desktop_control"))
+        ):
+            ...
+    """
+    async def checker(token: TokenDep) -> bool:
+        has_access = await check_benefit(benefit_code, token)
+        
+        if not has_access:
+            # 获取当前用户等级（如果可能）
+            current_level = None
+            try:
+                benefits_data = await get_member_benefits(token)
+                current_level = benefits_data.get("level_name")
+            except:
+                pass
+            
+            raise_benefit_required(benefit_code, current_level)
+        
+        return True
+    
+    return checker
+
+
+async def check_feature_permission(feature: str, token: TokenDep) -> bool:
+    """
+    [已弃用] 请使用 check_benefit
+    检查会员是否有特定订阅功能权限
+    """
+    return await check_benefit(feature, token)
 
 
 def require_subscription_feature(feature: str):
     """
+    [已弃用] 请使用 require_benefit
     FastAPI 依赖工厂：要求特定订阅功能权限
-    
-    Usage:
-        @router.post("/chat")
-        async def chat(
-            req: ChatRequest,
-            user: CurrentUser = Depends(require_subscription_feature("ai_chat"))
-        ):
-            ...
     """
-    async def checker(token: TokenDep) -> User:
-        user = await get_current_user(token)
-        
-        # 检查权限
-        has_access = await check_feature_permission(feature, token)
-        
-        if not has_access:
-            # 获取用户当前订阅信息用于错误提示
-            try:
-                sub_detail = await evocloud_manager.api.get_subscription_detail()
-                current_level = sub_detail.get("data", {}).get("level_name", "免费用户")
-            except:
-                current_level = "未知"
-                
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail={
-                    "message": f"需要订阅功能: {feature}",
-                    "feature": feature,
-                    "current_level": current_level,
-                    "upgrade_url": "/subscription/plans",
-                    "code": "SUBSCRIPTION_REQUIRED"
-                }
-            )
-        
-        return user
-    
-    return checker
+    return require_benefit(feature)
 
 
 # AI Quota management is now handled via the Go Gateway.

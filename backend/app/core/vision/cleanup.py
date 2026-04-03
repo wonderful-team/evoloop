@@ -128,19 +128,29 @@ def get_storage_report() -> dict:
 
 # Celery task wrapper
 try:
-    from celery import shared_task
+    # Unified task queue (Huey in embedded mode, Celery in full mode)
+    from app.infrastructure.queue.factory import get_scheduler
 
-    @shared_task(name="app.core.vision.cleanup_screenshots")
+    # Get scheduler instance
+    _task_scheduler = get_scheduler()
+
+    # Create task decorator
+    def _task(name, **kwargs):
+        def decorator(f):
+            return _task_scheduler.task(f, name=name, **kwargs)
+        return decorator
+
+    @_task(name="app.core.vision.cleanup_screenshots")
     def cleanup_screenshots_task(dry_run: bool = False) -> dict:
         """Celery task for periodic screenshot cleanup."""
         return cleanup_screenshots(dry_run=dry_run)
 
-    @shared_task(name="app.core.vision.cleanup_screen_recordings")
+    @_task(name="app.core.vision.cleanup_screen_recordings")
     def cleanup_screen_recordings_task(dry_run: bool = False) -> dict:
         """Celery task for periodic screen recording cleanup."""
         return cleanup_screen_recordings(dry_run=dry_run)
 
-    @shared_task(name="app.core.vision.cleanup_all_storage")
+    @_task(name="app.core.vision.cleanup_all_storage")
     def cleanup_all_storage_task(dry_run: bool = False) -> dict:
         """Celery task for periodic cleanup of all storage."""
         return cleanup_all(dry_run=dry_run)

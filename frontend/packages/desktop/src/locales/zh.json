@@ -32,7 +32,9 @@
       "workspaceRoot": "工作区根目录",
       "workspaceRootPlaceholder": "/path/to/workspace",
       "workspaceRootDesc": "项目操作的工作区目录。",
-      "deviceName": "设备名称"
+      "deviceName": "设备名称",
+      "projectDiscoveryEnabled": "启用项目自动发现",
+      "projectDiscoveryEnabledDesc": "自动检测工作区目录中的新项目。禁用后，您需要手动导入项目。"
     },
     "appearance": {
       "light": "浅色",
@@ -639,7 +641,17 @@
       "syncDevice": "同步新设备",
       "skillEvolution": "进化中的技能库",
       "totalSkills": "{{count}} 项活跃技能",
-      "teachMe": "教导 Agent 新技能"
+      "teachMe": "教导 Agent 新技能",
+      "nav": {
+        "projects": "项目管理",
+        "projectsDesc": "管理所有开发项目与工作流",
+        "todos": "待办事项",
+        "todosDesc": "追踪任务进展与自动化记录",
+        "knowledge": "知识库",
+        "knowledgeDesc": "查阅记忆、文档与技术沉淀",
+        "skills": "技能中心",
+        "skillsDesc": "训练智能体并升级核心能力"
+      }
     },
     "context": {
       "starter": {

@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import re
@@ -84,9 +85,9 @@ async def _trigger_session_recording(ctx, config: RunnableConfig, summary: str, 
 
         message_id = config.get("configurable", {}).get("run_id") or gen_uuid()
 
-        from app.core.memory import memory_manager
         from app.core.memory.models import MemoryEntry, MemoryType, PrivacyLevel
         from app.core.engine.tasks import record_episode_task, reconcile_skill_macro_task
+        from app.core.memory import MemoryContainer, MemoryConfig
 
         try:
             # Save session summary as a PROJECT memory
@@ -110,7 +111,13 @@ async def _trigger_session_recording(ctx, config: RunnableConfig, summary: str, 
                 source="session",
                 source_message_id=message_id,
             )
-            await memory_manager.save_memory(entry)
+            # Use MemoryContainer to save memory
+            container = MemoryContainer(MemoryConfig.from_settings())
+            await container.initialize()
+            try:
+                await container.memory_manager.save_memory(entry)
+            finally:
+                await container.shutdown()
             logger.info(f"Finish: 🧠 Synced session summary to memory: {entry.id}")
         except Exception as mem_err:
             logger.warning(f"Finish: Failed to sync to memory: {mem_err}")
@@ -179,9 +186,9 @@ class LayeredAuditor:
     def __init__(self):
         self._fast_llm = None
     
-    def _get_fast_llm(self):
+    async def _get_fast_llm(self):
         if self._fast_llm is None:
-            self._fast_llm = LLMFactory.create_llm(temperature=0.1, max_tokens=500)
+            self._fast_llm = await LLMFactory.create_llm(temperature=0.1, max_tokens=500)
         return self._fast_llm
     
     def classify_tier(self, tool_history: list, messages: list, blackboard: dict, state: dict) -> AuditDecision:
@@ -307,7 +314,8 @@ Result:
 Was the task completed? What were the key findings?"""
 
         try:
-            response = await self._get_fast_llm().ainvoke([SystemMessage(content=prompt)])
+            llm = await self._get_fast_llm()
+            response = await llm.ainvoke([SystemMessage(content=prompt)])
             summary = str(response.content).strip()
             if len(summary) < 20:
                 summary = f"✅ Task completed. {summary}"
@@ -366,7 +374,13 @@ async def _comprehensive_audit(state: AgentState, config: RunnableConfig) -> dic
     logger.info("[Finish] 🕵️ Starting Comprehensive Audit")
     
     from app.core.engine.message_utils import smart_window_slice
-    windowed_messages = smart_window_slice(messages, window_size=10)
+    windowed_messages = smart_window_slice(
+        messages, 
+        window_size=10,
+        thread_id=ctx.thread_id,
+        user_id=ctx.user_id,
+        project_id=ctx.project_id,
+    )
     
     focused_state = dict(state)
     focused_state["messages"] = windowed_messages
@@ -462,6 +476,44 @@ async def finish_node(state: AgentState, config: RunnableConfig):
     original_skill_id = metadata.get("original_skill_id")
     blackboard_ticket = blackboard.get("ticket") or state.get("execution_ticket")
     await _trigger_session_recording(ctx, config, summary, original_skill_id=original_skill_id, execution_ticket=blackboard_ticket)
+    
+    # Trigger automatic memory extraction (fire and forget)
+    # This runs in background without blocking the response
+    try:
+        from app.core.memory.auto_extraction import trigger_auto_extraction
+        asyncio.create_task(
+            trigger_auto_extraction(
+                thread_id=ctx.thread_id,
+                messages=messages,
+                project_id=ctx.project_id,
+                user_id=ctx.user_id,
+            )
+        )
+        logger.debug(f"[Finish] Triggered auto-extraction for thread {ctx.thread_id}")
+    except Exception as e:
+        logger.warning(f"[Finish] Failed to trigger auto-extraction: {e}")
+
+    # Trigger SessionEnd hook for session recording and state persistence
+    try:
+        from app.core.engine.hooks import hook_system, HookEvent, HookContext
+        hook_ctx = HookContext(
+            thread_id=ctx.thread_id,
+            user_id=ctx.user_id,
+            project_id=ctx.project_id,
+            messages=messages,
+            blackboard=blackboard,
+            metadata={
+                "summary": summary,
+                "audit_tier": audit_tier,
+                "final_outcome": final_outcome,
+                "tool_count": len(tool_history) if 'tool_history' in locals() else 0,
+                "message_count": len(messages),
+            }
+        )
+        await hook_system.trigger(HookEvent.SESSION_END, hook_ctx)
+        logger.debug(f"[Finish] SessionEnd hook executed for thread {ctx.thread_id}")
+    except Exception as e:
+        logger.warning(f"[Finish] SessionEnd hook failed: {e}")
 
     # Cleanup pollution
     messages_to_return = list(messages)
@@ -479,6 +531,41 @@ async def finish_node(state: AgentState, config: RunnableConfig):
 
     total_duration = (time.time() - start_time) * 1000
     logger.info(f"[Finish] ✅ {audit_tier.upper()} audit complete: {total_duration:.0f}ms")
+
+    # Trigger STOP hook for quality gates
+    # This can block completion if quality checks fail
+    try:
+        from app.core.engine.hooks import hook_system, HookEvent, HookContext
+        stop_ctx = HookContext(
+            thread_id=ctx.thread_id,
+            user_id=ctx.user_id,
+            project_id=ctx.project_id,
+            messages=messages,
+            blackboard=blackboard,
+            metadata={
+                "summary": summary,
+                "audit_tier": audit_tier,
+                "final_outcome": final_outcome,
+                "duration_ms": total_duration,
+            }
+        )
+        stop_result = await hook_system.trigger(HookEvent.STOP, stop_ctx, blocking=True)
+        if stop_result.block:
+            logger.warning(f"[Finish] 🚫 Stop hook blocked completion: {stop_result.message}")
+            # Add blocking message to output
+            block_msg = AIMessage(content=f"\n\n[Quality Gate Blocked] {stop_result.message}\nPlease address the issues before completing.")
+            messages_to_return.append(block_msg)
+            # Don't end the session, return to user for fixes
+            return {
+                "messages": messages_to_return,
+                "next_node": "supervisor",  # Return to supervisor for more work
+                "blackboard": blackboard,
+                "_audit_tier": audit_tier,
+                "_audit_meta": audit_meta,
+                "_blocked_by_hook": True,
+            }
+    except Exception as e:
+        logger.warning(f"[Finish] Stop hook failed: {e}")
 
     return {
         "messages": messages_to_return, 

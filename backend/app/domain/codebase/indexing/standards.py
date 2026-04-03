@@ -2,7 +2,7 @@ import logging
 import os
 import random
 
-from app.core.memory import memory_manager
+from app.core.memory import MemoryContainer, MemoryConfig
 from app.infrastructure.llm.factory import LLMFactory, get_default_llm
 from app.utils.file import read_file_content
 from app.utils import render_template
@@ -31,7 +31,7 @@ class ProjectStandardsAnalyst:
         # 2. Analysis Step handled below in Step 3
 
         # 3. LLM Analysis
-        llm = get_default_llm(temperature=0.1)  # Low temp for factual analysis
+        llm = await get_default_llm(temperature=0.1)  # Low temp for factual analysis
 
         # Prepare file info for template
         files_info = []
@@ -57,9 +57,15 @@ class ProjectStandardsAnalyst:
 
             # 4. Save to Memory
             # We treat this as a high-level concept: "Project Standards"
-            from app.core.memory.interfaces.long_term import Concept
-            concept = Concept("Project Coding Standards", standards_report, project_id, sample_files)
-            await memory_manager.long_term.store_concept(concept)
+            container = MemoryContainer(MemoryConfig.from_settings())
+            await container.initialize()
+            try:
+                manager = container.memory_manager
+                from app.core.memory.interfaces.long_term import Concept
+                concept = Concept("Project Coding Standards", standards_report, project_id, sample_files)
+                await manager.long_term.store_concept(concept)
+            finally:
+                await container.shutdown()
 
             # Also save as generic preference?
             # Ideally this feeds into the Coder's system prompt dynamically.

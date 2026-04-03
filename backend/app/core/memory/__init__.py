@@ -9,24 +9,31 @@ This module provides:
 - Auto-extraction: Automatic memory creation from conversations
 - Smart retrieval: LLM-assisted relevance selection
 
-Usage:
-    from app.core.memory import memory_manager
+Usage (with dependency injection):
+    from app.core.memory import MemoryContainer, MemoryConfig
     from app.core.memory.models import MemoryEntry, MemoryType
     
-    # Save a memory
-    entry = MemoryEntry(
-        id="mem_001",
-        type=MemoryType.PROJECT,
-        title="Architecture Decision",
-        content="We decided to use PostgreSQL...",
-    )
-    await memory_manager.save_memory(entry)
-    
-    # Search memories
-    results = await memory_manager.search_memories("database")
-    
-    # Extract from conversation
-    await memory_manager.extract_memories(thread_id, messages)
+    async def main():
+        config = MemoryConfig.from_settings()
+        container = MemoryContainer(config)
+        await container.initialize()
+        
+        manager = container.memory_manager
+        
+        # Save a memory
+        entry = MemoryEntry(
+            id="mem_001",
+            type=MemoryType.PROJECT,
+            title="Architecture Decision",
+            content="We decided to use PostgreSQL...",
+        )
+        await manager.save_memory(entry)
+        
+        # Search memories
+        results = await manager.search_memories("database")
+        
+        # Extract from conversation
+        await manager.extract_memories(thread_id, messages)
 
 Architecture:
     MemoryManager (unified facade)
@@ -37,7 +44,12 @@ Architecture:
 """
 
 # Main facade
-from app.core.memory.manager import MemoryManager, memory_manager
+from app.core.memory.manager import MemoryManager
+
+# New: Configuration and Dependency Injection
+from app.core.memory.config import MemoryConfig, default_memory_config
+from app.core.memory.container import MemoryContainer, get_container, reset_container
+from app.core.memory.factory import MemoryFactory, CompleteMemorySystem
 
 # Data models
 from app.core.memory.models import (
@@ -60,11 +72,38 @@ from app.core.memory.extraction import (
     MemoryConsolidationService,
 )
 from app.core.memory.retrieval import MemoryRetrievalService
+from app.core.memory.smart_retrieval import SmartMemoryRetriever, get_relevant_memories
+from app.core.memory.quality import (
+    MemoryQualityAnalyzer,
+    QualityScores,
+    CleanupRecommendation,
+)
+from app.core.memory.state_tracking import (
+    MemoryStateTracker,
+    memory_tracker,
+    mark_memories_surfaced,
+    get_surfaced_memory_ids,
+    filter_unsurfaced_memories,
+)
+from app.core.memory.daily_log import DailyLogWriter, LogConsolidator
+from app.core.memory.two_tier import (
+    TwoTierMemoryManager,
+    MemorySection,
+    SectionBudget,
+)
 
 __all__ = [
     # Manager
     "MemoryManager",
-    "memory_manager",
+    
+    # Configuration & Dependency Injection (NEW)
+    "MemoryConfig",
+    "default_memory_config",
+    "MemoryContainer",
+    "get_container",
+    "reset_container",
+    "MemoryFactory",
+    "CompleteMemorySystem",
     
     # Models
     "MemoryEntry",
@@ -85,4 +124,21 @@ __all__ = [
     "MemoryExtractionService",
     "MemoryConsolidationService",
     "MemoryRetrievalService",
+    "SmartMemoryRetriever",
+    "get_relevant_memories",
+    "MemoryQualityAnalyzer",
+    
+    # Types
+    "QualityScores",
+    "CleanupRecommendation",
+    "MemoryStateTracker",
+    "memory_tracker",
+    "mark_memories_surfaced",
+    "get_surfaced_memory_ids",
+    "filter_unsurfaced_memories",
+    "DailyLogWriter",
+    "LogConsolidator",
+    "TwoTierMemoryManager",
+    "MemorySection",
+    "SectionBudget",
 ]

@@ -44,8 +44,28 @@ export type AnnotationResponse = {
     created_at: string;
 };
 
+export type BatchCheckRequest = {
+    benefit_codes: Array<(string)>;
+};
+
+export type BatchCheckResponse = {
+    results: {
+        [key: string]: (boolean);
+    };
+    is_expired: boolean;
+    level_name: string;
+};
+
 export type BatchImportRequest = {
     repo_ids: Array<(number)>;
+};
+
+export type BenefitsUpdateWebhook = {
+    member_id: number;
+    event: string;
+    level_id?: (number | null);
+    timestamp: number;
+    signature: string;
 };
 
 export type BindClientRequest = {
@@ -522,6 +542,10 @@ export type PersistMirrorEventsRequest = {
     thread_id?: (string | null);
 };
 
+export type ProjectDiscoveryConfigRequest = {
+    enabled: boolean;
+};
+
 export type ReferenceItem = {
     id: string;
     type: string;
@@ -685,6 +709,16 @@ export type StopRecordingResponse = {
 };
 
 /**
+ * Subtask creation request.
+ */
+export type SubtaskCreate = {
+    title: string;
+    description?: string;
+    priority?: string;
+    estimated_hours?: number;
+};
+
+/**
  * 合成任务状态响应
  */
 export type SynthesisJobResponse = {
@@ -749,6 +783,14 @@ export type SystemConfig = {
     description?: (string | null);
 };
 
+export type SystemStatusResponse = {
+    cpu_percent: number;
+    ram_percent: number;
+    ram_used_gb: number;
+    ram_total_gb: number;
+    status?: string;
+};
+
 export type TaskCreateRequest = {
     project_id: number;
     task_title: string;
@@ -760,6 +802,15 @@ export type TaskCreateRequest = {
     technical_challenges?: (unknown | null);
     implementation_complexity?: (string | null);
     deliverables?: (unknown | null);
+};
+
+/**
+ * Task progress update.
+ */
+export type TaskProgressUpdate = {
+    status?: (string | null);
+    progress?: (number | null);
+    result?: (string | null);
 };
 
 export type TaskStatusUpdate = {
@@ -779,6 +830,18 @@ export type TaskUpdateRequest = {
     technical_challenges?: (unknown | null);
     implementation_complexity?: (string | null);
     deliverables?: (unknown | null);
+};
+
+/**
+ * Create parent task with subtasks.
+ */
+export type TaskWithSubtasksCreate = {
+    title: string;
+    description?: string;
+    priority?: string;
+    estimated_hours?: number;
+    subtasks?: Array<SubtaskCreate>;
+    analysis_id?: (string | null);
 };
 
 export type TimesheetQuickAddRequest = {
@@ -1656,6 +1719,26 @@ export type MemberGetAiQuotaHistoryData = {
 
 export type MemberGetAiQuotaHistoryResponse = (unknown);
 
+export type MemberCheckBenefitsBatchData = {
+    requestBody: BatchCheckRequest;
+};
+
+export type MemberCheckBenefitsBatchResponse = (BatchCheckResponse);
+
+export type MemberGetMemberBenefitsApiData = {
+    forceRefresh?: boolean;
+};
+
+export type MemberGetMemberBenefitsApiResponse = (unknown);
+
+export type MemberInvalidateMemberBenefitsCacheResponse = (unknown);
+
+export type MemberHandleBenefitsUpdateWebhookData = {
+    requestBody: BenefitsUpdateWebhook;
+};
+
+export type MemberHandleBenefitsUpdateWebhookResponse = (unknown);
+
 export type MemoryListConceptsData = {
     projectId: number;
 };
@@ -1874,6 +1957,62 @@ export type StreamStreamChatData = {
 
 export type StreamStreamChatResponse = (unknown);
 
+export type SubtasksCreateTaskWithSubtasksData = {
+    projectId: number;
+    requestBody: TaskWithSubtasksCreate;
+};
+
+export type SubtasksCreateTaskWithSubtasksResponse = ({
+    [key: string]: unknown;
+});
+
+export type SubtasksGetTaskTreeData = {
+    maxDepth?: number;
+    projectId: number;
+    taskId: string;
+};
+
+export type SubtasksGetTaskTreeResponse = ({
+    [key: string]: unknown;
+});
+
+export type SubtasksUpdateTaskProgressData = {
+    projectId: number;
+    requestBody: TaskProgressUpdate;
+    taskId: string;
+};
+
+export type SubtasksUpdateTaskProgressResponse = ({
+    [key: string]: unknown;
+});
+
+export type SubtasksGetNextExecutableTaskData = {
+    projectId: number;
+};
+
+export type SubtasksGetNextExecutableTaskResponse = ({
+    [key: string]: unknown;
+});
+
+export type SubtasksFlattenTaskTreeData = {
+    projectId: number;
+    taskId: string;
+};
+
+export type SubtasksFlattenTaskTreeResponse = ({
+    [key: string]: unknown;
+});
+
+export type SubtasksListRootTasksData = {
+    limit?: number;
+    projectId: number;
+    status?: (string | null);
+};
+
+export type SubtasksListRootTasksResponse = ({
+    [key: string]: unknown;
+});
+
 export type SymbolsSearchSymbolsData = {
     limit?: number;
     projectId: number;
@@ -1898,17 +2037,9 @@ export type SymbolsGenerateSymbolWikiData = {
 
 export type SymbolsGenerateSymbolWikiResponse = (unknown);
 
-export type SystemStatusResponse = {
-    cpu_percent: number;
-    ram_percent: number;
-    ram_used_gb: number;
-    ram_total_gb: number;
-    status: string;
-};
+export type SystemGetSystemStatusResponse = (SystemStatusResponse);
 
 export type SystemGetSystemConfigResponse = (Array<SystemConfig>);
-
-export type SystemGetSystemStatusResponse = (SystemStatusResponse);
 
 export type SystemUpdateSystemConfigData = {
     requestBody: SystemConfig;
@@ -1953,6 +2084,14 @@ export type SystemGetLlmModelsData = {
 export type SystemGetLlmModelsResponse = (unknown);
 
 export type SystemGetEmbeddingModelsResponse = (unknown);
+
+export type SystemGetProjectDiscoveryConfigResponse = (unknown);
+
+export type SystemSetProjectDiscoveryConfigData = {
+    requestBody: ProjectDiscoveryConfigRequest;
+};
+
+export type SystemSetProjectDiscoveryConfigResponse = (unknown);
 
 export type TasksGetProjectTasksData = {
     page?: number;

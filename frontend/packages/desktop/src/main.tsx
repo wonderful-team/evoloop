@@ -9,6 +9,7 @@ import { createHashHistory } from "@tanstack/react-router"
 import { StrictMode } from "react"
 import ReactDOM from "react-dom/client"
 import { ApiError, OpenAPI } from "./client"
+import { initApiInterceptors } from "./interceptors.ts"
 import { ThemeProvider } from "@evoloop/shared/components/theme-provider"
 import { Toaster } from "@evoloop/shared/components/ui/sonner"
 import i18n from "@evoloop/shared/i18n"
@@ -25,10 +26,22 @@ OpenAPI.TOKEN = async () => {
   return localStorage.getItem("access_token") || ""
 }
 
+// 初始化 API 拦截器（处理权限错误）
+initApiInterceptors()
+
 const handleApiError = (error: Error) => {
-  if (error instanceof ApiError && [401, 403].includes(error.status)) {
+  // 401 未授权 - 跳转到登录
+  if (error instanceof ApiError && error.status === 401) {
     localStorage.removeItem("access_token")
     window.location.href = "/login"
+    return
+  }
+  
+  // 403 权限不足 - 已由拦截器处理，这里不跳转
+  if (error instanceof ApiError && error.status === 403) {
+    // 拦截器已经显示了 toast 提示
+    // 这里不做任何操作，避免跳转到登录页
+    return
   }
 }
 const queryClient = new QueryClient({

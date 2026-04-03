@@ -60,11 +60,10 @@ nodes:
       - "list_checkpoints"
       - "rollback_checkpoint"
       - "delete_checkpoint"
-      # Knowledge & Memory (Individual tools replacing manage_memory facade)
+      # Knowledge & Memory (Simple remember/recall)
+      - "remember"
+      - "recall"
       - "search_history"
-      - "save_preference"
-      - "add_concept"
-      - "find_related_episodes"
       - "search_skills"
       - "run_macro"
       - "query_app_atlas"

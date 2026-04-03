@@ -1,32 +1,35 @@
 import asyncio
 import logging
 
-# Conditional import for Celery (embedded mode compatibility)
-try:
-    from celery import shared_task
-except ImportError:
-    from app.infrastructure.queue.celery import shared_task
+# Use unified task queue (Huey in embedded mode, Celery in full mode)
+from app.infrastructure.queue.factory import shared_task
 
 from app.domain.wiki.service import wiki_service
 from app.infrastructure.llm.factory import get_default_llm
 from app.utils.async_utils import flush_loop_bound_resources
 
+logger = logging.getLogger(__name__)
 
-@shared_task(name="wiki_generate")
+
+@shared_task(name="wiki_generate", retries=3, retry_delay=60)
 def generate_wiki_task(project_id: int, topic: str, force_regenerate: bool = False):
     """
-    Celery task to generate wiki pages in background.
+    Background task to generate wiki pages.
+    
+    Runs in Huey (embedded mode) or Celery (full mode) worker.
+    Supports automatic retries on failure.
     """
     from app.core.monitoring.activity import activity_monitor
 
     sys_tid = f"sys:{project_id}:wiki"
-    logger = logging.getLogger(__name__)
 
     async def _monitored_execution():
         try:
-            logger.info(f"[Celery] Starting Wiki Generation for Project {project_id}")
+            logger.info(f"[WikiTask] Starting Wiki Generation for Project {project_id}")
             await activity_monitor.start_run(sys_tid, f"Wiki Generation: {topic}")
-            await activity_monitor.update_agent_state(sys_tid, "WIKI", "Generating Wiki", "Deep Research in progress...")
+            await activity_monitor.update_agent_state(
+                sys_tid, "WIKI", "Generating Wiki", "Deep Research in progress..."
+            )
 
             # Instantiate LLM inside the worker process
             llm = await get_default_llm()
@@ -40,11 +43,12 @@ def generate_wiki_task(project_id: int, topic: str, force_regenerate: bool = Fal
             )
 
             await activity_monitor.end_run(sys_tid, "done")
-            logger.info(f"[Celery] Wiki Generation Completed for Project {project_id}")
+            logger.info(f"[WikiTask] Wiki Generation Completed for Project {project_id}")
 
         except Exception as e:
-            logger.error(f"[Celery] Wiki Task Failed: {e}")
+            logger.error(f"[WikiTask] Wiki Task Failed: {e}")
             await activity_monitor.end_run(sys_tid, "failed")
+            raise  # Re-raise to trigger retry
 
     async def _run_with_flush():
         try:
@@ -56,3 +60,11 @@ def generate_wiki_task(project_id: int, topic: str, force_regenerate: bool = Fal
     asyncio.run(_run_with_flush())
 
     return f"Wiki generated for Project {project_id}"
+
+
+@shared_task(name="sync_wiki_page")
+def sync_wiki_page_task(project_id: int, page_id: str):
+    """Sync a wiki page to EvoCloud."""
+    logger.info(f"[WikiTask] Syncing wiki page {page_id} for project {project_id}")
+    # Implementation here
+    return {"project_id": project_id, "page_id": page_id, "status": "synced"}

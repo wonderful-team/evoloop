@@ -39,7 +39,7 @@ class WorkerNode:
     async def __call__(self, state: AgentState, config: RunnableConfig) -> dict[str, Any]:
         # Implementation of WorkerNode...
         # Unified Hydration (Phase 1 Optimization)
-        from app.core.engine.middleware import EvoContextMiddleware
+        from app.core.engine.context_hydrator import EvoContextMiddleware
         state = await EvoContextMiddleware.hydrate(state, config)
         
         execution_ticket = state.get("execution_ticket")
@@ -83,8 +83,6 @@ class WorkerNode:
             # 多技能工作流：直接加载指定技能
             logger.info(f"[Worker] 🔄 Multi-skill workflow detected: {skill_ids}")
             tools_task = asyncio.to_thread(tool_manager.get_node_tools, "worker", state)
-            
-            # 按顺序加载所有技能
             skills_task = self._load_skills_by_ids(skill_ids)
             tools, relevant_sops = await asyncio.gather(tools_task, skills_task)
         else:
@@ -172,7 +170,7 @@ class WorkerNode:
                     tools=tools,
                     execution_ticket=execution_ticket,
                     agent_config=agent_config,
-                    role_name=role_name
+                    role_name=role_name,
                 )
 
             # 单技能传统执行
@@ -238,7 +236,7 @@ class WorkerNode:
         tools: list,
         execution_ticket: dict,
         agent_config: dict,
-        role_name: str
+        role_name: str,
     ) -> dict[str, Any]:
         """
         顺序执行多个技能，上一步输出作为下一步输入

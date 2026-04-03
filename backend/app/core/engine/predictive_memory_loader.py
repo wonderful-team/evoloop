@@ -75,59 +75,65 @@ async def predictive_memory_load(
     
     try:
         from app.core.config import settings
+        from app.core.memory import MemoryContainer, MemoryConfig
         
         if not settings.USE_NEO4J_MEMORY:
             logger.debug(f"[PredictiveMemory] Neo4j memory disabled, skipping")
             return
         
-        from app.core.memory import memory_manager
-        
         start_time = time.time()
-        
-        # Parallel search for concepts and episodes
-        concepts_task = memory_manager.long_term.search_concepts(human_message, project_id)
-        episodes_task = memory_manager.episodic.search_episodes(human_message, project_id, limit=3)
-        
-        concepts, episodes = await asyncio.gather(concepts_task, episodes_task, return_exceptions=True)
-        
-        # Handle exceptions
-        if isinstance(concepts, Exception):
-            logger.warning(f"[PredictiveMemory] Concepts search failed: {concepts}")
-            concepts = []
-        if isinstance(episodes, Exception):
-            logger.warning(f"[PredictiveMemory] Episodes search failed: {episodes}")
-            episodes = []
-        
-        # Filter out episodes from current run (to avoid self-referencing)
-        filtered_episodes = []
-        if episodes:
-            for e in episodes:
-                if getattr(e, "source_message_id", None) != run_id:
-                    filtered_episodes.append(e)
-        
-        # Serialize for Redis storage
-        data = {
-            "concepts": [
-                {"name": c.name, "description": c.description}
-                for c in (concepts or [])[:3]
-            ] if concepts else [],
-            "episodes": [
-                {"summary": e.summary}
-                for e in filtered_episodes[:2]
-            ] if filtered_episodes else [],
-            "timestamp": time.time(),
-            "thread_id": thread_id,
-            "project_id": project_id,
-        }
-        
-        # Store in Redis with TTL
-        cache_key = f"{PREDICTIVE_MEMORY_KEY_PREFIX}:{thread_id}"
-        await cache.set(cache_key, data, ex=PREDICTIVE_MEMORY_TTL)
-        
-        elapsed = (time.time() - start_time) * 1000
-        logger.info(f"[PredictiveMemory] ✓ Pre-loaded memory for thread {thread_id}: "
-                   f"{len(data['concepts'])} concepts, {len(data['episodes'])} episodes "
-                   f"in {elapsed:.1f}ms")
+
+        container = MemoryContainer(MemoryConfig.from_settings())
+        await container.initialize()
+        try:
+            manager = container.memory_manager
+            
+            # Parallel search for concepts and episodes
+            concepts_task = manager.long_term.search_concepts(human_message, project_id)
+            episodes_task = manager.episodic.search_episodes(human_message, project_id, limit=3)
+            
+            concepts, episodes = await asyncio.gather(concepts_task, episodes_task, return_exceptions=True)
+            
+            # Handle exceptions
+            if isinstance(concepts, Exception):
+                logger.warning(f"[PredictiveMemory] Concepts search failed: {concepts}")
+                concepts = []
+            if isinstance(episodes, Exception):
+                logger.warning(f"[PredictiveMemory] Episodes search failed: {episodes}")
+                episodes = []
+            
+            # Filter out episodes from current run (to avoid self-referencing)
+            filtered_episodes = []
+            if episodes:
+                for e in episodes:
+                    if getattr(e, "source_message_id", None) != run_id:
+                        filtered_episodes.append(e)
+            
+            # Serialize for Redis storage
+            data = {
+                "concepts": [
+                    {"name": c.name, "description": c.description}
+                    for c in (concepts or [])[:3]
+                ] if concepts else [],
+                "episodes": [
+                    {"summary": e.summary}
+                    for e in filtered_episodes[:2]
+                ] if filtered_episodes else [],
+                "timestamp": time.time(),
+                "thread_id": thread_id,
+                "project_id": project_id,
+            }
+            
+            # Store in Redis with TTL
+            cache_key = f"{PREDICTIVE_MEMORY_KEY_PREFIX}:{thread_id}"
+            await cache.set(cache_key, data, ex=PREDICTIVE_MEMORY_TTL)
+            
+            elapsed = (time.time() - start_time) * 1000
+            logger.info(f"[PredictiveMemory] ✓ Pre-loaded memory for thread {thread_id}: "
+                       f"{len(data['concepts'])} concepts, {len(data['episodes'])} episodes "
+                       f"in {elapsed:.1f}ms")
+        finally:
+            await container.shutdown()
         
     except Exception as e:
         # Never raise - this is an optimization, not critical path

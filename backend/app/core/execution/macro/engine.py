@@ -907,7 +907,7 @@ class MacroEngine:
     @classmethod
     async def _dump_to_mcp(cls, thread_id: str, payload: dict, extracted_data: dict):
         """Push extracted data to an MCP server."""
-        from app.core.tools.mcp.client import mcp_client_manager
+        from app.core.mcp import mcp_client_manager
 
         mcp_server = payload.get("mcp_server", "supabase")
         mcp_tool_name = payload.get("mcp_tool")
@@ -922,7 +922,7 @@ class MacroEngine:
 
         try:
             # Get tools from MCP server
-            tools = await mcp_client_manager.get_tools_for(mcp_server)
+            tools = await mcp_client_manager.get_tools(mcp_server)
             if not tools:
                 logger.error(f"[MacroEngine] MCP server '{mcp_server}' not available")
                 return

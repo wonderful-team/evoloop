@@ -527,8 +527,23 @@ async def get_detected_projects(_token: TokenDepOptional = None):
     Get all newly detected projects awaiting user confirmation.
 
     Returns projects with sync_status="DETECTED" that need to be imported or ignored.
+    
+    Note: Returns empty list if project discovery is disabled via configuration.
     """
     from app.domain.project.sync_service import project_sync_service
+    from app.infrastructure.config.service import SystemConfigService
+    from app.core.config import settings
+
+    # Check if project discovery is enabled
+    # Priority: Environment Variable > System Config
+    if not settings.ENABLE_PROJECT_DISCOVERY:
+        logger.debug("[ProjectsAPI] Project discovery disabled by environment variable, returning empty detected list")
+        return {"items": []}
+    
+    config_value = SystemConfigService.get_value("PROJECT_DISCOVERY_ENABLED")
+    if config_value is not None and config_value.lower() not in ("true", "1", "yes", "on"):
+        logger.debug("[ProjectsAPI] Project discovery disabled by system config, returning empty detected list")
+        return {"items": []}
 
     try:
         repos = await project_sync_service.get_detected_projects()

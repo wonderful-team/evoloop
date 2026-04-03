@@ -203,6 +203,44 @@ export const AnnotationResponseSchema = {
     description: '标注响应'
 } as const;
 
+export const BatchCheckRequestSchema = {
+    properties: {
+        benefit_codes: {
+            items: {
+                type: 'string'
+            },
+            type: 'array',
+            title: 'Benefit Codes'
+        }
+    },
+    type: 'object',
+    required: ['benefit_codes'],
+    title: 'BatchCheckRequest'
+} as const;
+
+export const BatchCheckResponseSchema = {
+    properties: {
+        results: {
+            additionalProperties: {
+                type: 'boolean'
+            },
+            type: 'object',
+            title: 'Results'
+        },
+        is_expired: {
+            type: 'boolean',
+            title: 'Is Expired'
+        },
+        level_name: {
+            type: 'string',
+            title: 'Level Name'
+        }
+    },
+    type: 'object',
+    required: ['results', 'is_expired', 'level_name'],
+    title: 'BatchCheckResponse'
+} as const;
+
 export const BatchImportRequestSchema = {
     properties: {
         repo_ids: {
@@ -216,6 +254,41 @@ export const BatchImportRequestSchema = {
     type: 'object',
     required: ['repo_ids'],
     title: 'BatchImportRequest'
+} as const;
+
+export const BenefitsUpdateWebhookSchema = {
+    properties: {
+        member_id: {
+            type: 'integer',
+            title: 'Member Id'
+        },
+        event: {
+            type: 'string',
+            title: 'Event'
+        },
+        level_id: {
+            anyOf: [
+                {
+                    type: 'integer'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Level Id'
+        },
+        timestamp: {
+            type: 'integer',
+            title: 'Timestamp'
+        },
+        signature: {
+            type: 'string',
+            title: 'Signature'
+        }
+    },
+    type: 'object',
+    required: ['member_id', 'event', 'timestamp', 'signature'],
+    title: 'BenefitsUpdateWebhook'
 } as const;
 
 export const BindClientRequestSchema = {
@@ -1946,6 +2019,18 @@ export const PersistMirrorEventsRequestSchema = {
     description: '请求模型：持久化存储镜像事件'
 } as const;
 
+export const ProjectDiscoveryConfigRequestSchema = {
+    properties: {
+        enabled: {
+            type: 'boolean',
+            title: 'Enabled'
+        }
+    },
+    type: 'object',
+    required: ['enabled'],
+    title: 'ProjectDiscoveryConfigRequest'
+} as const;
+
 export const ReferenceItemSchema = {
     properties: {
         id: {
@@ -2553,6 +2638,36 @@ export const StopRecordingResponseSchema = {
     title: 'StopRecordingResponse'
 } as const;
 
+export const SubtaskCreateSchema = {
+    properties: {
+        title: {
+            type: 'string',
+            maxLength: 255,
+            minLength: 1,
+            title: 'Title'
+        },
+        description: {
+            type: 'string',
+            title: 'Description',
+            default: ''
+        },
+        priority: {
+            type: 'string',
+            title: 'Priority',
+            default: 'medium'
+        },
+        estimated_hours: {
+            type: 'integer',
+            title: 'Estimated Hours',
+            default: 0
+        }
+    },
+    type: 'object',
+    required: ['title'],
+    title: 'SubtaskCreate',
+    description: 'Subtask creation request.'
+} as const;
+
 export const SynthesisJobResponseSchema = {
     properties: {
         id: {
@@ -2829,6 +2944,35 @@ export const SystemConfigSchema = {
     title: 'SystemConfig'
 } as const;
 
+export const SystemStatusResponseSchema = {
+    properties: {
+        cpu_percent: {
+            type: 'number',
+            title: 'Cpu Percent'
+        },
+        ram_percent: {
+            type: 'number',
+            title: 'Ram Percent'
+        },
+        ram_used_gb: {
+            type: 'number',
+            title: 'Ram Used Gb'
+        },
+        ram_total_gb: {
+            type: 'number',
+            title: 'Ram Total Gb'
+        },
+        status: {
+            type: 'string',
+            title: 'Status',
+            default: 'ok'
+        }
+    },
+    type: 'object',
+    required: ['cpu_percent', 'ram_percent', 'ram_used_gb', 'ram_total_gb'],
+    title: 'SystemStatusResponse'
+} as const;
+
 export const TTSRequestSchema = {
     properties: {
         text: {
@@ -2972,6 +3116,49 @@ export const TaskCreateRequestSchema = {
     type: 'object',
     required: ['project_id', 'task_title'],
     title: 'TaskCreateRequest'
+} as const;
+
+export const TaskProgressUpdateSchema = {
+    properties: {
+        status: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Status'
+        },
+        progress: {
+            anyOf: [
+                {
+                    type: 'integer',
+                    maximum: 100,
+                    minimum: 0
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Progress'
+        },
+        result: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Result'
+        }
+    },
+    type: 'object',
+    title: 'TaskProgressUpdate',
+    description: 'Task progress update.'
 } as const;
 
 export const TaskStatusUpdateSchema = {
@@ -3118,6 +3305,55 @@ export const TaskUpdateRequestSchema = {
     },
     type: 'object',
     title: 'TaskUpdateRequest'
+} as const;
+
+export const TaskWithSubtasksCreateSchema = {
+    properties: {
+        title: {
+            type: 'string',
+            maxLength: 255,
+            minLength: 1,
+            title: 'Title'
+        },
+        description: {
+            type: 'string',
+            title: 'Description',
+            default: ''
+        },
+        priority: {
+            type: 'string',
+            title: 'Priority',
+            default: 'medium'
+        },
+        estimated_hours: {
+            type: 'integer',
+            title: 'Estimated Hours',
+            default: 0
+        },
+        subtasks: {
+            items: {
+                '$ref': '#/components/schemas/SubtaskCreate'
+            },
+            type: 'array',
+            title: 'Subtasks',
+            default: []
+        },
+        analysis_id: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Analysis Id'
+        }
+    },
+    type: 'object',
+    required: ['title'],
+    title: 'TaskWithSubtasksCreate',
+    description: 'Create parent task with subtasks.'
 } as const;
 
 export const TimesheetQuickAddRequestSchema = {

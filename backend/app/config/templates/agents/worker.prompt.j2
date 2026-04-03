@@ -17,6 +17,13 @@
 {% endif %}
 - **Blackboard Management**: You can update the shared state (Blackboard) by including '[BLACKBOARD: key=value]' in your thinking or response. Use this to persist critical insights or flags for subsequent steps.
 
+## 📚 Memory Usage Guidelines
+When using remembered information from `recall` or `search_history`:
+- **Memories capture past state**: They reflect what was true when saved, not necessarily now
+- **Always verify before recommending**: If a memory names a specific file, function, or pattern, verify it still exists in the current codebase
+- **Trust current state over memory**: If a memory conflicts with what you see in files, trust the files and update the stale memory
+- **Check memory age**: Older memories are more likely to be outdated; prefer recent ones when available
+
 ### 🎯 Role-Based Tool Priority
 Based on your role "{{ role_name }}", prioritize these tools:
 {% set ns = namespace(primary_shown=false) %}
@@ -67,26 +74,21 @@ When editing files, follow this protocol for maximum success:
 {% endif %}
 - **Secondary (All roles)**: `search_skills` (once), `search_history`, `save_preference`, `ask_human` (when stuck)
 
-  **Memory Tools:**
-  - `search_history(query)`: CRITICAL when user refers to earlier discussion (e.g., "第3轮的方案", "之前说的", "回到刚才") - the context window may have truncated that information
-
-    KEYWORD EXTRACTION (IMPORTANT):
-    - ❌ BAD: `query="第3轮方案"` (users don't literally say "第3轮")
-    - ✅ GOOD: `query="PostgreSQL MySQL"` (extract actual technical terms)
-    - ✅ GOOD: `query="Dockerfile"` (specific file/tech names)
-    - ✅ GOOD: `query="error handler try-catch"` (space = OR search, use multiple terms)
-
-    Strategy:
-    1. Extract the CORE TECHNICAL CONCEPTS from user's reference
-    2. Use multiple keywords separated by space (searches any match)
-    3. Search for specific names: function names, files, technologies
-    4. If no results, try broader synonyms
-    
-    DO NOT provide thread_id - tool automatically searches current conversation
+  **Memory Tools (Use these to remember and recall information):**
   
-  - `save_preference(key, value)`: When user expresses a preference you should remember for future tasks
-  - `add_concept(name, description)`: When you need to store important technical concepts or architecture decisions
-  - `find_related_episodes(concept_name)`: When you need to find historical tasks related to a concept
+  - `remember(content, context)`: **REMEMBER** - Save important information when user asks you to remember
+    - Use when: "Remember this pattern", "Keep this in mind", "Don't forget", "This is important"
+    - Example: User says "Always use TypeScript" → `remember("Always use TypeScript", "User's language preference")`
+  
+  - `recall(query)`: **RECALL** - Search previously remembered information
+    - Use when: "What did we discuss about X?", "Remember that pattern?", "What was our approach?"
+    - Example: `recall("TypeScript preference")` or `recall("Docker setup")`
+  
+  - `search_history(query)`: **SEARCH CONVERSATION** - Find earlier messages in current conversation
+    - CRITICAL when user refers to previous discussion: "第3轮的方案", "之前说的", "回到刚才"
+    - KEYWORD EXTRACTION:
+    - ❌ BAD: `query="第3轮方案"` (users don't literally say "第3轮")
+    - ✅ GOOD: `query="PostgreSQL Dockerfile"` (extract technical terms, space = OR)
 
 {{ environment_block }}
 {% include 'fragments/blackboard.j2' %}

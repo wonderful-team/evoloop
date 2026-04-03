@@ -2,7 +2,6 @@ import os
 
 from mcp.server.fastmcp import FastMCP
 
-from app.core.memory import memory_manager
 from app.domain.codebase.indexing.tools import index_path
 from app.domain.codebase.retrieval.tools import search_codebase
 
@@ -225,10 +224,17 @@ async def remember_preference(key: str, value: str, description: str = "") -> st
     Example: key="code_style", value="Use Pydantic v2", description="Strict validation required"
     """
     try:
-        # Ensure schema
-        await memory_manager.initialize()
-        await memory_manager.preferences.set_preference("user_default", key, value, description)
-        return f"Stored preference: {key}={value}"
+        from app.core.memory import MemoryContainer, MemoryConfig
+
+        container = MemoryContainer(MemoryConfig.from_settings())
+        await container.initialize()
+        try:
+            manager = container.memory_manager
+            # Ensure schema
+            await manager.preferences.set_preference("user_default", key, value, description)
+            return f"Stored preference: {key}={value}"
+        finally:
+            await container.shutdown()
     except Exception as e:
         return f"Error: {e}"
 
@@ -242,11 +248,18 @@ async def remember_concept(name: str, description: str, related_files: list[str]
     if related_files is None:
         related_files = []
     try:
-        await memory_manager.initialize()
+        from app.core.memory import MemoryContainer, MemoryConfig
         from app.core.memory.interfaces.long_term import Concept
-        concept = Concept(name, description, 0, related_files)
-        await memory_manager.long_term.store_concept(concept)
-        return f"Stored concept: {name}"
+
+        container = MemoryContainer(MemoryConfig.from_settings())
+        await container.initialize()
+        try:
+            manager = container.memory_manager
+            concept = Concept(name, description, 0, related_files)
+            await manager.long_term.store_concept(concept)
+            return f"Stored concept: {name}"
+        finally:
+            await container.shutdown()
     except Exception as e:
         return f"Error: {e}"
 
@@ -257,10 +270,17 @@ async def query_memory(query: str) -> str:
     Search project memory (Concepts and Preferences).
     """
     try:
-        await memory_manager.initialize()
-        prefs = await memory_manager.preferences.get_merged_preferences("user_default")
-        results = await memory_manager.long_term.search_concepts(query, 0)
-        formatted_results = "\n".join([f"- **{r.name}**: {r.description}" for r in results]) if results else "No concepts found."
-        return f"{prefs}\n\n**Relevant Concepts:**\n{formatted_results}"
+        from app.core.memory import MemoryContainer, MemoryConfig
+
+        container = MemoryContainer(MemoryConfig.from_settings())
+        await container.initialize()
+        try:
+            manager = container.memory_manager
+            prefs = await manager.preferences.get_merged_preferences("user_default")
+            results = await manager.long_term.search_concepts(query, 0)
+            formatted_results = "\n".join([f"- **{r.name}**: {r.description}" for r in results]) if results else "No concepts found."
+            return f"{prefs}\n\n**Relevant Concepts:**\n{formatted_results}"
+        finally:
+            await container.shutdown()
     except Exception as e:
         return f"Error: {e}"

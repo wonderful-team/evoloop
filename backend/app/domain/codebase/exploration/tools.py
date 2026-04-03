@@ -112,21 +112,27 @@ async def ask_codebase(
     
     try:
         # Use existing semantic search from memory_manager
-        from app.core.memory import memory_manager
-        results = await memory_manager.long_term.search_concepts_data(question, project_id)
-        
-        if not results:
-            # Fallback to code search
-            engine = get_exploration_engine()
-            code_results = await engine.search_code(question, None, get_working_directory(config))
-            if code_results:
-                lines = [f"{r.get('file_path')}:{r.get('line')}: {r.get('content', '')}" for r in code_results[:10]]
-                return f"Found relevant code for '{question}':\n" + "\n".join(lines)
-            return f"No relevant information found for '{question}'."
-        
-        # Format concept results
-        lines = [f"- {r.get('name')}: {r.get('description', '')}" for r in results[:10]]
-        return f"Relevant concepts for '{question}':\n" + "\n".join(lines)
+        from app.core.memory import MemoryContainer, MemoryConfig
+        container = MemoryContainer(MemoryConfig.from_settings())
+        await container.initialize()
+        try:
+            manager = container.memory_manager
+            results = await manager.long_term.search_concepts_data(question, project_id)
+            
+            if not results:
+                # Fallback to code search
+                engine = get_exploration_engine()
+                code_results = await engine.search_code(question, None, get_working_directory(config))
+                if code_results:
+                    lines = [f"{r.get('file_path')}:{r.get('line')}: {r.get('content', '')}" for r in code_results[:10]]
+                    return f"Found relevant code for '{question}':\n" + "\n".join(lines)
+                return f"No relevant information found for '{question}'."
+            
+            # Format concept results
+            lines = [f"- {r.get('name')}: {r.get('description', '')}" for r in results[:10]]
+            return f"Relevant concepts for '{question}':\n" + "\n".join(lines)
+        finally:
+            await container.shutdown()
         
     except Exception as e:
         logger.error(f"Ask codebase failed: {e}")

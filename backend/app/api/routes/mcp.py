@@ -2,7 +2,7 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
-from app.core.tools.mcp.client import mcp_client_manager
+from app.core.mcp import mcp_client_manager
 from app.models.schemas.mcp import McpServerCreate
 
 router = APIRouter()
@@ -62,7 +62,7 @@ async def connect_mcp_server(name: str):
             raise HTTPException(status_code=400, detail=f"Failed to connect to MCP server '{name}'")
         
         # Get current tools to return verification
-        tools = await mcp_client_manager.get_tools_for(name)
+        tools = await mcp_client_manager.get_tools(name)
         return {
             "status": "connected",
             "name": name,

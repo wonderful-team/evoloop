@@ -155,7 +155,7 @@ Relationships:
 
         from langchain_neo4j import GraphCypherQAChain
 
-        llm = get_default_llm(temperature=0)
+        llm = await get_default_llm(temperature=0)
 
         from app.utils import render_template
         prompt_text = render_template(

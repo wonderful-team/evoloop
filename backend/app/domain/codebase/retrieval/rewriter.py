@@ -18,8 +18,14 @@ class QueryRewriter:
     def __init__(self):
         # Use a cheap/fast model for rewriting if possible (e.g. gpt-3.5-turbo or haiku)
         # For now, default to configured GENERAL_AGENT_MODEL
-        self.llm = get_default_llm(temperature=0.0)
+        self.llm = None
         self.enabled = settings.ENABLE_QUERY_REWRITING
+
+    async def _get_llm(self):
+        """Lazy initialization of LLM to allow async factory."""
+        if self.llm is None:
+            self.llm = await get_default_llm(temperature=0.0)
+        return self.llm
 
     async def rewrite(self, query: str) -> str:
         if not self.enabled:
@@ -34,7 +40,8 @@ class QueryRewriter:
             prompt_text = render_template("planning/query_rewrite.prompt.j2", query=query)
 
             # Using invoke for simple non-streaming call
-            response = await self.llm.ainvoke(prompt_text)
+            llm = await self._get_llm()
+            response = await llm.ainvoke(prompt_text)
             rewritten = response.content.strip() if hasattr(response, 'content') else str(response).strip()
 
             # Remove quotes if model added them

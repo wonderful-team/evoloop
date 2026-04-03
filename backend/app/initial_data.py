@@ -37,6 +37,18 @@ def init() -> None:
             logger.info(f"Seeding EVOCLOUD_DEVICE_NAME from settings: {default_name}")
             SystemConfigService.set_value("EVOCLOUD_DEVICE_NAME", default_name, "Device identifier for EvoLoop Link")
 
+    # 3. PROJECT_DISCOVERY_ENABLED
+    # Note: Environment variable ENABLE_PROJECT_DISCOVERY takes precedence
+    # This database config allows runtime toggle when env var is not set
+    if not SystemConfigService.get_value("PROJECT_DISCOVERY_ENABLED"):
+        default_discovery = "true" if settings.ENABLE_PROJECT_DISCOVERY else "false"
+        logger.info(f"Seeding PROJECT_DISCOVERY_ENABLED from settings: {default_discovery}")
+        SystemConfigService.set_value(
+            "PROJECT_DISCOVERY_ENABLED", 
+            default_discovery, 
+            "Enable or disable automatic project discovery in workspace (true/false)"
+        )
+
     # 3. Embedding Configuration
     # Use settings values (which come from .env) instead of hardcoding
     # This allows users to configure via environment variables
@@ -288,7 +300,7 @@ async def reload_mcp_for_workspace_change() -> dict[str, str]:
 
     # 2. Disconnect and reconnect filesystem MCP
     try:
-        from app.core.tools.mcp.client import mcp_client_manager
+        from app.core.mcp import mcp_client_manager
 
         # Disconnect existing if connected
         if "filesystem" in getattr(mcp_client_manager, 'sessions', {}):

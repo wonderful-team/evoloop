@@ -91,6 +91,13 @@ from .outline import (
     OutlineEntry,
 )
 
+# File watching (event system integrated)
+from .watcher import (
+    FileWatcher,
+    FileWatcherManager,
+    FileWatcherEvent,
+)
+
 # Legacy service (kept for backward compatibility)
 from .service import (
     walk_tree,
@@ -157,6 +164,11 @@ __all__ = [
     "get_file_outline",
     "get_large_file_preview",
     "OutlineEntry",
+    
+    # Watcher (event system)
+    "FileWatcher",
+    "FileWatcherManager",
+    "FileWatcherEvent",
     
     # Constants
     "LARGE_FILE_THRESHOLD",

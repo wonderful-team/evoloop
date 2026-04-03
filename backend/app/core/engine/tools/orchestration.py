@@ -151,7 +151,7 @@ async def decompose_task(
     
     Returns a SpawnPlan that triggers the parallel execution engine.
     """
-    llm = get_default_llm(temperature=0.3)
+    llm = await get_default_llm(temperature=0.3)
 
     # 2. Call LLM
     from app.utils import render_template
@@ -235,7 +235,7 @@ async def aggregate_results(
     if aggregation_strategy == "concatenate":
         return {"status": "success", "aggregated": "\n\n---\n\n".join([str(r.get("result", r)) for r in results])}
 
-    llm = get_default_llm(temperature=0.3)
+    llm = await get_default_llm(temperature=0.3)
 
     from app.utils import render_template
     prompt = render_template(

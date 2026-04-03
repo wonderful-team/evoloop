@@ -1,4 +1,5 @@
 import json
+import logging
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -8,6 +9,8 @@ from app.api.deps import TokenDep
 from app.core.evocloud import evocloud_manager
 from app.core.evocloud.backends.http_client import EvoCloudHTTPClient
 from app.core.identity import identity_service
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["member"])
 
@@ -168,3 +171,145 @@ async def get_all_ai_quotas(_token: TokenDep):
 async def get_ai_quota_history(page: int = 1, page_size: int = 20, _token: TokenDep = None):
     """获取配额使用历史"""
     return await evocloud_manager.api.get_ai_quota_history(page, page_size=page_size)
+
+
+# --- Batch Benefits & Cache Management ---
+
+from typing import List
+from app.api.deps import (
+    get_member_benefits, 
+    check_multiple_benefits, 
+    invalidate_benefits_cache,
+    BENEFIT_NAME_MAP
+)
+
+
+class BatchCheckRequest(BaseModel):
+    benefit_codes: List[str]
+
+
+class BatchCheckResponse(BaseModel):
+    results: dict[str, bool]
+    is_expired: bool
+    level_name: str
+
+
+@router.post("/benefits/check-batch", response_model=BatchCheckResponse)
+async def check_benefits_batch(req: BatchCheckRequest, token: TokenDep):
+    """
+    批量检查多项权益
+    
+    性能优化：只查询一次API，同时检查多个权益
+    
+    Example:
+        POST /member/benefits/check-batch
+        {"benefit_codes": ["voice", "desktop_control", "browser_control"]}
+        
+        Response:
+        {
+            "results": {
+                "voice": true,
+                "desktop_control": false,
+                "browser_control": true
+            },
+            "is_expired": false,
+            "level_name": "极客版"
+        }
+    """
+    # 批量检查权益
+    results = await check_multiple_benefits(req.benefit_codes, token)
+    
+    # 获取额外信息
+    benefits_data = await get_member_benefits(token)
+    
+    return BatchCheckResponse(
+        results=results,
+        is_expired=benefits_data.get("is_expired", False),
+        level_name=benefits_data.get("level_name", "免费用户")
+    )
+
+
+@router.get("/benefits")
+async def get_member_benefits_api(
+    force_refresh: bool = False,
+    token: TokenDep = None
+):
+    """
+    获取会员完整权益信息
+    
+    Args:
+        force_refresh: 是否强制刷新缓存
+    """
+    data = await get_member_benefits(token, force_refresh=force_refresh)
+    return {
+        "code": 0,
+        "data": data
+    }
+
+
+@router.post("/benefits/cache/invalidate")
+async def invalidate_member_benefits_cache(token: TokenDep):
+    """
+    手动使权益缓存失效（用于调试或强制刷新）
+    """
+    invalidate_benefits_cache(token)
+    return {
+        "code": 0,
+        "message": "缓存已清除"
+    }
+
+
+# --- Webhook for Benefits Update ---
+
+class BenefitsUpdateWebhook(BaseModel):
+    member_id: int
+    event: str  # "subscription_created", "subscription_renewed", "subscription_cancelled"
+    level_id: int | None = None
+    timestamp: int
+    signature: str  # HMAC签名用于验证
+
+
+@router.post("/webhook/benefits-update")
+async def handle_benefits_update_webhook(payload: BenefitsUpdateWebhook):
+    """
+    接收来自PHP后端的权益更新Webhook
+    
+    当会员订阅状态变更时，PHP后端会调用此接口通知Python后端刷新缓存
+    
+    Events:
+    - subscription_created: 新订阅创建
+    - subscription_renewed: 订阅续费
+    - subscription_upgraded: 订阅升级
+    - subscription_cancelled: 订阅取消
+    - subscription_expired: 订阅过期
+    """
+    import hmac
+    import hashlib
+    
+    # 验证签名（使用与PHP相同的密钥）
+    from app.core.config import settings
+    webhook_secret = getattr(settings, "WEBHOOK_SECRET", "")
+    
+    if webhook_secret:
+        expected_signature = hmac.new(
+            webhook_secret.encode(),
+            f"{payload.member_id}:{payload.event}:{payload.timestamp}".encode(),
+            hashlib.sha256
+        ).hexdigest()
+        
+        if not hmac.compare_digest(payload.signature, expected_signature):
+            raise HTTPException(status_code=401, detail="Invalid signature")
+    
+    # 根据事件类型处理
+    logger = logging.getLogger(__name__)
+    logger.info(f"[Webhook] Received benefits update: {payload.event} for member {payload.member_id}")
+    
+    # 清除该用户的所有缓存（无法知道具体token，清除全部）
+    if payload.event in ["subscription_created", "subscription_renewed", "subscription_upgraded"]:
+        invalidate_benefits_cache()
+        logger.info(f"[Webhook] Benefits cache invalidated due to {payload.event}")
+    
+    return {
+        "code": 0,
+        "message": "Webhook processed successfully"
+    }

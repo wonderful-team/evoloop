@@ -3,16 +3,12 @@ Data models for project requirement analysis.
 """
 
 from datetime import datetime
-from typing import TYPE_CHECKING
 
 from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.infrastructure.database.sql.database import Base
 from app.utils.time import utcnow
-
-if TYPE_CHECKING:
-    from app.models.codebase import Repository
 
 
 class ProjectRequirementDocument(Base):
@@ -112,9 +108,14 @@ class ProjectRequirementAnalysis(Base):
 class ProjectRequirementTask(Base):
     """
     Broken-down tasks - synced to EvoCloud.
+    Supports hierarchical subtasks for Agent task planning.
 
     Sync status flow:
         pending → syncing → synced → failed
+    
+    Hierarchy:
+        - parent_id is null: root task
+        - parent_id is set: subtask of parent
     """
 
     __tablename__ = "project_requirement_tasks"
@@ -127,6 +128,17 @@ class ProjectRequirementTask(Base):
 
     # EvoCloud task ID (backfilled after sync)
     evocloud_task_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    # Hierarchy support for subtasks
+    parent_id: Mapped[str | None] = mapped_column(
+        ForeignKey("project_requirement_tasks.id"), 
+        nullable=True,
+        index=True
+    )
+    
+    # Task execution status (independent of sync_status)
+    status: Mapped[str] = mapped_column(String(50), default="pending")  # pending, in_progress, completed, failed
+    progress: Mapped[int] = mapped_column(Integer, default=0)  # 0-100
 
     # Task data (JSON)
     # {
@@ -149,8 +161,21 @@ class ProjectRequirementTask(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow
     )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow
+    )
 
     # Relationships
     analysis: Mapped["ProjectRequirementAnalysis"] = relationship(
         back_populates="tasks"
+    )
+    parent: Mapped["ProjectRequirementTask | None"] = relationship(
+        "ProjectRequirementTask",
+        remote_side="ProjectRequirementTask.id",
+        back_populates="subtasks"
+    )
+    subtasks: Mapped[list["ProjectRequirementTask"]] = relationship(
+        "ProjectRequirementTask",
+        back_populates="parent",
+        cascade="all, delete-orphan"
     )

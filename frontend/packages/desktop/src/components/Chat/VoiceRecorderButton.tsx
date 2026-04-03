@@ -20,6 +20,8 @@ interface VoiceRecorderButtonProps {
   disabled?: boolean
 }
 
+// VoiceRecorderButton - 语音录音按钮
+// 注意：前端不做权限控制，后端返回 403 时会由拦截器处理并显示升级提示
 export function VoiceRecorderButton({ 
   onVoiceRecorded, 
   disabled = false 
@@ -49,7 +51,7 @@ export function VoiceRecorderButton({
     if (disabled || isProcessing) return
     
     try {
-      // 检查权限
+      // 检查麦克风权限
       const hasPermission = await ensureMicrophonePermission()
       if (!hasPermission) {
         toast.error(t('chat.voice.permissionDenied', '麦克风权限被拒绝'))

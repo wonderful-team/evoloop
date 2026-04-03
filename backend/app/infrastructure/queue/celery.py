@@ -1,9 +1,15 @@
 """
 Task queue for EvoLoop Backend.
 
+DEPRECATED: Use app.infrastructure.queue.factory instead.
+
+This module is kept for backward compatibility.
+New code should use:
+    from app.infrastructure.queue.factory import get_scheduler, shared_task
+
 Supports two modes:
 - Full mode: Celery + Redis (traditional)
-- Embedded mode: LocalCelery (in-process, no broker)
+- Embedded mode: LocalCelery (in-process, no broker) - DEPRECATED, use Huey instead
 
 Both implementations conform to the TaskScheduler abstract base class.
 """
@@ -49,6 +55,7 @@ TASK_MODULE_MAP = {
     "sync_project": "app.domain.project.sync_tasks",
     # Wiki tasks
     "sync_wiki_page": "app.domain.wiki.tasks",
+    "wiki_generate": "app.domain.wiki.tasks",
 }
 
 
@@ -439,6 +446,14 @@ def create_celery_app() -> TaskScheduler:
 
 
 # Global Celery/LocalCelery instance
-# Type annotation helps IDE/static analysis understand the interface
-celery_app: TaskScheduler = create_celery_app()
-"""Global task scheduler instance (Celery or LocalCelery depending on EMBEDDED_MODE)."""
+# DEPRECATED: Use get_scheduler() from app.infrastructure.queue.factory instead
+try:
+    celery_app: TaskScheduler = create_celery_app()
+    """Global task scheduler instance (Celery or LocalCelery depending on EMBEDDED_MODE).
+    
+    DEPRECATED: Use get_scheduler() from app.infrastructure.queue.factory
+    """
+except Exception as e:
+    logger.error(f"[Celery] Failed to create default scheduler: {e}")
+    # Fallback to None, will be created by factory when needed
+    celery_app = None  # type: ignore

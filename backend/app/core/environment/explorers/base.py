@@ -31,7 +31,7 @@ class BaseExplorer(ABC):
         try:
             from langchain_core.messages import HumanMessage, SystemMessage
 
-            llm = get_default_llm(temperature=0)
+            llm = await get_default_llm(temperature=0)
 
             prompt = render_template(
                 "planning/explorer_triage.prompt.j2",

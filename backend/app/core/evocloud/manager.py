@@ -236,8 +236,8 @@ class EvoCloudManager:
         # Persistent storage (DB) - Offloaded to Celery
         if persistent:
             try:
-                from app.infrastructure.queue.celery import celery_app
-                celery_app.send_task(
+                from app.infrastructure.queue.factory import get_scheduler
+                get_scheduler().send_task(
                     "engine_upload_cloud_log",
                     kwargs={
                         "device_id": target_device_id,

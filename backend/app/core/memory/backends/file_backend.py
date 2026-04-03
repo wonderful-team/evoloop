@@ -322,6 +322,10 @@ class FileMemoryStorage:
         entries.sort(key=lambda x: x.updated_at, reverse=True)
         return entries[:count]
     
+    # Index file limits (Claude Code style)
+    MAX_INDEX_LINES = 200
+    MAX_INDEX_SIZE = 25 * 1024  # 25KB
+    
     async def _update_index(self, entry: MemoryEntry, path: Path) -> None:
         """
         Update MEMORY.md index file.
@@ -359,8 +363,43 @@ class FileMemoryStorage:
             insert_idx = self._find_insert_position(index_lines, section)
             index_lines.insert(insert_idx, entry_line)
         
+        # Truncate if needed to keep index file manageable
+        index_lines = self._truncate_index(index_lines)
+        
         # Write back
         self.index_file.write_text("\n".join(index_lines) + "\n", encoding="utf-8")
+    
+    def _truncate_index(self, lines: List[str]) -> List[str]:
+        """
+        Keep index file under size limits (Claude Code style).
+        
+        Strategy:
+        1. Keep all header lines (starting with #)
+        2. Keep the most recent entries up to MAX_INDEX_LINES
+        3. Ensure total size is under MAX_INDEX_SIZE
+        """
+        if len(lines) <= self.MAX_INDEX_LINES:
+            return lines
+        
+        # Separate headers from entries
+        headers = [l for l in lines if l.startswith("#")]
+        entries = [l for l in lines if not l.startswith("#") and l.strip()]
+        
+        # Keep most recent entries (they're added at the top of each section)
+        max_entries = self.MAX_INDEX_LINES - len(headers)
+        kept_entries = entries[:max_entries]  # Already sorted by recency
+        
+        result = headers + kept_entries
+        
+        # Size-based truncation if still too large
+        content = "\n".join(result)
+        while len(content.encode("utf-8")) > self.MAX_INDEX_SIZE and len(result) > len(headers):
+            # Remove oldest entry (from the end)
+            result.pop()
+            content = "\n".join(result)
+        
+        logger.debug(f"Index truncated: {len(lines)} lines -> {len(result)} lines")
+        return result
     
     async def _remove_from_index(self, entry_id: str) -> None:
         """Remove entry from index by ID."""

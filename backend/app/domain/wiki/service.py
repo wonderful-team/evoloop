@@ -16,7 +16,7 @@ from app.core.db import engine
 from app.domain.wiki.wiki_builder import WikiBuilder
 from app.core.evocloud import evocloud_manager
 from app.core.file.service import filter_code_files, walk_tree
-from app.core.memory import memory_manager
+from app.core.memory import MemoryContainer, MemoryConfig
 from app.i18n.service import i18n
 from app.models.wiki import WikiPage
 from app.utils.file import normalize_path
@@ -182,12 +182,18 @@ class WikiService:
 
             stored_names = []
             if result and result.concepts:
-                for concept in result.concepts[:5]:  # Max 5 concepts per page
-                    from app.core.memory.interfaces.long_term import Concept as MemConcept
-                    mem_concept = MemConcept(concept.name, concept.description, project_id, [])
-                    await memory_manager.long_term.store_concept(mem_concept)
-                    stored_names.append(concept.name)
-                    logger.info(f"Wiki Concept Harvested: {concept.name}")
+                container = MemoryContainer(MemoryConfig.from_settings())
+                await container.initialize()
+                try:
+                    manager = container.memory_manager
+                    for concept in result.concepts[:5]:  # Max 5 concepts per page
+                        from app.core.memory.interfaces.long_term import Concept as MemConcept
+                        mem_concept = MemConcept(concept.name, concept.description, project_id, [])
+                        await manager.long_term.store_concept(mem_concept)
+                        stored_names.append(concept.name)
+                        logger.info(f"Wiki Concept Harvested: {concept.name}")
+                finally:
+                    await container.shutdown()
 
             return stored_names
 

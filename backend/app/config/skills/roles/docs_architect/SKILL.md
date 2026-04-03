@@ -74,7 +74,7 @@ Wrap diagram code in triple backticks with `mermaid` language identifier.
 - `read_file`, `list_directory`, `find_symbol`, `search_files`, `ask_codebase`
 - `write_document`, `edit_document`
 - `list_wiki_pages`, `read_wiki_page`, `write_wiki_page`
-- `memorize_concepts`, `save_preference`, `add_concept`
+- `remember`, `recall` (for saving and retrieving knowledge)
 
 ## Verification Contract
 After writing documentation, verify the page exists and is readable by calling `read_wiki_page` or `read_file`.

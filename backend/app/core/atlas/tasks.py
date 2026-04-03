@@ -2,11 +2,8 @@ import asyncio
 import logging
 import os
 
-# Conditional import for Celery (embedded mode compatibility)
-try:
-    from celery import shared_task
-except ImportError:
-    from app.infrastructure.queue.celery import shared_task
+# Unified task queue (Huey in embedded mode, Celery in full mode)
+from app.infrastructure.queue.factory import shared_task
 
 from app.core.atlas.models import AtlasApp
 from app.core.environment.events import UiTreeObservedEvent, event_bus

@@ -1,14 +1,24 @@
 import asyncio
 import logging
 
-from app.infrastructure.queue.celery import celery_app
+# Unified task queue (Huey in embedded mode, Celery in full mode)
+from app.infrastructure.queue.factory import get_scheduler
+
+# Get scheduler instance
+_task_scheduler = get_scheduler()
+
+# Create task decorator
+def _task(name, **kwargs):
+    def decorator(f):
+        return _task_scheduler.task(f, name=name, **kwargs)
+    return decorator
 from app.domain.codebase.indexing.manager import indexing_manager
 from app.utils.async_utils import flush_loop_bound_resources
 
 logger = logging.getLogger(__name__)
 
 
-@celery_app.task(name="run_full_indexing")
+@_task(name="run_full_indexing")
 def run_full_indexing_task(project_id: int, rebuild: bool = False):
     """
     Celery task to run full indexing in a background worker.

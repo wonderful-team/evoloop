@@ -16,7 +16,8 @@ logger = logging.getLogger(__name__)
 
 @evoloop_tool(
     is_pollable=True,
-    name_map={"zh": "浏览器控制", "en": "Browser Control"}
+    name_map={"zh": "浏览器控制", "en": "Browser Control"},
+    required_benefit="browser_control"
 )
 async def browser_control(
     action: Literal[

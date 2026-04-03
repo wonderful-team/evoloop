@@ -1,5 +1,5 @@
 import { create } from "zustand"
-import { ProjectsService } from "@/client"
+import { ProjectsService, SystemService } from "@/client"
 
 export interface DetectedProject {
   id: number
@@ -14,9 +14,11 @@ interface ProjectImportState {
   isLoading: boolean
   hasNewDetected: boolean
   dismissedProjectIds: Set<number> // 用户已处理（忽略/稍后）的项目ID
+  isDiscoveryEnabled: boolean | null // 项目发现是否启用（null = 尚未检查）
 
   fetchDetected: () => Promise<void>
   fetchIgnored: () => Promise<void>
+  checkDiscoveryEnabled: () => Promise<boolean>
   importProject: (id: number) => Promise<void>
   ignoreProject: (id: number) => Promise<void>
   unignoreProject: (id: number) => Promise<void>
@@ -34,8 +36,36 @@ export const useProjectImportStore = create<ProjectImportState>((set, get) => ({
   isLoading: false,
   hasNewDetected: false,
   dismissedProjectIds: new Set<number>(),
+  isDiscoveryEnabled: null,
+
+  checkDiscoveryEnabled: async () => {
+    try {
+      const res = await SystemService.getProjectDiscoveryConfig()
+      const enabled = res.enabled ?? true
+      set({ isDiscoveryEnabled: enabled })
+      return enabled
+    } catch (error) {
+      console.error("[ProjectImport] Failed to check discovery config:", error)
+      // Default to true on error to maintain backward compatibility
+      set({ isDiscoveryEnabled: true })
+      return true
+    }
+  },
 
   fetchDetected: async () => {
+    // Check discovery config first (if not already checked)
+    let { isDiscoveryEnabled } = get()
+    if (isDiscoveryEnabled === null) {
+      isDiscoveryEnabled = await get().checkDiscoveryEnabled()
+    }
+    
+    // Skip fetching if discovery is disabled
+    if (!isDiscoveryEnabled) {
+      console.debug("[ProjectImport] Discovery disabled, skipping fetch")
+      set({ detectedProjects: [], hasNewDetected: false })
+      return
+    }
+
     try {
       // Use ProjectsService.getDetectedProjects() which uses generated SDK
       const res: any = await ProjectsService.getDetectedProjects()

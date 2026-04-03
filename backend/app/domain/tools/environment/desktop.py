@@ -16,7 +16,8 @@ logger = logging.getLogger(__name__)
 
 @evoloop_tool(
     is_pollable=True,
-    name_map={"zh": "桌面控制", "en": "Desktop Control"}
+    name_map={"zh": "桌面控制", "en": "Desktop Control"},
+    required_benefit="desktop_control"
 )
 async def desktop_control(
     action: Literal["screenshot", "click", "double_click", "type_text", "key_press", "open_app", "applescript", "get_info", "list_apps", "batch", "get_active_app", "scroll", "drag_drop", "dump_ui", "gui_extract"],

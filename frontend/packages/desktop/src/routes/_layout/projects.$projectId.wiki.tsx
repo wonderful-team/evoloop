@@ -164,8 +164,17 @@ function WikiPage() {
             toast.success(t('wiki.toast.start'))
             queryClient.invalidateQueries({ queryKey: ["wiki"] })
         },
-        onError: () => {
-            toast.error(t('wiki.toast.error'))
+        onError: (error: any) => {
+            // 检查是否为权益错误（403 + BENEFIT_REQUIRED）
+            // 权益错误已由拦截器显示升级提示，这里不再显示
+            const isBenefitError = 
+                error?.status === 403 || 
+                error?.body?.detail?.code === 'BENEFIT_REQUIRED' ||
+                error?.body?.code === 'BENEFIT_REQUIRED'
+            
+            if (!isBenefitError) {
+                toast.error(t('wiki.toast.error'))
+            }
         },
     })
 

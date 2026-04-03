@@ -10,7 +10,24 @@ Architecture:
 - Extraction: Automatic memory extraction from conversations
 - Retrieval: LLM-assisted relevance selection
 
-This replaces the previous split between Memory and Brain modules.
+Usage:
+    # Recommended way (using MemoryContainer)
+    from app.core.memory import MemoryContainer, MemoryConfig
+    
+    container = MemoryContainer(MemoryConfig.from_settings())
+    await container.initialize()
+    manager = container.memory_manager
+    
+    # Or create manually with dependency injection
+    from app.core.memory.config import MemoryConfig
+    from app.core.memory.manager import MemoryManager
+    from app.core.memory.factory import MemoryFactory
+    
+    config = MemoryConfig.from_settings()
+    storage = MemoryFactory.create_storage(config)
+    short_term = MemoryFactory.create_short_term_memory(config)
+    manager = MemoryManager(config=config, storage=storage, short_term=short_term)
+    await manager.initialize()
 """
 
 import logging
@@ -262,25 +279,55 @@ class MemoryManager:
     - Retrieval: Smart memory selection
     
     Usage:
-        from app.core.memory import memory_manager
+        # Using MemoryContainer (recommended)
+        from app.core.memory import MemoryContainer, MemoryConfig
         
-        # Save a memory
-        await memory_manager.save_memory(entry)
+        container = MemoryContainer(MemoryConfig.from_settings())
+        await container.initialize()
+        manager = container.memory_manager
         
-        # Search memories
-        results = await memory_manager.search_memories("database testing")
+        # Or create manually with dependency injection
+        from app.core.memory.config import MemoryConfig
+        from app.core.memory.manager import MemoryManager
+        from app.core.memory.factory import MemoryFactory
         
-        # Extract from conversation
-        await memory_manager.extract_memories(thread_id, messages)
+        config = MemoryConfig.from_settings()
+        storage = MemoryFactory.create_storage(config)
+        short_term = MemoryFactory.create_short_term_memory(config)
+        manager = MemoryManager(config=config, storage=storage, short_term=short_term)
+        await manager.initialize()
     """
     
-    def __init__(self):
-        """Initialize memory manager with appropriate backends."""
+    def __init__(
+        self,
+        config: Optional['MemoryConfig'] = None,
+        storage: Optional[FileMemoryStorage] = None,
+        short_term: Optional[IShortTermMemory] = None,
+    ):
+        """
+        Initialize memory manager with appropriate backends.
+        
+        Args:
+            config: Memory configuration. If None, uses default from settings.
+            storage: Storage backend. If None, creates based on config.
+            short_term: Short-term memory backend. If None, creates SqlShortTermMemory.
+        """
+        # Import here to avoid circular imports at module level
+        from app.core.memory.config import MemoryConfig
+        
+        self.config = config or MemoryConfig.from_settings()
+        
         # Short-term memory (always SQL)
-        self.short_term: IShortTermMemory = SqlShortTermMemory()
+        if short_term is not None:
+            self.short_term = short_term
+        else:
+            self.short_term: IShortTermMemory = SqlShortTermMemory()
         
         # Long-term memory backend
-        if settings.EMBEDDED_MODE:
+        if storage is not None:
+            self._storage = storage
+            logger.info(f"MemoryManager: Using provided storage backend")
+        elif settings.EMBEDDED_MODE:
             # File-based storage for embedded mode
             self._storage = FileMemoryStorage()
             logger.info("MemoryManager: Initialized with FileBackend (embedded mode)")
@@ -301,7 +348,7 @@ class MemoryManager:
         self.graph = _GraphAdapter(self)
         
         # Services (use storage directly)
-        self.extraction = MemoryExtractionService(self._storage)
+        self.extraction = MemoryExtractionService(self._storage, config=self.config)
         self.consolidation = MemoryConsolidationService(self._storage)
         self.retrieval = MemoryRetrievalService(self._storage)
     
@@ -314,7 +361,10 @@ class MemoryManager:
     async def flush(self) -> None:
         """Flush all memory components (for testing)."""
         await self.short_term.flush()
-        await self._storage.flush()
+        # FileMemoryStorage is stateless and doesn't need flush
+        # Neo4j backend would have flush() if needed
+        if hasattr(self._storage, 'flush'):
+            await self._storage.flush()
         logger.info("MemoryManager: All components flushed")
     
     # ========================================================================
@@ -375,10 +425,20 @@ class MemoryManager:
         """
         Save a memory entry to long-term storage.
         
+        Also appends to daily log for KAIROS consolidation.
+        
         Args:
             entry: Memory entry to save
         """
         await self._storage.save(entry)
+        
+        # KAIROS: Append to daily log for nightly consolidation
+        try:
+            from app.core.memory.daily_log import daily_log_writer
+            await daily_log_writer.append(entry)
+        except Exception as e:
+            # Log but don't fail the save
+            logger.warning(f"[MemoryManager] Failed to append to daily log: {e}")
     
     async def get_memory(self, entry_id: str) -> Optional[MemoryEntry]:
         """
@@ -432,6 +492,57 @@ class MemoryManager:
             project_id=project_id,
             limit=limit,
         )
+    
+    # ========================================================================
+    # Two-Tier Memory Operations
+    # ========================================================================
+    
+    async def get_hot_memory(self) -> str:
+        """
+        Get Tier 1 hot memory (MEMORY.md).
+        
+        This is always loaded at session start. Contains the most
+        important project knowledge ranked by importance.
+        
+        Returns:
+            MEMORY.md content (truncated if exceeds limits)
+        """
+        from app.core.memory.two_tier import TwoTierMemoryManager
+        two_tier = TwoTierMemoryManager(storage=self._storage, config=self.config)
+        return await two_tier.get_hot_memory()
+    
+    async def search_cold_memory(
+        self,
+        query: str,
+        max_results: int = 5,
+    ) -> List[MemoryEntry]:
+        """
+        Search Tier 2 cold memory (full storage).
+        
+        This is searched on demand when hot memory is insufficient.
+        Uses smart retrieval for semantic relevance.
+        
+        Args:
+            query: Search query
+            max_results: Maximum number of results
+            
+        Returns:
+            List of relevant memory entries
+        """
+        from app.core.memory.two_tier import TwoTierMemoryManager
+        two_tier = TwoTierMemoryManager(storage=self._storage, config=self.config)
+        return await two_tier.search_cold_memory(query, max_results)
+    
+    async def regenerate_memory_md(self) -> None:
+        """
+        Regenerate MEMORY.md from cold memory.
+        
+        This updates the hot memory (Tier 1) based on the current
+        state of cold memory (Tier 2), applying budgets and rankings.
+        """
+        from app.core.memory.two_tier import TwoTierMemoryManager
+        two_tier = TwoTierMemoryManager(storage=self._storage, config=self.config)
+        await two_tier.regenerate_memory_md()
     
     async def list_memories(
         self,
@@ -562,5 +673,9 @@ class MemoryManager:
         )
 
 
-# Global instance
-memory_manager = MemoryManager()
+# Note: Global singleton removed. Use MemoryContainer or create instance manually.
+# Example:
+#   from app.core.memory import MemoryContainer, MemoryConfig
+#   container = MemoryContainer(MemoryConfig.from_settings())
+#   await container.initialize()
+#   manager = container.memory_manager

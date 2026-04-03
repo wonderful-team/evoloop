@@ -55,11 +55,16 @@ def evoloop_tool(
     is_multimodal: bool = False,
     name_map: dict[str, str] | None = None,  # {"zh": "中文名", "en": "English Name"}
     handle_tool_error: bool = True,  # Allow override for HITL tools
+    required_benefit: str | None = None,  # 所需权益，如 "desktop_control"
     **kwargs,
 ):
     """
     Decorator that applies standard EvoLoop tool behaviors.
     Can be used as @evoloop_tool or @evoloop_tool(name="...", is_pollable=True, ...).
+    
+    Args:
+        required_benefit: 权益编码，如 "desktop_control", "mobile_control", "browser_control"
+                          如果用户没有该权益，工具执行将被拒绝
     """
     import inspect
 
@@ -70,6 +75,42 @@ def evoloop_tool(
             async def wrapper(*args_f, **kwargs_f):
                 # Debug: Log raw inputs
                 logger.info(f"🔧 Tool [{func.__name__}] Invoked - Args: {args_f}, Kwargs: {kwargs_f}")
+                
+                # 权限检查
+                if required_benefit:
+                    from app.api.deps import check_benefit, create_benefit_error_detail
+                    from app.core.identity import identity_service
+                    
+                    try:
+                        token = identity_service.get_cloud_token()
+                        if not token:
+                            return json.dumps({
+                                "error": "Authentication required",
+                                "code": "AUTH_REQUIRED",
+                                "message": f"请先登录后再使用 {func.__name__} 功能"
+                            }, ensure_ascii=False)
+                        
+                        has_access = await check_benefit(required_benefit, token)
+                        if not has_access:
+                            # 使用统一的错误格式，与API层保持一致
+                            error_detail = create_benefit_error_detail(required_benefit)
+                            return json.dumps({
+                                "error": "Benefit required",
+                                "code": error_detail["code"],
+                                "feature": error_detail["feature"],
+                                "feature_name": error_detail["feature_name"],
+                                "message": error_detail["message"],
+                                "required_plan": error_detail["required_plan"],
+                                "upgrade_url": error_detail["upgrade_url"]
+                            }, ensure_ascii=False)
+                    except Exception as e:
+                        logger.error(f"Permission check failed for {func.__name__}: {e}")
+                        return json.dumps({
+                            "error": "Permission check failed",
+                            "code": "PERMISSION_CHECK_ERROR",
+                            "message": f"权限检查失败: {str(e)}"
+                        }, ensure_ascii=False)
+                
                 try:
                     return await func(*args_f, **kwargs_f)
                 except Exception as e:
@@ -81,6 +122,11 @@ def evoloop_tool(
             def wrapper(*args_f, **kwargs_f):
                 # Debug: Log raw inputs
                 logger.info(f"🔧 Tool [{func.__name__}] Invoked - Args: {args_f}, Kwargs: {kwargs_f}")
+                
+                # 同步函数的权限检查（少见）
+                if required_benefit:
+                    return f"Error: {func.__name__} requires benefit {required_benefit} but sync tools don't support permission checks"
+                
                 try:
                     return func(*args_f, **kwargs_f)
                 except Exception as e:

@@ -40,6 +40,7 @@ const generalSettingsSchema = z.object({
   WORKSPACE_ROOT: z.string().min(1),
   EVOCLOUD_DEVICE_NAME: z.string().min(1),
   LANGUAGE: z.string().default("zh"),
+  PROJECT_DISCOVERY_ENABLED: z.boolean().default(true),
 })
 
 type GeneralSettingsValues = z.infer<typeof generalSettingsSchema>
@@ -54,16 +55,21 @@ export default function GeneralSettings() {
       WORKSPACE_ROOT: "",
       EVOCLOUD_DEVICE_NAME: "",
       LANGUAGE: "zh",
+      PROJECT_DISCOVERY_ENABLED: true,
     },
   })
 
   useEffect(() => {
     const fetchConfig = async () => {
       try {
-        const response = await SystemService.getSystemConfig()
+        const [configResponse, discoveryResponse] = await Promise.all([
+          SystemService.getSystemConfig(),
+          SystemService.getProjectDiscoveryConfig(),
+        ])
+        
         const configMap: Record<string, string> = {}
-        if (Array.isArray(response)) {
-          ;(response as unknown as SystemConfig[]).forEach((item) => {
+        if (Array.isArray(configResponse)) {
+          ;(configResponse as unknown as SystemConfig[]).forEach((item) => {
             configMap[item.key] = item.value
           })
         }
@@ -73,6 +79,7 @@ export default function GeneralSettings() {
           WORKSPACE_ROOT: configMap.WORKSPACE_ROOT || "",
           EVOCLOUD_DEVICE_NAME: configMap.EVOCLOUD_DEVICE_NAME || "",
           LANGUAGE: language,
+          PROJECT_DISCOVERY_ENABLED: discoveryResponse.enabled ?? true,
         })
 
         // Sync Language from Backend
@@ -104,6 +111,11 @@ export default function GeneralSettings() {
       })
       // Apply language change immediately
       i18n.changeLanguage(data.LANGUAGE)
+      
+      // Save Project Discovery Preference
+      await SystemService.setProjectDiscoveryConfig({
+        requestBody: { enabled: data.PROJECT_DISCOVERY_ENABLED },
+      })
 
       toast.success(t("settings.general.success"))
       await queryClient.invalidateQueries({ queryKey: ["systemConfig"] })
@@ -223,6 +235,29 @@ export default function GeneralSettings() {
                       {t("settings.general.workspaceRootDesc")}
                     </FormDescription>
                     <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="PROJECT_DISCOVERY_ENABLED"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                    <FormControl>
+                      <Checkbox
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                    <div className="space-y-1 leading-none">
+                      <FormLabel>
+                        {t("settings.general.projectDiscoveryEnabled")}
+                      </FormLabel>
+                      <FormDescription>
+                        {t("settings.general.projectDiscoveryEnabledDesc")}
+                      </FormDescription>
+                    </div>
                   </FormItem>
                 )}
               />

@@ -329,8 +329,15 @@ async def retry_chat(req: ChatRequest, bg_tasks: BackgroundTasks):
             result = await session.execute(stmt)
             target_msg = result.scalar_one_or_none()
 
-            if not target_msg or target_msg.thread_id != req.thread_id or target_msg.role != "human":
-                raise HTTPException(status_code=404, detail=f"Target human message {req.message_id} not found in thread")
+            if not target_msg:
+                logger.warning(f"[Retry] Message {req.message_id} not found in database")
+                raise HTTPException(status_code=404, detail=f"Message {req.message_id} not found")
+            if target_msg.thread_id != req.thread_id:
+                logger.warning(f"[Retry] Message {req.message_id} belongs to thread {target_msg.thread_id}, not {req.thread_id}")
+                raise HTTPException(status_code=404, detail=f"Message {req.message_id} not found in thread")
+            if target_msg.role != "human":
+                logger.warning(f"[Retry] Message {req.message_id} has role '{target_msg.role}', not 'human'")
+                raise HTTPException(status_code=404, detail=f"Message {req.message_id} is not a human message")
             last_human_msg = target_msg
         else:
             # Fallback to last human message

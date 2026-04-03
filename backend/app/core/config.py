@@ -60,6 +60,10 @@ class Settings(BaseSettings):
 
     # Embedded Mode (No external dependencies)
     EMBEDDED_MODE: bool = False  # True: Use SQLite + LanceDB + LocalCelery, False: Use Postgres + Neo4j + Redis
+    
+    # Memory System Settings
+    AUTO_MEMORY_EXTRACTION: bool = True  # Enable automatic memory extraction at conversation end
+    AUTO_MEMORY_EXTRACTION_INTERVAL: int = 1  # Extract every N turns (1 = every turn, 2 = every other turn, etc.)
 
     BACKEND_CORS_ORIGINS: Annotated[list[AnyUrl] | str, BeforeValidator(parse_cors)] = []
 
@@ -152,6 +156,13 @@ class Settings(BaseSettings):
     # Cache backend (Redis in production, FileCache in embedded mode)
     REDIS_URL: str | None = "redis://localhost:6379/0"
     USE_REDIS: bool = True  # Set to False to disable Redis
+    
+    # Task Queue Backend (celery | huey | local | auto)
+    # - celery: Full Celery with Redis (requires Redis, not available in embedded mode)
+    # - huey: Huey with SQLite (recommended for embedded mode, no external deps)
+    # - local: In-memory LocalCelery (deprecated, tasks lost on restart)
+    # - auto: Auto-detect based on EMBEDDED_MODE (huey for embedded, celery otherwise)
+    TASK_QUEUE_BACKEND: Literal["celery", "huey", "local", "auto"] = "auto"
 
     # LLM Providers
     OPENAI_API_KEY: str = "sk-dummy-key-for-local-dev"
@@ -276,6 +287,7 @@ class Settings(BaseSettings):
 
     # Project Management
     WORKSPACE_ROOT: str | None = Field(default=None, validation_alias="WORKSPACE_ROOT")
+    ENABLE_PROJECT_DISCOVERY: bool = Field(default=False, validation_alias="ENABLE_PROJECT_DISCOVERY")  # 启用/禁用项目自动发现（默认禁用）
 
     # Artifacts (Relative to ~/.evoloop in home dir for persistence, or subfolder of WORKSPACE_ROOT?)
     # Decision: Keep them in user app data dir to avoid cluttering projects root or ephemeral CWD.

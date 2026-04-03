@@ -78,10 +78,10 @@ class LayeredAuditor:
         # Fast LLM for standard tier
         self._fast_llm = None
     
-    def _get_fast_llm(self):
+    async def _get_fast_llm(self):
         """Lazy initialization of fast LLM."""
         if self._fast_llm is None:
-            self._fast_llm = LLMFactory.create_llm(
+            self._fast_llm = await LLMFactory.create_llm(
                 temperature=0.1,
                 max_tokens=500,
             )
@@ -289,7 +289,8 @@ Result to review:
 Respond in 2-3 sentences. Be concise."""
 
         try:
-            response = await self._get_fast_llm().ainvoke([
+            llm = await self._get_fast_llm()
+            response = await llm.ainvoke([
                 SystemMessage(content=prompt)
             ])
             

@@ -42,10 +42,10 @@ async def synthesize_skill(reason: str, thread_id: Optional[str] = None) -> str:
     logger.info(f"[Tool] Agent triggered manual skill synthesis for thread {target_thread}. Reason: {reason}")
     
     try:
-        from app.infrastructure.queue.celery import celery_app
+        from app.infrastructure.queue.factory import get_scheduler
         
         # Trigger the recording task with auto_synthesize=True
-        celery_app.send_task(
+        get_scheduler().send_task(
             "engine_record_episode",
             kwargs={
                 "thread_id": target_thread,

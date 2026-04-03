@@ -20,6 +20,8 @@ interface TTSButtonProps {
   variant?: 'ghost' | 'secondary' | 'outline'
 }
 
+// TTSButton - 语音朗读按钮
+// 注意：前端不做权限控制，后端返回 403 时会由拦截器处理并显示升级提示
 export function TTSButton({ 
   text, 
   className, 

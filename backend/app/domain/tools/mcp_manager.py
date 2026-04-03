@@ -3,7 +3,7 @@ import logging
 from pydantic import BaseModel, Field
 
 from app.core.tools import evoloop_tool
-from app.core.tools.mcp.client import mcp_client_manager
+from app.core.mcp import mcp_client_manager
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +42,7 @@ async def use_mcp_server(server_name: str) -> str:
         if not connected:
             return f"Error: Failed to connect to MCP server '{server_name}'."
 
-        tools = await mcp_client_manager.get_tools_for(server_name)
+        tools = await mcp_client_manager.get_tools(server_name)
         tool_names = [t.name for t in tools]
 
         # We need to tell the LLM that the tools are available, BUT the LLM's current
