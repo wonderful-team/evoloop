@@ -11,9 +11,7 @@ import {
   Wand2, 
   PlusCircle, 
   Search, 
-  FileText, 
   ListTodo, 
-  HelpCircle,
   ArrowRight,
   Activity,
   History
@@ -24,15 +22,17 @@ import { Card, CardContent, CardHeader, CardTitle } from "@evoloop/shared/compon
 import { Badge } from "@evoloop/shared/components/ui/badge";
 import { useProjectStore } from '@/stores/projectStore';
 import { useQuery } from '@tanstack/react-query';
+import { useNavigate } from '@tanstack/react-router';
 import { DevicesService, LearningService, SystemService } from '@/client';
 
 interface ChatWelcomeProps {
-  onStarterClick: (text: string) => void;
+  // onStarterClick removed as prompts are replaced by nav
 }
 
-export const ChatWelcome: React.FC<ChatWelcomeProps> = ({ onStarterClick }) => {
+export const ChatWelcome: React.FC<ChatWelcomeProps> = () => {
   const { t } = useTranslation();
   const { currentProject } = useProjectStore();
+  const navigate = useNavigate();
 
   // Fetch Devices Status
   const { data: devices } = useQuery({
@@ -224,7 +224,11 @@ export const ChatWelcome: React.FC<ChatWelcomeProps> = ({ onStarterClick }) => {
                    <div className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">
                       {t('chat.welcome.totalSkills', { count: (skills as any)?.total || 0 })}
                    </div>
-                <Button className="w-full h-8 text-[11px] font-bold" size="sm">
+                <Button 
+                  className="w-full h-8 text-[11px] font-bold" 
+                  size="sm"
+                  onClick={() => navigate({ to: '/learning' })}
+                >
                   <PlusCircle size={14} className="mr-2" />
                   {t('chat.welcome.teachMe')}
                 </Button>
@@ -233,61 +237,61 @@ export const ChatWelcome: React.FC<ChatWelcomeProps> = ({ onStarterClick }) => {
         </motion.div>
       </div>
 
-      {/* Hero Starters Grid */}
+      {/* Navigation Grid */}
       <motion.div variants={itemVariants} className="w-full">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 w-full">
           <div 
-            onClick={() => onStarterClick(t("chat.context.starter.analyze"))}
+            onClick={() => navigate({ to: '/projects' })}
             className="group cursor-pointer p-4 rounded-xl bg-background/50 border border-border/50 hover:border-primary/30 transition-all flex flex-col gap-3"
           >
             <div className="w-9 h-9 rounded-lg bg-muted flex items-center justify-center text-muted-foreground group-hover:text-primary group-hover:bg-primary/5 transition-all">
-              <Search size={18} />
+              <LayoutGrid size={18} />
             </div>
             <div>
-              <h3 className="text-xs font-bold mb-1">{t("chat.context.starter.analyzeLabel")}</h3>
-              <p className="text-[10px] text-muted-foreground/80 leading-relaxed">{t("chat.context.starter.analyzeDesc")}</p>
+              <h3 className="text-xs font-bold mb-1">{t("chat.welcome.nav.projects")}</h3>
+              <p className="text-[10px] text-muted-foreground/80 leading-relaxed">{t("chat.welcome.nav.projectsDesc")}</p>
             </div>
             <ArrowRight size={12} className="self-end text-muted-foreground/40 group-hover:text-primary transition-colors" />
           </div>
 
           <div 
-            onClick={() => onStarterClick(t("chat.context.starter.plan"))}
-            className="group cursor-pointer p-4 rounded-xl bg-background/50 border border-border/50 hover:border-primary/30 transition-all flex flex-col gap-3"
-          >
-            <div className="w-9 h-9 rounded-lg bg-muted flex items-center justify-center text-muted-foreground group-hover:text-purple-500 group-hover:bg-purple-500/5 transition-all">
-              <FileText size={18} />
-            </div>
-            <div>
-              <h3 className="text-xs font-bold mb-1">{t("chat.context.starter.planLabel")}</h3>
-              <p className="text-[10px] text-muted-foreground/80 leading-relaxed">{t("chat.context.starter.planDesc")}</p>
-            </div>
-            <ArrowRight size={12} className="self-end text-muted-foreground/40 group-hover:text-primary transition-colors" />
-          </div>
-
-          <div 
-            onClick={() => onStarterClick(t("chat.context.starter.tasks"))}
+            onClick={() => navigate({ to: '/todos' })}
             className="group cursor-pointer p-4 rounded-xl bg-background/50 border border-border/50 hover:border-primary/30 transition-all flex flex-col gap-3"
           >
             <div className="w-9 h-9 rounded-lg bg-muted flex items-center justify-center text-muted-foreground group-hover:text-emerald-500 group-hover:bg-emerald-500/5 transition-all">
               <ListTodo size={18} />
             </div>
             <div>
-              <h3 className="text-xs font-bold mb-1">{t("chat.context.starter.tasksLabel")}</h3>
-              <p className="text-[10px] text-muted-foreground/80 leading-relaxed">{t("chat.context.starter.tasksDesc")}</p>
+              <h3 className="text-xs font-bold mb-1">{t("chat.welcome.nav.todos")}</h3>
+              <p className="text-[10px] text-muted-foreground/80 leading-relaxed">{t("chat.welcome.nav.todosDesc")}</p>
             </div>
             <ArrowRight size={12} className="self-end text-muted-foreground/40 group-hover:text-primary transition-colors" />
           </div>
 
           <div 
-            onClick={() => onStarterClick(t("chat.context.starter.help"))}
+            onClick={() => navigate({ to: '/library' })}
             className="group cursor-pointer p-4 rounded-xl bg-background/50 border border-border/50 hover:border-primary/30 transition-all flex flex-col gap-3"
           >
             <div className="w-9 h-9 rounded-lg bg-muted flex items-center justify-center text-muted-foreground group-hover:text-amber-500 group-hover:bg-amber-500/5 transition-all">
-              <HelpCircle size={18} />
+              <Brain size={18} />
             </div>
             <div>
-              <h3 className="text-xs font-bold mb-1">{t("chat.context.starter.helpLabel")}</h3>
-              <p className="text-[10px] text-muted-foreground/80 leading-relaxed">{t("chat.context.starter.helpDesc")}</p>
+              <h3 className="text-xs font-bold mb-1">{t("chat.welcome.nav.knowledge")}</h3>
+              <p className="text-[10px] text-muted-foreground/80 leading-relaxed">{t("chat.welcome.nav.knowledgeDesc")}</p>
+            </div>
+            <ArrowRight size={12} className="self-end text-muted-foreground/40 group-hover:text-primary transition-colors" />
+          </div>
+
+          <div 
+            onClick={() => navigate({ to: '/learning' })}
+            className="group cursor-pointer p-4 rounded-xl bg-background/50 border border-border/50 hover:border-primary/30 transition-all flex flex-col gap-3"
+          >
+            <div className="w-9 h-9 rounded-lg bg-muted flex items-center justify-center text-muted-foreground group-hover:text-purple-500 group-hover:bg-purple-500/5 transition-all">
+              <Wand2 size={18} />
+            </div>
+            <div>
+              <h3 className="text-xs font-bold mb-1">{t("chat.welcome.nav.skills")}</h3>
+              <p className="text-[10px] text-muted-foreground/80 leading-relaxed">{t("chat.welcome.nav.skillsDesc")}</p>
             </div>
             <ArrowRight size={12} className="self-end text-muted-foreground/40 group-hover:text-primary transition-colors" />
           </div>
