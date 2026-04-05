@@ -1,0 +1,579 @@
+"""
+Knowledge Base API Routes.
+
+Handles document upload, retrieval, and management for the Agent knowledge base.
+"""
+
+import logging
+from typing import Optional
+
+from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
+from pydantic import BaseModel
+
+from app.domain.knowledge.services.pipeline import IngestionPipeline
+from app.domain.knowledge.services.store import KnowledgeStoreService
+from app.domain.knowledge.services.bulk_import import BulkImportService
+from app.domain.knowledge.services.search import get_fts_service
+from app.domain.knowledge.services.deduplication import DeduplicationService
+from app.domain.knowledge.services.citations import get_citation_tracker
+from app.domain.knowledge.models.document import MarkdownDocument
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter()
+pipeline = IngestionPipeline()
+store = KnowledgeStoreService()
+bulk_import = BulkImportService(pipeline)
+
+
+# ============ Schemas ============
+
+class DocumentResponse(BaseModel):
+    """Response for document operations."""
+    success: bool
+    message: str
+    path: Optional[str] = None
+    document: Optional[dict] = None
+
+
+class DocumentListResponse(BaseModel):
+    """Response for listing documents."""
+    total: int
+    documents: list[dict]
+    projects: list[str]
+
+
+class DocumentContentResponse(BaseModel):
+    """Response for reading document content."""
+    path: str
+    content: str
+    metadata: dict
+    offset: int
+    limit: int
+    total_lines: int
+    has_more: bool
+
+
+# ============ Routes ============
+
+@router.post("/upload", response_model=DocumentResponse)
+async def upload_document(
+    file: UploadFile = File(..., description="Document to upload"),
+    project: str = Form(default="default", description="Project name"),
+    doc_type: str = Form(default="doc", description="Document type (doc, code, guide, etc.)"),
+    extract_metadata: bool = Form(default=True, description="Extract metadata automatically")
+):
+    """
+    Upload a document to the knowledge base.
+    
+    The document will be extracted to Markdown format and stored in the
+    knowledge base for Agent access via kb_read, kb_search, kb_list tools.
+    
+    Supported formats:
+    - Text: .txt, .md, .rst
+    - Code: .py, .js, .ts, .java, etc.
+    - Web: .html, .htm
+    - Office: .pdf (OCR-based), .docx
+    - Images: .png, .jpg (OCR-based)
+    """
+    try:
+        result = await pipeline.process_upload(
+            file=file,
+            project=project,
+            doc_type=doc_type,
+            extract_metadata=extract_metadata
+        )
+        
+        if not result.success:
+            raise HTTPException(status_code=400, detail=result.error)
+        
+        return DocumentResponse(
+            success=True,
+            message=f"Document uploaded successfully",
+            path=result.path,
+            document=result.metadata
+        )
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Upload failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
+
+
+@router.get("/documents", response_model=DocumentListResponse)
+async def list_documents(
+    project: Optional[str] = Query(None, description="Filter by project"),
+    pattern: str = Query("*.md", description="File pattern"),
+    tags: Optional[str] = Query(None, description="Filter by tags (comma-separated)"),
+    limit: int = Query(50, ge=1, le=200)
+):
+    """
+    List documents in the knowledge base.
+    
+    Returns a paginated list of documents with metadata.
+    Supports filtering by project and tags.
+    """
+    try:
+        documents = store.list_documents(project, pattern)
+        
+        # Filter by tags if specified
+        if tags:
+            tag_list = [t.strip() for t in tags.split(",") if t.strip()]
+            documents = [
+                doc for doc in documents
+                if any(tag in doc.get("tags", []) for tag in tag_list)
+            ]
+        
+        projects = store.list_projects()
+        
+        return DocumentListResponse(
+            total=len(documents),
+            documents=documents[:limit],
+            projects=projects
+        )
+    
+    except Exception as e:
+        logger.error(f"List documents failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to list documents: {str(e)}")
+
+
+@router.get("/documents/{path:path}", response_model=DocumentContentResponse)
+async def read_document(
+    path: str,
+    offset: int = Query(0, ge=0, description="Line offset (0-based)"),
+    limit: int = Query(100, ge=1, le=500, description="Max lines to read")
+):
+    """
+    Read a document from the knowledge base.
+    
+    Supports pagination via offset and limit parameters.
+    Use has_more flag to determine if there's more content.
+    """
+    try:
+        result = store.read_document(path, offset=offset, limit=limit)
+        
+        return DocumentContentResponse(
+            path=path,
+            content=result["content"],
+            metadata=result.get("extracted_metadata", {}),
+            offset=result["offset"],
+            limit=result["limit"] or 0,
+            total_lines=result["total_lines"],
+            has_more=result["has_more"]
+        )
+    
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail=f"Document not found: {path}")
+    
+    except Exception as e:
+        logger.error(f"Read document failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to read document: {str(e)}")
+
+
+@router.delete("/documents/{path:path}")
+async def delete_document(path: str):
+    """
+    Delete a document from the knowledge base.
+    """
+    try:
+        deleted = store.delete_document(path)
+        
+        if not deleted:
+            raise HTTPException(status_code=404, detail=f"Document not found: {path}")
+        
+        return {"success": True, "message": f"Document deleted: {path}"}
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Delete document failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to delete document: {str(e)}")
+
+
+@router.get("/projects")
+async def list_projects():
+    """List all knowledge base projects."""
+    try:
+        projects = store.list_projects()
+        stats = store.get_stats()
+        
+        return {
+            "projects": projects,
+            "stats": stats
+        }
+    
+    except Exception as e:
+        logger.error(f"List projects failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to list projects: {str(e)}")
+
+
+@router.post("/projects/{name}")
+async def create_project(name: str):
+    """Create a new knowledge base project."""
+    try:
+        store.create_project(name)
+        return {"success": True, "message": f"Project created: {name}"}
+    
+    except Exception as e:
+        logger.error(f"Create project failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to create project: {str(e)}")
+
+
+@router.get("/tags")
+async def list_tags(
+    project: Optional[str] = Query(None, description="Filter by project"),
+    limit: int = Query(100, ge=1, le=500)
+):
+    """
+    List all tags in the knowledge base.
+    
+    Returns tags with document counts for the tag cloud/filter UI.
+    """
+    try:
+        # Get all documents
+        documents = store.list_documents(project)
+        
+        # Collect tags with counts
+        tag_counts = {}
+        for doc in documents:
+            for tag in doc.get("tags", []):
+                tag_counts[tag] = tag_counts.get(tag, 0) + 1
+        
+        # Sort by count (descending) and limit
+        sorted_tags = sorted(tag_counts.items(), key=lambda x: x[1], reverse=True)[:limit]
+        
+        return {
+            "tags": [
+                {"name": tag, "count": count}
+                for tag, count in sorted_tags
+            ],
+            "total": len(tag_counts)
+        }
+    
+    except Exception as e:
+        logger.error(f"List tags failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to list tags: {str(e)}")
+
+
+@router.get("/search")
+async def search_documents(
+    q: str = Query(..., description="Search query"),
+    project: Optional[str] = Query(None, description="Limit to project"),
+    context_lines: int = Query(2, ge=0, le=5)
+):
+    """
+    Search documents in the knowledge base.
+    
+    Performs full-text search across all documents.
+    """
+    try:
+        results = list(store.search_documents(q, project, context_lines))
+        
+        return {
+            "query": q,
+            "results": results,
+            "total_matches": sum(r["match_count"] for r in results)
+        }
+    
+    except Exception as e:
+        logger.error(f"Search failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
+
+
+@router.post("/bulk-upload")
+async def bulk_upload(
+    files: list[UploadFile] = File(..., description="Multiple files to upload"),
+    project: str = Form(default="default", description="Project name"),
+    doc_type: str = Form(default="doc", description="Document type")
+):
+    """
+    Upload multiple documents at once.
+    
+    Supports uploading multiple files in a single request.
+    Each file is processed independently.
+    """
+    try:
+        # Convert UploadFiles to tuples
+        file_tuples = []
+        for upload_file in files:
+            await upload_file.seek(0)
+            file_tuples.append((upload_file.file, upload_file.filename))
+        
+        result = await bulk_import.import_files(
+            files=file_tuples,
+            project=project,
+            doc_type=doc_type
+        )
+        
+        return {
+            "success": result.failed == 0,
+            "message": f"Imported {result.successful}/{result.total_files} files",
+            **result.to_dict()
+        }
+    
+    except Exception as e:
+        logger.error(f"Bulk upload failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Bulk upload failed: {str(e)}")
+
+
+@router.post("/import-zip")
+async def import_zip(
+    file: UploadFile = File(..., description="ZIP archive containing documents"),
+    project: str = Form(default="default", description="Project name"),
+    preserve_structure: bool = Form(default=True, description="Preserve directory structure")
+):
+    """
+    Import documents from a ZIP archive.
+    
+    Extracts and processes all supported documents from the ZIP file.
+    Directory structure can be preserved or flattened.
+    """
+    try:
+        # Validate first
+        await file.seek(0)
+        validation = bulk_import.validate_archive(file.file)
+        
+        if not validation["valid"]:
+            raise HTTPException(status_code=400, detail=validation["error"])
+        
+        # Process archive
+        await file.seek(0)
+        result = await bulk_import.import_zip(
+            file=file.file,
+            project=project,
+            preserve_structure=preserve_structure
+        )
+        
+        return {
+            "success": result.failed == 0,
+            "message": f"Imported {result.successful}/{result.total_files} files from ZIP",
+            **result.to_dict()
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"ZIP import failed: {e}")
+        raise HTTPException(status_code=500, detail=f"ZIP import failed: {str(e)}")
+
+
+@router.post("/validate-zip")
+async def validate_zip(
+    file: UploadFile = File(..., description="ZIP archive to validate")
+):
+    """
+    Validate a ZIP archive before import.
+    
+    Returns information about the archive contents without importing.
+    """
+    try:
+        await file.seek(0)
+        validation = bulk_import.validate_archive(file.file)
+        await file.seek(0)
+        
+        return validation
+    
+    except Exception as e:
+        logger.error(f"ZIP validation failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Validation failed: {str(e)}")
+
+
+
+# ============ FTS Search ============
+
+@router.get("/fts/search")
+async def fts_search(
+    q: str = Query(..., description="FTS5 search query"),
+    project: Optional[str] = Query(None, description="Filter by project"),
+    tags: Optional[str] = Query(None, description="Filter by tags (comma-separated)"),
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0)
+):
+    """
+    Full-text search using SQLite FTS5.
+    
+    Supports FTS5 query syntax:
+    - Simple: "authentication"
+    - Phrase: '"JWT token"'
+    - AND/OR: "auth AND token", "auth OR oauth"
+    - Prefix: "auth*"
+    """
+    try:
+        fts = get_fts_service()
+        tag_list = tags.split(",") if tags else None
+        
+        results = await fts.search(
+            query=q,
+            project=project,
+            tags=tag_list,
+            limit=limit,
+            offset=offset
+        )
+        
+        return {
+            "query": q,
+            "total": results.total,
+            "results": [
+                {
+                    "doc_id": r.doc_id,
+                    "path": r.path,
+                    "project": r.project,
+                    "title": r.title,
+                    "snippet": r.content_snippet,
+                    "highlights": r.highlights,
+                    "score": r.bm25_score
+                }
+                for r in results.results
+            ],
+            "facets": results.facets
+        }
+    
+    except Exception as e:
+        logger.error(f"FTS search failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
+
+
+@router.get("/fts/suggest")
+async def fts_suggest(
+    prefix: str = Query(..., description="Search prefix"),
+    project: Optional[str] = Query(None, description="Filter by project"),
+    limit: int = Query(10, ge=1, le=20)
+):
+    """Get search suggestions based on prefix."""
+    try:
+        fts = get_fts_service()
+        suggestions = await fts.suggest(prefix, project, limit)
+        return {"suggestions": suggestions}
+    
+    except Exception as e:
+        logger.error(f"Suggestions failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Suggestions failed: {str(e)}")
+
+
+# ============ Deduplication ============
+
+@router.get("/analytics/duplicates")
+async def analyze_duplicates(
+    project: Optional[str] = Query(None, description="Project to analyze")
+):
+    """
+    Analyze documents for duplicates and near-duplicates.
+    
+    Returns groups of similar documents and suggested merges.
+    """
+    try:
+        dedup = DeduplicationService(store)
+        report = await dedup.analyze_project(project)
+        return report.to_dict()
+    
+    except Exception as e:
+        logger.error(f"Duplicate analysis failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
+
+
+@router.post("/merge")
+async def merge_documents(
+    source_paths: list[str],
+    target_path: Optional[str] = None,
+    strategy: str = "concatenate"
+):
+    """Merge multiple documents into one."""
+    try:
+        dedup = DeduplicationService(store)
+        result = await dedup.merge_documents(source_paths, target_path, strategy)
+        return result
+    
+    except Exception as e:
+        logger.error(f"Merge failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Merge failed: {str(e)}")
+
+
+# ============ Citation Analytics ============
+
+@router.get("/analytics/popular")
+async def get_popular_documents(
+    project: Optional[str] = Query(None, description="Filter by project"),
+    days: int = Query(30, ge=1, le=365),
+    limit: int = Query(10, ge=1, le=50)
+):
+    """Get most cited/popular documents."""
+    try:
+        tracker = get_citation_tracker()
+        from datetime import datetime, timedelta
+        
+        since = datetime.now() - timedelta(days=days)
+        docs = await tracker.get_most_cited(project, limit, since)
+        
+        return {
+            "period_days": days,
+            "documents": [
+                {
+                    "path": d.doc_path,
+                    "citations": d.total_citations,
+                    "unique_sessions": d.unique_sessions,
+                    "last_accessed": d.last_accessed,
+                    "tools_used": d.tools_used
+                }
+                for d in docs
+            ]
+        }
+    
+    except Exception as e:
+        logger.error(f"Popular docs failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get popular docs: {str(e)}")
+
+
+@router.get("/analytics/usage")
+async def get_usage_analytics(
+    days: int = Query(30, ge=1, le=365)
+):
+    """Get knowledge base usage analytics."""
+    try:
+        tracker = get_citation_tracker()
+        analytics = await tracker.get_usage_analytics(days)
+        return analytics
+    
+    except Exception as e:
+        logger.error(f"Usage analytics failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get analytics: {str(e)}")
+
+
+@router.get("/recommendations")
+async def get_recommendations(
+    path: str = Query(..., description="Reference document path")
+):
+    """Get document recommendations based on citation patterns."""
+    try:
+        tracker = get_citation_tracker()
+        recommendations = await tracker.get_recommendations(path)
+        return {"recommendations": recommendations}
+    
+    except Exception as e:
+        logger.error(f"Recommendations failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get recommendations: {str(e)}")
+
+
+@router.get("/{path:path}/stats")
+async def get_document_stats(path: str):
+    """Get citation statistics for a specific document."""
+    try:
+        tracker = get_citation_tracker()
+        stats = await tracker.get_document_stats(path)
+        
+        if not stats:
+            return {"found": False, "message": "No citation data for this document"}
+        
+        return {
+            "found": True,
+            "path": stats.doc_path,
+            "total_citations": stats.total_citations,
+            "unique_sessions": stats.unique_sessions,
+            "last_accessed": stats.last_accessed,
+            "tools_used": stats.tools_used,
+            "related_documents": stats.related_docs
+        }
+    
+    except Exception as e:
+        logger.error(f"Document stats failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get stats: {str(e)}")

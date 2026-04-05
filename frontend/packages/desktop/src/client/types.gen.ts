@@ -96,6 +96,62 @@ export type Body_files_upload_file = {
     file: string;
 };
 
+export type Body_knowledge_bulk_upload = {
+    /**
+     * Multiple files to upload
+     */
+    files: Array<(string)>;
+    /**
+     * Project name
+     */
+    project?: string;
+    /**
+     * Document type
+     */
+    doc_type?: string;
+};
+
+export type Body_knowledge_import_zip = {
+    /**
+     * ZIP archive containing documents
+     */
+    file: string;
+    /**
+     * Project name
+     */
+    project?: string;
+    /**
+     * Preserve directory structure
+     */
+    preserve_structure?: boolean;
+};
+
+export type Body_knowledge_upload_document = {
+    /**
+     * Document to upload
+     */
+    file: string;
+    /**
+     * Project name
+     */
+    project?: string;
+    /**
+     * Document type (doc, code, guide, etc.)
+     */
+    doc_type?: string;
+    /**
+     * Extract metadata automatically
+     */
+    extract_metadata?: boolean;
+};
+
+export type Body_knowledge_validate_zip = {
+    /**
+     * ZIP archive to validate
+     */
+    file: string;
+};
+
 export type Body_learning_upload_screenshot = {
     file: string;
 };
@@ -169,13 +225,13 @@ export type ConceptCreate = {
 
 export type ConceptResponse = {
     name: string;
-    description: string;
+    description?: (string | null);
+    episode_count?: (number | null);
 };
 
-export type ConceptWithEpisodeCount = {
-    name: string;
-    description: (string | null);
-    episode_count: number;
+export type ConceptUpdate = {
+    description?: (string | null);
+    related_files?: (Array<(string)> | null);
 };
 
 export type ConversationListItem = {
@@ -210,6 +266,44 @@ export type CreateSkillFromYamlRequest = {
     description?: (string | null);
     namespace?: (string | null);
     yaml_content: string;
+};
+
+/**
+ * Response for reading document content.
+ */
+export type DocumentContentResponse = {
+    path: string;
+    content: string;
+    metadata: {
+        [key: string]: unknown;
+    };
+    offset: number;
+    limit: number;
+    total_lines: number;
+    has_more: boolean;
+};
+
+/**
+ * Response for listing documents.
+ */
+export type DocumentListResponse = {
+    total: number;
+    documents: Array<{
+        [key: string]: unknown;
+    }>;
+    projects: Array<(string)>;
+};
+
+/**
+ * Response for document operations.
+ */
+export type DocumentResponse = {
+    success: boolean;
+    message: string;
+    path?: (string | null);
+    document?: ({
+    [key: string]: unknown;
+} | null);
 };
 
 /**
@@ -298,7 +392,7 @@ export type EpisodeResponse = {
     goal: string;
     result: (string | null);
     error: (string | null);
-    timestamp: (number | null);
+    timestamp: (string | null);
 };
 
 export type ExecuteSkillRequest = {
@@ -1033,6 +1127,32 @@ export type ValidationError = {
     };
 };
 
+/**
+ * Vector search response.
+ */
+export type VectorSearchResponse = {
+    results: Array<VectorSearchResult>;
+    total: number;
+    query: string;
+    search_type: string;
+};
+
+/**
+ * Vector search result item.
+ */
+export type VectorSearchResult = {
+    id: string;
+    content: string;
+    file_path: string;
+    repository_id: string;
+    chunk_type: string;
+    identifier: string;
+    start_line: number;
+    end_line: number;
+    language: string;
+    score: number;
+};
+
 export type WebhookRequest = {
     source: string;
     event_type: string;
@@ -1368,6 +1488,168 @@ export type GhostTextListPatternsData = {
 export type GhostTextListPatternsResponse = (Array<{
     [key: string]: unknown;
 }>);
+
+export type KnowledgeUploadDocumentData = {
+    formData: Body_knowledge_upload_document;
+};
+
+export type KnowledgeUploadDocumentResponse = (DocumentResponse);
+
+export type KnowledgeListDocumentsData = {
+    limit?: number;
+    /**
+     * File pattern
+     */
+    pattern?: string;
+    /**
+     * Filter by project
+     */
+    project?: (string | null);
+};
+
+export type KnowledgeListDocumentsResponse = (DocumentListResponse);
+
+export type KnowledgeReadDocumentData = {
+    /**
+     * Max lines to read
+     */
+    limit?: number;
+    /**
+     * Line offset (0-based)
+     */
+    offset?: number;
+    path: string;
+};
+
+export type KnowledgeReadDocumentResponse = (DocumentContentResponse);
+
+export type KnowledgeDeleteDocumentData = {
+    path: string;
+};
+
+export type KnowledgeDeleteDocumentResponse = (unknown);
+
+export type KnowledgeListProjectsResponse = (unknown);
+
+export type KnowledgeCreateProjectData = {
+    name: string;
+};
+
+export type KnowledgeCreateProjectResponse = (unknown);
+
+export type KnowledgeSearchDocumentsData = {
+    contextLines?: number;
+    /**
+     * Limit to project
+     */
+    project?: (string | null);
+    /**
+     * Search query
+     */
+    q: string;
+};
+
+export type KnowledgeSearchDocumentsResponse = (unknown);
+
+export type KnowledgeBulkUploadData = {
+    formData: Body_knowledge_bulk_upload;
+};
+
+export type KnowledgeBulkUploadResponse = (unknown);
+
+export type KnowledgeImportZipData = {
+    formData: Body_knowledge_import_zip;
+};
+
+export type KnowledgeImportZipResponse = (unknown);
+
+export type KnowledgeValidateZipData = {
+    formData: Body_knowledge_validate_zip;
+};
+
+export type KnowledgeValidateZipResponse = (unknown);
+
+export type KnowledgeFtsSearchData = {
+    limit?: number;
+    offset?: number;
+    /**
+     * Filter by project
+     */
+    project?: (string | null);
+    /**
+     * FTS5 search query
+     */
+    q: string;
+    /**
+     * Filter by tags (comma-separated)
+     */
+    tags?: (string | null);
+};
+
+export type KnowledgeFtsSearchResponse = (unknown);
+
+export type KnowledgeFtsSuggestData = {
+    limit?: number;
+    /**
+     * Search prefix
+     */
+    prefix: string;
+    /**
+     * Filter by project
+     */
+    project?: (string | null);
+};
+
+export type KnowledgeFtsSuggestResponse = (unknown);
+
+export type KnowledgeAnalyzeDuplicatesData = {
+    /**
+     * Project to analyze
+     */
+    project?: (string | null);
+};
+
+export type KnowledgeAnalyzeDuplicatesResponse = (unknown);
+
+export type KnowledgeMergeDocumentsData = {
+    requestBody: Array<(string)>;
+    strategy?: string;
+    targetPath?: (string | null);
+};
+
+export type KnowledgeMergeDocumentsResponse = (unknown);
+
+export type KnowledgeGetPopularDocumentsData = {
+    days?: number;
+    limit?: number;
+    /**
+     * Filter by project
+     */
+    project?: (string | null);
+};
+
+export type KnowledgeGetPopularDocumentsResponse = (unknown);
+
+export type KnowledgeGetUsageAnalyticsData = {
+    days?: number;
+};
+
+export type KnowledgeGetUsageAnalyticsResponse = (unknown);
+
+export type KnowledgeGetRecommendationsData = {
+    /**
+     * Reference document path
+     */
+    path: string;
+};
+
+export type KnowledgeGetRecommendationsResponse = (unknown);
+
+export type KnowledgeGetDocumentStatsData = {
+    path: string;
+};
+
+export type KnowledgeGetDocumentStatsResponse = (unknown);
 
 export type LearningGetActionRegistryResponse = (unknown);
 
@@ -1757,14 +2039,60 @@ export type MemoryListConceptsWithCountsData = {
     projectId: number;
 };
 
-export type MemoryListConceptsWithCountsResponse = (Array<ConceptWithEpisodeCount>);
+export type MemoryListConceptsWithCountsResponse = (Array<ConceptResponse>);
+
+export type MemoryGetConceptData = {
+    conceptName: string;
+    projectId: number;
+};
+
+export type MemoryGetConceptResponse = (ConceptResponse);
+
+export type MemoryDeleteConceptData = {
+    conceptName: string;
+    projectId: number;
+};
+
+export type MemoryDeleteConceptResponse = (unknown);
+
+export type MemoryUpdateConceptData = {
+    conceptName: string;
+    projectId: number;
+    requestBody: ConceptUpdate;
+};
+
+export type MemoryUpdateConceptResponse = (unknown);
 
 export type MemorySearchMemoryData = {
     projectId?: (number | null);
     q: string;
+    /**
+     * Use vector similarity search if available
+     */
+    useVector?: boolean;
 };
 
 export type MemorySearchMemoryResponse = (Array<ConceptResponse>);
+
+export type MemorySearchMemoryVectorData = {
+    projectId?: (number | null);
+    q: string;
+    repositoryId?: (string | null);
+    topK?: number;
+};
+
+export type MemorySearchMemoryVectorResponse = (VectorSearchResponse);
+
+export type MemorySearchMemoryHybridData = {
+    projectId?: (number | null);
+    q: string;
+    topK?: number;
+    vectorWeight?: number;
+};
+
+export type MemorySearchMemoryHybridResponse = ({
+    [key: string]: unknown;
+});
 
 export type MemoryGetEpisodesByConceptData = {
     concept: string;

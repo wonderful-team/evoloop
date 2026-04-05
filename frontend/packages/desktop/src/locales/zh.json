@@ -654,6 +654,7 @@
       }
     },
     "context": {
+      "noDescription": "该知识点暂无详细描述",
       "starter": {
         "analyzeDesc": "探索架构与文件",
         "analyze": "分析当前代码库结构",
@@ -695,7 +696,7 @@
       "title": "Agent 工作台",
       "tabPlan": "计划",
       "planTitle": "活跃计划",
-      "taskCount": "{{count}} 个任务",
+      "taskCount": "{{count}} 项任务",
       "viewAllMemories": "查看所有 {{count}} 条记忆",
       "relatedTasksTitle": "与 \"{{concept}}\" 相关的任务",
       "relatedTasksDesc": "与此概念关联的历史任务",
@@ -1772,5 +1773,40 @@
       "url": "https://example.com",
       "timeout": "5000"
     }
+  },
+  "knowledge": {
+    "title": "知识库",
+    "subtitle": "管理和探索你的文档",
+    "search": "搜索文档...",
+    "searchFts": "搜索文档... (支持 FTS5 语法)",
+    "upload": "上传",
+    "uploadBulk": "批量上传",
+    "uploadTitle": "上传文档",
+    "documents": "文档",
+    "projects": "项目",
+    "totalSize": "总大小",
+    "allProjects": "所有项目",
+    "list": "列表",
+    "tree": "树形",
+    "treeViewComingSoon": "树形视图即将推出",
+    "lines": "行",
+    "prev": "上一页",
+    "next": "下一页",
+    "view": "查看",
+    "delete": "删除",
+    "deleteSuccess": "文档已删除",
+    "deleteError": "删除失败",
+    "noDocuments": "暂无文档",
+    "uploadPrompt": "点击右上角上传按钮添加文档",
+    "uploadSuccess": "文档上传成功",
+    "uploadError": "上传失败",
+    "dropFile": "点击或拖放文件",
+    "dropMultiple": "选择多个文件或ZIP",
+    "supportedFormats": "支持",
+    "project": "项目",
+    "docType": "文档类型",
+    "singleFile": "单文件",
+    "bulkUpload": "批量/ZIP",
+    "popular": "热门"
   }
 }

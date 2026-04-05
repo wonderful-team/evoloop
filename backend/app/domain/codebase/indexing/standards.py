@@ -57,15 +57,14 @@ class ProjectStandardsAnalyst:
 
             # 4. Save to Memory
             # We treat this as a high-level concept: "Project Standards"
-            container = MemoryContainer(MemoryConfig.from_settings())
-            await container.initialize()
-            try:
-                manager = container.memory_manager
-                from app.core.memory.interfaces.long_term import Concept
-                concept = Concept("Project Coding Standards", standards_report, project_id, sample_files)
-                await manager.long_term.store_concept(concept)
-            finally:
-                await container.shutdown()
+            from app.core.memory.lifespan import MemoryLifespanManager
+            if not MemoryLifespanManager.is_initialized():
+                await MemoryLifespanManager.ainitialize()
+            container = MemoryLifespanManager.get_container()
+            manager = container.memory_manager
+            from app.core.memory.interfaces.long_term import Concept
+            concept = Concept("Project Coding Standards", standards_report, project_id, sample_files)
+            await manager.long_term.store_concept(concept)
 
             # Also save as generic preference?
             # Ideally this feeds into the Coder's system prompt dynamically.

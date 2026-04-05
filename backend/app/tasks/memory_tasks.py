@@ -64,8 +64,13 @@ def nightly_consolidation(days: int = 1):
             "timestamp": datetime.utcnow().isoformat(),
         }
         
-        container = MemoryContainer(MemoryConfig.from_settings())
-        await container.initialize()
+        # Use global singleton via MemoryLifespanManager
+        from app.core.memory.lifespan import MemoryLifespanManager
+        
+        if not MemoryLifespanManager.is_initialized():
+            await MemoryLifespanManager.ainitialize()
+        manager = MemoryLifespanManager.get_manager()
+        
         try:
             # Step 1: Consolidate daily logs
             consolidated = await log_consolidator.consolidate_recent(days=days)
@@ -74,7 +79,6 @@ def nightly_consolidation(days: int = 1):
             
             # Step 2: Regenerate MEMORY.md (Two-Tier Architecture)
             logger.info("[NightlyConsolidation] Regenerating MEMORY.md")
-            manager = container.memory_manager
             await manager.regenerate_memory_md()
             results["memory_md_updated"] = True
             logger.info("[NightlyConsolidation] MEMORY.md updated successfully")
@@ -83,8 +87,6 @@ def nightly_consolidation(days: int = 1):
             logger.error(f"[NightlyConsolidation] Failed: {e}")
             results["status"] = "error"
             results["error"] = str(e)
-        finally:
-            await container.shutdown()
         
         return results
     
@@ -262,14 +264,15 @@ def regenerate_hot_memory():
     import asyncio
     
     async def run():
-        from app.core.memory import MemoryContainer, MemoryConfig
+        from app.core.memory.lifespan import MemoryLifespanManager
         
         logger.info("[RegenerateHotMemory] Regenerating MEMORY.md")
         
-        container = MemoryContainer(MemoryConfig.from_settings())
-        await container.initialize()
+        if not MemoryLifespanManager.is_initialized():
+            await MemoryLifespanManager.ainitialize()
+        manager = MemoryLifespanManager.get_manager()
+        
         try:
-            manager = container.memory_manager
             await manager.regenerate_memory_md()
             
             return {
@@ -284,8 +287,6 @@ def regenerate_hot_memory():
                 "error": str(e),
                 "timestamp": datetime.utcnow().isoformat(),
             }
-        finally:
-            await container.shutdown()
     
     return asyncio.run(run())
 

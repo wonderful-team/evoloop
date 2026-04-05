@@ -136,7 +136,7 @@ if [ "$OS" = "Darwin" ]; then
 fi
 
 echo "测试命令:"
-echo "  curl http://localhost:8000/api/v1/audio/stt/providers"
+echo "  curl http://localhost:20160/api/v1/audio/stt/providers"
 echo ""
 echo "详细文档:"
 echo "  docs/VOICE_SETUP.md"

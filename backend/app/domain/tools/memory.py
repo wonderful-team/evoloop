@@ -27,15 +27,14 @@ async def save_preference_impl(
 
     target_pid = None if is_global else pid
 
-    container = MemoryContainer(MemoryConfig.from_settings())
-    await container.initialize()
-    try:
-        manager = container.memory_manager
-        await manager.preferences.set_preference("user_default", key, value, description, project_id=target_pid)
-        scope_str = "Global" if is_global else f"Project {target_pid}"
-        return f"Preference saved ({scope_str}): {key}={value}"
-    finally:
-        await container.shutdown()
+    from app.core.memory.lifespan import MemoryLifespanManager
+    if not MemoryLifespanManager.is_initialized():
+        await MemoryLifespanManager.ainitialize()
+    container = MemoryLifespanManager.get_container()
+    manager = container.memory_manager
+    await manager.preferences.set_preference("user_default", key, value, description, project_id=target_pid)
+    scope_str = "Global" if is_global else f"Project {target_pid}"
+    return f"Preference saved ({scope_str}): {key}={value}"
 
 
 async def get_user_preferences_impl(project_id: int = None) -> str:
@@ -45,14 +44,13 @@ async def get_user_preferences_impl(project_id: int = None) -> str:
     ctx = ContextManager.current()
     pid = project_id or ctx.project_id or 1
 
-    container = MemoryContainer(MemoryConfig.from_settings())
-    await container.initialize()
-    try:
-        manager = container.memory_manager
-        prefs = await manager.preferences.get_merged_preferences("user_default", project_id=pid)
-        return f"Current Preferences (Project {pid}):\n{prefs}"
-    finally:
-        await container.shutdown()
+    from app.core.memory.lifespan import MemoryLifespanManager
+    if not MemoryLifespanManager.is_initialized():
+        await MemoryLifespanManager.ainitialize()
+    container = MemoryLifespanManager.get_container()
+    manager = container.memory_manager
+    prefs = await manager.preferences.get_merged_preferences("user_default", project_id=pid)
+    return f"Current Preferences (Project {pid}):\n{prefs}"
 
 
 async def search_concepts_impl(query: str, project_id: int = None) -> str:
@@ -62,20 +60,19 @@ async def search_concepts_impl(query: str, project_id: int = None) -> str:
     ctx = ContextManager.current()
     pid = project_id or ctx.project_id or 1
 
-    container = MemoryContainer(MemoryConfig.from_settings())
-    await container.initialize()
+    from app.core.memory.lifespan import MemoryLifespanManager
+    if not MemoryLifespanManager.is_initialized():
+        await MemoryLifespanManager.ainitialize()
+    container = MemoryLifespanManager.get_container()
+    manager = container.memory_manager
+    results = await manager.long_term.search_concepts(query, pid)
+    if not results:
+        return "No relevant concepts found."
     try:
-        manager = container.memory_manager
-        results = await manager.long_term.search_concepts(query, pid)
-        if not results:
-            return "No relevant concepts found."
-        try:
-            return ProjectManagementFormatter.concepts(results)
-        except Exception as e:
-            logger.error(f"Failed to render concepts: {e}")
-            return f"Found {len(results)} concepts."
-    finally:
-        await container.shutdown()
+        return ProjectManagementFormatter.concepts(results)
+    except Exception as e:
+        logger.error(f"Failed to render concepts: {e}")
+        return f"Found {len(results)} concepts."
 
 
 async def add_concept_impl(name: str, description: str, project_id: int = None) -> str:
@@ -86,15 +83,14 @@ async def add_concept_impl(name: str, description: str, project_id: int = None) 
     ctx = ContextManager.current()
     pid = project_id or ctx.project_id or 1
 
-    container = MemoryContainer(MemoryConfig.from_settings())
-    await container.initialize()
-    try:
-        manager = container.memory_manager
-        concept = Concept(name, description, pid)
-        await manager.long_term.store_concept(concept)
-        return f"Concept added: {name}"
-    finally:
-        await container.shutdown()
+    from app.core.memory.lifespan import MemoryLifespanManager
+    if not MemoryLifespanManager.is_initialized():
+        await MemoryLifespanManager.ainitialize()
+    container = MemoryLifespanManager.get_container()
+    manager = container.memory_manager
+    concept = Concept(name, description, pid)
+    await manager.long_term.store_concept(concept)
+    return f"Concept added: {name}"
 
 
 async def find_related_episodes_impl(concept_name: str, project_id: int = None) -> str:
@@ -104,17 +100,16 @@ async def find_related_episodes_impl(concept_name: str, project_id: int = None) 
     ctx = ContextManager.current()
     pid = project_id or ctx.project_id or 1
 
-    container = MemoryContainer(MemoryConfig.from_settings())
-    await container.initialize()
+    from app.core.memory.lifespan import MemoryLifespanManager
+    if not MemoryLifespanManager.is_initialized():
+        await MemoryLifespanManager.ainitialize()
+    container = MemoryLifespanManager.get_container()
+    manager = container.memory_manager
+    episodes = await manager.long_term.find_episodes_by_concept(concept_name, pid)
+    if not episodes:
+        return f"No historical episodes found related to '{concept_name}'."
     try:
-        manager = container.memory_manager
-        episodes = await manager.long_term.find_episodes_by_concept(concept_name, pid)
-        if not episodes:
-            return f"No historical episodes found related to '{concept_name}'."
-        try:
-            return ProjectManagementFormatter.episodes(episodes)
-        except Exception as e:
-            logger.error(f"Failed to render episodes list: {e}")
-            return f"Found {len(episodes)} episodes."
-    finally:
-        await container.shutdown()
+        return ProjectManagementFormatter.episodes(episodes)
+    except Exception as e:
+        logger.error(f"Failed to render episodes list: {e}")
+        return f"Found {len(episodes)} episodes."

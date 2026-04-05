@@ -199,9 +199,9 @@ class _LongTermAdapter:
             id=f"ep_{episode.source_message_id or 'unknown'}",
             type=MemoryType.PROJECT,
             privacy=PrivacyLevel.TEAM,
-            title=f"Episode: {episode.goal[:50]}",
+            title=f"Episode: {episode.goal}",
             content=f"Goal: {episode.goal}\n\nResult: {episode.result}\n\nPlan: {episode.plan_summary}",
-            description=episode.goal[:200],
+            description=episode.goal,
             project_id=episode.project_id,
             source_message_id=episode.source_message_id,
             tags=["episode"],
@@ -224,21 +224,42 @@ class _LongTermAdapter:
     
     async def find_episodes_by_concept(self, concept_name: str, project_id: int, limit: int = 10) -> list[dict]:
         """Find episodes by concept."""
+        # In file-based mode, we search for project memories tagged with "episode" 
+        # or containing the concept name in text search
         results = await self._storage.search(
             query=concept_name,
             types=[MemoryType.PROJECT],
             project_id=project_id,
             limit=limit,
         )
-        return [
-            {
+        
+        episodes = []
+        for r in results:
+            if "concept" in r.tags and r.title == concept_name:
+                # This is the concept definition itself, not an episode
+                continue
+                
+            # Clean up goal title
+            goal = r.title
+            if goal.startswith("Episode: "):
+                goal = goal[len("Episode: "):]
+            
+            # Result is stored in content or description 
+            # (In trace_recorder.py, we store the summary in description/content)
+            # We prefer content as it's the full Markdown body
+            result = r.content if (r.content and len(r.content) > 10) else r.description
+            if not result:
+                result = "No summary available for this execution."
+            
+            # If the result is a full block, try to keep it all, no truncation here
+            episodes.append({
                 'id': r.id,
-                'goal': r.title,
-                'result': 'unknown',
-                'error': None,
-                'timestamp': r.updated_at.isoformat() if hasattr(r, 'updated_at') else '',
-            } for r in results
-        ]
+                'goal': goal,
+                'result': result,
+                'error': None, 
+                'timestamp': r.updated_at.isoformat() if hasattr(r, 'updated_at') and r.updated_at else '',
+            })
+        return episodes
     
     async def link_episode_to_concepts(self, episode_id: str, concept_names: list[str], project_id: int) -> None:
         """Link episode to concepts (no-op in file mode)."""

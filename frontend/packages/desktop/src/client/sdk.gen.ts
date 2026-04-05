@@ -3,7 +3,7 @@
 import type { CancelablePromise } from './core/CancelablePromise';
 import { OpenAPI } from './core/OpenAPI';
 import { request as __request } from './core/request';
-import type { AgentChatEndpointData, AgentChatEndpointResponse, AgentStopChatData, AgentStopChatResponse, AgentRetryChatData, AgentRetryChatResponse, AgentResumeChatData, AgentResumeChatResponse, AgentCancelHitlRequestData, AgentCancelHitlRequestResponse, AgentWebhookEndpointData, AgentWebhookEndpointResponse, AudioListVoicesResponse, AudioTextToSpeechData, AudioTextToSpeechResponse, AudioTextToSpeechStreamData, AudioTextToSpeechStreamResponse, AudioGetTtsFileData, AudioGetTtsFileResponse, AudioListSttProvidersResponse, AudioTranscribeAudioData, AudioTranscribeAudioResponse, AudioTranscribeStreamData, AudioTranscribeStreamResponse, AuthGetCaptchaConfigResponse, AuthGetCaptchaData, AuthGetCaptchaResponse, AuthGetRegisterConfigResponse, AuthGetRegisterAgreementResponse, AuthSendSmsData, AuthSendSmsResponse, AuthRegisterMobileData, AuthRegisterMobileResponse, AuthRegisterUsernameData, AuthRegisterUsernameResponse, AuthLoginMobileData, AuthLoginMobileResponse, AuthCheckMobileData, AuthCheckMobileResponse, AuthResetPasswordData, AuthResetPasswordResponse, ConversationsListConversationsData, ConversationsListConversationsResponse, ConversationsGetConversationMessagesData, ConversationsGetConversationMessagesResponse, ConversationsSearchConversationsData, ConversationsSearchConversationsResponse, ConversationsRenameConversationData, ConversationsRenameConversationResponse, ConversationsDeleteConversationData, ConversationsDeleteConversationResponse, ConversationsGetThreadActivityData, ConversationsGetThreadActivityResponse, ConversationsRewindConversationData, ConversationsRewindConversationResponse, ConversationsGetThreadChangesetData, ConversationsGetThreadChangesetResponse, DevicesGetDevicesResponse, DevicesSendCommandData, DevicesSendCommandResponse, DevicesGetRecentLogsData, DevicesGetRecentLogsResponse, DevicesSearchLogsData, DevicesSearchLogsResponse, DevicesBindClientData, DevicesBindClientResponse, DevicesBindCurrentDeviceData, DevicesBindCurrentDeviceResponse, DevicesGetDebugStatusResponse, FilesListFilesData, FilesListFilesResponse, FilesCreateFileData, FilesCreateFileResponse, FilesGetFileContentData, FilesGetFileContentResponse, FilesGetRawFileData, FilesGetRawFileResponse, FilesOpenFileData, FilesOpenFileResponse, FilesUploadFileData, FilesUploadFileResponse, FilesSearchFilesData, FilesSearchFilesResponse, FilesSearchFilesByNameData, FilesSearchFilesByNameResponse, GhostTextSuggestInlineCompletionData, GhostTextSuggestInlineCompletionResponse, GhostTextPreviewEditGhostData, GhostTextPreviewEditGhostResponse, GhostTextListPatternsData, GhostTextListPatternsResponse, LearningGetActionRegistryResponse, LearningListPendingRequestsData, LearningListPendingRequestsResponse, LearningGetRequestData, LearningGetRequestResponse, LearningRespondToRequestData, LearningRespondToRequestResponse, LearningCancelPendingRequestData, LearningCancelPendingRequestResponse, LearningCleanupRequestsData, LearningCleanupRequestsResponse, LearningStartRecordingData, LearningStartRecordingResponse, LearningStopRecordingData, LearningStopRecordingResponse, LearningListRecordingSessionsData, LearningListRecordingSessionsResponse, LearningSynthesizeSkillData, LearningSynthesizeSkillResponse, LearningImportSkillsData, LearningImportSkillsResponse, LearningListSkillsData, LearningListSkillsResponse, LearningGetSkillData, LearningGetSkillResponse, LearningDeleteSkillData, LearningDeleteSkillResponse, LearningUpdateSkillData, LearningUpdateSkillResponse, LearningExecuteSkillData, LearningExecuteSkillResponse, LearningListMirrorDevicesResponse, LearningStartMirrorSessionData, LearningStartMirrorSessionResponse, LearningStartMirrorRecordingData, LearningStartMirrorRecordingResponse, LearningStopMirrorSessionData, LearningStopMirrorSessionResponse, LearningGetDeviceResolutionData, LearningGetDeviceResolutionResponse, LearningPersistMirrorEventsData, LearningPersistMirrorEventsResponse, LearningPersistGlobalEventsData, LearningPersistGlobalEventsResponse, LearningPersistDomEventsData, LearningPersistDomEventsResponse, LearningUploadScreenshotData, LearningUploadScreenshotResponse, LearningValidateSkillData, LearningValidateSkillResponse, LearningSynthesizeFromRecordingData, LearningSynthesizeFromRecordingResponse, LearningPreviewRecordingDataData, LearningPreviewRecordingDataResponse, LearningListAnnotationsData, LearningListAnnotationsResponse, LearningCreateAndroidExtractPointData, LearningCreateAndroidExtractPointResponse, LearningListAndroidExtractPointsData, LearningListAndroidExtractPointsResponse, LearningStartSmartSynthesisData, LearningStartSmartSynthesisResponse, LearningGetSynthesisJobData, LearningGetSynthesisJobResponse, LearningListSessionSynthesisJobsData, LearningListSessionSynthesisJobsResponse, LearningCleanupRecordingSessionData, LearningCleanupRecordingSessionResponse, LearningConfirmLearnedSkillData, LearningConfirmLearnedSkillResponse, LearningCreateSkillFromYamlData, LearningCreateSkillFromYamlResponse, LearningValidateSkillYamlData, LearningValidateSkillYamlResponse, LearningGetSkillYamlData, LearningGetSkillYamlResponse, LearningUpdateSkillYamlData, LearningUpdateSkillYamlResponse, LibraryListLibraryFilesData, LibraryListLibraryFilesResponse, LibraryUploadLibraryFileData, LibraryUploadLibraryFileResponse, LibraryDeleteLibraryFileData, LibraryDeleteLibraryFileResponse, LoginLoginAccessTokenData, LoginLoginAccessTokenResponse, McpListMcpServersResponse, McpAddMcpServerData, McpAddMcpServerResponse, McpDeleteMcpServerData, McpDeleteMcpServerResponse, McpConnectMcpServerData, McpConnectMcpServerResponse, MemberLoginData, MemberLoginResponse, MemberStatusResponse, MemberLogoutResponse, MemberGetCancellationInfoResponse, MemberApplyCancellationResponse, MemberCancelCancellationResponse, MemberGetSubscriptionPlansResponse, MemberCalculateUpgradePriceData, MemberCalculateUpgradePriceResponse, MemberGetSubscriptionStatusResponse, MemberGetSubscriptionDetailResponse, MemberCreateSubscriptionOrderData, MemberCreateSubscriptionOrderResponse, MemberCancelSubscriptionData, MemberCancelSubscriptionResponse, MemberCheckSubscriptionOrderStatusData, MemberCheckSubscriptionOrderStatusResponse, MemberGetAiQuotaResponse, MemberGetAllAiQuotasResponse, MemberGetAiQuotaHistoryData, MemberGetAiQuotaHistoryResponse, MemberCheckBenefitsBatchData, MemberCheckBenefitsBatchResponse, MemberGetMemberBenefitsApiData, MemberGetMemberBenefitsApiResponse, MemberInvalidateMemberBenefitsCacheResponse, MemberHandleBenefitsUpdateWebhookData, MemberHandleBenefitsUpdateWebhookResponse, MemoryListConceptsData, MemoryListConceptsResponse, MemoryAddConceptData, MemoryAddConceptResponse, MemoryListConceptsWithCountsData, MemoryListConceptsWithCountsResponse, MemorySearchMemoryData, MemorySearchMemoryResponse, MemoryGetEpisodesByConceptData, MemoryGetEpisodesByConceptResponse, PlanningGetPlanData, PlanningGetPlanResponse, ProjectModulesGetBudgetListData, ProjectModulesGetBudgetListResponse, ProjectModulesGetBudgetOverviewData, ProjectModulesGetBudgetOverviewResponse, ProjectModulesGetTimesheetListData, ProjectModulesGetTimesheetListResponse, ProjectModulesQuickAddTimesheetData, ProjectModulesQuickAddTimesheetResponse, ProjectModulesGetProjectStatisticsData, ProjectModulesGetProjectStatisticsResponse, ProjectRequirementsUploadRequirementDocumentData, ProjectRequirementsUploadRequirementDocumentResponse, ProjectRequirementsListProjectRequirementsData, ProjectRequirementsListProjectRequirementsResponse, ProjectRequirementsGetRequirementDetailData, ProjectRequirementsGetRequirementDetailResponse, ProjectRequirementsDeleteRequirementDocumentData, ProjectRequirementsDeleteRequirementDocumentResponse, ProjectRequirementsGetAnalysisTasksData, ProjectRequirementsGetAnalysisTasksResponse, ProjectRequirementsGetAnalysisSyncProgressData, ProjectRequirementsGetAnalysisSyncProgressResponse, ProjectsGetProjectsData, ProjectsGetProjectsResponse, ProjectsCreateProjectData, ProjectsCreateProjectResponse, ProjectsGetCurrentProjectResponse, ProjectsGetProjectStatusData, ProjectsGetProjectStatusResponse, ProjectsDeleteProjectData, ProjectsDeleteProjectResponse, ProjectsRunIndexingEndpointData, ProjectsRunIndexingEndpointResponse, ProjectsGetDetectedProjectsResponse, ProjectsImportDetectedProjectData, ProjectsImportDetectedProjectResponse, ProjectsIgnoreDetectedProjectData, ProjectsIgnoreDetectedProjectResponse, ProjectsGetIgnoredProjectsResponse, ProjectsUnignoreProjectData, ProjectsUnignoreProjectResponse, ProjectsBatchImportProjectsData, ProjectsBatchImportProjectsResponse, ProjectsBatchIgnoreProjectsData, ProjectsBatchIgnoreProjectsResponse, ResourcesListResourcesData, ResourcesListResourcesResponse, ResourcesCreateResourceData, ResourcesCreateResourceResponse, ResourcesDeleteResourceData, ResourcesDeleteResourceResponse, StreamStreamChatData, StreamStreamChatResponse, SubtasksCreateTaskWithSubtasksData, SubtasksCreateTaskWithSubtasksResponse, SubtasksGetTaskTreeData, SubtasksGetTaskTreeResponse, SubtasksUpdateTaskProgressData, SubtasksUpdateTaskProgressResponse, SubtasksGetNextExecutableTaskData, SubtasksGetNextExecutableTaskResponse, SubtasksFlattenTaskTreeData, SubtasksFlattenTaskTreeResponse, SubtasksListRootTasksData, SubtasksListRootTasksResponse, SymbolsSearchSymbolsData, SymbolsSearchSymbolsResponse, SymbolsGenerateSymbolWikiData, SymbolsGenerateSymbolWikiResponse, SystemGetSystemStatusResponse, SystemGetSystemConfigResponse, SystemUpdateSystemConfigData, SystemUpdateSystemConfigResponse, SystemHealthCheckResponse, SystemTestEmbeddingConnectionData, SystemTestEmbeddingConnectionResponse, SystemApplyEmbeddingConfigData, SystemApplyEmbeddingConfigResponse, SystemTestLlmConnectionData, SystemTestLlmConnectionResponse, SystemApplyLlmConfigData, SystemApplyLlmConfigResponse, SystemResetKnowledgeBaseResponse, SystemGetCloudStatusResponse, SystemGetLlmModelsData, SystemGetLlmModelsResponse, SystemGetEmbeddingModelsResponse, SystemGetProjectDiscoveryConfigResponse, SystemSetProjectDiscoveryConfigData, SystemSetProjectDiscoveryConfigResponse, TasksGetProjectTasksData, TasksGetProjectTasksResponse, TasksCreateTaskData, TasksCreateTaskResponse, TasksGetTaskDetailData, TasksGetTaskDetailResponse, TasksUpdateTaskData, TasksUpdateTaskResponse, TasksDeleteTaskData, TasksDeleteTaskResponse, TasksUpdateTaskStatusEndpointData, TasksUpdateTaskStatusEndpointResponse, TasksExecuteTaskData, TasksExecuteTaskResponse, TodosCreateTodoData, TodosCreateTodoResponse, TodosListTodosData, TodosListTodosResponse, TodosGetTodoData, TodosGetTodoResponse, TodosUpdateTodoData, TodosUpdateTodoResponse, TodosDeleteTodoData, TodosDeleteTodoResponse, ToolsListRuntimeToolsResponse, ToolsListAllToolsResponse, UsersReadUserMeResponse, UsersUpdateUserMeData, UsersUpdateUserMeResponse, UsersChangePasswordData, UsersChangePasswordResponse, UtilsHealthCheckResponse, UtilsGetEvoloopStatusResponse, UtilsGetAiConfigResponse, WechatAuthGetWechatConfigResponse, WechatAuthGenerateQrCodeResponse, WechatAuthCheckLoginStatusData, WechatAuthCheckLoginStatusResponse, WechatAuthWechatDirectLoginData, WechatAuthWechatDirectLoginResponse, WechatAuthWechatCallbackGetData, WechatAuthWechatCallbackGetResponse, WechatAuthWechatCallbackPostData, WechatAuthWechatCallbackPostResponse, WikiGetWikiPagesData, WikiGetWikiPagesResponse, WikiGenerateWikiData, WikiGenerateWikiResponse } from './types.gen';
+import type { AgentChatEndpointData, AgentChatEndpointResponse, AgentStopChatData, AgentStopChatResponse, AgentRetryChatData, AgentRetryChatResponse, AgentResumeChatData, AgentResumeChatResponse, AgentCancelHitlRequestData, AgentCancelHitlRequestResponse, AgentWebhookEndpointData, AgentWebhookEndpointResponse, AudioListVoicesResponse, AudioTextToSpeechData, AudioTextToSpeechResponse, AudioTextToSpeechStreamData, AudioTextToSpeechStreamResponse, AudioGetTtsFileData, AudioGetTtsFileResponse, AudioListSttProvidersResponse, AudioTranscribeAudioData, AudioTranscribeAudioResponse, AudioTranscribeStreamData, AudioTranscribeStreamResponse, AuthGetCaptchaConfigResponse, AuthGetCaptchaData, AuthGetCaptchaResponse, AuthGetRegisterConfigResponse, AuthGetRegisterAgreementResponse, AuthSendSmsData, AuthSendSmsResponse, AuthRegisterMobileData, AuthRegisterMobileResponse, AuthRegisterUsernameData, AuthRegisterUsernameResponse, AuthLoginMobileData, AuthLoginMobileResponse, AuthCheckMobileData, AuthCheckMobileResponse, AuthResetPasswordData, AuthResetPasswordResponse, ConversationsListConversationsData, ConversationsListConversationsResponse, ConversationsGetConversationMessagesData, ConversationsGetConversationMessagesResponse, ConversationsSearchConversationsData, ConversationsSearchConversationsResponse, ConversationsRenameConversationData, ConversationsRenameConversationResponse, ConversationsDeleteConversationData, ConversationsDeleteConversationResponse, ConversationsGetThreadActivityData, ConversationsGetThreadActivityResponse, ConversationsRewindConversationData, ConversationsRewindConversationResponse, ConversationsGetThreadChangesetData, ConversationsGetThreadChangesetResponse, DevicesGetDevicesResponse, DevicesSendCommandData, DevicesSendCommandResponse, DevicesGetRecentLogsData, DevicesGetRecentLogsResponse, DevicesSearchLogsData, DevicesSearchLogsResponse, DevicesBindClientData, DevicesBindClientResponse, DevicesBindCurrentDeviceData, DevicesBindCurrentDeviceResponse, DevicesGetDebugStatusResponse, FilesListFilesData, FilesListFilesResponse, FilesCreateFileData, FilesCreateFileResponse, FilesGetFileContentData, FilesGetFileContentResponse, FilesGetRawFileData, FilesGetRawFileResponse, FilesOpenFileData, FilesOpenFileResponse, FilesUploadFileData, FilesUploadFileResponse, FilesSearchFilesData, FilesSearchFilesResponse, FilesSearchFilesByNameData, FilesSearchFilesByNameResponse, GhostTextSuggestInlineCompletionData, GhostTextSuggestInlineCompletionResponse, GhostTextPreviewEditGhostData, GhostTextPreviewEditGhostResponse, GhostTextListPatternsData, GhostTextListPatternsResponse, KnowledgeUploadDocumentData, KnowledgeUploadDocumentResponse, KnowledgeListDocumentsData, KnowledgeListDocumentsResponse, KnowledgeReadDocumentData, KnowledgeReadDocumentResponse, KnowledgeDeleteDocumentData, KnowledgeDeleteDocumentResponse, KnowledgeListProjectsResponse, KnowledgeCreateProjectData, KnowledgeCreateProjectResponse, KnowledgeSearchDocumentsData, KnowledgeSearchDocumentsResponse, KnowledgeBulkUploadData, KnowledgeBulkUploadResponse, KnowledgeImportZipData, KnowledgeImportZipResponse, KnowledgeValidateZipData, KnowledgeValidateZipResponse, KnowledgeFtsSearchData, KnowledgeFtsSearchResponse, KnowledgeFtsSuggestData, KnowledgeFtsSuggestResponse, KnowledgeAnalyzeDuplicatesData, KnowledgeAnalyzeDuplicatesResponse, KnowledgeMergeDocumentsData, KnowledgeMergeDocumentsResponse, KnowledgeGetPopularDocumentsData, KnowledgeGetPopularDocumentsResponse, KnowledgeGetUsageAnalyticsData, KnowledgeGetUsageAnalyticsResponse, KnowledgeGetRecommendationsData, KnowledgeGetRecommendationsResponse, KnowledgeGetDocumentStatsData, KnowledgeGetDocumentStatsResponse, LearningGetActionRegistryResponse, LearningListPendingRequestsData, LearningListPendingRequestsResponse, LearningGetRequestData, LearningGetRequestResponse, LearningRespondToRequestData, LearningRespondToRequestResponse, LearningCancelPendingRequestData, LearningCancelPendingRequestResponse, LearningCleanupRequestsData, LearningCleanupRequestsResponse, LearningStartRecordingData, LearningStartRecordingResponse, LearningStopRecordingData, LearningStopRecordingResponse, LearningListRecordingSessionsData, LearningListRecordingSessionsResponse, LearningSynthesizeSkillData, LearningSynthesizeSkillResponse, LearningImportSkillsData, LearningImportSkillsResponse, LearningListSkillsData, LearningListSkillsResponse, LearningGetSkillData, LearningGetSkillResponse, LearningDeleteSkillData, LearningDeleteSkillResponse, LearningUpdateSkillData, LearningUpdateSkillResponse, LearningExecuteSkillData, LearningExecuteSkillResponse, LearningListMirrorDevicesResponse, LearningStartMirrorSessionData, LearningStartMirrorSessionResponse, LearningStartMirrorRecordingData, LearningStartMirrorRecordingResponse, LearningStopMirrorSessionData, LearningStopMirrorSessionResponse, LearningGetDeviceResolutionData, LearningGetDeviceResolutionResponse, LearningPersistMirrorEventsData, LearningPersistMirrorEventsResponse, LearningPersistGlobalEventsData, LearningPersistGlobalEventsResponse, LearningPersistDomEventsData, LearningPersistDomEventsResponse, LearningUploadScreenshotData, LearningUploadScreenshotResponse, LearningValidateSkillData, LearningValidateSkillResponse, LearningSynthesizeFromRecordingData, LearningSynthesizeFromRecordingResponse, LearningPreviewRecordingDataData, LearningPreviewRecordingDataResponse, LearningListAnnotationsData, LearningListAnnotationsResponse, LearningCreateAndroidExtractPointData, LearningCreateAndroidExtractPointResponse, LearningListAndroidExtractPointsData, LearningListAndroidExtractPointsResponse, LearningStartSmartSynthesisData, LearningStartSmartSynthesisResponse, LearningGetSynthesisJobData, LearningGetSynthesisJobResponse, LearningListSessionSynthesisJobsData, LearningListSessionSynthesisJobsResponse, LearningCleanupRecordingSessionData, LearningCleanupRecordingSessionResponse, LearningConfirmLearnedSkillData, LearningConfirmLearnedSkillResponse, LearningCreateSkillFromYamlData, LearningCreateSkillFromYamlResponse, LearningValidateSkillYamlData, LearningValidateSkillYamlResponse, LearningGetSkillYamlData, LearningGetSkillYamlResponse, LearningUpdateSkillYamlData, LearningUpdateSkillYamlResponse, LibraryListLibraryFilesData, LibraryListLibraryFilesResponse, LibraryUploadLibraryFileData, LibraryUploadLibraryFileResponse, LibraryDeleteLibraryFileData, LibraryDeleteLibraryFileResponse, LoginLoginAccessTokenData, LoginLoginAccessTokenResponse, McpListMcpServersResponse, McpAddMcpServerData, McpAddMcpServerResponse, McpDeleteMcpServerData, McpDeleteMcpServerResponse, McpConnectMcpServerData, McpConnectMcpServerResponse, MemberLoginData, MemberLoginResponse, MemberStatusResponse, MemberLogoutResponse, MemberGetCancellationInfoResponse, MemberApplyCancellationResponse, MemberCancelCancellationResponse, MemberGetSubscriptionPlansResponse, MemberCalculateUpgradePriceData, MemberCalculateUpgradePriceResponse, MemberGetSubscriptionStatusResponse, MemberGetSubscriptionDetailResponse, MemberCreateSubscriptionOrderData, MemberCreateSubscriptionOrderResponse, MemberCancelSubscriptionData, MemberCancelSubscriptionResponse, MemberCheckSubscriptionOrderStatusData, MemberCheckSubscriptionOrderStatusResponse, MemberGetAiQuotaResponse, MemberGetAllAiQuotasResponse, MemberGetAiQuotaHistoryData, MemberGetAiQuotaHistoryResponse, MemberCheckBenefitsBatchData, MemberCheckBenefitsBatchResponse, MemberGetMemberBenefitsApiData, MemberGetMemberBenefitsApiResponse, MemberInvalidateMemberBenefitsCacheResponse, MemberHandleBenefitsUpdateWebhookData, MemberHandleBenefitsUpdateWebhookResponse, MemoryListConceptsData, MemoryListConceptsResponse, MemoryAddConceptData, MemoryAddConceptResponse, MemoryListConceptsWithCountsData, MemoryListConceptsWithCountsResponse, MemoryGetConceptData, MemoryGetConceptResponse, MemoryDeleteConceptData, MemoryDeleteConceptResponse, MemoryUpdateConceptData, MemoryUpdateConceptResponse, MemorySearchMemoryData, MemorySearchMemoryResponse, MemorySearchMemoryVectorData, MemorySearchMemoryVectorResponse, MemorySearchMemoryHybridData, MemorySearchMemoryHybridResponse, MemoryGetEpisodesByConceptData, MemoryGetEpisodesByConceptResponse, PlanningGetPlanData, PlanningGetPlanResponse, ProjectModulesGetBudgetListData, ProjectModulesGetBudgetListResponse, ProjectModulesGetBudgetOverviewData, ProjectModulesGetBudgetOverviewResponse, ProjectModulesGetTimesheetListData, ProjectModulesGetTimesheetListResponse, ProjectModulesQuickAddTimesheetData, ProjectModulesQuickAddTimesheetResponse, ProjectModulesGetProjectStatisticsData, ProjectModulesGetProjectStatisticsResponse, ProjectRequirementsUploadRequirementDocumentData, ProjectRequirementsUploadRequirementDocumentResponse, ProjectRequirementsListProjectRequirementsData, ProjectRequirementsListProjectRequirementsResponse, ProjectRequirementsGetRequirementDetailData, ProjectRequirementsGetRequirementDetailResponse, ProjectRequirementsDeleteRequirementDocumentData, ProjectRequirementsDeleteRequirementDocumentResponse, ProjectRequirementsGetAnalysisTasksData, ProjectRequirementsGetAnalysisTasksResponse, ProjectRequirementsGetAnalysisSyncProgressData, ProjectRequirementsGetAnalysisSyncProgressResponse, ProjectsGetProjectsData, ProjectsGetProjectsResponse, ProjectsCreateProjectData, ProjectsCreateProjectResponse, ProjectsGetCurrentProjectResponse, ProjectsGetProjectStatusData, ProjectsGetProjectStatusResponse, ProjectsDeleteProjectData, ProjectsDeleteProjectResponse, ProjectsRunIndexingEndpointData, ProjectsRunIndexingEndpointResponse, ProjectsGetDetectedProjectsResponse, ProjectsImportDetectedProjectData, ProjectsImportDetectedProjectResponse, ProjectsIgnoreDetectedProjectData, ProjectsIgnoreDetectedProjectResponse, ProjectsGetIgnoredProjectsResponse, ProjectsUnignoreProjectData, ProjectsUnignoreProjectResponse, ProjectsBatchImportProjectsData, ProjectsBatchImportProjectsResponse, ProjectsBatchIgnoreProjectsData, ProjectsBatchIgnoreProjectsResponse, ResourcesListResourcesData, ResourcesListResourcesResponse, ResourcesCreateResourceData, ResourcesCreateResourceResponse, ResourcesDeleteResourceData, ResourcesDeleteResourceResponse, StreamStreamChatData, StreamStreamChatResponse, SubtasksCreateTaskWithSubtasksData, SubtasksCreateTaskWithSubtasksResponse, SubtasksGetTaskTreeData, SubtasksGetTaskTreeResponse, SubtasksUpdateTaskProgressData, SubtasksUpdateTaskProgressResponse, SubtasksGetNextExecutableTaskData, SubtasksGetNextExecutableTaskResponse, SubtasksFlattenTaskTreeData, SubtasksFlattenTaskTreeResponse, SubtasksListRootTasksData, SubtasksListRootTasksResponse, SymbolsSearchSymbolsData, SymbolsSearchSymbolsResponse, SymbolsGenerateSymbolWikiData, SymbolsGenerateSymbolWikiResponse, SystemGetSystemStatusResponse, SystemGetSystemConfigResponse, SystemUpdateSystemConfigData, SystemUpdateSystemConfigResponse, SystemHealthCheckResponse, SystemTestEmbeddingConnectionData, SystemTestEmbeddingConnectionResponse, SystemApplyEmbeddingConfigData, SystemApplyEmbeddingConfigResponse, SystemTestLlmConnectionData, SystemTestLlmConnectionResponse, SystemApplyLlmConfigData, SystemApplyLlmConfigResponse, SystemResetKnowledgeBaseResponse, SystemGetCloudStatusResponse, SystemGetLlmModelsData, SystemGetLlmModelsResponse, SystemGetEmbeddingModelsResponse, SystemGetProjectDiscoveryConfigResponse, SystemSetProjectDiscoveryConfigData, SystemSetProjectDiscoveryConfigResponse, TasksGetProjectTasksData, TasksGetProjectTasksResponse, TasksCreateTaskData, TasksCreateTaskResponse, TasksGetTaskDetailData, TasksGetTaskDetailResponse, TasksUpdateTaskData, TasksUpdateTaskResponse, TasksDeleteTaskData, TasksDeleteTaskResponse, TasksUpdateTaskStatusEndpointData, TasksUpdateTaskStatusEndpointResponse, TasksExecuteTaskData, TasksExecuteTaskResponse, TodosCreateTodoData, TodosCreateTodoResponse, TodosListTodosData, TodosListTodosResponse, TodosGetTodoData, TodosGetTodoResponse, TodosUpdateTodoData, TodosUpdateTodoResponse, TodosDeleteTodoData, TodosDeleteTodoResponse, ToolsListRuntimeToolsResponse, ToolsListAllToolsResponse, UsersReadUserMeResponse, UsersUpdateUserMeData, UsersUpdateUserMeResponse, UsersChangePasswordData, UsersChangePasswordResponse, UtilsHealthCheckResponse, UtilsGetEvoloopStatusResponse, UtilsGetAiConfigResponse, WechatAuthGetWechatConfigResponse, WechatAuthGenerateQrCodeResponse, WechatAuthCheckLoginStatusData, WechatAuthCheckLoginStatusResponse, WechatAuthWechatDirectLoginData, WechatAuthWechatDirectLoginResponse, WechatAuthWechatCallbackGetData, WechatAuthWechatCallbackGetResponse, WechatAuthWechatCallbackPostData, WechatAuthWechatCallbackPostResponse, WikiGetWikiPagesData, WikiGetWikiPagesResponse, WikiGenerateWikiData, WikiGenerateWikiResponse } from './types.gen';
 
 export class AgentService {
     /**
@@ -1133,6 +1133,442 @@ export class GhostTextService {
             url: '/api/v1/ghost-text/patterns',
             query: {
                 language: data.language
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+}
+
+export class KnowledgeService {
+    /**
+     * Upload Document
+     * Upload a document to the knowledge base.
+     *
+     * The document will be extracted to Markdown format and stored in the
+     * knowledge base for Agent access via kb_read, kb_search, kb_list tools.
+     *
+     * Supported formats:
+     * - Text: .txt, .md, .rst
+     * - Code: .py, .js, .ts, .java, etc.
+     * - Web: .html, .htm
+     * - Office: .pdf (OCR-based), .docx
+     * - Images: .png, .jpg (OCR-based)
+     * @param data The data for the request.
+     * @param data.formData
+     * @returns DocumentResponse Successful Response
+     * @throws ApiError
+     */
+    public static uploadDocument(data: KnowledgeUploadDocumentData): CancelablePromise<KnowledgeUploadDocumentResponse> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/knowledge/upload',
+            formData: data.formData,
+            mediaType: 'multipart/form-data',
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * List Documents
+     * List documents in the knowledge base.
+     *
+     * Returns a paginated list of documents with metadata.
+     * @param data The data for the request.
+     * @param data.project Filter by project
+     * @param data.pattern File pattern
+     * @param data.limit
+     * @returns DocumentListResponse Successful Response
+     * @throws ApiError
+     */
+    public static listDocuments(data: KnowledgeListDocumentsData = {}): CancelablePromise<KnowledgeListDocumentsResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/knowledge/documents',
+            query: {
+                project: data.project,
+                pattern: data.pattern,
+                limit: data.limit
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Read Document
+     * Read a document from the knowledge base.
+     *
+     * Supports pagination via offset and limit parameters.
+     * Use has_more flag to determine if there's more content.
+     * @param data The data for the request.
+     * @param data.path
+     * @param data.offset Line offset (0-based)
+     * @param data.limit Max lines to read
+     * @returns DocumentContentResponse Successful Response
+     * @throws ApiError
+     */
+    public static readDocument(data: KnowledgeReadDocumentData): CancelablePromise<KnowledgeReadDocumentResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/knowledge/documents/{path}',
+            path: {
+                path: data.path
+            },
+            query: {
+                offset: data.offset,
+                limit: data.limit
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Delete Document
+     * Delete a document from the knowledge base.
+     * @param data The data for the request.
+     * @param data.path
+     * @returns unknown Successful Response
+     * @throws ApiError
+     */
+    public static deleteDocument(data: KnowledgeDeleteDocumentData): CancelablePromise<KnowledgeDeleteDocumentResponse> {
+        return __request(OpenAPI, {
+            method: 'DELETE',
+            url: '/api/v1/knowledge/documents/{path}',
+            path: {
+                path: data.path
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * List Projects
+     * List all knowledge base projects.
+     * @returns unknown Successful Response
+     * @throws ApiError
+     */
+    public static listProjects(): CancelablePromise<KnowledgeListProjectsResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/knowledge/projects'
+        });
+    }
+    
+    /**
+     * Create Project
+     * Create a new knowledge base project.
+     * @param data The data for the request.
+     * @param data.name
+     * @returns unknown Successful Response
+     * @throws ApiError
+     */
+    public static createProject(data: KnowledgeCreateProjectData): CancelablePromise<KnowledgeCreateProjectResponse> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/knowledge/projects/{name}',
+            path: {
+                name: data.name
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Search Documents
+     * Search documents in the knowledge base.
+     *
+     * Performs full-text search across all documents.
+     * @param data The data for the request.
+     * @param data.q Search query
+     * @param data.project Limit to project
+     * @param data.contextLines
+     * @returns unknown Successful Response
+     * @throws ApiError
+     */
+    public static searchDocuments(data: KnowledgeSearchDocumentsData): CancelablePromise<KnowledgeSearchDocumentsResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/knowledge/search',
+            query: {
+                q: data.q,
+                project: data.project,
+                context_lines: data.contextLines
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Bulk Upload
+     * Upload multiple documents at once.
+     *
+     * Supports uploading multiple files in a single request.
+     * Each file is processed independently.
+     * @param data The data for the request.
+     * @param data.formData
+     * @returns unknown Successful Response
+     * @throws ApiError
+     */
+    public static bulkUpload(data: KnowledgeBulkUploadData): CancelablePromise<KnowledgeBulkUploadResponse> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/knowledge/bulk-upload',
+            formData: data.formData,
+            mediaType: 'multipart/form-data',
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Import Zip
+     * Import documents from a ZIP archive.
+     *
+     * Extracts and processes all supported documents from the ZIP file.
+     * Directory structure can be preserved or flattened.
+     * @param data The data for the request.
+     * @param data.formData
+     * @returns unknown Successful Response
+     * @throws ApiError
+     */
+    public static importZip(data: KnowledgeImportZipData): CancelablePromise<KnowledgeImportZipResponse> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/knowledge/import-zip',
+            formData: data.formData,
+            mediaType: 'multipart/form-data',
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Validate Zip
+     * Validate a ZIP archive before import.
+     *
+     * Returns information about the archive contents without importing.
+     * @param data The data for the request.
+     * @param data.formData
+     * @returns unknown Successful Response
+     * @throws ApiError
+     */
+    public static validateZip(data: KnowledgeValidateZipData): CancelablePromise<KnowledgeValidateZipResponse> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/knowledge/validate-zip',
+            formData: data.formData,
+            mediaType: 'multipart/form-data',
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Fts Search
+     * Full-text search using SQLite FTS5.
+     *
+     * Supports FTS5 query syntax:
+     * - Simple: "authentication"
+     * - Phrase: '"JWT token"'
+     * - AND/OR: "auth AND token", "auth OR oauth"
+     * - Prefix: "auth*"
+     * @param data The data for the request.
+     * @param data.q FTS5 search query
+     * @param data.project Filter by project
+     * @param data.tags Filter by tags (comma-separated)
+     * @param data.limit
+     * @param data.offset
+     * @returns unknown Successful Response
+     * @throws ApiError
+     */
+    public static ftsSearch(data: KnowledgeFtsSearchData): CancelablePromise<KnowledgeFtsSearchResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/knowledge/fts/search',
+            query: {
+                q: data.q,
+                project: data.project,
+                tags: data.tags,
+                limit: data.limit,
+                offset: data.offset
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Fts Suggest
+     * Get search suggestions based on prefix.
+     * @param data The data for the request.
+     * @param data.prefix Search prefix
+     * @param data.project Filter by project
+     * @param data.limit
+     * @returns unknown Successful Response
+     * @throws ApiError
+     */
+    public static ftsSuggest(data: KnowledgeFtsSuggestData): CancelablePromise<KnowledgeFtsSuggestResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/knowledge/fts/suggest',
+            query: {
+                prefix: data.prefix,
+                project: data.project,
+                limit: data.limit
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Analyze Duplicates
+     * Analyze documents for duplicates and near-duplicates.
+     *
+     * Returns groups of similar documents and suggested merges.
+     * @param data The data for the request.
+     * @param data.project Project to analyze
+     * @returns unknown Successful Response
+     * @throws ApiError
+     */
+    public static analyzeDuplicates(data: KnowledgeAnalyzeDuplicatesData = {}): CancelablePromise<KnowledgeAnalyzeDuplicatesResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/knowledge/analytics/duplicates',
+            query: {
+                project: data.project
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Merge Documents
+     * Merge multiple documents into one.
+     * @param data The data for the request.
+     * @param data.requestBody
+     * @param data.targetPath
+     * @param data.strategy
+     * @returns unknown Successful Response
+     * @throws ApiError
+     */
+    public static mergeDocuments(data: KnowledgeMergeDocumentsData): CancelablePromise<KnowledgeMergeDocumentsResponse> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/knowledge/merge',
+            query: {
+                target_path: data.targetPath,
+                strategy: data.strategy
+            },
+            body: data.requestBody,
+            mediaType: 'application/json',
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Get Popular Documents
+     * Get most cited/popular documents.
+     * @param data The data for the request.
+     * @param data.project Filter by project
+     * @param data.days
+     * @param data.limit
+     * @returns unknown Successful Response
+     * @throws ApiError
+     */
+    public static getPopularDocuments(data: KnowledgeGetPopularDocumentsData = {}): CancelablePromise<KnowledgeGetPopularDocumentsResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/knowledge/analytics/popular',
+            query: {
+                project: data.project,
+                days: data.days,
+                limit: data.limit
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Get Usage Analytics
+     * Get knowledge base usage analytics.
+     * @param data The data for the request.
+     * @param data.days
+     * @returns unknown Successful Response
+     * @throws ApiError
+     */
+    public static getUsageAnalytics(data: KnowledgeGetUsageAnalyticsData = {}): CancelablePromise<KnowledgeGetUsageAnalyticsResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/knowledge/analytics/usage',
+            query: {
+                days: data.days
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Get Recommendations
+     * Get document recommendations based on citation patterns.
+     * @param data The data for the request.
+     * @param data.path Reference document path
+     * @returns unknown Successful Response
+     * @throws ApiError
+     */
+    public static getRecommendations(data: KnowledgeGetRecommendationsData): CancelablePromise<KnowledgeGetRecommendationsResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/knowledge/recommendations',
+            query: {
+                path: data.path
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Get Document Stats
+     * Get citation statistics for a specific document.
+     * @param data The data for the request.
+     * @param data.path
+     * @returns unknown Successful Response
+     * @throws ApiError
+     */
+    public static getDocumentStats(data: KnowledgeGetDocumentStatsData): CancelablePromise<KnowledgeGetDocumentStatsResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/knowledge/{path}/stats',
+            path: {
+                path: data.path
             },
             errors: {
                 422: 'Validation Error'
@@ -2638,7 +3074,7 @@ export class MemoryService {
      * @param data The data for the request.
      * @param data.projectId
      * @param data.limit
-     * @returns ConceptWithEpisodeCount Successful Response
+     * @returns ConceptResponse Successful Response
      * @throws ApiError
      */
     public static listConceptsWithCounts(data: MemoryListConceptsWithCountsData): CancelablePromise<MemoryListConceptsWithCountsResponse> {
@@ -2656,11 +3092,95 @@ export class MemoryService {
     }
     
     /**
+     * Get Concept
+     * Get a single concept by name with its episode count.
+     * @param data The data for the request.
+     * @param data.conceptName
+     * @param data.projectId
+     * @returns ConceptResponse Successful Response
+     * @throws ApiError
+     */
+    public static getConcept(data: MemoryGetConceptData): CancelablePromise<MemoryGetConceptResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/memory/concepts/{concept_name}',
+            path: {
+                concept_name: data.conceptName
+            },
+            query: {
+                project_id: data.projectId
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Delete Concept
+     * Delete a concept/memory.
+     * @param data The data for the request.
+     * @param data.conceptName
+     * @param data.projectId
+     * @returns unknown Successful Response
+     * @throws ApiError
+     */
+    public static deleteConcept(data: MemoryDeleteConceptData): CancelablePromise<MemoryDeleteConceptResponse> {
+        return __request(OpenAPI, {
+            method: 'DELETE',
+            url: '/api/v1/memory/concepts/{concept_name}',
+            path: {
+                concept_name: data.conceptName
+            },
+            query: {
+                project_id: data.projectId
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Update Concept
+     * Update an existing concept's description or metadata.
+     * @param data The data for the request.
+     * @param data.conceptName
+     * @param data.projectId
+     * @param data.requestBody
+     * @returns unknown Successful Response
+     * @throws ApiError
+     */
+    public static updateConcept(data: MemoryUpdateConceptData): CancelablePromise<MemoryUpdateConceptResponse> {
+        return __request(OpenAPI, {
+            method: 'PUT',
+            url: '/api/v1/memory/concepts/{concept_name}',
+            path: {
+                concept_name: data.conceptName
+            },
+            query: {
+                project_id: data.projectId
+            },
+            body: data.requestBody,
+            mediaType: 'application/json',
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
      * Search Memory
      * Search memory concepts.
+     *
+     * Args:
+     * q: Search query
+     * project_id: Optional project filter
+     * use_vector: If True, uses vector similarity search instead of text matching
      * @param data The data for the request.
      * @param data.q
      * @param data.projectId
+     * @param data.useVector Use vector similarity search if available
      * @returns ConceptResponse Successful Response
      * @throws ApiError
      */
@@ -2670,7 +3190,77 @@ export class MemoryService {
             url: '/api/v1/memory/search',
             query: {
                 q: data.q,
-                project_id: data.projectId
+                project_id: data.projectId,
+                use_vector: data.useVector
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Search Memory Vector
+     * Semantic vector search for code and documents.
+     *
+     * Uses embeddings to find semantically similar content rather than just text matching.
+     * This provides better results for conceptual queries.
+     *
+     * Args:
+     * q: Search query (natural language)
+     * project_id: Optional project filter (legacy, use repository_id)
+     * top_k: Number of results to return
+     * repository_id: Optional repository filter
+     * @param data The data for the request.
+     * @param data.q
+     * @param data.projectId
+     * @param data.topK
+     * @param data.repositoryId
+     * @returns VectorSearchResponse Successful Response
+     * @throws ApiError
+     */
+    public static searchMemoryVector(data: MemorySearchMemoryVectorData): CancelablePromise<MemorySearchMemoryVectorResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/memory/search/vector',
+            query: {
+                q: data.q,
+                project_id: data.projectId,
+                top_k: data.topK,
+                repository_id: data.repositoryId
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Search Memory Hybrid
+     * Hybrid search combining vector similarity and text matching.
+     *
+     * Args:
+     * q: Search query
+     * project_id: Optional project filter
+     * top_k: Number of results
+     * vector_weight: Weight for vector scores (0-1), text match gets (1-weight)
+     * @param data The data for the request.
+     * @param data.q
+     * @param data.projectId
+     * @param data.topK
+     * @param data.vectorWeight
+     * @returns unknown Successful Response
+     * @throws ApiError
+     */
+    public static searchMemoryHybrid(data: MemorySearchMemoryHybridData): CancelablePromise<MemorySearchMemoryHybridResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/memory/search/hybrid',
+            query: {
+                q: data.q,
+                project_id: data.projectId,
+                top_k: data.topK,
+                vector_weight: data.vectorWeight
             },
             errors: {
                 422: 'Validation Error'

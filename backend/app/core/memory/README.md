@@ -1,95 +1,199 @@
-# Evoloop Memory Module
+# EvoLoop Memory System
 
-The `app.core.memory` package provides a standardized, modular interface for managing the system's memory. It encapsulates complex interactions with backend databases (Neo4j, SQL, Vector DBs) into a unified Facade.
+The `app.core.memory` package provides a sophisticated, multi-tier memory system for the EvoLoop AI Agent. It implements intelligent memory management inspired by Claude Code's architecture.
 
-## Architecture
+## Architecture Overview
 
-The module follows an interface-driven design to ensure backend agnosticism and high testability.
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                      MemoryContainer (DI)                        │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐  │
+│  │   Hot Tier   │  │  Smart Retr. │  │  Auto-Extractor      │  │
+│  │  MEMORY.md   │  │  (LLM Rank)  │  │  (Forked Agent)      │  │
+│  └──────┬───────┘  └──────┬───────┘  └──────────┬───────────┘  │
+└─────────┼─────────────────┼─────────────────────┼──────────────┘
+          │                 │                     │
+┌─────────▼─────────────────▼─────────────────────▼──────────────┐
+│                    TwoTierMemoryManager                        │
+│  ┌─────────────────────────────────────────────────────────┐  │
+│  │  MemoryManager (Unified API)                             │  │
+│  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────────┐  │  │
+│  │  │ Short-Term  │  │  Long-Term  │  │ Quality Analyzer│  │  │
+│  │  │   (SQL)     │  │(File/Neo4j) │  │   (Scoring)     │  │  │
+│  │  └─────────────┘  └─────────────┘  └─────────────────┘  │  │
+│  └─────────────────────────────────────────────────────────┘  │
+└────────────────────────────────────────────────────────────────┘
+```
 
-- **`interfaces/`**: Abstract base classes defining the contract for memory providers.
-- **`backends/`**: Concrete implementations of the interfaces (e.g., Neo4j).
-- **`strategies/`**: Domain-specific logic such as context pruning or importance ranking.
-- **`manager.py`**: The `MemoryManager` facade containing all core sub-modules.
+## Key Components
 
-## Standard API Reference
+### 1. MemoryContainer (Dependency Injection)
 
-AI Agents and developers should interact with the memory system through the global `memory_manager` instance.
+The central DI container manages all memory components' lifecycle:
 
-### Core Manager (`MemoryManager`)
+```python
+from app.core.memory import MemoryContainer, MemoryConfig
 
-- **`initialize()`**: Initializes all backends (schemas, indexes).
-- **`flush()`**: Resets all memory stores (use with caution, primarily for testing).
+# Initialize container
+config = MemoryConfig.from_settings()
+container = MemoryContainer(config)
+await container.initialize()
 
----
+# Access components
+manager = container.memory_manager
+extractor = container.auto_extractor
+retriever = container.smart_retriever
 
-### 1. Long-Term Memory (`memory_manager.long_term`)
+# Cleanup
+await container.shutdown()
+```
 
-Handles persistent knowledge nodes and experience retrieval.
+### 2. Two-Tier Memory (Claude Code Style)
 
-| Method | Description |
-| :--- | :--- |
-| `store_concept(concept: Concept)` | Stores or updates a semantic knowledge unit. |
-| `search_concepts(query, project_id, min_score=0.7)` | Returns a list of `SearchResult` objects. |
-| `record_episode(episode: Episode)` | Records a task execution. Returns `episode_id`. |
-| `retrieve_experience(goal, project_id, top_k=3)` | Returns a formatted string of similar past tasks. |
-| `link_episode_to_concepts(ep_id, names, pid)` | Associates an episode with specific knowledge nodes. |
-| `list_concepts(project_id, limit=50)` | Lists concepts with their associated episode counts. |
-| `get_project_concepts(project_id)` | Returns all concepts as formatted text for prompt injection. |
+- **Tier 1 (Hot)**: MEMORY.md - Always loaded, 200 lines / 25KB max
+- **Tier 2 (Cold)**: Full storage searched on demand
 
----
+Budgets per section:
+- Architecture: 25 lines
+- Decisions: 25 lines  
+- Patterns: 25 lines
+- Gotchas: 20 lines
+- Progress: 30 lines
+- Context: 15 lines
 
-### 2. Preference Store (`memory_manager.preferences`)
+### 3. Smart Retrieval
 
-Manages settings and rules with hierarchical overrides.
+Two-stage retrieval with LLM relevance ranking:
+1. **Stage 1**: Keyword search for candidates (max 20)
+2. **Stage 2**: LLM selection of most relevant (max 5)
 
-| Method | Description |
-| :--- | :--- |
-| `set_preference(user_id, key, value, desc="", project_id=None)` | Sets a global or project-specific preference. |
-| `get_merged_preferences(user_id, project_id)` | Returns a formatted string of active preferences (Project > Global). |
+Type multipliers for ranking:
+- USER: 1.3x (user preferences)
+- FEEDBACK: 1.2x (user corrections)
+- PROJECT: 1.0x (team knowledge)
+- REFERENCE: 0.9x (read-only refs)
 
----
+### 4. Auto-Extraction
 
-### 3. Graph Navigator (`memory_manager.graph`)
+Forked agent pattern for non-blocking memory extraction:
 
-Provides deep structural insights for Knowledge Graph navigation.
+**Gating criteria:**
+- Minimum 4 messages since last extraction
+- Extraction interval (every N turns)
+- Skip if main agent already wrote memories
 
-| Method | Description |
-| :--- | :--- |
-| `get_directory_info(project_id, path)` | Returns architecture summary, dependencies, and sub-modules. |
-| `get_node_details(node_type, filters)` | Raw query for specific graph entities. |
-| `traverse(start_id, rel_type, max_depth=2)` | Explores graph relationships. |
+**Process:**
+1. LLM extracts 0-3 memories from conversation
+2. Deduplication against existing memories
+3. Quality scoring (freshness, usage, specificity, actionability)
+4. Storage with appropriate privacy/type
 
----
+## Memory Types & Privacy
 
-## Data Models
+| Type | Privacy | Decay | Use Case |
+|------|---------|-------|----------|
+| USER | PRIVATE | None | User preferences, habits |
+| FEEDBACK | PRIVATE | 30 days | User corrections, feedback |
+| PROJECT | TEAM | None | Team knowledge, decisions |
+| REFERENCE | TEAM | 7 days | Docs, temporary references |
 
-### Concept
-Used for `store_concept`.
-- `name`: string identifier.
-- `description`: text content.
-- `project_id`: integer scoping.
-- `related_files`: list of file paths.
+## Usage Patterns
 
-### Episode
-Used for `record_episode`.
-- `goal`: task objective.
-- `result`: task outcome.
-- `plan_summary`: steps taken.
-- `error_msg`: error trace if failed.
-- `project_id`: integer scoping.
+### In FastAPI Routes
 
-### SearchResult
-Returned by `search_concepts`.
-- `name`, `description`, `score`, `files`.
+```python
+from fastapi import Request
 
-## Data Models
+@app.get("/memories")
+async def get_memories(request: Request):
+    container = request.app.state.memory_container
+    manager = container.memory_manager
+    memories = await manager.search_memories("query")
+    return memories
+```
 
-- **`Concept`**: Represents a specific knowledge node. Includes `name`, `description`, `project_id`, and `related_files`.
-- **`Episode`**: Represents a historical task execution. Includes `goal`, `result`, `plan` and `error` status.
+### In Agent Nodes
+
+```python
+from app.core.memory import MemoryContainer, MemoryConfig
+
+async def supervisor_node(state, config):
+    # Get container from app state or create locally
+    container = MemoryContainer(MemoryConfig.from_settings())
+    await container.initialize()
+    
+    # Use manager
+    manager = container.memory_manager
+    relevant = await manager.search_memories(state["query"])
+    
+    # Cleanup
+    await container.shutdown()
+```
+
+### With LifespanManager (Recommended)
+
+```python
+from app.core.memory.lifespan import MemoryLifespanManager
+
+# At app startup
+container = await MemoryLifespanManager.ainitialize()
+
+# Anywhere in code
+manager = MemoryLifespanManager.get_manager()
+
+# At shutdown
+await MemoryLifespanManager.shutdown()
+```
+
+## Daily Logs (KAIROS Mode)
+
+Append-only daily logging with nightly consolidation:
+
+```
+~/.evoloop/memory/
+├── logs/
+│   └── 2026/
+│       └── 04/
+│           ├── 2026-04-01.md
+│           └── 2026-04-02.md
+├── private/
+└── team/
+```
+
+## Configuration
+
+```python
+from app.core.memory import MemoryConfig
+
+config = MemoryConfig(
+    backend_type="file",  # or "neo4j"
+    memory_root="~/.evoloop/memory",
+    extraction_interval=4,
+    enable_smart_retrieval=True,
+    enable_auto_memory=True,
+)
+```
 
 ## Extension
 
-To add a new backend (e.g., Redis for preferences):
-1. Implement the corresponding interface in `app.core.memory.interfaces`.
-2. Create the backend class in `app.core.memory.backends`.
-3. Update `MemoryManager` in `manager.py` to use the new backend.
+To add a new backend:
+1. Implement interface in `app.core.memory.interfaces`
+2. Create backend in `app.core.memory.backends`
+3. Register in `MemoryFactory`
+4. Update `MemoryConfig` if needed
+
+## Migration from Global Singleton
+
+Old pattern (deprecated):
+```python
+from app.core.memory import memory_manager  # Removed
+```
+
+New pattern (DI):
+```python
+from app.core.memory import MemoryContainer, MemoryConfig
+
+container = MemoryContainer(MemoryConfig.from_settings())
+await container.initialize()
+manager = container.memory_manager
+```

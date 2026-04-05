@@ -5,6 +5,8 @@ from typing import Protocol
 from app.core.context.manager import EvoContext
 
 logger = logging.getLogger(__name__)
+# Detailed hydration logging - set to True for debugging hydration issues
+_LOG_HYDRATION_DETAILS = False
 
 
 class ContextPlugin(Protocol):
@@ -32,7 +34,9 @@ class ContextPluginRegistry:
         self._plugins: list[ContextPlugin] = []
         # Cache for hydration results: (thread_id, project_id) -> (result, timestamp)
         self._hydration_cache: dict[tuple[str, int], tuple[dict, float]] = {}
-        self._cache_ttl: float = 5.0  # 5 seconds TTL
+        self._cache_ttl: float = 10.0  # 10 seconds TTL (increased from 5s)
+        # Cache statistics for monitoring
+        self._stats = {"hits": 0, "misses": 0, "expired": 0}
 
     def register(self, plugin: ContextPlugin) -> None:
         self._plugins.append(plugin)
@@ -42,9 +46,16 @@ class ContextPluginRegistry:
         """
         Run all registered plugins to populate the given context.
         Uses caching to avoid redundant execution within the same request.
+        
+        Optimization:
+        - Uses stable cache key (fallback to request_id if thread_id is None)
+        - Reduced logging frequency for production
+        - 10s TTL to reduce redundant hydration during fast agent execution
         """
-        # Generate cache key from context identifiers
-        cache_key = (ctx.thread_id, ctx.project_id or 0)
+        # Generate stable cache key - use request_id as fallback for thread_id
+        # to avoid all None-thread_id contexts sharing one cache entry
+        effective_thread_id = ctx.thread_id or ctx.request_id or "global"
+        cache_key = (effective_thread_id, ctx.project_id or 0)
         now = time.time()
         
         # Check cache
@@ -52,17 +63,23 @@ class ContextPluginRegistry:
             cached_result, cached_time = self._hydration_cache[cache_key]
             if now - cached_time < self._cache_ttl:
                 # Cache hit: Apply cached values
-                logger.debug(f"[PluginRegistry] Cache hit for {cache_key}")
+                self._stats["hits"] += 1
+                if _LOG_HYDRATION_DETAILS:
+                    logger.debug(f"[PluginRegistry] Cache hit for {cache_key}")
                 if "environment_block" in cached_result:
                     ctx.environment_block = cached_result["environment_block"]
                 return
             else:
                 # Cache expired
-                logger.debug(f"[PluginRegistry] Cache expired for {cache_key}")
+                self._stats["expired"] += 1
+                if _LOG_HYDRATION_DETAILS:
+                    logger.debug(f"[PluginRegistry] Cache expired for {cache_key}")
                 del self._hydration_cache[cache_key]
         
         # Cache miss: Run all plugins
-        logger.debug(f"[PluginRegistry] Cache miss, hydrating {len(self._plugins)} plugins")
+        self._stats["misses"] += 1
+        if _LOG_HYDRATION_DETAILS:
+            logger.debug(f"[PluginRegistry] Cache miss, hydrating {len(self._plugins)} plugins")
         
         for plugin in self._plugins:
             try:
@@ -81,6 +98,21 @@ class ContextPluginRegistry:
             oldest_key = min(self._hydration_cache.keys(), 
                            key=lambda k: self._hydration_cache[k][1])
             del self._hydration_cache[oldest_key]
+    
+    def get_stats(self) -> dict:
+        """Get cache statistics for monitoring."""
+        total = self._stats["hits"] + self._stats["misses"] + self._stats["expired"]
+        hit_rate = (self._stats["hits"] / total * 100) if total > 0 else 0
+        return {
+            **self._stats,
+            "total_requests": total,
+            "hit_rate": f"{hit_rate:.1f}%",
+            "cache_size": len(self._hydration_cache),
+        }
+    
+    def reset_stats(self) -> None:
+        """Reset cache statistics."""
+        self._stats = {"hits": 0, "misses": 0, "expired": 0}
 
 
 # Global registry instance

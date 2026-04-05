@@ -33,10 +33,63 @@ class EvoContextMiddleware:
     - Hydration deduplication: Uses _hydrated marker to skip redundant hydration
       within the same request lifecycle, saving ~75ms per request.
     - Single Container: Creates MemoryContainer once and reuses for all memory operations
+    - Request-level caching: Tracks hydrated requests to avoid redundant work
     """
     
     HYDRATION_MARKER = "_hydrated_v1"
     HYDRATION_VERSION = "2024.1"  # Bump this if hydration logic changes
+    
+    # Request-level hydration tracking to avoid duplicate hydration across nodes
+    # Key: request_id, Value: timestamp when hydrated
+    _hydrated_requests: dict[str, float] = {}
+    _hydration_ttl: float = 30.0  # 30 seconds TTL for request hydration tracking
+    
+    # Shared MemoryContainer for efficiency
+    _memory_container: Any = None
+    _container_lock: Any = None
+    
+    @classmethod
+    def _get_container_lock(cls):
+        """Lazy initialization of async lock."""
+        if cls._container_lock is None:
+            import asyncio
+            cls._container_lock = asyncio.Lock()
+        return cls._container_lock
+    
+    @classmethod
+    async def _get_shared_memory_container(cls) -> Any:
+        """Get shared MemoryContainer via MemoryLifespanManager (singleton)."""
+        from app.core.memory.lifespan import MemoryLifespanManager
+        
+        if not MemoryLifespanManager.is_initialized():
+            await MemoryLifespanManager.ainitialize()
+        
+        return MemoryLifespanManager.get_container()
+    
+    @classmethod
+    def _is_recently_hydrated(cls, request_id: str) -> bool:
+        """Check if this request was recently hydrated."""
+        if request_id in cls._hydrated_requests:
+            last_hydrated = cls._hydrated_requests[request_id]
+            if time.time() - last_hydrated < cls._hydration_ttl:
+                return True
+            # Expired, clean up
+            del cls._hydrated_requests[request_id]
+        return False
+    
+    @classmethod
+    def _mark_hydrated(cls, request_id: str) -> None:
+        """Mark a request as hydrated."""
+        cls._hydrated_requests[request_id] = time.time()
+        # Cleanup old entries periodically
+        if len(cls._hydrated_requests) > 100:
+            now = time.time()
+            expired = [
+                req_id for req_id, ts in cls._hydrated_requests.items()
+                if now - ts > cls._hydration_ttl
+            ]
+            for req_id in expired:
+                del cls._hydrated_requests[req_id]
 
     @staticmethod
     async def hydrate(state: dict, config: RunnableConfig) -> dict:
@@ -51,27 +104,26 @@ class EvoContextMiddleware:
         - Dynamic layer (always fresh): Blackboard, execution state, messages
         """
         start_time = time.time()
-        memory_container = None  # Will be initialized on first memory access
         
-        # Helper function to get or create memory container
-        async def _get_memory_container():
-            nonlocal memory_container
-            if memory_container is None:
-                from app.core.memory import MemoryContainer, MemoryConfig
-                memory_container = MemoryContainer(MemoryConfig.from_settings())
-                await memory_container.initialize()
-                logger.debug("[Middleware] MemoryContainer initialized")
-            return memory_container
+        # Get shared memory container (initialized once per process)
+        memory_container = await EvoContextMiddleware._get_shared_memory_container()
         
-        # OPTIMIZATION: Hydration Deduplication
-        # Check if already hydrated in this request lifecycle
-        # This saves ~75ms by avoiding redundant hydration across Supervisor/Worker/Finish nodes
-        if state.get(EvoContextMiddleware.HYDRATION_MARKER) == EvoContextMiddleware.HYDRATION_VERSION:
-            logger.debug(f"[Middleware] ⏭️ Skipping duplicate hydration for request")
+        # OPTIMIZATION: Hydration Deduplication - Multiple layers
+        # Layer 1: Check request-level tracking (for concurrent node execution)
+        ctx = ContextManager.current()
+        request_id = ctx.request_id
+        if request_id != "global-fallback" and EvoContextMiddleware._is_recently_hydrated(request_id):
+            # Still need to update dynamic layer, but skip static hydration
+            blackboard = state.get("blackboard") or {}
+            state["blackboard"] = blackboard
+            state[EvoContextMiddleware.HYDRATION_MARKER] = EvoContextMiddleware.HYDRATION_VERSION
             return state
         
-        # 1. Resolve or Create Context
-        ctx = ContextManager.current()
+        # Layer 2: Check state marker (for sequential node execution)
+        if state.get(EvoContextMiddleware.HYDRATION_MARKER) == EvoContextMiddleware.HYDRATION_VERSION:
+            return state
+        
+        # 1. Resolve or Create Context (ctx already fetched above for dedup check)
         blackboard = state.get("blackboard") or {}
         
         if ctx.request_id == "global-fallback" or state.get("is_subtask"):
@@ -167,8 +219,8 @@ class EvoContextMiddleware:
                     logger.debug(f"[Middleware] Predictive cache miss, falling back to Neo4j query")
                     
                     try:
-                        container = await _get_memory_container()
-                        memory_manager = container.memory_manager
+                        # Use shared memory container already initialized above
+                        memory_manager = memory_container.memory_manager
                         concepts = await memory_manager.long_term.search_concepts(last_human_msg, project_id)
                         if concepts:
                             memory_data['project_concepts'] = "\n".join([
@@ -192,15 +244,14 @@ class EvoContextMiddleware:
                 from app.core.memory.state_tracking import memory_tracker
                 
                 try:
-                    container = await _get_memory_container()
-                    
+                    # Use shared memory container already initialized above
                     # Get already-surfaced memories to avoid repetition
                     already_surfaced = memory_tracker.get_surfaced_ids(thread_id)
                     
                     # Create retriever with shared container's storage
                     retriever = SmartMemoryRetriever(
-                        storage=container.storage,
-                        config=container.config,
+                        storage=memory_container.storage,
+                        config=memory_container.config,
                         max_results=5,
                     )
                     
@@ -236,10 +287,9 @@ class EvoContextMiddleware:
         
         # 2b. Load Tier 1 Hot Memory (Two-Tier Architecture)
         # This is always loaded from MEMORY.md - most important knowledge
-        # OPTIMIZATION: Use shared container instead of creating new one
+        # OPTIMIZATION: Use shared memory container already initialized above
         try:
-            container = await _get_memory_container()
-            memory_manager = container.memory_manager
+            memory_manager = memory_container.memory_manager
             hot_memory = await memory_manager.get_hot_memory()
             if hot_memory:
                 memory_data['hot_memory'] = hot_memory
@@ -333,16 +383,13 @@ class EvoContextMiddleware:
         # This marker is checked at the beginning of hydrate() to skip duplicate work
         state[EvoContextMiddleware.HYDRATION_MARKER] = EvoContextMiddleware.HYDRATION_VERSION
         
-        # Cleanup: Shutdown memory container if it was created
-        if memory_container is not None:
-            try:
-                await memory_container.shutdown()
-                logger.debug("[Middleware] MemoryContainer shutdown")
-            except Exception as e:
-                logger.warning(f"[Middleware] Failed to shutdown MemoryContainer: {e}")
+        # Track at request level for concurrent node deduplication
+        if request_id != "global-fallback":
+            EvoContextMiddleware._mark_hydrated(request_id)
         
-        # Log performance
+        # Log performance (only if took significant time)
         duration_ms = (time.time() - start_time) * 1000
-        logger.debug(f"[Middleware] Hydration completed in {duration_ms:.1f}ms")
+        if duration_ms > 50:  # Only log if hydration took > 50ms
+            logger.info(f"[Middleware] Hydration completed in {duration_ms:.1f}ms")
         
         return state

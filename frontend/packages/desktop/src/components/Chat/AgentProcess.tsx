@@ -1,4 +1,4 @@
-import { Check, Loader2, ExternalLink, FileText, Search, Terminal, Code, Globe, Database, Wrench } from "lucide-react"
+import { Loader2, ExternalLink, FileText, Search, Terminal, Code, Globe, Database, Wrench } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
 export interface AgentProcessStep {
@@ -371,8 +371,8 @@ function StepRow({ step: rawStep }: { step: AgentProcessStep }) {
 
                 {/* Output summary */}
                 {outputSummary.title && (
-                    <div className="mt-1">
-                        <span className="text-[10px] text-muted-foreground/70 truncate flex-1" title={outputSummary.title}>
+                    <div className="mt-1 flex min-w-0">
+                        <span className="text-[10px] text-muted-foreground/70 truncate flex-1 break-all" title={outputSummary.title}>
                             {hasError && <span className="text-red-500 mr-1">{t("chat.steps.failed", "失败")}:</span>}
                             {outputSummary.title}
                             {outputSummary.subtitle && (
@@ -387,8 +387,8 @@ function StepRow({ step: rawStep }: { step: AgentProcessStep }) {
 }
 
 function ProcessGroup({ group }: { group: StepGroup }) {
+    const { t } = useTranslation()
     const isRunning = group.status === "running"
-    const isFailed = group.status === "failed" || group.status === "failure"
 
     return (
         <div className="w-full min-w-0 border-b border-border/30 last:border-b-0">

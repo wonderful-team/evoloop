@@ -148,6 +148,50 @@ async def _refresh_state(project_id: int | None = None) -> AwakenedState:
     return state
 
 
+async def _refresh_network_state() -> None:
+    """
+    Lightweight network state refresh.
+    
+    Only updates network status and capability boundaries without
+    re-probing devices (which are handled by DeviceWatcher).
+    """
+    from app.core.environment.boundaries import boundary_manager
+    
+    # Get current state
+    prev_state = get_awakened_state()
+    if not prev_state:
+        logger.debug("No previous state, skipping network refresh")
+        return
+    
+    # Only probe network (fast)
+    network = await EnvironmentProbe.probe_network()
+    
+    # Recompute boundaries with new network status
+    boundaries = _compute_capability_boundaries(
+        prev_state.macos,
+        prev_state.android_devices,
+        network
+    )
+    boundary_manager.set_static_boundaries(boundaries)
+    
+    # Update state with new network info
+    state = AwakenedState(
+        timestamp=datetime.now(),
+        macos=prev_state.macos,
+        android_devices=prev_state.android_devices,
+        network=network,
+        recent_episodes=prev_state.recent_episodes,
+        relevant_concepts=prev_state.relevant_concepts,
+        journal_highlights=prev_state.journal_highlights,
+        user_preferences=prev_state.user_preferences,
+        available_platforms=prev_state.available_platforms,
+        capability_boundaries=boundaries,
+    )
+    set_awakened_state(state)
+    
+    logger.debug(f"Network state refreshed: {'online' if network.internet_connected else 'offline'}")
+
+
 def _compute_capability_boundaries(
     macos: object | None,
     android_devices: list,

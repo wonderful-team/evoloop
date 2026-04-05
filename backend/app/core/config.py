@@ -384,14 +384,6 @@ class Settings(BaseSettings):
     SCREEN_RECORDING_MAX_DURATION_MIN: int = 10  # 单次录制最大10分钟
     SCREEN_RECORDING_MAX_SIZE_MB: int = 500    # 单次录制最大500MB
 
-    @computed_field
-    @property
-    def LIBRARY_ROOT(self) -> str:
-        """Root directory for global knowledge base files."""
-        path = os.path.join(self.APP_DATA_DIR, "library")
-        os.makedirs(path, exist_ok=True)
-        return path
-
     @model_validator(mode="after")
     def _setup_modelscope_cache(self) -> Self:
         """Set ModelScope cache directory to MODELS_DIR for FunASR models."""

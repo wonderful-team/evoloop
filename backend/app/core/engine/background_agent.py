@@ -179,18 +179,16 @@ async def run_agent_background(thread_id: str, inputs: dict[str, Any]):
         logger.info(f"[BackgroundAgent] Started run for thread {thread_id} with goal: {main_goal}")
 
         # Memory Injection (Parallelized)
-        from app.core.memory import MemoryContainer, MemoryConfig
+        from app.core.memory.lifespan import MemoryLifespanManager
         
-        container = MemoryContainer(MemoryConfig.from_settings())
-        await container.initialize()
-        try:
-            memory_manager = container.memory_manager
-            user_prefs, concepts_text = await asyncio.gather(
-                memory_manager.preferences.get_merged_preferences("user_default"),
-                memory_manager.long_term.get_project_concepts(project_id)
-            )
-        finally:
-            await container.shutdown()
+        if not MemoryLifespanManager.is_initialized():
+            await MemoryLifespanManager.ainitialize()
+        container = MemoryLifespanManager.get_container()
+        memory_manager = container.memory_manager
+        user_prefs, concepts_text = await asyncio.gather(
+            memory_manager.preferences.get_merged_preferences("user_default"),
+            memory_manager.long_term.get_project_concepts(project_id)
+        )
         inputs["user_preferences"] = user_prefs
         inputs["project_concepts"] = concepts_text
 

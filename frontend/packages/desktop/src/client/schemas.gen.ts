@@ -406,6 +406,107 @@ export const Body_files_upload_fileSchema = {
     title: 'Body_files-upload_file'
 } as const;
 
+export const Body_knowledge_bulk_uploadSchema = {
+    properties: {
+        files: {
+            items: {
+                type: 'string',
+                contentMediaType: 'application/octet-stream'
+            },
+            type: 'array',
+            title: 'Files',
+            description: 'Multiple files to upload'
+        },
+        project: {
+            type: 'string',
+            title: 'Project',
+            description: 'Project name',
+            default: 'default'
+        },
+        doc_type: {
+            type: 'string',
+            title: 'Doc Type',
+            description: 'Document type',
+            default: 'doc'
+        }
+    },
+    type: 'object',
+    required: ['files'],
+    title: 'Body_knowledge-bulk_upload'
+} as const;
+
+export const Body_knowledge_import_zipSchema = {
+    properties: {
+        file: {
+            type: 'string',
+            contentMediaType: 'application/octet-stream',
+            title: 'File',
+            description: 'ZIP archive containing documents'
+        },
+        project: {
+            type: 'string',
+            title: 'Project',
+            description: 'Project name',
+            default: 'default'
+        },
+        preserve_structure: {
+            type: 'boolean',
+            title: 'Preserve Structure',
+            description: 'Preserve directory structure',
+            default: true
+        }
+    },
+    type: 'object',
+    required: ['file'],
+    title: 'Body_knowledge-import_zip'
+} as const;
+
+export const Body_knowledge_upload_documentSchema = {
+    properties: {
+        file: {
+            type: 'string',
+            contentMediaType: 'application/octet-stream',
+            title: 'File',
+            description: 'Document to upload'
+        },
+        project: {
+            type: 'string',
+            title: 'Project',
+            description: 'Project name',
+            default: 'default'
+        },
+        doc_type: {
+            type: 'string',
+            title: 'Doc Type',
+            description: 'Document type (doc, code, guide, etc.)',
+            default: 'doc'
+        },
+        extract_metadata: {
+            type: 'boolean',
+            title: 'Extract Metadata',
+            description: 'Extract metadata automatically',
+            default: true
+        }
+    },
+    type: 'object',
+    required: ['file'],
+    title: 'Body_knowledge-upload_document'
+} as const;
+
+export const Body_knowledge_validate_zipSchema = {
+    properties: {
+        file: {
+            type: 'string',
+            contentMediaType: 'application/octet-stream',
+            title: 'File',
+            description: 'ZIP archive to validate'
+        }
+    },
+    type: 'object',
+    required: ['file'],
+    title: 'Body_knowledge-validate_zip'
+} as const;
+
 export const Body_learning_upload_screenshotSchema = {
     properties: {
         file: {
@@ -739,22 +840,6 @@ export const ConceptResponseSchema = {
             title: 'Name'
         },
         description: {
-            type: 'string',
-            title: 'Description'
-        }
-    },
-    type: 'object',
-    required: ['name', 'description'],
-    title: 'ConceptResponse'
-} as const;
-
-export const ConceptWithEpisodeCountSchema = {
-    properties: {
-        name: {
-            type: 'string',
-            title: 'Name'
-        },
-        description: {
             anyOf: [
                 {
                     type: 'string'
@@ -766,13 +851,53 @@ export const ConceptWithEpisodeCountSchema = {
             title: 'Description'
         },
         episode_count: {
-            type: 'integer',
-            title: 'Episode Count'
+            anyOf: [
+                {
+                    type: 'integer'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Episode Count',
+            default: 0
         }
     },
     type: 'object',
-    required: ['name', 'description', 'episode_count'],
-    title: 'ConceptWithEpisodeCount'
+    required: ['name'],
+    title: 'ConceptResponse'
+} as const;
+
+export const ConceptUpdateSchema = {
+    properties: {
+        description: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Description'
+        },
+        related_files: {
+            anyOf: [
+                {
+                    items: {
+                        type: 'string'
+                    },
+                    type: 'array'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Related Files'
+        }
+    },
+    type: 'object',
+    title: 'ConceptUpdate'
 } as const;
 
 export const ConversationListItemSchema = {
@@ -910,6 +1035,112 @@ export const CreateSkillFromYamlRequestSchema = {
     required: ['name', 'yaml_content'],
     title: 'CreateSkillFromYamlRequest',
     description: 'Request to create a skill from YAML macro definition.'
+} as const;
+
+export const DocumentContentResponseSchema = {
+    properties: {
+        path: {
+            type: 'string',
+            title: 'Path'
+        },
+        content: {
+            type: 'string',
+            title: 'Content'
+        },
+        metadata: {
+            additionalProperties: true,
+            type: 'object',
+            title: 'Metadata'
+        },
+        offset: {
+            type: 'integer',
+            title: 'Offset'
+        },
+        limit: {
+            type: 'integer',
+            title: 'Limit'
+        },
+        total_lines: {
+            type: 'integer',
+            title: 'Total Lines'
+        },
+        has_more: {
+            type: 'boolean',
+            title: 'Has More'
+        }
+    },
+    type: 'object',
+    required: ['path', 'content', 'metadata', 'offset', 'limit', 'total_lines', 'has_more'],
+    title: 'DocumentContentResponse',
+    description: 'Response for reading document content.'
+} as const;
+
+export const DocumentListResponseSchema = {
+    properties: {
+        total: {
+            type: 'integer',
+            title: 'Total'
+        },
+        documents: {
+            items: {
+                additionalProperties: true,
+                type: 'object'
+            },
+            type: 'array',
+            title: 'Documents'
+        },
+        projects: {
+            items: {
+                type: 'string'
+            },
+            type: 'array',
+            title: 'Projects'
+        }
+    },
+    type: 'object',
+    required: ['total', 'documents', 'projects'],
+    title: 'DocumentListResponse',
+    description: 'Response for listing documents.'
+} as const;
+
+export const DocumentResponseSchema = {
+    properties: {
+        success: {
+            type: 'boolean',
+            title: 'Success'
+        },
+        message: {
+            type: 'string',
+            title: 'Message'
+        },
+        path: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Path'
+        },
+        document: {
+            anyOf: [
+                {
+                    additionalProperties: true,
+                    type: 'object'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Document'
+        }
+    },
+    type: 'object',
+    required: ['success', 'message'],
+    title: 'DocumentResponse',
+    description: 'Response for document operations.'
 } as const;
 
 export const DomEventDataSchema = {
@@ -1175,7 +1406,7 @@ export const EpisodeResponseSchema = {
         timestamp: {
             anyOf: [
                 {
-                    type: 'integer'
+                    type: 'string'
                 },
                 {
                     type: 'null'
@@ -4266,6 +4497,83 @@ export const ValidationErrorSchema = {
     type: 'object',
     required: ['loc', 'msg', 'type'],
     title: 'ValidationError'
+} as const;
+
+export const VectorSearchResponseSchema = {
+    properties: {
+        results: {
+            items: {
+                '$ref': '#/components/schemas/VectorSearchResult'
+            },
+            type: 'array',
+            title: 'Results'
+        },
+        total: {
+            type: 'integer',
+            title: 'Total'
+        },
+        query: {
+            type: 'string',
+            title: 'Query'
+        },
+        search_type: {
+            type: 'string',
+            title: 'Search Type'
+        }
+    },
+    type: 'object',
+    required: ['results', 'total', 'query', 'search_type'],
+    title: 'VectorSearchResponse',
+    description: 'Vector search response.'
+} as const;
+
+export const VectorSearchResultSchema = {
+    properties: {
+        id: {
+            type: 'string',
+            title: 'Id'
+        },
+        content: {
+            type: 'string',
+            title: 'Content'
+        },
+        file_path: {
+            type: 'string',
+            title: 'File Path'
+        },
+        repository_id: {
+            type: 'string',
+            title: 'Repository Id'
+        },
+        chunk_type: {
+            type: 'string',
+            title: 'Chunk Type'
+        },
+        identifier: {
+            type: 'string',
+            title: 'Identifier'
+        },
+        start_line: {
+            type: 'integer',
+            title: 'Start Line'
+        },
+        end_line: {
+            type: 'integer',
+            title: 'End Line'
+        },
+        language: {
+            type: 'string',
+            title: 'Language'
+        },
+        score: {
+            type: 'number',
+            title: 'Score'
+        }
+    },
+    type: 'object',
+    required: ['id', 'content', 'file_path', 'repository_id', 'chunk_type', 'identifier', 'start_line', 'end_line', 'language', 'score'],
+    title: 'VectorSearchResult',
+    description: 'Vector search result item.'
 } as const;
 
 export const WebhookRequestSchema = {

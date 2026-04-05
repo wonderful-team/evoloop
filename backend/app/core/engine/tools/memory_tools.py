@@ -77,15 +77,14 @@ async def remember(content: str, context: str = "") -> str:
         )
         
         # Use MemoryContainer pattern
-        container = MemoryContainer(MemoryConfig.from_settings())
-        await container.initialize()
-        try:
-            manager = container.memory_manager
-            await manager.save_memory(entry)
-            logger.info(f"[MemoryTool] Remembered: {title[:40]}...")
-            return f"✅ Remembered: {title}"
-        finally:
-            await container.shutdown()
+        from app.core.memory.lifespan import MemoryLifespanManager
+        if not MemoryLifespanManager.is_initialized():
+            await MemoryLifespanManager.ainitialize()
+        container = MemoryLifespanManager.get_container()
+        manager = container.memory_manager
+        await manager.save_memory(entry)
+        logger.info(f"[MemoryTool] Remembered: {title[:40]}...")
+        return f"✅ Remembered: {title}"
         
     except Exception as e:
         logger.error(f"[MemoryTool] Failed: {e}")

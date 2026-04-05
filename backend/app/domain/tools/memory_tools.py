@@ -82,18 +82,17 @@ async def search_history(
     ctx = ContextManager.current()
     target_thread = thread_id or ctx.thread_id
 
-    container = MemoryContainer(MemoryConfig.from_settings())
-    await container.initialize()
-    try:
-        manager = container.memory_manager
-        results = await manager.search_messages(query, target_thread, limit)
-        
-        if not results:
-            return ContentFormatter.chat_search_results(query, [])
-        
-        return ContentFormatter.chat_search_results(query, results)
-    finally:
-        await container.shutdown()
+    from app.core.memory.lifespan import MemoryLifespanManager
+    if not MemoryLifespanManager.is_initialized():
+        await MemoryLifespanManager.ainitialize()
+    container = MemoryLifespanManager.get_container()
+    manager = container.memory_manager
+    results = await manager.search_messages(query, target_thread, limit)
+    
+    if not results:
+        return ContentFormatter.chat_search_results(query, [])
+    
+    return ContentFormatter.chat_search_results(query, results)
 
 
 # NOTE: The following long-term memory tools have been consolidated into 

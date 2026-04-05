@@ -10,6 +10,10 @@ logger = logging.getLogger(__name__)
 REDIS_KEY_DYNAMIC_APPS_PREFIX = "system:dynamic_apps"
 REDIS_KEY_APP_REASONING_PREFIX = "system:app_categorization"
 
+# Track last log time to avoid repetitive "No new apps" logs
+_last_no_apps_log: dict[str, float] = {}
+_no_apps_log_interval: float = 300.0  # Only log "no new apps" every 5 minutes
+
 
 class DynamicAppTriage(BaseExplorer):
     """
@@ -58,7 +62,13 @@ class DynamicAppTriage(BaseExplorer):
             new_apps = [a for a in apps if a not in processed_apps]
 
             if not new_apps:
-                logger.debug(f"[DynamicAppTriage] No new {platform} apps to triage.")
+                # Throttle "no new apps" logging to avoid spam
+                import time
+                now = time.time()
+                last_log = _last_no_apps_log.get(platform, 0)
+                if now - last_log > _no_apps_log_interval:
+                    logger.debug(f"[DynamicAppTriage] No new {platform} apps to triage.")
+                    _last_no_apps_log[platform] = now
                 continue
 
             logger.info(f"[DynamicAppTriage] Triaging {len(new_apps)} new {platform} apps via LLM...")

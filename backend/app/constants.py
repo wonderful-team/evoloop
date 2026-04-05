@@ -10,9 +10,9 @@ from app.core.config import settings
 
 # ====================== Engine Constants ======================
 DEFAULT_PROJECT_ID = 1
-DEFAULT_WINDOW_SIZE = 30
+DEFAULT_WINDOW_SIZE = 10
 DEFAULT_HISTORY_RETAIN_COUNT = 5  # Number of messages to retain during compression
-MAX_CONTEXT_CHARS = 150000  # Max total characters in message history (~40k tokens)
+MAX_CONTEXT_CHARS = 80000  # Max total characters in message history (~40k tokens)
 CONTEXT_PRUNE_THRESHOLD = 10000  # Character threshold for collapsing old tool results
 MAX_OUTPUT_LENGTH = 60000  # Max characters for tool output before truncation
 

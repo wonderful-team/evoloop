@@ -5,6 +5,7 @@ import {
   ListTodo,
   Database,
   GraduationCap,
+  BookOpen,
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { SidebarAppearance } from "@/components/Common/Appearance"
@@ -47,10 +48,10 @@ export function AppSidebar() {
       dataTour: "sidebar-todos",
     },
     {
-      icon: Database,
-      title: t("sidebar.library"),
-      path: "/library",
-      dataTour: "sidebar-library",
+      icon: BookOpen,
+      title: t("sidebar.knowledge", "知识库"),
+      path: "/knowledge",
+      dataTour: "sidebar-knowledge",
     },
   ]
 

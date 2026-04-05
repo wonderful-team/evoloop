@@ -3,7 +3,7 @@ LLM Platform Service - 从 EvoLoop Gateway 获取模型配置
 
 注：HTTP 请求逻辑已下沉到 EvoCloudHTTPClient，本模块只保留缓存和格式转换层
 """
-
+import asyncio
 import logging
 import time
 from typing import Dict, List, Any, Optional
@@ -43,68 +43,78 @@ class LLMPlatformService:
     _models_cache: Dict[str, PlatformModel] = {}
     _last_fetch_time: float = 0
     _cache_ttl: int = 300  # 5分钟缓存
+    _fetch_lock = None  # 并发控制锁，防止同时发起多个请求
     
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super().__new__(cls)
+            cls._fetch_lock = asyncio.Lock()
         return cls._instance
     
     async def fetch_platform_models(self) -> List[PlatformModel]:
         """
         从 EvoLoop Gateway 获取平台模型列表
         使用 EvoCloudHTTPClient 处理 HTTP 请求、认证和路由
+        
+        使用锁防止并发请求导致重复 fetch（竞争条件）
         """
         current_time = time.time()
         
-        # 检查缓存
+        # 快速检查：缓存有效直接返回（无需加锁）
         if self._models_cache and (current_time - self._last_fetch_time) < self._cache_ttl:
             return list(self._models_cache.values())
         
-        try:
-            # 使用标准化的 HTTP client（自动处理 SSL、认证、路由）
-            resp = await evocloud_manager.api.get_llm_models()
+        # 加锁：防止多个并发请求同时 fetch
+        async with self._fetch_lock:
+            # 双重检查：拿到锁后再次确认缓存是否已被其他协程更新
+            if self._models_cache and (time.time() - self._last_fetch_time) < self._cache_ttl:
+                return list(self._models_cache.values())
             
-            if resp.get("code", -1) != 0:
-                logger.error(f"[LLMPlatform] API error: {resp.get('message', 'unknown')}")
-                return []
-            
-            # 解析模型列表
-            models_data = resp.get("data", {})
-            models = models_data.get("models", [])
-            
-            platform_models = []
-            for m in models:
-                if m.get("config_type") != "evoloop":
-                    continue
-                    
-                model = PlatformModel(
-                    model_id=m.get("model_id", ""),
-                    display_name=m.get("display_name", ""),
-                    provider_name=m.get("provider_name", ""),
-                    provider_type=m.get("provider_type", "openai"),
-                    model_type=m.get("model_type", "llm"),
-                    config_type=m.get("config_type", "evoloop"),
-                    context_window=m.get("context_window", 8192),
-                    max_tokens=m.get("max_tokens", 4096),
-                    supports_streaming=m.get("supports_streaming", True),
-                    supports_vision=m.get("supports_vision", False),
-                    supports_functions=m.get("supports_functions", True),
-                    description=m.get("description", ""),
-                    icon=m.get("icon", "default"),
-                    available=m.get("available", True),
-                    quota_required=m.get("quota_required", True)
-                )
-                platform_models.append(model)
-                self._models_cache[model.model_id] = model
-            
-            self._last_fetch_time = current_time
-            
-            logger.info(f"[LLMPlatform] Fetched {len(platform_models)} platform models")
-            return platform_models
+            try:
+                # 使用标准化的 HTTP client（自动处理 SSL、认证、路由）
+                resp = await evocloud_manager.api.get_llm_models()
                 
-        except Exception as e:
-            logger.error(f"[LLMPlatform] Error fetching models: {e}")
-            return []
+                if resp.get("code", -1) != 0:
+                    logger.error(f"[LLMPlatform] API error: {resp.get('message', 'unknown')}")
+                    return []
+                
+                # 解析模型列表
+                models_data = resp.get("data", {})
+                models = models_data.get("models", [])
+                
+                platform_models = []
+                for m in models:
+                    if m.get("config_type") != "evoloop":
+                        continue
+                        
+                    model = PlatformModel(
+                        model_id=m.get("model_id", ""),
+                        display_name=m.get("display_name", ""),
+                        provider_name=m.get("provider_name", ""),
+                        provider_type=m.get("provider_type", "openai"),
+                        model_type=m.get("model_type", "llm"),
+                        config_type=m.get("config_type", "evoloop"),
+                        context_window=m.get("context_window", 8192),
+                        max_tokens=m.get("max_tokens", 4096),
+                        supports_streaming=m.get("supports_streaming", True),
+                        supports_vision=m.get("supports_vision", False),
+                        supports_functions=m.get("supports_functions", True),
+                        description=m.get("description", ""),
+                        icon=m.get("icon", "default"),
+                        available=m.get("available", True),
+                        quota_required=m.get("quota_required", True)
+                    )
+                    platform_models.append(model)
+                    self._models_cache[model.model_id] = model
+                
+                self._last_fetch_time = time.time()
+                
+                logger.info(f"[LLMPlatform] Fetched {len(platform_models)} platform models")
+                return platform_models
+                    
+            except Exception as e:
+                logger.error(f"[LLMPlatform] Error fetching models: {e}")
+                return []
     
     def get_cached_models(self) -> List[PlatformModel]:
         """获取缓存的模型列表"""

@@ -21,6 +21,7 @@ from app.domain.project.requirements import (
 )
 from app.infrastructure.database.sql.database import session_scope
 from app.utils.id import gen_uuid
+from sqlalchemy.orm import selectinload
 
 logger = logging.getLogger(__name__)
 
@@ -154,6 +155,7 @@ async def list_project_requirements(
             select(ProjectRequirementDocument)
             .where(ProjectRequirementDocument.project_id == project_id)
             .order_by(ProjectRequirementDocument.created_at.desc())
+            .options(selectinload(ProjectRequirementDocument.analyses))
         )
 
         result = await session.execute(stmt)

@@ -90,7 +90,7 @@ export function MessageContent({ content, isUser }: { content: string; isUser?: 
   }
 
   return (
-    <div className="text-sm leading-relaxed overflow-hidden break-words">
+    <div className="text-sm leading-relaxed w-full max-w-full overflow-hidden break-words">
       {parts.map((part, index) => {
         const imageMatch = part.match(/^\[Image:\s*([^\]]+)\]$/)
         const fileMatch = part.match(/^\[File:\s*([^\]]+)\]$/)
@@ -192,8 +192,8 @@ export function MessageContent({ content, isUser }: { content: string; isUser?: 
 
                 if (!inline && match) {
                   const codeBlock = (
-                    <div className="my-2 rounded-md overflow-hidden bg-[#1e1e1e]">
-                      <div className="flex items-center justify-between px-3 py-1 bg-[#252526] text-[10px] text-gray-400 border-b border-[#3e3e3e]">
+                    <div className="my-2 rounded-md overflow-hidden bg-[#1e1e1e] border border-[#3e3e3e] max-w-full">
+                      <div className="flex items-center justify-between px-3 py-1 bg-[#252526] text-[10px] text-gray-400 border-b border-[#3e3e3e] w-full overflow-hidden">
                         <span>
                           {match[1]} {isLong && `(${lineCount} lines)`}
                         </span>

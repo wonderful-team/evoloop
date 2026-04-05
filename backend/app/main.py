@@ -100,25 +100,20 @@ async def lifespan(app: FastAPI):
         logger.warning(f"Failed to register config handlers: {e}")
 
     # 2. Graph/Memory Init
-    memory_container = None
     try:
-        from app.core.memory import MemoryContainer, MemoryConfig
+        from app.core.memory.lifespan import MemoryLifespanManager
         
-        # Create and initialize memory container
-        memory_container = MemoryContainer(MemoryConfig.from_settings())
-        await memory_container.initialize()
-        
-        # Store container in app state for later access
+        # Initialize global memory container via lifespan manager
+        memory_container = await MemoryLifespanManager.ainitialize()
         _app.state.memory_container = memory_container
         
-        logger.info("Memory Service initialized via Container.")
+        logger.info("Memory Service initialized via MemoryLifespanManager.")
     except Exception as e:
         logger.warning(f"Failed to initialize Memory Service: {e}")
-        memory_container = None
 
     # 2.5 Agent Awakening - Environment & Capability Awareness
     try:
-        from app.core.environment import awaken, environment_watcher
+        from app.core.environment import awaken
         from app.core.environment.handlers import register_default_handlers
         from app.domain.codebase.indexing.event_handlers import register_indexing_handlers
         from app.core.learning.orchestrator import register_learning_handlers
@@ -131,9 +126,6 @@ async def lifespan(app: FastAPI):
 
         await awaken()
         logger.info("Agent Awakening complete.")
-
-        # Start background environment watcher
-        await environment_watcher.start()
 
         # 2.6 Atlas Configuration Initialization
         try:
@@ -158,6 +150,29 @@ async def lifespan(app: FastAPI):
             logger.info("Skill synchronization and warm-up complete.")
         except Exception as e:
             logger.warning(f"Skill synchronization failed (non-critical): {e}")
+
+        # 2.9 Knowledge Base Extractor Initialization
+        try:
+            from app.domain.knowledge.extractors import ExtractorRegistry
+            ExtractorRegistry.initialize_defaults()
+            logger.info("Knowledge base extractors initialized.")
+        except Exception as e:
+            logger.warning(f"Knowledge base extractor initialization failed (non-critical): {e}")
+
+        # 2.10 Knowledge Base FTS and Citation Tracking
+        try:
+            from app.domain.knowledge.services.search import get_fts_service
+            from app.domain.knowledge.services.citations import get_citation_tracker
+            
+            fts = get_fts_service()
+            await fts.initialize()
+            logger.info("FTS search index initialized.")
+            
+            tracker = get_citation_tracker()
+            await tracker.initialize()
+            logger.info("Citation tracker initialized.")
+        except Exception as e:
+            logger.warning(f"Knowledge base search/citations initialization failed (non-critical): {e}")
 
     except Exception as e:
         logger.warning(f"Agent Awakening failed (non-critical): {e}")
@@ -425,13 +440,6 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Failed to cleanup mirror sessions: {e}")
 
-    # Stop Environment Watcher
-    try:
-        from app.core.environment import environment_watcher
-        await environment_watcher.stop()
-    except Exception as e:
-        logger.warning(f"Failed to stop Environment Watcher: {e}")
-
     # Stop Device Watcher
     try:
         from app.core.environment.controllers.device_watcher import device_watcher
@@ -456,9 +464,9 @@ async def lifespan(app: FastAPI):
         logger.info("SQLite checkpointer connection closed")
 
     # Shutdown Memory Container
-    if memory_container:
+    if _app.state.memory_container:
         try:
-            await memory_container.shutdown()
+            await _app.state.memory_container.shutdown()
             logger.info("Memory Container shutdown.")
         except Exception as e:
             logger.warning(f"Failed to shutdown Memory Container: {e}")

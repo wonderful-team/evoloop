@@ -182,18 +182,17 @@ class WikiService:
 
             stored_names = []
             if result and result.concepts:
-                container = MemoryContainer(MemoryConfig.from_settings())
-                await container.initialize()
-                try:
-                    manager = container.memory_manager
-                    for concept in result.concepts[:5]:  # Max 5 concepts per page
-                        from app.core.memory.interfaces.long_term import Concept as MemConcept
-                        mem_concept = MemConcept(concept.name, concept.description, project_id, [])
-                        await manager.long_term.store_concept(mem_concept)
-                        stored_names.append(concept.name)
-                        logger.info(f"Wiki Concept Harvested: {concept.name}")
-                finally:
-                    await container.shutdown()
+                from app.core.memory.lifespan import MemoryLifespanManager
+                if not MemoryLifespanManager.is_initialized():
+                    await MemoryLifespanManager.ainitialize()
+                container = MemoryLifespanManager.get_container()
+                manager = container.memory_manager
+                for concept in result.concepts[:5]:  # Max 5 concepts per page
+                    from app.core.memory.interfaces.long_term import Concept as MemConcept
+                    mem_concept = MemConcept(concept.name, concept.description, project_id, [])
+                    await manager.long_term.store_concept(mem_concept)
+                    stored_names.append(concept.name)
+                    logger.info(f"Wiki Concept Harvested: {concept.name}")
 
             return stored_names
 

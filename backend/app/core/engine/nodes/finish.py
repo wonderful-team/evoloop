@@ -87,7 +87,7 @@ async def _trigger_session_recording(ctx, config: RunnableConfig, summary: str, 
 
         from app.core.memory.models import MemoryEntry, MemoryType, PrivacyLevel
         from app.core.engine.tasks import record_episode_task, reconcile_skill_macro_task
-        from app.core.memory import MemoryContainer, MemoryConfig
+        from app.core.memory.lifespan import MemoryLifespanManager
 
         try:
             # Save session summary as a PROJECT memory
@@ -111,21 +111,28 @@ async def _trigger_session_recording(ctx, config: RunnableConfig, summary: str, 
                 source="session",
                 source_message_id=message_id,
             )
-            # Use MemoryContainer to save memory
-            container = MemoryContainer(MemoryConfig.from_settings())
-            await container.initialize()
-            try:
-                await container.memory_manager.save_memory(entry)
-            finally:
-                await container.shutdown()
+            # Use global singleton container to save memory
+            if not MemoryLifespanManager.is_initialized():
+                await MemoryLifespanManager.ainitialize()
+            await MemoryLifespanManager.get_manager().save_memory(entry)
             logger.info(f"Finish: 🧠 Synced session summary to memory: {entry.id}")
         except Exception as mem_err:
             logger.warning(f"Finish: Failed to sync to memory: {mem_err}")
 
+        # Determine a friendly goal for the Episode
+        episode_goal = "[Auto-recorded by Finish Node]"
+        if execution_ticket:
+            ticket_topic = execution_ticket.get("topic")
+            ticket_reason = execution_ticket.get("reason")
+            if ticket_topic and len(ticket_topic) > 5:
+                episode_goal = ticket_topic
+            elif ticket_reason and len(ticket_reason) > 5:
+                episode_goal = ticket_reason
+
         record_episode_task.delay(
             thread_id=thread_id,
             project_id=project_id,
-            goal="[Auto-recorded by Finish Node]",
+            goal=episode_goal,
             result_summary=summary,
             concept_names=[],
             source_message_id=message_id,

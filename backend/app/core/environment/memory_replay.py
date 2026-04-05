@@ -24,44 +24,42 @@ async def replay_memory(project_id: int | None = None) -> MemoryContext:
     Returns:
         MemoryContext with episodes, concepts, and journal highlights.
     """
-    from app.core.memory import MemoryContainer, MemoryConfig
+    from app.core.memory.lifespan import MemoryLifespanManager
 
     episodes = []
     concepts = []
 
-    container = MemoryContainer(MemoryConfig.from_settings())
-    await container.initialize()
-    try:
-        manager = container.memory_manager
+    if not MemoryLifespanManager.is_initialized():
+        await MemoryLifespanManager.ainitialize()
+    container = MemoryLifespanManager.get_container()
+    manager = container.memory_manager
 
-        # 1. Retrieve recent episodes from Long-Term Memory
-        # Note: project_id can be 0 (global mode), skip in that case
-        if project_id is not None and project_id != 0:
-            try:
-                raw_experience = await manager.long_term.retrieve_experience(
-                    goal="Recent tasks",
-                    project_id=project_id,
-                    top_k=5,
-                )
-                episodes = _parse_episodes(raw_experience)
-            except Exception as e:
-                logger.warning(f"Failed to retrieve episodes: {e}")
-
-        # 2. Retrieve project concepts from Semantic Memory
+    # 1. Retrieve recent episodes from Long-Term Memory
+    # Note: project_id can be 0 (global mode), skip in that case
+    if project_id is not None and project_id != 0:
         try:
-            # 2a. Global concepts (e.g. environment facts)
-            global_concepts_text = await manager.long_term.get_project_concepts(0)
-            concepts.extend(_parse_concepts(global_concepts_text))
-
-            # 2b. Project-specific concepts
-            if project_id and project_id != 0:
-                project_concepts_text = await manager.long_term.get_project_concepts(project_id)
-                concepts.extend(_parse_concepts(project_concepts_text))
-
+            raw_experience = await manager.long_term.retrieve_experience(
+                goal="Recent tasks",
+                project_id=project_id,
+                top_k=5,
+            )
+            episodes = _parse_episodes(raw_experience)
         except Exception as e:
-            logger.warning(f"Failed to retrieve concepts: {e}")
-    finally:
-        await container.shutdown()
+            logger.warning(f"Failed to retrieve episodes: {e}")
+
+    # 2. Retrieve project concepts from Semantic Memory
+    try:
+        # 2a. Global concepts (e.g. environment facts)
+        global_concepts_text = await manager.long_term.get_project_concepts(0)
+        concepts.extend(_parse_concepts(global_concepts_text))
+
+        # 2b. Project-specific concepts
+        if project_id and project_id != 0:
+            project_concepts_text = await manager.long_term.get_project_concepts(project_id)
+            concepts.extend(_parse_concepts(project_concepts_text))
+
+    except Exception as e:
+        logger.warning(f"Failed to retrieve concepts: {e}")
 
     # 3. Read journal highlights (last 10 lines)
     journal_highlights = _read_journal_highlights()

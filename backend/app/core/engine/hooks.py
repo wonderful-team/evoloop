@@ -403,10 +403,11 @@ async def pre_compact_save_state(context: HookContext) -> HookResult:
     # Use provided memory_manager from context (injected via container)
     mm = context.memory_manager
     if mm is None:
-        # Fallback to creating container if not provided in context
-        from app.core.memory import MemoryContainer, MemoryConfig
-        container = MemoryContainer(MemoryConfig.from_settings())
-        await container.initialize()
+        # Fallback to singleton container if not provided in context
+        from app.core.memory.lifespan import MemoryLifespanManager
+        if not MemoryLifespanManager.is_initialized():
+            await MemoryLifespanManager.ainitialize()
+        container = MemoryLifespanManager.get_container()
         mm = container.memory_manager
     
     try:

@@ -166,8 +166,10 @@ async def _summarize_project_logic(name: str, path: str):
             logger.warning(f"[ProjectSummarizer] Could not resolve Project ID for {name}, using default 1")
 
         # 5. Save Concepts to Memory
-        container = MemoryContainer(MemoryConfig.from_settings())
-        await container.initialize()
+        from app.core.memory.lifespan import MemoryLifespanManager
+        if not MemoryLifespanManager.is_initialized():
+            await MemoryLifespanManager.ainitialize()
+        container = MemoryLifespanManager.get_container()
         manager = container.memory_manager
         for c in concepts:
             c_name = c.get("name")
@@ -185,9 +187,6 @@ async def _summarize_project_logic(name: str, path: str):
         await activity_monitor.end_run(sys_tid, "failed")
         # Re-raise to let Celery know it failed (triggering retries if configured)
         raise e
-    finally:
-        if container:
-            await container.shutdown()
 
 
 # --- Celery Task ---

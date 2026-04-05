@@ -45,16 +45,15 @@ async def consult_architecture(path: str = ""):
             return result  # User cancelled
         pid = result
 
-    container = MemoryContainer(MemoryConfig.from_settings())
-    await container.initialize()
-    try:
-        manager = container.memory_manager
-        info = await manager.graph.get_directory_info(pid, path)
+    from app.core.memory.lifespan import MemoryLifespanManager
+    if not MemoryLifespanManager.is_initialized():
+        await MemoryLifespanManager.ainitialize()
+    container = MemoryLifespanManager.get_container()
+    manager = container.memory_manager
+    info = await manager.graph.get_directory_info(pid, path)
 
-        try:
-            return ProjectManagementFormatter.architecture_summary(info)
-        except Exception as e:
-            logger.error(f"Failed to render architecture report: {e}")
-            return f"Architecture info for {path}"
-    finally:
-        await container.shutdown()
+    try:
+        return ProjectManagementFormatter.architecture_summary(info)
+    except Exception as e:
+        logger.error(f"Failed to render architecture report: {e}")
+        return f"Architecture info for {path}"

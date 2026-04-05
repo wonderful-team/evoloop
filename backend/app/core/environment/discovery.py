@@ -14,6 +14,10 @@ from app.core.environment.models import (
 
 logger = logging.getLogger(__name__)
 
+# Track logged device IDs to avoid repetitive "scheduled" logs
+_logged_device_ids: set[str] = set()
+_logged_macos_triage: bool = False
+
 
 class EnvironmentProbe:
     """Collects environment information from various sources."""
@@ -50,7 +54,10 @@ class EnvironmentProbe:
                 triage = DynamicAppTriage()
                 # Run in background - don't block startup for LLM classification
                 asyncio.create_task(triage.sync_dynamic_apps(macos_apps=apps))
-                logger.debug("[EnvironmentProbe] macOS dynamic app triage scheduled in background")
+                global _logged_macos_triage
+                if not _logged_macos_triage:
+                    logger.info("[EnvironmentProbe] macOS dynamic app triage scheduled (first time)")
+                    _logged_macos_triage = True
             except Exception as triage_e:
                 logger.warning(f"[EnvironmentProbe] macOS dynamic app triage failed: {triage_e}")
 
@@ -111,7 +118,10 @@ class EnvironmentProbe:
                     try:
                         triage = DynamicAppTriage()
                         asyncio.create_task(triage.sync_dynamic_apps(android_packages=packages))
-                        logger.debug(f"[EnvironmentProbe] Android dynamic app triage scheduled for {device_id}")
+                        # Only log once per device to avoid repetitive logs
+                        if device_id not in _logged_device_ids:
+                            logger.info(f"[EnvironmentProbe] Android triage scheduled for {device_id} (first time)")
+                            _logged_device_ids.add(device_id)
                     except Exception as triage_e:
                         logger.warning(f"[EnvironmentProbe] Android dynamic app triage failed: {triage_e}")
 

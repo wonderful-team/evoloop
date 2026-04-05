@@ -269,7 +269,7 @@ export const ChatWelcome: React.FC<ChatWelcomeProps> = () => {
           </div>
 
           <div 
-            onClick={() => navigate({ to: '/library' })}
+            onClick={() => navigate({ to: '/knowledge' })}
             className="group cursor-pointer p-4 rounded-xl bg-background/50 border border-border/50 hover:border-primary/30 transition-all flex flex-col gap-3"
           >
             <div className="w-9 h-9 rounded-lg bg-muted flex items-center justify-center text-muted-foreground group-hover:text-amber-500 group-hover:bg-amber-500/5 transition-all">

@@ -300,8 +300,10 @@ async def sync_thread_to_graph(
         
         actions_text = render_template("events/action_summary.prompt.j2", actions=action_data)
 
-        episode_result = result_summary or (
-            f"Completed {len(events)} actions for goal: {goal}"
+        # Improved result summary fallback
+        has_real_result = result_summary and result_summary != "unknown"
+        episode_result = result_summary if has_real_result else (
+            f"Finished session with {len(events)} steps for task: {goal}"
         )
 
         from app.core.memory.interfaces.long_term import Episode
@@ -315,23 +317,22 @@ async def sync_thread_to_graph(
             source_message_id=source_message_id,
         )
 
-        container = MemoryContainer(MemoryConfig.from_settings())
-        await container.initialize()
-        try:
-            manager = container.memory_manager
-            episode_id = await manager.long_term.record_episode(episode)
+        from app.core.memory.lifespan import MemoryLifespanManager
+        if not MemoryLifespanManager.is_initialized():
+            await MemoryLifespanManager.ainitialize()
+        container = MemoryLifespanManager.get_container()
+        manager = container.memory_manager
+        episode_id = await manager.long_term.record_episode(episode)
 
-            # Link episode to concepts if provided
-            if episode_id and concept_names:
-                await manager.long_term.link_episode_to_concepts(
-                    episode_id=episode_id,
-                    concept_names=concept_names,
-                    project_id=project_id,
-                )
+        # Link episode to concepts if provided
+        if episode_id and concept_names:
+            await manager.long_term.link_episode_to_concepts(
+                episode_id=episode_id,
+                concept_names=concept_names,
+                project_id=project_id,
+            )
 
-            logger.info(f"Episode recorded for thread '{thread_id}' ({len(events)} events, id={episode_id})")
-        finally:
-            await container.shutdown()
+        logger.info(f"Episode recorded for thread '{thread_id}' ({len(events)} events, id={episode_id})")
 
     except Exception as e:
         logger.error(f"Failed to sync thread '{thread_id}': {e}")

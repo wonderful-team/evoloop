@@ -397,6 +397,16 @@ If no memories are relevant, return: {{"selected_indices": []}}"""
         return [entry for entry, score in scored]
 
 
+async def _get_global_memory_container() -> Any:
+    """Get global memory container via MemoryLifespanManager (singleton)."""
+    from app.core.memory.lifespan import MemoryLifespanManager
+    
+    if not MemoryLifespanManager.is_initialized():
+        await MemoryLifespanManager.ainitialize()
+    
+    return MemoryLifespanManager.get_container()
+
+
 async def get_relevant_memories(
     query: str,
     user_id: Optional[str] = None,
@@ -408,8 +418,7 @@ async def get_relevant_memories(
     """
     Convenience function to get relevant memories using smart retrieval.
     
-    This function creates a temporary SmartMemoryRetriever with the
-    default storage backend.
+    Uses a global singleton container to avoid repeated initialization overhead.
     
     Args:
         query: The search query
@@ -421,33 +430,19 @@ async def get_relevant_memories(
         
     Returns:
         List of relevant memory entries
-        
-    Example:
-        entries = await get_relevant_memories(
-            query="How do I deploy?",
-            user_id="user_123",
-            project_id=456,
-            already_surfaced={"mem_001", "mem_002"},
-        )
     """
-    from app.core.memory import MemoryContainer, MemoryConfig
+    container = await _get_global_memory_container()
     
-    container = MemoryContainer(MemoryConfig.from_settings())
-    await container.initialize()
+    retriever = SmartMemoryRetriever(
+        storage=container.storage,
+        config=container.config,
+        max_results=max_results,
+    )
     
-    try:
-        retriever = SmartMemoryRetriever(
-            storage=container.storage,
-            config=container.config,
-            max_results=max_results,
-        )
-        
-        ctx = context or {}
-        ctx.update({
-            "user_id": user_id,
-            "project_id": project_id,
-        })
-        
-        return await retriever.find_relevant(query, ctx, already_surfaced)
-    finally:
-        await container.shutdown()
+    ctx = context or {}
+    ctx.update({
+        "user_id": user_id,
+        "project_id": project_id,
+    })
+    
+    return await retriever.find_relevant(query, ctx, already_surfaced)

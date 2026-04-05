@@ -281,12 +281,12 @@ const ChatMessageItem = memo(
           </div>
         )}
 
-        <div className={`relative flex-1 max-w-full min-w-0`}>
+        <div className={`relative flex-1 w-0 max-w-full min-w-0`}>
           <div className="flex flex-col gap-1 min-w-0">
 
             {/* 1. Main Content - AI FIRST */}
             {msg.content && (
-              <div className={`rounded-lg px-4 py-3 text-sm leading-relaxed min-w-0 overflow-hidden ${msg.role === "human" ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"}`}>
+              <div className={`rounded-lg px-4 py-3 text-sm leading-relaxed min-w-0 w-fit max-w-full overflow-hidden ${msg.role === "human" ? "bg-primary text-primary-foreground ml-auto" : "bg-muted text-foreground mr-auto"}`}>
 
                 {(() => {
                   // Artifact Detection
@@ -393,7 +393,7 @@ const ChatMessageItem = memo(
                       <ChevronRight className="h-3.5 w-3.5 ml-auto" />
                     </Button>
                   </CollapsibleTrigger>
-                  <CollapsibleContent className="text-xs text-muted-foreground bg-muted/30 p-2 rounded-md border-l-2 border-primary/20 whitespace-pre-wrap font-mono">
+                  <CollapsibleContent className="text-xs text-muted-foreground bg-muted/30 p-2 rounded-md border-l-2 border-primary/20 whitespace-pre-wrap break-all font-mono min-w-0 max-w-full">
                     {thinkingContent}
                   </CollapsibleContent>
                 </Collapsible>

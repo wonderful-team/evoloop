@@ -405,13 +405,13 @@ Return empty array `[]` if nothing worth remembering."""
                     privacy=privacy,
                     title=content[:60] + "..." if len(content) > 60 else content,
                     content=content,
-                    context=item.get("context", ""),
                     description=content[:200],
                     project_id=project_id,
                     user_id=user_id,
                     tags=["auto_extracted"],
                     source="auto_extraction",
                     confidence=0.8,  # Auto-extracted has moderate confidence
+                    extra={"context": item.get("context", "")} if item.get("context") else {},
                 )
                 
                 entries.append(entry)
@@ -424,26 +424,14 @@ Return empty array `[]` if nothing worth remembering."""
         return entries
 
 
-# Global auto-extractor singleton with container
-_auto_extractor_container: Optional[Any] = None
-_auto_extractor_instance: Optional[AutoMemoryExtractor] = None
-
-
 async def _get_auto_extractor() -> AutoMemoryExtractor:
-    """Get or create global auto-extractor singleton (async, with proper initialization)."""
-    global _auto_extractor_container, _auto_extractor_instance
+    """Get auto-extractor from global MemoryLifespanManager (singleton)."""
+    from app.core.memory.lifespan import MemoryLifespanManager
     
-    if _auto_extractor_instance is None:
-        # Import here to avoid circular imports at module load time
-        from app.core.memory.container import MemoryContainer
-        from app.core.memory.config import MemoryConfig
-        
-        config = MemoryConfig.from_settings()
-        _auto_extractor_container = MemoryContainer(config)
-        await _auto_extractor_container.initialize()
-        _auto_extractor_instance = _auto_extractor_container.auto_extractor
+    if not MemoryLifespanManager.is_initialized():
+        await MemoryLifespanManager.ainitialize()
     
-    return _auto_extractor_instance
+    return MemoryLifespanManager.get_container().auto_extractor
 
 
 async def _shutdown_auto_extractor():
@@ -491,6 +479,8 @@ async def trigger_auto_extraction(
     This is a fire-and-forget style function that can be called
     from anywhere to trigger automatic memory extraction.
     
+    Uses a singleton container that persists across calls for efficiency.
+    
     Args:
         thread_id: Conversation thread ID
         messages: List of conversation messages
@@ -513,14 +503,9 @@ async def trigger_auto_extraction(
         )
     """
     extractor = await _get_auto_extractor()
-    try:
-        result = await extractor.maybe_extract(
-            thread_id=thread_id,
-            messages=messages,
-            project_id=project_id,
-            user_id=user_id,
-        )
-        return result
-    finally:
-        # Cleanup after extraction to avoid resource leaks
-        await _shutdown_auto_extractor()
+    return await extractor.maybe_extract(
+        thread_id=thread_id,
+        messages=messages,
+        project_id=project_id,
+        user_id=user_id,
+    )

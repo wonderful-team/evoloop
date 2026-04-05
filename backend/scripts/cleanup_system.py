@@ -906,18 +906,19 @@ class CleanupManager:
         """
         清理文件系统知识库。
 
-        知识库存储架构：
-        - 语义知识（概念）：以 Concept 节点形式存储在 Neo4j 中（使用 --memory 清理）
-        - 基于文件的知识：存储在 ~/.evoloop/library/ 中（此方法清理这些文件）
+        知识库存储架构（新系统）：
+        - 文档内容：存储在 ~/.evoloop/knowledge/raw/ 中
+        - 元数据：存储在 ~/.evoloop/knowledge/meta/ 中
+        - 搜索索引：~/.evoloop/knowledge/search.db
+        - 引用统计：~/.evoloop/knowledge/citations.db
 
-        目录：
-        - ~/.evoloop/library/ - 全局知识库文件（markdown、技能定义）
+        注意：旧版 ~/.evoloop/library/ 已弃用，请手动删除。
         """
         print("\n📚 知识库清理")
         print("-" * 40)
 
         try:
-            kb_dir = self.settings.LIBRARY_ROOT
+            kb_dir = self.settings.APP_DATA_DIR / "knowledge"
 
             if not os.path.exists(kb_dir):
                 print("  ℹ️  知识库目录不存在")

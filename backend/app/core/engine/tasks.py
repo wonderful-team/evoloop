@@ -198,14 +198,12 @@ def harvest_concepts_task(concepts_data: list[dict], project_id: int):
                         logger.debug(f"Dehydrated {name} into summary: {summary}")
 
                 mem_concept = MemConcept(name, description, project_id, [])
-                # Create container and store concept
-                from app.core.memory import MemoryContainer, MemoryConfig
-                container = MemoryContainer(MemoryConfig.from_settings())
-                await container.initialize()
-                try:
-                    await container.memory_manager.long_term.store_concept(mem_concept)
-                finally:
-                    await container.shutdown()
+                # Use singleton container to store concept
+                from app.core.memory.lifespan import MemoryLifespanManager
+                if not MemoryLifespanManager.is_initialized():
+                    await MemoryLifespanManager.ainitialize()
+                container = MemoryLifespanManager.get_container()
+                await container.memory_manager.long_term.store_concept(mem_concept)
                 logger.info(f"Harvested concept: {name}")
             except Exception as e:
                 logger.warning(f"Failed to store concept {name}: {e}")
@@ -484,17 +482,15 @@ def git_harvest_task(cwd: str, project_id: int):
             ]))
 
             if isinstance(result, ExtractionResult) and result.concepts:
-                # Create container and store concepts
-                from app.core.memory import MemoryContainer, MemoryConfig
-                container = MemoryContainer(MemoryConfig.from_settings())
-                await container.initialize()
-                try:
-                    for concept in result.concepts:
-                        mem_concept = MemConcept(concept.name, concept.description, project_id, concept.related_files)
-                        await container.memory_manager.long_term.store_concept(mem_concept)
-                        logger.info(f"[Celery] Harvested concept: {concept.name}")
-                finally:
-                    await container.shutdown()
+                # Use singleton container to store concepts
+                from app.core.memory.lifespan import MemoryLifespanManager
+                if not MemoryLifespanManager.is_initialized():
+                    await MemoryLifespanManager.ainitialize()
+                container = MemoryLifespanManager.get_container()
+                for concept in result.concepts:
+                    mem_concept = MemConcept(concept.name, concept.description, project_id, concept.related_files)
+                    await container.memory_manager.long_term.store_concept(mem_concept)
+                    logger.info(f"[Celery] Harvested concept: {concept.name}")
         except Exception as e:
             logger.error(f"[Celery] Harvest extraction failed: {e}")
 

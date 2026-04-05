@@ -32,6 +32,7 @@ function Layout() {
     pathname.includes("/files") ||
     pathname.includes("/projects") ||
     pathname.includes("/todos") ||
+    pathname.includes("/knowledge") ||
     pathname.startsWith("/learning/skills")
 
   // Sync wizard state with context

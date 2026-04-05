@@ -234,7 +234,7 @@ health_check() {
 
     echo -n "检查服务健康状态"
     while [ $RETRY -lt $MAX_RETRIES ]; do
-        if curl -fs http://localhost:8000/api/v1/health &> /dev/null; then
+        if curl -fs http://localhost:20160/api/v1/health &> /dev/null; then
             echo ""
             success "后端服务运行正常"
             return 0
@@ -257,9 +257,9 @@ print_success() {
     echo "╠══════════════════════════════════════════════════════════╣"
     echo "║                                                          ║"
     echo "║  访问地址：                                              ║"
-    echo "║    - 前端：http://localhost:8080                         ║"
-    echo "║    - 后端 API：http://localhost:8000                     ║"
-    echo "║    - API 文档：http://localhost:8000/docs                ║"
+    echo "║    - 前端：http://localhost:20160                         ║"
+    echo "║    - 后端 API：http://localhost:20160                     ║"
+    echo "║    - API 文档：http://localhost:20160/docs                ║"
     echo "║                                                          ║"
     echo "║  常用命令：                                              ║"
     echo "║    cd $INSTALL_DIR                                       ║"

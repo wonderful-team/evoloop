@@ -23,22 +23,20 @@ async def prime_preferences(project_id: int | None = None) -> PreferenceContext:
 
     # Retrieve user preferences from Preference Store
     try:
-        from app.core.memory import MemoryContainer, MemoryConfig
+        from app.core.memory.lifespan import MemoryLifespanManager
         from app.infrastructure.config.service import SystemConfigService
 
         user_id = 1  # Default user
 
-        container = MemoryContainer(MemoryConfig.from_settings())
-        await container.initialize()
-        try:
-            manager = container.memory_manager
-            prefs_text = await manager.preferences.get_merged_preferences(
-                user_id=user_id,
-                project_id=project_id,
-            )
-            preferences = _parse_preferences(prefs_text)
-        finally:
-            await container.shutdown()
+        if not MemoryLifespanManager.is_initialized():
+            await MemoryLifespanManager.ainitialize()
+        container = MemoryLifespanManager.get_container()
+        manager = container.memory_manager
+        prefs_text = await manager.preferences.get_merged_preferences(
+            user_id=user_id,
+            project_id=project_id,
+        )
+        preferences = _parse_preferences(prefs_text)
 
         # Add language preference
         language = SystemConfigService.get_language_preference()

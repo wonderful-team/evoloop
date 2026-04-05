@@ -16,6 +16,7 @@ interface Plan {
   privileges?: string[]
   is_current?: boolean
   benefits?: Benefits  // 来自后端的权益数据
+  sort?: number        // 等级排序字段，用于判断等级高低
 }
 
 interface PlanComparisonProps {
@@ -94,6 +95,10 @@ export const PlanComparison = ({ plans, currentLevelId, currentPlanPrice = 0, on
   const { t } = useTranslation()
 
   const currentPrice = currentPlanPrice || parseFloat(plans.find(p => p.level_id === currentLevelId)?.price || "0")
+  
+  // 获取当前方案的sort排序（用于准确判断等级高低）
+  const currentPlan = plans.find(p => p.level_id === currentLevelId)
+  const currentSort = currentPlan?.benefits?.sort as number || 0
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -102,10 +107,24 @@ export const PlanComparison = ({ plans, currentLevelId, currentPlanPrice = 0, on
         const isFree = parseFloat(plan.price) === 0
         
         const targetPrice = parseFloat(plan.price)
+        const targetSort = plan.benefits?.sort as number || 0
+
         const hasActiveSubscription = currentPrice > 0
-        const isDowngrade = hasActiveSubscription && targetPrice < currentPrice
-        
-        const canSelect = isCurrent || !isDowngrade
+
+        // 使用多种方式判断是否是降级：
+        // 1. 有sort字段时按sort比较（sort越小等级越低）
+        // 2. 没有sort时按价格比较
+        // 3. 价格和sort都相同时按quota比较
+        let isDowngrade = false
+        if (hasActiveSubscription && !isCurrent) {
+          if (currentSort > 0 && targetSort > 0) {
+            // 都有sort，按sort比较
+            isDowngrade = targetSort < currentSort
+          } else {
+            // 按价格比较
+            isDowngrade = targetPrice < currentPrice
+          }
+        }
 
         return (
           <Card key={plan.level_id} className={`relative flex flex-col transition-all duration-300 ${isCurrent ? "border-primary bg-primary/[0.02] shadow-sm ring-1 ring-primary" : isDowngrade ? "opacity-60 grayscale" : "border-border hover:border-primary/30 hover:bg-muted/10"}`}>
@@ -172,32 +191,42 @@ export const PlanComparison = ({ plans, currentLevelId, currentPlanPrice = 0, on
             </CardContent>
 
             <CardFooter className="pt-4 flex flex-col gap-2">
-              <Button 
-                variant={isCurrent ? "outline" : "default"}
-                className={`w-full h-10 font-bold transition-all ${
-                  isCurrent 
-                    ? "border-primary/20 text-primary hover:bg-primary/5" 
-                    : isDowngrade
-                      ? "bg-muted text-muted-foreground cursor-not-allowed"
-                      : "bg-primary hover:bg-primary/90 shadow-md shadow-primary/10"
-                }`}
-                disabled={isCurrent || !canSelect || isLoading}
-                onClick={() => !isCurrent && canSelect && onSelect(plan.level_id)}
-                title={isDowngrade ? t("subscription.plan.downgradeTooltip", "请先取消当前订阅，到期后自动降级") : undefined}
-              >
-                {isCurrent 
-                  ? t("subscription.plan.active", "当前使用中") 
-                  : isDowngrade
-                    ? t("subscription.plan.cannotDowngrade", "不可降级")
-                    : isFree 
-                      ? t("subscription.plan.startFree", "立即使用")
-                      : t("subscription.plan.subscribe", "立即订阅")
-                }
-              </Button>
-              {!isFree && !isCurrent && !isDowngrade && hasActiveSubscription && (
-                <p className="text-[11px] text-muted-foreground text-center">
-                  {t("subscription.plan.upgradeRefund")}
-                </p>
+              {isDowngrade ? (
+                // 降级选项：不显示按钮，显示提示信息
+                <div className="w-full py-3 px-4 bg-muted/50 rounded-lg text-center">
+                  <p className="text-sm text-muted-foreground font-medium">
+                    {t("subscription.plan.cannotDowngrade", "当前等级更高")}
+                  </p>
+                  <p className="text-[11px] text-muted-foreground/70 mt-1">
+                    {t("subscription.plan.downgradeHint", "到期后可购买此方案")}
+                  </p>
+                </div>
+              ) : (
+                // 正常选项：显示按钮
+                <>
+                  <Button 
+                    variant={isCurrent ? "outline" : "default"}
+                    className={`w-full h-10 font-bold transition-all ${
+                      isCurrent 
+                        ? "border-primary/20 text-primary hover:bg-primary/5" 
+                        : "bg-primary hover:bg-primary/90 shadow-md shadow-primary/10"
+                    }`}
+                    disabled={isCurrent || isLoading}
+                    onClick={() => !isCurrent && onSelect(plan.level_id)}
+                  >
+                    {isCurrent 
+                      ? t("subscription.plan.active", "当前使用中") 
+                      : isFree 
+                        ? t("subscription.plan.startFree", "立即使用")
+                        : t("subscription.plan.subscribe", "立即订阅")
+                    }
+                  </Button>
+                  {!isFree && !isCurrent && hasActiveSubscription && (
+                    <p className="text-[11px] text-muted-foreground text-center">
+                      {t("subscription.plan.upgradeRefund")}
+                    </p>
+                  )}
+                </>
               )}
             </CardFooter>
           </Card>
