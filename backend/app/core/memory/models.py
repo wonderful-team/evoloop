@@ -128,12 +128,31 @@ class MemoryEntry:
         """
         import yaml
         
+        # Clean strings to ensure valid YAML (aggressive sanitization)
+        def _clean_yaml_string(s: str, max_len: int) -> str:
+            if not s:
+                return ""
+            # Replace newlines and carriage returns with space
+            s = s.replace('\n', ' ').replace('\r', ' ')
+            # Remove all YAML special/reserved characters
+            # | > ' " # & * ! ? | - : { } [ ] , 
+            yaml_special = '|>#&*!?-:{}[],'
+            for char in yaml_special:
+                s = s.replace(char, ' ')
+            # Collapse multiple spaces to single space
+            s = ' '.join(s.split())
+            # Strip and limit length
+            return s.strip()[:max_len]
+        
+        clean_title = _clean_yaml_string(self.title, 80)
+        clean_description = _clean_yaml_string(self.description, 150)
+        
         frontmatter = {
             "id": self.id,
             "type": self.type.value,
             "privacy": self.privacy.value,
-            "title": self.title,
-            "description": self.description,
+            "title": clean_title,
+            "description": clean_description,
             "project_id": self.project_id,
             "user_id": self.user_id,
             "tags": self.tags,

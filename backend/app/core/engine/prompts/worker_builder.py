@@ -64,7 +64,19 @@ class WorkerPromptBuilder:
         ticket_params = self.blackboard.get("ticket", {}).get("parameters", {})
         if ticket_params.get("target_apps"):
             logger.info(f"[WorkerPromptBuilder] 📦 target_apps in ticket.parameters: {ticket_params['target_apps']}")
-        
+
+        # Phase 1: Determine required protocols based on authorized tools
+        # This is more accurate than role_name-based matching
+        authorized_tools = self.agent_config.get("tools", [])
+        has_desktop_tool = any(t in authorized_tools for t in ["desktop_control", "open_app"])
+        has_mobile_tool = any(t in authorized_tools for t in ["mobile_control", "list_devices"])
+        has_browser_tool = "browser_control" in authorized_tools
+
+        # Debug logging to verify tool authorization
+        logger.info(f"[WorkerPromptBuilder] Protocol flags: "
+                   f"browser={has_browser_tool}, desktop={has_desktop_tool}, mobile={has_mobile_tool} | "
+                   f"authorized_tools={authorized_tools}")
+
         template_vars = {
             "project_id": ctx.project_id,
             "sys_info": sys_info,
@@ -86,6 +98,10 @@ class WorkerPromptBuilder:
             "historical_context": self.ticket.get("historical_context") if self.ticket else None,
             "referenced_tech": self.ticket.get("referenced_tech") if self.ticket else None,
             "plan": self.plan,
+            # Protocol flags based on authorized tools (more accurate than role_name)
+            "has_desktop_tool": has_desktop_tool,
+            "has_mobile_tool": has_mobile_tool,
+            "has_browser_tool": has_browser_tool,
         }
 
         try:

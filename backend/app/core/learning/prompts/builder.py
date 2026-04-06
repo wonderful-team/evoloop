@@ -24,6 +24,7 @@ class LearningPromptBuilder:
         "discovery": "learning/skill_discovery.prompt.j2",
         "multimodal_context": "learning/multimodal_task_context.j2",
         "synthesis_human": "learning/synthesis_human.prompt.j2",
+        "task_complexity": "learning/task_complexity_analysis.prompt.j2",
     }
         
     def _get_actions(self) -> List[Dict[str, Any]]:
@@ -134,3 +135,19 @@ class LearningPromptBuilder:
         if result.startswith("Error loading"):
             return "Please analyze the trace and generate the skill YAML."
         return result
+
+    def build_task_complexity_prompt(self, query: str) -> str:
+        """
+        Renders the task complexity analysis prompt.
+        
+        Args:
+            query: The task description to analyze
+            
+        Returns:
+            Rendered prompt string for task complexity analysis
+        """
+        return self._render_with_fallback(
+            "task_complexity",
+            {"query": query},
+            "Error loading task complexity analysis template"
+        )

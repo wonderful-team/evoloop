@@ -1,0 +1,20 @@
+Analyze this task and determine if it requires multiple skills.
+
+Task: "{{ query }}"
+
+Available skill types:
+- Workspace Expert (code editing, file operations)
+- Browser Automation (web navigation, scraping)
+- Mobile Automation (Android device control)
+- Desktop Automation (MacOS/Windows GUI)
+- Deep Research (web search, information gathering)
+
+Respond in JSON:
+{
+  "is_multi_step": bool,
+  "required_skills": ["skill_name_1", "skill_name_2"],
+  "reasoning": "brief explanation"
+}
+
+If single skill: is_multi_step=false, required_skills=["one_skill"]
+If multi skill: is_multi_step=true, required_skills=["skill_1", "skill_2", ...]

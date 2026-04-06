@@ -213,6 +213,89 @@ class SkillDiscovery:
         logger.info(f"[Discovery] No deterministic match for: {query_clean}")
         return None, [], "No exact match found."
 
+    async def match_multiple(
+        self,
+        query: str,
+        task_steps: list[str] | None = None,
+        namespace_context: str | None = None,
+        max_skills: int = 3
+    ) -> tuple[list[SkillMatch], str]:
+        """
+        Match multiple skills for complex multi-step tasks.
+        
+        Args:
+            query: The main task description
+            task_steps: Optional list of identified steps (e.g., ["search web", "send to wechat"])
+            namespace_context: Optional namespace filter
+            max_skills: Maximum number of skills to return
+            
+        Returns:
+            Tuple of (list of SkillMatch, reasoning)
+        """
+        all_skills = await self._get_active_skills()
+        matches = []
+        
+        # If explicit steps provided, match each step
+        if task_steps and len(task_steps) > 1:
+            logger.info(f"[Discovery] Multi-step task detected: {len(task_steps)} steps")
+            
+            for step in task_steps:
+                # Try exact match first
+                match, _, _ = await self.exact_search(step, namespace_context)
+                
+                if not match:
+                    # Fallback to semantic search for this step
+                    match, _, _ = await self.semantic_search(step, namespace_context=namespace_context)
+                
+                if match and match.skill_id not in [m.skill_id for m in matches]:
+                    matches.append(match)
+                    
+                if len(matches) >= max_skills:
+                    break
+        
+        # If no matches from steps, try to extract multiple intents from main query
+        if not matches:
+            # Use LLM to analyze if this is a multi-skill task
+            analysis = await self._analyze_task_complexity(query)
+            
+            if analysis.get("is_multi_step", False):
+                for skill_name in analysis.get("required_skills", [])[:max_skills]:
+                    match, _, _ = await self.exact_search(skill_name, namespace_context)
+                    if match and match.skill_id not in [m.skill_id for m in matches]:
+                        matches.append(match)
+        
+        reasoning = f"Matched {len(matches)} skills for multi-step task"
+        return matches, reasoning
+
+    async def _analyze_task_complexity(self, query: str) -> dict:
+        """
+        Analyze if a task requires multiple skills.
+        Uses lightweight LLM call with modular prompt template.
+        """
+        from app.infrastructure.llm.factory import get_default_llm
+        from app.core.learning.prompts import prompt_builder
+        
+        # Use modular prompt template instead of hardcoded string
+        prompt = prompt_builder.build_task_complexity_prompt(query)
+        
+        # Fallback to basic structure if template rendering failed
+        if prompt.startswith("Error loading"):
+            logger.warning("[Discovery] Failed to load task complexity template, using fallback")
+            return {"is_multi_step": False, "required_skills": [], "reasoning": "Template load failed"}
+
+        try:
+            llm = await get_default_llm(temperature=0.0)
+            response = await llm.ainvoke([HumanMessage(content=prompt)])
+            
+            content = response.content.strip()
+            if "```json" in content:
+                content = content.split("```json")[-1].split("```")[0].strip()
+            
+            return json.loads(content)
+        except Exception as e:
+            logger.error(f"[Discovery] Task analysis failed: {e}")
+            return {"is_multi_step": False, "required_skills": [], "reasoning": "Analysis failed"}
+
     async def semantic_search(
         self,
         query: str,

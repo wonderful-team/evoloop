@@ -65,7 +65,7 @@ class WorkerNode:
         # 1 & 2. Parallel Hydration (Optimization Phase 5)
         logger.info(f"[Worker] 🦎 Hydrating '{role_name}'...")
 
-        from app.core.engine.nodes.utils import SkillHydrator
+        from app.core.engine.context_hydrator import SkillHydrator
         
         # 检查是否有多技能工作流
         skill_ids = execution_ticket.get("skill_ids") or []
@@ -150,8 +150,26 @@ class WorkerNode:
         )
         system_prompt = prompt_builder.build(config)
 
+        # Phase 2: Multi-turn Conversation Support
+        # Build mission message
         mission_msg = prompt_builder.build_mission_message()
-        messages = [HumanMessage(content=mission_msg)]
+        
+        # Check if we should preserve conversation history
+        preserve_history = not agent_config.get("is_subtask") and execution_ticket.get("parameters", {}).get("preserve_conversation_history", True)
+        
+        if preserve_history:
+            # Preserve full message history - let AgentEngine's smart_window_slice handle the limit
+            all_messages = state.get("messages", [])
+            messages = list(all_messages) + [HumanMessage(content=mission_msg)]
+            logger.info(f"[Worker] 📝 Preserving conversation history ({len(all_messages)} messages, will be sliced by AgentEngine)")
+        else:
+            # Original behavior: reset messages (for isolated subtasks)
+            messages = [HumanMessage(content=mission_msg)]
+            logger.info(f"[Worker] 📝 Starting fresh conversation (no history)")
+        
+        # Note: For cross-worker references or critical historical context,
+        # use execution_ticket['context']['historical_context'] instead of message extraction
+        # This avoids duplication and gives Supervisor explicit control over what context to pass
 
         # 4. Execute (Using AgentEngine)
         try:
@@ -180,9 +198,10 @@ class WorkerNode:
             # Use deepcopy for subtasks to prevent state pollution between parallel executions.
             if agent_config.get("is_subtask"):
                 worker_state = copy.deepcopy(state)
+                worker_state["messages"] = [HumanMessage(content=mission_msg)]  # Subtask: always fresh
             else:
                 worker_state = state.copy()
-            worker_state["messages"] = messages
+                worker_state["messages"] = messages  # Main task: with conversation history
 
             # Get user selected model from config (if any)
             model = config.get("configurable", {}).get("model")
@@ -217,8 +236,8 @@ class WorkerNode:
 
     async def _load_skills_by_ids(self, skill_ids: list[int]) -> list[Any]:
         """按 ID 列表加载技能（用于多技能工作流）"""
-        from app.core.engine.nodes.utils import SkillHydrator
-        
+        from app.core.engine.context_hydrator import SkillHydrator
+
         skills = []
         for sid in skill_ids:
             skill = await SkillHydrator.get_skill_by_id(sid)
@@ -390,13 +409,20 @@ class WorkerNode:
         else:
             worker_outcome = "success"
 
-        # Note: Worker should NOT generate summary reports.
-        # Summary generation is the responsibility of the Finish node.
-        # Worker only returns a brief progress update, NOT detailed summaries.
+        # Note: Worker returns the actual execution result for multi-turn conversation support.
+        # The Finish node will generate the comprehensive summary, but Worker must preserve
+        # the detailed output for context continuity in multi-turn dialogues.
 
-        # Force minimal content - ignore LLM's verbose output
-        # The Finish node will generate the comprehensive summary
-        worker_content = f"✅ {role_name} completed."
+        # Check if verbose output is requested (default: True for multi-turn support)
+        parameters = execution_ticket.get("parameters", {})
+        verbose_output = parameters.get("verbose_output", True)
+
+        if verbose_output:
+            # Return full execution result for multi-turn conversation continuity
+            worker_content = content if content else f"✅ {role_name} completed."
+        else:
+            # Legacy minimal mode - brief confirmation only
+            worker_content = f"✅ {role_name} completed."
 
         return_state: dict[str, Any] = {
             "messages": [AIMessage(content=worker_content)],

@@ -5,7 +5,9 @@ from app.core.tools import evoloop_tool
 from app.domain.codebase.indexing.service import IndexingService
 
 
-@evoloop_tool
+@evoloop_tool(
+    is_hidden=True,  # Internal knowledge base indexing, not user-facing
+)
 async def index_path(path: str) -> str:
     """
     Index a specific directory or file into the knowledge base.

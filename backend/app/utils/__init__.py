@@ -195,9 +195,12 @@ from app.utils.text import (
 from app.utils.time import (
     format_duration,
     format_iso_timestamp,
+    is_past,
     normalize_timestamp_ms_to_sec,
     normalize_timestamp_sec_to_ms,
     parse_iso_timestamp,
+    parse_relative_time,
+    time_until,
     utcnow,
 )
 from app.utils.xml import clean_xml_content, safe_parse_xml
@@ -281,9 +284,12 @@ __all__ = [
     "utcnow",
     "format_duration",
     "parse_iso_timestamp",
+    "parse_relative_time",
     "format_iso_timestamp",
     "normalize_timestamp_ms_to_sec",
     "normalize_timestamp_sec_to_ms",
+    "is_past",
+    "time_until",
     # Geometry
     "Bounds",
     "parse_bounds",

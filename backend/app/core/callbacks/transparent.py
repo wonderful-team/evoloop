@@ -81,7 +81,8 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
         
         # Step tracking
         self.llm_task_id = None
-        self.tool_task_id = None
+        self.tool_task_id = None  # Legacy: single tool task (for sync compatibility)
+        self._tool_task_ids: dict[str, int] = {}  # run_id -> task_id mapping for parallel tools
         self.active_llm_run_id = None
         self._current_phase_task_id = None
         self._active_nodes = {}
@@ -297,8 +298,13 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
         self.current_tool_name = tool_name
         self.current_tool_path = None
 
-        # Get friendly name
+        # Get tool metadata early to check visibility
         metadata = get_tool_metadata(tool_name) or {}
+
+        # Skip hidden/internal tools - they are control flow signals, not user-facing actions
+        if metadata.get("is_hidden", False):
+            logger.debug(f"[Tool Start] Skipping hidden tool: {tool_name}")
+            return
         summary_template = metadata.get("summary_template")
         
         friendly_name = f"Using {tool_name}"
@@ -311,8 +317,11 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
 
         # Create activity step
         # Note: We no longer create Phase headers ("► Execution Phase"), only record actual tool executions
+        run_id = str(kwargs.get("run_id", "default"))
         if self.thread_id and self.monitor:
-            self.tool_task_id = await self.monitor.add_step(self.thread_id, friendly_name, "tool")
+            task_id = await self.monitor.add_step(self.thread_id, friendly_name, "tool")
+            self.tool_task_id = task_id  # Legacy compatibility
+            self._tool_task_ids[run_id] = task_id  # Track parallel tools by run_id
 
         # Extract path info
         data = None
@@ -396,19 +405,29 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
 
     async def on_tool_end(self, output: str, **kwargs: Any) -> None:
         """Run when tool ends running."""
-        if self.thread_id and self.tool_task_id:
-            await self.monitor.update_step(self.thread_id, self.tool_task_id, "done")
-            self.tool_task_id = None
+        tool_name = self.current_tool_name
+
+        # Skip hidden/internal tools - they were not recorded in on_tool_start
+        metadata = get_tool_metadata(tool_name) or {}
+        if metadata.get("is_hidden", False):
+            logger.debug(f"[Tool End] Skipping hidden tool: {tool_name}")
+            return
+
+        # Get the correct task_id for this tool run (support parallel tools)
+        run_id = str(kwargs.get("run_id", "default"))
+        task_id = self._tool_task_ids.pop(run_id, None)
+
+        if self.thread_id and task_id:
+            await self.monitor.update_step(self.thread_id, task_id, "done")
+            # Clear legacy single tool tracking if it matches
+            if self.tool_task_id == task_id:
+                self.tool_task_id = None
 
         # Get tool state from shared store
-        run_id = str(kwargs.get("run_id", "default"))
         tool_state = None
         if self.thread_id:
             tool_state = self._tool_store.end_tool(self.thread_id, run_id)
 
-        # Generate result summary using shared logic
-        tool_name = self.current_tool_name
-        
         # Ensure output is string for fallback and logging
         output_str = str(output) if not isinstance(output, str) else output
         
@@ -434,16 +453,30 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
 
     async def on_tool_error(self, error: BaseException, **kwargs: Any) -> None:
         """Run when tool errors."""
+        tool_name = self.current_tool_name
+
+        # Skip hidden/internal tools
+        metadata = get_tool_metadata(tool_name) or {}
+        if metadata.get("is_hidden", False):
+            logger.debug(f"[Tool Error] Skipping hidden tool: {tool_name}")
+            return
+
         logger.error(f"Tool Error in thread {self.thread_id}: {error}")
         
-        if self.thread_id and self.tool_task_id and self.monitor:
+        # Get the correct task_id for this tool run (support parallel tools)
+        run_id = str(kwargs.get("run_id", "default"))
+        task_id = self._tool_task_ids.pop(run_id, None)
+
+        if self.thread_id and task_id and self.monitor:
             exc_name = type(error).__name__
             if "Interrupt" in exc_name or "GraphInterrupt" in exc_name:
-                await self.monitor.update_step(self.thread_id, self.tool_task_id, "done")
+                await self.monitor.update_step(self.thread_id, task_id, "done")
             else:
-                await self.monitor.update_step(self.thread_id, self.tool_task_id, "failed", details=str(error))
-            
-            self.tool_task_id = None
+                await self.monitor.update_step(self.thread_id, task_id, "failed", details=str(error))
+
+            # Clear legacy single tool tracking if it matches
+            if self.tool_task_id == task_id:
+                self.tool_task_id = None
 
         # Emit structured stream event
         tool_name = getattr(self, 'current_tool_name', None)

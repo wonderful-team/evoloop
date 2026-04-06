@@ -288,10 +288,35 @@ async def get_conversation_messages(
                          m.content.strip().startswith("正在执行"))
                     )
 
-                    if is_intermediate and last_ai_item:
-                        # Merge tool_calls into existing last_ai_item instead of creating new one
+                    # Handle intermediate messages (even if hidden/is_visible=0)
+                    # These messages track tool_calls for subsequent tool output folding
+                    if is_intermediate:
+                        # Track tool_calls from intermediate messages for folding
                         if isinstance(m.tool_calls, list):
                             pending_tool_calls.extend(m.tool_calls)
+                        
+                        # IMPORTANT: If there's a visible AI message to fold into, use it
+                        # Otherwise create a temporary item for tracking
+                        if last_ai_item and last_ai_item in final_items:
+                            # Tool outputs will be folded into this visible message
+                            pass
+                        else:
+                            # Create a temporary item just for tracking
+                            # This shouldn't happen in normal flow (there should always be a visible AI first)
+                            temp_item = MessageItem(
+                                id=str(m.id),
+                                role="ai",
+                                content="",
+                                thinking=None,
+                                created_at=m.created_at.isoformat() if m.created_at else None,
+                                steps_snapshot=None,
+                                run_id=m.run_id,
+                                parent_id=m.parent_id,
+                                references=[],
+                                steps=[],
+                                has_file_operations=False,
+                            )
+                            last_ai_item = temp_item
                         # Skip adding this message to final_items
                         continue
 
@@ -330,13 +355,19 @@ async def get_conversation_messages(
                         call_info = pending_tool_calls.pop(0)
                         tool_name = call_info.get("name", "unknown")
 
+                        # Skip hidden/internal tools
+                        from app.core.tools.registry import get_tool_metadata
+                        metadata = get_tool_metadata(tool_name) or {}
+                        if metadata.get("is_hidden", False):
+                            continue
+
                         step = ToolStep(
                             id=call_info.get("id", "unknown"),
                             tool=tool_name,
                             tool_name=get_tool_display_name(tool_name),  # Friendly name from registry
                             input=call_info.get("args", {}),
                             output=m.content or "",  # Tool output stored in content with action_type='tool_output'
-                            status="success",
+                            status="done",
                         )
                         last_ai_item.steps.append(step)
                     else:

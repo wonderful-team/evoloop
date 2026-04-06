@@ -18,6 +18,7 @@ class ConceptInput(BaseModel):
 
 @evoloop_tool(
     is_state_mutating=True,
+    is_hidden=True,  # Internal knowledge management, not user-facing
     name_map={"zh": "保存概念", "en": "Save Concepts"}
 )
 async def save_concepts(

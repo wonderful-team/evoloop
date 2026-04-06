@@ -45,6 +45,13 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
     async def on_tool_start(self, serialized: dict[str, Any], input_str: str, *, run_id: UUID, **kwargs: Any) -> Any:
         """Track which tool is running for a given run_id."""
         tool_name = serialized.get("name")
+        
+        # Skip hidden/internal tools
+        if tool_name:
+            visibility = self._get_tool_visibility(tool_name)
+            if visibility == "HIDDEN":
+                return
+        
         if tool_name and self.thread_id:
             self._tool_store.start_tool(
                 thread_id=self.thread_id,
@@ -161,6 +168,15 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
             # Persist to DB
             tool_calls = getattr(message, "tool_calls", None)
             
+            # Filter hidden/internal tools from tool_calls - they are internal control signals
+            # and should not be persisted as they are not user-facing operations.
+            if tool_calls:
+                visible_tool_calls = [
+                    tc for tc in tool_calls 
+                    if not (get_tool_metadata(tc.get("name")) or {}).get("is_hidden", False)
+                ]
+                tool_calls = visible_tool_calls if visible_tool_calls else None
+            
             # 👇 提取 node_source 用于语音播报过滤
             node_source = None
             if hasattr(message, "metadata") and message.metadata:
@@ -258,8 +274,18 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
         )
 
     def _get_tool_visibility(self, tool_name: str) -> str:
-        # ... (Keep existing visibility logic if needed for HIDDEN check)
-        # But FOLDED logic is now handled by frontend via action_type
+        """
+        Determine tool visibility for database logging.
+        
+        HIDDEN: Internal control flow tools that should not be recorded.
+        VISIBLE: User-facing tools that should be logged.
+        """
+        from app.core.tools.registry import get_tool_metadata
+        
+        metadata = get_tool_metadata(tool_name) or {}
+        if metadata.get("is_hidden", False):
+            return "HIDDEN"
+
         return "VISIBLE"
 
     # _summarize_tool_output is now unused but can be kept for reference or deleted.
@@ -355,7 +381,7 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
                         client = activity_monitor.client
                         channel = f"chat:{self.thread_id}:events"
                         message = MessageEvent(data=msg_data).model_dump_json()
-                        logger.debug(f"[DatabaseCallback] Publishing to {channel}: {message[:200]}...")
+                        logger.debug(f"[DatabaseCallback] Publishing to {channel}: {message}")
                         result = await client.publish(channel, message)
                         logger.debug(f"[DatabaseCallback] Publish result: {result}")
                     except Exception as e:

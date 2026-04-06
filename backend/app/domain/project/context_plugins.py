@@ -27,9 +27,10 @@ class ProjectContextPlugin(ContextPlugin):
                 todos = session.execute(
                     select(TodoItem).where(
                         TodoItem.project_id == ctx.project_id,
+                        TodoItem.status == TodoStatus.PENDING,
                         or_(
-                            TodoItem.status == TodoStatus.IN_PROGRESS,
                             TodoItem.priority == TodoPriority.HIGH,
+                            TodoItem.priority == TodoPriority.MEDIUM,
                         ),
                     )
                 ).scalars().all()

@@ -16,6 +16,28 @@ MAX_CONTEXT_CHARS = 80000  # Max total characters in message history (~40k token
 CONTEXT_PRUNE_THRESHOLD = 10000  # Character threshold for collapsing old tool results
 MAX_OUTPUT_LENGTH = 60000  # Max characters for tool output before truncation
 
+# Node-specific window sizes for multi-turn conversation support
+# Higher values for nodes that need more context
+NODE_WINDOW_SIZES = {
+    "supervisor": 15,      # Routing decisions need more context
+    "worker": 10,          # Execution focused
+    "finish": 30,          # Summary generation needs full history
+    "chat": 20,            # Conversation needs more turns
+    "aggregator": 10,      # Result aggregation
+    "default": 10,
+}
+
+# Hierarchical slicing configuration for context optimization
+# Controls three-layer retention: full -> summary -> topic marker
+HIERARCHICAL_WINDOW_CONFIG = {
+    "supervisor": {"full_keep": 8, "summary_keep": 12},   # More complete context
+    "worker": {"full_keep": 6, "summary_keep": 8},       # Focus on recent
+    "finish": {"full_keep": 15, "summary_keep": 20},     # Maximum history
+    "chat": {"full_keep": 10, "summary_keep": 10},       # Balanced
+    "aggregator": {"full_keep": 6, "summary_keep": 8},
+    "default": {"full_keep": 6, "summary_keep": 8},
+}
+
 
 # ====================== Document Type Enum ======================
 class DocumentType(Enum):

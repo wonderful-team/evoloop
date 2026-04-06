@@ -1,0 +1,241 @@
+"""
+Todo Tools - Agent-facing tools for todo management.
+
+These tools provide the interface between the AI agent and the Todo domain.
+All business logic is delegated to the TodoService layer.
+"""
+from typing import Annotated, Literal
+
+from langchain_core.runnables import RunnableConfig
+from langchain_core.tools import InjectedToolArg
+
+from app.core.tools import evoloop_tool
+from app.domain.todo.schemas import TodoCreate, TodoFilter
+from app.domain.todo.service import TodoServiceSync, TodoNotFoundError
+from app.domain.todo.utils import format_todo_summary, parse_due_date
+from app.i18n.service import i18n
+from app.models.todo import TodoStatus
+from app.utils import ContentFormatter
+
+
+@evoloop_tool(
+    is_state_mutating=True,
+    summary_template="database_logger.tool_summary.create_todo",
+    name_map={"zh": "创建待办", "en": "Create Todo"}
+)
+async def create_todo(
+    title: str,
+    description: str | None = None,
+    due_date: str | None = None,
+    priority: Literal["low", "medium", "high"] = "medium",
+    category: str | None = None,
+    project_id: int | None = None,
+    config: Annotated[RunnableConfig, InjectedToolArg] = None,
+) -> str:
+    """
+    Create a new Todo/Reminder item.
+    
+    **WHEN TO USE**:
+    - When the user says "Remind me to..." or "Reminder for..."
+    - PROACTIVELY create todos for future tasks (e.g., "check logs later").
+    - **CRITICAL**: When executing LONG-RUNNING tasks (e.g., "running tests", 
+      "deploying to prod"), create a Todo with a reasonable `due_date` 
+      so the user knows to check back.
+    
+    Args:
+        title: The todo title (required).
+        description: Detailed description (optional).
+        due_date: Due date in various formats:
+                  - ISO format: "2023-12-31T23:59:00"
+                  - Relative: "1 hour", "30 mins", "2 days", "tomorrow"
+                  - Chinese: "1小时", "30分钟", "明天"
+        priority: 'low', 'medium' (default), or 'high'.
+        category: Optional category/tag for grouping.
+        project_id: Optional Project ID to associate with.
+    
+    Examples:
+        create_todo(title="Review PR #123", due_date="1 hour")
+        create_todo(
+            title="Check test results",
+            description="Verify all tests passed in CI",
+            due_date="30 mins",
+            priority="high"
+        )
+    """
+    if not title:
+        return i18n.get("domain_tools.manage_todo.error_title")
+    
+    # Parse due date using domain utility (which wraps parse_relative_time)
+    parsed_due_date = parse_due_date(due_date)
+    if due_date and parsed_due_date is None:
+        return i18n.get("domain_tools.manage_todo.error_due_date", date=due_date)
+    
+    # Extract source IDs from config
+    source_conversation_id = None
+    source_message_id = None
+    if config:
+        source_conversation_id = config.get("configurable", {}).get("thread_id")
+        source_message_id = config.get("metadata", {}).get("message_id")
+    
+    # Create via service layer
+    service = TodoServiceSync()
+    todo = service.create(
+        data=TodoCreate(
+            title=title,
+            description=description,
+            due_date=due_date,  # Service will parse again
+            priority=priority,
+            category=category,
+            project_id=project_id,
+        ),
+        source_conversation_id=source_conversation_id,
+        source_message_id=source_message_id,
+    )
+    
+    return i18n.get(
+        "domain_tools.manage_todo.success_add",
+        priority=todo.priority.value.upper(),
+        title=todo.title,
+        id=todo.id,
+    )
+
+
+@evoloop_tool(
+    is_pollable=True,
+    summary_template="database_logger.tool_summary.list_todos",
+    name_map={"zh": "列出现办", "en": "List Todos"}
+)
+async def list_todos(
+    status: Literal["pending", "completed", "cancelled"] | None = None,
+    project_id: int | None = None,
+    limit: int = 50,
+) -> str:
+    """
+    List Todo items with optional filtering.
+    
+    Use this to show users their pending todos, or to find a todo ID
+    that you need to complete or cancel.
+    
+    Args:
+        status: Filter by status - 'pending', 'completed', or 'cancelled'.
+                If not specified, shows all non-cancelled todos.
+        project_id: Filter by Project ID.
+        limit: Maximum number of todos to return (default 50).
+    
+    Examples:
+        list_todos()  # List all active todos
+        list_todos(status="pending")  # Show only pending
+        list_todos(project_id=123, limit=10)
+    """
+    # Build filter
+    filter_status = TodoStatus(status) if status else None
+    filters = TodoFilter(
+        status=filter_status,
+        project_id=project_id,
+        limit=limit,
+    )
+    
+    # Query via service layer
+    service = TodoServiceSync()
+    todos = service.list_todos(filters)
+    
+    if not todos:
+        return i18n.get("domain_tools.manage_todo.no_todos")
+    
+    return ContentFormatter.todo_list(todos, title="Todo List")
+
+
+@evoloop_tool(
+    is_state_mutating=True,
+    summary_template="database_logger.tool_summary.complete_todo",
+    name_map={"zh": "完成待办", "en": "Complete Todo"}
+)
+async def complete_todo(todo_id: str) -> str:
+    """
+    Mark a Todo as completed.
+    
+    **WHEN TO USE**:
+    - When the user says "I finished..." or "Mark as done..."
+    - After completing a task that was previously created as a todo
+    - When the user confirms a task is complete
+    
+    Args:
+        todo_id: The ID of the todo to complete (from list_todos).
+    
+    Examples:
+        complete_todo(todo_id="abc-123")
+        complete_todo(todo_id="550e8400-e29b-41d4-a716-446655440000")
+    
+    Note:
+        If you don't know the todo_id, use list_todos() first to find it.
+    """
+    if not todo_id:
+        return i18n.get("domain_tools.manage_todo.error_id", action="complete")
+    
+    service = TodoServiceSync()
+    
+    try:
+        todo = service.mark_completed(todo_id)
+        return i18n.get(
+            "domain_tools.manage_todo.success_update",
+            id=todo.id,
+        ) + f" [{todo.status.value}] {todo.title}"
+    except TodoNotFoundError:
+        return i18n.get("domain_tools.manage_todo.error_not_found", id=todo_id)
+
+
+@evoloop_tool(
+    is_state_mutating=True,
+    summary_template="database_logger.tool_summary.cancel_todo",
+    name_map={"zh": "取消待办", "en": "Cancel Todo"}
+)
+async def cancel_todo(todo_id: str) -> str:
+    """
+    Mark a Todo as cancelled.
+    
+    **WHEN TO USE**:
+    - When the user says "Cancel..." or "I don't need to do this anymore"
+    - When a task is no longer relevant
+    - When the user wants to remove a todo without completing it
+    
+    Args:
+        todo_id: The ID of the todo to cancel (from list_todos).
+    
+    Examples:
+        cancel_todo(todo_id="abc-123")
+        cancel_todo(todo_id="550e8400-e29b-41d4-a716-446655440000")
+    
+    Note:
+        If you don't know the todo_id, use list_todos() first to find it.
+        Cancelled todos won't appear in normal list_todos() results.
+    """
+    if not todo_id:
+        return i18n.get("domain_tools.manage_todo.error_id", action="cancel")
+    
+    service = TodoServiceSync()
+    
+    try:
+        todo = service.mark_cancelled(todo_id)
+        return i18n.get(
+            "domain_tools.manage_todo.success_update",
+            id=todo.id,
+        ) + f" [{todo.status.value}] {todo.title}"
+    except TodoNotFoundError:
+        return i18n.get("domain_tools.manage_todo.error_not_found", id=todo_id)
+
+
+# =============================================================================
+# Future Tools (can be enabled when needed)
+# =============================================================================
+
+# @evoloop_tool(
+#     is_pollable=True,
+#     name_map={"zh": "获取待办", "en": "Get Todo"}
+# )
+# async def get_todo(todo_id: str) -> str:
+#     """Get details of a specific Todo."""
+#     service = TodoServiceSync()
+#     todo = service.get_by_id(todo_id)
+#     if not todo:
+#         return i18n.get("domain_tools.manage_todo.error_not_found", id=todo_id)
+#     return format_todo_summary(todo)

@@ -528,6 +528,7 @@ async def _execute_command_with_timeout(
 
 @evoloop_tool(
     is_pollable=True,
+    is_hidden=True,  # Internal polling for background commands, not user-facing
     summary_template="database_logger.tool_summary.query_command_status",
     name_map={"zh": "查询命令状态", "en": "Query Command Status"}
 )

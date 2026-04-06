@@ -169,6 +169,7 @@ WARNING: No Standard Operating Procedure (SOP) is available for this mission.
 
 **ONLY proceed directly if the task is trivial (e.g., single file read, simple command).**
 {%- endif %}
+{%- if has_browser_tool %}
 
 ## 🌐 Browser Automation Protocol
 When your mission involves web pages or browser UI:
@@ -180,7 +181,8 @@ When your mission involves web pages or browser UI:
 5. **Robust Text Selection**: When matching elements by `text="..."` (in `click`, `wait_for`, etc.), NEVER use long phrases or full sentences. The HTML DOM may split text across multiple nodes causing text match timeouts. Always use a SHORT, UNIQUE keyword.
 6. **Coordinate Fallback**: If DOM interaction fails or you cannot find the right selector, you can fall back to using `x` and `y` coordinates for `click` with `browser_control` if you have spatial information from `screenshot` OCR.
 7. **Fixed-Time Waiting**: If you just need to wait for a fixed duration, DO NOT use `browser_control(action="wait_for")` with only `timeout_ms`. `wait_for` strictly requires a `selector`, `text`, or `url_pattern`. To sleep, use the generic `wait` tool instead.
-{%- if "Desktop" in role_name or "Mac" in role_name or "Windows" in role_name or "Workspace" in role_name %}
+{%- endif %}
+{%- if has_desktop_tool %}
 
 ## 🖥 Desktop Automation Protocol
 When your mission involves MacOS/Windows desktop automation:
@@ -335,7 +337,7 @@ desktop_control(action="batch", actions=[
    - If you need to check state between actions, don't batch
    - Example: Login attempt → check if success → next action
 {%- endif %}
-{%- if has_android %}
+{%- if has_mobile_tool %}
 
 ## 📱 Mobile Automation Protocol
 When your mission involves Android/Mobile interaction:

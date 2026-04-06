@@ -13,12 +13,17 @@ from langchain_core.messages import (
 )
 from langchain_core.runnables import RunnableConfig
 
-from app.constants import DEFAULT_WINDOW_SIZE, MAX_CONTEXT_CHARS
+from app.constants import (
+    DEFAULT_WINDOW_SIZE, 
+    MAX_CONTEXT_CHARS,
+    NODE_WINDOW_SIZES,
+)
 from app.core.engine.message_utils import (
     prune_redundant_results,
     repair_message_history,
     smart_window_slice,
     truncate_message_content,
+    hierarchical_smart_window_slice,
 )
 from app.core.engine.state import AgentState
 from app.core.tools.registry import get_tool_affected_paths
@@ -91,16 +96,27 @@ class AgentEngine:
         # 3.1 Redundancy Pruning (Collapse old large outputs)
         pruned_messages = prune_redundant_results(raw_messages)
 
-        # 3.2 Smart Windowing (Delegated to utils, with character limit)
-        # Extract context info for PreCompact hook
+        # 3.2 Hierarchical Smart Windowing (Multi-turn conversation support)
+        # Uses node-specific window sizes and three-layer retention strategy
         ctx_config = config.get("configurable", {})
-        windowed_messages = smart_window_slice(
+
+        # Determine effective window size based on node type
+        effective_window = NODE_WINDOW_SIZES.get(node_source, DEFAULT_WINDOW_SIZE)
+
+        windowed_messages = hierarchical_smart_window_slice(
             pruned_messages, 
-            window_size=DEFAULT_WINDOW_SIZE,
+            window_size=effective_window,
             max_total_chars=MAX_CONTEXT_CHARS,
+            model=model,
+            node_source=node_source or "default",
             thread_id=ctx_config.get("thread_id"),
             user_id=ctx_config.get("user_id"),
             project_id=ctx_config.get("project_id"),
+        )
+
+        logger.debug(
+            f"[{name}] Context window: {len(pruned_messages)} -> {len(windowed_messages)} messages "
+            f"(node={node_source}, window={effective_window})"
         )
 
         # 3.2 Repair Orphaned Tool Messages (Delegated to utils)
@@ -248,14 +264,6 @@ class AgentEngine:
 
                     from app.core.engine.signals import RouteToSignal
                     logger.info(f"[{name}] 🚀 Routing Signal: → {target} ({reason})")
-                    
-                    # Anthropic requirement: ToolMessage follow-up
-                    new_messages.append(ToolMessage(
-                        content=f"Routing to {target}. Reason: {reason}",
-                        tool_call_id=tc["id"],
-                        name="route_to",
-                        id=gen_uuid(),
-                    ))
 
                     return {
                         "messages": new_messages,

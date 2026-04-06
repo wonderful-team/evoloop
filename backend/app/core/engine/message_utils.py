@@ -18,7 +18,8 @@ from app.constants import (
     DEFAULT_WINDOW_SIZE, 
     MAX_OUTPUT_LENGTH,
     MAX_CONTEXT_CHARS,
-    CONTEXT_PRUNE_THRESHOLD
+    CONTEXT_PRUNE_THRESHOLD,
+    HIERARCHICAL_WINDOW_CONFIG,
 )
 from app.i18n.service import i18n
 from app.infrastructure.llm.model_profile import get_profile
@@ -476,3 +477,225 @@ def fold_messages(messages: list[BaseMessage]) -> list[dict]:
             i += 1
     
     return result
+
+
+# ============================================================================
+# Hierarchical Window Slicing (Multi-turn Conversation Support)
+# ============================================================================
+
+
+
+
+def _hierarchical_slice(
+    messages: list[BaseMessage],
+    effective_window: int,
+    max_total_chars: int,
+    node_source: str = "default",
+) -> list[BaseMessage]:
+    """
+    Hierarchical message slicing for multi-turn conversation support.
+    
+    Three-layer approach:
+    - Layer 1 (Recent): Full retention - complete messages
+    - Layer 2 (Middle): Summary retention - decisions kept, tool outputs collapsed
+    - Layer 3 (Early): Topic marker only - first HumanMessage preserved as topic anchor
+    
+    This preserves conversation continuity without LLM summarization costs.
+    
+    Args:
+        messages: Full message list
+        effective_window: Target window size (message count)
+        max_total_chars: Character limit
+        node_source: Which node is requesting (affects layer proportions)
+    
+    Returns:
+        Hierarchically sliced messages
+    """
+    config = HIERARCHICAL_WINDOW_CONFIG.get(node_source, HIERARCHICAL_WINDOW_CONFIG["default"])
+    full_keep = min(config["full_keep"], effective_window)
+    summary_keep = config["summary_keep"]
+    
+    result = []
+    
+    # === Layer 1: Recent messages - FULL RETENTION ===
+    # Always keep the most recent N messages completely intact
+    recent_count = min(full_keep, len(messages))
+    recent = messages[-recent_count:]
+    result.extend(recent)
+    
+    remaining_budget = effective_window - recent_count
+    if remaining_budget <= 0 or len(messages) <= recent_count:
+        return result
+    
+    # === Layer 2: Middle section - SUMMARY RETENTION ===
+    # Keep HumanMessages and AIMessages with tool_calls, collapse ToolMessages
+    middle_start = max(0, len(messages) - recent_count - summary_keep)
+    middle_end = len(messages) - recent_count
+    
+    middle_messages = []
+    for i in range(middle_start, middle_end):
+        msg = messages[i]
+        
+        if isinstance(msg, ToolMessage):
+            # Collapse tool output to marker (re-executable)
+            collapsed = ToolMessage(
+                content=f"[{msg.name}] ✓",
+                tool_call_id=msg.tool_call_id,
+                name=msg.name,
+                additional_kwargs={
+                    **(msg.additional_kwargs or {}),
+                    "is_collapsed": True,
+                    "original_length": len(str(msg.content)),
+                }
+            )
+            middle_messages.append(collapsed)
+            
+        elif isinstance(msg, AIMessage):
+            if msg.tool_calls:
+                # Keep AI decision to call tools (important for context)
+                middle_messages.append(msg)
+            else:
+                # Regular AI response - summarize if too long
+                content = get_message_text(msg)
+                if len(content) > 500:
+                    summarized = AIMessage(
+                        content=content[:200] + "... [Earlier response]",
+                        additional_kwargs={
+                            **(msg.additional_kwargs or {}),
+                            "is_summarized": True,
+                        }
+                    )
+                    middle_messages.append(summarized)
+                else:
+                    middle_messages.append(msg)
+        
+        elif isinstance(msg, HumanMessage):
+            # Keep user inputs (they're the conversation drivers)
+            middle_messages.append(msg)
+        
+        else:
+            # System messages in middle section - keep brief ones only
+            content = get_message_text(msg)
+            if len(content) < 200:
+                middle_messages.append(msg)
+    
+    # Add middle messages if within budget
+    if len(middle_messages) <= remaining_budget:
+        result = middle_messages + result
+        remaining_budget -= len(middle_messages)
+    else:
+        # Budget exhausted, only add last portion of middle section
+        result = middle_messages[-remaining_budget:] + result
+        remaining_budget = 0
+    
+    # === Layer 3: Early messages - TOPIC MARKER ONLY ===
+    # If we have remaining budget and early messages exist, preserve topic marker
+    if remaining_budget > 0 and middle_start > 0:
+        first_human = next(
+            (m for m in messages[:middle_start] if isinstance(m, HumanMessage)),
+            None
+        )
+        if first_human:
+            content = get_message_text(first_human)
+            topic_marker = HumanMessage(
+                content=f"[对话开始] {content[:100]}{'...' if len(content) > 100 else ''}",
+                additional_kwargs={
+                    **(first_human.additional_kwargs or {}),
+                    "is_topic_marker": True,
+                }
+            )
+            result.insert(0, topic_marker)
+    
+    # === Character Budget Enforcement ===
+    # If still over char limit, aggressively prune collapsed messages
+    total_chars = sum(len(get_message_text(m)) for m in result)
+    if total_chars > max_total_chars:
+        logger.warning(
+            f"[HierarchicalSlice] Char limit exceeded ({total_chars}/{max_total_chars}), "
+            f"pruning collapsed messages"
+        )
+        # Remove collapsed tool messages first (they're re-executable)
+        pruned = [
+            m for m in result 
+            if not (isinstance(m, ToolMessage) and m.additional_kwargs.get("is_collapsed"))
+        ]
+        # If still over limit, keep only recent messages
+        if sum(len(get_message_text(m)) for m in pruned) > max_total_chars:
+            # Keep topic marker + last N messages that fit
+            preserved = [m for m in pruned if getattr(m.additional_kwargs, 'is_topic_marker', False)]
+            for m in reversed(pruned):
+                if m in preserved:
+                    continue
+                test_chars = sum(len(get_message_text(x)) for x in preserved + [m])
+                if test_chars <= max_total_chars * 0.9:  # 10% buffer
+                    preserved.insert(0, m)
+            result = preserved
+        else:
+            result = pruned
+    
+    return result
+
+
+def hierarchical_smart_window_slice(
+    messages: list[BaseMessage],
+    window_size: int | None = None,
+    max_total_chars: int = MAX_CONTEXT_CHARS,
+    model: str | None = None,
+    node_source: str = "default",
+    thread_id: str | None = None,
+    user_id: str | None = None,
+    project_id: int | None = None,
+) -> list[BaseMessage]:
+    """
+    Smart window slice with hierarchical fallback for multi-turn conversations.
+    
+    Strategy:
+    1. If messages fit in window: return as-is
+    2. If slightly over: use hierarchical slicing (zero LLM cost)
+    3. Triggers PreCompact hook before any modification
+    
+    Args:
+        messages: Full message list
+        window_size: Target window size
+        max_total_chars: Character limit
+        model: Model name for profile-aware sizing
+        node_source: Node requesting the slice (affects strategy)
+        thread_id, user_id, project_id: For PreCompact hook
+    
+    Returns:
+        Optimized message list
+    """
+    effective_window = window_size or _get_window_size(model)
+    
+    # 1. Check if we need any processing
+    if len(messages) <= effective_window:
+        # Still check character budget
+        total_chars = sum(len(get_message_text(m)) for m in messages)
+        if total_chars <= max_total_chars:
+            return messages
+    
+    # 2. Trigger PreCompact hook BEFORE context is lost
+    if len(messages) > effective_window:
+        try:
+            from app.core.engine.hooks import hook_system, HookEvent, HookContext
+            
+            hook_ctx = HookContext(
+                thread_id=thread_id or "unknown",
+                user_id=user_id,
+                project_id=project_id,
+                messages=messages,
+            )
+            # Fire and forget
+            import asyncio
+            asyncio.create_task(hook_system.trigger(HookEvent.PRE_COMPACT, hook_ctx))
+            logger.debug(f"[HierarchicalSlice] PreCompact hook triggered for {thread_id}")
+        except Exception as e:
+            logger.warning(f"[HierarchicalSlice] PreCompact hook failed: {e}")
+    
+    # 3. Use hierarchical slicing (no LLM cost)
+    return _hierarchical_slice(
+        messages=messages,
+        effective_window=effective_window,
+        max_total_chars=max_total_chars,
+        node_source=node_source,
+    )

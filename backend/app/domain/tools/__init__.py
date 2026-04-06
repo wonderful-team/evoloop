@@ -24,10 +24,17 @@ from app.domain.tools import (
     project_tools,
     research,
     scheduler,
-    todo_tools,
     vision,
     wiki_tools,
     workspace_tools,
+)
+
+# Todo tools are now part of the todo domain module
+from app.domain.todo import (
+    cancel_todo,
+    complete_todo,
+    create_todo,
+    list_todos,
 )
 
 # Import sub-packages

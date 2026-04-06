@@ -334,7 +334,9 @@ function StepRow({ step: rawStep }: { step: AgentProcessStep }) {
 
     const isRunning = step.status === "running"
     const isFailed = step.status === "failure" || step.status === "failed"
-    const hasError = step.output?.toLowerCase().includes('error') || step.output?.includes('"status":"error"')
+    // Only check for explicit JSON error status, not simple string inclusion
+    // to avoid false positives from normal output containing "error" (e.g., error/ directory)
+    const hasError = step.output?.includes('"status":"error"')
 
     return (
         <div className="group relative flex gap-2 py-2 px-2 rounded-md hover:bg-muted/30 transition-colors animate-in fade-in slide-in-from-left-1">
@@ -356,9 +358,6 @@ function StepRow({ step: rawStep }: { step: AgentProcessStep }) {
                     <span className={`text-[11px] font-medium leading-tight ${isRunning ? "text-foreground" : "text-foreground/80"}`}>
                         {toolName}
                     </span>
-                    {step.duration && (
-                        <span className="text-[9px] text-muted-foreground/60">{step.duration}ms</span>
-                    )}
                 </div>
 
                 {/* Input info */}

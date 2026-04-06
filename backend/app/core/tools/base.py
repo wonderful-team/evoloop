@@ -53,6 +53,7 @@ def evoloop_tool(
     result_summary_template: str | None = None,
     is_memory_tool: bool = False,
     is_multimodal: bool = False,
+    is_hidden: bool = False,  # Hide from user UI (internal control tools)
     name_map: dict[str, str] | None = None,  # {"zh": "中文名", "en": "English Name"}
     handle_tool_error: bool = True,  # Allow override for HITL tools
     required_benefit: str | None = None,  # 所需权益，如 "desktop_control"
@@ -150,6 +151,7 @@ def evoloop_tool(
         tool_instance.metadata["result_summary_template"] = result_summary_template
         tool_instance.metadata["is_memory_tool"] = is_memory_tool
         tool_instance.metadata["is_multimodal"] = is_multimodal
+        tool_instance.metadata["is_hidden"] = is_hidden
         tool_instance.metadata["name_map"] = name_map or {}
 
         # Enable error handling to return validation errors as text to the Agent

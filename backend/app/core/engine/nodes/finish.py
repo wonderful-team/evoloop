@@ -380,23 +380,14 @@ async def _comprehensive_audit(state: AgentState, config: RunnableConfig) -> dic
 
     logger.info("[Finish] 🕵️ Starting Comprehensive Audit")
     
-    from app.core.engine.message_utils import smart_window_slice
-    windowed_messages = smart_window_slice(
-        messages, 
-        window_size=10,
-        thread_id=ctx.thread_id,
-        user_id=ctx.user_id,
-        project_id=ctx.project_id,
-    )
-    
-    focused_state = dict(state)
-    focused_state["messages"] = windowed_messages
+    # Note: AgentEngine.run_node will handle smart_window_slice internally
+    # No need to pre-slice here, avoiding redundant operations
     
     # Get user selected model from config (if any)
     model = config.get("configurable", {}).get("model")
     
     result = await AgentEngine.run_node(
-        state=focused_state,
+        state=state,  # Pass original state, let AgentEngine handle slicing
         config=config,
         system_prompt=system_prompt,
         tools=tools,

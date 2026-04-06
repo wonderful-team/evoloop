@@ -34,6 +34,7 @@ If the user's request spans multiple skills (e.g., "search in browser then send 
 1. Identify EACH step from the catalog above
 2. Call `route_to` with `skill_ids=[id1, id2, id3]` in execution order
 3. Set `workflow_mode="sequential"`
+4. Include `task_steps` in context to help Worker understand the workflow
 
 **Example:**
 ```python
@@ -42,7 +43,46 @@ route_to(
     reason="Cross-app workflow: search → copy → send",
     skill_ids=[18, 25, 32],  # browser_search, clipboard_copy, wechat_send
     workflow_mode="sequential",
-    authorized_tools=["browser_control", "clipboard", "desktop_control"]
+    authorized_tools=["browser_control", "clipboard", "desktop_control"],
+    context={
+        "task_steps": ["Search product on web", "Copy product info", "Send to WeChat"]
+    }
+)
+```
+
+**For Multi-Turn Conversations:**
+If user refers to previous conversation (e.g., "modify the file we just created", "use the same approach"):
+- The Worker will automatically receive conversation context
+- You MUST include `focus_paths` pointing to files mentioned earlier
+- Use `historical_context` to summarize key decisions from previous turns
+- By default, Worker returns FULL execution output for context continuity. To get brief confirmation only, set `verbose_output=False`.
+
+**Example - Continuing Previous Task:**
+```python
+route_to(
+    target="worker",
+    reason="Modify the login function we created in round 3",
+    skill_id=8,  # Workspace Expert
+    authorized_tools=["read_file", "edit_file", "multiedit_file"],
+    context={
+        "focus_paths": ["src/auth/login.py"],  # File from previous rounds
+        "historical_context": "In previous rounds, we created a login function using JWT tokens. Now need to add OAuth support.",
+        "referenced_tech": ["JWT", "OAuth", "Python"],
+        "verbose_output": True  # Return full output for multi-turn continuity (default)
+    }
+)
+```
+
+**Example - Brief Output Mode:**
+```python
+route_to(
+    target="worker",
+    reason="Simple file read",
+    skill_id=8,
+    authorized_tools=["read_file"],
+    context={
+        "verbose_output": False  # Returns only: "✅ Workspace Expert completed."
+    }
 )
 ```
 

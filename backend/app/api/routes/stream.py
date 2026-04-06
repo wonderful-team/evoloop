@@ -127,6 +127,12 @@ async def stream_chat(thread_id: str):
                                         tool_name = call.get('name', 'Tool')
                                         tool_input = call.get('args', {})
                                     
+                                    # Skip hidden/internal tools
+                                    from app.core.tools.registry import get_tool_metadata
+                                    metadata = get_tool_metadata(tool_name) or {}
+                                    if metadata.get("is_hidden", False):
+                                        continue
+                                    
                                     step = {
                                         'id': msg_data.get('id') or f'step-{asyncio.get_event_loop().time()}',
                                         'tool': tool_name,

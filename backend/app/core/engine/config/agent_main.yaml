@@ -80,6 +80,8 @@ nodes:
       # Planning & Todo (Individual tools replacing manage_todo facade)
       - "create_todo"
       - "list_todos"
+      - "complete_todo"
+      - "cancel_todo"
       # Control
       - "ask_confirm"
       - "ask_human"
@@ -96,11 +98,19 @@ nodes:
       - "list_directory"
       - "create_todo"
       - "list_todos"
+      - "complete_todo"
+      - "cancel_todo"
       - "save_concepts"
       - "synthesize_skill"
 
   - id: "chat"
     path: "app.core.engine.nodes.chat.chat_node"
+    tools:
+      # Chat Node: Lightweight memory tools only
+      # NO file operations, browser, desktop, or command execution
+      - "recall"           # Search long-term memory
+      - "remember"         # Save information to memory
+      - "search_history"   # Search current conversation history
 
   - id: "aggregator"
     path: "app.core.engine.nodes.aggregator.aggregator_node"

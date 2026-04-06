@@ -194,10 +194,7 @@ export function VoiceRecorderButton({
           )}>
             {/* 时长 */}
             <div className="flex items-center gap-2">
-              <div className={cn(
-                "w-2 h-2 rounded-full animate-pulse",
-                showCancel ? "bg-red-400" : "bg-red-500"
-              )} />
+              <div className={cn("w-2 h-2 rounded-full animate-pulse", showCancel ? "bg-red-400" : "bg-red-500")} />
               <span className="text-xl font-mono font-medium">
                 {formatDuration(duration)}
               </span>

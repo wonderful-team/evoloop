@@ -711,17 +711,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
         const { messages, threadId } = get()
         if (!rawMsg || !threadId) return
 
-        // Technical marker filter (Re-used across message types)
-        const isTechnicalMarker = (content: string) => {
-            if (!content) return false
-            const trimmed = content.trim()
-            return trimmed === i18n.t("chat.status.executingTool") || 
-                   trimmed === "Thinking..." || 
-                   trimmed === i18n.t("chat.status.thinking") ||
-                   trimmed.startsWith("✅ SESSION COMPLETE") ||
-                   trimmed.startsWith(i18n.t("chat.status.taskSummary"))
-        }
-
         // Tool messages are now folded server-side
         // Backend API now returns pre-folded messages with nested 'steps' array
         // If we receive a tool message here, it's likely an orphan or out-of-order
@@ -748,42 +737,35 @@ export const useChatStore = create<ChatState>((set, get) => ({
             references: rawMsg.references || [],
         }
 
-        // 2. Deduplicate
-        if (messages.some(m => m.id === newMsg.id)) return
-
-        // Merge consecutive AI messages to handle fragmentation
-        const lastMsg = messages[messages.length - 1]
+        // 2. Check if this is an update to an existing message (e.g., steps added via tool folding)
+        const existingIndex = messages.findIndex(m => m.id === newMsg.id)
         
-        if (
-            lastMsg &&
-            lastMsg.role === "ai" &&
-            newMsg.role === "ai" &&
-            (lastMsg.run_id === rawMsg.run_id || true)
-        ) {
-            // Determine combined content, skipping technical markers for the newMsg if possible
-            let combinedContent = lastMsg.content || ""
-            if (newMsg.content && !isTechnicalMarker(newMsg.content)) {
-                combinedContent = combinedContent 
-                    ? `${combinedContent}\n\n${newMsg.content}` 
-                    : newMsg.content
-            }
-            
-            const mergedMsg: Message = {
-                ...lastMsg,
-                content: combinedContent,
-                thinking: lastMsg.thinking || newMsg.thinking,
-                steps: [...(lastMsg.steps || []), ...(newMsg.steps || [])],
-                tool_calls: [...(lastMsg.tool_calls || []), ...(newMsg.tool_calls || [])],
+        if (existingIndex >= 0) {
+            // Update existing message - only update fields that changed, don't merge content
+            const existingMsg = messages[existingIndex]
+            const updatedMsg: Message = {
+                ...existingMsg,
+                // Update steps if new steps are provided (tool execution updates)
+                steps: newMsg.steps.length > 0 ? newMsg.steps : existingMsg.steps,
+                // Update snapshot if provided
+                steps_snapshot: newMsg.steps_snapshot || existingMsg.steps_snapshot,
+                // Update tool_calls if provided
+                tool_calls: newMsg.tool_calls || existingMsg.tool_calls,
+                // Update thinking if provided
+                thinking: newMsg.thinking || existingMsg.thinking,
+                // Keep original content and timestamp - don't update
+                content: existingMsg.content,
+                timestamp: existingMsg.timestamp,
             }
             
             const newMessages = [...messages]
-            newMessages[newMessages.length - 1] = mergedMsg
+            newMessages[existingIndex] = updatedMsg
             set({ messages: newMessages, streamedContent: "" })
             return
         }
 
-        // 3. Append & Clear Stream
-        // We assume that if a message event arrives, it replaces the current streaming content.
+        // 3. Append as new message - NO MERGING with previous messages
+        // Each AI message is displayed independently, matching history message display
         set(state => ({
             messages: [...state.messages, newMsg],
             streamedContent: "" // Commit the stream

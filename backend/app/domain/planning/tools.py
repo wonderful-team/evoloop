@@ -161,7 +161,9 @@ async def create_plan(title: str, steps: list[str], config: RunnableConfig) -> s
         return json.dumps({"error": str(e)})
 
 
-@evoloop_tool
+@evoloop_tool(
+    is_hidden=True,  # Internal plan step tracking, not user-facing
+)
 async def update_step_status(
     plan_id: str,
     step_id: str,

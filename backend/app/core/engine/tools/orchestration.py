@@ -48,6 +48,7 @@ def update_blackboard(key: str, value: Any, _config: RunnableConfig) -> dict[str
 
 @evoloop_tool(
     is_state_mutating=True,
+    is_hidden=True,  # Internal state management, not user-facing
     name_map={"zh": "管理会话元数据", "en": "Manage Session Metadata"}
 )
 def manage_session_metadata(key: str, value: Any, _config: RunnableConfig) -> dict[str, Any]:
@@ -75,6 +76,7 @@ def manage_session_metadata(key: str, value: Any, _config: RunnableConfig) -> di
 
 @evoloop_tool(
     is_state_mutating=True,
+    is_hidden=True,  # Internal routing signal, not user-facing
     name_map={"zh": "路由到", "en": "Route To"}
 )
 def route_to(
@@ -138,6 +140,7 @@ def route_to(
 
 
 @evoloop_tool(
+    is_hidden=True,  # Internal task planning, not user-facing
     name_map={"zh": "分解任务", "en": "Decompose Task"}
 )
 async def decompose_task(
@@ -191,6 +194,7 @@ async def decompose_task(
 
 
 @evoloop_tool(
+    is_hidden=True,  # Internal parallel coordination, not user-facing
     name_map={"zh": "生成代理", "en": "Spawn Agents"}
 )
 async def spawn_agents(
@@ -219,6 +223,7 @@ async def spawn_agents(
 
 
 @evoloop_tool(
+    is_hidden=True,  # Internal result aggregation, not user-facing
     name_map={"zh": "聚合结果", "en": "Aggregate Results"}
 )
 async def aggregate_results(

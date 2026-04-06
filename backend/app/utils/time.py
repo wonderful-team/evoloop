@@ -191,3 +191,159 @@ def remaining_time(start_time: float, timeout_seconds: float) -> float:
     """
     elapsed = time.time() - start_time
     return max(0.0, timeout_seconds - elapsed)
+
+
+# ============================================================================
+# Natural Language Date/Time Parsing
+# ============================================================================
+
+import re
+
+
+def parse_relative_time(time_expr: str | datetime | None, base_time: datetime | None = None) -> datetime | None:
+    """
+    Parse natural language time expressions into datetime.
+    
+    Supports multiple input formats:
+    - datetime object (pass-through)
+    - ISO format: "2023-12-31T23:59:00"
+    - Relative time: "1 hour", "30 mins", "2 days", "tomorrow"
+    - Chinese: "1小时", "30分钟", "明天"
+    - Keywords: "today", "now", "待定", "tbd", "none"
+    
+    Args:
+        time_expr: Time expression in various formats
+        base_time: Base time for relative calculations (default: utcnow())
+    
+    Returns:
+        Parsed datetime or None if not specified/TBD
+    
+    Examples:
+        >>> parse_relative_time("2023-12-31T23:59:00")
+        datetime(2023, 12, 31, 23, 59)
+        >>> parse_relative_time("1 hour")
+        datetime(2026, 4, 6, 17, 36)  # 1 hour from now
+        >>> parse_relative_time("明天")
+        datetime(2026, 4, 7, 16, 36)  # tomorrow
+        >>> parse_relative_time("待定")
+        None
+        >>> parse_relative_time(datetime.now())
+        datetime(2026, 4, 6, 16, 36)  # pass-through
+    
+    Note:
+        This is a general-purpose utility. For Todo-specific parsing
+        that uses different defaults, wrap this function.
+    """
+    if not time_expr:
+        return None
+    
+    # If already a datetime, return as-is
+    if isinstance(time_expr, datetime):
+        return time_expr
+    
+    time_str = time_expr.lower().strip()
+    
+    # Keywords that mean "no date"
+    if time_str in ["待定", "tbd", "none", "null", "pending", "unset", "", "none"]:
+        return None
+    
+    # Try ISO format first
+    parsed = parse_iso_timestamp(time_expr)
+    if parsed:
+        return parsed
+    
+    # Relative parsing
+    now = base_time or utcnow()
+    
+    # Hours: (n) hours | (n) hour | (n) hrs | (n) 小时
+    match = re.search(r"(\d+)\s*(?:hour|hours|hr|hrs|小时)", time_str)
+    if match:
+        return now + timedelta(hours=int(match.group(1)))
+    
+    # Minutes: (n) mins | (n) minutes | (n) min | (n) 分钟 | (n) 分
+    match = re.search(r"(\d+)\s*(?:min|mins|minute|minutes|分钟|分)", time_str)
+    if match:
+        return now + timedelta(minutes=int(match.group(1)))
+    
+    # Seconds: (n) secs | (n) seconds | (n) sec | (n) 秒
+    match = re.search(r"(\d+)\s*(?:sec|secs|second|seconds|秒)", time_str)
+    if match:
+        return now + timedelta(seconds=int(match.group(1)))
+    
+    # Days: (n) days | (n) day | (n) 天
+    match = re.search(r"(\d+)\s*(?:day|days|天)", time_str)
+    if match:
+        return now + timedelta(days=int(match.group(1)))
+    
+    # Weeks: (n) weeks | (n) week | (n) 周 | (n) 星期
+    match = re.search(r"(\d+)\s*(?:week|weeks|周|星期)", time_str)
+    if match:
+        return now + timedelta(weeks=int(match.group(1)))
+    
+    # Months (approximate): (n) months | (n) month | (n) 个月 | (n) 月
+    match = re.search(r"(\d+)\s*(?:months?|个月|月)", time_str)
+    if match:
+        return now + timedelta(days=30 * int(match.group(1)))
+    
+    # Years (approximate): (n) years | (n) year | (n) 年
+    match = re.search(r"(\d+)\s*(?:years?|年)", time_str)
+    if match:
+        return now + timedelta(days=365 * int(match.group(1)))
+    
+    # Special keywords
+    if re.search(r"(?:^|\s)(?:tomorrow|明天|明日)(?:\s|$)", time_str):
+        return now + timedelta(days=1)
+    
+    if re.search(r"(?:^|\s)(?:today|今天|今日)(?:\s|$)", time_str):
+        return now
+    
+    if re.search(r"(?:^|\s)(?:now|现在|立即|马上)(?:\s|$)", time_str):
+        return now
+    
+    if re.search(r"(?:^|\s)(?:next week|下周|下星期)(?:\s|$)", time_str):
+        return now + timedelta(weeks=1)
+    
+    if re.search(r"(?:^|\s)(?:next month|下个月|下月)(?:\s|$)", time_str):
+        return now + timedelta(days=30)
+    
+    if re.search(r"(?:^|\s)(?:next year|明年)(?:\s|$)", time_str):
+        return now + timedelta(days=365)
+    
+    # Could not parse
+    return None
+
+
+def is_past(dt: datetime | None, reference: datetime | None = None) -> bool:
+    """
+    Check if a datetime is in the past.
+    
+    Args:
+        dt: Datetime to check
+        reference: Reference time (default: utcnow())
+    
+    Returns:
+        True if dt is in the past, False otherwise (including if dt is None)
+    """
+    if dt is None:
+        return False
+    reference = reference or utcnow()
+    return dt < reference
+
+
+def time_until(dt: datetime | None, reference: datetime | None = None) -> timedelta | None:
+    """
+    Calculate time remaining until a datetime.
+    
+    Args:
+        dt: Target datetime
+        reference: Reference time (default: utcnow())
+    
+    Returns:
+        Timedelta until dt, or None if dt is None or in the past
+    """
+    if dt is None:
+        return None
+    reference = reference or utcnow()
+    if dt <= reference:
+        return timedelta(0)
+    return dt - reference

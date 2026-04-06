@@ -417,6 +417,26 @@ class Settings(BaseSettings):
     WORKER_AGENT_MAX_STEPS: int = 50
     FINISH_AGENT_MAX_STEPS: int = 10
 
+    # --- Protocol Dynamic Loading (Phase 1 Optimization) ---
+    # Feature flag for dynamic protocol loading - reduces Worker System Prompt size
+    DYNAMIC_PROTOCOL_LOADING: bool = Field(
+        default=False,
+        validation_alias="DYNAMIC_PROTOCOL_LOADING"
+    )  # Set to True to enable dynamic protocol injection based on user intent
+    
+    # Protocol matcher confidence threshold (0.0 - 1.0)
+    # Higher = more conservative, only inject protocols when strongly matched
+    PROTOCOL_MATCHER_THRESHOLD: float = Field(
+        default=0.7,
+        validation_alias="PROTOCOL_MATCHER_THRESHOLD"
+    )
+    
+    # Protocol loader cache TTL in seconds
+    PROTOCOL_LOADER_CACHE_TTL: int = Field(
+        default=300,  # 5 minutes
+        validation_alias="PROTOCOL_LOADER_CACHE_TTL"
+    )
+
     @computed_field  # type: ignore[prop-decorator]
     @property
     def CHECKPOINTER_DATABASE_URI(self) -> str:
