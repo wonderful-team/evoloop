@@ -1,22 +1,124 @@
-// 语音对话消息列表 - 支持 Markdown、图片、文件、音频
+// 语音对话消息列表 - 支持 Markdown、图片、文件、音频、Rewind/Retry
 
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useCallback, useState } from 'react';
 import {
   View,
   StyleSheet,
   ScrollView,
   Animated,
+  TouchableOpacity,
 } from 'react-native';
-import { Text, Avatar } from 'react-native-paper';
+import { Text, Avatar, Menu } from 'react-native-paper';
 import { ChatMessage } from '@/types/voice';
 import { useTheme } from '@/theme';
 import { MessageContent } from '@/components/chat/MessageContent';
+import { MaterialIcons } from '@expo/vector-icons';
 
 interface MessageListProps {
   messages: ChatMessage[];
+  onRewind?: (messageId: string) => void;
+  onRetry?: (messageId: string) => void;
+  onQuote?: (message: ChatMessage) => void;
 }
 
-export function MessageList({ messages }: MessageListProps) {
+// 格式化时间
+function formatTime(timestamp: number): string {
+  const date = new Date(timestamp);
+  return date.toLocaleTimeString('zh-CN', {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+// 单条消息组件
+function MessageItem({
+  message,
+  isUser,
+  colors,
+  onRewind,
+  onRetry,
+  onQuote,
+}: {
+  message: ChatMessage;
+  isUser: boolean;
+  colors: any;
+  onRewind?: (id: string) => void;
+  onRetry?: (id: string) => void;
+  onQuote?: (msg: ChatMessage) => void;
+}) {
+  const [menuVisible, setMenuVisible] = useState(false);
+
+  const handleCopy = useCallback(() => {
+    setMenuVisible(false);
+  }, []);
+
+  const handleRewind = useCallback(() => {
+    onRewind?.(message.id);
+    setMenuVisible(false);
+  }, [message.id, onRewind]);
+
+  const handleRetry = useCallback(() => {
+    onRetry?.(message.id);
+    setMenuVisible(false);
+  }, [message.id, onRetry]);
+
+  const handleQuote = useCallback(() => {
+    onQuote?.(message);
+    setMenuVisible(false);
+  }, [message, onQuote]);
+
+  return (
+    <Menu
+      visible={menuVisible}
+      onDismiss={() => setMenuVisible(false)}
+      anchor={
+        <TouchableOpacity
+          activeOpacity={0.8}
+          onLongPress={() => setMenuVisible(true)}
+        >
+          <View
+            style={[
+              styles.messageBubble,
+              {
+                backgroundColor: isUser ? colors.primaryContainer : colors.surfaceVariant,
+              },
+            ]}
+          >
+            <View style={styles.messageContent}>
+              <MessageContent content={message.content} isUser={isUser} />
+              
+              {!message.isComplete && (
+                <Animated.Text style={[styles.cursor, { color: colors.primary }]}>
+                  |
+                </Animated.Text>
+              )}
+            </View>
+            
+            <Text
+              variant="bodySmall"
+              style={[styles.timestamp, { color: colors.outline }]}
+            >
+              {formatTime(message.timestamp)}
+            </Text>
+          </View>
+        </TouchableOpacity>
+      }
+    >
+      <Menu.Item onPress={handleCopy} title="复制" leadingIcon="content-copy" />
+      {isUser && onRewind && (
+        <Menu.Item onPress={handleRewind} title="撤回" leadingIcon="undo" />
+      )}
+      {isUser && onRetry && (
+        <Menu.Item onPress={handleRetry} title="重试" leadingIcon="refresh" />
+      )}
+      {onQuote && (
+        <Menu.Item onPress={handleQuote} title="引用" leadingIcon="format-quote-close" />
+      )}
+    </Menu>
+  );
+}
+
+export function MessageList({ messages, onRewind, onRetry, onQuote }: MessageListProps) {
   const { colors } = useTheme();
   const scrollViewRef = useRef<ScrollView>(null);
 
@@ -32,7 +134,6 @@ export function MessageList({ messages }: MessageListProps) {
   // 渲染单条消息
   const renderMessage = (message: ChatMessage, index: number) => {
     const isUser = message.role === 'user';
-    const isAssistant = message.role === 'assistant';
     const isSystem = message.role === 'system';
 
     // 系统消息
@@ -67,34 +168,14 @@ export function MessageList({ messages }: MessageListProps) {
         />
 
         {/* 消息气泡 */}
-        <View
-          style={[
-            styles.messageBubble,
-            {
-              backgroundColor: isUser ? colors.primaryContainer : colors.surfaceVariant,
-            },
-          ]}
-        >
-          <View style={styles.messageContent}>
-            {/* 使用 MessageContent 渲染富文本 */}
-            <MessageContent content={message.content} isUser={isUser} />
-            
-            {/* 流式消息的光标效果 */}
-            {isAssistant && !message.isComplete && (
-              <Animated.Text style={[styles.cursor, { color: colors.primary }]}>
-                |
-              </Animated.Text>
-            )}
-          </View>
-          
-          {/* 时间戳 */}
-          <Text
-            variant="bodySmall"
-            style={[styles.timestamp, { color: colors.outline }]}
-          >
-            {formatTime(message.timestamp)}
-          </Text>
-        </View>
+        <MessageItem
+          message={message}
+          isUser={isUser}
+          colors={colors}
+          onRewind={onRewind}
+          onRetry={onRetry}
+          onQuote={onQuote}
+        />
       </View>
     );
   };
@@ -117,15 +198,6 @@ export function MessageList({ messages }: MessageListProps) {
       )}
     </ScrollView>
   );
-}
-
-// 格式化时间
-function formatTime(timestamp: number): string {
-  const date = new Date(timestamp);
-  return date.toLocaleTimeString('zh-CN', {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
 }
 
 const styles = StyleSheet.create({
