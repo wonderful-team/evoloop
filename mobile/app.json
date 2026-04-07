@@ -1,0 +1,92 @@
+{
+  "expo": {
+    "name": "EvoLoop",
+    "slug": "evoloop-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "evoloop",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "cn.develop-assistant.evoloop",
+      "buildNumber": "1.0.0",
+      "infoPlist": {
+        "LSApplicationQueriesSchemes": [
+          "weixin",
+          "weixinULAPI"
+        ],
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLName": "wechat",
+            "CFBundleURLSchemes": ["wx[YOUR_APP_ID]"]
+          },
+          {
+            "CFBundleURLName": "evoloop",
+            "CFBundleURLSchemes": ["evoloop"]
+          }
+        ],
+        "NSMicrophoneUsageDescription": "EvoLoop 需要使用麦克风进行语音对话",
+        "NSCameraUsageDescription": "EvoLoop 需要使用相机扫描二维码绑定设备",
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": false,
+          "NSExceptionDomains": {
+            "localhost": {
+              "NSExceptionAllowsInsecureHTTPLoads": true
+            }
+          }
+        }
+      }
+    },
+    "android": {
+      "package": "cn.develop_assistant.evoloop",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "backgroundColor": "#0066FF"
+      },
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.CAMERA",
+        "android.permission.INTERNET"
+      ]
+    },
+    "platforms": ["ios", "android"],
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#0066FF"
+        }
+      ],
+      [
+        "expo-av",
+        {
+          "microphonePermission": "EvoLoop 需要使用麦克风进行语音对话"
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "EvoLoop 需要使用相机扫描二维码绑定设备"
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "[YOUR_EAS_PROJECT_ID]"
+      }
+    }
+  }
+}

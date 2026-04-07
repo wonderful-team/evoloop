@@ -1,0 +1,53 @@
+{
+  "cli": {
+    "version": ">= 14.0.0"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_ENV": "development"
+      }
+    },
+    "development-simulator": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "ios": {
+        "simulator": true
+      },
+      "env": {
+        "EXPO_PUBLIC_ENV": "development"
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_ENV": "staging"
+      }
+    },
+    "production": {
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_ENV": "production"
+      }
+    }
+  },
+  "submit": {
+    "production": {
+      "ios": {
+        "ascAppId": "[YOUR_APPLE_APP_ID]",
+        "ascApiKeyPath": "[PATH_TO_API_KEY]",
+        "ascApiKeyIssuerId": "[ISSUER_ID]",
+        "ascApiKeyId": "[KEY_ID]"
+      },
+      "android": {
+        "serviceAccountKeyPath": "[PATH_TO_SERVICE_ACCOUNT_JSON]",
+        "track": "production"
+      }
+    }
+  }
+}
