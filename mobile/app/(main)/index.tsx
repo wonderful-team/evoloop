@@ -22,12 +22,26 @@ import {
   VolumeBar,
   InputMode,
 } from '@/components/voice';
-import { HumanRequestCard, HITLBanner } from '@/components/hitl';
+import { 
+  HumanRequestCard, 
+  HITLBanner 
+} from '@/components/hitl';
+import { 
+  ThreadList,
+  RewindConfirmDialog,
+  ArtifactCard,
+  StepsIndicator,
+  ThoughtCard,
+} from '@/components/chat';
 import { useVoice } from '@/hooks/useVoice';
+import { useConversationStore } from '@/stores/conversationStore';
 import { useTheme } from '@/theme';
 import { TaskCommand } from '@/types/voice';
 import { HumanRequest } from '@/types/hitl';
+import { Artifact, TestReportArtifact } from '@/types/artifact';
+import { AgentStep, AgentThought } from '@/types/agent';
 import type { ChatAttachment } from '@/services/api/upload';
+import * as conversationApi from '@/services/api/conversations';
 
 export default function HomeScreen() {
   const { t } = useTranslation();

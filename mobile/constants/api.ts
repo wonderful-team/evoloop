@@ -32,6 +32,25 @@ export const MEMBER_API = {
   // 上传
   UPLOAD_CHAT_IMAGE: '/member/api/upload/chatimg',
   UPLOAD_CHAT_FILE: '/member/api/upload/chatfile',
+  
+  // 会话/对话
+  CONVERSATIONS: '/member/api/conversations',
+  
+  // 项目
+  PROJECTS: '/member/api/projects',
+  
+  // 技能
+  SKILLS: '/member/api/skills',
+  MCP_SERVERS: '/member/api/mcp/servers',
+  
+  // Artifacts
+  ARTIFACTS: '/member/api/artifacts',
+  
+  // 模型
+  MODELS: '/member/api/models',
+  
+  // 使用量
+  USAGE: '/member/api/usage',
 };
 
 // Gateway 路由 (设备、项目、对话)

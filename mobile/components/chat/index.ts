@@ -6,3 +6,10 @@ export { MarkdownTable } from './MarkdownTable';
 export { LinkPreview, AutoLinkPreview } from './LinkPreview';
 export { MermaidChart, extractMermaidBlocks } from './MermaidChart';
 export { MessageActions, MessageActionBar } from './MessageActions';
+
+// 新增组件
+export { ThreadList } from './ThreadList';
+export { RewindConfirmDialog } from './RewindConfirmDialog';
+export { ArtifactCard } from './ArtifactCard';
+export { StepsIndicator } from './StepsIndicator';
+export { ThoughtCard } from './ThoughtCard';

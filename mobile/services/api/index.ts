@@ -7,3 +7,7 @@ export { subscriptionApi } from './subscription';
 export { paymentApi } from './payment';
 export { deviceApi } from './devices';
 export { projectApi } from './projects';
+export * as conversationApi from './conversations';
+export * as skillApi from './skills';
+export * as artifactApi from './artifacts';
+export * as modelApi from './models';
