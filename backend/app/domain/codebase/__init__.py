@@ -1,4 +1,4 @@
-from .events import register_codebase_events
+from .event_handlers import register_codebase_events
 from .exploration import (
     find_symbol,
     ask_codebase,
@@ -10,6 +10,7 @@ from .exploration import (
 # Note: search_code has been moved to app.domain.tools.files.search_files
 # Import it from there: from app.domain.tools.files import search_files
 
+# Auto-register event handlers
 register_codebase_events()
 
 __all__ = [

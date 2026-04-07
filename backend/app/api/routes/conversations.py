@@ -1,7 +1,7 @@
 import logging
 from datetime import datetime
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy import delete, select
 from sqlalchemy.orm import selectinload
@@ -487,32 +487,68 @@ async def delete_conversation(thread_id: str):
 
 
 @router.post("/{thread_id}/rewind", response_model=RewindResponse)
-async def rewind_conversation(thread_id: str, req: RewindRequest = RewindRequest()):
+async def rewind_conversation(
+    thread_id: str, 
+    req: RewindRequest = RewindRequest(),
+    request: Request = None
+):
     """
     Rewind the conversation to the previous state (Undo last step).
     Optionally revert file changes made by the Agent.
+    
+    Uses the new event-driven RewindOrchestrator for distributed cleanup.
     """
-    from app.core.engine.history import history_service
+    from app.core.rewind import RewindOrchestrator, RewindRequest as RewindReq
+    from app.core.rewind.exceptions import MessageNotFoundError, NoHumanMessageError
+
+    # Get orchestrator from app state
+    orchestrator: RewindOrchestrator = request.app.state.rewind_orchestrator
 
     try:
-        result = await history_service.perform_rewind(
+        # Create rewind request
+        rewind_req = RewindReq(
             thread_id=thread_id,
             target_message_id=req.message_id,
-            revert_files=req.revert_files
+            include_target=True,
+            revert_files=req.revert_files,
+            reset_state=False,  # Standard rewind doesn't reset state
+            reason="user_rewind"
+        )
+        
+        # Perform rewind using new orchestrator
+        result = await orchestrator.perform_rewind(
+            thread_id=rewind_req.thread_id,
+            target_message_id=rewind_req.target_message_id,
+            include_target=rewind_req.include_target,
+            revert_files=rewind_req.revert_files,
+            reset_state=rewind_req.reset_state,
+            reason=rewind_req.reason
         )
 
-        if result["status"] == "empty":
+        # Map new result format to API response
+        if result.status == "empty":
             return RewindResponse(status="empty", thread_id=thread_id)
-        if result["status"] == "message_not_found":
-            raise HTTPException(404, "Target message not found")
-        if result["status"] == "no_human_message_found":
-             return RewindResponse(status="no_human_message_found", thread_id=thread_id, removed_count=0)
+        if result.status == "no_human_message_found":
+            return RewindResponse(
+                status="no_human_message_found", 
+                thread_id=thread_id, 
+                removed_count=0
+            )
 
         return RewindResponse(
             status="rewound",
-            removed_count=result["removed_count"],
+            removed_count=result.removed_message_count,
             thread_id=thread_id,
-            files_reverted=result["files_reverted"],
+            files_reverted=result.reverted_file_count,
+        )
+        
+    except MessageNotFoundError:
+        raise HTTPException(404, "Target message not found")
+    except NoHumanMessageError:
+        return RewindResponse(
+            status="no_human_message_found",
+            thread_id=thread_id,
+            removed_count=0
         )
     except Exception as e:
         logger.error(f"Rewind failed: {e}")

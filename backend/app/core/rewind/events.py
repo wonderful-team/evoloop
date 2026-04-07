@@ -1,13 +1,11 @@
 """
-Rewind Event System
-===================
+Rewind/Rollback Event Types and Data Structures
+===============================================
 
-Event-driven architecture for conversation rewinding and retry operations.
-All modules that need to handle rollback should subscribe to these events.
+Event types and data classes for conversation rewinding operations.
 """
 
 from dataclasses import dataclass, field
-from datetime import datetime
 from enum import Enum
 from typing import Any
 
@@ -130,6 +128,34 @@ class StateResetEvent(RewindEvent):
             "checkpoint_id": self.checkpoint_id,
             "reset_blackboard": self.reset_blackboard,
             "reset_iteration_count": self.reset_iteration_count,
+        }
+
+
+@dataclass
+class TodoCleanupEvent(RewindEvent):
+    """Published to trigger todo item deletion."""
+    source_message_ids: list[str] = field(default_factory=list)
+    
+    def __post_init__(self):
+        self.event_type = RewindEventType.TODO_CLEANUP
+        self.data = {
+            "thread_id": self.thread_id,
+            "source_message_ids": self.source_message_ids,
+            "count": len(self.source_message_ids),
+        }
+
+
+@dataclass
+class TraceCleanupEvent(RewindEvent):
+    """Published to trigger trace event deletion."""
+    source_message_ids: list[str] = field(default_factory=list)
+    
+    def __post_init__(self):
+        self.event_type = RewindEventType.TRACE_CLEANUP
+        self.data = {
+            "thread_id": self.thread_id,
+            "source_message_ids": self.source_message_ids,
+            "count": len(self.source_message_ids),
         }
 
 

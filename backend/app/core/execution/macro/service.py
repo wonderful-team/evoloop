@@ -81,7 +81,7 @@ class MacroService:
                 
                 # Self-healing is allowed - trigger fallback via event system
                 from app.core.events import system_bus
-                from app.core.events.macro import MacroExecutionFailedEvent
+                from app.core.execution.macro.events import MacroExecutionFailedEvent
                 
                 event = MacroExecutionFailedEvent(
                     skill_id=params.get("_skill_id") if params else None,

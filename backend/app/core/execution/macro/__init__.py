@@ -61,6 +61,10 @@ from app.core.execution.macro.verification_service import (
     verify_macro,
 )
 from app.core.execution.macro.verification_worker import VerificationWorker
+from app.core.execution.macro.advisor import (
+    MacroSelfHealingAdvisor,
+    register_self_healing_advisor,
+)
 
 __all__ = [
     # Main validator
@@ -101,6 +105,10 @@ __all__ = [
     # Reporter
     "VerificationReporter",
     "generate_comparison_report",
+    
+    # Self-healing
+    "MacroSelfHealingAdvisor",
+    "register_self_healing_advisor",
     
     # Models
     "VerificationRequest",

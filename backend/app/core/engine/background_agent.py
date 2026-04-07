@@ -274,7 +274,7 @@ async def run_agent_background(thread_id: str, inputs: dict[str, Any]):
             # Publish AgentRunCompletedEvent for automated learning
             try:
                 from app.core.events import system_bus
-                from app.core.events.agent import AgentRunCompletedEvent
+                from app.core.engine.events import AgentRunCompletedEvent
                 
                 # We use the thread_id as the primary key for the learning trigger
                 # goal can be reconstructed from the first message in the thread

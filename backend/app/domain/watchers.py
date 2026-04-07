@@ -1,3 +1,11 @@
+"""
+File System Watchers with Event System Integration
+
+This module provides file watching capabilities that publish events
+to the unified event system (app.core.events), enabling decoupled
+handling by FileIndexingHandler.
+"""
+
 import asyncio
 import logging
 import os
@@ -8,8 +16,7 @@ from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
 
 from app.domain.codebase.filter import FileFilter
-from app.domain.codebase.indexing.service import IndexingService
-from app.domain.project.sync_service import project_sync_service
+
 from app.utils.detect import is_code_file
 
 logger = logging.getLogger(__name__)
@@ -108,8 +115,16 @@ observer_manager = GlobalObserverManager()
 
 
 class IndexingEventHandler(FileSystemEventHandler):
-    def __init__(self, service: IndexingService, repo_id: int, loop: asyncio.AbstractEventLoop):
-        self.service = service
+    """
+    File system event handler that publishes to the unified event bus.
+    
+    Instead of directly calling IndexingService, this handler publishes
+    events (FileModifiedEvent, FileRemovedEvent, FileMovedEvent) to the
+    system event bus. FileIndexingHandler subscribes to these events
+    and performs the actual indexing operations.
+    """
+    
+    def __init__(self, repo_id: int, loop: asyncio.AbstractEventLoop):
         self.repo_id = repo_id
         self.loop = loop
         self._pending_tasks: dict[str, asyncio.TimerHandle] = {}
@@ -159,28 +174,56 @@ class IndexingEventHandler(FileSystemEventHandler):
             self._pending_tasks[path] = task
 
     async def _debounce_callback(self, path: str):
+        """Publish FileModifiedEvent to the event bus."""
         # Cleanup
         self._pending_tasks.pop(path, None)
 
         logger.info(f"File modified (Debounced): {path}")
-        await self.service.index_file(path, self.repo_id)
+        
+        # Publish event to system bus instead of directly calling service
+        from app.core.events import system_bus
+        from app.domain.codebase.events import FileModifiedEvent
+        
+        await system_bus.publish(FileModifiedEvent(
+            repo_id=self.repo_id,
+            file_path=path
+        ))
 
     def _process_delete(self, path: str):
+        """Publish FileRemovedEvent to the event bus."""
         if self._is_valid_code_file(path):
             logger.info(f"File deleted: {path}")
+            
+            # Publish event to system bus instead of directly calling service
+            from app.core.events import system_bus
+            from app.domain.codebase.events import FileRemovedEvent
+            
             asyncio.run_coroutine_threadsafe(
-                self.service.remove_file(path, self.repo_id),
+                system_bus.publish(FileRemovedEvent(
+                    repo_id=self.repo_id,
+                    file_path=path
+                )),
                 self.loop
             )
 
     def _process_move(self, src: str, dest: str):
+        """Publish FileMovedEvent or FileRemovedEvent to the event bus."""
         src_valid = self._is_valid_code_file(src)
         dest_valid = self._is_valid_code_file(dest)
 
         if src_valid and dest_valid:
             logger.info(f"File moved: {src} -> {dest}")
+            
+            # Publish event to system bus instead of directly calling service
+            from app.core.events import system_bus
+            from app.domain.codebase.events import FileMovedEvent
+            
             asyncio.run_coroutine_threadsafe(
-                self.service.move_file(src, dest, self.repo_id),
+                system_bus.publish(FileMovedEvent(
+                    repo_id=self.repo_id,
+                    src_path=src,
+                    dest_path=dest
+                )),
                 self.loop
             )
         elif src_valid and not dest_valid:
@@ -194,17 +237,19 @@ class IndexingEventHandler(FileSystemEventHandler):
 class RepoWatcher:
     """
     Watches a single repository directory using the global observer.
+    
+    File changes are published as events to the system event bus,
+    where FileIndexingHandler subscribes and performs indexing.
     """
 
     def __init__(self, path: str, repo_id: int):
         self.path = path
         self.repo_id = repo_id
-        self.service = IndexingService()
 
     def start(self):
         logger.info(f"Starting RepoWatcher on {self.path} (Repo ID: {self.repo_id})")
         loop = asyncio.get_running_loop()
-        event_handler = IndexingEventHandler(self.service, self.repo_id, loop)
+        event_handler = IndexingEventHandler(self.repo_id, loop)
         observer_manager.schedule(event_handler, self.path, recursive=True)
 
     def stop(self):
@@ -212,6 +257,15 @@ class RepoWatcher:
 
 
 class ProjectDiscoveryEventHandler(FileSystemEventHandler):
+    """
+    File system event handler that publishes project events to the unified event bus.
+    
+    Instead of directly calling ProjectSyncService, this handler publishes
+    events (ProjectCreatedEvent, ProjectDeletedEvent, ProjectMovedEvent) to the
+    system event bus. ProjectSyncHandler subscribes to these events
+    and performs the actual synchronization operations.
+    """
+    
     def __init__(self, root_path: str, loop: asyncio.AbstractEventLoop):
         self.root_path = root_path
         self.loop = loop
@@ -224,7 +278,7 @@ class ProjectDiscoveryEventHandler(FileSystemEventHandler):
         if os.path.normpath(parent) != os.path.normpath(self.root_path):
             return
         logger.info(f"Project Created (Detected): {event.src_path}")
-        self._schedule_async(self._handle_project_created(event.src_path))
+        self._publish_project_created(event.src_path)
 
     def on_moved(self, event):
         if not event.is_directory:
@@ -239,15 +293,15 @@ class ProjectDiscoveryEventHandler(FileSystemEventHandler):
         if is_src_in_root and is_dest_in_root:
             # Rename in-place
             logger.info(f"Project Renamed (Detected): {event.src_path} -> {event.dest_path}")
-            self._schedule_async(self._handle_project_moved(event.src_path, event.dest_path))
+            self._publish_project_moved(event.src_path, event.dest_path)
         elif is_src_in_root and not is_dest_in_root:
             # Moved out of root -> Treat as deletion
             logger.info(f"Project Moved Out (Detected): {event.src_path} -> {event.dest_path}")
-            self._schedule_async(self._handle_project_deleted(event.src_path))
+            self._publish_project_deleted(event.src_path)
         elif not is_src_in_root and is_dest_in_root:
             # Moved into root from elsewhere -> Treat as creation
             logger.info(f"Project Moved In (Detected): {event.src_path} -> {event.dest_path}")
-            self._schedule_async(self._handle_project_created(event.dest_path))
+            self._publish_project_created(event.dest_path)
 
     def on_deleted(self, event):
         if not event.is_directory:
@@ -257,28 +311,37 @@ class ProjectDiscoveryEventHandler(FileSystemEventHandler):
         if os.path.normpath(parent) != os.path.normpath(self.root_path):
             return
         logger.info(f"Project Deleted (Detected): {event.src_path}")
-        self._schedule_async(self._handle_project_deleted(event.src_path))
+        self._publish_project_deleted(event.src_path)
 
-    def _schedule_async(self, coro):
-        asyncio.run_coroutine_threadsafe(coro, self.loop)
+    def _publish_project_created(self, path: str):
+        """Publish ProjectCreatedEvent to the event bus."""
+        from app.core.events import system_bus
+        from app.domain.project.events import ProjectCreatedEvent
+        
+        asyncio.run_coroutine_threadsafe(
+            system_bus.publish(ProjectCreatedEvent(path=path)),
+            self.loop
+        )
 
-    async def _handle_project_created(self, project_path: str):
-        try:
-            await project_sync_service.handle_project_created(project_path)
-        except Exception as e:
-            logger.error(f"Error handling new project {project_path}: {e}")
+    def _publish_project_deleted(self, path: str):
+        """Publish ProjectDeletedEvent to the event bus."""
+        from app.core.events import system_bus
+        from app.domain.project.events import ProjectDeletedEvent
+        
+        asyncio.run_coroutine_threadsafe(
+            system_bus.publish(ProjectDeletedEvent(path=path)),
+            self.loop
+        )
 
-    async def _handle_project_deleted(self, project_path: str):
-        try:
-            await project_sync_service.handle_project_deleted(project_path)
-        except Exception as e:
-            logger.error(f"Error handling deleted project {project_path}: {e}")
-
-    async def _handle_project_moved(self, src_path: str, dest_path: str):
-        try:
-            await project_sync_service.handle_project_moved(src_path, dest_path)
-        except Exception as e:
-            logger.error(f"Error handling moved project {src_path}: {e}")
+    def _publish_project_moved(self, src_path: str, dest_path: str):
+        """Publish ProjectMovedEvent to the event bus."""
+        from app.core.events import system_bus
+        from app.domain.project.events import ProjectMovedEvent
+        
+        asyncio.run_coroutine_threadsafe(
+            system_bus.publish(ProjectMovedEvent(src_path=src_path, dest_path=dest_path)),
+            self.loop
+        )
 
 
 class ProjectDiscoveryWatcher:

@@ -9,10 +9,12 @@ import json
 import logging
 
 from app.core.events.base import BaseEvent
+from app.core.events.decorators import event_register, event_subscribe
 
 logger = logging.getLogger(__name__)
 
 
+@event_register()
 class EventBridgeHandler:
     """
     Subscribes to key internal events and publishes them to cache.
@@ -38,8 +40,10 @@ class EventBridgeHandler:
         "system.boundary_learned": "boundary_learned",
     }
 
-    @staticmethod
-    async def on_event(event: BaseEvent) -> None:
+    def __init__(self):
+        pass
+
+    async def on_event(self, event: BaseEvent) -> None:
         """
         Bridge internal events to cache Pub/Sub.
         
@@ -81,14 +85,19 @@ def register_event_bridge() -> None:
     Register the event bridge with both event buses.
     
     Subscribes to the system bus and awakening bus to capture all relevant events.
+    
+    Note: This uses subscribe_all to receive all events, not specific event types.
     """
     from app.core.environment.events import event_bus as awaken_bus
     from app.core.events import system_bus
 
-    # Subscribe to system bus (for project events)
-    system_bus.subscribe_all(EventBridgeHandler.on_event)
+    # Create handler instance
+    handler = EventBridgeHandler()
 
-    # Subscribe to awakening bus (for device/skill events)
-    awaken_bus.subscribe_all(EventBridgeHandler.on_event)
+    # Subscribe to system bus (for project events) - all events
+    system_bus.subscribe_all(handler.on_event)
+
+    # Subscribe to awakening bus (for device/skill events) - all events
+    awaken_bus.subscribe_all(handler.on_event)
 
     logger.info("📡 Event bridge registered (Internal → Cache)")

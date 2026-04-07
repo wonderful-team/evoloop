@@ -1,45 +1,160 @@
-import asyncio
-import logging
-import os
+"""
+Codebase/Indexing Event Types and Data Structures
+==================================================
 
-from app.core.events.base import BaseEvent, system_bus
+Event types and data classes for codebase indexing and file watching.
+"""
 
-logger = logging.getLogger(__name__)
+from dataclasses import dataclass, field
+from datetime import datetime
+from enum import Enum
+from typing import Any
+
+from app.core.events.base import BaseEvent
 
 
-async def handle_system_event(event: BaseEvent):
+class IndexingEventType(str, Enum):
     """
-    Handle cross-domain system events for the codebase domain.
+    Indexing Domain event types.
+    
+    Events related to codebase indexing and file watching.
     """
-    if event.event_type == "system.embedding_updated":
-        repo_id = event.data.get("repo_id")
-        if repo_id:
-            logger.info(f"[Codebase] Received embedding_updated event. Triggering background re-index for repo {repo_id}")
-            from app.domain.codebase.indexing.manager import indexing_manager
-            # Run in background without awaiting the entire indexing process to block the event bus
-            asyncio.create_task(indexing_manager.run_indexing_background(repo_id))
-    elif event.event_type == "project.switched":
-        project_id = event.data.get("project_id")
-        path = event.data.get("path")
-        if path and project_id:
-            logger.info(f"[Codebase] Received project.switched event. Restoring watchers and index state for {path}")
-            try:
-                from app.domain.codebase.indexing.manager import indexing_manager
-                from app.domain.codebase.indexing.service import IndexingService
-
-                service = IndexingService()
-                repo_name = os.path.basename(path)
-                repo = await service.get_or_create_repo(path, repo_name, project_id=project_id)
-                await indexing_manager.start_watching(path, repo.id)
-
-                # Trigger Smart Full-Indexing for "Staleness Check"
-                asyncio.create_task(indexing_manager.run_indexing_background(repo.id))
-            except Exception as e:
-                logger.error(f"[Codebase] Failed to handle project switch for {path}: {e}")
+    # Indexing lifecycle events
+    INDEXING_STARTED = "indexing.started"
+    INDEXING_COMPLETED = "indexing.completed"
+    INDEXING_FAILED = "indexing.failed"
+    
+    # File change events (from watchers)
+    FILE_INDEXED = "indexing.file_indexed"
+    FILE_REMOVED = "indexing.file_removed"
+    FILE_MODIFIED = "indexing.file_modified"  # New: file content changed
+    FILE_MOVED = "indexing.file_moved"        # New: file renamed/moved
 
 
-def register_codebase_events():
-    """Register codebase domain listeners to the system event bus."""
-    system_bus.subscribe("system.embedding_updated", handle_system_event)
-    system_bus.subscribe("project.switched", handle_system_event)
-    logger.info("📡 Codebase domain event listeners registered")
+@dataclass
+class CodebaseEvent(BaseEvent):
+    """Base class for codebase domain events."""
+    source: str = "codebase"
+
+
+@dataclass
+class IndexingStartedEvent(CodebaseEvent):
+    """Published when indexing starts for a repository."""
+    repo_id: int = 0
+    path: str = ""
+    
+    def __post_init__(self):
+        self.event_type = IndexingEventType.INDEXING_STARTED
+        self.data = {
+            "repo_id": self.repo_id,
+            "path": self.path,
+        }
+
+
+@dataclass
+class IndexingCompletedEvent(CodebaseEvent):
+    """Published when indexing completes successfully."""
+    repo_id: int = 0
+    path: str = ""
+    file_count: int = 0
+    duration_seconds: float = 0.0
+    
+    def __post_init__(self):
+        self.event_type = IndexingEventType.INDEXING_COMPLETED
+        self.data = {
+            "repo_id": self.repo_id,
+            "path": self.path,
+            "file_count": self.file_count,
+            "duration_seconds": self.duration_seconds,
+        }
+
+
+@dataclass
+class IndexingFailedEvent(CodebaseEvent):
+    """Published when indexing fails."""
+    repo_id: int = 0
+    path: str = ""
+    error: str = ""
+    
+    def __post_init__(self):
+        self.event_type = IndexingEventType.INDEXING_FAILED
+        self.data = {
+            "repo_id": self.repo_id,
+            "path": self.path,
+            "error": self.error,
+        }
+
+
+@dataclass
+class FileIndexedEvent(CodebaseEvent):
+    """Published when a file is indexed."""
+    repo_id: int = 0
+    file_path: str = ""
+    language: str = ""
+    
+    def __post_init__(self):
+        self.event_type = IndexingEventType.FILE_INDEXED
+        self.data = {
+            "repo_id": self.repo_id,
+            "file_path": self.file_path,
+            "language": self.language,
+        }
+
+
+@dataclass
+class FileRemovedEvent(CodebaseEvent):
+    """Published when a file is removed from index."""
+    repo_id: int = 0
+    file_path: str = ""
+    
+    def __post_init__(self):
+        self.event_type = IndexingEventType.FILE_REMOVED
+        self.data = {
+            "repo_id": self.repo_id,
+            "file_path": self.file_path,
+        }
+
+
+@dataclass
+class FileModifiedEvent(CodebaseEvent):
+    """Published when a file is modified (content changed)."""
+    repo_id: int = 0
+    file_path: str = ""
+    
+    def __post_init__(self):
+        self.event_type = IndexingEventType.FILE_MODIFIED
+        self.data = {
+            "repo_id": self.repo_id,
+            "file_path": self.file_path,
+        }
+
+
+@dataclass
+class FileMovedEvent(CodebaseEvent):
+    """Published when a file is moved/renamed."""
+    repo_id: int = 0
+    src_path: str = ""
+    dest_path: str = ""
+    
+    def __post_init__(self):
+        self.event_type = IndexingEventType.FILE_MOVED
+        self.data = {
+            "repo_id": self.repo_id,
+            "src_path": self.src_path,
+            "dest_path": self.dest_path,
+        }
+
+
+__all__ = [
+    # Event types
+    "IndexingEventType",
+    # Event classes
+    "CodebaseEvent",
+    "IndexingStartedEvent",
+    "IndexingCompletedEvent",
+    "IndexingFailedEvent",
+    "FileIndexedEvent",
+    "FileRemovedEvent",
+    "FileModifiedEvent",
+    "FileMovedEvent",
+]

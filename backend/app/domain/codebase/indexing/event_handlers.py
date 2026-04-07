@@ -9,7 +9,8 @@ import asyncio
 import logging
 
 from app.core.events.base import BaseEvent
-from app.core.events.registry import ProjectEventType
+from app.core.events.decorators import event_register, event_subscribe
+from app.domain.project.events import ProjectEventType
 from app.domain.project.events import (
     ProjectCreatedEvent,
     ProjectDeletedEvent,
@@ -19,6 +20,7 @@ from app.domain.project.events import (
 logger = logging.getLogger(__name__)
 
 
+@event_register()
 class IndexingEventHandler:
     """
     Handles project events to trigger indexing operations.
@@ -27,8 +29,11 @@ class IndexingEventHandler:
     enabling loose coupling between these components.
     """
 
-    @staticmethod
-    async def on_project_created(event: BaseEvent) -> None:
+    def __init__(self):
+        pass
+
+    @event_subscribe(ProjectEventType.PROJECT_CREATED)
+    async def on_project_created(self, event: BaseEvent) -> None:
         """
         Handle project creation by starting file watching and indexing.
         """
@@ -48,8 +53,8 @@ class IndexingEventHandler:
         except Exception as e:
             logger.error(f"[IndexingHandler] Failed to start indexing for {event.path}: {e}")
 
-    @staticmethod
-    async def on_project_deleted(event: BaseEvent) -> None:
+    @event_subscribe(ProjectEventType.PROJECT_DELETED)
+    async def on_project_deleted(self, event: BaseEvent) -> None:
         """
         Handle project deletion by stopping file watching.
         """
@@ -67,8 +72,8 @@ class IndexingEventHandler:
         except Exception as e:
             logger.error(f"[IndexingHandler] Failed to stop watching {event.path}: {e}")
 
-    @staticmethod
-    async def on_project_moved(event: BaseEvent) -> None:
+    @event_subscribe(ProjectEventType.PROJECT_MOVED)
+    async def on_project_moved(self, event: BaseEvent) -> None:
         """
         Handle project move/rename by updating watcher paths.
         """
@@ -94,12 +99,9 @@ def register_indexing_handlers() -> None:
     """
     Register indexing event handlers with the system bus.
     
-    Should be called during application startup (in main.py lifespan).
+    Note: With @event_register() decorator, handlers are auto-registered on import.
+    This function is kept for backward compatibility.
     """
-    from app.core.events import system_bus
-
-    system_bus.subscribe(ProjectEventType.PROJECT_CREATED, IndexingEventHandler.on_project_created)
-    system_bus.subscribe(ProjectEventType.PROJECT_DELETED, IndexingEventHandler.on_project_deleted)
-    system_bus.subscribe(ProjectEventType.PROJECT_MOVED, IndexingEventHandler.on_project_moved)
-
+    # Instantiate to trigger auto-registration
+    IndexingEventHandler()
     logger.info("📡 Indexing event handlers registered")

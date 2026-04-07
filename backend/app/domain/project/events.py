@@ -7,10 +7,24 @@ These events enable decoupling between ProjectSyncService and IndexingManager.
 
 from dataclasses import dataclass, field
 from datetime import datetime
+from enum import Enum
 from typing import Any
 
 from app.core.events.base import BaseEvent
-from app.core.events.registry import ProjectEventType
+
+
+class ProjectEventType(str, Enum):
+    """
+    Project Domain event types.
+
+    Events related to project lifecycle and synchronization.
+    """
+    PROJECT_CREATED = "project.created"
+    PROJECT_DELETED = "project.deleted"
+    PROJECT_MOVED = "project.moved"
+    PROJECT_SYNCED = "project.synced"
+    PROJECT_SWITCHED = "project.switched"
+    NEW_PROJECT_DETECTED = "project.new_detected"
 
 
 @dataclass
@@ -26,7 +40,7 @@ class ProjectEvent(BaseEvent):
 class ProjectCreatedEvent(ProjectEvent):
     """
     Published when a new project directory is detected.
-    
+
     Subscribers (e.g., IndexingManager) can react to start indexing.
     """
     path: str = ""
@@ -48,7 +62,7 @@ class ProjectCreatedEvent(ProjectEvent):
 class ProjectDeletedEvent(ProjectEvent):
     """
     Published when a project directory is deleted.
-    
+
     Subscribers can react to stop watching and cleanup resources.
     """
     path: str = ""

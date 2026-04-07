@@ -227,8 +227,8 @@ async def remember_preference(key: str, value: str, description: str = "") -> st
         from app.core.memory.lifespan import MemoryLifespanManager
 
         if not MemoryLifespanManager.is_initialized():
-        await MemoryLifespanManager.ainitialize()
-    container = MemoryLifespanManager.get_container()
+            await MemoryLifespanManager.ainitialize()
+        container = MemoryLifespanManager.get_container()
         manager = container.memory_manager
         # Ensure schema
         await manager.preferences.set_preference("user_default", key, value, description)
@@ -250,8 +250,8 @@ async def remember_concept(name: str, description: str, related_files: list[str]
         from app.core.memory.interfaces.long_term import Concept
 
         if not MemoryLifespanManager.is_initialized():
-        await MemoryLifespanManager.ainitialize()
-    container = MemoryLifespanManager.get_container()
+            await MemoryLifespanManager.ainitialize()
+        container = MemoryLifespanManager.get_container()
         manager = container.memory_manager
         concept = Concept(name, description, 0, related_files)
         await manager.long_term.store_concept(concept)
@@ -269,8 +269,8 @@ async def query_memory(query: str) -> str:
         from app.core.memory.lifespan import MemoryLifespanManager
 
         if not MemoryLifespanManager.is_initialized():
-        await MemoryLifespanManager.ainitialize()
-    container = MemoryLifespanManager.get_container()
+            await MemoryLifespanManager.ainitialize()
+        container = MemoryLifespanManager.get_container()
         manager = container.memory_manager
         prefs = await manager.preferences.get_merged_preferences("user_default")
         results = await manager.long_term.search_concepts(query, 0)

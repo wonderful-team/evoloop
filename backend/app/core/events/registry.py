@@ -1,8 +1,8 @@
 """
-Core Event System - Event Type Registry
+Core Event System - Shared Event Type Registry
 
-Centralized registry for all system event types.
-Domain modules should define their event types here for discoverability.
+Registry for cross-domain event types that are used by multiple modules.
+Module-specific event types should be defined in their respective modules.
 """
 
 from enum import Enum
@@ -22,100 +22,11 @@ class SystemEventType(str, Enum):
     UNHANDLED_ERROR = "system.unhandled_error"
 
 
-class AwakeningEventType(str, Enum):
-    """
-    Awakening System event types.
-    
-    Events related to agent awareness and environment state.
-    """
-    # Device Events
-    DEVICE_CONNECTED = "device.connected"
-    DEVICE_DISCONNECTED = "device.disconnected"
-
-    # Network Events
-    NETWORK_ONLINE = "network.online"
-    NETWORK_OFFLINE = "network.offline"
-
-    # Memory Events
-    CONCEPT_LEARNED = "memory.concept_learned"
-    EPISODE_COMPLETED = "memory.episode_completed"
-
-    # Skill Events
-    SKILL_EXECUTED = "skill.executed"
-    SKILL_PROMOTED = "skill.promoted"
-    SKILL_DEPRECATED = "skill.deprecated"
-
-    # App Events
-    APP_LAUNCHED = "app.launched"
-    APP_PROBED = "app.probed"
-    UI_TREE_OBSERVED = "app.ui_tree_observed"
-
-    # System Events
-    AWAKENING_COMPLETE = "system.awakening_complete"
-    STATE_REFRESHED = "system.state_refreshed"
-    BOUNDARY_LEARNED = "system.boundary_learned"
-
-
-class ProjectEventType(str, Enum):
-    """
-    Project Domain event types.
-
-    Events related to project lifecycle and synchronization.
-    """
-    PROJECT_CREATED = "project.created"
-    PROJECT_DELETED = "project.deleted"
-    PROJECT_MOVED = "project.moved"
-    PROJECT_SYNCED = "project.synced"
-    PROJECT_SWITCHED = "project.switched"
-    NEW_PROJECT_DETECTED = "project.new_detected"  # New project detected, awaiting user confirmation
-
-
-class IndexingEventType(str, Enum):
-    """
-    Indexing Domain event types.
-    
-    Events related to codebase indexing and file watching.
-    """
-    INDEXING_STARTED = "indexing.started"
-    INDEXING_COMPLETED = "indexing.completed"
-    INDEXING_FAILED = "indexing.failed"
-    FILE_INDEXED = "indexing.file_indexed"
-    FILE_REMOVED = "indexing.file_removed"
-
-
-class FileSystemEventType(str, Enum):
-    """
-    File System event types.
-    
-    Events related to file system monitoring and changes.
-    These are low-level events from file watchers.
-    """
-    FILE_CREATED = "fs.file_created"
-    FILE_MODIFIED = "fs.file_modified"
-    FILE_DELETED = "fs.file_deleted"
-    FILE_MOVED = "fs.file_moved"
-    DIRECTORY_CREATED = "fs.dir_created"
-    DIRECTORY_DELETED = "fs.dir_deleted"
-    WATCHER_STARTED = "fs.watcher_started"
-    WATCHER_STOPPED = "fs.watcher_stopped"
-
-
-class AgentEventType(str, Enum):
-    """
-    Agent Execution event types.
-    
-    Events related to agent runs and interactions.
-    """
-    RUN_STARTED = "agent.run_started"
-    RUN_COMPLETED = "agent.run_completed"
-    RUN_CANCELLED = "agent.run_cancelled"
-    TOOL_EXECUTED = "agent.tool_executed"
-    HITL_REQUESTED = "agent.hitl_requested"
-    HITL_RESPONDED = "agent.hitl_responded"
-
-
-class MacroEventType(str, Enum):
-    """
-    Macro Execution event types.
-    """
-    EXECUTION_FAILED = "macro.execution_failed"
+# Note: Module-specific event types are defined in their respective modules:
+# - AgentEventType -> app.core.engine.events
+# - MacroEventType -> app.core.execution.macro.events
+# - RewindEventType -> app.core.rewind.events
+# - AwakeningEventType -> app.core.environment.events
+# - ProjectEventType -> app.domain.project.events
+# - IndexingEventType -> app.domain.codebase.events
+# - FileSystemEventType -> app.core.file.events

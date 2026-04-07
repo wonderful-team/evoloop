@@ -105,6 +105,12 @@ class DynamicAppTriage(BaseExplorer):
         if not app_ids:
             return {}
 
+        # Check if user is authenticated before attempting LLM call
+        from app.core.evocloud import evocloud_manager
+        if not evocloud_manager.get_token():
+            logger.debug("[DynamicAppTriage] Skipping LLM triage: user not authenticated")
+            return {}
+
         from langchain_core.messages import HumanMessage, SystemMessage
         from app.infrastructure.llm.factory import get_default_llm
         from app.utils import render_template

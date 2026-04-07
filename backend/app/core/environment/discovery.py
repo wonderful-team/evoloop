@@ -5,6 +5,7 @@ import asyncio
 import logging
 import socket
 
+from app.core.config import settings
 from app.core.environment.explorers.dynamic_apps import DynamicAppTriage
 from app.core.environment.models import (
     AndroidDevice,
@@ -50,16 +51,21 @@ class EnvironmentProbe:
                 logger.warning(f"[EnvironmentProbe] UsageRanker failed (non-fatal): {e}")
 
             # Autonomous triage for discovered apps (run in background to avoid blocking startup)
-            try:
-                triage = DynamicAppTriage()
-                # Run in background - don't block startup for LLM classification
-                asyncio.create_task(triage.sync_dynamic_apps(macos_apps=apps))
-                global _logged_macos_triage
-                if not _logged_macos_triage:
-                    logger.info("[EnvironmentProbe] macOS dynamic app triage scheduled (first time)")
-                    _logged_macos_triage = True
-            except Exception as triage_e:
-                logger.warning(f"[EnvironmentProbe] macOS dynamic app triage failed: {triage_e}")
+            # Skip in embedded mode (no platform LLM available)
+            from app.core.config import settings
+            if not settings.EMBEDDED_MODE:
+                try:
+                    triage = DynamicAppTriage()
+                    # Run in background - don't block startup for LLM classification
+                    asyncio.create_task(triage.sync_dynamic_apps(macos_apps=apps))
+                    global _logged_macos_triage
+                    if not _logged_macos_triage:
+                        logger.info("[EnvironmentProbe] macOS dynamic app triage scheduled (first time)")
+                        _logged_macos_triage = True
+                except Exception as triage_e:
+                    logger.warning(f"[EnvironmentProbe] macOS dynamic app triage failed: {triage_e}")
+            else:
+                logger.debug("[EnvironmentProbe] macOS dynamic app triage skipped (embedded mode)")
 
             return MacOSEnvironment(
                 os_version=info.get("os_version", "Unknown"),
@@ -115,15 +121,19 @@ class EnvironmentProbe:
                     ))
 
                     # Autonomous triage for discovered packages (run in background)
-                    try:
-                        triage = DynamicAppTriage()
-                        asyncio.create_task(triage.sync_dynamic_apps(android_packages=packages))
-                        # Only log once per device to avoid repetitive logs
-                        if device_id not in _logged_device_ids:
-                            logger.info(f"[EnvironmentProbe] Android triage scheduled for {device_id} (first time)")
-                            _logged_device_ids.add(device_id)
-                    except Exception as triage_e:
-                        logger.warning(f"[EnvironmentProbe] Android dynamic app triage failed: {triage_e}")
+                    # Skip in embedded mode (no platform LLM available)
+                    if not settings.EMBEDDED_MODE:
+                        try:
+                            triage = DynamicAppTriage()
+                            asyncio.create_task(triage.sync_dynamic_apps(android_packages=packages))
+                            # Only log once per device to avoid repetitive logs
+                            if device_id not in _logged_device_ids:
+                                logger.info(f"[EnvironmentProbe] Android triage scheduled for {device_id} (first time)")
+                                _logged_device_ids.add(device_id)
+                        except Exception as triage_e:
+                            logger.warning(f"[EnvironmentProbe] Android dynamic app triage failed: {triage_e}")
+                    else:
+                        logger.debug(f"[EnvironmentProbe] Android triage skipped for {device_id} (embedded mode)")
 
                 except Exception as e:
                     logger.warning(f"Failed to get info for device {device_id}: {e}")

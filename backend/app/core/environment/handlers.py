@@ -13,6 +13,7 @@ from app.core.environment.events import (
     EventType,
     event_bus,
 )
+from app.core.events.decorators import event_register_with_bus, event_subscribe
 
 if TYPE_CHECKING:
     pass
@@ -20,11 +21,15 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+@event_register_with_bus(event_bus)
 class DeviceEventHandler:
     """Handles device connection/disconnection events"""
 
-    @staticmethod
-    async def on_device_connected(event: AwakenEvent) -> None:
+    def __init__(self):
+        pass
+
+    @event_subscribe(EventType.DEVICE_CONNECTED)
+    async def on_device_connected(self, event: AwakenEvent) -> None:
         """
         Handle device connection - refresh state and probe new apps.
         
@@ -55,8 +60,8 @@ class DeviceEventHandler:
                     except Exception as e:
                         logger.warning(f"Failed to probe device {device_id}: {e}")
 
-    @staticmethod
-    async def on_device_disconnected(event: AwakenEvent) -> None:
+    @event_subscribe(EventType.DEVICE_DISCONNECTED)
+    async def on_device_disconnected(self, event: AwakenEvent) -> None:
         """
         Handle device disconnection - refresh state.
         
@@ -69,125 +74,126 @@ class DeviceEventHandler:
         await _refresh_state()
 
 
+@event_register_with_bus(event_bus)
 class SkillEventHandler:
     """Handles skill execution events for skill evolution"""
 
-    @staticmethod
-    async def on_skill_executed(event: AwakenEvent) -> None:
+    def __init__(self):
+        pass
+
+    @event_subscribe(EventType.SKILL_EXECUTED)
+    async def on_skill_executed(self, event: AwakenEvent) -> None:
         """
         Log skill execution for monitoring and analytics.
         
         This handler can be extended for analytics, dashboards, etc.
         """
         skill_name = event.data.get("skill_name")
-        success = event.data.get("success")
-        confidence_delta = event.data.get("confidence_delta", 0)
-
-        if success:
-            logger.info(f"✅ Skill executed: {skill_name} (confidence +{confidence_delta})")
-        else:
-            logger.warning(f"❌ Skill failed: {skill_name} (confidence {confidence_delta})")
-
-    @staticmethod
-    async def on_skill_promoted(event: AwakenEvent) -> None:
-        """
-        Handle skill promotion events.
+        thread_id = event.data.get("thread_id")
         
-        Logs when a skill advances in status (draft -> candidate -> verified).
+        logger.debug(f"🎯 Skill executed: {skill_name} in thread {thread_id}")
+
+    @event_subscribe(EventType.SKILL_PROMOTED)
+    async def on_skill_promoted(self, event: AwakenEvent) -> None:
+        """
+        Handle skill promotion to built-in status.
+        
+        Triggered when a learned skill is promoted to built-in.
         """
         skill_name = event.data.get("skill_name")
-        old_status = event.data.get("old_status")
-        new_status = event.data.get("new_status")
-        logger.info(f"🎓 Skill promoted: {skill_name} ({old_status} -> {new_status})")
-
-    @staticmethod
-    async def on_skill_deprecated(event: AwakenEvent) -> None:
-        """
-        Handle skill deprecation events.
         
-        Logs when a skill is marked as deprecated due to repeated failures.
+        logger.info(f"⭐ Skill promoted to built-in: {skill_name}")
+
+    @event_subscribe(EventType.SKILL_DEPRECATED)
+    async def on_skill_deprecated(self, event: AwakenEvent) -> None:
+        """
+        Handle skill deprecation.
+        
+        Triggered when a skill is deprecated (replaced or outdated).
         """
         skill_name = event.data.get("skill_name")
-        reason = event.data.get("reason", "repeated failures")
-        logger.warning(f"⚠️ Skill deprecated: {skill_name} - {reason}")
+        reason = event.data.get("reason", "No reason provided")
+        
+        logger.info(f"🗑️ Skill deprecated: {skill_name} - {reason}")
 
 
+@event_register_with_bus(event_bus)
 class SystemEventHandler:
     """Handles system-level awakening events"""
 
-    @staticmethod
-    async def on_awakening_complete(event: AwakenEvent) -> None:
+    def __init__(self):
+        pass
+
+    @event_subscribe(EventType.AWAKENING_COMPLETE)
+    async def on_awakening_complete(self, event: AwakenEvent) -> None:
         """
-        Log awakening completion.
+        Handle awakening completion.
         
-        Triggered after the full awakening process completes.
+        Triggered when the agent awakening process is complete.
         """
         platforms = event.data.get("platforms", [])
-        project_id = event.data.get("project_id")
-        logger.info(f"🧠 Awakening complete. Platforms: {platforms}, Project: {project_id}")
-
-    @staticmethod
-    async def on_state_refreshed(event: AwakenEvent) -> None:
-        """
-        Log state refresh.
+        project = event.data.get("project")
         
-        Triggered when AwakenedState is updated.
-        """
-        trigger = event.data.get("trigger", "unknown")
-        logger.debug(f"🔄 State refreshed (trigger: {trigger})")
+        logger.info(f"🧠 Awakening complete. Platforms: {platforms}, Project: {project}")
 
-    @staticmethod
-    async def on_boundary_learned(event: AwakenEvent) -> None:
+    @event_subscribe(EventType.STATE_REFRESHED)
+    async def on_state_refreshed(self, event: AwakenEvent) -> None:
         """
-        Log when a new dynamic boundary is learned.
+        Handle state refresh.
         
-        Triggered by AdaptiveBoundaryManager on tool failures.
+        Triggered when the awakened state is manually refreshed.
         """
-        tool_name = event.data.get("tool_name")
-        category = event.data.get("category")
-        description = event.data.get("description")
-        logger.info(f"🚧 New boundary learned [{category}]: {description}")
+        logger.debug("🔄 Awakened state refreshed")
+
+    @event_subscribe(EventType.BOUNDARY_LEARNED)
+    async def on_boundary_learned(self, event: AwakenEvent) -> None:
+        """
+        Handle learned boundary.
+        
+        Triggered when the agent learns a new platform boundary (e.g., auth wall).
+        """
+        platform = event.data.get("platform")
+        boundary_type = event.data.get("boundary_type")
+        
+        logger.info(f"🚧 Learned boundary: {boundary_type} on {platform}")
 
 
-class AppAtlasEventHandler:
-    """Handles spatial mapping events."""
-
-    @staticmethod
-    async def on_ui_tree_observed(event: AwakenEvent) -> None:
-        """
-        Background processing of UI trees into the Neo4j App Atlas.
-        """
-        from app.core.atlas import atlas_engine
-        await atlas_engine.on_ui_tree_observed(event)
+# App Atlas event handler - DISABLED: Passive learning removed to reduce overhead
+# Atlas query functionality remains available via query_app_atlas tool
+# @event_register_with_bus(event_bus)
+# class AppAtlasEventHandler:
+#     """Handles UI tree observation events for App Atlas"""
+# 
+#     def __init__(self):
+#         pass
+# 
+#     @event_subscribe(EventType.UI_TREE_OBSERVED)
+#     async def on_ui_tree_observed(self, event: AwakenEvent) -> None:
+#         """
+#         Process UI tree for App Atlas learning.
+#         
+#         Triggered when a UI tree is observed (e.g., from screenshot analysis).
+#         """
+#         from app.core.atlas import atlas_engine
+#         await atlas_engine.on_ui_tree_observed(event)
 
 
 def register_default_handlers() -> None:
     """
     Register all default event handlers with the event bus.
     
-    Should be called during application startup (in main.py lifespan).
+    Note: With @event_register_with_bus() decorator, handlers are auto-registered on import.
+    This function is kept for backward compatibility and to prevent double registration.
     """
     if event_bus.is_initialized:
         logger.debug("Event handlers already registered, skipping")
         return
 
-    # Device events
-    event_bus.subscribe(EventType.DEVICE_CONNECTED, DeviceEventHandler.on_device_connected)
-    event_bus.subscribe(EventType.DEVICE_DISCONNECTED, DeviceEventHandler.on_device_disconnected)
-
-    # Skill events
-    event_bus.subscribe(EventType.SKILL_EXECUTED, SkillEventHandler.on_skill_executed)
-    event_bus.subscribe(EventType.SKILL_PROMOTED, SkillEventHandler.on_skill_promoted)
-    event_bus.subscribe(EventType.SKILL_DEPRECATED, SkillEventHandler.on_skill_deprecated)
-
-    # System events
-    event_bus.subscribe(EventType.AWAKENING_COMPLETE, SystemEventHandler.on_awakening_complete)
-    event_bus.subscribe(EventType.STATE_REFRESHED, SystemEventHandler.on_state_refreshed)
-    event_bus.subscribe(EventType.BOUNDARY_LEARNED, SystemEventHandler.on_boundary_learned)
-
-    # App Atlas events - DISABLED: Passive learning removed to reduce overhead
-    # Atlas query functionality remains available via query_app_atlas tool
-    # event_bus.subscribe(EventType.UI_TREE_OBSERVED, AppAtlasEventHandler.on_ui_tree_observed)
+    # Instantiate handlers to trigger auto-registration
+    DeviceEventHandler()
+    SkillEventHandler()
+    SystemEventHandler()
+    # AppAtlasEventHandler()  # Disabled
 
     event_bus.mark_initialized()
     logger.info("📡 Awakening event handlers registered")

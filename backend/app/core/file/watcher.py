@@ -7,7 +7,8 @@ to the system_bus, allowing decoupled handling by any subscriber.
 
 Usage:
     # Method 1: Direct event subscription
-    from app.core.events import system_bus, FileSystemEventType
+    from app.core.events import system_bus
+    from app.core.file.events import FileSystemEventType
     
     async def on_file_changed(event):
         if event.event_type == FileSystemEventType.FILE_MODIFIED:
@@ -36,40 +37,16 @@ import asyncio
 import logging
 import os
 import threading
-from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Callable, Optional, Set
 
 from watchdog.events import FileSystemEvent, FileSystemEventHandler
 from watchdog.observers import Observer
 
-from app.core.events import (
-    BaseEvent,
-    FileSystemEventType,
-    system_bus,
-)
+from app.core.events import system_bus
+from app.core.file.events import FileSystemEventType, FileWatcherEvent, FileEventHandler
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass
-class FileWatcherEvent(BaseEvent):
-    """
-    File system event for the event bus.
-    
-    This extends BaseEvent and integrates with the core event system.
-    """
-    # Inherited: event_type, timestamp, source, data
-    source: str = "file_watcher"
-    
-    def __post_init__(self):
-        # Ensure source is set to file_watcher if not explicitly provided
-        if not self.source or self.source == "system":
-            self.source = "file_watcher"
-
-
-# Type alias for legacy compatibility
-FileEventHandler = Callable[[FileWatcherEvent], None]
 
 
 class _EventBusHandler(FileSystemEventHandler):
@@ -205,7 +182,8 @@ class FileWatcher:
         watcher.start()
         
         # Subscribe to events elsewhere
-        from app.core.events import system_bus, FileSystemEventType
+        from app.core.events import system_bus
+        from app.core.file.events import FileSystemEventType
         
         async def on_change(event):
             print(f"File changed: {event.data['path']}")
@@ -351,7 +329,8 @@ class FileWatcherManager:
         manager.create_watcher("/project2", debounce_delay=1.0)
         
         # Subscribe to all events
-        from app.core.events import system_bus, FileSystemEventType
+        from app.core.events import system_bus
+        from app.core.file.events import FileSystemEventType
         system_bus.subscribe(FileSystemEventType.FILE_MODIFIED, on_any_file_change)
     """
     

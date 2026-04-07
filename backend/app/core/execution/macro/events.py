@@ -1,7 +1,22 @@
+"""
+Macro Execution Event Types
+===========================
+
+Event types and data structures for macro execution.
+"""
+
 from dataclasses import dataclass, field
+from enum import Enum
 from typing import Any, List, Optional
+
 from app.core.events.base import BaseEvent
-from app.core.events.registry import MacroEventType
+
+
+class MacroEventType(str, Enum):
+    """
+    Macro Execution event types.
+    """
+    EXECUTION_FAILED = "macro.execution_failed"
 
 
 @dataclass
@@ -20,7 +35,7 @@ class MacroExecutionFailedEvent(MacroEvent):
     skill_name: Optional[str] = None
     error_message: str = ""
     fallback_context: Optional[dict] = None
-    thread_id : str = "default"
+    thread_id: str = "default"
     
     # Listeners can append to this to provide guidance back to the agent
     suggestions: List[str] = field(default_factory=list)

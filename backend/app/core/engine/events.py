@@ -1,7 +1,29 @@
+"""
+Agent Engine Event Types and Data Structures
+=============================================
+
+Event types and data classes for agent execution lifecycle.
+"""
+
 from dataclasses import dataclass, field
+from enum import Enum
 from typing import Any
+
 from app.core.events.base import BaseEvent
-from app.core.events.registry import AgentEventType
+
+
+class AgentEventType(str, Enum):
+    """
+    Agent Execution event types.
+    
+    Events related to agent runs and interactions.
+    """
+    RUN_STARTED = "agent.run_started"
+    RUN_COMPLETED = "agent.run_completed"
+    RUN_CANCELLED = "agent.run_cancelled"
+    TOOL_EXECUTED = "agent.tool_executed"
+    HITL_REQUESTED = "agent.hitl_requested"
+    HITL_RESPONDED = "agent.hitl_responded"
 
 
 @dataclass

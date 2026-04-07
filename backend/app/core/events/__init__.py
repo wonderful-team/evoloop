@@ -2,8 +2,18 @@
 Core Event System
 
 Provides the foundational event-driven infrastructure for the entire system.
+
+Note: Module-specific events should be imported directly from their modules:
+  - from app.core.engine.events import AgentEventType, AgentRunCompletedEvent
+  - from app.core.rewind.events import RewindEventType, RewindRequestedEvent
+  - from app.core.execution.macro.events import MacroEventType
+  - from app.core.environment.events import AwakeningEventType
+  - from app.domain.project.events import ProjectEventType
+  - from app.domain.codebase.events import IndexingEventType
+  - from app.core.file.events import FileSystemEventType
 """
 
+# Import base classes first (no dependencies on other app modules)
 from app.core.events.base import (
     AsyncEventBus,
     BaseEvent,
@@ -11,15 +21,9 @@ from app.core.events.base import (
     SystemEventBus,
     system_bus,
 )
-from app.core.events.registry import (
-    AgentEventType,
-    AwakeningEventType,
-    FileSystemEventType,
-    IndexingEventType,
-    ProjectEventType,
-    SystemEventType,
-    MacroEventType,
-)
+
+# Import shared event types (defined in registry, no external deps)
+from app.core.events.registry import SystemEventType
 
 __all__ = [
     # Base classes
@@ -27,16 +31,8 @@ __all__ = [
     "AsyncEventBus",
     "SystemEventBus",
     "EventHandler",
-    # Macro events
-    "MacroEventType",
     # Global instance
     "system_bus",
-    # Event types
+    # Shared event types
     "SystemEventType",
-    "AwakeningEventType",
-    "ProjectEventType",
-    "IndexingEventType",
-    "AgentEventType",
-    "MacroEventType",
-    "FileSystemEventType",
 ]

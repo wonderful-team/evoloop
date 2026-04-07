@@ -1,24 +1,51 @@
 """
 Awakening Event System
-
-Defines event types and the central Event Bus for the awakening system.
-Now extends the core AsyncEventBus for consistency across the system.
 """
 
 import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import datetime
+from enum import Enum
 from typing import Any
 
 from app.core.events.base import AsyncEventBus, BaseEvent
-from app.core.events.registry import AwakeningEventType
 
 logger = logging.getLogger(__name__)
 
 
-# Re-export EventType for backward compatibility
-EventType = AwakeningEventType
+class AwakeningEventType(str, Enum):
+    """
+    Awakening System event types.
+    
+    Events related to agent awareness and environment state.
+    """
+    # Device Events
+    DEVICE_CONNECTED = "device.connected"
+    DEVICE_DISCONNECTED = "device.disconnected"
+
+    # Network Events
+    NETWORK_ONLINE = "network.online"
+    NETWORK_OFFLINE = "network.offline"
+
+    # Memory Events
+    CONCEPT_LEARNED = "memory.concept_learned"
+    EPISODE_COMPLETED = "memory.episode_completed"
+
+    # Skill Events
+    SKILL_EXECUTED = "skill.executed"
+    SKILL_PROMOTED = "skill.promoted"
+    SKILL_DEPRECATED = "skill.deprecated"
+
+    # App Events
+    APP_LAUNCHED = "app.launched"
+    APP_PROBED = "app.probed"
+    UI_TREE_OBSERVED = "app.ui_tree_observed"
+
+    # System Events
+    AWAKENING_COMPLETE = "system.awakening_complete"
+    STATE_REFRESHED = "system.state_refreshed"
+    BOUNDARY_LEARNED = "system.boundary_learned"
 
 
 @dataclass
@@ -142,14 +169,10 @@ class BoundaryLearnedEvent(AwakenEvent):
         }
 
 
-# Type alias for event handlers (backward compatible)
-EventHandler = Callable[[AwakenEvent], Awaitable[None]]
-
-
 class AwakenEventBus(AsyncEventBus[AwakenEvent]):
     """
     Singleton event bus for the awakening system.
-    
+
     Extends the core AsyncEventBus with awakening-specific initialization.
     Maintains backward compatibility with existing code.
     """
@@ -166,6 +189,9 @@ class AwakenEventBus(AsyncEventBus[AwakenEvent]):
             cls._instance._lock = None  # Will be created when needed
         return cls._instance
 
+
+# Backward compatibility alias
+EventType = AwakeningEventType
 
 # Singleton instance
 event_bus = AwakenEventBus()

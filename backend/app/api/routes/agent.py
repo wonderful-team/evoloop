@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from langchain_core.messages import HumanMessage, ToolMessage
 from pydantic import BaseModel
 from sqlalchemy import func, select
@@ -305,17 +305,28 @@ async def stop_chat(req: ChatRequest):
 
 
 @router.post("/chat/retry", dependencies=[Depends(verify_guest_access)])
-async def retry_chat(req: ChatRequest, bg_tasks: BackgroundTasks):
+async def retry_chat(
+    req: ChatRequest, 
+    bg_tasks: BackgroundTasks,
+    request: Request = None
+):
     """
     Retry a specific user message (Targeted Retry).
     Rolls back history (deletes messages after the target) and restarts generation.
+    
+    Uses the new event-driven RewindOrchestrator for distributed cleanup.
     """
-    from app.core.engine.history import history_service
+    from app.core.rewind import RewindOrchestrator
+    from app.core.rewind.exceptions import (
+        MessageNotFoundError,
+        NoHumanMessageError,
+        RewindError
+    )
+    from sqlalchemy.orm import selectinload
 
     # =============================================================================
     # Phase 1: Rewind (Retry-Specific)
     # =============================================================================
-    from sqlalchemy.orm import selectinload
 
     async with session_scope() as session:
         # Determine target message
@@ -370,19 +381,44 @@ async def retry_chat(req: ChatRequest, bg_tasks: BackgroundTasks):
 
         retry_message_content = last_human_msg.content
 
-    # Perform Rewind (HistoryService handles DB, LangGraph and Files)
+    # Perform Rewind using new event-driven RewindOrchestrator
     try:
-        rewind_result = await history_service.perform_rewind(
+        # Get orchestrator from app state
+        if request is None:
+            # Fallback for test environments
+            from app.core.events import system_bus
+            orchestrator = RewindOrchestrator(event_bus=system_bus)
+        else:
+            orchestrator: RewindOrchestrator = request.app.state.rewind_orchestrator
+        
+        # Perform rewind with retry-specific parameters
+        result = await orchestrator.perform_rewind(
             thread_id=req.thread_id,
             target_message_id=str(last_human_msg.id),
+            include_target=False,  # Retry specific: Keep the human message
             revert_files=req.revert_files,
-            include_target=False,  # Keep the human message in DB and Graph
-            reset_state=True       # Reset blackboard/iter for retry
+            reset_state=True,      # Retry specific: Reset state for clean generation
+            reason="retry"
         )
-        files_reverted = rewind_result.get("files_reverted", 0)
+        
+        files_reverted = result.reverted_file_count
+        # Note: checkpoint_id is not directly available from new orchestrator
+        # State reset is handled by StateRewind handler
+        checkpoint_id = None
+        
+        logger.info(f"[Retry] Rewind completed: {result.removed_message_count} messages removed, "
+                   f"{result.reverted_file_count} files reverted")
+        
+    except MessageNotFoundError:
+        raise HTTPException(status_code=404, detail="Target message not found for retry")
+    except NoHumanMessageError:
+        raise HTTPException(status_code=404, detail="No human message found to retry")
+    except RewindError as e:
+        logger.error(f"[Retry] Rewind failed: {e}")
+        raise HTTPException(500, f"Rewind failed: {e}")
     except Exception as e:
-        logger.error(f"History rewind failed during retry: {e}")
-        raise HTTPException(500, f"History rollback failed: {e}")
+        logger.error(f"[Retry] Unexpected error during rewind: {e}")
+        raise HTTPException(500, f"Retry failed: {e}")
 
     # =============================================================================
     # Phase 2: Unified Dispatch (Shared with Chat)
@@ -392,11 +428,10 @@ async def retry_chat(req: ChatRequest, bg_tasks: BackgroundTasks):
     ContextManager.set(ctx)
 
     # Use unified dispatcher
-    # [ROOT-CAUSE FIX] For retry, use the checkpoint_id discovered (or created) by perform_rewind
-    # to ensure we start from a clean state without "ghost message" pollution.
-    checkpoint_id = rewind_result.get("checkpoint_id")
+    # Note: checkpoint_id is None for new event-driven orchestrator
+    # State reset is handled by StateRewind handler
 
-    result = await _prepare_and_dispatch(
+    dispatch_result = await _prepare_and_dispatch(
         thread_id=req.thread_id,
         project_id=req.project_id,
         bg_tasks=bg_tasks,
@@ -410,8 +445,8 @@ async def retry_chat(req: ChatRequest, bg_tasks: BackgroundTasks):
         model=req.model,  # Pass user selected model (if any)
     )
 
-    result["files_reverted"] = files_reverted
-    return result
+    dispatch_result["files_reverted"] = files_reverted
+    return dispatch_result
 
 
 @router.post("/chat/resume")
