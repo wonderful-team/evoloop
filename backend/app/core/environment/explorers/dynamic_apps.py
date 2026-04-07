@@ -111,23 +111,23 @@ class DynamicAppTriage(BaseExplorer):
             logger.debug("[DynamicAppTriage] Skipping LLM triage: user not authenticated")
             return {}
 
-        from langchain_core.messages import HumanMessage, SystemMessage
-        from app.infrastructure.llm.factory import get_default_llm
         from app.utils import render_template
 
         try:
-            llm = await get_default_llm()
-            llm.temperature = 0
-
             prompt = render_template("planning/dynamic_app_triage.prompt.j2", app_ids=app_ids)
             role_name = render_template("planning/expert_roles.prompt.j2", role="ui_dynamics").strip()
 
-            response = await llm.ainvoke([
-                SystemMessage(content=role_name),
-                HumanMessage(content=prompt)
-            ])
+            from app.core.llm import InternalLLMService
+            response = await InternalLLMService.invoke(
+                messages=[
+                    {"role": "system", "content": role_name},
+                    {"role": "user", "content": prompt}
+                ],
+                purpose="environment_exploration",
+                temperature=0,
+            )
 
-            content = response.content.strip()
+            content = response.content.strip() if hasattr(response, 'content') else str(response).strip()
             if "```json" in content:
                 content = content.split("```json")[1].split("```")[0].strip()
             

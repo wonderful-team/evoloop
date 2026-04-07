@@ -3,7 +3,7 @@ import os
 import random
 
 from app.core.memory import MemoryContainer, MemoryConfig
-from app.infrastructure.llm.factory import LLMFactory, get_default_llm
+from app.infrastructure.llm.factory import LLMFactory
 from app.utils.file import read_file_content
 from app.utils import render_template
 
@@ -30,10 +30,7 @@ class ProjectStandardsAnalyst:
 
         # 2. Analysis Step handled below in Step 3
 
-        # 3. LLM Analysis
-        llm = await get_default_llm(temperature=0.1)  # Low temp for factual analysis
-
-        # Prepare file info for template
+        # 3. LLM Analysis - Prepare file info for template
         files_info = []
         for fpath in sample_files:
             try:
@@ -50,7 +47,12 @@ class ProjectStandardsAnalyst:
         )
 
         try:
-            response = await llm.ainvoke(prompt_text)
+            from app.core.llm import InternalLLMService
+            response = await InternalLLMService.invoke(
+                messages=[{"role": "user", "content": prompt_text}],
+                purpose="audit_summary",
+                temperature=0.1,
+            )
             standards_report = response.content if hasattr(response, 'content') else str(response)
 
             logger.info("[StandardsAnalyst] Analysis Complete. Saving to Memory.")

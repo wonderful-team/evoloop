@@ -231,7 +231,7 @@ async def init_environment():
     try:
         if settings.EMBEDDED_MODE:
             from app import models
-            from app.domain.project.requirements import models as _req_models
+            # NOTE: project.requirements models removed in migration 1775161017
             
             async with engine.begin() as conn:
                 await conn.run_sync(Base.metadata.create_all)
@@ -250,8 +250,12 @@ async def init_environment():
     
     print("\n🔧 步骤 3: 初始化 Memory Manager...")
     try:
-        from app.core.memory import memory_manager
-        await memory_manager.initialize()
+        from app.core.memory import MemoryContainer, MemoryConfig
+        container = MemoryContainer(MemoryConfig.from_settings())
+        await container.initialize()
+        # Store container for cleanup
+        global _memory_container
+        _memory_container = container
         print("   ✅ Memory Manager 初始化完成")
     except Exception as e:
         print(f"   ⚠️  Memory: {e}")
@@ -499,6 +503,14 @@ async def run_agent_test():
         print("  2. 确认工具调用结果是否正确返回")
         print("  3. 查看是否有无限循环的 ReAct 推理")
         print("  4. 检查节点状态机转换逻辑")
+    
+    # Cleanup memory container
+    global _memory_container
+    if '_memory_container' in globals():
+        try:
+            await _memory_container.shutdown()
+        except:
+            pass
 
 
 if __name__ == "__main__":

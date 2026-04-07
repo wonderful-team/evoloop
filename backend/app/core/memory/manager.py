@@ -44,7 +44,7 @@ from app.core.memory.models import (
 )
 from app.core.memory.backends.file_backend import FileMemoryStorage
 from app.core.memory.extraction import MemoryExtractionService, MemoryConsolidationService
-from app.core.memory.retrieval import MemoryRetrievalService
+from app.core.memory.retrieval import MemoryRetriever
 from app.core.memory.interfaces.short_term import IShortTermMemory
 from app.core.memory.backends.sql_short_term import SqlShortTermMemory
 
@@ -371,7 +371,7 @@ class MemoryManager:
         # Services (use storage directly)
         self.extraction = MemoryExtractionService(self._storage, config=self.config)
         self.consolidation = MemoryConsolidationService(self._storage)
-        self.retrieval = MemoryRetrievalService(self._storage)
+        self.retrieval = MemoryRetriever(self._storage, config=self.config)
     
     async def initialize(self) -> None:
         """Initialize all memory components."""

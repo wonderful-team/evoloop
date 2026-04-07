@@ -383,13 +383,9 @@ async def retry_chat(
 
     # Perform Rewind using new event-driven RewindOrchestrator
     try:
-        # Get orchestrator from app state
-        if request is None:
-            # Fallback for test environments
-            from app.core.events import system_bus
-            orchestrator = RewindOrchestrator(event_bus=system_bus)
-        else:
-            orchestrator: RewindOrchestrator = request.app.state.rewind_orchestrator
+        # Create orchestrator on-demand (stateless, lightweight)
+        from app.core.events import system_bus
+        orchestrator = RewindOrchestrator(event_bus=system_bus)
         
         # Perform rewind with retry-specific parameters
         result = await orchestrator.perform_rewind(

@@ -23,12 +23,12 @@ from typing import Optional
 
 from app.core.memory.config import MemoryConfig
 from app.core.memory.manager import MemoryManager
+from app.core.memory.interfaces.storage import IMemoryStorage
 from app.core.memory.backends.file_backend import FileMemoryStorage
 from app.core.memory.backends.neo4j_backend import Neo4jMemoryStorage
 from app.core.memory.backends.sql_short_term import SqlShortTermMemory
 from app.core.memory.extraction import MemoryExtractionService, MemoryConsolidationService
-from app.core.memory.retrieval import MemoryRetrievalService
-from app.core.memory.smart_retrieval import SmartMemoryRetriever
+from app.core.memory.retrieval import MemoryRetriever
 from app.core.memory.quality import MemoryQualityAnalyzer
 from app.core.memory.state_tracking import MemoryStateTracker
 from app.core.memory.daily_log import DailyLogWriter, LogConsolidator
@@ -47,7 +47,7 @@ class MemoryFactory:
     """
     
     @staticmethod
-    def create_storage(config: MemoryConfig) -> FileMemoryStorage:
+    def create_storage(config: MemoryConfig) -> IMemoryStorage:
         """
         Create storage backend based on configuration.
         
@@ -55,7 +55,7 @@ class MemoryFactory:
             config: Memory configuration
             
         Returns:
-            Storage backend instance
+            IMemoryStorage instance (FileMemoryStorage or Neo4jMemoryStorage)
             
         Raises:
             ValueError: If backend type is not supported
@@ -165,36 +165,20 @@ class MemoryFactory:
     @classmethod
     def create_retriever(
         cls,
-        storage: FileMemoryStorage,
-    ) -> MemoryRetrievalService:
-        """
-        Create memory retrieval service.
-        
-        Args:
-            storage: Storage backend
-            
-        Returns:
-            MemoryRetrievalService instance
-        """
-        return MemoryRetrievalService(storage=storage)
-    
-    @classmethod
-    def create_smart_retriever(
-        cls,
         config: MemoryConfig,
         storage: FileMemoryStorage,
-    ) -> SmartMemoryRetriever:
+    ) -> MemoryRetriever:
         """
-        Create smart memory retriever.
+        Create memory retrieval service.
         
         Args:
             config: Memory configuration
             storage: Storage backend
             
         Returns:
-            SmartMemoryRetriever instance
+            MemoryRetriever instance
         """
-        return SmartMemoryRetriever(
+        return MemoryRetriever(
             storage=storage,
             config=config,
         )
@@ -360,7 +344,7 @@ class CompleteMemorySystem:
         
         # Lazy-loaded components
         self._extraction: Optional[MemoryExtractionService] = None
-        self._smart_retriever: Optional[SmartMemoryRetriever] = None
+        self._smart_retriever: Optional[MemoryRetriever] = None
         self._quality: Optional[MemoryQualityAnalyzer] = None
     
     async def initialize(self) -> None:
@@ -384,10 +368,10 @@ class CompleteMemorySystem:
         return self._extraction
     
     @property
-    def smart_retriever(self) -> SmartMemoryRetriever:
+    def smart_retriever(self) -> MemoryRetriever:
         """Get smart retriever (lazy)."""
         if self._smart_retriever is None:
-            self._smart_retriever = self._factory.create_smart_retriever(
+            self._smart_retriever = self._factory.create_retriever(
                 self.config, self.storage
             )
         return self._smart_retriever

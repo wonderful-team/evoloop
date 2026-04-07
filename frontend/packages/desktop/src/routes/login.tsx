@@ -83,15 +83,41 @@ function Login() {
     },
   })
 
+  // 处理登录后的跳转逻辑
+  const handlePostLoginRedirect = () => {
+    const redirectPath = localStorage.getItem('redirect_after_login')
+    if (redirectPath) {
+      localStorage.removeItem('redirect_after_login')
+      console.log('[Login] Redirecting to saved path:', redirectPath)
+      // 解析hash路径，格式为 #/chat?thread_id=xxx
+      const hashMatch = redirectPath.match(/^#(\/.+)$/)
+      if (hashMatch) {
+        const pathWithSearch = hashMatch[1]
+        const [path, search] = pathWithSearch.split('?')
+        navigate({ 
+          to: path,
+          search: search ? Object.fromEntries(new URLSearchParams(search)) : undefined
+        })
+        return
+      }
+    }
+    // 默认跳转到首页
+    navigate({ to: "/" })
+  }
+
   const onSubmit = (data: FormData) => {
     if (loginMutation.isPending) return
-    loginMutation.mutate(data)
+    loginMutation.mutate(data, {
+      onSuccess: () => {
+        handlePostLoginRedirect()
+      }
+    })
   }
 
   const handleWechatLogin = (token: string) => {
     localStorage.setItem("access_token", token)
     localStorage.setItem("evoloop_token", token)
-    navigate({ to: "/" })
+    handlePostLoginRedirect()
   }
 
   return (

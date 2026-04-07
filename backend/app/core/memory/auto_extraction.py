@@ -249,14 +249,8 @@ class AutoMemoryExtractor:
         2. Extracts 0-3 memories worth keeping
         3. Uses the `remember` tool to save them
         """
-        from app.infrastructure.llm.factory import get_default_llm
-        
         # Build extraction prompt
         prompt = self._build_extraction_prompt(messages)
-        
-        # Get LLM for extraction (get_default_llm returns a Task in async context)
-        llm_result = get_default_llm(temperature=0.3, max_tokens=2000)
-        llm = await llm_result if hasattr(llm_result, '__await__') else llm_result
         
         # Get existing memories to avoid duplicates
         existing_memories = await self._get_existing_memory_manifest()
@@ -284,15 +278,20 @@ Return your response as a JSON array of memories:
 
 Return empty array `[]` if nothing worth remembering."""
 
-        # Call LLM for extraction
+        # Call LLM for extraction using InternalLLMService
         try:
-            response = await llm.ainvoke([
-                {"role": "system", "content": "You are a memory extraction assistant. Extract valuable information worth remembering from conversations."},
-                {"role": "user", "content": full_prompt}
-            ])
+            from app.core.llm import InternalLLMService
+            response = await InternalLLMService.invoke(
+                messages=[
+                    {"role": "system", "content": "You are a memory extraction assistant. Extract valuable information worth remembering from conversations."},
+                    {"role": "user", "content": full_prompt}
+                ],
+                purpose="memory_extraction",
+            )
             
             # Parse extracted memories
-            extracted = self._parse_extraction_response(response.content, project_id, user_id)
+            content = response.content if hasattr(response, 'content') else str(response)
+            extracted = self._parse_extraction_response(content, project_id, user_id)
             
             # Save extracted memories
             saved_count = 0

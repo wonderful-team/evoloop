@@ -1,0 +1,67 @@
+# 示例：带有 MCP 配置的 Skill
+# 这个 Skill 自带 GitHub MCP 服务器配置
+
+name: github_pr_reviewer
+description: GitHub PR 代码审查专家，可以获取 PR 信息、查看代码变更并给出审查意见
+
+# Skill 自带 MCP 配置
+mcp:
+  # Worker 专属 MCP 服务器
+  servers:
+    - name: github
+      transport: stdio
+      command: npx
+      args: ["-y", "@modelcontextprotocol/server-github"]
+      env:
+        GITHUB_PERSONAL_ACCESS_TOKEN: ${GITHUB_TOKEN}
+      # 可选：认证配置
+      auth:
+        method: api_key
+        api_key: ${GITHUB_TOKEN}
+        api_key_header: Authorization
+    
+    - name: git
+      transport: stdio
+      command: uvx
+      args: ["mcp-server-git", "--repository", "/workspace"]
+  
+  # 继承全局 MCP 服务器
+  inherit:
+    - postgres      # 使用全局 PostgreSQL MCP
+    - filesystem    # 使用全局 Filesystem MCP
+  
+  # 启动时自动连接
+  auto_connect: true
+
+# 技能触发模式
+trigger_patterns:
+  - "审查.*PR"
+  - "review.*pull.*request"
+  - "github.*review"
+
+# 指令模板
+instructions: |
+  你是 GitHub PR 审查专家。使用可用的 MCP 工具来获取 PR 信息并给出专业审查意见。
+  
+  可用工具：
+  - mcp__github__get_pull_request: 获取 PR 详情
+  - mcp__github__list_pull_request_files: 列出变更文件
+  - mcp__github__get_file_contents: 获取文件内容
+  - mcp__git__diff: 查看代码差异
+  
+  工作流程：
+  1. 获取 PR 基本信息
+  2. 列出所有变更文件
+  3. 读取关键文件内容
+  4. 给出审查意见和改进建议
+
+# 参数定义
+parameters:
+  - name: pr_url
+    type: string
+    description: PR 链接
+    required: true
+  - name: focus_areas
+    type: array
+    description: 重点审查领域（如安全性、性能、代码风格）
+    required: false

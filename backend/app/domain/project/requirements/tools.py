@@ -10,7 +10,7 @@ from langchain_core.runnables import RunnableConfig
 
 from app.core.file.document_reader import document_reader_service
 from app.core.tools import evoloop_tool
-from app.infrastructure.llm.factory import get_default_llm
+
 from app.utils.id import gen_uuid
 from app.utils.time import utcnow
 
@@ -60,19 +60,21 @@ async def analyze_project_requirement_document(
             except Exception as e:
                 return json.dumps({"error": f"Failed to read document: {e}"})
 
-        # Call LLM analysis using Jinja2 template
-        llm = await get_default_llm()
-
+        # Call LLM analysis using InternalLLMService
         prompt = render_analysis_prompt(
             document_content=doc.raw_content[:15000],
             focus_areas=focus_areas,
             language="Chinese"
         )
 
-        response = await llm.ainvoke([
-            {"role": "system", "content": prompt},
-            {"role": "user", "content": "请分析上述需求文档，以JSON格式输出结构化分析结果。"}
-        ])
+        from app.core.llm import InternalLLMService
+        response = await InternalLLMService.invoke(
+            messages=[
+                {"role": "system", "content": prompt},
+                {"role": "user", "content": "请分析上述需求文档，以JSON格式输出结构化分析结果。"}
+            ],
+            purpose="task_analysis",
+        )
 
         # Parse and save
         try:

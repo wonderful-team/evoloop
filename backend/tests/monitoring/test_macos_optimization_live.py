@@ -147,14 +147,18 @@ async def init_env():
         # 导入必要的模块
         from app.core.engine.graph.builder import GraphBuilder
         from app.infrastructure.database.sql.database import init_db
-        from app.core.memory import memory_manager
+        from app.core.memory import MemoryContainer, MemoryConfig
         
         # 初始化数据库
         await init_db()
         logger.info("✅ 数据库初始化完成")
         
-        # 初始化 Memory
-        await memory_manager.initialize()
+        # 初始化 Memory using MemoryContainer
+        container = MemoryContainer(MemoryConfig.from_settings())
+        await container.initialize()
+        # Store container for cleanup
+        global _memory_container
+        _memory_container = container
         logger.info("✅ Memory 初始化完成")
         
         return True
@@ -391,6 +395,7 @@ def print_report(report: Dict):
     
     # 优化效果评估
     print(f"\n优化效果评估:")
+    import statistics
     avg_shortcut_rate = statistics.mean([s['shortcut_usage_rate'] for s in report['scenario_stats']])
     avg_batch_rate = statistics.mean([s['batch_usage_rate'] for s in report['scenario_stats']])
     
@@ -436,6 +441,14 @@ async def main():
         print_report(report)
     else:
         logger.error("❌ 没有测试结果")
+    
+    # Cleanup memory container
+    global _memory_container
+    if '_memory_container' in globals():
+        try:
+            await _memory_container.shutdown()
+        except:
+            pass
 
 
 if __name__ == "__main__":

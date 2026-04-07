@@ -9,7 +9,7 @@ import json
 from typing import Optional
 from dataclasses import dataclass
 
-from app.infrastructure.llm.factory import get_default_llm
+
 
 logger = logging.getLogger(__name__)
 
@@ -123,10 +123,12 @@ Respond in this exact JSON format:
 }}"""
 
         try:
-            llm = await get_default_llm(temperature=0.3)
-            
-            from langchain_core.messages import HumanMessage
-            response = await llm.ainvoke([HumanMessage(content=prompt)])
+            from app.core.llm import InternalLLMService
+            response = await InternalLLMService.invoke(
+                messages=[{"role": "user", "content": prompt}],
+                purpose="memory_extraction",
+                temperature=0.3,
+            )
             response_text = response.content if hasattr(response, 'content') else str(response)
             
             # Parse JSON response

@@ -1,0 +1,358 @@
+"""
+MessageHandler - 消息处理器
+
+整合分类、持久化、推送策略的统一入口。
+替代原来分散在各 callback 中的处理逻辑。
+"""
+
+import logging
+import time
+from typing import Any, Optional
+
+from app.infrastructure.queue.factory import get_scheduler
+from app.core.messaging.category import MessageCategory
+from app.core.messaging.classifier import MessageClassifier
+from app.core.messaging.persistence import MessagePersistencePolicy
+from app.core.messaging.stream import MessageStreamPolicy
+
+logger = logging.getLogger(__name__)
+
+
+class MessageHandler:
+    """
+    消息处理器
+    
+    职责：
+    1. 接收原始消息数据
+    2. 分类消息（MessageClassifier）
+    3. 应用持久化策略（MessagePersistencePolicy）
+    4. 应用流式推送策略（MessageStreamPolicy）
+    5. 执行相应操作
+    
+    使用示例：
+        handler = MessageHandler(thread_id="xxx", project_id=1)
+        await handler.handle_ai_message(
+            content="我来帮您处理",
+            tool_calls=[{"name": "read_file", ...}],
+            metadata={"node_source": "worker"}
+        )
+    """
+    
+    def __init__(
+        self,
+        thread_id: str,
+        project_id: Optional[int] = None,
+        run_id: Optional[str] = None,
+        start_sequence: int = 0,
+    ):
+        self.thread_id = thread_id
+        self.project_id = project_id
+        self.run_id = run_id
+        self._sequence_counter = start_sequence
+        self._last_logged_hash = None
+        self._last_logged_time = 0
+    
+    async def handle_ai_message(
+        self,
+        content: str,
+        tool_calls: Optional[list] = None,
+        thinking: Optional[str] = None,
+        metadata: Optional[dict] = None,
+    ) -> dict:
+        """
+        处理 AI 助手消息
+        
+        Args:
+            content: 消息内容
+            tool_calls: 工具调用列表
+            thinking: 思考内容（从 <think> 标签提取）
+            metadata: 元数据（可能包含 source 标记）
+            
+        Returns:
+            dict: 处理结果
+            {
+                "category": str,
+                "persisted": bool,
+                "streamed": bool,
+                "message_id": str | None,
+            }
+        """
+        # 1. 分类
+        category = MessageClassifier.classify_ai_message(
+            content=content,
+            tool_calls=tool_calls,
+            metadata=metadata,
+        )
+        
+        logger.debug(f"[UnifiedHandler] AI message classified as: {category.value}")
+        
+        # 2. 应用策略
+        persist_data = MessagePersistencePolicy.apply_policy(
+            category=category,
+            content=content,
+            tool_calls=tool_calls,
+            thinking=thinking,
+        )
+        
+        stream_data = MessageStreamPolicy.apply_policy(
+            category=category,
+            content=content,
+            metadata=metadata,
+        )
+        
+        # 3. 去重检查
+        if self._is_duplicate(category, content, tool_calls):
+            logger.debug(f"[UnifiedHandler] Duplicate message detected, skipping")
+            return {
+                "category": category.value,
+                "persisted": False,
+                "streamed": False,
+                "message_id": None,
+                "reason": "duplicate",
+            }
+        
+        # 4. 持久化
+        message_id = None
+        if persist_data["should_persist"]:
+            message_id = await self._persist_to_db(
+                role="ai",
+                content=persist_data["content"],
+                thinking=persist_data["thinking"],
+                tool_calls=persist_data["tool_calls"],
+                category=category.value,
+                is_visible=category.is_visible_to_user,
+            )
+        
+        # 5. 流式推送
+        if stream_data["should_stream"]:
+            await self._stream_to_frontend(
+                content=stream_data["content"],
+                frontend_type=stream_data["frontend_type"],
+                category=category.value,
+                metadata=metadata,
+            )
+        
+        return {
+            "category": category.value,
+            "persisted": persist_data["should_persist"],
+            "streamed": stream_data["should_stream"],
+            "message_id": message_id,
+        }
+    
+    async def handle_tool_output(
+        self,
+        tool_name: str,
+        output: Any,
+        run_id: Optional[str] = None,
+    ) -> dict:
+        """
+        处理工具输出消息
+        
+        Args:
+            tool_name: 工具名称
+            output: 工具输出内容
+            run_id: 运行 ID
+            
+        Returns:
+            dict: 处理结果
+        """
+        # 1. 分类
+        category = MessageClassifier.classify_tool_output(tool_name, output)
+        
+        content = str(output) if output else ""
+        
+        logger.debug(f"[UnifiedHandler] Tool {tool_name} output classified as: {category.value}")
+        
+        # 2. 应用策略
+        persist_data = MessagePersistencePolicy.apply_policy(
+            category=category,
+            content=content,
+        )
+        
+        stream_data = MessageStreamPolicy.apply_policy(
+            category=category,
+            content=content,
+        )
+        
+        # 3. 持久化
+        message_id = None
+        if persist_data["should_persist"]:
+            message_id = await self._persist_to_db(
+                role="tool",
+                content=persist_data["content"],
+                category=category.value,
+                action_type="tool_output",
+                is_visible=category.is_visible_to_user,
+            )
+        
+        # 4. 流式推送
+        if stream_data["should_stream"]:
+            await self._stream_to_frontend(
+                content=content,
+                frontend_type=stream_data["frontend_type"],
+                category=category.value,
+                tool_name=tool_name,
+            )
+        
+        return {
+            "category": category.value,
+            "persisted": persist_data["should_persist"],
+            "streamed": stream_data["should_stream"],
+            "message_id": message_id,
+        }
+    
+    async def handle_user_message(
+        self,
+        content: str,
+        metadata: Optional[dict] = None,
+    ) -> dict:
+        """
+        处理用户消息
+        
+        Args:
+            content: 消息内容
+            metadata: 元数据
+            
+        Returns:
+            dict: 处理结果
+        """
+        category = MessageCategory.USER
+        
+        # 用户消息默认持久化和推送
+        message_id = await self._persist_to_db(
+            role="human",
+            content=content,
+            category=category.value,
+            is_visible=True,
+        )
+        
+        await self._stream_to_frontend(
+            content=content,
+            frontend_type="human",
+            category=category.value,
+        )
+        
+        return {
+            "category": category.value,
+            "persisted": True,
+            "streamed": True,
+            "message_id": message_id,
+        }
+    
+    def _is_duplicate(
+        self,
+        category: MessageCategory,
+        content: str,
+        tool_calls: Optional[list],
+    ) -> bool:
+        """
+        检查是否是重复消息（简单去重）
+        
+        基于内容的哈希和时间窗口判断
+        """
+        import hashlib
+        
+        content_hash = hashlib.md5(
+            f"{category.value}:{content}:{str(tool_calls)}".encode()
+        ).hexdigest()[:16]
+        
+        current_time = time.time()
+        
+        # 2 秒内的相同内容视为重复
+        if (
+            content_hash == self._last_logged_hash
+            and (current_time - self._last_logged_time) < 2.0
+        ):
+            return True
+        
+        self._last_logged_hash = content_hash
+        self._last_logged_time = current_time
+        return False
+    
+    async def _persist_to_db(
+        self,
+        role: str,
+        content: Optional[str],
+        thinking: Optional[str] = None,
+        tool_calls: Optional[list] = None,
+        category: str = "",
+        action_type: str = "text",
+        is_visible: bool = True,
+    ) -> Optional[str]:
+        """
+        持久化消息到数据库
+        
+        使用 Celery 后台任务，避免阻塞主流程
+        """
+        if not content and not thinking:
+            return None
+        
+        try:
+            self._sequence_counter += 1
+            
+            # 发送到 Celery 后台任务
+            get_scheduler().send_task(
+                "engine_persist_message",
+                kwargs={
+                    "thread_id": self.thread_id,
+                    "project_id": self.project_id,
+                    "role": role,
+                    "content": content or "",
+                    "thinking": thinking,
+                    "tool_calls": tool_calls,
+                    "category": category,
+                    "action_type": action_type,
+                    "sequence_number": self._sequence_counter,
+                    "run_id": self.run_id,
+                    "is_visible": is_visible,
+                }
+            )
+            
+            # 返回临时 ID（实际 DB ID 会在后台生成）
+            return f"temp-{self.thread_id}-{self._sequence_counter}"
+            
+        except Exception as e:
+            logger.error(f"[UnifiedHandler] Failed to persist message: {e}")
+            return None
+    
+    async def _stream_to_frontend(
+        self,
+        content: str,
+        frontend_type: str,
+        category: str,
+        metadata: Optional[dict] = None,
+        tool_name: Optional[str] = None,
+    ):
+        """
+        推送消息到前端（SSE/WebSocket）
+        """
+        try:
+            from app.core.monitoring.activity import activity_monitor
+            from app.models.schemas.events import MessageEvent
+            import json
+            
+            if not activity_monitor or not hasattr(activity_monitor, "client"):
+                return
+            
+            msg_data = {
+                "id": f"temp-{time.time()}",
+                "role": frontend_type,
+                "content": content,
+                "type": frontend_type,
+                "category": category,
+                "timestamp": int(time.time() * 1000),
+            }
+            
+            if metadata:
+                msg_data["metadata"] = metadata
+            
+            if tool_name:
+                msg_data["tool_name"] = tool_name
+            
+            channel = f"chat:{self.thread_id}:events"
+            message = MessageEvent(data=msg_data).model_dump_json()
+            
+            await activity_monitor.client.publish(channel, message)
+            
+        except Exception as e:
+            logger.warning(f"[UnifiedHandler] Failed to stream message: {e}")

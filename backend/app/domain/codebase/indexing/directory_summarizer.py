@@ -1,7 +1,7 @@
 import logging
 
 from app.infrastructure.database.graph.driver import get_graph_db
-from app.infrastructure.llm.factory import get_default_llm
+
 
 logger = logging.getLogger(__name__)
 
@@ -146,8 +146,6 @@ class DirectorySummarizer:
     async def generate_summary(self, dir_path: str, child_summaries: list[str]) -> str:
         from app.utils import render_template
         
-        llm = await get_default_llm()
-
         prompt_text = render_template(
             "codebase/directory_summary.prompt.j2",
             directory_path=dir_path,
@@ -155,7 +153,11 @@ class DirectorySummarizer:
         )
 
         try:
-            response = await llm.ainvoke(prompt_text)
+            from app.core.llm import InternalLLMService
+            response = await InternalLLMService.invoke(
+                messages=[{"role": "user", "content": prompt_text}],
+                purpose="skill_synthesis",
+            )
             return response.content if hasattr(response, 'content') else str(response)
         except Exception as e:
             logger.error(f"LLM Summary Failed for {dir_path}: {e}")

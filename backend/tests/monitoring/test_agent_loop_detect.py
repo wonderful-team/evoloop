@@ -216,11 +216,15 @@ async def init_env():
     except Exception as e:
         logger.warning(f"   ⚠️ {e}")
     
-    # Memory
+    # Memory - using MemoryContainer
     logger.info("[3/5] 初始化 Memory Manager...")
     try:
-        from app.core.memory import memory_manager
-        await memory_manager.initialize()
+        from app.core.memory import MemoryContainer, MemoryConfig
+        container = MemoryContainer(MemoryConfig.from_settings())
+        await container.initialize()
+        # Store container for cleanup
+        global _memory_container
+        _memory_container = container
         logger.info("   ✅ Memory Manager 初始化完成")
     except Exception as e:
         logger.warning(f"   ⚠️ {e}")
@@ -411,7 +415,7 @@ async def run_test():
     
     logger.info("")
     logger.info("╔" + "="*58 + "╗")
-    logger.info(f"║ 🧪 批量测试 - 共 {len(TEST_CASES)} 个用例" + " "*(35-len(str(TEST_CASES))))
+    logger.info(f"║ 🧪 批量测试 - 共 {len(TEST_CASES)} 个用例" + " "*(35-len(str(TEST_CASES))) + "║")
     logger.info("╚" + "="*58 + "╝")
     
     results = []
@@ -439,6 +443,14 @@ async def run_test():
     logger.info("╠" + "="*58 + "╣")
     logger.info(f"║ 总计: {len(results)} 个 | 异常: {abnormal_count} 个 | 正常: {len(results)-abnormal_count} 个{' '*12} ║")
     logger.info("╚" + "="*58 + "╝")
+    
+    # Cleanup memory container
+    global _memory_container
+    if '_memory_container' in globals():
+        try:
+            await _memory_container.shutdown()
+        except:
+            pass
 
 
 if __name__ == "__main__":

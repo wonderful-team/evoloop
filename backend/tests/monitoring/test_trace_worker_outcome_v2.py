@@ -120,11 +120,17 @@ async def init():
     except:
         pass
     
+    # Initialize Memory using MemoryContainer
     try:
-        from app.core.memory import memory_manager
-        await memory_manager.initialize()
-    except:
-        pass
+        from app.core.memory import MemoryContainer, MemoryConfig
+        container = MemoryContainer(MemoryConfig.from_settings())
+        await container.initialize()
+        # Store container for cleanup
+        global _memory_container
+        _memory_container = container
+        logger.info("✅ Memory Manager 初始化完成")
+    except Exception as e:
+        logger.warning(f"⚠️ Memory 初始化失败: {e}")
     
     from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
     import aiosqlite
@@ -180,6 +186,14 @@ async def test():
     logger.info("="*70)
     logger.info("追踪结束")
     logger.info("="*70)
+    
+    # Cleanup memory container
+    global _memory_container
+    if '_memory_container' in globals():
+        try:
+            await _memory_container.shutdown()
+        except:
+            pass
 
 
 if __name__ == "__main__":

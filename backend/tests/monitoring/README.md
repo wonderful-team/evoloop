@@ -314,10 +314,10 @@ python anomaly_analyzer.py --trend
 ### 测试连接失败
 ```bash
 # 检查后端服务
-curl http://localhost:8000/api/health
+curl http://localhost:20160/api/health
 
 # 检查 API 地址
-export EVOLOOP_API_URL=http://localhost:8000
+export EVOLOOP_API_URL=http://localhost:20160
 ```
 
 ### LLM 无响应

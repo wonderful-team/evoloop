@@ -151,7 +151,6 @@ class WikiService:
         page_title: str,
         page_content: str,
         project_id: int,
-        llm,
     ) -> list[str]:
         """
         Extract knowledge concepts from a Wiki page and store them in Agent memory.
@@ -167,12 +166,19 @@ class WikiService:
             extraction_prompt = builder.build_concept_extraction_prompt(page_title, page_content)
 
             # Try structured output first
+            from app.core.llm import InternalLLMService
             try:
-                structured_llm = llm.with_structured_output(ConceptExtractionResult)
-                result = await structured_llm.ainvoke([HumanMessage(content=extraction_prompt)])
+                result = await InternalLLMService.invoke_structured(
+                    messages=[{"role": "user", "content": extraction_prompt}],
+                    purpose="memory_extraction",
+                    output_schema=ConceptExtractionResult,
+                )
             except Exception:
                 # Fallback to raw JSON extraction
-                response = await llm.ainvoke([HumanMessage(content=extraction_prompt)])
+                response = await InternalLLMService.invoke(
+                    messages=[{"role": "user", "content": extraction_prompt}],
+                    purpose="memory_extraction",
+                )
                 json_match = re.search(r'\{.*\}', response.content, re.DOTALL)
                 if json_match:
                     result_dict = json.loads(json_match.group(0))
@@ -204,7 +210,6 @@ class WikiService:
         self,
         structure_data: dict,
         project_context: str,
-        llm,
     ) -> dict:
         """
         Validate Wiki structure completeness using LLM-based dynamic analysis.
@@ -213,7 +218,11 @@ class WikiService:
         try:
             builder = WikiBuilder()
             validation_prompt = builder.build_validation_prompt(structure_data, project_context)
-            response = await llm.ainvoke([HumanMessage(content=validation_prompt)])
+            from app.core.llm import InternalLLMService
+            response = await InternalLLMService.invoke(
+                messages=[{"role": "user", "content": validation_prompt}],
+                purpose="task_analysis",
+            )
             response_text = response.content
 
             # Extract JSON
@@ -258,7 +267,7 @@ class WikiService:
             logger.warning(f"Structure validation failed: {e}. Proceeding with original structure.")
             return structure_data
 
-    async def generate_wiki(self, project_id: int, topic: str, llm, force_regenerate: bool = False):
+    async def generate_wiki(self, project_id: int, topic: str, force_regenerate: bool = False):
         """
         Generates Wiki content using a 'Technical Writer' workflow (Structure -> Content).
         Phase 1: Determine Structure (Planner).
@@ -294,8 +303,12 @@ class WikiService:
         structure_prompt = builder.build_structure_prompt(file_tree, readme_content)
 
         try:
-            # Call LLM for structure
-            structure_response = await llm.ainvoke([HumanMessage(content=structure_prompt)])
+            # Call LLM for structure using InternalLLMService
+            from app.core.llm import InternalLLMService
+            structure_response = await InternalLLMService.invoke(
+                messages=[{"role": "user", "content": structure_prompt}],
+                purpose="task_analysis",
+            )
             response_text = structure_response.content
 
             # Extract JSON
@@ -327,7 +340,6 @@ class WikiService:
         validated_structure = await self._validate_structure(
             structure_data=structure_data,
             project_context=project_context,
-            llm=llm,
         )
         pages_to_generate = validated_structure.get("pages", pages_to_generate)
 
@@ -434,7 +446,11 @@ class WikiService:
 
 
             try:
-                content_response = await llm.ainvoke([HumanMessage(content=content_prompt)])
+                from app.core.llm import InternalLLMService
+                content_response = await InternalLLMService.invoke(
+                    messages=[{"role": "user", "content": content_prompt}],
+                    purpose="skill_synthesis",
+                )
                 page_content = content_response.content
             except Exception as e:
                 logger.error(f"Error generating page content: {e}")
@@ -481,7 +497,6 @@ class WikiService:
                     page_title=page_title,
                     page_content=page_content,
                     project_id=project_id,
-                    llm=llm,
                 )
                 if extracted:
                     logger.info(f"Extracted {len(extracted)} concepts from '{page_title}'")

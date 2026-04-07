@@ -40,7 +40,7 @@ Architecture:
     ├── Short-term: SqlShortTermMemory (SQLite/PostgreSQL)
     ├── Long-term: FileMemoryStorage | Neo4jMemoryStorage
     ├── Extraction: MemoryExtractionService
-    └── Retrieval: MemoryRetrievalService
+    └── Retrieval: MemoryRetriever
 """
 
 # Main facade
@@ -71,8 +71,9 @@ from app.core.memory.extraction import (
     MemoryExtractionService,
     MemoryConsolidationService,
 )
-from app.core.memory.retrieval import MemoryRetrievalService
-from app.core.memory.smart_retrieval import SmartMemoryRetriever, get_relevant_memories
+from app.core.memory.retrieval import MemoryRetriever, get_relevant_memories
+
+
 from app.core.memory.quality import (
     MemoryQualityAnalyzer,
     QualityScores,
@@ -90,6 +91,17 @@ from app.core.memory.two_tier import (
     TwoTierMemoryManager,
     MemorySection,
     SectionBudget,
+)
+
+# Maintenance (NEW)
+from app.core.memory.maintenance_report import MaintenanceReport
+from app.core.memory.tasks import (
+    run_memory_maintenance,
+    run_memory_maintenance_async,
+    daily_memory_maintenance,
+    hourly_memory_stats,
+    trigger_maintenance_now,
+    get_last_maintenance_report,
 )
 
 __all__ = [
@@ -123,8 +135,7 @@ __all__ = [
     # Services
     "MemoryExtractionService",
     "MemoryConsolidationService",
-    "MemoryRetrievalService",
-    "SmartMemoryRetriever",
+    "MemoryRetriever",
     "get_relevant_memories",
     "MemoryQualityAnalyzer",
     
@@ -141,4 +152,13 @@ __all__ = [
     "TwoTierMemoryManager",
     "MemorySection",
     "SectionBudget",
+    
+    # Maintenance (NEW)
+    "run_memory_maintenance",
+    "run_memory_maintenance_async",
+    "daily_memory_maintenance",
+    "hourly_memory_stats",
+    "trigger_maintenance_now",
+    "get_last_maintenance_report",
+    "MaintenanceReport",
 ]

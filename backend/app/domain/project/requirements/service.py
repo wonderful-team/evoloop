@@ -6,7 +6,7 @@ import json
 import logging
 from typing import TYPE_CHECKING
 
-from app.infrastructure.llm.factory import get_default_llm
+
 from app.utils.id import gen_uuid
 
 from .models import ProjectRequirementTask
@@ -31,8 +31,6 @@ async def breakdown_requirements_to_tasks(
     analysis_data = analysis.analysis_data
 
     # Prepare prompt using Jinja2 template
-    llm = await get_default_llm()
-
     prompt = render_breakdown_prompt(
         title=analysis_data.get("title", "Untitled"),
         summary=analysis_data.get("summary", ""),
@@ -43,11 +41,15 @@ async def breakdown_requirements_to_tasks(
         language="Chinese"
     )
 
-    # Call LLM
-    response = await llm.ainvoke([
-        {"role": "system", "content": prompt},
-        {"role": "user", "content": "请将需求拆解为任务，以JSON格式输出。"}
-    ])
+    # Call LLM using InternalLLMService
+    from app.core.llm import InternalLLMService
+    response = await InternalLLMService.invoke(
+        messages=[
+            {"role": "system", "content": prompt},
+            {"role": "user", "content": "请将需求拆解为任务，以JSON格式输出。"}
+        ],
+        purpose="task_decomposition",
+    )
 
     # Parse result
     content = response.content

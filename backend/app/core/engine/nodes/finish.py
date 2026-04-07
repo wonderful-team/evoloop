@@ -13,7 +13,7 @@ from app.core.context.manager import ContextManager
 from app.core.engine import AgentEngine
 from app.core.engine.prompts.finish import FinishPromptBuilder
 from app.core.engine.state import AgentState
-from app.infrastructure.llm.factory import LLMFactory
+
 from app.core.monitoring.activity import activity_monitor
 from app.core.tools.manager import tool_manager
 from app.constants import DEFAULT_PROJECT_ID
@@ -190,14 +190,6 @@ class LayeredAuditor:
         r'Failed to', r'Permission denied', r'File not found',
     ]
     
-    def __init__(self):
-        self._fast_llm = None
-    
-    async def _get_fast_llm(self):
-        if self._fast_llm is None:
-            self._fast_llm = await LLMFactory.create_llm(temperature=0.1, max_tokens=500)
-        return self._fast_llm
-    
     def classify_tier(self, tool_history: list, messages: list, blackboard: dict, state: dict) -> AuditDecision:
         """Classify which audit tier is appropriate."""
         used_tools = set()
@@ -321,9 +313,14 @@ Result:
 Was the task completed? What were the key findings?"""
 
         try:
-            llm = await self._get_fast_llm()
-            response = await llm.ainvoke([SystemMessage(content=prompt)])
-            summary = str(response.content).strip()
+            from app.core.llm import InternalLLMService
+            response = await InternalLLMService.invoke(
+                messages=[{"role": "system", "content": prompt}],
+                purpose="audit_summary",
+                temperature=0.1,
+                max_tokens=500,
+            )
+            summary = str(response.content).strip() if hasattr(response, 'content') else str(response).strip()
             if len(summary) < 20:
                 summary = f"✅ Task completed. {summary}"
         except Exception as e:

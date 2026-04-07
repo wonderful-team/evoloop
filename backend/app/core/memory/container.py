@@ -34,8 +34,8 @@ from app.core.memory.manager import MemoryManager
 from app.core.memory.backends.file_backend import FileMemoryStorage
 from app.core.memory.backends.sql_short_term import SqlShortTermMemory
 from app.core.memory.extraction import MemoryExtractionService, MemoryConsolidationService
-from app.core.memory.retrieval import MemoryRetrievalService
-from app.core.memory.smart_retrieval import SmartMemoryRetriever
+from app.core.memory.interfaces.storage import IMemoryStorage
+from app.core.memory.retrieval import MemoryRetriever
 from app.core.memory.quality import MemoryQualityAnalyzer
 from app.core.memory.state_tracking import MemoryStateTracker
 from app.core.memory.daily_log import DailyLogWriter, LogConsolidator
@@ -65,12 +65,11 @@ class MemoryContainer:
         self._initialized = False
         
         # Components (initialized lazily)
-        self._storage: Optional[FileMemoryStorage] = None
+        self._storage: Optional[IMemoryStorage] = None
         self._short_term: Optional[SqlShortTermMemory] = None
         self._extraction: Optional[MemoryExtractionService] = None
         self._consolidation: Optional[MemoryConsolidationService] = None
-        self._retrieval: Optional[MemoryRetrievalService] = None
-        self._smart_retriever: Optional[SmartMemoryRetriever] = None
+        self._smart_retriever: Optional[MemoryRetriever] = None
         self._quality: Optional[MemoryQualityAnalyzer] = None
         self._state_tracker: Optional[MemoryStateTracker] = None
         self._daily_log: Optional[DailyLogWriter] = None
@@ -136,8 +135,8 @@ class MemoryContainer:
     # ==========================================================================
     
     @property
-    def storage(self) -> FileMemoryStorage:
-        """Get storage backend."""
+    def storage(self) -> IMemoryStorage:
+        """Get storage backend (IMemoryStorage interface)."""
         if self._storage is None:
             raise RuntimeError("Container not initialized. Call initialize() first.")
         return self._storage
@@ -176,23 +175,24 @@ class MemoryContainer:
         return self._consolidation
     
     @property
-    def retrieval_service(self) -> MemoryRetrievalService:
-        """Get memory retrieval service (lazy)."""
-        if self._retrieval is None:
-            self._retrieval = MemoryRetrievalService(
-                storage=self.storage,
-            )
-        return self._retrieval
-    
-    @property
-    def smart_retriever(self) -> SmartMemoryRetriever:
-        """Get smart memory retriever (lazy)."""
+    def retrieval_service(self) -> MemoryRetriever:
+        """
+        Get memory retrieval service (lazy).
+        
+        Note: This now returns MemoryRetriever, which combines the functionality
+        of legacy retrieval classes.
+        """
         if self._smart_retriever is None:
-            self._smart_retriever = SmartMemoryRetriever(
+            self._smart_retriever = MemoryRetriever(
                 storage=self.storage,
                 config=self.config,
             )
         return self._smart_retriever
+    
+    @property
+    def smart_retriever(self) -> MemoryRetriever:
+        """Get smart memory retriever (lazy) - alias for retrieval_service."""
+        return self.retrieval_service
     
     @property
     def quality_analyzer(self) -> MemoryQualityAnalyzer:

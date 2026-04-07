@@ -224,12 +224,17 @@ async def init_env():
     try:
         from app.core.engine.graph_builder import GraphBuilder
         from app.infrastructure.database.sql.database import init_db
-        from app.core.memory import memory_manager
+        from app.core.memory import MemoryContainer, MemoryConfig
         
         await init_db()
         logger.info("✅ 数据库初始化完成")
         
-        await memory_manager.initialize()
+        # Initialize Memory using MemoryContainer
+        container = MemoryContainer(MemoryConfig.from_settings())
+        await container.initialize()
+        # Store container for cleanup
+        global _memory_container
+        _memory_container = container
         logger.info("✅ Memory 初始化完成")
         
         return True
@@ -432,6 +437,14 @@ async def main():
         with open(args.save, 'w') as f:
             json.dump(report_data, f, indent=2, ensure_ascii=False)
         logger.info(f"📄 报告已保存: {args.save}")
+    
+    # Cleanup memory container
+    global _memory_container
+    if '_memory_container' in globals():
+        try:
+            await _memory_container.shutdown()
+        except:
+            pass
     
     # 返回退出码
     return 0 if not report.errors else 1

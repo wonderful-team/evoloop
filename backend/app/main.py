@@ -27,6 +27,7 @@ from app.core.context import thread_context_store
 from app.core.context.middleware import ContextMiddleware
 from app.core.engine.graph_builder import GraphBuilder
 from app.core.events.bridge import register_event_bridge
+from app.core.events.discovery import auto_discover_handlers
 from app.core.evocloud import evocloud_manager
 from app.core.globals import set_graph
 from app.core.persistence import set_checkpointer, set_db_pool
@@ -114,15 +115,13 @@ async def lifespan(app: FastAPI):
     # 2.5 Agent Awakening - Environment & Capability Awareness
     try:
         from app.core.environment import awaken
-        from app.core.environment.handlers import register_default_handlers
-        from app.domain.codebase.indexing.event_handlers import register_indexing_handlers
-        from app.core.learning.orchestrator import register_learning_handlers
 
-        # Register event handlers before awakening
-        register_default_handlers()
-        register_indexing_handlers()
+        # Auto-discover and register all event handlers
+        # Recursively scans app.core, app.domain, app.infrastructure for @event_register classes
+        auto_discover_handlers()
+
+        # Event bridge needs manual registration (uses subscribe_all)
         register_event_bridge()
-        register_learning_handlers()
 
         await awaken()
         logger.info("Agent Awakening complete.")
@@ -220,10 +219,15 @@ async def lifespan(app: FastAPI):
     # 4. Project Summarizer
     await project_summarizer.start_worker()
 
+    # 4.5 Rewind System
+    # Note: RewindOrchestrator is stateless and created on-demand in API handlers
+    # Event handlers (MessageRewind, MemoryRewind, etc.) are auto-discovered
+    # by auto_discover_handlers() during Agent Awakening (step 2.5)
+    logger.info("[Startup] Rewind system ready (on-demand orchestrator)")
     # 5. MCP Clients
     # Note: MCP servers are now connected on-demand via use_mcp_server tool
     # This prevents startup hanging due to npx package downloads
-    logger.info("MCP servers will be connected on-demand (lazy loading)")
+    # logger.info("MCP servers will be connected on-demand (lazy loading)")
     # try:
     #     await mcp_client_manager.connect_all()
     # except Exception as e:

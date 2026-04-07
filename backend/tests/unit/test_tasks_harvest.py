@@ -18,7 +18,7 @@ def test_git_harvest_task_logic():
          patch("app.domain.tools.git.ExtractionResult") as mock_result_cls, \
          patch("app.infrastructure.config.service.SystemConfigService") as mock_config, \
          patch("app.utils.render_template") as mock_render, \
-         patch("app.core.memory.memory_manager") as mock_memory:
+         patch("app.core.engine.tasks.MemoryContainer") as mock_memory_container:
 
         # 1. Setup Mock for subprocess
         mock_process = MagicMock()

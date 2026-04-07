@@ -77,11 +77,17 @@ async def init_env():
     except:
         pass
 
+    # Initialize Memory using MemoryContainer
     try:
-        from app.core.memory import memory_manager
-        await memory_manager.initialize()
-    except:
-        pass
+        from app.core.memory import MemoryContainer, MemoryConfig
+        container = MemoryContainer(MemoryConfig.from_settings())
+        await container.initialize()
+        # Store container for cleanup
+        global _memory_container
+        _memory_container = container
+        logger.info("✅ Memory Manager 初始化完成")
+    except Exception as e:
+        logger.warning(f"⚠️ Memory 初始化失败: {e}")
 
     logger.info("✅ 环境初始化完成")
     return True
@@ -219,14 +225,18 @@ async def test_engine_layer():
 
         with patch("app.core.engine.background_agent.get_graph", return_value=mock_graph), \
              patch("app.core.engine.background_agent.ContextManager") as mock_ctx, \
-             patch("app.core.engine.background_agent.memory_manager") as mock_mem:
+             patch("app.core.engine.background_agent.get_container") as mock_get_container:
 
             mock_ctx.load_from_redis = AsyncMock(return_value=None)
             mock_ctx.current = MagicMock(return_value=MagicMock(
                 thread_id=thread_id, project_id=1, command_id=None, working_directory="/tmp"
             ))
-            mock_mem.preferences.get_merged_preferences = AsyncMock(return_value="")
-            mock_mem.long_term.get_project_concepts = AsyncMock(return_value="")
+            
+            # Mock the container and its memory_manager
+            mock_container = MagicMock()
+            mock_container.memory_manager.preferences.get_merged_preferences = AsyncMock(return_value="")
+            mock_container.memory_manager.long_term.get_project_concepts = AsyncMock(return_value="")
+            mock_get_container.return_value = mock_container
 
             await run_agent_background(thread_id, {
                 "hitl_resume_response": "APPROVED",
@@ -260,14 +270,18 @@ async def test_engine_layer():
 
         with patch("app.core.engine.background_agent.get_graph", return_value=InterruptGraph()), \
              patch("app.core.engine.background_agent.ContextManager") as mock_ctx, \
-             patch("app.core.engine.background_agent.memory_manager") as mock_mem:
+             patch("app.core.engine.background_agent.get_container") as mock_get_container:
 
             mock_ctx.load_from_redis = AsyncMock(return_value=None)
             mock_ctx.current = MagicMock(return_value=MagicMock(
                 thread_id=thread_id2, project_id=1, command_id=None, working_directory="/tmp"
             ))
-            mock_mem.preferences.get_merged_preferences = AsyncMock(return_value="")
-            mock_mem.long_term.get_project_concepts = AsyncMock(return_value="")
+            
+            # Mock the container and its memory_manager
+            mock_container = MagicMock()
+            mock_container.memory_manager.preferences.get_merged_preferences = AsyncMock(return_value="")
+            mock_container.memory_manager.long_term.get_project_concepts = AsyncMock(return_value="")
+            mock_get_container.return_value = mock_container
 
             await run_agent_background(thread_id2, {
                 "messages": [{"type": "human", "content": "测试"}],
@@ -411,6 +425,15 @@ async def main():
     all_results.extend(await test_api_layer())
 
     success = await print_summary(all_results)
+    
+    # Cleanup memory container
+    global _memory_container
+    if '_memory_container' in globals():
+        try:
+            await _memory_container.shutdown()
+        except:
+            pass
+    
     return 0 if success else 1
 
 

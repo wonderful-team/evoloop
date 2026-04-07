@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 import time
 from typing import Any
@@ -348,6 +349,7 @@ async def _handle_task_exception(thread_id: str, project_id: int, e: Exception):
     # Check for context
     exc_name = type(e).__name__
     error_str = str(e).lower()
+    error_full = str(e)
 
     if isinstance(e, AgentHumanInterruptException) or "Interrupt" in exc_name or "GraphInterrupt" in exc_name:
         logger.info(f"Task {thread_id} interrupted for human input: {e}")
@@ -355,14 +357,59 @@ async def _handle_task_exception(thread_id: str, project_id: int, e: Exception):
 
     logger.error(f"Error running thread {thread_id}: {e}", exc_info=True)
     
-    # 1. Distinguish between Retryable, Quota Exhausted, and Fatal Errors
+    # 1. Distinguish between Retryable, Quota Exhausted, LLM Auth Error, and Fatal Errors
     is_quota_exhausted = "quota_exhausted" in error_str or "insufficient quota" in error_str
+    
+    # Check for LLM API authentication errors (401 unauthorized from LLM provider)
+    is_llm_auth_error = (
+        "authenticationerror" in exc_name.lower() or
+        ("401" in error_full and "unauthorized" in error_str) or
+        ("api_error" in error_str and "token expired" in error_str)
+    )
+    
     is_retryable = any(kw in error_str for kw in [
         "timeout", "rate limit", "connection error", "api_error", 
         "unavailable", "overloaded", "socket", "httpx"
-    ])
+    ]) and not is_llm_auth_error  # Exclude auth errors from retryable
     
-    # 2. Handle Quota Exhausted - Special flow
+    # 2. Handle LLM Authentication Error - Special flow
+    if is_llm_auth_error:
+        logger.warning(f"[LLMAuthError] Thread {thread_id} hit LLM API authentication error")
+        
+        # Set failed status
+        await activity_monitor.end_run(thread_id, "failed")
+        
+        # Get translated messages (with fallback)
+        llm_auth_title = i18n.get('core_engine.llm_auth_error_title') or 'LLM API认证失败'
+        llm_auth_desc = i18n.get('core_engine.llm_auth_error_desc') or 'LLM API密钥无效或已过期。'
+        llm_auth_solution = i18n.get('core_engine.llm_auth_error_solution') or '请检查系统设置中的LLM配置，确保API密钥正确。'
+        icon_failed = i18n.get('icons.failed') or '❌'
+        
+        # Create user-friendly error message
+        user_message = (
+            f"{icon_failed} **{llm_auth_title}**: "
+            f"{llm_auth_desc}\n\n"
+            f"{llm_auth_solution}\n\n"
+            f"> {str(e)[:200]}"
+        )
+        
+        # Note: 401 errors are system errors (ERROR_SYSTEM), not persisted to DB
+        # They provide no value for agent learning, only notify user via SSE
+        
+        # Publish error event for UI to show immediately
+        await cache.publish(
+            f"chat:{thread_id}:events",
+            json.dumps({
+                "type": "llm_auth_error",
+                "status": "failed",
+                "title": llm_auth_title,
+                "message": llm_auth_desc,
+                "hint": llm_auth_solution,
+            })
+        )
+        return
+    
+    # 3. Handle Quota Exhausted - Special flow
     if is_quota_exhausted:
         logger.warning(f"[QuotaExhausted] Thread {thread_id} hit quota limit")
         
@@ -382,7 +429,7 @@ async def _handle_task_exception(thread_id: str, project_id: int, e: Exception):
         )
         return
     
-    # 3. Handle other errors
+    # 4. Handle other errors
     await activity_monitor.end_run(thread_id, "failed")
     
     if is_retryable:

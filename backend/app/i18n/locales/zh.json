@@ -318,6 +318,9 @@
         "quota_exhausted_action": "查看配额",
         "retryable_error_title": "API 连接问题",
         "retryable_error_desc": "与 LLM 通信时遇到临时错误。",
+        "llm_auth_error_title": "LLM API 认证失败",
+        "llm_auth_error_desc": "无法连接到 LLM 服务：API 密钥无效或已过期。",
+        "llm_auth_error_solution": "请前往「设置 → LLM 模型设置」检查并更新您的 API 密钥配置。",
         "technical_markers": [
             "SESSION COMPLETE",
             "任务结束",

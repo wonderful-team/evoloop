@@ -56,17 +56,17 @@ class MultimodalVLMProvider(VisionProvider):
 
         llm = get_vision_llm()
 
-        # Create Messages (System + Human)
+        # Create Messages (System + Human with image)
         system_msg = SystemMessage(content=_get_vision_system_prompt())
         human_msg = VisionLLMFactory.create_image_message(image_source, prompt)
 
-        # Invoke
+        # Invoke LLM directly (Vision needs special image handling, not suitable for InternalLLMService)
         response = await llm.ainvoke([system_msg, human_msg])
 
         result = VisionResult(
             task=task,
             success=True,
-            summary=response.content,
+            summary=response.content if hasattr(response, 'content') else str(response),
             raw_output=response,
             screenshot_path=image_source,
             latency_ms=(time.time() - start_time) * 1000,

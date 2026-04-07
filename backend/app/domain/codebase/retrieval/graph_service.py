@@ -16,7 +16,7 @@ from langchain_core.prompts.prompt import PromptTemplate
 
 from app.core.config import settings
 from app.infrastructure.database.graph.driver import get_graph_db
-from app.infrastructure.llm.factory import LLMFactory, get_default_llm
+from app.infrastructure.llm.factory import get_default_llm
 
 logger = logging.getLogger(__name__)
 

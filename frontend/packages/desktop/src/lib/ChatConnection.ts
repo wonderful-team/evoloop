@@ -11,6 +11,7 @@ export interface ChatConnectionCallbacks {
     onMessage: (message: any) => void; // Real-time message sync
     onStream?: (streamEvent: any) => void; // Enhanced stream events (thinking, tool progress)
     onError: (error: string) => void;
+    onUnauthorized?: () => void; // 401 未授权回调
 }
 
 export class ChatConnection {
@@ -61,6 +62,13 @@ export class ChatConnection {
             console.warn("[ChatConnection] Failed to get token", e);
         }
 
+        // 检查token是否存在，如果不存在可能已过期
+        if (!token) {
+            console.warn("[ChatConnection] No token available, possibly expired");
+            this.handleUnauthorized();
+            return;
+        }
+
         const url = `${OpenAPI.BASE}/api/v1/stream/chat/${threadId}?token=${token}`;
         console.log(`[ChatConnection] Connecting to ${url}`);
 
@@ -72,6 +80,13 @@ export class ChatConnection {
             this.notifyError("Failed to create connection");
             this.notifyConnectionChange(false, 'error');
         }
+    }
+
+    private handleUnauthorized() {
+        console.log("[ChatConnection] Handling 401 unauthorized");
+        this.disconnect();
+        // 触发401回调
+        this.callbacks?.onUnauthorized?.();
     }
 
     public disconnect() {
@@ -96,6 +111,15 @@ export class ChatConnection {
 
             // Check readyState
             if (sse.readyState === EventSource.CLOSED) {
+                // 连接被关闭，可能是401未授权
+                // EventSource不会直接给出HTTP状态码，需要通过其他方式检测
+                // 检查token是否还存在
+                const token = localStorage.getItem("access_token");
+                if (!token) {
+                    console.warn("[ChatConnection] Connection closed and no token found, likely 401");
+                    this.handleUnauthorized();
+                    return;
+                }
                 this.notifyConnectionChange(false, 'disconnected');
             } else if (sse.readyState === EventSource.CONNECTING) {
                 this.notifyConnectionChange(false, 'reconnecting');
@@ -191,6 +215,13 @@ export class ChatConnection {
                 if (e.data) {
                     const data = JSON.parse(e.data);
                     if (data.error) {
+                        // 检查是否是401未授权错误
+                        if (data.status === 401 || data.code === 'UNAUTHORIZED' || 
+                            data.error?.includes?.('401') || data.error?.includes?.('unauthorized')) {
+                            console.warn("[ChatConnection] Received 401 error from server");
+                            this.handleUnauthorized();
+                            return;
+                        }
                         this.notifyError(data.error);
                     }
                 }

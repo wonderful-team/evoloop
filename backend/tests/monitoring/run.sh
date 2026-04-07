@@ -37,7 +37,7 @@ echo "检查后端服务..."
 if curl -s http://localhost:8000/api/health > /dev/null 2>&1; then
     echo -e "${GREEN}✓ 后端服务运行中${NC}"
 else
-    echo -e "${YELLOW}⚠ 后端服务未检测到 (http://localhost:8000)${NC}"
+    echo -e "${YELLOW}⚠ 后端服务未检测到 (http://localhost:20160)${NC}"
     echo "请确保后端服务已启动: python -m app.main"
     echo ""
     read -p "是否继续? (y/N) " -n 1 -r

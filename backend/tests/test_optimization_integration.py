@@ -115,7 +115,7 @@ class TestContextCacheIntegration:
         Scenario: Full request with Supervisor -> Worker -> Finish.
         Context should be cached and reused.
         """
-        from app.core.engine.context_cache import LayeredContextCache
+        from app.core.context.cache import LayeredContextCache
         
         # Clear cache
         LayeredContextCache._static_cache.clear()
@@ -161,7 +161,7 @@ class TestContextCacheIntegration:
         """
         Scenario: Multiple nodes should get fresh blackboard copies.
         """
-        from app.core.engine.context_cache import LayeredContextCache
+        from app.core.context.cache import LayeredContextCache
         
         # Simulate state changes
         state = {
@@ -378,7 +378,7 @@ class TestEndToEndScenarios:
         assert metrics['tool_executions'] == 1  # Only executed once
         
         # Step 2: Context hydration
-        from app.core.engine.context_cache import LayeredContextCache
+        from app.core.context.cache import LayeredContextCache
         LayeredContextCache._static_cache.clear()
         
         static1 = await LayeredContextCache.get_static_layer("req1", 1, mock_context_loader)

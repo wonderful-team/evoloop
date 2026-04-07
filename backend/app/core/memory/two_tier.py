@@ -25,11 +25,11 @@ Budget System:
 Usage:
     from app.core.memory.config import MemoryConfig
     from app.core.memory.backends.file_backend import FileMemoryStorage
-    from app.core.memory.smart_retrieval import SmartMemoryRetriever
+    from app.core.memory.retrieval import MemoryRetriever
     
     config = MemoryConfig.from_settings()
     storage = FileMemoryStorage(str(config.memory_root))
-    retriever = SmartMemoryRetriever(storage=storage, config=config)
+    retriever = MemoryRetriever(storage=storage, config=config)
     
     manager = TwoTierMemoryManager(storage=storage, config=config)
     

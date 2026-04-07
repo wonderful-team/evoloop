@@ -10,7 +10,7 @@ from dataclasses import asdict, dataclass, field
 from typing import Any, List, Tuple
 
 import yaml
-from langchain_core.messages import HumanMessage, SystemMessage
+
 from sqlalchemy import select
 
 from app.core.learning.prompts import prompt_builder
@@ -22,7 +22,7 @@ from app.core.learning.synthesizer_utils import (
 from app.core.execution.macro.verification_service import SynthesisIntegration
 from app.i18n.service import i18n
 from app.infrastructure.database.sql.database import session_scope
-from app.infrastructure.llm.factory import LLMFactory
+
 from app.models import Message
 
 logger = logging.getLogger(__name__)
@@ -214,9 +214,6 @@ class WorkflowSynthesizer:
 
     async def _generate_skill_yaml(self, narrative: str, summary: dict, user_intent_hint: str = "") -> str:
         """Use LLM to generate skill YAML from trace narrative."""
-        # Config is handled internally by LLMFactory
-        llm = LLMFactory.create_llm()
-
         from app.infrastructure.config.service import SystemConfigService
         user_lang = SystemConfigService.get_language_preference()
         language_constraint = i18n.get("prompts.learning.synthesis_lang_constraint", lang=user_lang)
@@ -235,13 +232,16 @@ class WorkflowSynthesizer:
 
         logger.info(f"--- [Skill Synthesis Prompt Start] ---\n{prompt}\n--- [Skill Synthesis Prompt End] ---")
 
-        messages = [
-            SystemMessage(content=prompt),
-            HumanMessage(content=prompt_builder.build_synthesis_human_prompt()),
-        ]
-
-        response = await llm.ainvoke(messages, config={"callbacks": []})  # Internal thought, do not stream
-        content = response.content
+        # Use InternalLLMService to prevent internal synthesis from being logged to chat
+        from app.core.llm import InternalLLMService
+        response = await InternalLLMService.invoke(
+            messages=[
+                {"role": "system", "content": prompt},
+                {"role": "user", "content": prompt_builder.build_synthesis_human_prompt()},
+            ],
+            purpose="skill_synthesis",
+        )
+        content = response.content if hasattr(response, 'content') else str(response)
 
         logger.info(f"--- [Skill Synthesis Response Start] ---\n{content}\n--- [Skill Synthesis Response End] ---")
 

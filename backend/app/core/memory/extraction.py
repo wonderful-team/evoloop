@@ -191,10 +191,6 @@ class MemoryExtractionService:
         Returns:
             Extraction result (JSON or structured text)
         """
-        from app.infrastructure.llm.factory import get_default_llm
-        
-        llm = await get_default_llm(temperature=0.3)
-        
         # Build messages for LLM
         messages = [
             {"role": "system", "content": prompt},
@@ -207,8 +203,12 @@ class MemoryExtractionService:
             "content": f"Analyze this conversation and extract memories:\n\n{context_summary}",
         })
         
-        # Call LLM
-        response = await llm.ainvoke(messages)
+        # Call LLM using InternalLLMService
+        from app.core.llm import InternalLLMService
+        response = await InternalLLMService.invoke(
+            messages=messages,
+            purpose="memory_extraction",
+        )
         
         return response.content if hasattr(response, 'content') else str(response)
     

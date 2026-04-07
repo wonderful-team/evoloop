@@ -10,7 +10,7 @@ from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 
 from app.core.config import settings
 from app.infrastructure.database.sql.database import session_scope
-from app.infrastructure.llm.factory import LLMFactory, get_default_llm
+from app.infrastructure.llm.factory import LLMFactory
 from app.core.learning.prompts import prompt_builder
 from app.models.learning import LearnedSkill
 
@@ -272,7 +272,6 @@ class SkillDiscovery:
         Analyze if a task requires multiple skills.
         Uses lightweight LLM call with modular prompt template.
         """
-        from app.infrastructure.llm.factory import get_default_llm
         from app.core.learning.prompts import prompt_builder
         
         # Use modular prompt template instead of hardcoded string
@@ -284,10 +283,14 @@ class SkillDiscovery:
             return {"is_multi_step": False, "required_skills": [], "reasoning": "Template load failed"}
 
         try:
-            llm = await get_default_llm(temperature=0.0)
-            response = await llm.ainvoke([HumanMessage(content=prompt)])
+            from app.core.llm import InternalLLMService
+            response = await InternalLLMService.invoke(
+                messages=[{"role": "user", "content": prompt}],
+                purpose="task_analysis",
+                temperature=0.0,
+            )
             
-            content = response.content.strip()
+            content = response.content.strip() if hasattr(response, 'content') else str(response).strip()
             if "```json" in content:
                 content = content.split("```json")[-1].split("```")[0].strip()
             

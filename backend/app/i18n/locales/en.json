@@ -317,6 +317,9 @@
         "quota_exhausted_action": "Check Quota",
         "retryable_error_title": "API Connectivity Issue",
         "retryable_error_desc": "I encountered a transient error while communicating with the LLM.",
+        "llm_auth_error_title": "LLM API Authentication Failed",
+        "llm_auth_error_desc": "Unable to connect to LLM service: API key is invalid or expired.",
+        "llm_auth_error_solution": "Please go to 'Settings → LLM Model Settings' to check and update your API key configuration.",
         "technical_markers": [
             "SESSION COMPLETE",
             "MISSION END",

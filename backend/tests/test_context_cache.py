@@ -21,7 +21,7 @@ for mod_name in ['app', 'app.core', 'app.core.memory', 'app.core.learning']:
 
 sys.path.insert(0, '/Users/huangjinhuan/项目/develop-assistant.cn/evoloop/backend')
 
-from app.core.engine.context_cache import (
+from app.core.context.cache import (
     StaticContextLayer,
     DynamicContextLayer,
     LayeredContextCache,

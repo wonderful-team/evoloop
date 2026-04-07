@@ -7,6 +7,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import selectinload
 
 from app.core.monitoring.activity import activity_monitor
+from app.core.messaging.category import MessageCategory
 from app.infrastructure.database.sql.database import get_db_session
 from app.models import Conversation, FileOperation, Message
 
@@ -146,6 +147,15 @@ async def get_conversation_messages(
     Get message history for a thread from the persistent SQL log.
     Supports pagination for infinite scroll.
     
+    Query Logic (simplified):
+    1. Query all is_visible=True messages (respecting pagination)
+    2. Collect run_ids from visible messages
+    3. Query is_visible=False messages with the same run_ids
+    4. Merge and return
+    
+    Note: is_visible is completely determined by message category.
+    See MessageCategory.get_visible_categories() for details.
+    
     Args:
         thread_id: The conversation thread ID
         limit: Number of messages to return (default 50, max 100)
@@ -154,13 +164,12 @@ async def get_conversation_messages(
     Returns:
         MessageListResponse with items, has_more flag, and cursors
     """
-    # Validate limit - this is the target number of VISIBLE messages (human + ai pairs)
-    # Tool messages will be fetched separately based on run_id association
     limit = min(max(limit, 1), 100)
     
     try:
         async with get_db_session() as session:
-            # Step 1: Query only visible messages (main conversation nodes)
+            # Step 1: Query visible messages only
+            # is_visible is determined by category, see MessageCategory.get_visible_categories()
             visible_stmt = (
                 select(Message)
                 .where(
@@ -203,6 +212,7 @@ async def get_conversation_messages(
                     run_ids.add(latest_run_id)
             
             # Step 3: Fetch all invisible messages associated with these runs
+            # These are internal messages (internal_tool_call, internal_system, internal_llm_json, error)
             invisible_messages = []
             if run_ids:
                 invisible_stmt = (
@@ -225,7 +235,10 @@ async def get_conversation_messages(
             # Get total count on first load (when before_id is None)
             total_count = None
             if before_id is None:
-                count_stmt = select(Message.id).where(Message.thread_id == thread_id, Message.is_visible == True)
+                count_stmt = select(Message.id).where(
+                    Message.thread_id == thread_id, 
+                    Message.is_visible == True
+                )
                 count_result = await session.execute(count_stmt)
                 total_count = len(count_result.scalars().all())
 
@@ -280,45 +293,20 @@ async def get_conversation_messages(
                     pending_tool_calls = []
 
                 elif m.role == "ai":
-                    # Skip intermediate "tool calling" messages that have no real content
-                    # but have tool_calls. These should not be displayed as separate messages.
-                    is_intermediate = (
-                        m.tool_calls and
-                        (not m.content or m.content.strip() in ["", "正在执行工具...", "正在执行工具..."] or
-                         m.content.strip().startswith("正在执行"))
-                    )
-
-                    # Handle intermediate messages (even if hidden/is_visible=0)
-                    # These messages track tool_calls for subsequent tool output folding
-                    if is_intermediate:
-                        # Track tool_calls from intermediate messages for folding
+                    # Simplified: Use category to determine message type
+                    category = m.category
+                    
+                    # Check if this is a tool call message (should be folded)
+                    is_tool_call = category == MessageCategory.ASSISTANT_TOOL_CALL.value
+                    
+                    if is_tool_call and m.tool_calls:
+                        # Track tool calls for folding
                         if isinstance(m.tool_calls, list):
                             pending_tool_calls.extend(m.tool_calls)
                         
-                        # IMPORTANT: If there's a visible AI message to fold into, use it
-                        # Otherwise create a temporary item for tracking
-                        if last_ai_item and last_ai_item in final_items:
-                            # Tool outputs will be folded into this visible message
-                            pass
-                        else:
-                            # Create a temporary item just for tracking
-                            # This shouldn't happen in normal flow (there should always be a visible AI first)
-                            temp_item = MessageItem(
-                                id=str(m.id),
-                                role="ai",
-                                content="",
-                                thinking=None,
-                                created_at=m.created_at.isoformat() if m.created_at else None,
-                                steps_snapshot=None,
-                                run_id=m.run_id,
-                                parent_id=m.parent_id,
-                                references=[],
-                                steps=[],
-                                has_file_operations=False,
-                            )
-                            last_ai_item = temp_item
-                        # Skip adding this message to final_items
-                        continue
+                        # Skip empty tool calling messages
+                        if not m.content or m.content.strip() in ["", "正在执行工具..."]:
+                            continue
 
                     item = MessageItem(
                         id=str(m.id),
@@ -349,32 +337,31 @@ async def get_conversation_messages(
                         pending_tool_calls = list(m.tool_calls) if isinstance(m.tool_calls, list) else []
 
                 elif m.role == "tool":
+                    # Check if this is a hidden tool output by category
+                    if m.category == MessageCategory.INTERNAL_TOOL_CALL.value:
+                        continue  # Skip internal tool outputs
+                    
                     # Fold into last AI message if available
                     if last_ai_item and pending_tool_calls:
                         # Match FIFO (Assuming Sequential Execution)
                         call_info = pending_tool_calls.pop(0)
-                        tool_name = call_info.get("name", "unknown")
+                        tool_name = call_info.get("name", "unknown") if isinstance(call_info, dict) else "unknown"
 
-                        # Skip hidden/internal tools
+                        # Skip hidden tools (double check)
                         from app.core.tools.registry import get_tool_metadata
                         metadata = get_tool_metadata(tool_name) or {}
                         if metadata.get("is_hidden", False):
                             continue
 
                         step = ToolStep(
-                            id=call_info.get("id", "unknown"),
+                            id=call_info.get("id", "unknown") if isinstance(call_info, dict) else "unknown",
                             tool=tool_name,
-                            tool_name=get_tool_display_name(tool_name),  # Friendly name from registry
-                            input=call_info.get("args", {}),
-                            output=m.content or "",  # Tool output stored in content with action_type='tool_output'
+                            tool_name=get_tool_display_name(tool_name) or tool_name,
+                            input=call_info.get("args", {}) if isinstance(call_info, dict) else {},
+                            output=m.content or "",
                             status="done",
                         )
                         last_ai_item.steps.append(step)
-                    else:
-                        # Orphaned tool message or mismatch
-                        # For now, we HIDE it to remove it from clutter, as per requirement.
-                        # If strict debugging is needed, valid tool messages should have a parent.
-                        pass
 
             # Build response with cursors (based on visible messages only)
             first_id = visible_messages[0].id if visible_messages else None
@@ -403,12 +390,22 @@ async def get_conversation_messages(
 async def search_conversations(q: str, project_id: int | None = None):
     """
     Full-text search on message logs.
+    
+    Only searches visible messages (is_visible=True).
+    Internal messages and errors are excluded from search.
     """
     if not q or len(q.strip()) < 2:
         return []
 
     async with get_db_session() as session:
-        stmt = select(Message).where(Message.content.ilike(f"%{q}%"))
+        # Only search visible messages
+        # This includes: user, assistant_response, assistant_tool_call, tool_output
+        # This excludes: internal_*, error
+        stmt = (
+            select(Message)
+            .where(Message.content.ilike(f"%{q}%"))
+            .where(Message.is_visible == True)
+        )
 
         if project_id is not None:
             stmt = stmt.where(Message.project_id == project_id)
@@ -500,9 +497,10 @@ async def rewind_conversation(
     """
     from app.core.rewind import RewindOrchestrator, RewindRequest as RewindReq
     from app.core.rewind.exceptions import MessageNotFoundError, NoHumanMessageError
+    from app.core.events import system_bus
 
-    # Get orchestrator from app state
-    orchestrator: RewindOrchestrator = request.app.state.rewind_orchestrator
+    # Create orchestrator on-demand (stateless, lightweight)
+    orchestrator = RewindOrchestrator(event_bus=system_bus)
 
     try:
         # Create rewind request

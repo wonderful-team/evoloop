@@ -64,7 +64,10 @@ async def aggregator_node(state: AgentState, config: RunnableConfig) -> dict[str
         blackboard["worker_outcome"] = "failed"
         blackboard.setdefault("metadata", {})["last_aggregation_result"] = f"Aggregation failed: {e}"
         return {
-            "messages": [AIMessage(content=f"Aggregation failed: {e}")],
+            "messages": [AIMessage(
+                content=f"Aggregation failed: {e}",
+                metadata={"is_error": True, "error_type": "aggregation_failed"}
+            )],
             "next_node": RoutingTarget.SUPERVISOR,
             "blackboard": blackboard
         }

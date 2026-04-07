@@ -41,6 +41,7 @@ interface ChatState {
     | "summarizing"
     | "indexing"
     | "quota_exhausted"  // LLM quota exhausted state
+    | "unauthorized"     // 401 unauthorized
     | "unknown"
     steps: StepItem[]
     finalOutcome: string | null // Session outcome: SUCCESS | FAILED | INCOMPLETE
@@ -181,6 +182,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
             onMessage: (msg: any) => get()._appendMessage(msg),
             onStream: (event: StreamEvent) => get()._processStreamEvent(event),
             onError: (error: string) => get()._setError(error),
+            onUnauthorized: () => {
+                // SSE连接401未授权，更新状态并让用户知道需要重新登录
+                console.warn("[ChatStore] SSE connection unauthorized");
+                set({ 
+                    status: "error",
+                    isConnected: false,
+                    connectionStatus: "unauthorized"
+                });
+                // 触发全局401处理（通过API错误处理）
+                // 这里不直接跳转，让后续的API调用触发统一的401处理
+            },
         })
 
         connection.connect(threadId)
@@ -746,7 +758,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             const updatedMsg: Message = {
                 ...existingMsg,
                 // Update steps if new steps are provided (tool execution updates)
-                steps: newMsg.steps.length > 0 ? newMsg.steps : existingMsg.steps,
+                steps: (newMsg.steps && newMsg.steps.length > 0) ? newMsg.steps : existingMsg.steps,
                 // Update snapshot if provided
                 steps_snapshot: newMsg.steps_snapshot || existingMsg.steps_snapshot,
                 // Update tool_calls if provided
@@ -900,6 +912,27 @@ export const useChatStore = create<ChatState>((set, get) => ({
                     message: event.message || i18n.t("quota.message", "Your LLM quota has been exhausted."),
                     hint: event.hint || i18n.t("quota.hint", "Please contact the administrator to add more quota."),
                     actionText: event.action_text || i18n.t("quota.action", "Check Quota"),
+                })
+                break
+
+            case 'llm_auth_error':
+                // Handle LLM API authentication error
+                toast.error(event.title || i18n.t("chat.llmAuthError", "LLM API 认证失败"), {
+                    description: event.message || i18n.t("chat.llmAuthErrorDesc", "API 密钥无效或已过期"),
+                    action: {
+                        label: i18n.t("chat.goToSettings", "去设置"),
+                        onClick: () => {
+                            window.location.hash = '#/settings'
+                        }
+                    },
+                    duration: 10000,
+                })
+                set({
+                    status: 'error',
+                    streamState: {
+                        ...state,
+                        events: newEvents,
+                    }
                 })
                 break
 

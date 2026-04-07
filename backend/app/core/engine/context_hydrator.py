@@ -245,7 +245,7 @@ class EvoContextMiddleware:
             else:
                 # Embedded mode: Use smart retrieval with LLM selection
                 # OPTIMIZATION: Use shared container instead of creating new one via get_relevant_memories
-                from app.core.memory.smart_retrieval import SmartMemoryRetriever
+                from app.core.memory.retrieval import MemoryRetriever
                 from app.core.memory.state_tracking import memory_tracker
                 
                 try:
@@ -254,7 +254,7 @@ class EvoContextMiddleware:
                     already_surfaced = memory_tracker.get_surfaced_ids(thread_id)
                     
                     # Create retriever with shared container's storage
-                    retriever = SmartMemoryRetriever(
+                    retriever = MemoryRetriever(
                         storage=memory_container.storage,
                         config=memory_container.config,
                         max_results=5,

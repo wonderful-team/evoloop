@@ -3,11 +3,13 @@ File-based Long-term Memory Storage Backend
 
 Unified file storage for embedded mode, inspired by Claude Code's memdir.
 Supports both private and team memory directories.
+
+Implements IMemoryStorage interface for interchangeable storage backends.
 """
 
 import logging
 from pathlib import Path
-from typing import List, Optional, Callable
+from typing import List, Optional, Callable, Dict, Any
 from datetime import datetime
 import fnmatch
 
@@ -19,11 +21,12 @@ from app.core.memory.models import (
     MemoryType,
     PrivacyLevel,
 )
+from app.core.memory.interfaces.storage import IMemoryStorage, StorageError
 
 logger = logging.getLogger(__name__)
 
 
-class FileMemoryStorage:
+class FileMemoryStorage(IMemoryStorage):
     """
     File-based memory storage backend.
     
@@ -488,6 +491,67 @@ class FileMemoryStorage:
         # Write index
         self.index_file.write_text("\n".join(lines) + "\n", encoding="utf-8")
         logger.info(f"Rebuilt memory index with {len(all_entries)} entries")
+    
+    # ==========================================================================
+    # IMemoryStorage Lifecycle Methods
+    # ==========================================================================
+    
+    async def initialize(self) -> None:
+        """
+        Initialize file storage.
+        
+        Ensures directories exist. Called automatically during __init__.
+        """
+        self._ensure_directories()
+        logger.debug(f"FileMemoryStorage initialized at {self.root}")
+    
+    async def close(self) -> None:
+        """
+        Close file storage.
+        
+        No-op for file storage (no persistent connections).
+        """
+        logger.debug("FileMemoryStorage closed")
+    
+    async def flush(self) -> None:
+        """
+        Clear all data (for testing).
+        
+        WARNING: This deletes ALL memory files permanently!
+        """
+        import shutil
+        
+        if self.private_dir.exists():
+            shutil.rmtree(self.private_dir)
+        if self.team_dir.exists():
+            shutil.rmtree(self.team_dir)
+        if self.index_file.exists():
+            self.index_file.unlink()
+        
+        self._ensure_directories()
+        logger.warning("FileMemoryStorage flushed (all data cleared)")
+    
+    async def health_check(self) -> Dict[str, Any]:
+        """
+        Check storage health.
+        
+        Returns:
+            Health status with entry count
+        """
+        try:
+            all_entries = await self.list_all()
+            return {
+                "status": "healthy",
+                "backend": "FileMemoryStorage",
+                "entry_count": len(all_entries),
+                "root_path": str(self.root),
+            }
+        except Exception as e:
+            return {
+                "status": "unhealthy",
+                "backend": "FileMemoryStorage",
+                "error": str(e),
+            }
 
 
 class MemoryStorageFactory:

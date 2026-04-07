@@ -881,6 +881,9 @@
       },
       "continuePrompt": "Continue"
     },
+    "llmAuthError": "LLM API Authentication Failed",
+    "llmAuthErrorDesc": "API key is invalid or expired, please check LLM settings",
+    "goToSettings": "Go to Settings",
     "notification": {
       "prefix": "EvoLoop: "
     },
@@ -1588,7 +1591,9 @@
       "passwordPlaceholder": "Password",
       "signUp": "Sign Up",
       "submit": "Login"
-    }
+    },
+    "sessionExpired": "Session Expired",
+    "pleaseLoginAgain": "Please log in again to continue"
   },
   "tour": {
     "replayDesc": "View the product feature introduction again",

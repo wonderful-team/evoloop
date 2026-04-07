@@ -552,8 +552,12 @@ class AgentEngine:
             response = await llm_with_tools.ainvoke(loop_messages, config=config)
         except Exception as e:
             logger.error(f"[{name}] Single-shot LLM invocation failed: {e}")
+            # 系统错误（LLM调用失败），不入库
             return {
-                "messages": [AIMessage(content="Failed to invoke LLM due to system error.")],
+                "messages": [AIMessage(
+                    content="Failed to invoke LLM due to system error.",
+                    metadata={"is_error": True, "error_type": "llm_invocation_system"}
+                )],
                 "tool_history": [],
                 "blackboard": state.get("blackboard"),
             }

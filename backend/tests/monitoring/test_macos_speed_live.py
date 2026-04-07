@@ -319,16 +319,27 @@ async def main():
         logger.error(f"❌ Graph 初始化失败: {e}")
         return 1
     
-    # 初始化 Memory
+    # 初始化 Memory using MemoryContainer
     try:
-        from app.core.memory import memory_manager
-        await memory_manager.initialize()
+        from app.core.memory import MemoryContainer, MemoryConfig
+        container = MemoryContainer(MemoryConfig.from_settings())
+        await container.initialize()
         logger.info("✅ Memory 初始化完成")
+        # Store container for cleanup
+        global _memory_container
+        _memory_container = container
     except Exception as e:
         logger.warning(f"⚠️ Memory 初始化失败（继续测试）: {e}")
     
     # 运行测试
     result = await run_speed_test()
+    
+    # Cleanup memory container
+    if '_memory_container' in globals():
+        try:
+            await _memory_container.shutdown()
+        except:
+            pass
     
     return 0 if not result['error'] else 1
 

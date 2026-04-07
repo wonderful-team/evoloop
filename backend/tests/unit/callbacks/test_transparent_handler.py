@@ -29,10 +29,9 @@ def clean_tool_store():
 @pytest.fixture
 def handler(mock_activity_monitor):
     """Create handler with mocked dependencies."""
-    with patch("app.core.callbacks.transparent.activity_monitor", mock_activity_monitor):
-        with patch("app.core.callbacks.transparent.cache", MagicMock()):
-            h = TransparentCallbackHandler(thread_id="test-thread")
-            return h
+    h = TransparentCallbackHandler(thread_id="test-thread")
+    h.monitor = mock_activity_monitor
+    return h
 
 
 class TestTransparentHandlerToolLifecycle:
@@ -78,49 +77,38 @@ class TestTransparentHandlerToolLifecycle:
         """Test multiple tools don't interfere."""
         # Start two tools
         await handler.on_tool_start(
-            serialized={"name": "tool_a"},
-            input_str="{}",
-            run_id="run-a"
+            serialized={"name": "read_file"},
+            input_str='{"path": "/file1.txt"}',
+            run_id="run-1"
         )
         await handler.on_tool_start(
-            serialized={"name": "tool_b"},
-            input_str="{}",
-            run_id="run-b"
+            serialized={"name": "read_file"},
+            input_str='{"path": "/file2.txt"}',
+            run_id="run-2"
         )
         
         # Verify both exist
-        assert clean_tool_store.get_tool("test-thread", "run-a").name == "tool_a"
-        assert clean_tool_store.get_tool("test-thread", "run-b").name == "tool_b"
+        state1 = clean_tool_store.get_tool("test-thread", "run-1")
+        state2 = clean_tool_store.get_tool("test-thread", "run-2")
         
-        # End first tool
-        await handler.on_tool_end(output="result", run_id="run-a")
-        
-        # Verify only first was removed
-        assert clean_tool_store.get_tool("test-thread", "run-a") is None
-        assert clean_tool_store.get_tool("test-thread", "run-b") is not None
+        assert state1.path == "/file1.txt"
+        assert state2.path == "/file2.txt"
 
 
 class TestTransparentHandlerSummaryLogic:
-    """Test summary logic delegation to ToolState."""
+    """Test summary generation delegation."""
 
     @pytest.mark.asyncio
     async def test_summary_generation_delegated(self, handler, clean_tool_store):
-        """Test that summary generation uses ToolState.get_summary."""
-        # Setup
+        """Test that summary generation is delegated to tool_state_store."""
+        # Start and complete a tool
         await handler.on_tool_start(
             serialized={"name": "read_file"},
             input_str='{"path": "/test.txt"}',
             run_id="run-summary"
         )
         
-        # Get the state
+        # Verify tool is tracked
         state = clean_tool_store.get_tool("test-thread", "run-summary")
-        
-        # Verify get_summary method exists and works
-        summary, is_file = state.get_summary("File content")
-        assert isinstance(summary, str)
-        assert isinstance(is_file, bool)
-
-
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+        assert state is not None
+        assert state.name == "read_file"

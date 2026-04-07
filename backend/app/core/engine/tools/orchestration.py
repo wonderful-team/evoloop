@@ -13,7 +13,7 @@ from langchain_core.runnables import RunnableConfig
 
 from app.constants import RoutingTarget
 from app.core.tools import evoloop_tool
-from app.infrastructure.llm.factory import LLMFactory, get_default_llm
+from app.infrastructure.llm.factory import LLMFactory
 from app.i18n.service import i18n
 from app.utils.text import extract_json_from_markdown
 
@@ -154,8 +154,6 @@ async def decompose_task(
     
     Returns a SpawnPlan that triggers the parallel execution engine.
     """
-    llm = await get_default_llm(temperature=0.3)
-
     # 2. Call LLM
     from app.utils import render_template
     prompt = render_template(
@@ -165,8 +163,14 @@ async def decompose_task(
     )
 
     try:
-        response = await llm.ainvoke([{"role": "user", "content": prompt}])
-        json_content = extract_json_from_markdown(response.content)
+        from app.core.llm import InternalLLMService
+        response = await InternalLLMService.invoke(
+            messages=[{"role": "user", "content": prompt}],
+            purpose="task_decomposition",
+            temperature=0.3,
+        )
+        content = response.content if hasattr(response, 'content') else str(response)
+        json_content = extract_json_from_markdown(content)
         subtasks = json.loads(json_content)
 
         # LLM should return an array of task objects per the prompt
@@ -240,8 +244,7 @@ async def aggregate_results(
     if aggregation_strategy == "concatenate":
         return {"status": "success", "aggregated": "\n\n---\n\n".join([str(r.get("result", r)) for r in results])}
 
-    llm = await get_default_llm(temperature=0.3)
-
+    from app.core.llm import InternalLLMService
     from app.utils import render_template
     prompt = render_template(
         "tool/orchestration_aggregate.prompt.j2",
@@ -250,5 +253,10 @@ async def aggregate_results(
         results_json=json.dumps(results, ensure_ascii=False)
     )
     
-    response = await llm.ainvoke([{"role": "user", "content": prompt}])
-    return {"status": "success", "aggregated": response.content}
+    response = await InternalLLMService.invoke(
+        messages=[{"role": "user", "content": prompt}],
+        purpose="result_aggregation",
+        temperature=0.3,
+    )
+    content = response.content if hasattr(response, 'content') else str(response)
+    return {"status": "success", "aggregated": content}

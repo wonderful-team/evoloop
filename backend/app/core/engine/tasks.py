@@ -7,7 +7,7 @@ from typing import Any, cast
 
 from langchain_core.messages import SystemMessage
 
-from app.infrastructure.llm.factory import get_default_llm
+
 
 # Unified task queue (Huey in embedded mode, Celery in full mode)
 from app.infrastructure.queue.factory import shared_task
@@ -340,11 +340,18 @@ def persist_message_task(
     tool_calls: list | None = None,
     references: list[dict] | None = None,
     action_type: str = "text",
+    category: str | None = None,
 ):
-    """Background task to persist agent messages to the database."""
+    """Background task to persist agent messages to the database.
+    
+    Note: is_visible is now completely determined by category.
+    No manual calculation based on role/content.
+    """
     async def _run():
         from app.models import Message, MessageReference
+        from app.core.messaging.category import MessageCategory
         from uuid import UUID
+        
         try:
             async with session_scope() as session:
                 target_parent_id = parent_id
@@ -359,14 +366,16 @@ def persist_message_task(
                     res = await session.execute(stmt)
                     target_parent_id = res.scalar_one_or_none()
 
-                # Calculate visibility for clean pagination
-                # Hidden: Pure tool results, and intermediate AI empty messages with tool_calls
+                # is_visible is completely determined by category
+                # This ensures consistency across the entire system
                 is_visible = True
-                if role == "tool":
-                    is_visible = False
-                elif role == "ai":
-                    if tool_calls and (not content or content.strip() in ["", "正在执行工具..."] or content.strip().startswith("正在执行")):
-                        is_visible = False
+                if category:
+                    try:
+                        cat_enum = MessageCategory(category)
+                        is_visible = cat_enum in MessageCategory.get_visible_categories()
+                    except ValueError:
+                        # Unknown category, default to visible
+                        is_visible = True
 
                 log = Message(
                     thread_id=thread_id,
@@ -381,6 +390,7 @@ def persist_message_task(
                     tool_calls=tool_calls,
                     action_type=action_type,
                     is_visible=is_visible,
+                    category=category,
                 )
                 session.add(log)
                 await session.flush()  # Get ID for references
@@ -466,8 +476,6 @@ def git_harvest_task(cwd: str, project_id: int):
 
         # 2. Extract
         try:
-            llm = await get_default_llm(temperature=0.0)
-            structured_llm = llm.with_structured_output(ExtractionResult)
             user_lang = SystemConfigService.get_language_preference()
 
             from app.utils import render_template
@@ -477,9 +485,16 @@ def git_harvest_task(cwd: str, project_id: int):
                 user_language=user_lang
             )
 
-            result = cast(ExtractionResult, await structured_llm.ainvoke([
-                SystemMessage(content=prompt_text)
-            ]))
+            # Use InternalLLMService for structured extraction
+            from app.core.llm import InternalLLMService
+            result = await InternalLLMService.invoke_structured(
+                messages=[
+                    {"role": "system", "content": prompt_text}
+                ],
+                purpose="memory_extraction",
+                output_schema=ExtractionResult,
+                temperature=0.0,
+            )
 
             if isinstance(result, ExtractionResult) and result.concepts:
                 # Use singleton container to store concepts

@@ -21,10 +21,13 @@ Usage:
 from app.core.rewind.models import RewindRequest, RewindResult
 from app.core.rewind.orchestrator import RewindOrchestrator
 from app.core.rewind.exceptions import RewindError, PartialRewindError
+from app.core.rewind.handlers import MessageRewind
 
 __all__ = [
     # Main orchestrator
     "RewindOrchestrator",
+    # Handlers
+    "MessageRewind",
     # Data models
     "RewindRequest",
     "RewindResult",

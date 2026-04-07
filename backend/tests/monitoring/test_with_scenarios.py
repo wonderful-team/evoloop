@@ -277,9 +277,14 @@ async def clean_historical_burden():
     
     # 3. 清理内存系统
     try:
-        from app.core.memory import memory_manager
-        await memory_manager.flush()
-        logger.info("  ✅ 内存系统已清理")
+        from app.core.memory import MemoryContainer, MemoryConfig
+        container = MemoryContainer(MemoryConfig.from_settings())
+        await container.initialize()
+        try:
+            await container.memory_manager.flush()
+            logger.info("  ✅ 内存系统已清理")
+        finally:
+            await container.shutdown()
     except Exception as e:
         logger.debug(f"  ⚠️  清理内存系统跳过: {e}")
     
@@ -369,11 +374,17 @@ async def init_env():
     except:
         pass
     
+    # Initialize Memory using MemoryContainer
     try:
-        from app.core.memory import memory_manager
-        await memory_manager.initialize()
-    except:
-        pass
+        from app.core.memory import MemoryContainer, MemoryConfig
+        container = MemoryContainer(MemoryConfig.from_settings())
+        await container.initialize()
+        # Store container for cleanup at the end
+        global _memory_container
+        _memory_container = container
+        logger.info("✅ Memory Manager 初始化完成")
+    except Exception as e:
+        logger.warning(f"⚠️ Memory 初始化失败: {e}")
         
     try:
         from app.core.environment import awaken
@@ -791,6 +802,14 @@ async def run_batch_tests(category_name: str = None, max_tests: int = None, star
     
     # 保存详细报告到 JSON 文件
     await save_test_report(results)
+    
+    # Cleanup memory container
+    global _memory_container
+    if '_memory_container' in globals():
+        try:
+            await _memory_container.shutdown()
+        except:
+            pass
     
     return results
 

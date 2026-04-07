@@ -8,6 +8,7 @@ import { createRouter, RouterProvider } from "@tanstack/react-router"
 import { createHashHistory } from "@tanstack/react-router"
 import { StrictMode } from "react"
 import ReactDOM from "react-dom/client"
+import { toast } from "sonner"
 import { ApiError, OpenAPI } from "./client"
 import { initApiInterceptors } from "./interceptors.ts"
 import { ThemeProvider } from "@evoloop/shared/components/theme-provider"
@@ -29,11 +30,37 @@ OpenAPI.TOKEN = async () => {
 // 初始化 API 拦截器（处理权限错误）
 initApiInterceptors()
 
+// 全局标志，防止重复显示401提示
+let isHandling401 = false
+
 const handleApiError = (error: Error) => {
   // 401 未授权 - 跳转到登录
   if (error instanceof ApiError && error.status === 401) {
+    // 如果已经在处理401，避免重复操作
+    if (isHandling401) return
+    isHandling401 = true
+    
+    // 保存当前完整路径（包括hash路径和query参数），用于登录后返回
+    const currentPath = window.location.hash
+    if (currentPath && currentPath !== '#/login') {
+      localStorage.setItem('redirect_after_login', currentPath)
+      console.log('[401 Handler] Saved redirect path:', currentPath)
+    }
+    
+    // 清除token
     localStorage.removeItem("access_token")
-    window.location.href = "/login"
+    localStorage.removeItem("evoloop_token")
+    
+    // 显示提示
+    toast.error(i18n.t("auth.sessionExpired", "登录已过期"), {
+      description: i18n.t("auth.pleaseLoginAgain", "请重新登录以继续"),
+      duration: 5000,
+    })
+    
+    // 延迟跳转，让用户看到提示
+    setTimeout(() => {
+      window.location.href = "/login"
+    }, 500)
     return
   }
   

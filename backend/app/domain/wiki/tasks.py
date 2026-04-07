@@ -5,7 +5,7 @@ import logging
 from app.infrastructure.queue.factory import shared_task
 
 from app.domain.wiki.service import wiki_service
-from app.infrastructure.llm.factory import get_default_llm
+
 from app.utils.async_utils import flush_loop_bound_resources
 
 logger = logging.getLogger(__name__)
@@ -31,14 +31,10 @@ def generate_wiki_task(project_id: int, topic: str, force_regenerate: bool = Fal
                 sys_tid, "WIKI", "Generating Wiki", "Deep Research in progress..."
             )
 
-            # Instantiate LLM inside the worker process
-            llm = await get_default_llm()
-
-            # Run async service
+            # Run async service (InternalLLMService is used internally)
             await wiki_service.generate_wiki(
                 project_id=project_id,
                 topic=topic,
-                llm=llm,
                 force_regenerate=force_regenerate
             )
 

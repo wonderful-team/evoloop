@@ -229,8 +229,13 @@ class WorkerNode:
 
         except Exception as e:
             logger.error(f"[Worker] 💥 '{role_name}' failed: {e}")
+            # 业务错误（Worker执行失败），入库供Agent学习
+            error_msg = AIMessage(
+                content=f"Worker '{role_name}' failed: {e}",
+                metadata={"is_error": True, "error_type": "worker_execution"}
+            )
             return {
-                "messages": [AIMessage(content=f"Worker '{role_name}' failed: {e}")],
+                "messages": [error_msg],
                 "next_node": RoutingTarget.SUPERVISOR
             }
 
@@ -353,7 +358,10 @@ class WorkerNode:
                     logger.error(f"[Worker] Workflow failed at step {i+1}")
                     summary = f"Workflow failed at step {i+1}/{len(skills)}: {skill.name}\n\n{step_output}"
                     return {
-                        "messages": [AIMessage(content=summary)],
+                        "messages": [AIMessage(
+                            content=summary,
+                            metadata={"is_error": True, "error_type": "workflow_step_failed"}
+                        )],
                         "next_node": RoutingTarget.SUPERVISOR,
                         "workflow_results": results
                     }
@@ -367,7 +375,10 @@ class WorkerNode:
                     "status": "failed"
                 })
                 return {
-                    "messages": [AIMessage(content=f"Workflow failed at step {i+1}: {e}")],
+                    "messages": [AIMessage(
+                        content=f"Workflow failed at step {i+1}: {e}",
+                        metadata={"is_error": True, "error_type": "workflow_step_exception"}
+                    )],
                     "next_node": RoutingTarget.SUPERVISOR,
                     "workflow_results": results
                 }

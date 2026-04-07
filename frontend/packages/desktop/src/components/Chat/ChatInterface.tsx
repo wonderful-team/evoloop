@@ -186,6 +186,18 @@ export function ChatInterface() {
     }
   }, [messages]) // Re-run when messages load
 
+  // Handle unauthorized state - trigger global 401 handling
+  useEffect(() => {
+    if (status === "unauthorized") {
+      console.log("[ChatInterface] Unauthorized status detected")
+      // Trigger a dummy API call to trigger the global 401 handler
+      // This will show toast and redirect to login
+      ConversationsService.listConversations({ projectId: projectId! }).catch(() => {
+        // Error will be handled by main.tsx's handleApiError
+      })
+    }
+  }, [status, projectId])
+
   // --- Thread List (Sidebar) ---
   // Kept in React Query as it is a list view concern
   const { data: threadsData } = useQuery({

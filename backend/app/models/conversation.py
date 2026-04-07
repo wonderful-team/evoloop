@@ -38,6 +38,11 @@ class Message(Base):
     # values: 'text' (default), 'tool_output', 'thinking', 'system'
     action_type: Mapped[str] = mapped_column(String(50), default="text", server_default="text")
 
+    # Message Category for unified lifecycle management
+    # values: 'user', 'assistant_response', 'assistant_tool_call', 'tool_output',
+    #         'internal_tool_call', 'internal_reasoning', 'internal_system', 'internal_llm_json'
+    category: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True)
+
     # Visibility flag for pagination (hide intermediate tool-calling AI/Tool messages)
     is_visible: Mapped[bool] = mapped_column(default=True, server_default="1")
 

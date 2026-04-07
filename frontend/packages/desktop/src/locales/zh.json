@@ -882,6 +882,9 @@
       },
       "continuePrompt": "继续"
     },
+    "llmAuthError": "LLM API 认证失败",
+    "llmAuthErrorDesc": "API 密钥无效或已过期，请检查 LLM 设置",
+    "goToSettings": "去设置",
     "notification": {
       "prefix": "EvoLoop: "
     },
@@ -1583,7 +1586,9 @@
       "passwordPlaceholder": "密码",
       "signUp": "立即注册",
       "submit": "登录"
-    }
+    },
+    "sessionExpired": "登录已过期",
+    "pleaseLoginAgain": "请重新登录以继续"
   },
   "tour": {
     "replayDesc": "再次查看产品功能介绍",

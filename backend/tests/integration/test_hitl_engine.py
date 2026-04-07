@@ -116,12 +116,14 @@ async def test_run_agent_background_catches_hitl_and_sets_interrupted_status():
 
     with patch("app.core.engine.background_agent.get_graph", return_value=mock_graph), \
          patch("app.core.engine.background_agent.ContextManager") as mock_ctx_manager, \
-         patch("app.core.engine.background_agent.memory_manager") as mock_memory:
+         patch("app.core.engine.background_agent.MemoryContainer") as mock_memory_container:
 
         mock_ctx_manager.load_from_redis = AsyncMock(return_value=None)
         mock_ctx_manager.current = MagicMock(return_value=MagicMock(thread_id=thread_id, project_id=1, command_id=None, working_directory="/tmp"))
+        mock_memory = MagicMock()
         mock_memory.preferences.get_merged_preferences = AsyncMock(return_value="")
         mock_memory.long_term.get_project_concepts = AsyncMock(return_value="")
+        mock_memory_container.return_value.memory_manager = mock_memory
 
         inputs = {
             "messages": [{"type": "human", "content": "帮我删除文件"}],
@@ -173,12 +175,14 @@ async def test_run_agent_background_resume_with_tool_message():
 
     with patch("app.core.engine.background_agent.get_graph", return_value=mock_graph), \
          patch("app.core.engine.background_agent.ContextManager") as mock_ctx_manager, \
-         patch("app.core.engine.background_agent.memory_manager") as mock_memory:
+         patch("app.core.engine.background_agent.MemoryContainer") as mock_memory_container:
 
         mock_ctx_manager.load_from_redis = AsyncMock(return_value=None)
         mock_ctx_manager.current = MagicMock(return_value=MagicMock(thread_id=thread_id, project_id=1, command_id=None, working_directory="/tmp"))
+        mock_memory = MagicMock()
         mock_memory.preferences.get_merged_preferences = AsyncMock(return_value="")
         mock_memory.long_term.get_project_concepts = AsyncMock(return_value="")
+        mock_memory_container.return_value.memory_manager = mock_memory
 
         inputs = {
             "hitl_resume_response": "APPROVED",
@@ -224,12 +228,14 @@ async def test_run_agent_background_resume_fallback_without_tool_call():
 
     with patch("app.core.engine.background_agent.get_graph", return_value=mock_graph), \
          patch("app.core.engine.background_agent.ContextManager") as mock_ctx_manager, \
-         patch("app.core.engine.background_agent.memory_manager") as mock_memory:
+         patch("app.core.engine.background_agent.MemoryContainer") as mock_memory_container:
 
         mock_ctx_manager.load_from_redis = AsyncMock(return_value=None)
         mock_ctx_manager.current = MagicMock(return_value=MagicMock(thread_id=thread_id, project_id=1, command_id=None, working_directory="/tmp"))
+        mock_memory = MagicMock()
         mock_memory.preferences.get_merged_preferences = AsyncMock(return_value="")
         mock_memory.long_term.get_project_concepts = AsyncMock(return_value="")
+        mock_memory_container.return_value.memory_manager = mock_memory
 
         inputs = {
             "hitl_resume_response": "继续执行",
@@ -258,12 +264,14 @@ async def test_run_agent_background_handles_cancelled_exception():
 
     with patch("app.core.engine.background_agent.get_graph", return_value=mock_graph), \
          patch("app.core.engine.background_agent.ContextManager") as mock_ctx_manager, \
-         patch("app.core.engine.background_agent.memory_manager") as mock_memory:
+         patch("app.core.engine.background_agent.MemoryContainer") as mock_memory_container:
 
         mock_ctx_manager.load_from_redis = AsyncMock(return_value=None)
         mock_ctx_manager.current = MagicMock(return_value=MagicMock(thread_id=thread_id, project_id=1, command_id=None, working_directory="/tmp"))
+        mock_memory = MagicMock()
         mock_memory.preferences.get_merged_preferences = AsyncMock(return_value="")
         mock_memory.long_term.get_project_concepts = AsyncMock(return_value="")
+        mock_memory_container.return_value.memory_manager = mock_memory
 
         inputs = {
             "messages": [{"type": "human", "content": "测试取消"}],
