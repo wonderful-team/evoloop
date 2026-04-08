@@ -21,6 +21,7 @@ interface VoiceInputProps {
   placeholder?: string;
   inputMode?: InputMode;
   onToggleMode?: () => void;
+  nlsVolume?: number; // NLS 音量指示
 }
 
 export function VoiceInput({

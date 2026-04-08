@@ -1,4 +1,4 @@
-// 首页 - 语音对话主界面（支持游客模式）
+// 首页 - 语音对话主界面（支持游客模式，使用阿里云 NLS）
 
 import React, { useCallback, useEffect, useState } from 'react';
 import {
@@ -7,12 +7,15 @@ import {
   KeyboardAvoidingView,
   Platform,
   TouchableOpacity,
-  Modal,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { MaterialIcons } from '@expo/vector-icons';
-import { Text, Snackbar, Menu } from 'react-native-paper';
+import {
+  Text,
+  Snackbar,
+  Menu,
+} from 'react-native-paper';
 import {
   MessageList,
   VoiceInput,
@@ -20,10 +23,10 @@ import {
 } from '@/components/voice';
 import { HITLBanner } from '@/components/hitl';
 import { useVoice } from '@/hooks/useVoice';
+import { useNLS } from '@/hooks/useNLS';
 import { useConversationStore } from '@/stores/conversationStore';
 import { useTheme } from '@/theme';
 import { useAuthStore } from '@/stores/authStore';
-import { HumanRequest } from '@/types/hitl';
 import { Project } from '@/types';
 import type { ChatAttachment } from '@/services/api/upload';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -69,37 +72,52 @@ export default function HomeScreen() {
     loadProjects();
   }, [isLoggedIn]);
 
-  // 语音 Hook
+  // ========== NLS 语音识别 ==========
+  const {
+    state: nlsState,
+    isRecording: nlsIsRecording,
+    currentText: nlsCurrentText,
+    volume: nlsVolume,
+    start: startNLS,
+    stop: stopNLS,
+  } = useNLS({
+    onResult: (text, isFinal) => {
+      if (isFinal) {
+        // 一句话识别完成，发送给后端对话
+        sendTextMessage(text);
+      }
+    },
+    onError: (error) => showSnackbar('语音识别错误: ' + error.message),
+  });
+
+  // ========== Gateway 对话 ==========
   const {
     state,
     isListening,
     isThinking,
     hitlRequest,
-    start,
-    stop,
-    interrupt,
     sendText: sendTextMessage,
     respondToHITL,
     cancelHITL,
   } = useVoice({
-    onError: (error: Error) => showSnackbar('语音错误: ' + error.message),
+    onError: (error) => showSnackbar('对话错误: ' + error.message),
   });
 
   useEffect(() => { loadConversations(undefined, true); }, []);
-  useEffect(() => {
-    start();
-    return () => { stop(); };
-  }, []);
 
   const showSnackbar = (message: string) => {
     setSnackbarMessage(message);
     setSnackbarVisible(true);
   };
 
+  // 语音按钮点击
   const handleVoiceToggle = useCallback(async () => {
-    if (isListening) await stop();
-    else await start();
-  }, [isListening, start, stop]);
+    if (nlsIsRecording) {
+      await stopNLS();
+    } else {
+      await startNLS();
+    }
+  }, [nlsIsRecording, startNLS, stopNLS]);
 
   const handleSendMessage = useCallback((text: string) => {
     sendTextMessage(text);
@@ -117,6 +135,10 @@ export default function HomeScreen() {
   const handleGoToProfile = useCallback(() => {
     router.push('/(main)/profile');
   }, [router]);
+
+  // 组合状态（NLS + Gateway）
+  const combinedState = nlsIsRecording ? nlsState : state;
+  const isListeningCombined = nlsIsRecording || isListening;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -187,6 +209,17 @@ export default function HomeScreen() {
           </TouchableOpacity>
         )}
 
+        {/* ===== 实时识别文字（显示在顶部） ===== */}
+        {nlsIsRecording && nlsCurrentText && (
+          <View style={[styles.recognizingBanner, { backgroundColor: colors.surfaceVariant }]}>
+            <MaterialIcons name="mic" size={16} color={colors.primary} />
+            <Text variant="bodySmall" style={{ color: colors.onSurface, marginLeft: 8, flex: 1 }}>
+              {nlsCurrentText}
+            </Text>
+            <View style={[styles.volumeIndicator, { width: nlsVolume * 50 }]} />
+          </View>
+        )}
+
         {/* ===== 消息列表（核心区域） ===== */}
         <View style={styles.messagesArea}>
           <MessageList 
@@ -198,12 +231,13 @@ export default function HomeScreen() {
 
         {/* ===== 底部输入区 ===== */}
         <VoiceInput
-          state={state}
+          state={combinedState}
           onSendText={handleSendMessage}
           onToggleVoice={handleVoiceToggle}
           disabled={isThinking}
           inputMode={inputMode}
           onToggleMode={() => setInputMode(m => m === InputMode.VOICE ? InputMode.TEXT : InputMode.VOICE)}
+          nlsVolume={nlsVolume}
         />
       </KeyboardAvoidingView>
 
@@ -249,31 +283,39 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   projectName: {
-    fontWeight: '600',
-    fontSize: 16,
-    maxWidth: 140,
-    marginHorizontal: 4,
+    marginLeft: 6,
+    marginRight: 2,
+    maxWidth: 120,
   },
-  deviceBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  // 游客横幅
+  // 游客提示
   guestBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 6,
+    paddingVertical: 8,
     marginHorizontal: 12,
-    marginBottom: 4,
-    borderRadius: 6,
+    marginBottom: 8,
+    borderRadius: 8,
+  },
+  // 识别中提示
+  recognizingBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginHorizontal: 12,
+    marginBottom: 8,
+    borderRadius: 8,
+  },
+  volumeIndicator: {
+    height: 4,
+    backgroundColor: '#22C55E',
+    borderRadius: 2,
+    maxWidth: 50,
   },
   // 消息区域
   messagesArea: {
     flex: 1,
+    marginHorizontal: 12,
   },
 });

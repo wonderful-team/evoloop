@@ -32,6 +32,14 @@ export const AUDIO_CONFIG = {
   maxDuration: 60000, // 最大录音时长 60s
 };
 
+// NLS 配置（阿里云实时语音识别）
+export const NLS_CONFIG = {
+  appKey: process.env.EXPO_PUBLIC_NLS_APP_KEY || '',
+  url: 'wss://nls-gateway.aliyuncs.com/ws/v1',
+  sampleRate: 16000,
+  format: 'opus' as const, // opus 或 pcm
+};
+
 // 验证码配置
 export const CAPTCHA_CONFIG = {
   codeLength: 6,
