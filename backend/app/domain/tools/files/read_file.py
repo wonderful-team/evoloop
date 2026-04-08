@@ -145,7 +145,7 @@ Use `read_file(path='{path}', start_line=N, end_line=M)` to read specific line r
     summary_template="database_logger.tool_summary.read_file",
     affected_path_keys=["path"],
     result_summary_template="database_logger.tool_summary.read_file_result",
-    name_map={"zh": "读取文件", "en": "Read File"}
+    name_map={"zh": "查看文件", "en": "View File"}
 )
 async def read_file(
     path: str | None = None,
