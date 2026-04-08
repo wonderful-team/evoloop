@@ -13,6 +13,7 @@ export type StreamEventType =
   | 'checkpoint'
   | 'progress'
   | 'complete'
+  | 'llm_auth_error'
   | 'quota_exhausted';
 
 export interface StreamEvent {

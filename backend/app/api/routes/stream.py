@@ -124,11 +124,13 @@ async def stream_chat(thread_id: str):
                                     tool_name = msg_data.get('tool_name')
                                     tool_input = {}
                                     
-                                    # Priority 2: Fallback to tool_calls from AI message
-                                    if not tool_name and tool_calls and step_index < len(tool_calls):
+                                    # Priority 2: Get input from tool_calls if available
+                                    if tool_calls and step_index < len(tool_calls):
                                         call = tool_calls[step_index]
-                                        tool_name = call.get('name', 'Tool')
                                         tool_input = call.get('args', {})
+                                        # Only fallback tool_name if not provided by MessageHandler
+                                        if not tool_name:
+                                            tool_name = call.get('name', 'Tool')
                                     
                                     # Priority 3: Last resort fallback
                                     if not tool_name:

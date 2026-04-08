@@ -69,8 +69,26 @@ class MessageClassifier:
             
             # 区分系统错误和业务错误
             if metadata.get("is_error"):
-                if error_type in ("llm_auth", "rate_limit", "quota_exhausted", "recursion_limit"):
+                # 系统预定义的错误类型
+                system_error_types = (
+                    "llm_auth", 
+                    "rate_limit", 
+                    "quota_exhausted", 
+                    "recursion_limit",
+                    "llm_invocation_system",
+                    "service_unavailable",
+                    "network_error",
+                    "invalid_config"
+                )
+                
+                if error_type in system_error_types:
                     return MessageCategory.ERROR_SYSTEM
+                
+                # 检查状态码（支持数值或字符串）
+                status_code = str(metadata.get("status_code", ""))
+                if status_code in ("401", "403", "429", "500", "502", "503", "504"):
+                    return MessageCategory.ERROR_SYSTEM
+                    
                 return MessageCategory.ERROR_BUSINESS
             
             if source == "error_system":

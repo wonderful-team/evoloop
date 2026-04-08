@@ -77,6 +77,7 @@ class MessageItem(BaseModel):
     steps: list[ToolStep] = []  # Tool execution steps folded into AI message
     has_file_operations: bool = False  # For Undo/Retry optimization
     changeset_count: int = 0  # Number of file changes associated with this message
+    tool_calls: list[dict] | None = None  # Tool calls for AI messages that trigger tools
 
 
 class ChangesetNode(BaseModel):
@@ -251,6 +252,15 @@ async def get_conversation_messages(
             file_ops_result = await session.execute(file_ops_stmt)
             messages_with_files = set(file_ops_result.scalars().all())
 
+            # Query changeset count per message
+            changeset_count_stmt = (
+                select(FileOperation.message_id, func.count(FileOperation.id).label("count"))
+                .where(FileOperation.thread_id == thread_id)
+                .group_by(FileOperation.message_id)
+            )
+            changeset_count_result = await session.execute(changeset_count_stmt)
+            message_changeset_counts = {str(row.message_id): row.count for row in changeset_count_result.all()}
+
             # Server-side tool message folding into parent AI message
             # We aggregate 'tool' messages into the 'steps' of the preceding 'ai' message.
             final_items = []
@@ -327,6 +337,7 @@ async def get_conversation_messages(
                             any(tc.get("id") in messages_with_files for tc in (m.tool_calls or []) if isinstance(tc, dict))
                         ),
                         changeset_count=message_changeset_counts.get(str(m.id), 0),
+                        tool_calls=m.tool_calls if isinstance(m.tool_calls, list) else None,
                     )
 
                     # Store as potential parent for subsequent tool outputs

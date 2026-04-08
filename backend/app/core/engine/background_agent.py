@@ -358,19 +358,22 @@ async def _handle_task_exception(thread_id: str, project_id: int, e: Exception):
     logger.error(f"Error running thread {thread_id}: {e}", exc_info=True)
     
     # 1. Distinguish between Retryable, Quota Exhausted, LLM Auth Error, and Fatal Errors
-    is_quota_exhausted = "quota_exhausted" in error_str or "insufficient quota" in error_str
+    # 403 Forbidden is often a quota issue (e.g. Kimi), check keywords
+    is_quota_exhausted = any(kw in error_str for kw in [
+        "quota_exhausted", "insufficient quota", "usage limit", "billing cycle", "refresh"
+    ]) or ("403" in error_full and ("quota" in error_str or "limit" in error_str))
     
     # Check for LLM API authentication errors (401 unauthorized from LLM provider)
     is_llm_auth_error = (
         "authenticationerror" in exc_name.lower() or
         ("401" in error_full and "unauthorized" in error_str) or
         ("api_error" in error_str and "token expired" in error_str)
-    )
+    ) and not is_quota_exhausted
     
     is_retryable = any(kw in error_str for kw in [
         "timeout", "rate limit", "connection error", "api_error", 
-        "unavailable", "overloaded", "socket", "httpx"
-    ]) and not is_llm_auth_error  # Exclude auth errors from retryable
+        "unavailable", "overloaded", "socket", "httpx", "503", "502", "504"
+    ]) and not is_llm_auth_error and not is_quota_exhausted
     
     # 2. Handle LLM Authentication Error - Special flow
     if is_llm_auth_error:

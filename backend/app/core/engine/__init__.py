@@ -211,7 +211,10 @@ class AgentEngine:
             logger.info(f"--- {name} Loop Step {i+1} ---")
 
             # Invoke LLM
-            response = await llm_with_tools.ainvoke(loop_messages, config=config)
+            try:
+                response = await llm_with_tools.ainvoke(loop_messages, config=config)
+            except Exception as e:
+                return AgentEngine._handle_llm_exception(e, name, state)
 
             # [Sync Fix] Inject run_id and metadata for robust rewind/cleanup
             run_id = config.get("configurable", {}).get("run_id")
@@ -550,16 +553,7 @@ class AgentEngine:
         try:
             response = await llm_with_tools.ainvoke(loop_messages, config=config)
         except Exception as e:
-            logger.error(f"[{name}] Single-shot LLM invocation failed: {e}")
-            # 系统错误（LLM调用失败），不入库
-            return {
-                "messages": [AIMessage(
-                    content="Failed to invoke LLM due to system error.",
-                    metadata={"is_error": True, "error_type": "llm_invocation_system"}
-                )],
-                "tool_history": [],
-                "blackboard": state.get("blackboard"),
-            }
+            return AgentEngine._handle_llm_exception(e, name, state)
 
         # Inject run_id for tracking
         run_id = config.get("configurable", {}).get("run_id")
@@ -695,6 +689,62 @@ class AgentEngine:
             "blackboard": state.get("blackboard"),
             "_routing_target": None,
         }
+
+    @staticmethod
+    def _handle_llm_exception(e: Exception, name: str, state: dict) -> dict[str, Any]:
+        """
+        Centralized handling for LLM invocation exceptions.
+        Maps raw exceptions to structured metadata for the MessageClassifier.
+        """
+        import openai
+        
+        logger.error(f"[{name}] LLM invocation failed: {e}")
+        
+        error_str = str(e).lower()
+        error_type = "llm_invocation_system"
+        status_code = None
+        
+        # 1. Try to extract status code and map to specific types
+        if isinstance(e, openai.OpenAIError):
+            if hasattr(e, "status_code"):
+                status_code = e.status_code
+        
+        # Fallback: check for common keywords if status_code is missing
+        if status_code == 401 or "unauthorized" in error_str or "auth" in error_str:
+            error_type = "llm_auth"
+            status_code = 401
+        elif status_code == 403:
+            # 403 could be auth OR quota (as in Kimi's case)
+            if "quota" in error_str or "usage limit" in error_str or "billing" in error_str:
+                error_type = "quota_exhausted"
+            else:
+                error_type = "llm_auth"
+        elif status_code == 429 or "rate limit" in error_str or "too many requests" in error_str:
+            error_type = "rate_limit"
+            status_code = 429
+        elif status_code in (500, 502, 503, 504) or any(kw in error_str for kw in ("unavailable", "overloaded", "gateway", "service error")):
+            error_type = "service_unavailable"
+            status_code = status_code or 503
+        elif any(kw in error_str for kw in ("timeout", "connection", "socket", "network")):
+            error_type = "network_error"
+        elif "model_not_found" in error_str or "not found" in error_str:
+            error_type = "invalid_config"
+            status_code = 404
+            
+        return {
+            "messages": [AIMessage(
+                content=f"Failed to invoke LLM: {str(e)}",
+                metadata={
+                    "is_error": True, 
+                    "error_type": error_type,
+                    "status_code": status_code,
+                    "raw_error": str(e)
+                }
+            )],
+            "tool_history": [],
+            "blackboard": state.get("blackboard"),
+        }
+
 
     @staticmethod
     def _parse_inferred_blackboard(content: Any, state: dict, name: str):

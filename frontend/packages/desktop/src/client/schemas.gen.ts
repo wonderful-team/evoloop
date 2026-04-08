@@ -334,7 +334,7 @@ export const Body_audio_transcribe_audioSchema = {
     properties: {
         file: {
             type: 'string',
-            contentMediaType: 'application/octet-stream',
+            format: 'binary',
             title: 'File'
         },
         language: {
@@ -379,7 +379,7 @@ export const Body_audio_transcribe_streamSchema = {
     properties: {
         file: {
             type: 'string',
-            contentMediaType: 'application/octet-stream',
+            format: 'binary',
             title: 'File'
         },
         language: {
@@ -397,7 +397,7 @@ export const Body_files_upload_fileSchema = {
     properties: {
         file: {
             type: 'string',
-            contentMediaType: 'application/octet-stream',
+            format: 'binary',
             title: 'File'
         }
     },
@@ -411,7 +411,7 @@ export const Body_knowledge_bulk_uploadSchema = {
         files: {
             items: {
                 type: 'string',
-                contentMediaType: 'application/octet-stream'
+                format: 'binary'
             },
             type: 'array',
             title: 'Files',
@@ -439,7 +439,7 @@ export const Body_knowledge_import_zipSchema = {
     properties: {
         file: {
             type: 'string',
-            contentMediaType: 'application/octet-stream',
+            format: 'binary',
             title: 'File',
             description: 'ZIP archive containing documents'
         },
@@ -465,7 +465,7 @@ export const Body_knowledge_upload_documentSchema = {
     properties: {
         file: {
             type: 'string',
-            contentMediaType: 'application/octet-stream',
+            format: 'binary',
             title: 'File',
             description: 'Document to upload'
         },
@@ -497,7 +497,7 @@ export const Body_knowledge_validate_zipSchema = {
     properties: {
         file: {
             type: 'string',
-            contentMediaType: 'application/octet-stream',
+            format: 'binary',
             title: 'File',
             description: 'ZIP archive to validate'
         }
@@ -511,29 +511,13 @@ export const Body_learning_upload_screenshotSchema = {
     properties: {
         file: {
             type: 'string',
-            contentMediaType: 'application/octet-stream',
+            format: 'binary',
             title: 'File'
         }
     },
     type: 'object',
     required: ['file'],
     title: 'Body_learning-upload_screenshot'
-} as const;
-
-export const Body_library_upload_library_fileSchema = {
-    properties: {
-        file: {
-            type: 'string',
-            contentMediaType: 'application/octet-stream',
-            title: 'File'
-        },
-        current_user: {
-            '$ref': '#/components/schemas/User'
-        }
-    },
-    type: 'object',
-    required: ['file'],
-    title: 'Body_library-upload_library_file'
 } as const;
 
 export const Body_login_login_access_tokenSchema = {
@@ -597,7 +581,7 @@ export const Body_project_requirements_upload_requirement_documentSchema = {
     properties: {
         file: {
             type: 'string',
-            contentMediaType: 'application/octet-stream',
+            format: 'binary',
             title: 'File'
         }
     },
@@ -2111,6 +2095,26 @@ export const MessageItemSchema = {
             type: 'boolean',
             title: 'Has File Operations',
             default: false
+        },
+        changeset_count: {
+            type: 'integer',
+            title: 'Changeset Count',
+            default: 0
+        },
+        tool_calls: {
+            anyOf: [
+                {
+                    items: {
+                        additionalProperties: true,
+                        type: 'object'
+                    },
+                    type: 'array'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Tool Calls'
         }
     },
     type: 'object',
@@ -4184,126 +4188,6 @@ export const UploadScreenshotResponseSchema = {
     title: 'UploadScreenshotResponse'
 } as const;
 
-export const UserSchema = {
-    properties: {
-        id: {
-            anyOf: [
-                {
-                    type: 'integer'
-                },
-                {
-                    type: 'string'
-                }
-            ],
-            title: 'Id'
-        },
-        username: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Username'
-        },
-        email: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Email'
-        },
-        mobile: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Mobile'
-        },
-        nickname: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Nickname'
-        },
-        headimg: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Headimg'
-        },
-        member_level: {
-            type: 'integer',
-            title: 'Member Level',
-            default: 0
-        },
-        member_level_name: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Member Level Name'
-        },
-        level_expire_time: {
-            type: 'integer',
-            title: 'Level Expire Time',
-            default: 0
-        },
-        balance: {
-            type: 'number',
-            title: 'Balance',
-            default: 0
-        },
-        balance_money: {
-            type: 'number',
-            title: 'Balance Money',
-            default: 0
-        },
-        point: {
-            type: 'integer',
-            title: 'Point',
-            default: 0
-        },
-        is_active: {
-            type: 'boolean',
-            title: 'Is Active',
-            default: true
-        },
-        is_superuser: {
-            type: 'boolean',
-            title: 'Is Superuser',
-            default: false
-        }
-    },
-    type: 'object',
-    required: ['id'],
-    title: 'User'
-} as const;
-
 export const UserPublicSchema = {
     properties: {
         id: {
@@ -4485,13 +4369,6 @@ export const ValidationErrorSchema = {
         type: {
             type: 'string',
             title: 'Error Type'
-        },
-        input: {
-            title: 'Input'
-        },
-        ctx: {
-            type: 'object',
-            title: 'Context'
         }
     },
     type: 'object',

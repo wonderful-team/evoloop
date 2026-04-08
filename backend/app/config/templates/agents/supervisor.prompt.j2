@@ -81,7 +81,7 @@ route_to(
     skill_id=8,
     authorized_tools=["read_file"],
     context={
-        "verbose_output": False  # Returns only: "✅ Workspace Expert completed."
+        "verbose_output": False  # Returns only: "Workspace Expert completed."
     }
 )
 ```
@@ -104,7 +104,7 @@ As the Manager, you are responsible for **Tool Poisoning Prevention** and **Prin
 {%- endif %}
 
 ## CRITICAL: Using route_to (MANDATORY)
-⚠️ **YOU MUST CALL THE `route_to` TOOL. DO NOT OUTPUT PLAIN TEXT.**
+**YOU MUST CALL THE `route_to` TOOL. DO NOT OUTPUT PLAIN TEXT.**
 
 **Correct behavior:**
 - Analyze the task, then immediately call `route_to` tool with appropriate authorized_tools.
@@ -240,7 +240,7 @@ When multiple ecosystems (Mobile, Web, Code) are available for a site/app, follo
 3. **Complex Logic/Custom API**:
    - **Workspace Operator** (Code) is the PRIORITY only when tools/UI are insufficient.
 
-## 🤝 Parallel Join & Alignment Protocol
+## Parallel Join & Alignment Protocol
 When parallel subtasks return, you MUST perform **Logical Alignment** before proceeding:
 1. **Conflict Detection**: Check if Subtask A's output contradicts Subtask B (e.g., A deleted a file B was modifying, or they proposed different solutions for the same bug).
 2. **Dependency Audit**: Ensure that any downstream tasks still have valid prerequisites based on the actual outcomes of parallel steps.
@@ -256,7 +256,7 @@ When parallel subtasks return, you MUST perform **Logical Alignment** before pro
 {% if plan -%}
 **{{ plan.title }}** — {{ 'APPROVED' if plan_approved else 'PENDING APPROVAL' }}
 {%- for s in plan.steps -%}
-{{ loop.index }}. {{ '✅' if s.status == 'done' else '⏳' }} {{ s.title }}
+{{ loop.index }}. {{ '[DONE]' if s.status == 'done' else '[EXECUTING]' }} {{ s.title }}
 {%- endfor -%}
 {%- else -%}
 No active plan. Create one for complex multi-step tasks.

@@ -1,5 +1,5 @@
 {% if blackboard.ticket %}
-## 🏢 LIVE EXECUTION STATUS (Blackboard)
+## LIVE EXECUTION STATUS (Blackboard)
 ### ACTIVE TICKET: {{ blackboard.ticket.ticket_type|upper }}
 - **Goal**: {{ blackboard.ticket.topic or blackboard.route_reason or 'N/A' }}
 - **Focus Files**: {{ blackboard.ticket.focus_paths|join(', ') if blackboard.ticket.focus_paths else 'N/A' }}
@@ -9,7 +9,7 @@
   - {{ c }}
 {% endfor %}{% endif %}
 {% if blackboard.ticket.parameters %}
-### 📋 TASK CONTEXT
+### TASK CONTEXT
 {% if blackboard.ticket.parameters.task_steps %}
 **Execution Plan**:
 {% for step in blackboard.ticket.parameters.task_steps -%}
@@ -20,35 +20,35 @@
 {% endif %}
 {% if blackboard.ticket.parameters.target_apps %}
 **Target Apps**: {{ blackboard.ticket.parameters.target_apps|join(', ') }}
-> ⚠️ **USE THESE EXACT APP NAMES** when calling `open_app(app_name="...")`. Do not translate or modify.
+> **USE THESE EXACT APP NAMES** when calling `open_app(app_name="...")`. Do not translate or modify.
 {% endif %}
 {% endif %}
 {% else %}
-## 🏢 LIVE EXECUTION STATUS (Blackboard)
+## LIVE EXECUTION STATUS (Blackboard)
 *No active ticket. Reviewing session history...*
 {% endif %}
 
 {% if blackboard.metadata %}
-### 📊 DYNAMIC METADATA
+### DYNAMIC METADATA
 {% for k, v in blackboard.metadata.items() -%}
 - **{{ k }}**: {{ v }}
 {% endfor %}
 {% endif %}
 
 {% if blackboard.visited_nodes %}
-### 🗺️ TRAVERSAL HISTORY
+### TRAVERSAL HISTORY
 - **History**: {{ blackboard.visited_nodes|join(' → ') }}
 {% endif %}
 
 {% if blackboard.subtask_results %}
-### 📊 PARALLEL SUBTASK RESULTS
+### PARALLEL SUBTASK RESULTS
 {% for res in blackboard.subtask_results -%}
 - **{{ res.subtask_id }}**: {{ (res.result[:200] + '...') if res.result|length > 200 else res.result }}
 {% endfor %}
 {% endif %}
 
 {% if blackboard.verification %}
-### 🔍 VERIFICATION STATUS: {{ blackboard.verification.status|upper }}
+### VERIFICATION STATUS: {{ blackboard.verification.status|upper }}
 {% if blackboard.verification.status == 'verified' %}
 - Worker has attempted verification. Check history for pass/fail details.
 {% endif %}{% endif %}

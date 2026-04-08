@@ -80,7 +80,7 @@ export type Body_audio_text_to_speech_stream = {
 };
 
 export type Body_audio_transcribe_audio = {
-    file: string;
+    file: (Blob | File);
     language?: string;
     model?: string;
     prompt?: (string | null);
@@ -88,19 +88,19 @@ export type Body_audio_transcribe_audio = {
 };
 
 export type Body_audio_transcribe_stream = {
-    file: string;
+    file: (Blob | File);
     language?: string;
 };
 
 export type Body_files_upload_file = {
-    file: string;
+    file: (Blob | File);
 };
 
 export type Body_knowledge_bulk_upload = {
     /**
      * Multiple files to upload
      */
-    files: Array<(string)>;
+    files: Array<((Blob | File))>;
     /**
      * Project name
      */
@@ -115,7 +115,7 @@ export type Body_knowledge_import_zip = {
     /**
      * ZIP archive containing documents
      */
-    file: string;
+    file: (Blob | File);
     /**
      * Project name
      */
@@ -130,7 +130,7 @@ export type Body_knowledge_upload_document = {
     /**
      * Document to upload
      */
-    file: string;
+    file: (Blob | File);
     /**
      * Project name
      */
@@ -149,16 +149,11 @@ export type Body_knowledge_validate_zip = {
     /**
      * ZIP archive to validate
      */
-    file: string;
+    file: (Blob | File);
 };
 
 export type Body_learning_upload_screenshot = {
-    file: string;
-};
-
-export type Body_library_upload_library_file = {
-    file: string;
-    current_user?: User;
+    file: (Blob | File);
 };
 
 export type Body_login_login_access_token = {
@@ -171,7 +166,7 @@ export type Body_login_login_access_token = {
 };
 
 export type Body_project_requirements_upload_requirement_document = {
-    file: string;
+    file: (Blob | File);
 };
 
 export type CancelHITLRequest = {
@@ -599,6 +594,10 @@ export type MessageItem = {
     references?: Array<ReferenceItem>;
     steps?: Array<ToolStep>;
     has_file_operations?: boolean;
+    changeset_count?: number;
+    tool_calls?: (Array<{
+    [key: string]: unknown;
+}> | null);
 };
 
 /**
@@ -1067,23 +1066,6 @@ export type UploadScreenshotResponse = {
     message: string;
 };
 
-export type User = {
-    id: (number | string);
-    username?: (string | null);
-    email?: (string | null);
-    mobile?: (string | null);
-    nickname?: (string | null);
-    headimg?: (string | null);
-    member_level?: number;
-    member_level_name?: (string | null);
-    level_expire_time?: number;
-    balance?: number;
-    balance_money?: number;
-    point?: number;
-    is_active?: boolean;
-    is_superuser?: boolean;
-};
-
 export type UserPublic = {
     id: (number | string);
     username?: (string | null);
@@ -1121,10 +1103,6 @@ export type ValidationError = {
     loc: Array<(string | number)>;
     msg: string;
     type: string;
-    input?: unknown;
-    ctx?: {
-        [key: string]: unknown;
-    };
 };
 
 /**
@@ -1505,6 +1483,10 @@ export type KnowledgeListDocumentsData = {
      * Filter by project
      */
     project?: (string | null);
+    /**
+     * Filter by tags (comma-separated)
+     */
+    tags?: (string | null);
 };
 
 export type KnowledgeListDocumentsResponse = (DocumentListResponse);
@@ -1536,6 +1518,16 @@ export type KnowledgeCreateProjectData = {
 };
 
 export type KnowledgeCreateProjectResponse = (unknown);
+
+export type KnowledgeListTagsData = {
+    limit?: number;
+    /**
+     * Filter by project
+     */
+    project?: (string | null);
+};
+
+export type KnowledgeListTagsResponse = (unknown);
 
 export type KnowledgeSearchDocumentsData = {
     contextLines?: number;
@@ -1891,31 +1883,6 @@ export type LearningUpdateSkillYamlData = {
 };
 
 export type LearningUpdateSkillYamlResponse = (unknown);
-
-export type LibraryListLibraryFilesData = {
-    requestBody?: User;
-};
-
-export type LibraryListLibraryFilesResponse = (Array<{
-    [key: string]: unknown;
-}>);
-
-export type LibraryUploadLibraryFileData = {
-    formData: Body_library_upload_library_file;
-};
-
-export type LibraryUploadLibraryFileResponse = ({
-    [key: string]: unknown;
-});
-
-export type LibraryDeleteLibraryFileData = {
-    fileId: number;
-    requestBody?: User;
-};
-
-export type LibraryDeleteLibraryFileResponse = ({
-    [key: string]: unknown;
-});
 
 export type LoginLoginAccessTokenData = {
     formData: Body_login_login_access_token;

@@ -96,6 +96,14 @@ interface ChatState {
     clearContent: () => void
     setSelectedModel: (model: string | null) => void // Set user selected model
 
+    // Changeset Actions
+    setChangeset: (files: ChangesetFile[]) => void
+    addToChangeset: (file: ChangesetFile) => void
+    markChangeAsViewed: (path: string) => void
+    markAllChangesAsViewed: () => void
+    clearChangeset: () => void
+    loadViewedChanges: (threadId: string) => void
+
     // internal sse handlers (called by ChatConnection)
     _setConnectionStatus: (connected: boolean, status: string) => void
     _appendToken: (tokens: string) => void
@@ -265,6 +273,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
                     steps_snapshot: m.steps_snapshot,
                     steps: m.steps || [],
                     references: m.references || [],
+                    has_file_operations: m.has_file_operations || false,
+                    changeset_count: m.changeset_count || 0,
                 }))
                 // Filter: only show human/ai messages (tool messages are folded server-side)
                 // Accept both "human" and "user" roles for backward compatibility
@@ -313,7 +323,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             const response = (await ConversationsService.getConversationMessages({
                 threadId,
                 limit: 50,
-                beforeId: firstMessageId, // Load messages before the oldest current message
+                beforeId: firstMessageId as any, // Cast to avoid type mismatch with generated client
             })) as any
             
             const rawMessages = response?.items || []
@@ -336,6 +346,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
                     steps_snapshot: m.steps_snapshot,
                     steps: m.steps || [],
                     references: m.references || [],
+                    has_file_operations: m.has_file_operations || false,
+                    changeset_count: m.changeset_count || 0,
                 }))
                 // Filter: only show human/ai messages (tool messages are folded server-side)
                 // Accept both "human" and "user" roles for backward compatibility
@@ -365,7 +377,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     },
 
     sendMessage: async (content, attachments: any[] = []) => {
-        const { threadId, projectId, selectedModel, status } = get()
+        const { threadId, projectId, selectedModel } = get()
         // Allow projectId to be 0 (global mode), but not null/undefined
         if (!threadId || projectId === null || projectId === undefined || (!content.trim() && attachments.length === 0)) return
 

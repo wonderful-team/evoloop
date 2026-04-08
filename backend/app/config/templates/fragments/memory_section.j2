@@ -1,16 +1,15 @@
 {% if memory.episodic_raw %}
-## 🧠 EPISODIC MEMORY
-
+## EPISODIC MEMORY
 {{ memory.episodic_raw }}
 {%- else %}
-## 🧠 EPISODIC MEMORY
+## EPISODIC MEMORY
 *No recent episodic memories recorded for this session.*
 {%- endif %}
 {% if memory.core_raw %}
-## 🎯 CORE MEMORY (FOCUS)
+## CORE MEMORY (FOCUS)
 {{ memory.core_raw }}
 (Use `update_focus` to update this section)
 {%- else %}
-## 🎯 CORE MEMORY (FOCUS)
+## CORE MEMORY (FOCUS)
 *No core memory focus defined. Use `update_focus` to capture important project insights.*
 {%- endif %}

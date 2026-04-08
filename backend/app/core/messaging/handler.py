@@ -130,6 +130,7 @@ class MessageHandler:
                 frontend_type=stream_data["frontend_type"],
                 category=category.value,
                 metadata=metadata,
+                tool_calls=persist_data["tool_calls"],
             )
         
         return {
@@ -325,6 +326,7 @@ class MessageHandler:
         category: str,
         metadata: Optional[dict] = None,
         tool_name: Optional[str] = None,
+        tool_calls: Optional[list] = None,
     ):
         """
         推送消息到前端（SSE/WebSocket）
@@ -345,6 +347,7 @@ class MessageHandler:
                 "type": frontend_type,
                 "category": category,
                 "timestamp": int(time.time() * 1000),
+                "tool_calls": tool_calls,
             }
             
             if metadata:
