@@ -75,7 +75,7 @@ export class WechatAuth {
     try {
       // 检查 SDK 是否可用
       if (!isWeChatAvailable()) {
-        throw new Error('微信 SDK 不可用');
+        throw new Error('微信 SDK 不可用，请使用 Development Build 运行');
       }
 
       // 确保已初始化

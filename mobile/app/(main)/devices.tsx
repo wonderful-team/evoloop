@@ -2,7 +2,7 @@
 
 import React, { useCallback } from 'react';
 import { View, StyleSheet, FlatList, RefreshControl } from 'react-native';
-import { Text, FAB, Portal, Dialog, Button, Snackbar } from 'react-native-paper';
+import { Text, Portal, Dialog, Button, Snackbar } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { useRouter } from 'expo-router';
@@ -10,7 +10,6 @@ import { useDevices } from '@/hooks/useDevices';
 import { useAuthStore } from '@/stores/authStore';
 import { DeviceCard } from '@/components/device/DeviceCard';
 import { DeviceStatus } from '@/components/device/DeviceStatus';
-import { QRScanner } from '@/components/device/QRScanner';
 import { Skeleton, ListSkeleton } from '@/components/ui/Skeleton';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { DeviceManager } from '@/services/devices/DeviceManager';
@@ -68,8 +67,6 @@ function DevicesContent() {
   const [refreshing, setRefreshing] = React.useState(false);
   const [selectedDevice, setSelectedDevice] = React.useState<string | null>(null);
   const [dialogVisible, setDialogVisible] = React.useState(false);
-  const [scannerVisible, setScannerVisible] = React.useState(false);
-  const [binding, setBinding] = React.useState(false);
   const [snackbarVisible, setSnackbarVisible] = React.useState(false);
   const [snackbarMessage, setSnackbarMessage] = React.useState('');
 
@@ -150,18 +147,6 @@ function DevicesContent() {
     }
   }, [selectedDevice, devices]);
 
-  const handleScan = useCallback(async (data: string) => {
-    setScannerVisible(false);
-    setBinding(true);
-    try {
-      // TODO: 解析二维码数据并绑定设备
-      console.log('扫描到的数据:', data);
-      // await bindDevice(data);
-    } finally {
-      setBinding(false);
-    }
-  }, []);
-
   const renderItem = useCallback(({ item }: { item: typeof devices[0] }) => (
     <DeviceCard
       device={item}
@@ -205,9 +190,6 @@ function DevicesContent() {
         <View style={styles.centerContent}>
           <Text style={styles.emptyText}>
             {t('devices.noDevices')}
-          </Text>
-          <Text style={styles.emptySubtext}>
-            点击右下角按钮扫码绑定设备
           </Text>
         </View>
       ) : (
@@ -259,22 +241,6 @@ function DevicesContent() {
           </Dialog.Actions>
         </Dialog>
       </Portal>
-
-      {/* 扫码绑定 */}
-      <FAB
-        icon="qrcode-scan"
-        style={styles.fab}
-        onPress={() => setScannerVisible(true)}
-        loading={binding}
-        disabled={binding}
-        label="绑定设备"
-      />
-
-      <QRScanner
-        visible={scannerVisible}
-        onClose={() => setScannerVisible(false)}
-        onScan={handleScan}
-      />
 
       {/* 提示消息 */}
       <Snackbar
@@ -344,13 +310,6 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingHorizontal: 16,
     paddingBottom: 16,
-  },
-  fab: {
-    position: 'absolute',
-    margin: 16,
-    right: 0,
-    bottom: 0,
-    backgroundColor: '#22C55E',
   },
   // 游客模式样式
   guestContainer: {

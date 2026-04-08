@@ -496,9 +496,9 @@ export default function LoginScreen() {
           )}
 
           {/* 错误提示 */}
-          {error && (
+          {(error || formErrors.global) && (
             <Text style={[styles.globalError, { color: colors.error }]}>
-              {error.message}
+              {error?.message || formErrors.global}
             </Text>
           )}
 
@@ -539,14 +539,13 @@ export default function LoginScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* 微信登录 - 需要本地开发版支持，暂隐藏
+          {/* 微信登录 */}
           <Divider style={styles.divider} />
           <WechatLoginButton
             onPress={handleWechatLogin}
             disabled={isLoading || !agreedToTerms}
             loading={isLoading}
           />
-          */}
         </ScrollView>
       </KeyboardAvoidingView>
 
