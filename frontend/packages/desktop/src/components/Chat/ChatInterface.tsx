@@ -53,6 +53,8 @@ export function ChatInterface() {
   const [confirmMode, setConfirmMode] = useState<"rewind" | "retry">("rewind")
   const [selectedMessageId, setSelectedMessageId] = useState<string | undefined>(undefined)
   const [rewindContent, setRewindContent] = useState<string>("")
+  const [sidebarActiveTab, setSidebarActiveTab] = useState<string>("chats")
+  const [expandAgentChanges, setExpandAgentChanges] = useState<boolean>(false)
 
   // --- Store State ---
   // --- Store State (Granular Selectors to avoid full re-renders) ---
@@ -70,6 +72,7 @@ export function ChatInterface() {
   const sendMessage = useChatStore((s) => s.sendMessage)
   const stopAgent = useChatStore((s) => s.stopAgent)
   const _truncateMessages = useChatStore((s) => s._truncateMessages)
+  const markAllChangesAsViewed = useChatStore((s) => s.markAllChangesAsViewed)
 
   // We maintain 'showContextPanel' locally as it involves UI preference
   // Global mode: hidden by default; Project mode: show by default
@@ -386,6 +389,16 @@ export function ChatInterface() {
     })
   }
 
+  // Handle view changeset from message inline hint
+  const handleViewChangeset = () => {
+    // Switch to files tab
+    setSidebarActiveTab("files")
+    // Expand Agent Changes panel
+    setExpandAgentChanges(true)
+    // Mark all as viewed
+    markAllChangesAsViewed()
+  }
+
   // --- Auto Scroll Logic ---
   // Auto-scroll logic
 
@@ -472,6 +485,9 @@ export function ChatInterface() {
               setIsDrawerOpen(true)
             }}
             onQuoteFile={handleQuoteFile}
+            activeTab={sidebarActiveTab}
+            onTabChange={setSidebarActiveTab}
+            expandAgentChanges={expandAgentChanges}
           />
         </ResizablePanel>
 
@@ -555,6 +571,7 @@ export function ChatInterface() {
                   }}
                   onQuote={(msg) => handleQuoteMessage(msg)}
                   onStarterClick={(text) => sendMessage(text)}
+                  onViewChangeset={handleViewChangeset}
                 />
                 {/* Quota Exhausted Card - Shows when quota is exhausted */}
                 {/* Wrapped in container to match HumanRequestCard width (same as PendingMessageItem structure) */}

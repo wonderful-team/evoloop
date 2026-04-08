@@ -48,7 +48,7 @@ def test_simplification():
     checks = []
     
     # 1. 子任务不应继承 MCP
-    with open("app/core/engine/routers.py", "r") as f:
+    with open("../app/core/engine/routers.py", "r") as f:
         content = f.read()
     if "parent_mcp_servers" not in content and "mcp_servers_required" not in content:
         checks.append(("子任务不继承 MCP", True))
@@ -60,7 +60,7 @@ def test_simplification():
             checks.append(("子任务不继承 MCP", False))
     
     # 2. Skill 模型不应有 mcp_config
-    with open("app/models/learning.py", "r") as f:
+    with open("../app/models/learning.py", "r") as f:
         content = f.read()
     if "mcp_config" not in content:
         checks.append(("Skill 无 mcp_config 字段", True))
@@ -68,7 +68,7 @@ def test_simplification():
         checks.append(("Skill 无 mcp_config 字段", False))
     
     # 3. API 不应有 mcp_config 参数
-    with open("app/api/routes/learning.py", "r") as f:
+    with open("../app/api/routes/learning.py", "r") as f:
         content = f.read()
     if "mcp_config" not in content:
         checks.append(("API 无 mcp_config 参数", True))
@@ -76,7 +76,7 @@ def test_simplification():
         checks.append(("API 无 mcp_config 参数", False))
     
     # 4. Worker 不应有 WorkerMcpConfig
-    with open("app/core/engine/nodes/worker.py", "r") as f:
+    with open("../app/core/engine/nodes/worker.py", "r") as f:
         content = f.read()
     if "WorkerMcpConfig" not in content:
         checks.append(("Worker 无 WorkerMcpConfig", True))
@@ -89,7 +89,7 @@ def test_simplification():
         checks.append(("Worker 无 cleanup_worker_tools", False))
     
     # 5. ToolManager 不应有 Worker MCP 方法
-    with open("app/core/tools/manager.py", "r") as f:
+    with open("../app/core/tools/manager.py", "r") as f:
         content = f.read()
     if "get_worker_tools" not in content and "cleanup_worker_tools" not in content:
         checks.append(("ToolManager 无 Worker MCP 方法", True))
@@ -97,7 +97,7 @@ def test_simplification():
         checks.append(("ToolManager 无 Worker MCP 方法", False))
     
     # 6. main.py 不应有 Worker MCP 清理
-    with open("app/main.py", "r") as f:
+    with open("../app/main.py", "r") as f:
         content = f.read()
     if "worker_mcp_manager" not in content:
         checks.append(("Main 无 Worker MCP 清理", True))
@@ -123,7 +123,7 @@ def test_core_mcp_intact():
     checks = []
     
     # 1. McpClientManager 完整
-    with open("app/core/mcp/client/manager.py", "r") as f:
+    with open("../app/core/mcp/client/manager.py", "r") as f:
         content = f.read()
     
     methods = ["connect", "connect_all", "disconnect", "cleanup", 
@@ -136,14 +136,14 @@ def test_core_mcp_intact():
             checks.append((f"McpClientManager.{m}", False))
     
     # 2. Resources/Prompts 功能存在
-    with open("app/core/mcp/features/resources.py", "r") as f:
+    with open("../app/core/mcp/features/resources.py", "r") as f:
         content = f.read()
     if "class McpResourcesFeature" in content:
         checks.append(("McpResourcesFeature", True))
     else:
         checks.append(("McpResourcesFeature", False))
     
-    with open("app/core/mcp/features/prompts.py", "r") as f:
+    with open("../app/core/mcp/features/prompts.py", "r") as f:
         content = f.read()
     if "class McpPromptsFeature" in content:
         checks.append(("McpPromptsFeature", True))
@@ -151,7 +151,7 @@ def test_core_mcp_intact():
         checks.append(("McpPromptsFeature", False))
     
     # 3. OAuth 功能存在
-    with open("app/core/mcp/auth/oauth_flows.py", "r") as f:
+    with open("../app/core/mcp/auth/oauth_flows.py", "r") as f:
         content = f.read()
     if "OAuthAuthorizationCodeHandler" in content:
         checks.append(("OAuth 认证", True))
@@ -159,7 +159,7 @@ def test_core_mcp_intact():
         checks.append(("OAuth 认证", False))
     
     # 4. URL Elicitation 存在
-    with open("app/core/mcp/auth/elicitation.py", "r") as f:
+    with open("../app/core/mcp/auth/elicitation.py", "r") as f:
         content = f.read()
     if "McpElicitationHandler" in content:
         checks.append(("URL Elicitation", True))

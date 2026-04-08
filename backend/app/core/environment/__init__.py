@@ -21,7 +21,6 @@ from app.core.environment.memory_replay import replay_memory
 from app.core.environment.models import AwakenedState
 from app.core.environment.preference_priming import prime_preferences
 from app.core.environment.state import set_awakened_state, get_awakened_state
-from app.core.environment.watcher import environment_watcher
 
 logger = logging.getLogger(__name__)
 
@@ -217,6 +216,5 @@ __all__ = [
     "awaken",
     "get_awakened_state",
     "AwakenedState",
-    "environment_watcher",
     "EnvironmentContextPlugin",
 ]

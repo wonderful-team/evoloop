@@ -117,10 +117,27 @@ async def _execute_command(command: str, config: RunnableConfig | None = None) -
         return "", str(e), -1
 
 
-def _format_command_result(stdout: str, stderr: str, returncode: int) -> str:
+MAX_OUTPUT_LINES = 1000
+
+
+def _format_command_result(stdout: str, stderr: str, returncode: int, command: str = "") -> str:
     """Format command execution result for display."""
+    # Output budget check
+    total_lines = stdout.count('\n') + stderr.count('\n')
+    if total_lines > MAX_OUTPUT_LINES:
+        return f"""Error: Command output too large.
+
+Output is {total_lines} lines, but maximum is {MAX_OUTPUT_LINES} lines per call.
+
+Alternatives:
+1. Redirect to file: `{command} > output.txt` then use read_file
+2. Filter output: `{command} | grep "pattern"`
+3. Use head/tail: `{command} | head -{MAX_OUTPUT_LINES}`
+4. Use background mode for streaming: execute_command(command='{command}', background=True)
+"""
+
     status_msg = "Command Succeeded." if returncode == 0 else f"Command Failed (Exit Code {returncode})."
-    
+
     try:
         output_details = render_template(
             "report/tool_outputs.prompt.j2",
@@ -131,7 +148,7 @@ def _format_command_result(stdout: str, stderr: str, returncode: int) -> str:
     except Exception:
         # Fallback if template rendering fails
         output_details = f"STDOUT:\n{stdout}\n\nSTDERR:\n{stderr}"
-    
+
     if returncode == 0:
         return ControllerResponse.success(status_msg, details=output_details)
     else:
@@ -165,9 +182,12 @@ async def execute_command(
 
     This is your primary tool for navigating the OS, running scripts, building projects,
     and executing standard operating procedures including Git operations.
-    
+
     In global mode, commands are executed within WORKSPACE_ROOT for safety.
     Use dedicated file tools for file operations rather than shell redirection.
+
+    Output Limit: Maximum 1000 lines of stdout/stderr per call.
+    For larger outputs, redirect to file or use background mode.
 
     WARNING: Use dedicated tools for standard operations when available:
     - File Editing -> Use `edit_file` / `write_file`.
@@ -184,12 +204,16 @@ async def execute_command(
     Examples:
         # Quick commands (default)
         execute_command(command="git status")
-        
+
         # Long-running build (background mode)
         execute_command(command="npm run build", background=True, timeout=300)
-        
+
         # Docker build
         execute_command(command="docker build -t myapp .", background=True, timeout=600)
+
+        # Large output - redirect to file
+        execute_command(command="cat large.log > /tmp/large.log")
+        read_file(path="/tmp/large.log", start_line=1, end_line=1000)
     """
     # Validate timeout
     timeout = min(max(timeout, 10), 3600)  # Clamp between 10s and 1 hour
@@ -348,7 +372,7 @@ async def _execute_smart(
         stdout, stderr, returncode = await _execute_command_with_timeout(
             command, quick_timeout, config
         )
-        return _format_command_result(stdout, stderr, returncode)
+        return _format_command_result(stdout, stderr, returncode, command=command)
         
     except asyncio.TimeoutError:
         # Command is taking longer than quick_timeout

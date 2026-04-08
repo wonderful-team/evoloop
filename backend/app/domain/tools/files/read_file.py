@@ -140,6 +140,10 @@ Use `read_file(path='{path}', start_line=N, end_line=M)` to read specific line r
         return i18n.get("domain_tools.files.read_error", error=str(e))
 
 
+# Output budget for read_file tool
+MAX_LINES_PER_CALL = 1000
+
+
 @evoloop_tool(
     is_pollable=True,
     summary_template="database_logger.tool_summary.read_file",
@@ -157,12 +161,21 @@ async def read_file(
     """
     Read the contents of a file.
 
+    Output Limit: Maximum 1000 lines per call.
+    For larger ranges, make multiple calls with specific line ranges.
+
     Args:
         path: Absolute or relative path to the file. **REQUIRED**
         start_line: Optional start line (1-indexed). Can be int or string.
         end_line: Optional end line (1-indexed, inclusive). Can be int or string.
         include_metadata: Include file stats and hash in output (default: True).
                          Set to False for cleaner output in scripts.
+
+    Examples:
+        read_file(path="main.py")  # First 1000 lines (default)
+        read_file(path="main.py", end_line=500)  # First 500 lines
+        read_file(path="main.py", start_line=1, end_line=1000)  # Lines 1-1000
+        read_file(path="main.py", start_line=1001, end_line=2000)  # Lines 1001-2000
     """
     if not path:
         return "Error: Missing argument 'path'. usage: read_file(path='...')"
@@ -186,4 +199,20 @@ async def read_file(
     s = safe_int(start_line)
     e = safe_int(end_line)
 
-    return await handle_read(path, s, e, config=config, include_metadata=include_metadata)
+    # Budget check
+    effective_start = s if s is not None else 1
+    effective_end = e if e is not None else (effective_start + MAX_LINES_PER_CALL - 1)
+    requested_lines = effective_end - effective_start + 1
+
+    if requested_lines > MAX_LINES_PER_CALL:
+        return f"""Error: Request exceeds maximum output limit.
+
+You requested {requested_lines} lines (lines {effective_start}-{effective_end}),
+but the maximum is {MAX_LINES_PER_CALL} lines per call.
+
+Please split into multiple calls:
+1. read_file(path="{path}", start_line={effective_start}, end_line={effective_start + MAX_LINES_PER_CALL - 1})
+2. read_file(path="{path}", start_line={effective_start + MAX_LINES_PER_CALL}, end_line={effective_end})
+"""
+
+    return await handle_read(path, effective_start, effective_end, config=config, include_metadata=include_metadata)

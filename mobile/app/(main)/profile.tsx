@@ -9,6 +9,7 @@ import { useTheme } from '@/components/ui/ThemeProvider';
 import { router } from 'expo-router';
 import { maskMobile } from '@/utils/format';
 import { MaterialIcons } from '@expo/vector-icons';
+import { useSubscription } from '@/hooks/useSubscription';
 
 // 游客模式下的个人中心
 function GuestProfile() {
@@ -63,6 +64,7 @@ function UserProfile() {
   const { t } = useTranslation();
   const { userInfo, logout } = useAuthStore();
   const { toggleTheme, isDark } = useTheme();
+  const { detail, hasActiveSubscription, currentLevelName, remainingDays, isLoading } = useSubscription();
   
   const handleLogout = () => {
     logout();
@@ -71,6 +73,16 @@ function UserProfile() {
   
   const goToSubscription = () => {
     router.push('/(subscription)/plans');
+  };
+  
+  // 获取等级颜色
+  const getLevelColor = () => {
+    if (!hasActiveSubscription) return '#9CA3AF';
+    // 根据等级名称返回颜色
+    if (currentLevelName.includes('企业')) return '#8B5CF6';
+    if (currentLevelName.includes('专家')) return '#F59E0B';
+    if (currentLevelName.includes('极客') || currentLevelName.includes('创作者')) return '#22C55E';
+    return '#22C55E';
   };
   
   return (
@@ -87,6 +99,18 @@ function UserProfile() {
         <Text variant="bodyMedium" style={styles.mobile}>
           {maskMobile(userInfo?.mobile || '')}
         </Text>
+        
+        {/* 订阅状态标签 */}
+        <View style={[styles.levelBadge, { backgroundColor: getLevelColor() + '20' }]}>
+          <MaterialIcons 
+            name={hasActiveSubscription ? "verified" : "person"} 
+            size={16} 
+            color={getLevelColor()} 
+          />
+          <Text style={[styles.levelText, { color: getLevelColor() }]}>
+            {isLoading ? '加载中...' : hasActiveSubscription ? `${currentLevelName} · ${remainingDays}天` : '免费版'}
+          </Text>
+        </View>
       </View>
       
       <List.Section>
@@ -168,6 +192,19 @@ const styles = StyleSheet.create({
   mobile: {
     opacity: 0.6,
     textAlign: 'center',
+  },
+  levelBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  levelText: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginLeft: 4,
   },
   loginButton: {
     marginTop: 16,

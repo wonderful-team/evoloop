@@ -127,6 +127,7 @@ import yaml
 
 logger = logging.getLogger(__name__)
 
+
 @dataclass
 class ProtocolSkill:
     name: str
@@ -138,45 +139,46 @@ class ProtocolSkill:
     instructions: str
     content_hash: str  # 用于缓存校验
 
+
 class ProtocolSkillLoader:
     """协议 Skill 加载器，带缓存机制"""
-    
+
     _cache: dict[str, ProtocolSkill] = {}
     _cache_timestamp: dict[str, float] = {}
-    
+
     def __init__(self, cache_ttl: int = 300):
         self.cache_ttl = cache_ttl
-        self.skills_dir = Path("app/config/skills/protocols")
-    
+        self.skills_dir = Path("../app/config/skills/protocols")
+
     async def load(self, protocol_name: str) -> Optional[ProtocolSkill]:
         """加载协议 Skill，优先使用缓存"""
-        
+
         # 检查缓存
         if self._is_cache_valid(protocol_name):
             logger.debug(f"Using cached protocol: {protocol_name}")
             return self._cache[protocol_name]
-        
+
         # 从磁盘加载
         skill_path = self.skills_dir / protocol_name / "SKILL.md"
         if not skill_path.exists():
             logger.error(f"Protocol skill not found: {skill_path}")
             return None
-        
+
         try:
             content = skill_path.read_text(encoding='utf-8')
             skill = self._parse_skill(content)
-            
+
             # 更新缓存
             self._cache[protocol_name] = skill
             self._cache_timestamp[protocol_name] = time.time()
-            
+
             logger.info(f"Loaded protocol skill: {protocol_name} (v{skill.version})")
             return skill
-            
+
         except Exception as e:
             logger.error(f"Failed to load protocol {protocol_name}: {e}")
             return None
-    
+
     def _parse_skill(self, content: str) -> ProtocolSkill:
         """解析 SKILL.md 文件"""
         # 分离 frontmatter 和 content
@@ -186,10 +188,10 @@ class ProtocolSkillLoader:
         else:
             metadata = {}
             instructions = content
-        
+
         # 计算内容 hash
         content_hash = hashlib.md5(instructions.encode()).hexdigest()
-        
+
         return ProtocolSkill(
             name=metadata.get('name', 'Unknown'),
             namespace=metadata.get('namespace', 'protocols'),
@@ -200,15 +202,15 @@ class ProtocolSkillLoader:
             instructions=instructions.strip(),
             content_hash=content_hash
         )
-    
+
     def _is_cache_valid(self, protocol_name: str) -> bool:
         """检查缓存是否有效"""
         if protocol_name not in self._cache:
             return False
-        
+
         timestamp = self._cache_timestamp.get(protocol_name, 0)
         return (time.time() - timestamp) < self.cache_ttl
-    
+
     async def preload_all(self) -> None:
         """预加载所有协议 Skill"""
         for protocol_dir in self.skills_dir.iterdir():

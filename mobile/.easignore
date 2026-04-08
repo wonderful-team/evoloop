@@ -1,0 +1,25 @@
+# 依赖和缓存
+node_modules/
+*.log
+.gradle/
+build/
+
+# 版本控制
+.git/
+.gitignore
+
+# IDE
+.idea/
+.vscode/
+
+# 系统文件
+.DS_Store
+*.swp
+*.swo
+
+# 文档和测试
+docs/
+__tests__/
+coverage/
+*.test.ts
+*.test.tsx

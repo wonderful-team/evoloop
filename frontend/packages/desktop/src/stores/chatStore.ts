@@ -19,11 +19,23 @@ export interface StepItem {
     input?: any  // Tool input parameters (for real-time steps)
 }
 
+interface ChangesetFile {
+    path: string
+    operation: 'ADD' | 'EDIT' | 'DELETE'
+    diff?: string
+    timestamp: string
+}
+
 interface ChatState {
     // --- Data ---
     threadId: string | null
     projectId: number | null
     messages: Message[]
+
+    // Changeset State
+    changeset: ChangesetFile[]
+    viewedChanges: Set<string>  // Set of file paths that have been viewed
+    changesetLastUpdated: string | null
 
     // Pagination State for Infinite Scroll
     hasMoreHistory: boolean      // Whether there are more messages to load
@@ -104,6 +116,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
     projectId: null,
     messages: [],
 
+    // Changeset State
+    changeset: [],
+    viewedChanges: new Set<string>(),
+    changesetLastUpdated: null,
+
     // Pagination State
     hasMoreHistory: true,
     isLoadingHistory: false,
@@ -162,9 +179,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
                     status: "idle",
                     finalOutcome: null,
                     humanRequest: null,
+                    changeset: [],
+                    viewedChanges: new Set(),
+                    changesetLastUpdated: null,
                 }
                 : {}),
         })
+
+        // Load viewed changes for this thread
+        if (threadId) {
+            get().loadViewedChanges(threadId)
+        }
 
         // 2. Connect SSE (Persistent)
         const connection = ChatConnection.getInstance()
@@ -793,6 +818,75 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     _setError: (error: string) => {
         toast.error(i18n.t("chat.errors.connection", { error }))
+    },
+
+    // Changeset Actions
+    setChangeset: (files: ChangesetFile[]) => {
+        set({ changeset: files, changesetLastUpdated: new Date().toISOString() })
+    },
+
+    addToChangeset: (file: ChangesetFile) => {
+        set((state) => {
+            const existingIndex = state.changeset.findIndex(f => f.path === file.path)
+            let newChangeset
+            if (existingIndex >= 0) {
+                // Update existing file
+                newChangeset = [...state.changeset]
+                newChangeset[existingIndex] = file
+            } else {
+                // Add new file
+                newChangeset = [...state.changeset, file]
+            }
+            return {
+                changeset: newChangeset,
+                changesetLastUpdated: new Date().toISOString()
+            }
+        })
+    },
+
+    markChangeAsViewed: (path: string) => {
+        set((state) => {
+            const newViewed = new Set(state.viewedChanges)
+            newViewed.add(path)
+            return { viewedChanges: newViewed }
+        })
+        // Persist to localStorage
+        const { threadId } = get()
+        if (threadId) {
+            const key = `evoloop:viewed:${threadId}`
+            const viewed = get().viewedChanges
+            localStorage.setItem(key, JSON.stringify([...viewed]))
+        }
+    },
+
+    markAllChangesAsViewed: () => {
+        set((state) => {
+            const allPaths = state.changeset.map(f => f.path)
+            return { viewedChanges: new Set(allPaths) }
+        })
+        const { threadId } = get()
+        if (threadId) {
+            const key = `evoloop:viewed:${threadId}`
+            const viewed = get().viewedChanges
+            localStorage.setItem(key, JSON.stringify([...viewed]))
+        }
+    },
+
+    clearChangeset: () => {
+        set({ changeset: [], viewedChanges: new Set(), changesetLastUpdated: null })
+    },
+
+    loadViewedChanges: (threadId: string) => {
+        try {
+            const key = `evoloop:viewed:${threadId}`
+            const saved = localStorage.getItem(key)
+            if (saved) {
+                const viewed = JSON.parse(saved)
+                set({ viewedChanges: new Set(viewed) })
+            }
+        } catch {
+            // ignore parse errors
+        }
     },
 
     _processStreamEvent: (event: StreamEvent) => {

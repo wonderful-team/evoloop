@@ -1,8 +1,23 @@
-// 订阅和权益 API - 通过 Gateway 访问 member-center
-// 链路: Mobile → Gateway (evoloop/backend) → member-center/backend
+// 订阅和权益 API - 直接访问 member-center (PHP)
+// 链路: Mobile → member-center/backend (PHP)
 
 import { api } from './client';
 import { MEMBER_API } from '@/constants/api';
+
+// PHP 后端标准响应格式
+interface PHPResponse<T> {
+  code: number;
+  data: T;
+  message?: string;
+}
+
+// 提取数据，处理错误
+function extractData<T>(response: PHPResponse<T>): T {
+  if (response.code < 0) {
+    throw new Error(response.message || '请求失败');
+  }
+  return response.data;
+}
 
 /**
  * 获取订阅状态
@@ -13,8 +28,8 @@ export async function getSubscriptionStatus(): Promise<{
   level_id: number;
   status: string;
 }> {
-  const response = await api.get(MEMBER_API.SUBSCRIPTION_STATUS);
-  return response.data;
+  const response = await api.get<PHPResponse<any>>(MEMBER_API.SUBSCRIPTION_STATUS);
+  return extractData(response) || response;
 }
 
 /**
@@ -29,9 +44,13 @@ export async function getSubscriptionDetail(): Promise<{
   expire_time: number;
   is_member: number;
   remaining_days: number;
+  level_info?: {
+    sort: number;
+    [key: string]: any;
+  };
 }> {
-  const response = await api.get(MEMBER_API.SUBSCRIPTION_DETAIL);
-  return response.data;
+  const response = await api.get<PHPResponse<any>>(MEMBER_API.SUBSCRIPTION_DETAIL);
+  return extractData(response) || response;
 }
 
 /**
@@ -55,8 +74,8 @@ export async function getSubscriptionPlans(): Promise<Array<{
     sort: number;
   };
 }>> {
-  const response = await api.get(MEMBER_API.SUBSCRIPTION_PLANS);
-  return response.data;
+  const response = await api.get<PHPResponse<any[]>>(MEMBER_API.SUBSCRIPTION_PLANS);
+  return extractData(response) || response || [];
 }
 
 /**
@@ -81,8 +100,8 @@ export async function getMemberBenefits(forceRefresh = false): Promise<{
   };
 }> {
   const params = forceRefresh ? { force_refresh: true } : {};
-  const response = await api.get(MEMBER_API.SUBSCRIPTION_BENEFITS, { params });
-  return response.data;
+  const response = await api.get<PHPResponse<any>>(MEMBER_API.SUBSCRIPTION_BENEFITS, { params });
+  return extractData(response) || response;
 }
 
 /**
@@ -95,10 +114,10 @@ export async function checkBenefit(benefitCode: string): Promise<{
   benefit_code: string;
   expire_time: number;
 }> {
-  const response = await api.post(MEMBER_API.SUBSCRIPTION_CHECK_BENEFIT, {
+  const response = await api.post<PHPResponse<any>>(MEMBER_API.SUBSCRIPTION_CHECK_BENEFIT, {
     code: benefitCode,
   });
-  return response.data;
+  return extractData(response) || response;
 }
 
 /**
@@ -109,10 +128,10 @@ export async function checkPermission(feature: string): Promise<{
   has_permission: boolean;
   required_level: string;
 }> {
-  const response = await api.post(MEMBER_API.SUBSCRIPTION_CHECK_PERMISSION, {
+  const response = await api.post<PHPResponse<any>>(MEMBER_API.SUBSCRIPTION_CHECK_PERMISSION, {
     feature,
   });
-  return response.data;
+  return extractData(response) || response;
 }
 
 /**
@@ -125,20 +144,34 @@ export async function calculateUpgradePrice(targetLevelId: number): Promise<{
   refund_amount: string;
   net_amount: string;
 }> {
-  const response = await api.post(MEMBER_API.CALCULATE_UPGRADE, {
+  const response = await api.post<PHPResponse<any>>(MEMBER_API.CALCULATE_UPGRADE, {
     target_level_id: targetLevelId,
   });
-  return response.data;
+  return extractData(response) || response;
+}
+
+// 微信支付参数（APP支付）
+export interface WechatPayParams {
+  appid: string;
+  partnerid: string;
+  prepayid: string;
+  noncestr: string;
+  timestamp: string;
+  package: 'Sign=WXPay';
+  sign: string;
 }
 
 /**
  * 创建订阅订单
  * POST /member/subscription/api/order/create
+ * 
+ * 返回微信支付 APP 支付参数，可直接调起微信 SDK
  */
 export async function createOrder(data: {
   level_id: number;
   auto_renew?: number;
   app_type: 'app';
+  pay_type?: 'wechatpay';
 }): Promise<{
   order_id: string;
   out_trade_no: string;
@@ -147,18 +180,14 @@ export async function createOrder(data: {
     order_money: string;
     level_name: string;
   };
-  pay_data: {
-    appid: string;
-    partnerid: string;
-    prepayid: string;
-    noncestr: string;
-    timestamp: string;
-    package: 'Sign=WXPay';
-    sign: string;
-  };
+  // 微信支付 APP 支付参数
+  pay_data: WechatPayParams;
 }> {
-  const response = await api.post(MEMBER_API.CREATE_ORDER, data);
-  return response.data;
+  const response = await api.post<PHPResponse<any>>(MEMBER_API.CREATE_ORDER, {
+    ...data,
+    pay_type: 'wechatpay',
+  });
+  return extractData(response) || response;
 }
 
 /**
@@ -167,14 +196,14 @@ export async function createOrder(data: {
  */
 export async function checkOrderStatus(orderId: string): Promise<{
   order_id: number;
-  pay_status: number;
+  pay_status: number;  // 0:未支付, 1:已支付
   pay_time: number;
   order_status: number;
 }> {
-  const response = await api.get(MEMBER_API.ORDER_STATUS, {
+  const response = await api.get<PHPResponse<any>>(MEMBER_API.ORDER_STATUS, {
     params: { order_id: orderId },
   });
-  return response.data;
+  return extractData(response) || response;
 }
 
 /**
@@ -185,11 +214,11 @@ export async function cancelSubscription(
   cancelType: 'expire' | 'now',
   reason?: string
 ): Promise<{ message: string }> {
-  const response = await api.post(MEMBER_API.CANCEL_SUBSCRIPTION, {
+  const response = await api.post<PHPResponse<any>>(MEMBER_API.CANCEL_SUBSCRIPTION, {
     cancel_type: cancelType,
     reason,
   });
-  return response.data;
+  return extractData(response) || response;
 }
 
 /**
@@ -202,8 +231,8 @@ export async function getAIQuota(): Promise<{
   remaining: number;
   is_unlimited: boolean;
 }> {
-  const response = await api.get(MEMBER_API.AI_QUOTA);
-  return response.data;
+  const response = await api.get<PHPResponse<any>>(MEMBER_API.AI_QUOTA);
+  return extractData(response) || response;
 }
 
 /**
@@ -221,8 +250,8 @@ export async function getQuotaUsageHistory(
   }>;
   count: number;
 }> {
-  const response = await api.get(MEMBER_API.AI_QUOTA_HISTORY, {
+  const response = await api.get<PHPResponse<any>>(MEMBER_API.AI_QUOTA_HISTORY, {
     params: { page, page_size: pageSize },
   });
-  return response.data;
+  return extractData(response) || response;
 }

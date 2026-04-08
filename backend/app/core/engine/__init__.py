@@ -22,7 +22,6 @@ from app.core.engine.message_utils import (
     prune_redundant_results,
     repair_message_history,
     smart_window_slice,
-    truncate_message_content,
     hierarchical_smart_window_slice,
 )
 from app.core.engine.state import AgentState
@@ -429,7 +428,7 @@ class AgentEngine:
                 metadata = {"run_id": run_id} if run_id else {}
 
                 return ToolMessage(
-                    content=truncate_message_content(str(content)),
+                    content=str(content),
                     tool_call_id=tool_id,
                     name=tool_name,
                     id=gen_uuid(),
@@ -627,7 +626,7 @@ class AgentEngine:
                     if pre_result.block:
                         content = f"Error: Tool execution blocked - {pre_result.message}"
                         return ToolMessage(
-                            content=truncate_message_content(str(content)),
+                            content=str(content),
                             tool_call_id=tool_id,
                             name=tool_name,
                             id=gen_uuid(),
@@ -671,7 +670,7 @@ class AgentEngine:
             metadata = {"run_id": run_id} if run_id else {}
 
             return ToolMessage(
-                content=truncate_message_content(str(content)),
+                content=str(content),
                 tool_call_id=tool_id,
                 name=tool_name,
                 id=gen_uuid(),

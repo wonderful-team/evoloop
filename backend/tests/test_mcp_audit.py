@@ -65,7 +65,7 @@ def test_code_structure():
     
     # 检查 config.py
     try:
-        with open("app/core/mcp/config.py", "r") as f:
+        with open("../app/core/mcp/config.py", "r") as f:
             content = f.read()
         
         checks = [
@@ -86,7 +86,7 @@ def test_code_structure():
     
     # 检查 worker_config.py
     try:
-        with open("app/core/mcp/worker_config.py", "r") as f:
+        with open("../app/core/mcp/worker_config.py", "r") as f:
             content = f.read()
         
         checks = [
@@ -108,7 +108,7 @@ def test_code_structure():
     
     # 检查 features/base.py
     try:
-        with open("app/core/mcp/features/base.py", "r") as f:
+        with open("../app/core/mcp/features/base.py", "r") as f:
             content = f.read()
         
         checks = [
@@ -139,7 +139,7 @@ def test_manager_structure():
     all_pass = True
     
     try:
-        with open("app/core/mcp/client/manager.py", "r") as f:
+        with open("../app/core/mcp/client/manager.py", "r") as f:
             content = f.read()
         
         checks = [
@@ -180,7 +180,7 @@ def test_worker_mcp():
     all_pass = True
     
     try:
-        with open("app/core/mcp/worker.py", "r") as f:
+        with open("../app/core/mcp/worker.py", "r") as f:
             content = f.read()
         
         checks = [
@@ -211,7 +211,7 @@ def test_model_update():
     print("=" * 60)
     
     try:
-        with open("app/models/learning.py", "r") as f:
+        with open("../app/models/learning.py", "r") as f:
             content = f.read()
         
         if "mcp_config" in content and "Mapped[dict" in content:
@@ -236,7 +236,7 @@ def test_api_routes():
     all_pass = True
     
     try:
-        with open("app/api/routes/learning.py", "r") as f:
+        with open("../app/api/routes/learning.py", "r") as f:
             content = f.read()
         
         checks = [
@@ -263,7 +263,7 @@ def test_subtask_inheritance():
     print("=" * 60)
     
     try:
-        with open("app/core/engine/routers.py", "r") as f:
+        with open("../app/core/engine/routers.py", "r") as f:
             content = f.read()
         
         checks = [
@@ -293,7 +293,7 @@ def test_worker_integration():
     print("=" * 60)
     
     try:
-        with open("app/core/engine/nodes/worker.py", "r") as f:
+        with open("../app/core/engine/nodes/worker.py", "r") as f:
             content = f.read()
         
         checks = [
@@ -326,7 +326,7 @@ def test_cleanup_in_main():
     print("=" * 60)
     
     try:
-        with open("app/main.py", "r") as f:
+        with open("../app/main.py", "r") as f:
             content = f.read()
         
         checks = [

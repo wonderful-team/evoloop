@@ -114,6 +114,11 @@ async def lifespan(app: FastAPI):
         # Event bridge needs manual registration (uses subscribe_all)
         register_event_bridge()
 
+        # Explicitly register macro self-healing advisor
+        # (Previously done via register_learning_handlers in orchestrator.py)
+        from app.core.execution.macro.advisor import register_self_healing_advisor
+        register_self_healing_advisor()
+
         await awaken()
         logger.info("Agent Awakening complete.")
 

@@ -9,3 +9,5 @@ export * from './useProjects';
 export * from './useVoice';
 export * from './useCommands';
 export * from './useConversations';
+export * from './useSubscription';
+export * from './useFeatureAccess';

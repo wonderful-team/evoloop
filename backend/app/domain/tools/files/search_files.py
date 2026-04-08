@@ -62,7 +62,25 @@ async def search_files_internal(
             return "No matches found."
         return f"Error running search: {res.stderr}"
 
-    return res.stdout[:3000]
+    # Output budget check
+    MAX_MATCHES = 100
+    lines = res.stdout.strip().split('\n') if res.stdout else []
+
+    if len(lines) > MAX_MATCHES:
+        return f"""Error: Too many matches.
+
+Found {len(lines)} matches, but maximum is {MAX_MATCHES} per call.
+
+Please refine your search:
+- Use a more specific pattern
+- Narrow the scope with 'path' parameter
+- Use file extension filter with 'scope' parameter
+
+Example:
+  search_files(pattern="class UserService", path="src/services", scope="*.py")
+"""
+
+    return res.stdout
 
 
 @evoloop_tool(
@@ -82,15 +100,18 @@ async def search_files(
     """
     Search for text patterns in files using ripgrep (rg) or grep.
     Supports regex patterns, file filtering, and case-insensitive search.
-    
+
+    Output Limit: Maximum 100 matches per call.
+    If you hit this limit, refine your search pattern or narrow the scope.
+
     Useful for finding all occurrences of a function, class, variable, TODO, etc.
-    
+
     Args:
         pattern: The search pattern. **REQUIRED** (supports regex)
         path: Directory or file path to search in (default: current directory).
         scope: Optional file pattern to limit search (e.g., "*.py", "src/services/*").
         case_insensitive: If True, performs case-insensitive search.
-    
+
     Examples:
         search_files(pattern="def main", path="src/")
         search_files(pattern="TODO", case_insensitive=True)

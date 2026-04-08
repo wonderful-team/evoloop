@@ -20,6 +20,17 @@ export interface MemberBenefits {
   [key: string]: any;
 }
 
+// 完整会员权益信息（包含元数据）
+export interface MemberBenefitsInfo {
+  member_id: number;
+  level_id: number;
+  level_name: string;
+  is_expired: boolean;
+  expire_time: number;
+  remaining_days: number;
+  benefits: MemberBenefits;
+}
+
 export interface SubscriptionStatus {
   has_subscription: boolean;
   level_id: number;

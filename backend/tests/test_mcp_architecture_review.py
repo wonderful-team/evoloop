@@ -48,7 +48,7 @@ def analyze_layer_separation():
     print("\n📊 依赖方向检查:")
     
     # Config 应该无 MCP 内部依赖
-    with open("app/core/mcp/config.py", "r") as f:
+    with open("../app/core/mcp/config.py", "r") as f:
         config_content = f.read()
     
     # 检查 config 是否只依赖标准库
@@ -58,7 +58,7 @@ def analyze_layer_separation():
         print("   ✅ config.py 无内部依赖（符合分层）")
     
     # Transport 应该只依赖 config
-    with open("app/core/mcp/transport.py", "r") as f:
+    with open("../app/core/mcp/transport.py", "r") as f:
         transport_content = f.read()
     
     if "from app.core.mcp.config" in transport_content:
@@ -78,7 +78,7 @@ def analyze_interface_design():
     print("\n📐 单一职责原则 (SRP):")
     
     # McpClientManager 职责检查
-    with open("app/core/mcp/client/manager.py", "r") as f:
+    with open("../app/core/mcp/client/manager.py", "r") as f:
         content = f.read()
     
     responsibilities = {
@@ -187,7 +187,7 @@ def analyze_error_handling():
     print("5. 错误处理评估")
     print("=" * 70)
     
-    with open("app/core/mcp/client/manager.py", "r") as f:
+    with open("../app/core/mcp/client/manager.py", "r") as f:
         content = f.read()
     
     # 检查 try/except 使用
@@ -217,7 +217,7 @@ def analyze_documentation():
     print("6. 文档完整性评估")
     print("=" * 70)
     
-    with open("app/core/mcp/__init__.py", "r") as f:
+    with open("../app/core/mcp/__init__.py", "r") as f:
         content = f.read()
     
     if '"""' in content and len(content.split('"""')[1]) > 100:

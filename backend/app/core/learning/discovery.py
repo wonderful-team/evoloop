@@ -450,11 +450,5 @@ class SkillDiscovery:
         _, relevant, _ = await self.exact_search(topic)
         return relevant
 
-    # [Deprecated Compatibility]
-    async def get_relevant_skills(self, topic: str, top_k: int = 3, **kwargs) -> list[LearnedSkill]:
-        """Alias for retrieve to support drop-in replacement for SkillRetriever."""
-        return await self.retrieve(topic, top_k=top_k)
-
-
 # Singleton
 skill_discovery = SkillDiscovery()

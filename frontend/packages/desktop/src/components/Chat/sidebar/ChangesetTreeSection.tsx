@@ -9,9 +9,11 @@ import {
     PlusSquare,
     Edit,
     Trash2,
+    Check,
 } from "lucide-react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { cn } from "@evoloop/shared/lib/utils"
+import { useChatStore } from "@/stores/chatStore"
 
 export interface ChangesetNode {
     name: string
@@ -25,10 +27,14 @@ export interface ChangesetNode {
 interface ChangesetTreeSectionProps {
     activeThreadId?: string
     onSelectFile: (path: string, diff: string) => void
+    defaultExpanded?: boolean
 }
 
-export function ChangesetTreeSection({ activeThreadId, onSelectFile }: ChangesetTreeSectionProps) {
+export function ChangesetTreeSection({ activeThreadId, onSelectFile, defaultExpanded = false }: ChangesetTreeSectionProps) {
     const { t } = useTranslation()
+    const setChangeset = useChatStore((s) => s.setChangeset)
+    const markChangeAsViewed = useChatStore((s) => s.markChangeAsViewed)
+    const viewedChanges = useChatStore((s) => s.viewedChanges)
 
     const { data: changeset, isLoading } = useQuery<ChangesetNode[]>({
         queryKey: ["threadChangeset", activeThreadId],
@@ -47,9 +53,35 @@ export function ChangesetTreeSection({ activeThreadId, onSelectFile }: Changeset
         refetchInterval: 5000,
     })
 
+    // Sync changeset to chatStore for badge count
+    useEffect(() => {
+        if (changeset) {
+            const flatFiles: Array<{path: string; operation: 'ADD' | 'EDIT' | 'DELETE'; diff?: string; timestamp: string}> = []
+            
+            const extractFiles = (nodes: ChangesetNode[]) => {
+                nodes.forEach(node => {
+                    if (node.is_dir && node.children) {
+                        extractFiles(node.children)
+                    } else if (!node.is_dir && node.operation) {
+                        flatFiles.push({
+                            path: node.path,
+                            operation: node.operation,
+                            diff: node.diff,
+                            timestamp: new Date().toISOString()
+                        })
+                    }
+                })
+            }
+            
+            extractFiles(changeset)
+            setChangeset(flatFiles)
+        }
+    }, [changeset, setChangeset])
+
     // Recursive component for the tree
     const TreeNode = ({ node, level = 0 }: { node: ChangesetNode; level?: number }) => {
-        const [isOpen, setIsOpen] = useState(true)
+        const [isOpen, setIsOpen] = useState(defaultExpanded)
+        const isViewed = viewedChanges.has(node.path)
 
         const handleToggle = (e: React.MouseEvent) => {
             e.stopPropagation()
@@ -59,6 +91,8 @@ export function ChangesetTreeSection({ activeThreadId, onSelectFile }: Changeset
         const handleSelect = () => {
             if (!node.is_dir) {
                 onSelectFile(node.path, node.diff || "")
+                // Mark as viewed when clicked
+                markChangeAsViewed(node.path)
             } else {
                 setIsOpen(!isOpen)
             }
@@ -68,7 +102,8 @@ export function ChangesetTreeSection({ activeThreadId, onSelectFile }: Changeset
             <div className="select-none">
                 <div
                     className={cn(
-                        "flex items-center py-1.5 px-2 cursor-pointer hover:bg-muted/50 rounded-sm text-xs transition-colors group"
+                        "flex items-center py-1.5 px-2 cursor-pointer hover:bg-muted/50 rounded-sm text-xs transition-colors group",
+                        isViewed && !node.is_dir && "text-muted-foreground"
                     )}
                     style={{ paddingLeft: `${level * 12 + 8}px` }}
                     onClick={handleSelect}
@@ -84,16 +119,17 @@ export function ChangesetTreeSection({ activeThreadId, onSelectFile }: Changeset
                     {node.is_dir ? (
                         <Folder className="h-3.5 w-3.5 mr-1.5 text-blue-400" />
                     ) : (
-                        <FileCode className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
+                        <FileCode className={cn("h-3.5 w-3.5 mr-1.5", isViewed ? "text-muted-foreground" : "text-muted-foreground")} />
                     )}
 
-                    <span className="truncate flex-1">{node.name}</span>
+                    <span className={cn("truncate flex-1", isViewed && !node.is_dir && "line-through opacity-60")}>{node.name}</span>
 
-                    {!node.is_dir && node.operation && (
-                        <span className="ml-2">
-                            {node.operation === "ADD" && <PlusSquare className="h-3 w-3 text-green-500" />}
-                            {node.operation === "EDIT" && <Edit className="h-3 w-3 text-amber-500" />}
-                            {node.operation === "DELETE" && <Trash2 className="h-3 w-3 text-red-500" />}
+                    {!node.is_dir && (
+                        <span className="ml-2 flex items-center gap-1">
+                            {node.operation === "ADD" && !isViewed && <PlusSquare className="h-3 w-3 text-green-500" />}
+                            {node.operation === "EDIT" && !isViewed && <Edit className="h-3 w-3 text-amber-500" />}
+                            {node.operation === "DELETE" && !isViewed && <Trash2 className="h-3 w-3 text-red-500" />}
+                            {isViewed && <Check className="h-3 w-3 text-muted-foreground" />}
                         </span>
                     )}
                 </div>

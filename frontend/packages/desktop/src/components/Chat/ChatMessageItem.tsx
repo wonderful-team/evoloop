@@ -14,6 +14,7 @@ import {
   Loader2,
   XCircle,
 } from "lucide-react"
+import { ChangesetInlineHint } from "./ChangesetInlineHint"
 import { memo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import {
@@ -216,6 +217,9 @@ export interface Message {
   tool_calls?: any[] // Tool calls for real-time matching
   has_file_operations?: boolean // Whether this message has associated file operations (for Rewind/Retry)
   status?: "pending" | "streaming" | "completed" | "failed" // Message generation status
+  // Changeset related
+  changesetCount?: number // Number of files changed in this message
+  isViewed?: boolean // Whether the changeset has been viewed
 }
 
 interface ChatMessageItemProps {
@@ -226,10 +230,11 @@ interface ChatMessageItemProps {
   onRewind?: (msg: Message) => void
   onRetry?: (msg: Message) => void
   onQuote?: () => void
+  onViewChangeset?: () => void // Callback when user clicks to view changeset
 }
 
 const ChatMessageItem = memo(
-  ({ msg, isGrouped, showAvatar, onAddToMemory, onRewind, onRetry, onQuote }: ChatMessageItemProps) => {
+  ({ msg, isGrouped, showAvatar, onAddToMemory, onRewind, onRetry, onQuote, onViewChangeset }: ChatMessageItemProps) => {
     const { t } = useTranslation()
     const { showThinking } = useShowThinking()
 
@@ -402,6 +407,15 @@ const ChatMessageItem = memo(
 
             {/* 4. Tool Execution Steps - Unified Display */}
             <ToolExecutionSection msg={msg} />
+
+            {/* 5. Changeset Inline Hint - For AI messages with file changes */}
+            {msg.role === "ai" && msg.changesetCount && msg.changesetCount > 0 && (
+              <ChangesetInlineHint
+                fileCount={msg.changesetCount}
+                isViewed={msg.isViewed}
+                onClick={onViewChangeset}
+              />
+            )}
           </div>
 
           {/* Message Actions - Bottom of bubble, keep left/right position */}

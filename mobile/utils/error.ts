@@ -29,6 +29,10 @@ export const ErrorCode = {
   VALIDATION_ERROR: 'VALIDATION_ERROR',
   BUSINESS_ERROR: 'BUSINESS_ERROR',
   
+  // 权益/订阅错误
+  BENEFIT_REQUIRED: 'BENEFIT_REQUIRED',
+  SUBSCRIPTION_REQUIRED: 'SUBSCRIPTION_REQUIRED',
+  
   // 系统错误
   SERVER_ERROR: 'SERVER_ERROR',
   UNKNOWN_ERROR: 'UNKNOWN_ERROR',
@@ -47,16 +51,28 @@ const HTTP_ERROR_MESSAGES: Record<number, string> = {
 
 // 处理 API 错误
 export const handleApiError = (error: unknown): AppError => {
+  // 如果已经是 AppError，直接返回
   if (error instanceof AppError) {
     return error;
   }
   
+  // 检查是否为权益错误（需要优先处理）
   if (error instanceof AxiosError) {
     const status = error.response?.status;
-    const message = error.response?.data?.message;
+    const data = error.response?.data;
+    const message = data?.message || data?.data?.message;
     
     if (status === 401) {
       return new AppError(message || '登录已过期', ErrorCode.UNAUTHORIZED, 401);
+    }
+    
+    // 403 权益错误已由拦截器处理，这里直接返回业务错误
+    if (status === 403) {
+      return new AppError(
+        message || HTTP_ERROR_MESSAGES[status] || '没有权限执行此操作',
+        ErrorCode.BUSINESS_ERROR,
+        403
+      );
     }
     
     if (status) {

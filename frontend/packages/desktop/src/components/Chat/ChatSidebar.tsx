@@ -6,6 +6,7 @@ import { SidebarChatList, type Thread } from "./sidebar/SidebarChatList"
 export type { Thread }
 
 import { SidebarFilesTab } from "./sidebar/SidebarFilesTab"
+import { useChatStore } from "@/stores/chatStore"
 
 interface ChatSidebarProps {
   threads: Thread[]
@@ -17,6 +18,9 @@ interface ChatSidebarProps {
   onNewChat: () => void
   onSelectDiff?: (path: string, diff: string) => void
   onQuoteFile?: (file: any) => void
+  activeTab?: string
+  onTabChange?: (tab: string) => void
+  expandAgentChanges?: boolean
 }
 
 export const ChatSidebar = memo(
@@ -30,8 +34,16 @@ export const ChatSidebar = memo(
     onNewChat,
     onSelectDiff,
     onQuoteFile,
+    activeTab,
+    onTabChange,
+    expandAgentChanges = false,
   }: ChatSidebarProps) => {
     const { t } = useTranslation()
+    
+    // Get changeset state for badge
+    const changeset = useChatStore((s) => s.changeset)
+    const viewedChanges = useChatStore((s) => s.viewedChanges)
+    const unviewedCount = changeset.filter(f => !viewedChanges.has(f.path)).length
 
     return (
       <div
@@ -42,14 +54,25 @@ export const ChatSidebar = memo(
           <ProjectSwitcher />
         </div>
 
-        <Tabs defaultValue="chats" className="flex flex-col flex-1 min-h-0">
+        <Tabs 
+          value={activeTab || "chats"} 
+          onValueChange={onTabChange}
+          className="flex flex-col flex-1 min-h-0"
+        >
           <div className="p-2 border-b bg-muted/10 shrink-0">
             <TabsList className="w-full grid grid-cols-2">
               <TabsTrigger value="chats">
                 {t("chat.sidebar.tabChats")}
               </TabsTrigger>
-              <TabsTrigger value="files">
+              <TabsTrigger value="files" className="relative">
                 {t("chat.sidebar.tabFiles")}
+                {unviewedCount > 0 && (
+                  <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center 
+                                   rounded-full bg-red-500 px-1 text-[10px] font-medium text-white 
+                                   animate-in zoom-in duration-200">
+                    {unviewedCount > 99 ? '99+' : unviewedCount}
+                  </span>
+                )}
               </TabsTrigger>
             </TabsList>
           </div>
@@ -77,6 +100,7 @@ export const ChatSidebar = memo(
               activeThreadId={activeThreadId}
               onSelectDiff={onSelectDiff}
               onQuoteFile={onQuoteFile}
+              expandChanges={expandAgentChanges}
             />
           </TabsContent>
         </Tabs>

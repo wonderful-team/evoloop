@@ -197,18 +197,18 @@ class ActivityMonitor:
             await cache.hset(key, "active_memories", json.dumps([]))
 
     async def add_step(
-        self, thread_id: str, name: str, step_type="node", parent_id: int = None
+        self, thread_id: str, name: str, step_type="node", parent_id: int = None, input_data: dict = None
     ):
         """Add a new step and return its ID."""
-        step_id = await self._state_service.add_step(thread_id, name, step_type, parent_id)
-        
+        step_id = await self._state_service.add_step(thread_id, name, step_type, parent_id, input_data)
+
         if step_id:
             # Publish Event
             await cache.publish(
                 f"chat:{thread_id}:events",
-                StepEvent(action="create", id=step_id, data={"name": name, "status": "running"}).model_dump_json(),
+                StepEvent(action="create", id=step_id, data={"name": name, "status": "running", "input": input_data}).model_dump_json(),
             )
-        
+
         return step_id
 
     async def update_step(

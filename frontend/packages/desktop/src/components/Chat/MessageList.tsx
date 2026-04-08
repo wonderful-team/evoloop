@@ -15,7 +15,7 @@ interface MessageListProps {
     onRetry?: (msg: Message) => void
     onQuote?: (msg: Message) => void
     onStarterClick?: (text: string) => void
-
+    onViewChangeset?: () => void // Callback when user clicks to view changeset
 }
 
 export function MessageList({
@@ -28,6 +28,7 @@ export function MessageList({
     onRetry,
     onQuote,
     onStarterClick,
+    onViewChangeset,
 }: MessageListProps) {
     const { t } = useTranslation()
     // Note: Scroll state is now managed by the parent ChatInterface component
@@ -119,6 +120,7 @@ export function MessageList({
                             onRewind={onRewind ? () => onRewind(msg) : undefined}
                             onRetry={onRetry ? () => onRetry(msg) : undefined}
                             onQuote={() => onQuote?.(msg)}
+                            onViewChangeset={onViewChangeset}
                         />
                     </div>
                 ))}

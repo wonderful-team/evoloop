@@ -319,7 +319,7 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
         # Note: We no longer create Phase headers ("► Execution Phase"), only record actual tool executions
         run_id = str(kwargs.get("run_id", "default"))
         if self.thread_id and self.monitor:
-            task_id = await self.monitor.add_step(self.thread_id, friendly_name, "tool")
+            task_id = await self.monitor.add_step(self.thread_id, friendly_name, "tool", input_data=data)
             self.tool_task_id = task_id  # Legacy compatibility
             self._tool_task_ids[run_id] = task_id  # Track parallel tools by run_id
 

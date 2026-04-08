@@ -17,12 +17,13 @@ interface SidebarFilesTabProps {
   activeThreadId?: string
   onSelectDiff?: (path: string, diff: string) => void
   onQuoteFile?: (file: any) => void
+  expandChanges?: boolean // Whether to expand Agent Changes panel by default
 }
 
-export function SidebarFilesTab({ projectId, activeThreadId, onSelectDiff, onQuoteFile }: SidebarFilesTabProps) {
+export function SidebarFilesTab({ projectId, activeThreadId, onSelectDiff, onQuoteFile, expandChanges = false }: SidebarFilesTabProps) {
   const { t } = useTranslation()
   const [isProjectOpen, setIsProjectOpen] = useState(true)
-  const [isChangesOpen, setIsChangesOpen] = useState(false)
+  const [isChangesOpen, setIsChangesOpen] = useState(expandChanges)
 
   // Check for global mode (projectId is 0)
   const isGlobal = isGlobalProject(projectId ? { id: projectId } as any : null)
@@ -93,6 +94,7 @@ export function SidebarFilesTab({ projectId, activeThreadId, onSelectDiff, onQuo
             <ChangesetTreeSection
               activeThreadId={activeThreadId}
               onSelectFile={onSelectDiff || (() => { })}
+              defaultExpanded={expandChanges}
             />
           </CollapsibleContent>
         </Collapsible>

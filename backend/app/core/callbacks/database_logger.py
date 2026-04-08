@@ -82,7 +82,12 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
                 content = ""
 
             # 提取工具调用
-            tool_calls = getattr(message, "tool_calls", None)
+            # 注意：不同 LLM provider 存储位置不同，有的直接在 tool_calls 属性，有的在 additional_kwargs
+            tool_calls = None
+            if hasattr(message, "tool_calls") and message.tool_calls:
+                tool_calls = message.tool_calls
+            elif hasattr(message, "additional_kwargs") and message.additional_kwargs:
+                tool_calls = message.additional_kwargs.get("tool_calls")
             
             # 提取元数据（可能包含 source 标记）
             metadata = getattr(message, "metadata", None)

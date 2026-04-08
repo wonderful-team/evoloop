@@ -293,22 +293,22 @@ class ActivityStateService:
             return True
         return False
 
-    async def add_step(self, thread_id: str, name: str, step_type: str = "node", parent_id: int = None) -> int | None:
+    async def add_step(self, thread_id: str, name: str, step_type: str = "node", parent_id: int = None, input_data: dict = None) -> int | None:
         """Add a new step to the activity."""
         import time
         key = self._key(thread_id)
         lock_key = f"lock:{key}"
-        
+
         async with self._cache.lock(lock_key, timeout=2.0, blocking_timeout=1.0):
             if not await self._cache.exists(key):
                 return None
-            
+
             steps_json = await self._cache.hget(key, "steps")
             steps = json.loads(steps_json) if steps_json else []
-            
+
             if not name:
                 return None
-            
+
             step_id = len(steps) + 1
             new_step = {
                 "id": step_id,
@@ -318,9 +318,10 @@ class ActivityStateService:
                 "parent_id": parent_id,
                 "start_time": time.time(),
                 "time": "0s",
+                "input": input_data,
             }
             steps.append(new_step)
-            
+
             await self._cache.hset(
                 key,
                 mapping={
