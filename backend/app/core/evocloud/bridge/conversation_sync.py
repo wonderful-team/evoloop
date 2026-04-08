@@ -7,6 +7,8 @@ import logging
 from datetime import datetime, timedelta
 from typing import Any
 
+from sqlalchemy import select
+
 from app.infrastructure.database.sql.database import get_db_session
 from app.models import Conversation as ConversationModel, Message as MessageModel
 
@@ -125,13 +127,13 @@ class ConversationSyncManager:
             async with get_db_session() as db:
                 # 获取所有会话
                 conversations_result = await db.execute(
-                    ConversationModel.__table__.select()
+                    select(ConversationModel)
                 )
                 conversations = conversations_result.scalars().all()
                 
                 # 获取所有消息
                 messages_result = await db.execute(
-                    MessageModel.__table__.select()
+                    select(MessageModel)
                 )
                 messages = messages_result.scalars().all()
                 
@@ -179,7 +181,7 @@ class ConversationSyncManager:
             async with get_db_session() as db:
                 # 获取更新的会话
                 conversations_result = await db.execute(
-                    ConversationModel.__table__.select().where(
+                    select(ConversationModel).where(
                         ConversationModel.updated_at >= self._last_sync_time
                     )
                 )
@@ -268,6 +270,7 @@ class ConversationSyncManager:
         
     def _format_message(self, msg: MessageModel) -> dict:
         """格式化消息数据"""
+        # tool_calls 和 steps_snapshot 是 JSON 列，已经是 Python 对象
         return {
             "id": msg.id,
             "thread_id": msg.thread_id,
@@ -278,12 +281,12 @@ class ConversationSyncManager:
             "created_at": int(msg.created_at.timestamp()) if msg.created_at else int(datetime.now().timestamp()),
             "sequence_number": msg.sequence_number or 0,
             "checkpoint_id": msg.checkpoint_id or "",
-            "tool_calls": json.loads(msg.tool_calls) if msg.tool_calls else None,
+            "tool_calls": msg.tool_calls if msg.tool_calls else None,
             "action_type": msg.action_type or "text",
             "is_visible": 1 if msg.is_visible else 0,
             "run_id": msg.run_id or "",
             "status": msg.status or "completed",
-            "steps_snapshot": json.loads(msg.steps_snapshot) if msg.steps_snapshot else None,
+            "steps_snapshot": msg.steps_snapshot if msg.steps_snapshot else None,
             "parent_id": msg.parent_id or 0,
             "category": msg.category or "",
         }

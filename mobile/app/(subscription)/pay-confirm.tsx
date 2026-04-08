@@ -91,9 +91,11 @@ export default function PayConfirmScreen() {
         // 支付成功，跳转到结果页
         router.push({
           pathname: '/(subscription)/pay-result',
-          params: { 
+          params: {
             order_id: orderResult.order_id,
-            status: 'success'
+            status: 'success',
+            amount: payAmount.toFixed(2),
+            plan_name: selectedPlan?.level_name || ''
           }
         });
       } else {

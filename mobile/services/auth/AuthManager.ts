@@ -210,6 +210,30 @@ export class AuthManager {
     return unwrapResponse<LoginResponse>(response);
   }
 
+  // ========== 第三方登录绑定手机号 ==========
+
+  // 发送绑定手机号的短信验证码
+  static async sendTripartiteMobileCode(
+    mobile: string,
+    captchaId?: string,
+    captchaCode?: string
+  ): Promise<MobileCodeResponse> {
+    const body: Record<string, string> = { mobile };
+
+    if (captchaId) {
+      body.captcha_id = captchaId;
+    }
+    if (captchaCode) {
+      body.captcha_code = captchaCode;
+    }
+
+    const response = await api.post<ApiResponse<MobileCodeResponse>>(
+      MEMBER_API.TRIPARTITE_MOBILE_CODE,
+      body
+    );
+    return unwrapResponse<MobileCodeResponse>(response);
+  }
+
   // ========== 用户信息 ==========
 
   // 获取用户信息

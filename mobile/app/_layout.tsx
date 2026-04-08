@@ -12,12 +12,12 @@ import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { initAuthStore } from '@/stores/authStore';
 import '@/locales';
 
-// 导航组件
-function Navigation() {
-  const { isDark } = useTheme();
-  
+// 带主题的导航组件
+function ThemedContent() {
+  const { isDark, theme } = useTheme();
+
   return (
-    <>
+    <PaperProvider theme={theme}>
       <Stack
         screenOptions={{
           headerShown: false,
@@ -38,7 +38,7 @@ function Navigation() {
         <Stack.Screen name="+not-found" options={{ title: '页面未找到' }} />
       </Stack>
       <StatusBar style={isDark ? 'light' : 'dark'} />
-    </>
+    </PaperProvider>
   );
 }
 
@@ -60,13 +60,11 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <ThemeProvider>
-          <PaperProvider>
-            <LoadingProvider>
-              <ErrorBoundary>
-                <Navigation />
-              </ErrorBoundary>
-            </LoadingProvider>
-          </PaperProvider>
+          <LoadingProvider>
+            <ErrorBoundary>
+              <ThemedContent />
+            </ErrorBoundary>
+          </LoadingProvider>
         </ThemeProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

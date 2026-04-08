@@ -211,7 +211,7 @@ export default function VoiceSettingsScreen() {
           mode="outlined"
           onPress={() => {
             setSettings(DEFAULT_SETTINGS);
-            storage.set('voice_settings', JSON.stringify(DEFAULT_SETTINGS));
+            AsyncStorage.setItem('voice_settings', JSON.stringify(DEFAULT_SETTINGS));
           }}
         >
           恢复默认设置

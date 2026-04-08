@@ -38,6 +38,7 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
         # State
         # State
         self._device_id: int | None = None
+        self._device_id_event = asyncio.Event()  # 通知 device_id 可用
         self.client_id: str | None = None
 
         # Connection
@@ -57,6 +58,16 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
     @property
     def device_id(self) -> int | None:
         return self._device_id
+    
+    async def wait_for_device_id(self, timeout: float = 10.0) -> int | None:
+        """等待 WebSocket 握手完成并返回 device_id"""
+        if self._device_id:
+            return self._device_id
+        try:
+            await asyncio.wait_for(self._device_id_event.wait(), timeout=timeout)
+            return self._device_id
+        except asyncio.TimeoutError:
+            return None
 
     def _get_or_create_device_key(self) -> str:
         # 1. Try secure storage first
@@ -245,6 +256,7 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
                 # Set device_id from Gateway (assigned by MC)
                 if device_id:
                     self._device_id = int(device_id)
+                    self._device_id_event.set()  # 通知等待者
                     logger.info(f"[EvoCloud] Got device_id from Gateway: {self._device_id}")
                 
                 if client_id:

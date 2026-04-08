@@ -1,4 +1,4 @@
-import { GitDiff, ChevronRight } from "lucide-react"
+import { FileDiff, ChevronRight } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { cn } from "@evoloop/shared/lib/utils"
 
@@ -31,7 +31,7 @@ export function ChangesetInlineHint({
         className
       )}
     >
-      <GitDiff
+      <FileDiff
         className={cn(
           "h-4 w-4",
           isViewed ? "text-muted-foreground" : "text-amber-600 dark:text-amber-400"

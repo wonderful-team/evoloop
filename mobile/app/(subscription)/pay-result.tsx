@@ -3,11 +3,14 @@
 import { View, StyleSheet } from 'react-native';
 import { Text, Button, Avatar } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 
 export default function PayResultScreen() {
-  const success = true; // TODO: 从路由参数获取
-  
+  const params = useLocalSearchParams();
+  const success = params.status === 'success';
+  const amount = params.amount ? parseFloat(params.amount as string).toFixed(2) : '';
+  const planName = (params.plan_name as string) || '';
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
@@ -16,18 +19,20 @@ export default function PayResultScreen() {
           icon={success ? 'check' : 'close'}
           style={[styles.icon, { backgroundColor: success ? '#00C853' : '#FF3D00' }]}
         />
-        
+
         <Text variant="headlineMedium" style={styles.title}>
           {success ? '支付成功' : '支付失败'}
         </Text>
-        
+
         {success ? (
           <>
-            <Text variant="displaySmall" style={styles.amount}>
-              ¥99.00
-            </Text>
+            {amount && (
+              <Text variant="displaySmall" style={styles.amount}>
+                ¥{amount}
+              </Text>
+            )}
             <Text variant="bodyMedium" style={styles.message}>
-              您已成功订阅 EvoLoop 极客版
+              {planName ? `您已成功订阅 ${planName}` : '您已成功订阅'}
             </Text>
           </>
         ) : (

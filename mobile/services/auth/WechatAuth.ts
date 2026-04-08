@@ -117,7 +117,7 @@ export class WechatAuth {
   static async loginWithCode(code: string, appType: 'ios' | 'android' = 'ios'): Promise<WechatLoginResult> {
     try {
       const response = await api.post<ApiResponse<WechatLoginResult>>(
-        MEMBER_API.LOGIN_WECHAT_CODE,
+        MEMBER_API.LOGIN_AUTH,
         {
           code,
           app_type: appType,

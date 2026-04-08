@@ -100,6 +100,15 @@ class EvoCloudManager:
         if self.link:
             await self.link.start()
         
+        # Wait for device_id from WebSocket handshake (with timeout)
+        if self.link:
+            logger.info("[EvoCloud] Waiting for device_id from WebSocket...")
+            device_id = await self.link.wait_for_device_id(timeout=10.0)
+            if device_id:
+                logger.info(f"[EvoCloud] Received device_id from WebSocket: {device_id}")
+            else:
+                logger.warning("[EvoCloud] Timeout waiting for device_id from WebSocket, will try HTTP fallback")
+        
         # Ensure device_id is available (fetch from MC if not provided by Gateway)
         await self._ensure_device_id()
         
@@ -108,7 +117,7 @@ class EvoCloudManager:
 
     async def _ensure_device_id(self):
         """Ensure device_id is available from MC."""
-        if self.device_id:
+        if self.link and self.link.device_id:
             return
         
         try:
@@ -121,15 +130,18 @@ class EvoCloudManager:
             result = await self.api.get_devices()
             if result.get("code") == 0:
                 devices = result.get("data", {}).get("list", [])
+                found = False
                 for device in devices:
                     if device.get("device_key") == device_key:
                         device_id = device.get("device_id")
                         if device_id and self.link:
                             # Set device_id in link
                             self.link._device_id = int(device_id)
+                            self.link._device_id_event.set()  # 通知等待者
                             logger.info(f"[EvoCloud] Got device_id from MC: {device_id}")
+                            found = True
                         break
-                else:
+                if not found:
                     logger.warning(f"[EvoCloud] Device with key {device_key} not found in MC")
             else:
                 logger.warning(f"[EvoCloud] Failed to get devices from MC: {result.get('message')}")
@@ -282,6 +294,13 @@ class EvoCloudManager:
         if not self._initialized:
             self.initialize()
         return self._link_pool.get()
+    
+    @property
+    def device_id(self) -> int | None:
+        """Get device_id from WebSocket link (assigned by MC via Gateway)."""
+        if self.link:
+            return self.link.device_id
+        return None
 
     # Chat Sync (Agent.py support)
     async def upload_log(self, thread_id: str, log_type: str, content: Any, name: str | None = None, device_id: int | None = None, command_id=None, project_id=None, persistent: bool = True):

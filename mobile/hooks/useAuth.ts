@@ -178,6 +178,14 @@ export function useAuth() {
     [execute]
   );
 
+  // 发送微信绑定手机号的短信验证码
+  const sendBindMobileCode = useCallback(
+    async (mobile: string, captchaId?: string, captchaCode?: string) => {
+      return await execute(AuthManager.sendTripartiteMobileCode(mobile, captchaId, captchaCode));
+    },
+    [execute]
+  );
+
   return {
     isLoggedIn,
     userInfo,
@@ -193,6 +201,7 @@ export function useAuth() {
     logout: handleLogout,
     sendMobileCode,
     sendResetCode,
+    sendBindMobileCode,
     resetError: reset,
   };
 }

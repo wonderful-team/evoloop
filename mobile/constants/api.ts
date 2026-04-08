@@ -44,9 +44,11 @@ export const MEMBER_API = {
   SEND_MOBILE_CODE: '/member/api/login/mobileCode',
   LOGIN_MOBILE: '/member/api/login/mobile',
   LOGIN_ACCOUNT: '/member/api/login/login',
+  LOGIN_AUTH: '/member/api/login/auth',
+  LOGIN_AUTH_ONLY: '/member/api/login/authonlylogin',
   LOGIN_WECHAT: '/member/api/login/auth',
-  LOGIN_WECHAT_MOBILE: '/member/api/tripartite/mobileauth',
-  LOGIN_WECHAT_CODE: '/member/api/login/wechatCodeLogin',  // 微信 Code 登录
+  LOGIN_WECHAT_MOBILE: '/member/api/tripartite/mobile',
+  TRIPARTITE_MOBILE_CODE: '/member/api/tripartite/mobileCode',
   MEMBER_INFO: '/member/api/member/info',
   CHANGE_PASSWORD: '/member/api/member/changePassword',
   SEND_SMS_CODE: '/member/api/member/sendSmsCode',
