@@ -56,7 +56,7 @@ async def chat_node(state: AgentState, config: RunnableConfig) -> dict[str, Any]
         state=state,
         config=config,
         system_prompt=system_prompt,
-        tools=CHAT_TOOLS,  # ✅ Memory tools only
+        tools=CHAT_TOOLS,  # Memory tools only
         model=model,  # Use user selected model
         temperature=0.7,
         name="Chat",

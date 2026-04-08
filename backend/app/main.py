@@ -48,22 +48,13 @@ logger = logging.getLogger(__name__)
 _app = None
 
 
-async def _warm_evocloud_cache():
-    """Background task to warm EvoCloud projects cache."""
-    try:
-        from app.core.evocloud import evocloud_manager
-        projects = await evocloud_manager.scan_projects()
-        logger.info(f"[Startup] ✓ EvoCloud projects cache warmed: {len(projects)} projects")
-    except Exception as e:
-        logger.warning(f"[Startup] EvoCloud cache warming failed: {e}")
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global _app
     _app = app
 
     # --- Startup ---
+    startup_time = time.time()
     logger.info("Initializing EvoLoop resources...")
 
     # 1. DB Init
@@ -301,139 +292,74 @@ async def lifespan(app: FastAPI):
 
     # 7. EvoLoop Link Client (Unified)
     from app.core.evocloud.bridge.handlers import handle_project_switch_event, handle_remote_command
+    from app.core.evocloud.bridge.query_handler import handle_query_request
+    from app.core.evocloud.events import register_evocloud_event_handlers
 
     # Initialize Core Module
     evocloud_manager.initialize()
 
     # Config Handlers
     evocloud_manager.set_command_handler(handle_remote_command)
+    evocloud_manager.set_query_handler(handle_query_request)
+    evocloud_manager.set_event_handler(handle_project_switch_event)
+
+    # Register event handlers for lifecycle management
+    register_evocloud_event_handlers()
+
+    # Register Environment module lifecycle handlers (device watcher, etc.)
+    from app.core.environment.events import register_environment_system_handlers
+    register_environment_system_handlers()
+
+    # Register Learning module lifecycle handlers (skills cache warming)
+    from app.core.learning.events import register_learning_event_handlers
+    register_learning_event_handlers()
 
     async def event_router(etype, edata):
         if etype == "project_switch":
             await handle_project_switch_event(edata)
 
-    # Fallback: Check if client has persisted token (auth.json)
-    # The manager's API backend should have loaded it if implemented correctly.
-    # Otherwise we try to load it or check if it's already set.
-    evoloop_token = None
-    if evocloud_manager.api:
-        evoloop_token = evocloud_manager.api.get_token()
-        if evoloop_token:
-            logger.info("[EvoLoop] Found persisted token in auth.json, auto-connecting...")
-
-    if evoloop_token and evocloud_manager.link:
-        try:
-            # This will set the token on client and start the loop
-            # Ensure link uses the same token (already set in api)
-            await evocloud_manager.link.start()
-            logger.info("EvoLoop Link Client started in background.")
-
-            # Fetch Current Project from Member Center
-            try:
-                # Give it a small delay? No, http request is independent of WS.
-                res = await evocloud_manager.api.get_current_project()
-                if res.get("code") == 0:
-                    project_data = res.get("data", {})
-                    cloud_path = project_data.get("external_path")
-                    if cloud_path and os.path.exists(cloud_path):
-                        # Check if this project was locally ignored
-                        from app.domain.project import cache as project_cache
-
-                        is_ignored = await project_cache.is_path_ignored(cloud_path)
-                        if not is_ignored:
-                            # Also check DB directly as fallback
-                            from app.domain.codebase.indexing.service import IndexingService
-
-                            service = IndexingService()
-                            existing_repo = await service.get_repo_by_path(cloud_path)
-                            if existing_repo and existing_repo.sync_status == "IGNORED":
-                                is_ignored = True
-                                logger.info(f"[Startup] Project {cloud_path} is marked as IGNORED in DB. Skipping cloud sync.")
-
-                        if is_ignored:
-                            logger.info(f"[Startup] Skipping cloud project sync for ignored path: {cloud_path}")
-                        else:
-                            logger.info(f"[Startup] Synced active project from Cloud: {cloud_path}")
-                            # Update context immediately for default thread
-                            thread_context_store.set_working_directory("default", cloud_path)
-
-                            project_id = project_data.get("project_id")
-
-                            from app.domain.codebase.indexing.service import IndexingService
-
-                            service = IndexingService()
-                            repo_name = os.path.basename(cloud_path)
-                            repo = await service.get_or_create_repo(cloud_path, repo_name, project_id=project_id)
-                            await indexing_manager.start_watching(cloud_path, repo.id)
-                            # NOTE: Deep indexing deferred to post-login to save resources
-                            # await indexing_manager.run_indexing_background(repo.id)
-
-                    else:
-                        logger.info(f"[Startup] Cloud active project path invalid or local missing: {cloud_path}")
-                else:
-                    logger.warning(f"[Startup] Failed to fetch current project: {res.get('message')}")
-            except Exception as proj_e:
-                logger.warning(f"[Startup] Error syncing project: {proj_e}")
-
-        except Exception as e:
-            logger.error(f"Failed to start EvoLoop Link Client: {e}")
-
-    # 8. Android Device Watcher
-    try:
-        from app.core.environment.controllers.device_watcher import device_watcher
-        device_watcher.start()
-    except Exception as e:
-        logger.warning(f"Failed to start Device Watcher: {e}")
-
-    # 9. Pre-Supervisor Optimizations - Cache Warming
-    # Warm up caches that are safe to preload (no query-dependent data)
-    try:
-        logger.info("[Startup] Warming up caches for Pre-Supervisor optimization...")
-        start_warm = time.time()
-        
-        # 9.1 Skill Discovery Cache - Preload all active skills
-        try:
-            from app.core.learning.discovery import skill_discovery
-            skills = await skill_discovery.get_active_skills_list()
-            logger.info(f"[Startup] ✓ Skills cache warmed: {len(skills)} skills")
-        except Exception as e:
-            logger.warning(f"[Startup] Failed to warm skills cache: {e}")
-        
-        # 9.2 System Config Cache - Preload language preference
-        try:
-            lang_pref = SystemConfigService.get_language_preference()
-            logger.info(f"[Startup] ✓ User preferences cached: language={lang_pref}")
-        except Exception as e:
-            logger.warning(f"[Startup] Failed to cache user preferences: {e}")
-        
-        # 9.3 EvoCloud Projects Cache - Async background fetch
-        try:
-            if evocloud_manager.get_token():
-                # Fire and forget - don't block startup
-                asyncio.create_task(_warm_evocloud_cache())
-        except Exception as e:
-            logger.warning(f"[Startup] Failed to start EvoCloud cache warming: {e}")
-        
-        warm_time = (time.time() - start_warm) * 1000
-        logger.info(f"[Startup] Cache warming completed in {warm_time:.1f}ms")
-        
-    except Exception as e:
-        logger.warning(f"[Startup] Cache warming failed: {e}")
-
-    # 10. Task Queue Worker
+    # 8. Task Queue Worker
     # Note: Worker runs as separate process, started via: python -m scripts.run_worker
     # See scripts/run_worker.py for standalone worker startup
     logger.info("[Startup] Task Queue Worker should be started separately via 'python -m scripts.run_worker'")
+
+    # 11. Publish Application Started Event
+    # This triggers EvoCloud and other services to start
+    try:
+        from app.core.events import system_bus, SystemEventType, BaseEvent
+        await system_bus.publish(BaseEvent(
+            event_type=SystemEventType.APP_STARTED,
+            source="main",
+            data={"startup_time": startup_time}
+        ))
+        logger.info("[Startup] APP_STARTED event published")
+    except Exception as e:
+        logger.error(f"[Startup] Failed to publish APP_STARTED event: {e}")
 
     yield
 
     # --- Shutdown ---
     logger.info("Shutting down EvoLoop resources...")
+    
+    # Publish Application Stopping Event
+    # This triggers graceful shutdown of EvoCloud and other services
+    try:
+        from app.core.events import system_bus, SystemEventType, BaseEvent
+        await system_bus.publish(BaseEvent(
+            event_type=SystemEventType.APP_STOPPING,
+            source="main",
+            data={}
+        ))
+        logger.info("[Shutdown] APP_STOPPING event published")
+    except Exception as e:
+        logger.error(f"[Shutdown] Failed to publish APP_STOPPING event: {e}")
+    
     # Stop discovery manager
     try:
         discovery_manager.stop()
     except Exception as e:
         logger.warning(f"Failed to stop discovery manager: {e}")
+
     await indexing_manager.stop_all()
     await mcp_client_manager.cleanup()
 
@@ -443,20 +369,6 @@ async def lifespan(app: FastAPI):
         mirror_manager.cleanup()
     except Exception as e:
         logger.warning(f"Failed to cleanup mirror sessions: {e}")
-
-    # Stop Device Watcher
-    try:
-        from app.core.environment.controllers.device_watcher import device_watcher
-        device_watcher.stop()
-    except Exception as e:
-        logger.warning(f"Failed to stop Device Watcher: {e}")
-
-    # Stop EvoLoop Link
-    try:
-        if evocloud_manager.link:
-            await evocloud_manager.link.stop()
-    except Exception as e:
-        logger.warning(f"Failed to stop EvoLoop Link: {e}")
 
     # Note: Worker is managed separately, not started within lifespan
 

@@ -93,15 +93,13 @@ from app.core.memory.two_tier import (
     SectionBudget,
 )
 
-# Maintenance (NEW)
-from app.core.memory.maintenance_report import MaintenanceReport
-from app.core.memory.tasks import (
-    run_memory_maintenance,
-    run_memory_maintenance_async,
-    daily_memory_maintenance,
-    hourly_memory_stats,
-    trigger_maintenance_now,
-    get_last_maintenance_report,
+# Maintenance
+from app.core.memory.maintenance import (
+    MemoryMaintenanceAgent,
+    MaintenanceScheduler,
+    scheduled_memory_maintenance,
+    trigger_maintenance,
+    get_maintenance_status,
 )
 
 __all__ = [
@@ -153,12 +151,10 @@ __all__ = [
     "MemorySection",
     "SectionBudget",
     
-    # Maintenance (NEW)
-    "run_memory_maintenance",
-    "run_memory_maintenance_async",
-    "daily_memory_maintenance",
-    "hourly_memory_stats",
-    "trigger_maintenance_now",
-    "get_last_maintenance_report",
-    "MaintenanceReport",
+    # Maintenance
+    "MemoryMaintenanceAgent",
+    "MaintenanceScheduler",
+    "scheduled_memory_maintenance",
+    "trigger_maintenance",
+    "get_maintenance_status",
 ]

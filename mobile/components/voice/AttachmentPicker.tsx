@@ -293,38 +293,7 @@ export function AttachmentPicker({
         </View>
       )}
 
-      {/* 底部工具栏 */}
-      {attachments.length === 0 && (
-        <View style={styles.toolbar}>
-          <TouchableOpacity
-            style={styles.toolbarButton}
-            onPress={showPickerOptions}
-            disabled={uploading}
-          >
-            <MaterialIcons 
-              name="image" 
-              size={22} 
-              color={uploading ? colors.outline : colors.onSurfaceVariant} 
-            />
-          </TouchableOpacity>
-          
-          <TouchableOpacity
-            style={styles.toolbarButton}
-            onPress={handleCamera}
-            disabled={uploading}
-          >
-            <MaterialIcons 
-              name="camera-alt" 
-              size={22} 
-              color={uploading ? colors.outline : colors.onSurfaceVariant} 
-            />
-          </TouchableOpacity>
-          
-          <TouchableOpacity style={styles.toolbarButton}>
-            <MaterialIcons name="folder" size={22} color={colors.onSurfaceVariant} />
-          </TouchableOpacity>
-        </View>
-      )}
+      {/* 附件选择按钮已移除 */}
 
       {/* 选项弹窗 */}
       <Modal

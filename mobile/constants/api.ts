@@ -3,54 +3,36 @@
 
 const BASE_URL = 'https://evoloop.develop-assistant.cn';
 
-// ===== Gateway 路由 (聊天对话、设备管理、项目管理) =====
-// 通过 evoloop/backend 转发到各服务
+// ===== Gateway 路由 (Mobile → Gateway → Desktop) =====
+// 职责：WebSocket 连接管理、设备状态、指令下发
 export const GATEWAY_API = {
-  // WebSocket 聊天对话
+  // WebSocket 端点
   WS_URL: `${BASE_URL}/gateway/ws`,
   
   // 基础路径
   BASE: '/gateway/api/v1',
   
-  // 设备管理
+  // 设备管理 (Gateway 本地维护)
   DEVICES: '/gateway/api/v1/devices',
-  DEVICE_BIND: '/gateway/api/v1/devices/bind',
   DEVICE_DETAIL: (id: string) => `/gateway/api/v1/devices/${id}`,
+  DEVICE_DEFAULT: (id: string) => `/gateway/api/v1/devices/${id}/default`,
+  DEVICE_BIND: '/gateway/api/v1/devices/bind',
   
-  // 项目管理
-  PROJECTS: '/gateway/api/v1/projects',
-  PROJECT_SWITCH: '/gateway/api/v1/projects/switch',
-  PROJECT_DETAIL: (id: number) => `/gateway/api/v1/projects/${id}`,
+  // 指令下发 (核心 API：转发到 Desktop)
+  COMMAND_EXECUTE: '/gateway/api/v1/command/execute',
   
-  // 指令下发
-  COMMANDS: '/gateway/api/v1/commands',
-  COMMAND_SEND: '/gateway/api/v1/commands/send',
-  
-  // 会话/对话管理 (通过 Gateway 转发)
-  CONVERSATIONS: '/gateway/api/v1/conversations',
-  CONVERSATION_DETAIL: (id: string) => `/gateway/api/v1/conversations/${id}`,
-  CONVERSATION_HISTORY: (id: string) => `/gateway/api/v1/conversations/${id}/history`,
+  // 会话控制 (转发到 Desktop)
   CONVERSATION_STOP: (id: string) => `/gateway/api/v1/conversations/${id}/stop`,
   CONVERSATION_REWIND: (id: string) => `/gateway/api/v1/conversations/${id}/rewind`,
   CONVERSATION_RETRY: (id: string) => `/gateway/api/v1/conversations/${id}/retry`,
   
-  // Artifacts (通过 Gateway 转发)
-  ARTIFACTS: '/gateway/api/v1/artifacts',
-  ARTIFACT_DETAIL: (id: string) => `/gateway/api/v1/artifacts/${id}`,
-  
-  // Skills (通过 Gateway 转发)
-  SKILLS: '/gateway/api/v1/skills',
-  SKILL_EXECUTE: '/gateway/api/v1/skills/execute',
-  SKILL_EXECUTION: (id: string) => `/gateway/api/v1/skills/execution/${id}`,
-  MCP_SERVERS: '/gateway/api/v1/mcp/servers',
-  
-  // 模型管理
-  MODELS: '/gateway/api/v1/models',
-  USAGE_QUOTA: '/gateway/api/v1/usage/quota',
-  USAGE_TOKENS: '/gateway/api/v1/usage/tokens',
+  // HITL (转发到 Desktop)
+  HITL_CONFIRM: '/gateway/api/v1/hitl/confirm',
+  HITL_CHOICE: '/gateway/api/v1/hitl/choice',
+  HITL_TEXT: '/gateway/api/v1/hitl/text',
 };
 
-// ===== Member 路由 (认证、订阅) =====
+// ===== Member 路由 (业务数据：对话历史、会员、订阅) =====
 // 直接访问 member-center/backend
 export const MEMBER_API = {
   BASE: `${BASE_URL}/member`,
@@ -64,12 +46,13 @@ export const MEMBER_API = {
   LOGIN_ACCOUNT: '/member/api/login/login',
   LOGIN_WECHAT: '/member/api/login/auth',
   LOGIN_WECHAT_MOBILE: '/member/api/tripartite/mobileauth',
+  LOGIN_WECHAT_CODE: '/member/api/login/wechatCodeLogin',  // 微信 Code 登录
   MEMBER_INFO: '/member/api/member/info',
   CHANGE_PASSWORD: '/member/api/member/changePassword',
   SEND_SMS_CODE: '/member/api/member/sendSmsCode',
   BIND_MOBILE: '/member/api/member/bindMobile',
   
-  // 订阅管理 (通过 Gateway 转发到 member-center)
+  // 订阅管理
   SUBSCRIPTION_STATUS: '/member/subscription/api/subscription/status',
   SUBSCRIPTION_DETAIL: '/member/subscription/api/subscription/getDetail',
   SUBSCRIPTION_PLANS: '/member/subscription/api/subscription/plans',
@@ -89,7 +72,26 @@ export const MEMBER_API = {
   UPLOAD_CHAT_IMAGE: '/member/api/upload/chatimg',
   UPLOAD_CHAT_FILE: '/member/api/upload/chatfile',
   
-  // 项目记忆 (通过 Gateway)
+  // ===== 对话历史 (MC 存储 - evolooplink 插件) =====
+  CONVERSATIONS: '/evolooplink/api/conversation/list',
+  CONVERSATION_DETAIL: (id: string) => `/evolooplink/api/conversation/detail?conversation_id=${id}`,
+  CONVERSATION_HISTORY: (id: string) => `/evolooplink/api/conversation/messages?conversation_id=${id}`,
+  
+  // ===== 删除会话 =====
+  CONVERSATION_DELETE: (id: string) => `/evolooplink/api/conversation/delete`,
+  
+  // ===== 技能 (MC 存储) =====
+  SKILLS: '/member/api/skills',
+  SKILL_DETAIL: (id: string) => `/member/api/skills/${id}`,
+  
+  // ===== Artifacts (MC 存储) =====
+  ARTIFACTS: '/member/api/artifacts',
+  ARTIFACT_DETAIL: (id: string) => `/member/api/artifacts/${id}`,
+  
+  // ===== 项目管理 =====
+  PROJECTS: '/member/api/projects',
+  PROJECT_DETAIL: (id: number) => `/member/api/projects/${id}`,
+  PROJECT_SWITCH: '/member/api/projects/switch',
   PROJECT_MEMORY: (projectId: number) => `/member/api/projects/${projectId}/memory`,
 };
 

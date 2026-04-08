@@ -6,7 +6,7 @@ import { List, Switch, Divider, Text, Button, Slider } from 'react-native-paper'
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/components/ui/ThemeProvider';
 import { AudioRecorder } from '@/services/voice/AudioRecorder';
-import { storage } from '@/services/storage/mmkv';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface VoiceSettings {
   autoStart: boolean;
@@ -42,14 +42,17 @@ export default function VoiceSettingsScreen() {
 
   // 加载设置
   useEffect(() => {
-    const savedSettings = storage.getString('voice_settings');
-    if (savedSettings) {
+    const loadSettings = async () => {
       try {
-        setSettings({ ...DEFAULT_SETTINGS, ...JSON.parse(savedSettings) });
+        const savedSettings = await AsyncStorage.getItem('voice_settings');
+        if (savedSettings) {
+          setSettings({ ...DEFAULT_SETTINGS, ...JSON.parse(savedSettings) });
+        }
       } catch (e) {
         console.error('Failed to parse voice settings:', e);
       }
-    }
+    };
+    loadSettings();
   }, []);
 
   // 检查麦克风权限
@@ -58,10 +61,10 @@ export default function VoiceSettingsScreen() {
   }, []);
 
   // 保存设置
-  const saveSettings = (newSettings: Partial<VoiceSettings>) => {
+  const saveSettings = async (newSettings: Partial<VoiceSettings>) => {
     const updated = { ...settings, ...newSettings };
     setSettings(updated);
-    storage.set('voice_settings', JSON.stringify(updated));
+    await AsyncStorage.setItem('voice_settings', JSON.stringify(updated));
   };
 
   // 请求麦克风权限

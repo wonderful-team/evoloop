@@ -169,9 +169,9 @@ class MacroEngine:
                     
                     if screenshot_path:
                         await activity_monitor.log_event("macro_thought", {
-                            "text": f"❌ Step {step_num} failed. Failure captured: {screenshot_path}"
+                            "text": f"[FAILED] Step {step_num} failed. Failure captured: {screenshot_path}"
                         }, thread_id)
-                        logger.error(f"[{thread_id}] ❌ Macro Step {step_num} failed. Screenshot: {screenshot_path}")
+                        logger.error(f"[{thread_id}] [FAILED] Macro Step {step_num} failed. Screenshot: {screenshot_path}")
                     
                     return False, f"Step {step_num} failed: {error_msg}", fallback_context
 
@@ -274,16 +274,16 @@ class MacroEngine:
             if len(lists) == 1:
                 items_key = list(lists.keys())[0]
                 items = lists[items_key]
-                logger.info(f"[{thread_id}] 💡 Using fuzzy match for loop: key '{items_key}' found instead of '{payload.get('items_key')}'")
-                await activity_monitor.log_event("macro_thought", {"text": f"💡 Using fuzzy match: '{items_key}'"}, thread_id)
+                logger.info(f"[{thread_id}] Using fuzzy match for loop: key '{items_key}' found instead of '{payload.get('items_key')}'")
+                await activity_monitor.log_event("macro_thought", {"text": f"Using fuzzy match: '{items_key}'"}, thread_id)
             else:
-                warn_msg = f"⚠️ Batch loop skipped: No items found for key '{items_key}'"
+                warn_msg = f"[WARNING] Batch loop skipped: No items found for key '{items_key}'"
                 logger.warning(f"[{thread_id}] {warn_msg}")
                 await activity_monitor.log_event("macro_thought", {"text": warn_msg}, thread_id)
                 return True, "", None
 
-        logger.info(f"[{thread_id}] 🔄 Starting Batch Loop: {len(items)} items for key '{items_key}'")
-        await activity_monitor.log_event("macro_thought", {"text": f"🔄 Starting loop ({len(items)} items)"}, thread_id)
+        logger.info(f"[{thread_id}] Starting Batch Loop: {len(items)} items for key '{items_key}'")
+        await activity_monitor.log_event("macro_thought", {"text": f"Starting loop ({len(items)} items)"}, thread_id)
 
         # Phase 3: Dynamic App Awareness
         is_dynamic = False
@@ -412,7 +412,7 @@ class MacroEngine:
         # Phase 1: LIST - Collect items from screens
         if (collect_mode in ("list", "auto")) and (state["phase"] == "list" or collect_mode == "list"):
             logger.info(f"[{thread_id}] Starting LIST phase for batch collection")
-            await activity_monitor.log_event("macro_thought", {"text": "📋 Starting list collection phase"}, thread_id)
+            await activity_monitor.log_event("macro_thought", {"text": "Starting list collection phase"}, thread_id)
 
             max_screens = int(list_config.get("max_screens", 10))
             swipe_distance = int(list_config.get("swipe_distance", 1200))
@@ -490,7 +490,7 @@ class MacroEngine:
                 json.dump(state, f, ensure_ascii=False, indent=2)
 
             logger.info(f"[{thread_id}] LIST phase complete: {len(state['items'])} items collected")
-            await activity_monitor.log_event("macro_thought", {"text": f"✅ List collection complete: {len(state['items'])} items"}, thread_id)
+            await activity_monitor.log_event("macro_thought", {"text": f"List collection complete: {len(state['items'])} items"}, thread_id)
 
             if collect_mode == "list":
                 # Only list mode, return success
@@ -501,7 +501,7 @@ class MacroEngine:
         # Phase 2: DETAIL - Execute steps for each collected item
         if collect_mode in ("detail", "auto") and state["phase"] in ("detail", "completed"):
             logger.info(f"[{thread_id}] Starting DETAIL phase for batch collection")
-            await activity_monitor.log_event("macro_thought", {"text": "🔍 Starting detail execution phase"}, thread_id)
+            await activity_monitor.log_event("macro_thought", {"text": "Starting detail execution phase"}, thread_id)
 
             pending_items = [item for item in state["items"] if item.get("status") == "pending"]
             if not pending_items:
@@ -600,7 +600,7 @@ class MacroEngine:
 
             result_msg = f"Detail phase complete: {success_count} succeeded, {fail_count} failed"
             logger.info(f"[{thread_id}] {result_msg}")
-            await activity_monitor.log_event("macro_thought", {"text": f"✅ {result_msg}"}, thread_id)
+            await activity_monitor.log_event("macro_thought", {"text": f"{result_msg}"}, thread_id)
 
             extracted_data["collect_results"] = {
                 "total": len(state["items"]),

@@ -1,5 +1,6 @@
 import { useEffect } from "react"
-import { createFileRoute, Outlet, useRouterState } from "@tanstack/react-router"
+import { createFileRoute, Outlet, useRouterState, redirect } from "@tanstack/react-router"
+import { isLoggedIn } from "@/hooks/useAuth"
 import { AndroidMirrorConsole } from "@/components/Learning/AndroidMirrorConsole"
 import { SkillLibraryView } from "@/components/Learning/SkillLibraryView"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@evoloop/shared/components/ui/tabs"
@@ -13,6 +14,11 @@ import { MultimodalSynthesizeDialog } from "@/components/Learning/MultimodalSynt
 
 export const Route = createFileRoute("/_layout/learning")({
     component: LearningPage,
+    beforeLoad: async () => {
+        if (!isLoggedIn()) {
+            throw redirect({ to: "/login" })
+        }
+    },
 })
 
 function LearningPage() {

@@ -2,7 +2,7 @@
 
 import { EventEmitter } from 'eventemitter3';
 import { WS_CONFIG } from '@/constants/config';
-import { tokenStorage } from '@/services/storage/mmkv';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   GatewayMessage,
   GatewayMessageType,
@@ -51,16 +51,25 @@ export class GatewayClient extends EventEmitter {
 
     this.setState(ConnectionState.CONNECTING);
 
-    return new Promise((resolve, reject) => {
+    return new Promise(async (resolve, reject) => {
       try {
-        const token = tokenStorage.getToken();
+        // 优先使用用户 token，否则使用游客模式
+        let token = await AsyncStorage.getItem('token');
+        let isGuest = false;
+        
         if (!token) {
-          reject(new Error('未登录'));
-          return;
+          // 游客模式：生成或使用游客 token
+          let guestToken = await AsyncStorage.getItem('guestToken');
+          if (!guestToken) {
+            guestToken = `guest_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+            await AsyncStorage.setItem('guestToken', guestToken);
+          }
+          token = `guest:${guestToken}`;
+          isGuest = true;
         }
 
-        // 构建 WebSocket URL（带 token）
-        const url = `${this.url}?token=${encodeURIComponent(token)}`;
+        // 构建 WebSocket URL（带 token 和游客标记）
+        const url = `${this.url}?token=${encodeURIComponent(token)}${isGuest ? '&mode=guest' : ''}`;
         this.ws = new WebSocket(url);
 
         this.ws.onopen = () => {

@@ -122,7 +122,11 @@ export function ArtifactCard({ artifact, onView, onDownload }: ArtifactCardProps
                 code_block: { backgroundColor: 'transparent' },
               }}
             >
-              {\`\`\`\${data.language}\n\${data.content.slice(0, 500)}\${data.content.length > 500 ? '...' : ''}\n\`\`\`}
+              {`
+\`\`\`${data.language}
+${data.content.slice(0, 500)}${data.content.length > 500 ? '...' : ''}
+\`\`\`
+`}
             </Markdown>
           </ScrollView>
         )}

@@ -24,6 +24,7 @@ import { useProjectStore } from '@/stores/projectStore';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { DevicesService, LearningService, SystemService } from '@/client';
+import { isLoggedIn } from '@/hooks/useAuth';
 
 interface ChatWelcomeProps {
   // onStarterClick removed as prompts are replaced by nav
@@ -34,24 +35,27 @@ export const ChatWelcome: React.FC<ChatWelcomeProps> = () => {
   const { currentProject } = useProjectStore();
   const navigate = useNavigate();
 
-  // Fetch Devices Status
+  // Fetch Devices Status (only when logged in)
   const { data: devices } = useQuery({
     queryKey: ['devices'],
     queryFn: () => DevicesService.getDevices(),
     refetchInterval: 10000,
+    enabled: isLoggedIn(),
   });
 
-  // Fetch Skills Stats
+  // Fetch Skills Stats (only when logged in)
   const { data: skills } = useQuery({
     queryKey: ['learnedSkills'],
     queryFn: () => LearningService.listSkills({ pageSize: 4 }),
+    enabled: isLoggedIn(),
   });
 
-  // Fetch System Status
+  // Fetch System Status (only when logged in)
   const { data: systemStatus } = useQuery({
     queryKey: ['systemStatus'],
     queryFn: () => SystemService.getSystemStatus(),
     refetchInterval: 5000,
+    enabled: isLoggedIn(),
   });
 
   const containerVariants = {

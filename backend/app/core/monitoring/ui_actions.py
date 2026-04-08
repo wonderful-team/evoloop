@@ -161,12 +161,12 @@ def create_file_select_request(
 # =============================================================================
 
 GLOBAL_MODE_MESSAGES = {
-    "code_search": "🔍 **Global Mode**: Code search requires a project. Please provide a project_id or switch to a project.",
-    "wiki": "📚 **Global Mode**: Wiki requires a project.",
-    "architecture": "🏗️ **Global Mode**: Architecture consultation requires a project.",
-    "file_operation": "📁 **Global Mode**: File operations require a project.",
-    "git": "🔀 **Global Mode**: Git operations require a project.",
-    "default": "⚠️ **Global Mode**: This operation requires a specific project.",
+    "code_search": "[Global Mode]: Code search requires a project. Please provide a project_id or switch to a project.",
+    "wiki": "[Global Mode]: Wiki requires a project.",
+    "architecture": "[Global Mode]: Architecture consultation requires a project.",
+    "file_operation": "[Global Mode]: File operations require a project.",
+    "git": "[Global Mode]: Git operations require a project.",
+    "default": "[Global Mode]: This operation requires a specific project.",
 }
 
 

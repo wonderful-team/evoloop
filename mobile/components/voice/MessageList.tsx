@@ -13,6 +13,7 @@ import { ChatMessage } from '@/types/voice';
 import { useTheme } from '@/theme';
 import { MessageContent } from '@/components/chat/MessageContent';
 import { MaterialIcons } from '@expo/vector-icons';
+import { WoodenRobot } from '@/components/WoodenRobot';
 
 interface MessageListProps {
   messages: ChatMessage[];
@@ -180,6 +181,41 @@ export function MessageList({ messages, onRewind, onRetry, onQuote }: MessageLis
     );
   };
 
+// 欢迎视图组件 - 空状态时显示
+function WelcomeView({ colors }: { colors: any }) {
+  // 随机选择心情，让机器人更生动
+  const [mood, setMood] = useState<'neutral' | 'happy' | 'thinking'>('happy');
+
+  useEffect(() => {
+    // 每隔几秒切换心情，增加生动感
+    const interval = setInterval(() => {
+      const moods: Array<'neutral' | 'happy' | 'thinking'> = ['neutral', 'happy', 'thinking'];
+      const randomMood = moods[Math.floor(Math.random() * moods.length)];
+      setMood(randomMood);
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <View style={styles.welcomeContainer}>
+      {/* 3D 木头机器人 - 带表情和手臂 */}
+      <WoodenRobot primaryColor={colors.primary} mood={mood} />
+      
+      <Text variant="headlineSmall" style={[styles.welcomeTitle, { color: colors.primary }]}>
+        EvoLoop AI
+      </Text>
+      
+      <Text variant="bodyMedium" style={[styles.welcomeSubtitle, { color: colors.outline }]}>
+        你好！我是你的木头机器人助手
+      </Text>
+      <Text variant="bodySmall" style={[styles.welcomeHint, { color: colors.outline }]}>
+        点击麦克风开始语音对话
+      </Text>
+    </View>
+  );
+}
+
   return (
     <ScrollView
       ref={scrollViewRef}
@@ -188,11 +224,7 @@ export function MessageList({ messages, onRewind, onRetry, onQuote }: MessageLis
       showsVerticalScrollIndicator={false}
     >
       {messages.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <Text variant="bodyMedium" style={{ color: colors.outline }}>
-            开始语音对话，或输入文字消息
-          </Text>
-        </View>
+        <WelcomeView colors={colors} />
       ) : (
         messages.map((message, index) => renderMessage(message, index))
       )}
@@ -207,12 +239,33 @@ const styles = StyleSheet.create({
   contentContainer: {
     padding: 16,
     paddingBottom: 32,
+    flexGrow: 1,
   },
   emptyContainer: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 48,
+  },
+  // 欢迎视图样式
+  welcomeContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 32,
+    gap: 16,
+  },
+  welcomeTitle: {
+    fontWeight: 'bold',
+    marginTop: 16,
+  },
+  welcomeSubtitle: {
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  welcomeHint: {
+    marginTop: 4,
+    opacity: 0.6,
   },
   messageContainer: {
     flexDirection: 'row',

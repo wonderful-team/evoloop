@@ -28,7 +28,7 @@ export const streamChat = async (
   }
 
   // Get token from localStorage (mobile auth)
-  const token = localStorage.getItem("evoloop_token") || localStorage.getItem("access_token") || ""
+  const token = localStorage.getItem("access_token") || ""
   const baseUrl = getBaseUrl()
 
   // Use fetch directly for POST streaming

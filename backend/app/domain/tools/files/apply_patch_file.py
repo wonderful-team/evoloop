@@ -290,7 +290,7 @@ async def apply_patch_file(
     try:
         operations = parse_patch(patch_text)
     except PatchParseError as e:
-        return f"❌ Patch parse error: {str(e)}\nPlease check your patch syntax."
+        return f"Patch parse error: {str(e)}\nPlease check your patch syntax."
 
     # Phase 1: Validate and collect all operations
     validated_operations = []
@@ -301,19 +301,19 @@ async def apply_patch_file(
                 # For add, just validate path
                 target_path = await resolve_and_validate_path(op.path, config)
                 if os.path.exists(target_path):
-                    return f"❌ Operation #{i+1}: File already exists: {op.path}"
+                    return f"Operation #{i+1}: File already exists: {op.path}"
                 validated_operations.append(('add', target_path, op.content, op.path))
                 
             elif op.operation == 'delete':
                 target_path = await resolve_and_validate_path(op.path, config)
                 if not os.path.exists(target_path):
-                    return f"❌ Operation #{i+1}: File not found: {op.path}"
+                    return f"Operation #{i+1}: File not found: {op.path}"
                 validated_operations.append(('delete', target_path, None, op.path))
                 
             elif op.operation == 'update':
                 target_path = await resolve_and_validate_path(op.path, config)
                 if not os.path.exists(target_path):
-                    return f"❌ Operation #{i+1}: File not found: {op.path}"
+                    return f"Operation #{i+1}: File not found: {op.path}"
                 
                 # Read current content
                 file_content, _, stats = safe_read_with_hash(target_path)
@@ -363,7 +363,7 @@ async def apply_patch_file(
                         
                         if not success:
                             return (
-                                f"❌ Operation #{i+1} (Update File '{op.path}'), "
+                                f"Operation #{i+1} (Update File '{op.path}'), "
                                 f"Hunk #{j+1} failed validation. No changes applied.\n"
                                 f"   Target block: {old_block[:50]}{'...' if len(old_block) > 50 else ''}\n"
                                 f"   Error: {log}\n"
@@ -375,7 +375,7 @@ async def apply_patch_file(
                     validated_operations.append(('update', target_path, current_content, op.path))
                     
         except ValueError as e:
-            return f"❌ Operation #{i+1}: Path error: {str(e)}"
+            return f"Operation #{i+1}: Path error: {str(e)}"
 
     # Phase 2: Atomic application with rollback capability
     results = []
@@ -460,9 +460,9 @@ async def apply_patch_file(
             except Exception as rb_e:
                 rollback_errors.append(f"{rb_original}: {str(rb_e)}")
         
-        error_msg = f"❌ Patch application failed: {str(e)}\nAll changes have been rolled back."
+        error_msg = f"Patch application failed: {str(e)}\nAll changes have been rolled back."
         if rollback_errors:
-            error_msg += f"\n⚠️ Rollback errors occurred: {', '.join(rollback_errors)}"
+            error_msg += f"\nRollback errors occurred: {', '.join(rollback_errors)}"
         return error_msg
 
     # Async type checking for all updated files
@@ -496,9 +496,9 @@ async def apply_patch_file(
     # Build success response
     result_summary = "\n".join([f"  - {r}" for r in results])
     
-    response = f"✅ Successfully applied patch with {len(results)} operation(s):\n{result_summary}"
+    response = f"Successfully applied patch with {len(results)} operation(s):\n{result_summary}"
     
     if verify_types and updated_files_for_type_check:
-        response += "\n\nℹ️ Type check running in background for updated files..."
+        response += "\n\nNote: Type check running in background for updated files..."
     
     return response

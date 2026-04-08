@@ -71,7 +71,7 @@ export function useTheme() {
     successContainer: '#E8F5E9',
     onSuccess: '#000000',
     onSuccessContainer: '#1B5E20',
-    info: '#0066FF',
+    info: '#22C55E',
     infoContainer: '#E3F2FD',
     onInfo: '#000000',
     onInfoContainer: '#0D47A1',
@@ -87,7 +87,7 @@ export function useTheme() {
       error: '#FF3D00',
       warning: '#FFAB00',
       success: '#00C853',
-      info: '#0066FF',
+      info: '#22C55E',
     },
   };
 

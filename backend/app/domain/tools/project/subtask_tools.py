@@ -88,7 +88,7 @@ async def create_task_with_subtasks(
                 f"  {i+1}. {s.task_data.get('title', 'Untitled')}"
                 for i, s in enumerate(task.subtasks)
             ])
-            return f"""✅ Created task "{title}" with {subtask_count} subtasks
+            return f"""Created task "{title}" with {subtask_count} subtasks
 
 Task ID: {task.id}
 
@@ -97,7 +97,7 @@ Subtasks:
 
 You can track progress by asking "show task tree {task.id[:8]}"""
         else:
-            return f"✅ Created task \"{title}\"\n\nTask ID: {task.id}"
+            return f"Created task \"{title}\"\n\nTask ID: {task.id}"
             
     except json.JSONDecodeError:
         return "Error: subtasks_json is not valid JSON. Format: [{\"title\": \"...\", \"estimated_hours\": n}]"
@@ -155,14 +155,13 @@ async def get_task_tree_summary(task_id: str) -> str:
             prefix = "└── " if is_last else "├── "
             
             # Progress indicator
-            if node["status"] == "completed":
-                status_icon = "✅"
-            elif node["status"] == "in_progress":
-                status_icon = "🔄"
-            elif node["status"] == "failed":
-                status_icon = "❌"
-            else:
-                status_icon = "⏳"
+            status_map = {
+                "completed": "[DONE]",
+                "in_progress": "[IN_PROGRESS]",
+                "failed": "[FAILED]",
+                "pending": "[PENDING]",
+            }
+            status_icon = status_map.get(node["status"], f"[{node['status'].upper()}]")
                 
             line = f"{indent}{prefix}{status_icon} {node['title']} ({node['progress']}%)\n"
             
@@ -172,12 +171,11 @@ async def get_task_tree_summary(task_id: str) -> str:
                 
             return line
             
-        summary = f"""📋 Task Tree: {tree['title']}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        summary = f"""Task Tree: {tree['title']}
 Overall Progress: {tree['progress']}%
 Status: {tree['status']}
 
-{format_tree(tree, 0, True)}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"""
+{format_tree(tree, 0, True)}"""
         
         return summary
         
@@ -261,9 +259,9 @@ async def update_task_completion(
         # Get updated tree to show parent progress
         tree = await subtask_service.get_task_tree(task_id)
         if tree and tree.get("is_parent"):
-            return f"✅ Updated task to {status} ({progress}%)\n\nParent task overall progress: {tree['progress']}%"
+            return f"Updated task to {status} ({progress}%)\n\nParent task overall progress: {tree['progress']}%"
         else:
-            return f"✅ Updated task to {status} ({progress}%)"
+            return f"Updated task to {status} ({progress}%)"
             
     except Exception as e:
         logger.error(f"[SubtaskTool] Failed to update task: {e}")
@@ -290,12 +288,12 @@ async def get_next_executable_task() -> str:
         task = await subtask_service.get_next_executable_task(project_id)
         
         if not task:
-            return "🎉 No pending tasks! All tasks are completed or in progress."
+            return "No pending tasks! All tasks are completed or in progress."
             
         prefix = "└── " if task.get("is_subtask") else ""
         parent_info = f"\nPart of: {task['parent_title']}" if task.get("parent_title") else ""
         
-        return f"""📌 Next Task to Execute:
+        return f"""Next Task to Execute:
 
 {prefix}{task['title']}
 
@@ -351,22 +349,19 @@ async def list_project_tasks(
             if not tasks:
                 return "No tasks found in this project."
                 
-            lines = [f"📋 Project Tasks ({len(tasks)} total):\n"]
+            lines = [f"Project Tasks ({len(tasks)} total):\n"]
             
             for t in tasks:
-                if t.status == "completed":
-                    icon = "✅"
-                elif t.status == "in_progress":
-                    icon = "🔄"
-                elif t.status == "failed":
-                    icon = "❌"
-                else:
-                    icon = "⏳"
+                status_label = {
+                    "completed": "[DONE]",
+                    "in_progress": "[IN_PROGRESS]",
+                    "failed": "[FAILED]",
+                }.get(t.status, "[PENDING]")
                     
                 title = t.task_data.get("title", "Untitled")
                 progress = t.progress
                 
-                lines.append(f"{icon} {title} ({progress}%) - ID: {t.id[:8]}")
+                lines.append(f"{status_label} {title} ({progress}%) - ID: {t.id[:8]}")
                 
             lines.append(f"\nUse get_task_tree_summary with task ID to see subtasks.")
             

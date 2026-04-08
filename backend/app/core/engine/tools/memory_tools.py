@@ -63,8 +63,12 @@ async def remember(content: str, context: str = "") -> str:
         if context:
             full_content += f"\n\nContext: {context}"
         
+        # Generate unique ID using UUID to avoid collisions
+        import uuid
+        entry_id = f"mem_{uuid.uuid4().hex[:12]}"
+        
         entry = MemoryEntry(
-            id=f"mem_{hash(content) % 100000:05d}",
+            id=entry_id,
             type=mem_type,
             privacy=privacy,
             title=title,
@@ -84,11 +88,11 @@ async def remember(content: str, context: str = "") -> str:
         manager = container.memory_manager
         await manager.save_memory(entry)
         logger.info(f"[MemoryTool] Remembered: {title[:40]}...")
-        return f"✅ Remembered: {title}"
+        return f"Remembered: {title}"
         
     except Exception as e:
         logger.error(f"[MemoryTool] Failed: {e}")
-        return f"❌ Failed to save: {str(e)}"
+        return f"Failed to save: {str(e)}"
 
 
 class RecallInput(BaseModel):
@@ -140,7 +144,7 @@ async def recall(query: str, limit: int = 5) -> str:
             if thread_id:
                 messages = await short_term.search_messages(query, thread_id, limit=5)
                 if messages:
-                    lines = [f"🔍 Found in current conversation:\n"]
+                    lines = ["Found in current conversation:\n"]
                     for msg in messages[:3]:
                         role = "User" if msg.type == "human" else "You"
                         content = str(msg.content)[:200].replace('\n', ' ')
@@ -150,11 +154,9 @@ async def recall(query: str, limit: int = 5) -> str:
             return f"No memories found for '{query}'."
         
         # Format results
-        lines = [f"📚 Recalled {len(entries)} memories:\n"]
+        lines = [f"Recalled {len(entries)} memories:\n"]
         for i, entry in enumerate(entries, 1):
-            type_emoji = {"user": "👤", "feedback": "💬", "project": "📁", "reference": "📖"}
-            emoji = type_emoji.get(entry.type.value, "📄")
-            lines.append(f"{i}. {emoji} **{entry.title}** ({entry.type.value})")
+            lines.append(f"{i}. [{entry.type.value.upper()}] {entry.title}")
             lines.append(f"   {entry.content[:300]}")
             lines.append("")
         
@@ -162,7 +164,7 @@ async def recall(query: str, limit: int = 5) -> str:
         
     except Exception as e:
         logger.error(f"[MemoryTool] Recall failed: {e}")
-        return f"❌ Failed to recall: {str(e)}"
+        return f"Failed to recall: {str(e)}"
 
 
 class SearchHistoryInput(BaseModel):
@@ -207,7 +209,7 @@ async def search_history(query: str) -> str:
         if not messages:
             return f"No messages found matching '{query}' in this conversation."
         
-        lines = [f"🔍 Found {len(messages)} messages:\n"]
+        lines = [f"Found {len(messages)} messages:\n"]
         for msg in messages[:5]:
             role = "User" if msg.type == "human" else "You"
             content = str(msg.content)[:250].replace('\n', ' ')
@@ -217,4 +219,4 @@ async def search_history(query: str) -> str:
         
     except Exception as e:
         logger.error(f"[MemoryTool] Search failed: {e}")
-        return f"❌ Failed to search: {str(e)}"
+        return f"Failed to search: {str(e)}"

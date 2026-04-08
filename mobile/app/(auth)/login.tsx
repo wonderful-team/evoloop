@@ -22,9 +22,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/hooks/useAuth';
+import { useAuthStore } from '@/stores/authStore';
 import { useTheme } from '@/theme';
 import { CountdownButton, CaptchaImage, WechatLoginButton } from '@/components/auth';
 import { AuthManager } from '@/services/auth/AuthManager';
+import { api } from '@/services/api/client';
 import { validate } from '@/utils/validate';
 
 type LoginType = 'mobile' | 'account';
@@ -40,6 +42,8 @@ export default function LoginScreen() {
     isLoading,
     error,
   } = useAuth();
+  
+  const { login } = useAuthStore();
 
   // 登录类型
   const [loginType, setLoginType] = useState<LoginType>('mobile');
@@ -233,8 +237,43 @@ export default function LoginScreen() {
 
   // 微信登录
   const handleWechatLogin = async () => {
-    // 微信登录需要单独的实现，这里先预留
-    console.log('微信登录');
+    if (!agreedToTerms) {
+      setShowTermsDialog(true);
+      return;
+    }
+
+    try {
+      // 动态导入微信登录模块（避免在 Expo Go 中崩溃）
+      const { WechatAuth } = await import('@/services/auth/WechatAuth');
+      
+      // 调用微信登录
+      const result = await WechatAuth.login();
+      
+      if (result.need_bind_mobile) {
+        // 需要绑定手机号
+        router.push({
+          pathname: '/(auth)/bind-mobile',
+          params: {
+            wx_openid: result.wx_openid,
+            wx_unionid: result.wx_unionid,
+            nickname: result.nickname,
+            avatar: result.avatar,
+          }
+        });
+      } else if (result.token) {
+        // 登录成功，获取用户信息
+        api.setAuthToken(result.token);
+        const userInfo = await AuthManager.getMemberInfo();
+        login(result.token, userInfo);
+        router.replace('/(main)');
+      }
+    } catch (error: any) {
+      console.error('微信登录失败:', error);
+      // 显示错误提示
+      setFormErrors({
+        global: error.message || '微信登录失败，请重试'
+      });
+    }
   };
 
   // 跳转到注册
@@ -500,14 +539,14 @@ export default function LoginScreen() {
             </TouchableOpacity>
           </View>
 
+          {/* 微信登录 - 需要本地开发版支持，暂隐藏
           <Divider style={styles.divider} />
-
-          {/* 微信登录 */}
           <WechatLoginButton
             onPress={handleWechatLogin}
             disabled={isLoading || !agreedToTerms}
             loading={isLoading}
           />
+          */}
         </ScrollView>
       </KeyboardAvoidingView>
 

@@ -89,16 +89,16 @@ async def kb_list(
     
     except Exception as e:
         logger.error(f"kb_list failed: {e}")
-        return f"❌ List error: {str(e)}"
+        return f"List error: {str(e)}"
 
 
 def _format_list(documents: list, total: int, limit: int) -> str:
     """Format as flat list."""
     if not documents:
-        return "📚 No documents found in the knowledge base."
+        return "No documents found in the knowledge base."
     
     lines = []
-    lines.append(f"📚 Knowledge Base ({total} total, showing {min(len(documents), limit)})")
+    lines.append(f"Knowledge Base ({total} total, showing {min(len(documents), limit)})")
     lines.append("")
     
     # Group by project
@@ -111,7 +111,7 @@ def _format_list(documents: list, total: int, limit: int) -> str:
     
     # Display by project
     for proj, docs in sorted(by_project.items()):
-        lines.append(f"📁 {proj}/")
+        lines.append(f"[{proj}/]")
         
         for doc in docs:
             title = doc.get('title', 'Untitled')
@@ -147,10 +147,10 @@ def _format_list(documents: list, total: int, limit: int) -> str:
 def _format_tree(documents: list, project: str) -> str:
     """Format as tree structure."""
     if not documents:
-        return "📚 No documents found."
+        return "No documents found."
     
     lines = []
-    lines.append(f"📚 Knowledge Base Tree")
+    lines.append("Knowledge Base Tree")
     lines.append("")
     
     # Build tree
@@ -189,29 +189,29 @@ def _render_tree(node: dict, lines: list, prefix: str):
     # Render directories
     for i, dirname in enumerate(dirs):
         is_last = (i == len(dirs) - 1) and not files
-        connector = "└── " if is_last else "├── "
-        lines.append(f"{prefix}{connector}📁 {dirname}/")
+        connector = "`-- " if is_last else "|-- "
+        lines.append(f"{prefix}{connector}[{dirname}/]")
         
-        new_prefix = prefix + ("    " if is_last else "│   ")
+        new_prefix = prefix + ("    " if is_last else "|   ")
         _render_tree(node[dirname], lines, new_prefix)
     
     # Render files
     for i, file in enumerate(files):
         is_last = i == len(files) - 1
-        connector = "└── " if is_last else "├── "
+        connector = "`-- " if is_last else "|-- "
         icon = _get_icon(file["type"])
         lines.append(f"{prefix}{connector}{icon} {file['name']}")
 
 
 def _get_icon(doc_type: str) -> str:
-    """Get icon for document type."""
-    icons = {
-        'doc': '📄',
-        'code': '💻',
-        'guide': '📖',
-        'api': '🔌',
-        'design': '🎨',
-        'architecture': '🏗️',
-        'requirement': '📋',
+    """Get label for document type."""
+    labels = {
+        'doc': '[DOC]',
+        'code': '[CODE]',
+        'guide': '[GUIDE]',
+        'api': '[API]',
+        'design': '[DESIGN]',
+        'architecture': '[ARCH]',
+        'requirement': '[REQ]',
     }
-    return icons.get(doc_type, '📄')
+    return labels.get(doc_type, '[DOC]')

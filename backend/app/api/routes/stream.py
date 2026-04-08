@@ -120,12 +120,19 @@ async def stream_chat(thread_id: str):
                                     step_index = len(existing_steps)
                                     tool_calls = last_ai_message.get('tool_calls', [])
                                     
-                                    tool_name = 'Unknown Tool'
+                                    # Priority 1: Use tool_name from message data (set by MessageHandler)
+                                    tool_name = msg_data.get('tool_name')
                                     tool_input = {}
-                                    if tool_calls and step_index < len(tool_calls):
+                                    
+                                    # Priority 2: Fallback to tool_calls from AI message
+                                    if not tool_name and tool_calls and step_index < len(tool_calls):
                                         call = tool_calls[step_index]
                                         tool_name = call.get('name', 'Tool')
                                         tool_input = call.get('args', {})
+                                    
+                                    # Priority 3: Last resort fallback
+                                    if not tool_name:
+                                        tool_name = 'Unknown Tool'
                                     
                                     # Skip hidden/internal tools
                                     from app.core.tools.registry import get_tool_metadata
@@ -133,9 +140,13 @@ async def stream_chat(thread_id: str):
                                     if metadata.get("is_hidden", False):
                                         continue
                                     
+                                    # Get friendly display name if available
+                                    tool_name_display = msg_data.get('tool_name_display')
+                                    
                                     step = {
                                         'id': msg_data.get('id') or f'step-{asyncio.get_event_loop().time()}',
                                         'tool': tool_name,
+                                        'tool_name': tool_name_display,  # Friendly name from backend
                                         'input': tool_input,
                                         'output': msg_data.get('content', ''),
                                         'status': 'success',
@@ -158,7 +169,13 @@ async def stream_chat(thread_id: str):
                         elif event_type == "human_request":
                             yield f"event: human_request\ndata: {json.dumps(event_data.get('data'))}\n\n"
                         
-                        elif event_type in ["thinking", "tool_start", "tool_progress", "tool_complete", "tool_error", "checkpoint", "progress", "complete"]:
+                        # Enhanced Stream Events (thinking, tool progress, errors, etc.)
+                        # Also includes error events that need user notification
+                        elif event_type in [
+                            "thinking", "tool_start", "tool_progress", "tool_complete", 
+                            "tool_error", "checkpoint", "progress", "complete",
+                            "llm_auth_error", "quota_exhausted",  # Error notifications for user
+                        ]:
                             yield f"event: stream\ndata: {json.dumps(event_data)}\n\n"
 
                     except Exception as e:

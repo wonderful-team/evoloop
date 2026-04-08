@@ -5,15 +5,52 @@ import { View, StyleSheet, FlatList, RefreshControl } from 'react-native';
 import { Text, Card, Chip, FAB, Portal, Dialog, Button } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
+import { useRouter } from 'expo-router';
 import { useProjects } from '@/hooks/useProjects';
+import { useAuthStore } from '@/stores/authStore';
 import { ProjectSwitcher } from '@/components/device/ProjectSwitcher';
 import { Skeleton, ListSkeleton } from '@/components/ui/Skeleton';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { Project } from '@/types';
 import { MaterialIcons } from '@expo/vector-icons';
 
+// 游客模式下的登录提示组件
+function GuestLoginPrompt() {
+  const router = useRouter();
+  const { t } = useTranslation();
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <View style={styles.guestContainer}>
+        <MaterialIcons name="folder" size={64} color="#9CA3AF" />
+        <Text variant="headlineMedium" style={styles.guestTitle}>
+          项目管理
+        </Text>
+        <Text variant="bodyMedium" style={styles.guestText}>
+          登录后可以管理多个项目，同步到您的所有设备
+        </Text>
+        <Button
+          mode="contained"
+          style={styles.loginButton}
+          onPress={() => router.push('/(auth)/login')}
+        >
+          立即登录
+        </Button>
+        <Button
+          mode="text"
+          style={styles.backButton}
+          onPress={() => router.back()}
+        >
+          返回首页
+        </Button>
+      </View>
+    </SafeAreaView>
+  );
+}
+
 function ProjectsContent() {
   const { t } = useTranslation();
+  const { isLoggedIn } = useAuthStore();
   const {
     projects,
     currentProject,
@@ -21,13 +58,18 @@ function ProjectsContent() {
     error,
     refresh,
     switchProject,
-  } = useProjects({ autoFetch: true });
+  } = useProjects({ autoFetch: isLoggedIn }); // 只有登录后才自动获取
 
   const [refreshing, setRefreshing] = useState(false);
   const [switcherVisible, setSwitcherVisible] = useState(false);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [dialogVisible, setDialogVisible] = useState(false);
   const [switching, setSwitching] = useState(false);
+
+  // 游客模式显示登录提示
+  if (!isLoggedIn) {
+    return <GuestLoginPrompt />;
+  }
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -63,7 +105,7 @@ function ProjectsContent() {
       <Card.Content>
         <View style={styles.header}>
           <View style={styles.iconContainer}>
-            <MaterialIcons name="folder" size={28} color="#0066FF" />
+            <MaterialIcons name="folder" size={28} color="#22C55E" />
           </View>
           <View style={styles.info}>
             <Text variant="titleMedium" style={styles.name}>
@@ -114,7 +156,7 @@ function ProjectsContent() {
         {currentProject && (
           <Card style={styles.currentCard}>
             <Card.Content style={styles.currentCardContent}>
-              <MaterialIcons name="folder-open" size={24} color="#0066FF" />
+              <MaterialIcons name="folder-open" size={24} color="#22C55E" />
               <View style={styles.currentInfo}>
                 <Text variant="bodySmall" style={styles.currentLabel}>
                   当前项目
@@ -246,7 +288,7 @@ const styles = StyleSheet.create({
   },
   activeCard: {
     borderWidth: 2,
-    borderColor: '#0066FF',
+    borderColor: '#22C55E',
   },
   header: {
     flexDirection: 'row',
@@ -301,6 +343,31 @@ const styles = StyleSheet.create({
     margin: 16,
     right: 0,
     bottom: 0,
-    backgroundColor: '#0066FF',
+    backgroundColor: '#22C55E',
+  },
+  // 游客模式样式
+  guestContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 32,
+  },
+  guestTitle: {
+    fontWeight: 'bold',
+    marginTop: 24,
+    marginBottom: 12,
+  },
+  guestText: {
+    textAlign: 'center',
+    color: '#6B7280',
+    marginBottom: 32,
+    lineHeight: 22,
+  },
+  loginButton: {
+    minWidth: 200,
+    marginBottom: 12,
+  },
+  backButton: {
+    minWidth: 200,
   },
 });

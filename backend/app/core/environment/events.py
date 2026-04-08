@@ -195,3 +195,41 @@ EventType = AwakeningEventType
 
 # Singleton instance
 event_bus = AwakenEventBus()
+
+
+# =============================================================================
+# System Event Handlers (Lifecycle Management)
+# =============================================================================
+
+async def _on_app_started(event):
+    """Handle APP_STARTED event - start device watcher."""
+    from app.core.environment.controllers.device_watcher import device_watcher
+    try:
+        device_watcher.start()
+        logger.info("[Environment] Device watcher started via APP_STARTED event")
+    except Exception as e:
+        logger.warning(f"[Environment] Failed to start device watcher: {e}")
+
+
+async def _on_app_stopping(event):
+    """Handle APP_STOPPING event - stop device watcher."""
+    from app.core.environment.controllers.device_watcher import device_watcher
+    try:
+        device_watcher.stop()
+        logger.info("[Environment] Device watcher stopped via APP_STOPPING event")
+    except Exception as e:
+        logger.warning(f"[Environment] Failed to stop device watcher: {e}")
+
+
+def register_environment_system_handlers():
+    """
+    Register environment module handlers for system lifecycle events.
+    
+    This should be called during application startup to enable:
+    - Auto-start device watcher when app starts
+    - Graceful shutdown when app stops
+    """
+    from app.core.events import system_bus, SystemEventType
+    system_bus.subscribe(SystemEventType.APP_STARTED, _on_app_started)
+    system_bus.subscribe(SystemEventType.APP_STOPPING, _on_app_stopping)
+    logger.info("[Environment] System lifecycle handlers registered")

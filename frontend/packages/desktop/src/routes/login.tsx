@@ -116,7 +116,6 @@ function Login() {
 
   const handleWechatLogin = (token: string) => {
     localStorage.setItem("access_token", token)
-    localStorage.setItem("evoloop_token", token)
     handlePostLoginRedirect()
   }
 

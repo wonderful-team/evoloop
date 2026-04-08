@@ -22,7 +22,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@evoloop/shared/compon
 // Schemas moved into component for i18n
 
 export async function loginLoader() {
-  if (localStorage.getItem("evoloop_token")) {
+  if (localStorage.getItem("access_token")) {
     throw redirect({ to: "/devices" as any })
   }
 }
@@ -162,7 +162,7 @@ export function LoginScreen() {
     try {
       const res = await apiCall()
       if (res.token) {
-        localStorage.setItem("evoloop_token", res.token)
+        localStorage.setItem("access_token", res.token)
         if (res.member_id)
           localStorage.setItem("evoloop_member_id", res.member_id.toString())
         navigate({ to: "/devices" as any })

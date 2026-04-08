@@ -89,13 +89,13 @@ async def kb_search(
     
     except Exception as e:
         logger.error(f"kb_search failed: {e}")
-        return f"❌ Search error: {str(e)}"
+        return f"Search error: {str(e)}"
 
 
 def _format_fts_results(results, context_lines: int) -> str:
     """Format FTS search results."""
     lines = []
-    lines.append(f"🔍 FTS Search: '{results.query}'")
+    lines.append(f"FTS Search: '{results.query}'")
     lines.append(f"   Found {results.total} matches")
     
     # Facets
@@ -106,7 +106,7 @@ def _format_fts_results(results, context_lines: int) -> str:
     lines.append("")
     
     for i, result in enumerate(results.results, 1):
-        lines.append(f"📄 {result.title}")
+        lines.append(f"- {result.title}")
         lines.append(f"   Path: {result.path} (Score: {result.bm25_score:.2f})")
         
         # Show highlighted snippet
@@ -137,7 +137,7 @@ async def _grep_search(
     try:
         regex = re.compile(pattern, flags)
     except re.error as e:
-        return f"❌ Invalid regex pattern: {e}"
+        return f"Invalid regex pattern: {e}"
     
     # Get all documents
     documents = store.list_documents(project or None)
@@ -204,16 +204,16 @@ def _search_document(store, path: str, regex: re.Pattern, context_lines: int, ma
 def _format_grep_results(matches: list, pattern: str, docs_searched: int) -> str:
     """Format grep search results."""
     if not matches:
-        return f"🔍 No matches found for '{pattern}' (searched {docs_searched} documents)"
+        return f"No matches found for '{pattern}' (searched {docs_searched} documents)"
     
     lines = []
     total_match_count = sum(m['match_count'] for m in matches)
-    lines.append(f"🔍 Grep results for: '{pattern}'")
+    lines.append(f"Grep results for: '{pattern}'")
     lines.append(f"   Found {total_match_count} matches in {len(matches)} files (searched {docs_searched} documents)")
     lines.append("")
     
     for file_match in matches:
-        lines.append(f"📄 {file_match['file']}")
+        lines.append(f"- {file_match['file']}")
         if file_match.get('title') and file_match['title'] != file_match['file']:
             lines.append(f"   Title: {file_match['title']}")
         lines.append(f"   {file_match['match_count']} matches")
@@ -224,15 +224,15 @@ def _format_grep_results(matches: list, pattern: str, docs_searched: int) -> str
             # Context before
             for j, ctx_line in enumerate(match['context_before']):
                 ctx_line_num = match['line'] - len(match['context_before']) + j
-                lines.append(f"   {ctx_line_num:4d} │ {ctx_line}")
+                lines.append(f"   {ctx_line_num:4d} | {ctx_line}")
             
             # Match line
-            lines.append(f" → {match['line']:4d} │ {match['text']}")
+            lines.append(f"-> {match['line']:4d} | {match['text']}")
             
             # Context after
             for j, ctx_line in enumerate(match['context_after']):
                 ctx_line_num = match['line'] + 1 + j
-                lines.append(f"   {ctx_line_num:4d} │ {ctx_line}")
+                lines.append(f"   {ctx_line_num:4d} | {ctx_line}")
             
             lines.append("")
         

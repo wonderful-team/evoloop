@@ -53,6 +53,7 @@ export interface AccountLoginRequest {
 }
 
 export interface WechatAuthData {
+  code?: string;          // 微信授权码
   wx_openid?: string;
   wx_unionid?: string;
   nickname?: string;

@@ -430,22 +430,7 @@ function parseMarkdownTable(text: string): { header: string[]; rows: string[][] 
   return { header, rows };
 }
 
-// 链接预览组件（简化版）
-function LinkPreview({ text }: { text: string }) {
-  const urlRegex = /(https?:\/\/[^\s]+)/g;
-  const urls = text.match(urlRegex);
-  
-  const firstUrl = urls?.[0];
-  if (!firstUrl) return null;
-
-  return (
-    <View style={styles.linkPreviewContainer}>
-      <LinkPreviewComponent url={firstUrl} />
-    </View>
-  );
-}
-
-// 简化的链接预览
+// 简化的链接预览组件
 function LinkPreviewComponent({ url }: { url: string }) {
   const { colors } = useTheme();
 

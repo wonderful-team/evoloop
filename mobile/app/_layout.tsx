@@ -1,6 +1,6 @@
 // 根布局
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { PaperProvider } from 'react-native-paper';
@@ -11,9 +11,6 @@ import { LoadingProvider } from '@/components/ui/LoadingProvider';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { initAuthStore } from '@/stores/authStore';
 import '@/locales';
-
-// 初始化认证状态
-initAuthStore();
 
 // 导航组件
 function Navigation() {
@@ -27,12 +24,17 @@ function Navigation() {
           animation: 'slide_from_right',
         }}
       >
-        <Stack.Screen name="(auth)" options={{ animation: 'fade' }} />
+        {/* 主应用 - 允许游客访问首页 */}
         <Stack.Screen name="(main)" options={{ animation: 'fade' }} />
+        {/* 认证相关 */}
+        <Stack.Screen name="(auth)" options={{ animation: 'fade' }} />
+        {/* 订阅 */}
         <Stack.Screen name="(subscription)" />
-        <Stack.Screen name="onboarding" options={{ animation: 'fade' }} />
+        {/* 设置 */}
         <Stack.Screen name="settings" />
+        {/* 帮助 */}
         <Stack.Screen name="help" options={{ title: '帮助与反馈' }} />
+        {/* 404 */}
         <Stack.Screen name="+not-found" options={{ title: '页面未找到' }} />
       </Stack>
       <StatusBar style={isDark ? 'light' : 'dark'} />
@@ -42,9 +44,16 @@ function Navigation() {
 
 // 根组件
 export default function RootLayout() {
+  const [isReady, setIsReady] = useState(false);
+
   useEffect(() => {
     // 应用启动初始化
     console.log('EvoLoop Mobile App Started');
+    
+    // 初始化认证状态
+    initAuthStore().then(() => {
+      setIsReady(true);
+    });
   }, []);
 
   return (

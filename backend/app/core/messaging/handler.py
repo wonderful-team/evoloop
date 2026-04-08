@@ -84,8 +84,6 @@ class MessageHandler:
             metadata=metadata,
         )
         
-        logger.debug(f"[UnifiedHandler] AI message classified as: {category.value}")
-        
         # 2. 应用策略
         persist_data = MessagePersistencePolicy.apply_policy(
             category=category,
@@ -93,6 +91,8 @@ class MessageHandler:
             tool_calls=tool_calls,
             thinking=thinking,
         )
+        
+        logger.info(f"[UnifiedHandler] AI message classified as: {category.value}, persist={persist_data['should_persist']}")
         
         stream_data = MessageStreamPolicy.apply_policy(
             category=category,
@@ -161,13 +161,13 @@ class MessageHandler:
         
         content = str(output) if output else ""
         
-        logger.debug(f"[UnifiedHandler] Tool {tool_name} output classified as: {category.value}")
-        
         # 2. 应用策略
         persist_data = MessagePersistencePolicy.apply_policy(
             category=category,
             content=content,
         )
+        
+        logger.info(f"[UnifiedHandler] Tool {tool_name} output classified as: {category.value}, persist={persist_data['should_persist']}")
         
         stream_data = MessageStreamPolicy.apply_policy(
             category=category,
@@ -285,10 +285,13 @@ class MessageHandler:
         使用 Celery 后台任务，避免阻塞主流程
         """
         if not content and not thinking:
+            logger.warning(f"[UnifiedHandler] Skipping persist for {role}: no content or thinking")
             return None
         
         try:
             self._sequence_counter += 1
+            
+            logger.info(f"[UnifiedHandler] Persisting {role} message (seq={self._sequence_counter}, cat={category})")
             
             # 发送到 Celery 后台任务
             get_scheduler().send_task(
@@ -329,6 +332,7 @@ class MessageHandler:
         try:
             from app.core.monitoring.activity import activity_monitor
             from app.models.schemas.events import MessageEvent
+            from app.core.tools.registry import get_tool_friendly_name
             import json
             
             if not activity_monitor or not hasattr(activity_monitor, "client"):
@@ -347,7 +351,12 @@ class MessageHandler:
                 msg_data["metadata"] = metadata
             
             if tool_name:
+                # 传递原始工具名
                 msg_data["tool_name"] = tool_name
+                # 同时传递友好显示名称（如果可用）
+                friendly_name = get_tool_friendly_name(tool_name, lang="zh")
+                if friendly_name:
+                    msg_data["tool_name_display"] = friendly_name
             
             channel = f"chat:{self.thread_id}:events"
             message = MessageEvent(data=msg_data).model_dump_json()

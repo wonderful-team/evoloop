@@ -46,7 +46,7 @@ export default function PlansScreen() {
           <Card.Content>
             <View style={styles.planHeader}>
               <Text variant="titleLarge">极客版</Text>
-              <Chip icon="star" selectedColor="#0066FF">推荐</Chip>
+              <Chip icon="star" selectedColor="#22C55E">推荐</Chip>
             </View>
             <Text variant="displaySmall" style={styles.price}>¥99</Text>
             <Text variant="bodyMedium" style={styles.period}>/月</Text>
@@ -89,7 +89,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   recommendedCard: {
-    borderColor: '#0066FF',
+    borderColor: '#22C55E',
     borderWidth: 2,
   },
   planHeader: {
@@ -100,7 +100,7 @@ const styles = StyleSheet.create({
   },
   price: {
     fontWeight: 'bold',
-    color: '#0066FF',
+    color: '#22C55E',
   },
   period: {
     opacity: 0.6,

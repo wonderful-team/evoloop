@@ -151,7 +151,7 @@ async def find_element(
         best_match, score = scored_elements[0]
 
         result_msg = (
-            f"✅ Element found!\n"
+            "Element found!\n"
             f"Text: \"{best_match.text}\"\n"
             f"Position: ({best_match.x}, {best_match.y})\n"
             f"Type: {best_match.element_type.value}\n"
@@ -162,10 +162,10 @@ async def find_element(
         if action == "tap" or action == "click":
             if platform == "android":
                 adb_driver.tap(best_match.x, best_match.y, device_id=device_id)
-                result_msg += f"\n👉 ACTION PERFORMED: Tapped at ({best_match.x}, {best_match.y})"
+                result_msg += f"\nACTION PERFORMED: Tapped at ({best_match.x}, {best_match.y})"
             elif platform == "macos":
                 macos_driver.click(best_match.x, best_match.y)
-                result_msg += f"\n👉 ACTION PERFORMED: Clicked at ({best_match.x}, {best_match.y})"
+                result_msg += f"\nACTION PERFORMED: Clicked at ({best_match.x}, {best_match.y})"
             else:
                 result_msg += f"\nWarning: Action '{action}' is not supported on platform '{platform}'"
         else:

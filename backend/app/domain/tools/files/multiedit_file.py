@@ -147,7 +147,7 @@ async def multiedit_file(
 
         for i, edit in enumerate(edits):
             if not isinstance(edit, dict):
-                return f"❌ Edit #{i+1} is not a valid dictionary. Each edit must be {{'target': '...', 'replacement': '...'}}"
+                return "Edit #{i+1} is not a valid dictionary. Each edit must be {'target': '...', 'replacement': '...'}"
 
             target = edit.get("target", "")
             replacement = edit.get("replacement", "")
@@ -155,7 +155,7 @@ async def multiedit_file(
 
             # Safety check: target length
             if len(target.strip()) < 3:
-                return f"❌ Edit #{i+1}: Target block too short (must be > 2 characters). Provide more context."
+                return "Edit #{i+1}: Target block too short (must be > 2 characters). Provide more context."
 
             # Try to apply this edit to current content
             success, new_content, log = EditEngine.apply_replacement(
@@ -167,7 +167,7 @@ async def multiedit_file(
 
             if not success:
                 return (
-                    f"❌ Edit #{i+1} failed validation. No changes applied to file.\n"
+                    "Edit #{i+1} failed validation. No changes applied to file.\n"
                     f"   Target: {target[:50]}{'...' if len(target) > 50 else ''}\n"
                     f"   Error: {log}\n"
                     f"   (Previous {i} edits would have succeeded, but were not applied due to atomicity)"
@@ -187,7 +187,7 @@ async def multiedit_file(
         )
 
         if not write_result["success"]:
-            return f"⚠️ All {len(edits)} edits validated but write failed: {write_result.get('message')}"
+            return f"All {len(edits)} edits validated but write failed: {write_result.get('message')}"
 
         # Build success response
         template_context = {

@@ -3,9 +3,10 @@
   "version": "1.0.0",
   "main": "expo-router/entry",
   "scripts": {
-    "start": "EXPO_NO_PROJECT_ROOT_HEADER=1 expo start",
+    "start": "expo start",
+    "start:offline": "EXPO_NO_NETWORK=1 expo start --offline",
     "start:tunnel": "expo start --tunnel",
-    "start:lan": "EXPO_NO_PROJECT_ROOT_HEADER=1 expo start --lan",
+    "start:lan": "expo start --lan",
     "android": "expo run:android",
     "ios": "expo run:ios",
     "android:device": "expo run:android --device",
@@ -33,7 +34,7 @@
     "expo": "~52.0.0",
     "expo-av": "~15.0.2",
     "expo-camera": "~16.0.0",
-    "expo-clipboard": "^55.0.11",
+    "expo-clipboard": "~6.0.3",
     "expo-constants": "~17.0.0",
     "expo-device": "~7.0.0",
     "expo-file-system": "~18.0.0",
@@ -60,7 +61,7 @@
     "react-native-screens": "~4.4.0",
     "react-native-syntax-highlighter": "^2.1.0",
     "react-native-webview": "^13.16.1",
-    "react-native-wechat-lib": "^1.1.26",
+    "react-native-wechat-lib": "^1.1.27",
     "zustand": "^5.0.0"
   },
   "devDependencies": {

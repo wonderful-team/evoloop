@@ -132,19 +132,19 @@ class SelfHealingPolicy:
         
         messages = {
             "global": (
-                "⚠️ [SELF_HEALING_DISABLED] Global policy prevents automatic recovery. "
+                "[SELF_HEALING_DISABLED] Global policy prevents automatic recovery. "
                 "The agent should NOT attempt to heal this macro."
             ),
             "skill": (
-                f"⚠️ [SELF_HEALING_DISABLED] This skill has self-healing disabled: {decision.reason}. "
+                f"[SELF_HEALING_DISABLED] This skill has self-healing disabled: {decision.reason}. "
                 "The agent should NOT attempt to heal this macro."
             ),
             "execution": (
-                "⚠️ [SELF_HEALING_DISABLED] This specific execution task requested no automatic recovery."
+                "[SELF_HEALING_DISABLED] This specific execution task requested no automatic recovery."
             ),
         }
         
-        return messages.get(decision.source, f"⚠️ [SELF_HEALING_DISABLED] {decision.reason}")
+        return messages.get(decision.source, f"[SELF_HEALING_DISABLED] {decision.reason}")
     
     @classmethod
     def get_enabled_message(cls, skill_name: Optional[str] = None, error_message: Optional[str] = None) -> str:
@@ -159,13 +159,13 @@ class SelfHealingPolicy:
             Human-readable recovery suggestion
         """
         base_msg = (
-            "💡 Macro step failed. "
+            "[HINT] Macro step failed. "
             "Since perceptual self-healing is enabled, you should now attempt to recover manually "
             "using basic tools (browser_control, desktop_control, etc.) to complete the mission. "
             "After successful recovery, you may call `reconcile_skill` to fix this macro permanently."
         )
         
         if skill_name and error_message:
-            return f"💡 Macro '{skill_name}' failed: {error_message}. " + base_msg[4:]  # Remove the emoji from base
+            return f"[HINT] Macro '{skill_name}' failed: {error_message}. " + base_msg[7:]  # Remove the tag from base
         
         return base_msg

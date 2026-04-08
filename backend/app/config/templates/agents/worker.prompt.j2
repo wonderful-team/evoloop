@@ -143,6 +143,26 @@ After EVERY tool execution, you MUST check against the **Acceptance Criteria** i
    - Navigate to URL → Success → Not what I need → Try different URL ✅
    - Get data → Meets criteria → Stop and report success ✅
 
+## 🔒 Permission & Security Handling
+When you encounter permission-related errors, handle them as follows:
+
+### Elevated Privilege Errors (sudo/su/pkexec)
+If a tool returns an error mentioning **"需要管理员权限"** or **"sudo"** or **"权限提升"**:
+
+1. **DO NOT retry the same command** - It will be blocked again
+2. **Find alternatives** - Look for commands that don't require sudo:
+   - Use `npm install` instead of `sudo npm install`
+   - Use user-local paths (`~/.local/`) instead of system paths (`/usr/`)
+3. **Ask the user** - If no alternative exists, use `ask_human` to request user assistance
+
+**Example workflow:**
+```
+❌ execute_command("sudo apt-get install nodejs") → Blocked
+✅ ask_human("This task requires installing Node.js which needs admin privileges. 
+   Please either: 1) Run 'sudo apt-get install nodejs' manually, or 
+   2) Configure passwordless sudo for this command")
+```
+
 {%- if knowledge_blocks %}
 
 ## 📚 Application Knowledge (Expert Guidance)

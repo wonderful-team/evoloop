@@ -287,7 +287,7 @@ async def handle_edit(
         )
 
         if not write_result["success"]:
-            return f"⚠️ Edit matched but write failed: {write_result.get('message')}"
+            return f"Edit matched but write failed: {write_result.get('message')}"
 
         template_context.update({
             "success": True,
@@ -376,7 +376,7 @@ async def edit_file(
     Usage:
     - You MUST use read_file at least once in the conversation before editing.
     - ALWAYS prefer editing existing files in the codebase. NEVER write new files unless explicitly required.
-    - The tool uses cascading fuzzy matching (exact → line-trimmed → block-anchor → context-aware → indentation-flexible).
+    - The tool uses cascading fuzzy matching (exact -> line-trimmed -> block-anchor -> context-aware -> indentation-flexible).
       Provide enough surrounding context in `target` to ensure uniqueness.
     - If `target` is found multiple times and you don't want to replace all, provide a larger unique block.
     - The edit will FAIL if no matching strategy can locate the target text.

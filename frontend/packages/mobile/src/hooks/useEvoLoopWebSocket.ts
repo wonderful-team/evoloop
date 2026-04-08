@@ -146,7 +146,7 @@ export function useEvoLoopWebSocket(deviceId: number | null) {
 
       ws.onopen = () => {
         console.log("[EvoLoop] Cloud WS Connected. Handshaking...")
-        const token = localStorage.getItem("evoloop_token") || localStorage.getItem("access_token")
+        const token = localStorage.getItem("access_token")
         if (token) {
           ws.send(JSON.stringify({
             type: "connect",

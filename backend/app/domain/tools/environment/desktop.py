@@ -51,32 +51,32 @@ async def desktop_control(
     max_depth: int = 10,
 ) -> str:
     """
-    Control the MacOS desktop - ⚡ SPEED OPTIMIZED
+    Control the MacOS desktop - SPEED OPTIMIZED
 
-    🎯 SPEED FIRST RULES - Follow these to execute 3x faster:
+    SPEED FIRST RULES - Follow these to execute 3x faster:
 
     RULE 1: KEYBOARD FIRST (Always prefer keyboard over mouse)
-      ✅ key_press("cmd+w") to close window
-      ✅ key_press("return") to send message
-      ✅ key_press("cmd+v") to paste
-      ❌ DON'T click coordinates unless keyboard won't work
+      - GOOD: key_press("cmd+w") to close window
+      - GOOD: key_press("return") to send message
+      - GOOD: key_press("cmd+v") to paste
+      - BAD: DON'T click coordinates unless keyboard won't work
 
     RULE 2: USE BATCH MODE (Execute multiple actions together)
-      ✅ When: All steps are in THE SAME input field
-      ✅ Example: [click input → type → return] as ONE batch
-      ✅ Skip verification between steps, verify at the END
-      ❌ DON'T batch across different screens or loading states
+      - GOOD: When: All steps are in THE SAME input field
+      - GOOD: Example: [click input -> type -> return] as ONE batch
+      - GOOD: Skip verification between steps, verify at the END
+      - BAD: DON'T batch across different screens or loading states
 
     RULE 3: SKIP UNNECESSARY SCREENSHOTS
-      ✅ In batch: Only screenshot at the START and END
-      ✅ DON'T screenshot after every action
+      - GOOD: In batch: Only screenshot at the START and END
+      - BAD: DON'T screenshot after every action
 
-    📋 COMMON SHORTCUTS (Memorize these!)
+    COMMON SHORTCUTS (Memorize these!)
     - WeChat: return (send), cmd+f (search), cmd+n (new chat)
     - Chrome: cmd+l (address), cmd+t (new tab), cmd+w (close tab)
     - System: cmd+tab (switch app), cmd+space (Spotlight)
 
-    💡 EXAMPLES
+    EXAMPLES
 
     Fast - Send WeChat message (3 actions in 1 batch):
       desktop_control(action="batch", actions=[
@@ -86,9 +86,9 @@ async def desktop_control(
       ])
 
     Slow - Don't do this (3 separate calls with screenshots):
-      desktop_control(action="click") → screenshot → verify
-      desktop_control(action="type_text") → screenshot → verify  
-      desktop_control(action="key_press") → screenshot → verify
+      desktop_control(action="click") -> screenshot -> verify
+      desktop_control(action="type_text") -> screenshot -> verify  
+      desktop_control(action="key_press") -> screenshot -> verify
 
     Args:
         action: The action to perform:
@@ -131,17 +131,17 @@ async def desktop_control(
             You can directly use these coordinates with click/double_click actions.
         actions: List of action dicts for batch mode. 
             
-            ✅ CORRECT USE CASES (Safe for batch):
+            CORRECT USE CASES (Safe for batch):
             - All actions target the SAME input field
-            - Pure keyboard sequence: [cmd+f → type → return]
-            - Known workflow: [click input → type → return to send]
+            - Pure keyboard sequence: [cmd+f -> type -> return]
+            - Known workflow: [click input -> type -> return to send]
             
-            ❌ DON'T USE BATCH (Use separate calls with verification):
+            DON'T USE BATCH (Use separate calls with verification):
             - Actions that change screen/state
             - Actions that need to wait for loading
             - Actions across different windows
             
-            📝 EXAMPLE 1 - WeChat send message (GOOD):
+            EXAMPLE 1 - WeChat send message (GOOD):
             [
                 {"action": "click", "element_name": "输入框"},
                 {"action": "type_text", "text": "Hello"},  
@@ -149,7 +149,7 @@ async def desktop_control(
             ]
             Result: 1 screenshot at start, 1 at end. Fast!
             
-            📝 EXAMPLE 2 - Chrome search (GOOD):
+            EXAMPLE 2 - Chrome search (GOOD):
             [
                 {"action": "key_press", "key": "cmd+l"},      # Focus address bar
                 {"action": "key_press", "key": "cmd+a"},      # Select all
@@ -158,7 +158,7 @@ async def desktop_control(
             ]
             Result: All keyboard, very fast, no coordinates needed!
             
-            📝 EXAMPLE 3 - Form fill (GOOD):
+            EXAMPLE 3 - Form fill (GOOD):
             [
                 {"action": "click", "element_name": "用户名"},
                 {"action": "type_text", "text": "user@example.com"},

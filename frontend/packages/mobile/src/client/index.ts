@@ -14,7 +14,7 @@ const client = axios.create({
 
 // Add request interceptor to attach token
 client.interceptors.request.use((config) => {
-    const token = localStorage.getItem("evoloop_token") || localStorage.getItem("access_token")
+    const token = localStorage.getItem("access_token")
     if (token) {
         config.params = {
             ...config.params,

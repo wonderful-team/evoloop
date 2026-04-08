@@ -14,7 +14,7 @@ import {
 } from "@evoloop/shared/components/ui/card"
 
 export async function devicesLoader() {
-  const token = localStorage.getItem("evoloop_token") || localStorage.getItem("access_token")
+  const token = localStorage.getItem("access_token")
   if (!token) {
     throw redirect({ to: "/login" as any })
   }
@@ -23,7 +23,7 @@ export async function devicesLoader() {
 export function DevicesScreen() {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const token = localStorage.getItem("evoloop_token") || localStorage.getItem("access_token")
+  const token = localStorage.getItem("access_token")
   const isGuest = !token
 
   const {

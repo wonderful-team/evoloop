@@ -49,7 +49,6 @@ const handleApiError = (error: Error) => {
     
     // 清除token
     localStorage.removeItem("access_token")
-    localStorage.removeItem("evoloop_token")
     
     // 显示提示
     toast.error(i18n.t("auth.sessionExpired", "登录已过期"), {

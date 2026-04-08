@@ -14,7 +14,7 @@ import {
 export function ProjectsScreen() {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const token = localStorage.getItem("evoloop_token")
+  const token = localStorage.getItem("access_token")
   const isGuest = !token
 
   const { data, isLoading } = useQuery({

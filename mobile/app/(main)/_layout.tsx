@@ -1,28 +1,38 @@
 // 主应用路由组布局 - 底部 Tab 导航
-// 按 PRD 设计：4个 Tab（首页/设备/项目/我的）
+// 首页允许游客访问，设备和项目需要登录
 
-import { Tabs } from 'expo-router';
+import { Tabs, usePathname, useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useTheme } from '@/components/ui/ThemeProvider';
+import { useAuthStore } from '@/stores/authStore';
 
 export default function MainLayout() {
   const { theme } = useTheme();
-  
+  const { isLoggedIn } = useAuthStore();
+  const router = useRouter();
+  const pathname = usePathname();
+
+  // Tab 按压处理 - 未登录时跳转到登录页
+  const handleTabPress = (routeName: string) => {
+    if ((routeName === 'devices' || routeName === 'projects') && !isLoggedIn) {
+      router.push('/(auth)/login');
+      return false;
+    }
+    return true;
+  };
+
   return (
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: theme.colors.primary,
         tabBarInactiveTintColor: theme.colors.onSurfaceVariant,
         tabBarStyle: {
-          backgroundColor: theme.colors.surface,
-          borderTopColor: theme.colors.outline,
-          height: 60,
-          paddingBottom: 8,
+          display: 'none', // 隐藏底部导航栏
         },
         headerShown: false,
       }}
     >
-      {/* 首页 - 语音对话 */}
+      {/* 首页 - 语音对话 - 允许游客 */}
       <Tabs.Screen
         name="index"
         options={{
@@ -33,7 +43,7 @@ export default function MainLayout() {
         }}
       />
       
-      {/* 设备列表 */}
+      {/* 设备列表 - 需要登录 */}
       <Tabs.Screen
         name="devices"
         options={{
@@ -42,9 +52,17 @@ export default function MainLayout() {
             <MaterialIcons name="desktop-mac" size={size} color={color} />
           ),
         }}
+        listeners={{
+          tabPress: (e) => {
+            if (!isLoggedIn) {
+              e.preventDefault();
+              router.push('/(auth)/login');
+            }
+          },
+        }}
       />
       
-      {/* 项目列表 */}
+      {/* 项目列表 - 需要登录 */}
       <Tabs.Screen
         name="projects"
         options={{
@@ -52,6 +70,14 @@ export default function MainLayout() {
           tabBarIcon: ({ color, size }) => (
             <MaterialIcons name="folder" size={size} color={color} />
           ),
+        }}
+        listeners={{
+          tabPress: (e) => {
+            if (!isLoggedIn) {
+              e.preventDefault();
+              router.push('/(auth)/login');
+            }
+          },
         }}
       />
       
@@ -66,7 +92,7 @@ export default function MainLayout() {
         }}
       />
       
-      {/* 语音页面 - 不在 Tab 显示（已合并到首页） */}
+      {/* 语音页面 - 不在 Tab 显示 */}
       <Tabs.Screen
         name="voice"
         options={{

@@ -74,13 +74,7 @@ export default function SettingsScreen() {
         {/* 通用设置 */}
         <List.Section>
           <List.Subheader>通用</List.Subheader>
-          <List.Item
-            title="新手引导"
-            description="重新查看应用介绍"
-            left={(props) => <List.Icon {...props} icon="school" />}
-            right={(props) => <List.Icon {...props} icon="chevron-right" />}
-            onPress={() => router.push('/onboarding')}
-          />
+
           <List.Item
             title="帮助与反馈"
             description="查看帮助文档或联系我们"

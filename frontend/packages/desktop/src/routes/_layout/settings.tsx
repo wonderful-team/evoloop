@@ -1,4 +1,5 @@
-import { createFileRoute } from "@tanstack/react-router"
+import { createFileRoute, redirect } from "@tanstack/react-router"
+import { isLoggedIn } from "@/hooks/useAuth"
 import { useTranslation } from "react-i18next"
 import { useEffect } from "react"
 import GeneralSettings from "@/components/Settings/GeneralSettings"
@@ -48,6 +49,11 @@ const TabsConfig = () => {
 
 export const Route = createFileRoute("/_layout/settings")({
   component: UserSettings,
+  beforeLoad: async () => {
+    if (!isLoggedIn()) {
+      throw redirect({ to: "/login" })
+    }
+  },
   head: () => ({
     meta: [
       {

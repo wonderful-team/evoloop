@@ -1,8 +1,14 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router"
+import { createFileRoute, useNavigate, redirect } from "@tanstack/react-router"
 import { SkillEditorPage } from "@/components/Learning/SkillEditorPage"
+import { isLoggedIn } from "@/hooks/useAuth"
 
 export const Route = createFileRoute("/_layout/learning/skills/$skillId/edit")({
     component: SkillEditorRoute,
+    beforeLoad: async () => {
+        if (!isLoggedIn()) {
+            throw redirect({ to: "/login" })
+        }
+    },
 })
 
 function SkillEditorRoute() {

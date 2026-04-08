@@ -13,6 +13,9 @@ from app.utils.async_utils import LoopBoundResource
 
 logger = logging.getLogger(__name__)
 
+# Conversation sync manager
+_conversation_sync_manager = None
+
 
 class EvoCloudManager:
     """
@@ -78,6 +81,8 @@ class EvoCloudManager:
                 link.set_command_handler(self._command_handler)
             if self._event_handler:
                 link.set_event_handler(self._event_handler)
+            if hasattr(self, '_query_handler') and self._query_handler:
+                link.set_query_handler(self._query_handler)
             return link
             
         self._link_pool = LoopBoundResource(
@@ -94,13 +99,87 @@ class EvoCloudManager:
         """Start background services (Link) for the current loop."""
         if self.link:
             await self.link.start()
+        
+        # Ensure device_id is available (fetch from MC if not provided by Gateway)
+        await self._ensure_device_id()
+        
+        # Start conversation sync to MC
+        await self._start_conversation_sync()
+
+    async def _ensure_device_id(self):
+        """Ensure device_id is available from MC."""
+        if self.device_id:
+            return
+        
+        try:
+            # Fetch from MC using device_key
+            device_key = self.link.device_key if self.link else None
+            if not device_key:
+                logger.warning("[EvoCloud] Cannot get device_id: no device_key available")
+                return
+            
+            result = await self.api.get_devices()
+            if result.get("code") == 0:
+                devices = result.get("data", {}).get("list", [])
+                for device in devices:
+                    if device.get("device_key") == device_key:
+                        device_id = device.get("device_id")
+                        if device_id and self.link:
+                            # Set device_id in link
+                            self.link._device_id = int(device_id)
+                            logger.info(f"[EvoCloud] Got device_id from MC: {device_id}")
+                        break
+                else:
+                    logger.warning(f"[EvoCloud] Device with key {device_key} not found in MC")
+            else:
+                logger.warning(f"[EvoCloud] Failed to get devices from MC: {result.get('message')}")
+        except Exception as e:
+            logger.warning(f"[EvoCloud] Error getting device_id from MC: {e}")
 
     async def stop(self) -> None:
         """Stop background services across all tracked loops."""
+        # Stop conversation sync
+        await self._stop_conversation_sync()
+        
         if self._link_pool:
             await self._link_pool.flush_all()
         if self._api_pool:
             await self._api_pool.flush_all()
+
+    async def _start_conversation_sync(self):
+        """Start conversation history sync to Member Center"""
+        global _conversation_sync_manager
+
+        try:
+            from app.core.evocloud.bridge.conversation_sync import ConversationSyncManager
+
+            if _conversation_sync_manager is None:
+                # Get device_key from link (it's generated in WebSocketLink)
+                device_key = self.link.device_key if self.link else ""
+                device_id = self.device_id or 0
+                _conversation_sync_manager = ConversationSyncManager(
+                    api_client=self.api,
+                    device_key=device_key,
+                    device_id=device_id
+                )
+                logger.info(f"[EvoCloud] ConversationSyncManager created with device_id={device_id}")
+
+            await _conversation_sync_manager.start()
+            logger.info("[EvoCloud] Conversation sync started")
+        except Exception as e:
+            logger.error(f"[EvoCloud] Failed to start conversation sync: {e}")
+
+    async def _stop_conversation_sync(self):
+        """Stop conversation history sync"""
+        global _conversation_sync_manager
+
+        if _conversation_sync_manager:
+            try:
+                await _conversation_sync_manager.stop()
+                _conversation_sync_manager = None
+                logger.info("[EvoCloud] Conversation sync stopped")
+            except Exception as e:
+                logger.error(f"[EvoCloud] Error stopping conversation sync: {e}")
 
     # --- Callbacks / Bridge ---
 
@@ -113,6 +192,12 @@ class EvoCloudManager:
         self._event_handler = handler
         if self._initialized:
             self.link.set_event_handler(handler)
+
+    def set_query_handler(self, handler: Callable[[str, str, dict[str, Any]], Any]):
+        """设置查询处理器: (query_type, thread_id, params) -> result"""
+        self._query_handler = handler
+        if self._initialized and hasattr(self.link, 'set_query_handler'):
+            self.link.set_query_handler(handler)
 
     # --- Cache Management ---
 

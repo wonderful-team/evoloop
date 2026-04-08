@@ -1,10 +1,19 @@
-import { Loader2, ExternalLink, FileText, Search, Terminal, Code, Globe, Database, Wrench } from "lucide-react"
+import {
+    Loader2, ExternalLink, FileText, Search, Terminal, Code, Globe, Database, Wrench,
+    FolderOpen, FolderCog, FileEdit, Files, Activity, XCircle, Play, PlayCircle,
+    Chrome, Monitor, Smartphone, Locate, CheckCircle, Eye, Brain, History,
+    Lightbulb, Sprout, ListTodo, GitBranch, TrendingUp, List, PlusCircle,
+    Bookmark, RotateCcw, Trash, BookOpen, PenTool, Wand2, GraduationCap, RefreshCw,
+    Image, Server, UserCircle, HelpCircle, Clock, Calendar, Map as MapIcon, BarChart,
+    Building, Table, FileType, Clipboard, ClipboardList
+} from "lucide-react"
 import { useTranslation } from "react-i18next"
 
 export interface AgentProcessStep {
     id: string | number
     tool: string
-    tool_name?: string  // Friendly name from backend mapping
+    tool_name?: string  // Friendly name from backend mapping (legacy)
+    tool_name_display?: string  // Friendly name from backend (new)
     input: any
     output: string
     status: "success" | "failure" | "running" | "done" | "failed" | "cancelled"
@@ -30,32 +39,182 @@ interface AgentProcessProps {
 
 // Tool name to icon mapping
 const TOOL_ICONS: Record<string, React.ReactNode> = {
+    // 文件操作
+    read_file: <FileText className="h-3.5 w-3.5" />,
+    write_file: <FileText className="h-3.5 w-3.5" />,
+    edit_file: <FileEdit className="h-3.5 w-3.5" />,
+    apply_patch_file: <FileText className="h-3.5 w-3.5" />,
+    multiedit_file: <Files className="h-3.5 w-3.5" />,
+    list_directory: <FolderOpen className="h-3.5 w-3.5" />,
+    list_files: <FolderOpen className="h-3.5 w-3.5" />,
+    manage_directory: <FolderCog className="h-3.5 w-3.5" />,
+    search_files: <Search className="h-3.5 w-3.5" />,
+    grep_files: <Search className="h-3.5 w-3.5" />,
+    
+    // 代码执行
+    execute_command: <Terminal className="h-3.5 w-3.5" />,
+    query_command_status: <Activity className="h-3.5 w-3.5" />,
+    cancel_command: <XCircle className="h-3.5 w-3.5" />,
+    bash_command: <Terminal className="h-3.5 w-3.5" />,
+    python_code: <Code className="h-3.5 w-3.5" />,
+    run_macro: <Play className="h-3.5 w-3.5" />,
+    
+    // 网络/搜索
     search_web: <Search className="h-3.5 w-3.5" />,
     read_url_content: <Globe className="h-3.5 w-3.5" />,
     scrape_dynamic: <Globe className="h-3.5 w-3.5" />,
-    read_file: <FileText className="h-3.5 w-3.5" />,
-    grep_files: <Search className="h-3.5 w-3.5" />,
-    list_files: <FileText className="h-3.5 w-3.5" />,
-    bash_command: <Terminal className="h-3.5 w-3.5" />,
-    python_code: <Code className="h-3.5 w-3.5" />,
+    browser_control: <Chrome className="h-3.5 w-3.5" />,
+    
+    // 设备控制
+    desktop_control: <Monitor className="h-3.5 w-3.5" />,
+    mobile_control: <Smartphone className="h-3.5 w-3.5" />,
+    find_element: <Locate className="h-3.5 w-3.5" />,
+    verify_ui_state: <CheckCircle className="h-3.5 w-3.5" />,
+    quick_check_screen: <Eye className="h-3.5 w-3.5" />,
+    
+    // 知识/记忆
+    remember: <Brain className="h-3.5 w-3.5" />,
+    recall: <Brain className="h-3.5 w-3.5" />,
+    search_history: <History className="h-3.5 w-3.5" />,
+    save_concepts: <Lightbulb className="h-3.5 w-3.5" />,
+    auto_harvest_knowledge: <Sprout className="h-3.5 w-3.5" />,
+    
+    // 项目/任务
+    create_hierarchical_task: <ListTodo className="h-3.5 w-3.5" />,
+    get_task_tree: <GitBranch className="h-3.5 w-3.5" />,
+    update_task_progress: <TrendingUp className="h-3.5 w-3.5" />,
+    get_next_executable_task: <PlayCircle className="h-3.5 w-3.5" />,
+    list_project_tasks: <List className="h-3.5 w-3.5" />,
+    create_project_task: <PlusCircle className="h-3.5 w-3.5" />,
+    
+    // 检查点
+    create_checkpoint: <Bookmark className="h-3.5 w-3.5" />,
+    list_checkpoints: <Bookmark className="h-3.5 w-3.5" />,
+    rollback_checkpoint: <RotateCcw className="h-3.5 w-3.5" />,
+    delete_checkpoint: <Trash className="h-3.5 w-3.5" />,
+    
+    // Wiki
+    list_wiki_pages: <BookOpen className="h-3.5 w-3.5" />,
+    read_wiki_page: <BookOpen className="h-3.5 w-3.5" />,
+    write_wiki_page: <PenTool className="h-3.5 w-3.5" />,
+    
+    // 学习/技能
+    search_skills: <Wand2 className="h-3.5 w-3.5" />,
+    learn_skill_from_trace: <GraduationCap className="h-3.5 w-3.5" />,
+    reconcile_skill: <RefreshCw className="h-3.5 w-3.5" />,
+    search_native_tools: <Search className="h-3.5 w-3.5" />,
+    
+    // 其他
+    analyze_image: <Image className="h-3.5 w-3.5" />,
+    use_mcp_server: <Server className="h-3.5 w-3.5" />,
+    ask_human: <UserCircle className="h-3.5 w-3.5" />,
+    ask_confirm: <HelpCircle className="h-3.5 w-3.5" />,
+    wait_for: <Clock className="h-3.5 w-3.5" />,
     route_to: <ExternalLink className="h-3.5 w-3.5" />,
     memory: <Database className="h-3.5 w-3.5" />,
     task_boundary: <Wrench className="h-3.5 w-3.5" />,
+    delegate_periodic_intent: <Calendar className="h-3.5 w-3.5" />,
+    inspect_task_health: <Activity className="h-3.5 w-3.5" />,
+    list_autonomous_tasks: <List className="h-3.5 w-3.5" />,
+    query_app_atlas: <MapIcon className="h-3.5 w-3.5" />,
+    list_app_atlas: <MapIcon className="h-3.5 w-3.5" />,
+    get_app_usage_ranker: <BarChart className="h-3.5 w-3.5" />,
+    consult_architecture: <Building className="h-3.5 w-3.5" />,
+    query_excel: <Table className="h-3.5 w-3.5" />,
+    document_reader: <FileType className="h-3.5 w-3.5" />,
+    stash_to_clipboard: <Clipboard className="h-3.5 w-3.5" />,
+    retrieve_from_clipboard: <ClipboardList className="h-3.5 w-3.5" />,
+    create_python_tool: <Code className="h-3.5 w-3.5" />,
 }
 
 // Tool name to friendly display name mapping
 const TOOL_NAMES: Record<string, string> = {
+    // 文件操作
+    read_file: "查看文件",
+    write_file: "写入文件",
+    edit_file: "编辑文件",
+    apply_patch_file: "应用补丁",
+    multiedit_file: "批量编辑",
+    list_directory: "列出目录",
+    list_files: "列出文件",
+    manage_directory: "管理目录",
+    search_files: "搜索文件",
+    grep_files: "搜索文件内容",
+    
+    // 代码执行
+    execute_command: "执行命令",
+    query_command_status: "查询命令状态",
+    cancel_command: "取消命令",
+    bash_command: "执行命令",
+    python_code: "执行代码",
+    run_macro: "执行宏",
+    
+    // 网络/搜索
     search_web: "搜索网页",
     read_url_content: "读取网页",
     scrape_dynamic: "动态抓取",
-    read_file: "读取文件",
-    grep_files: "搜索文件内容",
-    list_files: "列出文件",
-    bash_command: "执行命令",
-    python_code: "执行代码",
+    browser_control: "浏览器控制",
+    
+    // 设备控制
+    desktop_control: "桌面控制",
+    mobile_control: "移动设备控制",
+    find_element: "查找元素",
+    verify_ui_state: "验证UI状态",
+    quick_check_screen: "快速检查屏幕",
+    
+    // 知识/记忆
+    remember: "记住",
+    recall: "回忆",
+    search_history: "搜索历史",
+    save_concepts: "保存概念",
+    auto_harvest_knowledge: "自动收获知识",
+    
+    // 项目/任务
+    create_hierarchical_task: "创建层级任务",
+    get_task_tree: "获取任务树",
+    update_task_progress: "更新任务进度",
+    get_next_executable_task: "获取待执行任务",
+    list_project_tasks: "列出项目任务",
+    create_project_task: "创建项目任务",
+    
+    // 检查点
+    create_checkpoint: "创建检查点",
+    list_checkpoints: "列出检查点",
+    rollback_checkpoint: "回滚检查点",
+    delete_checkpoint: "删除检查点",
+    
+    // Wiki
+    list_wiki_pages: "列出Wiki页面",
+    read_wiki_page: "读取Wiki页面",
+    write_wiki_page: "写入Wiki页面",
+    
+    // 学习/技能
+    search_skills: "搜索技能",
+    learn_skill_from_trace: "从轨迹学习",
+    reconcile_skill: "调和技能",
+    search_native_tools: "搜索原生工具",
+    
+    // 其他
+    analyze_image: "分析图像",
+    use_mcp_server: "使用MCP服务器",
+    ask_human: "询问用户",
+    ask_confirm: "确认操作",
+    wait_for: "等待",
     route_to: "路由请求",
     memory: "记忆操作",
     task_boundary: "任务边界",
+    delegate_periodic_intent: "委托周期性意图",
+    inspect_task_health: "检查任务健康",
+    list_autonomous_tasks: "列出自主任务",
+    query_app_atlas: "查询应用图谱",
+    list_app_atlas: "列出应用图谱",
+    get_app_usage_ranker: "获取应用使用排名",
+    consult_architecture: "架构咨询",
+    query_excel: "查询Excel",
+    document_reader: "读取文档",
+    stash_to_clipboard: "暂存到剪贴板",
+    retrieve_from_clipboard: "从剪贴板检索",
+    create_python_tool: "创建Python工具",
 }
 
 // Safe JSON parse helper
@@ -311,6 +470,7 @@ function normalizeStep(step: any): AgentProcessStep {
         id: step.id,
         tool,
         tool_name: step.tool_name || step.name,
+        tool_name_display: step.tool_name_display,
         input: step.input,
         output,
         status: step.status || 'running',
@@ -328,9 +488,15 @@ function StepRow({ step: rawStep }: { step: AgentProcessStep }) {
     const step = normalizeStep(rawStep)
 
     const icon = TOOL_ICONS[step.tool] || <Terminal className="h-3.5 w-3.5" />
-    const toolName = TOOL_NAMES[step.tool] || step.tool_name || step.tool
+    // Priority: 1. Backend friendly name (tool_name_display) 2. Legacy tool_name 3. Frontend mapping 4. Raw tool name
+    let toolName = step.tool_name_display || step.tool_name || TOOL_NAMES[step.tool] || step.tool
     const inputInfo = formatToolInput(step.tool, step.input, t)
     const outputSummary = summarizeOutput(step.tool, step.output)
+    
+    // For read_file tool, append the file path to the tool name
+    if (step.tool === 'read_file' && inputInfo?.value) {
+        toolName = `${toolName}: ${inputInfo.value}`
+    }
 
     const isRunning = step.status === "running"
     const isFailed = step.status === "failure" || step.status === "failed"

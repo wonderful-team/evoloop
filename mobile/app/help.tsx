@@ -129,15 +129,15 @@ export default function HelpScreen() {
 
         <Divider />
 
-        {/* 新手引导 */}
+        {/* 关于 */}
         <List.Section>
           <List.Subheader>新用户</List.Subheader>
           <List.Item
-            title="查看新手引导"
-            description="重新查看应用介绍和功能说明"
-            left={(props) => <List.Icon {...props} icon="school" />}
+            title="关于我们"
+            description="了解 EvoLoop 更多信息"
+            left={(props) => <List.Icon {...props} icon="info" />}
             right={(props) => <List.Icon {...props} icon="chevron-right" />}
-            onPress={() => router.push('/onboarding')}
+            onPress={() => router.push('/help')}
           />
         </List.Section>
 

@@ -46,7 +46,7 @@ export function LoadingProvider({ children }: LoadingProviderProps) {
           contentContainerStyle={styles.modal}
         >
           <View style={styles.container}>
-            <ActivityIndicator size="large" color="#0066FF" />
+            <ActivityIndicator size="large" color="#22C55E" />
           </View>
         </Modal>
       </Portal>

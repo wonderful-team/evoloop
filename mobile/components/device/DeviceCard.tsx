@@ -102,7 +102,7 @@ export function DeviceCard({
             icon="send"
             size={20}
             onPress={onCommandPress}
-            iconColor="#0066FF"
+            iconColor="#22C55E"
           />
         </Card.Actions>
       )}
@@ -118,7 +118,7 @@ const styles = StyleSheet.create({
   },
   selectedCard: {
     borderWidth: 2,
-    borderColor: '#0066FF',
+    borderColor: '#22C55E',
   },
   header: {
     flexDirection: 'row',

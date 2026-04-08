@@ -1,5 +1,5 @@
 // 云端对话页面
-// 参考: @evoloop/frontend/packages/mobile/src/screens/CloudChatScreen.tsx
+// Mobile → Gateway → Desktop 指令下发架构
 
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import {
@@ -15,101 +15,86 @@ import {
   IconButton,
   ActivityIndicator,
   Avatar,
+  Chip,
 } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useTheme } from '@/theme';
-// 附件功能暂不使用
-// import * as ImagePicker from 'expo-image-picker';
-import { api } from '@/services/api/client';
-import { useAuthStore } from '@/stores/authStore';
+import { DeviceManager } from '@/services/devices/DeviceManager';
+import { useDeviceStore } from '@/stores/deviceStore';
 
 interface Message {
   id: string;
-  type: 'user' | 'output' | 'error';
+  type: 'user' | 'output' | 'error' | 'system';
   content: string;
   timestamp: number;
   isStreaming?: boolean;
-  attachments?: any[];
+  commandId?: number;
 }
-
-// 附件功能暂不使用
-// interface Attachment {
-//   type: 'image' | 'file';
-//   uri: string;
-//   name?: string;
-// }
 
 export default function CloudChatScreen() {
   const { t } = useTranslation();
   const router = useRouter();
   const { colors } = useTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { userInfo } = useAuthStore();
+  const { currentDevice } = useDeviceStore();
+  
+  // 从 URL 参数获取设备信息
+  const { deviceId, deviceName } = useLocalSearchParams<{
+    deviceId?: string;
+    deviceName?: string;
+  }>();
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [isStreaming, setIsStreaming] = useState(false);
-  // const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [isSending, setIsSending] = useState(false);
   
   const flatListRef = useRef<FlatList>(null);
   const isNew = id === 'new';
   const conversationId = isNew ? undefined : id;
 
-  // 加载历史消息
-  useEffect(() => {
-    if (!isNew && id) {
-      loadHistory();
-    }
-  }, [id]);
+  // 确定目标设备
+  const targetDeviceId = deviceId || currentDevice?.id;
+  const targetDeviceName = deviceName || currentDevice?.name || 'Desktop';
+  const isDeviceOnline = currentDevice?.status === 'online';
 
-  // 处理初始消息
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const initialMessage = params.get('initialMessage');
-    if (initialMessage && messages.length === 0) {
-      handleSend(initialMessage);
-    }
+  // 添加系统消息
+  const addSystemMessage = useCallback((content: string) => {
+    const systemMsg: Message = {
+      id: `system_${Date.now()}`,
+      type: 'system',
+      content,
+      timestamp: Date.now(),
+    };
+    setMessages(prev => [...prev, systemMsg]);
   }, []);
 
-  // 加载历史消息
-  const loadHistory = async () => {
-    setIsLoading(true);
-    try {
-      const response: any = await api.get(`/gateway/api/v1/conversations/${id}/messages`);
-      if (response?.data?.list) {
-        const formatted = response.data.list.reverse().map((msg: any) => ({
-          id: msg.id,
-          type: msg.role === 'user' ? 'user' : 'output',
-          content: msg.content,
-          timestamp: msg.create_time * 1000,
-        }));
-        setMessages(formatted);
-      }
-    } catch (error) {
-      console.error('加载历史消息失败:', error);
-    } finally {
-      setIsLoading(false);
+  // 发送消息到 Desktop
+  const handleSend = useCallback(async () => {
+    if (!input.trim()) return;
+    if (!targetDeviceId) {
+      addSystemMessage('错误：未选择目标设备');
+      return;
     }
-  };
+    if (!isDeviceOnline) {
+      addSystemMessage('错误：设备离线，无法发送指令');
+      return;
+    }
 
-  // 发送消息
-  const handleSend = useCallback(async (content: string = input) => {
-    if (!content.trim() && attachments.length === 0) return;
-
+    const content = input.trim();
     const tempUserMsg: Message = {
-      id: `temp_${Date.now()}`,
+      id: `user_${Date.now()}`,
       type: 'user',
-      content: content.trim(),
+      content,
       timestamp: Date.now(),
     };
 
     setMessages(prev => [...prev, tempUserMsg]);
     setInput('');
-    // setAttachments([]);
+    setIsSending(true);
 
     const botMsgId = `bot_${Date.now()}`;
     setMessages(prev => [
@@ -117,85 +102,42 @@ export default function CloudChatScreen() {
       {
         id: botMsgId,
         type: 'output',
-        content: '',
+        content: '正在发送至 Desktop...',
         timestamp: Date.now(),
         isStreaming: true,
       },
     ]);
 
-    setIsStreaming(true);
-    let fullResponse = '';
-
     try {
-      // 使用 fetch 进行流式请求
-      const response = await fetch(`${process.env.EXPO_PUBLIC_API_BASE_URL}/gateway/api/v1/chat`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${userInfo?.token || ''}`,
-        },
-        body: JSON.stringify({
-          message: content.trim(),
+      // 使用 DeviceManager 发送指令
+      const result = await DeviceManager.sendCommand(
+        targetDeviceId,
+        'chat',
+        {
+          message: content,
           conversation_id: conversationId,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('请求失败');
-      }
-
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
-
-      if (!reader) {
-        throw new Error('无法读取响应');
-      }
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split('\n');
-
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.slice(6);
-            if (data === '[DONE]') continue;
-
-            try {
-              const parsed = JSON.parse(data);
-              if (parsed.content) {
-                fullResponse += parsed.content;
-                setMessages(prev => {
-                  const last = prev[prev.length - 1];
-                  if (last?.id === botMsgId) {
-                    return [
-                      ...prev.slice(0, -1),
-                      { ...last, content: fullResponse },
-                    ];
-                  }
-                  return prev;
-                });
-              }
-            } catch (e) {
-              // 忽略解析错误
-            }
-          }
+          timestamp: Date.now(),
         }
-      }
+      );
 
-      setIsStreaming(false);
+      // 更新消息状态
       setMessages(prev => {
         const last = prev[prev.length - 1];
         if (last?.id === botMsgId) {
-          return [...prev.slice(0, -1), { ...last, isStreaming: false }];
+          return [
+            ...prev.slice(0, -1),
+            {
+              ...last,
+              content: `指令已发送！Desktop 正在处理...\n指令 ID: ${result?.command_id || 'N/A'}`,
+              isStreaming: false,
+              commandId: result?.command_id,
+            },
+          ];
         }
         return prev;
       });
     } catch (error: any) {
-      console.error('发送消息失败:', error);
-      setIsStreaming(false);
+      console.error('发送指令失败:', error);
       setMessages(prev => {
         const last = prev[prev.length - 1];
         if (last?.id === botMsgId) {
@@ -204,31 +146,40 @@ export default function CloudChatScreen() {
             {
               id: botMsgId,
               type: 'error',
-              content: error.message || '发送失败',
+              content: `发送失败: ${error.message || '请检查设备连接'}`,
               timestamp: Date.now(),
             },
           ];
         }
         return prev;
       });
+    } finally {
+      setIsSending(false);
     }
-  }, [input, attachments, conversationId, userInfo]);
-
-  // 图片选择功能暂不使用
-  // const handleImagePick = useCallback(async () => { ... }, []);
-  // const removeAttachment = useCallback((index: number) => { ... }, []);
+  }, [input, targetDeviceId, isDeviceOnline, conversationId, addSystemMessage]);
 
   // 渲染消息
   const renderMessage = useCallback(({ item }: { item: Message }) => {
     const isUser = item.type === 'user';
     const isError = item.type === 'error';
+    const isSystem = item.type === 'system';
+
+    if (isSystem) {
+      return (
+        <View style={styles.systemMessageContainer}>
+          <Chip icon="information" style={styles.systemChip}>
+            {item.content}
+          </Chip>
+        </View>
+      );
+    }
 
     return (
       <View style={[styles.messageContainer, isUser && styles.userMessageContainer]}>
         {!isUser && (
           <Avatar.Icon
             size={32}
-            icon="robot"
+            icon="desktop-classic"
             style={[styles.avatar, { backgroundColor: colors.primaryContainer }]}
             color={colors.primary}
           />
@@ -244,19 +195,18 @@ export default function CloudChatScreen() {
             {item.content}
             {item.isStreaming && '▊'}
           </Text>
-
         </View>
         {isUser && (
           <Avatar.Text
             size={32}
-            label={userInfo?.nickname?.charAt(0) || 'U'}
+            label="我"
             style={[styles.avatar, { backgroundColor: colors.primary }]}
             color={colors.onPrimary}
           />
         )}
       </View>
     );
-  }, [colors, userInfo]);
+  }, [colors]);
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
@@ -270,13 +220,28 @@ export default function CloudChatScreen() {
           size={24}
           onPress={() => router.back()}
         />
-        <Text variant="titleMedium" style={styles.headerTitle}>
-          {isNew ? '新对话' : '云端对话'}
-        </Text>
+        <View style={styles.headerCenter}>
+          <Text variant="titleMedium" style={styles.headerTitle}>
+            {targetDeviceName}
+          </Text>
+          <View style={styles.statusRow}>
+            <View style={[styles.statusDot, { 
+              backgroundColor: isDeviceOnline ? '#4CAF50' : '#FF3D00' 
+            }]} />
+            <Text variant="bodySmall" style={{ color: colors.outline }}>
+              {isDeviceOnline ? '在线' : '离线'}
+              {targetDeviceId ? ` • ${targetDeviceId.slice(0, 8)}...` : ''}
+            </Text>
+          </View>
+        </View>
         <IconButton
-          icon="more-vert"
+          icon="refresh"
           size={24}
-          onPress={() => {}}
+          onPress={() => {
+            if (targetDeviceId) {
+              DeviceManager.refreshDeviceStatus(targetDeviceId);
+            }
+          }}
         />
       </View>
 
@@ -297,7 +262,10 @@ export default function CloudChatScreen() {
             <View style={styles.emptyContainer}>
               <MaterialIcons name="chat-bubble-outline" size={48} color={colors.outline} />
               <Text style={[styles.emptyText, { color: colors.outline }]}>
-                开始一个新的对话
+                开始与 Desktop 对话
+              </Text>
+              <Text style={[styles.emptySubtext, { color: colors.outline }]}>
+                发送的消息将通过 Gateway 路由到 Desktop
               </Text>
             </View>
           }
@@ -314,58 +282,27 @@ export default function CloudChatScreen() {
           backgroundColor: colors.surface,
           borderTopColor: colors.outlineVariant,
         }]}>
-          {/* 附件预览 */}
-          {attachments.length > 0 && (
-            <View style={styles.attachmentsRow}>
-              {attachments.map((att, index) => (
-                <View key={index} style={styles.attachmentPreview}>
-                  <Image source={{ uri: att.uri }} style={styles.attachmentThumb} />
-                  <IconButton
-                    icon="close"
-                    size={14}
-                    style={styles.removeAttachment}
-                    onPress={() => removeAttachment(index)}
-                  />
-                </View>
-              ))}
-            </View>
-          )}
-
           <View style={styles.inputRow}>
-            <IconButton
-              icon="image"
-              size={20}
-              iconColor={colors.onSurfaceVariant}
-              onPress={handleImagePick}
-              disabled={isStreaming}
-            />
             <TextInput
               value={input}
               onChangeText={setInput}
-              placeholder="输入消息..."
+              placeholder={isDeviceOnline ? "输入消息..." : "设备离线，无法发送"}
               placeholderTextColor={colors.outline}
               multiline
               maxLength={2000}
-              disabled={isStreaming}
+              disabled={isSending || !isDeviceOnline}
               style={[styles.input, { color: colors.onSurface }]}
-              contentStyle={styles.inputContent}
-              underlineColor="transparent"
-              activeUnderlineColor="transparent"
+              underlineColorAndroid="transparent"
+              theme={{ colors: { primary: colors.primary } }}
             />
-            {isStreaming ? (
-              <ActivityIndicator size="small" color={colors.primary} style={styles.sendButton} />
-            ) : (
-              <IconButton
-                icon="send"
-                size={24}
-                iconColor={input.trim() || attachments.length > 0 ? colors.onPrimary : colors.outline}
-                onPress={() => handleSend()}
-                disabled={!input.trim()}
-                style={[styles.sendButton, {
-                  backgroundColor: input.trim() ? colors.primary : colors.surfaceVariant,
-                }]}
-              />
-            )}
+            <IconButton
+              icon={isSending ? 'loading' : 'send'}
+              size={24}
+              onPress={handleSend}
+              disabled={!input.trim() || isSending || !isDeviceOnline}
+              containerColor={colors.primary}
+              iconColor={colors.onPrimary}
+            />
           </View>
         </View>
       </KeyboardAvoidingView>
@@ -380,112 +317,100 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    height: 56,
+    paddingHorizontal: 4,
+    paddingVertical: 8,
     borderBottomWidth: 1,
+  },
+  headerCenter: {
+    flex: 1,
+    alignItems: 'center',
   },
   headerTitle: {
     fontWeight: '600',
+  },
+  statusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 2,
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 6,
   },
   keyboardView: {
     flex: 1,
   },
   messagesContent: {
     padding: 16,
-    paddingBottom: 24,
+    flexGrow: 1,
   },
   messageContainer: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
     marginBottom: 16,
+    alignItems: 'flex-end',
   },
   userMessageContainer: {
-    flexDirection: 'row-reverse',
+    justifyContent: 'flex-end',
   },
   avatar: {
-    marginHorizontal: 8,
+    marginHorizontal: 4,
   },
   messageBubble: {
     maxWidth: '75%',
     padding: 12,
     borderRadius: 16,
+    elevation: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
   messageText: {
-    fontSize: 15,
+    fontSize: 14,
     lineHeight: 20,
   },
-  messageImage: {
-    width: 200,
-    height: 200,
-    borderRadius: 8,
-    marginTop: 8,
-    resizeMode: 'cover',
+  systemMessageContainer: {
+    alignItems: 'center',
+    marginVertical: 8,
+  },
+  systemChip: {
+    height: 32,
   },
   emptyContainer: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 100,
+    paddingTop: 100,
   },
   emptyText: {
     marginTop: 16,
+    fontSize: 16,
+  },
+  emptySubtext: {
+    marginTop: 8,
     fontSize: 14,
   },
   loadingOverlay: {
     position: 'absolute',
     top: 16,
-    left: '50%',
-    marginLeft: -20,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    backgroundColor: 'rgba(0,0,0,0.05)',
-    borderRadius: 16,
+    right: 16,
   },
   inputContainer: {
     borderTopWidth: 1,
-    paddingHorizontal: 8,
-    paddingVertical: 8,
-  },
-  attachmentsRow: {
-    flexDirection: 'row',
-    paddingHorizontal: 8,
-    marginBottom: 8,
-  },
-  attachmentPreview: {
-    width: 60,
-    height: 60,
-    borderRadius: 8,
-    overflow: 'hidden',
-    marginRight: 8,
-    position: 'relative',
-  },
-  attachmentThumb: {
-    width: '100%',
-    height: '100%',
-  },
-  removeAttachment: {
-    position: 'absolute',
-    top: -8,
-    right: -8,
-    backgroundColor: 'white',
+    padding: 12,
+    paddingBottom: Platform.OS === 'ios' ? 24 : 12,
   },
   inputRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-end',
   },
   input: {
     flex: 1,
+    marginRight: 8,
     backgroundColor: 'transparent',
-    fontSize: 15,
+    paddingVertical: 8,
     maxHeight: 100,
-    paddingHorizontal: 0,
-  },
-  inputContent: {
-    paddingTop: 8,
-    paddingBottom: 8,
-  },
-  sendButton: {
-    margin: 0,
-    borderRadius: 20,
   },
 });

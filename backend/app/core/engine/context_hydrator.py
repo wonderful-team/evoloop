@@ -274,9 +274,8 @@ class EvoContextMiddleware:
                         # Format entries as project concepts
                         formatted_entries = []
                         for entry in entries:
-                            emoji = {"user": "👤", "feedback": "💬", "project": "📁", "reference": "📖"}.get(entry.type.value, "📄")
                             formatted_entries.append(
-                                f"{emoji} **{entry.title}** ({entry.type.value})\n"
+                                f"[{entry.type.value.upper()}] {entry.title}\n"
                                 f"{entry.content[:300]}"
                             )
                         memory_data['project_concepts'] = "\n\n".join(formatted_entries)

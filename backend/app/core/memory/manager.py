@@ -194,19 +194,39 @@ class _LongTermAdapter:
     
     # Episode methods
     async def record_episode(self, episode) -> str | None:
-        """Record an episode as a PROJECT memory."""
+        """Record an episode as a PROJECT memory.
+        
+        Format is optimized for readability - combines session summary format
+        with detailed plan information.
+        """
+        import uuid
+        
+        # Generate unique ID to avoid conflicts
+        entry_id = f"session_{episode.source_message_id or uuid.uuid4().hex[:8]}"
+        
+        # Format content: if result looks like a session summary, use it directly
+        # otherwise wrap it in a friendly format
+        content = episode.result
+        if episode.plan_summary and len(episode.plan_summary) > 20:
+            content += f"\n\nExecution Plan:\n{episode.plan_summary}"
+        
+        # Create a concise title
+        goal_short = episode.goal[:60] + "..." if len(episode.goal) > 60 else episode.goal
+        
         entry = MemoryEntry(
-            id=f"ep_{episode.source_message_id or 'unknown'}",
+            id=entry_id,
             type=MemoryType.PROJECT,
             privacy=PrivacyLevel.TEAM,
-            title=f"Episode: {episode.goal}",
-            content=f"Goal: {episode.goal}\n\nResult: {episode.result}\n\nPlan: {episode.plan_summary}",
-            description=episode.goal,
+            title=f"Session: {goal_short}",
+            content=content,
+            description=episode.result[:200] if episode.result else episode.goal[:200],
             project_id=episode.project_id,
             source_message_id=episode.source_message_id,
-            tags=["episode"],
+            source="session",
+            tags=["session", "episode"],
         )
         await self._storage.save(entry)
+        logger.info(f"[MemoryManager] Recorded session memory: {entry_id}")
         return entry.id
     
     async def retrieve_experience(self, goal: str, project_id: int, top_k: int = 3) -> str:

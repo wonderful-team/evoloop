@@ -111,7 +111,7 @@ export function ProfileScreen() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { user, logout } = useAuth()
-  const token = localStorage.getItem("evoloop_token")
+  const token = localStorage.getItem("access_token")
 
   const handleLogout = async () => {
     await logout()

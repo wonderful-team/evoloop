@@ -9,7 +9,7 @@ import { AuthService, LoginService, MemberService } from "../client"
 import useCustomToast from "@evoloop/shared/hooks/useCustomToast"
 
 const isLoggedIn = () => {
-  return localStorage.getItem("evoloop_token") !== null
+  return localStorage.getItem("access_token") !== null
 }
 
 export interface UserRegister {
@@ -29,7 +29,7 @@ const useAuth = () => {
   const { data: user } = useQuery<any | null, Error>({
     queryKey: ["currentUser"],
     queryFn: async () => {
-      const token = localStorage.getItem("evoloop_token")
+      const token = localStorage.getItem("access_token")
       if (!token) return null
       try {
         const res = await MemberService.getInfo()
@@ -60,7 +60,7 @@ const useAuth = () => {
   const login = async (data: { username: string; password: string }) => {
     const response = await LoginService.login(data)
     if (response.code === 0 && response.data?.token) {
-      localStorage.setItem("evoloop_token", response.data.token)
+      localStorage.setItem("access_token", response.data.token)
       if (response.data.member_id) {
         localStorage.setItem("evoloop_member_id", String(response.data.member_id))
       }
@@ -84,7 +84,7 @@ const useAuth = () => {
     } catch (e) {
       console.error("Logout cleanup failed:", e)
     } finally {
-      localStorage.removeItem("evoloop_token")
+      localStorage.removeItem("access_token")
       localStorage.removeItem("evoloop_member_id")
       queryClient.resetQueries()
     }

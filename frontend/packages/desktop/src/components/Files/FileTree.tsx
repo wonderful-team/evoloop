@@ -20,6 +20,7 @@ import {
   ContextMenuTrigger,
 } from "@evoloop/shared/components/ui/context-menu"
 import { cn } from "@evoloop/shared/lib/utils"
+import { isLoggedIn } from "@/hooks/useAuth"
 
 interface FileNode {
   name: string
@@ -51,6 +52,7 @@ export function FileTree({
     queryKey: ["files", projectId, path],
     queryFn: () => FilesService.listFiles({ projectId, path }),
     staleTime: 1000 * 60 * 5, // Cache for 5 mins
+    enabled: isLoggedIn(), // Only fetch if user is logged in
   })
 
   if (isLoading) {

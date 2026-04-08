@@ -341,6 +341,7 @@ def persist_message_task(
     references: list[dict] | None = None,
     action_type: str = "text",
     category: str | None = None,
+    is_visible: bool = True,
 ):
     """Background task to persist agent messages to the database.
     
@@ -366,16 +367,15 @@ def persist_message_task(
                     res = await session.execute(stmt)
                     target_parent_id = res.scalar_one_or_none()
 
-                # is_visible is completely determined by category
-                # This ensures consistency across the entire system
-                is_visible = True
+                # is_visible can be overridden by parameter, otherwise determined by category
+                final_is_visible = is_visible
                 if category:
                     try:
                         cat_enum = MessageCategory(category)
-                        is_visible = cat_enum in MessageCategory.get_visible_categories()
+                        final_is_visible = cat_enum in MessageCategory.get_visible_categories()
                     except ValueError:
-                        # Unknown category, default to visible
-                        is_visible = True
+                        # Unknown category, use passed value or default to visible
+                        pass
 
                 log = Message(
                     thread_id=thread_id,
@@ -389,7 +389,7 @@ def persist_message_task(
                     parent_id=target_parent_id,
                     tool_calls=tool_calls,
                     action_type=action_type,
-                    is_visible=is_visible,
+                    is_visible=final_is_visible,
                     category=category,
                 )
                 session.add(log)

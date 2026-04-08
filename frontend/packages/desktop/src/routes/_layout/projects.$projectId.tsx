@@ -1,4 +1,5 @@
-import { createFileRoute, Link, Outlet } from "@tanstack/react-router"
+import { createFileRoute, Link, Outlet, redirect } from "@tanstack/react-router"
+import { isLoggedIn } from "@/hooks/useAuth"
 import {
   AlertCircle,
   BarChart2,
@@ -15,6 +16,11 @@ import { useProjectStore } from "@/stores/projectStore"
 
 export const Route = createFileRoute("/_layout/projects/$projectId")({
   component: ProjectLayout,
+  beforeLoad: async () => {
+    if (!isLoggedIn()) {
+      throw redirect({ to: "/login" })
+    }
+  },
 })
 
 function ProjectLayout() {

@@ -19,7 +19,7 @@ export function TabsLayout() {
   const navigate = useNavigate()
   const path = location.pathname
   const { activeTab, setActiveTab } = useMobileStore()
-  const isGuest = !localStorage.getItem("evoloop_token")
+  const isGuest = !localStorage.getItem("access_token")
   const scrollContainerRef = useRef<HTMLDivElement>(null)
 
   const isActive = (p: string) => {

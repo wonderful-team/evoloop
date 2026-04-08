@@ -48,6 +48,7 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
         # Callbacks
         self._command_handler: Callable[[dict[str, Any]], None] | None = None
         self._event_handler: Callable[[str, dict[str, Any]], None] | None = None
+        self._query_handler: Callable[[str, str, dict[str, Any]], Any] | None = None
 
         # Idempotency & Concurrency
         self._processed_commands: set[int] = set()
@@ -93,6 +94,10 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
     def set_event_handler(self, handler: Callable):
         self._event_handler = handler
 
+    def set_query_handler(self, handler: Callable):
+        """设置查询处理器 (query_type, thread_id, params) -> result"""
+        self._query_handler = handler
+
     def is_connected(self) -> bool:
         return self._running and (self.ws is not None)
 
@@ -110,7 +115,11 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
             return False
 
     async def start(self):
-        """Start the WebSocket connection and Heartbeat Loops."""
+        """Start the WebSocket connection and Heartbeat Loops.
+        
+        Note: Device registration is now done via WebSocket handshake.
+        HTTP registration is removed in favor of pure WebSocket architecture.
+        """
         if self._running:
             return
 
@@ -120,14 +129,11 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
 
         self._running = True
 
-        # Register Device via API
-        success = await self._register_device()
-        if not success:
-            logger.error("[EvoCloud] Device registration failed. Aborting Link.")
-            self._running = False
-            return
+        # device_id will be set when receiving 'init' message from Gateway
+        # containing the device_id assigned by MC
+        self._device_id = None
 
-        logger.info("[EvoCloud] Starting Device Link Loops...")
+        logger.info(f"[EvoCloud] Starting Device Link (device_key={self.device_key})...")
         asyncio.create_task(self._heartbeat_loop())
         asyncio.create_task(self._ws_connect_loop())
 
@@ -145,21 +151,28 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
                 self.ws = None
 
     async def _register_device(self) -> bool:
-        os_info = f"{platform.system()} {platform.release()}"
-        res = await self.api.register_device(self.device_key, self.device_name, os_info)
-
-        if res.get("code") == 0:
-            self._device_id = res["data"]["device_id"]
-            logger.info(f"[EvoCloud] Device Registered ID: {self._device_id}")
-            return True
+        """Deprecated: Device registration is now done via WebSocket handshake.
+        
+        Kept for backward compatibility but does nothing.
+        """
+        logger.debug("[EvoCloud] HTTP registration skipped (WebSocket architecture)")
+        self._device_id = self.device_key
+        return True
 
     async def _heartbeat_loop(self):
+        """Send WebSocket ping messages to keep connection alive.
+        
+        Replaces HTTP heartbeat with WebSocket ping/pong.
+        """
         while self._running:
-            if self._device_id:
+            if self.ws and self.is_connected():
                 try:
-                    await self.api.send_heartbeat(self._device_id)
+                    # Send ping via WebSocket
+                    ping_msg = {"type": "ping", "timestamp": int(asyncio.get_event_loop().time())}
+                    await self.ws.send(json.dumps(ping_msg))
+                    logger.debug("[EvoCloud] WebSocket ping sent")
                 except Exception as e:
-                    logger.debug(f"Heartbeat failed: {e}")
+                    logger.debug(f"[EvoCloud] WebSocket ping failed: {e}")
             await asyncio.sleep(30)
 
     async def _ws_connect_loop(self):
@@ -225,7 +238,15 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
             msg_type = data.get("type")
 
             if msg_type == "init":
-                client_id = data.get("data", {}).get("client_id")
+                init_data = data.get("data", {})
+                client_id = init_data.get("client_id")
+                device_id = init_data.get("device_id")
+                
+                # Set device_id from Gateway (assigned by MC)
+                if device_id:
+                    self._device_id = int(device_id)
+                    logger.info(f"[EvoCloud] Got device_id from Gateway: {self._device_id}")
+                
                 if client_id:
                     await self._bind_client_id(client_id)
 
@@ -253,18 +274,60 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
                     else:
                         self._event_handler(msg_type, data.get("data", {}))
 
+            elif msg_type == "query":
+                await self._handle_query(data)
+
         except Exception as e:
             logger.error(f"[EvoCloud] WS Handle Error: {e}")
 
     async def _bind_client_id(self, client_id: str):
         if not self._device_id:
+            logger.warning(f"[EvoCloud] Cannot bind client_id {client_id}: device_id not available yet")
             return
         try:
             await self.api.bind_client_id(self._device_id, client_id)
             self.client_id = client_id
-            logger.info(f"[EvoCloud] Bound Client ID: {client_id}")
+            logger.info(f"[EvoCloud] Bound Client ID: {client_id} to device {self._device_id}")
         except Exception as e:
-            logger.error(f"Failed to bind client ID: {e}")
+            logger.error(f"[EvoCloud] Failed to bind client ID: {e}")
+
+    async def _handle_query(self, data: dict):
+        """处理来自 Gateway 的查询请求"""
+        request_id = data.get("request_id")
+        query_data = data.get("data", {})
+        query_type = query_data.get("query_type")
+        thread_id = query_data.get("thread_id")
+        params = query_data.get("params", {})
+
+        logger.debug(f"[EvoCloud] Query request: {query_type} (req_id={request_id})")
+
+        result = None
+        error = None
+
+        try:
+            if self._query_handler:
+                if asyncio.iscoroutinefunction(self._query_handler):
+                    result = await self._query_handler(query_type, thread_id, params)
+                else:
+                    result = await run_in_thread(self._query_handler, query_type, thread_id, params)
+            else:
+                error = "Query handler not registered"
+        except Exception as e:
+            logger.error(f"[EvoCloud] Query error: {e}")
+            error = str(e)
+
+        # 发送响应
+        response = {
+            "type": "query_response",
+            "request_id": request_id,
+            "data": {
+                "code": 0 if error is None else 500,
+                "message": error or "success",
+                "request_id": request_id,
+                "data": result
+            }
+        }
+        await self.send(response)
 
     async def _execute_command_wrapper(self, cmd_data):
         cmd_id = cmd_data.get("command_id")

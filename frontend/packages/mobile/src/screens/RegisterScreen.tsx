@@ -170,7 +170,7 @@ export function RegisterScreen() {
     try {
       const res = await promise
       if (res?.token) {
-        localStorage.setItem("evoloop_token", res.token)
+        localStorage.setItem("access_token", res.token)
         toast.success(t("auth.success.registerSuccess"))
         // Navigate to setup or dashboard
         // Check if device binding is needed?

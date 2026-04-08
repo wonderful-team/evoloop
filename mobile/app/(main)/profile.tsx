@@ -8,8 +8,58 @@ import { useAuthStore } from '@/stores/authStore';
 import { useTheme } from '@/components/ui/ThemeProvider';
 import { router } from 'expo-router';
 import { maskMobile } from '@/utils/format';
+import { MaterialIcons } from '@expo/vector-icons';
 
-export default function ProfileScreen() {
+// 游客模式下的个人中心
+function GuestProfile() {
+  const { t } = useTranslation();
+  const { toggleTheme, isDark } = useTheme();
+  
+  return (
+    <SafeAreaView style={styles.container}>
+      <View style={styles.header}>
+        <View style={styles.guestAvatar}>
+          <MaterialIcons name="person-outline" size={48} color="#9CA3AF" />
+        </View>
+        <Text variant="titleLarge" style={styles.name}>
+          游客
+        </Text>
+        <Text variant="bodyMedium" style={styles.mobile}>
+          登录后可以使用更多功能
+        </Text>
+        <Button
+          mode="contained"
+          style={styles.loginButton}
+          onPress={() => router.push('/(auth)/login')}
+        >
+          立即登录
+        </Button>
+      </View>
+      
+      <List.Section>
+        <List.Item
+          title={t('profile.language')}
+          left={props => <List.Icon {...props} icon="translate" />}
+          right={props => <Text>{t('profile.chinese')}</Text>}
+        />
+        <List.Item
+          title={isDark ? '深色模式' : '浅色模式'}
+          left={props => <List.Icon {...props} icon={isDark ? 'moon-waning-crescent' : 'white-balance-sunny'} />}
+          onPress={toggleTheme}
+        />
+        <List.Item
+          title={t('profile.manual')}
+          left={props => <List.Icon {...props} icon="help-circle" />}
+          right={props => <List.Icon {...props} icon="chevron-right" />}
+          onPress={() => router.push('/help')}
+        />
+      </List.Section>
+    </SafeAreaView>
+  );
+}
+
+// 登录用户的个人中心
+function UserProfile() {
   const { t } = useTranslation();
   const { userInfo, logout } = useAuthStore();
   const { toggleTheme, isDark } = useTheme();
@@ -66,7 +116,7 @@ export default function ProfileScreen() {
           title={t('profile.manual')}
           left={props => <List.Icon {...props} icon="help-circle" />}
           right={props => <List.Icon {...props} icon="chevron-right" />}
-          onPress={() => router.push('/onboarding')}
+          onPress={() => router.push('/help')}
         />
       </List.Section>
       
@@ -77,6 +127,16 @@ export default function ProfileScreen() {
       </View>
     </SafeAreaView>
   );
+}
+
+export default function ProfileScreen() {
+  const { isLoggedIn } = useAuthStore();
+  
+  if (!isLoggedIn) {
+    return <GuestProfile />;
+  }
+  
+  return <UserProfile />;
 }
 
 const styles = StyleSheet.create({
@@ -92,12 +152,26 @@ const styles = StyleSheet.create({
   avatar: {
     marginBottom: 16,
   },
+  guestAvatar: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#F3F4F6',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
   name: {
     fontWeight: 'bold',
     marginBottom: 4,
   },
   mobile: {
     opacity: 0.6,
+    textAlign: 'center',
+  },
+  loginButton: {
+    marginTop: 16,
+    minWidth: 200,
   },
   footer: {
     padding: 16,

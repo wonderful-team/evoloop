@@ -145,22 +145,22 @@ class VerificationReporter:
     def _format_status(self, status: VerificationStatus) -> str:
         """Format status for display"""
         return {
-            VerificationStatus.COMPLETED: "✅ Completed",
-            VerificationStatus.PARTIAL_FAILED: "⚠️ Partially Failed",
-            VerificationStatus.FAILED: "❌ Failed",
-            VerificationStatus.RUNNING: "⏳ Running",
-            VerificationStatus.PENDING: "⏸️ Pending",
+            VerificationStatus.COMPLETED: "[COMPLETED]",
+            VerificationStatus.PARTIAL_FAILED: "[PARTIAL FAILED]",
+            VerificationStatus.FAILED: "[FAILED]",
+            VerificationStatus.RUNNING: "[RUNNING]",
+            VerificationStatus.PENDING: "[PENDING]",
         }.get(status, str(status))
 
     def _status_emoji(self, status: StepExecutionStatus) -> str:
         """Get emoji for step status"""
         return {
-            StepExecutionStatus.PASSED: "✅",
-            StepExecutionStatus.ADAPTED: "🔄",
-            StepExecutionStatus.FAILED: "❌",
-            StepExecutionStatus.SKIPPED: "⏭️",
-            StepExecutionStatus.TIMEOUT: "⏱️",
-            StepExecutionStatus.PENDING: "⏸️",
+            StepExecutionStatus.PASSED: "[PASS]",
+            StepExecutionStatus.ADAPTED: "[ADAPTED]",
+            StepExecutionStatus.FAILED: "[FAIL]",
+            StepExecutionStatus.SKIPPED: "[SKIP]",
+            StepExecutionStatus.TIMEOUT: "[TIMEOUT]",
+            StepExecutionStatus.PENDING: "[PENDING]",
         }.get(status, "❓")
 
     def _generate_issues_html(self) -> str:

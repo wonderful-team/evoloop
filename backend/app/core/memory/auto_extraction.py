@@ -353,6 +353,99 @@ Return empty array `[]` if nothing worth remembering."""
             logger.warning(f"[AutoExtract] Failed to get memory manifest: {e}")
             return "Could not load existing memories."
     
+    def _calculate_confidence(self, content: str, item: dict) -> float:
+        """Calculate confidence score based on content quality.
+        
+        Factors:
+        - Content length (50-500 chars is ideal)
+        - Specific indicators (file paths, dates, technical terms)
+        - Clear structure (bullet points, numbered lists)
+        - Actionability (clear instructions vs vague statements)
+        """
+        import re
+        
+        score = 0.5  # Base score
+        
+        # Length factor (ideal: 100-500 chars)
+        content_len = len(content)
+        if 100 <= content_len <= 500:
+            score += 0.2
+        elif 50 <= content_len < 100:
+            score += 0.1
+        elif content_len > 1000:  # Too long, might be noisy
+            score -= 0.1
+        elif content_len < 30:  # Too short
+            score -= 0.2
+        
+        # Specific indicators
+        # File paths
+        if re.search(r'[\w\-./]+\.(py|js|ts|java|go|rs|cpp|c|h|md|txt|json|yaml|yml)', content):
+            score += 0.1
+        
+        # Dates or versions
+        if re.search(r'\d{4}-\d{2}-\d{2}|v?\d+\.\d+', content):
+            score += 0.05
+        
+        # Technical terms
+        tech_terms = ['function', 'class', 'method', 'api', 'database', 'config', 
+                     'server', 'client', 'request', 'response', 'error', 'bug']
+        if any(term in content.lower() for term in tech_terms):
+            score += 0.05
+        
+        # Clear structure indicators
+        if re.search(r'^[\s]*[-*\d]\s+', content, re.MULTILINE):  # List items
+            score += 0.05
+        
+        # Actionability indicators
+        action_words = ['should', 'must', 'need to', 'use', 'prefer', 'always', 'never']
+        if any(word in content.lower() for word in action_words):
+            score += 0.05
+        
+        # Vague indicators (penalty)
+        vague_words = ['maybe', 'perhaps', 'something', 'somehow', 'might', 'could be']
+        vague_count = sum(1 for word in vague_words if word in content.lower())
+        score -= vague_count * 0.05
+        
+        # LLM-provided confidence (if available)
+        if "confidence" in item:
+            try:
+                llm_conf = float(item["confidence"])
+                # Blend with our calculation
+                score = (score + llm_conf) / 2
+            except (ValueError, TypeError):
+                pass
+        
+        return max(0.1, min(1.0, score))  # Clamp between 0.1 and 1.0
+    
+    def _generate_title(self, content: str) -> str:
+        """Generate a meaningful title from content.
+        
+        Uses the first sentence if it's short enough,
+        otherwise extracts key terms or truncates.
+        """
+        import re
+        
+        # Try first sentence
+        first_sentence = re.split(r'[.!?。！？]\s+', content)[0].strip()
+        if len(first_sentence) <= 80:
+            return first_sentence
+        
+        # Look for specific patterns
+        # Code/file references
+        file_ref = re.search(r'`([^`]+\.(py|js|ts|java|go|rs|cpp|h|md|json))`', content)
+        if file_ref:
+            return f"File: {file_ref.group(1)}"
+        
+        # Technical terms pattern
+        tech_match = re.search(r'(?:using|use|implement|create|build|setup)\s+([\w\s]{10,40})', content, re.IGNORECASE)
+        if tech_match:
+            return f"How to {tech_match.group(0)}"
+        
+        # Default: truncate at word boundary
+        if len(content) > 80:
+            return content[:77].rsplit(' ', 1)[0] + "..."
+        return content
+    
     def _parse_extraction_response(
         self,
         response: str,
@@ -365,6 +458,7 @@ Return empty array `[]` if nothing worth remembering."""
         import uuid
         
         entries = []
+        seen_contents = set()  # For deduplication
         
         # Try to extract JSON from response
         try:
@@ -388,6 +482,13 @@ Return empty array `[]` if nothing worth remembering."""
                 if not content:
                     continue
                 
+                # Deduplication: skip if very similar content already seen
+                content_normalized = re.sub(r'\s+', ' ', content.lower())[:100]
+                if content_normalized in seen_contents:
+                    logger.debug(f"[AutoExtract] Skipping duplicate: {content[:40]}...")
+                    continue
+                seen_contents.add(content_normalized)
+                
                 # Determine memory type
                 type_str = item.get("type", "project").lower()
                 try:
@@ -398,19 +499,33 @@ Return empty array `[]` if nothing worth remembering."""
                 # Determine privacy
                 privacy = PrivacyLevel.PRIVATE if mem_type in (MemoryType.USER, MemoryType.FEEDBACK) else PrivacyLevel.TEAM
                 
+                # Calculate dynamic confidence based on content quality
+                confidence = self._calculate_confidence(content, item)
+                
+                # Skip low-confidence extractions
+                if confidence < 0.4:
+                    logger.debug(f"[AutoExtract] Skipping low-confidence ({confidence:.2f}): {content[:40]}...")
+                    continue
+                
+                # Generate meaningful title
+                title = self._generate_title(content)
+                
                 entry = MemoryEntry(
                     id=f"auto_{mem_type.value}_{uuid.uuid4().hex[:8]}",
                     type=mem_type,
                     privacy=privacy,
-                    title=content[:60] + "..." if len(content) > 60 else content,
+                    title=title,
                     content=content,
                     description=content[:200],
                     project_id=project_id,
                     user_id=user_id,
                     tags=["auto_extracted"],
                     source="auto_extraction",
-                    confidence=0.8,  # Auto-extracted has moderate confidence
-                    extra={"context": item.get("context", "")} if item.get("context") else {},
+                    confidence=confidence,
+                    extra={
+                        "context": item.get("context", ""),
+                        "extracted_at": datetime.utcnow().isoformat(),
+                    } if item.get("context") else {"extracted_at": datetime.utcnow().isoformat()},
                 )
                 
                 entries.append(entry)

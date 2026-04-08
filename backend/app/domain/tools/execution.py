@@ -227,7 +227,7 @@ async def _execute_in_background(
     asyncio.create_task(_run_command_background(task, command, timeout, config))
     
     return (
-        f"🚀 后台任务已启动\n\n"
+        "Background task started\n\n"
         f"任务ID: `{task.task_id}`\n"
         f"命令: `{command}`\n"
         f"超时: {timeout}秒\n\n"
@@ -357,7 +357,7 @@ async def _execute_smart(
         if timeout <= quick_timeout:
             # No more time allowed, fail
             return (
-                f"⏰ 命令执行超时（{quick_timeout}秒）\n\n"
+                f"Command execution timeout ({quick_timeout}s)\n\n"
                 f"命令: `{command}`\n\n"
                 f"建议: 此命令可能需要更长时间，请使用后台模式:\n"
                 f"`execute_command(command='{command}', background=True, timeout=300)`"
@@ -440,14 +440,14 @@ async def _execute_smart(
                 await task_manager.complete_task(task.task_id, result={"exit_code": 0})
                 output = task.get_recent_output(n=100)
                 return (
-                    f"✅ 命令执行完成（总耗时: {task.elapsed_seconds}秒）\n\n"
+                    f"Command execution completed (elapsed: {task.elapsed_seconds}s)\n\n"
                     f"最后输出:\n```\n{output}\n```"
                 )
             else:
                 await task_manager.fail_task(task.task_id, error=f"Exit code: {exit_code}")
                 output = task.get_recent_output(n=50)
                 return (
-                    f"❌ 命令执行失败（退出码: {exit_code}）\n\n"
+                    f"Command execution failed (exit code: {exit_code})\n\n"
                     f"最后输出:\n```\n{output}\n```"
                 )
                 
@@ -461,7 +461,7 @@ async def _execute_smart(
             
             output = task.get_recent_output(n=30)
             return (
-                f"⏰ 命令执行超时（总限制: {timeout}秒）\n\n"
+                f"Command execution timeout (total limit: {timeout}s)\n\n"
                 f"命令仍在后台运行，但已超过最大等待时间。\n"
                 f"任务ID: `{task.task_id}`\n\n"
                 f"最近输出:\n```\n{output}\n```\n\n"
@@ -556,22 +556,22 @@ async def query_command_status(
     task = task_manager.get_task(task_id)
     
     if not task:
-        return f"❌ 任务不存在: `{task_id}`\n\n可能原因:\n1. 任务ID错误\n2. 任务已完成超过24小时（已自动清理）\n3. 任务属于其他对话"
+        return f"Task not found: `{task_id}`\n\nPossible reasons:\n1. Wrong task ID\n2. Task completed over 24 hours ago (auto-cleaned)\n3. Task belongs to another conversation"
     
-    # Status icons
-    icons = {
-        TaskStatus.PENDING: "⏳",
-        TaskStatus.RUNNING: "▶️",
-        TaskStatus.COMPLETED: "✅",
-        TaskStatus.FAILED: "❌",
-        TaskStatus.CANCELLED: "🚫",
-        TaskStatus.TIMEOUT: "⏰",
+    # Status labels
+    status_labels = {
+        TaskStatus.PENDING: "PENDING",
+        TaskStatus.RUNNING: "RUNNING",
+        TaskStatus.COMPLETED: "COMPLETED",
+        TaskStatus.FAILED: "FAILED",
+        TaskStatus.CANCELLED: "CANCELLED",
+        TaskStatus.TIMEOUT: "TIMEOUT",
     }
-    icon = icons.get(task.status, "❓")
+    status_label = status_labels.get(task.status, task.status.value)
     
     # Build response
     lines = [
-        f"{icon} 任务状态: {task.status.value}",
+        f"Status: {status_label}",
         "",
         f"任务ID: `{task.task_id}`",
         f"命令: `{task.title}`",
@@ -595,17 +595,17 @@ async def query_command_status(
     
     # Result or error
     if task.status == TaskStatus.COMPLETED:
-        lines.append("✅ 命令执行成功")
+        lines.append("Command execution successful")
         if task.result:
             lines.append(f"结果: {task.result}")
     elif task.status == TaskStatus.FAILED:
-        lines.append(f"❌ 执行失败: {task.error_message or '未知错误'}")
+        lines.append(f"Execution failed: {task.error_message or 'unknown error'}")
     elif task.status == TaskStatus.CANCELLED:
-        lines.append("🚫 任务已取消")
+        lines.append("Task cancelled")
     elif task.status == TaskStatus.TIMEOUT:
-        lines.append("⏰ 任务超时")
+        lines.append("Task timeout")
     elif task.status == TaskStatus.RUNNING:
-        lines.append("💡 提示: 任务仍在运行，10秒后再次查询查看最新状态")
+        lines.append("Note: Task is still running, query again in 10 seconds for latest status")
     
     return "\n".join(lines)
 
@@ -634,11 +634,11 @@ async def cancel_command(
     task = task_manager.get_task(task_id)
     
     if not task:
-        return f"❌ 任务不存在: `{task_id}`"
+        return f"Task not found: `{task_id}`"
     
     if task.is_completed:
         return (
-            f"⚠️ 任务已完成，无法取消\n\n"
+            "Task already completed, cannot cancel\n\n"
             f"状态: {task.status.value}\n"
             f"完成时间: {task.completed_at}"
         )
@@ -655,12 +655,12 @@ async def cancel_command(
                 pass  # Process already gone
         
         return (
-            f"✅ 任务已取消\n\n"
+            "Task cancelled\n\n"
             f"任务ID: `{task_id}`\n"
             f"命令: `{task.title}`"
         )
     else:
-        return f"❌ 无法取消任务（当前状态: {task.status.value}）"
+        return f"Cannot cancel task (current status: {task.status.value})"
 
 
 @evoloop_tool(

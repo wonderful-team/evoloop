@@ -387,7 +387,7 @@ class WorkerNode:
         # NOTE: Worker should NOT generate detailed summaries.
         # Return minimal content - Finish node will generate the comprehensive summary.
         final_result = results[-1] if results else {"output": "No output"}
-        brief_confirmation = f"✅ Completed {len(skills)} step(s)."
+        brief_confirmation = f"Completed {len(skills)} step(s)."
         
         return {
             "messages": [AIMessage(content=brief_confirmation)],
@@ -430,10 +430,10 @@ class WorkerNode:
 
         if verbose_output:
             # Return full execution result for multi-turn conversation continuity
-            worker_content = content if content else f"✅ {role_name} completed."
+            worker_content = content if content else f"{role_name} completed."
         else:
             # Legacy minimal mode - brief confirmation only
-            worker_content = f"✅ {role_name} completed."
+            worker_content = f"{role_name} completed."
 
         return_state: dict[str, Any] = {
             "messages": [AIMessage(content=worker_content)],

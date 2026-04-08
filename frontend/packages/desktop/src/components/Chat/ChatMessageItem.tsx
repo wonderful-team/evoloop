@@ -286,7 +286,7 @@ const ChatMessageItem = memo(
 
             {/* 1. Main Content - AI FIRST */}
             {msg.content && (
-              <div className={`rounded-lg px-4 py-3 text-sm leading-relaxed min-w-0 w-fit max-w-full overflow-hidden ${msg.role === "human" ? "bg-primary text-primary-foreground ml-auto" : "bg-muted text-foreground mr-auto"}`}>
+              <div className={`rounded-lg px-4 py-3 text-sm leading-relaxed min-w-0 w-fit w-full overflow-hidden ${msg.role === "human" ? "bg-primary text-primary-foreground ml-auto" : "bg-muted text-foreground mr-auto"}`}>
 
                 {(() => {
                   // Artifact Detection

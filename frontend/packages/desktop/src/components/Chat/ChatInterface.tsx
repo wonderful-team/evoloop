@@ -8,6 +8,7 @@ import {
   ConversationsService,
   MemoryService,
 } from "@/client"
+import { isLoggedIn } from "@/hooks/useAuth"
 
 import {
   ResizableHandle,
@@ -186,9 +187,9 @@ export function ChatInterface() {
     }
   }, [messages]) // Re-run when messages load
 
-  // Handle unauthorized state - trigger global 401 handling
+  // Handle unauthorized state - trigger global 401 handling (only for logged-in users)
   useEffect(() => {
-    if (status === "unauthorized") {
+    if (status === "unauthorized" && isLoggedIn()) {
       console.log("[ChatInterface] Unauthorized status detected")
       // Trigger a dummy API call to trigger the global 401 handler
       // This will show toast and redirect to login

@@ -28,11 +28,18 @@ async def get_devices(token: TokenDep):
     # 1. Fetch Cloud Devices
     cloud_res = await evocloud_manager.api.get_devices()
     devices = []
-    if cloud_res.get("code") == 0:
-        devices = cloud_res.get("data", [])
+    if cloud_res and cloud_res.get("code") == 0:
+        # Gateway returns {"devices": [...], "total": N}
+        data = cloud_res.get("data") or {}
+        if isinstance(data, dict):
+            devices = data.get("devices") or []
+        elif isinstance(data, list):
+            devices = data
+
         for d in devices:
-            d["connection_type"] = "cloud"
-            d["status"] = "online"
+            if isinstance(d, dict):
+                d["connection_type"] = "cloud"
+                d["status"] = "online"
 
     # 2. Fetch Local ADB Devices (from AwakenedState cache)
     try:
@@ -44,6 +51,9 @@ async def get_devices(token: TokenDep):
             # Check if already in cloud list by serial/device_id
             exists = False
             for cd in devices:
+                # Skip non-dict items
+                if not isinstance(cd, dict):
+                    continue
                 # Some APIs use 'serial', some use 'device_id'. We check both.
                 if str(cd.get("serial")) == ld.device_id or str(cd.get("id")) == ld.device_id:
                     cd["connection_type"] = "adb"

@@ -539,7 +539,7 @@ def _hierarchical_slice(
         if isinstance(msg, ToolMessage):
             # Collapse tool output to marker (re-executable)
             collapsed = ToolMessage(
-                content=f"[{msg.name}] ✓",
+                content=f"[{msg.name}] [DONE]",
                 tool_call_id=msg.tool_call_id,
                 name=msg.name,
                 additional_kwargs={

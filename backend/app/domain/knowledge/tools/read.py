@@ -101,13 +101,13 @@ async def kb_read(
         start_line = result['offset'] + 1
         
         # Header
-        lines.append(f"📄 {full_path}")
+        lines.append(f"File: {full_path}")
         lines.append(f"   Lines {start_line}-{start_line + len(content_lines) - 1} of {result['total_lines']}")
         lines.append("")
         
         # Content with line numbers
         for i, line in enumerate(content_lines):
-            lines.append(f"{start_line + i:4d} │ {line}")
+            lines.append(f"{start_line + i:4d} | {line}")
         
         # Footer
         if result['has_more']:
@@ -118,8 +118,8 @@ async def kb_read(
         return "\n".join(lines)
     
     except FileNotFoundError:
-        return f"❌ Document not found: {path}\n\nUse kb_list() to see available documents."
+        return f"Document not found: {path}\n\nUse kb_list() to see available documents."
     
     except Exception as e:
         logger.error(f"kb_read failed: {e}")
-        return f"❌ Error reading document: {str(e)}"
+        return f"Error reading document: {str(e)}"

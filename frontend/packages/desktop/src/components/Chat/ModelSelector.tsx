@@ -18,6 +18,7 @@ import {
 } from "@evoloop/shared/components/ui/tooltip"
 import { cn } from "@evoloop/shared/lib/utils"
 import { llmPlatformService, type LLMModel } from "@/services/llmPlatform"
+import { isLoggedIn } from "@/hooks/useAuth"
 
 interface ModelSelectorProps {
   value: string | null
@@ -31,7 +32,10 @@ export function ModelSelector({ value, onChange, disabled }: ModelSelectorProps)
   const [isLoading, setIsLoading] = useState(false)
 
   useEffect(() => {
-    loadModels()
+    // Only fetch models if user is logged in
+    if (isLoggedIn()) {
+      loadModels()
+    }
   }, [])
 
   const loadModels = async () => {

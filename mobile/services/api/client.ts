@@ -2,7 +2,7 @@
 
 import axios, { AxiosError, AxiosRequestConfig, AxiosResponse } from 'axios';
 import { API_CONFIG } from '@/constants/config';
-import { tokenStorage } from '@/services/storage/mmkv';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { handleApiError, isAuthError } from '@/utils/error';
 import { router } from 'expo-router';
 
@@ -34,7 +34,7 @@ const onTokenRefreshed = (token: string) => {
 // 请求拦截器
 apiClient.interceptors.request.use(
   async (config) => {
-    const token = tokenStorage.getToken();
+    const token = await AsyncStorage.getItem('token');
     
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
@@ -103,11 +103,11 @@ apiClient.interceptors.response.use(
         // return apiClient(originalRequest);
         
         // 目前直接跳转到登录
-        tokenStorage.removeToken();
+        await AsyncStorage.removeItem('token');
         router.replace('/(auth)/login');
         return Promise.reject(handleApiError(error));
       } catch (refreshError) {
-        tokenStorage.removeToken();
+        await AsyncStorage.removeItem('token');
         router.replace('/(auth)/login');
         return Promise.reject(handleApiError(refreshError));
       } finally {

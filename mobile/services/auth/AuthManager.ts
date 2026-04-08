@@ -176,6 +176,21 @@ export class AuthManager {
     return unwrapResponse<LoginResponse>(response);
   }
 
+  // 微信 Code 登录 (EvoLoop Mobile App 使用)
+  static async loginWithWechatCode(
+    code: string,
+    appType: 'ios' | 'android' = 'ios'
+  ): Promise<LoginResponse> {
+    const response = await api.post<ApiResponse<LoginResponse>>(
+      MEMBER_API.LOGIN_WECHAT_CODE,
+      {
+        code,
+        app_type: appType,
+      }
+    );
+    return unwrapResponse<LoginResponse>(response);
+  }
+
   // 微信+手机号绑定登录
   static async loginWithWechatMobile(
     authData: WechatAuthData,

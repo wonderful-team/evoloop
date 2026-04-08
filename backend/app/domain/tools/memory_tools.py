@@ -43,11 +43,11 @@ async def search_history(
     KEYWORD EXTRACTION STRATEGY (IMPORTANT):
     The search uses SQL LIKE matching (not semantic). Extract CORE CONCEPTS from user's reference:
     
-    ❌ BAD:  "第3轮方案" → likely won't match (users don't say "第3轮" in their messages)
-    ✅ GOOD:  "PostgreSQL" or "数据库" → extracts the actual topic
+    BAD:  "第3轮方案" -> likely won't match (users don't say "第3轮" in their messages)
+    GOOD:  "PostgreSQL" or "数据库" -> extracts the actual topic
     
-    ❌ BAD:  "刚才的错误处理" → too vague
-    ✅ GOOD:  "try-catch" or "exception" → specific technical terms
+    BAD:  "刚才的错误处理" -> too vague
+    GOOD:  "try-catch" or "exception" -> specific technical terms
 
     Tips:
     1. Extract technical terms, not positional references ("第X轮")
@@ -70,10 +70,10 @@ async def search_history(
         - Extract 2-3 unique keywords for best results
     
     Examples:
-        User: "回到第3轮的方案" → search_history(query="PostgreSQL MySQL")  # extract actual topic
-        User: "之前说的错误处理" → search_history(query="exception handler")
-        User: "那个Docker配置" → search_history(query="Dockerfile compose")
-        User: "找错误或异常" → search_history(query="error exception fail")  # multiple keywords = OR
+        User: "回到第3轮的方案" -> search_history(query="PostgreSQL MySQL")  # extract actual topic
+        User: "之前说的错误处理" -> search_history(query="exception handler")
+        User: "那个Docker配置" -> search_history(query="Dockerfile compose")
+        User: "找错误或异常" -> search_history(query="error exception fail")  # multiple keywords = OR
     """
     if not query:
         return "Error: query is required."
@@ -93,10 +93,3 @@ async def search_history(
         return ContentFormatter.chat_search_results(query, [])
     
     return ContentFormatter.chat_search_results(query, results)
-
-
-# NOTE: The following long-term memory tools have been consolidated into 
-# app.core.engine.tools.memory_tools for a simplified "remember/recall" interface:
-# - save_preference → use 'remember' instead
-# - add_concept → use 'remember' instead  
-# - find_related_episodes → use 'recall' instead

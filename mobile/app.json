@@ -44,7 +44,7 @@
       "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#0066FF"
+        "backgroundColor": "#22C55E"
       },
       "permissions": [
         "android.permission.RECORD_AUDIO",
@@ -61,7 +61,7 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#0066FF"
+          "backgroundColor": "#22C55E"
         }
       ],
       [

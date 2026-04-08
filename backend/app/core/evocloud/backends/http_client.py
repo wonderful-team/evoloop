@@ -7,6 +7,7 @@ from typing import Any
 import httpx
 
 from app.core.evocloud.interfaces.client import EvoCloudClientProtocol
+from app.core.evocloud.routes import RouteTarget, get_endpoint_route
 from app.core.evocloud.schemas import EvoCloudConfig
 from app.core.identity import identity_service
 from app.utils import http as http_utils
@@ -34,12 +35,11 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
 
     @property
     def root_url(self) -> str:
-        url = self.base_url.rstrip("/")
-        if url.endswith("/gateway"):
-            return url[:-len("/gateway")]
-        elif url.endswith("/member"):
-            return url[:-len("/member")]
-        return url
+        return self.base_url.rstrip('/')
+
+    def _get_base_url(self, is_gateway: bool) -> str:
+        prefix = "/gateway" if is_gateway else "/member"
+        return f"{self.root_url}{prefix}"
 
     async def get_client(self) -> httpx.AsyncClient:
         """Get httpx client bound to current event loop"""
@@ -110,17 +110,11 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
         client = await self.get_client()
         active_token = token or self.get_token()
 
-        # Split-Proxy Logic: Determine prefix based on endpoint
-        # Routes starting with /api/v1 (except specific legacy) or specific gateway patterns
-        gateway_prefixes = ["/api/v1/user", "/api/v1/quota", "/api/v1/auth/verify", "/ws", "/health"]
-        is_gateway = any(endpoint.startswith(p) for p in gateway_prefixes)
+        # Split-Proxy Logic: Determine routing target for endpoint
+        is_gateway = get_endpoint_route(endpoint) == RouteTarget.GATEWAY
 
-        root_url = self.root_url
-
-        if is_gateway:
-            current_base = f"{root_url}/gateway"
-        else:
-            current_base = f"{root_url}/member"
+        # Get base URL with appropriate prefix
+        current_base = self._get_base_url(is_gateway)
 
         url = f"{current_base}{endpoint}"
         timestamp = int(time.time())
@@ -378,11 +372,11 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
 
     # Device Specific via API
     async def get_devices(self, token: str | None = None) -> dict:
-        return await self.request("GET", "/evolooplink/api/device/list", token=token)
+        return await self.request("GET", "/api/v1/devices", token=token)
 
     async def send_command_to_device(self, device_id: int, cmd_data: dict, token: str | None = None) -> dict:
         data = {"device_id": device_id, **cmd_data}
-        return await self.request("POST", "/evolooplink/api/command/send", data=data, token=token)
+        return await self.request("POST", "/api/v1/command/execute", data=data, token=token)
 
     async def get_device_logs(self, device_id: int, limit=20, project_id=None, token: str | None = None) -> dict:
         params = {"device_id": device_id, "limit": limit}
@@ -397,10 +391,14 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
         return await self.request("GET", "/evolooplink/api/log/search", params=params, token=token)
 
     async def register_device(self, key: str, name: str, os_info: str) -> dict:
-        """Raw API call to register device."""
+        """Register device via Gateway.
+        
+        Note: In the new architecture, device registration is handled via WebSocket
+        handshake. This HTTP endpoint is kept for backward compatibility.
+        """
         return await self.request(
             "POST",
-            "/evolooplink/api/device/register",
+            "/api/v1/devices/register",
             data={
                 "device_key": key,
                 "device_name": name,
@@ -410,20 +408,20 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
         )
 
     async def send_heartbeat(self, device_id: int):
-        await self.request("POST", "/evolooplink/api/device/heartbeat", data={"device_id": device_id})
+        await self.request("POST", f"/api/v1/devices/{device_id}/heartbeat")
 
     async def bind_client_id(self, device_id: int, client_id: str):
         await self.request(
             "POST",
-            "/evolooplink/api/device/bind",
-            data={"device_id": device_id, "client_id": client_id},
+            f"/api/v1/devices/{device_id}/bind",
+            data={"client_id": client_id},
         )
 
     async def update_command_status(self, command_id, status, result=None):
         data = {"command_id": command_id, "status": status}
         if result:
             data["result"] = result
-        await self.request("POST", "/evolooplink/api/command/updateStatus", data=data)
+        await self.request("POST", "/api/v1/command/status", data=data)
 
     # ==================== Subscription APIs ====================
 
@@ -633,3 +631,162 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
                     logger.warning(f"[EvoCloud] Batch upload failed for device {did}: {res.get('message')}")
             except Exception as e:
                 logger.error(f"[EvoCloud] Error in batch log upload for device {did}: {e}")
+
+    # ==================== Conversation Sync APIs (MC Storage) ====================
+
+    async def sync_conversation(self, device_id: int, conversation: dict) -> dict:
+        """
+        同步单个会话到 MC (Member Center)
+        
+        Args:
+            device_id: 设备ID
+            conversation: 会话数据
+                - id: 会话ID
+                - project_id: 项目ID
+                - title: 标题
+                - created_at: 创建时间戳
+                - updated_at: 更新时间戳
+        
+        Returns:
+            {"code": 0, "data": {"conversation_id": "xxx"}}
+        """
+        data = {
+            "device_id": device_id,
+            "conversation": conversation,
+        }
+        
+        return await self.request(
+            "POST",
+            "/evolooplink/api/sync/conversation",
+            data=data
+        )
+
+    async def sync_messages(self, device_id: int, thread_id: str, messages: list[dict]) -> dict:
+        """
+        批量同步消息到 MC
+        
+        Args:
+            device_id: 设备ID
+            thread_id: 会话ID
+            messages: 消息数组
+        
+        Returns:
+            {"code": 0, "data": {"inserted_count": 10}}
+        """
+        data = {
+            "device_id": device_id,
+            "thread_id": thread_id,
+            "messages": messages,
+        }
+        
+        return await self.request(
+            "POST",
+            "/evolooplink/api/sync/messages",
+            data=data
+        )
+
+    async def sync_full_conversations(self, device_id: int, data: dict) -> dict:
+        """
+        全量同步会话和消息 (首次同步或重建)
+        
+        Args:
+            device_id: 设备ID
+            data: 包含 conversations 和 messages 的字典
+                {
+                    "conversations": [...],
+                    "messages": [...]
+                }
+        
+        Returns:
+            {"code": 0, "data": {"conversations": 5, "messages": 100}}
+        """
+        payload = {
+            "device_id": device_id,
+            "data": data,
+        }
+        
+        return await self.request(
+            "POST",
+            "/evolooplink/api/sync/full",
+            data=payload
+        )
+
+    async def check_sync_status(self, device_id: int, conversation_ids: list[str]) -> dict:
+        """
+        检查会话同步状态
+        
+        Args:
+            device_id: 设备ID
+            conversation_ids: 会话ID列表
+        
+        Returns:
+            {
+                "code": 0,
+                "data": {
+                    "status": {
+                        "conv_xxx": {"exists": true, "message_count": 50},
+                        "conv_yyy": {"exists": false}
+                    }
+                }
+            }
+        """
+        return await self.request(
+            "GET",
+            "/evolooplink/api/sync/status",
+            params={"device_id": device_id, "conversation_ids": conversation_ids}
+        )
+
+    async def get_conversations(self, project_id: int = 0, page: int = 1, page_size: int = 20) -> dict:
+        """
+        获取我的会话列表 (Mobile 也会用此方法)
+        
+        Args:
+            project_id: 项目ID筛选
+            page: 页码
+            page_size: 每页数量
+        
+        Returns:
+            {"code": 0, "data": {"list": [...], "total": 100}}
+        """
+        params = {
+            "page": page,
+            "page_size": page_size,
+        }
+        if project_id > 0:
+            params["project_id"] = project_id
+        
+        return await self.request(
+            "GET",
+            "/evolooplink/api/conversation/list",
+            params=params
+        )
+
+    async def get_conversation_messages(
+        self, 
+        conversation_id: str, 
+        limit: int = 50, 
+        before_message_id: str | None = None
+    ) -> dict:
+        """
+        获取会话消息历史
+        
+        Args:
+            conversation_id: 会话ID
+            limit: 数量限制
+            before_message_id: 分页用
+        
+        Returns:
+            {"code": 0, "data": {"conversation": {...}, "messages": [...]}}
+        """
+        params = {
+            "conversation_id": conversation_id,
+            "limit": limit,
+        }
+        if before_message_id:
+            params["before_message_id"] = before_message_id
+        
+        return await self.request(
+            "GET",
+            "/evolooplink/api/conversation/messages",
+            params=params
+        )

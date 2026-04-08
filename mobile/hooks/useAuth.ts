@@ -57,10 +57,31 @@ export function useAuth() {
     [execute, login]
   );
 
-  // 微信登录
+  // 微信登录 (使用 authData)
   const loginWithWechat = useCallback(
     async (authData: WechatAuthData) => {
       const result = await execute(AuthManager.loginWithWechat(authData));
+      
+      if (result) {
+        // 如果是新用户，需要绑定手机号
+        if (result.is_register) {
+          // TODO: 跳转到绑定手机号页面
+          router.push('/(auth)/bind-mobile');
+        } else {
+          login(result.token, result.user);
+          router.replace('/(main)');
+        }
+      }
+      
+      return result;
+    },
+    [execute, login]
+  );
+
+  // 微信 Code 登录 (EvoLoop Mobile App)
+  const loginWithWechatCode = useCallback(
+    async (code: string, appType: 'ios' | 'android' = 'ios') => {
+      const result = await execute(AuthManager.loginWithWechatCode(code, appType));
       
       if (result) {
         // 如果是新用户，需要绑定手机号
@@ -165,6 +186,7 @@ export function useAuth() {
     loginWithMobile,
     loginWithAccount,
     loginWithWechat,
+    loginWithWechatCode,
     registerWithMobile,
     registerWithUsername,
     resetPassword,

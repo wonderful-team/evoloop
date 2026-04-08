@@ -88,10 +88,10 @@ async def create_checkpoint(
             return SystemToolsFormatter.checkpoint_creation(checkpoint, total_size, total_lines)
         except Exception as e:
             logger.error(f"Failed to render checkpoint creation: {e}")
-            return f"✅ Created checkpoint #{checkpoint.id}: '{name}'"
+            return f"Created checkpoint #{checkpoint.id}: '{name}'"
         
     except Exception as e:
-        return f"❌ Failed to create checkpoint: {e}"
+        return f"Failed to create checkpoint: {e}"
 
 
 @evoloop_tool(
@@ -138,7 +138,7 @@ async def list_checkpoints(
             return "Error listing checkpoints."
         
     except Exception as e:
-        return f"❌ Failed to list checkpoints: {e}"
+        return f"Failed to list checkpoints: {e}"
 
 
 @evoloop_tool(
@@ -174,7 +174,7 @@ async def rollback_checkpoint(
     try:
         checkpoint = await checkpoint_manager.get_checkpoint(checkpoint_id)
         if not checkpoint:
-            return f"❌ Checkpoint #{checkpoint_id} not found."
+            return f"Checkpoint #{checkpoint_id} not found."
         
         results = await checkpoint_manager.rollback_to_checkpoint(
             checkpoint_id=checkpoint_id,
@@ -191,7 +191,7 @@ async def rollback_checkpoint(
             return f"Rollback to #{checkpoint_id} complete."
         
     except Exception as e:
-        return f"❌ Failed to rollback: {e}"
+        return f"Failed to rollback: {e}"
 
 
 @evoloop_tool(
@@ -216,13 +216,13 @@ async def delete_checkpoint(
     """
     if not confirm:
         return (
-            f"⚠️ This will permanently delete checkpoint #{checkpoint_id}.\n"
+            f"WARNING: This will permanently delete checkpoint #{checkpoint_id}.\n"
             f"To confirm, run: delete_checkpoint(checkpoint_id={checkpoint_id}, confirm=True)"
         )
     
     success = await checkpoint_manager.delete_checkpoint(checkpoint_id)
     
     if success:
-        return f"✅ Deleted checkpoint #{checkpoint_id}"
+        return f"Deleted checkpoint #{checkpoint_id}"
     else:
-        return f"❌ Checkpoint #{checkpoint_id} not found"
+        return f"Checkpoint #{checkpoint_id} not found"

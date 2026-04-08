@@ -45,12 +45,12 @@ def format_todo_summary(todo) -> str:
         priority = getattr(todo, "priority", "?")
         due_date = getattr(todo, "due_date", None)
     
-    # Status icons specific to Todo domain
-    status_icon = {
-        TodoStatus.COMPLETED: "✓",
-        TodoStatus.CANCELLED: "✗",
-        TodoStatus.PENDING: "○",
-    }.get(status, "?")
+    # Status labels specific to Todo domain
+    status_label = {
+        TodoStatus.COMPLETED: "[DONE]",
+        TodoStatus.CANCELLED: "[CANCELLED]",
+        TodoStatus.PENDING: "[PENDING]",
+    }.get(status, "[UNKNOWN]")
     
     # Priority markers
     # Handle enum type
@@ -73,7 +73,7 @@ def format_todo_summary(todo) -> str:
         else:
             due_str = f" (Due: {due_date})"
     
-    parts = [p for p in [status_icon, priority_marker, title + due_str] if p]
+    parts = [p for p in [status_label, priority_marker, title + due_str] if p]
     return " ".join(parts)
 
 

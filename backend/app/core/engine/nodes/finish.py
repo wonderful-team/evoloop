@@ -85,39 +85,7 @@ async def _trigger_session_recording(ctx, config: RunnableConfig, summary: str, 
 
         message_id = config.get("configurable", {}).get("run_id") or gen_uuid()
 
-        from app.core.memory.models import MemoryEntry, MemoryType, PrivacyLevel
         from app.core.engine.tasks import record_episode_task, reconcile_skill_macro_task
-        from app.core.memory.lifespan import MemoryLifespanManager
-
-        try:
-            # Save session summary as a PROJECT memory
-            task_description = summary
-            if execution_ticket:
-                ticket_topic = execution_ticket.get("topic")
-                ticket_reason = execution_ticket.get("reason")
-                if ticket_topic and len(ticket_topic) > 10:
-                    task_description = f"Task: {ticket_topic}\n\nOutcome:\n{summary}"
-                elif ticket_reason and len(ticket_reason) > 10:
-                    task_description = f"Task: {ticket_reason}\n\nOutcome:\n{summary}"
-            
-            entry = MemoryEntry(
-                id=f"mem_session_{message_id[:8]}",
-                type=MemoryType.PROJECT,
-                privacy=PrivacyLevel.TEAM if project_id else PrivacyLevel.PRIVATE,
-                title=f"Session Summary {thread_id[:8]}",
-                content=task_description,
-                description=summary[:200],
-                project_id=project_id,
-                source="session",
-                source_message_id=message_id,
-            )
-            # Use global singleton container to save memory
-            if not MemoryLifespanManager.is_initialized():
-                await MemoryLifespanManager.ainitialize()
-            await MemoryLifespanManager.get_manager().save_memory(entry)
-            logger.info(f"Finish: 🧠 Synced session summary to memory: {entry.id}")
-        except Exception as mem_err:
-            logger.warning(f"Finish: Failed to sync to memory: {mem_err}")
 
         # Determine a friendly goal for the Episode
         episode_goal = "[Auto-recorded by Finish Node]"
@@ -263,22 +231,9 @@ class LayeredAuditor:
                     if name:
                         tool_usage.append(name)
         
-        # Generate prefix based on operation
-        if 'read_file' in tool_usage:
-            prefix = "📄 File content retrieved successfully.\n\n"
-        elif 'search_files' in tool_usage or 'search_web' in tool_usage:
-            prefix = "🔍 Search completed. Found relevant results.\n\n"
-        elif 'list_directory' in tool_usage:
-            prefix = "📁 Directory listing complete.\n\n"
-        elif 'analyze_image' in tool_usage:
-            prefix = "🖼️ Image analysis complete.\n\n"
-        else:
-            prefix = "✅ Operation completed successfully.\n\n"
-        
+        # Truncate content directly without prefix
         max_len = 2000
-        content = last_content[:max_len] if len(last_content) <= max_len else last_content[:max_len] + "\n\n[Truncated]"
-        
-        summary = prefix + content
+        summary = last_content[:max_len] if len(last_content) <= max_len else last_content[:max_len] + "\n\n[Truncated]"
         
         return summary, {'tier': 'minimal', 'duration_ms': 5, 'tools': list(set(tool_usage))}
     
@@ -322,10 +277,10 @@ Was the task completed? What were the key findings?"""
             )
             summary = str(response.content).strip() if hasattr(response, 'content') else str(response).strip()
             if len(summary) < 20:
-                summary = f"✅ Task completed. {summary}"
+                summary = f"Task completed. {summary}"
         except Exception as e:
             logger.error(f"[Auditor] Standard audit failed: {e}")
-            summary = f"✅ Task completed.\n\n{last_content[:1000]}"
+            summary = f"Task completed.\n\n{last_content[:1000]}"
         
         duration = (time.time() - start) * 1000
         return summary, {'tier': 'standard', 'duration_ms': duration}

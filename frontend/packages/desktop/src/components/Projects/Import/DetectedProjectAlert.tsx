@@ -36,9 +36,11 @@ export function DetectedProjectAlert() {
     checkDiscoveryEnabled,
   } = useProjectImportStore()
 
-  // Check discovery config on mount
+  // Check discovery config on mount (only when logged in)
   useEffect(() => {
-    checkDiscoveryEnabled()
+    if (isLoggedIn()) {
+      checkDiscoveryEnabled()
+    }
   }, [checkDiscoveryEnabled])
 
   // Poll for new detected projects every 30 seconds (only when logged in and discovery enabled)

@@ -52,6 +52,13 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
             run_id=run_id,
             start_sequence=start_sequence,
         )
+        
+        # 步骤追踪（用于与 activity_monitor 协调）
+        self._last_attributed_step_index: int = 0
+        
+        # 当前工具名称追踪（LangChain on_tool_end 不传递 name，需要在 on_tool_start 存储）
+        self._current_tool_name: str = "unknown_tool"
+        self._tool_name_by_run_id: dict[str, str] = {}
 
     async def on_llm_end(self, response: LLMResult, **kwargs: Any) -> Any:
         """
@@ -118,13 +125,17 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
         工具执行结束时调用
         
         处理工具输出：
-        1. 提取工具名称
+        1. 获取工具名称（从 on_tool_start 存储的映射中）
         2. 委托给 MessageHandler
         """
         try:
-            # 从 kwargs 中提取工具名称
-            # LangChain 的 on_tool_end 会传递 name 参数
-            tool_name = kwargs.get("name", "unknown_tool")
+            run_id_str = str(run_id)
+            
+            # 从存储的映射中获取工具名称（支持并行工具）
+            tool_name = self._tool_name_by_run_id.pop(run_id_str, None)
+            if not tool_name:
+                # 回退到当前工具名称（单工具场景）
+                tool_name = getattr(self, '_current_tool_name', 'unknown_tool')
             
             # 委托给统一处理器
             result = await self._handler.handle_tool_output(
@@ -242,8 +253,25 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
         run_id: UUID,
         **kwargs: Any,
     ) -> Any:
-        """工具开始，不需要处理（由 transparent handler 处理）"""
-        pass
+        """
+        工具执行开始时调用
+        
+        记录工具名称用于后续 on_tool_end 使用
+        （LangChain 的 on_tool_end 不传递 name 参数）
+        """
+        try:
+            # 提取工具名称
+            tool_name = serialized.get("name") if serialized else "unknown_tool"
+            run_id_str = str(run_id)
+            
+            # 存储工具名称（支持并行工具）
+            self._tool_name_by_run_id[run_id_str] = tool_name
+            self._current_tool_name = tool_name
+            
+            logger.debug(f"[DatabaseCallback] Tool started: {tool_name} (run_id={run_id_str})")
+            
+        except Exception as e:
+            logger.debug(f"[DatabaseCallback] Failed to track tool start: {e}")
 
     async def on_tool_error(
         self,
@@ -254,3 +282,33 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
     ) -> Any:
         """工具错误，记录日志即可"""
         logger.warning(f"[DatabaseCallback] Tool error: {error}")
+
+    async def snapshot_steps_to_last_message(self, steps: list) -> None:
+        """将步骤快照到最后一条 AI 消息
+        
+        Args:
+            steps: 要保存的步骤列表
+        """
+        if not steps:
+            return
+        
+        try:
+            from app.core.engine.tasks import snapshot_steps_task
+            
+            # 使用 Celery 任务异步保存步骤
+            snapshot_steps_task.delay(
+                thread_id=self.thread_id,
+                project_id=self.project_id,
+                run_id=self.run_id,
+                steps=steps
+            )
+            
+            # 更新最后归因的索引
+            self._last_attributed_step_index += len(steps)
+            
+            logger.debug(
+                f"[DatabaseCallback] Queued {len(steps)} steps for snapshot, "
+                f"new index: {self._last_attributed_step_index}"
+            )
+        except Exception as e:
+            logger.error(f"[DatabaseCallback] Failed to queue steps snapshot: {e}")

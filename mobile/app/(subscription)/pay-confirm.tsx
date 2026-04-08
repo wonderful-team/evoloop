@@ -109,7 +109,7 @@ const styles = StyleSheet.create({
   },
   amount: {
     fontWeight: 'bold',
-    color: '#0066FF',
+    color: '#22C55E',
     marginBottom: 8,
   },
   planName: {

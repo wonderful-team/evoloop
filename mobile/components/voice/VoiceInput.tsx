@@ -1,16 +1,16 @@
-// 语音/文本输入组件 - 支持语音、文本和附件（按 PRD 设计重构）
+// 语音/文本输入组件
 
-import React, { useState, useCallback, useEffect } from 'react';
-import { View, StyleSheet, TextInput, Keyboard } from 'react-native';
-import { IconButton, AnimatedFAB } from 'react-native-paper';
+import React, { useState, useCallback } from 'react';
+import { View, StyleSheet, TextInput, Keyboard, TouchableOpacity } from 'react-native';
+import { IconButton, Text } from 'react-native-paper';
+import { MaterialIcons } from '@expo/vector-icons';
 import { useTheme } from '@/theme';
 import { VoiceSessionState } from '@/services/voice/VoiceSessionManager';
 import { AttachmentPicker, Attachment, ChatAttachment } from './AttachmentPicker';
 
-// 输入模式枚举
 export enum InputMode {
-  VOICE = 'voice',  // 语音模式（默认）
-  TEXT = 'text',    // 文本模式
+  VOICE = 'voice',
+  TEXT = 'text',
 }
 
 interface VoiceInputProps {
@@ -19,7 +19,6 @@ interface VoiceInputProps {
   onToggleVoice: () => void;
   disabled?: boolean;
   placeholder?: string;
-  // 外部控制模式（可选）
   inputMode?: InputMode;
   onToggleMode?: () => void;
 }
@@ -39,18 +38,14 @@ export function VoiceInput({
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [uploadedAttachments, setUploadedAttachments] = useState<ChatAttachment[]>([]);
   
-  // 使用外部控制或内部状态
   const inputMode = externalInputMode ?? internalInputMode;
   const isTextMode = inputMode === InputMode.TEXT;
-
   const isListening = state === 'listening';
   const isProcessing = state === 'thinking' || state === 'recognizing';
 
-  // 发送文本消息
   const handleSend = useCallback(() => {
     const hasContent = text.trim() || uploadedAttachments.length > 0;
     if (hasContent && !disabled) {
-      // 只传递已上传完成的附件
       onSendText(text.trim(), uploadedAttachments.length > 0 ? uploadedAttachments : undefined);
       setText('');
       setAttachments([]);
@@ -59,65 +54,32 @@ export function VoiceInput({
     }
   }, [text, uploadedAttachments, disabled, onSendText]);
 
-  // 切换输入模式
   const toggleMode = useCallback(() => {
     if (onToggleMode) {
-      // 使用外部控制
       onToggleMode();
     } else {
-      // 使用内部状态
       setInternalInputMode(prev => prev === InputMode.VOICE ? InputMode.TEXT : InputMode.VOICE);
     }
-    
-    if (isTextMode) {
-      // 切换到语音模式时收起键盘
-      Keyboard.dismiss();
-    }
+    if (isTextMode) Keyboard.dismiss();
   }, [isTextMode, onToggleMode]);
 
-  // 切换语音状态
-  const handleToggleVoice = useCallback(() => {
-    onToggleVoice();
-  }, [onToggleVoice]);
-
-  // 处理附件变化
-  const handleAttachmentsChange = useCallback((newAttachments: Attachment[]) => {
-    setAttachments(newAttachments);
-  }, []);
-
-  // 处理上传完成
-  const handleUploadComplete = useCallback((newUploadedAttachments: ChatAttachment[]) => {
-    setUploadedAttachments(prev => [...prev, ...newUploadedAttachments]);
-  }, []);
-
-  // 是否有内容可发送
   const hasContent = text.trim() || uploadedAttachments.length > 0;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.surface }]}>
-      {/* 附件预览和选择 */}
+      {/* 附件预览 */}
       <AttachmentPicker
         attachments={attachments}
-        onAttachmentsChange={handleAttachmentsChange}
-        onUploadComplete={handleUploadComplete}
+        onAttachmentsChange={setAttachments}
+        onUploadComplete={(newAtts) => setUploadedAttachments(prev => [...prev, ...newAtts])}
         maxAttachments={5}
       />
 
-      {/* 文本输入模式 */}
       {isTextMode ? (
-        <View style={styles.inputContainer}>
-          <IconButton
-            icon="microphone"
-            size={24}
-            iconColor={colors.onSurfaceVariant}
-            onPress={toggleMode}
-            style={styles.modeButton}
-          />
+        // ===== 文本输入模式 =====
+        <View style={styles.inputRow}>
           <TextInput
-            style={[
-              styles.textInput,
-              { color: colors.onSurface },
-            ]}
+            style={[styles.textInput, { color: colors.onSurface }]}
             value={text}
             onChangeText={setText}
             placeholder={placeholder}
@@ -132,48 +94,39 @@ export function VoiceInput({
             iconColor={hasContent ? colors.onPrimary : colors.outline}
             onPress={handleSend}
             disabled={!hasContent || disabled}
-            style={[
-              styles.sendButton,
-              { 
-                backgroundColor: hasContent ? colors.primary : 'transparent',
-              },
-            ]}
+            style={[styles.sendBtn, { backgroundColor: hasContent ? colors.primary : 'transparent' }]}
           />
         </View>
       ) : (
-        /* 语音输入模式 */
-        <View style={styles.voiceContainer}>
-          <IconButton
-            icon="keyboard"
-            size={24}
-            iconColor={colors.onSurfaceVariant}
-            onPress={toggleMode}
-            style={styles.modeButton}
-          />
-
-          {/* 语音按钮 */}
-          <AnimatedFAB
-            icon={isListening ? 'stop' : 'microphone'}
-            label={isListening ? '停止' : '按住说话'}
-            extended
-            onPress={handleToggleVoice}
-            disabled={disabled || isProcessing}
-            style={[
-              styles.voiceButton,
-              { backgroundColor: isListening ? colors.error : colors.primary },
-            ]}
-            color={colors.onPrimary}
-          />
-
-          {/* 状态指示 */}
-          <View style={styles.statusContainer}>
-            {isProcessing && (
-              <View style={[styles.statusDot, { backgroundColor: colors.tertiary }]} />
-            )}
-            {isListening && (
-              <View style={[styles.statusDot, { backgroundColor: colors.error }]} />
-            )}
+        // ===== 语音输入模式 =====
+        <View style={styles.voiceWrap}>
+          {/* 拍照 | 语音按钮 | 键盘 */}
+          <View style={styles.voiceRow}>
+            <TouchableOpacity style={styles.sideBtn}>
+              <MaterialIcons name="photo-camera" size={24} color={colors.onSurfaceVariant} />
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              onPress={onToggleVoice}
+              disabled={disabled || isProcessing}
+              activeOpacity={0.8}
+              style={[styles.voiceBtn, { backgroundColor: isListening ? colors.error : colors.primary }]}
+            >
+              <MaterialIcons
+                name={isListening ? 'stop' : 'mic'}
+                size={32}
+                color={colors.onPrimary}
+              />
+            </TouchableOpacity>
+            
+            <TouchableOpacity style={styles.sideBtn} onPress={toggleMode}>
+              <MaterialIcons name="keyboard" size={24} color={colors.onSurfaceVariant} />
+            </TouchableOpacity>
           </View>
+          
+          <Text variant="bodySmall" style={[styles.hint, { color: colors.outline }]}>
+            {isListening ? '点击停止' : '按住说话'}
+          </Text>
         </View>
       )}
     </View>
@@ -182,15 +135,16 @@ export function VoiceInput({
 
 const styles = StyleSheet.create({
   container: {
-    paddingVertical: 8,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: 'rgba(0, 0, 0, 0.1)',
   },
-  inputContainer: {
+  // 文本输入
+  inputRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    minHeight: 48,
     paddingHorizontal: 12,
+    paddingVertical: 8,
+    minHeight: 48,
   },
   textInput: {
     flex: 1,
@@ -199,33 +153,38 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 12,
   },
-  modeButton: {
-    margin: 0,
-  },
-  sendButton: {
+  sendBtn: {
     margin: 0,
     borderRadius: 20,
   },
-  voiceContainer: {
+  // 语音输入
+  voiceWrap: {
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingBottom: 24,
+  },
+  voiceRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 56,
-    paddingHorizontal: 12,
+    gap: 24,
   },
-  voiceButton: {
-    flex: 1,
-    marginHorizontal: 16,
-    height: 44,
+  sideBtn: {
+    padding: 12,
   },
-  statusContainer: {
-    width: 24,
+  voiceBtn: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 6,
   },
-  statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+  hint: {
+    marginTop: 12,
   },
 });
