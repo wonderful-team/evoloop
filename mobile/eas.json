@@ -10,8 +10,7 @@
       "env": {
         "EXPO_PUBLIC_ENV": "development"
       },
-      "node": "18.18.0",
-      "pnpm": "8.8.0"
+      "node": "18.18.0"
     },
     "development-simulator": {
       "developmentClient": true,

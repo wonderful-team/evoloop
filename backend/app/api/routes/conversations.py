@@ -3,7 +3,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, func
 from sqlalchemy.orm import selectinload
 
 from app.core.monitoring.activity import activity_monitor
@@ -76,6 +76,7 @@ class MessageItem(BaseModel):
     references: list[ReferenceItem] = []  # Persistent References
     steps: list[ToolStep] = []  # Tool execution steps folded into AI message
     has_file_operations: bool = False  # For Undo/Retry optimization
+    changeset_count: int = 0  # Number of file changes associated with this message
 
 
 class ChangesetNode(BaseModel):
@@ -287,6 +288,7 @@ async def get_conversation_messages(
                         references=refs,
                         steps=[],
                         has_file_operations=bool(str(m.id) in messages_with_files or (m.run_id and m.run_id in messages_with_files)),
+                        changeset_count=message_changeset_counts.get(str(m.id), 0),
                     )
                     final_items.append(item)
                     last_ai_item = None
@@ -324,6 +326,7 @@ async def get_conversation_messages(
                             (m.run_id and m.run_id in messages_with_files) or
                             any(tc.get("id") in messages_with_files for tc in (m.tool_calls or []) if isinstance(tc, dict))
                         ),
+                        changeset_count=message_changeset_counts.get(str(m.id), 0),
                     )
 
                     # Store as potential parent for subsequent tool outputs

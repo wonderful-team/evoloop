@@ -217,9 +217,8 @@ export interface Message {
   tool_calls?: any[] // Tool calls for real-time matching
   has_file_operations?: boolean // Whether this message has associated file operations (for Rewind/Retry)
   status?: "pending" | "streaming" | "completed" | "failed" // Message generation status
-  // Changeset related
-  changesetCount?: number // Number of files changed in this message
-  isViewed?: boolean // Whether the changeset has been viewed
+  // Changeset related (from backend)
+  changeset_count?: number // Number of files changed in this message (backend provided)
 }
 
 interface ChatMessageItemProps {
@@ -409,10 +408,10 @@ const ChatMessageItem = memo(
             <ToolExecutionSection msg={msg} />
 
             {/* 5. Changeset Inline Hint - For AI messages with file changes */}
-            {msg.role === "ai" && msg.changesetCount && msg.changesetCount > 0 && (
+            {msg.role === "ai" && msg.changeset_count && msg.changeset_count > 0 && (
               <ChangesetInlineHint
-                fileCount={msg.changesetCount}
-                isViewed={msg.isViewed}
+                fileCount={msg.changeset_count}
+                messageId={msg.id}
                 onClick={onViewChangeset}
               />
             )}

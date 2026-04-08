@@ -3,6 +3,7 @@ import logging
 import os
 import shutil
 import time
+from datetime import datetime
 from typing import Any, cast
 
 from langchain_core.messages import SystemMessage
@@ -25,6 +26,27 @@ import xml.etree.ElementTree as ET
 import re
 
 logger = logging.getLogger(__name__)
+
+
+async def _notify_file_operation(thread_id: str, message_id: str, file_path: str, operation: str):
+    """Notify frontend of new file operation via SSE."""
+    try:
+        from app.infrastructure.cache import cache
+        import json
+        
+        event_data = {
+            "type": "file_operation",
+            "thread_id": thread_id,
+            "message_id": message_id,
+            "file_path": file_path,
+            "operation": operation,  # "ADD", "EDIT", "DELETE"
+            "timestamp": datetime.now().isoformat(),
+        }
+        
+        await cache.publish(f"chat:{thread_id}:events", json.dumps(event_data))
+        logger.debug(f"[Celery] Published file operation event for {file_path}")
+    except Exception as e:
+        logger.warning(f"[Celery] Failed to publish file operation event: {e}")
 
 
 @shared_task(name="engine_persist_file_operation")
@@ -50,6 +72,9 @@ def persist_file_operation_task(
                 )
                 session.add(op)
             logger.debug(f"[Celery] Persisted file operation for {file_path}")
+            
+            # Notify frontend via SSE
+            await _notify_file_operation(thread_id, message_id, file_path, operation)
         except Exception as e:
             logger.error(f"[Celery] Failed to persist file operation: {e}")
 
