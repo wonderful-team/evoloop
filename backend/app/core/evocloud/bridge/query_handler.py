@@ -1,0 +1,137 @@
+# query_handler.py - 处理来自 Mobile (via Gateway) 的查询请求
+
+import logging
+from typing import Any
+
+logger = logging.getLogger(__name__)
+
+
+async def handle_query_request(query_type: str, thread_id: str, params: dict[str, Any]) -> Any:
+    """
+    处理来自 Gateway 的查询请求
+    
+    Args:
+        query_type: 查询类型 (conversations, history, skills, mcp_servers, models)
+        thread_id: 对话线程 ID (可选)
+        params: 查询参数
+    
+    Returns:
+        查询结果
+    """
+    logger.debug(f"[QueryHandler] {query_type} (thread={thread_id}, params={params})")
+    
+    try:
+        if query_type == "conversations":
+            return await _query_conversations(params)
+        elif query_type == "history":
+            return await _query_history(thread_id, params)
+        elif query_type == "skills":
+            return await _query_skills(params)
+        elif query_type == "mcp_servers":
+            return await _query_mcp_servers(params)
+        elif query_type == "models":
+            return await _query_models(params)
+        else:
+            return {"error": f"Unknown query type: {query_type}"}
+    except Exception as e:
+        logger.error(f"[QueryHandler] Error handling {query_type}: {e}")
+        return {"error": str(e)}
+
+
+async def _query_conversations(params: dict[str, Any]) -> list[dict]:
+    """查询对话列表"""
+    try:
+        # 延迟导入避免循环依赖
+        from app.api.deps import get_db_session
+        from app.services.conversation_service import ConversationService
+        
+        project_id = params.get("project_id")
+        
+        async with get_db_session() as db:
+            service = ConversationService(db)
+            conversations = await service.list_conversations(project_id=project_id)
+            return [
+                {
+                    "id": str(c.id),
+                    "title": c.title,
+                    "project_id": c.project_id,
+                    "created_at": c.created_at.isoformat() if c.created_at else None,
+                    "updated_at": c.updated_at.isoformat() if c.updated_at else None,
+                }
+                for c in conversations
+            ]
+    except Exception as e:
+        logger.error(f"[QueryHandler] Failed to query conversations: {e}")
+        return []
+
+
+async def _query_history(thread_id: str, params: dict[str, Any]) -> list[dict]:
+    """查询对话历史"""
+    if not thread_id:
+        return {"error": "thread_id required"}
+    
+    try:
+        from app.api.deps import get_db_session
+        from app.services.conversation_service import ConversationService
+        
+        limit = int(params.get("limit", 50))
+        
+        async with get_db_session() as db:
+            service = ConversationService(db)
+            messages = await service.get_messages(thread_id, limit=limit)
+            return [
+                {
+                    "id": str(m.id),
+                    "role": m.role,
+                    "content": m.content,
+                    "created_at": m.created_at.isoformat() if m.created_at else None,
+                }
+                for m in messages
+            ]
+    except Exception as e:
+        logger.error(f"[QueryHandler] Failed to query history: {e}")
+        return []
+
+
+async def _query_skills(params: dict[str, Any]) -> list[dict]:
+    """查询技能列表"""
+    # TODO: 从 SkillManager 获取
+    return []
+
+
+async def _query_mcp_servers(params: dict[str, Any]) -> list[dict]:
+    """查询 MCP 服务器列表"""
+    try:
+        from app.core.mcp.client import mcp_client
+        
+        servers = []
+        for name, server in mcp_client._servers.items():
+            servers.append({
+                "name": name,
+                "type": server.type.value if hasattr(server.type, 'value') else str(server.type),
+                "connected": server.connected,
+            })
+        return servers
+    except Exception as e:
+        logger.error(f"[QueryHandler] Failed to query MCP servers: {e}")
+        return []
+
+
+async def _query_models(params: dict[str, Any]) -> list[dict]:
+    """查询可用模型列表"""
+    try:
+        from app.core.llm import llm_factory
+        
+        models = []
+        for model_id in llm_factory.list_models():
+            models.append({
+                "id": model_id,
+                "name": model_id,
+            })
+        return models
+    except Exception as e:
+        logger.error(f"[QueryHandler] Failed to query models: {e}")
+        return [
+            {"id": "claude-3-5-sonnet", "name": "Claude 3.5 Sonnet"},
+            {"id": "gpt-4", "name": "GPT-4"},
+        ]
