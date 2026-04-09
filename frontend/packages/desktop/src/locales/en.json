@@ -706,7 +706,7 @@
     },
     "interface": {
       "learnedFromChat": "Learned from chat",
-      "inputHint": "Enter to send, Shift + Enter for new line",
+      "inputHint": "Enter to send, Shift + Enter for new line, Esc to stop",
       "stop": "Stop Generation",
       "welcome": "How can I help you today?",
       "quote": "Quote",

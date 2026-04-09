@@ -10,26 +10,8 @@
  * - 引用统计和分析
  */
 
-import axios from "axios"
-import { OpenAPI } from "@/client/core/OpenAPI"
-import type { DocumentInfo, DocumentContent, ProjectStats, DocumentListResponse } from "@/components/KnowledgeBase/types"
-
-// Create axios instance with same base URL as OpenAPI
-const apiClient = axios.create({
-  baseURL: `${OpenAPI.BASE}/api/v1`,
-  headers: {
-    "Content-Type": "application/json",
-  },
-})
-
-// Add auth token if available
-apiClient.interceptors.request.use((config) => {
-  const token = localStorage.getItem("access_token")
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`
-  }
-  return config
-})
+import { KnowledgeService as SDKKnowledgeService } from "@/client"
+import type { DocumentContent, ProjectStats, DocumentListResponse } from "@/components/KnowledgeBase/types"
 
 // Types for new features
 export interface FTSSearchResult {
@@ -105,16 +87,11 @@ export interface UsageAnalytics {
 }
 
 export class KnowledgeService {
-  private static basePath = "/knowledge"
-
   // ============ Basic CRUD ============
 
   static async listDocuments(project?: string): Promise<DocumentListResponse> {
-    const params = new URLSearchParams()
-    if (project) params.append("project", project)
-    
-    const response = await apiClient.get(`${this.basePath}/documents?${params}`)
-    return response.data as DocumentListResponse
+    const response = await SDKKnowledgeService.listDocuments({ project })
+    return response as unknown as DocumentListResponse
   }
 
   static async getDocument(
@@ -122,11 +99,8 @@ export class KnowledgeService {
     offset: number = 0,
     limit: number = 100
   ): Promise<DocumentContent> {
-    const encodedPath = encodeURIComponent(path)
-    const response = await apiClient.get(
-      `${this.basePath}/documents/${encodedPath}?offset=${offset}&limit=${limit}`
-    )
-    return response.data as DocumentContent
+    const response = await SDKKnowledgeService.readDocument({ path, offset, limit })
+    return response as unknown as DocumentContent
   }
 
   static async uploadDocument(
@@ -134,57 +108,49 @@ export class KnowledgeService {
     project: string = "default",
     docType: string = "doc"
   ): Promise<{ success: boolean; path?: string; error?: string }> {
-    const formData = new FormData()
-    formData.append("file", file)
-    formData.append("project", project)
-    formData.append("doc_type", docType)
+    const formData = {
+      file,
+      project,
+      doc_type: docType
+    }
 
-    const response = await apiClient.post(`${this.basePath}/upload`, formData, {
-      headers: {
-        "Content-Type": "multipart/form-data",
-      },
-    })
-    return response.data as { success: boolean; path?: string; error?: string }
+    const response = await SDKKnowledgeService.uploadDocument({ formData })
+    return response as any
   }
 
   static async deleteDocument(path: string): Promise<{ success: boolean; message: string }> {
-    const encodedPath = encodeURIComponent(path)
-    const response = await apiClient.delete(`${this.basePath}/documents/${encodedPath}`)
-    return response.data as { success: boolean; message: string }
+    const response = await SDKKnowledgeService.deleteDocument({ path })
+    return response as unknown as { success: boolean; message: string }
   }
 
   // ============ Projects ============
 
   static async getProjects(): Promise<ProjectStats> {
-    const response = await apiClient.get(`${this.basePath}/projects`)
-    return response.data as ProjectStats
+    const response = await SDKKnowledgeService.listProjects()
+    return response as unknown as ProjectStats
   }
 
   static async createProject(name: string): Promise<{ success: boolean; message: string }> {
-    const response = await apiClient.post(`${this.basePath}/projects/${encodeURIComponent(name)}`)
-    return response.data as { success: boolean; message: string }
+    const response = await SDKKnowledgeService.createProject({ name })
+    return response as unknown as { success: boolean; message: string }
   }
 
   // ============ Tags ============
 
   static async listTags(project?: string): Promise<{ tags: { name: string; count: number }[]; total: number }> {
-    const params = new URLSearchParams()
-    if (project) params.append("project", project)
-    
-    const response = await apiClient.get(`${this.basePath}/tags?${params}`)
-    return response.data as { tags: { name: string; count: number }[]; total: number }
+    const response = await SDKKnowledgeService.listTags({ project })
+    return response as any
   }
 
-  static async listDocuments(
+  static async listDocumentsWithTags(
     project?: string,
     tags?: string[]
   ): Promise<DocumentListResponse> {
-    const params = new URLSearchParams()
-    if (project) params.append("project", project)
-    if (tags && tags.length > 0) params.append("tags", tags.join(","))
-    
-    const response = await apiClient.get(`${this.basePath}/documents?${params}`)
-    return response.data as DocumentListResponse
+    const response = await SDKKnowledgeService.listDocuments({
+      project,
+      tags: tags?.join(",")
+    })
+    return response as unknown as DocumentListResponse
   }
 
   // ============ FTS Search (New in Phase 2) ============
@@ -201,15 +167,14 @@ export class KnowledgeService {
       offset?: number
     }
   ): Promise<FTSSearchResponse> {
-    const params = new URLSearchParams()
-    params.append("q", query)
-    if (options?.project) params.append("project", options.project)
-    if (options?.tags) params.append("tags", options.tags.join(","))
-    if (options?.limit) params.append("limit", options.limit.toString())
-    if (options?.offset) params.append("offset", options.offset.toString())
-    
-    const response = await apiClient.get(`${this.basePath}/fts/search?${params}`)
-    return response.data as FTSSearchResponse
+    const response = await SDKKnowledgeService.ftsSearch({
+      q: query,
+      project: options?.project,
+      tags: options?.tags?.join(","),
+      limit: options?.limit,
+      offset: options?.offset
+    })
+    return response as FTSSearchResponse
   }
 
   /**
@@ -219,12 +184,12 @@ export class KnowledgeService {
     prefix: string,
     project?: string
   ): Promise<SearchSuggestion[]> {
-    const params = new URLSearchParams()
-    params.append("prefix", prefix)
-    if (project) params.append("project", project)
-    
-    const response = await apiClient.get(`${this.basePath}/fts/suggest?${params}`)
-    return response.data.suggestions as SearchSuggestion[]
+    const response = await SDKKnowledgeService.ftsSuggest({
+      prefix,
+      project
+    })
+    const data = response as any
+    return (data.suggestions || []) as SearchSuggestion[]
   }
 
   // ============ Bulk Import (New in Phase 2) ============
@@ -237,32 +202,24 @@ export class KnowledgeService {
     project: string = "default",
     docType: string = "doc"
   ): Promise<BulkUploadResult> {
-    const formData = new FormData()
-    files.forEach(file => formData.append("files", file))
-    formData.append("project", project)
-    formData.append("doc_type", docType)
+    const formData = {
+      files,
+      project,
+      doc_type: docType
+    }
 
-    const response = await apiClient.post(`${this.basePath}/bulk-upload`, formData, {
-      headers: {
-        "Content-Type": "multipart/form-data",
-      },
-    })
-    return response.data as BulkUploadResult
+    const response = await SDKKnowledgeService.bulkUpload({ formData })
+    return response as BulkUploadResult
   }
 
   /**
    * Validate ZIP before upload
    */
   static async validateZip(file: File): Promise<ZipValidationResult> {
-    const formData = new FormData()
-    formData.append("file", file)
+    const formData = { file }
 
-    const response = await apiClient.post(`${this.basePath}/validate-zip`, formData, {
-      headers: {
-        "Content-Type": "multipart/form-data",
-      },
-    })
-    return response.data as ZipValidationResult
+    const response = await SDKKnowledgeService.validateZip({ formData })
+    return response as ZipValidationResult
   }
 
   /**
@@ -273,17 +230,14 @@ export class KnowledgeService {
     project: string = "default",
     preserveStructure: boolean = true
   ): Promise<BulkUploadResult> {
-    const formData = new FormData()
-    formData.append("file", file)
-    formData.append("project", project)
-    formData.append("preserve_structure", preserveStructure.toString())
+    const formData = {
+      file,
+      project,
+      preserve_structure: preserveStructure
+    }
 
-    const response = await apiClient.post(`${this.basePath}/import-zip`, formData, {
-      headers: {
-        "Content-Type": "multipart/form-data",
-      },
-    })
-    return response.data as BulkUploadResult
+    const response = await SDKKnowledgeService.importZip({ formData })
+    return response as BulkUploadResult
   }
 
   // ============ Analytics (New in Phase 2) ============
@@ -292,9 +246,8 @@ export class KnowledgeService {
    * Get document citation statistics
    */
   static async getDocumentStats(path: string): Promise<DocumentStats> {
-    const encodedPath = encodeURIComponent(path)
-    const response = await apiClient.get(`${this.basePath}/${encodedPath}/stats`)
-    return response.data as DocumentStats
+    const response = await SDKKnowledgeService.getDocumentStats({ path })
+    return response as DocumentStats
   }
 
   /**
@@ -307,24 +260,21 @@ export class KnowledgeService {
       limit?: number
     }
   ): Promise<PopularDocument[]> {
-    const params = new URLSearchParams()
-    if (options?.project) params.append("project", options.project)
-    if (options?.days) params.append("days", options.days.toString())
-    if (options?.limit) params.append("limit", options.limit.toString())
-    
-    const response = await apiClient.get(`${this.basePath}/analytics/popular?${params}`)
-    return response.data.documents as PopularDocument[]
+    const response = await SDKKnowledgeService.getPopularDocuments({
+      project: options?.project,
+      days: options?.days,
+      limit: options?.limit
+    })
+    const data = response as any
+    return (data.documents || []) as PopularDocument[]
   }
 
   /**
    * Get usage analytics
    */
   static async getUsageAnalytics(days: number = 30): Promise<UsageAnalytics> {
-    const params = new URLSearchParams()
-    params.append("days", days.toString())
-    
-    const response = await apiClient.get(`${this.basePath}/analytics/usage?${params}`)
-    return response.data as UsageAnalytics
+    const response = await SDKKnowledgeService.getUsageAnalytics({ days })
+    return response as UsageAnalytics
   }
 
   /**
@@ -336,10 +286,7 @@ export class KnowledgeService {
     relevance: number
     total_citations: number
   }> }> {
-    const params = new URLSearchParams()
-    params.append("path", path)
-    
-    const response = await apiClient.get(`${this.basePath}/recommendations?${params}`)
-    return response.data
+    const response = await SDKKnowledgeService.getRecommendations({ path })
+    return response as any
   }
 }

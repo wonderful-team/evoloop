@@ -8,6 +8,7 @@
  */
 
 import { toast } from "sonner"
+import { SystemService } from "@/client"
 
 export interface LLMModel {
   id: string
@@ -60,23 +61,15 @@ class LLMPlatformService {
     // 创建新的请求
     this.fetchPromise = (async () => {
       try {
-        const baseUrl = import.meta.env.VITE_API_BASE_URL || ''
-        const response = await fetch(`${baseUrl}/api/v1/system/llm/models`, {
-          credentials: 'include',
-        })
-
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`)
-        }
-
-        const data = await response.json()
+        const response = await SystemService.getLlmModels()
+        const data = response as any
 
         if (data?.models) {
           this.models = data.models as LLMModel[]
           this.lastFetchTime = now
 
           // 如果当前选择的模型不在列表中，清除选择
-          if (this.selectedModel && !this.models.find(m => m.model === this.selectedModel)) {
+          if (this.selectedModel && !this.models.find(m => m.id === this.selectedModel)) {
             this.selectedModel = null
             localStorage.removeItem(STORAGE_KEY)
           }
@@ -127,7 +120,7 @@ class LLMPlatformService {
    * 获取模型详情
    */
   getModelById(modelId: string): LLMModel | undefined {
-    return this.models.find(m => m.model === modelId)
+    return this.models.find(m => m.id === modelId)
   }
 
   /**

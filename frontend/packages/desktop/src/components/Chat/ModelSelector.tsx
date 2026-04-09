@@ -30,13 +30,14 @@ export function ModelSelector({ value, onChange, disabled }: ModelSelectorProps)
   const { t } = useTranslation()
   const [models, setModels] = useState<LLMModel[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  const authenticated = isLoggedIn()
 
   useEffect(() => {
     // Only fetch models if user is logged in
-    if (isLoggedIn()) {
+    if (authenticated) {
       loadModels()
     }
-  }, [])
+  }, [authenticated])
 
   const loadModels = async () => {
     setIsLoading(true)

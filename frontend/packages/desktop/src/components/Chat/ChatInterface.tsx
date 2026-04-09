@@ -222,12 +222,12 @@ export function ChatInterface() {
 
   // --- Handlers ---
 
-  const handleNewChat = () => {
+  const handleNewChat = useCallback(() => {
     const newId = crypto.randomUUID()
     if (projectId !== undefined) {
       setThread(newId, projectId)
     }
-  }
+  }, [projectId, setThread])
 
   // Wrapper for sendMessage to handle post-send actions
   const handleSendMessage = async (content: string, attachments?: any[]) => {
@@ -258,7 +258,7 @@ export function ChatInterface() {
     }
   }
 
-  const handleStopThread = async (id: string) => {
+  const handleStopThread = useCallback(async (id: string) => {
     // If stopping active, use store action. Else API.
     if (id === activeThreadId) {
       await stopAgent()
@@ -268,7 +268,7 @@ export function ChatInterface() {
       })
       toast.info(t("chat.interface.stopAgentSuccess"))
     }
-  }
+  }, [activeThreadId, stopAgent, t])
 
   // --- Side Effect Mutations (Keep here or move to store if generic) ---
   // These are specific to message item actions
@@ -457,6 +457,20 @@ export function ChatInterface() {
       window.removeEventListener("chat-scroll-to-run" as any, handleScrollToRun as any)
     }
   }, [])
+
+  // Keyboard Shortcuts: Esc to Stop Agent
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Only trigger if Agent is working and Esc is pressed
+      if (e.key === "Escape" && (status === "running" || status === "summarizing")) {
+        console.log("[ChatInterface] Esc pressed, stopping agent.")
+        handleStopThread(activeThreadId || "")
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [status, activeThreadId, handleStopThread])
 
   return (
     <div className="flex flex-col h-full relative bg-background overflow-hidden">
