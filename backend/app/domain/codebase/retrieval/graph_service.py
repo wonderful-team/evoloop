@@ -188,11 +188,11 @@ Relationships:
     async def query_cypher(self, cypher_query: str, params: dict | None = None) -> list[dict]:
         """
         Execute raw Cypher query directly.
-        
+
         Args:
             cypher_query: Raw Cypher query string
             params: Query parameters
-            
+
         Returns:
             List of result records as dictionaries
         """
@@ -200,6 +200,117 @@ Relationships:
         async with driver.session() as session:
             result = await session.run(cypher_query, params or {})
             return await result.data()
+
+    async def multi_entity_query(
+        self,
+        entities: list[str],
+        operator: str,
+        question: str | None = None,
+        project_id: int | None = None,
+    ) -> str:
+        """
+        Query relationships involving multiple entities.
+
+        Args:
+            entities: List of entity names to search for
+            operator: "and" = find relations between all entities,
+                     "or" = find relations for any entity
+            question: Optional natural language context for the query
+            project_id: Project ID to restrict search
+
+        Returns:
+            Formatted string describing the relationships found
+        """
+        if self._embedded_mode:
+            return "Graph Service is not available (Neo4j not connected or in Embedded Mode)."
+
+        driver = await get_graph_db()
+
+        if operator == "and":
+            # AND logic: Find entities that relate to ALL specified entities
+            # Example: Find functions that call BOTH pay() AND notify()
+            query = """
+            MATCH (target:CodeEntity)
+            WHERE target.name IN $entity_names
+              AND target.project_id = $pid
+            WITH target
+            MATCH (caller:CodeEntity)-[r:RELATION]->(target)
+            WITH caller, collect(DISTINCT target.name) as matched_targets
+            WHERE size(matched_targets) = $entity_count
+            RETURN caller.full_name as caller,
+                   caller.type as caller_type,
+                   matched_targets as targets
+            LIMIT 50
+            """
+        else:
+            # OR logic: Find all relations to ANY of the specified entities
+            query = """
+            MATCH (target:CodeEntity)
+            WHERE target.name IN $entity_names
+              AND target.project_id = $pid
+            WITH target
+            MATCH (caller:CodeEntity)-[r:RELATION]->(target)
+            RETURN DISTINCT
+                caller.full_name as caller,
+                caller.type as caller_type,
+                target.name as target_name,
+                target.type as target_type,
+                r.type as relation_type
+            LIMIT 100
+            """
+
+        try:
+            async with driver.session() as session:
+                result = await session.run(
+                    query,
+                    entity_names=entities,
+                    entity_count=len(entities),
+                    pid=project_id,
+                )
+                records = await result.data()
+
+                if not records:
+                    return f"No relationships found for entities: {', '.join(entities)}"
+
+                # Format results
+                lines = [f"Graph Query Results for entities: {', '.join(entities)}",
+                         f"Operator: {operator.upper()} (project_id: {project_id})",
+                         ""]
+
+                if operator == "and":
+                    lines.append(f"Found {len(records)} entities that relate to ALL specified entities:")
+                    lines.append("")
+                    for record in records:
+                        lines.append(f"  • {record['caller']} ({record['caller_type']})")
+                        lines.append(f"    Targets: {', '.join(record['targets'])}")
+                else:
+                    lines.append(f"Found {len(records)} relationships:")
+                    lines.append("")
+                    # Group by caller for cleaner output
+                    by_caller = {}
+                    for record in records:
+                        caller = record['caller']
+                        if caller not in by_caller:
+                            by_caller[caller] = {
+                                'type': record['caller_type'],
+                                'relations': []
+                            }
+                        by_caller[caller]['relations'].append(
+                            f"{record['relation_type']} -> {record['target_name']}"
+                        )
+
+                    for caller, info in by_caller.items():
+                        lines.append(f"  • {caller} ({info['type']})")
+                        for rel in info['relations'][:5]:  # Limit relations per caller
+                            lines.append(f"    - {rel}")
+                        if len(info['relations']) > 5:
+                            lines.append(f"    ... and {len(info['relations']) - 5} more")
+
+                return "\n".join(lines)
+
+        except Exception as e:
+            logger.error(f"Multi-entity query failed: {e}")
+            return f"Query failed: {str(e)}"
 
 
 # Global Instance

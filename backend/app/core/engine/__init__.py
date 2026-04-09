@@ -18,6 +18,7 @@ from app.constants import (
     MAX_CONTEXT_CHARS,
     NODE_WINDOW_SIZES,
 )
+from app.core.monitoring.activity import activity_monitor
 from app.core.engine.message_utils import (
     prune_redundant_results,
     repair_message_history,
@@ -208,6 +209,11 @@ class AgentEngine:
         local_tool_history = []
 
         for i in range(max_steps):
+            # Immediate interruption check (Phase 10 Optimization)
+            thread_id = config.get("configurable", {}).get("thread_id")
+            if thread_id:
+                await activity_monitor.check_cancellation(thread_id)
+
             logger.info(f"--- {name} Loop Step {i+1} ---")
 
             # Invoke LLM
@@ -548,6 +554,11 @@ class AgentEngine:
             return {"messages": [], "tool_history": [], "blackboard": state.get("blackboard")}
 
         logger.info(f"[{name}] 🎯 SINGLE-SHOT: Executing immediate tool call...")
+
+        # Immediate interruption check
+        thread_id = config.get("configurable", {}).get("thread_id")
+        if thread_id:
+            await activity_monitor.check_cancellation(thread_id)
 
         # Single LLM invocation
         try:

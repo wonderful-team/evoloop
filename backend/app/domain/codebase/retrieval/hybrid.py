@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Literal
 
 from sqlalchemy import select
 
@@ -18,7 +18,11 @@ class HybridSearcher:
         self.embedder = embedder or EmbedderFactory.get_embedder()
 
     async def search(
-        self, query: str, project_id: int = None, limit: int = 10
+        self,
+        query: str,
+        operator: Literal["and", "or"],
+        project_id: int = None,
+        limit: int = 10,
     ) -> list[dict[str, Any]]:
         # 1. Expand Query (for Vector Search mainly, but keywords also useful)
         # For keyword search, we might want the original term + synonyms, but 'rewritten' usually is a sentence.
@@ -32,7 +36,9 @@ class HybridSearcher:
         vector_results = await self._vector_search(
             expanded_query, project_id, limit=limit * 2
         )
-        keyword_results = await self._keyword_search(query, project_id, limit=limit * 2)
+        keyword_results = await self._keyword_search(
+            query, project_id, limit=limit * 2, operator=operator
+        )
 
         # 3. RRF Fusion
         fused = self._rrf_fusion(vector_results, keyword_results, k=60)
@@ -83,7 +89,11 @@ class HybridSearcher:
             return results
 
     async def _keyword_search(
-        self, query: str, project_id: int, limit: int
+        self,
+        query: str,
+        operator: Literal["and", "or"],
+        project_id: int,
+        limit: int,
     ) -> list[dict]:
         # Simple ILIKE or pg_trgm
         # We assume pg_trgm is enabled for 'content' or we usage ILIKE for portability if not.
@@ -104,21 +114,21 @@ class HybridSearcher:
             if project_id is not None and project_id != 0:
                 stmt = stmt.where(Repository.project_id == project_id)
 
-            # Construct OR condition for terms
-            # usage 'op' for boolean logic?
-            # Basic: content ILIKE %term%
-            # For ranking, we can usage logic: exact match > partial match?
-            # PostgreSQL full text search (tsvector) is better but requires migration.
-            # Fallback: Just search for the full query string or main terms.
+            # Construct conditions for terms based on operator
+            # operator="and": all terms must match (AND logic)
+            # operator="or": any term can match (OR logic, default)
 
             conditions = []
             for term in terms:
                 conditions.append(CodeChunk.content.ilike(f"%{term}%"))
 
-            from sqlalchemy import or_
+            from sqlalchemy import and_, or_
 
             if conditions:
-                stmt = stmt.where(or_(*conditions))
+                if operator == "and":
+                    stmt = stmt.where(and_(*conditions))
+                else:
+                    stmt = stmt.where(or_(*conditions))
 
             stmt = stmt.limit(limit)
 

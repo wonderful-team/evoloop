@@ -22,16 +22,10 @@ GATEWAY_PREFIXES: list[str] = [
     "/health",
     
     # Gateway API v1
-    "/api/v1/user",
-    "/api/v1/quota",
+    "/api/v1/user/",
+    "/api/v1/quota/",
     "/api/v1/auth/verify",
     "/api/v1/devices",
-    
-    # EvoLoop Link (Device Management) - Routed to Gateway
-    "/evolooplink/api/device",
-    "/evolooplink/api/command",
-    "/evolooplink/api/log",
-    "/evolooplink/api/llm",
 ]
 
 

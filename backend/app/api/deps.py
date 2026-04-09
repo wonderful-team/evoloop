@@ -78,9 +78,12 @@ async def get_current_user(token: TokenDep) -> User:
         # 2. Try Cache first
         user_cache = UserCacheService()
         user_data = await user_cache.get_user(member_id)
-
-        # 3. Fallback to Cloud fetch if cache miss
-        if not user_data:
+        # 3. Fallback to Cloud fetch if cache miss or data is incomplete
+        # Based on diagnostic, sometimes cache contains only token but no profile (username etc.)
+        is_incomplete = user_data and not user_data.get("username")
+        if not user_data or is_incomplete:
+            if is_incomplete:
+                logger.warning(f"Cached data for member {member_id} is incomplete, forcing cloud fetch.")
             cloud_token = identity_service.get_cloud_token()
             if not cloud_token:
                  raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="No cloud credentials found")

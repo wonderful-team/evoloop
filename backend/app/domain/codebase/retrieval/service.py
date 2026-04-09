@@ -18,7 +18,13 @@ class RetrievalService:
         self.session_factory = AsyncSessionLocal
         self.embedder = embedder or EmbedderFactory.get_embedder()
 
-    async def search(self, query: str, project_id: int = None, limit: int = 5) -> list[dict[str, Any]]:
+    async def search(
+        self,
+        query: str,
+        operator: str,
+        project_id: int = None,
+        limit: int = 5,
+    ) -> list[dict[str, Any]]:
         """
         Search for code chunks using Hybrid Search (Vector + Keyword) via RRF.
         """
@@ -32,7 +38,9 @@ class RetrievalService:
 
         from app.domain.codebase.retrieval.hybrid import hybrid_searcher
 
-        return await hybrid_searcher.search(query, project_id=pid, limit=limit)
+        return await hybrid_searcher.search(
+            query, project_id=pid, limit=limit, operator=operator
+        )
 
     async def get_entity_relations(self, symbol_name: str, project_id: int = None) -> dict[str, Any]:
         """

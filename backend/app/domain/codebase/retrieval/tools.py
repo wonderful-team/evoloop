@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from typing import Literal
 
 from app.core.context.manager import ContextManager
 from app.utils import render_template
@@ -15,7 +16,11 @@ logger = logging.getLogger(__name__)
     summary_template="database_logger.tool_summary.search_code",
     name_map={"zh": "搜索代码库", "en": "Search Codebase"}
 )
-async def search_codebase(query: str, project_id: int | None = None) -> str:
+async def search_codebase(
+    query: str,
+    operator: Literal["and", "or"],
+    project_id: int | None = None,
+) -> str:
     """
     Search the codebase using a combination of Graph (symbol) search and Vector (semantic) search.
 
@@ -27,8 +32,16 @@ async def search_codebase(query: str, project_id: int | None = None) -> str:
 
     Args:
         query: Search query (e.g. "auth middleware" or "BaseExtractor").
+        operator: How to combine multiple terms for keyword search.
+                  "and" = all terms must match (more specific),
+                  "or" = any term can match (broader).
         project_id: Project context. Optional. Auto-detected if omitted.
                    Can be provided to temporarily override global mode.
+
+    Examples:
+        search_codebase(query="auth middleware", operator="or")
+        search_codebase(query="payment async", operator="and")  # Must contain both
+        search_codebase(query="redis cache", operator="or")     # Either is fine
     """
     retriever = RetrievalService()
     output_parts = []
@@ -56,7 +69,7 @@ async def search_codebase(query: str, project_id: int | None = None) -> str:
     if len(query.split()) < 3:
         graph_task = asyncio.create_task(retriever.get_entity_relations(query, project_id=pid))
 
-    vector_task = asyncio.create_task(retriever.search(query, project_id=pid, limit=5))
+    vector_task = asyncio.create_task(retriever.search(query, project_id=pid, limit=5, operator=operator))
 
     graph_data = None
     if graph_task:
@@ -97,14 +110,43 @@ async def search_codebase(query: str, project_id: int | None = None) -> str:
     summary_template="database_logger.tool_summary.search_code",
     name_map={"zh": "自然语言查询图谱", "en": "Query Graph (NL)"}
 )
-async def query_graph_natural_language(question: str, project_id: int) -> str:
+async def query_graph_natural_language(
+    question: str,
+    project_id: int,
+    entities: list[str],
+    entity_operator: Literal["and", "or"],
+) -> str:
     """
-    Explore the codebase knowledge graph using natural language.
-    Useful for architectural questions, finding relationships, or understanding data flow.
-    Example: "Which functions depend on the User class?" or "How is the project structured?"
+    Explore the codebase knowledge graph by querying relationships between entities.
 
     Args:
-        question: The natural language question to ask.
+        question: The natural language context for the query.
         project_id: The ID of the project to query.
+        entities: List of entity names to search for (e.g., ["pay", "notify"]).
+        entity_operator: How to combine multiple entities.
+                         "and" = find entities related to ALL specified entities (intersection),
+                         "or" = find entities related to ANY specified entity (union).
+
+    Examples:
+        # Find functions that call BOTH pay() AND notify()
+        query_graph_nl(
+            question="调用关系",
+            project_id=1,
+            entities=["pay", "notify"],
+            entity_operator="and"
+        )
+
+        # Find functions that call pay() OR notify()
+        query_graph_nl(
+            question="调用关系",
+            project_id=1,
+            entities=["pay", "notify"],
+            entity_operator="or"
+        )
     """
-    return await graph_service.natural_language_query(question, project_id)
+    return await graph_service.multi_entity_query(
+        entities=entities,
+        operator=entity_operator,
+        question=question,
+        project_id=project_id,
+    )

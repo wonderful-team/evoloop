@@ -163,7 +163,20 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
             data = res.get("data", {})
             token = data.get("token")
             if token:
+                # Based on diagnostic, login response might miss member_id
                 member_id = data.get("member_id", 0)
+                
+                # If member_id is missing, we MUST fetch it from /api/member/info
+                # This matches the pattern in test_billing_loop.py
+                if not member_id or member_id == 0:
+                    info_res = await self.get_user_info(token)
+                    if info_res.get("code") == 0:
+                        info_data = info_res.get("data", {})
+                        # member_id might be under 'member_id' or 'id'
+                        member_id = info_data.get("member_id", info_data.get("id", 0))
+                        # Merge profile into data to ensure cache is complete
+                        data.update(info_data)
+                
                 self._save_token(token, member_id)
                 return {"success": True, "token": token, "member_id": member_id, "data": data}
         return {"success": False, "message": res.get("message", "Login failed")}
