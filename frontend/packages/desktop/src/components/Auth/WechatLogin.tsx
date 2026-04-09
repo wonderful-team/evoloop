@@ -9,7 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@evoloop/shared/components/ui/dialog';
-import { WechatAuthService, type Token } from '@/client';
+import { AccountService, type Token } from '@/client';
 
 interface WechatLoginProps {
   onSuccess?: (token: string) => void;
@@ -35,12 +35,11 @@ export function WechatLoginButton({ onSuccess, onError }: WechatLoginProps) {
   const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
   const [config, setConfig] = useState<{ enabled: boolean; app_id: string | null } | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     // Check if WeChat login is enabled
-    WechatAuthService.getWechatConfig()
-      .then((data) => setConfig(data as { enabled: boolean; app_id: string | null }))
+    AccountService.getWechatConfig()
+      .then((data: any) => setConfig(data as { enabled: boolean; app_id: string | null }))
       .catch(console.error);
   }, []);
 
@@ -62,15 +61,15 @@ export function WechatLoginButton({ onSuccess, onError }: WechatLoginProps) {
         type="button"
       >
         <MessageCircle className="mr-2 h-4 w-4 text-green-600" />
-        {t('auth.login.wechatLogin', '使用微信登录')}
+        {t('auth.login.wechatLogin')}
       </Button>
 
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>{t('auth.login.wechatScanTitle', '微信扫码登录')}</DialogTitle>
+            <DialogTitle>{t('auth.login.wechatScanTitle')}</DialogTitle>
             <DialogDescription>
-              {t('auth.login.wechatScanDesc', '请使用微信扫一扫功能扫描二维码登录')}
+              {t('auth.login.wechatScanDesc')}
             </DialogDescription>
           </DialogHeader>
           <WechatQRCode onSuccess={onSuccess} onError={onError} />
@@ -93,18 +92,19 @@ function WechatQRCode({ onSuccess, onError }: WechatLoginProps) {
     try {
       setError(null);
       setStatus('pending');
-      const response = await WechatAuthService.generateQrCode();
-      setQrCode(response as QRCodeResponse);
-      setCountdown((response as QRCodeResponse).expire_time);
+      const response = await AccountService.generateQrCode();
+      const qrData = response as QRCodeResponse;
+      setQrCode(qrData);
+      setCountdown(qrData.expire_time);
     } catch (err) {
-      setError(t('auth.login.wechatQRCodeError', '生成二维码失败'));
+      setError(t('auth.login.wechatQRCodeError'));
       if (onError && err instanceof Error) onError(err);
     }
   }, [t, onError]);
 
   const checkStatus = useCallback(async (key: string) => {
     try {
-      const response = await WechatAuthService.checkLoginStatus({ key });
+      const response = await AccountService.checkWechatLoginStatus({ key });
       const statusData = response as LoginStatusResponse;
       setStatus(statusData.status);
 
@@ -118,7 +118,7 @@ function WechatQRCode({ onSuccess, onError }: WechatLoginProps) {
           onSuccess?.(statusData.access_token);
         } else {
           // Otherwise, call direct login
-          const loginResult = await WechatAuthService.wechatDirectLogin({ key }) as Token;
+          const loginResult = await AccountService.wechatDirectLogin({ key }) as Token;
           onSuccess?.(loginResult.access_token);
         }
       } else if (statusData.status === 'expired') {
@@ -174,7 +174,7 @@ function WechatQRCode({ onSuccess, onError }: WechatLoginProps) {
         <p className="text-red-500">{error}</p>
         <Button onClick={generateQR} variant="outline">
           <RefreshCw className="mr-2 h-4 w-4" />
-          {t('auth.login.retry', '重试')}
+          {t('auth.login.retry')}
         </Button>
       </div>
     );
@@ -195,11 +195,11 @@ function WechatQRCode({ onSuccess, onError }: WechatLoginProps) {
             {status === 'expired' && (
               <div className="absolute inset-0 bg-white/90 flex flex-col items-center justify-center rounded-lg">
                 <p className="text-sm text-gray-500 mb-2">
-                  {t('auth.login.qrExpired', '二维码已过期')}
+                  {t('auth.login.qrExpired')}
                 </p>
                 <Button onClick={generateQR} size="sm" variant="outline">
                   <RefreshCw className="mr-1 h-3 w-3" />
-                  {t('auth.login.refresh', '刷新')}
+                  {t('auth.login.refresh')}
                 </Button>
               </div>
             )}
@@ -207,7 +207,7 @@ function WechatQRCode({ onSuccess, onError }: WechatLoginProps) {
               <div className="absolute inset-0 bg-white/90 flex flex-col items-center justify-center rounded-lg">
                 <CheckCircle2 className="h-12 w-12 text-green-500 mb-2" />
                 <p className="text-sm text-green-600">
-                  {t('auth.login.loginSuccess', '登录成功')}
+                  {t('auth.login.loginSuccess')}
                 </p>
               </div>
             )}
@@ -224,33 +224,33 @@ function WechatQRCode({ onSuccess, onError }: WechatLoginProps) {
         {status === 'pending' && (
           <>
             <p className="text-sm text-gray-600">
-              {t('auth.login.scanWithWechat', '请使用微信扫一扫')}
+              {t('auth.login.scanWithWechat')}
             </p>
             <p className="text-xs text-gray-400">
-              {t('auth.login.expiresIn', '剩余时间')}: {formatTime(countdown)}
+              {t('auth.login.expiresIn')}: {formatTime(countdown)}
             </p>
           </>
         )}
-        {status === 'scanned' && (
+        {status === 'pending' && (
           <div className="flex flex-col items-center">
             <Loader2 className="h-5 w-5 animate-spin text-green-500 mb-1" />
             <p className="text-sm text-green-600">
-              {t('auth.login.scannedConfirm', '已扫描，请在手机上确认登录')}
+              {t('auth.login.scanWithWechat')}
             </p>
           </div>
         )}
         {status === 'confirmed' && (
           <p className="text-sm text-green-600">
-            {t('auth.login.processing', '正在登录...')}
+            {t('auth.login.processing')}
           </p>
         )}
       </div>
 
       {/* Instructions */}
       <div className="bg-gray-50 p-3 rounded-md text-xs text-gray-500 w-full">
-        <p>{t('auth.login.wechatInstructions1', '1. 打开微信，点击右上角"+"')}</p>
-        <p>{t('auth.login.wechatInstructions2', '2. 选择"扫一扫"')}</p>
-        <p>{t('auth.login.wechatInstructions3', '3. 扫描上方二维码完成登录')}</p>
+        <p>{t('auth.login.wechatInstructions1')}</p>
+        <p>{t('auth.login.wechatInstructions2')}</p>
+        <p>{t('auth.login.wechatInstructions3')}</p>
       </div>
     </div>
   );

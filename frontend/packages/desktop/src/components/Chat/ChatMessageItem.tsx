@@ -120,13 +120,13 @@ function ToolExecutionSection({ msg }: { msg: Message }) {
 
   if (runningCount > 0) {
     icon = <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
-    statusText = `${t("chat.steps.executing", "Executing")} ${runningCount}/${totalCount}...`
+    statusText = `${t("chat.steps.executing")} ${runningCount}/${totalCount}...`
   } else if (failedCount > 0) {
     icon = <XCircle className="h-3.5 w-3.5 text-destructive" />
-    statusText = `${completedCount}/${totalCount} ${t("chat.steps.completed", "completed")}, ${failedCount} ${t("chat.steps.failed", "failed")}`
+    statusText = `${completedCount}/${totalCount} ${t("chat.steps.completed")}, ${failedCount} ${t("chat.steps.failed")}`
   } else {
     icon = <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
-    statusText = `${t("chat.steps.completed", "Completed")} ${completedCount} ${t("chat.steps.steps", "steps")}`
+    statusText = `${t("chat.steps.completed")} ${completedCount} ${t("chat.steps.steps")}`
   }
 
   return (
@@ -255,7 +255,7 @@ const ChatMessageItem = memo(
               >
                 <div className="flex items-center gap-2 p-1.5 bg-muted/50 rounded hover:bg-muted transition-colors">
                   <Bot size={14} className="opacity-70" />
-                  <span className="font-mono">{t("chat.messageList.toolExecution", "Tool Output")}</span>
+                  <span className="font-mono">{t("chat.messageList.toolExecution")}</span>
                   <ChevronDown size={12} className="opacity-50" />
                 </div>
               </Button>
@@ -392,7 +392,7 @@ const ChatMessageItem = memo(
                     >
                       <Brain className="h-3.5 w-3.5" />
                       <span className="font-medium">
-                        {t("chat.interface.thinkingProcess", "Reasoning Process")}
+                         {t("chat.interface.thinkingProcess")}
                       </span>
                       <ChevronRight className="h-3.5 w-3.5 ml-auto" />
                     </Button>
@@ -425,7 +425,7 @@ const ChatMessageItem = memo(
               size="icon"
               className="h-8 w-8 rounded-full bg-background border shadow-sm text-muted-foreground hover:text-foreground"
               onClick={() => navigator.clipboard.writeText(msg.content)}
-              title={t("chat.interface.copy", "Copy")}
+              title={t("chat.interface.copy")}
             >
               <Copy className="h-4 w-4" />
             </Button>
@@ -442,7 +442,7 @@ const ChatMessageItem = memo(
                 size="icon"
                 className="h-8 w-8 rounded-full bg-background border shadow-sm text-muted-foreground hover:text-foreground"
                 onClick={() => onRetry(msg)}
-                title={t("chat.interface.retry", "Retry")}
+                title={t("chat.interface.retry")}
               >
                 <RotateCcw className="h-4 w-4" />
               </Button>
@@ -482,7 +482,7 @@ const ChatMessageItem = memo(
                 {onQuote && (
                   <DropdownMenuItem onClick={() => onQuote()}>
                     <Quote className="mr-2 h-4 w-4" />{" "}
-                    {t("chat.interface.quote", "Quote")}
+                    {t("chat.interface.quote")}
                   </DropdownMenuItem>
                 )}
               </DropdownMenuContent>

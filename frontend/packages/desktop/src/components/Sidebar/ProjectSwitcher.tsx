@@ -155,7 +155,7 @@ export function ProjectSwitcher({
               </div>
               <span className="truncate font-medium">
                 {isGlobalMode
-                  ? t("projectSwitcher.global", "全局")
+                  ? t("projectSwitcher.global")
                   : currentProject?.name || t("projectSwitcher.select")}
               </span>
               {(() => {
@@ -169,7 +169,7 @@ export function ProjectSwitcher({
                       variant="outline"
                       className="ml-2 h-5 text-[10px] px-1.5 font-normal text-muted-foreground border-muted hidden sm:inline-flex gap-1"
                     >
-                      <Unlink className="h-3 w-3" /> {t("projectSwitcher.disconnected", "离线")}
+                      <Unlink className="h-3 w-3" /> {t("projectSwitcher.disconnected")}
                     </Badge>
                   )
                 } else if (idxStatus) {
@@ -246,9 +246,9 @@ export function ProjectSwitcher({
                 <Globe className="size-4" />
               </div>
               <div className="flex-1">
-                <h3 className="font-semibold text-sm">{t("projectSwitcher.global", "全局")}</h3>
+                <h3 className="font-semibold text-sm">{t("projectSwitcher.global")}</h3>
                 <p className="text-xs text-muted-foreground">
-                  {t("projectSwitcher.globalDesc", "跨项目对话和一般性问答")}
+                  {t("projectSwitcher.globalDesc")}
                 </p>
               </div>
               {isGlobalMode && (

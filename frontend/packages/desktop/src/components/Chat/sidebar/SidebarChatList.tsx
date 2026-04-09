@@ -205,7 +205,7 @@ export function SidebarChatList({
                     e.stopPropagation()
                     onStopThread(thread.thread_id)
                   }}
-                  title={t("chat.interface.stop", "Stop Generation")}
+                  title={t("chat.interface.stop")}
                 >
                   <div className="h-2 w-2 bg-current rounded-[1px]" />
                 </Button>

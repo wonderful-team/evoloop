@@ -109,6 +109,7 @@
       "wakeWordDesc": "设置语音唤醒词，说出唤醒词即可激活语音输入",
       "enableWakeWord": "启用唤醒词",
       "enableWakeWordDesc": "持续监听麦克风，检测到唤醒词时自动开始录音",
+      "waitting": "Agent 正在等待您的输入...",
       "wakeWordLabel": "唤醒词",
       "wakeWordPlaceholder": "例如：你好 Evo",
       "wakeWordHint": "建议使用 2-4 个字的短语，发音清晰易识别",
@@ -208,6 +209,7 @@
     "openExternal": "正在外部应用中打开文件...",
     "openExternalError": "打开文件失败",
     "noMatches": "未找到匹配项",
+    "searchResults": "搜索结果",
     "loadingContent": "正在加载内容...",
     "pdfPreview": "PDF 预览",
     "selectFileToView": "选择文件以查看",
@@ -260,6 +262,7 @@
     "centerSubtitle": "管理已学习的技能，并通过交互式录制会话训练智能体。",
     "synthesizingProgress": "正在分析录制内容...",
     "editor": {
+      "noContent": "*无内容*",
       "skillDescription": "描述",
       "skillName": "技能名称",
       "triggerPatterns": "触发模式",
@@ -293,8 +296,7 @@
       "expertGuidePlaceholder": "为智能体编写 Markdown 指令... 例如：\n1. 访问 github.com\n2. 点击 'New Repository' 按钮",
       "macroPlaceholder": "[{ 'event_type': 'click', 'target_selector': '.btn' }]",
       "invalidMacroJson": "宏脚本必须是有效的 JSON",
-      "invalidMacroYaml": "宏脚本必须是有效的 YAML",
-      "noContent": "没有可用内容"
+      "invalidMacroYaml": "宏脚本必须是有效的 YAML"
     },
     "mirror": {
       "title": "Android 镜像控制台",
@@ -594,14 +596,14 @@
       "newChat": "新对话",
       "untitled": "未命名对话",
       "tabFiles": "文件",
-      "projectFiles": "项目文件",
-      "agentChanges": "文件变更",
       "noProject": "未选择项目",
-      "searchPlaceholder": "搜索对话...",
+      "workspaceFiles": "工作区文件",
+      "projectFiles": "项目文件",
       "copiedPath": "已复制路径: {{path}}",
+      "searchPlaceholder": "搜索对话...",
       "globalFiles": "全局模式",
       "globalNoFiles": "文件浏览在全局模式下不可用",
-      "workspaceFiles": "工作区文件"
+      "agentChanges": "文件变更"
     },
     "resourceRemoved": "资源已移除",
     "agentStopped": "对话已停止",
@@ -689,6 +691,7 @@
       "noMatches": "由于某些原因，未能找到匹配项。",
       "groupSystem": "系统",
       "memoryTitle": "项目记忆",
+      "allMemoriesDesc": "本项目所有已学习的概念和规则。",
       "noState": "暂无状态数据。",
       "openImagicBox": "打开 IMagicBox",
       "statusActive": "活跃",
@@ -1053,7 +1056,8 @@
       "lastIndexed": "上次索引"
     },
     "requirements": {
-      "title": "需求"
+      "title": "需求文档",
+      "subtitle": "上传需求文档，AI 将自动分析并拆解为开发任务"
     },
     "overview": {
       "title": "项目概览",
@@ -1080,7 +1084,8 @@
       "statusLabel": {
         "pending": "待处理",
         "inProgress": "进行中",
-        "completed": "已完成"
+        "completed": "已完成",
+        "blocked": "已阻塞"
       },
       "priority": {
         "normal": "普通",
@@ -1095,7 +1100,14 @@
       "processing": "处理中...",
       "keyModules": "核心模块",
       "executeError": "启动执行失败",
-      "executeFailed": "执行任务失败"
+      "executeFailed": "执行任务失败",
+      "progressUpdated": "进度已更新",
+      "progressUpdateFailed": "进度更新失败",
+      "clickToEdit": "点击编辑",
+      "noSubtasks": "无子任务",
+      "subtasksWillAppear": "创建后子任务将显示在这里",
+      "subtasks": "个子任务",
+      "totalProgress": "总进度"
     },
     "gantt": {
       "noTasks": "未找到任务。",
@@ -1406,6 +1418,17 @@
     "noProjects": "未找到项目。",
     "disconnected": "已断开连接"
   },
+  "features": {
+    "browserControl": "浏览器控制",
+    "desktopControl": "桌面控制",
+    "mobileControl": "手机控制",
+    "voice": "语音交互",
+    "skillLearning": "技能学习",
+    "wikiGeneration": "Wiki 生成",
+    "knowledgeBase": "知识库",
+    "gantt": "甘特图",
+    "timesheet": "工时表"
+  },
   "subscription": {
     "title": "订阅",
     "subtitle": "管理您的订阅计划和账单",
@@ -1413,6 +1436,19 @@
       "desc": "请完成支付以继续使用服务",
       "benefits": "会员等级决定 AI 调用额度和上下文窗口大小，专业版及以上享受优先处理权。升级时原套餐剩余金额将自动退还到余额。"
     },
+    "expired": {
+      "title": "订阅已过期",
+      "description": "您的订阅已过期，请续费以继续使用此功能"
+    },
+    "upgrade": {
+      "title": "需要升级订阅",
+      "description": "此功能需要更高等级的订阅",
+      "help": "升级后可立即使用此功能"
+    },
+    "feature": "功能",
+    "requiredPlan": "所需套餐",
+    "renew": "立即续费",
+    "upgradeNow": "立即升级",
     "payment": {
       "title": "支付",
       "desc": "安全完成您的支付",
@@ -1426,20 +1462,43 @@
       "pollNotice": "正在处理支付..."
     },
     "plan": {
-      "current": "当前计划",
+      "current": "当前方案",
       "active": "当前使用中",
       "upgrade": "升级",
       "subscribe": "立即订阅",
       "upgradeRefund": "支持升级退差价",
       "startFree": "立即使用",
-      "free": "免费版",
+      "free": "免费",
       "perMonth": "/月",
-      "defaultDesc": "包含基本功能",
-      "featuresInclude": "包含功能",
-      "discount": "折扣",
+      "defaultDesc": "解锁高级 AI 功能",
+      "featuresInclude": "包含权益",
+      "discount": "限时优惠",
       "downgrade": "无法降级",
-      "cannotDowngrade": "不可降级",
-      "downgradeTooltip": "请先取消当前订阅，到期后自动降级"
+      "cannotDowngrade": "当前等级更高",
+      "downgradeTooltip": "请先取消当前订阅，到期后自动降级",
+      "downgradeHint": "到期后可购买此方案",
+      "gb": "{{value}}GB",
+      "unlimited": "无限",
+      "defaultBenefit1": "基础AI功能",
+      "defaultBenefit2": "标准支持"
+    },
+    "benefits": {
+      "ai_quota": "AI调用额度",
+      "ai_chat": "基础对话",
+      "ai_code": "代码生成",
+      "ai_advanced": "高级模型",
+      "code_execution": "代码执行",
+      "browser_control": "浏览器控制",
+      "desktop_control": "桌面控制",
+      "mobile_control": "手机控制",
+      "voice": "语音交互",
+      "skill_learning": "技能学习",
+      "mcp": "MCP服务",
+      "project_limit": "项目数量",
+      "gantt": "甘特图",
+      "timesheet": "工时表",
+      "storage": "存储空间",
+      "sort": "优先级权重"
     },
     "plans": {
       "title": "计划",
@@ -1452,22 +1511,31 @@
       "codeAnalysis": "代码分析"
     },
     "quota": {
-      "title": "配额",
-      "description": "您的使用配额",
-      "aiQuota": "AI 配额",
-      "unlimited": "无限制"
+      "title": "AI 配额",
+      "description": "实时查看额度使用情况",
+      "aiQuota": "剩余额度",
+      "unlimited": "无限",
+      "usedPercent": "{{percent}}% 已使用",
+      "lowBalance": "余额不足"
     },
     "status": {
       "active": "有效",
       "expired": "已过期",
-      "expireAt": "过期时间",
-      "expiredAt": "已过期于",
+      "expiringSoon": "即将过期",
+      "expireAt": "有效期至：",
+      "expiredAt": "过期时间：",
       "autoRenewOn": "自动续费已开启",
-      "renew": "续订",
+      "renewNow": "立即续费",
+      "renew": "续费",
       "upgradeNow": "立即升级",
       "manage": "管理",
       "freeTitle": "免费版",
-      "freeDesc": "基本功能可用"
+      "freeDesc": "您目前正在使用免费版，升级以获取更多能力",
+      "daysRemaining": "（{{days}} 天）"
+    },
+    "renewalNotice": {
+      "urgent": "您的订阅将在 {{days}} 天内到期，请及时续费",
+      "reminder": "您的订阅还有 {{days}} 天到期"
     }
   },
   "pending": {
@@ -1527,7 +1595,9 @@
       "passwordsNoMatch": "两次输入的密码不一致",
       "passwordMin8": "密码长度至少为 8 位",
       "passwordRequired": "请输入密码",
-      "usernameRequired": "用户名或邮箱不能为空"
+      "usernameRequired": "用户名或邮箱不能为空",
+      "invalidMobile": "请输入有效的手机号",
+      "invalidCode": "请输入6位验证码"
     },
     "signup": {
       "pageTitle": "注册 - EvoLoop"
@@ -1563,7 +1633,7 @@
     },
     "login": {
       "emailOrUsername": "邮箱或用户名",
-      "desktopTitle": "登录您的账户",
+      "desktopTitle": "欢迎回来",
       "pageTitle": "登录 - EvoLoop",
       "expiresIn": "{{seconds}}秒后过期",
       "loginSuccess": "登录成功",
@@ -1585,7 +1655,14 @@
       "noAccount": "还没有账号？",
       "passwordPlaceholder": "密码",
       "signUp": "立即注册",
-      "submit": "登录"
+      "submit": "登录",
+      "accountTab": "账号登录",
+      "mobileTab": "手机登录",
+      "mobile": "手机号",
+      "mobilePlaceholder": "请输入手机号",
+      "code": "验证码",
+      "codePlaceholder": "6位验证码",
+      "getCode": "获取验证码"
     },
     "sessionExpired": "登录已过期",
     "pleaseLoginAgain": "请重新登录以继续"
@@ -1641,7 +1718,7 @@
   "editor": {
     "line": "行",
     "column": "列",
-    "ghostHint": "AI 建议...",
+    "ghostHint": "Tab 接受建议，Esc 取消",
     "thinking": "思考中..."
   },
   "macroEditor": {
@@ -1803,6 +1880,7 @@
     "deleteError": "删除失败",
     "noDocuments": "暂无文档",
     "uploadPrompt": "点击右上角上传按钮添加文档",
+    "autoTagged": "自动标签",
     "uploadSuccess": "文档上传成功",
     "uploadError": "上传失败",
     "dropFile": "点击或拖放文件",
@@ -1810,8 +1888,26 @@
     "supportedFormats": "支持",
     "project": "项目",
     "docType": "文档类型",
+    "docTypes": {
+      "doc": "文档",
+      "code": "代码",
+      "guide": "指南",
+      "api": "API文档",
+      "design": "设计文档",
+      "architecture": "架构文档",
+      "requirement": "需求文档"
+    },
+    "clearFilters": "清除全部",
+    "noTags": "暂无标签",
+    "allDocuments": "全部文档",
     "singleFile": "单文件",
     "bulkUpload": "批量/ZIP",
-    "popular": "热门"
+    "popular": "热门",
+    "status": {
+      "citations": "引用 {{count}} 次",
+      "sessions": "{{count}} 个会话",
+      "lastAccessed": "最近访问: {{date}}"
+    },
+    "relatedDocs": "相关文档"
   }
 }

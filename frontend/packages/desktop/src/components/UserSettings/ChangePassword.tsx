@@ -4,7 +4,7 @@ import { useForm } from "react-hook-form"
 import { useTranslation } from "react-i18next"
 import { z } from "zod"
 
-import { UsersService } from "@/client"
+import { MemberService } from "@/client"
 import {
   Form,
   FormControl,
@@ -57,7 +57,7 @@ const ChangePassword = () => {
 
   const mutation = useMutation({
     mutationFn: async (data: FormData) => {
-      return await UsersService.changePassword({
+      return await MemberService.changePassword({
         requestBody: {
           old_password: data.current_password,
           new_password: data.new_password,

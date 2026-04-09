@@ -1,0 +1,283 @@
+import logging
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi.security import OAuth2PasswordRequestForm
+from pydantic import BaseModel, Field
+
+from app.core.evocloud import evocloud_manager
+from app.core.identity import identity_service
+from app.models import Token
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter(tags=["account"])
+
+
+# --- Request Schemas ---
+
+class MobileCodeRequest(BaseModel):
+    mobile: str = Field(..., description="Phone number")
+    captcha_id: str | None = None
+    captcha_code: str | None = None
+
+
+class MobileLoginRequest(BaseModel):
+    mobile: str = Field(..., description="Phone number")
+    code: str = Field(..., description="SMS verification code")
+    key: str = Field(..., description="Verification key returned from code request")
+
+
+# --- Internal Helpers ---
+
+async def _member_center_request(method: str, endpoint: str, **kwargs) -> dict:
+    """Make request to Member Center API using EvoCloud client."""
+    return await evocloud_manager.api.request(method, endpoint, **kwargs)
+
+
+# --- Username/Password Login (Proxied) ---
+
+@router.post("/login/access-token", response_model=Token)
+async def login_access_token(form_data: Annotated[OAuth2PasswordRequestForm, Depends()]):
+    """
+    Passthrough login to Member Center using username and password.
+    Returns a thin local token based on the Cloud member_id.
+    """
+    result = await evocloud_manager.api.login(form_data.username, form_data.password)
+
+    if not result.get("success", False):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=result.get("message", "Incorrect username or password"),
+        )
+
+    member_id = result.get("member_id")
+    if not member_id:
+        raise HTTPException(status_code=500, detail="Cloud session missing member_id")
+
+    # Generate local session containing only identity
+    local_token = await identity_service.create_local_token_from_id(member_id, form_data.username)
+    
+    return Token(access_token=local_token, token_type="bearer")
+
+
+# --- Mobile Login (New Routines) ---
+
+@router.post("/login/mobile/code")
+async def request_mobile_code(req: MobileCodeRequest):
+    """
+    Request an SMS verification code via Member Center.
+    """
+    result = await evocloud_manager.api.send_mobile_code(
+        mobile=req.mobile,
+        captcha_id=req.captcha_id or "",
+        captcha_code=req.captcha_code or "",
+        type="login"
+    )
+    
+    if result.get("code", -1) != 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=result.get("message", "Failed to send verification code"),
+        )
+        
+    return {
+        "code": 0,
+        "message": "Verification code sent",
+        "key": result.get("data", {}).get("key")
+    }
+
+
+@router.post("/login/mobile", response_model=Token)
+async def login_mobile(req: MobileLoginRequest):
+    """
+    Login using phone number and SMS verification code.
+    """
+    result = await evocloud_manager.api.login_mobile(
+        mobile=req.mobile,
+        key=req.key,
+        code=req.code
+    )
+    
+    if not result.get("success", False):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=result.get("message", "Login failed"),
+        )
+        
+    member_id = result.get("member_id")
+    if not member_id:
+        raise HTTPException(status_code=500, detail="Cloud session missing member_id")
+
+    # Generate local session
+    local_token = await identity_service.create_local_token_from_id(member_id, req.mobile)
+    
+    return Token(access_token=local_token, token_type="bearer")
+
+
+# --- WeChat Authentication (Proxied) ---
+
+@router.get("/auth/wechat/config")
+async def get_wechat_config():
+    """Get WeChat login configuration from Member Center."""
+    try:
+        result = await _member_center_request(
+            "GET",
+            "/wechat/api/wechat/verificationwx",
+        )
+        is_configured = result.get("code", -1) == 0
+
+        return {
+            "enabled": is_configured,
+            "app_id": None,
+        }
+    except Exception as e:
+        logger.warning(f"Failed to check WeChat config: {e}")
+        return {"enabled": False, "app_id": None}
+
+
+@router.post("/auth/wechat/qrcode")
+async def generate_qr_code():
+    """Generate a QR code for WeChat login via Member Center."""
+    try:
+        result = await _member_center_request(
+            "POST",
+            "/wechat/api/wechat/logincode",
+        )
+
+        if result.get("code", -1) != 0:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=result.get("message", "Failed to generate QR code"),
+            )
+
+        data = result.get("data", {})
+        return {
+            "key": data.get("key"),
+            "expire_time": data.get("expire_time", 600),
+            "qrcode_url": data.get("qrcode"),
+            "ticket": data.get("ticket", ""),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to generate QR code: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to generate QR code",
+        )
+
+
+@router.get("/auth/wechat/status")
+async def check_wechat_login_status(
+    key: Annotated[str, Query(description="The unique key from QR code generation")],
+):
+    """Check the login status for a given QR code key via Member Center."""
+    try:
+        result = await _member_center_request(
+            "POST",
+            "/api/login/checklogin",
+            data={"key": key},
+        )
+
+        if result.get("code", -1) < 0:
+            return {
+                "status": "expired",
+                "message": result.get("message", "QR code expired"),
+            }
+
+        data = result.get("data", {})
+        token = data.get("token")
+
+        if token:
+            return {
+                "status": "confirmed",
+                "message": "Login successful",
+                "access_token": token,
+                "token_type": "bearer",
+            }
+        else:
+            return {
+                "status": "pending",
+                "message": "Waiting for scan",
+            }
+    except Exception as e:
+        logger.error(f"Failed to check login status: {e}")
+        return {"status": "error", "message": "Failed to check status"}
+
+
+@router.post("/auth/wechat/login-direct", response_model=Token)
+async def wechat_direct_login(
+    key: Annotated[str, Query(description="The unique key from QR code generation")],
+):
+    """
+    Exchanges the Member Center token for a local JWT after successful WeChat scan.
+    """
+    try:
+        result = await _member_center_request(
+            "POST",
+            "/api/login/checklogin",
+            data={"key": key},
+        )
+
+        if result.get("code", -1) != 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=result.get("message", "Login failed"),
+            )
+
+        data = result.get("data", {})
+        member_center_token = data.get("token")
+
+        if not member_center_token:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Login not completed")
+
+        member_id = data.get("member_id") or data.get("id")
+        username = data.get("username", "wechat_user")
+
+        if not member_id:
+            raise HTTPException(status_code=500, detail="Cloud session missing member_id")
+
+        local_token = await identity_service.create_local_token_from_id(member_id, username)
+        return Token(access_token=local_token, token_type="bearer")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"WeChat login failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Login failed: {str(e)}")
+
+
+@router.post("/auth/wechat/callback")
+async def wechat_callback(
+    request: Request,
+    signature: str = Query(...),
+    timestamp: str = Query(...),
+    nonce: str = Query(...),
+):
+    """
+    WeChat server callback endpoint (Pass-through).
+    """
+    body = await request.body()
+    try:
+        result = await _member_center_request(
+            "POST",
+            "/wechat/api/wechat/callback",
+            params={"signature": signature, "timestamp": timestamp, "nonce": nonce},
+            data=body,
+        )
+        return result
+    except Exception as e:
+        logger.error(f"Failed to forward callback: {e}")
+        return {"message": "OK"}
+
+
+# --- Logout ---
+
+@router.post("/logout")
+async def logout():
+    """
+    Clear local session and cloud tokens.
+    """
+    identity_service.logout()
+    return {"code": 0, "message": "Logged out successfully"}

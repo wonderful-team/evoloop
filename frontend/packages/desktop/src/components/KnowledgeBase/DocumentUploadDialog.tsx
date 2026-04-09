@@ -74,17 +74,17 @@ export function DocumentUploadDialog({
     },
     onSuccess: (result) => {
       if (result.success) {
-        toast.success(t("knowledge.uploadSuccess", "上传成功"))
+        toast.success(t("knowledge.uploadSuccess"))
         queryClient.invalidateQueries({ queryKey: ["knowledge-documents"] })
         queryClient.invalidateQueries({ queryKey: ["knowledge-projects"] })
         resetForm()
         onOpenChange(false)
       } else {
-        toast.error(result.error || t("knowledge.uploadError", "上传失败"))
+        toast.error(result.error || t("knowledge.uploadError"))
       }
     },
     onError: () => {
-      toast.error(t("knowledge.uploadError", "上传失败"))
+      toast.error(t("knowledge.uploadError"))
     },
   })
 
@@ -167,18 +167,18 @@ export function DocumentUploadDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>{t("knowledge.uploadTitle", "上传文档")}</DialogTitle>
+          <DialogTitle>{t("knowledge.uploadTitle")}</DialogTitle>
         </DialogHeader>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="single">
               <File className="mr-2 h-4 w-4" />
-              {t("knowledge.singleFile", "单文件")}
+              {t("knowledge.singleFile")}
             </TabsTrigger>
             <TabsTrigger value="bulk">
               <Files className="mr-2 h-4 w-4" />
-              {t("knowledge.bulkUpload", "批量/ZIP")}
+              {t("knowledge.bulkUpload")}
             </TabsTrigger>
           </TabsList>
 
@@ -214,7 +214,7 @@ export function DocumentUploadDialog({
               ) : (
                 <>
                   <Upload className="mx-auto mb-2 h-8 w-8 text-muted-foreground" />
-                  <p className="text-sm font-medium">{t("knowledge.dropFile", "点击或拖放文件")}</p>
+                  <p className="text-sm font-medium">{t("knowledge.dropFile")}</p>
                 </>
               )}
             </div>
@@ -258,7 +258,7 @@ export function DocumentUploadDialog({
               ) : (
                 <>
                   <Files className="mx-auto mb-2 h-8 w-8 text-muted-foreground" />
-                  <p className="text-sm font-medium">{t("knowledge.dropMultiple", "选择多个文件或ZIP")}</p>
+                  <p className="text-sm font-medium">{t("knowledge.dropMultiple")}</p>
                   <p className="text-xs text-muted-foreground mt-1">支持批量上传或ZIP导入</p>
                 </>
               )}
@@ -284,7 +284,7 @@ export function DocumentUploadDialog({
         {/* Common settings */}
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
-            <Label>{t("knowledge.project", "项目")}</Label>
+            <Label>{t("knowledge.project")}</Label>
             <Select value={project} onValueChange={setProject}>
               <SelectTrigger>
                 <SelectValue />
@@ -300,14 +300,16 @@ export function DocumentUploadDialog({
 
           {!hasZipFile && (
             <div className="space-y-2">
-              <Label>{t("knowledge.docType", "文档类型")}</Label>
+              <Label>{t("knowledge.docType")}</Label>
               <Select value={docType} onValueChange={setDocType}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   {DOC_TYPES.map((type) => (
-                    <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>
+                    <SelectItem key={type.value} value={type.value}>
+                      {t(`knowledge.docTypes.${type.value}`)}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -325,14 +327,14 @@ export function DocumentUploadDialog({
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            {t("common.cancel", "取消")}
+            {t("common.cancel")}
           </Button>
           <Button
             onClick={() => uploadMutation.mutate()}
             disabled={selectedFiles.length === 0 || uploadMutation.isPending}
           >
             {uploadMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {isBulkUpload ? t("knowledge.uploadBulk", "批量上传") : t("knowledge.upload", "上传")}
+            {isBulkUpload ? t("knowledge.uploadBulk") : t("knowledge.upload")}
           </Button>
         </DialogFooter>
       </DialogContent>

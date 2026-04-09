@@ -149,12 +149,10 @@ export function CodeEditor({
           )}
         </div>
         <div className="flex items-center gap-4">
-          <span>
-            {t('editor.line', 'Line')} {cursorLine}, {t('editor.column', 'Col')} {cursorColumn}
-          </span>
+            {t('editor.line')} {cursorLine}, {t('editor.column')} {cursorColumn}
           {ghostState.loading && (
             <span className="text-primary animate-pulse">
-              {t('editor.thinking', 'Thinking...')}
+              {t('editor.thinking')}
             </span>
           )}
         </div>
@@ -192,7 +190,7 @@ export function CodeEditor({
       {/* Ghost Text hint */}
       {ghostState.visible && (
         <div className="absolute bottom-2 right-2 text-[10px] text-muted-foreground bg-background/80 px-2 py-1 rounded border">
-          {t('editor.ghostHint', 'Tab to accept, Esc to dismiss')}
+          {t('editor.ghostHint')}
         </div>
       )}
     </div>

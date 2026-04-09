@@ -28,7 +28,7 @@ export const Mermaid = ({ chart }: { chart: string }) => {
                     const errorMessage = error instanceof Error ? error.message : String(error)
                     ref.current.innerHTML = `
                         <div class="text-left w-full">
-                            <div class="text-red-400 text-xs font-medium mb-2">${t("mermaid.renderError", "Diagram rendering failed")}</div>
+                            <div class="text-red-400 text-xs font-medium mb-2">${t("mermaid.renderError")}</div>
                             <div class="text-red-400/70 text-xs mb-2">${errorMessage.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>
                             <pre class="text-xs text-muted-foreground bg-black/30 p-2 rounded overflow-x-auto"><code>${chart.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</code></pre>
                         </div>

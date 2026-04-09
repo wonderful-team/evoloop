@@ -89,7 +89,7 @@ function ProjectLayout() {
     },
     {
       id: "requirements",
-      label: t("projects.tabs.requirements", "需求文档"),
+      label: t("projects.tabs.requirements"),
       icon: ClipboardList,
       path: "/requirements",
     },
@@ -101,7 +101,7 @@ function ProjectLayout() {
     },
     {
       id: "wiki",
-      label: "Wiki", // Hardcoded for now, should be t('projects.tabs.wiki')
+      label: t("projects.tabs.wiki"),
       icon: FileText,
       path: "/wiki",
     },

@@ -72,6 +72,15 @@ export type BindClientRequest = {
     client_id: string;
 };
 
+export type Body_account_login_access_token = {
+    grant_type?: (string | null);
+    username: string;
+    password: string;
+    scope?: string;
+    client_id?: (string | null);
+    client_secret?: (string | null);
+};
+
 export type Body_audio_text_to_speech_stream = {
     text: string;
     voice_id?: string;
@@ -154,15 +163,6 @@ export type Body_knowledge_validate_zip = {
 
 export type Body_learning_upload_screenshot = {
     file: (Blob | File);
-};
-
-export type Body_login_login_access_token = {
-    grant_type?: (string | null);
-    username: string;
-    password: string;
-    scope?: string;
-    client_id?: (string | null);
-    client_secret?: (string | null);
 };
 
 export type Body_project_requirements_upload_requirement_document = {
@@ -566,11 +566,6 @@ export type LoginMobileRequest = {
     code: string;
 };
 
-export type LoginRequest = {
-    username: string;
-    password: string;
-};
-
 export type McpServerCreate = {
     name: string;
     command: string;
@@ -613,6 +608,30 @@ export type MessageListResponse = {
 
 export type MessageResponse = {
     message: string;
+};
+
+export type MobileCodeRequest = {
+    /**
+     * Phone number
+     */
+    mobile: string;
+    captcha_id?: (string | null);
+    captcha_code?: (string | null);
+};
+
+export type MobileLoginRequest = {
+    /**
+     * Phone number
+     */
+    mobile: string;
+    /**
+     * SMS verification code
+     */
+    code: string;
+    /**
+     * Verification key returned from code request
+     */
+    key: string;
 };
 
 export type OpenFileRequest = {
@@ -1069,16 +1088,38 @@ export type UploadScreenshotResponse = {
 export type UserPublic = {
     id: (number | string);
     username?: (string | null);
-    email?: (string | null);
-    mobile?: (string | null);
     nickname?: (string | null);
+    mobile?: (string | null);
+    email?: (string | null);
     headimg?: (string | null);
     member_level?: number;
     member_level_name?: (string | null);
+    member_level_type?: number;
     level_expire_time?: number;
+    member_label?: number;
+    member_label_name?: (string | null);
+    member_code?: (string | null);
+    point?: number;
     balance?: number;
     balance_money?: number;
-    point?: number;
+    growth?: number;
+    status?: number;
+    has_password?: boolean;
+    is_edit_username?: number;
+    is_fenxiao?: number;
+    realname?: (string | null);
+    sex?: number;
+    birthday?: (string | null);
+    source_member?: number;
+    province_id?: number;
+    city_id?: number;
+    district_id?: number;
+    address?: (string | null);
+    full_address?: (string | null);
+    longitude?: number;
+    latitude?: number;
+    wx_openid?: (string | null);
+    wx_unionid?: (string | null);
     is_active?: boolean;
     is_superuser?: boolean;
 };
@@ -1157,6 +1198,56 @@ export type WikiPageRead = {
     created_at: string;
     updated_at: string;
 };
+
+export type AccountLoginAccessTokenData = {
+    formData: Body_account_login_access_token;
+};
+
+export type AccountLoginAccessTokenResponse = (Token);
+
+export type AccountRequestMobileCodeData = {
+    requestBody: MobileCodeRequest;
+};
+
+export type AccountRequestMobileCodeResponse = (unknown);
+
+export type AccountLoginMobileData = {
+    requestBody: MobileLoginRequest;
+};
+
+export type AccountLoginMobileResponse = (Token);
+
+export type AccountGetWechatConfigResponse = (unknown);
+
+export type AccountGenerateQrCodeResponse = (unknown);
+
+export type AccountCheckWechatLoginStatusData = {
+    /**
+     * The unique key from QR code generation
+     */
+    key: string;
+};
+
+export type AccountCheckWechatLoginStatusResponse = (unknown);
+
+export type AccountWechatDirectLoginData = {
+    /**
+     * The unique key from QR code generation
+     */
+    key: string;
+};
+
+export type AccountWechatDirectLoginResponse = (Token);
+
+export type AccountWechatCallbackData = {
+    nonce: string;
+    signature: string;
+    timestamp: string;
+};
+
+export type AccountWechatCallbackResponse = (unknown);
+
+export type AccountLogoutResponse = (unknown);
 
 export type AgentChatEndpointData = {
     guestId?: (string | null);
@@ -1884,12 +1975,6 @@ export type LearningUpdateSkillYamlData = {
 
 export type LearningUpdateSkillYamlResponse = (unknown);
 
-export type LoginLoginAccessTokenData = {
-    formData: Body_login_login_access_token;
-};
-
-export type LoginLoginAccessTokenResponse = (Token);
-
 export type McpListMcpServersResponse = (Array<unknown>);
 
 export type McpAddMcpServerData = {
@@ -1910,63 +1995,25 @@ export type McpConnectMcpServerData = {
 
 export type McpConnectMcpServerResponse = (unknown);
 
-export type MemberLoginData = {
-    requestBody: LoginRequest;
+export type MemberReadUserMeResponse = (UserPublic);
+
+export type MemberUpdateUserMeData = {
+    requestBody: UpdateUserRequest;
 };
 
-export type MemberLoginResponse = (unknown);
+export type MemberUpdateUserMeResponse = (UserPublic);
 
-export type MemberStatusResponse = (unknown);
+export type MemberChangePasswordData = {
+    requestBody: ChangePasswordRequest;
+};
 
-export type MemberLogoutResponse = (unknown);
+export type MemberChangePasswordResponse = (MessageResponse);
 
 export type MemberGetCancellationInfoResponse = (unknown);
 
 export type MemberApplyCancellationResponse = (unknown);
 
 export type MemberCancelCancellationResponse = (unknown);
-
-export type MemberGetSubscriptionPlansResponse = (unknown);
-
-export type MemberCalculateUpgradePriceData = {
-    targetLevelId: number;
-};
-
-export type MemberCalculateUpgradePriceResponse = (unknown);
-
-export type MemberGetSubscriptionStatusResponse = (unknown);
-
-export type MemberGetSubscriptionDetailResponse = (unknown);
-
-export type MemberCreateSubscriptionOrderData = {
-    requestBody: CreateOrderRequest;
-};
-
-export type MemberCreateSubscriptionOrderResponse = (unknown);
-
-export type MemberCancelSubscriptionData = {
-    cancelType?: string;
-    reason?: string;
-};
-
-export type MemberCancelSubscriptionResponse = (unknown);
-
-export type MemberCheckSubscriptionOrderStatusData = {
-    orderId: string;
-};
-
-export type MemberCheckSubscriptionOrderStatusResponse = (unknown);
-
-export type MemberGetAiQuotaResponse = (unknown);
-
-export type MemberGetAllAiQuotasResponse = (unknown);
-
-export type MemberGetAiQuotaHistoryData = {
-    page?: number;
-    pageSize?: number;
-};
-
-export type MemberGetAiQuotaHistoryResponse = (unknown);
 
 export type MemberCheckBenefitsBatchData = {
     requestBody: BatchCheckRequest;
@@ -1981,12 +2028,6 @@ export type MemberGetMemberBenefitsApiData = {
 export type MemberGetMemberBenefitsApiResponse = (unknown);
 
 export type MemberInvalidateMemberBenefitsCacheResponse = (unknown);
-
-export type MemberHandleBenefitsUpdateWebhookData = {
-    requestBody: BenefitsUpdateWebhook;
-};
-
-export type MemberHandleBenefitsUpdateWebhookResponse = (unknown);
 
 export type MemoryListConceptsData = {
     projectId: number;
@@ -2252,6 +2293,54 @@ export type StreamStreamChatData = {
 
 export type StreamStreamChatResponse = (unknown);
 
+export type SubscriptionGetSubscriptionPlansResponse = (unknown);
+
+export type SubscriptionCalculateUpgradePriceData = {
+    targetLevelId: number;
+};
+
+export type SubscriptionCalculateUpgradePriceResponse = (unknown);
+
+export type SubscriptionGetSubscriptionStatusResponse = (unknown);
+
+export type SubscriptionGetSubscriptionDetailResponse = (unknown);
+
+export type SubscriptionCreateSubscriptionOrderData = {
+    requestBody: CreateOrderRequest;
+};
+
+export type SubscriptionCreateSubscriptionOrderResponse = (unknown);
+
+export type SubscriptionCancelSubscriptionData = {
+    cancelType?: string;
+    reason?: string;
+};
+
+export type SubscriptionCancelSubscriptionResponse = (unknown);
+
+export type SubscriptionCheckSubscriptionOrderStatusData = {
+    orderId: string;
+};
+
+export type SubscriptionCheckSubscriptionOrderStatusResponse = (unknown);
+
+export type SubscriptionGetAiQuotaResponse = (unknown);
+
+export type SubscriptionGetAllAiQuotasResponse = (unknown);
+
+export type SubscriptionGetAiQuotaHistoryData = {
+    page?: number;
+    pageSize?: number;
+};
+
+export type SubscriptionGetAiQuotaHistoryResponse = (unknown);
+
+export type SubscriptionHandleBenefitsUpdateWebhookData = {
+    requestBody: BenefitsUpdateWebhook;
+};
+
+export type SubscriptionHandleBenefitsUpdateWebhookResponse = (unknown);
+
 export type SubtasksCreateTaskWithSubtasksData = {
     projectId: number;
     requestBody: TaskWithSubtasksCreate;
@@ -2482,64 +2571,11 @@ export type ToolsListAllToolsResponse = (Array<{
     [key: string]: unknown;
 }>);
 
-export type UsersReadUserMeResponse = (UserPublic);
-
-export type UsersUpdateUserMeData = {
-    requestBody: UpdateUserRequest;
-};
-
-export type UsersUpdateUserMeResponse = (UserPublic);
-
-export type UsersChangePasswordData = {
-    requestBody: ChangePasswordRequest;
-};
-
-export type UsersChangePasswordResponse = (MessageResponse);
-
 export type UtilsHealthCheckResponse = (boolean);
 
 export type UtilsGetEvoloopStatusResponse = (unknown);
 
 export type UtilsGetAiConfigResponse = (unknown);
-
-export type WechatAuthGetWechatConfigResponse = (unknown);
-
-export type WechatAuthGenerateQrCodeResponse = (unknown);
-
-export type WechatAuthCheckLoginStatusData = {
-    /**
-     * The unique key from QR code generation
-     */
-    key: string;
-};
-
-export type WechatAuthCheckLoginStatusResponse = (unknown);
-
-export type WechatAuthWechatDirectLoginData = {
-    /**
-     * The unique key from QR code generation
-     */
-    key: string;
-};
-
-export type WechatAuthWechatDirectLoginResponse = (Token);
-
-export type WechatAuthWechatCallbackGetData = {
-    echostr?: (string | null);
-    nonce: string;
-    signature: string;
-    timestamp: string;
-};
-
-export type WechatAuthWechatCallbackGetResponse = (unknown);
-
-export type WechatAuthWechatCallbackPostData = {
-    nonce: string;
-    signature: string;
-    timestamp: string;
-};
-
-export type WechatAuthWechatCallbackPostResponse = (unknown);
 
 export type WikiGetWikiPagesData = {
     projectId: number;

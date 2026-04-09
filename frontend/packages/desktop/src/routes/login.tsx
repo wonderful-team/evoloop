@@ -10,7 +10,6 @@ import { useTranslation } from "react-i18next"
 import { useEffect } from "react"
 import { z } from "zod"
 
-import type { Body_login_login_access_token as AccessToken } from "@/client"
 import { AuthLayout } from "@/components/Common/AuthLayout"
 import { WechatLoginButton } from "@/components/Auth/WechatLogin"
 import {
@@ -35,7 +34,7 @@ const createSchema = (t: any) =>
       .string()
       .min(1, { message: t("auth.errors.passwordRequired") })
       .min(8, { message: t("auth.errors.passwordMin8") }),
-  }) satisfies z.ZodType<AccessToken>
+  })
 
 type FormData = z.infer<ReturnType<typeof createSchema>>
 
@@ -62,13 +61,21 @@ export const Route = createFileRoute("/login")({
   },
 })
 
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@evoloop/shared/components/ui/tabs"
+import { MobileLogin } from "@/components/Auth/MobileLogin"
+
 function Login() {
   const { t } = useTranslation()
   const navigate = useNavigate()
 
   // Update page title dynamically
   useEffect(() => {
-    document.title = t("auth.login.pageTitle", "Log In - EvoLoop")
+    document.title = t("auth.login.pageTitle")
   }, [t])
 
   const { loginMutation } = useAuth()
@@ -89,7 +96,6 @@ function Login() {
     if (redirectPath) {
       localStorage.removeItem('redirect_after_login')
       console.log('[Login] Redirecting to saved path:', redirectPath)
-      // 解析hash路径，格式为 #/chat?thread_id=xxx
       const hashMatch = redirectPath.match(/^#(\/.+)$/)
       if (hashMatch) {
         const pathWithSearch = hashMatch[1]
@@ -101,7 +107,6 @@ function Login() {
         return
       }
     }
-    // 默认跳转到首页
     navigate({ to: "/" })
   }
 
@@ -114,95 +119,114 @@ function Login() {
     })
   }
 
-  const handleWechatLogin = (token: string) => {
-    localStorage.setItem("access_token", token)
+  const handleThirdPartyLoginSuccess = (token?: string) => {
+    if (token) {
+      localStorage.setItem("access_token", token)
+    }
     handlePostLoginRedirect()
   }
 
   return (
     <AuthLayout>
-      <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-6">
-          <div className="flex flex-col items-center gap-2 text-center">
-            <h1 className="text-2xl font-bold">
-              {t("auth.login.desktopTitle")}
-            </h1>
+      <div className="flex flex-col gap-6">
+        <div className="flex flex-col items-center gap-2 text-center">
+          <h1 className="text-2xl font-bold">
+            {t("auth.login.desktopTitle")}
+          </h1>
+        </div>
+
+        <Tabs defaultValue="account" className="w-full">
+          <TabsList className="grid w-full grid-cols-2 mb-4">
+            <TabsTrigger value="account">
+              {t("auth.login.accountTab")}
+            </TabsTrigger>
+            <TabsTrigger value="mobile">
+              {t("auth.login.mobileTab")}
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="account">
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                <FormField
+                  control={form.control}
+                  name="username"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t("auth.login.emailOrUsername")}</FormLabel>
+                      <FormControl>
+                        <Input
+                          data-testid="email-input"
+                          placeholder={t("auth.login.emailOrUsername")}
+                          type="text"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage className="text-xs" />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="password"
+                  render={({ field }) => (
+                    <FormItem>
+                      <div className="flex items-center">
+                        <FormLabel>{t("auth.login.passwordPlaceholder")}</FormLabel>
+                        <RouterLink
+                          to="/recover-password"
+                          className="ml-auto text-sm underline-offset-4 hover:underline"
+                        >
+                          {t("auth.login.forgotPassword")}
+                        </RouterLink>
+                      </div>
+                      <FormControl>
+                        <PasswordInput
+                          data-testid="password-input"
+                          placeholder={t("auth.login.passwordPlaceholder")}
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage className="text-xs" />
+                    </FormItem>
+                  )}
+                />
+
+                <LoadingButton type="submit" className="w-full" loading={loginMutation.isPending}>
+                  {t("auth.login.submit")}
+                </LoadingButton>
+              </form>
+            </Form>
+          </TabsContent>
+
+          <TabsContent value="mobile">
+            <MobileLogin onSuccess={handleThirdPartyLoginSuccess} />
+          </TabsContent>
+        </Tabs>
+
+        {/* Divider */}
+        <div className="relative">
+          <div className="absolute inset-0 flex items-center">
+            <span className="w-full border-t" />
           </div>
-
-          <div className="grid gap-4">
-            <FormField
-              control={form.control}
-              name="username"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t("auth.login.emailOrUsername")}</FormLabel>
-                  <FormControl>
-                    <Input
-                      data-testid="email-input"
-                      placeholder={t("auth.login.emailOrUsername")}
-                      type="text"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage className="text-xs" />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="password"
-              render={({ field }) => (
-                <FormItem>
-                  <div className="flex items-center">
-                    <FormLabel>{t("auth.login.passwordPlaceholder")}</FormLabel>
-                    <RouterLink
-                      to="/recover-password"
-                      className="ml-auto text-sm underline-offset-4 hover:underline"
-                    >
-                      {t("auth.login.forgotPassword")}
-                    </RouterLink>
-                  </div>
-                  <FormControl>
-                    <PasswordInput
-                      data-testid="password-input"
-                      placeholder={t("auth.login.passwordPlaceholder")}
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage className="text-xs" />
-                </FormItem>
-              )}
-            />
-
-            <LoadingButton type="submit" loading={loginMutation.isPending}>
-              {t("auth.login.submit")}
-            </LoadingButton>
-
-            {/* Divider */}
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-background px-2 text-muted-foreground">
-                  {t("auth.login.orContinueWith", "或使用其他方式")}
-                </span>
-              </div>
-            </div>
-
-            {/* WeChat Login */}
-            <WechatLoginButton onSuccess={handleWechatLogin} />
+          <div className="relative flex justify-center text-xs uppercase">
+            <span className="bg-background px-2 text-muted-foreground">
+              {t("auth.login.orContinueWith")}
+            </span>
           </div>
+        </div>
 
-          <div className="text-center text-sm">
-            {t("auth.login.noAccount")}{" "}
-            <RouterLink to="/signup" className="underline underline-offset-4">
-              {t("auth.login.signUp")}
-            </RouterLink>
-          </div>
-        </form>
-      </Form>
+        {/* WeChat Login */}
+        <WechatLoginButton onSuccess={(token) => handleThirdPartyLoginSuccess(token)} />
+
+        <div className="text-center text-sm">
+          {t("auth.login.noAccount")}{" "}
+          <RouterLink to="/signup" className="underline underline-offset-4">
+            {t("auth.login.signUp")}
+          </RouterLink>
+        </div>
+      </div>
     </AuthLayout>
   )
 }

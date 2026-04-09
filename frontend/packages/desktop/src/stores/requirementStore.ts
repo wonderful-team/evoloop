@@ -54,6 +54,7 @@ export interface AnalysisResult {
   }
   user_edited: boolean
   confirmed_at: number | null
+  created_at: number
   tasks_count: number
   synced_tasks: number
 }
@@ -180,7 +181,7 @@ export const useRequirementStore = create<RequirementState>((set, get) => ({
       set({ documents: items })
     } catch (error) {
       console.error("Failed to fetch requirement documents:", error)
-      toast.error(i18n.t("requirements.toast.fetchError", "获取需求文档失败"))
+      toast.error(i18n.t("requirements.toast.fetchError"))
     } finally {
       set({ isLoading: false })
     }
@@ -194,13 +195,13 @@ export const useRequirementStore = create<RequirementState>((set, get) => ({
         formData: { file },
       })
 
-      toast.success(i18n.t("requirements.toast.uploadSuccess", "文档上传成功，AI 分析中..."))
+      toast.success(i18n.t("requirements.toast.uploadSuccess"))
       await get().fetchDocuments(projectId)
 
       return data.thread_id
     } catch (error) {
       console.error("Failed to upload document:", error)
-      toast.error(i18n.t("requirements.toast.uploadError", "上传文档失败"))
+      toast.error(i18n.t("requirements.toast.uploadError"))
       return null
     } finally {
       set({ isUploading: false })
@@ -228,7 +229,7 @@ export const useRequirementStore = create<RequirementState>((set, get) => ({
       set({ currentDocument: mappedDetail })
     } catch (error) {
       console.error("Failed to fetch document detail:", error)
-      toast.error(i18n.t("requirements.toast.fetchDetailError", "获取文档详情失败"))
+      toast.error(i18n.t("requirements.toast.fetchDetailError"))
     } finally {
       set({ isLoadingDetail: false })
     }
@@ -241,7 +242,7 @@ export const useRequirementStore = create<RequirementState>((set, get) => ({
         docId,
       })
 
-      toast.success(i18n.t("requirements.toast.deleteSuccess", "文档已删除"))
+      toast.success(i18n.t("requirements.toast.deleteSuccess"))
       await get().fetchDocuments(projectId)
 
       if (get().currentDocument?.id === docId) {
@@ -249,7 +250,7 @@ export const useRequirementStore = create<RequirementState>((set, get) => ({
       }
     } catch (error) {
       console.error("Failed to delete document:", error)
-      toast.error(i18n.t("requirements.toast.deleteError", "删除文档失败"))
+      toast.error(i18n.t("requirements.toast.deleteError"))
     }
   },
 
@@ -273,12 +274,12 @@ export const useRequirementStore = create<RequirementState>((set, get) => ({
       )
       if (!res.ok) throw new Error("Failed to confirm analysis")
 
-      toast.success(i18n.t("requirements.toast.confirmSuccess", "分析已确认，开始任务拆解..."))
+      toast.success(i18n.t("requirements.toast.confirmSuccess"))
       await get().fetchDocumentDetail(projectId, docId)
       return true
     } catch (error) {
       console.error("Failed to confirm analysis:", error)
-      toast.error(i18n.t("requirements.toast.confirmError", "确认分析失败"))
+      toast.error(i18n.t("requirements.toast.confirmError"))
       return false
     }
   },
@@ -300,11 +301,11 @@ export const useRequirementStore = create<RequirementState>((set, get) => ({
       )
       if (!res.ok) throw new Error("Failed to submit feedback")
 
-      toast.success(i18n.t("requirements.toast.feedbackSuccess", "修改意见已提交，AI 正在重新分析..."))
+      toast.success(i18n.t("requirements.toast.feedbackSuccess"))
       return true
     } catch (error) {
       console.error("Failed to submit feedback:", error)
-      toast.error(i18n.t("requirements.toast.feedbackError", "提交反馈失败"))
+      toast.error(i18n.t("requirements.toast.feedbackError"))
       return false
     }
   },
@@ -334,7 +335,7 @@ export const useRequirementStore = create<RequirementState>((set, get) => ({
       set({ currentTasks: mappedTasks })
     } catch (error) {
       console.error("Failed to fetch analysis tasks:", error)
-      toast.error(i18n.t("requirements.toast.fetchTasksError", "获取任务列表失败"))
+      toast.error(i18n.t("requirements.toast.fetchTasksError"))
     } finally {
       set({ isLoadingTasks: false })
     }
@@ -373,10 +374,10 @@ export const useRequirementStore = create<RequirementState>((set, get) => ({
 
   getStatusText: (status: string) => {
     const statusMap: Record<string, string> = {
-      pending: i18n.t("requirements.status.pending", "待分析"),
-      analyzed: i18n.t("requirements.status.analyzed", "已分析"),
-      confirmed: i18n.t("requirements.status.confirmed", "已确认"),
-      breakdown_completed: i18n.t("requirements.status.breakdown_completed", "已拆解"),
+      pending: i18n.t("requirements.status.pending"),
+      analyzed: i18n.t("requirements.status.analyzed"),
+      confirmed: i18n.t("requirements.status.confirmed"),
+      breakdown_completed: i18n.t("requirements.status.breakdown_completed"),
     }
     return statusMap[status] || status
   },

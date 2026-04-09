@@ -2,8 +2,6 @@ import { useEffect, useRef, useState } from "react"
 import { SystemService } from "@/client/sdk.gen"
 import { useTranslation } from "react-i18next"
 import { listen } from "@tauri-apps/api/event"
-import { Loader2, CheckCircle2 } from "lucide-react"
-import { Progress } from "@evoloop/shared/components/ui/progress"
 import { cn } from "@evoloop/shared/lib/utils"
 import icon from "/assets/images/evoloop-icon.svg"
 
@@ -31,12 +29,12 @@ export default function StartupScreen({ onReady }: StartupScreenProps) {
         if (isDebugMode) return // 调试模式不使用模拟进度
 
         const statusMessages = [
-            { threshold: 0, text: t("startup.status.connecting", "正在连接服务...") },
-            { threshold: 20, text: t("startup.status.initializing", "正在初始化系统...") },
-            { threshold: 40, text: t("startup.status.loadingModules", "正在加载核心模块...") },
-            { threshold: 60, text: t("startup.status.preparingAI", "正在准备 AI 引擎...") },
-            { threshold: 80, text: t("startup.status.finalizing", "即将完成...") },
-            { threshold: 100, text: t("startup.status.ready", "准备就绪！") },
+            { threshold: 0, text: t("startup.status.connecting") },
+            { threshold: 20, text: t("startup.status.initializing") },
+            { threshold: 40, text: t("startup.status.loadingModules") },
+            { threshold: 60, text: t("startup.status.preparingAI") },
+            { threshold: 80, text: t("startup.status.finalizing") },
+            { threshold: 100, text: t("startup.status.ready") },
         ]
 
         let currentProgress = 0
@@ -70,7 +68,7 @@ export default function StartupScreen({ onReady }: StartupScreenProps) {
     useEffect(() => {
         if (isHealthy) {
             setProgress(100)
-            setStatusText(t("startup.status.ready", "准备就绪！"))
+            setStatusText(t("startup.status.ready"))
         }
     }, [isHealthy, t])
 
@@ -161,7 +159,7 @@ export default function StartupScreen({ onReady }: StartupScreenProps) {
             {/* 标题和状态 */}
             <div className="text-center space-y-3">
                 <h1 className="text-3xl font-bold tracking-tight text-foreground">
-                    {t("app.name", "EvoLoop")}
+                    {t("app.name")}
                 </h1>
                 <p className={cn(
                     "text-sm font-medium transition-colors duration-300",
@@ -169,7 +167,7 @@ export default function StartupScreen({ onReady }: StartupScreenProps) {
                 )}>
                     {isHealthy 
                         ? t("startup.backendReady")
-                        : statusText || t("startup.initializing", "正在初始化...")
+                        : statusText || t("startup.initializing")
                     }
                 </p>
             </div>
@@ -186,14 +184,14 @@ export default function StartupScreen({ onReady }: StartupScreenProps) {
                     />
                 </div>
                 <div className="flex justify-between text-xs text-muted-foreground">
-                    <span>{t("startup.loading", "加载中")}</span>
+                    <span>{t("startup.loading")}</span>
                     <span>{Math.round(progress)}%</span>
                 </div>
             </div>
 
             {/* 提示文本 */}
             <p className="text-xs text-muted-foreground/70 text-center max-w-xs">
-                {t("startup.hint", "首次启动可能需要一些时间，请耐心等待...")}
+                {t("startup.hint")}
             </p>
         </div>
     )
@@ -206,7 +204,7 @@ export default function StartupScreen({ onReady }: StartupScreenProps) {
                     <img src={icon} alt="EvoLoop" className="size-10" />
                 </div>
                 <div>
-                    <h1 className="text-2xl font-bold tracking-tight text-foreground">{t("app.name", "EvoLoop")}</h1>
+                    <h1 className="text-2xl font-bold tracking-tight text-foreground">{t("app.name")}</h1>
                     <p className="text-sm text-muted-foreground">
                         {isHealthy ? t("startup.backendReady") : t("startup.initializing")}
                     </p>
@@ -221,7 +219,7 @@ export default function StartupScreen({ onReady }: StartupScreenProps) {
                         <div className="h-3 w-3 rounded-full bg-yellow-500/80" />
                         <div className="h-3 w-3 rounded-full bg-green-500/80" />
                     </div>
-                    <div className="text-xs font-medium text-muted-foreground font-mono">{t("startup.logTitle", "system.log")}</div>
+                    <div className="text-xs font-medium text-muted-foreground font-mono">{t("startup.logTitle")}</div>
                 </div>
 
                 <div
@@ -250,7 +248,7 @@ export default function StartupScreen({ onReady }: StartupScreenProps) {
             {/* 调试模式标签 */}
             <div className="flex justify-center">
                 <span className="px-3 py-1 rounded-full bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 text-xs font-medium border border-yellow-500/20">
-                    {t("startup.devMode", "开发模式")}
+                    {t("startup.devMode")}
                 </span>
             </div>
         </div>

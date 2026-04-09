@@ -68,7 +68,7 @@ export function DocumentViewer({ document, onClose }: DocumentViewerProps) {
               {document.title || document.path.split("/").pop()}
             </h3>
             <p className="text-xs text-muted-foreground">
-              {totalLines} {t("knowledge.lines", "行")}
+              {totalLines} {t("knowledge.lines")}
             </p>
           </div>
         </div>
@@ -83,13 +83,13 @@ export function DocumentViewer({ document, onClose }: DocumentViewerProps) {
           <div className="flex items-center gap-3 text-xs text-muted-foreground">
             <span className="flex items-center gap-1">
               <TrendingUp className="h-3 w-3" />
-              引用 {stats.total_citations} 次
+              {t("knowledge.status.citations", { count: stats.total_citations })}
             </span>
             {stats.unique_sessions > 0 && (
-              <span>{stats.unique_sessions} 个会话</span>
+              <span>{t("knowledge.status.sessions", { count: stats.unique_sessions })}</span>
             )}
             {stats.last_accessed && (
-              <span>最近访问: {new Date(stats.last_accessed).toLocaleDateString()}</span>
+              <span>{t("knowledge.status.lastAccessed", { date: new Date(stats.last_accessed).toLocaleDateString() })}</span>
             )}
           </div>
         </div>
@@ -116,7 +116,7 @@ export function DocumentViewer({ document, onClose }: DocumentViewerProps) {
           <div className="border-t px-4 py-3">
             <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
               <Link2 className="h-4 w-4" />
-              相关文档
+              {t("knowledge.relatedDocs")}
             </h4>
             <div className="space-y-1">
               {recommendations.recommendations.map((rec) => (
@@ -147,7 +147,7 @@ export function DocumentViewer({ document, onClose }: DocumentViewerProps) {
           disabled={offset === 0}
         >
           <ChevronLeft className="mr-1 h-4 w-4" />
-          {t("knowledge.prev", "上一页")}
+          {t("knowledge.prev")}
         </Button>
 
         <span className="text-sm text-muted-foreground">
@@ -160,7 +160,7 @@ export function DocumentViewer({ document, onClose }: DocumentViewerProps) {
           onClick={handleNextPage}
           disabled={!hasMore}
         >
-          {t("knowledge.next", "下一页")}
+          {t("knowledge.next")}
           <ChevronRight className="ml-1 h-4 w-4" />
         </Button>
       </div>

@@ -46,8 +46,8 @@ export function SidebarFilesTab({ projectId, activeThreadId, onSelectDiff, onQuo
             )}
             <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex-1">
               {isGlobal
-                ? t("chat.sidebar.workspaceFiles", "Workspace Files")
-                : t("chat.sidebar.projectFiles", "Project Files")}
+                ? t("chat.sidebar.workspaceFiles")
+                : t("chat.sidebar.projectFiles")}
             </span>
           </div>
         </CollapsibleTrigger>
@@ -64,7 +64,7 @@ export function SidebarFilesTab({ projectId, activeThreadId, onSelectDiff, onQuo
               />
             ) : (
               <div className="p-4 text-center text-xs text-muted-foreground italic">
-                {t("chat.sidebar.noProject", "No project selected")}
+                {t("chat.sidebar.noProject")}
               </div>
             )}
           </div>
@@ -86,7 +86,7 @@ export function SidebarFilesTab({ projectId, activeThreadId, onSelectDiff, onQuo
               {isChangesOpen ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />}
               <History className="h-3.5 w-3.5 text-amber-500/70" />
               <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex-1">
-                {t("chat.sidebar.agentChanges", "Agent Changes")}
+                {t("chat.sidebar.agentChanges")}
               </span>
             </div>
           </CollapsibleTrigger>

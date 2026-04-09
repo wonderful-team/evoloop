@@ -36,7 +36,7 @@ function MarkdownPreview({ content }: { content: string }) {
                                             onClick={() => navigator.clipboard.writeText(codeString)}
                                             className="hover:text-white transition-colors"
                                         >
-                                            {t("chat.messageList.copy", "Copy")}
+                                            {t("chat.messageList.copy")}
                                         </button>
                                     </div>
                                     <SyntaxHighlighter
@@ -106,7 +106,7 @@ function MarkdownPreview({ content }: { content: string }) {
                     hr: () => <hr className="my-6 border-border" />,
                 }}
             >
-                {content || t("learning.editor.noContent", "*No content*")}
+                {content || t("learning.editor.noContent")}
             </ReactMarkdown>
         </div>
     )
@@ -142,7 +142,7 @@ export function MarkdownEditor({ value, onChange, placeholder, className }: Mark
                         onClick={() => setViewMode("edit")}
                     >
                         <Edit3 className="h-3.5 w-3.5" />
-                        {t("common.edit", "Edit")}
+                        {t("common.edit")}
                     </Button>
                     <Button
                         variant={viewMode === "split" ? "secondary" : "ghost"}
@@ -151,7 +151,7 @@ export function MarkdownEditor({ value, onChange, placeholder, className }: Mark
                         onClick={() => setViewMode("split")}
                     >
                         <SplitSquareHorizontal className="h-3.5 w-3.5" />
-                        {t("common.split", "Split")}
+                        {t("common.split")}
                     </Button>
                     <Button
                         variant={viewMode === "preview" ? "secondary" : "ghost"}
@@ -160,7 +160,7 @@ export function MarkdownEditor({ value, onChange, placeholder, className }: Mark
                         onClick={() => setViewMode("preview")}
                     >
                         <Eye className="h-3.5 w-3.5" />
-                        {t("common.preview", "Preview")}
+                        {t("common.preview")}
                     </Button>
                 </div>
             </div>

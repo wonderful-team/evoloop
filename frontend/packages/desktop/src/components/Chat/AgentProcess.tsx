@@ -32,7 +32,7 @@ interface StepGroup {
 }
 
 interface AgentProcessProps {
-    steps: AgentProcessStep[]
+    steps: any[]
     isStreaming?: boolean
     header?: React.ReactNode
 }
@@ -433,7 +433,7 @@ function groupSteps(steps: any[], t: any): StepGroup[] {
     if (orphans.length > 0) {
         groups.push({
             id: "g-implicit",
-            title: t("chat.steps.execution", "执行"),
+            title: t("chat.steps.execution"),
             status: orphans.some(s => s.status === "running") ? "running" : "success",
             steps: orphans,
             isImplicit: true
@@ -538,7 +538,7 @@ function StepRow({ step: rawStep }: { step: AgentProcessStep }) {
                 {outputSummary.title && (
                     <div className="mt-1 flex min-w-0">
                         <span className="text-[10px] text-muted-foreground/70 truncate flex-1 break-all" title={outputSummary.title}>
-                            {hasError && <span className="text-red-500 mr-1">{t("chat.steps.failed", "失败")}:</span>}
+                            {hasError && <span className="text-red-500 mr-1">{t("chat.steps.failed")}:</span>}
                             {outputSummary.title}
                             {outputSummary.subtitle && (
                                 <span className="text-muted-foreground/50 ml-1">· {outputSummary.subtitle}</span>
@@ -560,7 +560,7 @@ function ProcessGroup({ group }: { group: StepGroup }) {
             <div className="p-1 px-2 flex flex-col gap-0.5">
                 {group.steps.length === 0 && isRunning && (
                     <div className="text-[10px] text-muted-foreground/50 italic px-3 py-2">
-                        {t("chat.process.initializing", "初始化中...")}
+                        {t("chat.process.initializing")}
                     </div>
                 )}
                 {group.steps.map((step, idx) => (

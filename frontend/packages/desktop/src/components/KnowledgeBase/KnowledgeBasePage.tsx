@@ -104,9 +104,9 @@ export function KnowledgeBasePage() {
         <div className="flex items-center gap-3">
           <BookOpen className="h-6 w-6 text-primary" />
           <div>
-            <h1 className="text-xl font-semibold">{t("knowledge.title", "知识库")}</h1>
+            <h1 className="text-xl font-semibold">{t("knowledge.title")}</h1>
             <p className="text-sm text-muted-foreground">
-              {t("knowledge.subtitle", "管理和探索你的文档")}
+              {t("knowledge.subtitle")}
             </p>
           </div>
         </div>
@@ -114,7 +114,7 @@ export function KnowledgeBasePage() {
           <div className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder={t("knowledge.search", "搜索文档... (支持 FTS5 语法)")}
+              placeholder={t("knowledge.search")}
               className="w-80 pl-9"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -127,7 +127,7 @@ export function KnowledgeBasePage() {
           </div>
           <Button onClick={() => setIsUploadOpen(true)}>
             <Upload className="mr-2 h-4 w-4" />
-            {t("knowledge.upload", "上传")}
+            {t("knowledge.upload")}
           </Button>
         </div>
       </div>
@@ -138,24 +138,24 @@ export function KnowledgeBasePage() {
           <div className="flex items-center gap-2">
             <FileText className="h-4 w-4 text-muted-foreground" />
             <span className="text-sm">
-              <strong>{stats.total_documents}</strong> {t("knowledge.documents", "文档")}
+              <strong>{stats.total_documents}</strong> {t("knowledge.documents")}
             </span>
           </div>
           <div className="flex items-center gap-2">
             <Folder className="h-4 w-4 text-muted-foreground" />
             <span className="text-sm">
-              <strong>{projects.length}</strong> {t("knowledge.projects", "项目")}
+              <strong>{projects.length}</strong> {t("knowledge.projects")}
             </span>
           </div>
           <div className="flex items-center gap-2">
             <Hash className="h-4 w-4 text-muted-foreground" />
             <span className="text-sm">
-              <strong>{tags.length}</strong> {t("knowledge.tags", "标签")}
+              <strong>{tags.length}</strong> {t("knowledge.tags")}
             </span>
           </div>
           <div className="flex items-center gap-2">
             <span className="text-sm text-muted-foreground">
-              {t("knowledge.totalSize", "总大小")}: {(stats.total_size_bytes / 1024 / 1024).toFixed(2)} MB
+              {t("knowledge.totalSize")}: {(stats.total_size_bytes / 1024 / 1024).toFixed(2)} MB
             </span>
           </div>
         </div>
@@ -164,7 +164,7 @@ export function KnowledgeBasePage() {
       {/* Active Filters Bar */}
       {hasActiveFilters && (
         <div className="flex items-center gap-2 border-b bg-muted/30 px-6 py-2">
-          <span className="text-sm text-muted-foreground">{t("knowledge.filters", "筛选")}:</span>
+          <span className="text-sm text-muted-foreground">{t("knowledge.filters")}:</span>
           {selectedProject && (
             <Badge variant="secondary" className="gap-1">
               <Folder className="h-3 w-3" />
@@ -193,7 +193,7 @@ export function KnowledgeBasePage() {
             </Badge>
           )}
           <Button variant="ghost" size="sm" onClick={clearFilters} className="h-6 text-xs">
-            {t("knowledge.clearFilters", "清除全部")}
+            {t("knowledge.clearFilters")}
           </Button>
         </div>
       )}
@@ -205,7 +205,7 @@ export function KnowledgeBasePage() {
           {/* Projects Section */}
           <div className="p-4 border-b">
             <h3 className="mb-2 text-sm font-medium text-muted-foreground">
-              {t("knowledge.projects", "项目")}
+              {t("knowledge.projects")}
             </h3>
             <button
               onClick={() => setSelectedProject(null)}
@@ -213,7 +213,7 @@ export function KnowledgeBasePage() {
                 selectedProject === null ? "bg-primary text-primary-foreground" : "hover:bg-muted"
               }`}
             >
-              {t("knowledge.allProjects", "所有项目")}
+              {t("knowledge.allProjects")}
             </button>
             {projects.map((project) => (
               <button
@@ -231,12 +231,12 @@ export function KnowledgeBasePage() {
           {/* Tags Section */}
           <div className="p-4">
             <h3 className="mb-2 text-sm font-medium text-muted-foreground">
-              {t("knowledge.tags", "标签")}
+              {t("knowledge.tags")}
             </h3>
             {isLoadingTags ? (
-              <div className="text-sm text-muted-foreground">{t("common.loading", "加载中...")}</div>
+              <div className="text-sm text-muted-foreground">{t("common.loading")}</div>
             ) : tags.length === 0 ? (
-              <div className="text-sm text-muted-foreground">{t("knowledge.noTags", "暂无标签")}</div>
+              <div className="text-sm text-muted-foreground">{t("knowledge.noTags")}</div>
             ) : (
               <div className="flex flex-wrap gap-1">
                 {tags.map(({ name, count }) => (
@@ -270,11 +270,11 @@ export function KnowledgeBasePage() {
             <Tabs value={activeTab} onValueChange={setActiveTab}>
               <TabsList className="mb-4">
                 <TabsTrigger value="all">
-                  {t("knowledge.allDocuments", "全部文档")}
+                  {t("knowledge.allDocuments")}
                 </TabsTrigger>
                 <TabsTrigger value="popular">
                   <TrendingUp className="mr-1 h-4 w-4" />
-                  {t("knowledge.popular", "热门")}
+                  {t("knowledge.popular")}
                 </TabsTrigger>
               </TabsList>
 

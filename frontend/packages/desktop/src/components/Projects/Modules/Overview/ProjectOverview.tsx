@@ -94,7 +94,7 @@ export const ProjectOverview: React.FC = () => {
       <div className="flex justify-between items-center">
         <div className="flex items-center gap-3">
           <h2 className="text-2xl font-bold tracking-tight">
-            {t("projects.overview.title", "Project Overview")}
+            {t("projects.overview.title")}
           </h2>
           {/* Status Badges */}
           {currentProject?.indexing_status === "indexing" && (
@@ -122,7 +122,7 @@ export const ProjectOverview: React.FC = () => {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
-              {t("projects.stats.totalTasks", "Total Tasks")}
+              {t("projects.stats.totalTasks")}
             </CardTitle>
             <Activity className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
@@ -133,7 +133,7 @@ export const ProjectOverview: React.FC = () => {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
-              {t("projects.stats.completed", "Completed")}
+              {t("projects.stats.completed")}
             </CardTitle>
             <CheckCircle2 className="h-4 w-4 text-green-500" />
           </CardHeader>
@@ -146,7 +146,7 @@ export const ProjectOverview: React.FC = () => {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
-              {t("projects.stats.inProgress", "In Progress")}
+              {t("projects.stats.inProgress")}
             </CardTitle>
             <Clock className="h-4 w-4 text-blue-500" />
           </CardHeader>
@@ -157,7 +157,7 @@ export const ProjectOverview: React.FC = () => {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
-              {t("projects.stats.members", "Members")}
+              {t("projects.stats.members")}
             </CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
@@ -174,14 +174,14 @@ export const ProjectOverview: React.FC = () => {
         <Card className="col-span-4">
           <CardHeader>
             <CardTitle>
-              {t("projects.overview.recentActivity", "Recent Activity")}
+              {t("projects.overview.recentActivity")}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
               {recentTasks.length === 0 ? (
                 <div className="text-center text-sm text-muted-foreground py-4">
-                  {t("projects.overview.noActivity", "No recent activity")}
+                  {t("projects.overview.noActivity")}
                 </div>
               ) : (
                 recentTasks.map((task) => (
@@ -219,7 +219,7 @@ export const ProjectOverview: React.FC = () => {
         <Card className="col-span-3">
           <CardHeader>
             <CardTitle>
-              {t("projects.overview.quickActions", "Quick Actions")}
+              {t("projects.overview.quickActions")}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
@@ -230,7 +230,7 @@ export const ProjectOverview: React.FC = () => {
             >
               <Button variant="outline" className="w-full justify-start">
                 <CheckSquare className="mr-2 h-4 w-4" />
-                {t("projects.actions.viewTasks", "View Tasks")}
+                {t("projects.actions.viewTasks")}
               </Button>
             </Link>
             <Link
@@ -240,7 +240,7 @@ export const ProjectOverview: React.FC = () => {
             >
               <Button variant="outline" className="w-full justify-start">
                 <Activity className="mr-2 h-4 w-4" />
-                {t("projects.actions.viewGantt", "View Gantt Chart")}
+                {t("projects.actions.viewGantt")}
               </Button>
             </Link>
             <Link
@@ -250,7 +250,7 @@ export const ProjectOverview: React.FC = () => {
             >
               <Button variant="outline" className="w-full justify-start">
                 <Clock className="mr-2 h-4 w-4" />
-                {t("projects.actions.logTime", "Log Time")}
+                {t("projects.actions.logTime")}
               </Button>
             </Link>
           </CardContent>

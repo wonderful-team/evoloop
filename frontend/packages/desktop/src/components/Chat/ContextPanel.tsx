@@ -77,7 +77,7 @@ export const ContextPanel = memo(
           <div className="flex items-center justify-between p-3 border-b h-14 shrink-0">
             <span className="font-semibold text-sm flex items-center gap-2">
               <Globe className="h-4 w-4 text-blue-500" />
-              {t("chat.context.globalTitle", "全局模式")}
+              {t("chat.context.globalTitle")}
             </span>
             {onClose && (
               <Button
@@ -97,10 +97,10 @@ export const ContextPanel = memo(
               <Globe className="h-8 w-8 text-white" />
             </div>
             <h3 className="font-semibold text-lg mb-2">
-              {t("chat.context.globalTitle", "全局模式")}
+              {t("chat.context.globalTitle")}
             </h3>
             <p className="text-sm text-muted-foreground max-w-[200px]">
-              {t("chat.context.globalDesc", "您正在进行跨项目对话。代码上下文和文件操作在此模式下不可用。")}
+              {t("chat.context.globalDesc")}
             </p>
           </div>
         </div>
@@ -126,7 +126,7 @@ export const ContextPanel = memo(
             ) : (
               <LayoutDashboard className="h-4 w-4 text-muted-foreground" />
             )}
-            {t("chat.context.title", "Agent Workstation")}
+            {t("chat.context.title")}
           </span>
           {onClose && (
             <Button
@@ -150,15 +150,15 @@ export const ContextPanel = memo(
             <TabsList className="w-full grid grid-cols-3">
               <TabsTrigger value="context" className="text-xs">
                 <Database className="h-3.5 w-3.5 mr-1.5" />
-                {t("chat.context.groupContext", "Context")}
+                {t("chat.context.groupContext")}
               </TabsTrigger>
               <TabsTrigger value="plan" className="text-xs">
                 <MapIcon className="h-3.5 w-3.5 mr-1.5" />
-                {t("chat.context.tabPlan", "Plan")}
+                {t("chat.context.tabPlan")}
               </TabsTrigger>
               <TabsTrigger value="system" className="text-xs">
                 <Cpu className="h-3.5 w-3.5 mr-1.5" />
-                {t("chat.context.groupSystem", "System")}
+                {t("chat.context.groupSystem")}
               </TabsTrigger>
             </TabsList>
           </div>

@@ -116,7 +116,7 @@ export function DetectedProjectAlert() {
       await importProject(id)
       // 本地标记为已处理，立即从列表中移除
       dismissProject(id)
-      toast.success(t("projects.import.importSuccess", "Project imported successfully"))
+      toast.success(t("projects.import.importSuccess"))
 
       // Close dialog if no more visible projects
       const remaining = visibleProjects.filter((p) => p.id !== id)
@@ -124,7 +124,7 @@ export function DetectedProjectAlert() {
         setIsOpen(false)
       }
     } catch (error) {
-      toast.error(t("projects.import.importFailed", "Failed to import project"))
+      toast.error(t("projects.import.importFailed"))
     } finally {
       setImportingIds((prev) => {
         const next = new Set(prev)
@@ -139,7 +139,7 @@ export function DetectedProjectAlert() {
       await ignoreProject(id)
       // 本地标记为已处理，立即从列表中移除
       dismissProject(id)
-      toast.info(t("projects.import.ignored", "Project ignored"))
+      toast.info(t("projects.import.ignored"))
 
       // Close dialog if no more visible projects
       const remaining = visibleProjects.filter((p) => p.id !== id)
@@ -147,7 +147,7 @@ export function DetectedProjectAlert() {
         setIsOpen(false)
       }
     } catch (error) {
-      toast.error(t("projects.import.ignoreFailed", "Failed to ignore project"))
+      toast.error(t("projects.import.ignoreFailed"))
     }
   }
 
@@ -201,7 +201,7 @@ export function DetectedProjectAlert() {
 
     // Check if date is valid
     if (isNaN(date.getTime())) {
-      return t("common.time.unknown", "Unknown")
+      return t("common.time.unknown")
     }
 
     const now = new Date()
@@ -209,7 +209,7 @@ export function DetectedProjectAlert() {
     const minutes = Math.floor(diff / 60000)
     const hours = Math.floor(diff / 3600000)
 
-    if (minutes < 1) return t("common.time.justNow", "Just now")
+    if (minutes < 1) return t("common.time.justNow")
     if (minutes < 60) return t("common.time.minutesAgo", "{{count}}m ago", { count: minutes })
     if (hours < 24) return t("common.time.hoursAgo", "{{count}}h ago", { count: hours })
     return date.toLocaleDateString()
@@ -221,7 +221,7 @@ export function DetectedProjectAlert() {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FolderOpen className="h-5 w-5 text-primary" />
-            {t("projects.import.newProjectsDetected", "New Projects Detected")}
+            {t("projects.import.newProjectsDetected")}
           </DialogTitle>
           <DialogDescription>
             {t("projects.import.detectedDescription")}
@@ -232,7 +232,7 @@ export function DetectedProjectAlert() {
           {visibleProjects.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <RefreshCw className="h-8 w-8 mx-auto mb-2 animate-spin opacity-50" />
-              <p>{t("projects.import.loading", "Loading detected projects...")}</p>
+              <p>{t("projects.import.loading")}</p>
             </div>
           ) : (
             visibleProjects.map((project) => (
@@ -253,7 +253,7 @@ export function DetectedProjectAlert() {
                     {formatPath(project.path)}
                   </p>
                   <p className="text-xs text-muted-foreground/70 mt-0.5">
-                    {t("projects.import.detected", "Detected")} {formatTime(project.detected_at)}
+                    {t("projects.import.detected")} {formatTime(project.detected_at)}
                   </p>
                 </div>
 
@@ -266,7 +266,7 @@ export function DetectedProjectAlert() {
                     className="text-muted-foreground hover:text-destructive"
                   >
                     <FolderX className="h-4 w-4 mr-1" />
-                    {t("common.ignore", "Ignore")}
+                    {t("common.ignore")}
                   </Button>
                   <Button
                     size="sm"
@@ -278,7 +278,7 @@ export function DetectedProjectAlert() {
                     ) : (
                       <Check className="h-4 w-4 mr-1" />
                     )}
-                    {t("common.import", "Import")}
+                    {t("common.import")}
                   </Button>
                 </div>
               </div>
@@ -289,7 +289,7 @@ export function DetectedProjectAlert() {
         <DialogFooter className="flex-col sm:flex-row gap-2">
           <Button variant="outline" onClick={handleClose} className="w-full sm:w-auto">
             <X className="h-4 w-4 mr-1" />
-            {t("common.later", "Later")}
+            {t("common.later")}
           </Button>
           {visibleProjects.length > 1 && (
             <Button

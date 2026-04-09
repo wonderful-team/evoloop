@@ -148,7 +148,7 @@ function FilesPage() {
           containerRef.current!.innerHTML = `<div class="p-4 overflow-auto">${html}</div>`
         } catch (e) {
           console.error(e)
-          containerRef.current!.innerHTML = `<div class="p-4 text-red-500">${t("sidebar.excelPreviewError", "Failed to render Excel preview.")}</div>`
+          containerRef.current!.innerHTML = `<div class="p-4 text-red-500">${t("sidebar.excelPreviewError")}</div>`
         }
       } else if (fileType === "csv" && fileContent) {
         try {
@@ -165,7 +165,7 @@ function FilesPage() {
         } catch (e) {
           console.error(e)
           // Fallback will supply text view if this fails, or we can show error
-          containerRef.current!.innerHTML = `<div class="p-4 text-red-500">${t("sidebar.csvPreviewError", "Failed to render CSV table.")}</div>`
+          containerRef.current!.innerHTML = `<div class="p-4 text-red-500">${t("sidebar.csvPreviewError")}</div>`
         }
       }
     }
@@ -199,7 +199,7 @@ function FilesPage() {
             <Search className="absolute left-2 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
             <Input
               className="pl-8 h-8 text-xs pr-7"
-              placeholder={t("sidebar.searchFilesPlaceholder", "Search project files...")}
+              placeholder={t("sidebar.searchFilesPlaceholder")}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
@@ -228,7 +228,7 @@ function FilesPage() {
           ) : (
             <div className="flex-1 overflow-hidden flex flex-col">
               <div className="px-3 py-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex justify-between items-center">
-                <span>Search Results</span>
+                <span>{t("files.searchResults")}</span>
                 {isLoadingSearch && <Loader2 className="h-3 w-3 animate-spin" />}
               </div>
               <ScrollArea className="flex-1">
@@ -309,7 +309,7 @@ function FilesPage() {
                     size="icon"
                     className="h-7 w-7"
                     onClick={handleOpenInApp}
-                    title={t("sidebar.openInSystemApp", "Open in System App")}
+                    title={t("sidebar.openInSystemApp")}
                   >
                     <ExternalLink className="h-4 w-4" />
                   </Button>

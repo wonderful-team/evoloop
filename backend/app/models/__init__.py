@@ -90,26 +90,64 @@ class TokenPayload(SQLModel):
     sub: str | None = None
 
 
-# User model reflecting Member Center data structure
-# No longer a table=True model
+# User model reflecting Member Center /api/member/info response structure
+# No longer a table=True model - data is fetched from Member Center
 class User(SQLModel):
-    id: int | str  # Member Center usually uses integer member_id, but keeping str compat
+    # Core identification
+    id: int | str  # member_id from Member Center
     username: str | None = None
-    email: str | None = None
-    mobile: str | None = None
     nickname: str | None = None
+    mobile: str | None = None
+    email: str | None = None
     headimg: str | None = None  # Avatar URL
 
-    # Member Center specific fields
+    # Member level info
     member_level: int = 0
     member_level_name: str | None = None
+    member_level_type: int = 0
     level_expire_time: int = 0
-    balance: float = 0.0
-    balance_money: float = 0.0
-    point: int = 0
 
-    is_active: bool = True
-    is_superuser: bool = False  # This might need special handling based on Member Center roles or config
+    # Member labels
+    member_label: int = 0
+    member_label_name: str | None = None
+    member_code: str | None = None
+
+    # Account assets
+    point: int = 0  # 积分
+    balance: float = 0.0  # 余额
+    balance_money: float = 0.0  # 可提现余额
+    growth: int = 0  # 成长值
+
+    # Status flags
+    status: int = 1  # 0=disabled, 1=active (mapped from Member Center)
+    has_password: bool = False  # password field from MC (0/1 -> bool)
+    is_edit_username: int = 0  # Whether username has been edited
+    is_fenxiao: int = 0  # Whether user is a distributor
+
+    # Profile info
+    realname: str | None = None  # Real name
+    sex: int = 0  # 0=unknown, 1=male, 2=female
+    birthday: str | None = None  # Birthday
+
+    # Referral info
+    source_member: int = 0  # Referrer member ID
+
+    # Address info
+    province_id: int = 0
+    city_id: int = 0
+    district_id: int = 0
+    address: str | None = None
+    full_address: str | None = None
+    longitude: float = 0.0
+    latitude: float = 0.0
+
+    # Third-party login (optional, if needed)
+    wx_openid: str | None = None
+    wx_unionid: str | None = None
+
+    # Compatibility fields
+    is_active: bool = True  # Derived from status == 1
+    is_superuser: bool = False  # Reserved for admin roles
 
 
 class UserPublic(User):

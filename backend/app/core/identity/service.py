@@ -1,7 +1,7 @@
 import logging
 from typing import Any
 
-from .jwt import create_local_jwt
+from .jwt import create_local_jwt, decode_local_jwt
 from .store import IdentityStore
 
 logger = logging.getLogger(__name__)
@@ -32,10 +32,15 @@ class IdentityService:
         self.store.save_cloud_token(token)
         self.store.save_member_id(member_id)
 
-        # 2. Issue Local JWT
-        # We store member_id in the local JWT claims
-        local_token = create_local_jwt({"sub": str(member_id), "member_id": member_id})
-        return local_token
+    async def create_local_token_from_id(self, member_id: int, username: str = None) -> str:
+        """
+        Creates a thin local JWT from a member_id.
+        No cloud interaction, just identity resolution.
+        """
+        claims = {"sub": str(member_id), "member_id": member_id}
+        if username:
+            claims["username"] = username
+        return create_local_jwt(claims)
 
     def logout(self):
         """
@@ -50,7 +55,10 @@ class IdentityService:
         """
         return self.store.get_cloud_token()
 
-    def get_member_id(self) -> int | None:
+    def get_member_id(self, token: str | None = None) -> int | None:
+        if token:
+            payload = decode_local_jwt(token)
+            return payload.get("member_id") if payload else None
         return self.store.get_member_id()
 
     def is_logged_in(self) -> bool:

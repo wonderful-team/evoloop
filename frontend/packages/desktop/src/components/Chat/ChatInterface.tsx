@@ -352,15 +352,15 @@ export function ChatInterface() {
     // @ts-ignore
     onSuccess: (data: any) => {
       const filesMsg = data.files_reverted && data.files_reverted > 0
-        ? ` (${data.files_reverted} ${t("chat.interface.filesReverted", "files reverted")})`
+        ? ` (${t("chat.interface.filesReverted", { count: data.files_reverted })})`
         : ""
-      toast.success(`${t("chat.interface.retrying", "Retrying...")}${filesMsg}`)
+      toast.success(`${t("chat.interface.retrying")}${filesMsg}`)
       // Reload store to reflect rolled back state and new streaming status
       if (activeThreadId && projectId) setThread(activeThreadId, projectId)
       setIsRewindDialogOpen(false)
     },
     onError: () => {
-      toast.error(t("chat.interface.retryFailed", "Retry failed"))
+      toast.error(t("chat.interface.retryFailed"))
     }
   })
 
@@ -584,7 +584,6 @@ export function ChatInterface() {
                     }
                   }}
                   onQuote={(msg) => handleQuoteMessage(msg)}
-                  onStarterClick={(text) => sendMessage(text)}
                   onViewChangeset={handleViewChangeset}
                 />
                 {/* Quota Exhausted Card - Shows when quota is exhausted */}
@@ -657,12 +656,12 @@ export function ChatInterface() {
       <Dialog open={isMemoryDialogOpen} onOpenChange={setIsMemoryDialogOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>{t("chat.interface.memorizeConfirm", "Memorize Concept")}</DialogTitle>
+            <DialogTitle>{t("chat.interface.memorizeConfirm")}</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="name" className="text-right">
-                {t("chat.interface.conceptName", "Name")}
+                {t("chat.interface.conceptName")}
               </Label>
               <Input
                 id="name"
@@ -685,7 +684,7 @@ export function ChatInterface() {
               {t("chat.interface.cancel")}
             </Button>
             <Button onClick={() => addToMemoryMutation.mutate({ text: memoryContent, name: memoryName })}>
-              {t("chat.interface.save", "Save")}
+              {t("chat.interface.save")}
             </Button>
           </DialogFooter>
         </DialogContent>

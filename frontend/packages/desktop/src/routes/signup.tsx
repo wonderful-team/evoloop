@@ -66,7 +66,7 @@ function SignUp() {
   const { t } = useTranslation()
 
   useEffect(() => {
-    document.title = t("auth.signup.pageTitle", "Sign Up - EvoLoop")
+    document.title = t("auth.signup.pageTitle")
   }, [t])
 
   const { signUpMutation } = useAuth()

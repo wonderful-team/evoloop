@@ -57,7 +57,7 @@ export function useMultimodalSynthesis(options: UseMultimodalSynthesisOptions = 
         threadId?: string
     }): Promise<SynthesisResult | null> => {
         setIsSynthesizing(true)
-        setProgress(t("learning.synthesizingProgress", "正在分析录制内容..."))
+        setProgress(t("learning.synthesizingProgress"))
 
         try {
             const result = await LearningService.synthesizeFromRecording({

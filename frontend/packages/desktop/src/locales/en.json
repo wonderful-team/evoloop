@@ -107,8 +107,8 @@
     "voice": {
       "wakeWordTitle": "Wake Word Settings",
       "wakeWordDesc": "Set a voice wake word to activate voice input",
-      "enableWakeWord": "Enable Wake Word",
       "enableWakeWordDesc": "Continuously listen to microphone, automatically start recording when wake word is detected",
+      "waiting": "Agent is waiting for your input...",
       "wakeWordLabel": "Wake Word",
       "wakeWordPlaceholder": "e.g., Hey Evo",
       "wakeWordHint": "Recommended: 2-4 character phrase with clear pronunciation",
@@ -118,7 +118,6 @@
       "listening": "Listening...",
       "wakeWordDetected": "Wake word detected!",
       "heard": "Heard",
-      "notSupported": "Your browser does not support speech recognition. Please use Chrome, Edge, or Safari.",
       "shortcutTitle": "Shortcut Settings (Tauri)",
       "shortcutDesc": "Set double-click or long-press shortcut to quickly activate voice input",
       "enableShortcut": "Enable Shortcut",
@@ -208,6 +207,7 @@
     "openExternal": "Opening file in external app...",
     "openExternalError": "Failed to open file",
     "noMatches": "No matches found",
+    "searchResults": "Search Results",
     "loadingContent": "Loading content...",
     "pdfPreview": "PDF Preview",
     "selectFileToView": "Select a file to view",
@@ -260,6 +260,7 @@
     "centerSubtitle": "Manage your learned skills and train the agent through interactive recording sessions.",
     "synthesizingProgress": "Analyzing recording content...",
     "editor": {
+      "noContent": "*No content*",
       "skillDescription": "Description",
       "skillName": "Skill Name",
       "nameHelp": "Unique display name for this skill.",
@@ -293,8 +294,7 @@
       "expertGuidePlaceholder": "Write markdown instructions for the agent... e.g. \\n1. Go to github.com\\n2. Click the 'New Repository' button",
       "macroPlaceholder": "[{ 'event_type': 'click', 'target_selector': '.btn' }]",
       "invalidMacroJson": "Macro script must be valid JSON",
-      "invalidMacroYaml": "Macro script must be valid YAML",
-      "noContent": "No content available"
+      "invalidMacroYaml": "Macro script must be valid YAML"
     },
     "mirror": {
       "title": "Android Mirror Console",
@@ -654,6 +654,7 @@
       }
     },
     "context": {
+      "noDescription": "No detailed description for this concept",
       "starter": {
         "analyzeDesc": "Explore architecture & files",
         "analyze": "Analyze current codebase structure",
@@ -688,6 +689,7 @@
       "noMatches": "No matches found for some reason.",
       "groupSystem": "System",
       "memoryTitle": "Project Memory",
+      "allMemoriesDesc": "All learned concepts and rules for this project.",
       "noState": "No state data available.",
       "openImagicBox": "Open IMagicBox",
       "statusActive": "Active",
@@ -712,7 +714,7 @@
       "quote": "Quote",
       "quoteFile": "Quote File",
       "selectProject": "Select a project to start chatting",
-      "retrying": "Retrying from last user message...",
+      "retrying": "Retrying...",
       "startPrompt": "Start a new conversation or choose a task below.",
       "memorize": "Memorize",
       "uploadSuccess": "File uploaded successfully",
@@ -947,6 +949,8 @@
     "later": "Later",
     "openMenu": "Open menu",
     "none": "None",
+    "openContextPanel": "Open Context Panel",
+    "ok": "OK",
     "time": {
       "justNow": "Just now",
       "minutesAgo": "{{count}}m ago",
@@ -961,7 +965,6 @@
       "title": "Error"
     },
     "copyCode": "Copy Code",
-    "openContextPanel": "Open Context Panel",
     "fullView": "Full view",
     "status": {
       "active": "ACTIVE",
@@ -969,7 +972,6 @@
       "running": "RUNNING",
       "title": "Status"
     },
-    "ok": "OK",
     "approve": "Approve",
     "reject": "Reject",
     "submit": "Submit",
@@ -1052,7 +1054,8 @@
       "lastIndexed": "Last indexed"
     },
     "requirements": {
-      "title": "Requirements"
+      "title": "Requirements",
+      "subtitle": "Upload requirements docs, AI will analyze and break them into tasks"
     },
     "overview": {
       "title": "Project Overview",
@@ -1079,7 +1082,8 @@
       "statusLabel": {
         "pending": "Pending",
         "inProgress": "In Progress",
-        "completed": "Done"
+        "completed": "Done",
+        "blocked": "Blocked"
       },
       "priority": {
         "normal": "Normal",
@@ -1094,7 +1098,14 @@
       "processing": "Processing...",
       "keyModules": "Key Modules",
       "executeError": "Failed to start execution",
-      "executeFailed": "Execute task failed"
+      "executeFailed": "Execute task failed",
+      "progressUpdated": "Progress updated",
+      "progressUpdateFailed": "Failed to update progress",
+      "clickToEdit": "Click to edit",
+      "noSubtasks": "No subtasks",
+      "subtasksWillAppear": "Subtasks will appear here when created",
+      "subtasks": "subtasks",
+      "totalProgress": "total progress"
     },
     "gantt": {
       "noTasks": "No tasks found.",
@@ -1405,6 +1416,17 @@
     "noProjects": "No projects found.",
     "disconnected": "Disconnected"
   },
+  "features": {
+    "browserControl": "Browser Control",
+    "desktopControl": "Desktop Control",
+    "mobileControl": "Mobile Control",
+    "voice": "Voice Interaction",
+    "skillLearning": "Skill Learning",
+    "wikiGeneration": "Wiki Generation",
+    "knowledgeBase": "Knowledge Base",
+    "gantt": "Gantt Chart",
+    "timesheet": "Timesheet"
+  },
   "subscription": {
     "title": "Subscription",
     "subtitle": "Manage your subscription plan and billing",
@@ -1412,6 +1434,19 @@
       "desc": "Please complete the payment to continue using the service",
       "benefits": "Membership tier determines AI quota and context window size. Pro and above enjoy priority processing. Remaining balance will be refunded when upgrading."
     },
+    "expired": {
+      "title": "Subscription Expired",
+      "description": "Your subscription has expired, please renew to continue using this feature"
+    },
+    "upgrade": {
+      "title": "Upgrade Required",
+      "description": "This feature requires a higher tier subscription",
+      "help": "Use this feature immediately after upgrading"
+    },
+    "feature": "Feature",
+    "requiredPlan": "Required Plan",
+    "renew": "Renew Now",
+    "upgradeNow": "Upgrade Now",
     "payment": {
       "title": "Payment",
       "desc": "Complete your payment securely",
@@ -1433,12 +1468,35 @@
       "startFree": "Start Free",
       "free": "Free",
       "perMonth": "/month",
-      "defaultDesc": "Basic features included",
+      "defaultDesc": "Unlock advanced AI features",
       "featuresInclude": "Features include",
-      "discount": "Discount",
+      "discount": "Limited Time Discount",
       "downgrade": "Cannot Downgrade",
-      "cannotDowngrade": "Downgrade Not Allowed",
-      "downgradeTooltip": "Please cancel current subscription first. Auto-downgrade after expiry."
+      "cannotDowngrade": "Higher Tier Active",
+      "downgradeTooltip": "Please cancel current subscription first. Auto-downgrade after expiry.",
+      "downgradeHint": "Can be purchased after expiry",
+      "gb": "{{value}}GB",
+      "unlimited": "Unlimited",
+      "defaultBenefit1": "Basic AI",
+      "defaultBenefit2": "Standard Support"
+    },
+    "benefits": {
+      "ai_quota": "AI Quota",
+      "ai_chat": "Basic Chat",
+      "ai_code": "Code Generation",
+      "ai_advanced": "Advanced Models",
+      "code_execution": "Code Execution",
+      "browser_control": "Browser Control",
+      "desktop_control": "Desktop Control",
+      "mobile_control": "Mobile Control",
+      "voice": "Voice Interaction",
+      "skill_learning": "Skill Learning",
+      "mcp": "MCP Services",
+      "project_limit": "Project Limit",
+      "gantt": "Gantt Chart",
+      "timesheet": "Timesheet",
+      "storage": "Storage Space",
+      "sort": "Priority weight"
     },
     "plans": {
       "title": "Plans",
@@ -1451,10 +1509,12 @@
       "codeAnalysis": "Code analysis"
     },
     "quota": {
-      "title": "Quota",
-      "description": "Your usage quota",
-      "aiQuota": "AI Quota",
-      "unlimited": "Unlimited"
+      "title": "AI Quota",
+      "description": "Real-time usage tracking",
+      "aiQuota": "Remaining Quota",
+      "unlimited": "Unlimited",
+      "usedPercent": "{{percent}}% used",
+      "lowBalance": "Low Balance"
     },
     "status": {
       "active": "Active",
@@ -1468,11 +1528,12 @@
       "upgradeNow": "Upgrade Now",
       "manage": "Manage",
       "freeTitle": "Free Plan",
-      "freeDesc": "Upgrade to Pro for more powerful AI capabilities"
+      "freeDesc": "You are currently on the free tier, upgrade for more features",
+      "daysRemaining": " ({{days}} days)"
     },
-    "renew": {
-      "urgent": "Your subscription will expire in {days} days, please renew as soon as possible",
-      "reminder": "Your subscription will expire in {days} days"
+    "renewalNotice": {
+      "urgent": "Your subscription will expire in {{days}} days. Please renew now.",
+      "reminder": "Your subscription has {{days}} days remaining."
     }
   },
   "pending": {
@@ -1532,7 +1593,9 @@
       "passwordsNoMatch": "The passwords don't match",
       "passwordMin8": "Password must be at least 8 characters",
       "passwordRequired": "Password is required",
-      "usernameRequired": "Username or Email is required"
+      "usernameRequired": "Username or Email is required",
+      "invalidMobile": "Please enter a valid mobile number",
+      "invalidCode": "Please enter a 6-digit verification code"
     },
     "signup": {
       "pageTitle": "Sign Up - EvoLoop"
@@ -1568,7 +1631,7 @@
     },
     "login": {
       "emailOrUsername": "Email or Username",
-      "desktopTitle": "Login to your account",
+      "desktopTitle": "Welcome Back",
       "pageTitle": "Log In - EvoLoop",
       "expiresIn": "Expires in {{seconds}}s",
       "loginSuccess": "Login successful",
@@ -1590,7 +1653,14 @@
       "noAccount": "Don't have an account?",
       "passwordPlaceholder": "Password",
       "signUp": "Sign Up",
-      "submit": "Login"
+      "submit": "Login",
+      "accountTab": "Account Login",
+      "mobileTab": "Mobile Login",
+      "mobile": "Mobile Number",
+      "mobilePlaceholder": "Enter mobile number",
+      "code": "Verification Code",
+      "codePlaceholder": "6-digit code",
+      "getCode": "Get Code"
     },
     "sessionExpired": "Session Expired",
     "pleaseLoginAgain": "Please log in again to continue"
@@ -1645,8 +1715,8 @@
   },
   "editor": {
     "line": "Line",
-    "column": "Column",
-    "ghostHint": "AI suggestion...",
+    "column": "Col",
+    "ghostHint": "Tab to accept, Esc to dismiss",
     "thinking": "Thinking..."
   },
   "macroEditor": {
@@ -1808,6 +1878,7 @@
     "deleteError": "Failed to delete",
     "noDocuments": "No documents",
     "uploadPrompt": "Click the upload button to add documents",
+    "autoTagged": "Auto Tagged",
     "uploadSuccess": "Document uploaded successfully",
     "uploadError": "Upload failed",
     "dropFile": "Click or drop files",
@@ -1815,8 +1886,26 @@
     "supportedFormats": "Supported formats",
     "project": "Project",
     "docType": "Document Type",
+    "docTypes": {
+      "doc": "Document",
+      "code": "Code",
+      "guide": "Guide",
+      "api": "API Documentation",
+      "design": "Design Document",
+      "architecture": "Architecture Document",
+      "requirement": "Requirement Document"
+    },
+    "clearFilters": "Clear All",
+    "noTags": "No tags available",
+    "allDocuments": "All Documents",
     "singleFile": "Single File",
     "bulkUpload": "Bulk/ZIP",
-    "popular": "Popular"
+    "popular": "Popular",
+    "status": {
+      "citations": "Cited {{count}} times",
+      "sessions": "{{count}} sessions",
+      "lastAccessed": "Last accessed: {{date}}"
+    },
+    "relatedDocs": "Related Documents"
   }
 }

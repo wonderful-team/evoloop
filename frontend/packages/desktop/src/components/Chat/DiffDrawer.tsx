@@ -60,7 +60,7 @@ export function DiffDrawer({ isOpen, onClose, path, diff }: DiffDrawerProps) {
                 </ScrollArea>
 
                 <div className="p-3 border-t bg-muted/10 text-[10px] text-muted-foreground text-center shrink-0 italic">
-                    {t("chat.diff.tip", "Tip: Red lines are deletions, green lines are additions.")}
+                    {t("chat.diff.tip")}
                 </div>
             </SheetContent>
         </Sheet>

@@ -156,7 +156,7 @@ export function ContextGroupTab({ projectId }: ContextGroupTabProps) {
                     <div className="p-3 border-b flex items-center justify-between bg-muted/20">
                         <div className="flex items-center gap-2 font-semibold text-xs text-muted-foreground uppercase tracking-wider">
                             <Layers className="h-3.5 w-3.5" />
-                            {t("chat.context.resourcesTitle", "Resources")}
+                            {t("chat.context.resourcesTitle")}
                         </div>
                         <div className="flex gap-1">
                             <Dialog>
@@ -229,7 +229,7 @@ export function ContextGroupTab({ projectId }: ContextGroupTabProps) {
                                     </div>
                                 ))}
                                 {(!resources || resources.filter(r => r.type === "link").length === 0) && (
-                                    <div className="text-[10px] text-muted-foreground italic pl-1">{t("chat.noLinks", "No links added")}</div>
+                                    <div className="text-[10px] text-muted-foreground italic pl-1">{t("chat.noLinks")}</div>
                                 )}
                             </div>
                         </div>
@@ -241,7 +241,7 @@ export function ContextGroupTab({ projectId }: ContextGroupTabProps) {
                     <div className="p-3 border-b flex items-center justify-between bg-muted/20">
                         <div className="flex items-center gap-2 font-semibold text-xs text-muted-foreground uppercase tracking-wider">
                             <Brain className="h-3.5 w-3.5" />
-                            {t("chat.context.memoryTitle", "Project Memory")}
+                            {t("chat.context.memoryTitle")}
                         </div>
                         <Dialog open={isAddMemoryOpen} onOpenChange={setIsAddMemoryOpen}>
                             <DialogTrigger asChild>
@@ -407,13 +407,13 @@ export function ContextGroupTab({ projectId }: ContextGroupTabProps) {
                         <DialogHeader>
                             <DialogTitle className="flex items-center gap-2">
                                 <Brain className="h-5 w-5 text-primary" />
-                                {t("chat.context.memoryTitle", "Project Memory")}
+                                {t("chat.context.memoryTitle")}
                                 <span className="text-xs font-normal text-muted-foreground ml-2">
                                     ({concepts?.length || 0})
                                 </span>
                             </DialogTitle>
                             <DialogDescription>
-                                {t("chat.context.allMemoriesDesc", "All learned concepts and rules for this project.")}
+                                {t("chat.context.allMemoriesDesc")}
                             </DialogDescription>
                         </DialogHeader>
                         
@@ -461,7 +461,7 @@ export function ContextGroupTab({ projectId }: ContextGroupTabProps) {
                         
                         <DialogFooter className="mt-4 pt-4 border-t">
                             <Button variant="outline" onClick={() => setIsViewAllMemoriesOpen(false)}>
-                                {t("common.close", "Close")}
+                                {t("common.close")}
                             </Button>
                         </DialogFooter>
                     </DialogContent>

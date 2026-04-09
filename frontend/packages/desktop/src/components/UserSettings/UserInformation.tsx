@@ -5,7 +5,7 @@ import { useForm } from "react-hook-form"
 import { useTranslation } from "react-i18next"
 import { z } from "zod"
 
-import { UsersService } from "@/client"
+import { MemberService } from "@/client"
 import { Button } from "@evoloop/shared/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@evoloop/shared/components/ui/card"
 import {
@@ -66,7 +66,7 @@ const UserInformation = () => {
       if (data.email !== currentUser?.email) {
         updateData.email = data.email
       }
-      return UsersService.updateUserMe({ requestBody: updateData })
+      return MemberService.updateUserMe({ requestBody: updateData })
     },
     onSuccess: () => {
       showSuccessToast(t("settings.profile.success"))

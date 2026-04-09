@@ -20,11 +20,9 @@ function SubscriptionLayout() {
       <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between">
           <div className="space-y-1">
-            <h1 className="text-2xl font-bold tracking-tight">
-              {t("subscription.title", "会员权益")}
-            </h1>
+              {t("subscription.title")}
             <p className="text-muted-foreground">
-              {t("subscription.subtitle", "管理您的订阅计划与 AI 配额")}
+              {t("subscription.subtitle")}
             </p>
           </div>
         </div>

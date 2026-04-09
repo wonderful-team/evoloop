@@ -30,8 +30,8 @@ export async function getMemberBenefits(forceRefresh = false): Promise<BenefitsC
     return benefitsCache
   }
   
-  const res = await MemberService.getMemberBenefits({ forceRefresh })
-  benefitsCache = res.data as BenefitsCache
+  const res = await MemberService.getMemberBenefitsApi({ forceRefresh })
+  benefitsCache = (res as any).data as BenefitsCache
   cacheTimestamp = Date.now()
   
   return benefitsCache

@@ -63,10 +63,10 @@ export function SubtaskSection({ projectId, taskId }: SubtaskSectionProps) {
 
   const getStatusText = (status: string) => {
     const texts: Record<string, string> = {
-      pending: t("projects.tasks.statusLabel.pending", "Pending"),
-      in_progress: t("projects.tasks.statusLabel.inProgress", "In Progress"),
-      completed: t("projects.tasks.statusLabel.completed", "Completed"),
-      blocked: t("projects.tasks.statusLabel.blocked", "Blocked"),
+      pending: t("projects.tasks.statusLabel.pending"),
+      in_progress: t("projects.tasks.statusLabel.inProgress"),
+      completed: t("projects.tasks.statusLabel.completed"),
+      blocked: t("projects.tasks.statusLabel.blocked"),
     }
     return texts[status] || status
   }
@@ -153,9 +153,9 @@ export function SubtaskSection({ projectId, taskId }: SubtaskSectionProps) {
   if (!taskTree || (taskTree.children?.length === 0)) {
     return (
       <div className="text-center py-8 text-muted-foreground">
-        <p>{t("projects.tasks.noSubtasks", "No subtasks")}</p>
+        <p>{t("projects.tasks.noSubtasks")}</p>
         <p className="text-sm mt-1">
-          {t("projects.tasks.subtasksWillAppear", "Subtasks will appear here when created")}
+          {t("projects.tasks.subtasksWillAppear")}
         </p>
       </div>
     )
@@ -168,11 +168,11 @@ export function SubtaskSection({ projectId, taskId }: SubtaskSectionProps) {
         <div>
           <h4 className="font-medium">{taskTree.title}</h4>
           <p className="text-sm text-muted-foreground">
-            {taskTree.children?.length || 0} {t("projects.tasks.subtasks", "subtasks")}
+            {taskTree.children?.length || 0} {t("projects.tasks.subtasks")}
           </p>
         </div>
         <Badge variant="outline" className="text-xs">
-          {Math.round(taskTree.progress || 0)}% {t("projects.tasks.totalProgress", "total")}
+          {Math.round(taskTree.progress || 0)}% {t("projects.tasks.totalProgress")}
         </Badge>
       </div>
 

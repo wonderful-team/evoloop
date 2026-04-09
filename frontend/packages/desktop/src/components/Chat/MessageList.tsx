@@ -14,7 +14,6 @@ interface MessageListProps {
     onRewind?: (msg: Message) => void
     onRetry?: (msg: Message) => void
     onQuote?: (msg: Message) => void
-    onStarterClick?: (text: string) => void
     onViewChangeset?: () => void // Callback when user clicks to view changeset
 }
 
@@ -27,7 +26,6 @@ export function MessageList({
     onRewind,
     onRetry,
     onQuote,
-    onStarterClick,
     onViewChangeset,
 }: MessageListProps) {
     const { t } = useTranslation()
@@ -82,20 +80,20 @@ export function MessageList({
                 {isLoadingHistory && (
                     <div className="py-4 text-center text-muted-foreground">
                         <Loader2 className="w-5 h-5 animate-spin mx-auto mb-2" />
-                        <span className="text-xs">{t("chat.loadingHistory", "Loading history...")}</span>
+                        <span className="text-xs">{t("chat.loadingHistory")}</span>
                     </div>
                 )}
 
                 {/* Load More Hint - shown when there are more messages to load */}
                 {hasMoreHistory && !isLoadingHistory && (
                     <div className="py-3 text-center text-muted-foreground/50 text-xs">
-                        {t("chat.scrollToLoadMore", "向上滚动加载更多历史消息")}
+                        {t("chat.scrollToLoadMore")}
                     </div>
                 )}
 
                 {/* Empty State */}
                 {messages.length === 0 && !isLoadingHistory && (
-                    <ChatWelcome onStarterClick={onStarterClick || (() => {})} />
+                    <ChatWelcome />
                 )}
 
                 {/* Message List */}

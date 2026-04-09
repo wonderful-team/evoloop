@@ -155,7 +155,7 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
             logger.error(f"Request failed: {e}")
             return {"code": -1, "message": str(e)}
 
-    # --- Business Methods ---
+    # --- Account & Auth Methods ---
 
     async def login(self, username, password) -> dict:
         res = await self.request("POST", "/api/login/login", data={"username": username, "password": password})
@@ -163,26 +163,24 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
             data = res.get("data", {})
             token = data.get("token")
             if token:
-                # Based on diagnostic, login response might miss member_id
-                member_id = data.get("member_id", 0)
-                
-                # If member_id is missing, we MUST fetch it from /api/member/info
-                # This matches the pattern in test_billing_loop.py
-                if not member_id or member_id == 0:
-                    info_res = await self.get_user_info(token)
-                    if info_res.get("code") == 0:
-                        info_data = info_res.get("data", {})
-                        # member_id might be under 'member_id' or 'id'
-                        member_id = info_data.get("member_id", info_data.get("id", 0))
-                        # Merge profile into data to ensure cache is complete
-                        data.update(info_data)
-                
-                self._save_token(token, member_id)
-                return {"success": True, "token": token, "member_id": member_id, "data": data}
+                self.set_token(token)
+                # Member Center doesn't return member_id in login response
+                # Fetch it from /api/member/info
+                try:
+                    user_info = await self.get_user_info()
+                    if user_info.get("code") == 0:
+                        member_id = user_info.get("data", {}).get("member_id", 0)
+                    else:
+                        member_id = 0
+                except Exception:
+                    member_id = 0
+                return {
+                    "success": True,
+                    "token": token,
+                    "member_id": member_id,
+                    "data": data,
+                }
         return {"success": False, "message": res.get("message", "Login failed")}
-
-    async def get_user_info(self, token: str | None = None) -> dict:
-        return await self.request("GET", "/api/member/info", token=token)
 
     # Project
     async def get_projects(self, page=1, page_size=100) -> dict:
@@ -345,8 +343,17 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
             data = res.get("data", {})
             token = data.get("token")
             if token:
-                member_id = data.get("member_id", 0)
-                self._save_token(token, member_id)
+                self.set_token(token)
+                # Member Center doesn't return member_id in login response
+                # Fetch it from /api/member/info
+                try:
+                    user_info = await self.get_user_info()
+                    if user_info.get("code") == 0:
+                        member_id = user_info.get("data", {}).get("member_id", 0)
+                    else:
+                        member_id = 0
+                except Exception:
+                    member_id = 0
                 return {
                     "success": True,
                     "token": token,
@@ -380,6 +387,14 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
             "POST",
             "/api/member/update",
             data=data,
+            token=token,
+        )
+
+    async def get_user_info(self, token: str | None = None) -> dict[str, Any]:
+        """Get current user info from Member Center."""
+        return await self.request(
+            "GET",
+            "/api/member/info",
             token=token,
         )
 
@@ -458,22 +473,6 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
             data={"code": code}
         )
 
-    async def check_feature_permission(self, feature: str) -> dict:
-        """检查特定功能权限"""
-        return await self.request(
-            "POST", 
-            "/subscription/api/subscription/checkPermission",
-            data={"feature": feature}
-        )
-
-    async def validate_feature_access(self, required_feature: str) -> dict:
-        """验证访问权限（详细版）"""
-        return await self.request(
-            "POST",
-            "/subscription/api/subscription/validateAccess",
-            data={"required_feature": required_feature}
-        )
-
     async def get_subscription_plans(self) -> dict:
         """获取可用订阅计划列表"""
         return await self.request("GET", "/subscription/api/subscription/plans")
@@ -515,7 +514,7 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
 
     async def get_ai_quota(self) -> dict:
         """获取 AI 配额（统一配额池）"""
-        return await self.request("GET", "/subscription/api/aiQuota")
+        return await self.request("GET", "/subscription/api/aiQuota/getQuota")
 
     async def get_all_ai_quotas(self) -> dict:
         """获取所有 AI 配额 (目前与 get_ai_quota 相同)"""

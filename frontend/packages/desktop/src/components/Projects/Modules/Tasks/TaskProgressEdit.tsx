@@ -45,12 +45,12 @@ export function TaskProgressEdit({
       return res
     },
     onSuccess: () => {
-      toast.success(t("projects.tasks.progressUpdated", "Progress updated"))
+      toast.success(t("projects.tasks.progressUpdated"))
       setIsEditing(false)
       onSuccess?.()
     },
     onError: () => {
-      toast.error(t("projects.tasks.progressUpdateFailed", "Failed to update progress"))
+      toast.error(t("projects.tasks.progressUpdateFailed"))
     },
   })
 
@@ -69,7 +69,7 @@ export function TaskProgressEdit({
       <button
         onClick={() => setIsEditing(true)}
         className="flex items-center gap-2 group"
-        title={t("projects.tasks.clickToEdit", "Click to edit")}
+        title={t("projects.tasks.clickToEdit")}
       >
         <div className="w-24 h-2 bg-muted rounded-full overflow-hidden">
           <div

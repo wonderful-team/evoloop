@@ -303,6 +303,63 @@ export const BindClientRequestSchema = {
     title: 'BindClientRequest'
 } as const;
 
+export const Body_account_login_access_tokenSchema = {
+    properties: {
+        grant_type: {
+            anyOf: [
+                {
+                    type: 'string',
+                    pattern: '^password$'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Grant Type'
+        },
+        username: {
+            type: 'string',
+            title: 'Username'
+        },
+        password: {
+            type: 'string',
+            format: 'password',
+            title: 'Password'
+        },
+        scope: {
+            type: 'string',
+            title: 'Scope',
+            default: ''
+        },
+        client_id: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Client Id'
+        },
+        client_secret: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            format: 'password',
+            title: 'Client Secret'
+        }
+    },
+    type: 'object',
+    required: ['username', 'password'],
+    title: 'Body_account-login_access_token'
+} as const;
+
 export const Body_audio_text_to_speech_streamSchema = {
     properties: {
         text: {
@@ -518,63 +575,6 @@ export const Body_learning_upload_screenshotSchema = {
     type: 'object',
     required: ['file'],
     title: 'Body_learning-upload_screenshot'
-} as const;
-
-export const Body_login_login_access_tokenSchema = {
-    properties: {
-        grant_type: {
-            anyOf: [
-                {
-                    type: 'string',
-                    pattern: '^password$'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Grant Type'
-        },
-        username: {
-            type: 'string',
-            title: 'Username'
-        },
-        password: {
-            type: 'string',
-            format: 'password',
-            title: 'Password'
-        },
-        scope: {
-            type: 'string',
-            title: 'Scope',
-            default: ''
-        },
-        client_id: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Client Id'
-        },
-        client_secret: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            format: 'password',
-            title: 'Client Secret'
-        }
-    },
-    type: 'object',
-    required: ['username', 'password'],
-    title: 'Body_login-login_access_token'
 } as const;
 
 export const Body_project_requirements_upload_requirement_documentSchema = {
@@ -1940,22 +1940,6 @@ export const LoginMobileRequestSchema = {
     title: 'LoginMobileRequest'
 } as const;
 
-export const LoginRequestSchema = {
-    properties: {
-        username: {
-            type: 'string',
-            title: 'Username'
-        },
-        password: {
-            type: 'string',
-            title: 'Password'
-        }
-    },
-    type: 'object',
-    required: ['username', 'password'],
-    title: 'LoginRequest'
-} as const;
-
 export const McpServerCreateSchema = {
     properties: {
         name: {
@@ -2185,6 +2169,64 @@ export const MessageResponseSchema = {
     type: 'object',
     required: ['message'],
     title: 'MessageResponse'
+} as const;
+
+export const MobileCodeRequestSchema = {
+    properties: {
+        mobile: {
+            type: 'string',
+            title: 'Mobile',
+            description: 'Phone number'
+        },
+        captcha_id: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Captcha Id'
+        },
+        captcha_code: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Captcha Code'
+        }
+    },
+    type: 'object',
+    required: ['mobile'],
+    title: 'MobileCodeRequest'
+} as const;
+
+export const MobileLoginRequestSchema = {
+    properties: {
+        mobile: {
+            type: 'string',
+            title: 'Mobile',
+            description: 'Phone number'
+        },
+        code: {
+            type: 'string',
+            title: 'Code',
+            description: 'SMS verification code'
+        },
+        key: {
+            type: 'string',
+            title: 'Key',
+            description: 'Verification key returned from code request'
+        }
+    },
+    type: 'object',
+    required: ['mobile', 'code', 'key'],
+    title: 'MobileLoginRequest'
 } as const;
 
 export const OpenFileRequestSchema = {
@@ -4212,7 +4254,7 @@ export const UserPublicSchema = {
             ],
             title: 'Username'
         },
-        email: {
+        nickname: {
             anyOf: [
                 {
                     type: 'string'
@@ -4221,7 +4263,7 @@ export const UserPublicSchema = {
                     type: 'null'
                 }
             ],
-            title: 'Email'
+            title: 'Nickname'
         },
         mobile: {
             anyOf: [
@@ -4234,7 +4276,7 @@ export const UserPublicSchema = {
             ],
             title: 'Mobile'
         },
-        nickname: {
+        email: {
             anyOf: [
                 {
                     type: 'string'
@@ -4243,7 +4285,7 @@ export const UserPublicSchema = {
                     type: 'null'
                 }
             ],
-            title: 'Nickname'
+            title: 'Email'
         },
         headimg: {
             anyOf: [
@@ -4272,9 +4314,46 @@ export const UserPublicSchema = {
             ],
             title: 'Member Level Name'
         },
+        member_level_type: {
+            type: 'integer',
+            title: 'Member Level Type',
+            default: 0
+        },
         level_expire_time: {
             type: 'integer',
             title: 'Level Expire Time',
+            default: 0
+        },
+        member_label: {
+            type: 'integer',
+            title: 'Member Label',
+            default: 0
+        },
+        member_label_name: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Member Label Name'
+        },
+        member_code: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Member Code'
+        },
+        point: {
+            type: 'integer',
+            title: 'Point',
             default: 0
         },
         balance: {
@@ -4287,10 +4366,131 @@ export const UserPublicSchema = {
             title: 'Balance Money',
             default: 0
         },
-        point: {
+        growth: {
             type: 'integer',
-            title: 'Point',
+            title: 'Growth',
             default: 0
+        },
+        status: {
+            type: 'integer',
+            title: 'Status',
+            default: 1
+        },
+        has_password: {
+            type: 'boolean',
+            title: 'Has Password',
+            default: false
+        },
+        is_edit_username: {
+            type: 'integer',
+            title: 'Is Edit Username',
+            default: 0
+        },
+        is_fenxiao: {
+            type: 'integer',
+            title: 'Is Fenxiao',
+            default: 0
+        },
+        realname: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Realname'
+        },
+        sex: {
+            type: 'integer',
+            title: 'Sex',
+            default: 0
+        },
+        birthday: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Birthday'
+        },
+        source_member: {
+            type: 'integer',
+            title: 'Source Member',
+            default: 0
+        },
+        province_id: {
+            type: 'integer',
+            title: 'Province Id',
+            default: 0
+        },
+        city_id: {
+            type: 'integer',
+            title: 'City Id',
+            default: 0
+        },
+        district_id: {
+            type: 'integer',
+            title: 'District Id',
+            default: 0
+        },
+        address: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Address'
+        },
+        full_address: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Full Address'
+        },
+        longitude: {
+            type: 'number',
+            title: 'Longitude',
+            default: 0
+        },
+        latitude: {
+            type: 'number',
+            title: 'Latitude',
+            default: 0
+        },
+        wx_openid: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Wx Openid'
+        },
+        wx_unionid: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Wx Unionid'
         },
         is_active: {
             type: 'boolean',

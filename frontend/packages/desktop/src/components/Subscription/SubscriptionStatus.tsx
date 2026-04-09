@@ -1,4 +1,4 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@evoloop/shared/components/ui/card"
+import { Card, CardContent } from "@evoloop/shared/components/ui/card"
 import { Badge } from "@evoloop/shared/components/ui/badge"
 import { Button } from "@evoloop/shared/components/ui/button"
 import { Calendar, Crown, AlertTriangle } from "lucide-react"
@@ -79,7 +79,7 @@ export const SubscriptionStatus = ({ detail, isLoading, onRenew }: SubscriptionS
                 {isExpired ? t("subscription.status.expiredAt") : t("subscription.status.expireAt")}{expireDate}
                 {!isExpired && daysUntilExpire > 0 && (
                   <span className={isExpiringSoon ? "text-amber-600 font-medium" : ""}>
-                    （{daysUntilExpire} 天）
+                    {t("subscription.status.daysRemaining", { days: daysUntilExpire })}
                   </span>
                 )}
               </span>

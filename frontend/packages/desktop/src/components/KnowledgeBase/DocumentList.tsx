@@ -1,4 +1,3 @@
-import { useState } from "react"
 import { FileText, MoreVertical, Trash2, Eye, FileCode, FileImage, File, Hash, Sparkles } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
@@ -11,7 +10,6 @@ import {
 } from "@evoloop/shared/components/ui/dropdown-menu"
 import { Button } from "@evoloop/shared/components/ui/button"
 import { Skeleton } from "@evoloop/shared/components/ui/skeleton"
-import { Badge } from "@evoloop/shared/components/ui/badge"
 import { KnowledgeService } from "@/services/knowledgeService"
 import type { DocumentInfo } from "./types"
 
@@ -31,11 +29,11 @@ export function DocumentList({ documents, isLoading, onSelect, searchQuery, sele
   const deleteMutation = useMutation({
     mutationFn: (path: string) => KnowledgeService.deleteDocument(path),
     onSuccess: () => {
-      toast.success(t("knowledge.deleteSuccess", "文档已删除"))
+      toast.success(t("knowledge.deleteSuccess"))
       queryClient.invalidateQueries({ queryKey: ["knowledge-documents"] })
     },
     onError: () => {
-      toast.error(t("knowledge.deleteError", "删除失败"))
+      toast.error(t("knowledge.deleteError"))
     },
   })
 
@@ -89,8 +87,8 @@ export function DocumentList({ documents, isLoading, onSelect, searchQuery, sele
     return (
       <div className="flex h-64 flex-col items-center justify-center text-muted-foreground">
         <File className="mb-4 h-12 w-12 opacity-20" />
-        <p>{t("knowledge.noDocuments", "暂无文档")}</p>
-        <p className="text-sm">{t("knowledge.uploadPrompt", "点击右上角上传按钮添加文档")}</p>
+        <p>{t("knowledge.noDocuments")}</p>
+        <p className="text-sm">{t("knowledge.uploadPrompt")}</p>
       </div>
     )
   }
@@ -145,7 +143,7 @@ export function DocumentList({ documents, isLoading, onSelect, searchQuery, sele
               {doc.tags && doc.tags.length > 0 && (
                 <div className="mt-0.5 flex items-center gap-1 text-[10px] text-muted-foreground">
                   <Sparkles className="h-2.5 w-2.5" />
-                  自动标签
+                  {t("knowledge.autoTagged")}
                 </div>
               )}
             </div>
@@ -160,11 +158,11 @@ export function DocumentList({ documents, isLoading, onSelect, searchQuery, sele
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={() => onSelect(doc)}>
                 <Eye className="mr-2 h-4 w-4" />
-                {t("knowledge.view", "查看")}
+                {t("knowledge.view")}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => deleteMutation.mutate(doc.path)} className="text-destructive">
                 <Trash2 className="mr-2 h-4 w-4" />
-                {t("knowledge.delete", "删除")}
+                {t("knowledge.delete")}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

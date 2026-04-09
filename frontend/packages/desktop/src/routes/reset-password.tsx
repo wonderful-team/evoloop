@@ -72,7 +72,7 @@ function ResetPassword() {
   const { t } = useTranslation()
 
   useEffect(() => {
-    document.title = t("auth.resetPassword.pageTitle", "Reset Password - EvoLoop")
+    document.title = t("auth.resetPassword.pageTitle")
   }, [t])
 
   const { token } = Route.useSearch()
@@ -92,7 +92,7 @@ function ResetPassword() {
 
   const mutation = useMutation({
     mutationFn: (_data: { new_password: string; token: string }) => {
-      // LoginService.resetPassword({ requestBody: data }),
+      // Password reset not implemented in unified API yet
       console.warn(t("auth.reset.notImplemented"))
       return Promise.resolve()
     },

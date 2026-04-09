@@ -58,7 +58,7 @@ export function VoiceControlSettings() {
     wakeWord,
     enabled: wakeWordEnabled,
     onWake: () => {
-      toast.success(t('settings.voice.wakeWordDetected', '检测到唤醒词！'))
+      toast.success(t('settings.voice.wakeWordDetected'))
     }
   })
 
@@ -72,10 +72,10 @@ export function VoiceControlSettings() {
   } = useTauriVoiceShortcut({
     enabled: shortcutEnabled && isTauri,
     onShortcutStart: () => {
-      toast.success(t('settings.voice.shortcutStarted', '快捷键激活，开始录音...'))
+      toast.success(t('settings.voice.shortcutStarted'))
     },
     onShortcutEnd: () => {
-      toast.info(t('settings.voice.shortcutEnded', '录音结束'))
+      toast.info(t('settings.voice.shortcutEnded'))
     }
   })
 
@@ -91,18 +91,18 @@ export function VoiceControlSettings() {
 
   const handleSaveWakeWord = () => {
     updateWakeWord(tempWakeWord)
-    toast.success(t('settings.voice.wakeWordSaved', '唤醒词已保存'))
+    toast.success(t('settings.voice.wakeWordSaved'))
   }
 
   const handleToggleShortcut = async () => {
     if (!isTauri) {
-      toast.error(t('settings.voice.tauriRequired', '快捷键功能需要在 Tauri 应用中运行'))
+      toast.error(t('settings.voice.tauriRequired'))
       return
     }
     await toggleShortcut()
     toast.success(shortcutEnabled 
-      ? t('settings.voice.shortcutDisabled', '快捷键已禁用')
-      : t('settings.voice.shortcutEnabled', '快捷键已启用')
+      ? t('settings.voice.shortcutDisabled')
+      : t('settings.voice.shortcutEnabled')
     )
   }
 
@@ -113,10 +113,10 @@ export function VoiceControlSettings() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Mic className="h-5 w-5" />
-            {t('settings.voice.wakeWordTitle', '唤醒词设置')}
+            {t('settings.voice.wakeWordTitle')}
           </CardTitle>
           <CardDescription>
-            {t('settings.voice.wakeWordDesc', '设置语音唤醒词，说出唤醒词即可激活语音输入')}
+            {t('settings.voice.wakeWordDesc')}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -124,7 +124,7 @@ export function VoiceControlSettings() {
             <div className="flex items-start gap-2 p-3 bg-amber-500/10 rounded-lg text-sm text-amber-700 dark:text-amber-300">
               <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
               <p>
-                {t('settings.voice.notSupported', '您的浏览器不支持语音识别功能。请使用 Chrome、Edge 或 Safari 浏览器。')}
+                {t('settings.voice.notSupported')}
               </p>
             </div>
           )}
@@ -134,10 +134,10 @@ export function VoiceControlSettings() {
             <div className="space-y-0.5">
               <Label className="text-base flex items-center gap-2">
                 <Power className="h-4 w-4" />
-                {t('settings.voice.enableWakeWord', '启用唤醒词')}
+                {t('settings.voice.enableWakeWord')}
               </Label>
               <p className="text-sm text-muted-foreground">
-                {t('settings.voice.enableWakeWordDesc', '持续监听麦克风，检测到唤醒词时自动开始录音')}
+                {t('settings.voice.enableWakeWordDesc')}
               </p>
             </div>
             <button
@@ -160,7 +160,7 @@ export function VoiceControlSettings() {
           {/* Wake word input */}
           <div className="space-y-3">
             <Label className="text-base">
-              {t('settings.voice.wakeWordLabel', '唤醒词')}
+              {t('settings.voice.wakeWordLabel')}
             </Label>
             <div className="flex gap-2">
               <input
@@ -169,18 +169,18 @@ export function VoiceControlSettings() {
                 onChange={(e) => setTempWakeWord(e.target.value)}
                 disabled={!isSupported}
                 className="flex-1 px-3 py-2 bg-background border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                placeholder={t('settings.voice.wakeWordPlaceholder', '例如：你好 Evo')}
+                placeholder={t('settings.voice.wakeWordPlaceholder')}
               />
               <Button
                 onClick={handleSaveWakeWord}
                 disabled={!isSupported || tempWakeWord === wakeWord}
                 variant="secondary"
               >
-                {t('common.save', '保存')}
+                {t('common.save')}
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">
-              {t('settings.voice.wakeWordHint', '建议使用 2-4 个字的短语，发音清晰易识别')}
+              {t('settings.voice.wakeWordHint')}
             </p>
           </div>
 
@@ -188,7 +188,7 @@ export function VoiceControlSettings() {
           {isSupported && (
             <div className="space-y-3 p-4 border rounded-lg">
               <Label className="text-base">
-                {t('settings.voice.testWakeWord', '测试唤醒词')}
+                {t('settings.voice.testWakeWord')}
               </Label>
               <div className="flex items-center gap-4">
                 <Button
@@ -196,8 +196,8 @@ export function VoiceControlSettings() {
                   variant={isWakeWordListening ? 'destructive' : 'default'}
                 >
                   {isWakeWordListening
-                    ? t('settings.voice.stopListening', '停止监听')
-                    : t('settings.voice.startListening', '开始监听')}
+                    ? t('settings.voice.stopListening')
+                    : t('settings.voice.startListening')}
                 </Button>
                 <div className="flex-1">
                   {isWakeWordListening && (
@@ -207,18 +207,18 @@ export function VoiceControlSettings() {
                         <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
                       </span>
                       <span className="text-muted-foreground">
-                        {t('settings.voice.listening', '正在监听...')}
+                        {t('settings.voice.listening')}
                       </span>
                     </div>
                   )}
                   {isWakeWordDetected && (
                     <div className="text-green-600 font-medium">
-                      ✓ {t('settings.voice.wakeWordDetected', '检测到唤醒词！')}
+                      ✓ {t('settings.voice.wakeWordDetected')}
                     </div>
                   )}
                   {transcript && !isWakeWordDetected && (
                     <div className="text-sm text-muted-foreground">
-                      {t('settings.voice.heard', '听到')}: "{transcript}"
+                      {t('settings.voice.heard')}: "{transcript}"
                     </div>
                   )}
                 </div>
@@ -233,10 +233,10 @@ export function VoiceControlSettings() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <MousePointerClick className="h-5 w-5" />
-            {t('settings.voice.shortcutTitle', '快捷键设置 (Tauri)')}
+            {t('settings.voice.shortcutTitle')}
           </CardTitle>
           <CardDescription>
-            {t('settings.voice.shortcutDesc', '设置双击或长按快捷键快速激活语音输入')}
+            {t('settings.voice.shortcutDesc')}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -244,7 +244,7 @@ export function VoiceControlSettings() {
             <div className="flex items-start gap-2 p-3 bg-amber-500/10 rounded-lg text-sm text-amber-700 dark:text-amber-300">
               <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
               <p>
-                {t('settings.voice.tauriOnly', '此功能需要在 EvoLoop 桌面应用中运行，浏览器中无法使用系统级快捷键。')}
+                {t('settings.voice.tauriOnly')}
               </p>
             </div>
           )}
@@ -254,12 +254,12 @@ export function VoiceControlSettings() {
             <div className="space-y-0.5">
               <Label className="text-base flex items-center gap-2">
                 <Power className="h-4 w-4" />
-                {t('settings.voice.enableShortcut', '启用快捷键')}
+                {t('settings.voice.enableShortcut')}
               </Label>
               <p className="text-sm text-muted-foreground">
                 {triggerMode === 'doubleClick' 
-                  ? t('settings.voice.enableDoubleClickDesc', '双击快捷键开始录音，单击结束')
-                  : t('settings.voice.enableLongPressDesc', '长按快捷键开始录音，松手结束')
+                  ? t('settings.voice.enableDoubleClickDesc')
+                  : t('settings.voice.enableLongPressDesc')
                 }
               </p>
             </div>
@@ -283,7 +283,7 @@ export function VoiceControlSettings() {
           {/* Trigger mode selection */}
           <div className="space-y-3">
             <Label className="text-base">
-              {t('settings.voice.triggerMode', '触发方式')}
+              {t('settings.voice.triggerMode')}
             </Label>
             <div className="flex gap-2">
               <Button
@@ -293,7 +293,7 @@ export function VoiceControlSettings() {
                 className="flex-1"
               >
                 <MousePointerClick className="h-4 w-4 mr-2" />
-                {t('settings.voice.doubleClick', '双击')}
+                {t('settings.voice.doubleClick')}
               </Button>
               <Button
                 variant={triggerMode === 'longPress' ? 'default' : 'outline'}
@@ -302,7 +302,7 @@ export function VoiceControlSettings() {
                 className="flex-1"
               >
                 <Keyboard className="h-4 w-4 mr-2" />
-                {t('settings.voice.longPress', '长按')}
+                {t('settings.voice.longPress')}
               </Button>
             </div>
           </div>
@@ -310,7 +310,7 @@ export function VoiceControlSettings() {
           {/* Key selection */}
           <div className="space-y-3">
             <Label className="text-base">
-              {t('settings.voice.shortcutKey', '快捷键')}
+              {t('settings.voice.shortcutKey')}
             </Label>
             <div className="flex gap-2 flex-wrap">
               {['Ctrl', 'Alt', 'Shift', 'Meta', 'F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'F9', 'F10', 'F11', 'F12'].map((key) => (
@@ -327,8 +327,8 @@ export function VoiceControlSettings() {
             </div>
             <p className="text-xs text-muted-foreground">
               {triggerMode === 'doubleClick' 
-                ? t('settings.voice.doubleClickHint', '推荐：双击 Ctrl 是最方便的操作方式')
-                : t('settings.voice.longPressHint', '推荐：长按 F1-F12 功能键或 Meta(Command/Windows) 键')
+                ? t('settings.voice.doubleClickHint')
+                : t('settings.voice.longPressHint')
               }
             </p>
           </div>
@@ -338,7 +338,7 @@ export function VoiceControlSettings() {
             <div className="space-y-3">
               <div className="flex justify-between">
                 <Label className="text-base">
-                  {t('settings.voice.doubleClickInterval', '双击间隔时间')}
+                  {t('settings.voice.doubleClickInterval')}
                 </Label>
                 <span className="text-sm text-muted-foreground">{doubleClickInterval}ms</span>
               </div>
@@ -353,9 +353,9 @@ export function VoiceControlSettings() {
                 className="w-full h-2 bg-muted rounded-lg appearance-none cursor-pointer accent-primary"
               />
               <div className="flex justify-between text-xs text-muted-foreground">
-                <span>100ms ({t('settings.voice.fast', '快')})</span>
-                <span>500ms ({t('settings.voice.normal', '正常')})</span>
-                <span>1000ms ({t('settings.voice.slow', '慢')})</span>
+                <span>100ms ({t('settings.voice.fast')})</span>
+                <span>500ms ({t('settings.voice.normal')})</span>
+                <span>1000ms ({t('settings.voice.slow')})</span>
               </div>
             </div>
           )}
@@ -365,7 +365,7 @@ export function VoiceControlSettings() {
             <div className="space-y-3">
               <div className="flex justify-between">
                 <Label className="text-base">
-                  {t('settings.voice.pressDuration', '长按持续时间')}
+                  {t('settings.voice.pressDuration')}
                 </Label>
                 <span className="text-sm text-muted-foreground">{shortcutDuration}ms</span>
               </div>
@@ -380,9 +380,9 @@ export function VoiceControlSettings() {
                 className="w-full h-2 bg-muted rounded-lg appearance-none cursor-pointer accent-primary"
               />
               <div className="flex justify-between text-xs text-muted-foreground">
-                <span>200ms ({t('settings.voice.fast', '快')})</span>
-                <span>1000ms ({t('settings.voice.normal', '正常')})</span>
-                <span>2000ms ({t('settings.voice.slow', '慢')})</span>
+                <span>200ms ({t('settings.voice.fast')})</span>
+                <span>1000ms ({t('settings.voice.normal')})</span>
+                <span>2000ms ({t('settings.voice.slow')})</span>
               </div>
             </div>
           )}
@@ -391,7 +391,7 @@ export function VoiceControlSettings() {
           {isTauri && shortcutEnabled && (
             <div className="space-y-3 p-4 border rounded-lg">
               <Label className="text-base">
-                {t('settings.voice.testShortcut', '测试快捷键')}
+                {t('settings.voice.testShortcut')}
               </Label>
               <div className="flex items-center gap-4">
                 <div className="flex-1">
@@ -401,13 +401,13 @@ export function VoiceControlSettings() {
                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
                         <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
                       </span>
-                      {t('settings.voice.recording', '正在录音...')}
+                      {t('settings.voice.recording')}
                     </div>
                   ) : (
                     <div className="text-sm text-muted-foreground">
                       {triggerMode === 'doubleClick'
-                        ? t('settings.voice.doubleClickInstruction', '双击 {key} 键开始录音', { key: shortcutKey })
-                        : t('settings.voice.longPressInstruction', '长按 {key} 键开始录音', { key: shortcutKey })
+                        ? t('settings.voice.doubleClickInstruction', { key: shortcutKey })
+                        : t('settings.voice.longPressInstruction', { key: shortcutKey })
                       }
                     </div>
                   )}

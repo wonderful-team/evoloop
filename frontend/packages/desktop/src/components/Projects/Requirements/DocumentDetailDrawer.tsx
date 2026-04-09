@@ -2,7 +2,6 @@ import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import {
   FileText,
-  X,
   Loader2,
   Clock,
   CheckCircle2,
@@ -10,7 +9,6 @@ import {
   ChevronRight,
   RefreshCw,
   Layers,
-  Check,
 } from "lucide-react"
 import { Button } from "@evoloop/shared/components/ui/button"
 import {
@@ -95,9 +93,9 @@ export function DocumentDetailDrawer({
     return colors[status] || "bg-gray-100 text-gray-800"
   }
 
-  const formatDate = (isoString: string | null) => {
-    if (!isoString) return "-"
-    const date = new Date(isoString)
+  const formatDate = (dateValue: number | string | null) => {
+    if (!dateValue) return "-"
+    const date = new Date(dateValue)
     return date.toLocaleString()
   }
 
@@ -115,7 +113,7 @@ export function DocumentDetailDrawer({
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-2">
           {getAnalysisStatusIcon(analysis.status)}
-          <span className="font-medium">{t("requirements.analysis.version", "版本")} {analysis.version}</span>
+          <span className="font-medium">{t("requirements.analysis.version")} {analysis.version}</span>
         </div>
         <Badge className={cn("text-xs", getStatusColor(analysis.status))}>
           {analysis.status}
@@ -130,12 +128,12 @@ export function DocumentDetailDrawer({
         <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
           {analysis.data.functional_requirements && (
             <span>
-              {analysis.data.functional_requirements.length} {t("requirements.analysis.functionalRequirements", "功能需求")}
+              {analysis.data.functional_requirements.length} {t("requirements.analysis.functionalRequirements")}
             </span>
           )}
           {analysis.data.user_stories && (
             <span>
-              • {analysis.data.user_stories.length} {t("requirements.analysis.userStories", "用户故事")}
+              • {analysis.data.user_stories.length} {t("requirements.analysis.userStories")}
             </span>
           )}
         </div>
@@ -144,7 +142,7 @@ export function DocumentDetailDrawer({
           <span>{formatDate(analysis.confirmed_at || analysis.created_at)}</span>
           {analysis.user_edited && (
             <Badge variant="outline" className="text-xs">
-              {t("requirements.analysis.edited", "已编辑")}
+              {t("requirements.analysis.edited")}
             </Badge>
           )}
         </div>
@@ -153,7 +151,7 @@ export function DocumentDetailDrawer({
           <div className="flex items-center gap-2 text-xs">
             <Layers className="h-3 w-3" />
             <span>
-              {analysis.synced_tasks}/{analysis.tasks_count} {t("requirements.analysis.tasksSynced", "任务已同步")}
+              {analysis.synced_tasks}/{analysis.tasks_count} {t("requirements.analysis.tasksSynced")}
             </span>
           </div>
         )}
@@ -172,17 +170,17 @@ export function DocumentDetailDrawer({
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="sm" onClick={() => setSelectedAnalysisId(null)}>
             <ChevronRight className="h-4 w-4 rotate-180" />
-            {t("common.back", "返回")}
+            {t("common.back")}
           </Button>
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="overview">
-              {t("requirements.detail.overview", "概览")}
+              {t("requirements.detail.overview")}
             </TabsTrigger>
             <TabsTrigger value="tasks">
-              {t("requirements.detail.tasks", "任务")}
+              {t("requirements.detail.tasks")}
               {analysis.tasks_count > 0 && (
                 <span className="ml-1 text-xs text-muted-foreground">
                   ({analysis.tasks_count})
@@ -195,7 +193,7 @@ export function DocumentDetailDrawer({
             {analysis.data.title && (
               <div>
                 <h4 className="text-sm font-medium text-muted-foreground mb-1">
-                  {t("requirements.analysis.title", "标题")}
+                  {t("requirements.analysis.title")}
                 </h4>
                 <p className="text-lg font-semibold">{analysis.data.title}</p>
               </div>
@@ -204,7 +202,7 @@ export function DocumentDetailDrawer({
             {analysis.data.summary && (
               <div>
                 <h4 className="text-sm font-medium text-muted-foreground mb-1">
-                  {t("requirements.analysis.summary", "摘要")}
+                  {t("requirements.analysis.summary")}
                 </h4>
                 <p className="text-sm">{analysis.data.summary}</p>
               </div>
@@ -213,7 +211,7 @@ export function DocumentDetailDrawer({
             {analysis.data.functional_requirements && analysis.data.functional_requirements.length > 0 && (
               <div>
                 <h4 className="text-sm font-medium text-muted-foreground mb-2">
-                  {t("requirements.analysis.functionalRequirements", "功能需求")}
+                  {t("requirements.analysis.functionalRequirements")}
               </h4>
               <ul className="space-y-2">
                 {analysis.data.functional_requirements.map((req, idx) => (
@@ -232,16 +230,16 @@ export function DocumentDetailDrawer({
           {analysis.data.user_stories && analysis.data.user_stories.length > 0 && (
             <div>
               <h4 className="text-sm font-medium text-muted-foreground mb-2">
-                {t("requirements.analysis.userStories", "用户故事")}
+                {t("requirements.analysis.userStories")}
               </h4>
               <ul className="space-y-2">
                 {analysis.data.user_stories.map((story, idx) => (
                   <li key={idx} className="text-sm p-2 bg-muted rounded">
                     <span className="font-medium">{story.id}</span>
                     <p className="mt-1">
-                      {t("requirements.analysis.asA", "作为")} {story.role}，
-                      {t("requirements.analysis.iWant", "我想要")} {story.action}，
-                      {t("requirements.analysis.soThat", "以便")} {story.benefit}
+                      {t("requirements.analysis.asA")} {story.role}，
+                      {t("requirements.analysis.iWant")} {story.action}，
+                      {t("requirements.analysis.soThat")} {story.benefit}
                     </p>
                   </li>
                 ))}
@@ -252,7 +250,7 @@ export function DocumentDetailDrawer({
           {analysis.data.technical_suggestions && analysis.data.technical_suggestions.length > 0 && (
             <div>
               <h4 className="text-sm font-medium text-muted-foreground mb-2">
-                {t("requirements.analysis.technicalSuggestions", "技术建议")}
+                {t("requirements.analysis.technicalSuggestions")}
               </h4>
               <ul className="space-y-2">
                 {analysis.data.technical_suggestions.map((suggestion, idx) => (
@@ -269,7 +267,7 @@ export function DocumentDetailDrawer({
           {analysis.data.risks && analysis.data.risks.length > 0 && (
             <div>
               <h4 className="text-sm font-medium text-muted-foreground mb-2">
-                {t("requirements.analysis.risks", "风险与缓解")}
+                {t("requirements.analysis.risks")}
               </h4>
               <ul className="space-y-2">
                 {analysis.data.risks.map((risk, idx) => (
@@ -281,7 +279,7 @@ export function DocumentDetailDrawer({
                     </div>
                     <p className="mt-1">{risk.description}</p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      {t("requirements.analysis.mitigation", "缓解措施")}: {risk.mitigation}
+                      {t("requirements.analysis.mitigation")}: {risk.mitigation}
                     </p>
                   </li>
                 ))}
@@ -308,7 +306,7 @@ export function DocumentDetailDrawer({
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5" />
-            {t("requirements.detail.title", "文档详情")}
+            {t("requirements.detail.title")}
           </SheetTitle>
         </SheetHeader>
 
@@ -318,7 +316,7 @@ export function DocumentDetailDrawer({
           </div>
         ) : !currentDocument ? (
           <div className="flex items-center justify-center h-64 text-muted-foreground">
-            {t("requirements.detail.notFound", "文档不存在")}
+            {t("requirements.detail.notFound")}
           </div>
         ) : (
           <ScrollArea className="h-[calc(100vh-8rem)] mt-6 pr-4">
@@ -330,7 +328,7 @@ export function DocumentDetailDrawer({
                     <div>
                       <h3 className="font-semibold text-lg">{currentDocument.file_name}</h3>
                       <p className="text-sm text-muted-foreground">
-                        {formatFileSize(currentDocument.file_size)} • {formatDate(currentDocument.created_at)}
+                        {formatFileSize(currentDocument.file_size || 0)} • {formatDate(currentDocument.created_at)}
                       </p>
                     </div>
                     <Badge className={cn("text-xs", getStatusColor(currentDocument.status))}>
@@ -344,7 +342,7 @@ export function DocumentDetailDrawer({
                   {currentDocument.raw_content_preview && (
                     <div className="p-3 bg-muted rounded-lg">
                       <h4 className="text-sm font-medium text-muted-foreground mb-2">
-                        {t("requirements.detail.contentPreview", "内容预览")}
+                        {t("requirements.detail.contentPreview")}
                       </h4>
                       <p className="text-sm text-muted-foreground line-clamp-6">
                         {currentDocument.raw_content_preview}
@@ -359,19 +357,19 @@ export function DocumentDetailDrawer({
                 <div>
                   <div className="flex items-center justify-between mb-4">
                     <h4 className="font-medium">
-                      {t("requirements.detail.analysisHistory", "分析历史")}
+                      {t("requirements.detail.analysisHistory")}
                     </h4>
                     <span className="text-sm text-muted-foreground">
-                      {currentDocument.analyses.length} {t("requirements.detail.versions", "个版本")}
+                      {currentDocument.analyses.length} {t("requirements.detail.versions")}
                     </span>
                   </div>
 
                   {currentDocument.analyses.length === 0 ? (
                     <div className="text-center py-8 text-muted-foreground">
                       <RefreshCw className="h-8 w-8 mx-auto mb-2 opacity-30" />
-                      <p>{t("requirements.detail.noAnalysis", "暂无分析结果")}</p>
+                      <p>{t("requirements.detail.noAnalysis")}</p>
                       <p className="text-xs mt-1">
-                        {t("requirements.detail.analysisInProgress", "分析可能正在进行中，请稍后再查看")}
+                        {t("requirements.detail.analysisInProgress")}
                       </p>
                     </div>
                   ) : (

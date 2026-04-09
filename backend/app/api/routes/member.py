@@ -1,79 +1,161 @@
-import json
 import logging
+from typing import Any, List
 
-from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel, Field
 
-from app.api import deps
-from app.api.deps import TokenDep
+from app.api.deps import CurrentUser, TokenDep
 from app.core.evocloud import evocloud_manager
-from app.core.evocloud.backends.http_client import EvoCloudHTTPClient
 from app.core.identity import identity_service
+from app.models import User, UserPublic
+from app.services.benefit_service import benefit_service
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["member"])
 
 
-class LoginRequest(BaseModel):
-    username: str
-    password: str
+# --- Request/Response Schemas ---
+
+class ChangePasswordRequest(BaseModel):
+    old_password: str = Field(..., min_length=1, description="Current password")
+    new_password: str = Field(..., min_length=8, description="New password (min 8 characters)")
 
 
-@router.post("/login")
-async def login(req: LoginRequest):
-    result = await evocloud_manager.login(req.username, req.password)
-    if not result.get("success"):
-        raise HTTPException(
-            status_code=401, detail=result.get("message", "Login failed")
-        )
+class UpdateUserRequest(BaseModel):
+    nickname: str | None = Field(None, description="User nickname")
+    headimg: str | None = Field(None, description="Avatar URL")
+    email: str | None = Field(None, description="Email address")
 
-    # Process login via IdentityService and return local JWT
-    local_token = await identity_service.login_with_cloud_result(result)
-    if not local_token:
-         raise HTTPException(status_code=500, detail="Failed to initialize local session")
 
-    # Update result to return local token
-    result["token"] = local_token
+class MessageResponse(BaseModel):
+    message: str
 
-    # Cache for fast access in deps.py
-    user_data = result.get("data", {})
-    member_id = result.get("member_id", 0)
-    if user_data and member_id:
+
+# --- User Profile (Unified) ---
+
+def _parse_int_safe(value: Any, default: int = 0) -> int:
+    """Safely parse a value to int, handling strings and edge cases."""
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str):
         try:
-            from app.services.cache_services import UserCacheService
-            user_cache = UserCacheService()
-            await user_cache.set_user(member_id, user_data)
-        except Exception:
-            pass
-
-    return result
+            return int(value) if value.strip() else default
+        except ValueError:
+            return default
+    return default
 
 
-@router.get("/status")
-async def status():
-    # Return basic status
-    return {
-        "is_logged_in": bool(evocloud_manager.get_token()),
-        "device_id": evocloud_manager.device_id,
-        "is_connected": evocloud_manager.link.is_connected() if evocloud_manager.link else False
-    }
+def _map_mc_user_to_user(data: dict) -> User:
+    """
+    将 Member Center /api/member/info 返回的数据映射到 User 模型
+    字段与 Member Center 保持对齐
+    """
+    return User(
+        # Core identification
+        id=data.get("member_id"),
+        username=data.get("username"),
+        nickname=data.get("nickname"),
+        mobile=data.get("mobile"),
+        email=data.get("email"),
+        headimg=data.get("headimg"),
+
+        # Member level
+        member_level=data.get("member_level", 0),
+        member_level_name=data.get("member_level_name"),
+        member_level_type=data.get("member_level_type", 0),
+        level_expire_time=data.get("level_expire_time", 0),
+
+        # Member labels (handle string values like ",")
+        member_label=_parse_int_safe(data.get("member_label"), 0),
+        member_label_name=data.get("member_label_name"),
+        member_code=data.get("member_code"),
+
+        # Account assets
+        point=data.get("point", 0),
+        balance=float(data.get("balance", 0) or 0),
+        balance_money=float(data.get("balance_money", 0) or 0),
+        growth=data.get("growth", 0),
+
+        # Status flags
+        status=data.get("status", 1),
+        has_password=bool(data.get("password", 0)),
+        is_edit_username=data.get("is_edit_username", 0),
+        is_fenxiao=data.get("is_fenxiao", 0),
+
+        # Profile
+        realname=data.get("realname"),
+        sex=data.get("sex", 0),
+        birthday=str(data.get("birthday")) if data.get("birthday") and data.get("birthday") != 0 else None,
+
+        # Referral
+        source_member=data.get("source_member", 0),
+
+        # Address
+        province_id=data.get("province_id", 0),
+        city_id=data.get("city_id", 0),
+        district_id=data.get("district_id", 0),
+        address=data.get("address"),
+        full_address=data.get("full_address"),
+        longitude=float(data.get("longitude", 0) or 0),
+        latitude=float(data.get("latitude", 0) or 0),
+
+        # Third-party
+        wx_openid=data.get("wx_openid"),
+        wx_unionid=data.get("wx_unionid"),
+
+        # Compatibility
+        is_active=data.get("status") == 1,
+    )
 
 
-@router.post("/logout")
-async def logout():
-    # Logout logic: Clear token and stop link
-    identity_service.logout()
+@router.get("/me", response_model=UserPublic)
+async def read_user_me(current_user: CurrentUser) -> Any:
+    """
+    Get current user info from Member Center.
+    Fields are aligned with Member Center /api/member/info response.
+    """
+    try:
+        result = await evocloud_manager.api.get_user_info()
+        if result.get("code") == 0:
+            data = result.get("data", {})
+            return _map_mc_user_to_user(data)
+        else:
+            logger.warning(f"Failed to get user info from MC: {result.get('message')}")
+    except Exception as e:
+        logger.error(f"Error fetching user info from MC: {e}")
 
-    if evocloud_manager.api:
-        evocloud_manager.api.set_token(None)
-    if evocloud_manager.link:
-        await evocloud_manager.link.stop()
+    # Fallback: return current user from JWT (minimal info)
+    return current_user
 
-    # Clear cache token (Unified logic in client logout? No, client logout clears local state)
-    # But for cache (server-side session-ish), let's keep it clean or move to client.
-    # The client uses cache for caching token? No, Client uses file.
 
+@router.put("/password", response_model=MessageResponse)
+async def change_password(
+    data: ChangePasswordRequest,
+    current_user: CurrentUser,
+) -> Any:
+    """
+    Change current user's password (Transparent Proxy).
+    """
+    return await evocloud_manager.api.change_password(
+        old_password=data.old_password,
+        new_password=data.new_password,
+    )
+
+
+@router.put("/me", response_model=UserPublic)
+async def update_user_me(
+    data: UpdateUserRequest,
+    current_user: CurrentUser,
+) -> Any:
+    """
+    Update current user information (Transparent Proxy).
+    """
+    update_data = data.model_dump(exclude_none=True)
+    return await evocloud_manager.api.update_user_info(update_data)
+
+
+# --- Account Cancellation ---
 
 @router.get("/cancellation/info")
 async def get_cancellation_info(_token: TokenDep):
@@ -90,99 +172,7 @@ async def cancel_cancellation(_token: TokenDep):
     return await evocloud_manager.api.cancel_cancellation_apply()
 
 
-# --- Subscription & Quota ---
-
-@router.get("/subscription/plans")
-async def get_subscription_plans(_token: TokenDep):
-    """获取可用订阅计划"""
-    return await evocloud_manager.api.get_subscription_plans()
-
-
-@router.post("/subscription/upgrade-preview")
-async def calculate_upgrade_price(target_level_id: int, _token: TokenDep):
-    """计算升级价格预览（支付前调用）
-    
-    返回：
-    - current_level: 当前等级信息
-    - target_level: 目标等级信息
-    - upgrade_calculation: 升级计算详情
-        - is_upgrade: 是否是升级
-        - pay_amount: 需支付金额
-        - refund_amount: 将退还金额
-        - net_amount: 净支付金额
-        - total_duration: 总有效期（天）
-        - quota_diff: 额度补差
-    """
-    return await evocloud_manager.api.calculate_upgrade_price(target_level_id)
-
-
-@router.get("/subscription/status")
-async def get_subscription_status(_token: TokenDep):
-    """获取订阅状态"""
-    return await evocloud_manager.api.get_subscription_status()
-
-
-@router.get("/subscription/detail")
-async def get_subscription_detail(_token: TokenDep):
-    """获取订阅详情"""
-    return await evocloud_manager.api.get_subscription_detail()
-
-
-class CreateOrderRequest(BaseModel):
-    level_id: int
-    auto_renew: bool = False
-
-
-@router.post("/subscription/order")
-async def create_subscription_order(req: CreateOrderRequest, _token: TokenDep):
-    """创建订阅订单"""
-    return await evocloud_manager.api.create_subscription_order(req.level_id, req.auto_renew)
-
-
-@router.post("/subscription/cancel")
-async def cancel_subscription(cancel_type: str = "expire", reason: str = "", _token: TokenDep = None):
-    """取消订阅"""
-    return await evocloud_manager.api.cancel_subscription(cancel_type, reason)
-
-
-@router.get("/subscription/order/status")
-async def check_subscription_order_status(
-    order_id: str,
-    _token: TokenDep,
-):
-    """
-    检查订阅订单状态
-    """
-    return await evocloud_manager.api.check_subscription_order_status(order_id)
-
-@router.get("/quota")
-async def get_ai_quota(_token: TokenDep):
-    """获取主要 AI 配额 (统一配额池)"""
-    return await evocloud_manager.api.get_ai_quota()
-
-
-@router.get("/quota/all")
-async def get_all_ai_quotas(_token: TokenDep):
-    """获取所有 AI 配额"""
-    return await evocloud_manager.api.get_all_ai_quotas()
-
-
-@router.get("/quota/history")
-async def get_ai_quota_history(page: int = 1, page_size: int = 20, _token: TokenDep = None):
-    """获取配额使用历史"""
-    return await evocloud_manager.api.get_ai_quota_history(page, page_size=page_size)
-
-
 # --- Batch Benefits & Cache Management ---
-
-from typing import List
-from app.api.deps import (
-    get_member_benefits, 
-    check_multiple_benefits, 
-    invalidate_benefits_cache,
-    BENEFIT_NAME_MAP
-)
-
 
 class BatchCheckRequest(BaseModel):
     benefit_codes: List[str]
@@ -200,27 +190,12 @@ async def check_benefits_batch(req: BatchCheckRequest, token: TokenDep):
     批量检查多项权益
     
     性能优化：只查询一次API，同时检查多个权益
-    
-    Example:
-        POST /member/benefits/check-batch
-        {"benefit_codes": ["voice", "desktop_control", "browser_control"]}
-        
-        Response:
-        {
-            "results": {
-                "voice": true,
-                "desktop_control": false,
-                "browser_control": true
-            },
-            "is_expired": false,
-            "level_name": "极客版"
-        }
     """
     # 批量检查权益
-    results = await check_multiple_benefits(req.benefit_codes, token)
+    results = await benefit_service.check_multiple_benefits(req.benefit_codes, token)
     
     # 获取额外信息
-    benefits_data = await get_member_benefits(token)
+    benefits_data = await benefit_service.get_member_entitlements(identity_service.get_member_id(token), token)
     
     return BatchCheckResponse(
         results=results,
@@ -240,7 +215,11 @@ async def get_member_benefits_api(
     Args:
         force_refresh: 是否强制刷新缓存
     """
-    data = await get_member_benefits(token, force_refresh=force_refresh)
+    data = await benefit_service.get_member_entitlements(
+        identity_service.get_member_id(token), 
+        token=token,
+        force_refresh=force_refresh
+    )
     return {
         "code": 0,
         "data": data
@@ -252,64 +231,8 @@ async def invalidate_member_benefits_cache(token: TokenDep):
     """
     手动使权益缓存失效（用于调试或强制刷新）
     """
-    invalidate_benefits_cache(token)
+    benefit_service.invalidate_cache(identity_service.get_member_id(token))
     return {
         "code": 0,
         "message": "缓存已清除"
-    }
-
-
-# --- Webhook for Benefits Update ---
-
-class BenefitsUpdateWebhook(BaseModel):
-    member_id: int
-    event: str  # "subscription_created", "subscription_renewed", "subscription_cancelled"
-    level_id: int | None = None
-    timestamp: int
-    signature: str  # HMAC签名用于验证
-
-
-@router.post("/webhook/benefits-update")
-async def handle_benefits_update_webhook(payload: BenefitsUpdateWebhook):
-    """
-    接收来自PHP后端的权益更新Webhook
-    
-    当会员订阅状态变更时，PHP后端会调用此接口通知Python后端刷新缓存
-    
-    Events:
-    - subscription_created: 新订阅创建
-    - subscription_renewed: 订阅续费
-    - subscription_upgraded: 订阅升级
-    - subscription_cancelled: 订阅取消
-    - subscription_expired: 订阅过期
-    """
-    import hmac
-    import hashlib
-    
-    # 验证签名（使用与PHP相同的密钥）
-    from app.core.config import settings
-    webhook_secret = getattr(settings, "WEBHOOK_SECRET", "")
-    
-    if webhook_secret:
-        expected_signature = hmac.new(
-            webhook_secret.encode(),
-            f"{payload.member_id}:{payload.event}:{payload.timestamp}".encode(),
-            hashlib.sha256
-        ).hexdigest()
-        
-        if not hmac.compare_digest(payload.signature, expected_signature):
-            raise HTTPException(status_code=401, detail="Invalid signature")
-    
-    # 根据事件类型处理
-    logger = logging.getLogger(__name__)
-    logger.info(f"[Webhook] Received benefits update: {payload.event} for member {payload.member_id}")
-    
-    # 清除该用户的所有缓存（无法知道具体token，清除全部）
-    if payload.event in ["subscription_created", "subscription_renewed", "subscription_upgraded"]:
-        invalidate_benefits_cache()
-        logger.info(f"[Webhook] Benefits cache invalidated due to {payload.event}")
-    
-    return {
-        "code": 0,
-        "message": "Webhook processed successfully"
     }

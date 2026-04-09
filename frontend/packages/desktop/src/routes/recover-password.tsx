@@ -53,7 +53,7 @@ function RecoverPassword() {
   const { t } = useTranslation()
 
   useEffect(() => {
-    document.title = t("auth.recoverPassword.pageTitle", "Recover Password - EvoLoop")
+    document.title = t("auth.recoverPassword.pageTitle")
   }, [t])
 
   const form = useForm<FormData>({
@@ -65,9 +65,7 @@ function RecoverPassword() {
   const { showSuccessToast, showErrorToast } = useCustomToast()
 
   const recoverPassword = async (_data: FormData) => {
-    // await LoginService.recoverPassword({
-    //   email: data.email,
-    // })
+    // Password recovery not implemented in unified API yet
     console.warn(t("auth.recover.notImplemented"))
   }
 

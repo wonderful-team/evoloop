@@ -2,6 +2,7 @@ import { useState } from "react"
 import { createFileRoute, useNavigate } from "@tanstack/react-router"
 import { useTranslation } from "react-i18next"
 import { FileText } from "lucide-react"
+import { useChatStore } from "@/stores/chatStore"
 import {
   Card,
   CardContent,
@@ -29,8 +30,9 @@ function ProjectRequirementsPage() {
   const handleUpload = async (file: File) => {
     const threadId = await uploadDocument(Number(projectId), file)
     if (threadId) {
-      // Navigate to chat with the analysis thread
-      navigate({ to: "/chat/$threadId", params: { threadId } })
+      // Set thread in store first, then navigate
+      await useChatStore.getState().setThread(threadId, Number(projectId))
+      navigate({ to: "/chat" })
     }
   }
 
@@ -47,13 +49,10 @@ function ProjectRequirementsPage() {
           <div>
             <h1 className="text-2xl font-bold flex items-center gap-2">
               <FileText className="h-6 w-6" />
-              {t("projects.requirements.title", "需求文档")}
+              {t("projects.requirements.title")}
             </h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              {t(
-                "projects.requirements.subtitle",
-                "上传需求文档，AI 将自动分析并拆解为开发任务"
-              )}
+            <p className="text-muted-foreground">
+              {t("projects.requirements.subtitle")}
             </p>
           </div>
         </div>
@@ -65,13 +64,10 @@ function ProjectRequirementsPage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">
-              {t("requirements.list.title", "文档列表")}
+              {t("requirements.list.title")}
             </CardTitle>
             <CardDescription>
-              {t(
-                "requirements.list.description",
-                "点击文档查看详情，分析完成后可在对话中查看结果"
-              )}
+              {t("requirements.list.description")}
             </CardDescription>
           </CardHeader>
           <CardContent>

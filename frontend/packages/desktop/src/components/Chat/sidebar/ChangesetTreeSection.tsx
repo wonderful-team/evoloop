@@ -146,7 +146,7 @@ export function ChangesetTreeSection({ activeThreadId, onSelectFile, defaultExpa
     }
 
     if (!changeset || changeset.length === 0) {
-        if (isLoading) return <div className="p-4 text-center text-xs text-muted-foreground">{t("common.loading", "Loading...")}</div>
+        if (isLoading) return <div className="p-4 text-center text-xs text-muted-foreground">{t("common.loading")}</div>
         return null
     }
 

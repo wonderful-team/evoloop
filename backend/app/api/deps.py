@@ -62,6 +62,10 @@ TokenDepOptional = Annotated[str | None, Depends(oauth2_scheme_optional)]
 
 
 async def get_current_user(token: TokenDep) -> User:
+    """
+    Identify the current user from the local session token.
+    Rely on the member_id in the token for data isolation.
+    """
     try:
         # 1. Decode Local JWT
         payload = decode_local_jwt(token)
@@ -75,51 +79,22 @@ async def get_current_user(token: TokenDep) -> User:
         if member_id is None:
              raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid session payload")
 
-        # 2. Try Cache first
-        user_cache = UserCacheService()
-        user_data = await user_cache.get_user(member_id)
-        # 3. Fallback to Cloud fetch if cache miss or data is incomplete
-        # Based on diagnostic, sometimes cache contains only token but no profile (username etc.)
-        is_incomplete = user_data and not user_data.get("username")
-        if not user_data or is_incomplete:
-            if is_incomplete:
-                logger.warning(f"Cached data for member {member_id} is incomplete, forcing cloud fetch.")
-            cloud_token = identity_service.get_cloud_token()
-            if not cloud_token:
-                 raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="No cloud credentials found")
-
-            result = await evocloud_manager.api.get_user_info(cloud_token)
-            if result.get("code") != 0:
-                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Cloud verification failed")
-
-            user_data = result.get("data", {})
-            # Cache it back
-            await user_cache.set_user(member_id, user_data)
-
-        if user_data:
-            user_data["id"] = user_data.get("id") or user_data.get("member_id") or member_id
-
-        # Map Member Center data to User model
-        try:
-            user = User.model_validate(user_data)
-        except Exception as ve:
-            logger.error(f"User validation failed for member {member_id}: {ve} | Data: {user_data}")
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail=f"Incomplete user profile: {str(ve)} | MemberID: {member_id}",
-            )
-
-        if not user.is_active:
-            raise HTTPException(status_code=400, detail="Inactive user")
+        # Create a thin User object for local execution context
+        # We only need the ID for database partitioning/file isolation
+        user = User(
+            id=member_id,
+            username=payload.get("username"), # Optional, if present in token
+            is_active=True
+        )
 
         return user
     except HTTPException as e:
         raise e
     except Exception as e:
-        logger.error(f"Unexpected auth error: {str(e)}", exc_info=True)
+        logger.error(f"Thin auth error: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Auth error ({type(e).__name__}): {str(e)}",
+            detail="Authentication failed",
         )
 
 
@@ -138,207 +113,65 @@ async def get_current_user_optional(token: TokenDepOptional) -> User | None:
 CurrentUserOptional = Annotated[User | None, Depends(get_current_user_optional)]
 
 
-# ==================== Subscription Permission Dependencies ====================
+from app.services.benefit_service import benefit_service
 
-# 权益到所需套餐的映射
-BENEFIT_PLAN_MAP = {
-    "browser_control": "极客版",
-    "voice": "极客版",
-    "skill_learning": "极客版",
-    "knowledge_base": "极客版",
-    "desktop_control": "专家版",
-    "mobile_control": "专家版",
-    "wiki_generation": "创作者版",
-    "gantt": "企业版",
-    "timesheet": "企业版",
-}
-
-# 权益中文名称映射
-BENEFIT_NAME_MAP = {
-    "browser_control": "浏览器控制",
-    "desktop_control": "桌面控制",
-    "mobile_control": "手机控制",
-    "voice": "语音交互",
-    "skill_learning": "技能学习",
-    "wiki_generation": "Wiki生成",
-    "gantt": "甘特图",
-    "timesheet": "工时表",
-    "knowledge_base": "知识库",
-}
-
-# 权益缓存配置
-BENEFIT_CACHE_TTL = 30  # 30秒缓存，平衡性能和实时性
-_benefits_cache: dict[str, tuple[dict, float]] = {}  # token -> (data, timestamp)
-
-
-def _get_cache_key(token: str) -> str:
-    """生成缓存键"""
-    import hashlib
-    return hashlib.md5(token.encode()).hexdigest()[:16]
-
-
-def _get_cached_benefits(token: str) -> dict | None:
-    """获取缓存的权益数据"""
-    cache_key = _get_cache_key(token)
-    if cache_key in _benefits_cache:
-        data, timestamp = _benefits_cache[cache_key]
-        if time.time() - timestamp < BENEFIT_CACHE_TTL:
-            return data
-    return None
-
-
-def _set_cached_benefits(token: str, data: dict) -> None:
-    """设置权益缓存"""
-    cache_key = _get_cache_key(token)
-    _benefits_cache[cache_key] = (data, time.time())
-
-
-def invalidate_benefits_cache(token: str | None = None) -> None:
-    """
-    使权益缓存失效
-    
-    Args:
-        token: 如果提供，仅使该token的缓存失效；否则清除所有缓存
-    """
-    global _benefits_cache
-    if token:
-        cache_key = _get_cache_key(token)
-        _benefits_cache.pop(cache_key, None)
-        logger.debug(f"[Benefits] Cache invalidated for token: {cache_key}")
-    else:
-        _benefits_cache.clear()
-        logger.info("[Benefits] All cache cleared")
-
-
-async def get_member_benefits(token: str, force_refresh: bool = False) -> dict:
-    """
-    获取会员权益配置
-    
-    Args:
-        token: JWT token
-        force_refresh: 是否强制刷新缓存
-        
-    Returns:
-        权益数据字典
-    """
-    # 1. 尝试从缓存获取
-    if not force_refresh:
-        cached = _get_cached_benefits(token)
-        if cached:
-            logger.debug("[Benefits] Using cached benefits data")
-            return cached
-    
-    # 2. 从API获取
-    try:
-        result = await evocloud_manager.api.get_member_benefits()
-        if result.get("code") == 0:
-            data = result.get("data", {})
-            # 更新缓存
-            _set_cached_benefits(token, data)
-            return data
-        return {}
-    except Exception as e:
-        logger.error(f"获取会员权益失败: {e}")
-        # 如果API失败，尝试返回缓存数据（即使已过期）
-        cached = _get_cached_benefits(token)
-        if cached:
-            logger.warning("[Benefits] API failed, using stale cache")
-            return cached
-        return {}
+# Fallback labels have been moved to the database (b2c_mall.member_privilege)
+# and are now served dynamically via BenefitService.
 
 
 async def check_benefit(benefit_code: str, token: TokenDep) -> bool:
     """
-    检查会员是否拥有特定权益
-    
-    Args:
-        benefit_code: 权益编码，如 "desktop_control", "voice" 等
-        token: JWT token
-        
-    Returns:
-        True if has benefit, False otherwise
+    Check if a member has a specific benefit/capability.
+    Delegates to BenefitService which fetches data from Member Center.
     """
     try:
-        benefits_data = await get_member_benefits(token)
-        benefits = benefits_data.get("benefits", {})
-        
-        # 检查权益值
-        value = benefits.get(benefit_code, False)
-        
-        # 布尔类型直接返回
-        if isinstance(value, bool):
-            return value
-        
-        # 数值类型：大于0表示有权限
-        if isinstance(value, (int, float)):
-            return value > 0
-        
-        # 字符串类型：true/on/1 表示有权限
-        if isinstance(value, str):
-            return value.lower() in ("true", "on", "1", "yes")
-        
-        return False
+        payload = decode_local_jwt(token)
+        member_id = payload.get("member_id")
+        if not member_id:
+            return False
+            
+        return await benefit_service.has_benefit(member_id, benefit_code, token)
     except Exception as e:
-        logger.error(f"检查权益失败 [{benefit_code}]: {e}")
+        logger.error(f"Benefit check failed [{benefit_code}]: {e}")
         return False
 
 
 async def check_multiple_benefits(benefit_codes: list[str], token: TokenDep) -> dict[str, bool]:
     """
-    批量检查多项权益（性能优化：只查询一次API）
-    
-    Args:
-        benefit_codes: 权益编码列表
-        token: JWT token
-        
-    Returns:
-        dict: {benefit_code: has_access}
-        
-    Example:
-        >>> results = await check_multiple_benefits(["voice", "desktop_control"], token)
-        >>> print(results)  # {"voice": True, "desktop_control": False}
+    Check multiple benefits in one go (Thin Proxy).
     """
+    payload = decode_local_jwt(token)
+    member_id = payload.get("member_id")
+    if not member_id:
+        return {code: False for code in benefit_codes}
+        
     try:
-        benefits_data = await get_member_benefits(token)
-        benefits = benefits_data.get("benefits", {})
+        # For simplicity, we can fetch all entitlements once
+        data = await benefit_service.get_member_entitlements(member_id, token)
+        benefits = data.get("benefits", {})
         
         result = {}
         for code in benefit_codes:
-            value = benefits.get(code, False)
-            
-            # 统一转换为bool
-            if isinstance(value, bool):
-                result[code] = value
-            elif isinstance(value, (int, float)):
-                result[code] = value > 0
-            elif isinstance(value, str):
-                result[code] = value.lower() in ("true", "on", "1", "yes")
-            else:
-                result[code] = False
-                
+            # Check dict
+            val = benefits.get(code, False)
+            result[code] = val if isinstance(val, bool) else (val > 0 if isinstance(val, int | float) else False)
         return result
     except Exception as e:
-        logger.error(f"批量检查权益失败: {e}")
+        logger.error(f"Batch benefit check failed: {e}")
         return {code: False for code in benefit_codes}
 
 
 def create_benefit_error_detail(benefit_code: str, current_level: str | None = None) -> dict:
     """
     创建统一的权益错误详情
-    
-    Args:
-        benefit_code: 权益编码
-        current_level: 当前用户等级（可选）
-        
-    Returns:
-        标准化的错误详情字典
     """
+    feature_name = benefit_service.get_benefit_label(benefit_code)
     return {
         "code": "BENEFIT_REQUIRED",
         "feature": benefit_code,
-        "feature_name": BENEFIT_NAME_MAP.get(benefit_code, benefit_code),
-        "message": f"需要订阅「{BENEFIT_NAME_MAP.get(benefit_code, benefit_code)}」功能才能使用此功能",
-        "required_plan": BENEFIT_PLAN_MAP.get(benefit_code, "更高等级订阅"),
+        "feature_name": feature_name,
+        "message": f"需要开通「{feature_name}」权益才能使用此功能",
+        "required_plan": "订阅版本",
         "current_level": current_level or "免费用户",
         "upgrade_url": "#/subscription",
     }
@@ -347,13 +180,6 @@ def create_benefit_error_detail(benefit_code: str, current_level: str | None = N
 def raise_benefit_required(benefit_code: str, current_level: str | None = None):
     """
     抛出统一的权益不足异常
-    
-    Args:
-        benefit_code: 权益编码
-        current_level: 当前用户等级（可选）
-        
-    Raises:
-        HTTPException: 403 Forbidden with standardized detail
     """
     raise HTTPException(
         status_code=status.HTTP_403_FORBIDDEN,
@@ -380,7 +206,8 @@ def require_benefit(benefit_code: str):
             # 获取当前用户等级（如果可能）
             current_level = None
             try:
-                benefits_data = await get_member_benefits(token)
+                member_id = identity_service.get_member_id(token)
+                benefits_data = await benefit_service.get_member_entitlements(member_id, token)
                 current_level = benefits_data.get("level_name")
             except:
                 pass
@@ -392,22 +219,6 @@ def require_benefit(benefit_code: str):
     return checker
 
 
-async def check_feature_permission(feature: str, token: TokenDep) -> bool:
-    """
-    [已弃用] 请使用 check_benefit
-    检查会员是否有特定订阅功能权限
-    """
-    return await check_benefit(feature, token)
-
-
-def require_subscription_feature(feature: str):
-    """
-    [已弃用] 请使用 require_benefit
-    FastAPI 依赖工厂：要求特定订阅功能权限
-    """
-    return require_benefit(feature)
-
-
 # AI Quota management is now handled via the Go Gateway.
 # The following helpers are deprecated and removed.
 
@@ -416,7 +227,7 @@ def require_subscription_feature(feature: str):
 
 async def verify_guest_access(
     current_user: CurrentUserOptional,
-    x_guest_id: Annotated[str | None, Header()] = None,
+    x_guest_id: str | None = Header(None),
     guest_id: str | None = None,  # Added for Query Param support
     token: str | None = None,  # Added for Query Param Token Support (SSE)
 ) -> None:

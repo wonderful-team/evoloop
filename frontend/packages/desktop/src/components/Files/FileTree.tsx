@@ -128,12 +128,12 @@ function FileTreeNode({
       })
     },
     onSuccess: () => {
-      toast.success(t("files.pinnedSuccess", "File pinned"))
+      toast.success(t("files.pinnedSuccess"))
       queryClient.invalidateQueries({
         queryKey: ["projectResources", projectId],
       })
     },
-    onError: () => toast.error(t("files.pinnedError", "Failed to pin file")),
+    onError: () => toast.error(t("files.pinnedError")),
   })
 
   const handleClick = (e: React.MouseEvent) => {
@@ -174,7 +174,7 @@ function FileTreeNode({
           variant="ghost"
           size="icon"
           className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mr-1"
-          title={t("files.pinToResources", "Pin to Resources")}
+          title={t("files.pinToResources")}
           onClick={(e) => {
             e.stopPropagation()
             pinResourceMutation.mutate()
@@ -202,7 +202,7 @@ function FileTreeNode({
           <ContextMenuContent>
             <ContextMenuItem onClick={() => onQuoteFile(node)}>
               <Quote size={14} className="mr-2" />
-              {t("chat.interface.quoteFile", "Quote File")}
+              {t("chat.interface.quoteFile")}
             </ContextMenuItem>
           </ContextMenuContent>
         </ContextMenu>

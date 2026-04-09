@@ -3,7 +3,6 @@ import {
   MessageSquare,
   Settings,
   ListTodo,
-  Database,
   GraduationCap,
   BookOpen,
 } from "lucide-react"
@@ -49,7 +48,7 @@ export function AppSidebar() {
     },
     {
       icon: BookOpen,
-      title: t("sidebar.knowledge", "知识库"),
+      title: t("sidebar.knowledge"),
       path: "/knowledge",
       dataTour: "sidebar-knowledge",
     },

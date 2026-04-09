@@ -131,7 +131,7 @@ export function useTTS(): UseTTSReturn {
       audio.onerror = (e) => {
         URL.revokeObjectURL(url)
         console.error('Audio playback error:', e)
-        setError(t('chat.tts.playbackError', '播放失败'))
+        setError(t('chat.tts.playbackError'))
         setIsSpeaking(false)
         setIsLoading(false)
       }
@@ -148,7 +148,7 @@ export function useTTS(): UseTTSReturn {
       }
       
       console.error('TTS error:', err)
-      setError(err.message || t('chat.tts.error', '语音合成失败'))
+      setError(err.message || t('chat.tts.error'))
       setIsSpeaking(false)
       setIsLoading(false)
     }

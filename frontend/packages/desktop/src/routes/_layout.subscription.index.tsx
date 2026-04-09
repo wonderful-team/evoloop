@@ -9,7 +9,6 @@ import { Dialog, DialogContent, DialogTitle } from "@evoloop/shared/components/u
 import { Alert, AlertDescription } from "@evoloop/shared/components/ui/alert"
 import { Info, Loader2, CheckCircle2, Timer, RefreshCw } from "lucide-react"
 import { Button } from "@evoloop/shared/components/ui/button"
-import { Badge } from "@evoloop/shared/components/ui/badge"
 
 export const Route = createFileRoute("/_layout/subscription/")({
   component: SubscriptionDashboard,
@@ -181,8 +180,8 @@ function SubscriptionDashboard() {
       {/* 3. Pricing & Upgrade Section */}
       <div id="plans-section" className="space-y-6 pt-8 border-t border-border">
         <div className="flex flex-col gap-1">
-          <h2 className="text-xl font-semibold tracking-tight">{t("subscription.plans.title", "订阅方案")}</h2>
-          <p className="text-muted-foreground text-sm">{t("subscription.plans.desc", "选择最适合您的 AI 创作与开发套餐")}</p>
+          <h2 className="text-xl font-semibold tracking-tight">{t("subscription.plans.title")}</h2>
+          <p className="text-muted-foreground text-sm">{t("subscription.plans.desc")}</p>
         </div>
         
         <PlanComparison 
@@ -199,7 +198,7 @@ function SubscriptionDashboard() {
         <DialogContent className="sm:max-w-md border-border bg-background/95 backdrop-blur-xl">
           <DialogTitle className="sr-only">
             {paymentSuccess
-              ? t("subscription.payment.successTitle", "支付成功")
+              ? t("subscription.payment.successTitle")
               : isRenewalMode
                 ? t("subscription.payment.renewTitle", { name: orderData?.order?.level_name || "" })
                 : t("subscription.payment.subscribeTitle", { name: orderData?.order?.level_name || "" })}
@@ -210,9 +209,9 @@ function SubscriptionDashboard() {
                     <CheckCircle2 className="h-12 w-12 text-primary" />
                 </div>
                 <div className="text-center space-y-2">
-                    <h3 className="text-lg font-bold">{t("subscription.payment.successTitle", "支付成功")}</h3>
+                    <h3 className="text-lg font-bold">{t("subscription.payment.successTitle")}</h3>
                     <p className="text-sm text-muted-foreground">
-                        {t("subscription.payment.successDesc", "您的订阅已激活，会员权益已即时生效")}
+                        {t("subscription.payment.successDesc")}
                     </p>
                 </div>
                 {isUpgrade && upgradeInfo?.refund_amount > 0 && (
@@ -223,7 +222,7 @@ function SubscriptionDashboard() {
                     </div>
                 )}
                 <Button onClick={handleClosePayment} className="w-full bg-primary hover:bg-primary/90 font-bold h-11">
-                    {t("common.ok", "确定")}
+                    {t("common.ok")}
                 </Button>
             </div>
           ) : (
@@ -274,7 +273,7 @@ function SubscriptionDashboard() {
                         </div>
                     ) : (
                         <div className="h-44 w-44 bg-muted/40 rounded-xl flex items-center justify-center text-muted-foreground text-xs text-center p-4 border border-dashed">
-                            {t("subscription.payment.error", "获取支付失败")}
+                            {t("subscription.payment.error")}
                         </div>
                     )}
                     {!isQrExpired && (

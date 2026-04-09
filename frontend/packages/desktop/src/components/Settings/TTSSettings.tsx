@@ -36,7 +36,7 @@ export function TTSSettings() {
     if (isPlaying === voice.id) return
     
     setIsPlaying(voice.id)
-    const text = voice.preview || t('chat.tts.preview', '你好，我是语音助手。')
+    const text = voice.preview || t('chat.tts.preview')
     
     await speak(text, { 
       voiceId: voice.id, 
@@ -67,10 +67,10 @@ export function TTSSettings() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Volume2 className="h-5 w-5" />
-            {t('settings.tts.title', 'Text-to-Speech')}
+            {t('settings.tts.title')}
           </CardTitle>
           <CardDescription>
-            {t('settings.tts.description', 'Configure AI voice output settings')}
+            {t('settings.tts.description')}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -83,10 +83,10 @@ export function TTSSettings() {
                 ) : (
                   <VolumeX className="h-4 w-4 text-muted-foreground" />
                 )}
-                {t('settings.tts.autoSpeak', 'Auto-speak AI responses')}
+                {t('settings.tts.autoSpeak')}
               </Label>
               <p className="text-sm text-muted-foreground">
-                {t('settings.tts.autoSpeakDesc', 'Automatically read AI messages aloud when they arrive')}
+                {t('settings.tts.autoSpeakDesc')}
               </p>
             </div>
             <button
@@ -109,7 +109,7 @@ export function TTSSettings() {
           <div className="space-y-4">
             <div className="flex justify-between items-center">
               <Label className="text-base">
-                {t('settings.tts.speechRate', 'Speech Rate')}
+                {t('settings.tts.speechRate')}
               </Label>
               <span className="text-sm text-muted-foreground font-mono">
                 {speed.toFixed(1)}x
@@ -125,9 +125,9 @@ export function TTSSettings() {
               className="w-full h-2 bg-muted rounded-lg appearance-none cursor-pointer accent-primary"
             />
             <div className="flex justify-between text-xs text-muted-foreground">
-              <span>{t('settings.tts.slow', 'Slow')}</span>
-              <span>{t('settings.tts.normal', 'Normal')}</span>
-              <span>{t('settings.tts.fast', 'Fast')}</span>
+              <span>{t('settings.tts.slow')}</span>
+              <span>{t('settings.tts.normal')}</span>
+              <span>{t('settings.tts.fast')}</span>
             </div>
           </div>
         </CardContent>
@@ -136,9 +136,9 @@ export function TTSSettings() {
       {/* Voice selection */}
       <Card>
         <CardHeader>
-          <CardTitle>{t('settings.tts.voice', 'Voice Selection')}</CardTitle>
+          <CardTitle>{t('settings.tts.voice')}</CardTitle>
           <CardDescription>
-            {t('settings.tts.voiceDesc', 'Choose your preferred AI voice')}
+            {t('settings.tts.voiceDesc')}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -201,7 +201,7 @@ export function TTSSettings() {
           <div className="flex items-start gap-2 mt-4 p-3 bg-blue-500/10 rounded-lg text-sm text-blue-700 dark:text-blue-300">
             <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
             <p>
-              {t('settings.tts.note', 'TTS uses Microsoft Edge speech synthesis. Completely free, no API key required.')}
+              {t('settings.tts.note')}
             </p>
           </div>
         </CardContent>

@@ -1,7 +1,7 @@
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@evoloop/shared/components/ui/card"
 import { Button } from "@evoloop/shared/components/ui/button"
 import { Badge } from "@evoloop/shared/components/ui/badge"
-import { Check, Crown, AlertCircle } from "lucide-react"
+import { Crown, AlertCircle } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
 // 权益数据类型（简单key-value）
@@ -15,7 +15,8 @@ interface Plan {
   description?: string
   privileges?: string[]
   is_current?: boolean
-  benefits?: Benefits  // 来自后端的权益数据
+  benefits?: Benefits  // 来自后端的权益状态 (bits)
+  definitions?: Record<string, { name: string, desc: string, category: string }> // 来自后端的权益定义 (metadata)
   sort?: number        // 等级排序字段，用于判断等级高低
 }
 
@@ -28,63 +29,62 @@ interface PlanComparisonProps {
 }
 
 // 简单的权益格式化函数
-function formatBenefitValue(key: string, value: any): string {
+function formatBenefitValue(key: string, value: any, t: any): string {
   if (typeof value === 'boolean') {
     return value ? '✓' : '✗'
   }
   if (key === 'ai_quota' && value === 0) {
-    return '无限'
+    return t('subscription.plan.unlimited')
   }
   if (key === 'storage') {
-    return `${value}GB`
+    return t('subscription.plan.gb', { value })
   }
   return String(value)
 }
 
-// 获取权益显示名称（简单映射，可扩展为多语言）
-function getBenefitLabel(key: string): string {
-  const labels: Record<string, string> = {
-    ai_quota: 'AI调用额度',
-    ai_advanced: '高级模型',
-    code_execution: '代码执行',
-    browser_control: '浏览器控制',
-    desktop_control: '桌面控制',
-    mobile_control: '手机控制',
-    voice: '语音交互',
-    skill_recording: '技能录制',
-    skill_recording_limit: '录制限制',
-    mcp: 'MCP服务',
-    project_limit: '项目数量',
-    gantt: '甘特图',
-    timesheet: '工时表',
-    storage: '存储空间',
+// 获取权益显示名称
+function getBenefitLabel(key: string, t: any, definitions?: Record<string, any>): string {
+  // 优先从云端定义中获取，否则使用备用映射
+  if (definitions?.[key]?.name) {
+    return definitions[key].name;
   }
-  return labels[key] || key
+  
+  return t(`subscription.benefits.${key}`)
 }
 
-// 权益列表组件（简单遍历）
-function BenefitsList({ benefits }: { benefits?: Benefits }) {
+// 权益列表组件
+function BenefitsList({ benefits, definitions, t }: { benefits?: Benefits, definitions?: Record<string, any>, t: any }) {
   if (!benefits) {
-    // 默认展示
     return (
       <ul className="space-y-2 text-[13px] text-muted-foreground">
-        <li>• 基础AI功能</li>
-        <li>• 标准支持</li>
+        <li>• {t("subscription.plan.defaultBenefit1")}</li>
+        <li>• {t("subscription.plan.defaultBenefit2")}</li>
       </ul>
     )
   }
 
-  // 简单遍历所有权益
+  // 1. 过滤掉不展示的权益 (比如 sort, level_id)
+  const excludeKeys = ['sort', 'level_id'];
+  
+  // 2. 只有在 benefits 中为 True 的才展示，或者 definitions 中定义的
   const entries = Object.entries(benefits)
-    .filter(([_, value]) => typeof value === 'boolean' ? value : value > 0 || value === '0')
-    .slice(0, 6)
+    .filter(([key, value]) => {
+        if (excludeKeys.includes(key)) return false;
+        if (typeof value === 'boolean') return value;
+        if (typeof value === 'number') return value > 0 || value === 0;
+        if (typeof value === 'string') return value !== "" && value !== "0" && value !== "false";
+        return !!value;
+    })
+    .slice(0, 15) // 展示更多权益
 
   return (
     <ul className="space-y-2">
       {entries.map(([key, value]) => (
         <li key={key} className="flex items-center justify-between text-[13px]">
-          <span className="text-muted-foreground">{getBenefitLabel(key)}</span>
-          <span className="font-medium">{formatBenefitValue(key, value)}</span>
+          <span className="text-muted-foreground" title={definitions?.[key]?.desc || ""}>
+            {getBenefitLabel(key, t, definitions)}
+          </span>
+          <span className="font-medium text-primary/80">{formatBenefitValue(key, value, t)}</span>
         </li>
       ))}
     </ul>
@@ -131,7 +131,7 @@ export const PlanComparison = ({ plans, currentLevelId, currentPlanPrice = 0, on
             {isCurrent && (
               <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-10">
                 <Badge variant="default" className="bg-primary text-primary-foreground font-bold px-3 py-0.5 shadow-sm border-none">
-                  {t("subscription.plan.current", "当前方案")}
+                  {t("subscription.plan.current")}
                 </Badge>
               </div>
             )}
@@ -140,7 +140,7 @@ export const PlanComparison = ({ plans, currentLevelId, currentPlanPrice = 0, on
               <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-10">
                 <Badge variant="secondary" className="bg-muted text-muted-foreground font-bold px-3 py-0.5 shadow-sm border">
                   <AlertCircle className="h-3 w-3 mr-1" />
-                  {t("subscription.plan.downgrade", "无法降级")}
+                  {t("subscription.plan.downgrade")}
                 </Badge>
               </div>
             )}
@@ -156,11 +156,11 @@ export const PlanComparison = ({ plans, currentLevelId, currentPlanPrice = 0, on
               </div>
               <div className="flex items-baseline gap-1.5 py-2">
                 {parseFloat(plan.price) === 0 ? (
-                  <span className="text-3xl font-bold tracking-tighter text-primary">{t("subscription.plan.free", "免费")}</span>
+                  <span className="text-3xl font-bold tracking-tighter text-primary">{t("subscription.plan.free")}</span>
                 ) : (
                   <>
                     <span className="text-3xl font-bold tracking-tighter">¥{plan.price}</span>
-                    <span className="text-[13px] text-muted-foreground font-medium">{t("subscription.plan.perMonth", "/月")}</span>
+                    <span className="text-[13px] text-muted-foreground font-medium">{t("subscription.plan.perMonth")}</span>
                   </>
                 )}
               </div>
@@ -171,7 +171,7 @@ export const PlanComparison = ({ plans, currentLevelId, currentPlanPrice = 0, on
                          ¥{plan.market_price}
                     </span>
                     <Badge variant="outline" className="text-[10px] h-4 px-1 border-primary/20 text-primary bg-primary/5">
-                        {t("subscription.plan.discount", "限时优惠")}
+                        {t("subscription.plan.discount")}
                     </Badge>
                 </div>
               )}
@@ -179,14 +179,14 @@ export const PlanComparison = ({ plans, currentLevelId, currentPlanPrice = 0, on
 
             <CardContent className="flex-1 flex flex-col gap-4">
               <p className="text-[13px] text-muted-foreground leading-relaxed">
-                {plan.description || t("subscription.plan.defaultDesc", "解锁高级 AI 功能")}
+                {plan.description || t("subscription.plan.defaultDesc")}
               </p>
               
               <div className="space-y-3">
                 <p className="text-[11px] font-bold text-muted-foreground/80 uppercase tracking-widest">
-                    {t("subscription.plan.featuresInclude", "包含权益")}
+                    {t("subscription.plan.featuresInclude")}
                 </p>
-                <BenefitsList benefits={plan.benefits} />
+                <BenefitsList benefits={plan.benefits} definitions={plan.definitions} t={t} />
               </div>
             </CardContent>
 
@@ -195,10 +195,10 @@ export const PlanComparison = ({ plans, currentLevelId, currentPlanPrice = 0, on
                 // 降级选项：不显示按钮，显示提示信息
                 <div className="w-full py-3 px-4 bg-muted/50 rounded-lg text-center">
                   <p className="text-sm text-muted-foreground font-medium">
-                    {t("subscription.plan.cannotDowngrade", "当前等级更高")}
+                    {t("subscription.plan.cannotDowngrade")}
                   </p>
                   <p className="text-[11px] text-muted-foreground/70 mt-1">
-                    {t("subscription.plan.downgradeHint", "到期后可购买此方案")}
+                    {t("subscription.plan.downgradeHint")}
                   </p>
                 </div>
               ) : (
@@ -215,10 +215,10 @@ export const PlanComparison = ({ plans, currentLevelId, currentPlanPrice = 0, on
                     onClick={() => !isCurrent && onSelect(plan.level_id)}
                   >
                     {isCurrent 
-                      ? t("subscription.plan.active", "当前使用中") 
+                      ? t("subscription.plan.active") 
                       : isFree 
-                        ? t("subscription.plan.startFree", "立即使用")
-                        : t("subscription.plan.subscribe", "立即订阅")
+                        ? t("subscription.plan.startFree")
+                        : t("subscription.plan.subscribe")
                     }
                   </Button>
                   {!isFree && !isCurrent && hasActiveSubscription && (

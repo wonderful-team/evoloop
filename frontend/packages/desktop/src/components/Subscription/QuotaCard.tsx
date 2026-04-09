@@ -25,10 +25,10 @@ export const QuotaCard = ({ quota }: QuotaCardProps) => {
     <Card className="h-full border-border bg-card">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-sm font-semibold">{t("subscription.quota.title", "AI 配额")}</CardTitle>
+          <CardTitle className="text-sm font-semibold">{t("subscription.quota.title")}</CardTitle>
           <Zap className="h-4 w-4 text-primary" />
         </div>
-        <CardDescription className="text-xs">{t("subscription.quota.description", "实时查看额度使用情况")}</CardDescription>
+        <CardDescription className="text-xs">{t("subscription.quota.description")}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex items-center justify-between">
@@ -36,11 +36,11 @@ export const QuotaCard = ({ quota }: QuotaCardProps) => {
             <div className="p-1.5 rounded-md bg-primary/10 text-primary">
               <Zap className="h-3.5 w-3.5" />
             </div>
-            <span className="text-sm font-medium">{t("subscription.quota.aiQuota", "剩余额度")}</span>
+            <span className="text-sm font-medium">{t("subscription.quota.aiQuota")}</span>
           </div>
           <div className="text-sm font-semibold">
             {quota.is_unlimited ? (
-              <span className="text-primary">{t("subscription.quota.unlimited", "无限")}</span>
+              <span className="text-primary">{t("subscription.quota.unlimited")}</span>
             ) : (
               <span className="text-foreground">{quota.remaining} <span className="text-muted-foreground font-normal text-xs">/ {quota.total}</span></span>
             )}
@@ -51,9 +51,9 @@ export const QuotaCard = ({ quota }: QuotaCardProps) => {
           <div className="space-y-1.5">
             <Progress value={usagePercent} className="h-1.5" />
             <div className="flex justify-between text-xs text-muted-foreground">
-              <span>{Math.round(usagePercent)}% 已使用</span>
+              <span>{t("subscription.quota.usedPercent", { percent: Math.round(usagePercent) })}</span>
               {usagePercent > 80 && (
-                <span className="text-destructive font-medium">余额不足</span>
+                <span className="text-destructive font-medium">{t("subscription.quota.lowBalance")}</span>
               )}
             </div>
           </div>

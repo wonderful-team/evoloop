@@ -101,14 +101,12 @@ export const TaskDetail: React.FC<TaskDetailProps> = ({
         onOpenChange(false)
       } else {
         toast.error(
-          t("projects.tasks.executeError", "Failed to start execution") +
-            ": " +
-            (res.message || t("common.error.unknown", "Unknown error")),
+            (res.message || t("common.error.unknown")),
         )
       }
     } catch (error) {
       console.error("Execute task failed:", error)
-      toast.error(t("projects.tasks.executeFailed", "Execute task failed"))
+      toast.error(t("projects.tasks.executeFailed"))
     } finally {
       setExecuting(false)
     }
@@ -124,10 +122,10 @@ export const TaskDetail: React.FC<TaskDetailProps> = ({
             <div className="flex gap-2">
               <Badge variant={task?.status === 2 ? "default" : "secondary"}>
                 {task?.status === 2
-                  ? t("projects.tasks.statusLabel.inProgress", "In Progress")
+                  ? t("projects.tasks.statusLabel.inProgress")
                   : task?.status === 3
-                    ? t("projects.tasks.statusLabel.completed", "Completed")
-                    : t("projects.tasks.statusLabel.pending", "Pending")}
+                    ? t("projects.tasks.statusLabel.completed")
+                    : t("projects.tasks.statusLabel.pending")}
               </Badge>
               <Badge variant="outline">
                 {task?.priority === 3
@@ -154,11 +152,11 @@ export const TaskDetail: React.FC<TaskDetailProps> = ({
                 <TabsList className="mb-4">
                   <TabsTrigger value="details" className="flex items-center gap-1">
                     <Layers className="h-4 w-4" />
-                    {t("projects.details.tabs.details", "Details")}
+                    {t("projects.details.tabs.details")}
                   </TabsTrigger>
                   <TabsTrigger value="subtasks" className="flex items-center gap-1">
                     <ListTree className="h-4 w-4" />
-                    {t("projects.details.tabs.subtasks", "Subtasks")}
+                    {t("projects.details.tabs.subtasks")}
                   </TabsTrigger>
                 </TabsList>
 
@@ -167,13 +165,12 @@ export const TaskDetail: React.FC<TaskDetailProps> = ({
                   <div className="space-y-6">
                     <div className="space-y-2">
                       <h3 className="text-sm font-medium text-muted-foreground">
-                        {t("projects.details.description", "Description")}
+                        {t("projects.details.description")}
                       </h3>
                       <div className="text-sm leading-relaxed whitespace-pre-wrap bg-muted/30 p-4 rounded-lg">
                         {task.task_desc ||
                           t(
                             "projects.details.noDescription",
-                            "No description provided.",
                           )}
                       </div>
                     </div>
@@ -182,7 +179,7 @@ export const TaskDetail: React.FC<TaskDetailProps> = ({
                       <div className="space-y-1">
                         <h3 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
                           <User className="h-4 w-4" />{" "}
-                          {t("projects.tasks.assignee", "Assignee")}
+                          {t("projects.tasks.assignee")}
                         </h3>
                         <div className="flex items-center gap-2">
                           <Avatar className="h-6 w-6">
@@ -198,7 +195,7 @@ export const TaskDetail: React.FC<TaskDetailProps> = ({
                       <div className="space-y-1">
                         <h3 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
                           <Calendar className="h-4 w-4" />{" "}
-                          {t("projects.details.created", "Created")}
+                          {t("projects.details.created")}
                         </h3>
                         <p className="text-sm">{task.create_time_format}</p>
                       </div>
@@ -207,7 +204,7 @@ export const TaskDetail: React.FC<TaskDetailProps> = ({
                     <div className="space-y-2">
                       <div className="flex justify-between items-center">
                         <h3 className="text-sm font-medium text-muted-foreground">
-                          {t("projects.tasks.columns.progress", "Progress")}
+                          {t("projects.tasks.columns.progress")}
                         </h3>
                         <span className="text-sm font-bold">
                           {task.progress || 0}%
@@ -228,7 +225,7 @@ export const TaskDetail: React.FC<TaskDetailProps> = ({
                   <div className="space-y-6">
                     <h3 className="text-lg font-semibold flex items-center gap-2">
                       <Activity className="h-5 w-5 text-indigo-500" />
-                      {t("projects.details.tabs.ai", "AI Analysis")}
+                      {t("projects.details.tabs.ai")}
                     </h3>
 
                     <div className="grid md:grid-cols-2 gap-6">
@@ -237,7 +234,7 @@ export const TaskDetail: React.FC<TaskDetailProps> = ({
                         <div className="flex items-center justify-between mb-2">
                           <h3 className="text-sm font-medium flex items-center gap-2 text-indigo-700 dark:text-indigo-300">
                             <Activity className="h-4 w-4" />{" "}
-                            {t("projects.tasks.matchScore", "Match Score")}
+                            {t("projects.tasks.matchScore")}
                           </h3>
                           <span className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">
                             {task.match_score || 0}
@@ -254,7 +251,7 @@ export const TaskDetail: React.FC<TaskDetailProps> = ({
                         <div className="space-y-2">
                           <h3 className="text-sm font-medium flex items-center gap-2 text-muted-foreground">
                             <Layers className="h-4 w-4" />{" "}
-                            {t("projects.tasks.keyModules", "Key Modules")}
+                            {t("projects.tasks.keyModules")}
                           </h3>
                           <div className="flex flex-wrap gap-2">
                             {task.key_modules_list &&
@@ -284,7 +281,6 @@ export const TaskDetail: React.FC<TaskDetailProps> = ({
                             <Zap className="h-4 w-4" />{" "}
                             {t(
                               "projects.tasks.techDifficulty",
-                              "Technical Challenges",
                             )}
                           </h3>
                           <ul className="list-disc list-inside text-sm text-muted-foreground space-y-1">
@@ -310,7 +306,7 @@ export const TaskDetail: React.FC<TaskDetailProps> = ({
                   <div className="space-y-4">
                     <h3 className="text-lg font-semibold flex items-center gap-2">
                       <MessageSquare className="h-5 w-5 text-muted-foreground" />
-                      {t("projects.details.tabs.discussion", "Discussion")}
+                      {t("projects.details.tabs.discussion")}
                     </h3>
                     <div className="flex flex-col items-center justify-center py-8 text-muted-foreground bg-muted/20 rounded-lg">
                       <p>{t("projects.tasks.commentsComingSoon")}</p>
@@ -332,7 +328,7 @@ export const TaskDetail: React.FC<TaskDetailProps> = ({
         {/* Footer / Actions */}
         <div className="p-6 border-t bg-muted/10 flex gap-4">
           <Button className="flex-1" variant="outline" disabled={loading}>
-            {t("common.edit", "Edit Task")}
+            {t("common.edit")}
           </Button>
           <Button
             className="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white shadow-md transition-all hover:scale-[1.02]"
@@ -344,7 +340,7 @@ export const TaskDetail: React.FC<TaskDetailProps> = ({
             ) : (
               <>
                 <Play className="w-4 h-4 mr-2 fill-current" />
-                {t("projects.tasks.execute", "Confirm & Execute")}
+                {t("projects.tasks.execute")}
               </>
             )}
           </Button>

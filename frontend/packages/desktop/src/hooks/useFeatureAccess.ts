@@ -65,8 +65,8 @@ function useBenefitsQueryConfig() {
   return {
     queryKey: ["member", "benefits"],
     queryFn: async (): Promise<BenefitsData> => {
-      const res = await MemberService.getMemberBenefits()
-      return res.data as BenefitsData
+      const res = await MemberService.getMemberBenefitsApi()
+      return (res as any).data as BenefitsData
     },
     staleTime: BENEFITS_STALE_TIME,
     gcTime: BENEFITS_CACHE_TIME,
@@ -133,8 +133,10 @@ export function useBatchFeatureCheck(features: FeatureCode[]) {
   const { data, isLoading, error } = useQuery({
     queryKey: ["member", "benefits", "batch", features.sort().join(",")],
     queryFn: async () => {
-      const res = await MemberService.checkBenefitsBatch({ benefit_codes: features })
-      return res.data
+      const res = await MemberService.checkBenefitsBatch({
+        requestBody: { benefit_codes: features },
+      })
+      return res
     },
     staleTime: BENEFITS_STALE_TIME,
     enabled: features.length > 0,

@@ -60,7 +60,7 @@ export const PendingMessageItem = memo(() => {
                              <div className="flex flex-col gap-1 w-full">
                                 <div className="flex items-center gap-2 text-xs text-muted-foreground italic">
                                     <Loader2 className="h-3 w-3 animate-spin" />
-                                    {streamState.currentThinking || t("chat.interface.agentThinking", "Thinking...")}
+                                    {streamState.currentThinking || t("chat.interface.agentThinking")}
                                 </div>
                                 {streamState.overallProgress > 0 && streamState.overallProgress < 100 && (
                                     <div className="w-full h-1 bg-muted-foreground/10 rounded-full overflow-hidden mt-1">
@@ -86,7 +86,7 @@ export const PendingMessageItem = memo(() => {
                             >
                                 <Brain className="h-3.5 w-3.5" />
                                 <span className="font-medium">
-                                    {thoughts.length} {t("chat.steps.thoughts", "thoughts")}
+                                    {thoughts.length} {t("chat.steps.thoughts")}
                                 </span>
                                 <ChevronRight className="h-3.5 w-3.5 ml-auto" />
                             </Button>
@@ -120,10 +120,10 @@ export const PendingMessageItem = memo(() => {
                                             <Terminal className="h-3.5 w-3.5" />
                                             <span className="font-medium">
                                                 {runningStepsCount > 0
-                                                    ? t("chat.steps.executing", "Executing") + ` ${runningStepsCount} ${t("chat.steps.tools", "tools")}...`
+                                                    ? t("chat.steps.executing") + ` ${runningStepsCount} ${t("chat.steps.tools")}...`
                                                     : completedStepsCount === steps.length
-                                                        ? t("chat.steps.completed", "Completed") + ` ${steps.length} ${t("chat.steps.tools", "tools")}`
-                                                        : t("chat.steps.progress", "Progress") + ` ${completedStepsCount}/${steps.length}`
+                                                        ? t("chat.steps.completed") + ` ${steps.length} ${t("chat.steps.tools")}`
+                                                        : t("chat.steps.progress") + ` ${completedStepsCount}/${steps.length}`
                                                 }
                                             </span>
                                             <ChevronDown className="h-3.5 w-3.5 ml-auto" />
@@ -141,10 +141,10 @@ export const PendingMessageItem = memo(() => {
                                     <Terminal className="h-3.5 w-3.5" />
                                     <span className="font-medium">
                                         {runningStepsCount > 0
-                                            ? t("chat.steps.executing", "Executing") + ` ${runningStepsCount} ${t("chat.steps.tools", "tools")}...`
+                                            ? t("chat.steps.executing") + ` ${runningStepsCount} ${t("chat.steps.tools")}...`
                                             : completedStepsCount === steps.length
-                                                ? t("chat.steps.completed", "Completed") + ` ${steps.length} ${t("chat.steps.tools", "tools")}`
-                                                : t("chat.steps.progress", "Progress") + ` ${completedStepsCount}/${steps.length}`
+                                                ? t("chat.steps.completed") + ` ${steps.length} ${t("chat.steps.tools")}`
+                                                : t("chat.steps.progress") + ` ${completedStepsCount}/${steps.length}`
                                         }
                                     </span>
                                     <ChevronRight className="h-3.5 w-3.5 ml-auto" />

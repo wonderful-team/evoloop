@@ -2,12 +2,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useNavigate } from "@tanstack/react-router"
 
 import {
-  type Body_login_login_access_token as AccessToken,
-  LoginService,
+  AccountService,
   MemberService,
   AuthService,
   type UserPublic,
-  UsersService,
 } from "@/client"
 import { handleError } from "@/utils"
 import useCustomToast from "@evoloop/shared/hooks/useCustomToast"
@@ -33,7 +31,7 @@ const useAuth = () => {
 
   const { data: user } = useQuery<UserPublic | null, Error>({
     queryKey: ["currentUser"],
-    queryFn: () => UsersService.readUserMe(), // Fix: Wrapping in arrow function
+    queryFn: () => MemberService.readUserMe(),
     enabled: isLoggedIn(),
   })
 
@@ -49,9 +47,9 @@ const useAuth = () => {
     },
   })
 
-  const login = async (data: AccessToken) => {
-    const response = await LoginService.loginAccessToken({
-      formData: data,
+  const login = async (data: any) => {
+    const response = await AccountService.loginAccessToken({
+      formData: data as any, // Cast to any because the generated data.formData expects AccountLoginAccessTokenData
     })
     localStorage.setItem("access_token", response.access_token)
   }
@@ -59,6 +57,28 @@ const useAuth = () => {
   const loginMutation = useMutation({
     mutationFn: login,
     onSuccess: () => {
+      // Invalidate current user query to force refetch
+      queryClient.invalidateQueries({ queryKey: ["currentUser"] })
+      navigate({ to: "/" })
+    },
+    onError: handleError.bind(showErrorToast),
+  })
+
+  const requestMobileCodeMutation = useMutation({
+    mutationFn: (data: { mobile: string; captcha_id?: string; captcha_code?: string }) =>
+      AccountService.requestMobileCode({ requestBody: data }),
+    onError: handleError.bind(showErrorToast),
+  })
+
+  const loginMobileMutation = useMutation({
+    mutationFn: async (data: { mobile: string; code: string; key: string }) => {
+      const response = await AccountService.loginMobile({ requestBody: data })
+      localStorage.setItem("access_token", response.access_token)
+      return response
+    },
+    onSuccess: () => {
+      // Invalidate current user query to force refetch
+      queryClient.invalidateQueries({ queryKey: ["currentUser"] })
       navigate({ to: "/" })
     },
     onError: handleError.bind(showErrorToast),
@@ -67,7 +87,7 @@ const useAuth = () => {
   const logout = async () => {
     try {
       // Call backend to cleanup EvoLoop connection
-      await MemberService.logout()
+      await AccountService.logout()
     } catch (e) {
       console.error("Logout cleanup failed:", e)
     } finally {
@@ -82,6 +102,8 @@ const useAuth = () => {
   return {
     signUpMutation,
     loginMutation,
+    requestMobileCodeMutation,
+    loginMobileMutation,
     logout,
     user,
   }
