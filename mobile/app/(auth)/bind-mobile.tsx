@@ -14,7 +14,6 @@ import {
   TextInput,
   Button,
   Avatar,
-  ActivityIndicator,
 } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -43,42 +42,18 @@ export default function BindMobileScreen() {
   const [dynaCode, setDynaCode] = useState('');
   const [dynaCodeKey, setDynaCodeKey] = useState('');
 
-  // 图形验证码
+  // 图形验证码（始终显示，不读配置 — 与 mobile_uniapp 一致）
   const [captchaId, setCaptchaId] = useState('');
   const [captchaImage, setCaptchaImage] = useState('');
-  const [needCaptcha, setNeedCaptcha] = useState(false);
 
   // 页面状态
   const [isLoading, setIsLoading] = useState(false);
-  const [isCheckingConfig, setIsCheckingConfig] = useState(true);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
-  // 加载验证码配置
+  // 加载图形验证码
   useEffect(() => {
-    loadCaptchaConfig();
+    refreshCaptcha();
   }, []);
-
-  const loadCaptchaConfig = async () => {
-    try {
-      setIsCheckingConfig(true);
-      const config = await AuthManager.getCaptchaConfig();
-
-      if (config && config.shop_reception_login === 1) {
-        setNeedCaptcha(true);
-        try {
-          await refreshCaptcha();
-        } catch (captchaError: any) {
-          console.warn('验证码服务不可用，暂时禁用:', captchaError);
-          setNeedCaptcha(false);
-        }
-      }
-    } catch (error: any) {
-      console.error('获取验证码配置失败:', error);
-      setNeedCaptcha(false);
-    } finally {
-      setIsCheckingConfig(false);
-    }
-  };
 
   // 刷新图形验证码
   const refreshCaptcha = async () => {
@@ -100,7 +75,6 @@ export default function BindMobileScreen() {
       setCaptchaImage(captcha.img);
     } catch (error: any) {
       console.error('获取图形验证码失败:', error);
-      setNeedCaptcha(false);
       setFormErrors((prev) => ({
         ...prev,
         captchaCode: error.message || '验证码服务暂时不可用',
@@ -117,8 +91,7 @@ export default function BindMobileScreen() {
       return false;
     }
 
-    // 如果需要图形验证码
-    if (needCaptcha && !captchaCode) {
+    if (!captchaCode) {
       setFormErrors((prev) => ({ ...prev, captchaCode: '请输入图形验证码' }));
       return false;
     }
@@ -127,8 +100,8 @@ export default function BindMobileScreen() {
       // 调用第三方登录专用的短信验证码接口
       const result = await AuthManager.sendTripartiteMobileCode(
         mobile,
-        needCaptcha ? captchaId : undefined,
-        needCaptcha ? captchaCode : undefined
+        captchaId,
+        captchaCode
       );
 
       if (result && result.key) {
@@ -142,9 +115,7 @@ export default function BindMobileScreen() {
         mobile: error.message || '发送验证码失败',
       }));
       // 刷新图形验证码
-      if (needCaptcha) {
-        refreshCaptcha();
-      }
+      refreshCaptcha();
     }
     return false;
   };
@@ -157,7 +128,7 @@ export default function BindMobileScreen() {
     if (!validate.mobile(mobile)) {
       errors.mobile = '请输入正确的手机号';
     }
-    if (needCaptcha && !captchaCode) {
+    if (!captchaCode) {
       errors.captchaCode = '请输入图形验证码';
     }
     if (!dynaCode) {
@@ -186,7 +157,9 @@ export default function BindMobileScreen() {
         authData,
         mobile,
         dynaCodeKey,
-        dynaCode
+        dynaCode,
+        captchaId,
+        captchaCode
       );
 
       if (result && result.token) {
@@ -206,9 +179,7 @@ export default function BindMobileScreen() {
         global: error.message || '绑定失败，请重试',
       });
       // 刷新图形验证码
-      if (needCaptcha) {
-        refreshCaptcha();
-      }
+      refreshCaptcha();
     } finally {
       setIsLoading(false);
     }
@@ -218,15 +189,6 @@ export default function BindMobileScreen() {
   const handleCancel = () => {
     router.back();
   };
-
-  if (isCheckingConfig) {
-    return (
-      <SafeAreaView style={[styles.container, styles.center]}>
-        <ActivityIndicator size="large" color={colors.primary} />
-        <Text style={styles.loadingText}>加载中...</Text>
-      </SafeAreaView>
-    );
-  }
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
@@ -280,28 +242,26 @@ export default function BindMobileScreen() {
               </Text>
             )}
 
-            {/* 图形验证码 */}
-            {needCaptcha && (
-              <View style={styles.captchaContainer}>
-                <TextInput
-                  label="图形验证码"
-                  value={captchaCode}
-                  onChangeText={(text) => {
-                    setCaptchaCode(text);
-                    if (formErrors.captchaCode) {
-                      setFormErrors((prev) => ({ ...prev, captchaCode: '' }));
-                    }
-                  }}
-                  error={!!formErrors.captchaCode}
-                  style={[styles.input, styles.captchaInput]}
-                />
-                <CaptchaImage
-                  captchaId={captchaId}
-                  captchaImage={captchaImage}
-                  onRefresh={refreshCaptcha}
-                />
-              </View>
-            )}
+            {/* 图形验证码 — 始终显示，与 mobile_uniapp 一致 */}
+            <View style={styles.captchaContainer}>
+              <TextInput
+                label="图形验证码"
+                value={captchaCode}
+                onChangeText={(text) => {
+                  setCaptchaCode(text);
+                  if (formErrors.captchaCode) {
+                    setFormErrors((prev) => ({ ...prev, captchaCode: '' }));
+                  }
+                }}
+                error={!!formErrors.captchaCode}
+                style={[styles.input, styles.captchaInput]}
+              />
+              <CaptchaImage
+                captchaId={captchaId}
+                captchaImage={captchaImage}
+                onRefresh={refreshCaptcha}
+              />
+            </View>
             {formErrors.captchaCode && (
               <Text style={[styles.errorText, { color: colors.error }]}>
                 {formErrors.captchaCode}
@@ -326,7 +286,7 @@ export default function BindMobileScreen() {
               />
               <CountdownButton
                 onPress={handleSendMobileCode}
-                disabled={!validate.mobile(mobile) || (needCaptcha && !captchaCode)}
+                disabled={!validate.mobile(mobile) || !captchaCode}
               />
             </View>
             {formErrors.dynaCode && (
@@ -373,10 +333,6 @@ export default function BindMobileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  center: {
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   keyboardView: {
     flex: 1,
@@ -440,9 +396,5 @@ const styles = StyleSheet.create({
   },
   cancelButton: {
     marginTop: 8,
-  },
-  loadingText: {
-    marginTop: 12,
-    opacity: 0.6,
   },
 });

@@ -42,7 +42,7 @@ export const authApi = {
     return response.data;
   },
 
-  // 发送手机验证码
+  // 发送手机验证码（登录用）
   sendMobileCode: async (
     mobile: string,
     captchaCode?: string,
@@ -85,21 +85,121 @@ export const authApi = {
     return response.data;
   },
 
-  // 修改密码
-  changePassword: async (oldPassword: string, newPassword: string): Promise<void> => {
-    await api.post(MEMBER_API.CHANGE_PASSWORD, {
-      old_password: oldPassword,
-      new_password: newPassword,
-    });
+  // ========== 注册 ==========
+
+  // 手机号注册
+  registerWithMobile: async (data: {
+    mobile: string;
+    key: string;
+    code: string;
+    password?: string;
+    captcha_id?: string;
+    captcha_code?: string;
+    source_member?: string;
+    nickname?: string;
+    headimg?: string;
+  }): Promise<void> => {
+    await api.post(MEMBER_API.REGISTER_MOBILE, data);
   },
 
-  // 发送短信验证码（用于绑定手机）
-  sendSmsCode: async (mobile: string): Promise<void> => {
-    await api.post(MEMBER_API.SEND_SMS_CODE, { mobile });
+  // 用户名注册
+  registerWithUsername: async (data: {
+    username: string;
+    password: string;
+    captcha_id?: string;
+    captcha_code?: string;
+    source_member?: string;
+    nickname?: string;
+    headimg?: string;
+  }): Promise<void> => {
+    await api.post(MEMBER_API.REGISTER_USERNAME, data);
+  },
+
+  // 发送注册验证码
+  sendRegisterMobileCode: async (
+    mobile: string,
+    captchaCode?: string,
+    captchaId?: string
+  ): Promise<MobileCodeResponse> => {
+    const response = await api.post<ApiResponse<MobileCodeResponse>>(
+      MEMBER_API.REGISTER_MOBILE_CODE,
+      {
+        mobile,
+        captcha_code: captchaCode,
+        captcha_id: captchaId,
+      }
+    );
+    return response.data;
+  },
+
+  // ========== 找回密码 ==========
+
+  // 发送找回密码验证码
+  sendFindPasswordCode: async (
+    mobile: string,
+    captchaCode: string,
+    captchaId: string
+  ): Promise<MobileCodeResponse> => {
+    const response = await api.post<ApiResponse<MobileCodeResponse>>(
+      MEMBER_API.FIND_PASSWORD_MOBILE_CODE,
+      {
+        mobile,
+        captcha_code: captchaCode,
+        captcha_id: captchaId,
+      }
+    );
+    return response.data;
+  },
+
+  // 找回密码（重置）
+  resetPassword: async (data: {
+    mobile: string;
+    key: string;
+    code: string;
+    password: string;
+  }): Promise<void> => {
+    await api.post(MEMBER_API.FIND_PASSWORD_MOBILE, data);
+  },
+
+  // ========== 修改密码 ==========
+
+  // 修改密码（参照 mobile_uniapp）
+  modifyPassword: async (data: {
+    old_password?: string;
+    new_password: string;
+    code?: string;
+    key?: string;
+  }): Promise<void> => {
+    await api.post(MEMBER_API.MODIFY_PASSWORD, data);
+  },
+
+  // ========== 绑定手机号 ==========
+
+  // 发送绑定手机号的短信验证码
+  sendBindMobileCode: async (
+    mobile: string,
+    captchaCode?: string,
+    captchaId?: string
+  ): Promise<MobileCodeResponse> => {
+    const response = await api.post<ApiResponse<MobileCodeResponse>>(
+      MEMBER_API.BIND_MOBILE_CODE,
+      {
+        mobile,
+        captcha_code: captchaCode,
+        captcha_id: captchaId,
+      }
+    );
+    return response.data;
   },
 
   // 绑定手机号
-  bindMobile: async (mobile: string, code: string): Promise<void> => {
-    await api.post(MEMBER_API.BIND_MOBILE, { mobile, code });
+  modifyMobile: async (data: {
+    mobile: string;
+    captcha_id?: string;
+    captcha_code?: string;
+    code: string;
+    key: string;
+  }): Promise<void> => {
+    await api.post(MEMBER_API.MODIFY_MOBILE, data);
   },
 };

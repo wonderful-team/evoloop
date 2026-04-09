@@ -12,11 +12,14 @@ export interface UserInfo {
 }
 
 export interface RegisterConfig {
-  register: string;
-  login: string[];
-  third_party: number;
-  bind_mobile: number;
-  agreement_show: boolean;
+  register: string;         // comma-separated: 'username,mobile'
+  login: string;            // comma-separated: 'username,mobile'
+  third_party: number;      // 0/1
+  bind_mobile: number;      // 0/1
+  pwd_len: number;          // min password length, 0 = no restriction
+  pwd_complexity: string;   // comma-separated: 'number,letter,upper_case,symbol'
+  agreement_show: number;   // 0/1
+  wap_bg: string;
   wap_desc: string;
 }
 
@@ -72,6 +75,11 @@ export interface RegisterRequest {
   code: string;
   key: string;
   password?: string;
+  captcha_id?: string;
+  captcha_code?: string;
+  source_member?: string;
+  nickname?: string;
+  headimg?: string;
 }
 
 export interface ResetPasswordRequest {

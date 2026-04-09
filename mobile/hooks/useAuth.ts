@@ -5,6 +5,7 @@ import { router } from 'expo-router';
 import { useAuthStore } from '@/stores/authStore';
 import { useLoading } from './useLoading';
 import { AuthManager } from '@/services/auth/AuthManager';
+import { authApi } from '@/services/api/auth';
 import {
   LoginResponse,
   MobileLoginRequest,
@@ -12,8 +13,6 @@ import {
   WechatAuthData,
   RegisterRequest,
 } from '@/types';
-import { api } from '@/services/api/client';
-import { MEMBER_API } from '@/constants/api';
 
 export function useAuth() {
   const { isLoggedIn, userInfo, login, logout } = useAuthStore();
@@ -44,7 +43,12 @@ export function useAuth() {
   const loginWithAccount = useCallback(
     async (data: AccountLoginRequest) => {
       const result = await execute(
-        AuthManager.loginWithAccount(data.username, data.password)
+        AuthManager.loginWithAccount(
+          data.username,
+          data.password,
+          data.captcha_id,
+          data.captcha_code
+        )
       );
       
       if (result) {
@@ -105,17 +109,14 @@ export function useAuth() {
       mobile: string;
       key: string;
       code: string;
-      password: string;
+      password?: string;
+      captcha_id?: string;
+      captcha_code?: string;
+      source_member?: string;
+      nickname?: string;
+      headimg?: string;
     }) => {
-      const result = await execute(
-        api.post(MEMBER_API.SEND_MOBILE_CODE, {
-          mobile: data.mobile,
-          key: data.key,
-          code: data.code,
-          password: data.password,
-        })
-      );
-      
+      const result = await execute(authApi.registerWithMobile(data));
       return result;
     },
     [execute]
@@ -128,11 +129,11 @@ export function useAuth() {
       password: string;
       captcha_id?: string;
       captcha_code?: string;
+      source_member?: string;
+      nickname?: string;
+      headimg?: string;
     }) => {
-      const result = await execute(
-        api.post('/api/register', data)
-      );
-      
+      const result = await execute(authApi.registerWithUsername(data));
       return result;
     },
     [execute]
@@ -144,12 +145,9 @@ export function useAuth() {
       mobile: string;
       key: string;
       code: string;
-      new_password: string;
+      password: string;
     }) => {
-      const result = await execute(
-        api.post('/api/member/resetPassword', data)
-      );
-      
+      const result = await execute(authApi.resetPassword(data));
       return result;
     },
     [execute]

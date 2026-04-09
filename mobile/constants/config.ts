@@ -22,6 +22,7 @@ export const WS_CONFIG = {
 // 微信配置
 export const WECHAT_CONFIG = {
   appId: process.env.EXPO_PUBLIC_WECHAT_APP_ID || '',
+  appSecret: process.env.EXPO_PUBLIC_WECHAT_APP_SECRET || '',
 };
 
 // 音频配置

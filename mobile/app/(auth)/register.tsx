@@ -8,6 +8,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   TouchableOpacity,
+  Alert,
 } from 'react-native';
 import {
   Text,
@@ -24,11 +25,42 @@ import { useAuth } from '@/hooks/useAuth';
 import { useTheme } from '@/theme';
 import { CountdownButton, CaptchaImage } from '@/components/auth';
 import { AuthManager } from '@/services/auth/AuthManager';
-import { api } from '@/services/api/client';
-import { MEMBER_API } from '@/constants/api';
+import { authApi } from '@/services/api/auth';
 import { validate } from '@/utils/validate';
+import { RegisterConfig } from '@/types';
 
 type RegisterType = 'mobile' | 'username';
+
+// 解析逗号分隔的配置字符串
+function parseConfigValue(value: string | undefined): string[] {
+  if (!value) return [];
+  return value.split(',').map((s) => s.trim()).filter(Boolean);
+}
+
+// 根据 pwd_complexity 校验密码
+function validatePasswordComplexity(password: string, complexity: string): string | null {
+  if (!complexity) return null;
+  const requirements = parseConfigValue(complexity);
+  const errors: string[] = [];
+
+  if (requirements.includes('number') && !/\d/.test(password)) {
+    errors.push('数字');
+  }
+  if (requirements.includes('letter') && !/[a-z]/.test(password)) {
+    errors.push('小写字母');
+  }
+  if (requirements.includes('upper_case') && !/[A-Z]/.test(password)) {
+    errors.push('大写字母');
+  }
+  if (requirements.includes('symbol') && !/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
+    errors.push('特殊字符');
+  }
+
+  if (errors.length > 0) {
+    return `密码需包含${errors.join('、')}`;
+  }
+  return null;
+}
 
 export default function RegisterScreen() {
   const { t } = useTranslation();
@@ -67,10 +99,60 @@ export default function RegisterScreen() {
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [registerError, setRegisterError] = useState('');
 
-  // 加载图形验证码配置
+  // 注册/登录配置
+  const [registerConfig, setRegisterConfig] = useState<RegisterConfig | null>(null);
+
+  // 加载注册配置和验证码配置
   useEffect(() => {
+    loadRegisterConfig();
     loadCaptchaConfig();
   }, []);
+
+  // 加载注册配置
+  const loadRegisterConfig = async () => {
+    try {
+      const config = await AuthManager.getRegisterConfig();
+      setRegisterConfig(config);
+
+      // 检查是否启用了注册
+      const registerMethods = parseConfigValue(config.register);
+      if (registerMethods.length === 0) {
+        // 平台未启用注册，跳转回首页
+        Alert.alert('提示', '平台未启用注册!', [
+          { text: '确定', onPress: () => router.back() },
+        ]);
+        return;
+      }
+
+      // 根据配置设置默认注册方式
+      if (registerMethods.includes('username')) {
+        setRegisterType('username');
+      } else if (registerMethods.includes('mobile')) {
+        setRegisterType('mobile');
+      }
+    } catch (error: any) {
+      console.error('获取注册配置失败:', error);
+    }
+  };
+
+  // 是否显示某注册方式
+  const isRegisterMethodEnabled = (method: string): boolean => {
+    if (!registerConfig) return true;
+    const methods = parseConfigValue(registerConfig.register);
+    return methods.length === 0 || methods.includes(method);
+  };
+
+  // 是否显示协议
+  const showAgreement = (): boolean => {
+    if (!registerConfig) return true;
+    return registerConfig.agreement_show === 1;
+  };
+
+  // 获取密码最小长度
+  const getMinPasswordLength = (): number => {
+    if (!registerConfig || registerConfig.pwd_len <= 0) return 6;
+    return registerConfig.pwd_len;
+  };
 
   // 加载验证码配置
   const loadCaptchaConfig = async () => {
@@ -79,7 +161,7 @@ export default function RegisterScreen() {
       console.log('Captcha config:', config);
       
       // 如果配置了需要验证码
-      if (config && config.shop_reception_login === 1) {
+      if (config && config.shop_reception_register === 1) {
         setNeedCaptcha(true);
         try {
           await refreshCaptcha();
@@ -175,13 +257,24 @@ export default function RegisterScreen() {
     if (!mobileCode) {
       errors.mobileCode = '请输入验证码';
     }
-    if (!mobilePassword || mobilePassword.length < 6) {
-      errors.mobilePassword = '密码至少6位';
+
+    const minPwdLen = getMinPasswordLength();
+    if (!mobilePassword || mobilePassword.length < minPwdLen) {
+      errors.mobilePassword = `密码至少${minPwdLen}位`;
     }
+
+    // 密码复杂度校验
+    if (registerConfig?.pwd_complexity) {
+      const complexityError = validatePasswordComplexity(mobilePassword, registerConfig.pwd_complexity);
+      if (complexityError) {
+        errors.mobilePassword = complexityError;
+      }
+    }
+
     if (needCaptcha && !captchaCode) {
       errors.captchaCode = '请输入图形验证码';
     }
-    if (!agreedToTerms) {
+    if (showAgreement() && !agreedToTerms) {
       setShowTermsDialog(true);
       return;
     }
@@ -195,19 +288,15 @@ export default function RegisterScreen() {
     setRegisterError('');
 
     try {
-      const response = await api.post(MEMBER_API.SEND_MOBILE_CODE, {
+      await authApi.registerWithMobile({
         mobile,
         key: mobileCodeKey,
         code: mobileCode,
         password: mobilePassword,
       });
 
-      if (response.data?.code === 0) {
-        // 注册成功，跳转到登录页
-        router.replace('/(auth)/login');
-      } else {
-        setRegisterError(response.data?.message || '注册失败');
-      }
+      // 注册成功，跳转到登录页
+      router.replace('/(auth)/login');
     } catch (error: any) {
       setRegisterError(error.message || '注册失败，请重试');
     }
@@ -221,16 +310,27 @@ export default function RegisterScreen() {
     if (!username.trim() || username.length < 3) {
       errors.username = '用户名至少3位';
     }
-    if (!password || password.length < 6) {
-      errors.password = '密码至少6位';
+
+    const minPwdLen = getMinPasswordLength();
+    if (!password || password.length < minPwdLen) {
+      errors.password = `密码至少${minPwdLen}位`;
     }
+
+    // 密码复杂度校验
+    if (registerConfig?.pwd_complexity) {
+      const complexityError = validatePasswordComplexity(password, registerConfig.pwd_complexity);
+      if (complexityError) {
+        errors.password = complexityError;
+      }
+    }
+
     if (password !== confirmPassword) {
       errors.confirmPassword = '两次密码不一致';
     }
     if (needCaptcha && !captchaCode) {
       errors.captchaCode = '请输入图形验证码';
     }
-    if (!agreedToTerms) {
+    if (showAgreement() && !agreedToTerms) {
       setShowTermsDialog(true);
       return;
     }
@@ -244,20 +344,15 @@ export default function RegisterScreen() {
     setRegisterError('');
 
     try {
-      // 调用用户名注册 API
-      const response = await api.post('/api/register', {
+      await authApi.registerWithUsername({
         username,
         password,
         captcha_id: captchaId,
         captcha_code: captchaCode,
       });
 
-      if (response.data?.code === 0) {
-        // 注册成功，跳转到登录页
-        router.replace('/(auth)/login');
-      } else {
-        setRegisterError(response.data?.message || '注册失败');
-      }
+      // 注册成功，跳转到登录页
+      router.replace('/(auth)/login');
     } catch (error: any) {
       setRegisterError(error.message || '注册失败，请重试');
     }
@@ -288,46 +383,57 @@ export default function RegisterScreen() {
             </Text>
           </View>
 
-          {/* 注册类型切换 */}
-          <View style={styles.tabContainer}>
-            <TouchableOpacity
-              style={[
-                styles.tab,
-                registerType === 'mobile' && [styles.activeTab, { borderBottomColor: colors.primary }],
-              ]}
-              onPress={() => setRegisterType('mobile')}
-            >
-              <Text
-                variant="titleMedium"
+          {/* 注册类型切换 - 根据配置显示 */}
+          {isRegisterMethodEnabled('mobile') && isRegisterMethodEnabled('username') && (
+            <View style={styles.tabContainer}>
+              <TouchableOpacity
                 style={[
-                  styles.tabText,
-                  { color: registerType === 'mobile' ? colors.primary : colors.text.secondary },
+                  styles.tab,
+                  registerType === 'mobile' && [styles.activeTab, { borderBottomColor: colors.primary }],
                 ]}
+                onPress={() => setRegisterType('mobile')}
               >
-                手机注册
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.tab,
-                registerType === 'username' && [styles.activeTab, { borderBottomColor: colors.primary }],
-              ]}
-              onPress={() => setRegisterType('username')}
-            >
-              <Text
-                variant="titleMedium"
+                <Text
+                  variant="titleMedium"
+                  style={[
+                    styles.tabText,
+                    { color: registerType === 'mobile' ? colors.primary : colors.text.secondary },
+                  ]}
+                >
+                  手机注册
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
                 style={[
-                  styles.tabText,
-                  { color: registerType === 'username' ? colors.primary : colors.text.secondary },
+                  styles.tab,
+                  registerType === 'username' && [styles.activeTab, { borderBottomColor: colors.primary }],
                 ]}
+                onPress={() => setRegisterType('username')}
               >
-                用户名注册
+                <Text
+                  variant="titleMedium"
+                  style={[
+                    styles.tabText,
+                    { color: registerType === 'username' ? colors.primary : colors.text.secondary },
+                  ]}
+                >
+                  用户名注册
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* 如果只有一种注册方式，显示标题 */}
+          {(!isRegisterMethodEnabled('mobile') || !isRegisterMethodEnabled('username')) && (
+            <View style={styles.singleRegisterTitle}>
+              <Text variant="titleMedium" style={{ color: colors.text.primary }}>
+                {isRegisterMethodEnabled('mobile') ? '手机注册' : '用户名注册'}
               </Text>
-            </TouchableOpacity>
-          </View>
+            </View>
+          )}
 
           {/* 手机号注册表单 */}
-          {registerType === 'mobile' && (
+          {(registerType === 'mobile' || !isRegisterMethodEnabled('username')) && isRegisterMethodEnabled('mobile') && (
             <View style={styles.form}>
               <TextInput
                 label="手机号"
@@ -411,7 +517,8 @@ export default function RegisterScreen() {
                 secureTextEntry={!showMobilePassword}
                 error={!!formErrors.mobilePassword}
                 style={styles.input}
-                right={
+                placeholder={`至少${getMinPasswordLength()}位`}
+                right=
                   <TextInput.Icon
                     icon={showMobilePassword ? 'eye-off' : 'eye'}
                     onPress={() => setShowMobilePassword(!showMobilePassword)}
@@ -427,7 +534,7 @@ export default function RegisterScreen() {
           )}
 
           {/* 用户名注册表单 */}
-          {registerType === 'username' && (
+          {(registerType === 'username' || !isRegisterMethodEnabled('mobile')) && isRegisterMethodEnabled('username') && (
             <View style={styles.form}>
               <TextInput
                 label="用户名"
@@ -461,7 +568,7 @@ export default function RegisterScreen() {
                 secureTextEntry={!showPassword}
                 error={!!formErrors.password}
                 style={styles.input}
-                placeholder="至少6位"
+                placeholder={`至少${getMinPasswordLength()}位`}
                 right={
                   <TextInput.Icon
                     icon={showPassword ? 'eye-off' : 'eye'}
@@ -532,22 +639,24 @@ export default function RegisterScreen() {
             </Text>
           )}
 
-          {/* 用户协议 */}
-          <TouchableOpacity
-            style={styles.termsContainer}
-            onPress={() => setAgreedToTerms(!agreedToTerms)}
-          >
-            <Checkbox
-              status={agreedToTerms ? 'checked' : 'unchecked'}
+          {/* 用户协议 - 根据配置显示 */}
+          {showAgreement() && (
+            <TouchableOpacity
+              style={styles.termsContainer}
               onPress={() => setAgreedToTerms(!agreedToTerms)}
-            />
-            <Text variant="bodySmall" style={styles.termsText}>
-              我已阅读并同意
-              <Text style={{ color: colors.primary }}>《服务协议》</Text>
-              和
-              <Text style={{ color: colors.primary }}>《隐私政策》</Text>
-            </Text>
-          </TouchableOpacity>
+            >
+              <Checkbox
+                status={agreedToTerms ? 'checked' : 'unchecked'}
+                onPress={() => setAgreedToTerms(!agreedToTerms)}
+              />
+              <Text variant="bodySmall" style={styles.termsText}>
+                我已阅读并同意
+                <Text style={{ color: colors.primary }}>《服务协议》</Text>
+                和
+                <Text style={{ color: colors.primary }}>《隐私政策》</Text>
+              </Text>
+            </TouchableOpacity>
+          )}
 
           {/* 注册按钮 */}
           <Button
@@ -621,6 +730,10 @@ const styles = StyleSheet.create({
   },
   tabText: {
     fontWeight: '500',
+  },
+  singleRegisterTitle: {
+    alignItems: 'center',
+    marginBottom: 24,
   },
   form: {
     marginBottom: 16,

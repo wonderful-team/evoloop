@@ -50,9 +50,22 @@ export const MEMBER_API = {
   LOGIN_WECHAT_MOBILE: '/member/api/tripartite/mobile',
   TRIPARTITE_MOBILE_CODE: '/member/api/tripartite/mobileCode',
   MEMBER_INFO: '/member/api/member/info',
-  CHANGE_PASSWORD: '/member/api/member/changePassword',
-  SEND_SMS_CODE: '/member/api/member/sendSmsCode',
-  BIND_MOBILE: '/member/api/member/bindMobile',
+
+  // 注册
+  REGISTER_MOBILE: '/member/api/register/mobile',
+  REGISTER_USERNAME: '/member/api/register/username',
+  REGISTER_MOBILE_CODE: '/member/api/register/mobileCode',
+
+  // 找回密码
+  FIND_PASSWORD_MOBILE_CODE: '/member/api/findpassword/mobilecode',
+  FIND_PASSWORD_MOBILE: '/member/api/findpassword/mobile',
+
+  // 修改密码
+  MODIFY_PASSWORD: '/member/api/member/modifypassword',
+
+  // 绑定手机号
+  BIND_MOBILE_CODE: '/member/api/member/bindmobliecode',
+  MODIFY_MOBILE: '/member/api/member/modifymobile',
   
   // 订阅管理
   SUBSCRIPTION_STATUS: '/member/subscription/api/subscription/status',

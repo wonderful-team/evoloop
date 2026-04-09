@@ -42,11 +42,32 @@ yarn-error.*
 *.swo
 *~
 
-# Android/IOS
-android/
-ios/
+# Android build artifacts
+android/.gradle/
+android/build/
+android/app/build/
+android/.kotlin/
+android/app/debug/
+android/app/release/
+android/**/*.iml
+android/.idea/
+android/local.properties
+android/captures/
+android/hs_err_*
+android/*.hprof
+
+# iOS build artifacts
+ios/build/
+ios/Pods/
+ios/*.xcworkspace/
+ios/DerivedData/
+ios/.xcode.env.local
+
+# Build outputs
 *.apk
+*.aab
 *.ipa
+*.jsbundle
 
 # Logs
 logs/

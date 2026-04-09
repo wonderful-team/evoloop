@@ -28,8 +28,15 @@ import { CountdownButton, CaptchaImage, WechatLoginButton } from '@/components/a
 import { AuthManager } from '@/services/auth/AuthManager';
 import { api } from '@/services/api/client';
 import { validate } from '@/utils/validate';
+import { RegisterConfig } from '@/types';
 
 type LoginType = 'mobile' | 'account';
+
+// 解析逗号分隔的配置字符串
+function parseConfigValue(value: string | undefined): string[] {
+  if (!value) return [];
+  return value.split(',').map(s => s.trim()).filter(Boolean);
+}
 
 export default function LoginScreen() {
   const { t } = useTranslation();
@@ -42,8 +49,11 @@ export default function LoginScreen() {
     isLoading,
     error,
   } = useAuth();
-  
+
   const { login } = useAuthStore();
+
+  // 注册/登录配置
+  const [registerConfig, setRegisterConfig] = useState<RegisterConfig | null>(null);
 
   // 登录类型
   const [loginType, setLoginType] = useState<LoginType>('mobile');
@@ -71,10 +81,61 @@ export default function LoginScreen() {
   // 表单错误
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
-  // 加载图形验证码配置
+  // 加载注册/登录配置
+  useEffect(() => {
+    loadRegisterConfig();
+  }, []);
+
+  // 加载验证码配置
   useEffect(() => {
     loadCaptchaConfig();
   }, []);
+
+  // 加载注册配置
+  const loadRegisterConfig = async () => {
+    try {
+      const config = await AuthManager.getRegisterConfig();
+      setRegisterConfig(config);
+
+      // 根据配置设置默认登录方式
+      const loginMethods = parseConfigValue(config.login);
+      if (loginMethods.length > 0) {
+        // 优先使用手机号登录
+        if (loginMethods.includes('mobile')) {
+          setLoginType('mobile');
+        } else if (loginMethods.includes('username')) {
+          setLoginType('account');
+        }
+      }
+    } catch (error: any) {
+      console.error('获取注册配置失败:', error);
+    }
+  };
+
+  // 是否显示某登录方式
+  const isLoginMethodEnabled = (method: string): boolean => {
+    if (!registerConfig) return true; // 默认全部显示
+    const methods = parseConfigValue(registerConfig.login);
+    return methods.length === 0 || methods.includes(method);
+  };
+
+  // 是否显示第三方登录
+  const showThirdPartyLogin = (): boolean => {
+    if (!registerConfig) return true;
+    return registerConfig.third_party === 1;
+  };
+
+  // 是否显示协议
+  const showAgreement = (): boolean => {
+    if (!registerConfig) return true;
+    return registerConfig.agreement_show === 1;
+  };
+
+  // 登录页面描述
+  const getLoginDesc = (): string => {
+    if (registerConfig?.wap_desc) return registerConfig.wap_desc;
+    return t('auth.login.subtitle');
+  };
 
   // 加载验证码配置
   const loadCaptchaConfig = async () => {
@@ -183,7 +244,7 @@ export default function LoginScreen() {
     if (needCaptcha && !captchaCode) {
       errors.captchaCode = '请输入图形验证码';
     }
-    if (!agreedToTerms) {
+    if (showAgreement() && !agreedToTerms) {
       setShowTermsDialog(true);
       return;
     }
@@ -216,7 +277,7 @@ export default function LoginScreen() {
     if (needCaptcha && !captchaCode) {
       errors.captchaCode = '请输入图形验证码';
     }
-    if (!agreedToTerms) {
+    if (showAgreement() && !agreedToTerms) {
       setShowTermsDialog(true);
       return;
     }
@@ -231,13 +292,14 @@ export default function LoginScreen() {
     await loginWithAccount({
       username,
       password,
+      captcha_id: captchaId,
       captcha_code: captchaCode,
     });
   };
 
   // 微信登录
   const handleWechatLogin = async () => {
-    if (!agreedToTerms) {
+    if (showAgreement() && !agreedToTerms) {
       setShowTermsDialog(true);
       return;
     }
@@ -302,50 +364,61 @@ export default function LoginScreen() {
               EvoLoop
             </Text>
             <Text variant="bodyLarge" style={{ color: colors.text.secondary }}>
-              {t('auth.login.subtitle')}
+              {getLoginDesc()}
             </Text>
           </View>
 
-          {/* 登录类型切换 */}
-          <View style={styles.tabContainer}>
-            <TouchableOpacity
-              style={[
-                styles.tab,
-                loginType === 'mobile' && [styles.activeTab, { borderBottomColor: colors.primary }],
-              ]}
-              onPress={() => setLoginType('mobile')}
-            >
-              <Text
-                variant="titleMedium"
+          {/* 登录类型切换 - 根据配置显示 */}
+          {isLoginMethodEnabled('mobile') && isLoginMethodEnabled('username') && (
+            <View style={styles.tabContainer}>
+              <TouchableOpacity
                 style={[
-                  styles.tabText,
-                  { color: loginType === 'mobile' ? colors.primary : colors.text.secondary },
+                  styles.tab,
+                  loginType === 'mobile' && [styles.activeTab, { borderBottomColor: colors.primary }],
                 ]}
+                onPress={() => setLoginType('mobile')}
               >
-                手机号登录
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.tab,
-                loginType === 'account' && [styles.activeTab, { borderBottomColor: colors.primary }],
-              ]}
-              onPress={() => setLoginType('account')}
-            >
-              <Text
-                variant="titleMedium"
+                <Text
+                  variant="titleMedium"
+                  style={[
+                    styles.tabText,
+                    { color: loginType === 'mobile' ? colors.primary : colors.text.secondary },
+                  ]}
+                >
+                  手机号登录
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
                 style={[
-                  styles.tabText,
-                  { color: loginType === 'account' ? colors.primary : colors.text.secondary },
+                  styles.tab,
+                  loginType === 'account' && [styles.activeTab, { borderBottomColor: colors.primary }],
                 ]}
+                onPress={() => setLoginType('account')}
               >
-                账号密码
+                <Text
+                  variant="titleMedium"
+                  style={[
+                    styles.tabText,
+                    { color: loginType === 'account' ? colors.primary : colors.text.secondary },
+                  ]}
+                >
+                  账号密码
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* 如果只有一种登录方式，显示标题 */}
+          {(!isLoginMethodEnabled('mobile') || !isLoginMethodEnabled('username')) && (
+            <View style={styles.singleLoginTitle}>
+              <Text variant="titleMedium" style={{ color: colors.text.primary }}>
+                {isLoginMethodEnabled('mobile') ? '手机号登录' : '账号密码登录'}
               </Text>
-            </TouchableOpacity>
-          </View>
+            </View>
+          )}
 
           {/* 手机号登录表单 */}
-          {loginType === 'mobile' && (
+          {(loginType === 'mobile' || !isLoginMethodEnabled('username')) && isLoginMethodEnabled('mobile') && (
             <View style={styles.form}>
               <TextInput
                 label="手机号"
@@ -420,7 +493,7 @@ export default function LoginScreen() {
           )}
 
           {/* 账号密码登录表单 */}
-          {loginType === 'account' && (
+          {(loginType === 'account' || !isLoginMethodEnabled('mobile')) && isLoginMethodEnabled('username') && (
             <View style={styles.form}>
               <TextInput
                 label="账号/手机号/邮箱"
@@ -502,22 +575,24 @@ export default function LoginScreen() {
             </Text>
           )}
 
-          {/* 用户协议 */}
-          <TouchableOpacity
-            style={styles.termsContainer}
-            onPress={() => setAgreedToTerms(!agreedToTerms)}
-          >
-            <Checkbox
-              status={agreedToTerms ? 'checked' : 'unchecked'}
+          {/* 用户协议 - 根据配置显示 */}
+          {showAgreement() && (
+            <TouchableOpacity
+              style={styles.termsContainer}
               onPress={() => setAgreedToTerms(!agreedToTerms)}
-            />
-            <Text variant="bodySmall" style={styles.termsText}>
-              我已阅读并同意
-              <Text style={{ color: colors.primary }}>《服务协议》</Text>
-              和
-              <Text style={{ color: colors.primary }}>《隐私政策》</Text>
-            </Text>
-          </TouchableOpacity>
+            >
+              <Checkbox
+                status={agreedToTerms ? 'checked' : 'unchecked'}
+                onPress={() => setAgreedToTerms(!agreedToTerms)}
+              />
+              <Text variant="bodySmall" style={styles.termsText}>
+                我已阅读并同意
+                <Text style={{ color: colors.primary }}>《服务协议》</Text>
+                和
+                <Text style={{ color: colors.primary }}>《隐私政策》</Text>
+              </Text>
+            </TouchableOpacity>
+          )}
 
           {/* 登录按钮 */}
           <Button
@@ -531,21 +606,27 @@ export default function LoginScreen() {
             登录
           </Button>
 
-          {/* 注册链接 */}
-          <View style={styles.registerContainer}>
-            <Text style={{ color: colors.text.secondary }}>还没有账号?</Text>
-            <TouchableOpacity onPress={goToRegister}>
-              <Text style={{ color: colors.primary, fontWeight: '600' }}>立即注册</Text>
-            </TouchableOpacity>
-          </View>
+          {/* 注册链接 - 根据配置显示 */}
+          {registerConfig?.register !== '' && (
+            <View style={styles.registerContainer}>
+              <Text style={{ color: colors.text.secondary }}>还没有账号?</Text>
+              <TouchableOpacity onPress={goToRegister}>
+                <Text style={{ color: colors.primary, fontWeight: '600' }}>立即注册</Text>
+              </TouchableOpacity>
+            </View>
+          )}
 
-          {/* 微信登录 */}
-          <Divider style={styles.divider} />
-          <WechatLoginButton
-            onPress={handleWechatLogin}
-            disabled={isLoading || !agreedToTerms}
-            loading={isLoading}
-          />
+          {/* 第三方登录 - 根据配置显示 */}
+          {showThirdPartyLogin() && (
+            <>
+              <Divider style={styles.divider} />
+              <WechatLoginButton
+                onPress={handleWechatLogin}
+                disabled={isLoading || (showAgreement() && !agreedToTerms)}
+                loading={isLoading}
+              />
+            </>
+          )}
         </ScrollView>
       </KeyboardAvoidingView>
 
@@ -599,6 +680,10 @@ const styles = StyleSheet.create({
   },
   tabText: {
     fontWeight: '500',
+  },
+  singleLoginTitle: {
+    alignItems: 'center',
+    marginBottom: 24,
   },
   form: {
     marginBottom: 16,

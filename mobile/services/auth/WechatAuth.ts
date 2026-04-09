@@ -1,4 +1,5 @@
-// 微信授权服务
+// 微信授权服务 - 参照 mobile_uniapp 实现
+// 流程：App 获取 code → 用 code 换 access_token/openid → 获取用户信息 → 传给后端 /api/login/auth
 
 // 动态导入微信模块，避免在 Expo Go 中崩溃
 let WeChat: any = null;
@@ -9,7 +10,6 @@ try {
 }
 
 import { WECHAT_CONFIG } from '@/constants/config';
-import { WechatAuthData } from '@/types';
 import { api } from '@/services/api/client';
 import { MEMBER_API } from '@/constants/api';
 import { ApiResponse } from '@/types';
@@ -18,6 +18,33 @@ import { ApiResponse } from '@/types';
 const isWeChatAvailable = (): boolean => {
   return WeChat !== null && typeof WeChat.registerApp === 'function';
 };
+
+// 微信 access_token 响应
+interface WechatAccessTokenResponse {
+  access_token: string;
+  expires_in: number;
+  refresh_token: string;
+  openid: string;
+  scope: string;
+  unionid?: string;
+  errcode?: number;
+  errmsg?: string;
+}
+
+// 微信用户信息响应
+interface WechatUserInfoResponse {
+  openid: string;
+  nickname: string;
+  sex: number;
+  province: string;
+  city: string;
+  country: string;
+  headimgurl: string;
+  privilege: string[];
+  unionid?: string;
+  errcode?: number;
+  errmsg?: string;
+}
 
 export interface WechatLoginResult {
   token: string;
@@ -70,15 +97,13 @@ export class WechatAuth {
     }
   }
 
-  // 发起微信授权登录
-  static async authorize(): Promise<WechatAuthData | null> {
+  // 发起微信授权，获取 code
+  static async authorize(): Promise<string> {
     try {
-      // 检查 SDK 是否可用
       if (!isWeChatAvailable()) {
         throw new Error('微信 SDK 不可用，请使用 Development Build 运行');
       }
 
-      // 确保已初始化
       if (!this.isRegistered) {
         const initialized = await this.init();
         if (!initialized) {
@@ -86,65 +111,106 @@ export class WechatAuth {
         }
       }
 
-      // 检查微信是否安装
       const isInstalled = await this.isWXAppInstalled();
       if (!isInstalled) {
         throw new Error('请先安装微信');
       }
 
-      // 发送授权请求，获取 code
+      // 发送授权请求，获取 code（snsapi_userinfo 获取用户信息）
       const authResponse = await WeChat.sendAuthRequest('snsapi_userinfo', '');
 
       if (!authResponse.code) {
         throw new Error('获取授权码失败');
       }
 
-      // 返回 code，由上层调用后端接口换取 token
-      return {
-        code: authResponse.code,
-        wx_openid: '',
-        wx_unionid: '',
-        nickname: '',
-        headimg: '',
-      };
+      return authResponse.code;
     } catch (error) {
       console.error('微信授权失败:', error);
       throw error;
     }
   }
 
-  // 使用 code 登录后端
-  static async loginWithCode(code: string, appType: 'ios' | 'android' = 'ios'): Promise<WechatLoginResult> {
-    try {
-      const response = await api.post<ApiResponse<WechatLoginResult>>(
-        MEMBER_API.LOGIN_AUTH,
-        {
-          code,
-          app_type: appType,
-        }
-      );
+  // 用 code 换取 access_token 和 openid（调微信服务器）
+  private static async getAccessToken(code: string): Promise<WechatAccessTokenResponse> {
+    const url = `https://api.weixin.qq.com/sns/oauth2/access_token?appid=${WECHAT_CONFIG.appId}&secret=${WECHAT_CONFIG.appSecret}&code=${code}&grant_type=authorization_code`;
 
-      if (response.code !== 0) {
-        throw new Error(response.message || '微信登录失败');
-      }
+    const response = await fetch(url);
+    const data: WechatAccessTokenResponse = await response.json();
 
-      return response.data;
-    } catch (error: any) {
-      console.error('微信登录请求失败:', error);
-      throw new Error(error.message || '微信登录请求失败');
+    if (data.errcode) {
+      throw new Error(`微信接口错误: ${data.errmsg || data.errcode}`);
     }
+
+    if (!data.access_token || !data.openid) {
+      throw new Error('获取微信 access_token 失败');
+    }
+
+    return data;
   }
 
-  // 完整的微信登录流程
-  static async login(appType: 'ios' | 'android' = 'ios'): Promise<WechatLoginResult> {
-    // 1. 获取微信授权 code
-    const authData = await this.authorize();
-    if (!authData || !authData.code) {
-      throw new Error('获取微信授权失败');
+  // 用 access_token 换取用户信息（调微信服务器）
+  private static async getUserInfo(
+    accessToken: string,
+    openid: string
+  ): Promise<WechatUserInfoResponse> {
+    const url = `https://api.weixin.qq.com/sns/userinfo?access_token=${accessToken}&openid=${openid}`;
+
+    const response = await fetch(url);
+    const data: WechatUserInfoResponse = await response.json();
+
+    if (data.errcode) {
+      throw new Error(`微信接口错误: ${data.errmsg || data.errcode}`);
     }
 
-    // 2. 使用 code 登录后端
-    return await this.loginWithCode(authData.code, appType);
+    return data;
+  }
+
+  // 完整的微信登录流程（参照 mobile_uniapp）
+  static async login(appType: 'ios' | 'android' = 'ios'): Promise<WechatLoginResult> {
+    // 步骤1: 获取微信授权 code
+    const code = await this.authorize();
+
+    if (!WECHAT_CONFIG.appSecret) {
+      throw new Error('微信 App Secret 未配置');
+    }
+
+    // 步骤2: 用 code 换 access_token + openid + unionid
+    const tokenData = await this.getAccessToken(code);
+
+    // 步骤3: 用 access_token 获取用户信息
+    const userInfo = await this.getUserInfo(tokenData.access_token, tokenData.openid);
+
+    // 步骤4: 传给后端 /api/login/auth（参照 mobile_uniapp 的 authLogin）
+    const authData = {
+      wx_openid: userInfo.openid,
+      wx_unionid: userInfo.unionid || tokenData.unionid || '',
+      nickname: userInfo.nickname,
+      headimg: userInfo.headimgurl,
+      app_type: appType,
+    };
+
+    // 步骤5: 调用后端登录接口
+    const response = await api.post<ApiResponse<WechatLoginResult>>(
+      MEMBER_API.LOGIN_AUTH,
+      authData
+    );
+
+    if (response.code !== 0) {
+      // 后端返回 MEMBER_NOT_EXIST 时，需要绑定手机号
+      if (response.data === 'MEMBER_NOT_EXIST' as any) {
+        return {
+          token: '',
+          need_bind_mobile: true,
+          wx_openid: authData.wx_openid,
+          wx_unionid: authData.wx_unionid,
+          nickname: authData.nickname,
+          avatar: authData.headimg,
+        } as WechatLoginResult;
+      }
+      throw new Error(response.message || '微信登录失败');
+    }
+
+    return response.data;
   }
 
   // 分享文本到微信

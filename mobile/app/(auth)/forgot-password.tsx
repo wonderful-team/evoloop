@@ -24,9 +24,40 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useTheme } from '@/theme';
 import { CountdownButton, CaptchaImage } from '@/components/auth';
 import { AuthManager } from '@/services/auth/AuthManager';
-import { api } from '@/services/api/client';
-import { MEMBER_API } from '@/constants/api';
+import { authApi } from '@/services/api/auth';
 import { validate } from '@/utils/validate';
+import { RegisterConfig } from '@/types';
+
+// 解析逗号分隔的配置字符串
+function parseConfigValue(value: string | undefined): string[] {
+  if (!value) return [];
+  return value.split(',').map((s) => s.trim()).filter(Boolean);
+}
+
+// 根据 pwd_complexity 校验密码
+function validatePasswordComplexity(password: string, complexity: string): string | null {
+  if (!complexity) return null;
+  const requirements = parseConfigValue(complexity);
+  const errors: string[] = [];
+
+  if (requirements.includes('number') && !/\d/.test(password)) {
+    errors.push('数字');
+  }
+  if (requirements.includes('letter') && !/[a-z]/.test(password)) {
+    errors.push('小写字母');
+  }
+  if (requirements.includes('upper_case') && !/[A-Z]/.test(password)) {
+    errors.push('大写字母');
+  }
+  if (requirements.includes('symbol') && !/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
+    errors.push('特殊字符');
+  }
+
+  if (errors.length > 0) {
+    return `密码需包含${errors.join('、')}`;
+  }
+  return null;
+}
 
 type Step = 0 | 1 | 2; // 0: 验证手机号, 1: 输入验证码, 2: 设置新密码
 
@@ -52,11 +83,10 @@ export default function ForgotPasswordScreen() {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  // 图形验证码
+  // 图形验证码（始终显示，不读配置 — 与 mobile_uniapp 一致）
   const [captchaId, setCaptchaId] = useState('');
   const [captchaImage, setCaptchaImage] = useState('');
   const [captchaCode, setCaptchaCode] = useState('');
-  const [needCaptcha, setNeedCaptcha] = useState(false);
 
   // 表单错误
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
@@ -65,34 +95,34 @@ export default function ForgotPasswordScreen() {
   // 成功弹窗
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
 
-  // 加载图形验证码配置
+  // 注册配置
+  const [registerConfig, setRegisterConfig] = useState<RegisterConfig | null>(null);
+
+  // 加载注册配置
   useEffect(() => {
-    loadCaptchaConfig();
+    loadRegisterConfig();
   }, []);
 
-  // 加载验证码配置
-  const loadCaptchaConfig = async () => {
+  // 加载注册配置（用于密码校验规则）
+  const loadRegisterConfig = async () => {
     try {
-      const config = await AuthManager.getCaptchaConfig();
-      console.log('Captcha config:', config);
-      
-      // 如果配置了需要验证码
-      if (config && config.shop_reception_login === 1) {
-        setNeedCaptcha(true);
-        try {
-          await refreshCaptcha();
-        } catch (captchaError: any) {
-          // 如果验证码服务不可用，暂时禁用验证码功能
-          console.warn('验证码服务不可用，暂时禁用:', captchaError);
-          setNeedCaptcha(false);
-        }
-      }
+      const config = await AuthManager.getRegisterConfig();
+      setRegisterConfig(config);
     } catch (error: any) {
-      console.error('获取验证码配置失败:', error);
-      // 获取配置失败时，暂时禁用验证码
-      setNeedCaptcha(false);
+      console.error('获取注册配置失败:', error);
     }
   };
+
+  // 获取密码最小长度
+  const getMinPasswordLength = (): number => {
+    if (!registerConfig || registerConfig.pwd_len <= 0) return 6;
+    return registerConfig.pwd_len;
+  };
+
+  // 加载图形验证码（找回密码强制显示，不读配置 — 与 mobile_uniapp 一致）
+  useEffect(() => {
+    refreshCaptcha();
+  }, []);
 
   // 刷新图形验证码
   const refreshCaptcha = async () => {
@@ -145,14 +175,18 @@ export default function ForgotPasswordScreen() {
     }
 
     // 如果需要图形验证码
-    if (needCaptcha && !captchaCode) {
+    if (!captchaCode) {
       setFormErrors({ captchaCode: '请输入图形验证码' });
       return false;
     }
 
     setIsLoading(true);
     try {
-      const result = await AuthManager.sendMobileCode(mobile, captchaId, captchaCode, 'reset');
+      const result = await authApi.sendFindPasswordCode(
+        mobile,
+        captchaCode,
+        captchaId
+      );
       if (result) {
         setCodeKey(result.key);
         setFormErrors({});
@@ -163,9 +197,7 @@ export default function ForgotPasswordScreen() {
       setFormErrors({
         mobile: error.message || '发送验证码失败',
       });
-      if (needCaptcha) {
-        refreshCaptcha();
-      }
+      refreshCaptcha();
     } finally {
       setIsLoading(false);
     }
@@ -188,9 +220,19 @@ export default function ForgotPasswordScreen() {
     // 表单验证
     const errors: Record<string, string> = {};
 
-    if (!newPassword || newPassword.length < 6) {
-      errors.newPassword = '密码至少6位';
+    const minPwdLen = getMinPasswordLength();
+    if (!newPassword || newPassword.length < minPwdLen) {
+      errors.newPassword = `密码至少${minPwdLen}位`;
     }
+
+    // 密码复杂度校验
+    if (registerConfig?.pwd_complexity) {
+      const complexityError = validatePasswordComplexity(newPassword, registerConfig.pwd_complexity);
+      if (complexityError) {
+        errors.newPassword = complexityError;
+      }
+    }
+
     if (newPassword !== confirmPassword) {
       errors.confirmPassword = '两次密码不一致';
     }
@@ -205,19 +247,14 @@ export default function ForgotPasswordScreen() {
     setIsLoading(true);
 
     try {
-      // 调用重置密码 API
-      const response = await api.post('/api/member/resetPassword', {
+      await authApi.resetPassword({
         mobile,
         key: codeKey,
         code,
-        new_password: newPassword,
+        password: newPassword,
       });
 
-      if (response.data?.code === 0) {
-        setShowSuccessDialog(true);
-      } else {
-        setErrorMessage(response.data?.message || '重置密码失败');
-      }
+      setShowSuccessDialog(true);
     } catch (error: any) {
       setErrorMessage(error.message || '重置密码失败，请重试');
     } finally {
@@ -293,23 +330,21 @@ export default function ForgotPasswordScreen() {
         </Text>
       )}
 
-      {/* 图形验证码 */}
-      {needCaptcha && (
-        <View style={styles.captchaContainer}>
-          <TextInput
-            label="图形验证码"
-            value={captchaCode}
-            onChangeText={setCaptchaCode}
-            error={!!formErrors.captchaCode}
-            style={[styles.input, styles.captchaInput]}
-          />
-          <CaptchaImage
-            captchaId={captchaId}
-            captchaImage={captchaImage}
-            onRefresh={refreshCaptcha}
-          />
-        </View>
-      )}
+      {/* 图形验证码 — 始终显示，与 mobile_uniapp 一致 */}
+      <View style={styles.captchaContainer}>
+        <TextInput
+          label="图形验证码"
+          value={captchaCode}
+          onChangeText={setCaptchaCode}
+          error={!!formErrors.captchaCode}
+          style={[styles.input, styles.captchaInput]}
+        />
+        <CaptchaImage
+          captchaId={captchaId}
+          captchaImage={captchaImage}
+          onRefresh={refreshCaptcha}
+        />
+      </View>
       {formErrors.captchaCode && (
         <Text style={[styles.errorText, { color: colors.error }]}>
           {formErrors.captchaCode}
@@ -397,7 +432,7 @@ export default function ForgotPasswordScreen() {
         secureTextEntry={!showNewPassword}
         error={!!formErrors.newPassword}
         style={styles.input}
-        placeholder="至少6位"
+        placeholder={`至少${getMinPasswordLength()}位`}
         right={
           <TextInput.Icon
             icon={showNewPassword ? 'eye-off' : 'eye'}

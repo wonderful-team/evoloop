@@ -152,15 +152,22 @@ export class AuthManager {
   static async loginWithAccount(
     username: string,
     password: string,
+    captchaId?: string,
     captchaCode?: string
   ): Promise<LoginResponse> {
+    const body: Record<string, string> = {
+      username,
+      password,
+    };
+    if (captchaId) {
+      body.captcha_id = captchaId;
+    }
+    if (captchaCode) {
+      body.captcha_code = captchaCode;
+    }
     const response = await api.post<ApiResponse<LoginResponse>>(
       MEMBER_API.LOGIN_ACCOUNT,
-      {
-        username,
-        password,
-        captcha_code: captchaCode,
-      }
+      body
     );
     return unwrapResponse<LoginResponse>(response);
   }
@@ -182,7 +189,7 @@ export class AuthManager {
     appType: 'ios' | 'android' = 'ios'
   ): Promise<LoginResponse> {
     const response = await api.post<ApiResponse<LoginResponse>>(
-      MEMBER_API.LOGIN_WECHAT_CODE,
+      MEMBER_API.LOGIN_AUTH,
       {
         code,
         app_type: appType,
@@ -196,16 +203,25 @@ export class AuthManager {
     authData: WechatAuthData,
     mobile: string,
     key: string,
-    code: string
+    code: string,
+    captchaId?: string,
+    captchaCode?: string
   ): Promise<LoginResponse> {
+    const body: Record<string, any> = {
+      ...authData,
+      mobile,
+      key,
+      code,
+    };
+    if (captchaId) {
+      body.captcha_id = captchaId;
+    }
+    if (captchaCode) {
+      body.captcha_code = captchaCode;
+    }
     const response = await api.post<ApiResponse<LoginResponse>>(
       MEMBER_API.LOGIN_WECHAT_MOBILE,
-      {
-        ...authData,
-        mobile,
-        key,
-        code,
-      }
+      body
     );
     return unwrapResponse<LoginResponse>(response);
   }
