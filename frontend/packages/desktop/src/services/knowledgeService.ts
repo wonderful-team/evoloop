@@ -10,14 +10,14 @@
  * - 引用统计和分析
  */
 
-import { KnowledgeService as SDKKnowledgeService } from "@/client"
-import type { DocumentContent, ProjectStats, DocumentListResponse } from "@/components/KnowledgeBase/types"
+import { OpenAPI } from "@/client"
+import type { DocumentContent, CollectionsStats, DocumentListResponse } from "@/components/KnowledgeBase/types"
 
 // Types for new features
 export interface FTSSearchResult {
   doc_id: string
   path: string
-  project: string
+  collection: string
   title: string
   snippet: string
   highlights: string
@@ -29,7 +29,7 @@ export interface FTSSearchResponse {
   total: number
   results: FTSSearchResult[]
   facets: {
-    projects: Record<string, number>
+    collections: Record<string, number>
     tags: Record<string, number>
   }
 }
@@ -89,9 +89,16 @@ export interface UsageAnalytics {
 export class KnowledgeService {
   // ============ Basic CRUD ============
 
-  static async listDocuments(project?: string): Promise<DocumentListResponse> {
-    const response = await SDKKnowledgeService.listDocuments({ project })
-    return response as unknown as DocumentListResponse
+  static async listDocuments(collection?: string, sourceProjectId?: number): Promise<DocumentListResponse> {
+    const url = new URL(`${OpenAPI.BASE}/api/v1/knowledge/documents`)
+    if (collection) {
+      url.searchParams.set("collection", collection)
+    }
+    if (sourceProjectId) {
+      url.searchParams.set("source_project_id", sourceProjectId.toString())
+    }
+    const response = await fetch(url.toString())
+    return response.json()
   }
 
   static async getDocument(
@@ -99,194 +106,165 @@ export class KnowledgeService {
     offset: number = 0,
     limit: number = 100
   ): Promise<DocumentContent> {
-    const response = await SDKKnowledgeService.readDocument({ path, offset, limit })
-    return response as unknown as DocumentContent
+    const url = new URL(`${OpenAPI.BASE}/api/v1/knowledge/documents/${encodeURIComponent(path)}`)
+    url.searchParams.set("offset", offset.toString())
+    url.searchParams.set("limit", limit.toString())
+    const response = await fetch(url.toString())
+    return response.json()
   }
 
   static async uploadDocument(
     file: File,
-    project: string = "default",
+    collection: string = "default",
     docType: string = "doc"
   ): Promise<{ success: boolean; path?: string; error?: string }> {
-    const formData = {
-      file,
-      project,
-      doc_type: docType
-    }
+    const formData = new FormData()
+    formData.append("file", file)
+    formData.append("collection", collection)
+    formData.append("doc_type", docType)
 
-    const response = await SDKKnowledgeService.uploadDocument({ formData })
-    return response as any
+    const response = await fetch(`${OpenAPI.BASE}/api/v1/knowledge/upload`, {
+      method: "POST",
+      body: formData,
+    })
+    return response.json()
   }
 
   static async deleteDocument(path: string): Promise<{ success: boolean; message: string }> {
-    const response = await SDKKnowledgeService.deleteDocument({ path })
-    return response as unknown as { success: boolean; message: string }
+    const response = await fetch(`${OpenAPI.BASE}/api/v1/knowledge/documents/${encodeURIComponent(path)}`, {
+      method: "DELETE",
+    })
+    return response.json()
   }
 
   // ============ Projects ============
 
-  static async getProjects(): Promise<ProjectStats> {
-    const response = await SDKKnowledgeService.listProjects()
-    return response as unknown as ProjectStats
+  static async getCollections(): Promise<CollectionsStats> {
+    const response = await fetch(`${OpenAPI.BASE}/api/v1/knowledge/collections`)
+    return response.json()
   }
 
   static async createProject(name: string): Promise<{ success: boolean; message: string }> {
-    const response = await SDKKnowledgeService.createProject({ name })
-    return response as unknown as { success: boolean; message: string }
+    return this.createCollection(name)
+  }
+
+  static async createCollection(name: string): Promise<{ success: boolean; message: string }> {
+    const response = await fetch(`${OpenAPI.BASE}/api/v1/knowledge/collections/${encodeURIComponent(name)}`, {
+      method: "POST",
+    })
+    return response.json()
   }
 
   // ============ Tags ============
 
-  static async listTags(project?: string): Promise<{ tags: { name: string; count: number }[]; total: number }> {
-    const response = await SDKKnowledgeService.listTags({ project })
-    return response as any
+  static async listTags(collection?: string): Promise<{ tags: { name: string; count: number }[]; total: number }> {
+    const url = new URL(`${OpenAPI.BASE}/api/v1/knowledge/tags`)
+    if (collection) {
+      url.searchParams.set("collection", collection)
+    }
+    const response = await fetch(url.toString())
+    return response.json()
   }
 
-  static async listDocumentsWithTags(
-    project?: string,
-    tags?: string[]
-  ): Promise<DocumentListResponse> {
-    const response = await SDKKnowledgeService.listDocuments({
-      project,
-      tags: tags?.join(",")
-    })
-    return response as unknown as DocumentListResponse
-  }
+  // ============ FTS Search ============
 
-  // ============ FTS Search (New in Phase 2) ============
-
-  /**
-   * Full-text search using SQLite FTS5
-   */
   static async ftsSearch(
     query: string,
-    options?: {
-      project?: string
-      tags?: string[]
-      limit?: number
-      offset?: number
-    }
+    options?: { collection?: string; tags?: string[] }
   ): Promise<FTSSearchResponse> {
-    const response = await SDKKnowledgeService.ftsSearch({
-      q: query,
-      project: options?.project,
-      tags: options?.tags?.join(","),
-      limit: options?.limit,
-      offset: options?.offset
-    })
-    return response as FTSSearchResponse
+    const url = new URL(`${OpenAPI.BASE}/api/v1/knowledge/fts/search`)
+    url.searchParams.set("q", query)
+    if (options?.collection) {
+      url.searchParams.set("collection", options.collection)
+    }
+    if (options?.tags && options.tags.length > 0) {
+      options.tags.forEach((tag) => url.searchParams.append("tags", tag))
+    }
+    const response = await fetch(url.toString())
+    return response.json()
   }
 
-  /**
-   * Get search suggestions
-   */
-  static async getSearchSuggestions(
-    prefix: string,
-    project?: string
-  ): Promise<SearchSuggestion[]> {
-    const response = await SDKKnowledgeService.ftsSuggest({
-      prefix,
-      project
-    })
-    const data = response as any
-    return (data.suggestions || []) as SearchSuggestion[]
+  // ============ Popular Documents ============
+
+  static async getPopularDocuments(options?: { days?: number; limit?: number }): Promise<PopularDocument[]> {
+    const url = new URL(`${OpenAPI.BASE}/api/v1/knowledge/analytics/popular`)
+    if (options?.limit) {
+      url.searchParams.set("limit", options.limit.toString())
+    }
+    if (options?.days) {
+      url.searchParams.set("days", options.days.toString())
+    }
+    const response = await fetch(url.toString())
+    const data = await response.json()
+    return data.documents || []
   }
 
-  // ============ Bulk Import (New in Phase 2) ============
+  // ============ Bulk Upload ============
 
-  /**
-   * Upload multiple files
-   */
   static async bulkUpload(
     files: File[],
-    project: string = "default",
+    collection: string = "default",
     docType: string = "doc"
   ): Promise<BulkUploadResult> {
-    const formData = {
-      files,
-      project,
-      doc_type: docType
-    }
+    const formData = new FormData()
+    files.forEach((file) => formData.append("files", file))
+    formData.append("collection", collection)
+    formData.append("doc_type", docType)
 
-    const response = await SDKKnowledgeService.bulkUpload({ formData })
-    return response as BulkUploadResult
+    const response = await fetch(`${OpenAPI.BASE}/api/v1/knowledge/bulk-upload`, {
+      method: "POST",
+      body: formData,
+    })
+    return response.json()
   }
 
-  /**
-   * Validate ZIP before upload
-   */
-  static async validateZip(file: File): Promise<ZipValidationResult> {
-    const formData = { file }
+  // ============ ZIP Import ============
 
-    const response = await SDKKnowledgeService.validateZip({ formData })
-    return response as ZipValidationResult
-  }
-
-  /**
-   * Import ZIP archive
-   */
   static async importZip(
     file: File,
-    project: string = "default",
+    collection: string = "default",
     preserveStructure: boolean = true
   ): Promise<BulkUploadResult> {
-    const formData = {
-      file,
-      project,
-      preserve_structure: preserveStructure
-    }
+    const formData = new FormData()
+    formData.append("file", file)
+    formData.append("collection", collection)
+    formData.append("preserve_structure", preserveStructure.toString())
 
-    const response = await SDKKnowledgeService.importZip({ formData })
-    return response as BulkUploadResult
-  }
-
-  // ============ Analytics (New in Phase 2) ============
-
-  /**
-   * Get document citation statistics
-   */
-  static async getDocumentStats(path: string): Promise<DocumentStats> {
-    const response = await SDKKnowledgeService.getDocumentStats({ path })
-    return response as DocumentStats
-  }
-
-  /**
-   * Get most popular documents
-   */
-  static async getPopularDocuments(
-    options?: {
-      project?: string
-      days?: number
-      limit?: number
-    }
-  ): Promise<PopularDocument[]> {
-    const response = await SDKKnowledgeService.getPopularDocuments({
-      project: options?.project,
-      days: options?.days,
-      limit: options?.limit
+    const response = await fetch(`${OpenAPI.BASE}/api/v1/knowledge/import-zip`, {
+      method: "POST",
+      body: formData,
     })
-    const data = response as any
-    return (data.documents || []) as PopularDocument[]
+    return response.json()
   }
 
-  /**
-   * Get usage analytics
-   */
-  static async getUsageAnalytics(days: number = 30): Promise<UsageAnalytics> {
-    const response = await SDKKnowledgeService.getUsageAnalytics({ days })
-    return response as UsageAnalytics
+  // ============ ZIP Validation ============
+
+  static async validateZip(file: File): Promise<ZipValidationResult> {
+    const formData = new FormData()
+    formData.append("file", file)
+
+    const response = await fetch(`${OpenAPI.BASE}/api/v1/knowledge/validate-zip`, {
+      method: "POST",
+      body: formData,
+    })
+    return response.json()
   }
 
-  /**
-   * Get document recommendations
-   */
-  static async getRecommendations(path: string): Promise<{ recommendations: Array<{
-    path: string
-    reason: string
-    relevance: number
-    total_citations: number
-  }> }> {
-    const response = await SDKKnowledgeService.getRecommendations({ path })
-    return response as any
+  // ============ Document Stats ============
+
+  static async getDocumentStats(path: string): Promise<DocumentStats> {
+    const response = await fetch(`${OpenAPI.BASE}/api/v1/knowledge/${encodeURIComponent(path)}/stats`)
+    return response.json()
+  }
+
+  // ============ Recommendations ============
+
+  static async getRecommendations(path: string): Promise<{
+    recommendations: { path: string; reason: string; collection?: string; relevance?: number }[]
+  }> {
+    const url = new URL(`${OpenAPI.BASE}/api/v1/knowledge/recommendations`)
+    url.searchParams.set("path", path)
+    const response = await fetch(url.toString())
+    return response.json()
   }
 }

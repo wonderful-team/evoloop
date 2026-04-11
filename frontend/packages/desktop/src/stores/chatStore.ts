@@ -1042,6 +1042,39 @@ export const useChatStore = create<ChatState>((set, get) => ({
                 })
                 break
 
+            case 'auth_expired':
+                // EvoLoop 平台认证过期，清除 token 并跳转到登录页
+                console.warn("[ChatStore] EvoLoop auth expired, clearing token and redirecting to login");
+
+                // 保存当前路径（用于登录后返回）
+                const currentHashPath = window.location.hash
+                if (currentHashPath && currentHashPath !== '#/login') {
+                    localStorage.setItem('redirect_after_login', currentHashPath)
+                }
+
+                // 清除 token
+                localStorage.removeItem("access_token")
+
+                // 显示提示
+                toast.error(event.title || i18n.t("auth.sessionExpired", "登录已过期"), {
+                    description: event.message || i18n.t("auth.pleaseLoginAgain", "EvoLoop 平台认证已过期，请重新登录"),
+                    duration: 5000,
+                })
+
+                set({
+                    status: 'error',
+                    streamState: {
+                        ...state,
+                        events: newEvents,
+                    }
+                })
+
+                // 延迟跳转到登录页
+                setTimeout(() => {
+                    window.location.href = "/login"
+                }, 500)
+                break
+
             default:
                 set({
                     streamState: {

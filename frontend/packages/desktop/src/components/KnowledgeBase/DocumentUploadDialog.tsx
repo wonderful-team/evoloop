@@ -11,7 +11,6 @@ import {
   DialogFooter,
 } from "@evoloop/shared/components/ui/dialog"
 import { Button } from "@evoloop/shared/components/ui/button"
-import { Input } from "@evoloop/shared/components/ui/input"
 import { Label } from "@evoloop/shared/components/ui/label"
 import {
   Select,
@@ -27,7 +26,7 @@ import { KnowledgeService, type ZipValidationResult } from "@/services/knowledge
 interface DocumentUploadDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  projects: string[]
+  collections: string[]
 }
 
 const DOC_TYPES = [
@@ -43,7 +42,7 @@ const DOC_TYPES = [
 export function DocumentUploadDialog({
   open,
   onOpenChange,
-  projects,
+  collections,
 }: DocumentUploadDialogProps) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
@@ -51,7 +50,7 @@ export function DocumentUploadDialog({
 
   const [activeTab, setActiveTab] = useState("single")
   const [selectedFiles, setSelectedFiles] = useState<File[]>([])
-  const [project, setProject] = useState("default")
+  const [collection, setCollection] = useState("default")
   const [docType, setDocType] = useState("doc")
   const [isDragging, setIsDragging] = useState(false)
   const [zipValidation, setZipValidation] = useState<ZipValidationResult | null>(null)
@@ -63,24 +62,24 @@ export function DocumentUploadDialog({
       
       if (selectedFiles.length === 1 && !selectedFiles[0].name.endsWith('.zip')) {
         // Single file
-        return KnowledgeService.uploadDocument(selectedFiles[0], project, docType)
+        return KnowledgeService.uploadDocument(selectedFiles[0], collection, docType)
       } else if (selectedFiles.length === 1 && selectedFiles[0].name.endsWith('.zip')) {
         // ZIP import
-        return KnowledgeService.importZip(selectedFiles[0], project, true)
+        return KnowledgeService.importZip(selectedFiles[0], collection, true)
       } else {
         // Bulk upload
-        return KnowledgeService.bulkUpload(selectedFiles, project, docType)
+        return KnowledgeService.bulkUpload(selectedFiles, collection, docType)
       }
     },
     onSuccess: (result) => {
       if (result.success) {
         toast.success(t("knowledge.uploadSuccess"))
         queryClient.invalidateQueries({ queryKey: ["knowledge-documents"] })
-        queryClient.invalidateQueries({ queryKey: ["knowledge-projects"] })
+        queryClient.invalidateQueries({ queryKey: ["knowledge-collections"] })
         resetForm()
         onOpenChange(false)
       } else {
-        toast.error(result.error || t("knowledge.uploadError"))
+        toast.error((result as any).error || t("knowledge.uploadError"))
       }
     },
     onError: () => {
@@ -90,7 +89,7 @@ export function DocumentUploadDialog({
 
   const resetForm = () => {
     setSelectedFiles([])
-    setProject("default")
+    setCollection("default")
     setDocType("doc")
     setZipValidation(null)
     if (fileInputRef.current) {
@@ -284,14 +283,14 @@ export function DocumentUploadDialog({
         {/* Common settings */}
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
-            <Label>{t("knowledge.project")}</Label>
-            <Select value={project} onValueChange={setProject}>
+            <Label>{t("knowledge.collection")}</Label>
+            <Select value={collection} onValueChange={setCollection}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="default">default</SelectItem>
-                {projects.filter(p => p !== "default").map((p) => (
+                {collections?.filter(p => p !== "default").map((p) => (
                   <SelectItem key={p} value={p}>{p}</SelectItem>
                 ))}
               </SelectContent>

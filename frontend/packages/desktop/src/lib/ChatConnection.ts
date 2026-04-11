@@ -204,6 +204,12 @@ export class ChatConnection {
         sse.addEventListener("stream", (e) => {
             try {
                 const data = JSON.parse(e.data);
+                // 检测 EvoLoop 平台认证过期事件，直接触发 401 处理
+                if (data.type === 'auth_expired') {
+                    console.warn("[ChatConnection] Received auth_expired event");
+                    this.handleUnauthorized();
+                    return;
+                }
                 this.callbacks?.onStream?.(data);
             } catch (err) {
                 console.error("[ChatConnection] Failed to parse stream event", err);

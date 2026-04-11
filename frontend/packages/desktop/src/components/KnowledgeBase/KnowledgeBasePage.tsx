@@ -16,46 +16,45 @@ import type { DocumentInfo } from "./types"
 export function KnowledgeBasePage() {
   const { t } = useTranslation()
   const [searchQuery, setSearchQuery] = useState("")
-  const [selectedProject, setSelectedProject] = useState<string | null>(null)
+  const [selectedCollection, setSelectedCollection] = useState<string | null>(null)
   const [selectedTags, setSelectedTags] = useState<string[]>([])
   const [selectedDocument, setSelectedDocument] = useState<DocumentInfo | null>(null)
   const [isUploadOpen, setIsUploadOpen] = useState(false)
   const [activeTab, setActiveTab] = useState("all")
+  const [newCollectionName, setNewCollectionName] = useState("")
+  const [isCreatingCollection, setIsCreatingCollection] = useState(false)
 
-  // Fetch projects and documents
-  const { data: projectsData, isLoading: isLoadingProjects } = useQuery({
-    queryKey: ["knowledge-projects"],
-    queryFn: () => KnowledgeService.getProjects(),
+  // Fetch collections and documents
+  const { data: collectionsData } = useQuery({
+    queryKey: ["knowledge-collections"],
+    queryFn: () => KnowledgeService.getCollections(),
   })
 
   // Fetch tags
   const { data: tagsData, isLoading: isLoadingTags } = useQuery({
-    queryKey: ["knowledge-tags", selectedProject],
-    queryFn: () => KnowledgeService.listTags(selectedProject || undefined),
+    queryKey: ["knowledge-tags", selectedCollection],
+    queryFn: () => KnowledgeService.listTags(selectedCollection || undefined),
   })
 
   // Fetch documents with tag filter
   const { data: documentsData, isLoading: isLoadingDocs } = useQuery({
-    queryKey: ["knowledge-documents", selectedProject, selectedTags],
-    queryFn: () => KnowledgeService.listDocuments(
-      selectedProject || undefined,
-      selectedTags.length > 0 ? selectedTags : undefined
-    ),
+    queryKey: ["knowledge-documents", selectedCollection],
+    queryFn: () => KnowledgeService.listDocuments(selectedCollection || undefined),
   })
 
   // FTS Search
   const { data: searchResults, isLoading: isSearching } = useQuery({
-    queryKey: ["knowledge-fts-search", searchQuery, selectedProject, selectedTags],
+    queryKey: ["knowledge-fts-search", searchQuery, selectedCollection, selectedTags],
     queryFn: () => KnowledgeService.ftsSearch(searchQuery, { 
-      project: selectedProject || undefined,
+      collection: selectedCollection || undefined,
       tags: selectedTags.length > 0 ? selectedTags : undefined
     }),
     enabled: searchQuery.length > 0,
   })
 
-  const projects = projectsData?.projects || []
+  const collections = collectionsData?.collections || []
   const documents = documentsData?.documents || []
-  const stats = projectsData?.stats
+  const stats = collectionsData?.stats
   const tags = tagsData?.tags || []
 
   // Toggle tag selection
@@ -70,7 +69,7 @@ export function KnowledgeBasePage() {
   // Clear all filters
   const clearFilters = useCallback(() => {
     setSelectedTags([])
-    setSelectedProject(null)
+    setSelectedCollection(null)
     setSearchQuery("")
   }, [])
 
@@ -81,7 +80,7 @@ export function KnowledgeBasePage() {
     size_bytes: 0,
     modified_at: new Date().toISOString(),
     has_metadata: true,
-    project: r.project,
+    collection: r.collection,
   })) || []
 
   // Filter documents by search if no FTS results
@@ -95,7 +94,7 @@ export function KnowledgeBasePage() {
   const displayDocuments = searchResults ? searchDocuments : filteredDocuments
 
   // Check if any filter is active
-  const hasActiveFilters = selectedProject !== null || selectedTags.length > 0 || searchQuery.length > 0
+  const hasActiveFilters = selectedCollection !== null || selectedTags.length > 0 || searchQuery.length > 0
 
   return (
     <div className="flex h-full flex-col">
@@ -144,7 +143,7 @@ export function KnowledgeBasePage() {
           <div className="flex items-center gap-2">
             <Folder className="h-4 w-4 text-muted-foreground" />
             <span className="text-sm">
-              <strong>{projects.length}</strong> {t("knowledge.projects")}
+              <strong>{collections.length}</strong> {t("knowledge.collections")}
             </span>
           </div>
           <div className="flex items-center gap-2">
@@ -165,11 +164,11 @@ export function KnowledgeBasePage() {
       {hasActiveFilters && (
         <div className="flex items-center gap-2 border-b bg-muted/30 px-6 py-2">
           <span className="text-sm text-muted-foreground">{t("knowledge.filters")}:</span>
-          {selectedProject && (
+          {selectedCollection && (
             <Badge variant="secondary" className="gap-1">
               <Folder className="h-3 w-3" />
-              {selectedProject}
-              <button onClick={() => setSelectedProject(null)} className="ml-1 hover:text-destructive">
+              {selectedCollection}
+              <button onClick={() => setSelectedCollection(null)} className="ml-1 hover:text-destructive">
                 <X className="h-3 w-3" />
               </button>
             </Badge>
@@ -200,32 +199,76 @@ export function KnowledgeBasePage() {
 
       {/* Main Content */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Sidebar - Projects & Tags */}
+        {/* Sidebar - Collections & Tags */}
         <div className="w-64 border-r bg-muted/30 overflow-auto">
-          {/* Projects Section */}
+          {/* Collections Section */}
           <div className="p-4 border-b">
             <h3 className="mb-2 text-sm font-medium text-muted-foreground">
-              {t("knowledge.projects")}
+              {t("knowledge.collections")}
             </h3>
             <button
-              onClick={() => setSelectedProject(null)}
+              onClick={() => setSelectedCollection(null)}
               className={`w-full rounded-md px-3 py-2 text-left text-sm transition-colors ${
-                selectedProject === null ? "bg-primary text-primary-foreground" : "hover:bg-muted"
+                selectedCollection === null ? "bg-primary text-primary-foreground" : "hover:bg-muted"
               }`}
             >
               {t("knowledge.allProjects")}
             </button>
-            {projects.map((project) => (
+            {collections.map((collection) => (
               <button
-                key={project}
-                onClick={() => setSelectedProject(project)}
+                key={collection}
+                onClick={() => setSelectedCollection(collection)}
                 className={`mt-1 w-full rounded-md px-3 py-2 text-left text-sm transition-colors ${
-                  selectedProject === project ? "bg-primary text-primary-foreground" : "hover:bg-muted"
+                  selectedCollection === collection ? "bg-primary text-primary-foreground" : "hover:bg-muted"
                 }`}
               >
-                {project}
+                {collection}
               </button>
             ))}
+            {/* Create Collection */}
+            {isCreatingCollection ? (
+              <div className="mt-2 flex gap-2">
+                <Input
+                  value={newCollectionName}
+                  onChange={(e) => setNewCollectionName(e.target.value)}
+                  placeholder="New collection name"
+                  className="h-8 text-sm"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && newCollectionName.trim()) {
+                      KnowledgeService.createCollection(newCollectionName.trim()).then(() => {
+                        setNewCollectionName("");
+                        setIsCreatingCollection(false);
+                        window.location.reload();
+                      });
+                    }
+                  }}
+                />
+                <Button
+                  size="sm"
+                  className="h-8 px-2"
+                  onClick={() => {
+                    if (newCollectionName.trim()) {
+                      KnowledgeService.createCollection(newCollectionName.trim()).then(() => {
+                        setNewCollectionName("");
+                        setIsCreatingCollection(false);
+                        window.location.reload();
+                      });
+                    }
+                  }}
+                >
+                  +
+                </Button>
+              </div>
+            ) : (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="mt-2 w-full justify-start text-muted-foreground"
+                onClick={() => setIsCreatingCollection(true)}
+              >
+                + Create Collection
+              </Button>
+            )}
           </div>
 
           {/* Tags Section */}
@@ -264,7 +307,8 @@ export function KnowledgeBasePage() {
           {selectedDocument ? (
             <DocumentViewer
               document={selectedDocument}
-              onBack={() => setSelectedDocument(null)}
+              onClose={() => setSelectedDocument(null)}
+              onSelect={setSelectedDocument}
             />
           ) : (
             <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -300,7 +344,7 @@ export function KnowledgeBasePage() {
       <DocumentUploadDialog
         open={isUploadOpen}
         onOpenChange={setIsUploadOpen}
-        currentProject={selectedProject || undefined}
+        collections={collections}
       />
     </div>
   )

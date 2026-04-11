@@ -3,6 +3,7 @@ import { isLoggedIn } from "@/hooks/useAuth"
 import {
   AlertCircle,
   BarChart2,
+  BookOpen,
   CheckSquare,
   ChevronLeft,
   ClipboardList,
@@ -104,6 +105,12 @@ function ProjectLayout() {
       label: t("projects.tabs.wiki"),
       icon: FileText,
       path: "/wiki",
+    },
+    {
+      id: "knowledge",
+      label: t("projects.tabs.knowledge"),
+      icon: BookOpen,
+      path: "/knowledge",
     },
     // { id: 'reports', label: t('projects.tabs.reports'), icon: PieChart, path: '/reports' },
   ]

@@ -19,7 +19,7 @@ export function ChangesetInlineHint({
   const { t } = useTranslation()
   const viewedChanges = useChatStore((s) => s.viewedChanges)
   const changeset = useChatStore((s) => s.changeset)
-  
+
   // Check if all files associated with this message are viewed
   // For now, we consider it viewed if user has viewed any files
   // In the future, we can map files to specific messages

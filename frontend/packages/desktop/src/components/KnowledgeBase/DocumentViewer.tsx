@@ -1,6 +1,6 @@
 import { useState } from "react"
-import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { X, ChevronLeft, ChevronRight, FileText, Hash, TrendingUp, Link2 } from "lucide-react"
+import { useQuery } from "@tanstack/react-query"
+import { X, ChevronLeft, ChevronRight, FileText, TrendingUp, Link2 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { Button } from "@evoloop/shared/components/ui/button"
 import { ScrollArea } from "@evoloop/shared/components/ui/scroll-area"
@@ -12,11 +12,12 @@ import type { DocumentInfo } from "./types"
 interface DocumentViewerProps {
   document: DocumentInfo
   onClose: () => void
+  onSelect?: (doc: DocumentInfo) => void
 }
 
 const LINES_PER_PAGE = 100
 
-export function DocumentViewer({ document, onClose }: DocumentViewerProps) {
+export function DocumentViewer({ document, onClose, onSelect }: DocumentViewerProps) {
   const { t } = useTranslation()
   const [offset, setOffset] = useState(0)
 
@@ -124,13 +125,24 @@ export function DocumentViewer({ document, onClose }: DocumentViewerProps) {
                   key={rec.path}
                   className="w-full text-left text-sm p-2 rounded hover:bg-muted flex items-center justify-between"
                   onClick={() => {
-                    // Navigate to related doc - would need to implement
+                    if (onSelect) {
+                      onSelect({
+                        path: rec.path,
+                        title: rec.path.split("/").pop() || rec.path,
+                        size_bytes: 0,
+                        modified_at: new Date().toISOString(),
+                        has_metadata: true,
+                        collection: rec.collection || document.collection,
+                      })
+                    }
                   }}
                 >
                   <span className="truncate">{rec.path}</span>
-                  <Badge variant="secondary" className="text-xs">
-                    {(rec.relevance * 100).toFixed(0)}%
-                  </Badge>
+                  {rec.relevance && (
+                    <Badge variant="secondary" className="text-xs">
+                      {(rec.relevance * 100).toFixed(0)}%
+                    </Badge>
+                  )}
                 </button>
               ))}
             </div>

@@ -32,6 +32,7 @@ import { Route as LayoutProjectsProjectIdTimesheetRouteImport } from './routes/_
 import { Route as LayoutProjectsProjectIdTasksRouteImport } from './routes/_layout/projects.$projectId.tasks'
 import { Route as LayoutProjectsProjectIdRequirementsRouteImport } from './routes/_layout/projects.$projectId.requirements'
 import { Route as LayoutProjectsProjectIdReportsRouteImport } from './routes/_layout/projects.$projectId.reports'
+import { Route as LayoutProjectsProjectIdKnowledgeRouteImport } from './routes/_layout/projects.$projectId.knowledge'
 import { Route as LayoutProjectsProjectIdGanttRouteImport } from './routes/_layout/projects.$projectId.gantt'
 import { Route as LayoutProjectsProjectIdFilesRouteImport } from './routes/_layout/projects.$projectId.files'
 import { Route as LayoutLearningSkillsSkillIdEditRouteImport } from './routes/_layout/learning.skills.$skillId.edit'
@@ -156,6 +157,12 @@ const LayoutProjectsProjectIdReportsRoute =
     path: '/reports',
     getParentRoute: () => LayoutProjectsProjectIdRoute,
   } as any)
+const LayoutProjectsProjectIdKnowledgeRoute =
+  LayoutProjectsProjectIdKnowledgeRouteImport.update({
+    id: '/knowledge',
+    path: '/knowledge',
+    getParentRoute: () => LayoutProjectsProjectIdRoute,
+  } as any)
 const LayoutProjectsProjectIdGanttRoute =
   LayoutProjectsProjectIdGanttRouteImport.update({
     id: '/gantt',
@@ -194,6 +201,7 @@ export interface FileRoutesByFullPath {
   '/subscription/': typeof LayoutSubscriptionIndexRoute
   '/projects/$projectId/files': typeof LayoutProjectsProjectIdFilesRoute
   '/projects/$projectId/gantt': typeof LayoutProjectsProjectIdGanttRoute
+  '/projects/$projectId/knowledge': typeof LayoutProjectsProjectIdKnowledgeRoute
   '/projects/$projectId/reports': typeof LayoutProjectsProjectIdReportsRoute
   '/projects/$projectId/requirements': typeof LayoutProjectsProjectIdRequirementsRoute
   '/projects/$projectId/tasks': typeof LayoutProjectsProjectIdTasksRoute
@@ -219,6 +227,7 @@ export interface FileRoutesByTo {
   '/subscription': typeof LayoutSubscriptionIndexRoute
   '/projects/$projectId/files': typeof LayoutProjectsProjectIdFilesRoute
   '/projects/$projectId/gantt': typeof LayoutProjectsProjectIdGanttRoute
+  '/projects/$projectId/knowledge': typeof LayoutProjectsProjectIdKnowledgeRoute
   '/projects/$projectId/reports': typeof LayoutProjectsProjectIdReportsRoute
   '/projects/$projectId/requirements': typeof LayoutProjectsProjectIdRequirementsRoute
   '/projects/$projectId/tasks': typeof LayoutProjectsProjectIdTasksRoute
@@ -248,6 +257,7 @@ export interface FileRoutesById {
   '/_layout/subscription/': typeof LayoutSubscriptionIndexRoute
   '/_layout/projects/$projectId/files': typeof LayoutProjectsProjectIdFilesRoute
   '/_layout/projects/$projectId/gantt': typeof LayoutProjectsProjectIdGanttRoute
+  '/_layout/projects/$projectId/knowledge': typeof LayoutProjectsProjectIdKnowledgeRoute
   '/_layout/projects/$projectId/reports': typeof LayoutProjectsProjectIdReportsRoute
   '/_layout/projects/$projectId/requirements': typeof LayoutProjectsProjectIdRequirementsRoute
   '/_layout/projects/$projectId/tasks': typeof LayoutProjectsProjectIdTasksRoute
@@ -277,6 +287,7 @@ export interface FileRouteTypes {
     | '/subscription/'
     | '/projects/$projectId/files'
     | '/projects/$projectId/gantt'
+    | '/projects/$projectId/knowledge'
     | '/projects/$projectId/reports'
     | '/projects/$projectId/requirements'
     | '/projects/$projectId/tasks'
@@ -302,6 +313,7 @@ export interface FileRouteTypes {
     | '/subscription'
     | '/projects/$projectId/files'
     | '/projects/$projectId/gantt'
+    | '/projects/$projectId/knowledge'
     | '/projects/$projectId/reports'
     | '/projects/$projectId/requirements'
     | '/projects/$projectId/tasks'
@@ -330,6 +342,7 @@ export interface FileRouteTypes {
     | '/_layout/subscription/'
     | '/_layout/projects/$projectId/files'
     | '/_layout/projects/$projectId/gantt'
+    | '/_layout/projects/$projectId/knowledge'
     | '/_layout/projects/$projectId/reports'
     | '/_layout/projects/$projectId/requirements'
     | '/_layout/projects/$projectId/tasks'
@@ -512,6 +525,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutProjectsProjectIdReportsRouteImport
       parentRoute: typeof LayoutProjectsProjectIdRoute
     }
+    '/_layout/projects/$projectId/knowledge': {
+      id: '/_layout/projects/$projectId/knowledge'
+      path: '/knowledge'
+      fullPath: '/projects/$projectId/knowledge'
+      preLoaderRoute: typeof LayoutProjectsProjectIdKnowledgeRouteImport
+      parentRoute: typeof LayoutProjectsProjectIdRoute
+    }
     '/_layout/projects/$projectId/gantt': {
       id: '/_layout/projects/$projectId/gantt'
       path: '/gantt'
@@ -562,6 +582,7 @@ const LayoutSubscriptionRouteWithChildren =
 interface LayoutProjectsProjectIdRouteChildren {
   LayoutProjectsProjectIdFilesRoute: typeof LayoutProjectsProjectIdFilesRoute
   LayoutProjectsProjectIdGanttRoute: typeof LayoutProjectsProjectIdGanttRoute
+  LayoutProjectsProjectIdKnowledgeRoute: typeof LayoutProjectsProjectIdKnowledgeRoute
   LayoutProjectsProjectIdReportsRoute: typeof LayoutProjectsProjectIdReportsRoute
   LayoutProjectsProjectIdRequirementsRoute: typeof LayoutProjectsProjectIdRequirementsRoute
   LayoutProjectsProjectIdTasksRoute: typeof LayoutProjectsProjectIdTasksRoute
@@ -574,6 +595,8 @@ const LayoutProjectsProjectIdRouteChildren: LayoutProjectsProjectIdRouteChildren
   {
     LayoutProjectsProjectIdFilesRoute: LayoutProjectsProjectIdFilesRoute,
     LayoutProjectsProjectIdGanttRoute: LayoutProjectsProjectIdGanttRoute,
+    LayoutProjectsProjectIdKnowledgeRoute:
+      LayoutProjectsProjectIdKnowledgeRoute,
     LayoutProjectsProjectIdReportsRoute: LayoutProjectsProjectIdReportsRoute,
     LayoutProjectsProjectIdRequirementsRoute:
       LayoutProjectsProjectIdRequirementsRoute,

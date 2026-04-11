@@ -5,7 +5,7 @@ export interface DocumentInfo {
   size_bytes: number
   modified_at: string
   has_metadata: boolean
-  project?: string
+  collection?: string
   tags?: string[]  // New in Phase 2
 }
 
@@ -25,26 +25,26 @@ export interface UploadResult {
   error?: string
 }
 
-export interface ProjectStats {
-  projects: string[]
+export interface CollectionsStats {
+  collections: string[]
   stats: {
     total_documents: number
     total_size_bytes: number
-    projects: Record<string, { documents: number; size_bytes: number }>
+    collections: Record<string, { documents: number; size_bytes: number }>
   }
 }
 
 export interface DocumentListResponse {
   total: number
   documents: DocumentInfo[]
-  projects: string[]
+  collections: string[]
 }
 
 // Phase 2 new types
 export interface FTSSearchResult {
   doc_id: string
   path: string
-  project: string
+  collection: string
   title: string
   snippet: string
   highlights: string  // HTML with <mark> tags
@@ -82,4 +82,13 @@ export interface PopularDocument {
   unique_sessions: number
   last_accessed?: string
   tools_used: Record<string, number>
+}
+
+export interface UsageAnalytics {
+  period_days: number
+  total_citations: number
+  active_documents: number
+  citations_by_tool: Record<string, number>
+  popular_tags: string[]
+  most_cited: string[]
 }

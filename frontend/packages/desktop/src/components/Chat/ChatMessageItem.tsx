@@ -31,6 +31,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@evoloop/shared/components/ui/avatar"
 import { Button } from "@evoloop/shared/components/ui/button"
 import { TestReportCard } from "./Artifacts/TestReportCard"
+import { EChartsArtifact } from "./Artifacts/EChartsArtifact"
 import { MessageContent } from "./MessageContent"
 import { VoiceMessage } from "./VoiceMessage"
 import { SourcesFooter } from "./SourcesFooter"
@@ -53,7 +54,7 @@ function convertStepsToAgentProcess(steps: Array<{
   return steps.map((step) => {
     const tool = step.name?.replace("Using ", "") || "unknown"
     let input: any = null
-    
+
     // Try to extract input from details (for historical records)
     if (step.details) {
       try {
@@ -76,7 +77,7 @@ function convertStepsToAgentProcess(steps: Array<{
         // Not JSON, keep input as null
       }
     }
-    
+
     return {
       id: step.id,
       tool,
@@ -218,7 +219,7 @@ export interface Message {
   has_file_operations?: boolean // Whether this message has associated file operations (for Rewind/Retry)
   status?: "pending" | "streaming" | "completed" | "failed" // Message generation status
   // Changeset related (from backend)
-  changeset_count?: number // Number of files changed in this message (backend provided)
+  changeset_count: number // Number of files changed in this message (backend provided)
 }
 
 interface ChatMessageItemProps {
@@ -302,6 +303,9 @@ const ChatMessageItem = memo(
                         if (obj.type === "artifact") {
                           if (obj.artifact_type === "test_report") {
                             return <TestReportCard data={obj.data} />
+                          }
+                          if (obj.artifact_type === "echarts") {
+                            return <EChartsArtifact data={obj.data} />
                           }
                           if (obj.artifact_type === "requirement_analysis") {
                             return (
@@ -392,7 +396,7 @@ const ChatMessageItem = memo(
                     >
                       <Brain className="h-3.5 w-3.5" />
                       <span className="font-medium">
-                         {t("chat.interface.thinkingProcess")}
+                        {t("chat.interface.thinkingProcess")}
                       </span>
                       <ChevronRight className="h-3.5 w-3.5 ml-auto" />
                     </Button>
@@ -408,7 +412,7 @@ const ChatMessageItem = memo(
             <ToolExecutionSection msg={msg} />
 
             {/* 5. Changeset Inline Hint - For AI messages with file changes */}
-            {msg.role === "ai" && msg.changeset_count && msg.changeset_count > 0 && (
+            {msg.role === "ai" && !!msg.changeset_count && msg.changeset_count > 0 && (
               <ChangesetInlineHint
                 fileCount={msg.changeset_count}
                 messageId={msg.id}
@@ -549,7 +553,7 @@ function SmartChatMessageItem(props: ChatMessageItemProps) {
   const { msg } = props
   const { autoSpeak } = useAutoSpeak()
   const { speak, isSpeaking } = useTTS()
-  
+
   // Auto-speak AI messages when they complete
   // 👇 只播报 chat 和 finish 节点的消息，过滤掉 worker/supervisor 的技术性内容
   useEffect(() => {
@@ -557,7 +561,7 @@ function SmartChatMessageItem(props: ChatMessageItemProps) {
     if (globalSpokenMessageIds.has(msg.id)) {
       return
     }
-    
+
     // 👇 检查消息是否在页面加载前就已存在（历史消息不播报）
     // 如果消息没有 timestamp 或者 timestamp 早于页面加载时间，认为是历史消息
     const messageTime = msg.timestamp ? new Date(msg.timestamp).getTime() : 0
@@ -566,11 +570,11 @@ function SmartChatMessageItem(props: ChatMessageItemProps) {
       globalSpokenMessageIds.add(msg.id)
       return
     }
-    
+
     if (
-      autoSpeak && 
-      msg.role === "ai" && 
-      msg.content && 
+      autoSpeak &&
+      msg.role === "ai" &&
+      msg.content &&
       (!msg.status || msg.status === "completed") &&
       !isSpeaking &&
       // 只播报 chat 和 finish 节点的消息
@@ -582,11 +586,11 @@ function SmartChatMessageItem(props: ChatMessageItemProps) {
         // 标记为已播报
         globalSpokenMessageIds.add(msg.id)
       }, 500)
-      
+
       return () => clearTimeout(timer)
     }
   }, [autoSpeak, msg.role, msg.content, msg.status, isSpeaking, speak, msg.node_source, msg.id, msg.timestamp])
-  
+
   return <ChatMessageItem {...props} />
 }
 
