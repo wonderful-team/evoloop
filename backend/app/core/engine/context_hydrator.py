@@ -48,7 +48,8 @@ class EvoContextMiddleware:
     # Key: request_id, Value: timestamp when hydrated
     _hydrated_requests: dict[str, float] = {}
     _hydration_ttl: float = 30.0  # 30 seconds TTL for request hydration tracking
-    
+    _hydration_lock: Any = None  # Lock for thread-safe access to _hydrated_requests
+
     # Shared MemoryContainer for efficiency
     _memory_container: Any = None
     _container_lock: Any = None
@@ -60,7 +61,15 @@ class EvoContextMiddleware:
             import asyncio
             cls._container_lock = asyncio.Lock()
         return cls._container_lock
-    
+
+    @classmethod
+    def _get_hydration_lock(cls):
+        """Lazy initialization of thread-safe lock for hydration tracking."""
+        if cls._hydration_lock is None:
+            import threading
+            cls._hydration_lock = threading.Lock()
+        return cls._hydration_lock
+
     @classmethod
     async def _get_shared_memory_container(cls) -> Any:
         """Get shared MemoryContainer via MemoryLifespanManager (singleton)."""
@@ -74,27 +83,29 @@ class EvoContextMiddleware:
     @classmethod
     def _is_recently_hydrated(cls, request_id: str) -> bool:
         """Check if this request was recently hydrated."""
-        if request_id in cls._hydrated_requests:
-            last_hydrated = cls._hydrated_requests[request_id]
-            if time.time() - last_hydrated < cls._hydration_ttl:
-                return True
-            # Expired, clean up
-            del cls._hydrated_requests[request_id]
-        return False
+        with cls._get_hydration_lock():
+            if request_id in cls._hydrated_requests:
+                last_hydrated = cls._hydrated_requests[request_id]
+                if time.time() - last_hydrated < cls._hydration_ttl:
+                    return True
+                # Expired, clean up
+                del cls._hydrated_requests[request_id]
+            return False
     
     @classmethod
     def _mark_hydrated(cls, request_id: str) -> None:
         """Mark a request as hydrated."""
-        cls._hydrated_requests[request_id] = time.time()
-        # Cleanup old entries periodically
-        if len(cls._hydrated_requests) > 100:
-            now = time.time()
-            expired = [
-                req_id for req_id, ts in cls._hydrated_requests.items()
-                if now - ts > cls._hydration_ttl
-            ]
-            for req_id in expired:
-                del cls._hydrated_requests[req_id]
+        with cls._get_hydration_lock():
+            cls._hydrated_requests[request_id] = time.time()
+            # Cleanup old entries periodically
+            if len(cls._hydrated_requests) > 100:
+                now = time.time()
+                expired = [
+                    req_id for req_id, ts in cls._hydrated_requests.items()
+                    if now - ts > cls._hydration_ttl
+                ]
+                for req_id in expired:
+                    del cls._hydrated_requests[req_id]
 
     @staticmethod
     async def hydrate(state: dict, config: RunnableConfig) -> dict:
@@ -231,13 +242,13 @@ class EvoContextMiddleware:
                             memory_data['project_concepts'] = "\n".join([
                                 f"- **{c.name}**: {c.description}" for c in concepts[:3]
                             ])
-                        
+
                         episodes = await memory_manager.long_term.find_episodes_by_concept(last_human_msg, project_id, limit=3)
                         if episodes:
                             filtered = [e for e in episodes if getattr(e, "source_message_id", None) != current_run_id]
                             if filtered:
                                 memory_data['episodes'] = "\n".join([e.summary for e in filtered[:2]])
-                        
+
                         memory_elapsed = (time.time() - memory_start) * 1000
                         logger.info(f"[Middleware] ✓ Memory from Neo4j in {memory_elapsed:.1f}ms")
                     except Exception as e:
@@ -247,20 +258,27 @@ class EvoContextMiddleware:
                 # OPTIMIZATION: Use shared container instead of creating new one via get_relevant_memories
                 from app.core.memory.retrieval import MemoryRetriever
                 from app.core.memory.state_tracking import memory_tracker
-                
+
                 try:
                     # Use shared memory container already initialized above
                     # Get already-surfaced memories to avoid repetition
                     already_surfaced = memory_tracker.get_surfaced_ids(thread_id)
-                    
+                    logger.debug(f"[Middleware] Memory retrieval: already_surfaced={len(already_surfaced)} IDs")
+
                     # Create retriever with shared container's storage
+                    retriever_create_start = time.time()
                     retriever = MemoryRetriever(
                         storage=memory_container.storage,
                         config=memory_container.config,
                         max_results=5,
                     )
-                    
+                    retriever_create_elapsed = (time.time() - retriever_create_start) * 1000
+                    logger.debug(f"[Middleware] MemoryRetriever created in {retriever_create_elapsed:.1f}ms")
+
                     user_id = ctx.user_id
+                    logger.info(f"[Middleware] 🚀 Calling retriever.find_relevant with query length={len(last_human_msg)} chars")
+
+                    find_relevant_start = time.time()
                     entries = await retriever.find_relevant(
                         query=last_human_msg,
                         context={
@@ -269,9 +287,12 @@ class EvoContextMiddleware:
                         },
                         already_surfaced=already_surfaced,
                     )
-                    
+                    find_relevant_elapsed = (time.time() - find_relevant_start) * 1000
+                    logger.info(f"[Middleware] ✓ retriever.find_relevant returned {len(entries)} entries in {find_relevant_elapsed:.1f}ms")
+
                     if entries:
                         # Format entries as project concepts
+                        format_start = time.time()
                         formatted_entries = []
                         for entry in entries:
                             formatted_entries.append(
@@ -280,14 +301,18 @@ class EvoContextMiddleware:
                             )
                         memory_data['project_concepts'] = "\n\n".join(formatted_entries)
                         memory_data['embedded_memories'] = entries  # Store for later reference
-                        
+                        format_elapsed = (time.time() - format_start) * 1000
+
                         # Mark as surfaced to avoid showing again in this session
                         memory_tracker.mark_surfaced(thread_id, [e.id for e in entries])
-                    
+
+                        logger.debug(f"[Middleware] Memory formatting took {format_elapsed:.1f}ms")
+
                     memory_elapsed = (time.time() - memory_start) * 1000
-                    logger.info(f"[Middleware] ✓ Memory from smart retrieval: {len(entries)} entries in {memory_elapsed:.1f}ms")
+                    logger.info(f"[Middleware] ✓ Memory from smart retrieval: {len(entries)} entries in {memory_elapsed:.1f}ms (find_relevant: {find_relevant_elapsed:.1f}ms)")
                 except Exception as e:
-                    logger.warning(f"[Middleware] Failed to load embedded memory: {e}")
+                    memory_elapsed = (time.time() - memory_start) * 1000
+                    logger.error(f"[Middleware] Failed to load embedded memory after {memory_elapsed:.1f}ms: {e}", exc_info=True)
         
         # 2b. Load Tier 1 Hot Memory (Two-Tier Architecture)
         # This is always loaded from MEMORY.md - most important knowledge
@@ -352,13 +377,33 @@ class EvoContextMiddleware:
         from app.core.context.plugins import plugin_registry
         plugin_registry.hydrate_context(ctx)
 
+        # 5b. Domain Expert Polishing (Event-Driven, Domain-Agnostic)
+        # The Engine publishes a signal — Domain experts (Codebase, Project, etc.) subscribe
+        # and autonomously polish ctx.environment_block according to their knowledge.
+        # Engine has zero knowledge of specific languages, frameworks, or industry domain logic.
+        try:
+            from app.core.events import system_bus
+            from app.core.events.registry import SystemEventType
+            from app.core.events.base import BaseEvent
+            polishing_event = BaseEvent(
+                event_type=SystemEventType.CONTEXT_POLISHING,
+                source="context_hydrator",
+                data={
+                    "ctx": ctx,
+                    "topic": (blackboard.get("ticket", {}) or {}).get("topic") or "",
+                }
+            )
+            await system_bus.publish(polishing_event)
+        except Exception as e:
+            logger.warning(f"[Middleware] CONTEXT_POLISHING event failed (non-fatal): {e}")
+
         # 6. State Harmonization
         if not blackboard.get("verification") and state.get("verification_status"):
             blackboard["verification"] = state.get("verification_status")
 
         # 7. Metadata Reset (Industrial Hardening)
         is_retry = config.get("metadata", {}).get("is_retry", False)
-        
+
         if (state.get("is_retry") or is_retry) and not state.get("is_subtask"):
             logger.info("[Middleware] 🔄 Retry detected: Performing deep blackboard cleanup.")
             for key in ["ticket", "verification", "route_reason"]:
@@ -369,6 +414,47 @@ class EvoContextMiddleware:
                         del blackboard["metadata"][key]
             # Also invalidate static cache on retry
             LayeredContextCache.invalidate_static(session_id)
+
+            # CRITICAL: Clean up accumulated error messages from previous failed attempts
+            # This prevents error message pollution that confuses the LLM
+            messages = state.get("messages", [])
+            if messages:
+                from langchain_core.messages import AIMessage
+
+                # Keep last 3 error messages at most, remove duplicates
+                error_messages = []
+                non_error_messages = []
+
+                for msg in messages:
+                    is_error = False
+                    if isinstance(msg, AIMessage):
+                        # Check for error marker in metadata
+                        if getattr(msg, "metadata", None) and msg.metadata.get("is_error"):
+                            is_error = True
+                        # Check for error content pattern
+                        elif isinstance(msg.content, str) and msg.content.startswith("Error:"):
+                            is_error = True
+
+                    if is_error:
+                        error_messages.append(msg)
+                    else:
+                        non_error_messages.append(msg)
+
+                # Keep only last 3 unique error messages to preserve some context
+                # while preventing pollution
+                if len(error_messages) > 3:
+                    # Log cleanup action
+                    removed_count = len(error_messages) - 3
+                    logger.info(f"[Middleware] 🧹 Cleanup: Removing {removed_count} accumulated error messages (keeping last 3)")
+                    # Keep only last 3 errors
+                    error_messages = error_messages[-3:]
+
+                # Reconstruct messages: non-error + limited errors
+                cleaned_messages = non_error_messages + error_messages
+
+                if len(cleaned_messages) < len(messages):
+                    state["messages"] = cleaned_messages
+                    logger.info(f"[Middleware] ✓ Message cleanup: {len(messages)} -> {len(cleaned_messages)} messages")
             
         elif "metadata" in blackboard and not state.get("is_subtask"):
             for key in ["final_outcome", "shadow_audit"]:

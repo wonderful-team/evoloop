@@ -319,6 +319,12 @@ async def lifespan(app: FastAPI):
     from app.core.learning.events import register_learning_event_handlers
     register_learning_event_handlers()
 
+    # Register Domain Expert Polishers (event-driven context enrichment)
+    # Domain experts subscribe to CONTEXT_POLISHING and enrich ctx autonomously.
+    # Engine has zero knowledge of what these experts do.
+    from app.domain.project.handlers import register_project_polisher
+    register_project_polisher()
+
     async def event_router(etype, edata):
         if etype == "project_switch":
             await handle_project_switch_event(edata)

@@ -49,27 +49,3 @@ def get_endpoint_route(endpoint: str) -> RouteTarget:
         if endpoint.startswith(prefix):
             return RouteTarget.GATEWAY
     return RouteTarget.MEMBER_CENTER
-
-
-def is_gateway_endpoint(endpoint: str) -> bool:
-    """Check if endpoint should be routed to Gateway.
-    
-    Args:
-        endpoint: API endpoint path
-        
-    Returns:
-        True if endpoint should be routed to Gateway
-    """
-    return get_endpoint_route(endpoint) == RouteTarget.GATEWAY
-
-
-def get_routing_info() -> dict:
-    """Get routing configuration information for debugging.
-    
-    Returns:
-        Dictionary with routing configuration details
-    """
-    return {
-        "gateway_prefixes": GATEWAY_PREFIXES,
-        "gateway_prefix_count": len(GATEWAY_PREFIXES),
-    }

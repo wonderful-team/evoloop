@@ -5,21 +5,41 @@ Ported from evoloop-engineer.
 
 from enum import Enum
 
-from app.core.config import settings
-
-
 # ====================== Engine Constants ======================
 DEFAULT_PROJECT_ID = 1
-DEFAULT_WINDOW_SIZE = 10
 DEFAULT_HISTORY_RETAIN_COUNT = 5  # Number of messages to retain during compression
 MAX_CONTEXT_CHARS = 80000  # Max total characters in message history (~40k tokens)
-CONTEXT_PRUNE_THRESHOLD = 10000  # Character threshold for collapsing old tool results
 MAX_OUTPUT_LENGTH = 60000  # Max characters for tool output before truncation
+
+# ====================== Context Window Configuration ======================
+# Unified context management constants
+# IMPORTANT: These have been unified to use DEFAULT_CONTEXT_LIMIT as the single source of truth
+
+# Token to character ratio (approximate: 4 chars ≈ 1 token for English/Chinese mix)
+CONTEXT_TOKEN_TO_CHAR_RATIO = 4
+
+# Context window limits in characters (based on model context window)
+CONTEXT_LIMITS = {
+    "128k": 128000 * CONTEXT_TOKEN_TO_CHAR_RATIO,   # 512k chars
+    "256k": 256000 * CONTEXT_TOKEN_TO_CHAR_RATIO,   # 1M chars
+}
+DEFAULT_CONTEXT_LIMIT = CONTEXT_LIMITS["256k"]  # Default to 128k context (~512k chars)
+
+# Default window size (number of recent messages to keep)
+# This is now calculated dynamically based on context usage, but kept as fallback
+DEFAULT_WINDOW_SIZE = 20  # Increased from 10 to match larger context
+
+# Forgetting safety window - can only forget tool outputs older than N steps
+FORGET_SAFETY_WINDOW = 5
+
+# Context usage thresholds for warnings
+CONTEXT_WARNING_THRESHOLD = 0.8   # 80% - warning
+CONTEXT_CRITICAL_THRESHOLD = 0.95  # 95% - critical, force compression
 
 # Node-specific window sizes for multi-turn conversation support
 # Higher values for nodes that need more context
 NODE_WINDOW_SIZES = {
-    "supervisor": 15,      # Routing decisions need more context
+    "supervisor": 8,       # Routing decisions need less history to be fast
     "worker": 10,          # Execution focused
     "finish": 30,          # Summary generation needs full history
     "chat": 20,            # Conversation needs more turns
@@ -29,13 +49,13 @@ NODE_WINDOW_SIZES = {
 
 # Hierarchical slicing configuration for context optimization
 # Controls three-layer retention: full -> summary -> topic marker
-HIERARCHICAL_WINDOW_CONFIG = {
-    "supervisor": {"full_keep": 8, "summary_keep": 12},   # More complete context
-    "worker": {"full_keep": 6, "summary_keep": 8},       # Focus on recent
-    "finish": {"full_keep": 15, "summary_keep": 20},     # Maximum history
-    "chat": {"full_keep": 10, "summary_keep": 10},       # Balanced
-    "aggregator": {"full_keep": 6, "summary_keep": 8},
-    "default": {"full_keep": 6, "summary_keep": 8},
+DEFAULT_WINDOW_CONFIG = {
+    "supervisor": {"full_keep": 8, "summary_keep": 12},  # Focused routing context
+    "worker": {"full_keep": 12, "summary_keep": 16},     # Focus on recent
+    "finish": {"full_keep": 25, "summary_keep": 35},     # Maximum history
+    "chat": {"full_keep": 20, "summary_keep": 20},       # Balanced
+    "aggregator": {"full_keep": 12, "summary_keep": 16},
+    "default": {"full_keep": 12, "summary_keep": 16},
 }
 
 
@@ -492,132 +512,6 @@ SUSPICIOUS_JS_PATTERNS = [
     r"\\x[0-9a-f]{2}",
     r"\\u[0-9a-f]{4}",
 ]
-
-
-# ====================== RAG / Search Constants ======================
-# Search related
-DEFAULT_SEARCH_TOP_K = settings.DEFAULT_SEARCH_TOP_K
-MAX_SEARCH_DEPTH = settings.MAX_SEARCH_DEPTH
-MIN_RELEVANCE_SCORE = settings.MIN_RELEVANCE_SCORE
-
-# Chunking related
-DEFAULT_CHUNK_SIZE = settings.DEFAULT_CHUNK_SIZE
-MAX_CHUNK_SIZE = settings.MAX_CHUNK_SIZE
-DEFAULT_CHUNK_OVERLAP = settings.DEFAULT_CHUNK_OVERLAP
-
-# Memory related
-MAX_SESSION_HISTORY = settings.MAX_SESSION_HISTORY
-MEMORY_RELEVANCE_THRESHOLD = settings.MEMORY_RELEVANCE_THRESHOLD
-MAX_MEMORY_ITEMS = settings.MAX_MEMORY_ITEMS
-
-
-# ====================== Workflow / Task Constants ======================
-class RoutingTarget(str, Enum):
-    """Supported routing targets for the agent system."""
-    OPERATOR = "operator"
-    DEEP_RESEARCHER = "deep_researcher"
-    DOCUMENTER = "documenter"
-    CHAT = "chat"
-    FINISH = "finish"
-    WORKER = "worker"
-    FLASH_BRAIN = "flash_brain"
-    SUPERVISOR = "supervisor"
-    AGGREGATOR = "aggregator"
-    SPAWN_SUBTASKS = "spawn_subtasks"
-
-
-# ====================== AI Model Capabilities ======================
-
-# Preset LLM Models for Simple Selection Mode
-# 
-# NOTE: "platform" type models are now fetched dynamically from EvoLoop Gateway API.
-# This list only contains "custom" type models that require user's own API Key.
-#
-# 注: 所有 LLM 和 Embedding 模型均从 EvoLoop 平台 API 获取
-# 不再使用本地预设配置
-# 如需添加自定义模型，请通过 EvoLoop Gateway 配置
-
-# 注: 所有模型配置均从 EvoLoop 平台 API 动态获取
-
-# Context Window Sizes (Tokens)
-CONTEXT_SIZES = {
-    "openai": {
-        "gpt-3.5-turbo": 16384,
-        "gpt-4": 8192,
-        "gpt-4-turbo": 128000,
-        "gpt-4o": 128000,
-        "default": 16384,
-    },
-    "anthropic": {
-        "claude-instant-1": 100000,
-        "claude-2": 100000,
-        "claude-3-opus": 200000,
-        "claude-3-sonnet": 200000,
-        "claude-3-haiku": 200000,
-        "claude-3-5-sonnet": 200000,
-        "default": 100000,
-    },
-    "dashscope": {
-        "qwen-turbo": 32000,
-        "qwen-plus": 32000,
-        "qwen-max": 1000000,
-        "default": 32000,
-    },
-    "deepseek": {
-        "deepseek-chat": 64000,
-        "deepseek-coder": 64000,
-        "default": 64000,
-    },
-    "local": {
-        "llama3": 8192,
-        "mistral": 8192,
-        "default": 4096,
-    }
-}
-
-# Max Tokens per Chunk (for Embedding)
-MAX_TOKENS_PER_CHUNK = {
-    "openai": {
-        "text-embedding-ada-002": 8192,
-        "text-embedding-3-small": 8192,
-        "text-embedding-3-large": 8192,
-        "default": 8192,
-    },
-    "dashscope": {
-        "text-embedding-v1": 2048,
-        "text-embedding-v2": 2048,
-        "text-embedding-v3": 8192,
-        "default": 2048,
-    },
-    "cohere": {
-        "embed-english-v2.0": 2048,
-        "embed-multilingual-v2.0": 2048,
-        "default": 2048,
-    },
-    "huggingface": {
-        "sentence-transformers/all-mpnet-base-v2": 512,
-        "sentence-transformers/all-MiniLM-L6-v2": 512,
-        "sentence-transformers/paraphrase-multilingual-mpnet-base-v2": 512,
-        "BAAI/bge-large-en-v1.5": 512,
-        "BAAI/bge-base-en-v1.5": 512,
-        "BAAI/bge-small-en-v1.5": 512,
-        "BAAI/bge-large-zh-v1.5": 512,
-        "BAAI/bge-base-zh-v1.5": 512,
-        "default": 512,
-    },
-    "local": {
-        "all-MiniLM-L6-v2": 512,
-        "all-mpnet-base-v2": 512,
-        "e5-large-v2": 1024,
-        "bge-large": 1024,
-        "bge-small": 512,
-        "nomic-embed-text": 1024,
-        "gte-large": 1024,
-        "gte-small": 512,
-        "default": 512,
-    },
-    "default": 2048,
-}
 
 # ====================== Language Constants ======================
 LANGUAGE_MAP = {

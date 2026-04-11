@@ -34,13 +34,13 @@ class KnowledgeStoreService:
         store = KnowledgeStoreService()
         
         # Save a document
-        await store.save_document(doc, metadata, project="my-project")
+        await store.save_document(doc, metadata, collection="my-collection")
         
         # Read a document
-        content = store.read_document("my-project/guide.md")
+        content = store.read_document("my-collection/guide.md")
         
         # List documents
-        docs = store.list_documents("my-project")
+        docs = store.list_documents("my-collection")
     """
     
     def __init__(self, base_path: Optional[str] = None):
@@ -73,32 +73,34 @@ class KnowledgeStoreService:
         self,
         document: MarkdownDocument,
         metadata: Optional[DocumentMetadata] = None,
-        project: str = "default",
-        path: Optional[str] = None
+        collection: str = "default",
+        path: Optional[str] = None,
+        source_project_id: Optional[int] = None
     ) -> str:
         """
         Save a document to the knowledge base.
-        
+
         Args:
             document: The document to save
             metadata: Optional metadata
-            project: Project name (creates subdirectory)
-            path: Relative path within project (auto-generated if None)
-        
+            collection: Collection name (creates subdirectory)
+            path: Relative path within collection (auto-generated if None)
+            source_project_id: Optional workspace project ID to associate with
+
         Returns:
             The relative path where the document was saved
         """
         # Generate path if not provided
         if path is None:
-            path = self._generate_path(document.source, project)
+            path = self._generate_path(document.source, collection)
         
         # Ensure .md extension
         if not path.endswith('.md'):
             path += '.md'
         
         # Full paths
-        raw_path = self.base_path / "raw" / project / path
-        meta_path = self.base_path / "meta" / project / f"{path}.json"
+        raw_path = self.base_path / "raw" / collection / path
+        meta_path = self.base_path / "meta" / collection / f"{path}.json"
         
         # Create directories
         raw_path.parent.mkdir(parents=True, exist_ok=True)
@@ -118,11 +120,15 @@ class KnowledgeStoreService:
                 "file_size_bytes": document.size,
                 "extracted_at": document.extracted_at.isoformat()
             }
+
+        # Add source project ID if provided
+        if source_project_id:
+            meta_dict["source_project_id"] = source_project_id
         
         with open(meta_path, 'w', encoding='utf-8') as f:
             json.dump(meta_dict, f, indent=2, ensure_ascii=False)
         
-        relative_path = f"{project}/{path}"
+        relative_path = f"{collection}/{path}"
         logger.info(f"Saved document to {relative_path}")
         
         # Return document info for FTS indexing
@@ -130,9 +136,10 @@ class KnowledgeStoreService:
             "path": relative_path,
             "title": document.metadata.get("title", document.source),
             "content": document.content,
-            "project": project,
+            "collection": collection,
             "size": document.size,
-            "word_count": len(document.content.split())
+            "word_count": len(document.content.split()),
+            "source_project_id": source_project_id
         }
     
     def read_document(
@@ -145,7 +152,7 @@ class KnowledgeStoreService:
         Read a document with pagination support.
         
         Args:
-            path: Relative path (e.g., "my-project/guide.md")
+            path: Relative path (e.g., "my-collection/guide.md")
             offset: Line offset (0-based)
             limit: Maximum lines to read
         
@@ -221,21 +228,23 @@ class KnowledgeStoreService:
     
     def list_documents(
         self,
-        project: Optional[str] = None,
-        pattern: str = "*.md"
+        collection: Optional[str] = None,
+        pattern: str = "*.md",
+        source_project_id: Optional[int] = None
     ) -> list[dict]:
         """
         List documents in the knowledge base.
-        
+
         Args:
-            project: Filter by project (None = all projects)
+            collection: Filter by collection (None = all collections)
             pattern: Glob pattern for filtering
-        
+            source_project_id: Filter by workspace project ID
+
         Returns:
             List of document info dictionaries with tags
         """
-        if project:
-            search_path = self.base_path / "raw" / project
+        if collection:
+            search_path = self.base_path / "raw" / collection
         else:
             search_path = self.base_path / "raw"
         
@@ -283,17 +292,25 @@ class KnowledgeStoreService:
                 }
                 
                 # Try to load title from metadata
+                doc_source_project_id = None
                 if meta_path.exists():
                     try:
                         with open(meta_path, 'r', encoding='utf-8') as f:
                             meta = json.load(f)
                             doc_info["title"] = meta.get("title", file_path.stem)
                             doc_info["source"] = meta.get("source_file")
+                            doc_source_project_id = meta.get("source_project_id")
                     except Exception:
                         doc_info["title"] = file_path.stem
                 else:
                     doc_info["title"] = file_path.stem
-                
+
+                # Filter by source_project_id if specified
+                if source_project_id is not None:
+                    if doc_source_project_id != source_project_id:
+                        continue
+                doc_info["source_project_id"] = doc_source_project_id
+
                 documents.append(doc_info)
             except Exception as e:
                 logger.warning(f"Failed to stat {file_path}: {e}")
@@ -305,7 +322,7 @@ class KnowledgeStoreService:
     def search_documents(
         self,
         query: str,
-        project: Optional[str] = None,
+        collection: Optional[str] = None,
         context_lines: int = 2
     ) -> Iterator[dict]:
         """
@@ -316,7 +333,7 @@ class KnowledgeStoreService:
         
         Args:
             query: Search string (case-insensitive)
-            project: Limit search to project
+            collection: Limit search to collection
             context_lines: Lines of context around matches
         
         Yields:
@@ -326,8 +343,8 @@ class KnowledgeStoreService:
         
         pattern = re.compile(re.escape(query), re.IGNORECASE)
         
-        if project:
-            search_path = self.base_path / "raw" / project
+        if collection:
+            search_path = self.base_path / "raw" / collection
         else:
             search_path = self.base_path / "raw"
         
@@ -367,35 +384,35 @@ class KnowledgeStoreService:
                 logger.warning(f"Failed to search {file_path}: {e}")
     
     # ==========================================================================
-    # Project Management
+    # Collection Management
     # ==========================================================================
     
-    def list_projects(self) -> list[str]:
-        """List all projects (subdirectories in raw/)."""
+    def list_collections(self) -> list[str]:
+        """List all collections (subdirectories in raw/)."""
         raw_path = self.base_path / "raw"
         if not raw_path.exists():
             return []
         
-        projects = []
+        collections = []
         for item in raw_path.iterdir():
             if item.is_dir():
-                projects.append(item.name)
+                collections.append(item.name)
         
-        return sorted(projects)
+        return sorted(collections)
     
-    def create_project(self, name: str) -> Path:
-        """Create a new project directory."""
+    def create_collections(self, name: str) -> Path:
+        """Create a new collection directory."""
         project_raw = self.base_path / "raw" / name
         project_meta = self.base_path / "meta" / name
         
         project_raw.mkdir(parents=True, exist_ok=True)
         project_meta.mkdir(parents=True, exist_ok=True)
         
-        logger.info(f"Created project: {name}")
+        logger.info(f"Created collection: {name}")
         return project_raw
     
     def delete_project(self, name: str) -> bool:
-        """Delete a project and all its documents."""
+        """Delete a collection and all its documents."""
         project_raw = self.base_path / "raw" / name
         project_meta = self.base_path / "meta" / name
         
@@ -409,7 +426,7 @@ class KnowledgeStoreService:
             shutil.rmtree(project_meta)
         
         if deleted:
-            logger.info(f"Deleted project: {name}")
+            logger.info(f"Deleted collection: {name}")
         
         return deleted
     
@@ -417,7 +434,7 @@ class KnowledgeStoreService:
     # Helpers
     # ==========================================================================
     
-    def _generate_path(self, original_filename: str, project: str) -> str:
+    def _generate_path(self, original_filename: str, collection: str) -> str:
         """Generate a safe path for saving."""
         import re
         
@@ -431,7 +448,7 @@ class KnowledgeStoreService:
             name = "untitled"
         
         # Add timestamp if file exists
-        base_path = self.base_path / "raw" / project / f"{name}.md"
+        base_path = self.base_path / "raw" / collection / f"{name}.md"
         if base_path.exists():
             timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
             name = f"{name}-{timestamp}"
@@ -443,15 +460,15 @@ class KnowledgeStoreService:
         stats = {
             "total_documents": 0,
             "total_size_bytes": 0,
-            "projects": {}
+            "collections": {}
         }
         
-        for project in self.list_projects():
-            project_path = self.base_path / "raw" / project
+        for collection in self.list_projects():
+            project_path = self.base_path / "raw" / collection
             project_docs = list(project_path.rglob("*.md"))
             project_size = sum(f.stat().st_size for f in project_docs)
             
-            stats["projects"][project] = {
+            stats["collections"][collection] = {
                 "documents": len(project_docs),
                 "size_bytes": project_size
             }

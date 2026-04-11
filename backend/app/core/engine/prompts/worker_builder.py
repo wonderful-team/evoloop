@@ -30,100 +30,122 @@ class WorkerPromptBuilder:
         self.focus_files = focus_files or []
         self.plan = plan
 
-    def build(self, config: Any = None) -> str:
+    async def build(self, config: Any = None) -> str:
+        """Constructs the STATIC system prompt using Jinja2 templating.
+        
+        This part MUST be static for the duration of a session to trigger caching.
+        Dynamic context (blackboard, telemetry, memory) is now moved to build_mission_message().
+        """
         ctx = ContextManager.current()
         plugin_registry.hydrate_context(ctx)
 
         knowledge_blocks = self._prepare_knowledge_blocks()
 
-        from app.core.environment import get_awakened_state
-        state = get_awakened_state()
-        telemetry_data = {}
-        try:
-            if state:
-                # Use cached telemetry snapshot (1-second TTL) to avoid redundant computation
-                telemetry_data = state.get_telemetry_snapshot()
-        except Exception as e:
-            logger.warning(f"[WorkerPrompt] Failed to fetch telemetry: {e}")
-
-        # Environment Normalization (Docker Path Mapping)
-        from .utils import get_mapped_cwd, get_sandbox_mode
-        actual_cwd = get_mapped_cwd(ctx.working_directory or ctx.metadata.get("cwd", ""))
+        from .utils import get_sandbox_mode
         mode = get_sandbox_mode()
         
-        if mode == "docker":
-            pass # Mapping already handled in get_mapped_cwd
-
+        # Static Sys Info (Project identity only)
         sys_info = {
-            "cwd": actual_cwd,
             "is_global_mode": ctx.project_id == 0 or ctx.project_id is None,
             "project_concepts": ctx.metadata.get("project_concepts", ""),
         }
 
-        # Debug logging for target_apps in blackboard
-        ticket_params = self.blackboard.get("ticket", {}).get("parameters", {})
-        if ticket_params.get("target_apps"):
-            logger.info(f"[WorkerPromptBuilder] 📦 target_apps in ticket.parameters: {ticket_params['target_apps']}")
-
-        # Phase 1: Determine required protocols based on authorized tools
-        # This is more accurate than role_name-based matching
+        # Protocol flags based on authorized tools (Static for the node)
         authorized_tools = self.agent_config.get("tools", [])
         has_desktop_tool = any(t in authorized_tools for t in ["desktop_control", "open_app"])
         has_mobile_tool = any(t in authorized_tools for t in ["mobile_control", "list_devices"])
         has_browser_tool = "browser_control" in authorized_tools
 
-        # Debug logging to verify tool authorization
-        logger.info(f"[WorkerPromptBuilder] Protocol flags: "
-                   f"browser={has_browser_tool}, desktop={has_desktop_tool}, mobile={has_mobile_tool} | "
-                   f"authorized_tools={authorized_tools}")
+        logger.info(f"[WorkerPromptBuilder] Static Protocol flags: "
+                   f"browser={has_browser_tool}, desktop={has_desktop_tool}, mobile={has_mobile_tool}")
+
+        # Static Feature Check
+        has_interactive_charts = False
+        try:
+            from app.core.evocloud import evocloud_manager
+            from app.services.benefit_service import benefit_service
+            token = evocloud_manager.get_token()
+            member_id_str = ctx.user_id
+            if token and member_id_str:
+                member_id = int(member_id_str)
+                has_interactive_charts = await benefit_service.has_benefit(
+                    member_id, "interactive_charts", token
+                )
+        except Exception as e:
+            logger.debug(f"[WorkerPrompt] Benefit check failed: {e}")
 
         template_vars = {
             "project_id": ctx.project_id,
             "sys_info": sys_info,
             "sandbox_mode": mode,
-            "telemetry": telemetry_data,
-            "blackboard": self.blackboard,
-            "memory": {
-                "episodic_raw": ctx.metadata.get("episodic_memory_raw", ""),
-                "core_raw": ctx.metadata.get("core_memory_raw", ""),
-                "use_neo4j": settings.USE_NEO4J_MEMORY,
-            },
             "role_name": self.agent_config.get("role_name", "Specialist"),
             "instructions": self.agent_config.get("system_instructions", "Execute the assigned task accurately."),
-            "environment_block": ctx.environment_block,
             "knowledge_blocks": knowledge_blocks,
-            "clipboard": self.clipboard,
             "has_android": ctx.metadata.get("has_android", False),
             "is_subtask": self.agent_config.get("is_subtask", False),
+            "macro_goal": self.ticket.get("macro_goal"),
             "historical_context": self.ticket.get("historical_context") if self.ticket else None,
             "referenced_tech": self.ticket.get("referenced_tech") if self.ticket else None,
-            "plan": self.plan,
-            # Protocol flags based on authorized tools (more accurate than role_name)
             "has_desktop_tool": has_desktop_tool,
             "has_mobile_tool": has_mobile_tool,
             "has_browser_tool": has_browser_tool,
+            "has_interactive_charts": has_interactive_charts,
         }
 
         try:
             return render_template("agents/worker.prompt.j2", **template_vars)
         except Exception as e:
             logger.error(f"Error rendering Worker template: {e}")
-            return ControllerResponse.error("Worker Instruction Error", details=str(e))
+            return str(self.agent_config.get("system_instructions", ""))
 
-    def build_mission_message(self) -> str:
-        """Constructs the user message that initiates the task via Jinja2."""
+
+    def build_mission_message(
+        self,
+        context_stats: str = "",
+        environment_block: str = "",
+        cwd: str = "",
+        telemetry: dict = None,
+        memory: dict = None,
+        plan: Any = None,
+    ) -> str:
+        """Constructs the USER message (Mission Ticket) for the Worker.
+        
+        DYNAMIC CONTEXT:
+        All items that change every turn are injected here to ensure 
+        the System Prompt remains stable and cacheable.
+        """
+        ctx = ContextManager.current()
+        
+        # Determine visualization needs dynamically for this turn
+        needs_visualization = any(kw in (self.ticket.get("topic") or "").lower() or kw in (self.ticket.get("reason") or "").lower() for kw in ["chart", "plot", "viz", "统计", "图表"])
+
         template_vars = {
             "topic": self.ticket.get("topic") or "General Task",
             "acceptance_criteria": self.ticket.get("acceptance_criteria", []),
             "parameters": self.ticket.get("parameters", {}),
             "is_subtask": self.agent_config.get("is_subtask", False),
             "focus_files": self.focus_files,
+            "context_stats": context_stats,
+            "workflow_context": self.ticket.get("workflow_context"),
+            "cwd": cwd,
+            "environment_block": environment_block,
+            "telemetry": telemetry or {},
+            "memory": memory or {
+                "episodic_raw": ctx.metadata.get("episodic_memory_raw", ""),
+                "core_raw": ctx.metadata.get("core_memory_raw", ""),
+            },
+            "blackboard": self.blackboard,
+            "clipboard": self.clipboard,
+            "plan": plan or self.plan,
+            "needs_visualization": needs_visualization,
         }
         try:
-            return render_template("fragments/mission_ticket.j2", **template_vars)
+            # We'll use a new fragment for the enhanced mission ticket
+            return render_template("fragments/worker_mission_ticket.j2", **template_vars)
         except Exception as e:
-            logger.error(f"Error rendering Mission Ticket: {e}")
-            return ControllerResponse.error("Mission Ticket Error", details=str(e), note=template_vars['topic'])
+            logger.error(f"Error rendering Worker Mission Ticket: {e}")
+            return f"Execute mission: {template_vars['topic']}"
+
 
     def _prepare_knowledge_blocks(self) -> list[str]:
         """

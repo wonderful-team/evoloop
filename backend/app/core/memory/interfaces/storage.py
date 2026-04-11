@@ -54,6 +54,26 @@ to ensure they are interchangeable and can be used polymorphically.
         """
         pass
     
+    async def get_multi(self, entry_ids: List[str]) -> Dict[str, "MemoryEntry"]:
+        """
+        Retrieve multiple memory entries by IDs (batch operation).
+
+        Default implementation iterates over get(). Backends should override
+        for more efficient batch loading.
+
+        Args:
+            entry_ids: List of memory entry IDs
+
+        Returns:
+            Dictionary mapping entry_id -> MemoryEntry for found entries
+        """
+        results = {}
+        for entry_id in entry_ids:
+            entry = await self.get(entry_id)
+            if entry:
+                results[entry_id] = entry
+        return results
+
     @abstractmethod
     async def delete(self, entry_id: str) -> bool:
         """

@@ -120,7 +120,7 @@ class StateResetEvent(RewindEvent):
     checkpoint_id: str | None = None
     reset_blackboard: bool = True
     reset_iteration_count: bool = True
-    
+
     def __post_init__(self):
         self.event_type = RewindEventType.STATE_RESET
         self.data = {
@@ -128,6 +128,22 @@ class StateResetEvent(RewindEvent):
             "checkpoint_id": self.checkpoint_id,
             "reset_blackboard": self.reset_blackboard,
             "reset_iteration_count": self.reset_iteration_count,
+        }
+
+
+@dataclass
+class CheckpointCleanupEvent(RewindEvent):
+    """Published to trigger checkpoint deletion from SQLite."""
+    checkpoint_ids: list[str] = field(default_factory=list)
+    min_checkpoint_id: str | None = None  # Alternative: delete all >= this ID
+
+    def __post_init__(self):
+        self.event_type = RewindEventType.CHECKPOINT_CLEANUP
+        self.data = {
+            "thread_id": self.thread_id,
+            "checkpoint_ids": self.checkpoint_ids,
+            "min_checkpoint_id": self.min_checkpoint_id,
+            "count": len(self.checkpoint_ids),
         }
 
 

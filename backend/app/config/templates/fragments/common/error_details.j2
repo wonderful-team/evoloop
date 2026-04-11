@@ -1,10 +1,3 @@
-{#
-  Error Details Components
-  
-  错误详情展示的常用组件。
-#}
-
-{# 通用错误详情 #}
 {% macro error_block(title="Error", message=none, details=none, suggestions=[]) %}
 {% if title %}**{{ title }}**{% endif %}
 {% if message %}

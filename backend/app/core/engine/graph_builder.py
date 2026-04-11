@@ -55,6 +55,14 @@ class GraphBuilder:
         # 3. Add Nodes
         for node in agent_config.nodes:
             node_func = self._import_obj(node.path)
+            # [DIAGNOSTIC] Inspect node capability
+            has_call = hasattr(node_func, "__call__")
+            logger.info(f"Adding Node: {node.id} | Implementation: {node.path} | Has __call__: {has_call}")
+            if has_call:
+                # If it's a class instance, print its MRO
+                cls_info = getattr(node_func, "__class__", "unknown")
+                logger.info(f"Node Instance Class: {cls_info}")
+                
             workflow.add_node(node.id, node_func)
 
         # 4. Add Edges

@@ -15,12 +15,12 @@ from langchain_core.messages import (
 )
 
 from app.constants import (
-    DEFAULT_WINDOW_SIZE, 
+    DEFAULT_CONTEXT_LIMIT,
+    DEFAULT_WINDOW_SIZE,
+    DEFAULT_WINDOW_CONFIG,
     MAX_OUTPUT_LENGTH,
-    MAX_CONTEXT_CHARS,
-    CONTEXT_PRUNE_THRESHOLD,
-    HIERARCHICAL_WINDOW_CONFIG,
 )
+from app.core.memory.tool_output_memory import ToolOutputMemory
 from app.i18n.service import i18n
 from app.infrastructure.llm.model_profile import get_profile
 
@@ -111,14 +111,46 @@ def get_last_human_message(messages: list) -> str | None:
     return None
 
 
-def repair_message_history(messages: list[BaseMessage]) -> list[BaseMessage]:
+def repair_message_history(
+    messages: list[BaseMessage],
+    i18n_overrides: dict | None = None,
+) -> list[BaseMessage]:
     """
     Ensure the message history is valid for strict LLM APIs (like Anthropic/GLM).
     1. No orphaned ToolMessages (must have preceding AIMessage with tool_calls).
     2. No dangling ToolCalls (must be followed by ToolMessages).
     3. No consecutive messages of same role (Human->Human, AI->AI).
     4. No empty content allowed.
+
+    Args:
+        messages: The message list to repair.
+        i18n_overrides: Optional dict to override default messages.
+                       Keys: orphaned_tool, interrupted_tool_response, conversation_continuation
     """
+    # Default messages (no i18n dependency for tests)
+    defaults = {
+        "orphaned_tool": "[Tool execution context missing]",
+        "interrupted_tool_response": "[Tool execution was interrupted]",
+        "conversation_continuation": "[Conversation continues]",
+    }
+    if i18n_overrides:
+        defaults.update(i18n_overrides)
+
+    def get_msg(key: str) -> str:
+        """Get message with fallback to defaults."""
+        # If i18n_overrides provided, use it directly (for testing)
+        if i18n_overrides is not None:
+            return defaults[key]
+        # Production: try i18n first, fallback to defaults
+        try:
+            result = i18n.get(f"core_utils.{key}", default=defaults[key])
+            # Ensure we got a string, not a mock or other type
+            if isinstance(result, str):
+                return result
+            return defaults[key]
+        except Exception:
+            # Fall back to defaults for tests or any error
+            return defaults[key]
     # Phase 1: Basic cleanup & Orphaned ToolMessage repair
     stage1 = []
     for msg in messages:
@@ -142,7 +174,7 @@ def repair_message_history(messages: list[BaseMessage]) -> list[BaseMessage]:
 
             if is_orphaned:
                 dummy = AIMessage(
-                    content=i18n.get("core_utils.orphaned_tool"),
+                    content=get_msg("orphaned_tool"),
                     tool_calls=[{
                         "id": msg.tool_call_id,
                         "name": msg.name or "unknown_tool",
@@ -157,7 +189,12 @@ def repair_message_history(messages: list[BaseMessage]) -> list[BaseMessage]:
         # Strict Role Alternation (Merge consecutive same-role)
         if stage1:
             last = stage1[-1]
-            if type(last) is type(msg) and isinstance(msg, HumanMessage | AIMessage):
+            # Use isinstance for subclass compatibility
+            if isinstance(last, type(msg)) and isinstance(msg, HumanMessage | AIMessage):
+                # Skip merge if last message has tool_calls to preserve structure
+                if isinstance(last, AIMessage) and getattr(last, 'tool_calls', None):
+                    stage1.append(msg)
+                    continue
                 # Merge content
                 new_content = f"{last.content}\n\n{msg.content}"
                 last.content = new_content
@@ -175,7 +212,7 @@ def repair_message_history(messages: list[BaseMessage]) -> list[BaseMessage]:
         if isinstance(msg, HumanMessage | AIMessage) and open_tool_calls:
             for tcid, tname in list(open_tool_calls.items()):
                 final_repaired.append(ToolMessage(
-                    content=i18n.get("core_utils.interrupted_tool_response"),
+                    content=get_msg("interrupted_tool_response"),
                     tool_call_id=tcid,
                     name=tname
                 ))
@@ -207,167 +244,74 @@ def repair_message_history(messages: list[BaseMessage]) -> list[BaseMessage]:
     if non_system_indices:
         first_idx = non_system_indices[0]
         if isinstance(final_repaired[first_idx], AIMessage):
-            final_repaired.insert(first_idx, HumanMessage(content=i18n.get("core_utils.conversation_continuation")))
+            final_repaired.insert(first_idx, HumanMessage(content=get_msg("conversation_continuation")))
     elif not final_repaired:
-        final_repaired.append(HumanMessage(content=i18n.get("core_utils.conversation_continuation")))
+        final_repaired.append(HumanMessage(content=get_msg("conversation_continuation")))
 
     return final_repaired
 
 
-def smart_window_slice(
+def apply_forgotten_status(
     messages: list[BaseMessage],
-    window_size: int | None = None,
-    max_total_chars: int = MAX_CONTEXT_CHARS,
-    model: str | None = None,
-    thread_id: str | None = None,
-    user_id: str | None = None,
-    project_id: int | None = None,
+    tool_memory: ToolOutputMemory,
 ) -> list[BaseMessage]:
     """
-    Slice the message list to a window size, ensuring no (AI -> Tool) pair is split.
-    If the window start falls on a ToolMessage, it backtracks to include the parent AIMessage.
-    Also enforces a character-based limit (max_total_chars) to prevent Token overflow.
+    Apply forgotten status to messages based on ToolOutputMemory.
 
-    CRITICAL: Triggers PreCompact hook before slicing to save state.
+    Replaces content of forgotten tool outputs with their summaries.
+    This implements "soft forgetting" - we keep the message structure
+    but replace the heavy content with a lightweight summary.
 
     Args:
-        messages: Full list of messages.
-        window_size: Explicit window size. If None, derived from ModelProfile.
-        max_total_chars: Maximum total characters allowed in the resulting slice.
-        model: Model name for profile-aware window sizing.
-        thread_id: Thread ID for hook context.
-        user_id: User ID for hook context.
-        project_id: Project ID for hook context.
+        messages: Original message list
+        tool_memory: ToolOutputMemory with forgotten records
 
     Returns:
-        Sliced list of messages.
+        Messages with forgotten ones replaced by summaries
     """
-    effective_window = window_size or _get_window_size(model)
-
-    # 1. Message Count Based Slicing
-    if len(messages) <= effective_window:
-        sliced_msgs = messages
-    else:
-        # CRITICAL: Trigger PreCompact hook BEFORE context is lost
-        # This saves task progress, decisions, and state
-        if len(messages) > effective_window:
-            try:
-                from app.core.engine.hooks import hook_system, HookEvent, HookContext
-                hook_ctx = HookContext(
-                    thread_id=thread_id or "unknown",
-                    user_id=user_id,
-                    project_id=project_id,
-                    messages=messages,
-                )
-                # Fire and forget - don't block window slicing
-                import asyncio
-                asyncio.create_task(hook_system.trigger(HookEvent.PRE_COMPACT, hook_ctx))
-                logger.debug(f"[Window] PreCompact hook triggered for {thread_id}")
-            except Exception as e:
-                logger.warning(f"[Window] PreCompact hook failed: {e}")
-        
-        start_index = max(0, len(messages) - effective_window)
-        # Backtrack if starting on a ToolMessage
-        while start_index > 0 and isinstance(messages[start_index], ToolMessage):
-            start_index -= 1
-        sliced_msgs = messages[start_index:]
-
-    def _calc_total_chars(msgs):
-        return sum(len(get_message_text(m)) for m in msgs)
-
-    # 2. Content-Level Pre-Pruning (Aggressive truncation for huge tool results in history)
-    # This prevents a single 200KB message from consuming the entire window.
-    pruned_for_window = []
-    for m in sliced_msgs:
-        if isinstance(m, ToolMessage) and len(str(m.content)) > CONTEXT_PRUNE_THRESHOLD:
-            # We create a clone with truncated content
-            truncated_msg = ToolMessage(
-                content=str(m.content)[:CONTEXT_PRUNE_THRESHOLD] + "\n... [Output truncated by Window Manager]",
-                tool_call_id=m.tool_call_id,
-                name=m.name,
-                additional_kwargs={**(m.additional_kwargs or {}), "is_truncated": True}
-            )
-            pruned_for_window.append(truncated_msg)
-        else:
-            pruned_for_window.append(m)
-    
-    sliced_msgs = pruned_for_window
-    total_chars = _calc_total_chars(sliced_msgs)
-    
-    if total_chars > max_total_chars:
-        logger.warning(f"📉 [Window] Total chars ({total_chars}) exceeds limit ({max_total_chars}). Pruning history.")
-        
-        # We try to keep the first message (Intent) and the most recent N messages
-        first_msg = next((m for m in messages if isinstance(m, HumanMessage)), None)
-        
-        # Start dropping from the beginning of sliced_msgs (which is already recent history)
-        # but always skip the very last few messages to maintain chain of thought
-        protected_count = 3  # Keep at least last 3 messages (AI -> Tool -> result)
-        
-        while len(sliced_msgs) > protected_count and _calc_total_chars(sliced_msgs) > max_total_chars:
-            # Check if first message is our protected intent
-            if first_msg and sliced_msgs[0] == first_msg:
-                # If we have more than protected_count, drop the second one (the oldest non-intent)
-                sliced_msgs.pop(1)
-            else:
-                sliced_msgs.pop(0)
-
-    # Enhance: Preserve the First Human Message (User Goal) if it was sliced out
-    # This ensures Supervisor keeps the original context/intent.
-    first_human_msg = next((m for m in messages if isinstance(m, HumanMessage)), None)
-    if first_human_msg and first_human_msg not in sliced_msgs:
-        sliced_msgs.insert(0, first_human_msg)
-
-    return sliced_msgs
-
-
-def prune_redundant_results(messages: list[BaseMessage], threshold: int = CONTEXT_PRUNE_THRESHOLD) -> list[BaseMessage]:
-    """
-    Identifies and collapses redundant large tool outputs in message history.
-    If the same tool (e.g., read_file) is called multiple times for the same resource,
-    previous large outputs are collapsed to save tokens.
-
-    Args:
-        messages: List of messages to prune.
-        threshold: Character threshold above which a message is considered "large".
-    """
-    if not messages:
+    if not tool_memory or not tool_memory.forgotten:
         return messages
 
-    seen_resources = {}  # {resource_key: last_index}
-    pruned = list(messages)
-    
-    # Iterate backwards to keep the most recent ones intact
-    for i in range(len(pruned) - 1, -1, -1):
-        msg = pruned[i]
-        if not isinstance(msg, ToolMessage):
-            continue
-            
-        # Determine resource key (e.g., tool_name:path)
-        resource_key = None
-        if msg.name == "read_file":
-            resource_key = f"read_file"
-        elif msg.name == "execute_command":
-            resource_key = f"execute_command"
+    result = []
+    for msg in messages:
+        if isinstance(msg, ToolMessage) and tool_memory.is_forgotten(msg.tool_call_id):
+            # Get summary and replace content
+            record = tool_memory.get_forgotten_info(msg.tool_call_id)
+            if record:
+                # Create a summary message that maintains the tool structure
+                # but replaces heavy content with lightweight summary
+                summary_content = (
+                    f"[FORGOTTEN - Summary Only]\n"
+                    f"Tool: {record.tool_name}\n"
+                    f"Original size: {record.original_length} chars\n"
+                    f"Reason: {record.reason}\n"
+                    f"---\n"
+                    f"Summary: {record.summary}\n"
+                    f"---\n"
+                    f"Use recall_tool_output('{msg.tool_call_id}') to restore full content."
+                )
 
-        if not resource_key:
-            continue
-            
-        text = get_message_text(msg)
-        if len(text) < threshold:
-            continue
-            
-        if resource_key in seen_resources:
-            # This is an older, large result for the same tool type
-            # Collapse it
-            lines = text.count("\n")
-            chars = len(text)
-            msg.content = f"[System: Previous large output (Tool: {msg.name}, {lines} lines, {chars} chars) collapsed to save context. Refer to more recent turns for status.]"
-            logger.info(f"✂️ [Prune] Collapsed redundant ToolMessage: {msg.name} ({chars} chars)")
+                # Create new ToolMessage with summary instead of full content
+                summary_msg = ToolMessage(
+                    content=summary_content,
+                    tool_call_id=msg.tool_call_id,
+                    name=msg.name,
+                    id=msg.id if hasattr(msg, "id") else None,
+                    # Preserve metadata for tracking
+                    metadata={
+                        **(msg.metadata if hasattr(msg, "metadata") and msg.metadata else {}),
+                        "forgotten": True,
+                        "original_length": record.original_length,
+                        "forgotten_reason": record.reason,
+                    },
+                )
+                result.append(summary_msg)
+            else:
+                result.append(msg)
         else:
-            seen_resources[resource_key] = i
-            
-    return pruned
+            result.append(msg)
+
+    return result
 
 
 # ==============================================================================
@@ -484,8 +428,6 @@ def fold_messages(messages: list[BaseMessage]) -> list[dict]:
 # ============================================================================
 
 
-
-
 def _hierarchical_slice(
     messages: list[BaseMessage],
     effective_window: int,
@@ -511,7 +453,7 @@ def _hierarchical_slice(
     Returns:
         Hierarchically sliced messages
     """
-    config = HIERARCHICAL_WINDOW_CONFIG.get(node_source, HIERARCHICAL_WINDOW_CONFIG["default"])
+    config = DEFAULT_WINDOW_CONFIG.get(node_source, DEFAULT_WINDOW_CONFIG["default"])
     full_keep = min(config["full_keep"], effective_window)
     summary_keep = config["summary_keep"]
     
@@ -537,18 +479,10 @@ def _hierarchical_slice(
         msg = messages[i]
         
         if isinstance(msg, ToolMessage):
-            # Collapse tool output to marker (re-executable)
-            collapsed = ToolMessage(
-                content=f"[{msg.name}] [DONE]",
-                tool_call_id=msg.tool_call_id,
-                name=msg.name,
-                additional_kwargs={
-                    **(msg.additional_kwargs or {}),
-                    "is_collapsed": True,
-                    "original_length": len(str(msg.content)),
-                }
-            )
-            middle_messages.append(collapsed)
+            # DISABLED: ToolMessage compression removed to avoid triple compression.
+            # Agent-controlled forgetting (forget_tool_outputs) now handles this.
+            # Keep original ToolMessage in middle section if within budget.
+            middle_messages.append(msg)
             
         elif isinstance(msg, AIMessage):
             if msg.tool_calls:
@@ -621,25 +555,34 @@ def _hierarchical_slice(
         ]
         # If still over limit, keep only recent messages
         if sum(len(get_message_text(m)) for m in pruned) > max_total_chars:
-            # Keep topic marker + last N messages that fit
-            preserved = [m for m in pruned if getattr(m.additional_kwargs, 'is_topic_marker', False)]
-            for m in reversed(pruned):
-                if m in preserved:
-                    continue
-                test_chars = sum(len(get_message_text(x)) for x in preserved + [m])
-                if test_chars <= max_total_chars * 0.9:  # 10% buffer
-                    preserved.insert(0, m)
-            result = preserved
+            # First pass: remove all ToolMessages except forgotten (which have summaries)
+            without_tools = [
+                m for m in pruned
+                if not isinstance(m, ToolMessage) or m.additional_kwargs.get("forgotten")
+            ]
+
+            if sum(len(get_message_text(m)) for m in without_tools) <= max_total_chars:
+                result = without_tools
+            else:
+                # Second pass: keep topic marker + last N messages that fit
+                preserved = [m for m in without_tools if (m.additional_kwargs or {}).get('is_topic_marker', False)]
+                for m in reversed(without_tools):
+                    if m in preserved:
+                        continue
+                    test_chars = sum(len(get_message_text(x)) for x in preserved + [m])
+                    if test_chars <= max_total_chars * 0.9:  # 10% buffer
+                        preserved.insert(0, m)
+                result = preserved
         else:
             result = pruned
     
     return result
 
 
-def hierarchical_smart_window_slice(
+async def smart_window_slice(
     messages: list[BaseMessage],
     window_size: int | None = None,
-    max_total_chars: int = MAX_CONTEXT_CHARS,
+    max_total_chars: int = DEFAULT_CONTEXT_LIMIT,
     model: str | None = None,
     node_source: str = "default",
     thread_id: str | None = None,
@@ -648,12 +591,12 @@ def hierarchical_smart_window_slice(
 ) -> list[BaseMessage]:
     """
     Smart window slice with hierarchical fallback for multi-turn conversations.
-    
+
     Strategy:
     1. If messages fit in window: return as-is
     2. If slightly over: use hierarchical slicing (zero LLM cost)
     3. Triggers PreCompact hook before any modification
-    
+
     Args:
         messages: Full message list
         window_size: Target window size
@@ -661,36 +604,35 @@ def hierarchical_smart_window_slice(
         model: Model name for profile-aware sizing
         node_source: Node requesting the slice (affects strategy)
         thread_id, user_id, project_id: For PreCompact hook
-    
+
     Returns:
         Optimized message list
     """
     effective_window = window_size or _get_window_size(model)
-    
+
     # 1. Check if we need any processing
     if len(messages) <= effective_window:
         # Still check character budget
         total_chars = sum(len(get_message_text(m)) for m in messages)
         if total_chars <= max_total_chars:
             return messages
-    
+
     # 2. Trigger PreCompact hook BEFORE context is lost
     if len(messages) > effective_window:
         try:
             from app.core.engine.hooks import hook_system, HookEvent, HookContext
-            
+
             hook_ctx = HookContext(
                 thread_id=thread_id or "unknown",
                 user_id=user_id,
                 project_id=project_id,
                 messages=messages,
             )
-            # Fire and forget
-            import asyncio
-            asyncio.create_task(hook_system.trigger(HookEvent.PRE_COMPACT, hook_ctx))
-            logger.debug(f"[HierarchicalSlice] PreCompact hook triggered for {thread_id}")
+            # Await to ensure hook completes before context is lost
+            await hook_system.trigger(HookEvent.PRE_COMPACT, hook_ctx)
+            logger.debug(f"[HierarchicalSlice] PreCompact hook completed for {thread_id}")
         except Exception as e:
-            logger.warning(f"[HierarchicalSlice] PreCompact hook failed: {e}")
+            logger.error(f"[HierarchicalSlice] PreCompact hook failed: {type(e).__name__}: {e}", exc_info=True)
     
     # 3. Use hierarchical slicing (no LLM cost)
     return _hierarchical_slice(

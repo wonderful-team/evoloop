@@ -153,6 +153,9 @@ def _ensure_scanned():
         # Scan Engine Tools (Dynamic Planning)
         REGISTRY.scan("app.core.engine.tools")
 
+        # Scan Core Memory Tools
+        REGISTRY.scan("app.core.memory.tools")
+
 
 # --- Core Registry Accessors ---
 

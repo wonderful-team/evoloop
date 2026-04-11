@@ -1,8 +1,11 @@
+import logging
 import operator
 from typing import Annotated, Any, TypedDict
 
 from langchain_core.messages import BaseMessage
 from langgraph.graph.message import add_messages
+
+logger = logging.getLogger(__name__)
 
 
 class ClipboardItem(TypedDict):
@@ -48,6 +51,9 @@ class ExecutionTicket(TypedDict):
 
     # Catch-all for specialized parameters
     parameters: dict[str, Any] | None
+
+    # [NEW] Macro context for subtasks
+    macro_goal: str | None
 
     # Dynamic Agent Configuration (v4.0)
     agent_config: AgentConfig | None
@@ -131,7 +137,18 @@ def merge_blackboard(old: BlackboardState | None, new: BlackboardState | None) -
         else:
             # Deduplicate by subtask_id to prevent exponential explosion
             seen_ids = {r.get("subtask_id") for r in old_results if r.get("subtask_id")}
-            delta_results = [r for r in new_results if r.get("subtask_id") not in seen_ids]
+            delta_results = []
+
+            for r in new_results:
+                sid = r.get("subtask_id")
+                if not sid:
+                    # No ID provided - always append to prevent data loss
+                    delta_results.append(r)
+                elif sid not in seen_ids:
+                    delta_results.append(r)
+                else:
+                    # Potential collision or redundant full-sync attempt
+                    logger.debug(f"[State] ℹ️ Subtask ID collision/sync for '{sid}' - skipping duplicate.")
             
             # Concatenate only new results from parallel branches or worker delta
             merged["subtask_results"] = old_results + delta_results
@@ -142,7 +159,11 @@ def merge_blackboard(old: BlackboardState | None, new: BlackboardState | None) -
         merged["metadata"] = {**old_meta, **new["metadata"]}
     
     if "visited_nodes" in new:
-        merged["visited_nodes"] = list(set((old.get("visited_nodes") or []) + new["visited_nodes"]))
+        old_nodes = old.get("visited_nodes") or []
+        new_nodes = new["visited_nodes"] or []
+        # Preserve order while deduplicating
+        combined = old_nodes + [n for n in new_nodes if n not in old_nodes]
+        merged["visited_nodes"] = combined
 
     if "clipboard" in new:
         merged["clipboard"] = (old.get("clipboard") or []) + new["clipboard"]

@@ -21,7 +21,35 @@ from app.domain.project.events import (
 )
 from app.domain.project.sync_service import ProjectSyncService
 
+import logging
+
+from app.core.events.decorators import event_register, event_subscribe
+from app.domain.project.events import (
+    ProjectCreatedEvent,
+    ProjectDeletedEvent,
+    ProjectEventType,
+    ProjectMovedEvent,
+)
+from app.domain.project.sync_service import ProjectSyncService
+
 logger = logging.getLogger(__name__)
+
+
+def register_project_polisher() -> None:
+    """
+    Register the ProjectPolisher as a subscriber to SystemEventType.CONTEXT_POLISHING.
+    Called during app startup. Wires Domain expertise into the Engine's event stream
+    without any Engine-side knowledge of project/codebase domain logic.
+    """
+    from app.core.events import system_bus
+    from app.core.events.registry import SystemEventType
+    from app.domain.project.polisher import project_polisher
+
+    system_bus.subscribe(
+        SystemEventType.CONTEXT_POLISHING,
+        project_polisher.handle_context_polishing,
+    )
+    logger.info("[ProjectHandlers] ✅ ProjectPolisher subscribed to CONTEXT_POLISHING")
 
 
 @event_register()

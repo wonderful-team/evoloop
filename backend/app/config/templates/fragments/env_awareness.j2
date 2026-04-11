@@ -12,7 +12,7 @@
 {% include 'fragments/system_rules.j2' %}
 {%- if boundaries %}
 
-### ❌ Constraints
+### Constraints
 {% for b in boundaries -%}
 - {{ b }}
 {% endfor -%}
@@ -22,7 +22,7 @@
 {{ mcp_inventory }}
 {%- endif %}
 {% if browser_status -%}
-### 🌐 Browser Status
+### Browser Status
 - **Mode**: {{ browser_status.mode }}
 - **CDP Endpoint**: {{ browser_status.cdp_url }}
 {% if browser_status.active_url -%}

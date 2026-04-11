@@ -1,9 +1,3 @@
-{#
-  List Item Rendering Components
-  
-  常用的列表项格式模板，可被其他模板引用。
-#}
-
 {# LSP 诊断项 #}
 {% macro lsp_diagnostic_item(line, severity, message, source="LSP") %}
 Line {{ line }}: [{{ severity }}] {{ message }} (Source: {{ source }})

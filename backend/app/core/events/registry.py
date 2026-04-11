@@ -21,6 +21,10 @@ class SystemEventType(str, Enum):
     # Error Events
     UNHANDLED_ERROR = "system.unhandled_error"
 
+    # Context Polishing
+    # Published by Engine after context hydration. Subscribed by Domain experts to enrich/clean context.
+    CONTEXT_POLISHING = "system.context_polishing"
+
 
 # Note: Module-specific event types are defined in their respective modules:
 # - AgentEventType -> app.core.engine.events

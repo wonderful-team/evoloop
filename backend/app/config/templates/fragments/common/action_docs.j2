@@ -1,10 +1,3 @@
-{#
-  Action Documentation Components
-  
-  用于渲染 action registry 文档的组件。
-#}
-
-{# 单个 action 文档项 #}
 {% macro action_doc_item(action) %}
 - "{{ action.id }}": {{ action.description }}{% if action.params %} Params: {{ action.params | join(", ") }}{% endif %}
 {% endmacro %}

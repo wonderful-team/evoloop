@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 class KBReadInput(BaseModel):
     """Input for kb_read tool."""
     path: str = Field(
-        description="Path to the document (e.g., 'guides/auth.md' or 'project/api/guide.md')"
+        description="Path to the document (e.g., 'guides/auth.md' or 'collection/api/guide.md')"
     )
     offset: int = Field(
         default=0,
@@ -31,9 +31,9 @@ class KBReadInput(BaseModel):
         le=500,
         description="Maximum number of lines to read (max 500)"
     )
-    project: str = Field(
+    collection: str = Field(
         default="",
-        description="Project name (if not included in path)"
+        description="Collection name (if not included in path)"
     )
 
 
@@ -45,7 +45,7 @@ async def kb_read(
     path: Annotated[str, Field(description="Path to the document")],
     offset: Annotated[int, Field(default=0, description="Line offset (0-based)")] = 0,
     limit: Annotated[int, Field(default=100, ge=1, le=500, description="Max lines to read")] = 100,
-    project: Annotated[str, Field(default="", description="Project name")] = "",
+    collection: Annotated[str, Field(default="", description="Collection name")] = "",
     config: Annotated[RunnableConfig, InjectedToolArg] = None
 ) -> str:
     """
@@ -57,13 +57,13 @@ async def kb_read(
     Examples:
         - Read full document: kb_read(path="guides/auth.md")
         - Read specific lines: kb_read(path="guides/auth.md", offset=50, limit=20)
-        - Read project doc: kb_read(path="api/README.md", project="my-api")
+        - Read collection doc: kb_read(path="api/README.md", collection="my-api")
     
     Args:
         path: Path to the document (e.g., "guides/auth.md")
         offset: Line number to start from (0-based, default: 0)
         limit: Maximum lines to read (default: 100, max: 500)
-        project: Project name (if not included in path)
+        collection: Collection name (if not included in path)
     
     Returns:
         Document content with line numbers and pagination info.
@@ -72,8 +72,8 @@ async def kb_read(
     
     try:
         # Normalize path
-        if project and not path.startswith(project):
-            full_path = f"{project}/{path}"
+        if collection and not path.startswith(collection):
+            full_path = f"{collection}/{path}"
         else:
             full_path = path
         

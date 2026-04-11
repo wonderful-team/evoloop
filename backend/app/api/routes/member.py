@@ -122,11 +122,18 @@ async def read_user_me(current_user: CurrentUser) -> Any:
             return _map_mc_user_to_user(data)
         else:
             logger.warning(f"Failed to get user info from MC: {result.get('message')}")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Session expired",
+            )
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error fetching user info from MC: {e}")
-
-    # Fallback: return current user from JWT (minimal info)
-    return current_user
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Session expired",
+        )
 
 
 @router.put("/password", response_model=MessageResponse)

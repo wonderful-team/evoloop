@@ -370,12 +370,40 @@ async def _handle_task_exception(thread_id: str, project_id: int, e: Exception):
         ("api_error" in error_str and "token expired" in error_str)
     ) and not is_quota_exhausted
     
+    # Check for EvoLoop platform auth errors (ValueError raised by LLMFactory)
+    is_auth_expired = (
+        "not authenticated with evoloop" in error_str or
+        "please login first" in error_str
+    )
+
     is_retryable = any(kw in error_str for kw in [
-        "timeout", "rate limit", "connection error", "api_error", 
+        "timeout", "rate limit", "connection error", "api_error",
         "unavailable", "overloaded", "socket", "httpx", "503", "502", "504"
-    ]) and not is_llm_auth_error and not is_quota_exhausted
-    
-    # 2. Handle LLM Authentication Error - Special flow
+    ]) and not is_llm_auth_error and not is_quota_exhausted and not is_auth_expired
+
+    # 2. Handle EvoLoop Platform Auth Error - Redirect to login
+    if is_auth_expired:
+        logger.warning(f"[EvoLoopAuth] Thread {thread_id} platform auth expired")
+
+        await activity_monitor.end_run(thread_id, "failed")
+
+        auth_title = i18n.get('core_engine.evoloop_auth_title') or '会话已过期'
+        auth_desc = i18n.get('core_engine.evoloop_auth_desc') or 'EvoLoop 平台会话已过期，请重新登录后继续对话。'
+        auth_hint = i18n.get('core_engine.evoloop_auth_hint') or '点击右上角头像重新登录'
+
+        await cache.publish(
+            f"chat:{thread_id}:events",
+            json.dumps({
+                "type": "auth_expired",
+                "status": "auth_expired",
+                "title": auth_title,
+                "message": auth_desc,
+                "hint": auth_hint,
+            })
+        )
+        return
+
+    # 3. Handle LLM Authentication Error - Special flow
     if is_llm_auth_error:
         logger.warning(f"[LLMAuthError] Thread {thread_id} hit LLM API authentication error")
         
@@ -457,7 +485,26 @@ async def _handle_task_exception(thread_id: str, project_id: int, e: Exception):
 
 
 async def _persist_system_error(thread_id: str, project_id: int, error_details: str, action_type: str = "system"):
-    """Save a system error message to the database."""
+    """Save a system error message to the database.
+
+    If the error is classified as ERROR_SYSTEM or AUTH_EXPIRED,
+    it is NOT persisted (per MessageCategory design). These errors are
+    infrastructure-level and provide no value for agent learning.
+    """
+    from app.core.messaging.category import MessageCategory
+    from app.core.messaging.classifier import MessageClassifier
+
+    # Classify the error content
+    category = MessageClassifier.classify_ai_message(
+        content=error_details,
+        metadata={"is_error": True, "error_type": action_type}
+    )
+
+    # Skip persistence for system-level errors
+    if category in (MessageCategory.ERROR_SYSTEM, MessageCategory.AUTH_EXPIRED):
+        logger.debug(f"[_persist_system_error] Skipping persistence for {category} error")
+        return
+
     try:
         async with session_scope() as session:
             # Get next sequence

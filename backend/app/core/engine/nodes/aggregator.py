@@ -9,9 +9,9 @@ from typing import Any
 from langchain_core.messages import AIMessage
 from langchain_core.runnables import RunnableConfig
 
+from app.core.engine.routers import RoutingTarget
 from app.core.engine.state import AgentState
 from app.core.engine.tools.orchestration import aggregate_results
-from app.constants import RoutingTarget
 
 logger = logging.getLogger(__name__)
 

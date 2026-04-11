@@ -80,7 +80,7 @@ macro_script:
   ]
 ```
 
-## 🛠️ Macro Script Schema (STRICT)
+## Macro Script Schema (STRICT)
 
 The `macro_script` field MUST be a YAML object with a `steps` array following these rules:
 ### 1. Root Step Fields (STRICT):
@@ -126,7 +126,7 @@ The `macro_script` field MUST be a YAML object with a `steps` array following th
     - You MAY use `{{parameter_name}}` in payloads ONLY if the parameter is defined in the YAML `parameters` section.
 - **wait**: Use `"event_type": "wait"` with `"payload": {"seconds": 2}`. DO NOT use `type: "wait"`.
 
-# 🧠 Expert Skill Guide
+# Expert Skill Guide
 
 ## 1. Mental Model
 [The high-level strategy and business logic. Why are we doing this? What's the core insight?]

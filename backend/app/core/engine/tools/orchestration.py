@@ -8,13 +8,10 @@ import logging
 import re
 from typing import Any, Optional
 
-from langchain_core.messages import ToolMessage
 from langchain_core.runnables import RunnableConfig
 
-from app.constants import RoutingTarget
+from app.core.engine.routers import RoutingTarget
 from app.core.tools import evoloop_tool
-from app.infrastructure.llm.factory import LLMFactory
-from app.i18n.service import i18n
 from app.utils.text import extract_json_from_markdown
 
 logger = logging.getLogger(__name__)
@@ -22,10 +19,11 @@ logger = logging.getLogger(__name__)
 
 # ===== 1. State Management Tools (v1 Evolution) =====
 
-# @evoloop_tool(
-#     is_state_mutating=True,
-#     name_map={"zh": "更新黑板", "en": "Update Blackboard"}
-# )
+@evoloop_tool(
+    is_state_mutating=True,
+    is_hidden=True,  # Internal state management, not user-facing
+    name_map={"zh": "更新黑板", "en": "Update Blackboard"}
+)
 def update_blackboard(key: str, value: Any, _config: RunnableConfig) -> dict[str, Any]:
     """
     [DEPRECATED] Updates the agent's dynamic state center (blackboard).
@@ -90,8 +88,10 @@ def route_to(
     workflow_mode: str = "single",
 ) -> str:
     """
-    Hand off the current task to a specialist node.
-    This is the primary way the Supervisor moves the workflow forward.
+    [MANDATORY] Hand off the current task to a specialist node.
+
+    ⚠️ CRITICAL: This tool MUST be called in EVERY Supervisor response.
+    Outputting plain text without calling route_to will cause system failure.
 
     Available targets:
     - "worker": Universal executor for coding, file operations, and system control.
@@ -101,8 +101,8 @@ def route_to(
     - "finish": Task completion or question fully answered.
 
     Args:
-        target: The target specialist node.
-        reason: Why this handoff is occurring.
+        target: The target specialist node. REQUIRED.
+        reason: Why this handoff is occurring. REQUIRED.
         context: Structured guidance or attention focus for the specialist.
         authorized_tools: Restricted set of tools if specific constraints are needed.
                           The Supervisor should select appropriate tools from the
@@ -212,8 +212,16 @@ async def spawn_agents(
     """
     logger.info(f"[spawn_agents] 🚀 Spawning {len(mission_plan.get('subtasks', []))} agents: {reasoning}")
     
+    subtasks = mission_plan.get("subtasks", [])
+
+    # Enforce unique IDs for spawned agents
+    for idx, subtask in enumerate(subtasks):
+        if not subtask.get("subtask_id") or subtask.get("subtask_id") == "unknown":
+            from app.utils.id import gen_uuid
+            subtask["subtask_id"] = f"agent-{gen_uuid()[:8]}-{idx}"
+
     plan = {
-        "subtasks": mission_plan.get("subtasks", []),
+        "subtasks": subtasks,
         "aggregation_strategy": mission_plan.get("aggregation_strategy", "merge"),
         "_requires_aggregation": requires_aggregation,
         "parent_task": reasoning or "Autonomous Mission",

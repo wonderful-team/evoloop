@@ -22,12 +22,14 @@ from app.core.rewind.models import RewindRequest, RewindResult
 from app.core.rewind.orchestrator import RewindOrchestrator
 from app.core.rewind.exceptions import RewindError, PartialRewindError
 from app.core.rewind.handlers import MessageRewind
+from app.core.rewind.checkpoint_handler import CheckpointRewind
 
 __all__ = [
     # Main orchestrator
     "RewindOrchestrator",
     # Handlers
     "MessageRewind",
+    "CheckpointRewind",
     # Data models
     "RewindRequest",
     "RewindResult",

@@ -1,7 +1,6 @@
 import logging
 from typing import Any, Optional
 
-from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
 from app.core.context.manager import ContextManager

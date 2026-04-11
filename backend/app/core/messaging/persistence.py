@@ -33,6 +33,7 @@ class MessagePersistencePolicy:
         MessageCategory.INTERNAL_SYSTEM: (False, None, False),
         MessageCategory.INTERNAL_LLM_JSON: (False, None, False),
         MessageCategory.ERROR_SYSTEM: (False, None, False),  # 系统错误不入库
+        MessageCategory.AUTH_EXPIRED: (False, None, False),  # EvoLoop认证过期不入库
         MessageCategory.ERROR_BUSINESS: (True, "content", False),  # 业务错误入库供Agent学习
     }
     

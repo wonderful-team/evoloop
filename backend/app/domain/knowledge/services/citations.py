@@ -56,7 +56,7 @@ class CitationTracker:
         
         # Record citation
         await tracker.record_citation(
-            doc_path="project/guide.md",
+            doc_path="collection/guide.md",
             tool_used="kb_read",
             session_id="sess_123"
         )
@@ -288,7 +288,7 @@ class CitationTracker:
     
     async def get_most_cited(
         self,
-        project: Optional[str] = None,
+        collection: Optional[str] = None,
         limit: int = 10,
         since: Optional[datetime] = None
     ) -> list[DocumentStats]:
@@ -296,7 +296,7 @@ class CitationTracker:
         Get most cited documents.
         
         Args:
-            project: Filter by project (doc_path prefix)
+            collection: Filter by collection (doc_path prefix)
             limit: Number of results
             since: Only count citations since this date
         """
@@ -316,9 +316,9 @@ class CitationTracker:
             """
             params = [since.isoformat()]
             
-            if project:
+            if collection:
                 sql += " AND doc_path LIKE ?"
-                params.append(f"{project}/%")
+                params.append(f"{collection}/%")
             
             sql += " GROUP BY doc_id ORDER BY total_citations DESC LIMIT ?"
             params.append(limit)
@@ -329,9 +329,9 @@ class CitationTracker:
             sql = "SELECT * FROM doc_stats"
             params = []
             
-            if project:
+            if collection:
                 sql += " WHERE doc_path LIKE ?"
-                params.append(f"{project}/%")
+                params.append(f"{collection}/%")
             
             sql += " ORDER BY total_citations DESC LIMIT ?"
             params.append(limit)
@@ -345,8 +345,8 @@ class CitationTracker:
                 doc_id=row["doc_id"],
                 doc_path=row["doc_path"],
                 total_citations=row["total_citations"],
-                unique_sessions=row.get("unique_sessions", 0),
-                last_accessed=row.get("last_accessed"),
+                unique_sessions=row["unique_sessions"] if "unique_sessions" in row.keys() else 0,
+                last_accessed=row["last_accessed"] if "last_accessed" in row.keys() else None,
                 tools_used=tools,
                 related_docs=[]
             ))

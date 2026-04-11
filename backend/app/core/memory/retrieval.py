@@ -24,6 +24,7 @@ Usage:
 
 import asyncio
 import logging
+import time
 from dataclasses import dataclass
 from datetime import datetime
 from typing import List, Optional, Dict, Any, Set
@@ -69,6 +70,7 @@ class MemoryRetriever:
         max_candidates: int = 20,
         max_results: int = 5,
         enable_llm_selection: bool = True,
+        **kwargs
     ):
         """
         Initialize smart retriever.
@@ -85,6 +87,12 @@ class MemoryRetriever:
         self.max_candidates = max_candidates
         self.max_results = max_results
         self.enable_llm_selection = enable_llm_selection
+        
+        # Optimization: Skip Stage 2 if Stage 1 match is high-confidence
+        self.selection_skip_threshold = kwargs.get("selection_skip_threshold", 5.0)
+        
+        # Cache for LLM selection results (query_id -> selected_ids)
+        self._selection_cache: Dict[str, List[str]] = {}
     
     async def find_relevant(
         self,
@@ -94,15 +102,18 @@ class MemoryRetriever:
     ) -> List[MemoryEntry]:
         """
         Find relevant memories using two-stage retrieval.
-        
+
         Args:
             query: User query
             context: Additional context including recent_tools
             already_surfaced: Set of memory IDs already shown
-            
+
         Returns:
             List of relevant memory entries
         """
+        total_start = time.time()
+        logger.info(f"[MemoryRetriever] 🔍 Starting find_relevant for query: '{query[:50]}...'")
+
         ctx = RetrievalContext(
             query=query,
             recent_tools=context.get("recent_tools", []) if context else [],
@@ -110,87 +121,174 @@ class MemoryRetriever:
             user_id=context.get("user_id") if context else None,
             project_id=context.get("project_id") if context else None,
         )
-        
+        logger.debug(f"[MemoryRetriever] Context: user_id={ctx.user_id}, project_id={ctx.project_id}, already_surfaced={len(ctx.already_surfaced)}")
+
         # Stage 1: Get candidates
+        stage1_start = time.time()
         candidates = await self._get_candidates(ctx)
-        
+        stage1_elapsed = (time.time() - stage1_start) * 1000
+        logger.info(f"[MemoryRetriever] 📊 Stage 1 (_get_candidates): {len(candidates)} candidates in {stage1_elapsed:.1f}ms")
+
         if not candidates:
-            logger.debug(f"[MemoryRetriever] No candidates found for query: {query[:50]}")
+            logger.warning(f"[MemoryRetriever] ❌ No candidates found for query: {query[:50]}")
             return []
-        
+
         # Filter out already surfaced
+        filter_start = time.time()
         fresh_candidates = [
-            c for c in candidates 
+            c for c in candidates
             if c.id not in ctx.already_surfaced
         ]
-        
+        filter_elapsed = (time.time() - filter_start) * 1000
+        filtered_count = len(candidates) - len(fresh_candidates)
+        logger.info(f"[MemoryRetriever] 🔄 Filtering already_surfaced: {filtered_count} removed, {len(fresh_candidates)} remaining in {filter_elapsed:.1f}ms")
+
         if not fresh_candidates:
-            logger.debug(f"[MemoryRetriever] All candidates already surfaced")
+            logger.warning(f"[MemoryRetriever] ❌ All candidates already surfaced")
             return []
+
+        # Optimization: Check if keyword match is high enough to skip Stage 2
+        # Use the highest score from scored candidates (which were sorted)
+        # We need to get the scores from Stage 1
+        scored_candidates = [(c, self._score_candidate(c, ctx)) for c in fresh_candidates]
+        scored_candidates.sort(key=lambda x: x[1], reverse=True)
+        max_score = scored_candidates[0][1] if scored_candidates else 0
         
+        if max_score >= self.selection_skip_threshold:
+            selected = [c for c, s in scored_candidates[:self.max_results]]
+            total_elapsed = (time.time() - total_start) * 1000
+            logger.info(
+                f"[MemoryRetriever] 🚀 Skipping Stage 2 (LLM): High confidence keyword match "
+                f"({max_score:.1f} >= {self.selection_skip_threshold}) in {total_elapsed:.1f}ms"
+            )
+            return selected
+
         # If few enough, return all
         if len(fresh_candidates) <= self.max_results:
+            total_elapsed = (time.time() - total_start) * 1000
+            logger.info(f"[MemoryRetriever] ✓ Returning all {len(fresh_candidates)} candidates (<= max_results={self.max_results}) in {total_elapsed:.1f}ms")
             return fresh_candidates
-        
+
         # Stage 2: LLM selection (if enabled)
+        logger.info(f"[MemoryRetriever] 🧠 Stage 2: Selection mode={'LLM' if self.enable_llm_selection else 'Keyword'}, fresh_candidates={len(fresh_candidates)}, max_results={self.max_results}")
+
         if self.enable_llm_selection:
+            # Check cache
+            cache_key = f"{ctx.query}:{len(fresh_candidates)}:{[c.id for c in fresh_candidates[:10]]}"
+            if cache_key in self._selection_cache:
+                selected_ids = self._selection_cache[cache_key]
+                id_to_entry = {e.id: e for e in fresh_candidates}
+                selected = [id_to_entry[mid] for mid in selected_ids if mid in id_to_entry]
+                logger.info(f"[MemoryRetriever] ⚡ Cache HIT for LLM selection: {len(selected)} items")
+                return selected
+
+            stage2_start = time.time()
             selected = await self._llm_select(fresh_candidates, ctx)
+            stage2_elapsed = (time.time() - stage2_start) * 1000
+            
+            # Save to cache
+            self._selection_cache[cache_key] = [c.id for c in selected]
+            logger.info(f"[MemoryRetriever] 🧠 Stage 2 (_llm_select): {len(selected)} selected in {stage2_elapsed:.1f}ms")
         else:
-            # Fallback: keyword ranking with freshness
+            stage2_start = time.time()
             selected = self._keyword_rank(fresh_candidates, ctx)[:self.max_results]
-        
+            stage2_elapsed = (time.time() - stage2_start) * 1000
+            logger.info(f"[MemoryRetriever] 📈 Stage 2 (_keyword_rank): {len(selected)} selected in {stage2_elapsed:.1f}ms")
+
+        total_elapsed = (time.time() - total_start) * 1000
         logger.info(
-            f"[MemoryRetriever] Query: '{query[:40]}...' | "
+            f"[MemoryRetriever] ✅ COMPLETED: '{query[:40]}...' | "
             f"Candidates: {len(candidates)} | "
-            f"Selected: {len(selected)}"
+            f"Selected: {len(selected)} | "
+            f"Total: {total_elapsed:.1f}ms"
         )
-        
+
         return selected
     
-    async def _get_candidates(
-        self,
-        ctx: RetrievalContext,
-    ) -> List[MemoryEntry]:
+    async def _get_candidates(self, ctx: RetrievalContext) -> List[MemoryEntry]:
         """
         Stage 1: Get candidate memories using keyword search.
-        
+
         Strategy:
         1. Search all accessible memories
         2. Filter by privacy and project
         3. Score by keyword match + freshness
         4. Return top N candidates
         """
+        start_time = time.time()
+        logger.debug(f"[_get_candidates] Starting with max_candidates={self.max_candidates}")
+
         # Get all memories
+        list_start = time.time()
         all_memories = await self._storage.list_all()
-        
+
+        # Filter out already surfaced first (before batch loading)
+        ids_to_load = [
+            mem_summary.id for mem_summary in all_memories
+            if mem_summary.id not in ctx.already_surfaced
+        ]
+        filtered_count = len(all_memories) - len(ids_to_load)
+
+        # Batch load all entries in one operation (optimized for file storage)
+        entries_map = await self._storage.get_multi(ids_to_load)
+
+        list_elapsed = (time.time() - list_start) * 1000
+        logger.debug(f"[_get_candidates] storage.list_all(): {len(all_memories)} summaries in {list_elapsed:.1f}ms")
+
         # Load full entries and filter
         candidates = []
+        load_times = []
+        privacy_filtered = 0
+        project_filtered = 0
+        surfaced_skipped = 0
+
         for mem_summary in all_memories:
             # Skip if already surfaced
             if mem_summary.id in ctx.already_surfaced:
+                surfaced_skipped += 1
                 continue
-            
+
             # Load full entry
+            load_start = time.time()
             entry = await self._storage.get(mem_summary.id)
+            load_times.append((time.time() - load_start) * 1000)
+
             if not entry:
+                logger.debug(f"[_get_candidates] Failed to load entry: {mem_summary.id}")
                 continue
-            
+
             # Privacy filter
             if entry.privacy == PrivacyLevel.PRIVATE and entry.user_id != ctx.user_id:
+                privacy_filtered += 1
                 continue
-            
+
             # Project filter
             if entry.project_id is not None and entry.project_id != ctx.project_id:
+                project_filtered += 1
                 continue
-            
+
             candidates.append(entry)
-        
+
+        if load_times:
+            avg_load_time = sum(load_times) / len(load_times)
+            max_load_time = max(load_times)
+            logger.debug(f"[_get_candidates] Entry loading stats: avg={avg_load_time:.2f}ms, max={max_load_time:.2f}ms, total={len(load_times)}")
+
+        logger.debug(f"[_get_candidates] Filtering stats: surfaced_skipped={surfaced_skipped}, privacy_filtered={privacy_filtered}, project_filtered={project_filtered}, final_candidates={len(candidates)}")
+
         # Score and rank
+        score_start = time.time()
         scored = [(c, self._score_candidate(c, ctx)) for c in candidates]
         scored.sort(key=lambda x: x[1], reverse=True)
-        
+        score_elapsed = (time.time() - score_start) * 1000
+        logger.debug(f"[_get_candidates] Scoring {len(candidates)} candidates took {score_elapsed:.1f}ms")
+
         # Return top candidates
-        return [entry for entry, score in scored[:self.max_candidates]]
+        result = [entry for entry, score in scored[:self.max_candidates]]
+        total_elapsed = (time.time() - start_time) * 1000
+        logger.debug(f"[_get_candidates] Completed: returning {len(result)}/{len(candidates)} candidates in {total_elapsed:.1f}ms")
+
+        return result
     
     def _score_candidate(
         self,
@@ -235,22 +333,36 @@ class MemoryRetriever:
     ) -> List[MemoryEntry]:
         """
         Stage 2: Use LLM to select most relevant memories.
-        
+
         This is more accurate than keyword matching because:
         - LLM understands semantic similarity
         - Can judge which memories are truly useful
         - Can filter out misleading keyword matches
-        
+
         Note: This is an internal operation - callbacks are disabled to prevent
         internal selection JSON from appearing in the user-facing chat.
         """
         from app.core.llm import InternalLLMService
-        
+
+        total_start = time.time()
+        logger.info(f"[_llm_select] Starting LLM selection for {len(candidates)} candidates")
+
         try:
             # Build selection prompt
+            prompt_build_start = time.time()
             prompt = self._build_selection_prompt(candidates, ctx)
-            
+            prompt_build_elapsed = (time.time() - prompt_build_start) * 1000
+            prompt_chars = len(prompt)
+            prompt_lines = prompt.count('\n')
+            logger.info(f"[_llm_select] Prompt built: {prompt_chars} chars, {prompt_lines} lines in {prompt_build_elapsed:.1f}ms")
+
+            # Log prompt preview for debugging
+            logger.debug(f"[_llm_select] Prompt preview:\n{prompt[:500]}...")
+
             # Call LLM using InternalLLMService (automatically disables callbacks)
+            llm_start = time.time()
+            logger.info(f"[_llm_select] Calling InternalLLMService.invoke for memory_selection...")
+
             response = await InternalLLMService.invoke(
                 messages=[
                     {"role": "system", "content": "You are a memory relevance selector."},
@@ -260,19 +372,38 @@ class MemoryRetriever:
                 temperature=0.3,
                 max_tokens=500,
             )
-            
+
+            llm_elapsed = (time.time() - llm_start) * 1000
+            logger.info(f"[_llm_select] LLM invocation completed in {llm_elapsed:.1f}ms")
+
             # Parse selection
+            parse_start = time.time()
             content = response.content if hasattr(response, 'content') else str(response)
+            content_preview = content[:200] if content else "(empty)"
+            logger.debug(f"[_llm_select] Response content preview: {content_preview}...")
+
             selected_ids = self._parse_selection_response(content, candidates)
-            
+            parse_elapsed = (time.time() - parse_start) * 1000
+            logger.info(f"[_llm_select] Parsed selection: {len(selected_ids)} IDs in {parse_elapsed:.1f}ms, IDs={selected_ids}")
+
             # Return selected entries
             id_to_entry = {e.id: e for e in candidates}
-            return [id_to_entry[mid] for mid in selected_ids if mid in id_to_entry]
-            
+            result = [id_to_entry[mid] for mid in selected_ids if mid in id_to_entry]
+
+            total_elapsed = (time.time() - total_start) * 1000
+            logger.info(f"[_llm_select] COMPLETED: {len(result)} entries selected in {total_elapsed:.1f}ms (LLM: {llm_elapsed:.1f}ms)")
+
+            return result
+
         except Exception as e:
-            logger.error(f"[MemoryRetriever] LLM selection failed: {e}")
+            total_elapsed = (time.time() - total_start) * 1000
+            logger.error(f"[_llm_select] FAILED after {total_elapsed:.1f}ms: {e}")
             # Fallback to keyword ranking
-            return self._keyword_rank(candidates, ctx)[:self.max_results]
+            fallback_start = time.time()
+            fallback_result = self._keyword_rank(candidates, ctx)[:self.max_results]
+            fallback_elapsed = (time.time() - fallback_start) * 1000
+            logger.warning(f"[_llm_select] Fallback to keyword_rank took {fallback_elapsed:.1f}ms, returning {len(fallback_result)} entries")
+            return fallback_result
     
     def _build_selection_prompt(
         self,
@@ -280,22 +411,32 @@ class MemoryRetriever:
         ctx: RetrievalContext,
     ) -> str:
         """Build the LLM selection prompt."""
+        start_time = time.time()
+        logger.debug(f"[_build_selection_prompt] Starting with {len(candidates)} candidates")
+
         # Filter out recently used tools from candidates
+        filter_start = time.time()
         filtered_candidates = self._filter_recent_tools(candidates, ctx.recent_tools)
-        
+        filter_elapsed = (time.time() - filter_start) * 1000
+        filtered_count = len(candidates) - len(filtered_candidates)
+        logger.debug(f"[_build_selection_prompt] Filtered {filtered_count} recent tools in {filter_elapsed:.1f}ms, {len(filtered_candidates)} remaining")
+
         # Build memory list
+        build_start = time.time()
         memory_list = []
         for i, mem in enumerate(filtered_candidates, 1):
             memory_list.append(
                 f"{i}. [{mem.type.value}] {mem.title}\n"
                 f"   {mem.description[:100]}"
             )
-        
+        build_elapsed = (time.time() - build_start) * 1000
+        logger.debug(f"[_build_selection_prompt] Built memory list ({len(memory_list)} items) in {build_elapsed:.1f}ms")
+
         recent_tools_section = ""
         if ctx.recent_tools:
             recent_tools_section = f"\nRecently used tools: {', '.join(ctx.recent_tools)}\nDo NOT select memories about these tools (already in use)."
-        
-        return f"""You are selecting memories that will be useful to process this query.
+
+        result = f"""You are selecting memories that will be useful to process this query.
 
 Query: "{ctx.query}"
 
@@ -319,6 +460,13 @@ Return your selection as JSON:
 ```
 
 If no memories are relevant, return: {{"selected_indices": []}}"""
+
+        total_elapsed = (time.time() - start_time) * 1000
+        result_chars = len(result)
+        result_lines = result.count('\n')
+        logger.info(f"[_build_selection_prompt] Completed: {result_chars} chars, {result_lines} lines, {len(filtered_candidates)} memories in {total_elapsed:.1f}ms")
+
+        return result
     
     def _filter_recent_tools(
         self,
@@ -365,30 +513,44 @@ If no memories are relevant, return: {{"selected_indices": []}}"""
     ) -> List[str]:
         """Parse LLM selection response."""
         import re
-        
+        start_time = time.time()
+
         try:
             # Extract JSON block
             json_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', response, re.DOTALL)
             if json_match:
                 data = json.loads(json_match.group(1))
+                logger.debug("[_parse_selection_response] Extracted JSON from code block")
             else:
                 # Try parsing entire response
                 data = json.loads(response)
-            
+                logger.debug("[_parse_selection_response] Parsed entire response as JSON")
+
             indices = data.get("selected_indices", [])
-            
+            reasoning = data.get("reasoning", "")
+
             # Convert 1-based indices to IDs
             selected_ids = []
             for idx in indices:
                 if 1 <= idx <= len(candidates):
                     selected_ids.append(candidates[idx - 1].id)
-            
+                else:
+                    logger.warning(f"[_parse_selection_response] Index {idx} out of range (1-{len(candidates)})")
+
+            elapsed = (time.time() - start_time) * 1000
+            logger.info(f"[_parse_selection_response] Parsed {len(selected_ids)} IDs from {len(indices)} indices in {elapsed:.1f}ms")
+            if reasoning:
+                logger.debug(f"[_parse_selection_response] Reasoning: {reasoning[:100]}...")
+
             return selected_ids[:self.max_results]
-            
+
         except (json.JSONDecodeError, AttributeError) as e:
-            logger.warning(f"[MemoryRetriever] Failed to parse selection: {e}")
+            elapsed = (time.time() - start_time) * 1000
+            logger.warning(f"[_parse_selection_response] Failed to parse after {elapsed:.1f}ms: {e}")
             # Fallback: return first N
-            return [c.id for c in candidates[:self.max_results]]
+            fallback_ids = [c.id for c in candidates[:self.max_results]]
+            logger.warning(f"[_parse_selection_response] Fallback: returning first {len(fallback_ids)} IDs")
+            return fallback_ids
     
     def _keyword_rank(
         self,

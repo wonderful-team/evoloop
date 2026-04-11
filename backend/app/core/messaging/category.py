@@ -54,6 +54,9 @@ class MessageCategory(str, Enum):
     # ========== 错误消息（不入库，仅通知用户） ==========
     ERROR_SYSTEM = "error_system"
     """系统基础设施错误（401/429/500/recursion等），不入库，仅通过SSE通知用户"""
+
+    AUTH_EXPIRED = "auth_expired"
+    """认证过期（云端token失效），不入库，仅通过SSE通知用户跳转登录页"""
     
     # ========== 错误消息（入库，供Agent学习） ==========
     ERROR_BUSINESS = "error_business"

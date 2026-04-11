@@ -1,11 +1,11 @@
+import copy
 import json
 import logging
 from typing import Any
 
-from langchain_core.messages import AIMessage
 from langchain_core.runnables import RunnableConfig
 
-from app.constants import RoutingTarget
+from app.core.engine.routers import RoutingTarget
 from app.core.engine.signals import RouteToSignal, SpawnSubtasksSignal, TerminateSignal
 
 logger = logging.getLogger(__name__)
@@ -42,7 +42,7 @@ class SignalDispatcher:
         logger.info(f"[Dispatcher] ✅ Routing to: {target} | Reason: {reason}")
 
         # 1. Update Blackboard (Phase 1 Pattern)
-        blackboard = state.get("blackboard", {})
+        blackboard = copy.deepcopy(state.get("blackboard", {}))
         blackboard["route_reason"] = reason
         
         # 2. Construct Execution Ticket
@@ -76,6 +76,7 @@ class SignalDispatcher:
             "skill_id": signal.skill_id,
             "skill_ids": routing_context.get("skill_ids"),  # 新增：多技能工作流
             "workflow_mode": routing_context.get("workflow_mode", "single"),  # 新增：工作流模式
+            "macro_goal": routing_context.get("macro_goal"),  # 新增：背景同步
             "parameters": parameters,
         }
         blackboard["ticket"] = execution_ticket
@@ -97,7 +98,7 @@ class SignalDispatcher:
         spawn_plan = signal.plan
         logger.info(f"[Dispatcher] 🚀 Spawning {len(spawn_plan.get('subtasks', []))} parallel subtasks")
 
-        blackboard = state.get("blackboard", {})
+        blackboard = copy.deepcopy(state.get("blackboard", {}))
         blackboard["spawn_plan"] = spawn_plan
 
         if spawn_plan.get("_requires_aggregation"):
@@ -116,8 +117,8 @@ class SignalDispatcher:
     async def _handle_terminate(state: dict, signal: TerminateSignal, config: RunnableConfig) -> dict:
         logger.info(f"[Dispatcher] 🏁 Natural Termination Signal received. Outcome: {signal.outcome}")
         
-        blackboard = state.get("blackboard", {})
-        metadata = blackboard.get("metadata", {})
+        blackboard = copy.deepcopy(state.get("blackboard", {}))
+        metadata = copy.deepcopy(blackboard.get("metadata", {}))
         metadata["shadow_audit"] = True
         metadata["termination_outcome"] = signal.outcome
         blackboard["metadata"] = metadata

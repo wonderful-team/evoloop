@@ -18,6 +18,7 @@ Usage:
 """
 
 import logging
+import time
 from typing import List, Optional, Dict, Any
 from dataclasses import dataclass
 from datetime import datetime
@@ -266,7 +267,7 @@ class ContextWindowManager:
     ) -> CompactionResult:
         """
         Compact context by summarizing old messages.
-        
+
         Process:
         1. Trigger PreCompact hook (save state)
         2. Extract critical context
@@ -274,10 +275,14 @@ class ContextWindowManager:
         4. Create compacted message list
         5. Return result with metadata
         """
+        total_start = time.time()
         original_count = len(messages)
         original_tokens = self.token_estimator.estimate(messages)
-        
+
+        logger.info(f"[ContextManager] 🔄 COMPACT START: {original_count} messages, ~{original_tokens} tokens, thread={thread_id}")
+
         # Step 1: Trigger PreCompact hook (CRITICAL)
+        hook_start = time.time()
         context = HookContext(
             thread_id=thread_id,
             project_id=project_id,
@@ -289,48 +294,65 @@ class ContextWindowManager:
                 "compaction_reason": "threshold_exceeded",
             },
         )
-        
+
+        logger.debug(f"[ContextManager] Triggering PRE_COMPACT hook...")
         hook_result = await hook_system.trigger(
             HookEvent.PRE_COMPACT,
             context,
         )
-        
+        hook_elapsed = (time.time() - hook_start) * 1000
+
         checkpoint_id = None
         if hook_result.success and hook_result.data:
             checkpoint = hook_result.data.get("checkpoint", {})
-            checkpoint_id = checkpoint.get("thread_id")
-            logger.info(f"[ContextManager] PreCompact checkpoint saved: {checkpoint_id}")
-        
+            checkpoint_id = hook_result.data.get("checkpoint_id")
+            skipped = hook_result.data.get("skipped", False)
+            if skipped:
+                logger.info(f"[ContextManager] ⏭️ PreCompact hook skipped (duplicate) in {hook_elapsed:.1f}ms")
+            else:
+                logger.info(f"[ContextManager] ✅ PreCompact checkpoint saved: {checkpoint_id} in {hook_elapsed:.1f}ms")
+        else:
+            logger.warning(f"[ContextManager] ⚠️ PreCompact hook failed or returned no data in {hook_elapsed:.1f}ms: {hook_result}")
+
         # Step 2: Extract critical context
+        extract_start = time.time()
         critical = self.summarizer.extract_critical_context(messages)
-        
+        extract_elapsed = (time.time() - extract_start) * 1000
+        logger.debug(f"[ContextManager] Extracted critical context: {len(critical['decisions'])} decisions, {len(critical['files_modified'])} files in {extract_elapsed:.1f}ms")
+
         # Step 3: Create summary
+        summary_start = time.time()
         summary = await self.summarizer.summarize(messages, self.PRESERVE_RECENT)
-        
+        summary_elapsed = (time.time() - summary_start) * 1000
+        logger.debug(f"[ContextManager] Summary created ({len(summary)} chars) in {summary_elapsed:.1f}ms")
+
         # Add critical context to summary
         if critical["decisions"]:
             summary += "\n### Key Decisions\n"
             for decision in critical["decisions"][-3:]:
                 summary += f"- {decision}\n"
-        
+
         if critical["current_task"]:
             summary += f"\n### Current Task\n{critical['current_task']}\n"
-        
+
         # Step 4: Build compacted messages
+        build_start = time.time()
         compacted = []
-        
+
         # Add system summary first
         if summary:
             compacted.append(SystemMessage(content=summary))
-        
+
         # Preserve recent messages
         recent_messages = messages[-self.PRESERVE_RECENT:]
         compacted.extend(recent_messages)
-        
+        build_elapsed = (time.time() - build_start) * 1000
+        logger.debug(f"[ContextManager] Built compacted message list: {len(compacted)} messages in {build_elapsed:.1f}ms")
+
         # Step 5: Calculate savings
         compacted_tokens = self.token_estimator.estimate(compacted)
         tokens_saved = original_tokens - compacted_tokens
-        
+
         result = CompactionResult(
             messages=compacted,
             summary=summary,
@@ -339,13 +361,15 @@ class ContextWindowManager:
             compacted_count=len(compacted),
             checkpoint_id=checkpoint_id,
         )
-        
+
+        total_elapsed = (time.time() - total_start) * 1000
         logger.info(
-            f"[ContextManager] Compaction complete: {original_count} -> {len(compacted)} "
-            f"messages, saved {tokens_saved} tokens"
+            f"[ContextManager] ✅ COMPACT COMPLETE: {original_count} -> {len(compacted)} messages, "
+            f"saved ~{tokens_saved} tokens, checkpoint={checkpoint_id or 'none'}, total={total_elapsed:.1f}ms"
         )
-        
+
         # Trigger PostCompact hook
+        postcompact_start = time.time()
         await hook_system.trigger(
             HookEvent.POST_COMPACT,
             HookContext(
@@ -359,7 +383,9 @@ class ContextWindowManager:
                 },
             ),
         )
-        
+        postcompact_elapsed = (time.time() - postcompact_start) * 1000
+        logger.debug(f"[ContextManager] POST_COMPACT hook triggered in {postcompact_elapsed:.1f}ms")
+
         return result
     
     def get_stats(self) -> Dict[str, Any]:

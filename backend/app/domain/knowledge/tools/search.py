@@ -25,7 +25,8 @@ logger = logging.getLogger(__name__)
 async def kb_search(
     pattern: Annotated[str, Field(description="Search pattern (FTS5 syntax: 'phrase' for exact, term1 AND term2, etc.)")],
     path: Annotated[str, Field(default="", description="Subdirectory to search in")] = "",
-    project: Annotated[str, Field(default="", description="Project to search in")] = "",
+    collection: Annotated[str, Field(default="", description="Collection to search in")] = "",
+    source_project_id: Annotated[int, Field(default=0, description="Workspace project ID to prioritize")] = 0,
     context_lines: Annotated[int, Field(default=2, ge=0, le=10, description="Context lines around matches")] = 2,
     case_sensitive: Annotated[bool, Field(default=False, description="Case sensitive search")] = False,
     max_results: Annotated[int, Field(default=20, ge=1, le=100, description="Maximum results")] = 20,
@@ -47,12 +48,14 @@ async def kb_search(
         - Simple search: kb_search(pattern="JWT")
         - Exact phrase: kb_search(pattern='"API key"')
         - Regex fallback: kb_search(pattern="def authenticate", use_fts=False)
-        - Project only: kb_search(pattern="database", project="backend")
+        - Collection only: kb_search(pattern="database", collection="backend")
+        - Project priority: kb_search(pattern="API", source_project_id=123)
     
     Args:
         pattern: Search pattern (FTS5 syntax supported)
         path: Subdirectory to search in (default: all)
-        project: Project to search in (default: all projects)
+        collection: Collection to search in (default: all collections)
+        source_project_id: Workspace project ID to prioritize in results
         context_lines: Lines of context around matches (default: 2)
         case_sensitive: Whether search is case sensitive (default: false)
         max_results: Maximum number of matches to return (default: 20)
@@ -63,13 +66,18 @@ async def kb_search(
     """
     
     try:
+        # Get current project from config if not explicitly provided
+        # This allows Agent to automatically prioritize current project documents
+        thread_config = config.get("configurable", {}) if config else {}
+        current_project_id = source_project_id or thread_config.get("project_id", 0)
+
         # Try FTS first if enabled
         if use_fts:
             try:
                 fts = get_fts_service()
                 results = await fts.search(
                     query=pattern,
-                    project=project or None,
+                    collection=collection or None,
                     limit=max_results
                 )
                 
@@ -85,7 +93,7 @@ async def kb_search(
                 logger.warning(f"FTS search failed, falling back to grep: {e}")
         
         # Fallback to grep-style search
-        return await _grep_search(pattern, path, project, context_lines, case_sensitive, max_results)
+        return await _grep_search(pattern, path, collection, context_lines, case_sensitive, max_results)
     
     except Exception as e:
         logger.error(f"kb_search failed: {e}")
@@ -99,9 +107,9 @@ def _format_fts_results(results, context_lines: int) -> str:
     lines.append(f"   Found {results.total} matches")
     
     # Facets
-    if results.facets.get("projects"):
-        projects = ", ".join(f"{p}({c})" for p, c in list(results.facets["projects"].items())[:5])
-        lines.append(f"   Projects: {projects}")
+    if results.facets.get("collections"):
+        collections = ", ".join(f"{p}({c})" for p, c in list(results.facets["collections"].items())[:5])
+        lines.append(f"   Projects: {collections}")
     
     lines.append("")
     
@@ -124,7 +132,7 @@ def _format_fts_results(results, context_lines: int) -> str:
 async def _grep_search(
     pattern: str,
     path: str,
-    project: str,
+    collection: str,
     context_lines: int,
     case_sensitive: bool,
     max_results: int
@@ -140,7 +148,7 @@ async def _grep_search(
         return f"Invalid regex pattern: {e}"
     
     # Get all documents
-    documents = store.list_documents(project or None)
+    documents = store.list_documents(collection or None)
     
     # Filter by path if specified
     if path:

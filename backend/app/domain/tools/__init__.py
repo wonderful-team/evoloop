@@ -20,7 +20,6 @@ from app.domain.tools import (
     human_input,
     knowledge,
     mcp_manager,
-    memory_tools,
     project_tools,
     research,
     scheduler,

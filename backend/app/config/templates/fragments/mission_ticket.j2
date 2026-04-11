@@ -25,13 +25,13 @@ Execute using available tools. One turn only.
 
 {% if workflow_context %}
 ## Workflow Context
-📍 **Step {{ workflow_context.step_number }} of {{ workflow_context.total_steps }}**
-🔧 **Current Skill**: {{ workflow_context.current_skill.name }}
+ **Step {{ workflow_context.step_number }} of {{ workflow_context.total_steps }}**
+ **Current Skill**: {{ workflow_context.current_skill.name }}
 {% if not workflow_context.is_first_step %}
-📥 **Previous Step Output**: {{ workflow_context.previous_results[-1].output[:300] }}...
+ **Previous Step Output**: {{ workflow_context.previous_results[-1].output[:300] }}...
 {% endif %}
 {% if workflow_context.is_last_step %}
-🏁 **This is the FINAL step** — ensure the task is fully completed.
+ **This is the FINAL step** — ensure the task is fully completed.
 {% endif %}
 
 ---
@@ -52,8 +52,13 @@ Execute using available tools. One turn only.
 Please execute this mission now. Use your tools.
 {%- endif %}
 
+{% if context_stats -%}
+---
+{{ context_stats }}
+{%- endif %}
+
 {% if focus_files -%}
-## 📎 Attention Guidance (Focus Files)
+## Attention Guidance (Focus Files)
 The Supervisor has identified {{ focus_files | length }} focus file(s) for this mission:
 {% for file in focus_files -%}
 {%- if file.status == "ok" %}
@@ -61,13 +66,13 @@ The Supervisor has identified {{ focus_files | length }} focus file(s) for this 
 {{ file.content }}
 --- END OF FILE ---
 {%- elif file.status == "missing" %}
-- ⚠️ **MISSING**: `{{ file.rel_path }}` — File not found on disk.
+- **MISSING**: `{{ file.rel_path }}` — File not found on disk.
 {%- elif file.status == "skipped" %}
-- ⏭️ **SKIPPED**: `{{ file.rel_path }}` — {{ file.detail }}
+- **SKIPPED**: `{{ file.rel_path }}` — {{ file.detail }}
 {%- elif file.status == "directory" %}
-- 📂 **DIRECTORY**: `{{ file.rel_path }}` — {{ file.detail }}
+- **DIRECTORY**: `{{ file.rel_path }}` — {{ file.detail }}
 {%- elif file.status == "error" %}
-- ❌ **ERROR**: `{{ file.rel_path }}` — {{ file.detail }}
+- **ERROR**: `{{ file.rel_path }}` — {{ file.detail }}
 {%- endif %}
 {%- endfor %}
 {%- endif -%}

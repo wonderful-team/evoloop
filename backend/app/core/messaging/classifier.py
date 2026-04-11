@@ -71,14 +71,15 @@ class MessageClassifier:
             if metadata.get("is_error"):
                 # 系统预定义的错误类型
                 system_error_types = (
-                    "llm_auth", 
-                    "rate_limit", 
-                    "quota_exhausted", 
+                    "llm_auth",
+                    "rate_limit",
+                    "quota_exhausted",
                     "recursion_limit",
                     "llm_invocation_system",
                     "service_unavailable",
                     "network_error",
-                    "invalid_config"
+                    "invalid_config",
+                    "auth_expired",
                 )
                 
                 if error_type in system_error_types:

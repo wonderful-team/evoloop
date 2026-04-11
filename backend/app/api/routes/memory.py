@@ -455,3 +455,28 @@ async def get_episodes_by_concept(
     except Exception as e:
         logger.error(f"Failed to find episodes by concept: {e}")
         return []
+
+
+@router.post("/maintenance/deduplicate-checkpoints")
+async def deduplicate_checkpoints(
+    dry_run: bool = True,
+    manager=Depends(get_memory_manager)
+):
+    """
+    Remove duplicate checkpoint memories.
+
+    Duplicate checkpoints are those with the same thread_id and task_progress
+    within a 5-minute window. Only the most recent is kept.
+
+    Args:
+        dry_run: If True, only report duplicates without deleting them
+
+    Returns:
+        Deduplication statistics
+    """
+    try:
+        result = await manager.deduplicate_checkpoints(dry_run=dry_run)
+        return result
+    except Exception as e:
+        logger.error(f"Failed to deduplicate checkpoints: {e}")
+        raise HTTPException(status_code=500, detail=f"Deduplication failed: {str(e)}")

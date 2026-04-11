@@ -174,9 +174,10 @@ async def stream_chat(thread_id: str):
                         # Enhanced Stream Events (thinking, tool progress, errors, etc.)
                         # Also includes error events that need user notification
                         elif event_type in [
-                            "thinking", "tool_start", "tool_progress", "tool_complete", 
+                            "thinking", "tool_start", "tool_progress", "tool_complete",
                             "tool_error", "checkpoint", "progress", "complete",
                             "llm_auth_error", "quota_exhausted",  # Error notifications for user
+                            "auth_expired",  # EvoLoop 平台认证过期
                         ]:
                             yield f"event: stream\ndata: {json.dumps(event_data)}\n\n"
 

@@ -60,6 +60,10 @@ nodes:
       - "list_checkpoints"
       - "rollback_checkpoint"
       - "delete_checkpoint"
+      # Context Management (Agent-controlled forgetting for long tasks)
+      - "forget_tool_outputs"
+      - "recall_tool_output"
+      - "list_forgotten_outputs"
       # Knowledge & Memory (Simple remember/recall)
       - "remember"
       - "recall"
@@ -70,6 +74,10 @@ nodes:
       - "list_app_atlas"
       - "search_native_tools"
       - "save_concepts"
+      # Knowledge Base (Document reference and search)
+      - "kb_read"
+      - "kb_search"
+      - "kb_list"
       # Research
       - "search_web"
       # Planning & Audit

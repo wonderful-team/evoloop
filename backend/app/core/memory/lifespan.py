@@ -23,6 +23,7 @@ Usage:
     await manager.save_memory(entry)
 """
 
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 from typing import Optional, AsyncGenerator
@@ -49,6 +50,7 @@ class MemoryLifespanManager:
     
     _instance: Optional[MemoryContainer] = None
     _config: Optional[MemoryConfig] = None
+    _lock = asyncio.Lock()
     
     @classmethod
     def initialize(cls, config: Optional[MemoryConfig] = None) -> MemoryContainer:
@@ -78,17 +80,25 @@ class MemoryLifespanManager:
     async def ainitialize(cls, config: Optional[MemoryConfig] = None) -> MemoryContainer:
         """
         Async initialize the global memory container.
-        
-        Args:
-            config: Memory configuration. Uses MemoryConfig.from_settings() if None.
-            
-        Returns:
-            The initialized MemoryContainer instance
         """
-        container = cls.initialize(config)
-        await container.initialize()
-        logger.info("[MemoryLifespan] MemoryContainer initialized")
-        return container
+        if cls._instance is not None:
+            # If already set, check if it's actually finished initializing
+            if cls._instance._initialized:
+                return cls._instance
+            # Wait for it (this is a simple spin wait, better would be a lock)
+            # For now, let's just use a lock
+            
+        async with cls._lock:
+            if cls._instance is not None:
+                if not cls._instance._initialized:
+                    await cls._instance.initialize()
+                return cls._instance
+                
+            cls._config = config or MemoryConfig.from_settings()
+            cls._instance = MemoryContainer(cls._config)
+            await cls._instance.initialize()
+            logger.info("[MemoryLifespan] MemoryContainer initialized")
+            return cls._instance
     
     @classmethod
     async def shutdown(cls) -> None:
@@ -142,8 +152,8 @@ class MemoryLifespanManager:
     
     @classmethod
     def is_initialized(cls) -> bool:
-        """Check if the memory container is initialized."""
-        return cls._instance is not None
+        """Check if the memory container is fully initialized."""
+        return cls._instance is not None and cls._instance._initialized
 
 
 # Convenience functions for direct import

@@ -30,11 +30,16 @@ class SupervisorPromptBuilder:
         self.context = context or {}
 
     async def build(self, config: RunnableConfig) -> str:
-        """Constructs the full system prompt using Jinja2 templating."""
+        """Constructs the STATIC system prompt using Jinja2 templating.
+        
+        Dynamic per-turn state (Blackboard, Memory, Environment, Active Plan)
+        is now separated into build_context_ticket() which is injected as a
+        User Message prefix — this makes the System Prompt cacheable.
+        """
         from app.core.context import ContextManager, plugin_registry
         from .utils import get_mapped_cwd, get_sandbox_mode
 
-        # 1. Prepare Environment & State
+        # 1. Prepare Environment
         ctx = ContextManager.current()
         plugin_registry.hydrate_context(ctx)
         user_lang = SystemConfigService.get_language_preference()
@@ -42,96 +47,103 @@ class SupervisorPromptBuilder:
         mode = get_sandbox_mode()
         project_concepts = ctx.metadata.get("project_concepts", "")
 
-        # Get the current awakened state for telemetry access
-        state = get_awakened_state()
+        # 2. Protocol & Sys Info Prep (STATIC parts only)
+        is_global_mode = self.project_id == 0 or self.project_id is None
 
-        # 2. Extract raw data for template (Phase 1: Unified Blackboard)
-        # Phase 4: Blackboard Integration
-        # Blackboard comes from graph context, not awakened state
-        blackboard = self.context.get("blackboard", {}) if self.context else {}
-        visited_nodes = blackboard.get("visited_nodes", [])
-        last_route = blackboard.get("route_reason")
-
-        context = {
-            "current_plan": self.context.get("current_plan") if self.context else None,
-            "execution_ticket": blackboard.get("ticket"),
-            "verification_status": blackboard.get("verification"),
-            "visited_nodes": visited_nodes,
-            "last_route": last_route,
-            "subtask_results": blackboard.get("subtask_results", []),
-            "plan_approved": blackboard.get("plan_approved", False),
+        # 3. Prepare Template Variables (STATIC only — no blackboard/memory/telemetry)
+        template_vars = {
+            "project_id": self.project_id,
+            "user_lang": user_lang,
+            "sandbox_mode": mode,
+            "sys_info": {
+                "cwd": actual_cwd,
+                "is_global_mode": is_global_mode,
+            },
+            # Keep static references but NOT the per-turn dynamic data
         }
 
-        last_human_msg = self.context.get("last_human_msg", "")
+        # 4. Render Template
+        try:
+            rendered = render_template("agents/supervisor.prompt.j2", **template_vars)
+            
+            logger.info(f"[SupervisorPrompt] 📝 Static prompt length: {len(rendered)} chars")
+            return rendered
+        except Exception as e:
+            logger.error(f"Failed to render Supervisor template: {e}")
+            return f"TEMPLATE_ERROR: {str(e)}"
+
+    async def build_context_ticket(self, config: RunnableConfig) -> str:
+        """Constructs the dynamic CONTEXT TICKET for injection as a User Message.
         
+        This contains all per-turn state: Blackboard, Memory, Environment Block,
+        Active Plan, and iteration metadata. By keeping this in a User Message
+        (not System Prompt), the static System Prompt remains cacheable.
+        """
+        from app.core.context import ContextManager, plugin_registry
+        from .utils import get_mapped_cwd, get_sandbox_mode
+
+        ctx = ContextManager.current()
+        plugin_registry.hydrate_context(ctx)
+        actual_cwd = get_mapped_cwd(ctx.working_directory or ctx.metadata.get("cwd", ""))
+        is_global_mode = self.project_id == 0 or self.project_id is None
+        
+        # Get telemetry if available (trimmed)
+        state = get_awakened_state()
+        telemetry_data = {}
+        MAX_INSTALLED_APPS = 10
+        try:
+            if state:
+                telemetry_data = state.get_telemetry_snapshot()
+                if "macos" in telemetry_data and "installed_apps" in telemetry_data["macos"]:
+                    original = len(telemetry_data["macos"]["installed_apps"])
+                    telemetry_data["macos"]["installed_apps"] = telemetry_data["macos"]["installed_apps"][:MAX_INSTALLED_APPS]
+                    if original > MAX_INSTALLED_APPS:
+                        logger.debug(f"[ContextTicket] Pruned macOS apps {original} → {MAX_INSTALLED_APPS}")
+        except Exception as e:
+            logger.warning(f"[ContextTicket] Failed to fetch telemetry: {e}")
+
+        blackboard = self.context.get("blackboard", {}) if self.context else {}
         active_plan_data = self.context.get("structured_plan")
         if isinstance(active_plan_data, str):
             try:
+                import json
                 active_plan_data = json.loads(active_plan_data)
             except Exception:
                 active_plan_data = None
 
-        # 3. Protocol & Sys Info Prep
-        is_global_mode = self.project_id == 0 or self.project_id is None
+        env_block = ctx.environment_block or ""
+        topic = (blackboard.get("ticket", {}).get("topic") or "")
 
-        # 3.1 Fetch Telemetry (Sensors) - Using cached snapshot for efficiency
-        telemetry_data = {}
-        try:
-            if state:
-                # Use cached telemetry snapshot (1-second TTL) to avoid redundant computation
-                telemetry_data = state.get_telemetry_snapshot()
-                # Get installed apps for macOS (for app name resolution)
-                if state.macos and state.macos.installed_apps:
-                    macos_apps = state.macos.installed_apps[:50]
-                    logger.info(f"[SupervisorPrompt] 📱 macOS apps loaded: {len(macos_apps)} apps, top 10: {macos_apps[:10]}")
-        except Exception as e:
-            logger.warning(f"[SupervisorPrompt] Failed to fetch telemetry: {e}")
-
-        # 3.2 Prepare Template Variables
         template_vars = {
-            "project_id": self.project_id,
             "iteration_count": self.iteration_count,
-            "user_lang": user_lang,
-            "sandbox_mode": mode,
-            "telemetry": telemetry_data,
-            "blackboard": {
-                "ticket": blackboard.get("ticket"),
-                "verification": blackboard.get("verification"),
-                "route_reason": blackboard.get("route_reason"),
-                "metadata": blackboard.get("metadata", {}),
-                "subtask_results": blackboard.get("subtask_results", []),
-            },
+            "project_id": self.project_id,
+            "cwd": actual_cwd,
+            "is_global_mode": is_global_mode,
+            "environment_block": env_block,
             "memory": {
                 "episodic_raw": ctx.metadata.get("episodic_memory_raw", ""),
                 "core_raw": ctx.metadata.get("core_memory_raw", ""),
-                "use_neo4j": settings.USE_NEO4J_MEMORY,
+            },
+            "blackboard": {
+                "ticket": blackboard.get("ticket"),
+                "subtask_results": blackboard.get("subtask_results", []),
+                "visited_nodes": blackboard.get("visited_nodes", []),
+                "verification": blackboard.get("verification"),
+                "metadata": blackboard.get("metadata", {}),
             },
             "plan": active_plan_data,
             "plan_approved": blackboard.get("plan_approved", False),
-            "warnings": {
-                "visited_nodes": visited_nodes,
-                "last_route": last_route,
-                "last_human_msg": last_human_msg,
-            },
-            "sys_info": {
-                "cwd": actual_cwd,
-                "is_global_mode": is_global_mode,
-                "project_concepts": project_concepts,
-                "active_skills": ctx.metadata.get("active_skills", []),
-            },
-            "has_android": telemetry_data.get("android", []),
-            "has_macos": telemetry_data.get("macos", False),
-            "is_fallback_recovery": config.get("metadata", {}).get("is_fallback_recovery", False),
-            "original_skill_id": config.get("metadata", {}).get("original_skill_id"),
+            "project_concepts": ctx.metadata.get("project_concepts", ""),
+            "active_skills": [
+                {"id": s.get("id"), "name": s.get("name"), "namespace": s.get("namespace", "default")} 
+                for s in ctx.metadata.get("active_skills", [])
+            ],
         }
 
-        # 5. Render Template
         try:
-            return render_template("agents/supervisor.prompt.j2", **template_vars)
+            rendered = render_template("fragments/supervisor_context_ticket.j2", **template_vars)
+            logger.info(f"[ContextTicket] 📋 Dynamic ticket length: {len(rendered)} chars")
+            return rendered
         except Exception as e:
-            logger.error(f"Failed to render Supervisor template: {e}")
-            return ControllerResponse.error(
-                "Supervisor Template Error",
-                details=str(e),
-                note=f"PID: {self.project_id}"
-            )
+            logger.error(f"Failed to render Context Ticket: {e}")
+            return f"[CONTEXT UPDATE — Turn {self.iteration_count}] (render error: {e})"

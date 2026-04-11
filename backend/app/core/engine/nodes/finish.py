@@ -10,12 +10,13 @@ from langchain_core.runnables import RunnableConfig
 from app.utils.id import gen_uuid
 from app.core.config import settings
 from app.core.context.manager import ContextManager
-from app.core.engine import AgentEngine
+from app.core.engine import get_default_engine
 from app.core.engine.prompts.finish import FinishPromptBuilder
 from app.core.engine.state import AgentState
 
 from app.core.monitoring.activity import activity_monitor
 from app.core.tools.manager import tool_manager
+from app.core.checkpoint.pruner import auto_prune_on_completion
 from app.constants import DEFAULT_PROJECT_ID
 from app.i18n.service import i18n
 
@@ -114,6 +115,12 @@ async def _trigger_session_recording(ctx, config: RunnableConfig, summary: str, 
             )
             
         logger.info(f"Finish: ✅ Session recording triggered for thread {thread_id}")
+
+        # Phase 2: Automatic State Pruning (Prevention of bloat)
+        try:
+            asyncio.create_task(auto_prune_on_completion(thread_id))
+        except Exception as e:
+            logger.debug(f"[Finish] Pruning background task failed to start: {e}")
 
     except Exception as e:
         logger.error(f"Finish: Failed to trigger session recording: {e}")
@@ -332,13 +339,14 @@ async def _comprehensive_audit(state: AgentState, config: RunnableConfig) -> dic
 
     logger.info("[Finish] 🕵️ Starting Comprehensive Audit")
     
-    # Note: AgentEngine.run_node will handle smart_window_slice internally
+    # Note: engine.run_node will handle smart_window_slice internally
     # No need to pre-slice here, avoiding redundant operations
     
     # Get user selected model from config (if any)
     model = config.get("configurable", {}).get("model")
     
-    result = await AgentEngine.run_node(
+    engine = get_default_engine()
+    result = await engine.run_node(
         state=state,  # Pass original state, let AgentEngine handle slicing
         config=config,
         system_prompt=system_prompt,
@@ -361,9 +369,12 @@ async def finish_node(state: AgentState, config: RunnableConfig):
     ctx = ContextManager.current()
     messages = state.get("messages", [])
     blackboard = state.get("blackboard") or {}
-    
+
     is_shadow_mode = blackboard.get("metadata", {}).get("shadow_audit", False)
     
+    # 1. Get tool history from blackboard (stored by WorkerNode)
+    tool_history = blackboard.get("metadata", {}).get("tool_history", [])
+
     if is_shadow_mode:
         logger.info("[Finish] 👻 Shadow Mode")
         summary = _extract_final_summary(messages)
@@ -372,17 +383,7 @@ async def finish_node(state: AgentState, config: RunnableConfig):
     else:
         # Layered auditing
         auditor = _get_auditor()
-        
-        # Extract tool history
-        tool_history = []
-        for msg in messages:
-            if hasattr(msg, 'tool_calls') and msg.tool_calls:
-                for tc in msg.tool_calls:
-                    name = tc.get('name') if isinstance(tc, dict) else getattr(tc, 'name', None)
-                    args = tc.get('args', {}) if isinstance(tc, dict) else getattr(tc, 'args', {})
-                    if name:
-                        tool_history.append(f"{name}:{json.dumps(args, sort_keys=True)}")
-        
+
         # Classify tier
         decision = auditor.classify_tier(tool_history, messages, blackboard, state)
         audit_tier = decision.tier
@@ -456,7 +457,7 @@ async def finish_node(state: AgentState, config: RunnableConfig):
                 "summary": summary,
                 "audit_tier": audit_tier,
                 "final_outcome": final_outcome,
-                "tool_count": len(tool_history) if 'tool_history' in locals() else 0,
+                "tool_count": len(tool_history),
                 "message_count": len(messages),
             }
         )

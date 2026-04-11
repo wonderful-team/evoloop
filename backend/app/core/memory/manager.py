@@ -589,31 +589,61 @@ class MemoryManager:
         self,
         type_filter: Optional[MemoryType] = None,
         privacy_filter: Optional[PrivacyLevel] = None,
+        limit: Optional[int] = None,
     ) -> List[MemorySearchResult]:
         """
         List all memories (lightweight).
-        
+
         Args:
             type_filter: Filter by type
             privacy_filter: Filter by privacy
-            
+            limit: Maximum number of results
+
         Returns:
             List of memory search results
         """
-        return await self._storage.list_all(type_filter, privacy_filter)
+        return await self._storage.list_all(type_filter, privacy_filter, limit)
     
     async def get_recent_memories(self, count: int = 5) -> List[MemoryEntry]:
         """
         Get most recently updated memories.
-        
+
         Args:
             count: Number of entries to return
-            
+
         Returns:
             List of recent memory entries
         """
         return await self._storage.get_recent(count)
-    
+
+    async def deduplicate_checkpoints(self, dry_run: bool = True) -> Dict[str, Any]:
+        """
+        Remove duplicate checkpoint memories from storage.
+
+        Only works with FileMemoryStorage backend. For other backends,
+        returns empty result.
+
+        Args:
+            dry_run: If True, only report duplicates without deleting
+
+        Returns:
+            Dict with deduplication stats
+        """
+        if isinstance(self._storage, FileMemoryStorage):
+            return await self._storage.deduplicate_checkpoints(dry_run)
+        else:
+            logger.warning("[MemoryManager] deduplicate_checkpoints only supported for FileMemoryStorage")
+            return {
+                "dry_run": dry_run,
+                "total_checkpoints": 0,
+                "duplicate_groups": 0,
+                "duplicates_found": 0,
+                "duplicates_removed": 0,
+                "bytes_saved": 0,
+                "elapsed_ms": 0,
+                "error": "Not supported for this storage backend"
+            }
+
     # ========================================================================
     # Extraction Operations
     # ========================================================================

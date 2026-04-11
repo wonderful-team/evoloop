@@ -346,7 +346,10 @@ class DeduplicationService:
                 metadata={"merged_from": source_paths}
             )
             
-            self.store.save_document(merged_doc, project=target.split("/")[0], path="/".join(target.split("/")[1:]))
+            # Save to target collection
+            target_collection = target.split("/")[0] if "/" in target else "default"
+            target_path = "/".join(target.split("/")[1:]) if "/" in target else target
+            self.store.save_document(merged_doc, collection=target_collection, path=target_path)
             
             return {
                 "success": True,

@@ -5,7 +5,7 @@ Provides fast full-text search over knowledge base documents with:
 - BM25 ranking
 - Chinese text support (via external tokenizer if available)
 - Highlight snippets
-- Faceted search by project/tags
+- Faceted search by collection/tags
 """
 
 import logging
@@ -24,7 +24,7 @@ class SearchResult:
     """Single search result."""
     doc_id: str
     path: str
-    project: str
+    collection: str
     title: str
     content_snippet: str
     highlights: str  # HTML with <mark> tags
@@ -38,7 +38,7 @@ class SearchResults:
     query: str
     total: int
     results: list[SearchResult]
-    facets: dict  # project counts, tag counts, etc.
+    facets: dict  # collection counts, tag counts, etc.
 
 
 class FTSService:
@@ -50,7 +50,7 @@ class FTSService:
         await fts.initialize()
         
         # Index a document
-        await fts.index_document("project/doc.md", "Document Title", "content...", project="myapp")
+        await fts.index_document("collection/doc.md", "Document Title", "content...", collection="myapp")
         
         # Search
         results = await fts.search("authentication", limit=20)
@@ -95,7 +95,7 @@ class FTSService:
             CREATE VIRTUAL TABLE IF NOT EXISTS fts_documents USING fts5(
                 doc_id,
                 path,
-                project,
+                collection,
                 title,
                 content,
                 tags,
@@ -108,7 +108,7 @@ class FTSService:
             CREATE TABLE IF NOT EXISTS doc_metadata (
                 doc_id TEXT PRIMARY KEY,
                 path TEXT NOT NULL,
-                project TEXT NOT NULL DEFAULT 'default',
+                collection TEXT NOT NULL DEFAULT 'default',
                 title TEXT,
                 indexed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 file_size INTEGER,
@@ -117,7 +117,7 @@ class FTSService:
         """)
         
         # Create indexes for faceted search
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_doc_project ON doc_metadata(project)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_doc_project ON doc_metadata(collection)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_doc_path ON doc_metadata(path)")
         
         # Create tags table for many-to-many relationship
@@ -151,7 +151,7 @@ class FTSService:
         path: str,
         title: str,
         content: str,
-        project: str = "default",
+        collection: str = "default",
         tags: Optional[list[str]] = None,
         file_size: Optional[int] = None,
         word_count: Optional[int] = None
@@ -160,11 +160,11 @@ class FTSService:
         Index or update a document in FTS.
         
         Args:
-            doc_id: Unique document ID (usually project/path)
+            doc_id: Unique document ID (usually collection/path)
             path: File path
             title: Document title
             content: Full text content
-            project: Project name
+            collection: Collection name
             tags: List of tags
             file_size: File size in bytes
             word_count: Word count
@@ -183,16 +183,16 @@ class FTSService:
             # Insert into FTS table
             tags_str = ",".join(tags or [])
             conn.execute(
-                "INSERT INTO fts_documents (doc_id, path, project, title, content, tags) VALUES (?, ?, ?, ?, ?, ?)",
-                (doc_id, path, project, title, content, tags_str)
+                "INSERT INTO fts_documents (doc_id, path, collection, title, content, tags) VALUES (?, ?, ?, ?, ?, ?)",
+                (doc_id, path, collection, title, content, tags_str)
             )
             
             # Insert metadata
             conn.execute(
                 """INSERT INTO doc_metadata 
-                   (doc_id, path, project, title, indexed_at, file_size, word_count) 
+                   (doc_id, path, collection, title, indexed_at, file_size, word_count) 
                    VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, ?, ?)""",
-                (doc_id, path, project, title, file_size, word_count)
+                (doc_id, path, collection, title, file_size, word_count)
             )
             
             # Insert tags
@@ -230,7 +230,7 @@ class FTSService:
     async def search(
         self,
         query: str,
-        project: Optional[str] = None,
+        collection: Optional[str] = None,
         tags: Optional[list[str]] = None,
         limit: int = 20,
         offset: int = 0
@@ -240,7 +240,7 @@ class FTSService:
         
         Args:
             query: Search query (supports FTS5 syntax: "exact phrase", term1 AND term2, etc.)
-            project: Filter by project
+            collection: Filter by collection
             tags: Filter by tags (all must match)
             limit: Maximum results
             offset: Pagination offset
@@ -256,9 +256,9 @@ class FTSService:
         
         join_clause = ""
         
-        if project:
-            where_clauses.append("fts_documents.project = ?")
-            params.append(project)
+        if collection:
+            where_clauses.append("fts_documents.collection = ?")
+            params.append(collection)
         
         if tags:
             # Filter by tags using doc_tags table
@@ -290,7 +290,7 @@ class FTSService:
             SELECT 
                 fts_documents.doc_id,
                 fts_documents.path,
-                fts_documents.project,
+                fts_documents.collection,
                 fts_documents.title,
                 fts_documents.content,
                 bm25(fts_documents) as rank,
@@ -310,7 +310,7 @@ class FTSService:
             results.append(SearchResult(
                 doc_id=row["doc_id"],
                 path=row["path"],
-                project=row["project"],
+                collection=row["collection"],
                 title=row["title"] or row["path"],
                 content_snippet=row["snippet"] or row["content"][:200] + "...",
                 highlights=row["snippet"] or "",
@@ -319,7 +319,7 @@ class FTSService:
             ))
         
         # Get facets
-        facets = await self._get_facets(query, project)
+        facets = await self._get_facets(query, collection)
         
         # Log search
         conn.execute(
@@ -340,25 +340,25 @@ class FTSService:
         conn = self._get_connection()
         
         facets = {
-            "projects": {},
+            "collections": {},
             "tags": {}
         }
         
-        # Project facet
+        # Collection facet
         sql = """
-            SELECT project, COUNT(*) as count 
+            SELECT collection, COUNT(*) as count 
             FROM fts_documents 
             WHERE fts_documents MATCH ?
-            GROUP BY project
+            GROUP BY collection
         """
         params = [query]
         
         if project_filter:
-            sql = sql.replace("GROUP BY", "AND project = ? GROUP BY")
+            sql = sql.replace("GROUP BY", "AND collection = ? GROUP BY")
             params.append(project_filter)
         
         for row in conn.execute(sql, params):
-            facets["projects"][row["project"]] = row["count"]
+            facets["collections"][row["collection"]] = row["count"]
         
         # Tag facet
         tag_sql = """
@@ -378,7 +378,7 @@ class FTSService:
     async def suggest(
         self,
         prefix: str,
-        project: Optional[str] = None,
+        collection: Optional[str] = None,
         limit: int = 10
     ) -> list[dict]:
         """
@@ -386,7 +386,7 @@ class FTSService:
         
         Args:
             prefix: Search prefix
-            project: Filter by project
+            collection: Filter by collection
             limit: Max suggestions
         
         Returns:
@@ -399,9 +399,9 @@ class FTSService:
         sql = "SELECT DISTINCT title, path FROM fts_documents WHERE title LIKE ? LIMIT ?"
         params = [f"%{prefix}%", limit]
         
-        if project:
-            sql = sql.replace("WHERE", "WHERE project = ? AND")
-            params = [project, f"%{prefix}%", limit]
+        if collection:
+            sql = sql.replace("WHERE", "WHERE collection = ? AND")
+            params = [collection, f"%{prefix}%", limit]
         
         for row in conn.execute(sql, params):
             suggestions.append({
@@ -427,7 +427,7 @@ class FTSService:
         stats = {
             "total_documents": 0,
             "total_terms": 0,
-            "projects": [],
+            "collections": [],
             "recent_searches": []
         }
         
@@ -435,9 +435,9 @@ class FTSService:
         row = conn.execute("SELECT COUNT(*) FROM doc_metadata").fetchone()
         stats["total_documents"] = row[0]
         
-        # Project list
-        for row in conn.execute("SELECT DISTINCT project FROM doc_metadata ORDER BY project"):
-            stats["projects"].append(row["project"])
+        # Collection list
+        for row in conn.execute("SELECT DISTINCT collection FROM doc_metadata ORDER BY collection"):
+            stats["collections"].append(row["collection"])
         
         # Recent searches
         for row in conn.execute(
@@ -482,7 +482,7 @@ class FTSService:
                 
                 # Extract metadata
                 title = doc.get("title", doc["path"].split("/")[-1])
-                project = doc["path"].split("/")[0] if "/" in doc["path"] else "default"
+                collection = doc["path"].split("/")[0] if "/" in doc["path"] else "default"
                 
                 # Index
                 await self.index_document(
@@ -490,7 +490,7 @@ class FTSService:
                     path=doc["path"],
                     title=title,
                     content=content,
-                    project=project,
+                    collection=collection,
                     file_size=doc.get("size_bytes"),
                     word_count=len(content.split())
                 )

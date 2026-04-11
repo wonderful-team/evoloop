@@ -3,17 +3,34 @@ Routers - Functional Architecture (v3.0)
 
 Simplified routing logic that supports the flattened graph topology.
 """
+import ast
+import copy
 import logging
+import operator
 from collections.abc import Callable
+from enum import Enum
 
 from langgraph.types import Send
-from langchain_core.messages import HumanMessage
 
-from app.constants import DEFAULT_PROJECT_ID, RoutingTarget
+from app.constants import DEFAULT_PROJECT_ID
 from app.core.config import settings
 from app.core.engine.state import AgentState
 
 logger = logging.getLogger(__name__)
+
+
+class RoutingTarget(str, Enum):
+    """Supported routing targets for the agent system."""
+    OPERATOR = "operator"
+    DEEP_RESEARCHER = "deep_researcher"
+    DOCUMENTER = "documenter"
+    CHAT = "chat"
+    FINISH = "finish"
+    WORKER = "worker"
+    FLASH_BRAIN = "flash_brain"
+    SUPERVISOR = "supervisor"
+    AGGREGATOR = "aggregator"
+    SPAWN_SUBTASKS = "spawn_subtasks"
 
 
 def route_supervisor(state: AgentState) -> str | list[Send]:
@@ -21,7 +38,7 @@ def route_supervisor(state: AgentState) -> str | list[Send]:
     Decides the next node after Supervisor.
     """
     next_node = state.get("next_node")
-    blackboard = state.get("blackboard", {})
+    blackboard = copy.deepcopy(state.get("blackboard", {}))
 
     # --- Phase 5: Resource Constraints Enforcement ---
     iteration_count = state.get("iteration_count", 0)
@@ -94,6 +111,8 @@ def route_supervisor(state: AgentState) -> str | list[Send]:
                 # Inherit historical context from parent task for continuity
                 "historical_context": parent_ticket.get("historical_context") if parent_ticket else None,
                 "referenced_tech": parent_ticket.get("referenced_tech") if parent_ticket else None,
+                # [NEW] Macro context for subtask alignment
+                "macro_goal": parent_ticket.get("topic") if parent_ticket else None,
                 # Note: MCP servers are NOT inherited by subtasks
                 # Each subtask must explicitly request MCP servers via use_mcp_server
             }
@@ -102,7 +121,7 @@ def route_supervisor(state: AgentState) -> str | list[Send]:
                 "project_id": project_id,
                 "thread_id": scoped_thread_id, # Target isolation
                 "execution_ticket": ticket,
-                "blackboard": blackboard.copy(), # Context preservation (WD, Clipboard)
+                "blackboard": copy.deepcopy(blackboard), # Deep copy to prevent subtask mutation affecting parent
                 "is_subtask": True,
                 # [CRITICAL] Start with empty messages to prevent inheriting parent history
                 # Worker will set the mission message via build_mission_message()
@@ -114,8 +133,15 @@ def route_supervisor(state: AgentState) -> str | list[Send]:
 
         return sends
 
-    # ... Standard cognitive routing follows
-    terminal_nodes = (RoutingTarget.CHAT, RoutingTarget.FINISH, RoutingTarget.SUPERVISOR)
+    # --- Phase 5: Routing Topology Whitelist ---
+    # These nodes can be reached directly from Supervisor without an execution ticket wrapper
+    terminal_nodes = (
+        RoutingTarget.CHAT, 
+        RoutingTarget.FINISH, 
+        RoutingTarget.SUPERVISOR,
+        RoutingTarget.AGGREGATOR,
+        RoutingTarget.SPAWN_SUBTASKS
+    )
     if next_node in terminal_nodes:
         return next_node
 
@@ -133,18 +159,182 @@ def route_supervisor(state: AgentState) -> str | list[Send]:
             })
 
         # CRITICAL: No execution ticket found - this indicates a Supervisor routing bug
-        logger.error(f"[Router] CRITICAL: No execution ticket in blackboard for Worker route. "
-                     f"This should not happen - Supervisor should always create a ticket via route_to.")
+        logger.error(f"[Router] CRITICAL: No execution ticket in blackboard for target '{next_node}'. "
+                     f"Supervisor must always create a ticket via route_to when routing to worker-like nodes.")
         raise ValueError(
-            "Supervisor routing error: No execution ticket found. "
+            f"Supervisor routing error: No execution ticket found for target '{next_node}'. "
             "Supervisor must call route_to() with a valid execution_ticket before routing to Worker."
         )
 
     return "finish"
 
 
-def route_by_next_node_field(state: AgentState):
-    return state.get("next_node", RoutingTarget.SUPERVISOR)
+def _safe_eval_expr(expr: str, context: dict) -> bool:
+    """
+    Safely evaluate a boolean expression using AST.
+    Only allows a restricted set of operations to prevent code injection.
+    """
+    # Block dangerous patterns
+    if not expr or "import" in expr or "__" in expr:
+        return False
+
+    try:
+        tree = ast.parse(expr, mode="eval")
+    except SyntaxError:
+        return False
+
+    # Allowed node types for safe evaluation
+    allowed_nodes = (
+        ast.Expression,
+        ast.BinOp,
+        ast.UnaryOp,
+        ast.BoolOp,
+        ast.Compare,
+        ast.Num,
+        ast.Constant,
+        ast.Name,
+        ast.Load,
+        ast.And,
+        ast.Or,
+        ast.Not,
+        ast.Eq,
+        ast.NotEq,
+        ast.Lt,
+        ast.LtE,
+        ast.Gt,
+        ast.GtE,
+        ast.Is,
+        ast.IsNot,
+        ast.In,
+        ast.NotIn,
+        ast.Add,
+        ast.Sub,
+        ast.Mult,
+        ast.Div,
+        ast.Mod,
+        ast.Pow,
+        ast.Call,
+        ast.List,
+        ast.Tuple,
+        ast.Dict,
+        ast.Str,
+        ast.NameConstant,
+    )
+
+    # Check all nodes are allowed
+    for node in ast.walk(tree):
+        if not isinstance(node, allowed_nodes):
+            logger.warning(f"[SafeEval] Disallowed node type: {type(node).__name__}")
+            return False
+
+    # Execute safely
+    def _eval_node(node):
+        if isinstance(node, ast.BoolOp):
+            values = [_eval_node(v) for v in node.values]
+            if isinstance(node.op, ast.And):
+                return all(values)
+            elif isinstance(node.op, ast.Or):
+                return any(values)
+        elif isinstance(node, ast.UnaryOp):
+            operand = _eval_node(node.operand)
+            if isinstance(node.op, ast.Not):
+                return not operand
+        elif isinstance(node, ast.Compare):
+            left = _eval_node(node.left)
+            ops = {
+                ast.Eq: operator.eq,
+                ast.NotEq: operator.ne,
+                ast.Lt: operator.lt,
+                ast.LtE: operator.le,
+                ast.Gt: operator.gt,
+                ast.GtE: operator.ge,
+                ast.Is: operator.is_,
+                ast.IsNot: operator.is_not,
+            }
+            # Block In/NotIn to prevent __contains__ exploitation
+            result = True
+            for op_node, comparator in zip(node.ops, node.comparators):
+                if type(op_node) in (ast.In, ast.NotIn):
+                    return False
+                right = _eval_node(comparator)
+                op_func = ops.get(type(op_node))
+                if op_func is None:
+                    return False
+                result = result and op_func(left, right)
+                left = right
+            return result
+        elif isinstance(node, ast.BinOp):
+            left = _eval_node(node.left)
+            right = _eval_node(node.right)
+            ops = {
+                ast.Add: operator.add,
+                ast.Sub: operator.sub,
+                ast.Mult: operator.mul,
+                ast.Div: operator.truediv,
+                ast.Mod: operator.mod,
+                ast.Pow: operator.pow,
+            }
+            op_func = ops.get(type(node.op))
+            if op_func is None:
+                return False
+            return op_func(left, right)
+        elif isinstance(node, ast.Call):
+            # Only allow specific safe functions
+            func_name = None
+            if isinstance(node.func, ast.Name):
+                func_name = node.func.id
+            elif isinstance(node.func, ast.Attribute) and isinstance(node.func.value, ast.Name):
+                func_name = f"{node.func.value.id}.{node.func.attr}"
+
+            allowed_funcs = {"len", "int", "str", "bool", "blackboard.get"}  # state.get removed - router decisions should only use blackboard
+            if func_name not in allowed_funcs:
+                return False
+
+            args = [_eval_node(arg) for arg in node.args]
+            kwargs = {kw.arg: _eval_node(kw.value) for kw in node.keywords}
+
+            # Use direct function calls instead of eval
+            func_map = {
+                "len": len,
+                "int": int,
+                "str": str,
+                "bool": bool,
+            }
+            if func_name in func_map:
+                return func_map[func_name](*args, **kwargs)
+            elif func_name == "blackboard.get":
+                return context.get("blackboard", {}).get(*args, **kwargs)
+            # state.get removed - router decisions should only use blackboard, not full state
+            return False
+        elif isinstance(node, ast.Name):
+            # Direct value lookup, no eval
+            if node.id == "True":
+                return True
+            if node.id == "False":
+                return False
+            if node.id == "None":
+                return None
+            if node.id in context:
+                return context[node.id]
+            return False
+        # Removed: ast.Attribute, ast.Subscript - prevent sandbox escape
+        elif isinstance(node, ast.Constant):
+            return node.value
+        elif isinstance(node, ast.Num):
+            return node.n
+        elif isinstance(node, ast.Str):
+            return node.s
+        elif isinstance(node, ast.NameConstant):
+            return node.value
+        elif isinstance(node, ast.List):
+            return [_eval_node(elt) for elt in node.elts]
+        elif isinstance(node, ast.Tuple):
+            return tuple(_eval_node(elt) for elt in node.elts)
+        elif isinstance(node, ast.Dict):
+            return {_eval_node(k): _eval_node(v) for k, v in zip(node.keys, node.values)}
+        return False
+
+    return _eval_node(tree.body)
 
 
 def make_expression_router(conditions: list[dict[str, str]], default: str) -> Callable[[AgentState], str]:
@@ -165,10 +355,7 @@ def make_expression_router(conditions: list[dict[str, str]], default: str) -> Ca
             to_node = case.get("to")
 
             try:
-                if "import" in expr or "__" in expr:
-                    continue
-
-                result = eval(expr, {"__builtins__": {}}, eval_context)
+                result = _safe_eval_expr(expr, eval_context)
                 if result:
                     logger.info(f"Router Expression '{expr}' matched. Routing to {to_node}")
                     return to_node
