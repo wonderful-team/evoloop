@@ -193,26 +193,18 @@ async def _prepare_and_dispatch(
         raise HTTPException(status_code=500, detail=f"Failed to save message: {str(e)}")
 
     # --- 4. Build Inputs & Dispatch ---
-    if is_retry:
-        # Retry: Don't include messages in inputs, checkpoint already has them
-        inputs = {
-            "project_id": project_id,
-            "checkpoint_id": checkpoint_id,
-            "is_retry": True,
-            "goal": goal,
-            "model": model,  # Pass user selected model
-        }
-    else:
-        # New chat: Include messages for LangGraph
-        messages = [{"type": "human", "content": content_blocks}]
-        inputs = {
-            "messages": messages,
-            "project_id": project_id,
-            "checkpoint_id": checkpoint_id,
-            "is_retry": False,
-            "goal": goal,
-            "model": model,  # Pass user selected model
-        }
+    # CRITICAL FIX: Always include messages in inputs to ensure correct content is used.
+    # For retry, we must pass the target message content because the checkpoint may not
+    # have the latest message state (it was saved before the target message was processed).
+    messages = [{"type": "human", "content": content_blocks}]
+    inputs = {
+        "messages": messages,
+        "project_id": project_id,
+        "checkpoint_id": checkpoint_id,
+        "is_retry": is_retry,
+        "goal": goal,
+        "model": model,  # Pass user selected model
+    }
 
     bg_tasks.add_task(run_agent_background, thread_id, inputs)
 
