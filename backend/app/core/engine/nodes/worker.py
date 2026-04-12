@@ -124,7 +124,7 @@ class WorkerNode(BaseAgentNode):
         # 2. Worker Post-processing (Outcome determination, Blackboard updates, etc.)
         execution_ticket = original_state.get("execution_ticket", {})
         role_name = execution_ticket.get("agent_config", {}).get("role_name", "Worker")
-        
+
         return self._post_process_result(original_state, engine_result, execution_ticket, role_name)
 
     async def __call__(self, state: AgentState, config: RunnableConfig) -> dict[str, Any]:
@@ -301,7 +301,7 @@ class WorkerNode(BaseAgentNode):
                     max_steps=1 if agent_config.get("is_subtask") else settings.WORKER_AGENT_MAX_STEPS,
                     is_subtask=agent_config.get("is_subtask", False),
                 )
-                
+
                 # 提取步骤输出
                 last_msg = engine_result["messages"][-1]
                 step_output = get_message_text(last_msg) if isinstance(last_msg, AIMessage) else ""
