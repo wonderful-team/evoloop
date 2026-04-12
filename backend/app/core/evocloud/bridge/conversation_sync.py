@@ -18,14 +18,19 @@ logger = logging.getLogger(__name__)
 class ConversationSyncManager:
     """
     对话历史同步管理器
-    
+
     功能:
-    1. 实时同步: 新消息产生时立即同步
-    2. 定时同步: 每5分钟同步会话元数据
-    3. 全量同步: 首次启动或手动触发
+    1. 实时同步: 新消息产生时立即进入队列，批量提交到 Huey
+    2. 定时同步: 每5分钟执行增量同步
+    3. 全量同步: 首次启动或手动触发（通过 Huey 后台执行）
     4. 增量同步: 基于 sync_status 检查差异
+
+    架构:
+    - 内存队列聚合消息（减少 Huey 任务数量）
+    - Huey + SQLite 持久化任务队列
+    - 自动重试机制（指数退避）
     """
-    
+
     def __init__(self, api_client, device_key: str, device_id: int = 0):
         self.api = api_client
         self.device_key = device_key
@@ -33,21 +38,38 @@ class ConversationSyncManager:
         self._running = False
         self._sync_task: asyncio.Task | None = None
         self._last_sync_time: datetime | None = None
-        
+
+        # 消息缓冲（用于聚合批量发送）
+        self._msg_buffer: list[MessageModel] = []
+        self._buffer_lock = asyncio.Lock()
+        self._buffer_timer: asyncio.Task | None = None
+        self._buffer_flush_interval = 2.0  # 2秒刷新一次
+        self._buffer_max_size = 50  # 最大缓冲数量
+
+        # 去重：防止重复同步同一会话
+        self._pending_conversations: set[str] = set()
+
     async def start(self):
         """启动同步管理器"""
         if self._running:
             return
-        
+
         self._running = True
         logger.info(f"[ConversationSync] Started for device {self.device_key}")
-        
-        # 确保 device_id 有效 (如果为0，尝试从MC获取)
+
+        # 确保 device_id 有效
         await self._ensure_device_id()
-        
+
         # 启动后台同步任务
         self._sync_task = asyncio.create_task(self._sync_loop())
-    
+
+        # 启动缓冲刷新任务
+        asyncio.create_task(self._buffer_flush_loop())
+
+        # 提交全量同步任务（不阻塞启动）
+        if self.device_id > 0:
+            await self._schedule_full_sync()
+
     async def _ensure_device_id(self):
         """确保 device_id 有效，如果为0则尝试从MC或manager获取"""
         # First try to get from manager (if already fetched by manager)
@@ -60,11 +82,11 @@ class ConversationSyncManager:
                     logger.info(f"[ConversationSync] Got device_id from manager: {self.device_id}")
             except Exception:
                 pass
-        
+
         # If still not available, fetch from MC directly
         if self.device_id > 0:
             return
-        
+
         try:
             # 从MC获取设备列表，找到匹配的device_key
             result = await self.api.get_devices()
@@ -75,16 +97,17 @@ class ConversationSyncManager:
                         self.device_id = device.get("device_id", 0)
                         logger.info(f"[ConversationSync] Got device_id from MC: {self.device_id}")
                         break
-            
+
             if self.device_id == 0:
                 logger.warning(f"[ConversationSync] Could not find device_id for key {self.device_key}, sync will be skipped")
         except Exception as e:
             logger.error(f"[ConversationSync] Failed to get device_id: {e}")
-        
+
     async def stop(self):
         """停止同步管理器"""
         self._running = False
-        
+
+        # 取消定时任务
         if self._sync_task:
             self._sync_task.cancel()
             try:
@@ -92,172 +115,257 @@ class ConversationSyncManager:
             except asyncio.CancelledError:
                 pass
             self._sync_task = None
-        
+
+        # 取消缓冲计时器
+        if self._buffer_timer:
+            self._buffer_timer.cancel()
+            try:
+                await self._buffer_timer
+            except asyncio.CancelledError:
+                pass
+            self._buffer_timer = None
+
+        # 最后刷新缓冲
+        await self._flush_buffer()
+
         logger.info(f"[ConversationSync] Stopped for device {self.device_key}")
-        
+
     async def _sync_loop(self):
         """后台同步循环"""
         try:
-            # 首次全量同步
-            await self.full_sync()
-            
             while self._running:
                 # 每5分钟执行增量同步
                 await asyncio.sleep(300)
-                
+
                 if not self._running:
                     break
-                    
-                await self.incremental_sync()
-                
+
+                await self._schedule_incremental_sync()
+
         except asyncio.CancelledError:
             logger.debug("[ConversationSync] Sync loop cancelled")
         except Exception as e:
-            logger.error(f"[ConversationSync] Sync loop error: {e}")
-            
-    async def full_sync(self):
-        """全量同步 - 首次启动或重建时使用"""
+            logger.error(f"[ConversationSync] Sync loop error: {e}", exc_info=True)
+
+    async def _buffer_flush_loop(self):
+        """定期刷新缓冲的循环"""
+        while self._running:
+            try:
+                await asyncio.sleep(self._buffer_flush_interval)
+                if self._msg_buffer:
+                    await self._flush_buffer()
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"[ConversationSync] Buffer flush error: {e}")
+
+    # ==================== 缓冲机制 ====================
+
+    async def _add_to_buffer(self, message: MessageModel):
+        """添加消息到缓冲"""
+        async with self._buffer_lock:
+            self._msg_buffer.append(message)
+
+            # 如果缓冲满了，立即刷新
+            if len(self._msg_buffer) >= self._buffer_max_size:
+                asyncio.create_task(self._flush_buffer())
+
+    async def _flush_buffer(self):
+        """刷新缓冲，提交到 Huey"""
+        async with self._buffer_lock:
+            if not self._msg_buffer or self.device_id <= 0:
+                return
+
+            batch = self._msg_buffer
+            self._msg_buffer = []
+
+        if not batch:
+            return
+
+        try:
+            # 按 thread_id 分组
+            groups: dict[str, list[MessageModel]] = {}
+            for msg in batch:
+                tid = msg.thread_id
+                if tid not in groups:
+                    groups[tid] = []
+                groups[tid].append(msg)
+
+            # 为每个 thread 提交一个 Huey 任务
+            from app.core.evocloud.bridge.sync_tasks import sync_messages_task
+
+            for thread_id, messages in groups.items():
+                msg_data = [self._format_message(m) for m in messages]
+
+                # 提交到 Huey（立即返回，不阻塞）
+                result = sync_messages_task.delay(
+                    self.device_id,
+                    thread_id,
+                    msg_data
+                )
+                logger.debug(
+                    f"[ConversationSync] Queued {len(messages)} messages "
+                    f"for thread {thread_id}, task_id={result.id}"
+                )
+
+        except Exception as e:
+            logger.error(f"[ConversationSync] Failed to queue messages: {e}", exc_info=True)
+
+    # ==================== 同步调度 ====================
+
+    async def _schedule_full_sync(self):
+        """调度全量同步任务（通过 Huey）"""
         if self.device_id <= 0:
             logger.debug("[ConversationSync] Skip full sync: no device_id")
             return
-        
-        logger.info("[ConversationSync] Starting full sync...")
-        
+
         try:
+            from app.core.evocloud.bridge.sync_tasks import full_sync_task
+
             async with get_db_session() as db:
                 # 获取所有会话
                 conversations_result = await db.execute(
                     select(ConversationModel)
                 )
                 conversations = conversations_result.scalars().all()
-                
+
                 # 获取所有消息
                 messages_result = await db.execute(
                     select(MessageModel)
                 )
                 messages = messages_result.scalars().all()
-                
+
                 # 转换数据格式
                 conv_data = [self._format_conversation(c) for c in conversations]
                 msg_data = [self._format_message(m) for m in messages]
-                
-                # 上报到 MC
-                result = await self.api.sync_full_conversations(
-                    device_id=self.device_id,
-                    data={
-                        "conversations": conv_data,
-                        "messages": msg_data,
-                    }
+
+                # 提交到 Huey
+                result = full_sync_task.delay(self.device_id, {
+                    "conversations": conv_data,
+                    "messages": msg_data,
+                })
+
+                logger.info(
+                    f"[ConversationSync] Full sync scheduled: "
+                    f"{len(conv_data)} conversations, {len(msg_data)} messages "
+                    f"task_id={result.id}"
                 )
-                
-                if result.get("code") == 0:
-                    self._last_sync_time = datetime.now()
-                    logger.info(
-                        f"[ConversationSync] Full sync completed: "
-                        f"{result.get('data', {}).get('conversations', 0)} conversations, "
-                        f"{result.get('data', {}).get('messages', 0)} messages"
-                    )
-                else:
-                    logger.error(f"[ConversationSync] Full sync failed: {result.get('message')}")
-                    
+
         except Exception as e:
-            logger.error(f"[ConversationSync] Full sync error: {e}")
-            
-    async def incremental_sync(self):
-        """增量同步 - 只同步上次同步后更新的数据"""
+            logger.error(f"[ConversationSync] Failed to schedule full sync: {e}", exc_info=True)
+
+    async def _schedule_incremental_sync(self):
+        """调度增量同步任务（通过 Huey）"""
         if self.device_id <= 0:
             logger.debug("[ConversationSync] Skip incremental sync: no device_id")
             return
-        
-        if not self._last_sync_time:
-            # 如果从未同步过，执行全量同步
-            await self.full_sync()
-            return
-            
-        logger.debug("[ConversationSync] Starting incremental sync...")
-        
+
         try:
-            # 获取上次同步以来更新的会话
+            from app.core.evocloud.bridge.sync_tasks import incremental_sync_task
+
             async with get_db_session() as db:
-                # 获取更新的会话
-                conversations_result = await db.execute(
-                    select(ConversationModel).where(
-                        ConversationModel.updated_at >= self._last_sync_time
-                    )
+                # 获取所有会话ID
+                result = await db.execute(
+                    select(ConversationModel.id)
                 )
-                conversations = conversations_result.scalars().all()
-                
-                # 同步每个会话
-                for conv in conversations:
-                    await self.sync_conversation(conv)
-                    
-                if conversations:
-                    logger.info(f"[ConversationSync] Incremental sync: {len(conversations)} conversations")
-                    
-                self._last_sync_time = datetime.now()
-                
+                conversation_ids = [str(r[0]) for r in result.all()]
+
+                if not conversation_ids:
+                    return
+
+                # 分批提交（每批100个会话）
+                batch_size = 100
+                for i in range(0, len(conversation_ids), batch_size):
+                    batch = conversation_ids[i:i + batch_size]
+                    result = incremental_sync_task.delay(self.device_id, batch)
+                    logger.debug(
+                        f"[ConversationSync] Incremental sync batch scheduled: "
+                        f"{len(batch)} conversations, task_id={result.id}"
+                    )
+
+                logger.info(
+                    f"[ConversationSync] Incremental sync scheduled: "
+                    f"{len(conversation_ids)} conversations in "
+                    f"{(len(conversation_ids) + batch_size - 1) // batch_size} batches"
+                )
+
         except Exception as e:
-            logger.error(f"[ConversationSync] Incremental sync error: {e}")
-            
+            logger.error(f"[ConversationSync] Failed to schedule incremental sync: {e}", exc_info=True)
+
+    # ==================== 公共 API ====================
+
+    async def full_sync(self):
+        """
+        手动触发全量同步（公共API）
+        注意：实际执行在 Huey Worker 中，不阻塞调用者
+        """
+        await self._schedule_full_sync()
+
+    async def incremental_sync(self):
+        """
+        手动触发增量同步（公共API）
+        注意：实际执行在 Huey Worker 中，不阻塞调用者
+        """
+        await self._schedule_incremental_sync()
+
     async def sync_conversation(self, conversation: ConversationModel):
-        """同步单个会话"""
+        """
+        同步单个会话（公共API）
+        直接提交到 Huey，不缓冲
+        """
         if self.device_id <= 0:
             logger.debug("[ConversationSync] Skip sync_conversation: no device_id")
             return
-        
+
+        # 防止重复提交
+        conv_id = str(conversation.id)
+        if conv_id in self._pending_conversations:
+            return
+        self._pending_conversations.add(conv_id)
+
         try:
+            from app.core.evocloud.bridge.sync_tasks import sync_conversation_task
+
             conv_data = self._format_conversation(conversation)
-            
-            result = await self.api.sync_conversation(
-                device_id=self.device_id,
-                conversation=conv_data
+            result = sync_conversation_task.delay(self.device_id, conv_data)
+
+            logger.debug(
+                f"[ConversationSync] Conversation sync queued: {conv_id} "
+                f"task_id={result.id}"
             )
-            
-            if result.get("code") == 0:
-                logger.debug(f"[ConversationSync] Synced conversation: {conversation.id}")
-            else:
-                logger.warning(f"[ConversationSync] Failed to sync conversation {conversation.id}: {result.get('message')}")
-                
+
         except Exception as e:
-            logger.error(f"[ConversationSync] Sync conversation error: {e}")
-            
+            logger.error(f"[ConversationSync] Failed to queue conversation: {e}", exc_info=True)
+        finally:
+            # 延迟移除去重标记（给任务执行时间）
+            asyncio.create_task(self._remove_pending_after_delay(conv_id, 30))
+
     async def sync_messages_batch(self, thread_id: str, messages: list[MessageModel]):
-        """批量同步消息"""
-        if not messages:
+        """
+        批量同步消息（公共API）
+        添加到缓冲，定期批量提交
+        """
+        if not messages or self.device_id <= 0:
             return
-        
-        if self.device_id <= 0:
-            logger.debug("[ConversationSync] Skip sync_messages_batch: no device_id")
-            return
-        
-        try:
-            msg_data = [self._format_message(m) for m in messages]
-            
-            result = await self.api.sync_messages(
-                device_id=self.device_id,
-                thread_id=thread_id,
-                messages=msg_data
-            )
-            
-            if result.get("code") == 0:
-                logger.debug(
-                    f"[ConversationSync] Synced {len(messages)} messages for thread {thread_id}"
-                )
-            else:
-                logger.warning(f"[ConversationSync] Failed to sync messages: {result.get('message')}")
-                
-        except Exception as e:
-            logger.error(f"[ConversationSync] Sync messages error: {e}")
-            
+
+        for msg in messages:
+            await self._add_to_buffer(msg)
+
     async def on_new_message(self, message: MessageModel):
-        """新消息回调 - 实时同步"""
-        # 立即同步单条消息
-        await self.sync_messages_batch(message.thread_id, [message])
-        
+        """新消息回调 - 实时同步（缓冲）"""
+        await self._add_to_buffer(message)
+
     async def on_conversation_updated(self, conversation: ConversationModel):
-        """会话更新回调 - 实时同步"""
+        """会话更新回调 - 立即同步（不缓冲）"""
         await self.sync_conversation(conversation)
-        
+
+    async def _remove_pending_after_delay(self, conv_id: str, delay: int):
+        """延迟移除去重标记"""
+        await asyncio.sleep(delay)
+        self._pending_conversations.discard(conv_id)
+
+    # ==================== 数据格式化 ====================
+
     def _format_conversation(self, conv: ConversationModel) -> dict:
         """格式化会话数据"""
         return {
@@ -267,10 +375,9 @@ class ConversationSyncManager:
             "created_at": int(conv.created_at.timestamp()) if conv.created_at else int(datetime.now().timestamp()),
             "updated_at": int(conv.updated_at.timestamp()) if conv.updated_at else int(datetime.now().timestamp()),
         }
-        
+
     def _format_message(self, msg: MessageModel) -> dict:
         """格式化消息数据"""
-        # tool_calls 和 steps_snapshot 是 JSON 列，已经是 Python 对象
         return {
             "id": msg.id,
             "thread_id": msg.thread_id,
@@ -299,10 +406,10 @@ _conversation_sync_manager: ConversationSyncManager | None = None
 def get_conversation_sync_manager(api_client, device_key: str, device_id: int = 0) -> ConversationSyncManager:
     """获取或创建同步管理器"""
     global _conversation_sync_manager
-    
+
     if _conversation_sync_manager is None:
         _conversation_sync_manager = ConversationSyncManager(api_client, device_key, device_id)
-        
+
     return _conversation_sync_manager
 
 
@@ -316,7 +423,7 @@ async def start_conversation_sync(api_client, device_key: str, device_id: int = 
 async def stop_conversation_sync():
     """停止对话历史同步"""
     global _conversation_sync_manager
-    
+
     if _conversation_sync_manager:
         await _conversation_sync_manager.stop()
         _conversation_sync_manager = None

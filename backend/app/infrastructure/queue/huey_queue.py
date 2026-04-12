@@ -388,6 +388,7 @@ class HueyTaskScheduler(TaskScheduler, SyncTaskMixin):
             'app.domain.codebase.indexing.tasks',
             'app.domain.project.sync_tasks',
             'app.tasks.memory_tasks',
+            'app.core.evocloud.bridge.sync_tasks',
         ]
         
         for module_path in common_modules:

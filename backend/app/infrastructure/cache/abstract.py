@@ -107,6 +107,17 @@ class Cache(ABC):
         """Increment key by amount (atomic)."""
         ...
 
+    @abstractmethod
+    async def keys(self, pattern: str = "*", **kwargs) -> list[str]:
+        """
+        Find all keys matching the given pattern (glob format).
+        
+        Args:
+            pattern: Glob-style pattern (e.g., "activity:*")
+            **kwargs: Backend-specific arguments (e.g., count for Redis SCAN)
+        """
+        ...
+
     # ========== Hash Operations ==========
 
     @abstractmethod
@@ -177,6 +188,11 @@ class Cache(ABC):
     @abstractmethod
     async def ltrim(self, name: str, start: int, end: int) -> bool:
         """Trim list to specified range."""
+        ...
+
+    @abstractmethod
+    async def lrange(self, name: str, start: int, end: int) -> list:
+        """Get range of values from list."""
         ...
 
     # ========== Pub/Sub ==========

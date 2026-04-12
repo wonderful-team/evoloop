@@ -275,6 +275,18 @@ class _FileCacheCore:
             self._delete("lists", name)
         return True
 
+    async def lrange(self, name: str, start: int, end: int) -> list:
+        """Get range of values from list."""
+        data = self._read("lists", name)
+        if not isinstance(data, list):
+            return []
+        
+        if end < 0:
+            end = len(data) + end + 1
+        else:
+            end = end + 1
+        return data[start:end]
+
     # Pub/Sub
     async def publish(self, channel: str, message: Any) -> int:
         """Publish message to in-memory bus."""
@@ -489,18 +501,6 @@ class FileCacheCore:
     async def ltrim(self, name: str, start: int, end: int) -> bool:
         return await self._core.ltrim(name, start, end)
 
-    async def lrange(self, name: str, start: int, end: int) -> list:
-        """Get range of values from list."""
-        data = self._core._read("lists", name)
-        if not isinstance(data, list):
-            return []
-        if end < 0:
-            end = len(data) + end + 1
-        else:
-            end = end + 1
-        return data[start:end]
-
-
 class FileCache(Cache):
     """
     Embedded mode cache backend using file-based storage.
@@ -578,6 +578,9 @@ class FileCache(Cache):
     async def ltrim(self, name: str, start: int, end: int) -> bool:
         return await self._cache.ltrim(name, start, end)
 
+    async def lrange(self, name: str, start: int, end: int) -> list:
+        return await self._cache.lrange(name, start, end)
+
     # ========== Pub/Sub ==========
 
     async def publish(self, channel: str, message: Any) -> int:
@@ -596,6 +599,10 @@ class FileCache(Cache):
 
     def pipeline(self) -> CachePipeline:
         return FileCachePipelineAdapter(self)
+
+    async def keys(self, pattern: str = "*", **kwargs) -> list[str]:
+        """Find all keys matching the given pattern."""
+        return await self._cache.keys(pattern)
 
     # ========== Lifecycle ==========
 

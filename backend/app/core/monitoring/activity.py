@@ -287,7 +287,7 @@ class ActivityMonitor:
         # Log to a system list in cache for persistence
         await cache.lpush(f"system:logs:{event_type}", json.dumps(payload))
         await cache.ltrim(f"system:logs:{event_type}", 0, 99)  # Keep last 100
-        
+
         # Publish to the chat stream if it's a session event
         if thread_id != "system":
             await cache.publish(
@@ -295,7 +295,7 @@ class ActivityMonitor:
                 json.dumps({"event": "system_log", "data": payload})
             )
         
-        logger.info(f"[ActivityMonitor] Event logged: {event_type}")
+        logger.info(f"[ActivityMonitor] Event logged: {event_type} (Thread: {thread_id})")
 
     async def add_artifact(
         self,

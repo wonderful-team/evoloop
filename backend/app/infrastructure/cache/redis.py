@@ -164,6 +164,11 @@ class RedisCache(Cache):
         await self._ensure_connected()
         return await self._redis.exists(key) > 0
 
+    async def keys(self, pattern: str = "*", **kwargs) -> list[str]:
+        """Find all keys matching the given pattern."""
+        await self._ensure_connected()
+        return await self._redis.keys(pattern)
+
     async def expire(self, key: str, seconds: int) -> bool:
         await self._ensure_connected()
         return await self._redis.expire(key, seconds)
@@ -246,6 +251,19 @@ class RedisCache(Cache):
     async def ltrim(self, name: str, start: int, end: int) -> bool:
         await self._ensure_connected()
         return await self._redis.ltrim(name, start, end)
+
+    async def lrange(self, name: str, start: int, end: int) -> list:
+        """Get range of values from list."""
+        await self._ensure_connected()
+        result = await self._redis.lrange(name, start, end)
+        # Try JSON decode values
+        decoded = []
+        for v in result:
+            try:
+                decoded.append(json.loads(v))
+            except (json.JSONDecodeError, TypeError):
+                decoded.append(v)
+        return decoded
 
     # ========== Pub/Sub ==========
 

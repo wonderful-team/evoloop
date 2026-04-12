@@ -56,6 +56,11 @@ TASK_MODULE_MAP = {
     # Wiki tasks
     "sync_wiki_page": "app.domain.wiki.tasks",
     "wiki_generate": "app.domain.wiki.tasks",
+    # EvoCloud sync tasks
+    "evocloud.sync_conversation": "app.core.evocloud.bridge.sync_tasks",
+    "evocloud.sync_messages": "app.core.evocloud.bridge.sync_tasks",
+    "evocloud.sync_full": "app.core.evocloud.bridge.sync_tasks",
+    "evocloud.sync_incremental": "app.core.evocloud.bridge.sync_tasks",
 }
 
 

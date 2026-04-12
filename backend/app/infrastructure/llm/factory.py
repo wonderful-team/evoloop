@@ -167,7 +167,7 @@ class LLMFactory:
         actual_model = parts[2]
         
         # Get configuration
-        provider_type = SystemConfigService.get_value("LLM_PROVIDER_TYPE", "openai")
+        provider_type = SystemConfigService.get_value("LLM_PROVIDER_TYPE")
         base_url = SystemConfigService.get_value("LLM_BASE_URL")
         api_key = SystemConfigService.get_value("LLM_API_KEY")
         
