@@ -15,8 +15,10 @@ from pathlib import Path
 
 import yaml
 from langchain_core.tools import BaseTool
+from pydantic import BaseModel, ConfigDict
 
 from app.core.tools.runtime_registry import get_runtime_tools
+from app.utils.model_helpers import LegacyDictMixin
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +58,11 @@ SYSTEM_TOOL_METADATA = {
         "name_map": {"zh": "批量替换文件", "en": "Multi-Replace File"},
     },
 }
+
+
+class ToolMetadata(BaseModel, LegacyDictMixin):
+    """Metadata for a tool, merging registry and system fallback data."""
+    model_config = ConfigDict(extra="allow")
 
 
 class AutoDiscoveryRegistry:
@@ -316,10 +323,10 @@ def is_pollable_tool(tool_name: str) -> bool:
     return getattr(tool_map[tool_name], "metadata", {}).get("is_pollable", False)
 
 
-def get_tool_metadata(tool_name: str) -> dict:
+def get_tool_metadata(tool_name: str) -> ToolMetadata:
     """Return the metadata for a tool by name, merging with system fallbacks."""
     tool_map = get_tool_map()
-    metadata = {}
+    metadata: dict = {}
 
     if tool_name in tool_map:
         metadata = getattr(tool_map[tool_name], "metadata", {}) or {}
@@ -331,7 +338,7 @@ def get_tool_metadata(tool_name: str) -> dict:
             if k not in metadata or not metadata[k]:
                 metadata[k] = v
 
-    return metadata
+    return ToolMetadata(**metadata)
 
 
 def get_tool_friendly_name(tool_name: str, lang: str = "zh") -> str | None:

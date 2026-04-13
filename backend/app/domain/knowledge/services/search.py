@@ -40,6 +40,40 @@ class SearchResults(BaseModel, LegacyDictMixin):
     facets: dict = Field(default_factory=dict)  # collection counts, tag counts, etc.
 
 
+class SearchSuggestion(BaseModel, LegacyDictMixin):
+    """Single search suggestion."""
+    text: str
+    path: Optional[str] = None
+    type: str  # "title", "tag"
+
+
+class SearchIndexStats(BaseModel, LegacyDictMixin):
+    """Search index statistics."""
+    total_documents: int
+    total_terms: int
+    collections: list[str]
+    recent_searches: list[dict]
+
+
+class ReindexResult(BaseModel, LegacyDictMixin):
+    """Result of reindexing all documents."""
+    indexed: int
+    failed: int
+    total: int
+
+
+class IndexDocumentRequest(BaseModel):
+    """Request to index a document in FTS."""
+    doc_id: str
+    path: str
+    title: str
+    content: str
+    collection: str = "default"
+    tags: Optional[list[str]] = None
+    file_size: Optional[int] = None
+    word_count: Optional[int] = None
+
+
 class FTSService:
     """
     SQLite FTS5 search service for knowledge base.
@@ -47,10 +81,16 @@ class FTSService:
     Usage:
         fts = FTSService()
         await fts.initialize()
-        
+
         # Index a document
-        await fts.index_document("collection/doc.md", "Document Title", "content...", collection="myapp")
-        
+        await fts.index_document(IndexDocumentRequest(
+            doc_id="collection/doc.md",
+            path="collection/doc.md",
+            title="Document Title",
+            content="content...",
+            collection="myapp"
+        ))
+
         # Search
         results = await fts.search("authentication", limit=20)
     """
@@ -144,17 +184,7 @@ class FTSService:
         conn.commit()
         logger.info(f"FTS database initialized at {self.db_path}")
     
-    async def index_document(
-        self,
-        doc_id: str,
-        path: str,
-        title: str,
-        content: str,
-        collection: str = "default",
-        tags: Optional[list[str]] = None,
-        file_size: Optional[int] = None,
-        word_count: Optional[int] = None
-    ) -> bool:
+    async def index_document(self, request: IndexDocumentRequest) -> bool:
         """
         Index or update a document in FTS.
         
@@ -172,41 +202,41 @@ class FTSService:
             True if indexed successfully
         """
         conn = self._get_connection()
-        
+
         try:
             # Delete existing entry if any
-            conn.execute("DELETE FROM fts_documents WHERE doc_id = ?", (doc_id,))
-            conn.execute("DELETE FROM doc_metadata WHERE doc_id = ?", (doc_id,))
-            conn.execute("DELETE FROM doc_tags WHERE doc_id = ?", (doc_id,))
-            
+            conn.execute("DELETE FROM fts_documents WHERE doc_id = ?", (request.doc_id,))
+            conn.execute("DELETE FROM doc_metadata WHERE doc_id = ?", (request.doc_id,))
+            conn.execute("DELETE FROM doc_tags WHERE doc_id = ?", (request.doc_id,))
+
             # Insert into FTS table
-            tags_str = ",".join(tags or [])
+            tags_str = ",".join(request.tags or [])
             conn.execute(
                 "INSERT INTO fts_documents (doc_id, path, collection, title, content, tags) VALUES (?, ?, ?, ?, ?, ?)",
-                (doc_id, path, collection, title, content, tags_str)
+                (request.doc_id, request.path, request.collection, request.title, request.content, tags_str)
             )
-            
+
             # Insert metadata
             conn.execute(
-                """INSERT INTO doc_metadata 
-                   (doc_id, path, collection, title, indexed_at, file_size, word_count) 
+                """INSERT INTO doc_metadata
+                   (doc_id, path, collection, title, indexed_at, file_size, word_count)
                    VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, ?, ?)""",
-                (doc_id, path, collection, title, file_size, word_count)
+                (request.doc_id, request.path, request.collection, request.title, request.file_size, request.word_count)
             )
-            
+
             # Insert tags
-            if tags:
+            if request.tags:
                 conn.executemany(
                     "INSERT INTO doc_tags (doc_id, tag) VALUES (?, ?)",
-                    [(doc_id, tag) for tag in tags]
+                    [(request.doc_id, tag) for tag in request.tags]
                 )
-            
+
             conn.commit()
-            logger.debug(f"Indexed document: {doc_id}")
+            logger.debug(f"Indexed document: {request.doc_id}")
             return True
-            
+
         except Exception as e:
-            logger.error(f"Failed to index document {doc_id}: {e}")
+            logger.error(f"Failed to index document {request.doc_id}: {e}")
             conn.rollback()
             return False
     
@@ -379,7 +409,7 @@ class FTSService:
         prefix: str,
         collection: Optional[str] = None,
         limit: int = 10
-    ) -> list[dict]:
+    ) -> list[SearchSuggestion]:
         """
         Get search suggestions based on prefix.
         
@@ -403,53 +433,55 @@ class FTSService:
             params = [collection, f"%{prefix}%", limit]
         
         for row in conn.execute(sql, params):
-            suggestions.append({
-                "text": row["title"],
-                "path": row["path"],
-                "type": "title"
-            })
-        
+            suggestions.append(SearchSuggestion(
+                text=row["title"],
+                path=row["path"],
+                type="title"
+            ))
+
         # Suggest from tags
         tag_sql = "SELECT DISTINCT tag FROM doc_tags WHERE tag LIKE ? LIMIT ?"
         for row in conn.execute(tag_sql, [f"%{prefix}%", limit - len(suggestions)]):
-            suggestions.append({
-                "text": row["tag"],
-                "type": "tag"
-            })
-        
+            suggestions.append(SearchSuggestion(
+                text=row["tag"],
+                type="tag"
+            ))
+
         return suggestions[:limit]
     
-    async def get_stats(self) -> dict:
+    async def get_stats(self) -> SearchIndexStats:
         """Get search index statistics."""
         conn = self._get_connection()
-        
-        stats = {
-            "total_documents": 0,
-            "total_terms": 0,
-            "collections": [],
-            "recent_searches": []
-        }
-        
+
+        total_documents = 0
+        collections: list[str] = []
+        recent_searches: list[dict] = []
+
         # Document count
         row = conn.execute("SELECT COUNT(*) FROM doc_metadata").fetchone()
-        stats["total_documents"] = row[0]
-        
+        total_documents = row[0]
+
         # Collection list
         for row in conn.execute("SELECT DISTINCT collection FROM doc_metadata ORDER BY collection"):
-            stats["collections"].append(row["collection"])
-        
+            collections.append(row["collection"])
+
         # Recent searches
         for row in conn.execute(
             "SELECT query, searched_at FROM search_history ORDER BY searched_at DESC LIMIT 10"
         ):
-            stats["recent_searches"].append({
+            recent_searches.append({
                 "query": row["query"],
                 "time": row["searched_at"]
             })
-        
-        return stats
+
+        return SearchIndexStats(
+            total_documents=total_documents,
+            total_terms=0,
+            collections=collections,
+            recent_searches=recent_searches,
+        )
     
-    async def reindex_all(self, store_service) -> dict:
+    async def reindex_all(self, store_service) -> ReindexResult:
         """
         Reindex all documents from storage.
         
@@ -476,34 +508,32 @@ class FTSService:
         for doc in documents:
             try:
                 # Read full content
-                result = store_service.read_document(doc["path"])
-                content = result.get("content", "")
-                
+                result = store_service.read_document(doc.path)
+                content = result.content
+
                 # Extract metadata
-                title = doc.get("title", doc["path"].split("/")[-1])
-                collection = doc["path"].split("/")[0] if "/" in doc["path"] else "default"
-                
+                title = doc.title or doc.path.split("/")[-1]
+                collection = doc.path.split("/")[0] if "/" in doc.path else "default"
+
                 # Index
                 await self.index_document(
-                    doc_id=doc["path"],
-                    path=doc["path"],
-                    title=title,
-                    content=content,
-                    collection=collection,
-                    file_size=doc.get("size_bytes"),
-                    word_count=len(content.split())
+                    IndexDocumentRequest(
+                        doc_id=doc.path,
+                        path=doc.path,
+                        title=title,
+                        content=content,
+                        collection=collection,
+                        file_size=doc.size_bytes,
+                        word_count=len(content.split())
+                    )
                 )
                 indexed += 1
-                
+
             except Exception as e:
-                logger.error(f"Failed to index {doc['path']}: {e}")
+                logger.error(f"Failed to index {doc.path}: {e}")
                 failed += 1
-        
-        return {
-            "indexed": indexed,
-            "failed": failed,
-            "total": len(documents)
-        }
+
+        return ReindexResult(indexed=indexed, failed=failed, total=len(documents))
     
     def close(self) -> None:
         """Close database connection."""

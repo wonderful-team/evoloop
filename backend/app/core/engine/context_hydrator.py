@@ -108,7 +108,7 @@ class EvoContextMiddleware:
                     del cls._hydrated_requests[req_id]
 
     @staticmethod
-    async def hydrate(state: dict, config: RunnableConfig) -> dict:
+    async def hydrate(state: AgentState, config: RunnableConfig) -> AgentState:
         """
         Layered context hydration with caching and predictive memory loading.
         

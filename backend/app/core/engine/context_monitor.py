@@ -6,6 +6,8 @@ context management, including when to use forget_tool_outputs.
 """
 
 import logging
+from typing import Optional
+
 from pydantic import BaseModel, Field
 
 from langchain_core.messages import (

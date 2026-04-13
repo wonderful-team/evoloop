@@ -4,6 +4,7 @@ from typing import Any
 import httpx
 
 from app.core.evocloud.schemas import EvoCloudConfig
+from app.models.auth import LoginResult
 
 
 class EvoCloudClientProtocol(ABC):
@@ -46,7 +47,7 @@ class EvoCloudClientProtocol(ABC):
     # But for a strict interface, we should. For now, let's define key categories.
 
     @abstractmethod
-    async def login(self, username, password) -> dict: ...
+    async def login(self, username, password) -> LoginResult: ...
 
     @abstractmethod
     async def register_device(self, key: str, name: str, os_info: str) -> dict: ...

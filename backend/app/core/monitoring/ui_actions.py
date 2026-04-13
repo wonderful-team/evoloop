@@ -8,6 +8,9 @@ blocking (agent paused) until user responds.
 from enum import Enum
 from typing import Any
 
+from pydantic import BaseModel
+from app.utils.model_helpers import LegacyDictMixin
+
 
 class HumanRequestType(str, Enum):
     """Types of human requests that backend can make."""
@@ -33,31 +36,74 @@ class HumanRequestType(str, Enum):
     """Request user to select one or more files."""
 
 
+class TextInputRequest(BaseModel, LegacyDictMixin):
+    """Human request for text input."""
+    type: HumanRequestType
+    prompt: str
+    placeholder: str = "Enter your response..."
+    multiline: bool = False
+    allow_cancel: bool = True
+
+
+class ProjectSwitchPayload(BaseModel, LegacyDictMixin):
+    """Payload for project switch request."""
+    allow_global: bool = False
+    suggested_project_id: int | None = None
+    show_project_list: bool = True
+    temporary: bool = True
+
+
+class ProjectSwitchRequest(BaseModel, LegacyDictMixin):
+    """Human request for project switch."""
+    type: HumanRequestType
+    prompt: str
+    allow_cancel: bool = True
+    payload: ProjectSwitchPayload
+
+
+class ConfirmPayload(BaseModel, LegacyDictMixin):
+    """Payload for confirmation request."""
+    confirm_text: str = "Confirm"
+    cancel_text: str = "Cancel"
+
+
+class ConfirmRequest(BaseModel, LegacyDictMixin):
+    """Human request for confirmation."""
+    type: HumanRequestType
+    prompt: str
+    title: str = "Confirmation Required"
+    allow_cancel: bool = True
+    payload: ConfirmPayload
+
+
+class FileSelectPayload(BaseModel, LegacyDictMixin):
+    """Payload for file selection request."""
+    multiple: bool = False
+    file_types: list[str] = []
+
+
+class FileSelectRequest(BaseModel, LegacyDictMixin):
+    """Human request for file selection."""
+    type: HumanRequestType
+    prompt: str
+    allow_cancel: bool = True
+    payload: FileSelectPayload
+
+
 def create_text_input_request(
     prompt: str,
     placeholder: str | None = None,
     multiline: bool = False,
     allow_cancel: bool = True
-) -> dict[str, Any]:
-    """
-    Create a human request for text input.
-
-    Args:
-        prompt: Message shown to user
-        placeholder: Input placeholder text
-        multiline: Whether to allow multiline input
-        allow_cancel: Whether user can cancel
-
-    Returns:
-        Human request data structure
-    """
-    return {
-        "type": HumanRequestType.TEXT_INPUT,
-        "prompt": prompt,
-        "placeholder": placeholder or "Enter your response...",
-        "multiline": multiline,
-        "allow_cancel": allow_cancel,
-    }
+) -> TextInputRequest:
+    """Create a human request for text input."""
+    return TextInputRequest(
+        type=HumanRequestType.TEXT_INPUT,
+        prompt=prompt,
+        placeholder=placeholder or "Enter your response...",
+        multiline=multiline,
+        allow_cancel=allow_cancel,
+    )
 
 
 def create_project_switch_request(
@@ -67,32 +113,19 @@ def create_project_switch_request(
     show_project_list: bool = True,
     temporary: bool = True,
     allow_cancel: bool = True
-) -> dict[str, Any]:
-    """
-    Create a human request for project switch.
-
-    Args:
-        message: Message to show user explaining why switch is needed
-        allow_global: Whether to allow staying in global mode
-        suggested_project_id: Specific project to suggest (optional)
-        show_project_list: Whether to show the project selection list
-        temporary: Whether this is a temporary project switch (Scheme C)
-        allow_cancel: Whether user can cancel
-
-    Returns:
-        Human request data structure
-    """
-    return {
-        "type": HumanRequestType.PROJECT_SWITCH,
-        "prompt": message,
-        "allow_cancel": allow_cancel,
-        "payload": {
-            "allow_global": allow_global,
-            "suggested_project_id": suggested_project_id,
-            "show_project_list": show_project_list,
-            "temporary": temporary,
-        }
-    }
+) -> ProjectSwitchRequest:
+    """Create a human request for project switch."""
+    return ProjectSwitchRequest(
+        type=HumanRequestType.PROJECT_SWITCH,
+        prompt=message,
+        allow_cancel=allow_cancel,
+        payload=ProjectSwitchPayload(
+            allow_global=allow_global,
+            suggested_project_id=suggested_project_id,
+            show_project_list=show_project_list,
+            temporary=temporary,
+        ),
+    )
 
 
 def create_confirm_request(
@@ -101,30 +134,18 @@ def create_confirm_request(
     confirm_text: str = "Confirm",
     cancel_text: str = "Cancel",
     allow_cancel: bool = True
-) -> dict[str, Any]:
-    """
-    Create a human request for confirmation.
-
-    Args:
-        prompt: Message shown to user
-        title: Dialog title
-        confirm_text: Text for confirm button
-        cancel_text: Text for cancel button
-        allow_cancel: Whether user can cancel
-
-    Returns:
-        Human request data structure
-    """
-    return {
-        "type": HumanRequestType.CONFIRM,
-        "prompt": prompt,
-        "title": title or "Confirmation Required",
-        "allow_cancel": allow_cancel,
-        "payload": {
-            "confirm_text": confirm_text,
-            "cancel_text": cancel_text,
-        }
-    }
+) -> ConfirmRequest:
+    """Create a human request for confirmation."""
+    return ConfirmRequest(
+        type=HumanRequestType.CONFIRM,
+        prompt=prompt,
+        title=title or "Confirmation Required",
+        allow_cancel=allow_cancel,
+        payload=ConfirmPayload(
+            confirm_text=confirm_text,
+            cancel_text=cancel_text,
+        ),
+    )
 
 
 def create_file_select_request(
@@ -132,28 +153,17 @@ def create_file_select_request(
     multiple: bool = False,
     file_types: list[str] | None = None,
     allow_cancel: bool = True
-) -> dict[str, Any]:
-    """
-    Create a human request for file selection.
-
-    Args:
-        prompt: Message shown to user
-        multiple: Whether to allow multiple file selection
-        file_types: Allowed file extensions (e.g., [".py", ".js"])
-        allow_cancel: Whether user can cancel
-
-    Returns:
-        Human request data structure
-    """
-    return {
-        "type": HumanRequestType.FILE_SELECT,
-        "prompt": prompt,
-        "allow_cancel": allow_cancel,
-        "payload": {
-            "multiple": multiple,
-            "file_types": file_types or [],
-        }
-    }
+) -> FileSelectRequest:
+    """Create a human request for file selection."""
+    return FileSelectRequest(
+        type=HumanRequestType.FILE_SELECT,
+        prompt=prompt,
+        allow_cancel=allow_cancel,
+        payload=FileSelectPayload(
+            multiple=multiple,
+            file_types=file_types or [],
+        ),
+    )
 
 
 # =============================================================================

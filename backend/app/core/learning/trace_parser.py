@@ -15,7 +15,7 @@ import logging
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 
 from app.infrastructure.database.sql.database import session_scope
@@ -50,6 +50,28 @@ class UIContext(BaseModel, LegacyDictMixin):
     element_text: Optional[str] = None
 
 
+class TraceActionArgs(BaseModel, LegacyDictMixin):
+    """Dynamic arguments for a trace action."""
+    model_config = ConfigDict(extra="allow")
+
+
+class TraceStateContext(BaseModel, LegacyDictMixin):
+    """Dynamic state context for a trace step."""
+    model_config = ConfigDict(extra="allow")
+
+
+class TraceSummary(BaseModel, LegacyDictMixin):
+    """Summary of a trace sequence."""
+    model_config = ConfigDict(extra="allow")
+    thread_id: str
+    task_name: Optional[str] = None
+    total_steps: int
+    human_steps: int
+    agent_steps: int
+    tools_used: List[str] = Field(default_factory=list)
+    success: bool = True
+
+
 class TraceStep(BaseModel, LegacyDictMixin):
     """
     A single semantic step in a trace sequence.
@@ -62,7 +84,7 @@ class TraceStep(BaseModel, LegacyDictMixin):
     # Core action info
     action_type: str  # Raw type (tool_call, click, input, etc.)
     action_name: str  # Semantic name (e.g., "read_file", "click_button")
-    action_args: Dict[str, Any] = Field(default_factory=dict)
+    action_args: TraceActionArgs = Field(default_factory=TraceActionArgs)
 
     # Observation/result
     observation: Optional[str] = None
@@ -70,7 +92,7 @@ class TraceStep(BaseModel, LegacyDictMixin):
 
     # Context
     node_name: str = "unknown"
-    state_context: Dict[str, Any] = Field(default_factory=dict)
+    state_context: TraceStateContext = Field(default_factory=TraceStateContext)
     ui_context: Optional[UIContext] = None
 
     # Metadata
@@ -94,17 +116,17 @@ class TraceSequence(BaseModel, LegacyDictMixin):
     has_human_intervention: bool = False
     success: bool = True
 
-    def summarize(self) -> Dict[str, Any]:
+    def summarize(self) -> TraceSummary:
         """Generate a summary for LLM consumption."""
-        return {
-            "thread_id": self.thread_id,
-            "task_name": self.task_name,
-            "total_steps": len(self.steps),
-            "human_steps": sum(1 for s in self.steps if s.source == ActionSource.HUMAN),
-            "agent_steps": sum(1 for s in self.steps if s.source == ActionSource.AGENT),
-            "tools_used": list(set(self.tools_used)),
-            "success": self.success,
-        }
+        return TraceSummary(
+            thread_id=self.thread_id,
+            task_name=self.task_name,
+            total_steps=len(self.steps),
+            human_steps=sum(1 for s in self.steps if s.source == ActionSource.HUMAN),
+            agent_steps=sum(1 for s in self.steps if s.source == ActionSource.AGENT),
+            tools_used=list(set(self.tools_used)),
+            success=self.success,
+        )
 
 
 class TraceParser:

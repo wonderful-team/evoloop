@@ -13,8 +13,27 @@ from __future__ import annotations
 import json
 from datetime import datetime
 from typing import Any, Dict, List, Optional
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, model_validator, ConfigDict
 from app.utils.model_helpers import LegacyDictMixin
+
+
+class AtlasStateMetadata(BaseModel, LegacyDictMixin):
+    model_config = ConfigDict(extra="allow")
+    screenshot_hash: str | None = None
+    platform_version: str | None = None
+    app_tags: list[str] = Field(default_factory=list)
+
+
+class MenuItem(BaseModel, LegacyDictMixin):
+    model_config = ConfigDict(extra="allow")
+    label: str
+    action: str | None = None
+    children: list["MenuItem"] = Field(default_factory=list)
+
+
+class MenuTree(BaseModel, LegacyDictMixin):
+    model_config = ConfigDict(extra="allow")
+    menus: list[MenuItem] = Field(default_factory=list)
 
 
 class Rect(BaseModel):
@@ -26,8 +45,15 @@ class Rect(BaseModel):
     height: int
 
 
+class ElementExtra(BaseModel, LegacyDictMixin):
+    """Catch-all additional attributes for a UI element."""
+    model_config = ConfigDict(extra="allow")
+
+
 class ElementMetadata(BaseModel, LegacyDictMixin):
     """Platform-specific metadata for a UI element."""
+    model_config = ConfigDict(populate_by_name=True)
+
     # Common cross-platform attributes
     class_name: Optional[str] = Field(None, alias="class")
     resource_id: Optional[str] = None
@@ -45,7 +71,7 @@ class ElementMetadata(BaseModel, LegacyDictMixin):
     ax_subrole: Optional[str] = None
     
     # Catch-all for additional attributes
-    extra: Dict[str, Any] = Field(default_factory=dict)
+    extra: ElementExtra = Field(default_factory=ElementExtra)
 
     @model_validator(mode="before")
     @classmethod
@@ -63,9 +89,6 @@ class ElementMetadata(BaseModel, LegacyDictMixin):
         
         values["extra"] = extra
         return values
-
-    class Config:
-        populate_by_name = True
 
 
 class AtlasElement(BaseModel, LegacyDictMixin):
@@ -109,7 +132,7 @@ class AtlasState(BaseModel, LegacyDictMixin):
     window_title: str
     elements: List[AtlasElement] = Field(default_factory=list)
     screenshot_hash: Optional[str] = None
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    metadata: AtlasStateMetadata = Field(default_factory=AtlasStateMetadata)
     is_infrastructure_only: bool = False
 
     def get_element_by_label(self, label: str) -> Optional[AtlasElement]:
@@ -154,7 +177,7 @@ class AtlasApp(BaseModel):
     platform: str
     states: Dict[str, AtlasState] = Field(default_factory=dict)
     transitions: List[AtlasTransition] = Field(default_factory=list)
-    menu_tree: Dict[str, Any] = Field(default_factory=dict)
+    menu_tree: MenuTree = Field(default_factory=MenuTree)
     version_hash: str = ""
     explored_at: datetime = Field(default_factory=datetime.now)
     exploration_depth: int = 0

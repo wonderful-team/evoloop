@@ -5,14 +5,14 @@ import logging
 import os
 from contextlib import AsyncExitStack
 from typing import Any, Optional
+from pydantic import BaseModel, Field
 
 from langchain_core.tools import StructuredTool
 from sqlalchemy import select
 
-from app.core.mcp.auth.base import AuthMethod
-from app.core.mcp.auth.elicitation import mcp_elicitation_handler
 from app.core.mcp.auth.manager import mcp_auth_manager
 from app.core.mcp.config import AuthType, McpServerConfig, TransportType, ConnectionResult, ConnectionState
+from app.core.mcp.features.base import McpPromptResult, McpResourceContent
 from app.core.mcp.features.prompts import McpPromptsFeature
 from app.core.mcp.features.resources import McpResourcesFeature
 from app.core.mcp.features.tools import McpToolsFeature
@@ -20,6 +20,35 @@ from app.core.mcp.health import McpHealthChecker, HealthStatus
 from app.core.mcp.transport import McpTransport
 from app.infrastructure.database.sql.database import session_scope
 from app.models import McpServer
+from app.utils.model_helpers import LegacyDictMixin
+
+
+class McpResource(BaseModel, LegacyDictMixin):
+    uri: str
+    name: str
+    mimeType: str | None = None
+    description: str | None = None
+
+
+class McpPromptArgument(BaseModel, LegacyDictMixin):
+    name: str
+    required: bool = False
+
+
+class McpPrompt(BaseModel, LegacyDictMixin):
+    name: str
+    description: str | None = None
+    arguments: list[McpPromptArgument] = Field(default_factory=list)
+
+
+class McpServerSummary(BaseModel, LegacyDictMixin):
+    name: str
+    command: str | None = None
+    status: str
+    tools_count: int
+    enabled: bool
+
+
 
 logger = logging.getLogger(__name__)
 
@@ -346,7 +375,7 @@ class McpClientManager:
     # Resources Access
     # ═══════════════════════════════════════════════════════════
     
-    async def list_resources(self, server_name: str) -> list[dict[str, Any]]:
+    async def list_resources(self, server_name: str) -> list[McpResource]:
         """
         List available resources from a server.
         
@@ -361,17 +390,17 @@ class McpClientManager:
             if feature:
                 resources = feature.get_resources()
                 return [
-                    {
-                        "uri": r.uri,
-                        "name": r.name,
-                        "mimeType": r.mimeType,
-                        "description": r.description,
-                    }
+                    McpResource(
+                        uri=r.uri,
+                        name=r.name,
+                        mimeType=r.mimeType,
+                        description=r.description,
+                    )
                     for r in resources
                 ]
         return []
     
-    async def read_resource(self, server_name: str, uri: str) -> dict[str, Any]:
+    async def read_resource(self, server_name: str, uri: str) -> McpResourceContent:
         """
         Read content from a resource URI.
         
@@ -407,7 +436,7 @@ class McpClientManager:
     # Prompts Access
     # ═══════════════════════════════════════════════════════════
     
-    async def list_prompts(self, server_name: str) -> list[dict[str, Any]]:
+    async def list_prompts(self, server_name: str) -> list[McpPrompt]:
         """
         List available prompts from a server.
         
@@ -422,14 +451,14 @@ class McpClientManager:
             if feature:
                 prompts = feature.get_prompts()
                 return [
-                    {
-                        "name": p.name,
-                        "description": p.description,
-                        "arguments": [
-                            {"name": arg.name, "required": arg.required}
+                    McpPrompt(
+                        name=p.name,
+                        description=p.description,
+                        arguments=[
+                            McpPromptArgument(name=arg.name, required=arg.required)
                             for arg in (p.arguments or [])
                         ],
-                    }
+                    )
                     for p in prompts
                 ]
         return []
@@ -439,7 +468,7 @@ class McpClientManager:
         server_name: str, 
         prompt_name: str, 
         arguments: dict[str, str] | None = None
-    ) -> dict[str, Any]:
+    ) -> McpPromptResult:
         """
         Get a rendered prompt with optional arguments.
         
@@ -533,7 +562,7 @@ class McpClientManager:
                 return True
         return False
     
-    async def list_servers(self) -> list[dict[str, Any]]:
+    async def list_servers(self) -> list[McpServerSummary]:
         """List all servers with status."""
         async with session_scope() as session:
             result = await session.execute(select(McpServer))
@@ -545,13 +574,13 @@ class McpClientManager:
                 feature = self._tools_feature.get(s.name)
                 tools_count = len(feature.get_tools()) if feature else 0
                 
-                output.append({
-                    "name": s.name,
-                    "command": s.command,
-                    "status": "connected" if is_connected else "available",
-                    "tools_count": tools_count,
-                    "enabled": s.enabled
-                })
+                output.append(McpServerSummary(
+                    name=s.name,
+                    command=s.command,
+                    status="connected" if is_connected else "available",
+                    tools_count=tools_count,
+                    enabled=s.enabled
+                ))
             return output
     
     def get_connection_state(self, server_name: str) -> ConnectionState:

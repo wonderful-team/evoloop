@@ -43,15 +43,86 @@ class DocumentListResponse(BaseModel):
     collections: list[str]
 
 
+class DocumentMetadataResponse(BaseModel):
+    """Structured metadata for a document chunk/response."""
+    title: str | None = None
+    source_file: str | None = None
+    source_mime_type: str | None = None
+    file_size_bytes: int | None = None
+    extracted_at: str | None = None
+    source_project_id: int | None = None
+
+
 class DocumentContentResponse(BaseModel):
     """Response for reading document content."""
     path: str
     content: str
-    metadata: dict
+    metadata: DocumentMetadataResponse
     offset: int
     limit: int
     total_lines: int
     has_more: bool
+
+
+class CollectionResponse(BaseModel):
+    """Response for listing collections."""
+    collections: list[str]
+    stats: dict[str, Any]
+
+
+class TagItem(BaseModel):
+    """Single tag with document count."""
+    name: str
+    count: int
+
+
+class TagResponse(BaseModel):
+    """Response for listing tags."""
+    tags: list[TagItem]
+    total: int
+
+
+class DocumentSearchResponse(BaseModel):
+    """Response for document search."""
+    query: str
+    results: list[dict[str, Any]]
+    total_matches: int
+
+
+class BulkUploadResponse(BaseModel):
+    """Response for bulk upload."""
+    success: bool
+    message: str
+
+
+class ZipImportResponse(BaseModel):
+    """Response for ZIP import."""
+    success: bool
+    message: str
+
+
+class FTSSearchResult(BaseModel):
+    """Single FTS search result."""
+    doc_id: str
+    path: str
+    collection: str | None
+    title: str
+    snippet: str
+    highlights: list[str]
+    score: float
+
+
+class FTSSearchResponse(BaseModel):
+    """Response for FTS search."""
+    query: str
+    total: int
+    results: list[FTSSearchResult]
+    facets: dict[str, Any]
+
+
+class FTSSuggestResponse(BaseModel):
+    """Response for FTS suggestions."""
+    suggestions: list[str]
 
 
 # ============ Routes ============
@@ -156,12 +227,12 @@ async def read_document(
         
         return DocumentContentResponse(
             path=path,
-            content=result["content"],
-            metadata=result.get("extracted_metadata", {}),
-            offset=result["offset"],
-            limit=result["limit"] or 0,
-            total_lines=result["total_lines"],
-            has_more=result["has_more"]
+            content=result.content,
+            metadata=DocumentMetadataResponse.model_validate(result.extracted_metadata or {}),
+            offset=result.offset,
+            limit=result.limit or 0,
+            total_lines=result.total_lines,
+            has_more=result.has_more
         )
     
     except FileNotFoundError:
@@ -172,7 +243,7 @@ async def read_document(
         raise HTTPException(status_code=500, detail=f"Failed to read document: {str(e)}")
 
 
-@router.delete("/documents/{path:path}")
+@router.delete("/documents/{path:path}", response_model=DocumentResponse)
 async def delete_document(path: str):
     """
     Delete a document from the knowledge base.
@@ -183,7 +254,7 @@ async def delete_document(path: str):
         if not deleted:
             raise HTTPException(status_code=404, detail=f"Document not found: {path}")
         
-        return {"success": True, "message": f"Document deleted: {path}"}
+        return DocumentResponse(success=True, message=f"Document deleted: {path}")
     
     except HTTPException:
         raise
@@ -192,36 +263,36 @@ async def delete_document(path: str):
         raise HTTPException(status_code=500, detail=f"Failed to delete document: {str(e)}")
 
 
-@router.get("/collections")
+@router.get("/collections", response_model=CollectionResponse)
 async def list_collections():
     """List all knowledge base collections."""
     try:
         collections = store.list_collections()
         stats = store.get_stats()
         
-        return {
-            "collections": collections,
-            "stats": stats
-        }
+        return CollectionResponse(
+            collections=collections,
+            stats=stats
+        )
     
     except Exception as e:
         logger.error(f"List collections failed: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to list collections: {str(e)}")
 
 
-@router.post("/collections/{name}")
+@router.post("/collections/{name}", response_model=DocumentResponse)
 async def create_collection(name: str):
     """Create a new knowledge base collection."""
     try:
         store.create_collection(name)
-        return {"success": True, "message": f"Collection created: {name}"}
+        return DocumentResponse(success=True, message=f"Collection created: {name}")
     
     except Exception as e:
         logger.error(f"Create collection failed: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to create collection: {str(e)}")
 
 
-@router.get("/tags")
+@router.get("/tags", response_model=TagResponse)
 async def list_tags(
     collection: Optional[str] = Query(None, description="Filter by collection"),
     limit: int = Query(100, ge=1, le=500)
@@ -244,20 +315,20 @@ async def list_tags(
         # Sort by count (descending) and limit
         sorted_tags = sorted(tag_counts.items(), key=lambda x: x[1], reverse=True)[:limit]
         
-        return {
-            "tags": [
-                {"name": tag, "count": count}
+        return TagResponse(
+            tags=[
+                TagItem(name=tag, count=count)
                 for tag, count in sorted_tags
             ],
-            "total": len(tag_counts)
-        }
+            total=len(tag_counts)
+        )
     
     except Exception as e:
         logger.error(f"List tags failed: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to list tags: {str(e)}")
 
 
-@router.get("/search")
+@router.get("/search", response_model=DocumentSearchResponse)
 async def search_documents(
     q: str = Query(..., description="Search query"),
     collection: Optional[str] = Query(None, description="Limit to collection"),
@@ -271,18 +342,18 @@ async def search_documents(
     try:
         results = list(store.search_documents(q, collection, context_lines))
         
-        return {
-            "query": q,
-            "results": results,
-            "total_matches": sum(r["match_count"] for r in results)
-        }
+        return DocumentSearchResponse(
+            query=q,
+            results=results,
+            total_matches=sum(r.get("match_count", 0) for r in results)
+        )
     
     except Exception as e:
         logger.error(f"Search failed: {e}")
         raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
 
 
-@router.post("/bulk-upload")
+@router.post("/bulk-upload", response_model=BulkUploadResponse)
 async def bulk_upload(
     files: list[UploadFile] = File(..., description="Multiple files to upload"),
     collection: str = Form(default="default", description="Collection name"),
@@ -307,18 +378,18 @@ async def bulk_upload(
             doc_type=doc_type
         )
         
-        return {
-            "success": result.failed == 0,
-            "message": f"Imported {result.successful}/{result.total_files} files",
-            **result.to_dict()
-        }
+        # Note: result.to_dict() fields are dropped from structured response to keep schema stable.
+        return BulkUploadResponse(
+            success=result.failed == 0,
+            message=f"Imported {result.successful}/{result.total_files} files"
+        )
     
     except Exception as e:
         logger.error(f"Bulk upload failed: {e}")
         raise HTTPException(status_code=500, detail=f"Bulk upload failed: {str(e)}")
 
 
-@router.post("/import-zip")
+@router.post("/import-zip", response_model=ZipImportResponse)
 async def import_zip(
     file: UploadFile = File(..., description="ZIP archive containing documents"),
     collection: str = Form(default="default", description="Collection name"),
@@ -346,11 +417,10 @@ async def import_zip(
             preserve_structure=preserve_structure
         )
         
-        return {
-            "success": result.failed == 0,
-            "message": f"Imported {result.successful}/{result.total_files} files from ZIP",
-            **result.to_dict()
-        }
+        return ZipImportResponse(
+            success=result.failed == 0,
+            message=f"Imported {result.successful}/{result.total_files} files from ZIP"
+        )
     
     except HTTPException:
         raise
@@ -380,10 +450,9 @@ async def validate_zip(
         raise HTTPException(status_code=500, detail=f"Validation failed: {str(e)}")
 
 
-
 # ============ FTS Search ============
 
-@router.get("/fts/search")
+@router.get("/fts/search", response_model=FTSSearchResponse)
 async def fts_search(
     q: str = Query(..., description="FTS5 search query"),
     collection: Optional[str] = Query(None, description="Filter by collection"),
@@ -413,30 +482,30 @@ async def fts_search(
             offset=offset
         )
         
-        return {
-            "query": q,
-            "total": results.total,
-            "results": [
-                {
-                    "doc_id": r.doc_id,
-                    "path": r.path,
-                    "collection": r.collection,
-                    "title": r.title,
-                    "snippet": r.content_snippet,
-                    "highlights": r.highlights,
-                    "score": r.bm25_score
-                }
+        return FTSSearchResponse(
+            query=q,
+            total=results.total,
+            results=[
+                FTSSearchResult(
+                    doc_id=r.doc_id,
+                    path=r.path,
+                    collection=r.collection,
+                    title=r.title,
+                    snippet=r.content_snippet,
+                    highlights=r.highlights,
+                    score=r.bm25_score
+                )
                 for r in results.results
             ],
-            "facets": results.facets
-        }
+            facets=results.facets
+        )
     
     except Exception as e:
         logger.error(f"FTS search failed: {e}")
         raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
 
 
-@router.get("/fts/suggest")
+@router.get("/fts/suggest", response_model=FTSSuggestResponse)
 async def fts_suggest(
     prefix: str = Query(..., description="Search prefix"),
     collection: Optional[str] = Query(None, description="Filter by collection"),
@@ -446,7 +515,7 @@ async def fts_suggest(
     try:
         fts = get_fts_service()
         suggestions = await fts.suggest(prefix, collection, limit)
-        return {"suggestions": suggestions}
+        return FTSSuggestResponse(suggestions=suggestions)
     
     except Exception as e:
         logger.error(f"Suggestions failed: {e}")

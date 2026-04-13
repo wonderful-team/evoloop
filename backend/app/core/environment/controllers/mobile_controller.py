@@ -14,6 +14,7 @@ import os
 import time
 from typing import Any, Dict, List, Optional, Tuple
 
+from pydantic import BaseModel, ConfigDict
 
 from app.core.atlas import atlas_engine
 from app.core.atlas.models import AtlasApp
@@ -33,8 +34,16 @@ from app.core.environment.controllers.utils import (
     RecordingContext,
     resolve_element_alias,
 )
+from app.utils.model_helpers import LegacyDictMixin
 
 logger = logging.getLogger(__name__)
+
+
+class AppInfo(BaseModel, LegacyDictMixin):
+    model_config = ConfigDict(extra="allow")
+    package: str
+    activity: str = ""
+    confidence: float = 1.0
 
 
 class MobileController:
@@ -90,7 +99,7 @@ class MobileController:
             cls._package_cache[device_id] = (package, time.time())
 
     @classmethod
-    async def get_current_app_cached(cls, device_id: str | None = None) -> Dict[str, Any]:
+    async def get_current_app_cached(cls, device_id: str | None = None) -> AppInfo:
         """
         Get current app with caching support.
 
@@ -101,12 +110,12 @@ class MobileController:
             device_id: Device identifier
 
         Returns:
-            Dict with 'package', 'activity', 'confidence' keys
+            AppInfo with 'package', 'activity', 'confidence' keys
         """
         # Check cache first
         cached = cls._get_cached_package(device_id)
         if cached:
-            return {"package": cached, "activity": "", "confidence": 1.0}
+            return AppInfo(package=cached, activity="", confidence=1.0)
 
         # Cache miss - query ADB
         result = await asyncio.to_thread(adb_driver.get_current_app, device_id=device_id)
@@ -115,7 +124,7 @@ class MobileController:
         if result.get("package") and result["package"] not in ("unknown", "error", ""):
             cls._set_cached_package(device_id, result["package"])
 
-        return result
+        return AppInfo.model_validate(result)
 
     @classmethod
     async def execute(

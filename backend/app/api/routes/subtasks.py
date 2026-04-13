@@ -5,7 +5,7 @@ Provides hierarchical task management for Agent task planning.
 """
 
 import logging
-from typing import Optional
+from typing import Any, Optional
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
@@ -70,9 +70,60 @@ class ExecutableTaskResponse(BaseModel):
     parent_title: Optional[str] = None
 
 
+class TaskCreateResponse(BaseModel):
+    """Response after creating a task with subtasks."""
+    success: bool
+    message: str
+    task: dict[str, Any]
+
+
+class TaskTreeWrapperResponse(BaseModel):
+    """Response wrapping a task tree."""
+    success: bool
+    task: dict[str, Any]
+
+
+class TaskProgressUpdateResponse(BaseModel):
+    """Response after updating task progress."""
+    success: bool
+    message: str
+
+
+class NextTaskResponse(BaseModel):
+    """Response for next executable task."""
+    success: bool
+    message: str
+    task: dict[str, Any] | None
+
+
+class TaskFlatResponse(BaseModel):
+    """Response for flattened task tree."""
+    success: bool
+    count: int
+    tasks: list[dict[str, Any]]
+
+
+class TaskListItem(BaseModel):
+    """Item in root task list."""
+    id: str
+    title: str
+    status: str
+    progress: int
+    priority: str
+    has_subtasks: bool
+    created_at: str | None
+
+
+class TaskListResponse(BaseModel):
+    """Response for listing root tasks."""
+    success: bool
+    count: int
+    tasks: list[TaskListItem]
+
+
 # --- API Routes ---
 
-@router.post("/", response_model=dict)
+@router.post("/", response_model=TaskCreateResponse)
 async def create_task_with_subtasks(
     project_id: int,
     req: TaskWithSubtasksCreate,
@@ -114,18 +165,18 @@ async def create_task_with_subtasks(
         # Get full tree
         tree = await subtask_service.get_task_tree(task.id)
         
-        return {
-            "success": True,
-            "message": f"Created task with {len(task.subtasks)} subtasks",
-            "task": tree
-        }
+        return TaskCreateResponse(
+            success=True,
+            message=f"Created task with {len(task.subtasks)} subtasks",
+            task=tree
+        )
         
     except Exception as e:
         logger.error(f"[SubtasksAPI] Failed to create task: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/tree/{task_id}", response_model=dict)
+@router.get("/tree/{task_id}", response_model=TaskTreeWrapperResponse)
 async def get_task_tree(
     project_id: int,
     task_id: str,
@@ -138,13 +189,13 @@ async def get_task_tree(
     if not tree:
         raise HTTPException(status_code=404, detail="Task not found")
         
-    return {
-        "success": True,
-        "task": tree
-    }
+    return TaskTreeWrapperResponse(
+        success=True,
+        task=tree
+    )
 
 
-@router.put("/progress/{task_id}", response_model=dict)
+@router.put("/progress/{task_id}", response_model=TaskProgressUpdateResponse)
 async def update_task_progress(
     project_id: int,
     task_id: str,
@@ -167,13 +218,13 @@ async def update_task_progress(
     if not success:
         raise HTTPException(status_code=404, detail="Task not found")
         
-    return {
-        "success": True,
-        "message": "Progress updated"
-    }
+    return TaskProgressUpdateResponse(
+        success=True,
+        message="Progress updated"
+    )
 
 
-@router.get("/next", response_model=dict)
+@router.get("/next", response_model=NextTaskResponse)
 async def get_next_executable_task(
     project_id: int,
     token: TokenDep = None
@@ -185,19 +236,20 @@ async def get_next_executable_task(
     task = await subtask_service.get_next_executable_task(project_id)
     
     if not task:
-        return {
-            "success": True,
-            "message": "No pending tasks",
-            "task": None
-        }
+        return NextTaskResponse(
+            success=True,
+            message="No pending tasks",
+            task=None
+        )
         
-    return {
-        "success": True,
-        "task": task
-    }
+    return NextTaskResponse(
+        success=True,
+        message="",
+        task=task
+    )
 
 
-@router.get("/flat/{task_id}", response_model=dict)
+@router.get("/flat/{task_id}", response_model=TaskFlatResponse)
 async def flatten_task_tree(
     project_id: int,
     task_id: str,
@@ -209,14 +261,14 @@ async def flatten_task_tree(
     """
     flat_list = await subtask_service.flatten_task_tree(task_id)
     
-    return {
-        "success": True,
-        "count": len(flat_list),
-        "tasks": flat_list
-    }
+    return TaskFlatResponse(
+        success=True,
+        count=len(flat_list),
+        tasks=flat_list
+    )
 
 
-@router.get("/list", response_model=dict)
+@router.get("/list", response_model=TaskListResponse)
 async def list_root_tasks(
     project_id: int,
     status: Optional[str] = None,
@@ -240,19 +292,19 @@ async def list_root_tasks(
         result = await session.execute(query)
         tasks = result.scalars().all()
         
-        return {
-            "success": True,
-            "count": len(tasks),
-            "tasks": [
-                {
-                    "id": t.id,
-                    "title": t.task_data.get("title", ""),
-                    "status": t.status,
-                    "progress": t.progress,
-                    "priority": t.task_data.get("priority", "medium"),
-                    "has_subtasks": len(t.subtasks) > 0 if hasattr(t, 'subtasks') else False,
-                    "created_at": t.created_at.isoformat() if t.created_at else None
-                }
+        return TaskListResponse(
+            success=True,
+            count=len(tasks),
+            tasks=[
+                TaskListItem(
+                    id=t.id,
+                    title=t.task_data.get("title", ""),
+                    status=t.status,
+                    progress=t.progress,
+                    priority=t.task_data.get("priority", "medium"),
+                    has_subtasks=len(t.subtasks) > 0 if hasattr(t, 'subtasks') else False,
+                    created_at=t.created_at.isoformat() if t.created_at else None
+                )
                 for t in tasks
             ]
-        }
+        )

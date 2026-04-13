@@ -5,7 +5,12 @@ from typing import Any
 
 from mcp import ClientSession
 
-from app.core.mcp.features.base import McpFeature
+from app.core.mcp.features.base import (
+    McpFeature,
+    McpFeatureCapabilities,
+    McpPromptMessage,
+    McpPromptResult,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -33,11 +38,11 @@ class McpPromptsFeature(McpFeature):
             logger.debug(f"Prompts not supported by {server_name}: {e}")
             self._prompts = []
     
-    async def get_capabilities(self) -> dict[str, Any]:
+    async def get_capabilities(self) -> McpFeatureCapabilities:
         """Get prompts capabilities."""
-        return {
-            "count": len(self._prompts),
-            "prompts": [
+        return McpFeatureCapabilities(
+            count=len(self._prompts),
+            prompts=[
                 {
                     "name": p.name,
                     "description": p.description,
@@ -48,13 +53,13 @@ class McpPromptsFeature(McpFeature):
                 }
                 for p in self._prompts
             ],
-        }
+        )
     
     def get_prompts(self) -> list:
         """Get list of available prompts."""
         return self._prompts
     
-    async def get_prompt(self, name: str, arguments: dict[str, str] | None = None) -> dict[str, Any]:
+    async def get_prompt(self, name: str, arguments: dict[str, str] | None = None) -> McpPromptResult:
         """
         Get a rendered prompt with optional arguments.
         
@@ -71,9 +76,9 @@ class McpPromptsFeature(McpFeature):
         try:
             result = await self._session.get_prompt(name, arguments=arguments or {})
             
-            messages = []
+            messages: list[McpPromptMessage] = []
             for msg in result.messages:
-                msg_data = {
+                msg_data: dict[str, Any] = {
                     "role": msg.role,
                     "content": None,
                     "content_type": None,
@@ -95,13 +100,13 @@ class McpPromptsFeature(McpFeature):
                     msg_data["content_type"] = "resource"
                     msg_data["resource_uri"] = resource.uri if hasattr(resource, 'uri') else None
                 
-                messages.append(msg_data)
+                messages.append(McpPromptMessage(**msg_data))
             
-            return {
-                "name": name,
-                "description": result.description,
-                "messages": messages,
-            }
+            return McpPromptResult(
+                name=name,
+                description=result.description,
+                messages=messages,
+            )
             
         except Exception as e:
             logger.error(f"Failed to get prompt '{name}': {e}")

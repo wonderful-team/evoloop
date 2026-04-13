@@ -2,10 +2,9 @@ import logging
 import json
 import os
 import time
-from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from app.utils.model_helpers import LegacyDictMixin
 
 from langchain_core.callbacks import AsyncCallbackHandler
@@ -19,13 +18,23 @@ from app.utils.path import ensure_dir
 logger = logging.getLogger(__name__)
 
 
+class TraceParameters(BaseModel, LegacyDictMixin):
+    """Dynamic parameters for a recorded action."""
+    model_config = ConfigDict(extra="allow")
+
+
+class TraceContext(BaseModel, LegacyDictMixin):
+    """Dynamic context (view hierarchy, URL, etc.) for a recorded action."""
+    model_config = ConfigDict(extra="allow")
+
+
 class ActionTrace(BaseModel, LegacyDictMixin):
     """Represents a single user action captured during demonstration."""
     timestamp: float
     action_type: str  # click, type, swipe, key, navigate, etc.
     platform: str     # android, web, desktop
-    parameters: Dict[str, Any]
-    context: Dict[str, Any] = Field(default_factory=dict) # View hierarchy, URL, etc.
+    parameters: TraceParameters
+    context: TraceContext = Field(default_factory=TraceContext) # View hierarchy, URL, etc.
     screenshot_path: Optional[str] = None
 
 

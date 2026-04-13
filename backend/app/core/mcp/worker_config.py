@@ -3,13 +3,10 @@
 from dataclasses import dataclass, field
 from typing import Any
 
-from app.core.mcp.config import AuthType, McpServerConfig, TransportType
-
-
 from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 from app.utils.model_helpers import LegacyDictMixin
-from app.core.mcp.config import AuthType, McpServerConfig, TransportType
+from app.core.mcp.config import AuthConfig, AuthType, McpServerConfig, TransportType
 
 
 class WorkerMcpServerConfig(BaseModel, LegacyDictMixin):
@@ -24,7 +21,7 @@ class WorkerMcpServerConfig(BaseModel, LegacyDictMixin):
     headers: Dict[str, str] = Field(default_factory=dict)
     # Auth
     auth_type: AuthType = AuthType.NONE
-    auth_config: Dict[str, Any] = Field(default_factory=dict)
+    auth_config: AuthConfig = Field(default_factory=AuthConfig)
     # Inheritance
     inherit_from_global: bool = False  # If True, reuse global connection
     
@@ -59,7 +56,7 @@ class WorkerMcpServerConfig(BaseModel, LegacyDictMixin):
             url=data.get("url"),
             headers=data.get("headers", {}),
             auth_type=auth_type,
-            auth_config=auth_data,
+            auth_config=AuthConfig(**auth_data),
             inherit_from_global=data.get("inherit_from_global", False),
         )
 

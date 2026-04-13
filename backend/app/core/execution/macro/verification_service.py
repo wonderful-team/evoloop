@@ -17,8 +17,73 @@ from app.core.execution.macro import (
     VerificationResponse,
     VerificationReporter,
 )
-from app.core.execution.macro.schema import MacroScript
+from app.core.execution.macro.schema import MacroScript, MacroStep
+from app.core.execution.macro.service import MacroService, MacroRunResult
 from app.utils.yaml import macro_from_yaml
+
+from pydantic import BaseModel, Field
+from app.utils.model_helpers import LegacyDictMixin
+
+
+class VerificationSummary(BaseModel, LegacyDictMixin):
+    success_rate: float
+    adaptation_rate: float
+    anomalies_detected: int
+    adaptations_applied: int
+
+
+class VerificationIssueOut(BaseModel, LegacyDictMixin):
+    severity: str
+    category: str
+    description: str
+    affected_steps: list[Union[int, str]] = Field(default_factory=list)
+
+
+class VerificationReportOut(BaseModel, LegacyDictMixin):
+    summary: VerificationSummary
+    issues: list[VerificationIssueOut] = Field(default_factory=list)
+    recommendations: list[str] = Field(default_factory=list)
+
+
+class MacroVerificationResult(BaseModel, LegacyDictMixin):
+    success: bool
+    status: Optional[str] = None
+    execution_mode: Optional[str] = None
+    confidence_score: Optional[float] = None
+    rounds_completed: Optional[int] = None
+    evolved_macro: Optional[list[dict[str, Any]]] = None
+    verification_report: Optional[VerificationReportOut] = None
+    markdown_report: Optional[str] = None
+    error: Optional[str] = None
+
+
+class ModeRecommendation(BaseModel, LegacyDictMixin):
+    can_execute: bool
+    recommended_mode: str
+    reason: str
+    confidence: float
+
+
+class MacroEvolutionResult(BaseModel, LegacyDictMixin):
+    success: bool
+    original_macro: Union[list[dict[str, Any]], MacroScript, str]
+    evolved_macro: Optional[list[dict[str, Any]]] = None
+    execution_mode: Optional[str] = None
+    confidence: Optional[float] = None
+    improvements: list[str] = Field(default_factory=list)
+    report: Optional[VerificationReportOut] = None
+    error: Optional[str] = None
+
+
+class SynthesisVerificationResult(BaseModel, LegacyDictMixin):
+    status: str
+    evolved_macro: Optional[list[dict[str, Any]]] = None
+    execution_mode: Optional[str] = None
+    confidence: Optional[float] = None
+    report: Optional[VerificationReportOut] = None
+    error: Optional[str] = None
+
+
 
 logger = logging.getLogger(__name__)
 
@@ -34,13 +99,13 @@ class VerificationService:
     @classmethod
     async def verify_macro(
         cls,
-        macro_script: Union[List[Dict[str, Any]], MacroScript, str],
+        macro_script: Union[List[MacroStep], MacroScript, str],
         platform: str = "web",
         max_rounds: int = 2,
         auto_evolve: bool = True,
         thread_id: Optional[str] = None,
         stop_on_failure: bool = True
-    ) -> Dict[str, Any]:
+    ) -> MacroVerificationResult:
         """
         Verify a macro script with optional evolution.
 
@@ -59,29 +124,29 @@ class VerificationService:
         # Convert various formats to list of steps
         steps = None
         if isinstance(macro_script, MacroScript):
-            steps = [step.dict() for step in macro_script.steps]
+            steps = list(macro_script.steps)
         elif isinstance(macro_script, str):
             # Parse YAML string
             try:
-                steps = macro_from_yaml(macro_script)
+                steps = [MacroStep.model_validate(s) for s in macro_from_yaml(macro_script)]
             except Exception as e:
                 logger.error(f"Failed to parse macro YAML: {e}")
-                return {
-                    "success": False,
-                    "error": f"Invalid macro YAML: {e}",
-                    "evolved_macro": None,
-                    "execution_mode": "agentic"
-                }
+                return MacroVerificationResult(
+                    success=False,
+                    error=f"Invalid macro YAML: {e}",
+                    evolved_macro=None,
+                    execution_mode="agentic"
+                )
         else:
             steps = macro_script
 
         if not steps:
-            return {
-                "success": False,
-                "error": "Empty macro script",
-                "evolved_macro": None,
-                "execution_mode": "agentic"
-            }
+            return MacroVerificationResult(
+                success=False,
+                error="Empty macro script",
+                evolved_macro=None,
+                execution_mode="agentic"
+            )
 
         # Build verification request with agent config
         from app.core.execution.macro.verification_models import AgentConfig
@@ -112,33 +177,33 @@ class VerificationService:
             reporter = VerificationReporter(response)
 
             # Build result
-            result = {
-                "success": response.success,
-                "status": response.status.value,
-                "execution_mode": response.execution_mode.value,
-                "confidence_score": response.confidence_score,
-                "rounds_completed": response.rounds_completed,
-                "evolved_macro": response.evolved_macro if auto_evolve else None,
-                "verification_report": {
-                    "summary": {
-                        "success_rate": response.verification_report.summary.overall_success_rate,
-                        "adaptation_rate": response.verification_report.summary.adaptation_rate,
-                        "anomalies_detected": response.verification_report.summary.total_anomalies_detected,
-                        "adaptations_applied": response.verification_report.summary.total_adaptations_applied,
-                    },
-                    "issues": [
-                        {
-                            "severity": issue.severity,
-                            "category": issue.category,
-                            "description": issue.description,
-                            "affected_steps": issue.affected_steps
-                        }
+            result = MacroVerificationResult(
+                success=response.success,
+                status=response.status.value,
+                execution_mode=response.execution_mode.value,
+                confidence_score=response.confidence_score,
+                rounds_completed=response.rounds_completed,
+                evolved_macro=response.evolved_macro if auto_evolve else None,
+                verification_report=VerificationReportOut(
+                    summary=VerificationSummary(
+                        success_rate=response.verification_report.summary.overall_success_rate,
+                        adaptation_rate=response.verification_report.summary.adaptation_rate,
+                        anomalies_detected=response.verification_report.summary.total_anomalies_detected,
+                        adaptations_applied=response.verification_report.summary.total_adaptations_applied,
+                    ),
+                    issues=[
+                        VerificationIssueOut(
+                            severity=issue.severity,
+                            category=issue.category,
+                            description=issue.description,
+                            affected_steps=list(issue.affected_steps)
+                        )
                         for issue in response.verification_report.issues
                     ],
-                    "recommendations": response.verification_report.recommendations
-                },
-                "markdown_report": reporter.to_markdown(),
-            }
+                    recommendations=list(response.verification_report.recommendations)
+                ),
+                markdown_report=reporter.to_markdown(),
+            )
 
             logger.info(
                 f"[VerificationService] Verification complete: "
@@ -150,20 +215,20 @@ class VerificationService:
 
         except Exception as e:
             logger.error(f"[VerificationService] Verification failed: {e}", exc_info=True)
-            return {
-                "success": False,
-                "error": str(e),
-                "evolved_macro": None,
-                "execution_mode": "agentic"
-            }
+            return MacroVerificationResult(
+                success=False,
+                error=str(e),
+                evolved_macro=None,
+                execution_mode="agentic"
+            )
 
     @classmethod
     async def verify_and_select_mode(
         cls,
-        macro_script: Union[List[Dict[str, Any]], MacroScript],
+        macro_script: Union[List[MacroStep], MacroScript],
         platform: str = "web",
         confidence_threshold: float = 0.8
-    ) -> Dict[str, Any]:
+    ) -> ModeRecommendation:
         """
         Verify macro and return recommended execution mode.
 
@@ -186,44 +251,44 @@ class VerificationService:
         )
 
         if not result["success"]:
-            return {
-                "can_execute": False,
-                "recommended_mode": "agentic",
-                "reason": result.get("error", "Verification failed"),
-                "confidence": 0.0
-            }
+            return ModeRecommendation(
+                can_execute=False,
+                recommended_mode="agentic",
+                reason=result.get("error", "Verification failed"),
+                confidence=0.0
+            )
 
         confidence = result["confidence_score"]
 
         if confidence >= confidence_threshold and result["status"] == "completed":
-            return {
-                "can_execute": True,
-                "recommended_mode": "deterministic",
-                "reason": f"High confidence ({confidence:.2%}) with no failures",
-                "confidence": confidence
-            }
+            return ModeRecommendation(
+                can_execute=True,
+                recommended_mode="deterministic",
+                reason=f"High confidence ({confidence:.2%}) with no failures",
+                confidence=confidence
+            )
         elif confidence >= 0.5:
-            return {
-                "can_execute": True,
-                "recommended_mode": "hybrid",
-                "reason": f"Moderate confidence ({confidence:.2%}), some adaptations needed",
-                "confidence": confidence
-            }
+            return ModeRecommendation(
+                can_execute=True,
+                recommended_mode="hybrid",
+                reason=f"Moderate confidence ({confidence:.2%}), some adaptations needed",
+                confidence=confidence
+            )
         else:
-            return {
-                "can_execute": True,
-                "recommended_mode": "agentic",
-                "reason": f"Low confidence ({confidence:.2%}), agent supervision recommended",
-                "confidence": confidence
-            }
+            return ModeRecommendation(
+                can_execute=True,
+                recommended_mode="agentic",
+                reason=f"Low confidence ({confidence:.2%}), agent supervision recommended",
+                confidence=confidence
+            )
 
     @classmethod
     async def evolve_macro(
         cls,
-        macro_script: Union[List[Dict[str, Any]], MacroScript, str],
+        macro_script: Union[List[MacroStep], MacroScript, str],
         platform: str = "web",
         max_rounds: int = 2
-    ) -> Dict[str, Any]:
+    ) -> MacroEvolutionResult:
         """
         Evolve a macro through verification and adaptation.
 
@@ -245,13 +310,13 @@ class VerificationService:
         )
 
         if not result["success"] or not result["evolved_macro"]:
-            return {
-                "success": False,
-                "error": result.get("error", "Evolution failed"),
-                "original_macro": macro_script,
-                "evolved_macro": None,
-                "improvements": []
-            }
+            return MacroEvolutionResult(
+                success=False,
+                error=result.get("error", "Evolution failed"),
+                original_macro=macro_script,
+                evolved_macro=None,
+                improvements=[]
+            )
 
         # Calculate improvements
         if isinstance(macro_script, list):
@@ -282,15 +347,15 @@ class VerificationService:
         if summary.get("anomalies_detected", 0) > 0:
             improvements.append(f"Handled {summary['anomalies_detected']} environment anomalies")
 
-        return {
-            "success": True,
-            "original_macro": macro_script,
-            "evolved_macro": result["evolved_macro"],
-            "execution_mode": result["execution_mode"],
-            "confidence": result["confidence_score"],
-            "improvements": improvements,
-            "report": result["verification_report"]
-        }
+        return MacroEvolutionResult(
+            success=True,
+            original_macro=macro_script,
+            evolved_macro=result["evolved_macro"],
+            execution_mode=result["execution_mode"],
+            confidence=result["confidence_score"],
+            improvements=improvements,
+            report=result["verification_report"]
+        )
 
 
 class SynthesisIntegration:
@@ -305,7 +370,7 @@ class SynthesisIntegration:
         macro_script: Union[List[Dict[str, Any]], Any],
         thread_id: str,
         project_id: int = 1
-    ) -> Dict[str, Any]:
+    ) -> SynthesisVerificationResult:
         """
         Verify macro during skill synthesis.
 
@@ -321,28 +386,21 @@ class SynthesisIntegration:
         """
         logger.info(f"[{thread_id}] Phase 5: Running agent-based verification")
 
-        # Normalize macro_script to list of dict steps
+        # Normalize macro_script to list of MacroStep instances
         steps = macro_script
         if isinstance(macro_script, MacroScript):
-            # MacroScript object - convert to dicts with proper nesting
-            try:
-                # Try Pydantic v2 method first
-                steps = [step.model_dump() if hasattr(step, 'model_dump') else step.dict() 
-                         for step in macro_script.steps]
-            except Exception as e:
-                logger.warning(f"Failed to convert MacroScript to dicts: {e}")
-                steps = list(macro_script.steps)
+            steps = list(macro_script.steps)
 
-        # Filter out non-dict steps (safety check)
-        steps = [s for s in steps if isinstance(s, dict)]
+        # Filter out invalid steps (safety check)
+        steps = [s for s in steps if isinstance(s, (dict, MacroStep))]
 
         if not steps:
             logger.error("No valid steps found in macro_script")
-            return {
-                "status": "failed",
-                "error": "No valid steps in macro script",
-                "report": {}
-            }
+            return SynthesisVerificationResult(
+                status="failed",
+                error="No valid steps in macro script",
+                report=None
+            )
 
         # Detect platform from normalized steps
         platform = SynthesisIntegration._detect_platform(steps)
@@ -358,22 +416,22 @@ class SynthesisIntegration:
 
         # Convert to old interface for backwards compatibility
         if result["success"] and result["evolved_macro"]:
-            return {
-                "status": "success",
-                "evolved_macro": result["evolved_macro"],
-                "execution_mode": result["execution_mode"],
-                "confidence": result["confidence_score"],
-                "report": result["verification_report"]
-            }
+            return SynthesisVerificationResult(
+                status="success",
+                evolved_macro=result["evolved_macro"],
+                execution_mode=result["execution_mode"],
+                confidence=result["confidence_score"],
+                report=result["verification_report"]
+            )
         else:
-            return {
-                "status": "failed",
-                "error": result.get("error", "Verification failed"),
-                "report": result.get("verification_report", {})
-            }
+            return SynthesisVerificationResult(
+                status="failed",
+                error=result.get("error", "Verification failed"),
+                report=result.get("verification_report")
+            )
 
     @staticmethod
-    def _detect_platform(macro_script: List[Dict[str, Any]]) -> str:
+    def _detect_platform(macro_script: List[MacroStep]) -> str:
         """Detect platform from macro steps (handles nested if/else structures)"""
         sources = set()
 
@@ -435,7 +493,7 @@ class MacroServiceIntegration:
         params: Optional[Dict[str, Any]] = None,
         verify_first: bool = True,
         confidence_threshold: float = 0.7
-    ) -> Dict[str, Any]:
+    ) -> MacroRunResult:
         """
         Execute macro with optional pre-flight verification.
 
@@ -476,19 +534,16 @@ class MacroServiceIntegration:
             # Store verification result in params for downstream use
             params["_verification_result"] = check
 
-        # Execute via MacroService
-        from app.core.execution.macro.service import MacroService
-
         return await MacroService.run(thread_id, macro_script, params)
 
 
 # Convenience functions for direct import
 
 async def verify_macro(
-    macro_script: List[Dict[str, Any]],
+    macro_script: List[MacroStep],
     platform: str = "web",
     max_rounds: int = 2
-) -> Dict[str, Any]:
+) -> MacroVerificationResult:
     """
     Quick function to verify a macro.
 
@@ -506,9 +561,9 @@ async def verify_macro(
 
 
 async def quick_verify(
-    macro_script: List[Dict[str, Any]],
+    macro_script: List[MacroStep],
     platform: str = "web"
-) -> Dict[str, Any]:
+) -> ModeRecommendation:
     """
     Quick single-round verification to check if macro is viable.
 

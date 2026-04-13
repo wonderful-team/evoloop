@@ -13,7 +13,7 @@ from websockets.client import ClientConnection
 
 from app.core.evocloud.interfaces.client import EvoCloudClientProtocol
 from app.core.evocloud.interfaces.link import DeviceLinkProtocol
-from app.core.evocloud.schemas import EvoCloudConfig
+from app.core.evocloud.schemas import EvoCloudConfig, ProjectSwitchEvent, QueryResponse, RemoteCommand, WebSocketHandshake, WebSocketPing
 from app.core.identity import identity_service
 from app.utils import file as file_utils
 from app.utils.async_utils import run_in_thread
@@ -47,8 +47,8 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
         self._reconnect_delay = 5
 
         # Callbacks
-        self._command_handler: Callable[[dict[str, Any]], None] | None = None
-        self._event_handler: Callable[[str, dict[str, Any]], None] | None = None
+        self._command_handler: Callable[[RemoteCommand], None] | None = None
+        self._event_handler: Callable[[str, ProjectSwitchEvent], None] | None = None
         self._query_handler: Callable[[str, str, dict[str, Any]], Any] | None = None
 
         # Idempotency & Concurrency
@@ -179,8 +179,8 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
             if self.ws and self.is_connected():
                 try:
                     # Send ping via WebSocket
-                    ping_msg = {"type": "ping", "timestamp": int(asyncio.get_event_loop().time())}
-                    await self.ws.send(json.dumps(ping_msg))
+                    ping_msg = WebSocketPing(timestamp=int(asyncio.get_event_loop().time()))
+                    await self.ws.send(json.dumps(ping_msg.model_dump()))
                     logger.debug("[EvoCloud] WebSocket ping sent")
                 except Exception as e:
                     logger.debug(f"[EvoCloud] WebSocket ping failed: {e}")
@@ -211,15 +211,14 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
                     logger.info("[EvoCloud] WS Connected. Sending handshake...")
 
                     # New Go Gateway Handshake
-                    handshake = {
-                        "type": "connect",
-                        "payload": {
+                    handshake = WebSocketHandshake(
+                        payload={
                             "device_type": "agent",
                             "device_key": self.device_key,
                             "token": self.api.get_token()
                         }
-                    }
-                    await ws.send(json.dumps(handshake))
+                    )
+                    await ws.send(json.dumps(handshake.model_dump()))
 
                     retry_count = 0  # Reset on success
                     async for message in ws:
@@ -281,10 +280,11 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
 
             elif msg_type == "project_switch":
                 if self._event_handler:
+                    event_data = ProjectSwitchEvent.model_validate(data.get("data", {}))
                     if asyncio.iscoroutinefunction(self._event_handler):
-                        asyncio.create_task(self._event_handler(msg_type, data.get("data", {})))
+                        asyncio.create_task(self._event_handler(msg_type, event_data))
                     else:
-                        self._event_handler(msg_type, data.get("data", {}))
+                        self._event_handler(msg_type, event_data)
 
             elif msg_type == "query":
                 await self._handle_query(data)
@@ -329,28 +329,28 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
             error = str(e)
 
         # 发送响应
-        response = {
-            "type": "query_response",
-            "request_id": request_id,
-            "data": {
+        response = QueryResponse(
+            request_id=request_id,
+            data={
                 "code": 0 if error is None else 500,
                 "message": error or "success",
                 "request_id": request_id,
-                "data": result
-            }
-        }
-        await self.send(response)
+                "data": result,
+            },
+        )
+        await self.send(response.model_dump())
 
-    async def _execute_command_wrapper(self, cmd_data):
+    async def _execute_command_wrapper(self, cmd_data: dict):
         cmd_id = cmd_data.get("command_id")
         async with self._command_semaphore:
             await self.api.update_command_status(cmd_id, 2)  # Running
             try:
                 if self._command_handler:
+                    command = RemoteCommand.model_validate(cmd_data)
                     if asyncio.iscoroutinefunction(self._command_handler):
-                        await self._command_handler(cmd_data)
+                        await self._command_handler(command)
                     else:
-                        await run_in_thread(self._command_handler, cmd_data)
+                        await run_in_thread(self._command_handler, command)
                 await self.api.update_command_status(cmd_id, 3)  # Completed
             except Exception as e:
                 logger.error(f"Command execution error: {e}")

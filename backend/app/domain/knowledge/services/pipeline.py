@@ -17,7 +17,7 @@ from app.domain.knowledge.models import (
     MarkdownDocument,
 )
 from app.domain.knowledge.services.store import KnowledgeStoreService
-from app.domain.knowledge.services.search import FTSService, get_fts_service
+from app.domain.knowledge.services.search import FTSService, get_fts_service, IndexDocumentRequest
 from app.domain.knowledge.services.auto_tagger import get_auto_tagger
 
 logger = logging.getLogger(__name__)
@@ -170,14 +170,16 @@ class IngestionPipeline:
                 try:
                     fts = get_fts_service()
                     await fts.index_document(
-                        doc_id=saved_path,
-                        path=saved_path,
-                        title=save_result.get("title", filename) if isinstance(save_result, dict) else filename,
-                        content=document.content,
-                        project=project,
-                        tags=all_tags,
-                        file_size=save_result.get("size") if isinstance(save_result, dict) else None,
-                        word_count=save_result.get("word_count") if isinstance(save_result, dict) else None
+                        IndexDocumentRequest(
+                            doc_id=saved_path,
+                            path=saved_path,
+                            title=save_result.title if hasattr(save_result, "title") else filename,
+                            content=document.content,
+                            collection=project or "default",
+                            tags=all_tags,
+                            file_size=save_result.size if hasattr(save_result, "size") else None,
+                            word_count=save_result.word_count if hasattr(save_result, "word_count") else None,
+                        )
                     )
                     logger.debug(f"Indexed {filename} for search")
                 except Exception as e:

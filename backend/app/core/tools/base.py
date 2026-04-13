@@ -1,6 +1,10 @@
 import functools
+import json
 import logging
 import os
+from typing import Any
+
+from pydantic import BaseModel, Field
 
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool as langchain_tool
@@ -9,6 +13,27 @@ from app.core.config import settings
 from app.core.context.manager import ContextManager
 
 logger = logging.getLogger(__name__)
+
+
+class EvoLoopToolConfig(BaseModel):
+    """Configuration for EvoLoop tool metadata injected by the @evoloop_tool decorator."""
+    is_pollable: bool = False
+    is_state_mutating: bool = False
+    affected_path_keys: list[str] = Field(default_factory=list)
+    summary_template: str | None = None
+    result_summary_template: str | None = None
+    is_memory_tool: bool = False
+    is_multimodal: bool = False
+    is_hidden: bool = False
+    name_map: dict[str, str] = Field(default_factory=dict)
+    handle_tool_error: bool = True
+    required_benefit: str | None = None
+
+    def model_post_init(self, __context: Any) -> None:
+        if self.affected_path_keys is None:
+            self.affected_path_keys = []
+        if self.name_map is None:
+            self.name_map = {}
 
 
 def get_working_directory(config: RunnableConfig | None = None) -> str:
@@ -46,6 +71,7 @@ def get_working_directory(config: RunnableConfig | None = None) -> str:
 
 def evoloop_tool(
     *args,
+    config: EvoLoopToolConfig | None = None,
     is_pollable: bool = False,
     is_state_mutating: bool = False,
     affected_path_keys: list[str] | None = None,
@@ -62,12 +88,29 @@ def evoloop_tool(
     """
     Decorator that applies standard EvoLoop tool behaviors.
     Can be used as @evoloop_tool or @evoloop_tool(name="...", is_pollable=True, ...).
-    
+
     Args:
+        config: Structured tool configuration. If provided, other metadata kwargs are ignored.
         required_benefit: 权益编码，如 "desktop_control", "mobile_control", "browser_control"
                           如果用户没有该权益，工具执行将被拒绝
     """
     import inspect
+
+    # Build config from legacy kwargs when not provided explicitly
+    if config is None:
+        config = EvoLoopToolConfig(
+            is_pollable=is_pollable,
+            is_state_mutating=is_state_mutating,
+            affected_path_keys=affected_path_keys or [],
+            summary_template=summary_template,
+            result_summary_template=result_summary_template,
+            is_memory_tool=is_memory_tool,
+            is_multimodal=is_multimodal,
+            is_hidden=is_hidden,
+            name_map=name_map or {},
+            handle_tool_error=handle_tool_error,
+            required_benefit=required_benefit,
+        )
 
     def decorator(func):
         if inspect.iscoroutinefunction(func):
@@ -76,12 +119,12 @@ def evoloop_tool(
             async def wrapper(*args_f, **kwargs_f):
                 # Debug: Log raw inputs
                 logger.info(f"🔧 Tool [{func.__name__}] Invoked - Args: {args_f}, Kwargs: {kwargs_f}")
-                
+
                 # 权限检查
-                if required_benefit:
+                if config.required_benefit:
                     from app.api.deps import check_benefit, create_benefit_error_detail
                     from app.core.identity import identity_service
-                    
+
                     try:
                         token = identity_service.get_cloud_token()
                         if not token:
@@ -90,11 +133,11 @@ def evoloop_tool(
                                 "code": "AUTH_REQUIRED",
                                 "message": f"请先登录后再使用 {func.__name__} 功能"
                             }, ensure_ascii=False)
-                        
-                        has_access = await check_benefit(required_benefit, token)
+
+                        has_access = await check_benefit(config.required_benefit, token)
                         if not has_access:
                             # 使用统一的错误格式，与API层保持一致
-                            error_detail = create_benefit_error_detail(required_benefit)
+                            error_detail = create_benefit_error_detail(config.required_benefit)
                             return json.dumps({
                                 "error": "Benefit required",
                                 "code": error_detail["code"],
@@ -111,7 +154,7 @@ def evoloop_tool(
                             "code": "PERMISSION_CHECK_ERROR",
                             "message": f"权限检查失败: {str(e)}"
                         }, ensure_ascii=False)
-                
+
                 try:
                     return await func(*args_f, **kwargs_f)
                 except Exception as e:
@@ -123,11 +166,11 @@ def evoloop_tool(
             def wrapper(*args_f, **kwargs_f):
                 # Debug: Log raw inputs
                 logger.info(f"🔧 Tool [{func.__name__}] Invoked - Args: {args_f}, Kwargs: {kwargs_f}")
-                
+
                 # 同步函数的权限检查（少见）
-                if required_benefit:
-                    return f"Error: {func.__name__} requires benefit {required_benefit} but sync tools don't support permission checks"
-                
+                if config.required_benefit:
+                    return f"Error: {func.__name__} requires benefit {config.required_benefit} but sync tools don't support permission checks"
+
                 try:
                     return func(*args_f, **kwargs_f)
                 except Exception as e:
@@ -144,19 +187,19 @@ def evoloop_tool(
         # Inject EvoLoop metadata for engine orchestration
         if not hasattr(tool_instance, "metadata") or tool_instance.metadata is None:
             tool_instance.metadata = {}
-        tool_instance.metadata["is_pollable"] = is_pollable
-        tool_instance.metadata["is_state_mutating"] = is_state_mutating
-        tool_instance.metadata["affected_path_keys"] = affected_path_keys or []
-        tool_instance.metadata["summary_template"] = summary_template
-        tool_instance.metadata["result_summary_template"] = result_summary_template
-        tool_instance.metadata["is_memory_tool"] = is_memory_tool
-        tool_instance.metadata["is_multimodal"] = is_multimodal
-        tool_instance.metadata["is_hidden"] = is_hidden
-        tool_instance.metadata["name_map"] = name_map or {}
+        tool_instance.metadata["is_pollable"] = config.is_pollable
+        tool_instance.metadata["is_state_mutating"] = config.is_state_mutating
+        tool_instance.metadata["affected_path_keys"] = config.affected_path_keys
+        tool_instance.metadata["summary_template"] = config.summary_template
+        tool_instance.metadata["result_summary_template"] = config.result_summary_template
+        tool_instance.metadata["is_memory_tool"] = config.is_memory_tool
+        tool_instance.metadata["is_multimodal"] = config.is_multimodal
+        tool_instance.metadata["is_hidden"] = config.is_hidden
+        tool_instance.metadata["name_map"] = config.name_map
 
         # Enable error handling to return validation errors as text to the Agent
         # Note: HITL tools should set handle_tool_error=False to allow interrupt exceptions to propagate
-        tool_instance.handle_tool_error = handle_tool_error
+        tool_instance.handle_tool_error = config.handle_tool_error
 
         return tool_instance
 

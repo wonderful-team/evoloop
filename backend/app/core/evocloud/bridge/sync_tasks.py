@@ -11,6 +11,7 @@ import asyncio
 import logging
 from typing import Any
 
+from app.core.evocloud.schemas import SyncConversation
 from app.infrastructure.queue.factory import shared_task
 
 logger = logging.getLogger(__name__)
@@ -216,15 +217,15 @@ async def incremental_sync_task(device_id: int, conversation_ids: list[str]) -> 
                     conv = result.scalar_one_or_none()
 
                     if conv:
-                        conv_data = {
-                            "id": str(conv.id),
-                            "project_id": conv.project_id or 0,
-                            "title": conv.title or "新会话",
-                            "created_at": int(conv.created_at.timestamp()) if conv.created_at else 0,
-                            "updated_at": int(conv.updated_at.timestamp()) if conv.updated_at else 0,
-                        }
+                        conv_data = SyncConversation(
+                            id=str(conv.id),
+                            project_id=conv.project_id or 0,
+                            title=conv.title or "新会话",
+                            created_at=int(conv.created_at.timestamp()) if conv.created_at else 0,
+                            updated_at=int(conv.updated_at.timestamp()) if conv.updated_at else 0,
+                        )
 
-                        api_result = await api.sync_conversation(device_id, conv_data)
+                        api_result = await api.sync_conversation(device_id, conv_data.model_dump())
                         if api_result.get("code") == 0:
                             results["synced"] += 1
                         else:

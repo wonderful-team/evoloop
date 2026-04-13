@@ -1,11 +1,25 @@
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
 
 from app.core.mcp import mcp_client_manager
 from app.models.schemas.mcp import McpServerCreate
 
 router = APIRouter()
+
+
+class McpOperationResponse(BaseModel):
+    """Response for MCP add/remove operations."""
+    status: str
+    message: str
+
+
+class McpConnectResponse(BaseModel):
+    """Response for MCP connect operation."""
+    status: str
+    name: str
+    tools_count: int
 
 
 @router.get("/servers", response_model=list[Any])
@@ -37,7 +51,7 @@ async def add_mcp_server(server: McpServerCreate):
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.delete("/server/{name}", response_model=Any)
+@router.delete("/server/{name}", response_model=McpOperationResponse)
 async def delete_mcp_server(name: str):
     """
     Remove an MCP server.
@@ -46,12 +60,12 @@ async def delete_mcp_server(name: str):
         result = await mcp_client_manager.remove_server(name)
         if not result:
             raise HTTPException(status_code=404, detail="Server not found")
-        return {"status": "success", "message": f"Server {name} removed"}
+        return McpOperationResponse(status="success", message=f"Server {name} removed")
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.post("/server/{name}/connect", response_model=Any)
+@router.post("/server/{name}/connect", response_model=McpConnectResponse)
 async def connect_mcp_server(name: str):
     """
     Manually trigger a connection to an MCP server.
@@ -63,10 +77,10 @@ async def connect_mcp_server(name: str):
         
         # Get current tools to return verification
         tools = await mcp_client_manager.get_tools(name)
-        return {
-            "status": "connected",
-            "name": name,
-            "tools_count": len(tools)
-        }
+        return McpConnectResponse(
+            status="connected",
+            name=name,
+            tools_count=len(tools)
+        )
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

@@ -1,16 +1,42 @@
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
+from typing import Any
 
 from app.api.deps import TokenDep, require_benefit
 from app.core.evocloud import evocloud_manager
-from app.core.environment.discovery import EnvironmentProbe
 import logging
 
 logger = logging.getLogger(__name__)
 
 
+class BindResponse(BaseModel):
+    """Device bind response."""
+    status: str
+    data: dict[str, Any] | None = None
+    message: str | None = None
+
+
+class DebugStatusResponse(BaseModel):
+    """EvoCloud debug status response."""
+    is_logged_in: bool
+    token_prefix: str | None
+    device_id: str | None
+    device_name: str
+    is_connected: bool
+    api_url: str
+
+
 class BindClientRequest(BaseModel):
     client_id: str
+
+
+class CommandParams(BaseModel):
+    """Dynamic command parameters for device control.
+    
+    Different command_types accept different parameters.
+    Extra fields are allowed to support all command types.
+    """
+    model_config = ConfigDict(extra="allow")
 
 
 router = APIRouter()
@@ -19,7 +45,7 @@ router = APIRouter()
 # --- Schemas (Basic) ---
 class SendCommandRequest(BaseModel):
     command_type: str
-    params: dict = {}
+    params: CommandParams = CommandParams()
 
 
 @router.get("/")
@@ -117,32 +143,32 @@ async def search_logs(
     return res.get("data", [])
 
 
-@router.post("/{device_id}/bind")
+@router.post("/{device_id}/bind", response_model=BindResponse)
 async def bind_client(device_id: int, req: BindClientRequest, _token: TokenDep):
     """Bind mobile client to device"""
     # This notifies the cloud that a mobile client is interested in this device
     # Or specifically, it binds the client_id to the device in EvoCloud.
     res = await evocloud_manager.api.bind_client_id(device_id, req.client_id)
-    return {"status": "success", "data": res}
+    return BindResponse(status="success", data=res)
 
 
-@router.post("/bind")
+@router.post("/bind", response_model=BindResponse)
 async def bind_current_device(req: BindClientRequest, _token: TokenDep):
     """Bind a client_id (e.g. mobile) to THIS server device"""
     if evocloud_manager.device_id:
         await evocloud_manager.link._bind_client_id(req.client_id)
-        return {"status": "success"}
-    return {"status": "error", "message": "Device not registered on cloud"}
+        return BindResponse(status="success")
+    return BindResponse(status="error", message="Device not registered on cloud")
 
 
-@router.get("/debug/status")
+@router.get("/debug/status", response_model=DebugStatusResponse)
 async def get_debug_status(_token: TokenDep):
     """Debug endpoint to check EvoCloud client state"""
-    return {
-        "is_logged_in": bool(evocloud_manager.get_token()),
-        "token_prefix": (evocloud_manager.get_token()[:10] + "...") if evocloud_manager.get_token() else None,
-        "device_id": evocloud_manager.device_id,
-        "device_name": evocloud_manager.link.device_name if evocloud_manager.link else "Unknown",
-        "is_connected": evocloud_manager.link.is_connected() if evocloud_manager.link else False,
-        "api_url": evocloud_manager.api.base_url if evocloud_manager.api else "Unknown",
-    }
+    return DebugStatusResponse(
+        is_logged_in=bool(evocloud_manager.get_token()),
+        token_prefix=(evocloud_manager.get_token()[:10] + "...") if evocloud_manager.get_token() else None,
+        device_id=evocloud_manager.device_id,
+        device_name=evocloud_manager.link.device_name if evocloud_manager.link else "Unknown",
+        is_connected=evocloud_manager.link.is_connected() if evocloud_manager.link else False,
+        api_url=evocloud_manager.api.base_url if evocloud_manager.api else "Unknown",
+    )

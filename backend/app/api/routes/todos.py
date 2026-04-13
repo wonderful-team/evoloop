@@ -1,7 +1,7 @@
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -52,8 +52,11 @@ class TodoResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
+
+
+class DeleteTodoResponse(BaseModel):
+    message: str
 
 
 # --- Routes ---
@@ -123,4 +126,4 @@ async def delete_todo(todo_id: str, session: AsyncSession = Depends(get_db)):
 
     await session.delete(todo)
     await session.commit()
-    return {"message": "Todo deleted successfully"}
+    return DeleteTodoResponse(message="Todo deleted successfully")

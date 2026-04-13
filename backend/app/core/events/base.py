@@ -11,7 +11,7 @@ from collections.abc import Awaitable, Callable
 from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, Generic, List, Optional, TypeVar
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.utils.async_utils import LoopBoundResource
 from app.utils.model_helpers import LegacyDictMixin
@@ -23,6 +23,11 @@ logger = logging.getLogger(__name__)
 E = TypeVar("E", bound="BaseEvent")
 
 
+class EventData(BaseModel, LegacyDictMixin):
+    """Dynamic payload for system events."""
+    model_config = ConfigDict(extra="allow")
+
+
 class BaseEvent(BaseModel, LegacyDictMixin):
     """
     Base class for all system events.
@@ -30,7 +35,7 @@ class BaseEvent(BaseModel, LegacyDictMixin):
     event_type: str = ""
     timestamp: datetime = Field(default_factory=datetime.now)
     source: str = "system"
-    data: Dict[str, Any] = Field(default_factory=dict)
+    data: EventData = Field(default_factory=EventData)
 
     @property
     def type_name(self) -> str:

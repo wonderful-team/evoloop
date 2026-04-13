@@ -20,7 +20,7 @@ Usage:
 import logging
 from typing import List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from langchain_core.messages import (
     BaseMessage,
@@ -35,6 +35,23 @@ from app.core.config import settings
 from app.utils.model_helpers import LegacyDictMixin
 
 logger = logging.getLogger(__name__)
+
+
+class CriticalContext(BaseModel, LegacyDictMixin):
+    """Critical context extracted from messages before compaction."""
+    model_config = ConfigDict(extra="allow")
+    decisions: List[str] = Field(default_factory=list)
+    errors: List[str] = Field(default_factory=list)
+    files_modified: List[str] = Field(default_factory=list)
+    current_task: Optional[str] = None
+
+
+class ContextWindowStats(BaseModel, LegacyDictMixin):
+    """Context window manager statistics."""
+    model_config = ConfigDict(extra="allow")
+    max_tokens: int
+    compact_threshold: float
+    preserve_recent: int
 
 
 class CompactionResult(BaseModel, LegacyDictMixin):
@@ -140,25 +157,20 @@ class ContextSummarizer:
         summary = "\n".join(summary_parts)
         return summary
     
-    def extract_critical_context(self, messages: List[BaseMessage]) -> Dict[str, Any]:
+    def extract_critical_context(self, messages: List[BaseMessage]) -> CriticalContext:
         """Extract critical context that must be preserved."""
-        critical = {
-            "decisions": [],
-            "errors": [],
-            "files_modified": [],
-            "current_task": None,
-        }
+        critical = CriticalContext()
         
         for msg in messages:
             content = str(msg.content).lower() if hasattr(msg, 'content') else ""
             
             # Extract decisions
             if any(kw in content for kw in ['decided', 'decision', 'choose', 'selected']):
-                critical["decisions"].append(str(msg.content)[:150])
+                critical.decisions.append(str(msg.content)[:150])
             
             # Extract errors
             if any(kw in content for kw in ['error', 'failed', 'exception']):
-                critical["errors"].append(str(msg.content)[:150])
+                critical.errors.append(str(msg.content)[:150])
             
             # Extract file modifications
             if hasattr(msg, 'tool_calls') and msg.tool_calls:
@@ -166,12 +178,12 @@ class ContextSummarizer:
                     if tc.get('name') in ['edit_file', 'write_file']:
                         args = tc.get('args', {})
                         if 'file_path' in args:
-                            critical["files_modified"].append(args['file_path'])
+                            critical.files_modified.append(args['file_path'])
         
         # Get current task from most recent human message
         for msg in reversed(messages):
             if isinstance(msg, HumanMessage):
-                critical["current_task"] = str(msg.content)[:200]
+                critical.current_task = str(msg.content)[:200]
                 break
         
         return critical
@@ -387,13 +399,13 @@ class ContextWindowManager:
 
         return result
     
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> ContextWindowStats:
         """Get context manager statistics."""
-        return {
-            "max_tokens": self.max_tokens,
-            "compact_threshold": self.compact_threshold,
-            "preserve_recent": self.PRESERVE_RECENT,
-        }
+        return ContextWindowStats(
+            max_tokens=self.max_tokens,
+            compact_threshold=self.compact_threshold,
+            preserve_recent=self.PRESERVE_RECENT,
+        )
 
 
 # Global context manager instance

@@ -1,9 +1,22 @@
 import logging
 from typing import Any, Dict, List
+
+from pydantic import BaseModel, ConfigDict, Field
+
 from app.core.environment.capabilities.registry import ActionRegistry
 from app.utils import render_template
+from app.utils.model_helpers import LegacyDictMixin
 
 logger = logging.getLogger(__name__)
+
+
+class ActionRegistryItem(BaseModel, LegacyDictMixin):
+    """Action metadata injected into prompt templates."""
+    model_config = ConfigDict(extra="allow")
+    id: str
+    description: str
+    params: List[str] = Field(default_factory=list)
+    platforms: List[str] = Field(default_factory=list)
 
 
 class LearningPromptBuilder:
@@ -27,18 +40,18 @@ class LearningPromptBuilder:
         "task_complexity": "learning/task_complexity_analysis.prompt.j2",
     }
         
-    def _get_actions(self) -> List[Dict[str, Any]]:
+    def _get_actions(self) -> List[ActionRegistryItem]:
         """
         Get raw action registry data for template rendering.
         Returns structured data for Jinja2 template to format.
         """
         return [
-            {
-                "id": action.id,
-                "description": action.description,
-                "params": list(action.params.keys()) if action.params else [],
-                "platforms": action.platforms,
-            }
+            ActionRegistryItem(
+                id=action.id,
+                description=action.description,
+                params=list(action.params.keys()) if action.params else [],
+                platforms=action.platforms,
+            )
             for action in ActionRegistry.list_actions()
         ]
 

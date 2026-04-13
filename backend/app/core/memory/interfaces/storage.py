@@ -10,6 +10,20 @@ from abc import ABC, abstractmethod
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 
+from pydantic import BaseModel, ConfigDict
+from app.utils.model_helpers import LegacyDictMixin
+
+
+class StorageHealthCheck(BaseModel, LegacyDictMixin):
+    """Health check result for a memory storage backend."""
+    model_config = ConfigDict(extra="allow")
+    status: str = "unknown"
+    backend: str = ""
+    version: Optional[str] = None
+    entry_count: Optional[int] = None
+    latency_ms: Optional[float] = None
+    error: Optional[str] = None
+
 
 class IMemoryStorage(ABC):
     """
@@ -255,7 +269,7 @@ to ensure they are interchangeable and can be used polymorphically.
     # Health & Stats
     # ==========================================================================
     
-    async def health_check(self) -> Dict[str, Any]:
+    async def health_check(self) -> StorageHealthCheck:
         """
         Check storage health status.
         
@@ -265,7 +279,7 @@ to ensure they are interchangeable and can be used polymorphically.
             - latency_ms: Average operation latency
             - entry_count: Total entries (if available)
         """
-        return {"status": "unknown", "backend": self.__class__.__name__}
+        return StorageHealthCheck(status="unknown", backend=self.__class__.__name__)
 
 
 class StorageError(Exception):

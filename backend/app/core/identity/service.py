@@ -1,7 +1,9 @@
 import logging
 from typing import Any
 
-from .jwt import create_local_jwt, decode_local_jwt
+from app.models.auth import LoginResult
+
+from .jwt import create_local_jwt, decode_local_jwt, JwtPayload
 from .store import IdentityStore
 
 logger = logging.getLogger(__name__)
@@ -16,7 +18,7 @@ class IdentityService:
     def __init__(self):
         self.store = IdentityStore()
 
-    async def login_with_cloud_result(self, cloud_result: dict[str, Any]) -> str | None:
+    async def login_with_cloud_result(self, cloud_result: LoginResult) -> str | None:
         """
         Processes a successful login result from EvoCloud.
         Saves cloud token to secure storage and returns a local JWT.
@@ -37,9 +39,9 @@ class IdentityService:
         Creates a thin local JWT from a member_id.
         No cloud interaction, just identity resolution.
         """
-        claims = {"sub": str(member_id), "member_id": member_id}
+        claims = JwtPayload(sub=str(member_id), member_id=member_id)
         if username:
-            claims["username"] = username
+            claims.username = username
         return create_local_jwt(claims)
 
     def logout(self):

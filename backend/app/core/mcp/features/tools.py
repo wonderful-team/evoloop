@@ -8,7 +8,7 @@ from langchain_core.tools import StructuredTool
 from mcp import ClientSession
 from pydantic import Field, create_model
 
-from app.core.mcp.features.base import McpFeature
+from app.core.mcp.features.base import McpFeature, McpFeatureCapabilities
 
 logger = logging.getLogger(__name__)
 
@@ -40,15 +40,15 @@ class McpToolsFeature(McpFeature):
             self._tools = []
             self._lc_tools = []
     
-    async def get_capabilities(self) -> dict[str, Any]:
+    async def get_capabilities(self) -> McpFeatureCapabilities:
         """Get tools capabilities."""
-        return {
-            "count": len(self._tools),
-            "tools": [
+        return McpFeatureCapabilities(
+            count=len(self._tools),
+            tools=[
                 {"name": t.name, "description": t.description}
                 for t in self._tools
             ]
-        }
+        )
     
     def get_tools(self) -> list[StructuredTool]:
         """Get converted LangChain tools."""

@@ -31,7 +31,7 @@ from app.core.memory.models import (
     MemoryType,
     PrivacyLevel,
 )
-from app.core.memory.interfaces.storage import IMemoryStorage, StorageError
+from app.core.memory.interfaces.storage import IMemoryStorage, StorageError, StorageHealthCheck
 
 logger = logging.getLogger(__name__)
 
@@ -634,16 +634,17 @@ class FileMemoryStorage(IMemoryStorage):
         self._ensure_directories()
         logger.warning("FileMemoryStorage flushed (all data cleared)")
 
-    async def deduplicate_checkpoints(self, dry_run: bool = True) -> Dict[str, Any]:
+    async def deduplicate_checkpoints(self, dry_run: bool = True) -> "CheckpointDedupResult":
         """Remove duplicate checkpoint memories (not applicable in v2.0)."""
+        from app.core.memory.manager import CheckpointDedupResult
         # In v2.0, checkpoints are stored in journal by date
         # Duplicates are less likely, but we can scan journal files
-        return {
-            "dry_run": dry_run,
-            "message": "Journal-based storage reduces duplication",
-            "duplicates_found": 0,
-            "duplicates_removed": 0,
-        }
+        return CheckpointDedupResult(
+            dry_run=dry_run,
+            message="Journal-based storage reduces duplication",
+            duplicates_found=0,
+            duplicates_removed=0,
+        )
 
     async def find_by_source_message_ids(
         self,
@@ -684,7 +685,7 @@ class FileMemoryStorage(IMemoryStorage):
 
         return count
 
-    async def health_check(self) -> Dict[str, Any]:
+    async def health_check(self) -> "StorageHealthCheck":
         """Check storage health."""
         try:
             # Count entries per category
@@ -697,21 +698,21 @@ class FileMemoryStorage(IMemoryStorage):
 
             total = sum(category_counts.values())
 
-            return {
-                "status": "healthy",
-                "backend": "FileMemoryStorage",
-                "version": "2.0",
-                "entry_count": total,
-                "by_category": category_counts,
-                "root_path": str(self.root),
-            }
+            return StorageHealthCheck(
+                status="healthy",
+                backend="FileMemoryStorage",
+                version="2.0",
+                entry_count=total,
+                by_category=category_counts,
+                root_path=str(self.root),
+            )
         except Exception as e:
-            return {
-                "status": "unhealthy",
-                "backend": "FileMemoryStorage",
-                "version": "2.0",
-                "error": str(e),
-            }
+            return StorageHealthCheck(
+                status="unhealthy",
+                backend="FileMemoryStorage",
+                version="2.0",
+                error=str(e),
+            )
 
 
 class MemoryStorageFactory:

@@ -41,6 +41,16 @@ class DebounceConfig(BaseModel, LegacyDictMixin):
     max_swipe_points: int = 5
 
 
+class AndroidTraceEvent(BaseModel, LegacyDictMixin):
+    """Trace event representation for Android mirror sessions."""
+    model_config = ConfigDict(extra="allow")
+    timestamp: int
+    event_type: str
+    target_selector: str | None = None
+    target_text: str | None = None
+    payload: dict = {}
+
+
 class AndroidEventRecorder:
     """
     Records input events from Android device using adb shell getevent.
@@ -440,9 +450,9 @@ class AndroidEventRecorder:
             self._recording_thread.join(timeout=3)
         return self.events
 
-    def to_trace_events(self, session_id: str, thread_id: str) -> list[dict]:
+    def to_trace_events(self, session_id: str, thread_id: str) -> list[AndroidTraceEvent]:
         """Convert to trace events."""
-        trace_events = []
+        trace_events: list[AndroidTraceEvent] = []
         for event in self.events:
             relative_ms = int(event.timestamp + self._time_offset_ms)
             if event.event_type == "swipe":
@@ -464,11 +474,11 @@ class AndroidEventRecorder:
                 }
                 target_x, target_y = event.x, event.y
 
-            trace_events.append({
-                "timestamp": relative_ms,
-                "event_type": event.event_type,
-                "target_selector": f"android://screen/{target_x}/{target_y}" if target_x is not None else None,
-                "target_text": None,
-                "payload": payload
-            })
+            trace_events.append(AndroidTraceEvent(
+                timestamp=relative_ms,
+                event_type=event.event_type,
+                target_selector=f"android://screen/{target_x}/{target_y}" if target_x is not None else None,
+                target_text=None,
+                payload=payload
+            ))
         return trace_events

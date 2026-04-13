@@ -4,56 +4,57 @@ import logging
 from app.core.context import thread_context_store
 from app.core.engine.background_agent import run_agent_background
 from app.core.evocloud import evocloud_manager
+from app.core.evocloud.schemas import RemoteCommand
 
 logger = logging.getLogger(__name__)
 
 
-async def handle_remote_command(command_data: dict):
+async def handle_remote_command(command: RemoteCommand):
     """
     Common handler for remote commands from EvoLoop Cloud.
     Can be used by both login.py (auto-connect) and main.py (startup recovery).
     """
-    cmd_type = command_data.get("type", "chat_message")
+    cmd_type = command.get("type", "chat_message")
 
     # [HITL Inbound Logic]
     if cmd_type == "hitl_response":
-        thread_id = command_data.get("thread_id")
-        response = command_data.get("content", {}).get("response")
+        thread_id = command.get("thread_id")
+        response = (command.get("content") or {}).get("response")
 
         if thread_id and response is not None:
             logger.info(f"[EvoLoop] Processing HITL Response for thread {thread_id}: {response}")
 
             inputs = {
                 "hitl_resume_response": response,
-                "command_id": command_data.get("command_id")
+                "command_id": command.get("command_id")
             }
             asyncio.create_task(run_agent_background(thread_id, inputs))
         return
 
     # Support both nested 'content' (legacy/cloud) and flat 'message' (mobile/local) structures
-    content_obj = command_data.get("content", {})
+    content_obj = command.get("content", {})
     params_obj = content_obj.get("params", {})
 
     message = (
-        command_data.get("message") or
+        command.get("message") or
         content_obj.get("text") or
         content_obj.get("message") or
         params_obj.get("message")
     )
 
     attachments = (
-        command_data.get("attachments") or
+        command.get("attachments") or
         content_obj.get("attachments") or
         params_obj.get("attachments") or
         []
     )
 
     if message or attachments:
-        thread_id = command_data.get("thread_id") or "remote-default"
+        thread_id = command.get("thread_id") or "remote-default"
         logger.info(f"[EvoLoop] Executing remote command on thread {thread_id}: Length={len(message) if message else 0}, Attachments={len(attachments)}")
 
         # Resolve Project ID:
-        pid_from_payload = command_data.get("project_id")
+        pid_from_payload = command.get("project_id")
         pid_from_context = thread_context_store.get_active_project("remote-default")
 
         project_id = pid_from_payload or pid_from_context or 1
@@ -87,7 +88,7 @@ async def handle_remote_command(command_data: dict):
         inputs = {
             "messages": messages,
             "project_id": project_id,
-            "command_id": command_data.get("command_id"),
+            "command_id": command.get("command_id"),
         }
 
         # Log User Message to Detailed Logs (For Tool/Thought View consistency)
@@ -97,7 +98,7 @@ async def handle_remote_command(command_data: dict):
                 log_type="user",
                 content=message or "[Attachment]",
                 project_id=project_id,
-                command_id=command_data.get("command_id")
+                command_id=command.get("command_id")
             )
         )
 
@@ -105,17 +106,17 @@ async def handle_remote_command(command_data: dict):
         asyncio.create_task(run_agent_background(thread_id, inputs))
 
 
-async def handle_project_switch_event(event_data: dict):
+async def handle_project_switch_event(event_type: str, event: ProjectSwitchEvent):
     """
     Handle project switch event from Cloud.
     """
-    project_id = event_data.get("project_id")
-    project_name = event_data.get("project_name")
+    project_id = event.project_id
+    project_name = event.project_name
 
-    path = event_data.get("external_path")
+    path = event.external_path
     if not path:
         # Fallback: maybe it's passed as 'path'
-        path = event_data.get("path")
+        path = event.path
 
     if path:
         logger.info(f"[EvoLoop] Received Switch Project Event: {project_id} ({project_name}) -> {path}")
@@ -130,13 +131,12 @@ async def handle_project_switch_event(event_data: dict):
 
         # 2. Emit project.switched event instead of directly starting indexing
         from app.core.events.base import BaseEvent, system_bus
-        event = BaseEvent(
+        await system_bus.publish(BaseEvent(
             event_type="project.switched",
             source="evocloud_bridge",
             data={"project_id": project_id, "path": path}
-        )
-        await system_bus.publish(event)
+        ))
         logger.info(f"[EvoLoop] Emitted project.switched event for {path}")
 
     else:
-        logger.warning(f"[EvoLoop] Switch Project Event received but no path provided: {event_data}")
+        logger.warning(f"[EvoLoop] Switch Project Event received but no path provided: {event.model_dump()}")

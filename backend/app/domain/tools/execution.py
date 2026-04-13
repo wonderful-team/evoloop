@@ -13,7 +13,7 @@ from langchain_core.tools import InjectedToolArg
 from app.core.config import settings
 from app.core.context import ContextManager
 from app.core.tools import evoloop_tool, get_working_directory
-from app.core.tools.background import task_manager, TaskType, TaskStatus
+from app.core.tools.background import task_manager, TaskType, TaskStatus, CreateBackgroundTaskRequest
 from app.utils import ControllerResponse, SkillResponse, render_template
 
 logger = logging.getLogger(__name__)
@@ -239,14 +239,16 @@ async def _execute_in_background(
     
     # Create background task
     task = await task_manager.create_task(
-        task_type=TaskType.COMMAND,
-        title=f"执行: {command[:60]}{'...' if len(command) > 60 else ''}",
-        description=f"命令: {command}",
-        tool_name="execute_command",
-        thread_id=thread_id,
-        timeout_seconds=timeout,
+        CreateBackgroundTaskRequest(
+            task_type=TaskType.COMMAND,
+            title=f"执行: {command[:60]}{'...' if len(command) > 60 else ''}",
+            description=f"命令: {command}",
+            tool_name="execute_command",
+            thread_id=thread_id,
+            timeout_seconds=timeout,
+        )
     )
-    
+
     # Start execution in background
     asyncio.create_task(_run_command_background(task, command, timeout, config))
     
@@ -389,12 +391,14 @@ async def _execute_smart(
         
         # Continue in background-like mode but with agent feedback
         task = await task_manager.create_task(
-            task_type=TaskType.COMMAND,
-            title=f"执行: {command[:60]}{'...' if len(command) > 60 else ''}",
-            description=f"命令: {command}",
-            tool_name="execute_command",
-            thread_id=thread_id,
-            timeout_seconds=timeout,
+            CreateBackgroundTaskRequest(
+                task_type=TaskType.COMMAND,
+                title=f"执行: {command[:60]}{'...' if len(command) > 60 else ''}",
+                description=f"命令: {command}",
+                tool_name="execute_command",
+                thread_id=thread_id,
+                timeout_seconds=timeout,
+            )
         )
         
         # Start process

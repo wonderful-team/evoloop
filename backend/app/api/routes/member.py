@@ -8,6 +8,7 @@ from app.api.deps import CurrentUser, TokenDep
 from app.core.evocloud import evocloud_manager
 from app.core.identity import identity_service
 from app.models import User, UserPublic
+from app.models.auth import CacheInvalidateResponse, EvoCloudProxyResponse, MemberBenefitsResponse
 from app.services.benefit_service import benefit_service
 
 logger = logging.getLogger(__name__)
@@ -140,7 +141,7 @@ async def read_user_me(current_user: CurrentUser) -> Any:
 async def change_password(
     data: ChangePasswordRequest,
     current_user: CurrentUser,
-) -> Any:
+) -> EvoCloudProxyResponse:
     """
     Change current user's password (Transparent Proxy).
     """
@@ -154,7 +155,7 @@ async def change_password(
 async def update_user_me(
     data: UpdateUserRequest,
     current_user: CurrentUser,
-) -> Any:
+) -> EvoCloudProxyResponse:
     """
     Update current user information (Transparent Proxy).
     """
@@ -165,17 +166,17 @@ async def update_user_me(
 # --- Account Cancellation ---
 
 @router.get("/cancellation/info")
-async def get_cancellation_info(_token: TokenDep):
+async def get_cancellation_info(_token: TokenDep) -> EvoCloudProxyResponse:
     return await evocloud_manager.api.get_cancellation_info()
 
 
 @router.post("/cancellation/apply")
-async def apply_cancellation(_token: TokenDep):
+async def apply_cancellation(_token: TokenDep) -> EvoCloudProxyResponse:
     return await evocloud_manager.api.apply_cancellation()
 
 
 @router.post("/cancellation/cancel")
-async def cancel_cancellation(_token: TokenDep):
+async def cancel_cancellation(_token: TokenDep) -> EvoCloudProxyResponse:
     return await evocloud_manager.api.cancel_cancellation_apply()
 
 
@@ -215,7 +216,7 @@ async def check_benefits_batch(req: BatchCheckRequest, token: TokenDep):
 async def get_member_benefits_api(
     force_refresh: bool = False,
     token: TokenDep = None
-):
+) -> MemberBenefitsResponse:
     """
     获取会员完整权益信息
     
@@ -227,19 +228,13 @@ async def get_member_benefits_api(
         token=token,
         force_refresh=force_refresh
     )
-    return {
-        "code": 0,
-        "data": data
-    }
+    return MemberBenefitsResponse(code=0, data=data)
 
 
 @router.post("/benefits/cache/invalidate")
-async def invalidate_member_benefits_cache(token: TokenDep):
+async def invalidate_member_benefits_cache(token: TokenDep) -> CacheInvalidateResponse:
     """
     手动使权益缓存失效（用于调试或强制刷新）
     """
     benefit_service.invalidate_cache(identity_service.get_member_id(token))
-    return {
-        "code": 0,
-        "message": "缓存已清除"
-    }
+    return CacheInvalidateResponse(code=0, message="缓存已清除")

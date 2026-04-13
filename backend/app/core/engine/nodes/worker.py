@@ -16,7 +16,7 @@ from app.core.engine.context_monitor import ContextMonitor
 from app.core.engine.message_utils import get_message_text
 from app.core.engine.prompts import WorkerPromptBuilder
 from app.core.engine.routers import RoutingTarget
-from app.core.engine.state import AgentState
+from app.core.engine.state import AgentState, StateUpdate
 from app.core.environment import get_awakened_state
 from app.core.tools.manager import tool_manager
 from app.core.tools.registry import get_tool_metadata
@@ -42,7 +42,7 @@ class WorkerNode(BaseAgentNode):
     def __init__(self):
         super().__init__(node_name="Worker", max_steps=settings.WORKER_AGENT_MAX_STEPS)
 
-    async def prepare_state(self, state: AgentState, config: RunnableConfig) -> dict[str, Any] | None:
+    async def prepare_state(self, state: AgentState, config: RunnableConfig) -> StateUpdate | None:
         """Hydration and validation logic."""
         from app.core.engine.context_hydrator import EvoContextMiddleware
         state = await EvoContextMiddleware.hydrate(state, config)
@@ -113,7 +113,7 @@ class WorkerNode(BaseAgentNode):
         """Load authorized tools based on ticket skills."""
         return await asyncio.to_thread(tool_manager.get_node_tools, "worker", state)
 
-    async def handle_outcome(self, original_state: AgentState, engine_result: dict[str, Any], config: RunnableConfig) -> dict[str, Any]:
+    async def handle_outcome(self, original_state: AgentState, engine_result: dict[str, Any], config: RunnableConfig) -> StateUpdate:
         """Post-processing and signal dispatching."""
         # 1. Base Signal Handling
         signal = engine_result.get("signal")
@@ -127,7 +127,7 @@ class WorkerNode(BaseAgentNode):
 
         return self._post_process_result(original_state, engine_result, execution_ticket, role_name)
 
-    async def __call__(self, state: AgentState, config: RunnableConfig) -> dict[str, Any]:
+    async def __call__(self, state: AgentState, config: RunnableConfig) -> StateUpdate:
         """Override to handle sequential multi-skill logic."""
         # 1. Initial Hydration
         state = await self.prepare_state(state, config)
@@ -318,15 +318,15 @@ class WorkerNode(BaseAgentNode):
                     logger.error(f"[Worker] Workflow failed at step {i+1}")
                     summary = f"Workflow failed at step {i+1}/{len(skills)}: {skill.name}\n\n{step_output}"
                     blackboard["workflow_results"] = results
-                    return {
-                        "messages": [AIMessage(
+                    return StateUpdate(
+                        messages=[AIMessage(
                             content=summary,
                             metadata={"is_error": True, "error_type": "workflow_step_failed"}
                         )],
-                        "next_node": RoutingTarget.SUPERVISOR,
-                        "blackboard": blackboard,
-                        "workflow_results": results
-                    }
+                        next_node=RoutingTarget.SUPERVISOR,
+                        blackboard=blackboard,
+                        workflow_results=results
+                    )
                     
             except Exception as e:
                 logger.error(f"[Worker] Step {i+1} failed: {e}")
@@ -337,15 +337,15 @@ class WorkerNode(BaseAgentNode):
                     "status": "failed"
                 })
                 blackboard["workflow_results"] = results
-                return {
-                    "messages": [AIMessage(
+                return StateUpdate(
+                    messages=[AIMessage(
                         content=f"Workflow failed at step {i+1}: {e}",
                         metadata={"is_error": True, "error_type": "workflow_step_exception"}
                     )],
-                    "next_node": RoutingTarget.SUPERVISOR,
-                    "blackboard": blackboard,
-                    "workflow_results": results
-                }
+                    next_node=RoutingTarget.SUPERVISOR,
+                    blackboard=blackboard,
+                    workflow_results=results
+                )
         
         # 所有步骤完成
         # NOTE: Worker should NOT generate detailed summaries.
@@ -356,12 +356,12 @@ class WorkerNode(BaseAgentNode):
         # Store workflow results in blackboard for downstream access
         blackboard["workflow_results"] = results
 
-        return {
-            "messages": [AIMessage(content=brief_confirmation)],
-            "next_node": RoutingTarget.FINISH,
-            "blackboard": blackboard,
-            "workflow_results": results
-        }
+        return StateUpdate(
+            messages=[AIMessage(content=brief_confirmation)],
+            next_node=RoutingTarget.FINISH,
+            blackboard=blackboard,
+            workflow_results=results
+        )
 
     def _post_process_result(
         self,
@@ -369,7 +369,7 @@ class WorkerNode(BaseAgentNode):
         engine_result: dict,
         execution_ticket: dict,
         role_name: str
-    ) -> dict[str, Any]:
+    ) -> StateUpdate:
         """
         Universal post-processing pipeline (absorbed from OperatorNode).
         Handles: result summary, cache invalidation, verification capture, MCP interception,
@@ -477,8 +477,8 @@ class WorkerNode(BaseAgentNode):
                 except Exception as e:
                     logger.error(f"[Worker] Failed to parse use_mcp_server arguments: {e}")
 
-        return_state["verification_status"] = verification_summary
-        return return_state
+        return_state['verification_status'] = verification_summary
+        return StateUpdate(**return_state)
 
     async def _hydrate_focus_files(self, ticket: dict, ctx) -> list[dict]:
         """

@@ -32,11 +32,44 @@ from pydantic import BaseModel, Field, ConfigDict
 from app.domain.knowledge.models import MarkdownDocument
 from app.domain.knowledge.services.citations import get_citation_tracker
 from app.domain.knowledge.services.deduplication import DeduplicationService
-from app.domain.knowledge.services.search import get_fts_service
+from app.domain.knowledge.services.search import get_fts_service, IndexDocumentRequest
 from app.domain.knowledge.services.store import KnowledgeStoreService
 from app.utils.model_helpers import LegacyDictMixin
 
 logger = logging.getLogger(__name__)
+
+
+class MaintenanceConfig(BaseModel):
+    """Configuration for auto-maintenance tasks."""
+    enable_auto_merge: bool = True
+    enable_auto_archive: bool = True
+    similarity_threshold: float = 0.85
+    cold_doc_days: int = 90
+    min_quality_score: float = 0.3
+
+
+class UsageDocInfo(BaseModel, LegacyDictMixin):
+    """Usage information for a single document."""
+    path: str
+    citations: int
+    last_accessed: Optional[str] = None
+    unique_sessions: Optional[int] = None
+
+
+class UsageAnalysisResult(BaseModel, LegacyDictMixin):
+    """Result of analyzing document usage patterns."""
+    hot_docs: list[UsageDocInfo] = Field(default_factory=list)
+    cold_docs: list[UsageDocInfo] = Field(default_factory=list)
+    total_analyzed: int = 0
+
+
+class OptimizationSuggestion(BaseModel, LegacyDictMixin):
+    """Optimization suggestion based on usage analysis."""
+    type: str
+    reason: str
+    priority: str = "medium"
+    path: Optional[str] = None
+    count: Optional[int] = None
 
 
 class MaintenanceReport(BaseModel, LegacyDictMixin):
@@ -61,7 +94,7 @@ class MaintenanceReport(BaseModel, LegacyDictMixin):
 
     # 热点优化
     hot_docs_found: int = 0
-    hot_optimization_suggestions: list[dict] = Field(default_factory=list)
+    hot_optimization_suggestions: list[OptimizationSuggestion] = Field(default_factory=list)
 
     # 知识图谱
     entities_extracted: int = 0
@@ -89,7 +122,7 @@ class MaintenanceReport(BaseModel, LegacyDictMixin):
             },
             "hot_content": {
                 "found": self.hot_docs_found,
-                "suggestions": self.hot_optimization_suggestions,
+                "suggestions": [s.model_dump() for s in self.hot_optimization_suggestions],
             },
             "knowledge_graph": {
                 "entities": self.entities_extracted,
@@ -112,7 +145,7 @@ class UsageAnalyzer:
     def __init__(self):
         self.citation_tracker = get_citation_tracker()
 
-    async def analyze_usage_patterns(self, days: int = 30) -> dict:
+    async def analyze_usage_patterns(self, days: int = 30) -> UsageAnalysisResult:
         """
         分析文档使用模式
 
@@ -129,8 +162,8 @@ class UsageAnalyzer:
         # 获取所有引用统计
         popular = await self.citation_tracker.get_most_cited(limit=1000)
 
-        hot_docs = []
-        cold_docs = []
+        hot_docs: list[UsageDocInfo] = []
+        cold_docs: list[UsageDocInfo] = []
         now = datetime.now()
 
         for doc in popular[:50]:  # 前50热门
@@ -143,12 +176,12 @@ class UsageAnalyzer:
                 days_since = (now - datetime.fromisoformat(last_accessed)).days
 
                 if days_since < 7:  # 一周内访问过
-                    hot_docs.append({
-                        "path": doc.doc_path,
-                        "citations": stats.total_citations,
-                        "unique_sessions": stats.unique_sessions,
-                        "last_accessed": last_accessed,
-                    })
+                    hot_docs.append(UsageDocInfo(
+                        path=doc.doc_path,
+                        citations=stats.total_citations,
+                        unique_sessions=stats.unique_sessions,
+                        last_accessed=last_accessed,
+                    ))
 
         # 冷门文档：引用次数少且最近未访问
         cutoff_date = now - timedelta(days=days)
@@ -161,40 +194,40 @@ class UsageAnalyzer:
             if last_accessed:
                 last_date = datetime.fromisoformat(last_accessed)
                 if last_date < cutoff_date and stats.total_citations < 3:
-                    cold_docs.append({
-                        "path": doc.doc_path,
-                        "citations": stats.total_citations,
-                        "last_accessed": last_accessed,
-                    })
+                    cold_docs.append(UsageDocInfo(
+                        path=doc.doc_path,
+                        citations=stats.total_citations,
+                        last_accessed=last_accessed,
+                    ))
 
-        return {
-            "hot_docs": hot_docs,
-            "cold_docs": cold_docs,
-            "total_analyzed": len(popular),
-        }
+        return UsageAnalysisResult(
+            hot_docs=hot_docs,
+            cold_docs=cold_docs,
+            total_analyzed=len(popular),
+        )
 
-    async def suggest_optimizations(self) -> list[dict]:
+    async def suggest_optimizations(self) -> list[OptimizationSuggestion]:
         """基于使用数据给出优化建议"""
         suggestions = []
         patterns = await self.analyze_usage_patterns()
 
         # 建议1：为热门文档创建摘要
-        for doc in patterns["hot_docs"][:10]:
-            suggestions.append({
-                "type": "create_summary",
-                "path": doc["path"],
-                "reason": f"高频使用 ({doc['citations']} 次引用)，建议创建摘要版本",
-                "priority": "high",
-            })
+        for doc in patterns.hot_docs[:10]:
+            suggestions.append(OptimizationSuggestion(
+                type="create_summary",
+                path=doc.path,
+                reason=f"高频使用 ({doc.citations} 次引用)，建议创建摘要版本",
+                priority="high",
+            ))
 
         # 建议2：归档冷门文档
-        if len(patterns["cold_docs"]) > 10:
-            suggestions.append({
-                "type": "archive_cold",
-                "count": len(patterns["cold_docs"]),
-                "reason": f"发现 {len(patterns['cold_docs'])} 个长期未使用文档",
-                "priority": "medium",
-            })
+        if len(patterns.cold_docs) > 10:
+            suggestions.append(OptimizationSuggestion(
+                type="archive_cold",
+                count=len(patterns.cold_docs),
+                reason=f"发现 {len(patterns.cold_docs)} 个长期未使用文档",
+                priority="medium",
+            ))
 
         # 建议3：检查孤立的热门文档
         hot_paths = {d["path"] for d in patterns["hot_docs"]}
@@ -302,7 +335,7 @@ class QualityChecker:
         results = []
 
         for doc in documents:
-            quality = await self.check_quality(doc["path"])
+            quality = await self.check_quality(doc.path)
             results.append(quality)
 
         # 按质量分数排序
@@ -328,13 +361,7 @@ class AutoMaintenanceService:
         self.fts_service = None  # 延迟初始化
 
         # 配置
-        self.config = {
-            "enable_auto_merge": True,
-            "enable_auto_archive": True,
-            "similarity_threshold": 0.85,
-            "cold_doc_days": 90,
-            "min_quality_score": 0.3,
-        }
+        self.config = MaintenanceConfig()
 
     async def _get_fts(self):
         """延迟初始化 FTS 服务"""
@@ -448,15 +475,15 @@ class AutoMaintenanceService:
                     logger.warning(f"删除重复文档失败 {path}: {e}")
 
         # 处理相似文档
-        if dedup_report.potential_merges and self.config["enable_auto_merge"] and not dry_run:
+        if dedup_report.potential_merges and self.config.enable_auto_merge and not dry_run:
             for merge_suggestion in dedup_report.potential_merges[:3]:  # 限制合并数量
-                docs = merge_suggestion["documents"]
+                docs = merge_suggestion.documents
                 if len(docs) >= 2:
                     result = await self.dedup_service.merge_documents(
                         docs,
                         strategy="deduplicate"
                     )
-                    if result["success"]:
+                    if result.success:
                         report.duplicates_merged += 1
 
     async def _task_quality_check(
@@ -470,7 +497,7 @@ class AutoMaintenanceService:
 
         quality_results = await self.quality_checker.scan_collection(collection)
 
-        low_quality = [q for q in quality_results if q.score < self.config["min_quality_score"]]
+        low_quality = [q for q in quality_results if q.score < self.config.min_quality_score]
         report.low_quality_found = len(low_quality)
 
         if not dry_run:
@@ -479,7 +506,7 @@ class AutoMaintenanceService:
                 try:
                     # 读取文档
                     result = self.store.read_document(q.path)
-                    content = result.get("content", "")
+                    content = result.content
 
                     # 添加质量标记
                     from app.domain.knowledge.models import MarkdownDocument
@@ -534,13 +561,13 @@ class AutoMaintenanceService:
         dry_run: bool
     ):
         """任务：归档冷门内容"""
-        if not self.config["enable_auto_archive"]:
+        if not self.config.enable_auto_archive:
             return
 
         logger.info("📦 归档冷门文档...")
 
         patterns = await self.usage_analyzer.analyze_usage_patterns(
-            days=self.config["cold_doc_days"]
+            days=self.config.cold_doc_days
         )
 
         cold_docs = patterns.get("cold_docs", [])
@@ -548,10 +575,10 @@ class AutoMaintenanceService:
         if not dry_run and cold_docs:
             for doc_info in cold_docs[:20]:  # 限制处理数量
                 try:
-                    path = doc_info["path"]
+                    path = doc_info.path
                     # 移动到归档集合
                     result = self.store.read_document(path)
-                    content = result.get("content", "")
+                    content = result.content
 
                     from app.domain.knowledge.models import MarkdownDocument
                     doc = MarkdownDocument(
@@ -587,7 +614,7 @@ class AutoMaintenanceService:
         suggestions = report.hot_optimization_suggestions
 
         for suggestion in suggestions:
-            logger.info(f"   💡 {suggestion['type']}: {suggestion['reason']}")
+            logger.info(f"   💡 {suggestion.type}: {suggestion.reason}")
 
     async def _task_index_optimization(
         self,
@@ -606,20 +633,22 @@ class AutoMaintenanceService:
 
             for doc in documents:
                 try:
-                    result = self.store.read_document(doc["path"])
-                    content = result.get("content", "")
+                    result = self.store.read_document(doc.path)
+                    content = result.content
 
                     await fts.index_document(
-                        doc_id=doc["path"],
-                        path=doc["path"],
-                        title=doc.get("title", doc["path"]),
-                        content=content[:10000],  # 限制索引长度
-                        collection=collection or "default"
+                        IndexDocumentRequest(
+                            doc_id=doc.path,
+                            path=doc.path,
+                            title=doc.title,
+                            content=content[:10000],  # 限制索引长度
+                            collection=collection or "default"
+                        )
                     )
                     reindexed += 1
 
                 except Exception as e:
-                    logger.warning(f"索引文档失败 {doc['path']}: {e}")
+                    logger.warning(f"索引文档失败 {doc.path}: {e}")
 
             logger.info(f"   重新索引: {reindexed} 个文档")
 

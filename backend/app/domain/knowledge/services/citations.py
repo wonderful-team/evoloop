@@ -43,6 +43,24 @@ class DocumentStats(BaseModel, LegacyDictMixin):
     related_docs: list[str] = Field(default_factory=list)  # docs often cited together
 
 
+class UsageAnalytics(BaseModel, LegacyDictMixin):
+    """Overall usage analytics."""
+    period_days: int
+    total_citations: int
+    active_documents: int
+    citations_by_tool: dict[str, int]
+    popular_tags: list[str]
+    most_cited: list[str]
+
+
+class DocumentRecommendation(BaseModel, LegacyDictMixin):
+    """Document recommendation based on citation patterns."""
+    path: str
+    reason: str
+    relevance: float
+    total_citations: int
+
+
 class CitationTracker:
     """
     Track document citations by the Agent.
@@ -355,84 +373,82 @@ class CitationTracker:
     async def get_usage_analytics(
         self,
         days: int = 30
-    ) -> dict:
+    ) -> UsageAnalytics:
         """Get overall usage analytics."""
         conn = self._get_connection()
-        
+
         since = datetime.now().replace(day=datetime.now().day - days)
-        
+
         # Total citations in period
         row = conn.execute(
             "SELECT COUNT(*) as count FROM citations WHERE created_at >= ?",
             (since.isoformat(),)
         ).fetchone()
         total_citations = row["count"]
-        
+
         # Citations by tool
-        tool_stats = {}
+        tool_stats: dict[str, int] = {}
         for row in conn.execute(
-            """SELECT tool_used, COUNT(*) as count 
-               FROM citations 
+            """SELECT tool_used, COUNT(*) as count
+               FROM citations
                WHERE created_at >= ?
                GROUP BY tool_used""",
             (since.isoformat(),)
         ):
             tool_stats[row["tool_used"]] = row["count"]
-        
+
         # Active documents
         row = conn.execute(
             "SELECT COUNT(DISTINCT doc_id) as count FROM citations WHERE created_at >= ?",
             (since.isoformat(),)
         ).fetchone()
         active_docs = row["count"]
-        
+
         # Popular tags (requires joining with FTS)
         # This is a placeholder - would need FTS integration
-        popular_tags = []
-        
-        return {
-            "period_days": days,
-            "total_citations": total_citations,
-            "active_documents": active_docs,
-            "citations_by_tool": tool_stats,
-            "popular_tags": popular_tags,
-            "most_cited": [s.doc_path for s in await self.get_most_cited(limit=5)]
-        }
+        popular_tags: list[str] = []
+
+        return UsageAnalytics(
+            period_days=days,
+            total_citations=total_citations,
+            active_documents=active_docs,
+            citations_by_tool=tool_stats,
+            popular_tags=popular_tags,
+            most_cited=[s.doc_path for s in await self.get_most_cited(limit=5)]
+        )
     
     async def get_recommendations(
         self,
         doc_path: str,
         limit: int = 5
-    ) -> list[dict]:
+    ) -> list[DocumentRecommendation]:
         """
         Get document recommendations based on citation patterns.
-        
+
         Args:
             doc_path: Reference document
             limit: Number of recommendations
-        
+
         Returns:
             List of recommended documents with relevance scores
         """
-        conn = self._get_connection()
-        
-        recommendations = []
-        
+        recommendations: list[DocumentRecommendation] = []
+
         # Get related docs (co-cited)
         related = await self._get_related_docs(doc_path, limit)
-        
+
         for rel_path in related:
             stats = await self.get_document_stats(rel_path)
             if stats:
-                recommendations.append({
-                    "path": rel_path,
-                    "reason": "often_cited_together",
-                    "relevance": min(stats.total_citations / 10, 1.0),  # Normalize
-                    "total_citations": stats.total_citations
-                })
-        
+                recommendations.append(DocumentRecommendation(
+                    path=rel_path,
+                    reason="often_cited_together",
+                    relevance=min(stats.total_citations / 10, 1.0),  # Normalize
+                    total_citations=stats.total_citations
+                ))
+
         # Sort by relevance
-        recommendations.sort(key=lambda x: x["relevance"], reverse=True)
+        recommendations.sort(key=lambda x: x.relevance, reverse=True)
         return recommendations[:limit]
     
     def close(self) -> None:

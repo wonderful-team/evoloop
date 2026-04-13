@@ -20,16 +20,33 @@ from app.utils.model_helpers import LegacyDictMixin
 logger = logging.getLogger(__name__)
 
 
+class BulkImportError(BaseModel, LegacyDictMixin):
+    """Error entry for a bulk import operation."""
+    file: str
+    error: str
+
+
+class ArchiveValidationResult(BaseModel, LegacyDictMixin):
+    """Result of archive validation."""
+    valid: bool
+    total_files: int = 0
+    processable_files: int = 0
+    total_size_bytes: int = 0
+    compressed_size_bytes: int = 0
+    sample_files: list[str] = Field(default_factory=list)
+    error: Optional[str] = None
+
+
 class BulkImportResult(BaseModel, LegacyDictMixin):
     """Result of bulk import operation."""
     total_files: int = 0
     successful: int = 0
     failed: int = 0
     skipped: int = 0
-    errors: list[dict] = Field(default_factory=list)
+    errors: list[BulkImportError] = Field(default_factory=list)
     imported_paths: list[str] = Field(default_factory=list)
     duration_ms: float = 0.0
-    
+
     def to_dict(self) -> dict:
         """Backward compatibility for existing code calling to_dict manually."""
         return {
@@ -37,7 +54,7 @@ class BulkImportResult(BaseModel, LegacyDictMixin):
             "successful": self.successful,
             "failed": self.failed,
             "skipped": self.skipped,
-            "errors": self.errors[:10],  # Limit errors returned
+            "errors": [e.model_dump() for e in self.errors[:10]],  # Limit errors returned
             "imported_paths": self.imported_paths[:20],  # Limit paths returned
             "duration_ms": self.duration_ms
         }
@@ -165,25 +182,26 @@ class BulkImportService:
                                 result.imported_paths.append(ingest_result.path)
                             else:
                                 result.failed += 1
-                                result.errors.append({
-                                    "file": info.filename,
-                                    "error": ingest_result.error
-                                })
-                        
+                                result.errors.append(
+                                    BulkImportError(
+                                        file=info.filename,
+                                        error=ingest_result.error or "Unknown ingestion error"
+                                    )
+                                )
+
                         finally:
                             os.unlink(tmp_path)
-                    
+
                     except Exception as e:
                         result.failed += 1
-                        result.errors.append({
-                            "file": info.filename,
-                            "error": str(e)
-                        })
-        
+                        result.errors.append(
+                            BulkImportError(file=info.filename, error=str(e))
+                        )
+
         except zipfile.BadZipFile:
-            result.errors.append({"file": "archive", "error": "Invalid ZIP file"})
+            result.errors.append(BulkImportError(file="archive", error="Invalid ZIP file"))
         except Exception as e:
-            result.errors.append({"file": "archive", "error": str(e)})
+            result.errors.append(BulkImportError(file="archive", error=str(e)))
         
         result.duration_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
         return result
@@ -229,17 +247,16 @@ class BulkImportService:
                     result.imported_paths.append(ingest_result.path)
                 else:
                     result.failed += 1
-                    result.errors.append({
-                        "file": filename,
-                        "error": ingest_result.error
-                    })
-            
+                    result.errors.append(
+                        BulkImportError(
+                            file=filename,
+                            error=ingest_result.error or "Unknown ingestion error"
+                        )
+                    )
+
             except Exception as e:
                 result.failed += 1
-                result.errors.append({
-                    "file": filename,
-                    "error": str(e)
-                })
+                result.errors.append(BulkImportError(file=filename, error=str(e)))
         
         result.duration_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
         return result
@@ -295,17 +312,16 @@ class BulkImportService:
                     result.imported_paths.append(ingest_result.path)
                 else:
                     result.failed += 1
-                    result.errors.append({
-                        "file": str(relative_path),
-                        "error": ingest_result.error
-                    })
-            
+                    result.errors.append(
+                        BulkImportError(
+                            file=str(relative_path),
+                            error=ingest_result.error or "Unknown ingestion error"
+                        )
+                    )
+
             except Exception as e:
                 result.failed += 1
-                result.errors.append({
-                    "file": str(file_path),
-                    "error": str(e)
-                })
+                result.errors.append(BulkImportError(file=str(file_path), error=str(e)))
         
         result.duration_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
         return result
@@ -328,36 +344,36 @@ class BulkImportService:
         
         return True
     
-    def validate_archive(self, file: BinaryIO) -> dict:
+    def validate_archive(self, file: BinaryIO) -> ArchiveValidationResult:
         """
         Validate a ZIP archive before import.
-        
+
         Returns:
-            Dict with validation info
+            ArchiveValidationResult with validation info
         """
         try:
             file.seek(0)
             zip_bytes = file.read()
             file.seek(0)
-            
+
             with zipfile.ZipFile(io.BytesIO(zip_bytes), 'r') as zf:
                 files = [info.filename for info in zf.infolist() if not info.is_dir()]
                 total_size = sum(info.file_size for info in zf.infolist())
                 compressed_size = sum(info.compress_size for info in zf.infolist())
-                
+
                 # Count processable files
                 processable = [f for f in files if self._should_process_file(f)]
-                
-                return {
-                    "valid": True,
-                    "total_files": len(files),
-                    "processable_files": len(processable),
-                    "total_size_bytes": total_size,
-                    "compressed_size_bytes": compressed_size,
-                    "sample_files": processable[:10]
-                }
-        
+
+                return ArchiveValidationResult(
+                    valid=True,
+                    total_files=len(files),
+                    processable_files=len(processable),
+                    total_size_bytes=total_size,
+                    compressed_size_bytes=compressed_size,
+                    sample_files=processable[:10]
+                )
+
         except zipfile.BadZipFile:
-            return {"valid": False, "error": "Invalid ZIP file"}
+            return ArchiveValidationResult(valid=False, error="Invalid ZIP file")
         except Exception as e:
-            return {"valid": False, "error": str(e)}
+            return ArchiveValidationResult(valid=False, error=str(e))

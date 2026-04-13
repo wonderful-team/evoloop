@@ -4,17 +4,48 @@ import time
 from collections.abc import Callable
 from typing import Any
 
+from pydantic import BaseModel, ConfigDict, Field
+
 from app.core.config import settings
 from app.core.context.manager import ContextManager
 from app.core.evocloud.backends.http_client import EvoCloudHTTPClient
 from app.core.evocloud.backends.websocket_link import EvoCloudWebSocketLink
-from app.core.evocloud.schemas import EvoCloudConfig
+from app.core.evocloud.schemas import EvoCloudConfig, ProjectSwitchEvent, RemoteCommand
+from app.models.auth import LoginResult
 from app.utils.async_utils import LoopBoundResource
+from app.utils.model_helpers import LegacyDictMixin
 
 logger = logging.getLogger(__name__)
 
 # Conversation sync manager
 _conversation_sync_manager = None
+
+
+class EvoCloudProjectSummary(BaseModel, LegacyDictMixin):
+    model_config = ConfigDict(extra="allow")
+    id: int | None = None
+    name: str
+    description: str = ""
+    path: str = ""
+    exists_locally: bool = False
+    status_text: str = ""
+    owner: str = ""
+
+
+class EvoCloudLogStreamEntry(BaseModel, LegacyDictMixin):
+    model_config = ConfigDict(extra="allow")
+    type: str
+    name: str | None = None
+    content: Any = None
+    thread_id: str = ""
+    project_id: int | None = None
+    timestamp: int
+
+
+class EvoCloudLogStreamPayload(BaseModel, LegacyDictMixin):
+    model_config = ConfigDict(extra="allow")
+    type: str = "log_streaming"
+    data: dict = Field(default_factory=dict)
 
 
 class EvoCloudManager:
@@ -36,7 +67,7 @@ class EvoCloudManager:
         self._event_handler = None
         
         # Project cache with TTL
-        self._projects_cache: list[dict] | None = None
+        self._projects_cache: list[EvoCloudProjectSummary] | None = None
         self._projects_cache_time: float = 0.0
         self._projects_cache_ttl: int = 60  # 60 seconds TTL
         self._projects_cache_lock = False  # Simple lock for cache refresh
@@ -195,12 +226,12 @@ class EvoCloudManager:
 
     # --- Callbacks / Bridge ---
 
-    def set_command_handler(self, handler: Callable[[dict[str, Any]], None]):
+    def set_command_handler(self, handler: Callable[[RemoteCommand], None]):
         self._command_handler = handler
         if self._initialized:
             self.link.set_command_handler(handler)
 
-    def set_event_handler(self, handler: Callable[[str, dict[str, Any]], None]):
+    def set_event_handler(self, handler: Callable[[str, ProjectSwitchEvent], None]):
         self._event_handler = handler
         if self._initialized:
             self.link.set_event_handler(handler)
@@ -234,7 +265,7 @@ class EvoCloudManager:
             # Last resort: log locally, don't propagate error
             logger.error(f"[EvoCloud] Fallback upload also failed for {log_type}: {fallback_ex}")
 
-    async def _fetch_projects_from_api(self) -> list[dict]:
+    async def _fetch_projects_from_api(self) -> list[EvoCloudProjectSummary]:
         """Internal method to fetch projects from API."""
         import os
         resp = await self.api.get_projects(page=1, page_size=100)
@@ -243,24 +274,24 @@ class EvoCloudManager:
             return []
 
         api_projects = resp.get("data", {}).get("list", [])
-        projects = []
+        projects: list[EvoCloudProjectSummary] = []
         for p in api_projects:
             path = p.get("external_path", "")
-            projects.append({
-                "id": p.get("project_id"),
-                "name": p.get("project_name", "Unknown"),
-                "description": p.get("project_desc", ""),
-                "path": path,
-                "exists_locally": os.path.exists(path) if path else False,
-                "status_text": p.get("status_text", ""),
-                "owner": p.get("owner_member_name", "")
-            })
+            projects.append(EvoCloudProjectSummary(
+                id=p.get("project_id"),
+                name=p.get("project_name", "Unknown"),
+                description=p.get("project_desc", ""),
+                path=path,
+                exists_locally=os.path.exists(path) if path else False,
+                status_text=p.get("status_text", ""),
+                owner=p.get("owner_member_name", "")
+            ))
         return projects
 
     # --- Proxy Methods (Common Actions) ---
 
     # Auth
-    async def login(self, username, password) -> dict:
+    async def login(self, username, password) -> LoginResult:
         res = await self.api.login(username, password)
         if res.get("success") and self.link:
             # Token is auto-saved by API backend, but maybe we want to trigger link start here?
@@ -321,21 +352,22 @@ class EvoCloudManager:
         # Try WebSocket Streaming First (Real-time)
         if self.link and self.link.is_connected():
             # Construct payload matching Mobile App expectation
-            payload = {
-                "type": "log_streaming",  # Cloud will forward this as 'new_logs' or similar
-                "data": {
-                    "logs": [{
-                        "type": log_type,
-                        "name": name,
-                        "content": content,
-                        "thread_id": thread_id,
-                        "project_id": project_id,
-                        "timestamp": int(time.time() * 1000)
-                    }],
+            log_entry = EvoCloudLogStreamEntry(
+                type=log_type,
+                name=name,
+                content=content,
+                thread_id=thread_id,
+                project_id=project_id,
+                timestamp=int(time.time() * 1000)
+            )
+            payload = EvoCloudLogStreamPayload(
+                type="log_streaming",
+                data={
+                    "logs": [log_entry.model_dump()],
                     "project_id": project_id
                 }
-            }
-            await self.link.send_message(payload)
+            )
+            await self.link.send_message(payload.model_dump())
 
         # Persistent storage (DB) - Offloaded to Celery
         if persistent:
@@ -365,7 +397,7 @@ class EvoCloudManager:
                     )
                 )
 
-    async def scan_projects(self) -> list[dict]:
+    async def scan_projects(self) -> list[EvoCloudProjectSummary]:
         """
         Fetch projects from EvoCloud API with caching.
         
@@ -379,7 +411,7 @@ class EvoCloudManager:
             (now - self._projects_cache_time) < self._projects_cache_ttl):
             logger.debug(f"[EvoCloud] Using cached projects ({len(self._projects_cache)} items, "
                         f"age: {now - self._projects_cache_time:.1f}s)")
-            return self._projects_cache.copy()  # Return copy to prevent mutation
+            return list(self._projects_cache)  # Return copy to prevent mutation
         
         # Fetch fresh data
         try:
@@ -392,17 +424,17 @@ class EvoCloudManager:
             self._projects_cache_time = time.time()
             
             logger.info(f"[EvoCloud] Fetched {len(projects)} projects from API in {fetch_time:.1f}ms")
-            return projects.copy()
+            return list(projects)
             
         except Exception as e:
             logger.error(f"scan_projects failed: {e}")
             # Return stale cache if available, otherwise empty list
             if self._projects_cache is not None:
                 logger.warning("[EvoCloud] Returning stale cache due to API error")
-                return self._projects_cache.copy()
+                return list(self._projects_cache)
             return []
 
-    async def get_project_by_id(self, project_id: int) -> dict | None:
+    async def get_project_by_id(self, project_id: int) -> EvoCloudProjectSummary | None:
         """Get project details by numeric ID using cached data."""
         projects = await self.scan_projects()
         for p in projects:

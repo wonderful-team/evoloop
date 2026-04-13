@@ -6,8 +6,9 @@ from langchain_core.messages import BaseMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
 
 from app.core.engine import get_default_engine
+from app.core.engine.engine import EngineResult
 from app.core.engine.routers import RoutingTarget
-from app.core.engine.state import AgentState
+from app.core.engine.state import AgentState, StateUpdate
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -32,12 +33,12 @@ class BaseAgentNode(ABC):
         self.max_steps = max_steps
         self.temperature = temperature
 
-    async def __call__(self, state: AgentState, config: RunnableConfig) -> dict[str, Any]:
+    async def __call__(self, state: AgentState, config: RunnableConfig) -> StateUpdate:
         """The standard LangGraph node entry point."""
         # 1. State Preparation & Environment Hydration
         # Includes early-exit checks (e.g., Aggregator routing)
         state_update = await self.prepare_state(state, config)
-        if state_update and "next_node" in state_update:
+        if state_update and state_update.get("next_node"):
             return state_update
             
         # Optional updated state from prepare
@@ -86,7 +87,7 @@ class BaseAgentNode(ABC):
             return await self.handle_error(state, e)
 
     @abstractmethod
-    async def prepare_state(self, state: AgentState, config: RunnableConfig) -> dict[str, Any] | None:
+    async def prepare_state(self, state: AgentState, config: RunnableConfig) -> StateUpdate | None:
         """
         Hook for pre-computation. 
         Return a dict with "next_node" to short-circuit, or a dict to update the state.
@@ -108,7 +109,7 @@ class BaseAgentNode(ABC):
         """Return the list of LangChain tools available to this node."""
         pass
 
-    async def handle_outcome(self, original_state: AgentState, engine_result: dict[str, Any], config: RunnableConfig) -> dict[str, Any]:
+    async def handle_outcome(self, original_state: AgentState, engine_result: EngineResult | dict[str, Any], config: RunnableConfig) -> StateUpdate:
         """
         Standard outcome handler. Processes SignalDispatching.
         Subclasses should typically call `super().handle_outcome(...)` first.
@@ -120,21 +121,20 @@ class BaseAgentNode(ABC):
             return dispatch_result
 
         # Provide a default fallback if the subclass doesn't implement advanced handling
-        return {
-            "messages": engine_result.get("messages", []),
-            "next_node": engine_result.get("_routing_target") or RoutingTarget.FINISH,
-            "blackboard": engine_result.get("blackboard", original_state.get("blackboard")),
-        }
+        return StateUpdate(
+            messages=engine_result.get("messages", []),
+            next_node=engine_result.get("_routing_target") or RoutingTarget.FINISH,
+            blackboard=engine_result.get("blackboard", original_state.get("blackboard")),
+        )
 
-    async def handle_error(self, state: AgentState, error: Exception) -> dict[str, Any]:
+    async def handle_error(self, state: AgentState, error: Exception) -> StateUpdate:
         """Handle execution bubbling errors."""
         from langchain_core.messages import AIMessage
         error_msg = AIMessage(
             content=f"Node '{self.node_name}' failed: {error}",
             metadata={"is_error": True, "error_type": "node_execution"}
         )
-        return {
-            "messages": [error_msg],
-            "next_node": RoutingTarget.SUPERVISOR
-        }
-
+        return StateUpdate(
+            messages=[error_msg],
+            next_node=RoutingTarget.SUPERVISOR
+        )

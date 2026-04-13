@@ -35,6 +35,22 @@ class TaskType(str, Enum):
     CUSTOM = "custom"             # User-defined tasks
 
 
+class TaskMetadata(BaseModel, LegacyDictMixin):
+    model_config = ConfigDict(extra="allow")
+    shell_env: dict[str, str] = Field(default_factory=dict)
+    browser_profile: str | None = None
+    device_id: str | None = None
+    working_directory: str | None = None
+
+
+class TaskResult(BaseModel, LegacyDictMixin):
+    model_config = ConfigDict(extra="allow")
+    success: bool = True
+    output: str = ""
+    exit_code: int | None = None
+    data: Any = None
+
+
 class BackgroundTask(BaseModel, LegacyDictMixin):
     """
     Represents a background task instance.
@@ -70,10 +86,10 @@ class BackgroundTask(BaseModel, LegacyDictMixin):
     error_message: Optional[str] = None
     
     # Extension point for tool-specific data
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    metadata: TaskMetadata = Field(default_factory=TaskMetadata)
     
     # Internal: cancellation callback
-    _cancel_fn: Optional[Callable[[], None]] = Field(default=None, exclude=True)
+    cancel_fn: Optional[Callable[[], None]] = Field(default=None, exclude=True)
     
     def to_dict(self, include_output: bool = True, output_lines: int = 50) -> Dict:
         """Convert to dictionary for API responses."""
@@ -154,7 +170,7 @@ class BackgroundTask(BaseModel, LegacyDictMixin):
     
     def set_cancel_callback(self, callback: Callable[[], None]) -> None:
         """Set callback for cancellation."""
-        self._cancel_fn = callback
+        self.cancel_fn = callback
     
     async def cancel(self) -> bool:
         """
@@ -168,12 +184,12 @@ class BackgroundTask(BaseModel, LegacyDictMixin):
         
         self.status = TaskStatus.CANCELLED
         
-        if self._cancel_fn:
+        if self.cancel_fn:
             try:
-                if asyncio.iscoroutinefunction(self._cancel_fn):
-                    await self._cancel_fn()
+                if asyncio.iscoroutinefunction(self.cancel_fn):
+                    await self.cancel_fn()
                 else:
-                    self._cancel_fn()
+                    self.cancel_fn()
             except Exception as e:
                 # Log but don't fail
                 import logging

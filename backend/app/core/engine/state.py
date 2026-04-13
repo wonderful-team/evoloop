@@ -1,8 +1,8 @@
 import logging
 import operator
 import time
-from typing import Annotated, Any, Dict, List, Optional, Union, TypedDict
-from pydantic import BaseModel, Field
+from typing import Annotated, Any, Dict, List, Optional, Union
+from pydantic import BaseModel, ConfigDict, Field
 
 from langchain_core.messages import BaseMessage
 from langgraph.graph.message import add_messages
@@ -12,13 +12,43 @@ from app.utils.model_helpers import LegacyDictMixin
 logger = logging.getLogger(__name__)
 
 
+class TicketParameters(BaseModel, LegacyDictMixin):
+    model_config = ConfigDict(extra="allow")
+
+
+class MessagePayload(BaseModel, LegacyDictMixin):
+    model_config = ConfigDict(extra="allow")
+
+
+class HITLContext(BaseModel, LegacyDictMixin):
+    model_config = ConfigDict(extra="allow")
+    prompt: Optional[str] = None
+    options: Optional[List[str]] = None
+    default_value: Optional[str] = None
+    allow_cancel: bool = True
+    payload: MessagePayload = Field(default_factory=MessagePayload)
+
+
+class ClipboardMetadata(BaseModel, LegacyDictMixin):
+    model_config = ConfigDict(extra="allow")
+    source_file: Optional[str] = None
+    line_range: Optional[tuple[int, int]] = None
+
+
+class SubtaskContext(BaseModel, LegacyDictMixin):
+    model_config = ConfigDict(extra="allow")
+    description: Optional[str] = None
+    dependencies: Optional[List[str]] = None
+
+
 class ClipboardItem(BaseModel, LegacyDictMixin):
     """
     Standardized item for the Workspace Clipboard.
     """
+    model_config = ConfigDict(extra="allow")
     content: Any  # Text, path to image, or element bounds
     mime_type: str  # "text/plain", "image/png", "application/json"
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    metadata: ClipboardMetadata = Field(default_factory=ClipboardMetadata)
     created_at: float = Field(default_factory=time.time)
 
 
@@ -54,7 +84,7 @@ class ExecutionTicket(BaseModel, LegacyDictMixin):
     topic: Optional[str] = None
 
     # Catch-all for specialized parameters
-    parameters: Optional[Dict[str, Any]] = None
+    parameters: Optional[TicketParameters] = None
 
     # Macro context for subtasks
     macro_goal: Optional[str] = None
@@ -82,28 +112,75 @@ class HITLState(BaseModel, LegacyDictMixin):
     request_id: str
     request_type: str  # "approval", "input", "confirmation"
     resume_node: str
-    context: Dict[str, Any] = Field(default_factory=dict)
+    context: HITLContext = Field(default_factory=HITLContext)
     created_at: Optional[str] = None
+
+
+class BlackboardVerification(BaseModel, LegacyDictMixin):
+    model_config = ConfigDict(extra="allow")
+    status: str
+
+
+class SpawnPlanSubtask(BaseModel, LegacyDictMixin):
+    model_config = ConfigDict(extra="allow")
+    id: str
+    intent: str
+    description: Optional[str] = None
+    title: Optional[str] = None
+    context: Optional[SubtaskContext] = None
+    dependencies: Optional[List[str]] = None
+    tools: Optional[List[str]] = None
+    skill_hint: Optional[str] = None
+
+
+class SpawnPlan(BaseModel, LegacyDictMixin):
+    model_config = ConfigDict(extra="allow")
+    subtasks: List[SpawnPlanSubtask] = Field(default_factory=list)
+    _requires_aggregation: bool = True
+    parent_task: str = ""
+    aggregation_strategy: str = "merge"
+    _routing_signal: Optional[str] = None
+
+
+class PendingAggregation(BaseModel, LegacyDictMixin):
+    model_config = ConfigDict(extra="allow")
+    strategy: str
+    expected_count: int
+    actual_count: Optional[int] = None
+
+
+class SubtaskResult(BaseModel, LegacyDictMixin):
+    model_config = ConfigDict(extra="allow")
+    subtask_id: str
+    status: str
+    result: Any
+    tools_used: Optional[List[str]] = None
+    timestamp: Optional[float] = None
+
+
+class BlackboardMetadata(BaseModel, LegacyDictMixin):
+    model_config = ConfigDict(extra="allow")
 
 
 class BlackboardState(BaseModel, LegacyDictMixin):
     """
     Unified task and state management.
     """
+    model_config = ConfigDict(extra="allow")
     ticket: Optional[ExecutionTicket] = None
-    verification: Optional[Dict[str, Any]] = None
+    verification: Optional[BlackboardVerification] = None
     route_reason: Optional[str] = None
     
     # Unified Dynamic Fields
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    metadata: BlackboardMetadata = Field(default_factory=BlackboardMetadata)
     clipboard: List[ClipboardItem] = Field(default_factory=list)
     visited_nodes: List[str] = Field(default_factory=list)
     working_directory: Optional[str] = None
     
     # Parallel Execution State
-    spawn_plan: Optional[Dict[str, Any]] = None
-    pending_aggregation: Optional[Dict[str, Any]] = None
-    subtask_results: List[Dict[str, Any]] = Field(default_factory=list)
+    spawn_plan: Optional[SpawnPlan] = None
+    pending_aggregation: Optional[PendingAggregation] = None
+    subtask_results: List[SubtaskResult] = Field(default_factory=list)
     
     # Planning State
     plan_approved: bool = False
@@ -177,52 +254,81 @@ def merge_blackboard(old: Optional[BlackboardState], new: Union[BlackboardState,
     return BlackboardState.model_validate(merged_data)
 
 
-class AgentState(TypedDict):
+class StateUpdate(BaseModel, LegacyDictMixin):
+    """
+    Standardized state update returned by LangGraph nodes.
+    Allows nodes to return typed partial updates to AgentState.
+    """
+    model_config = ConfigDict(extra="allow")
+
+    messages: Optional[List[BaseMessage]] = None
+    next_node: Optional[str] = None
+    blackboard: Optional[BlackboardState] = None
+    iteration_count: Optional[int] = None
+    error: Optional[str] = None
+    execution_ticket: Optional[ExecutionTicket] = None
+    current_plan: Optional[str] = None
+    structured_plan: Optional[str] = None
+    situation_analysis: Optional[str] = None
+    action_plan: Optional[str] = None
+    skill_execution_attempted: Optional[bool] = None
+    active_tool_profile: Optional[str] = None
+    hitl_state: Optional[HITLState] = None
+    tool_history: Optional[List[str]] = None
+    project_id: Optional[int] = None
+    context: Optional[RetrievalContext] = None
+    workspace_context: Optional[WorkspaceContext] = None
+    execution_artifact: Optional[str] = None
+
+
+class AgentState(BaseModel, LegacyDictMixin):
     """
     Top-level Agent State for LangGraph.
-    Uses TypedDict for compatibility with LangGraph's message history and reducers.
+    Uses Pydantic BaseModel for structured typing while preserving dict-like access.
     """
+    model_config = ConfigDict(extra="allow")
+
     # Conversation history
-    messages: Annotated[List[BaseMessage], add_messages]
+    messages: Annotated[List[BaseMessage], add_messages] = Field(default_factory=list)
 
     # Thread tracking
-    thread_id: Optional[str]
-    is_retry: Optional[bool]
+    thread_id: Optional[str] = None
+    is_retry: Optional[bool] = None
 
     # Project Scope
-    project_id: Optional[int]
+    project_id: Optional[int] = None
 
     # Current Plan
-    current_plan: Optional[str]
-    structured_plan: Optional[str]  # JSON string
+    current_plan: Optional[str] = None
+    structured_plan: Optional[str] = None  # JSON string
 
     # Domain Context
-    context: Optional[RetrievalContext]
-    workspace_context: Optional[WorkspaceContext]
-    execution_artifact: Optional[str]
+    context: Optional[RetrievalContext] = None
+    workspace_context: Optional[WorkspaceContext] = None
+    execution_artifact: Optional[str] = None
 
     # Unified Blackboard with custom reducer
-    blackboard: Annotated[Optional[BlackboardState], merge_blackboard]
+    blackboard: Annotated[Optional[BlackboardState], merge_blackboard] = None
 
     # Loop Control
-    iteration_count: int
-    error: Optional[str]
-    next_node: Annotated[Optional[str], lambda a, b: b]
+    iteration_count: int = 0
+    error: Optional[str] = None
+    next_node: Annotated[Optional[str], lambda a, b: b] = None
     
     # Execution Ticket for mission context
-    execution_ticket: Optional[ExecutionTicket]
+    execution_ticket: Optional[ExecutionTicket] = None
 
     # Memory
-    user_preferences: Optional[str]
-    situation_analysis: Optional[str]
-    action_plan: Optional[str]
+    user_preferences: Optional[str] = None
+    situation_analysis: Optional[str] = None
+    action_plan: Optional[str] = None
 
     # Skill Execution
-    skill_execution_attempted: Optional[bool]
-    active_tool_profile: Optional[str]
+    skill_execution_attempted: Optional[bool] = None
+    active_tool_profile: Optional[str] = None
 
     # Human-in-the-Loop State (Generic)
-    hitl_state: Optional[HITLState]
+    hitl_state: Optional[HITLState] = None
 
     # Tool History
-    tool_history: Annotated[List[str], operator.add]
+    tool_history: Annotated[List[str], operator.add] = Field(default_factory=list)

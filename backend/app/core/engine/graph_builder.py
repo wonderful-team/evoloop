@@ -82,7 +82,7 @@ class GraphBuilder:
                     # Expression Router
                     from app.core.engine.routers import make_expression_router
                     router_func = make_expression_router(edge.conditions, edge.default or "")
-                    mapping = {c["to"]: c["to"] for c in edge.conditions}
+                    mapping = {c.to: c.to for c in edge.conditions}
                     if edge.default:
                         mapping[edge.default] = edge.default
                     for k, v in mapping.items():

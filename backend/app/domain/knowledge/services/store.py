@@ -10,6 +10,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Iterator, Optional
 
+from pydantic import BaseModel
+
 from app.core.config import settings
 from app.domain.knowledge.models import DocumentMetadata, MarkdownDocument
 from app.utils.file import (
@@ -17,8 +19,46 @@ from app.utils.file import (
     read_file_content,
     write_file_contents,
 )
+from app.utils.model_helpers import LegacyDictMixin
 
 logger = logging.getLogger(__name__)
+
+
+class DocumentSaveResult(BaseModel, LegacyDictMixin):
+    """Result of saving a document to the knowledge base."""
+    path: str
+    title: str
+    content: str
+    collection: str
+    size: int
+    word_count: int
+    source_project_id: Optional[int] = None
+
+
+class DocumentReadResult(BaseModel, LegacyDictMixin):
+    """Result of reading a document from the knowledge base."""
+    content: str
+    frontmatter: dict
+    extracted_metadata: Optional[dict] = None
+    path: str
+    encoding: str
+    offset: int
+    limit: Optional[int] = None
+    total_lines: int
+    has_more: bool
+    content_hash: Optional[str] = None
+
+
+class DocumentListItem(BaseModel, LegacyDictMixin):
+    """Item in a document list from the knowledge base."""
+    path: str
+    size_bytes: int
+    modified_at: str
+    has_metadata: bool
+    tags: list[str]
+    title: str
+    source: Optional[str] = None
+    source_project_id: Optional[int] = None
 
 
 class KnowledgeStoreService:
@@ -76,7 +116,7 @@ class KnowledgeStoreService:
         collection: str = "default",
         path: Optional[str] = None,
         source_project_id: Optional[int] = None
-    ) -> str:
+    ) -> DocumentSaveResult:
         """
         Save a document to the knowledge base.
 
@@ -132,22 +172,22 @@ class KnowledgeStoreService:
         logger.info(f"Saved document to {relative_path}")
         
         # Return document info for FTS indexing
-        return {
-            "path": relative_path,
-            "title": document.metadata.get("title", document.source),
-            "content": document.content,
-            "collection": collection,
-            "size": document.size,
-            "word_count": len(document.content.split()),
-            "source_project_id": source_project_id
-        }
+        return DocumentSaveResult(
+            path=relative_path,
+            title=document.metadata.get("title", document.source),
+            content=document.content,
+            collection=collection,
+            size=document.size,
+            word_count=len(document.content.split()),
+            source_project_id=source_project_id,
+        )
     
     def read_document(
         self,
         path: str,
         offset: int = 0,
         limit: Optional[int] = None
-    ) -> dict:
+    ) -> DocumentReadResult:
         """
         Read a document with pagination support.
         
@@ -184,18 +224,18 @@ class KnowledgeStoreService:
             except Exception as e:
                 logger.warning(f"Failed to load metadata for {path}: {e}")
         
-        return {
-            "content": doc.content,
-            "frontmatter": doc.metadata,
-            "extracted_metadata": metadata,
-            "path": path,
-            "encoding": encoding,
-            "offset": offset,
-            "limit": limit,
-            "total_lines": meta.get("total_lines", doc.line_count),
-            "has_more": meta.get("has_more", False),
-            "content_hash": meta.get("content_hash")
-        }
+        return DocumentReadResult(
+            content=doc.content,
+            frontmatter=doc.metadata,
+            extracted_metadata=metadata,
+            path=path,
+            encoding=encoding,
+            offset=offset,
+            limit=limit,
+            total_lines=meta.get("total_lines", doc.line_count),
+            has_more=meta.get("has_more", False),
+            content_hash=meta.get("content_hash"),
+        )
     
     def delete_document(self, path: str) -> bool:
         """
@@ -231,7 +271,7 @@ class KnowledgeStoreService:
         collection: Optional[str] = None,
         pattern: str = "*.md",
         source_project_id: Optional[int] = None
-    ) -> list[dict]:
+    ) -> list[DocumentListItem]:
         """
         List documents in the knowledge base.
 
@@ -283,33 +323,32 @@ class KnowledgeStoreService:
                 stats = file_path.stat()
                 meta_path = self.base_path / "meta" / f"{rel_path}.json"
                 
-                doc_info = {
-                    "path": doc_id,
-                    "size_bytes": stats.st_size,
-                    "modified_at": datetime.fromtimestamp(stats.st_mtime).isoformat(),
-                    "has_metadata": meta_path.exists(),
-                    "tags": doc_tags_map.get(doc_id, [])  # Add tags from SQLite
-                }
-                
+                doc_info = DocumentListItem(
+                    path=doc_id,
+                    size_bytes=stats.st_size,
+                    modified_at=datetime.fromtimestamp(stats.st_mtime).isoformat(),
+                    has_metadata=meta_path.exists(),
+                    tags=doc_tags_map.get(doc_id, []),
+                    title=file_path.stem,
+                )
+
                 # Try to load title from metadata
                 doc_source_project_id = None
                 if meta_path.exists():
                     try:
                         with open(meta_path, 'r', encoding='utf-8') as f:
                             meta = json.load(f)
-                            doc_info["title"] = meta.get("title", file_path.stem)
-                            doc_info["source"] = meta.get("source_file")
+                            doc_info.title = meta.get("title", file_path.stem)
+                            doc_info.source = meta.get("source_file")
                             doc_source_project_id = meta.get("source_project_id")
                     except Exception:
-                        doc_info["title"] = file_path.stem
-                else:
-                    doc_info["title"] = file_path.stem
+                        pass
 
                 # Filter by source_project_id if specified
                 if source_project_id is not None:
                     if doc_source_project_id != source_project_id:
                         continue
-                doc_info["source_project_id"] = doc_source_project_id
+                doc_info.source_project_id = doc_source_project_id
 
                 documents.append(doc_info)
             except Exception as e:

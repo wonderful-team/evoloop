@@ -65,6 +65,15 @@ class EditPreviewResponse(BaseModel):
     preview: dict[str, Any] | None = Field(None, description="Edit preview data")
 
 
+class GhostPatternItem(BaseModel):
+    """Single ghost text pattern item."""
+    pattern: str
+    suggestion: str
+    language: str
+    description: str
+    confidence: float
+
+
 # =============================================================================
 # API Endpoints
 # =============================================================================
@@ -218,10 +227,10 @@ async def preview_edit_ghost(request: EditPreviewRequest) -> EditPreviewResponse
         raise HTTPException(status_code=500, detail=f"Failed to get preview: {str(e)}")
 
 
-@router.get("/patterns", response_model=list[dict[str, Any]])
+@router.get("/patterns", response_model=list[GhostPatternItem])
 async def list_patterns(
     language: str | None = Query(None, description="Filter by language (py, ts, js, etc.)")
-) -> list[dict[str, Any]]:
+) -> list[GhostPatternItem]:
     """
     List available ghost text patterns.
     
@@ -230,24 +239,24 @@ async def list_patterns(
     """
     patterns = [
         # Python patterns
-        {"pattern": "def <name>", "suggestion": "():", "language": "python", "description": "Function definition", "confidence": 0.9},
-        {"pattern": "class <name>", "suggestion": ":", "language": "python", "description": "Class definition", "confidence": 0.95},
-        {"pattern": "if", "suggestion": " condition:", "language": "python", "description": "If statement", "confidence": 0.8},
-        {"pattern": "elif", "suggestion": " condition:", "language": "python", "description": "Elif statement", "confidence": 0.8},
-        {"pattern": "else", "suggestion": ":", "language": "python", "description": "Else statement", "confidence": 0.95},
-        {"pattern": "for", "suggestion": " item in items:", "language": "python", "description": "For loop", "confidence": 0.8},
-        {"pattern": "while", "suggestion": " condition:", "language": "python", "description": "While loop", "confidence": 0.8},
-        {"pattern": "try", "suggestion": ":", "language": "python", "description": "Try block", "confidence": 0.95},
-        {"pattern": "except", "suggestion": " <Exception>:", "language": "python", "description": "Except block", "confidence": 0.85},
-        {"pattern": "finally", "suggestion": ":", "language": "python", "description": "Finally block", "confidence": 0.95},
-        {"pattern": "with", "suggestion": " context:", "language": "python", "description": "With statement", "confidence": 0.85},
-        {"pattern": "from ", "suggestion": "module import ", "language": "python", "description": "From import", "confidence": 0.85},
-        {"pattern": "import ", "suggestion": "module", "language": "python", "description": "Import statement", "confidence": 0.7},
+        GhostPatternItem(pattern="def <name>", suggestion="():", language="python", description="Function definition", confidence=0.9),
+        GhostPatternItem(pattern="class <name>", suggestion=":", language="python", description="Class definition", confidence=0.95),
+        GhostPatternItem(pattern="if", suggestion=" condition:", language="python", description="If statement", confidence=0.8),
+        GhostPatternItem(pattern="elif", suggestion=" condition:", language="python", description="Elif statement", confidence=0.8),
+        GhostPatternItem(pattern="else", suggestion=":", language="python", description="Else statement", confidence=0.95),
+        GhostPatternItem(pattern="for", suggestion=" item in items:", language="python", description="For loop", confidence=0.8),
+        GhostPatternItem(pattern="while", suggestion=" condition:", language="python", description="While loop", confidence=0.8),
+        GhostPatternItem(pattern="try", suggestion=":", language="python", description="Try block", confidence=0.95),
+        GhostPatternItem(pattern="except", suggestion=" <Exception>:", language="python", description="Except block", confidence=0.85),
+        GhostPatternItem(pattern="finally", suggestion=":", language="python", description="Finally block", confidence=0.95),
+        GhostPatternItem(pattern="with", suggestion=" context:", language="python", description="With statement", confidence=0.85),
+        GhostPatternItem(pattern="from ", suggestion="module import ", language="python", description="From import", confidence=0.85),
+        GhostPatternItem(pattern="import ", suggestion="module", language="python", description="Import statement", confidence=0.7),
         # TypeScript/JavaScript patterns
-        {"pattern": "function ", "suggestion": "name() { }", "language": "typescript", "description": "Function declaration", "confidence": 0.85},
-        {"pattern": "const ", "suggestion": "name = ", "language": "typescript", "description": "Const declaration", "confidence": 0.75},
-        {"pattern": "if (", "suggestion": "condition) { }", "language": "typescript", "description": "If statement", "confidence": 0.85},
-        {"pattern": "for (", "suggestion": "let i = 0; i < n; i++) { }", "language": "typescript", "description": "For loop", "confidence": 0.8},
+        GhostPatternItem(pattern="function ", suggestion="name() { }", language="typescript", description="Function declaration", confidence=0.85),
+        GhostPatternItem(pattern="const ", suggestion="name = ", language="typescript", description="Const declaration", confidence=0.75),
+        GhostPatternItem(pattern="if (", suggestion="condition) { }", language="typescript", description="If statement", confidence=0.85),
+        GhostPatternItem(pattern="for (", suggestion="let i = 0; i < n; i++) { }", language="typescript", description="For loop", confidence=0.8),
     ]
 
     # Handle both direct calls and FastAPI Query parameter

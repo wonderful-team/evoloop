@@ -4,7 +4,7 @@ import os
 import shutil
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 from sqlalchemy import func, select
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
@@ -19,13 +19,27 @@ from app.utils.model_helpers import LegacyDictMixin
 logger = logging.getLogger(__name__)
 
 
+class SkillParams(BaseModel, LegacyDictMixin):
+    """Dynamic parameters extracted during skill matching."""
+    model_config = ConfigDict(extra="allow")
+
+
+class SkillListItem(BaseModel, LegacyDictMixin):
+    """Lightweight item for active skills list."""
+    model_config = ConfigDict(extra="allow")
+    id: int
+    name: str
+    namespace: str = "general"
+    description: str = ""
+
+
 class SkillMatch(BaseModel, LegacyDictMixin):
     """Result of skill matching (intentional execution)."""
     skill_id: int
     skill_name: str
     confidence: float
     reasoning: str
-    extracted_params: Dict[str, Any]
+    extracted_params: SkillParams = Field(default_factory=SkillParams)
 
 
 class SkillDiscovery:
@@ -39,7 +53,7 @@ class SkillDiscovery:
         self._skills_cache: list[LearnedSkill] | None = None
         self._id_map: dict[int, LearnedSkill] = {}
         self._name_map: dict[str, LearnedSkill] = {}
-        self._skills_list_cache: list[dict[str, Any]] | None = None
+        self._skills_list_cache: list[SkillListItem] | None = None
         self._system_skills_synced = False
 
     async def _sync_system_skills(self):
@@ -407,7 +421,7 @@ class SkillDiscovery:
         skills = await self._get_skills_by_namespace(namespace_context)
         return [{"id": s.id, "name": s.name, "description": s.description or ""} for s in skills]
 
-    async def get_active_skills_list(self) -> list[dict[str, Any]]:
+    async def get_active_skills_list(self) -> list[SkillListItem]:
         """
         Returns a flat list of all active skills as dictionaries.
         Uses in-memory cache to avoid redundant conversions.
@@ -417,12 +431,12 @@ class SkillDiscovery:
 
         all_skills = await self._get_active_skills()
         self._skills_list_cache = [
-            {
-                "id": s.id,
-                "name": s.name,
-                "namespace": s.namespace or "general",
-                "description": (s.description or "No description.").replace('\n', ' ')
-            }
+            SkillListItem(
+                id=s.id,
+                name=s.name,
+                namespace=s.namespace or "general",
+                description=(s.description or "No description.").replace('\n', ' ')
+            )
             for s in all_skills
         ]
         return self._skills_list_cache

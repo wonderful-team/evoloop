@@ -9,6 +9,7 @@ from typing import Any
 
 from sqlalchemy import select
 
+from app.core.evocloud.schemas import SyncConversation, SyncMessage
 from app.infrastructure.database.sql.database import get_db_session
 from app.models import Conversation as ConversationModel, Message as MessageModel
 
@@ -195,7 +196,7 @@ class ConversationSyncManager:
             from app.core.evocloud.bridge.sync_tasks import sync_messages_task
 
             for thread_id, messages in groups.items():
-                msg_data = [self._format_message(m) for m in messages]
+                msg_data = [self._format_message(m).model_dump() for m in messages]
 
                 # 提交到 Huey（立即返回，不阻塞）
                 result = sync_messages_task.delay(
@@ -236,8 +237,8 @@ class ConversationSyncManager:
                 messages = messages_result.scalars().all()
 
                 # 转换数据格式
-                conv_data = [self._format_conversation(c) for c in conversations]
-                msg_data = [self._format_message(m) for m in messages]
+                conv_data = [self._format_conversation(c).model_dump() for c in conversations]
+                msg_data = [self._format_message(m).model_dump() for m in messages]
 
                 # 提交到 Huey
                 result = full_sync_task.delay(self.device_id, {
@@ -326,7 +327,7 @@ class ConversationSyncManager:
         try:
             from app.core.evocloud.bridge.sync_tasks import sync_conversation_task
 
-            conv_data = self._format_conversation(conversation)
+            conv_data = self._format_conversation(conversation).model_dump()
             result = sync_conversation_task.delay(self.device_id, conv_data)
 
             logger.debug(
@@ -366,37 +367,37 @@ class ConversationSyncManager:
 
     # ==================== 数据格式化 ====================
 
-    def _format_conversation(self, conv: ConversationModel) -> dict:
+    def _format_conversation(self, conv: ConversationModel) -> SyncConversation:
         """格式化会话数据"""
-        return {
-            "id": str(conv.id),
-            "project_id": conv.project_id or 0,
-            "title": conv.title or "新会话",
-            "created_at": int(conv.created_at.timestamp()) if conv.created_at else int(datetime.now().timestamp()),
-            "updated_at": int(conv.updated_at.timestamp()) if conv.updated_at else int(datetime.now().timestamp()),
-        }
+        return SyncConversation(
+            id=str(conv.id),
+            project_id=conv.project_id or 0,
+            title=conv.title or "新会话",
+            created_at=int(conv.created_at.timestamp()) if conv.created_at else int(datetime.now().timestamp()),
+            updated_at=int(conv.updated_at.timestamp()) if conv.updated_at else int(datetime.now().timestamp()),
+        )
 
-    def _format_message(self, msg: MessageModel) -> dict:
+    def _format_message(self, msg: MessageModel) -> SyncMessage:
         """格式化消息数据"""
-        return {
-            "id": msg.id,
-            "thread_id": msg.thread_id,
-            "project_id": msg.project_id or 0,
-            "role": msg.role,
-            "content": msg.content,
-            "thinking": msg.thinking,
-            "created_at": int(msg.created_at.timestamp()) if msg.created_at else int(datetime.now().timestamp()),
-            "sequence_number": msg.sequence_number or 0,
-            "checkpoint_id": msg.checkpoint_id or "",
-            "tool_calls": msg.tool_calls if msg.tool_calls else None,
-            "action_type": msg.action_type or "text",
-            "is_visible": 1 if msg.is_visible else 0,
-            "run_id": msg.run_id or "",
-            "status": msg.status or "completed",
-            "steps_snapshot": msg.steps_snapshot if msg.steps_snapshot else None,
-            "parent_id": msg.parent_id or 0,
-            "category": msg.category or "",
-        }
+        return SyncMessage(
+            id=msg.id,
+            thread_id=msg.thread_id,
+            project_id=msg.project_id or 0,
+            role=msg.role,
+            content=msg.content,
+            thinking=msg.thinking,
+            created_at=int(msg.created_at.timestamp()) if msg.created_at else int(datetime.now().timestamp()),
+            sequence_number=msg.sequence_number or 0,
+            checkpoint_id=msg.checkpoint_id or "",
+            tool_calls=msg.tool_calls if msg.tool_calls else None,
+            action_type=msg.action_type or "text",
+            is_visible=1 if msg.is_visible else 0,
+            run_id=msg.run_id or "",
+            status=msg.status or "completed",
+            steps_snapshot=msg.steps_snapshot if msg.steps_snapshot else None,
+            parent_id=msg.parent_id or 0,
+            category=msg.category or "",
+        )
 
 
 # 全局同步管理器实例

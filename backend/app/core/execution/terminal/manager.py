@@ -12,7 +12,7 @@ from typing import Tuple, Optional
 
 from app.core.context.manager import ContextManager
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 
 from app.core.context.manager import ContextManager
 from app.utils.model_helpers import LegacyDictMixin
@@ -34,8 +34,7 @@ class PersistentTerminal(BaseModel, LegacyDictMixin):
     def model_post_init(self, __context):
         self._start_shell()
 
-    class Config:
-        arbitrary_types_allowed = True
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     def _start_shell(self):
         """Start a persistent bash instance with a PTY."""
@@ -192,14 +191,13 @@ class TerminalSession(BaseModel, LegacyDictMixin):
     cwd: str
     env: dict[str, str] = Field(default_factory=lambda: os.environ.copy())
     pty: Optional[PersistentTerminal] = Field(default=None)
-    _lock: threading.Lock = Field(default_factory=threading.Lock)
+    _lock: threading.Lock = PrivateAttr(default_factory=threading.Lock)
 
     def model_post_init(self, __context):
         if "TERM" not in self.env:
             self.env["TERM"] = "xterm-256color"
 
-    class Config:
-        arbitrary_types_allowed = True
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     def get_pty(self, session_id: str) -> PersistentTerminal:
         if not self.pty:

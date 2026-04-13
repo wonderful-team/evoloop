@@ -6,7 +6,7 @@ from typing import Any
 
 from mcp import ClientSession
 
-from app.core.mcp.features.base import McpFeature
+from app.core.mcp.features.base import McpFeature, McpFeatureCapabilities, McpResourceContent
 
 logger = logging.getLogger(__name__)
 
@@ -48,12 +48,12 @@ class McpResourcesFeature(McpFeature):
             self._resources = []
             self._resource_templates = []
     
-    async def get_capabilities(self) -> dict[str, Any]:
+    async def get_capabilities(self) -> McpFeatureCapabilities:
         """Get resources capabilities."""
-        return {
-            "count": len(self._resources),
-            "templates_count": len(self._resource_templates),
-            "resources": [
+        return McpFeatureCapabilities(
+            count=len(self._resources),
+            templates_count=len(self._resource_templates),
+            resources=[
                 {
                     "uri": r.uri,
                     "name": r.name,
@@ -62,11 +62,11 @@ class McpResourcesFeature(McpFeature):
                 }
                 for r in self._resources
             ],
-            "templates": [
+            templates=[
                 {"uriTemplate": t.uriTemplate, "name": t.name}
                 for t in self._resource_templates
             ],
-        }
+        )
     
     def get_resources(self) -> list:
         """Get list of available resources."""
@@ -76,7 +76,7 @@ class McpResourcesFeature(McpFeature):
         """Get list of resource templates."""
         return self._resource_templates
     
-    async def read_resource(self, uri: str) -> dict[str, Any]:
+    async def read_resource(self, uri: str) -> McpResourceContent:
         """
         Read content from a resource URI.
         
@@ -93,50 +93,50 @@ class McpResourcesFeature(McpFeature):
             result = await self._session.read_resource(uri)
             
             if not result.contents:
-                return {
-                    "uri": uri,
-                    "content": "",
-                    "mime_type": None,
-                    "is_binary": False,
-                }
+                return McpResourceContent(
+                    uri=uri,
+                    content="",
+                    mime_type=None,
+                    is_binary=False,
+                )
             
             content = result.contents[0]
             
             # Handle text content
             if content.text is not None:
-                return {
-                    "uri": uri,
-                    "content": content.text,
-                    "mime_type": content.mimeType,
-                    "is_binary": False,
-                }
+                return McpResourceContent(
+                    uri=uri,
+                    content=content.text,
+                    mime_type=content.mimeType,
+                    is_binary=False,
+                )
             
             # Handle binary content
             if content.blob is not None:
                 # Try to decode as text first
                 try:
                     decoded = base64.b64decode(content.blob).decode("utf-8")
-                    return {
-                        "uri": uri,
-                        "content": decoded,
-                        "mime_type": content.mimeType,
-                        "is_binary": False,
-                    }
+                    return McpResourceContent(
+                        uri=uri,
+                        content=decoded,
+                        mime_type=content.mimeType,
+                        is_binary=False,
+                    )
                 except UnicodeDecodeError:
                     # Keep as base64 if can't decode as text
-                    return {
-                        "uri": uri,
-                        "content": content.blob,
-                        "mime_type": content.mimeType,
-                        "is_binary": True,
-                    }
+                    return McpResourceContent(
+                        uri=uri,
+                        content=content.blob,
+                        mime_type=content.mimeType,
+                        is_binary=True,
+                    )
             
-            return {
-                "uri": uri,
-                "content": "",
-                "mime_type": content.mimeType,
-                "is_binary": False,
-            }
+            return McpResourceContent(
+                uri=uri,
+                content="",
+                mime_type=content.mimeType,
+                is_binary=False,
+            )
             
         except Exception as e:
             logger.error(f"Failed to read resource {uri}: {e}")

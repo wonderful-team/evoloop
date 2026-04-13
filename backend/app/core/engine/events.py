@@ -8,9 +8,14 @@ Event types and data classes for agent execution lifecycle.
 from enum import Enum
 from typing import Any, Dict
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from app.utils.model_helpers import LegacyDictMixin
 from app.core.events.base import BaseEvent
+
+
+class AgentEventPayload(BaseModel, LegacyDictMixin):
+    """Dynamic payload for agent lifecycle events."""
+    model_config = ConfigDict(extra="allow")
 
 
 class AgentEventType(str, Enum):
@@ -38,7 +43,7 @@ class AgentRunCompletedEvent(AgentEvent):
     project_id: int = 1
     goal: str = ""
     status: str = "done"
-    payload: Dict[str, Any] = Field(default_factory=dict)
+    payload: AgentEventPayload = Field(default_factory=AgentEventPayload)
 
     def model_post_init(self, __context: Any) -> None:
         self.event_type = AgentEventType.RUN_COMPLETED

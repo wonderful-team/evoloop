@@ -35,6 +35,17 @@ class MatchConfidence(Enum):
     NONE = "none"  # No match found
 
 
+class EditFileRequest(BaseModel):
+    """Request model for editing a file."""
+    path: str
+    target: str | None = None
+    content: str | None = None
+    allow_multiple: bool = False
+    expected_hash: str | None = None
+    verify_types: bool = True
+    config: RunnableConfig | None = None
+
+
 class EditPreviewResult(BaseModel, LegacyDictMixin):
     """Result of previewing an edit."""
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -203,19 +214,19 @@ async def preview_edit_internal(
     )
 
 
-async def handle_edit(
-    path: str,
-    target: str | None = None,
-    content: str | None = None,
-    allow_multiple: bool = False,
-    expected_hash: str | None = None,
-    verify_types: bool = True,
-    config: RunnableConfig | None = None,
-) -> str:
+async def handle_edit(request: EditFileRequest) -> str:
     """
     Edit file with cascading fuzzy matching and optional hash verification.
     """
     from app.utils import render_template
+
+    path = request.path
+    target = request.target
+    content = request.content
+    allow_multiple = request.allow_multiple
+    expected_hash = request.expected_hash
+    verify_types = request.verify_types
+    config = request.config
 
     if not target and not content:
         return i18n.get("domain_tools.files.edit_args_required")
@@ -316,12 +327,12 @@ async def handle_edit(
                 except Exception as e:
                     import logging
                     logging.getLogger(__name__).debug(f"[Async Type Check] Failed: {e}")
-            
+
             # Fire and forget - keep reference to prevent GC
             task = asyncio.create_task(_async_type_check())
             _background_tasks.add(task)
             task.add_done_callback(_background_tasks.discard)
-            
+
             # Add a note that type check is running in background
             template_context["diagnostics"] = [{"severity": "info", "message": "Type check running in background..."}]
 
@@ -424,4 +435,14 @@ async def edit_file(
         result = await preview_edit_internal(path=path, target=target, replacement=replacement, config=config)
         return format_preview_result(result, path, target, replacement)
 
-    return await handle_edit(path, target, replacement, allow_multiple, expected_hash, verify_types, config=config)
+    return await handle_edit(
+        EditFileRequest(
+            path=path,
+            target=target,
+            content=replacement,
+            allow_multiple=allow_multiple,
+            expected_hash=expected_hash,
+            verify_types=verify_types,
+            config=config,
+        )
+    )

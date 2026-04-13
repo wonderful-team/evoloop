@@ -3,9 +3,16 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
+
+from app.utils.model_helpers import LegacyDictMixin
 
 logger = logging.getLogger(__name__)
+
+
+class ValidationMetadata(BaseModel, LegacyDictMixin):
+    """Dynamic metadata from skill validation."""
+    model_config = ConfigDict(extra="allow")
 
 
 class ValidationResult(BaseModel):
@@ -13,7 +20,7 @@ class ValidationResult(BaseModel):
     status: str  # "healthy", "warning", "error"
     errors: list[str] = []
     warnings: list[str] = []
-    metadata: dict[str, Any] | None = None
+    metadata: ValidationMetadata | None = None
 
 
 class SkillValidator:

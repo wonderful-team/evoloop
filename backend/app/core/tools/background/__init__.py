@@ -21,15 +21,16 @@ Usage:
     status = task_manager.get_task(task.task_id)
 """
 
-from .manager import BackgroundTaskManager
+from .manager import BackgroundTaskManager, CreateBackgroundTaskRequest
 from .models import BackgroundTask, TaskStatus, TaskType
 
 task_manager = BackgroundTaskManager()
 
 __all__ = [
     "BackgroundTaskManager",
-    "BackgroundTask", 
+    "BackgroundTask",
     "TaskStatus",
     "TaskType",
     "task_manager",
+    "CreateBackgroundTaskRequest",
 ]

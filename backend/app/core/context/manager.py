@@ -3,12 +3,17 @@ import json
 import time
 from typing import Any, Dict, List, Optional, Union
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.core.exceptions import GlobalModeError
 from app.utils.id import gen_uuid
 from app.services.cache_services import ContextCacheService
 from app.utils.model_helpers import LegacyDictMixin
+
+
+class ContextMetadata(BaseModel, LegacyDictMixin):
+    """Dynamic metadata attached to an EvoContext."""
+    model_config = ConfigDict(extra="allow")
 
 
 # ==========================================
@@ -49,7 +54,7 @@ class EvoContext(BaseModel, LegacyDictMixin):
     environment_block: Optional[str] = None
     
     # Extra Metadata (Plugins, etc.)
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    metadata: ContextMetadata = Field(default_factory=ContextMetadata)
 
     def to_dict(self) -> Dict[str, Any]:
         """Legacy compatibility method."""

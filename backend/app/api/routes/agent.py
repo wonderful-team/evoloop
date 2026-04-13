@@ -8,7 +8,7 @@ from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from langchain_core.messages import HumanMessage, ToolMessage
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy import func, select
 
 from app.api.deps import (
@@ -24,6 +24,7 @@ from app.core.engine.background_agent import run_agent_background
 from app.core.evocloud import evocloud_manager
 from app.core.exceptions import AgentHumanInterruptException
 from app.core.monitoring.activity import activity_monitor
+from app.utils.model_helpers import LegacyDictMixin
 from app.domain.codebase.indexing.manager import indexing_manager
 from app.domain.codebase.indexing.service import IndexingService
 from app.domain.integration.adapters import EventAdapter
@@ -53,10 +54,15 @@ class ChatRequest(BaseModel):
     revert_files: bool = True  # For retry/undo support
 
 
+class WebhookPayload(BaseModel, LegacyDictMixin):
+    """External webhook payload. Extra fields are allowed per source/event_type."""
+    model_config = ConfigDict(extra="allow")
+
+
 class WebhookRequest(BaseModel):
     source: str
     event_type: str
-    payload: dict[str, Any]
+    payload: WebhookPayload
     thread_id: str | None = None
 
 
@@ -287,13 +293,38 @@ async def chat_endpoint(
     )
 
 
-@router.post("/chat/stop")
+class StopChatResponse(BaseModel):
+    """Response for stopping a chat."""
+    status: str
+    thread_id: str
+
+
+class ResumeChatResponse(BaseModel):
+    """Response for resuming a chat."""
+    status: str
+    thread_id: str
+
+
+class CancelHITLResponse(BaseModel):
+    """Response for cancelling a HITL request."""
+    status: str
+    thread_id: str
+    request_id: str | None
+
+
+class WebhookResponse(BaseModel):
+    """Response for webhook endpoint."""
+    status: str
+    thread_id: str
+
+
+@router.post("/chat/stop", response_model=StopChatResponse)
 async def stop_chat(req: ChatRequest):
     """
     Stop the current generation for a thread.
     """
     await activity_monitor.stop_run(req.thread_id)
-    return {"status": "stopping", "thread_id": req.thread_id}
+    return StopChatResponse(status="stopping", thread_id=req.thread_id)
 
 
 @router.post("/chat/retry", dependencies=[Depends(verify_guest_access)])
@@ -590,7 +621,7 @@ async def resume_chat(req: ResumeRequest, bg_tasks: BackgroundTasks):
 
     bg_tasks.add_task(_resume_graph)
 
-    return {"status": "resuming", "thread_id": req.thread_id}
+    return ResumeChatResponse(status="resuming", thread_id=req.thread_id)
 
 
 @router.post("/hitl/cancel")
@@ -645,11 +676,11 @@ async def cancel_hitl_request(req: CancelHITLRequest, bg_tasks: BackgroundTasks)
     # If this was purely a transient activity request (no DB record), we're done
     # No need to resume the graph as transient requests don't pause it with a checkpoint
     if not pending_requests:
-        return {
-            "status": "cancelled",
-            "thread_id": req.thread_id,
-            "request_id": None,
-        }
+        return CancelHITLResponse(
+            status="cancelled",
+            thread_id=req.thread_id,
+            request_id=None,
+        )
 
     # Config for resuming from checkpoint
     config = {
@@ -722,11 +753,11 @@ async def cancel_hitl_request(req: CancelHITLRequest, bg_tasks: BackgroundTasks)
 
     bg_tasks.add_task(_cancel_and_resume)
 
-    return {
-        "status": "cancelled",
-        "thread_id": req.thread_id,
-        "request_id": request_to_cancel.id if request_to_cancel else None,
-    }
+    return CancelHITLResponse(
+        status="cancelled",
+        thread_id=req.thread_id,
+        request_id=request_to_cancel.id if request_to_cancel else None,
+    )
 
 
 @router.post("/webhook")
@@ -734,7 +765,7 @@ async def webhook_endpoint(req: WebhookRequest, bg_tasks: BackgroundTasks):
     """
     Entry point for External Events (Local BG Task).
     """
-    messages = EventAdapter.adapt(req.source, req.event_type, req.payload)
+    messages = EventAdapter.adapt(req.source, req.event_type, req.payload.model_dump())
     if not messages:
         raise HTTPException(status_code=400, detail="Could not adapt event")
 
@@ -762,7 +793,7 @@ async def webhook_endpoint(req: WebhookRequest, bg_tasks: BackgroundTasks):
             service = IndexingService()
             repo = await service.get_or_create_repo(new_path, repo_name)
             await indexing_manager.start_watching(new_path, repo.id)
-            return {"status": "switched", "thread_id": tid, "path": new_path}
+            return WebhookResponse(status="switched", thread_id=tid)
 
     # Serialization for Webhook messages
     serialized_msgs = []
@@ -776,4 +807,4 @@ async def webhook_endpoint(req: WebhookRequest, bg_tasks: BackgroundTasks):
 
     bg_tasks.add_task(run_agent_background, tid, inputs)
 
-    return {"status": "accepted", "thread_id": tid}
+    return WebhookResponse(status="accepted", thread_id=tid)

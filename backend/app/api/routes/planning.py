@@ -1,6 +1,7 @@
 import logging
 
 from fastapi import APIRouter
+from pydantic import BaseModel
 from sqlalchemy import select
 
 from app.infrastructure.database.sql.database import session_scope
@@ -11,7 +12,31 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/conversations/{thread_id}/plan", tags=["planning"])
 
 
-@router.get("")
+class PlanStepResponse(BaseModel):
+    """Plan step item."""
+    id: int
+    title: str
+    status: str
+    result: str | None
+
+
+class PlanDataResponse(BaseModel):
+    """Nested plan data."""
+    id: int
+    title: str
+    steps: list[PlanStepResponse]
+    current_step_id: int | None
+
+
+class PlanResponse(BaseModel):
+    """Plan API response."""
+    status: str
+    plan: PlanDataResponse | None
+    generated_at: str | None = None
+    error: str | None = None
+
+
+@router.get("", response_model=PlanResponse)
 async def get_plan(thread_id: str):
     """
     Get the current active execution plan for the thread from the Database.
@@ -27,40 +52,36 @@ async def get_plan(thread_id: str):
             if not db_plan:
                 # If no active plan, check for completed ones?
                 # For now, just return "no_graph" equivalent or "no_plan"
-                return {"status": "no_plan", "plan": None}
+                return PlanResponse(status="no_plan", plan=None)
 
             # 2. Fetch Steps
             stmt_steps = select(PlanStep).where(PlanStep.plan_id == db_plan.id).order_by(PlanStep.order)
             res_steps = await session.execute(stmt_steps)
             steps = res_steps.scalars().all()
 
-            # 3. Construct Response
-            plan_data = {
-                "id": db_plan.id,
-                "title": db_plan.title,
-                "steps": [
-                    {
-                        "id": s.id,
-                        "title": s.title,
-                        "status": s.status,
-                        "result": s.result,  # Optional field for step output summary
-                        # "execution_run_id": s.execution_run_id # If we have this linkage
-                    } for s in steps
-                ],
-                "current_step_id": None,
-            }
-
             # Find current step
             current_step = next((s for s in steps if s.status == "in_progress"), None)
-            if current_step:
-                plan_data["current_step_id"] = current_step.id
 
-            return {
-                "status": "success",
-                "plan": plan_data,  # Frontend expects this nested 'plan' object
-                "generated_at": db_plan.created_at.isoformat() if db_plan.created_at else None,
-            }
+            plan_data = PlanDataResponse(
+                id=db_plan.id,
+                title=db_plan.title,
+                steps=[
+                    PlanStepResponse(
+                        id=s.id,
+                        title=s.title,
+                        status=s.status,
+                        result=s.result,
+                    ) for s in steps
+                ],
+                current_step_id=current_step.id if current_step else None,
+            )
+
+            return PlanResponse(
+                status="success",
+                plan=plan_data,
+                generated_at=db_plan.created_at.isoformat() if db_plan.created_at else None,
+            )
 
     except Exception as e:
         logger.error(f"Failed to get plan for {thread_id}: {e}")
-        return {"status": "error", "error": str(e)}
+        return PlanResponse(status="error", error=str(e))

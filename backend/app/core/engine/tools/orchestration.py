@@ -14,7 +14,39 @@ from app.core.engine.routers import RoutingTarget
 from app.core.tools import evoloop_tool
 from app.utils.text import extract_json_from_markdown
 
+from pydantic import BaseModel, ConfigDict
+from app.utils.model_helpers import LegacyDictMixin
+
 logger = logging.getLogger(__name__)
+
+
+class ToolResult(BaseModel, LegacyDictMixin):
+    model_config = ConfigDict(extra="allow")
+    status: str
+    message: str
+    _signal: str | None = None
+    data: dict | None = None
+
+
+class DecomposeTaskResult(BaseModel, LegacyDictMixin):
+    model_config = ConfigDict(extra="allow")
+    status: str
+    error: str | None = None
+    _routing_target: str | None = None
+    _spawn_plan: dict | None = None
+
+
+class SpawnAgentsResult(BaseModel, LegacyDictMixin):
+    model_config = ConfigDict(extra="allow")
+    status: str
+    _routing_target: str | None = None
+    _spawn_plan: dict | None = None
+
+
+class AggregateResult(BaseModel, LegacyDictMixin):
+    model_config = ConfigDict(extra="allow")
+    status: str
+    aggregated: Any
 
 
 # ===== 1. State Management Tools (v1 Evolution) =====
@@ -24,7 +56,7 @@ logger = logging.getLogger(__name__)
     is_hidden=True,  # Internal state management, not user-facing
     name_map={"zh": "更新黑板", "en": "Update Blackboard"}
 )
-def update_blackboard(key: str, value: Any, _config: RunnableConfig) -> dict[str, Any]:
+def update_blackboard(key: str, value: Any, _config: RunnableConfig) -> ToolResult:
     """
     [DEPRECATED] Updates the agent's dynamic state center (blackboard).
     
@@ -36,12 +68,12 @@ def update_blackboard(key: str, value: Any, _config: RunnableConfig) -> dict[str
         key: The variable name to set (e.g., "complexity", "status").
         value: The value to assign (can be string, number, boolean, etc.).
     """
-    return {
-        "status": "success",
-        "message": f"State field '{key}' updated successfully. (Note: Inferred update via '[BLACKBOARD: {key}={value}]' is preferred)",
-        "_signal": "update_blackboard",
-        "data": {"key": key, "value": value}
-    }
+    return ToolResult(
+        status="success",
+        message=f"State field '{key}' updated successfully. (Note: Inferred update via '[BLACKBOARD: {key}={value}]' is preferred)",
+        _signal="update_blackboard",
+        data={"key": key, "value": value}
+    )
 
 
 @evoloop_tool(
@@ -49,7 +81,7 @@ def update_blackboard(key: str, value: Any, _config: RunnableConfig) -> dict[str
     is_hidden=True,  # Internal state management, not user-facing
     name_map={"zh": "管理会话元数据", "en": "Manage Session Metadata"}
 )
-def manage_session_metadata(key: str, value: Any, _config: RunnableConfig) -> dict[str, Any]:
+def manage_session_metadata(key: str, value: Any, _config: RunnableConfig) -> ToolResult:
     """
     Updates session-level metadata to guide the agent's behavior and context resolution.
     
@@ -62,12 +94,12 @@ def manage_session_metadata(key: str, value: Any, _config: RunnableConfig) -> di
         key: The metadata key to set.
         value: The value to assign.
     """
-    return {
-        "status": "success",
-        "message": f"Session metadata '{key}' updated successfully.",
-        "_signal": "update_session_metadata",
-        "data": {"key": key, "value": value}
-    }
+    return ToolResult(
+        status="success",
+        message=f"Session metadata '{key}' updated successfully.",
+        _signal="update_session_metadata",
+        data={"key": key, "value": value}
+    )
 
 
 # ===== 2. Routing Tools (v2 Evolution) =====
@@ -148,7 +180,7 @@ async def decompose_task(
     context: str = "",
     max_parallel: int = 5,
     requires_aggregation: bool = True
-) -> dict[str, Any]:
+) -> DecomposeTaskResult:
     """
     Analyzes and breaks down a complex task into multiple parallel sub-tasks.
     
@@ -175,10 +207,10 @@ async def decompose_task(
 
         # LLM should return an array of task objects per the prompt
         if not isinstance(subtasks, list):
-            return {
-                "status": "error",
-                "error": f"Expected JSON array of tasks, got {type(subtasks).__name__}. Please ensure the prompt requests an array format."
-            }
+            return DecomposeTaskResult(
+                status="error",
+                error=f"Expected JSON array of tasks, got {type(subtasks).__name__}. Please ensure the prompt requests an array format."
+            )
 
         plan = {
             "subtasks": subtasks,
@@ -187,14 +219,14 @@ async def decompose_task(
             "parent_task": task_description
         }
 
-        return {
-            "status": "success",
-            "_routing_target": "spawn_subtasks",
-            "_spawn_plan": plan
-        }
+        return DecomposeTaskResult(
+            status="success",
+            _routing_target="spawn_subtasks",
+            _spawn_plan=plan
+        )
     except Exception as e:
         logger.error(f"[decompose_task] Failed: {e}")
-        return {"status": "error", "error": str(e)}
+        return DecomposeTaskResult(status="error", error=str(e))
 
 
 @evoloop_tool(
@@ -205,7 +237,7 @@ async def spawn_agents(
     mission_plan: dict[str, Any],
     reasoning: str = "",
     requires_aggregation: bool = True
-) -> dict[str, Any]:
+) -> SpawnAgentsResult:
     """
     Directly spawns multiple sub-agents based on a provided mission plan.
     High-level coordination for models that prefer explicitly managing parallelism.
@@ -227,11 +259,11 @@ async def spawn_agents(
         "parent_task": reasoning or "Autonomous Mission",
     }
 
-    return {
-        "status": "success",
-        "_routing_target": "spawn_subtasks",
-        "_spawn_plan": plan
-    }
+    return SpawnAgentsResult(
+        status="success",
+        _routing_target="spawn_subtasks",
+        _spawn_plan=plan
+    )
 
 
 @evoloop_tool(
@@ -242,12 +274,12 @@ async def aggregate_results(
     aggregation_strategy: str,
     results: list[dict],
     original_task: str = ""
-) -> dict[str, Any]:
+) -> AggregateResult:
     """
     Aggregates outcomes from multiple parallel sub-tasks using the specified strategy.
     """
     if not results:
-        return {"status": "success", "aggregated": "N/A"}
+        return AggregateResult(status="success", aggregated="N/A")
 
     if aggregation_strategy == "concatenate":
         return {"status": "success", "aggregated": "\n\n---\n\n".join([str(r.get("result", r)) for r in results])}
@@ -267,4 +299,4 @@ async def aggregate_results(
         temperature=0.3,
     )
     content = response.content if hasattr(response, 'content') else str(response)
-    return {"status": "success", "aggregated": content}
+    return AggregateResult(status="success", aggregated=content)

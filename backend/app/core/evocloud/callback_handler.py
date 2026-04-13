@@ -6,6 +6,7 @@ from typing import Any
 from langchain_core.callbacks import AsyncCallbackHandler
 from langchain_core.outputs import LLMResult
 
+from app.core.evocloud.schemas import ThoughtLogState, ToolLogState
 from app.i18n.service import i18n
 from app.core.tools.registry import get_tool_affected_paths
 
@@ -22,8 +23,8 @@ class EvoCloudCallbackHandler(AsyncCallbackHandler):
         self.command_id = command_id
         self.token_buffer = ""
         # Deduplication and Merging State
-        self._last_tool_log = {"content": None, "timestamp": 0, "name": None}
-        self._last_thought_log = {"content": None, "timestamp": 0}
+        self._last_tool_log = ToolLogState()
+        self._last_thought_log = ThoughtLogState()
         
         from app.core.context import tool_state_store
         self._tool_store = tool_state_store
@@ -60,10 +61,10 @@ class EvoCloudCallbackHandler(AsyncCallbackHandler):
 
         # Simple Dedup for "Thinking..." start
         now = time.time()
-        if self._last_thought_log["content"] == content and (now - self._last_thought_log["timestamp"] < 2.0):
+        if self._last_thought_log.content == content and (now - self._last_thought_log.timestamp < 2.0):
             return
 
-        self._last_thought_log = {"content": content, "timestamp": now}
+        self._last_thought_log = ThoughtLogState(content=content, timestamp=now)
 
     async def on_llm_new_token(self, token: str, **kwargs: Any) -> Any:
         pass

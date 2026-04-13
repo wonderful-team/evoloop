@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, timezone
-from typing import Any
+from pydantic import BaseModel, ConfigDict
+from app.utils.model_helpers import LegacyDictMixin
 
 import jwt
 
@@ -8,11 +9,19 @@ from app.core.config import settings
 ALGORITHM = "HS256"
 
 
-def create_local_jwt(data: dict[str, Any], expires_delta: timedelta | None = None) -> str:
+class JwtPayload(BaseModel, LegacyDictMixin):
+    model_config = ConfigDict(extra="allow")
+    sub: str | None = None
+    user_id: str | None = None
+    device_id: str | None = None
+    exp: datetime | None = None
+
+
+def create_local_jwt(data: JwtPayload, expires_delta: timedelta | None = None) -> str:
     """
     Create a JWT for local desktop frontend sessions.
     """
-    to_encode = data.copy()
+    to_encode = data.model_dump(exclude_none=True)
     if expires_delta:
         expire = datetime.now(timezone.utc) + expires_delta
     else:
@@ -23,12 +32,12 @@ def create_local_jwt(data: dict[str, Any], expires_delta: timedelta | None = Non
     return encoded_jwt
 
 
-def decode_local_jwt(token: str) -> dict[str, Any] | None:
+def decode_local_jwt(token: str) -> JwtPayload | None:
     """
     Decode and validate a local JWT.
     """
     try:
         decoded_token = jwt.decode(token, settings.SECRET_KEY, algorithms=[ALGORITHM])
-        return decoded_token
+        return JwtPayload.model_validate(decoded_token)
     except jwt.PyJWTError:
         return None

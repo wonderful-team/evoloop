@@ -6,6 +6,7 @@ from app.infrastructure.queue.factory import shared_task
 
 from app.domain.wiki.service import wiki_service
 
+from app.models.wiki import WikiSyncResult
 from app.utils.async_utils import flush_loop_bound_resources
 
 logger = logging.getLogger(__name__)
@@ -59,8 +60,8 @@ def generate_wiki_task(project_id: int, topic: str, force_regenerate: bool = Fal
 
 
 @shared_task(name="sync_wiki_page")
-def sync_wiki_page_task(project_id: int, page_id: str):
+def sync_wiki_page_task(project_id: int, page_id: str) -> WikiSyncResult:
     """Sync a wiki page to EvoCloud."""
     logger.info(f"[WikiTask] Syncing wiki page {page_id} for project {project_id}")
     # Implementation here
-    return {"project_id": project_id, "page_id": page_id, "status": "synced"}
+    return WikiSyncResult(project_id=project_id, page_id=page_id, status="synced")

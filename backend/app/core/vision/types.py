@@ -1,6 +1,6 @@
 from enum import Enum
 from typing import Any, List, Optional, Tuple
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 from app.utils.model_helpers import LegacyDictMixin
 
@@ -28,6 +28,24 @@ class VisionTask(str, Enum):
     COMPARE = "compare"     # Screenshot comparison
 
 
+class NativeAttributes(BaseModel, LegacyDictMixin):
+    model_config = ConfigDict(extra="allow")
+
+
+class UIMetadata(BaseModel, LegacyDictMixin):
+    model_config = ConfigDict(extra="allow")
+    provider: str | None = None
+    ocr_confidence: float | None = None
+    native_attrs: NativeAttributes = Field(default_factory=NativeAttributes)
+
+
+class VisionMetadata(BaseModel, LegacyDictMixin):
+    model_config = ConfigDict(extra="allow")
+    provider: str | None = None
+    model_version: str | None = None
+    latency_breakdown: dict[str, float] = Field(default_factory=dict)
+
+
 class UIElement(BaseModel, LegacyDictMixin):
     """
     Represents a detected UI element on screen.
@@ -42,7 +60,7 @@ class UIElement(BaseModel, LegacyDictMixin):
     clickable: bool = True
     confidence: float = 1.0
     source: str = ""  # "ocr", "native", "llm"
-    metadata: dict[str, Any] = Field(default_factory=dict)
+    metadata: UIMetadata = Field(default_factory=UIMetadata)
 
     @property
     def bounds(self) -> Tuple[int, int, int, int]:
@@ -72,4 +90,4 @@ class VisionResult(BaseModel, LegacyDictMixin):
     raw_output: Any = None
     screenshot_path: Optional[str] = None
     latency_ms: float = 0
-    metadata: dict[str, Any] = Field(default_factory=dict)
+    metadata: VisionMetadata = Field(default_factory=VisionMetadata)

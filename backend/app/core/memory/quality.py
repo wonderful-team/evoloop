@@ -10,7 +10,8 @@ This module provides:
 Inspired by Claude Code's memory management and drift detection.
 """
 import logging
-from typing import Dict, List
+from collections import defaultdict
+from typing import Dict, List, Optional, Tuple
 
 from pydantic import BaseModel, Field
 

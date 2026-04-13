@@ -40,7 +40,7 @@ from typing import Dict, List, Callable, Any, Optional, Union, Awaitable
 from datetime import datetime
 
 from langchain_core.messages import BaseMessage, SystemMessage
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.utils.model_helpers import LegacyDictMixin
 
@@ -84,52 +84,70 @@ class HookEvent(Enum):
     PROMPT_POLISHING = auto()    # Context-aware prompt polishing (domain expert hook)
 
 
+class HookMetadata(BaseModel, LegacyDictMixin):
+    """Dynamic metadata for hook events."""
+    model_config = ConfigDict(extra="allow")
+
+
+class ToolInput(BaseModel, LegacyDictMixin):
+    """Typed wrapper for tool input arguments."""
+    model_config = ConfigDict(extra="allow")
+
+
+class HookExtra(BaseModel, LegacyDictMixin):
+    """Arbitrary extra data attached to a hook context."""
+    model_config = ConfigDict(extra="allow")
+
+
+class HookResultData(BaseModel, LegacyDictMixin):
+    """Dynamic data payload returned by a hook handler."""
+    model_config = ConfigDict(extra="allow")
+
+
 class HookContext(BaseModel, LegacyDictMixin):
     """Context passed to hook handlers - enriched with Claude Code-like fields."""
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     thread_id: str
     project_id: Optional[int] = None
     user_id: Optional[str] = None
     messages: List[BaseMessage] = Field(default_factory=list)
     blackboard: Dict[str, Any] = Field(default_factory=dict)
-    metadata: Dict[str, Any] = Field(default_factory=dict)
-    
+    metadata: HookMetadata = Field(default_factory=HookMetadata)
+
     # For tool-related events
     tool_name: Optional[str] = None
-    tool_input: Optional[Dict] = None
+    tool_input: Optional[ToolInput] = None
     tool_result: Optional[Any] = None
     tool_use_id: Optional[str] = None
     error: Optional[Exception] = None
     error_message: Optional[str] = None
-    
+
     # For permission events
     permission_mode: Optional[str] = None  # "ask", "allow", "deny"
-    
+
     # For compact events
     compact_trigger: Optional[str] = None  # "manual" or "auto"
-    
+
     # For dependency injection (optional, falls back to global singleton)
     memory_manager: Optional[Any] = None  # MemoryManager instance
     memory_config: Optional[Any] = None   # MemoryConfig instance
-    
-    # Allow arbitrary additional data
-    extra: Dict[str, Any] = Field(default_factory=dict)
 
-    class Config:
-        arbitrary_types_allowed = True
+    # Allow arbitrary additional data
+    extra: HookExtra = Field(default_factory=HookExtra)
 
 
 class HookResult(BaseModel, LegacyDictMixin):
     """Result from hook handler."""
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     success: bool = True
     block: bool = False  # For blocking hooks (PreToolUse, Stop)
     retry: bool = False  # For PermissionDenied - allow retry
     message: Optional[str] = None
     modified_context: Optional[HookContext] = None
-    data: Dict[str, Any] = Field(default_factory=dict)
+    data: HookResultData = Field(default_factory=HookResultData)
     error: Optional[Exception] = None
-
-    class Config:
-        arbitrary_types_allowed = True
 
 
 # Handler type alias

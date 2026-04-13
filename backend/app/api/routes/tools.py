@@ -1,6 +1,7 @@
 from typing import Any
 
 from fastapi import APIRouter
+from pydantic import BaseModel
 
 from app.core.tools.manager import tool_manager
 from app.core.tools.runtime_registry import get_runtime_tools
@@ -8,8 +9,15 @@ from app.core.tools.runtime_registry import get_runtime_tools
 router = APIRouter(prefix="/tools", tags=["tools"])
 
 
+class ToolInfo(BaseModel):
+    name: str
+    description: str
+    args_schema: dict[str, Any] | None = None
+    is_runtime: bool | None = None
+
+
 @router.get("/runtime")
-async def list_runtime_tools() -> list[dict[str, Any]]:
+async def list_runtime_tools() -> list[ToolInfo]:
     """
     List all dynamically created runtime tools.
     """
@@ -27,13 +35,13 @@ async def list_runtime_tools() -> list[dict[str, Any]]:
                 args_schema = t.args_schema
 
         results.append(
-            {"name": t.name, "description": t.description, "args_schema": args_schema}
+            ToolInfo(name=t.name, description=t.description, args_schema=args_schema)
         )
     return results
 
 
 @router.get("")
-async def list_all_tools() -> list[dict[str, Any]]:
+async def list_all_tools() -> list[ToolInfo]:
     """
     List ALL available tools (Static + Runtime).
     """
@@ -49,10 +57,10 @@ async def list_all_tools() -> list[dict[str, Any]]:
             else:
                 args_schema = t.args_schema
 
-        results.append({
-            "name": t.name,
-            "description": t.description,
-            "args_schema": args_schema,
-            "is_runtime": t.name in [rt.name for rt in get_runtime_tools()],
-        })
+        results.append(ToolInfo(
+            name=t.name,
+            description=t.description,
+            args_schema=args_schema,
+            is_runtime=t.name in [rt.name for rt in get_runtime_tools()],
+        ))
     return results

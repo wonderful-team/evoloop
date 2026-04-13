@@ -10,6 +10,8 @@ import logging
 import time
 from typing import Any, Callable
 
+from pydantic import BaseModel, ConfigDict, Field
+
 from app.utils import (
     cleanup_file,
     normalize_coordinates,
@@ -17,8 +19,18 @@ from app.utils import (
     render_template,
 )
 from app.utils.text import truncate_output
+from app.utils.model_helpers import LegacyDictMixin
 
 logger = logging.getLogger(__name__)
+
+
+class BatchStepResult(BaseModel, LegacyDictMixin):
+    model_config = ConfigDict(extra="allow")
+    step: int
+    action: str
+    status: str
+    result: Any = None
+    latency_ms: int
 
 
 class RecordingContext:
@@ -116,14 +128,14 @@ class BatchExecutor:
     def __init__(self, continue_on_error: bool = True, delay_ms: int = 0):
         self.continue_on_error = continue_on_error
         self.delay_ms = delay_ms
-        self.results = []
+        self.results: list[BatchStepResult] = []
 
     async def execute(
         self,
         actions: list[dict],
         executor_func,
         total: int | None = None
-    ) -> list[dict]:
+    ) -> list[BatchStepResult]:
         """
         Execute a list of actions.
 
@@ -140,22 +152,22 @@ class BatchExecutor:
             try:
                 result = await executor_func(action_dict)
                 latency = int((time.time() - step_start) * 1000)
-                self.results.append({
-                    "step": i,
-                    "action": step_action,
-                    "status": "success" if not str(result).startswith("Error") else "error",
-                    "result": result,
-                    "latency_ms": latency
-                })
+                self.results.append(BatchStepResult(
+                    step=i,
+                    action=step_action,
+                    status="success" if not str(result).startswith("Error") else "error",
+                    result=result,
+                    latency_ms=latency
+                ))
             except Exception as e:
                 latency = int((time.time() - step_start) * 1000)
-                self.results.append({
-                    "step": i,
-                    "action": step_action,
-                    "status": "error",
-                    "result": str(e),
-                    "latency_ms": latency
-                })
+                self.results.append(BatchStepResult(
+                    step=i,
+                    action=step_action,
+                    status="error",
+                    result=str(e),
+                    latency_ms=latency
+                ))
                 if not self.continue_on_error:
                     break
 

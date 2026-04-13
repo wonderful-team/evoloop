@@ -18,6 +18,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 
 import markdownify
+from pydantic import BaseModel, ConfigDict
 
 from app.constants import MAX_OUTPUT_LENGTH
 from app.core.atlas import atlas_engine, get_bundle_id
@@ -40,8 +41,20 @@ from app.core.environment.controllers.utils import (
     truncate_output,
     BatchExecutor,
 )
+from app.utils.model_helpers import LegacyDictMixin
 
 logger = logging.getLogger(__name__)
+
+
+class ElementResolutionResult(BaseModel, LegacyDictMixin):
+    model_config = ConfigDict(extra="allow")
+    type: str | None = None
+    value: str | None = None
+    x: int | None = None
+    y: int | None = None
+    strategy: str | None = None
+    parameters: dict | None = None
+    source: str | None = None
 
 
 # ─────────────────────────────────────────────
@@ -111,7 +124,7 @@ class DesktopController:
     # ─────────────────────────────────────────────
 
     @classmethod
-    async def _try_ax_tree(cls, name: str, role: str | None = None) -> dict | None:
+    async def _try_ax_tree(cls, name: str, role: str | None = None) -> ElementResolutionResult | None:
         """Try to resolve element using AX Tree. Returns result or None."""
         try:
             raw_tree = await asyncio.wait_for(
@@ -141,18 +154,18 @@ class DesktopController:
             if candidates:
                 candidates.sort(key=lambda x: x[0], reverse=True)
                 best_el = candidates[0][1]
-                res = {}
+                res = ElementResolutionResult()
                 if "path" in best_el:
-                    res["type"] = "path"
-                    res["value"] = best_el["path"]
+                    res.type = "path"
+                    res.value = best_el["path"]
                 bounds = best_el.get("bounds", [])
                 if len(bounds) == 4:
-                    res["x"] = int(bounds[0] + bounds[2] / 2)
-                    res["y"] = int(bounds[1] + bounds[3] / 2)
-                    if "type" not in res:
-                        res["type"] = "coords"
-                if res:
-                    logger.debug(f"[Desktop] AX Tree resolved '{name}': {res}")
+                    res.x = int(bounds[0] + bounds[2] / 2)
+                    res.y = int(bounds[1] + bounds[3] / 2)
+                    if res.type is None:
+                        res.type = "coords"
+                if res.type or res.value or res.x is not None:
+                    logger.debug(f"[Desktop] AX Tree resolved '{name}': {res.model_dump()}")
                     return res
             return None
         except asyncio.TimeoutError:
@@ -163,7 +176,7 @@ class DesktopController:
             return None
 
     @classmethod
-    async def _try_atlas(cls, name: str) -> dict | None:
+    async def _try_atlas(cls, name: str) -> ElementResolutionResult | None:
         """Try to resolve element using App Atlas. Returns result or None."""
         try:
             app_info = await asyncio.to_thread(macos_driver.get_current_app)
@@ -184,10 +197,10 @@ class DesktopController:
                 if strategy:
                     infra_elem = strategy.get_infrastructure_element(name)
                     if infra_elem and (infra_elem.get("resource_id") or infra_elem.get("ax_path")):
-                        return {"type": "path", "value": infra_elem.get("resource_id") or infra_elem.get("ax_path")}
+                        return ElementResolutionResult(type="path", value=infra_elem.get("resource_id") or infra_elem.get("ax_path"))
                     strat = strategy.get_strategy_for(name)
                     if strat:
-                        return {"strategy": strat.strategy_type, "parameters": strat.parameters, "source": "atlas_strategy"}
+                        return ElementResolutionResult(strategy=strat.strategy_type, parameters=strat.parameters, source="atlas_strategy")
             else:
                 summary = await asyncio.wait_for(
                     atlas_engine.store.get_app_summary(bundle_id, platform="macos"),
@@ -204,7 +217,7 @@ class DesktopController:
                                 el_name = str(el.get("label") or el.get("text") or el.get("name") or "").lower()
                                 if name.lower() in el_name:
                                     if el.get("os_identifier") or el.get("ax_path"):
-                                        return {"type": "path", "value": el.get("os_identifier") or el.get("ax_path")}
+                                        return ElementResolutionResult(type="path", value=el.get("os_identifier") or el.get("ax_path"))
             return None
         except asyncio.TimeoutError:
             logger.debug(f"[Desktop] Atlas timeout for '{name}'")
@@ -214,7 +227,7 @@ class DesktopController:
             return None
 
     @classmethod
-    async def _try_ocr(cls, name: str) -> dict | None:
+    async def _try_ocr(cls, name: str) -> ElementResolutionResult | None:
         """Try to resolve element using Vision OCR. Returns result or None."""
         temp_img = None
         try:
@@ -241,7 +254,7 @@ class DesktopController:
                 for el in result.elements:
                     if target_name in normalize_text(el.text):
                         logger.info(f"[Desktop] OCR resolved '{name}' → ({win_x + el.x}, {win_y + el.y})")
-                        return {"type": "coords", "x": win_x + el.x, "y": win_y + el.y}
+                        return ElementResolutionResult(type="coords", x=win_x + el.x, y=win_y + el.y)
             return None
         except asyncio.TimeoutError:
             logger.debug(f"[Desktop] OCR timeout for '{name}'")
@@ -254,7 +267,7 @@ class DesktopController:
                 cleanup_file(temp_img)
 
     @classmethod
-    async def _resolve_element(cls, name: str, role: str | None = None) -> dict | str:
+    async def _resolve_element(cls, name: str, role: str | None = None) -> ElementResolutionResult | str:
         """
         Tri-Engine element resolution: AX Tree + Atlas + OCR (Parallel).
         

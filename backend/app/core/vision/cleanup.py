@@ -10,12 +10,56 @@ Can be run as:
 import logging
 from datetime import datetime
 
+from pydantic import BaseModel, Field
+
 from app.core.vision.storage import screenshot_storage, screen_recording_storage
+from app.utils.model_helpers import LegacyDictMixin
 
 logger = logging.getLogger(__name__)
 
 
-def cleanup_screenshots(dry_run: bool = False) -> dict:
+class CleanupResult(BaseModel, LegacyDictMixin):
+    """Result of a single cleanup operation."""
+    dry_run: bool
+    total: int
+    timestamp: str
+
+
+class ScreenshotCleanupResult(CleanupResult):
+    """Result of screenshot cleanup."""
+    files_cleaned: dict[str, int]
+
+
+class RecordingCleanupResult(CleanupResult):
+    """Result of screen recording cleanup."""
+    items_cleaned: dict[str, int]
+
+
+class CombinedCleanupResult(BaseModel, LegacyDictMixin):
+    """Combined result of screenshot and recording cleanup."""
+    dry_run: bool
+    screenshots: ScreenshotCleanupResult
+    recordings: RecordingCleanupResult
+    total_cleaned: int
+    timestamp: str
+
+
+class StorageCategorySummary(BaseModel, LegacyDictMixin):
+    """Summary for a single storage category."""
+    total_files: int
+    total_size_mb: float
+    total_size_gb: float
+
+
+class StorageReport(BaseModel, LegacyDictMixin):
+    """Full storage statistics report."""
+    screenshots: dict
+    recordings: dict
+    total: dict
+    timestamp: str
+
+
+def cleanup_screenshots(dry_run: bool = False) -> ScreenshotCleanupResult:
     """
     Clean up expired screenshots based on retention policy.
 
@@ -32,15 +76,15 @@ def cleanup_screenshots(dry_run: bool = False) -> dict:
     total_files = sum(stats.values())
     logger.info(f"[ScreenshotCleanup] {'Would clean' if dry_run else 'Cleaned'} {total_files} files: {stats}")
 
-    return {
-        "dry_run": dry_run,
-        "files_cleaned": stats,
-        "total": total_files,
-        "timestamp": datetime.now().isoformat(),
-    }
+    return ScreenshotCleanupResult(
+        dry_run=dry_run,
+        files_cleaned=stats,
+        total=total_files,
+        timestamp=datetime.now().isoformat(),
+    )
 
 
-def cleanup_screen_recordings(dry_run: bool = False) -> dict:
+def cleanup_screen_recordings(dry_run: bool = False) -> RecordingCleanupResult:
     """
     Clean up expired screen recordings based on retention policy.
 
@@ -57,15 +101,15 @@ def cleanup_screen_recordings(dry_run: bool = False) -> dict:
     total_files = sum(stats.values())
     logger.info(f"[ScreenRecordingCleanup] {'Would clean' if dry_run else 'Cleaned'} {total_files} items: {stats}")
 
-    return {
-        "dry_run": dry_run,
-        "items_cleaned": stats,
-        "total": total_files,
-        "timestamp": datetime.now().isoformat(),
-    }
+    return RecordingCleanupResult(
+        dry_run=dry_run,
+        items_cleaned=stats,
+        total=total_files,
+        timestamp=datetime.now().isoformat(),
+    )
 
 
-def cleanup_all(dry_run: bool = False) -> dict:
+def cleanup_all(dry_run: bool = False) -> CombinedCleanupResult:
     """
     Clean up all expired storage (screenshots + recordings).
 
@@ -80,16 +124,16 @@ def cleanup_all(dry_run: bool = False) -> dict:
     screenshot_stats = cleanup_screenshots(dry_run)
     recording_stats = cleanup_screen_recordings(dry_run)
 
-    return {
-        "dry_run": dry_run,
-        "screenshots": screenshot_stats,
-        "recordings": recording_stats,
-        "total_cleaned": screenshot_stats["total"] + recording_stats["total"],
-        "timestamp": datetime.now().isoformat(),
-    }
+    return CombinedCleanupResult(
+        dry_run=dry_run,
+        screenshots=screenshot_stats,
+        recordings=recording_stats,
+        total_cleaned=screenshot_stats.total + recording_stats.total,
+        timestamp=datetime.now().isoformat(),
+    )
 
 
-def get_storage_report() -> dict:
+def get_storage_report() -> StorageReport:
     """Get full storage statistics report."""
     screenshot_stats = screenshot_storage.get_stats()
     recording_stats = screen_recording_storage.get_stats()
@@ -100,8 +144,8 @@ def get_storage_report() -> dict:
     total_recording_files = sum(s["file_count"] for s in recording_stats.values())
     total_recording_size_mb = sum(s["total_size_mb"] for s in recording_stats.values())
 
-    return {
-        "screenshots": {
+    return StorageReport(
+        screenshots={
             "categories": screenshot_stats,
             "summary": {
                 "total_files": total_screenshot_files,
@@ -109,7 +153,7 @@ def get_storage_report() -> dict:
                 "total_size_gb": round(total_screenshot_size_mb / 1024, 2),
             },
         },
-        "recordings": {
+        recordings={
             "categories": recording_stats,
             "summary": {
                 "total_files": total_recording_files,
@@ -118,12 +162,12 @@ def get_storage_report() -> dict:
             },
             "limits": screen_recording_storage.check_storage_limits(),
         },
-        "total": {
+        total={
             "total_files": total_screenshot_files + total_recording_files,
             "total_size_gb": round((total_screenshot_size_mb + total_recording_size_mb) / 1024, 2),
         },
-        "timestamp": datetime.now().isoformat(),
-    }
+        timestamp=datetime.now().isoformat(),
+    )
 
 
 # Celery task wrapper
@@ -141,17 +185,17 @@ try:
         return decorator
 
     @_task(name="app.core.vision.cleanup_screenshots")
-    def cleanup_screenshots_task(dry_run: bool = False) -> dict:
+    def cleanup_screenshots_task(dry_run: bool = False) -> ScreenshotCleanupResult:
         """Celery task for periodic screenshot cleanup."""
         return cleanup_screenshots(dry_run=dry_run)
 
     @_task(name="app.core.vision.cleanup_screen_recordings")
-    def cleanup_screen_recordings_task(dry_run: bool = False) -> dict:
+    def cleanup_screen_recordings_task(dry_run: bool = False) -> RecordingCleanupResult:
         """Celery task for periodic screen recording cleanup."""
         return cleanup_screen_recordings(dry_run=dry_run)
 
     @_task(name="app.core.vision.cleanup_all_storage")
-    def cleanup_all_storage_task(dry_run: bool = False) -> dict:
+    def cleanup_all_storage_task(dry_run: bool = False) -> CombinedCleanupResult:
         """Celery task for periodic cleanup of all storage."""
         return cleanup_all(dry_run=dry_run)
 

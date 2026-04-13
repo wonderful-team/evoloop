@@ -9,7 +9,7 @@ Audio processing API - Speech-to-Text and Text-to-Speech
 import logging
 import tempfile
 import os
-from typing import Optional
+from typing import Optional, Any
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, Form
 from fastapi.responses import StreamingResponse, FileResponse
@@ -50,9 +50,19 @@ class TTSResponse(BaseModel):
     duration: Optional[float] = None
 
 
+class VoiceListResponse(BaseModel):
+    """TTS 声音列表响应"""
+    voices: list[dict[str, Any]]
+
+
+class STTProvidersResponse(BaseModel):
+    """STT 提供商列表响应"""
+    providers: list[dict[str, Any]]
+
+
 # ============ TTS Endpoints ============
 
-@router.get("/voices")
+@router.get("/voices", response_model=VoiceListResponse)
 async def list_voices():
     """
     获取可用 TTS 声音列表
@@ -63,7 +73,7 @@ async def list_voices():
     
     try:
         voices = list_tts_voices()
-        return {"voices": voices}
+        return VoiceListResponse(voices=voices)
     except Exception as e:
         logger.error(f"Failed to list voices: {e}")
         raise HTTPException(500, f"Failed to list voices: {str(e)}")
@@ -237,7 +247,7 @@ async def get_tts_file(filename: str):
 
 # ============ STT Endpoints ============
 
-@router.get("/stt/providers")
+@router.get("/stt/providers", response_model=STTProvidersResponse)
 async def list_stt_providers():
     """
     获取可用 STT 提供商列表
@@ -248,7 +258,7 @@ async def list_stt_providers():
     
     try:
         providers = list_stt_providers()
-        return {"providers": providers}
+        return STTProvidersResponse(providers=providers)
     except Exception as e:
         logger.error(f"Failed to list STT providers: {e}")
         raise HTTPException(500, f"Failed to list providers: {str(e)}")

@@ -3,11 +3,13 @@ import hashlib
 import httpx
 import logging
 from typing import Dict, Tuple
+from pydantic import BaseModel
 
 from langchain_anthropic import ChatAnthropic
 
 from app.infrastructure.llm.adaptive import AdaptiveChatOpenAI
 from app.utils.async_utils import LoopBoundResource
+from app.utils.model_helpers import LegacyDictMixin
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +52,14 @@ _HTTP_CLIENT_POOL = LoopBoundResource(
     ),
     cleanup=_close_client
 )
+
+
+class LLMCacheStats(BaseModel, LegacyDictMixin):
+    """Statistics for the LLM instance cache."""
+    cache_hits: int
+    cache_misses: int
+    hit_rate: str
+    cached_instances: int
 
 
 class LLMFactory:
@@ -202,16 +212,16 @@ class LLMFactory:
             )
 
     @staticmethod
-    def get_cache_stats() -> dict:
+    def get_cache_stats() -> LLMCacheStats:
         """Get LLM instance cache statistics."""
         total = LLMFactory._cache_hits + LLMFactory._cache_misses
         hit_rate = LLMFactory._cache_hits / total if total > 0 else 0
-        return {
-            "cache_hits": LLMFactory._cache_hits,
-            "cache_misses": LLMFactory._cache_misses,
-            "hit_rate": f"{hit_rate:.1%}",
-            "cached_instances": len(LLMFactory._instance_cache),
-        }
+        return LLMCacheStats(
+            cache_hits=LLMFactory._cache_hits,
+            cache_misses=LLMFactory._cache_misses,
+            hit_rate=f"{hit_rate:.1%}",
+            cached_instances=len(LLMFactory._instance_cache),
+        )
 
     @staticmethod
     def clear_cache():

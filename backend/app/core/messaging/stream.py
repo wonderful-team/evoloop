@@ -9,7 +9,19 @@ from typing import Optional
 
 from app.core.messaging.category import MessageCategory
 
+from pydantic import BaseModel, ConfigDict
+from app.utils.model_helpers import LegacyDictMixin
+
 logger = logging.getLogger(__name__)
+
+
+class StreamPolicyResult(BaseModel, LegacyDictMixin):
+    model_config = ConfigDict(extra="allow")
+    should_stream: bool
+    frontend_type: str | None = None
+    content: str
+    category: str
+    metadata: dict = {}
 
 
 class MessageStreamPolicy:
@@ -69,7 +81,7 @@ class MessageStreamPolicy:
         category: MessageCategory,
         content: str,
         metadata: Optional[dict] = None,
-    ) -> dict:
+    ) -> StreamPolicyResult:
         """
         应用流式推送策略
         
@@ -92,13 +104,13 @@ class MessageStreamPolicy:
         if not should_stream:
             logger.debug(f"[StreamPolicy] Not streaming {category.value} message")
         
-        return {
-            "should_stream": should_stream,
-            "frontend_type": frontend_type,
-            "content": content,
-            "category": category.value,
-            "metadata": metadata or {},
-        }
+        return StreamPolicyResult(
+            should_stream=should_stream,
+            frontend_type=frontend_type,
+            content=content,
+            category=category.value,
+            metadata=metadata or {},
+        )
     
     @classmethod
     def get_streamed_categories(cls) -> list[MessageCategory]:

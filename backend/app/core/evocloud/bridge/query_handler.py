@@ -3,6 +3,13 @@
 import logging
 from typing import Any
 
+from app.core.evocloud.schemas import (
+    ConversationQueryItem,
+    MessageQueryItem,
+    McpServerInfo,
+    ModelInfo,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -38,7 +45,7 @@ async def handle_query_request(query_type: str, thread_id: str, params: dict[str
         return {"error": str(e)}
 
 
-async def _query_conversations(params: dict[str, Any]) -> list[dict]:
+async def _query_conversations(params: dict[str, Any]) -> list[ConversationQueryItem]:
     """查询对话列表"""
     try:
         # 延迟导入避免循环依赖
@@ -51,13 +58,13 @@ async def _query_conversations(params: dict[str, Any]) -> list[dict]:
             service = ConversationService(db)
             conversations = await service.list_conversations(project_id=project_id)
             return [
-                {
-                    "id": str(c.id),
-                    "title": c.title,
-                    "project_id": c.project_id,
-                    "created_at": c.created_at.isoformat() if c.created_at else None,
-                    "updated_at": c.updated_at.isoformat() if c.updated_at else None,
-                }
+                ConversationQueryItem(
+                    id=str(c.id),
+                    title=c.title,
+                    project_id=c.project_id,
+                    created_at=c.created_at.isoformat() if c.created_at else None,
+                    updated_at=c.updated_at.isoformat() if c.updated_at else None,
+                )
                 for c in conversations
             ]
     except Exception as e:
@@ -65,7 +72,7 @@ async def _query_conversations(params: dict[str, Any]) -> list[dict]:
         return []
 
 
-async def _query_history(thread_id: str, params: dict[str, Any]) -> list[dict]:
+async def _query_history(thread_id: str, params: dict[str, Any]) -> list[MessageQueryItem] | dict[str, str]:
     """查询对话历史"""
     if not thread_id:
         return {"error": "thread_id required"}
@@ -80,12 +87,12 @@ async def _query_history(thread_id: str, params: dict[str, Any]) -> list[dict]:
             service = ConversationService(db)
             messages = await service.get_messages(thread_id, limit=limit)
             return [
-                {
-                    "id": str(m.id),
-                    "role": m.role,
-                    "content": m.content,
-                    "created_at": m.created_at.isoformat() if m.created_at else None,
-                }
+                MessageQueryItem(
+                    id=str(m.id),
+                    role=m.role,
+                    content=m.content,
+                    created_at=m.created_at.isoformat() if m.created_at else None,
+                )
                 for m in messages
             ]
     except Exception as e:
@@ -93,45 +100,35 @@ async def _query_history(thread_id: str, params: dict[str, Any]) -> list[dict]:
         return []
 
 
-async def _query_skills(params: dict[str, Any]) -> list[dict]:
+async def _query_skills(params: dict[str, Any]) -> list[Any]:
     """查询技能列表"""
     # TODO: 从 SkillManager 获取
     return []
 
 
-async def _query_mcp_servers(params: dict[str, Any]) -> list[dict]:
+async def _query_mcp_servers(params: dict[str, Any]) -> list[McpServerInfo]:
     """查询 MCP 服务器列表"""
     try:
         from app.core.mcp.client import mcp_client
         
         servers = []
         for name, server in mcp_client._servers.items():
-            servers.append({
-                "name": name,
-                "type": server.type.value if hasattr(server.type, 'value') else str(server.type),
-                "connected": server.connected,
-            })
+            servers.append(McpServerInfo(
+                name=name,
+                type=server.type.value if hasattr(server.type, 'value') else str(server.type),
+                connected=server.connected,
+            ))
         return servers
     except Exception as e:
         logger.error(f"[QueryHandler] Failed to query MCP servers: {e}")
         return []
 
 
-async def _query_models(params: dict[str, Any]) -> list[dict]:
+async def _query_models(params: dict[str, Any]) -> list[ModelInfo]:
     """查询可用模型列表"""
-    try:
-        from app.core.llm import llm_factory
-        
-        models = []
-        for model_id in llm_factory.list_models():
-            models.append({
-                "id": model_id,
-                "name": model_id,
-            })
-        return models
-    except Exception as e:
-        logger.error(f"[QueryHandler] Failed to query models: {e}")
-        return [
-            {"id": "claude-3-5-sonnet", "name": "Claude 3.5 Sonnet"},
-            {"id": "gpt-4", "name": "GPT-4"},
-        ]
+    from app.core.llm import llm_factory
+
+    models = []
+    for model_id in llm_factory.list_models():
+        models.append(ModelInfo(id=model_id, name=model_id))
+    return models

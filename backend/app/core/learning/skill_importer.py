@@ -4,13 +4,24 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 
 from app.core.learning.skill_validator import SkillValidator
 from app.infrastructure.database.sql.database import session_scope
 from app.models.learning import LearnedSkill
+from app.utils.model_helpers import LegacyDictMixin
 
 logger = logging.getLogger(__name__)
+
+
+class SkillImportResult(BaseModel, LegacyDictMixin):
+    """Result of a bulk skill import operation."""
+    model_config = ConfigDict(extra="allow")
+    total_found: int = 0
+    imported: int = 0
+    skipped: int = 0
+    errors: list[str] = Field(default_factory=list)
 
 
 class SkillImporter:
@@ -19,17 +30,12 @@ class SkillImporter:
     """
 
     @staticmethod
-    async def import_from_directory(root_dir: str) -> dict[str, Any]:
+    async def import_from_directory(root_dir: str) -> SkillImportResult:
         """
         Scan a directory recursively for skill folders and import them.
         Each folder must contain a SKILL.md file.
         """
-        results = {
-            "total_found": 0,
-            "imported": 0,
-            "skipped": 0,
-            "errors": []
-        }
+        results = SkillImportResult()
 
         root_path = Path(root_dir)
         if not root_path.exists():

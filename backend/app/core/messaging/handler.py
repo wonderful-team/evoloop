@@ -15,7 +15,19 @@ from app.core.messaging.classifier import MessageClassifier
 from app.core.messaging.persistence import MessagePersistencePolicy
 from app.core.messaging.stream import MessageStreamPolicy
 
+from pydantic import BaseModel, ConfigDict
+from app.utils.model_helpers import LegacyDictMixin
+
 logger = logging.getLogger(__name__)
+
+
+class MessageHandlerResult(BaseModel, LegacyDictMixin):
+    model_config = ConfigDict(extra="allow")
+    category: str
+    persisted: bool
+    streamed: bool
+    message_id: str | None = None
+    reason: str | None = None
 
 
 class MessageHandler:
@@ -58,7 +70,7 @@ class MessageHandler:
         tool_calls: Optional[list] = None,
         thinking: Optional[str] = None,
         metadata: Optional[dict] = None,
-    ) -> dict:
+    ) -> MessageHandlerResult:
         """
         处理 AI 助手消息
         
@@ -103,49 +115,49 @@ class MessageHandler:
         # 3. 去重检查
         if self._is_duplicate(category, content, tool_calls):
             logger.debug(f"[UnifiedHandler] Duplicate message detected, skipping")
-            return {
-                "category": category.value,
-                "persisted": False,
-                "streamed": False,
-                "message_id": None,
-                "reason": "duplicate",
-            }
+            return MessageHandlerResult(
+                category=category.value,
+                persisted=False,
+                streamed=False,
+                message_id=None,
+                reason="duplicate",
+            )
         
         # 4. 持久化
         message_id = None
-        if persist_data["should_persist"]:
+        if persist_data.should_persist:
             message_id = await self._persist_to_db(
                 role="ai",
-                content=persist_data["content"],
-                thinking=persist_data["thinking"],
-                tool_calls=persist_data["tool_calls"],
+                content=persist_data.content,
+                thinking=persist_data.thinking,
+                tool_calls=persist_data.tool_calls,
                 category=category.value,
                 is_visible=category.is_visible_to_user,
             )
         
         # 5. 流式推送
-        if stream_data["should_stream"]:
+        if stream_data.should_stream:
             await self._stream_to_frontend(
-                content=stream_data["content"],
-                frontend_type=stream_data["frontend_type"],
+                content=stream_data.content,
+                frontend_type=stream_data.frontend_type,
                 category=category.value,
                 metadata=metadata,
-                tool_calls=persist_data["tool_calls"],
+                tool_calls=persist_data.tool_calls,
             )
         
-        return {
-            "category": category.value,
-            "persisted": persist_data["should_persist"],
-            "streamed": stream_data["should_stream"],
-            "message_id": message_id,
-        }
+        return MessageHandlerResult(
+            category=category.value,
+            persisted=persist_data.should_persist,
+            streamed=stream_data.should_stream,
+            message_id=message_id,
+        )
     
     async def handle_tool_output(
         self,
         tool_name: str,
         output: Any,
         run_id: Optional[str] = None,
-    ) -> dict:
+    ) -> MessageHandlerResult:
         """
         处理工具输出消息
         
@@ -177,36 +189,36 @@ class MessageHandler:
         
         # 3. 持久化
         message_id = None
-        if persist_data["should_persist"]:
+        if persist_data.should_persist:
             message_id = await self._persist_to_db(
                 role="tool",
-                content=persist_data["content"],
+                content=persist_data.content,
                 category=category.value,
                 action_type="tool_output",
                 is_visible=category.is_visible_to_user,
             )
         
         # 4. 流式推送
-        if stream_data["should_stream"]:
+        if stream_data.should_stream:
             await self._stream_to_frontend(
                 content=content,
-                frontend_type=stream_data["frontend_type"],
+                frontend_type=stream_data.frontend_type,
                 category=category.value,
                 tool_name=tool_name,
             )
         
-        return {
-            "category": category.value,
-            "persisted": persist_data["should_persist"],
-            "streamed": stream_data["should_stream"],
-            "message_id": message_id,
-        }
+        return MessageHandlerResult(
+            category=category.value,
+            persisted=persist_data.should_persist,
+            streamed=stream_data.should_stream,
+            message_id=message_id,
+        )
     
     async def handle_user_message(
         self,
         content: str,
         metadata: Optional[dict] = None,
-    ) -> dict:
+    ) -> MessageHandlerResult:
         """
         处理用户消息
         
@@ -233,12 +245,12 @@ class MessageHandler:
             category=category.value,
         )
         
-        return {
-            "category": category.value,
-            "persisted": True,
-            "streamed": True,
-            "message_id": message_id,
-        }
+        return MessageHandlerResult(
+            category=category.value,
+            persisted=True,
+            streamed=True,
+            message_id=message_id,
+        )
     
     def _is_duplicate(
         self,

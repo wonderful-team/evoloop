@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.api.deps import TokenDep, require_benefit
 from app.domain.wiki.service import wiki_service
 from app.i18n.service import i18n
-from app.models.wiki import WikiGenerationRequest, WikiPageRead
+from app.models.wiki import WikiGenerationRequest, WikiGenerationResponse, WikiPageRead
 
 router = APIRouter(tags=["wiki"])
 
@@ -17,7 +17,7 @@ async def get_wiki_pages(project_id: int, _token: TokenDep):
 
 
 @router.post("/generate", dependencies=[Depends(require_benefit("wiki_generation"))])
-async def generate_wiki(req: WikiGenerationRequest, _token: TokenDep):
+async def generate_wiki(req: WikiGenerationRequest, _token: TokenDep) -> WikiGenerationResponse:
     """
     Trigger Wiki generation in background (Celery).
     """
@@ -31,6 +31,10 @@ async def generate_wiki(req: WikiGenerationRequest, _token: TokenDep):
             force_regenerate=req.force_regenerate
         )
 
-        return {"status": "accepted", "message": i18n.get("wiki.generation_queued"), "task_id": str(task.id)}
+        return WikiGenerationResponse(
+            status="accepted",
+            message=i18n.get("wiki.generation_queued"),
+            task_id=str(task.id),
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

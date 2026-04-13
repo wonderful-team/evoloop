@@ -33,7 +33,9 @@ Usage:
 import logging
 from typing import List, Optional, Dict, Any
 
+from pydantic import BaseModel, ConfigDict
 from langchain_core.messages import BaseMessage
+from app.utils.model_helpers import LegacyDictMixin
 
 from app.core.config import settings
 from app.core.memory.models import (
@@ -616,7 +618,20 @@ class MemoryManager:
         """
         return await self._storage.get_recent(count)
 
-    async def deduplicate_checkpoints(self, dry_run: bool = True) -> Dict[str, Any]:
+
+class CheckpointDedupResult(BaseModel, LegacyDictMixin):
+    """Result of a checkpoint deduplication operation."""
+    model_config = ConfigDict(extra="allow")
+    dry_run: bool = True
+    total_checkpoints: int = 0
+    duplicate_groups: int = 0
+    duplicates_found: int = 0
+    duplicates_removed: int = 0
+    bytes_saved: int = 0
+    elapsed_ms: int = 0
+    error: Optional[str] = None
+
+    async def deduplicate_checkpoints(self, dry_run: bool = True) -> "CheckpointDedupResult":
         """
         Remove duplicate checkpoint memories from storage.
 
@@ -633,16 +648,16 @@ class MemoryManager:
             return await self._storage.deduplicate_checkpoints(dry_run)
         else:
             logger.warning("[MemoryManager] deduplicate_checkpoints only supported for FileMemoryStorage")
-            return {
-                "dry_run": dry_run,
-                "total_checkpoints": 0,
-                "duplicate_groups": 0,
-                "duplicates_found": 0,
-                "duplicates_removed": 0,
-                "bytes_saved": 0,
-                "elapsed_ms": 0,
-                "error": "Not supported for this storage backend"
-            }
+            return CheckpointDedupResult(
+                dry_run=dry_run,
+                total_checkpoints=0,
+                duplicate_groups=0,
+                duplicates_found=0,
+                duplicates_removed=0,
+                bytes_saved=0,
+                elapsed_ms=0,
+                error="Not supported for this storage backend"
+            )
 
     # ========================================================================
     # Extraction Operations

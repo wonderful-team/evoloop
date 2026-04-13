@@ -12,7 +12,7 @@ from app.core.config import settings
 from app.core.context.manager import ContextManager
 from app.core.engine import get_default_engine
 from app.core.engine.prompts.finish import FinishPromptBuilder
-from app.core.engine.state import AgentState
+from app.core.engine.state import AgentState, StateUpdate
 
 from app.core.monitoring.activity import activity_monitor
 from app.core.tools.manager import tool_manager
@@ -296,6 +296,7 @@ Was the task completed? What were the key findings?"""
 # Global auditor
 _auditor: LayeredAuditor = None
 
+
 def _get_auditor() -> LayeredAuditor:
     global _auditor
     if _auditor is None:
@@ -303,7 +304,7 @@ def _get_auditor() -> LayeredAuditor:
     return _auditor
 
 
-async def _comprehensive_audit(state: AgentState, config: RunnableConfig) -> dict:
+async def _comprehensive_audit(state: AgentState, config: RunnableConfig) -> StateUpdate:
     """Original comprehensive audit logic."""
     ctx = ContextManager.current()
     messages = state.get("messages", [])
@@ -357,10 +358,10 @@ async def _comprehensive_audit(state: AgentState, config: RunnableConfig) -> dic
         node_source="finish",
     )
     
-    return result
+    return StateUpdate(**result)
 
 
-async def finish_node(state: AgentState, config: RunnableConfig):
+async def finish_node(state: AgentState, config: RunnableConfig) -> StateUpdate:
     """
     Layered Finish Node with three-tier auditing.
     """
@@ -507,21 +508,21 @@ async def finish_node(state: AgentState, config: RunnableConfig):
             block_msg = AIMessage(content=f"\n\n[Quality Gate Blocked] {stop_result.message}\nPlease address the issues before completing.")
             messages_to_return.append(block_msg)
             # Don't end the session, return to user for fixes
-            return {
-                "messages": messages_to_return,
-                "next_node": "supervisor",  # Return to supervisor for more work
-                "blackboard": blackboard,
-                "_audit_tier": audit_tier,
-                "_audit_meta": audit_meta,
-                "_blocked_by_hook": True,
-            }
+            return StateUpdate(
+                messages=messages_to_return,
+                next_node="supervisor",  # Return to supervisor for more work
+                blackboard=blackboard,
+                _audit_tier=audit_tier,
+                _audit_meta=audit_meta,
+                _blocked_by_hook=True,
+            )
     except Exception as e:
         logger.warning(f"[Finish] Stop hook failed: {e}")
 
-    return {
-        "messages": messages_to_return, 
-        "next_node": "END",
-        "blackboard": blackboard,
-        "_audit_tier": audit_tier,
-        "_audit_meta": audit_meta,
-    }
+    return StateUpdate(
+        messages=messages_to_return,
+        next_node="END",
+        blackboard=blackboard,
+        _audit_tier=audit_tier,
+        _audit_meta=audit_meta,
+    )

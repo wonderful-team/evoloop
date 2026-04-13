@@ -2,7 +2,7 @@ import logging
 from datetime import datetime
 
 from fastapi import APIRouter, HTTPException, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy import delete, select, func
 from sqlalchemy.orm import selectinload
 
@@ -40,12 +40,22 @@ class ConversationListItem(BaseModel):
     status: str = "idle"
 
 
+class ReferenceItemMetadata(BaseModel):
+    """Metadata for a message reference. Extra fields allowed per reference type."""
+    model_config = ConfigDict(extra="allow")
+    duration: float | None = None
+    transcript: str | None = None
+    waveform: list[float] | None = None
+    url: str | None = None
+    mime_type: str | None = None
+
+
 class ReferenceItem(BaseModel):
     id: str
     type: str
     target_id: str
     target_name: str
-    metadata: dict | None = None  # Additional metadata (duration, transcript, waveform, etc.)
+    metadata: ReferenceItemMetadata | None = None  # Additional metadata (duration, transcript, waveform, etc.)
 
 
 def get_tool_display_name(tool_name: str) -> str | None:
@@ -95,6 +105,17 @@ class RewindResponse(BaseModel):
     thread_id: str
     removed_count: int = 0
     files_reverted: int = 0
+
+
+class ConversationRenameResponse(BaseModel):
+    status: str
+    thread_id: str
+    title: str
+
+
+class ConversationDeleteResponse(BaseModel):
+    status: str
+    thread_id: str
 
 
 class RewindRequest(BaseModel):
@@ -455,7 +476,7 @@ async def rename_conversation(thread_id: str, req: RenameRequest):
         conversation.title = req.title
         await session.commit()
 
-    return {"status": "updated", "thread_id": thread_id, "title": req.title}
+    return ConversationRenameResponse(status="updated", thread_id=thread_id, title=req.title)
 
 
 @router.get("/{thread_id}/activity")
@@ -491,7 +512,7 @@ async def delete_conversation(thread_id: str):
             await session.execute(delete(Message).where(Message.thread_id == thread_id))
             await session.commit()
 
-        return {"status": "deleted", "thread_id": thread_id}
+        return ConversationDeleteResponse(status="deleted", thread_id=thread_id)
     except Exception as e:
         logger.error(f"Failed to delete conversation: {e}")
         raise HTTPException(500, str(e))

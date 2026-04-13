@@ -20,7 +20,7 @@ from app.core.learning.synthesizer_utils import (
     cleanup_macro_steps,
     export_skill_to_filesystem,
 )
-from app.core.execution.macro.verification_service import SynthesisIntegration
+
 from app.i18n.service import i18n
 from app.infrastructure.database.sql.database import session_scope
 
@@ -203,6 +203,7 @@ class WorkflowSynthesizer:
         """
         logger.info(f"[{self.thread_id}] Phase 5: Running agent-based macro verification")
 
+        from app.core.execution.macro.verification_service import SynthesisIntegration
         return await SynthesisIntegration.verify_for_synthesis(
             macro_script=macro_script,
             thread_id=self.thread_id,

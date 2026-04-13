@@ -61,6 +61,12 @@ class TaskStatusUpdate(BaseModel):
     progress: int | None = 0
 
 
+class TaskExecutionResponse(BaseModel):
+    status: str
+    thread_id: str
+    message: str
+
+
 @router.get("/")
 async def get_project_tasks(
     project_id: int,
@@ -251,8 +257,8 @@ async def execute_task(task_id: int, bg_tasks: BackgroundTasks, authorization: s
 
     bg_tasks.add_task(run_agent_background, thread_id, inputs)
 
-    return {
-        "status": "queued",
-        "thread_id": thread_id,
-        "message": "Agent execution started (Local BG)",
-    }
+    return TaskExecutionResponse(
+        status="queued",
+        thread_id=thread_id,
+        message="Agent execution started (Local BG)",
+    )

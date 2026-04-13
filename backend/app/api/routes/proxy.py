@@ -15,7 +15,7 @@ from typing import Any, AsyncGenerator
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from app.api.deps import get_current_user
 from app.core.config import settings
@@ -25,14 +25,31 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/proxy", tags=["proxy"])
 
 
+class ChatMessage(BaseModel):
+    """OpenAI-compatible chat message."""
+    model_config = ConfigDict(extra="allow")
+    role: str
+    content: str | list[dict[str, Any]] | None = None
+    name: str | None = None
+    tool_call_id: str | None = None
+    tool_calls: list[dict[str, Any]] | None = None
+
+
+class ToolDefinition(BaseModel):
+    """OpenAI-compatible tool definition."""
+    model_config = ConfigDict(extra="allow")
+    type: str = "function"
+    function: dict[str, Any]
+
+
 class ChatCompletionRequest(BaseModel):
     """OpenAI-compatible chat completion request."""
     model: str
-    messages: list[dict[str, Any]]
+    messages: list[ChatMessage]
     temperature: float = 0.7
     max_tokens: int | None = None
     stream: bool = False
-    tools: list[dict] | None = None
+    tools: list[ToolDefinition] | None = None
     tool_choice: str | None = None
 
 

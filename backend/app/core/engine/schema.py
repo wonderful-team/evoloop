@@ -1,8 +1,24 @@
 from typing import Any, Literal
-from pydantic import BaseModel, Field, model_validator
-
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.utils.model_helpers import LegacyDictMixin
+
+
+class NodeParameters(BaseModel, LegacyDictMixin):
+    model_config = ConfigDict(extra="allow")
+
+
+class NodeConfigPayload(BaseModel, LegacyDictMixin):
+    model_config = ConfigDict(extra="allow")
+    intent: str | None = None
+    parameters: NodeParameters = Field(default_factory=NodeParameters)
+    tools: list[str] = Field(default_factory=list)
+
+
+class EdgeCondition(BaseModel, LegacyDictMixin):
+    model_config = ConfigDict(extra="allow")
+    expr: str
+    to: str
 
 
 class NodeConfig(BaseModel, LegacyDictMixin):
@@ -15,7 +31,7 @@ class NodeConfig(BaseModel, LegacyDictMixin):
     def path(self):
         return self.xpath
 
-    config: dict[str, Any] | None = Field(default_factory=dict)
+    config: NodeConfigPayload | None = Field(default_factory=NodeConfigPayload)
     tools: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
@@ -32,7 +48,7 @@ class EdgeConfig(BaseModel, LegacyDictMixin):
     type: Literal["simple", "conditional"] = "simple"
     router: str | None = None  # Path to router function
     map: dict[str, str] | None = None  # Mapping for conditional
-    conditions: list[dict[str, str]] | None = None  # [{"expr": "...", "to": "..."}]
+    conditions: list[EdgeCondition] | None = None
     default: str | None = None  # Fallback node
 
     @model_validator(mode="after")
@@ -69,7 +85,7 @@ class AgentConfig(BaseModel, LegacyDictMixin):
                 
             if edge.conditions:
                 for cond in edge.conditions:
-                    if cond.get("to") not in node_ids:
+                    if cond.to not in node_ids:
                         raise ValueError(f"Conditional edge branch lead to unknown node '{cond.get('to')}'")
             
             if edge.map:

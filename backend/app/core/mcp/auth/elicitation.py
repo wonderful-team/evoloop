@@ -4,11 +4,16 @@ import asyncio
 import logging
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.utils.model_helpers import LegacyDictMixin
 
 logger = logging.getLogger(__name__)
+
+
+class ElicitationValues(BaseModel, LegacyDictMixin):
+    """Values provided for an elicitation request."""
+    model_config = ConfigDict(extra="allow")
 
 
 class ElicitationField(BaseModel, LegacyDictMixin):
@@ -93,7 +98,7 @@ class McpElicitationHandler:
         
         return request
     
-    async def wait_for_input(self, server_name: str, timeout: float = 300.0) -> dict[str, Any]:
+    async def wait_for_input(self, server_name: str, timeout: float = 300.0) -> ElicitationValues:
         """
         Wait for user to provide elicitation values.
         
@@ -120,7 +125,7 @@ class McpElicitationHandler:
             self._futures.pop(server_name, None)
             self._pending.pop(server_name, None)
     
-    def provide_input(self, server_name: str, values: dict[str, Any]) -> None:
+    def provide_input(self, server_name: str, values: ElicitationValues) -> None:
         """
         Provide values for pending elicitation.
         

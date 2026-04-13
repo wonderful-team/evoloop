@@ -9,7 +9,7 @@ from app.core.config import settings
 from app.core.engine import get_default_engine
 from app.core.engine.message_utils import get_last_human_message
 from app.core.engine.routers import RoutingTarget
-from app.core.engine.state import AgentState
+from app.core.engine.state import AgentState, StateUpdate
 from app.core.tools.manager import tool_manager
 from app.constants import DEFAULT_PROJECT_ID
 from app.i18n.service import i18n
@@ -32,7 +32,7 @@ class SupervisorNode(BaseAgentNode):
     def __init__(self):
         super().__init__(node_name="Supervisor", max_steps=settings.SUPERVISOR_AGENT_MAX_STEPS, temperature=0.2)
 
-    async def prepare_state(self, state: AgentState, config: RunnableConfig) -> dict[str, Any] | None:
+    async def prepare_state(self, state: AgentState, config: RunnableConfig) -> StateUpdate | None:
         """Pre-computation: Check for subtask completion and worker outcome."""
         # Clean stale routing and outcomes from previous turns
         state["next_node"] = None
@@ -51,7 +51,7 @@ class SupervisorNode(BaseAgentNode):
             expected = pending_agg["expected_count"]
             if len(subtask_results) >= expected:
                 logger.info(f"[Supervisor] 🧩 All {expected} subtasks done. Routing to Aggregator.")
-                return {"next_node": RoutingTarget.AGGREGATOR}
+                return StateUpdate(next_node=RoutingTarget.AGGREGATOR)
 
         # 2. Check Worker/Aggregator Outcome
         worker_outcome = blackboard.get("worker_outcome")
@@ -60,11 +60,11 @@ class SupervisorNode(BaseAgentNode):
             blackboard["worker_outcome"] = None
             if worker_outcome == "success":
                 logger.info("[Supervisor] ✅ Task complete. Routing to FINISH.")
-                return {
-                    "next_node": RoutingTarget.FINISH,
-                    "blackboard": blackboard,
-                    "iteration_count": state.get("iteration_count", 0) + 1
-                }
+                return StateUpdate(
+                    next_node=RoutingTarget.FINISH,
+                    blackboard=blackboard,
+                    iteration_count=state.get("iteration_count", 0) + 1
+                )
             else:
                 logger.warning(f"[Supervisor] 🔄 Worker outcome: {worker_outcome}. Re-planning required.")
                 blackboard["ticket"] = None
@@ -96,7 +96,7 @@ class SupervisorNode(BaseAgentNode):
         """Load core routing tools."""
         return await asyncio.to_thread(tool_manager.get_node_tools, "supervisor", state)
 
-    async def handle_outcome(self, original_state: AgentState, engine_result: dict[str, Any], config: RunnableConfig) -> dict[str, Any]:
+    async def handle_outcome(self, original_state: AgentState, engine_result: dict[str, Any], config: RunnableConfig) -> StateUpdate:
         """Signal handling and protocol verification."""
         # 1. Base Signal/Dispatcher Handling
         signal = engine_result.get("signal")
@@ -105,7 +105,9 @@ class SupervisorNode(BaseAgentNode):
         if signal:
             from app.core.engine.dispatcher import SignalDispatcher
             dispatch_result = await SignalDispatcher.dispatch(original_state, signal, config)
-            if isinstance(dispatch_result, dict):
+            if isinstance(dispatch_result, StateUpdate):
+                dispatch_result.iteration_count = new_iter_count
+            elif isinstance(dispatch_result, dict):
                 dispatch_result["iteration_count"] = new_iter_count
             return dispatch_result
 
@@ -119,12 +121,12 @@ class SupervisorNode(BaseAgentNode):
             if hasattr(msg, "metadata")
         )
         if has_error_msg:
-            return {
-                "messages": new_messages,
-                "next_node": RoutingTarget.FINISH,
-                "blackboard": blackboard,
-                "iteration_count": new_iter_count,
-            }
+            return StateUpdate(
+                messages=new_messages,
+                next_node=RoutingTarget.FINISH,
+                blackboard=blackboard,
+                iteration_count=new_iter_count,
+            )
 
         # Handle "Silent" Protocol Violation - fallback to CHAT if there is content
         ai_content = ""
@@ -133,18 +135,18 @@ class SupervisorNode(BaseAgentNode):
             
         if ai_content:
             logger.warning("[Supervisor] ⚠️ Protocol violation: No route_to but returned content. Falling back to 'chat'.")
-            return {
-                "next_node": RoutingTarget.CHAT,
-                "blackboard": blackboard,
-                "iteration_count": new_iter_count,
-            }
+            return StateUpdate(
+                next_node=RoutingTarget.CHAT,
+                blackboard=blackboard,
+                iteration_count=new_iter_count,
+            )
 
         logger.error("[Supervisor] 🛑 Stop: No routing signal and no content.")
-        return {
-            "next_node": RoutingTarget.FINISH,
-            "blackboard": blackboard,
-            "iteration_count": new_iter_count
-        }
+        return StateUpdate(
+            next_node=RoutingTarget.FINISH,
+            blackboard=blackboard,
+            iteration_count=new_iter_count
+        )
 
     async def _emit_status(self, config: RunnableConfig, status: str):
         """Emit status update via activity_monitor."""
@@ -184,6 +186,6 @@ class SupervisorNode(BaseAgentNode):
 _supervisor_instance = SupervisorNode()
 
 
-async def supervisor_node(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
+async def supervisor_node(state: AgentState, config: RunnableConfig) -> StateUpdate:
     """Supervisor node function wrapper for graph registration."""
     return await _supervisor_instance(state, config)

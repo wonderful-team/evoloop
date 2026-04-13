@@ -3,6 +3,8 @@ import os
 import sqlite3
 from typing import Any, List, Dict, Optional
 
+from pydantic import BaseModel
+
 from app.utils import ContentFormatter, ControllerResponse, render_template
 
 from app.core.context.manager import ContextManager
@@ -11,6 +13,7 @@ from app.core.tools import evoloop_tool
 from app.utils import json as json_utils
 from app.utils.detect import detect_language
 from app.utils.file import ensure_local_path, read_file_content, resolve_path
+from app.utils.model_helpers import LegacyDictMixin
 
 try:
     import docx
@@ -27,6 +30,31 @@ logger = logging.getLogger(__name__)
 # Helper logic moved to app.utils.file
 # _ensure_local_path -> ensure_local_path
 # _resolve_project_path -> resolve_path (with context awareness handled below or in util if passed)
+
+
+class DocxHeading(BaseModel):
+    style: str
+    text: str
+
+
+class ExcelSheetInfo(BaseModel, LegacyDictMixin):
+    columns: list[str]
+    preview: list[dict]
+
+
+class ExcelInspectionResult(BaseModel, LegacyDictMixin):
+    sheets: list[str]
+    details: dict[str, ExcelSheetInfo]
+
+
+class DocxInspectionResult(BaseModel, LegacyDictMixin):
+    headings_count: int
+    headings: list[DocxHeading]
+
+
+class PdfInspectionResult(BaseModel, LegacyDictMixin):
+    pages: int
+    metadata: dict | None = None
 
 
 def _resolve_project_path(file_path: str) -> str:
@@ -288,34 +316,34 @@ def _wrap_code_block(path: str, content: str, lang: str) -> str:
 # --- Inspection Helpers ---
 
 
-def _inspect_excel(path: str) -> dict[str, Any]:
+def _inspect_excel(path: str) -> ExcelInspectionResult:
     xl = pd.ExcelFile(path)
-    sheets_info = {}
+    sheets_info: dict[str, ExcelSheetInfo] = {}
     for sheet in xl.sheet_names:
         df = pd.read_excel(path, sheet_name=sheet, nrows=5)  # Peek top 5
-        sheets_info[sheet] = {
-            "columns": list(df.columns),
-            "preview": df.head(2).to_dict(orient="records"),
-        }
-    return {"sheets": list(xl.sheet_names), "details": sheets_info}
+        sheets_info[sheet] = ExcelSheetInfo(
+            columns=list(df.columns),
+            preview=df.head(2).to_dict(orient="records"),
+        )
+    return ExcelInspectionResult(sheets=list(xl.sheet_names), details=sheets_info)
 
 
-def _inspect_docx(path: str) -> dict[str, Any]:
+def _inspect_docx(path: str) -> DocxInspectionResult:
     doc = docx.Document(path)
-    headings = []
+    headings: list[DocxHeading] = []
     for para in doc.paragraphs:
         if para.style and para.style.name and para.style.name.startswith("Heading"):
-            headings.append({"style": para.style.name, "text": para.text})
+            headings.append(DocxHeading(style=para.style.name, text=para.text))
 
-    return {
-        "headings_count": len(headings),
-        "headings": headings[:20] if len(headings) > 20 else headings,
-    }
+    return DocxInspectionResult(
+        headings_count=len(headings),
+        headings=headings[:20] if len(headings) > 20 else headings,
+    )
 
 
-def _inspect_pdf(path: str) -> dict[str, Any]:
+def _inspect_pdf(path: str) -> PdfInspectionResult:
     reader = PdfReader(path)
-    return {"pages": len(reader.pages), "metadata": reader.metadata}
+    return PdfInspectionResult(pages=len(reader.pages), metadata=reader.metadata)
 
 
 def _read_pdf(path: str, start: int | None, end: int | None) -> str:

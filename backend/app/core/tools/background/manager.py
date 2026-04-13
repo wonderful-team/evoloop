@@ -12,11 +12,13 @@ NOT a full job queue (like Celery/RQ). For that, use dedicated task systems.
 Typical Usage:
     # Tool creates a background task
     task = await task_manager.create_task(
-        task_type=TaskType.COMMAND,
-        title="npm run build",
-        tool_name="execute_command",
-        thread_id=thread_id,
-        timeout_seconds=300,
+        CreateBackgroundTaskRequest(
+            task_type=TaskType.COMMAND,
+            title="npm run build",
+            tool_name="execute_command",
+            thread_id=thread_id,
+            timeout_seconds=300,
+        )
     )
     
     # Tool starts execution
@@ -39,9 +41,32 @@ import uuid
 from typing import Any, Callable, Dict, List, Optional, Set
 from datetime import datetime, timedelta
 
-from .models import BackgroundTask, TaskStatus, TaskType
+from pydantic import BaseModel
+
+from .models import BackgroundTask, TaskMetadata, TaskStatus, TaskType
+from app.utils.model_helpers import LegacyDictMixin
 
 logger = logging.getLogger(__name__)
+
+
+class CreateBackgroundTaskRequest(BaseModel):
+    """Request model for creating a background task."""
+    task_type: TaskType
+    title: str
+    tool_name: str
+    thread_id: str
+    description: str = ""
+    project_id: Optional[int] = None
+    timeout_seconds: int = 3600
+    metadata: Optional[TaskMetadata] = None
+
+
+class BackgroundTaskManagerStats(BaseModel, LegacyDictMixin):
+    """Background task manager statistics."""
+    total_tasks: int
+    by_status: dict[str, int]
+    by_thread: int
+    by_tool: dict[str, int]
 
 
 class BackgroundTaskManager:
@@ -137,40 +162,26 @@ class BackgroundTaskManager:
     
     async def create_task(
         self,
-        task_type: TaskType,
-        title: str,
-        tool_name: str,
-        thread_id: str,
-        description: str = "",
-        project_id: Optional[int] = None,
-        timeout_seconds: int = 3600,
-        metadata: Optional[Dict[str, Any]] = None,
+        request: CreateBackgroundTaskRequest,
     ) -> BackgroundTask:
         """
         Create a new background task.
-        
+
         Args:
-            task_type: Category of task (COMMAND, BUILD, etc.)
-            title: Human-readable title
-            tool_name: Tool that owns this task
-            thread_id: Conversation/thread ID
-            description: Optional detailed description
-            project_id: Optional project association
-            timeout_seconds: Maximum execution time (default 1 hour)
-            metadata: Tool-specific data
-            
+            request: Background task creation request
+
         Returns:
             The created BackgroundTask
-            
+
         Raises:
             RuntimeError: If thread has too many tasks (abuse prevention)
         """
         # Generate short readable ID
-        task_id = f"{task_type.value[:3]}-{uuid.uuid4().hex[:8]}"
-        
+        task_id = f"{request.task_type.value[:3]}-{uuid.uuid4().hex[:8]}"
+
         # Check thread limit (abuse prevention)
         async with self._data_lock:
-            thread_tasks = self._thread_index.get(thread_id, set())
+            thread_tasks = self._thread_index.get(request.thread_id, set())
             if len(thread_tasks) >= self._max_tasks_per_thread:
                 # Remove oldest completed task if limit reached
                 oldest = None
@@ -183,29 +194,29 @@ class BackgroundTaskManager:
                     await self._remove_task_internal(oldest.task_id)
                 else:
                     raise RuntimeError(
-                        f"Thread {thread_id} has too many active tasks "
+                        f"Thread {request.thread_id} has too many active tasks "
                         f"(max {self._max_tasks_per_thread})"
                     )
-        
+
         task = BackgroundTask(
             task_id=task_id,
-            task_type=task_type,
-            title=title,
-            description=description,
-            tool_name=tool_name,
-            thread_id=thread_id,
-            project_id=project_id,
-            timeout_seconds=timeout_seconds,
-            metadata=metadata or {},
+            task_type=request.task_type,
+            title=request.title,
+            description=request.description,
+            tool_name=request.tool_name,
+            thread_id=request.thread_id,
+            project_id=request.project_id,
+            timeout_seconds=request.timeout_seconds,
+            metadata=request.metadata or {},
         )
-        
+
         async with self._data_lock:
             self._tasks[task_id] = task
             self._index_task(task)
-        
+
         await self._publish_event(task, "created")
-        logger.info(f"Task created: {task_id} ({title})")
-        
+        logger.info(f"Task created: {task_id} ({request.title})")
+
         return task
     
     async def start_task(self, task_id: str, process_id: Optional[int] = None) -> bool:
@@ -508,16 +519,16 @@ class BackgroundTaskManager:
     
     # ==================== Stats ====================
     
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> BackgroundTaskManagerStats:
         """Get manager statistics."""
-        return {
-            "total_tasks": len(self._tasks),
-            "by_status": {
+        return BackgroundTaskManagerStats(
+            total_tasks=len(self._tasks),
+            by_status={
                 status.value: len(ids)
                 for status, ids in self._status_index.items()
             },
-            "by_thread": len(self._thread_index),
-            "by_tool": {
+            by_thread=len(self._thread_index),
+            by_tool={
                 tool: len(ids) for tool, ids in self._tool_index.items()
             },
-        }
+        )

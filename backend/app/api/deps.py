@@ -7,6 +7,7 @@ from typing import Annotated
 
 from fastapi import Depends, Header, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
+from pydantic import BaseModel
 from sqlmodel import Session
 
 from app.core.config import settings
@@ -15,6 +16,7 @@ from app.core.evocloud import evocloud_manager
 from app.core.identity import decode_local_jwt, identity_service
 from app.services.cache_services import UserCacheService, RateLimitService
 from app.models import User
+from app.utils.model_helpers import LegacyDictMixin
 
 logger = logging.getLogger(__name__)
 
@@ -161,20 +163,28 @@ async def check_multiple_benefits(benefit_codes: list[str], token: TokenDep) -> 
         return {code: False for code in benefit_codes}
 
 
-def create_benefit_error_detail(benefit_code: str, current_level: str | None = None) -> dict:
+class BenefitErrorDetail(BaseModel, LegacyDictMixin):
+    """统一的权益错误详情."""
+    code: str = "BENEFIT_REQUIRED"
+    feature: str
+    feature_name: str
+    message: str
+    required_plan: str = "订阅版本"
+    current_level: str = "免费用户"
+    upgrade_url: str = "#/subscription"
+
+
+def create_benefit_error_detail(benefit_code: str, current_level: str | None = None) -> BenefitErrorDetail:
     """
     创建统一的权益错误详情
     """
     feature_name = benefit_service.get_benefit_label(benefit_code)
-    return {
-        "code": "BENEFIT_REQUIRED",
-        "feature": benefit_code,
-        "feature_name": feature_name,
-        "message": f"需要开通「{feature_name}」权益才能使用此功能",
-        "required_plan": "订阅版本",
-        "current_level": current_level or "免费用户",
-        "upgrade_url": "#/subscription",
-    }
+    return BenefitErrorDetail(
+        feature=benefit_code,
+        feature_name=feature_name,
+        message=f"需要开通「{feature_name}」权益才能使用此功能",
+        current_level=current_level or "免费用户",
+    )
 
 
 def raise_benefit_required(benefit_code: str, current_level: str | None = None):

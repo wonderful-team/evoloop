@@ -97,6 +97,12 @@ class BenefitsUpdateWebhook(BaseModel):
     signature: str  # HMAC签名用于验证
 
 
+class WebhookResponse(BaseModel):
+    """Webhook processing response."""
+    code: int
+    message: str
+
+
 @router.post("/webhook/benefits-update")
 async def handle_benefits_update_webhook(payload: BenefitsUpdateWebhook):
     """
@@ -129,7 +135,7 @@ async def handle_benefits_update_webhook(payload: BenefitsUpdateWebhook):
         benefit_service.invalidate_cache(payload.member_id)
         logger.info(f"[Webhook] Benefits cache invalidated due to {payload.event}")
     
-    return {
-        "code": 0,
-        "message": "Webhook processed successfully"
-    }
+    return WebhookResponse(
+        code=0,
+        message="Webhook processed successfully"
+    )

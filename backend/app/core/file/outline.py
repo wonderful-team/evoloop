@@ -12,12 +12,22 @@ import os
 import re
 from dataclasses import dataclass
 from typing import Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from app.utils.model_helpers import LegacyDictMixin
 from .io import detect_encoding
 
 logger = logging.getLogger(__name__)
+
+
+class FileStats(BaseModel, LegacyDictMixin):
+    """File statistics for a preview."""
+    model_config = ConfigDict(extra="allow")
+    path: str
+    size: int
+    total_lines: int
+    encoding: str | None = None
+    content_hash: str | None = None
 
 
 class OutlineEntry(BaseModel, LegacyDictMixin):
@@ -26,6 +36,14 @@ class OutlineEntry(BaseModel, LegacyDictMixin):
     name: str
     line: int  # 1-based line number
     indent: int  # indentation level in spaces
+
+
+class FilePreview(BaseModel, LegacyDictMixin):
+    model_config = ConfigDict(extra="allow")
+    stats: FileStats
+    outline: list[OutlineEntry]
+    preview: str
+    preview_lines: list[int]
 
 
 # Language-specific patterns for lightweight parsing
@@ -67,7 +85,7 @@ OUTLINE_PATTERNS = {
 }
 
 
-def get_file_outline(file_path: str, max_entries: int = 100) -> list[dict]:
+def get_file_outline(file_path: str, max_entries: int = 100) -> list[OutlineEntry]:
     """
     Extract structural outline from code files using lightweight parsing.
     
@@ -111,12 +129,12 @@ def get_file_outline(file_path: str, max_entries: int = 100) -> list[dict]:
                     match = pattern.match(stripped)
                     if match:
                         name = match.group(1)
-                        outline.append({
-                            "type": entry_type,
-                            "name": name,
-                            "line": line_num,
-                            "indent": indent
-                        })
+                        outline.append(OutlineEntry(
+                            type=entry_type,
+                            name=name,
+                            line=line_num,
+                            indent=indent
+                        ))
                         break
     
     except Exception as e:
@@ -153,24 +171,24 @@ def _get_python_outline_ast(file_path: str, max_entries: int = 100) -> list[dict
             if isinstance(node, ast.ClassDef):
                 line_num = node.lineno
                 indent = _get_line_indent(lines, line_num)
-                outline.append({
-                    "type": "class",
-                    "name": node.name,
-                    "line": line_num,
-                    "indent": indent
-                })
+                outline.append(OutlineEntry(
+                    type="class",
+                    name=node.name,
+                    line=line_num,
+                    indent=indent
+                ))
                 
                 # Add methods
                 for item in node.body:
                     if isinstance(item, ast.FunctionDef) and len(outline) < max_entries:
                         method_line = item.lineno
                         method_indent = _get_line_indent(lines, method_line)
-                        outline.append({
-                            "type": "method",
-                            "name": item.name,
-                            "line": method_line,
-                            "indent": method_indent
-                        })
+                        outline.append(OutlineEntry(
+                            type="method",
+                            name=item.name,
+                            line=method_line,
+                            indent=method_indent
+                        ))
             
             elif isinstance(node, ast.FunctionDef) and not isinstance(node, ast.AsyncFunctionDef):
                 # Top-level function
@@ -178,22 +196,22 @@ def _get_python_outline_ast(file_path: str, max_entries: int = 100) -> list[dict
                 if not any(isinstance(parent, ast.ClassDef) for parent in ast.walk(tree)):
                     line_num = node.lineno
                     indent = _get_line_indent(lines, line_num)
-                    outline.append({
-                        "type": "function",
-                        "name": node.name,
-                        "line": line_num,
-                        "indent": indent
-                    })
+                    outline.append(OutlineEntry(
+                        type="function",
+                        name=node.name,
+                        line=line_num,
+                        indent=indent
+                    ))
             
             elif isinstance(node, ast.AsyncFunctionDef):
                 line_num = node.lineno
                 indent = _get_line_indent(lines, line_num)
-                outline.append({
-                    "type": "function",
-                    "name": node.name,
-                    "line": line_num,
-                    "indent": indent
-                })
+                outline.append(OutlineEntry(
+                    type="function",
+                    name=node.name,
+                    line=line_num,
+                    indent=indent
+                ))
         
         # Sort by line number
         outline.sort(key=lambda x: x["line"])
@@ -219,7 +237,7 @@ def get_large_file_preview(
     file_path: str,
     context_lines: int = 5,
     max_preview_lines: int = 100
-) -> dict:
+) -> FilePreview:
     """
     Get a preview of a large file with structural outline and sample content.
     
@@ -266,18 +284,18 @@ def get_large_file_preview(
     
     result = read_file(file_path, start_line=1, end_line=sorted_lines[-1] if sorted_lines else 1)
     if not result.success:
-        return {
-            "stats": {
-                "path": info.path,
-                "size": info.size,
-                "total_lines": info.total_lines,
-                "encoding": info.encoding,
-                "content_hash": info.content_hash
-            },
-            "outline": outline,
-            "preview": f"[Error reading file: {result.error_message}]",
-            "preview_lines": []
-        }
+        return FilePreview(
+            stats=FileStats(
+                path=info.path,
+                size=info.size,
+                total_lines=info.total_lines,
+                encoding=info.encoding,
+                content_hash=info.content_hash
+            ),
+            outline=outline,
+            preview=f"[Error reading file: {result.error_message}]",
+            preview_lines=[]
+        )
     
     all_lines = result.content.split('\n')
     
@@ -293,15 +311,15 @@ def get_large_file_preview(
         preview_content += f"{line_num:4d}: {line_content}\n"
         last_printed = line_num
     
-    return {
-        "stats": {
-            "path": info.path,
-            "size": info.size,
-            "total_lines": info.total_lines,
-            "encoding": info.encoding,
-            "content_hash": info.content_hash
-        },
-        "outline": outline,
-        "preview": preview_content,
-        "preview_lines": sorted_lines
-    }
+    return FilePreview(
+        stats=FileStats(
+            path=info.path,
+            size=info.size,
+            total_lines=info.total_lines,
+            encoding=info.encoding,
+            content_hash=info.content_hash
+        ),
+        outline=outline,
+        preview=preview_content,
+        preview_lines=sorted_lines
+    )

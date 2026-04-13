@@ -6,20 +6,22 @@ call it via function calling. All actual logic lives in:
   app.core.environment.controllers.browser_controller.BrowserController
 """
 import logging
+from typing import Literal
 
-from typing import Any, Literal
+from pydantic import BaseModel, ConfigDict
+
 from app.core.tools import evoloop_tool
 from app.core.environment.controllers.browser_controller import BrowserController
+from app.utils.model_helpers import LegacyDictMixin
 
 logger = logging.getLogger(__name__)
 
 
-@evoloop_tool(
-    is_pollable=True,
-    name_map={"zh": "浏览器控制", "en": "Browser Control"},
-    required_benefit="browser_control"
-)
-async def browser_control(
+class BrowserControlRequest(BaseModel, LegacyDictMixin):
+    """Structured request for browser automation actions."""
+
+    model_config = ConfigDict(extra="allow")
+
     action: Literal[
         # Navigation
         "navigate", "back", "forward", "reload", "get_url", "new_tab", "switch_tab",
@@ -37,49 +39,57 @@ async def browser_control(
         "network_wait", "dialog_handle",
         # Lifecycle
         "close",
-    ],
+    ] = "navigate"
     # Navigation params
-    url: str | None = None,
-    tab_index: int | None = None,
+    url: str | None = None
+    tab_index: int | None = None
     # Locator params
-    selector: str | None = None,
-    text: str | None = None,
+    selector: str | None = None
+    text: str | None = None
     # Interaction params
-    value: str | None = None,          # type_text content, select value/label, local_storage value
-    key: str | None = None,            # key_press key
-    source_selector: str | None = None,  # drag_drop source
-    target_selector: str | None = None,  # drag_drop target
-    direction: Literal["up", "down", "left", "right"] | None = None,
-    amount: int = 300,                 # scroll pixels
-    clear_first: bool = True,          # for type_text: clear field before typing
+    value: str | None = None          # type_text content, select value/label, local_storage value
+    key: str | None = None            # key_press key
+    source_selector: str | None = None  # drag_drop source
+    target_selector: str | None = None  # drag_drop target
+    direction: Literal["up", "down", "left", "right"] | None = None
+    amount: int = 300                 # scroll pixels
+    clear_first: bool = True          # for type_text: clear field before typing
     # Screenshot params
-    full_page: bool = False,
-    ocr: bool = False,                  # run OCR on screenshot
+    full_page: bool = False
+    ocr: bool = False                  # run OCR on screenshot
     # Reading params
-    attribute: str | None = None,      # get_attribute attr name
+    attribute: str | None = None      # get_attribute attr name
     # wait_for / check_element params
-    state: Literal["visible", "hidden", "attached", "detached"] = "visible",
-    url_pattern: str | None = None,    # wait_for URL match / network_wait URL pattern
-    timeout_ms: int = 15_000,
+    state: Literal["visible", "hidden", "attached", "detached"] = "visible"
+    url_pattern: str | None = None    # wait_for URL match / network_wait URL pattern
+    timeout_ms: int = 15_000
     # Cookie / storage params
-    cookies: list[dict] | None = None,
-    storage_action: Literal["get", "set", "clear"] | None = None,
-    storage_key: str | None = None,
+    cookies: list[dict] | None = None
+    storage_action: Literal["get", "set", "clear"] | None = None
+    storage_key: str | None = None
     # Dialog params
-    dialog_action: Literal["accept", "dismiss"] | None = None,
-    dialog_text: str | None = None,    # text to type into a prompt dialog
+    dialog_action: Literal["accept", "dismiss"] | None = None
+    dialog_text: str | None = None    # text to type into a prompt dialog
     # JS execution
-    script: str | None = None,
+    script: str | None = None
     # Advanced / batch flags
-    x: int | None = None,
-    y: int | None = None,
+    x: int | None = None
+    y: int | None = None
     # Batch params
-    actions: list[dict] | None = None,
-    continue_on_error: bool = True,
-    delay_ms: int = 100,
+    actions: list[dict] | None = None
+    continue_on_error: bool = True
+    delay_ms: int = 100
     # Upload params
-    file_path: str | None = None,
-) -> str:
+    file_path: str | None = None
+
+
+@evoloop_tool(
+    is_pollable=True,
+    name_map={"zh": "浏览器控制", "en": "Browser Control"},
+    required_benefit="browser_control",
+    args_schema=BrowserControlRequest,
+)
+async def browser_control(request: BrowserControlRequest) -> str:
     """
     Control a persistent Chromium browser via Playwright.
 
@@ -166,14 +176,4 @@ async def browser_control(
         delay_ms: For batch mode, delay between actions in ms (default 100).
         file_path: Full path to local file for upload action.
     """
-    return await BrowserController.execute(
-        action=action, url=url, tab_index=tab_index, selector=selector, text=text,
-        value=value, key=key, source_selector=source_selector, target_selector=target_selector,
-        direction=direction, amount=amount, clear_first=clear_first,
-        full_page=full_page, ocr=ocr, attribute=attribute, state=state,
-        url_pattern=url_pattern, timeout_ms=timeout_ms, cookies=cookies,
-        storage_action=storage_action, storage_key=storage_key,
-        dialog_action=dialog_action, dialog_text=dialog_text, script=script,
-        x=x, y=y, actions=actions, continue_on_error=continue_on_error,
-        delay_ms=delay_ms, file_path=file_path,
-    )
+    return await BrowserController.execute(**request.model_dump())

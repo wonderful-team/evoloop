@@ -9,6 +9,8 @@ from enum import Enum
 from typing import Any, Dict, List, Optional, Union
 from pydantic import BaseModel, Field
 
+from app.core.execution.macro.schema import MacroStep
+
 
 class VerificationStatus(str, Enum):
     """验证状态"""
@@ -88,7 +90,7 @@ class AgentConfig(BaseModel):
 
 class VerificationRequest(BaseModel):
     """验证请求"""
-    macro_script: List[Dict[str, Any]]
+    macro_script: List[MacroStep]
     instructions: Optional[str] = None
     session_id: Optional[str] = None
     thread_id: Optional[str] = None
@@ -118,20 +120,20 @@ class AdaptationRecord(BaseModel):
     - additional_steps: 额外添加的步骤（如前置等待、弹窗关闭等）
     """
     anomaly_type: AnomalyType = AnomalyType.UNKNOWN
-    original_strategy: Dict[str, Any] = Field(default_factory=dict)
-    adapted_strategy: Dict[str, Any] = Field(default_factory=dict)
+    original_strategy: MacroStep = Field(default_factory=lambda: MacroStep(type="action"))
+    adapted_strategy: MacroStep = Field(default_factory=lambda: MacroStep(type="action"))
     reasoning: str = ""
     success: bool = False
     attempt_number: int = 1
 
     # 额外步骤（在 adapted_strategy 之前执行）
-    additional_steps: List[Dict[str, Any]] = Field(default_factory=list)
+    additional_steps: List[MacroStep] = Field(default_factory=list)
 
 
 class ExecutionDetail(BaseModel):
     """执行详情"""
     pre_state: Optional[Dict[str, Any]] = None
-    action_taken: Dict[str, Any] = Field(default_factory=dict)
+    action_taken: MacroStep = Field(default_factory=lambda: MacroStep(type="action"))
     post_state: Optional[Dict[str, Any]] = None
     screenshot_path: Optional[str] = None
     ui_dump: Optional[Dict[str, Any]] = None
@@ -140,7 +142,7 @@ class ExecutionDetail(BaseModel):
 class StepResult(BaseModel):
     """单步执行结果"""
     step_number: int
-    original_step: Dict[str, Any] = Field(default_factory=dict)
+    original_step: MacroStep = Field(default_factory=lambda: MacroStep(type="action"))
     status: StepExecutionStatus = StepExecutionStatus.PENDING
 
     execution: Optional[ExecutionDetail] = None
@@ -150,7 +152,7 @@ class StepResult(BaseModel):
     error_message: Optional[str] = None
 
     # 修正后的实际执行参数（用于宏进化）
-    effective_parameters: Optional[Dict[str, Any]] = None
+    effective_parameters: Optional[MacroStep] = None
 
     # 冗余检查信息
     redundancy_check: Optional[RedundancyCheckResult] = None
@@ -216,13 +218,13 @@ class MacroEvolutionRecord(BaseModel):
     - evolved_step: 修改后的主步骤
     - additional_steps: 额外添加的步骤（如前置等待、弹窗关闭等）
     """
-    original_step: Dict[str, Any]
-    evolved_step: Dict[str, Any]
+    original_step: MacroStep
+    evolved_step: MacroStep
     evolution_reason: str
     confidence: float = 1.0
 
     # 额外步骤（在 evolved_step 之前执行）
-    additional_steps: List[Dict[str, Any]] = Field(default_factory=list)
+    additional_steps: List[MacroStep] = Field(default_factory=list)
 
 
 class VerificationResponse(BaseModel):
@@ -230,7 +232,7 @@ class VerificationResponse(BaseModel):
     success: bool = False
     status: VerificationStatus = VerificationStatus.PENDING
 
-    evolved_macro: Optional[List[Dict[str, Any]]] = None
+    evolved_macro: Optional[List[MacroStep]] = None
     execution_mode: ExecutionMode = ExecutionMode.AGENTIC
     confidence_score: float = 0.0
 

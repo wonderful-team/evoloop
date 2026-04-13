@@ -8,6 +8,8 @@ with concurrent modification detection.
 import logging
 import os
 from typing import Optional
+from pydantic import BaseModel, ConfigDict
+from app.utils.model_helpers import LegacyDictMixin
 
 from .models import FileInfo
 from .io import get_file_info, read_file, write_file, FileStatus
@@ -56,11 +58,22 @@ def verify_file_hash(file_path: str, expected_hash: str) -> bool:
         return False
 
 
+class FileWriteResult(BaseModel, LegacyDictMixin):
+    model_config = ConfigDict(extra="allow")
+    success: bool
+    path: str | None = None
+    new_hash: str | None = None
+    bytes_written: int | None = None
+    error: str | None = None
+    message: str | None = None
+    change_count: int | None = None
+
+
 def write_file_with_verification(
     content: str,
     file_path: str,
     expected_hash: Optional[str] = None
-) -> dict:
+) -> FileWriteResult:
     """
     Write file with optional hash verification for concurrent modification detection.
     
@@ -79,28 +92,28 @@ def write_file_with_verification(
         # Verify file hasn't changed (for edits)
         if expected_hash and os.path.exists(file_path):
             if not verify_file_hash(file_path, expected_hash):
-                return {
-                    "success": False,
-                    "error": "FILE_MODIFIED",
-                    "message": "File was modified by another process. Please re-read and try again."
-                }
+                return FileWriteResult(
+                    success=False,
+                    error="FILE_MODIFIED",
+                    message="File was modified by another process. Please re-read and try again."
+                )
         
         # Use core write operation
         result = write_file(content, file_path)
         
         if result.success:
-            return {
-                "success": True,
-                "path": file_path,
-                "new_hash": result.new_hash,
-                "bytes_written": result.bytes_written
-            }
+            return FileWriteResult(
+                success=True,
+                path=file_path,
+                new_hash=result.new_hash,
+                bytes_written=result.bytes_written
+            )
         else:
-            return {
-                "success": False,
-                "error": "WRITE_FAILED",
-                "message": result.error_message or "Unknown write error"
-            }
+            return FileWriteResult(
+                success=False,
+                error="WRITE_FAILED",
+                message=result.error_message or "Unknown write error"
+            )
         
     except Exception as e:
         logger.error(f"Failed to write file {file_path}: {e}")
@@ -111,11 +124,11 @@ def write_file_with_verification(
                 os.remove(temp_path)
             except Exception:
                 pass
-        return {
-            "success": False,
-            "error": "WRITE_FAILED",
-            "message": str(e)
-        }
+        return FileWriteResult(
+            success=False,
+            error="WRITE_FAILED",
+            message=str(e)
+        )
 
 
 def apply_edit_with_verification(
@@ -124,7 +137,7 @@ def apply_edit_with_verification(
     new_string: str,
     expected_hash: Optional[str] = None,
     allow_multiple: bool = False
-) -> dict:
+) -> FileWriteResult:
     """
     Apply string replacement edit with hash verification.
     
@@ -144,12 +157,12 @@ def apply_edit_with_verification(
         
         # Verify hash if provided
         if expected_hash and info.content_hash != expected_hash:
-            return {
-                "success": False,
-                "error": "FILE_MODIFIED",
-                "message": "File was modified by another process. Please re-read and try again.",
-                "current_hash": info.content_hash
-            }
+            return FileWriteResult(
+                success=False,
+                error="FILE_MODIFIED",
+                message="File was modified by another process. Please re-read and try again.",
+                current_hash=info.content_hash
+            )
         
         # Apply replacement
         if allow_multiple:
@@ -160,11 +173,11 @@ def apply_edit_with_verification(
             change_count = 1 if old_string in content else 0
         
         if change_count == 0:
-            return {
-                "success": False,
-                "error": "NOT_FOUND",
-                "message": f"Could not find target text in file: {old_string[:50]}..."
-            }
+            return FileWriteResult(
+                success=False,
+                error="NOT_FOUND",
+                message=f"Could not find target text in file: {old_string[:50]}..."
+            )
         
         # Write with verification
         write_result = write_file_with_verification(
@@ -178,11 +191,11 @@ def apply_edit_with_verification(
         
     except Exception as e:
         logger.error(f"Failed to apply edit to {file_path}: {e}")
-        return {
-            "success": False,
-            "error": "EDIT_FAILED",
-            "message": str(e)
-        }
+        return FileWriteResult(
+            success=False,
+            error="EDIT_FAILED",
+            message=str(e)
+        )
 
 
 # Convenience alias for backward compatibility

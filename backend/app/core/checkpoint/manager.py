@@ -16,11 +16,33 @@ from sqlalchemy.orm import joinedload
 
 from app.infrastructure.database.sql.database import session_scope
 from app.models.checkpoint import FileCheckpoint, FileCheckpointSnapshot
+from pydantic import BaseModel
 
 if TYPE_CHECKING:
     pass
 
 logger = logging.getLogger(__name__)
+
+
+class CheckpointRollbackFileResult(BaseModel):
+    path: str
+    size: int | None = None
+    lines: int | None = None
+    error: str | None = None
+
+
+class CheckpointRollbackSkipped(BaseModel):
+    path: str
+    reason: str
+
+
+class CheckpointRollbackResult(BaseModel):
+    checkpoint_id: int
+    checkpoint_name: str
+    dry_run: bool
+    restored: list[CheckpointRollbackFileResult]
+    failed: list[CheckpointRollbackFileResult]
+    skipped: list[CheckpointRollbackSkipped]
 
 
 class CheckpointManager:
@@ -130,20 +152,20 @@ class CheckpointManager:
         self,
         checkpoint_id: int,
         dry_run: bool = False
-    ) -> dict:
+    ) -> CheckpointRollbackResult:
         """Roll back files to a checkpoint state."""
         checkpoint = await self.get_checkpoint(checkpoint_id)
         if not checkpoint:
             raise ValueError(f"Checkpoint {checkpoint_id} not found")
         
-        results = {
-            "checkpoint_id": checkpoint_id,
-            "checkpoint_name": checkpoint.name,
-            "dry_run": dry_run,
-            "restored": [],
-            "failed": [],
-            "skipped": []
-        }
+        results = CheckpointRollbackResult(
+            checkpoint_id=checkpoint_id,
+            checkpoint_name=checkpoint.name,
+            dry_run=dry_run,
+            restored=[],
+            failed=[],
+            skipped=[]
+        )
         
         for cp_file in checkpoint.files:
             path = cp_file.file_path
@@ -155,7 +177,7 @@ class CheckpointManager:
                     current_hash = hashlib.sha256(current_content.encode('utf-8')).hexdigest()
                     
                     if current_hash == cp_file.content_hash:
-                        results["skipped"].append({"path": path, "reason": "unchanged"})
+                        results.skipped.append(CheckpointRollbackSkipped(path=path, reason="unchanged"))
                         continue
                         
                 except FileNotFoundError:
@@ -170,15 +192,15 @@ class CheckpointManager:
                     
                     logger.info(f"Restored file from checkpoint {checkpoint_id}: {path}")
                 
-                results["restored"].append({
-                    "path": path,
-                    "size": cp_file.file_size,
-                    "lines": cp_file.line_count
-                })
+                results.restored.append(CheckpointRollbackFileResult(
+                    path=path,
+                    size=cp_file.file_size,
+                    lines=cp_file.line_count
+                ))
                 
             except Exception as e:
                 logger.error(f"Failed to restore file: {path} - {e}")
-                results["failed"].append({"path": path, "error": str(e)})
+                results.failed.append(CheckpointRollbackFileResult(path=path, error=str(e)))
         
         return results
     

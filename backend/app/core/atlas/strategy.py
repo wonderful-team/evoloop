@@ -9,13 +9,22 @@ import json
 import logging
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.infrastructure.cache import cache
+from app.utils.model_helpers import LegacyDictMixin
 
 logger = logging.getLogger(__name__)
 
 REDIS_KEY_ATLAS_STRATEGIES = "atlas:strategies"
+
+
+class StrategyParameters(BaseModel, LegacyDictMixin):
+    model_config = ConfigDict(extra="allow")
+
+
+class AppHints(BaseModel, LegacyDictMixin):
+    model_config = ConfigDict(extra="allow")
 
 
 class InteractionStrategy(BaseModel):
@@ -27,7 +36,7 @@ class InteractionStrategy(BaseModel):
     target_element: str  # What we're looking for (e.g., "Alice", "Send button")
 
     # Strategy-specific parameters
-    parameters: dict[str, Any] = Field(default_factory=dict)
+    parameters: StrategyParameters = Field(default_factory=StrategyParameters)
 
     # Reliability metrics
     success_count: int = 0
@@ -48,7 +57,7 @@ class InteractionStrategy(BaseModel):
         return data
 
     @classmethod
-    def from_dict(cls, data: dict) -> InteractionStrategy:
+    def from_dict(cls, data: dict) -> "InteractionStrategy":
         return cls.model_validate(data)
 
 
@@ -67,7 +76,7 @@ class AppStrategy(BaseModel):
     strategies: list[InteractionStrategy] = Field(default_factory=list)
 
     # App-specific hints
-    hints: dict[str, Any] = Field(default_factory=dict)
+    hints: AppHints = Field(default_factory=AppHints)
 
     def get_strategy_for(self, target: str) -> InteractionStrategy | None:
         """Find the best strategy for a target element."""

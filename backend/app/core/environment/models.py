@@ -6,7 +6,9 @@ import time
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from pydantic import BaseModel, Field, PrivateAttr
+from pydantic import BaseModel, Field, PrivateAttr, ConfigDict
+
+from app.utils.model_helpers import LegacyDictMixin
 
 if TYPE_CHECKING:
     pass
@@ -81,6 +83,18 @@ class MemoryContext(BaseModel):
     journal_highlights: str = ""
 
 
+class AndroidTelemetry(BaseModel, LegacyDictMixin):
+    id: str
+    reachable: bool
+
+
+class TelemetrySnapshot(BaseModel, LegacyDictMixin):
+    model_config = ConfigDict(extra="allow")
+    android: list[AndroidTelemetry] = Field(default_factory=list)
+    macos: bool = False
+    network: bool = False
+
+
 class PreferenceContext(BaseModel):
     """User preferences."""
     preferences: dict[str, str] = {}
@@ -123,7 +137,7 @@ class AwakenedState(BaseModel):
             platforms.append("android")
         return platforms
 
-    def get_telemetry_snapshot(self) -> dict:
+    def get_telemetry_snapshot(self) -> TelemetrySnapshot:
         """
         Get telemetry snapshot with caching.
         
@@ -136,18 +150,17 @@ class AwakenedState(BaseModel):
         now = time.time()
         
         # Return cached value if still valid
-        if (self._telemetry_cache is not None and 
-            (now - self._telemetry_cache_time) < self._telemetry_cache_ttl):
+        if (self._telemetry_cache is not None and now - self._telemetry_cache_time) < self._telemetry_cache_ttl:
             return self._telemetry_cache
         
         # Compute fresh snapshot
-        self._telemetry_cache = {
-            "android": [
-                {"id": d.device_id, "reachable": d.is_reachable} 
+        self._telemetry_cache = TelemetrySnapshot(
+            android=[
+                AndroidTelemetry(id=d.device_id, reachable=d.is_reachable)
                 for d in self.android_devices
             ],
-            "macos": bool(self.macos),
-            "network": self.network.internet_connected if self.network else False
-        }
+            macos=bool(self.macos),
+            network=self.network.internet_connected if self.network else False
+        )
         self._telemetry_cache_time = now
         return self._telemetry_cache

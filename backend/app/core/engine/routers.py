@@ -14,7 +14,8 @@ from langgraph.types import Send
 
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.config import settings
-from app.core.engine.state import AgentState
+from app.core.engine.state import AgentState, AgentConfig, ExecutionTicket
+from app.core.engine.schema import EdgeCondition
 
 logger = logging.getLogger(__name__)
 
@@ -71,16 +72,15 @@ def route_supervisor(state: AgentState) -> str | list[Send]:
             subtask_tools = subtask.get("tools", [])
             # If no tools specified, allow all worker tools by not setting the field
             # (ToolManager will use full tool set when dynamic_tools is falsy)
-            agent_config = {
-                "role_name": f"Field Specialist {subtask_id}",
-                "system_instructions": system_instructions,
-                "is_subtask": True,
-                "subtask_context": subtask.get("context", {}),
-                "skill_hint": skill_hint,
-            }
-            # Only set tools if explicitly provided and non-empty
+            agent_config = AgentConfig(
+                role_name=f"Field Specialist {subtask_id}",
+                system_instructions=system_instructions,
+                is_subtask=True,
+                subtask_context=subtask.get("context", {}),
+                skill_hint=skill_hint,
+                tools=subtask_tools if subtask_tools else None,
+            )
             if subtask_tools:
-                agent_config["tools"] = subtask_tools
                 logger.info(f"[Router] Subtask {subtask_id} assigned tools: {subtask_tools}")
             else:
                 logger.info(f"[Router] Subtask {subtask_id} using full worker tool set")
@@ -100,22 +100,22 @@ def route_supervisor(state: AgentState) -> str | list[Send]:
             # Inherit historical context from parent task's execution_ticket (if available)
             parent_ticket = blackboard.get("ticket", {})
             
-            ticket = {
-                "ticket_type": "subtask",
-                "topic": subtask["intent"],
-                "parent_task_id": parent_thread_id,
-                "subtask_id": subtask_id,
-                "agent_config": agent_config,
-                "acceptance_criteria": subtask_acceptance_criteria if subtask_acceptance_criteria else None,
-                "parameters": subtask_parameters if subtask_parameters else None,
+            ticket = ExecutionTicket(
+                ticket_type="subtask",
+                topic=subtask["intent"],
+                parent_task_id=parent_thread_id,
+                subtask_id=subtask_id,
+                agent_config=agent_config,
+                acceptance_criteria=subtask_acceptance_criteria if subtask_acceptance_criteria else None,
+                parameters=subtask_parameters if subtask_parameters else None,
                 # Inherit historical context from parent task for continuity
-                "historical_context": parent_ticket.get("historical_context") if parent_ticket else None,
-                "referenced_tech": parent_ticket.get("referenced_tech") if parent_ticket else None,
+                historical_context=parent_ticket.get("historical_context") if parent_ticket else None,
+                referenced_tech=parent_ticket.get("referenced_tech") if parent_ticket else None,
                 # [NEW] Macro context for subtask alignment
-                "macro_goal": parent_ticket.get("topic") if parent_ticket else None,
+                macro_goal=parent_ticket.get("topic") if parent_ticket else None,
                 # Note: MCP servers are NOT inherited by subtasks
                 # Each subtask must explicitly request MCP servers via use_mcp_server
-            }
+            ).model_dump(exclude_none=True)
 
             sends.append(Send(RoutingTarget.WORKER, {
                 "project_id": project_id,
@@ -337,7 +337,7 @@ def _safe_eval_expr(expr: str, context: dict) -> bool:
     return _eval_node(tree.body)
 
 
-def make_expression_router(conditions: list[dict[str, str]], default: str) -> Callable[[AgentState], str]:
+def make_expression_router(conditions: list[EdgeCondition], default: str) -> Callable[[AgentState], str]:
     def expression_router(state: AgentState) -> str:
         # Prepare evaluation context (Phase 4: Blackboard Only)
         blackboard = state.get("blackboard", {})
@@ -351,8 +351,8 @@ def make_expression_router(conditions: list[dict[str, str]], default: str) -> Ca
         }
 
         for case in conditions:
-            expr = case.get("expr")
-            to_node = case.get("to")
+            expr = case.expr
+            to_node = case.to
 
             try:
                 result = _safe_eval_expr(expr, eval_context)

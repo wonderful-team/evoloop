@@ -13,6 +13,26 @@ from typing import Tuple
 logger = logging.getLogger(__name__)
 
 
+class DiffStats:
+    """Statistics about the difference between two texts."""
+    lines_added: int
+    lines_removed: int
+    lines_unchanged: int
+    chars_changed: int
+
+    def __init__(self, lines_added: int, lines_removed: int, lines_unchanged: int, chars_changed: int):
+        self.lines_added = lines_added
+        self.lines_removed = lines_removed
+        self.lines_unchanged = lines_unchanged
+        self.chars_changed = chars_changed
+
+    def __getitem__(self, key: str):
+        return getattr(self, key)
+
+    def get(self, key: str, default=None):
+        return getattr(self, key, default)
+
+
 class DiffTracker:
     """
     Tracks file changes to generate precise memory of what actually changed.
@@ -201,16 +221,16 @@ def compute_text_diff(
     return "".join(diff)
 
 
-def get_diff_stats(old_text: str, new_text: str) -> dict:
+def get_diff_stats(old_text: str, new_text: str) -> DiffStats:
     """
     Get statistics about the difference between two texts.
-    
+
     Args:
         old_text: Original text
         new_text: Modified text
-    
+
     Returns:
-        Dictionary with diff statistics:
+        DiffStats with diff statistics:
         - lines_added: Number of lines added
         - lines_removed: Number of lines removed
         - lines_unchanged: Number of unchanged lines
@@ -218,34 +238,37 @@ def get_diff_stats(old_text: str, new_text: str) -> dict:
     """
     old_lines = old_text.splitlines()
     new_lines = new_text.splitlines()
-    
+
     sm = difflib.SequenceMatcher(None, old_lines, new_lines)
-    
-    stats = {
-        "lines_added": 0,
-        "lines_removed": 0,
-        "lines_unchanged": 0,
-        "chars_changed": 0,
-    }
-    
+
+    lines_added = 0
+    lines_removed = 0
+    lines_unchanged = 0
+    chars_changed = 0
+
     for tag, i1, i2, j1, j2 in sm.get_opcodes():
         if tag == "equal":
-            stats["lines_unchanged"] += i2 - i1
+            lines_unchanged += i2 - i1
         elif tag == "delete":
-            stats["lines_removed"] += i2 - i1
-            stats["chars_changed"] += sum(len(line) for line in old_lines[i1:i2])
+            lines_removed += i2 - i1
+            chars_changed += sum(len(line) for line in old_lines[i1:i2])
         elif tag == "insert":
-            stats["lines_added"] += j2 - j1
-            stats["chars_changed"] += sum(len(line) for line in new_lines[j1:j2])
+            lines_added += j2 - j1
+            chars_changed += sum(len(line) for line in new_lines[j1:j2])
         elif tag == "replace":
-            stats["lines_removed"] += i2 - i1
-            stats["lines_added"] += j2 - j1
-            stats["chars_changed"] += (
+            lines_removed += i2 - i1
+            lines_added += j2 - j1
+            chars_changed += (
                 sum(len(line) for line in old_lines[i1:i2]) +
                 sum(len(line) for line in new_lines[j1:j2])
             )
-    
-    return stats
+
+    return DiffStats(
+        lines_added=lines_added,
+        lines_removed=lines_removed,
+        lines_unchanged=lines_unchanged,
+        chars_changed=chars_changed,
+    )
 
 
 # Global singleton for convenience

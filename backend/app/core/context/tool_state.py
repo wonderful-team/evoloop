@@ -16,15 +16,25 @@ Usage:
 """
 
 import time
+from threading import Lock
 from typing import Optional, Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 from app.core.tools.registry import get_tool_metadata
 from app.i18n.service import i18n
 from app.utils.model_helpers import LegacyDictMixin
 
 logger = __import__("logging").getLogger(__name__)
+
+
+class ToolMetadata(BaseModel, LegacyDictMixin):
+    model_config = ConfigDict(extra="allow")
+    affected_path_keys: list[str] = Field(default_factory=list)
+    result_summary_template: str | None = None
+    is_state_mutating: bool = False
+    description: str = ""
+    hidden: bool = False
 
 
 class ToolState(BaseModel, LegacyDictMixin):
@@ -38,7 +48,7 @@ class ToolState(BaseModel, LegacyDictMixin):
     arguments: str
     start_time: float
     path: Optional[str] = None
-    metadata: dict[str, Any] = Field(default_factory=dict)
+    metadata: ToolMetadata = Field(default_factory=ToolMetadata)
 
     def get_summary(self, output: str) -> tuple[str, bool]:
         """

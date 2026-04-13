@@ -15,7 +15,8 @@ from typing import Any, cast
 from uuid import uuid4
 
 from fastapi import Depends, APIRouter, BackgroundTasks, Body, File, HTTPException, Query, Request, Response, UploadFile
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
+from app.utils.model_helpers import LegacyDictMixin
 from sqlalchemy import or_, func, select, update
 
 from app.utils.yaml import macro_from_yaml, macro_to_yaml, YAMLError, validate_macro_yaml
@@ -49,7 +50,7 @@ from app.models import (
     SynthesisJob,
     TraceEvent,
 )
-from app.core.environment.capabilities.registry import ActionRegistry
+from app.core.environment.capabilities.registry import ActionRegistry, ActionDef
 
 logger = logging.getLogger(__name__)
 
@@ -71,9 +72,14 @@ class HumanInputRequestOut(BaseModel):
     status: str
 
 
+class SkillExecutionParams(BaseModel, LegacyDictMixin):
+    """Parameters for skill execution. Extra fields are allowed per skill type."""
+    model_config = ConfigDict(extra="allow")
+
+
 class ExecuteSkillRequest(BaseModel):
     thread_id: str
-    params: dict[str, Any]
+    params: SkillExecutionParams
     project_id: int | None = 1
     execution_mode: str | None = None  # Optional: override skill's execution mode
 
@@ -186,13 +192,141 @@ class PaginatedSkillsResponse(BaseModel):
     total_pages: int
 
 
+class RecordingSessionItem(BaseModel):
+    session_id: str
+    thread_id: str
+    task_name: str | None = None
+    started_at: str
+    event_count: int
+
+
+class RecordingSessionsResponse(BaseModel):
+    sessions: list[RecordingSessionItem]
+
+
+class SynthesizeSkillResponse(BaseModel):
+    success: bool
+    skill_id: int
+    skill_name: str
+    skill_yaml: str
+
+
+class ImportSkillsResponse(BaseModel):
+    success: bool
+    results: dict[str, Any]
+
+
+class SkillDetailResponse(SkillDTO):
+    preconditions: list[dict[str, Any]] = []
+    source_thread_id: str | None = None
+    source_session_id: str | None = None
+    resource_path: str | None = None
+
+
+class UpdateSkillResponse(BaseModel):
+    success: bool
+    message: str
+    skill: SkillDetailResponse
+
+
+class ExecuteSkillResponse(BaseModel):
+    success: bool
+    message: str
+    execution_mode: str
+
+
+class MirrorDevicesResponse(BaseModel):
+    devices: list[dict[str, Any]]
+    scrcpy_available: bool
+
+
+class MirrorSessionResponse(BaseModel):
+    success: bool
+    session_id: str
+    device_id: str
+
+
+class MirrorRecordingResponse(BaseModel):
+    success: bool
+    message: str
+    session_id: str
+
+
+class MirrorPersistResponse(BaseModel):
+    success: bool
+    message: str
+    count: int
+
+
+class StopMirrorResponse(BaseModel):
+    success: bool
+    message: str
+    video_path: str | None = None
+    session_id: str
+    event_count: int
+
+
+class DeviceResolutionResponse(BaseModel):
+    width: int
+    height: int
+
+
+class ValidateSkillResponse(BaseModel):
+    success: bool
+    validation: dict[str, Any] | None = None
+    error: str | None = None
+
+
+class PreviewVideoInfo(BaseModel):
+    path: str
+    duration: float
+    resolution: str
+    fps: float
+
+
+class PreviewEventsSummary(BaseModel):
+    total: int
+    types: list[str]
+
+
+class PreviewKeyframeSummary(BaseModel):
+    planned: int
+    est_frames: int
+    est_tokens: str
+    details: list[dict[str, Any]]
+
+
+class PreviewRecordingDataResponse(BaseModel):
+    video_info: PreviewVideoInfo
+    events: PreviewEventsSummary
+    keyframes: PreviewKeyframeSummary
+
+
+class CleanupRecordingResponse(BaseModel):
+    success: bool
+    message: str
+    deleted: dict[str, Any]
+
+
+class CreateSkillFromYamlResponse(BaseModel):
+    success: bool
+    skill_id: int
+    skill_name: str
+    step_count: int
+
+
+class UpdateSkillFromYamlResponse(BaseModel):
+    success: bool
+    message: str
+    step_count: int
+
 # ============ Endpoints ============
 
 
-@router.get("/capabilities/actions")
+@router.get("/capabilities/actions", response_model=list[ActionDef])
 async def get_action_registry():
     """Export the centralized action registry for frontend sync."""
-    return [a.dict() for a in ActionRegistry.list_actions()]
+    return ActionRegistry.list_actions()
 
 
 @router.get("/human-requests", response_model=list[HumanInputRequestOut])
@@ -421,7 +555,7 @@ async def stop_recording(session_id: str):
     )
 
 
-@router.get("/traces/sessions")
+@router.get("/traces/sessions", response_model=RecordingSessionsResponse)
 async def list_recording_sessions(thread_id: str | None = None):
     """
     List active recording sessions.
@@ -436,7 +570,7 @@ async def list_recording_sessions(thread_id: str | None = None):
                 "started_at": info["started_at"].isoformat(),
                 "event_count": info["event_count"],
             })
-    return {"sessions": sessions}
+    return RecordingSessionsResponse(sessions=sessions)
 
 
 # ============ Skill Management API (Phase 2) ============
@@ -459,7 +593,7 @@ class SkillResponse(BaseModel):
     is_active: bool
 
 
-@router.post("/skills/synthesize", dependencies=[Depends(require_benefit("skill_learning"))])
+@router.post("/skills/synthesize", response_model=SynthesizeSkillResponse, dependencies=[Depends(require_benefit("skill_learning"))])
 async def synthesize_skill(body: SynthesizeRequest):
     """
     Synthesize a new skill from a trace sequence.
@@ -507,12 +641,12 @@ async def synthesize_skill(body: SynthesizeRequest):
             db.add(db_skill)
             await db.flush()  # Get ID
 
-            return {
-                "success": True,
-                "skill_id": db_skill.id,
-                "skill_name": unique_name,
-                "skill_yaml": skill.to_yaml(),
-            }
+            return SynthesizeSkillResponse(
+                success=True,
+                skill_id=db_skill.id,
+                skill_name=unique_name,
+                skill_yaml=skill.to_yaml(),
+            )
 
     except Exception as e:
         logger.exception(f"Skill synthesis failed: {str(e)}")
@@ -522,17 +656,14 @@ async def synthesize_skill(body: SynthesizeRequest):
         await skill_discovery.reload()
 
 
-@router.post("/skills/import", dependencies=[Depends(require_benefit("skill_learning"))])
+@router.post("/skills/import", response_model=ImportSkillsResponse, dependencies=[Depends(require_benefit("skill_learning"))])
 async def import_skills(body: ImportSkillsRequest):
     """
     Bulk import skills from a local directory (containing SKILL.md folders).
     """
     try:
         results = await SkillImporter.import_from_directory(body.directory)
-        return {
-            "success": True,
-            "results": results
-        }
+        return ImportSkillsResponse(success=True, results=results.model_dump())
     except Exception as e:
         logger.exception(f"Skill import failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Import failed: {str(e)}")
@@ -574,36 +705,37 @@ async def list_skills(
 
         total_pages = math.ceil(total / page_size) if page_size > 0 else 0
 
-        return {
-            "items": [
-                {
-                    "id": s.id,
-                    "name": s.name,
-                    "description": s.description,
-                    "trigger_patterns": json.loads(s.trigger_patterns) if s.trigger_patterns else [],
-                    "parameters": _normalize_skill_params(s.parameters),
-                    "tools_used": json.loads(s.tools_used) if s.tools_used else [],
-                    "success_count": s.success_count,
-                    "failure_count": s.failure_count,
-                    "is_active": s.is_active,
-                    "status": s.status,
-                    "execution_mode": s.execution_mode,
-                    "macro_script": s.macro_script or "",
-                    "validation_report": s.validation_report,
-                    "instructions": s.instructions,
-                    "created_at": s.created_at,
-                    "updated_at": s.updated_at,
-                }
+        return PaginatedSkillsResponse(
+            items=[
+                SkillDTO(
+                    id=s.id,
+                    name=s.name,
+                    description=s.description,
+                    namespace=s.namespace,
+                    trigger_patterns=json.loads(s.trigger_patterns) if s.trigger_patterns else [],
+                    parameters=_normalize_skill_params(s.parameters),
+                    tools_used=json.loads(s.tools_used) if s.tools_used else [],
+                    success_count=s.success_count,
+                    failure_count=s.failure_count,
+                    is_active=s.is_active,
+                    status=s.status,
+                    execution_mode=s.execution_mode,
+                    macro_script=s.macro_script or "",
+                    validation_report=s.validation_report,
+                    instructions=s.instructions,
+                    created_at=s.created_at,
+                    updated_at=s.updated_at,
+                )
                 for s in skills
             ],
-            "total": total,
-            "page": page,
-            "page_size": page_size,
-            "total_pages": total_pages,
-        }
+            total=total,
+            page=page,
+            page_size=page_size,
+            total_pages=total_pages,
+        )
 
 
-@router.get("/skills/{skill_id}")
+@router.get("/skills/{skill_id}", response_model=SkillDetailResponse)
 async def get_skill(skill_id: int):
     """
     Get full details of a specific skill.
@@ -616,30 +748,32 @@ async def get_skill(skill_id: int):
         if not skill:
             raise HTTPException(status_code=404, detail="Skill not found")
 
-        return {
-            "id": skill.id,
-            "name": skill.name,
-            "description": skill.description,
-            "namespace": skill.namespace,
-            "trigger_patterns": json.loads(skill.trigger_patterns) if skill.trigger_patterns else [],
-            "parameters": _normalize_skill_params(skill.parameters),
-            "preconditions": json.loads(skill.preconditions) if skill.preconditions else [],
-            "tools_used": json.loads(skill.tools_used) if skill.tools_used else [],
-            "source_thread_id": skill.source_thread_id,
-            "source_session_id": skill.source_session_id,
-            "success_count": skill.success_count,
-            "failure_count": skill.failure_count,
-            "is_active": skill.is_active,
-            "status": skill.status,
-            "execution_mode": skill.execution_mode,
-            "macro_script": skill.macro_script or "",
-            "validation_report": skill.validation_report,
-            "instructions": skill.instructions,
-            "resource_path": skill.resource_path,
-        }
+        return SkillDetailResponse(
+            id=skill.id,
+            name=skill.name,
+            description=skill.description,
+            namespace=skill.namespace,
+            trigger_patterns=json.loads(skill.trigger_patterns) if skill.trigger_patterns else [],
+            parameters=_normalize_skill_params(skill.parameters),
+            preconditions=json.loads(skill.preconditions) if skill.preconditions else [],
+            tools_used=json.loads(skill.tools_used) if skill.tools_used else [],
+            source_thread_id=skill.source_thread_id,
+            source_session_id=skill.source_session_id,
+            success_count=skill.success_count,
+            failure_count=skill.failure_count,
+            is_active=skill.is_active,
+            status=skill.status,
+            execution_mode=skill.execution_mode,
+            macro_script=skill.macro_script or "",
+            validation_report=skill.validation_report,
+            instructions=skill.instructions,
+            resource_path=skill.resource_path,
+            created_at=skill.created_at,
+            updated_at=skill.updated_at,
+        )
 
 
-@router.delete("/skills/{skill_id}")
+@router.delete("/skills/{skill_id}", response_model=RespondResponse)
 async def delete_skill(skill_id: int):
     """
     Physically delete a skill and its resources.
@@ -668,7 +802,7 @@ async def delete_skill(skill_id: int):
             await db.delete(skill)
             await db.flush()
             
-        return {"success": True, "message": f"Skill {skill_id} physically deleted"}
+        return RespondResponse(success=True, message=f"Skill {skill_id} physically deleted")
     finally:
         # 4. Invalidate Cache
         await skill_discovery.reload()
@@ -686,7 +820,7 @@ class UpdateSkillRequest(BaseModel):
     macro_script: str | None = None  # YAML format
 
 
-@router.put("/skills/{skill_id}")
+@router.put("/skills/{skill_id}", response_model=UpdateSkillResponse)
 async def update_skill(skill_id: int, body: UpdateSkillRequest):
     """
     Update a learned skill.
@@ -744,17 +878,33 @@ async def update_skill(skill_id: int, body: UpdateSkillRequest):
             # 3. Commit (Automatic via session_scope exit, but we want to return updated data)
             await db.flush()
             
-        return {
-            "success": True,
-            "message": f"Skill {skill_id} updated",
-            "skill": {
-                "id": skill.id,
-                "name": skill.name,
-                "description": skill.description,
-                "trigger_patterns": json.loads(skill.trigger_patterns) if skill.trigger_patterns else [],
-                "parameters": json.loads(skill.parameters) if skill.parameters else [],
-            },
-        }
+        return UpdateSkillResponse(
+            success=True,
+            message=f"Skill {skill_id} updated",
+            skill=SkillDetailResponse(
+                id=skill.id,
+                name=skill.name,
+                description=skill.description,
+                namespace=skill.namespace,
+                trigger_patterns=json.loads(skill.trigger_patterns) if skill.trigger_patterns else [],
+                parameters=json.loads(skill.parameters) if skill.parameters else [],
+                preconditions=json.loads(skill.preconditions) if skill.preconditions else [],
+                tools_used=json.loads(skill.tools_used) if skill.tools_used else [],
+                source_thread_id=skill.source_thread_id,
+                source_session_id=skill.source_session_id,
+                success_count=skill.success_count,
+                failure_count=skill.failure_count,
+                is_active=skill.is_active,
+                status=skill.status,
+                execution_mode=skill.execution_mode,
+                macro_script=skill.macro_script or "",
+                validation_report=skill.validation_report,
+                instructions=skill.instructions,
+                resource_path=skill.resource_path,
+                created_at=skill.created_at,
+                updated_at=skill.updated_at,
+            ),
+        )
     finally:
         # 4. Invalidate Cache
         await skill_discovery.reload()
@@ -842,7 +992,7 @@ async def execute_macro_with_fallback(
     await run_agent_background(thread_id, inputs)
 
 
-@router.post("/skills/{skill_id}/execute")
+@router.post("/skills/{skill_id}/execute", response_model=ExecuteSkillResponse)
 async def execute_skill(
     skill_id: int, body: ExecuteSkillRequest, bg_tasks: BackgroundTasks
 ):
@@ -861,7 +1011,7 @@ async def execute_skill(
         # Since Worker Nodes (Operator, etc.) now retrieve skills based on this topic,
         # the agent will automatically see the 'Expert Guide' in its system prompt.
         skill_name = skill.name
-        params_str = json.dumps(body.params, indent=2)
+        params_str = json.dumps(body.params.model_dump(), indent=2)
         directive = (
             f"User Instruction: I need you to perform the task '{skill_name}' using your expertise.\n"
             f"Parameters: {params_str}\n\n"
@@ -914,7 +1064,7 @@ async def execute_skill(
             macro_payload=macro_payload, 
             params=body.params
         )
-        return {"success": True, "message": f"Deterministic Macro execution queued for '{skill_name}'", "execution_mode": execution_mode}
+        return ExecuteSkillResponse(success=True, message=f"Deterministic Macro execution queued for '{skill_name}'", execution_mode=execution_mode)
     else:
         # Fallback to Agentic mode
         inputs = {
@@ -923,13 +1073,13 @@ async def execute_skill(
         }
         bg_tasks.add_task(run_agent_background, body.thread_id, inputs)
     
-        return {"success": True, "message": f"Agentic execution queued for '{skill_name}'", "execution_mode": execution_mode}
+        return ExecuteSkillResponse(success=True, message=f"Agentic execution queued for '{skill_name}'", execution_mode=execution_mode)
 
 
 # ============ Mirror Control API (Phase 4) ============
 
 
-@router.get("/mirror/devices")
+@router.get("/mirror/devices", response_model=MirrorDevicesResponse)
 async def list_mirror_devices():
     """List connected Android devices for mirroring."""
     devices = adb_driver.list_devices()
@@ -942,13 +1092,10 @@ async def list_mirror_devices():
     except FileNotFoundError:
         pass
 
-    return {
-        "devices": devices,
-        "scrcpy_available": scrcpy_available
-    }
+    return MirrorDevicesResponse(devices=devices, scrcpy_available=scrcpy_available)
 
 
-@router.post("/mirror/start", dependencies=[Depends(require_benefit("desktop_control"))])
+@router.post("/mirror/start", response_model=MirrorSessionResponse, dependencies=[Depends(require_benefit("desktop_control"))])
 async def start_mirror_session(body: StartMirrorRequest):
     """Start a scrcpy mirroring session."""
     session = await mirror_manager.create_session(body.device_id, record_video=body.record_video)
@@ -963,14 +1110,10 @@ async def start_mirror_session(body: StartMirrorRequest):
         "event_count": 0,
     }
 
-    return {
-        "success": True,
-        "session_id": session.session_id,
-        "device_id": session.device_id
-    }
+    return MirrorSessionResponse(success=True, session_id=session.session_id, device_id=session.device_id)
 
 
-@router.post("/mirror/start-recording", dependencies=[Depends(require_benefit("skill_learning"))])
+@router.post("/mirror/start-recording", response_model=MirrorRecordingResponse, dependencies=[Depends(require_benefit("skill_learning"))])
 async def start_mirror_recording(body: StartMirrorRecordingRequest):
     """
     [NEW] Start event recording for an active mirror session.
@@ -982,14 +1125,10 @@ async def start_mirror_recording(body: StartMirrorRecordingRequest):
     if not success:
         raise HTTPException(status_code=400, detail="Failed to start recording. Session may not be active or recording already started.")
 
-    return {
-        "success": True,
-        "message": "Recording started",
-        "session_id": body.session_id
-    }
+    return MirrorRecordingResponse(success=True, message="Recording started", session_id=body.session_id)
 
 
-@router.post("/mirror/stop")
+@router.post("/mirror/stop", response_model=StopMirrorResponse)
 async def stop_mirror_session(body: StopMirrorRequest):
     """
     Stop an active mirroring session.
@@ -1011,30 +1150,30 @@ async def stop_mirror_session(body: StopMirrorRequest):
         total_count_result = await db.execute(stmt)
         total_count = total_count_result.scalar() or 0
 
-    return {
-        "success": True,
-        "message": "Mirroring session stopped",
-        "video_path": result.get("video_path"),
-        "session_id": result.get("session_id"),
-        "event_count": total_count
-    }
+    return StopMirrorResponse(
+        success=True,
+        message="Mirroring session stopped",
+        video_path=result.get("video_path"),
+        session_id=result.get("session_id"),
+        event_count=total_count,
+    )
 
 
-@router.get("/mirror/device/{device_id}/resolution")
+@router.get("/mirror/device/{device_id}/resolution", response_model=DeviceResolutionResponse)
 async def get_device_resolution(device_id: str):
     """Get Android device screen resolution via ADB."""
     from app.infrastructure.drivers.adb import adb_driver
     try:
         size = adb_driver.get_screen_size(device_id)
         if not size:
-            return {"width": 1080, "height": 1920}  # Sensible fallback
-        return {"width": size[0], "height": size[1]}
+            return DeviceResolutionResponse(width=1080, height=1920)  # Sensible fallback
+        return DeviceResolutionResponse(width=size[0], height=size[1])
     except Exception as e:
         logger.error(f"Failed to get device resolution: {e}")
-        return {"width": 1080, "height": 1920}
+        return DeviceResolutionResponse(width=1080, height=1920)
 
 
-@router.post("/mirror/events")
+@router.post("/mirror/events", response_model=MirrorPersistResponse)
 async def persist_mirror_events(body: PersistMirrorEventsRequest):
     """
     [v3 Unified] Persist Android mirror events to backend.
@@ -1049,7 +1188,7 @@ async def persist_mirror_events(body: PersistMirrorEventsRequest):
     # Get events from session (may include any not yet persisted)
     events = mirror_manager.get_session_events(body.session_id)
     if not events:
-        return {"success": True, "message": "No events to persist (already persisted in real-time)", "count": 0}
+        return MirrorPersistResponse(success=True, message="No events to persist (already persisted in real-time)", count=0)
 
     # Check if events are already in DB (real-time persistence succeeded)
     async with session_scope() as db:
@@ -1059,7 +1198,7 @@ async def persist_mirror_events(body: PersistMirrorEventsRequest):
 
         if existing_count >= len(events):
             logger.info(f"[persist_mirror_events] Events already persisted ({existing_count} in DB vs {len(events)} in session)")
-            return {"success": True, "message": "Events already persisted in real-time", "count": existing_count}
+            return MirrorPersistResponse(success=True, message="Events already persisted in real-time", count=existing_count)
 
     # Persist any missing events
     try:
@@ -1102,20 +1241,20 @@ async def persist_mirror_events(body: PersistMirrorEventsRequest):
                                 f"package={payload_data.get('package_name')}, "
                                 f"coords=({payload_data.get('x')}, {payload_data.get('y')})")
 
-        return {"success": True, "message": "Events persisted", "count": len(events)}
+        return MirrorPersistResponse(success=True, message="Events persisted", count=len(events))
     except Exception as e:
         logger.exception(f"Failed to persist mirror events: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to persist events: {str(e)}")
 
 
-@router.post("/global/events")
+@router.post("/global/events", response_model=MirrorPersistResponse)
 async def persist_global_events(body: GlobalEventsRequest):
     """
     Persist global desktop events to backend (real-time/batched persistence).
     Unified with mirror events - all events go to TraceEvent table.
     """
     if not body.events:
-        return {"success": True, "message": "No events to persist", "count": 0}
+        return MirrorPersistResponse(success=True, message="No events to persist", count=0)
 
     try:
         async with session_scope() as db:
@@ -1174,20 +1313,20 @@ async def persist_global_events(body: GlobalEventsRequest):
                     logger.info(f"[persist_global_events] Event {i}: {event.event_type} at {int(event.timestamp)}ms, "
                                 f"app={event.app_name}, window={event.window_title}")
 
-        return {"success": True, "message": "Global events persisted", "count": len(body.events)}
+        return MirrorPersistResponse(success=True, message="Global events persisted", count=len(body.events))
     except Exception as e:
         logger.exception(f"Failed to persist global events: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to persist events: {str(e)}")
 
 
-@router.post("/dom/events")
+@router.post("/dom/events", response_model=MirrorPersistResponse)
 async def persist_dom_events(body: DomEventsRequest):
     """
     Persist DOM events to backend (real-time/batched persistence).
     Unified with mirror events - all events go to TraceEvent table.
     """
     if not body.events:
-        return {"success": True, "message": "No events to persist", "count": 0}
+        return MirrorPersistResponse(success=True, message="No events to persist", count=0)
 
     try:
         async with session_scope() as db:
@@ -1231,7 +1370,7 @@ async def persist_dom_events(body: DomEventsRequest):
                     logger.info(f"[persist_dom_events] Event {i}: {event.event_type} at {int(event.timestamp)}ms, "
                                 f"selector={event.selector}, url={event.url}")
 
-        return {"success": True, "message": "DOM events persisted", "count": len(body.events)}
+        return MirrorPersistResponse(success=True, message="DOM events persisted", count=len(body.events))
     except Exception as e:
         logger.exception(f"Failed to persist DOM events: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to persist events: {str(e)}")
@@ -1268,7 +1407,7 @@ async def upload_screenshot(file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=f"Failed to upload screenshot: {str(e)}")
 
 
-@router.get("/skills/{skill_id}/validate")
+@router.get("/skills/{skill_id}/validate", response_model=ValidateSkillResponse)
 async def validate_skill(skill_id: int):
     """
     Run the validator on a skill and return its health status.
@@ -1279,7 +1418,7 @@ async def validate_skill(skill_id: int):
             raise HTTPException(status_code=404, detail="Skill not found")
 
         if not skill.resource_path:
-            return {"success": False, "error": "Skill has no resource path (cannot validate)"}
+            return ValidateSkillResponse(success=False, error="Skill has no resource path (cannot validate)")
 
         validation = SkillValidator.validate_folder(Path(skill.resource_path))
 
@@ -1287,10 +1426,7 @@ async def validate_skill(skill_id: int):
         skill.validation_report = validation.dict()
         skill.status = "verified" if validation.status == "healthy" else "candidate"
 
-        return {
-            "success": True,
-            "validation": validation.dict()
-        }
+        return ValidateSkillResponse(success=True, validation=validation.dict())
 
 
 # ============ Multimodal Synthesis API (NEW) ============
@@ -1474,7 +1610,7 @@ parameters: {json.dumps(skill_data.get('parameters', []))}
         )
 
 
-@router.get("/skills/synthesize-from-recording/preview")
+@router.get("/skills/synthesize-from-recording/preview", response_model=PreviewRecordingDataResponse)
 async def preview_recording_data(
     session_id: str,
     video_path: str
@@ -1503,22 +1639,22 @@ async def preview_recording_data(
             video_resolution=(video_info.width, video_info.height)
         )
 
-        return {
-            "video_info": {
-                "path": video_path,
-                "duration": video_info.duration,
-                "resolution": f"{video_info.width}x{video_info.height}",
-                "fps": video_info.fps,
-            },
-            "events": {
-                "total": len(events),
-                "types": list(set(e.action_type for e in events)),
-            },
-            "keyframes": {
-                "planned": len(keyframes),
-                "est_frames": min(len(keyframes), 15),
-                "est_tokens": f"~{len(keyframes) * 1000}-{len(keyframes) * 1500}",
-                "details": [
+        return PreviewRecordingDataResponse(
+            video_info=PreviewVideoInfo(
+                path=video_path,
+                duration=video_info.duration,
+                resolution=f"{video_info.width}x{video_info.height}",
+                fps=video_info.fps,
+            ),
+            events=PreviewEventsSummary(
+                total=len(events),
+                types=list(set(e.action_type for e in events)),
+            ),
+            keyframes=PreviewKeyframeSummary(
+                planned=len(keyframes),
+                est_frames=min(len(keyframes), 15),
+                est_tokens=f"~{len(keyframes) * 1000}-{len(keyframes) * 1500}",
+                details=[
                     {
                         "timestamp": k.timestamp,
                         "context": k.context,
@@ -1527,8 +1663,8 @@ async def preview_recording_data(
                     }
                     for k in keyframes[:5]  # 只显示前5个
                 ],
-            },
-        }
+            )
+        )
 
     except Exception as e:
         logger.exception(f"Preview failed: {e}")
@@ -1995,7 +2131,7 @@ async def list_session_synthesis_jobs(session_id: str):
         ]
 
 
-@router.delete("/recordings/{session_id}")
+@router.delete("/recordings/{session_id}", response_model=CleanupRecordingResponse)
 async def cleanup_recording_session(
     session_id: str,
     video_path: str | None = None
@@ -2047,11 +2183,11 @@ async def cleanup_recording_session(
 
         logger.info(f"[Cleanup] Session {session_id} cleaned up: {deleted_counts}")
 
-        return {
-            "success": True,
-            "message": f"Recording session {session_id} cleaned up",
-            "deleted": deleted_counts
-        }
+        return CleanupRecordingResponse(
+            success=True,
+            message=f"Recording session {session_id} cleaned up",
+            deleted=deleted_counts,
+        )
     except Exception as e:
         logger.exception(f"[Cleanup] Failed to cleanup session {session_id}: {e}")
         raise HTTPException(status_code=500, detail=f"Cleanup failed: {str(e)}")
@@ -2113,7 +2249,7 @@ class ValidateYamlResponse(BaseModel):
     step_count: int = 0
 
 
-@router.post("/skills/from-yaml")
+@router.post("/skills/from-yaml", response_model=CreateSkillFromYamlResponse)
 async def create_skill_from_yaml(
     body: CreateSkillFromYamlRequest,
     bg_tasks: BackgroundTasks
@@ -2174,12 +2310,12 @@ async def create_skill_from_yaml(
             db.add(skill)
             await db.flush()
             
-            return {
-                "success": True, 
-                "skill_id": skill.id,
-                "skill_name": unique_name,
-                "step_count": len(macro_script)
-            }
+            return CreateSkillFromYamlResponse(
+                success=True,
+                skill_id=skill.id,
+                skill_name=unique_name,
+                step_count=len(macro_script),
+            )
             
     except YAMLError as e:
         raise HTTPException(status_code=400, detail=f"YAML error: {str(e)}")
@@ -2240,7 +2376,7 @@ async def get_skill_yaml(skill_id: int):
         )
 
 
-@router.put("/skills/{skill_id}/yaml")
+@router.put("/skills/{skill_id}/yaml", response_model=UpdateSkillFromYamlResponse)
 async def update_skill_yaml(
     skill_id: int,
     yaml_content: str = Body(..., media_type="text/yaml"),
@@ -2270,11 +2406,11 @@ async def update_skill_yaml(
             
         # Return step count by parsing
         steps = macro_from_yaml(yaml_content)
-        return {
-            "success": True, 
-            "message": "Skill updated from YAML",
-            "step_count": len(steps)
-        }
+        return UpdateSkillFromYamlResponse(
+            success=True,
+            message="Skill updated from YAML",
+            step_count=len(steps),
+        )
         
     except YAMLError as e:
         raise HTTPException(status_code=400, detail=f"YAML parse error: {str(e)}")

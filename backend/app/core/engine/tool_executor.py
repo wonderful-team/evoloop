@@ -12,6 +12,7 @@ from typing import Any
 from langchain_core.messages import ToolMessage
 
 from app.core.engine.hooks import hook_system, HookEvent, HookContext
+from app.core.engine.state import AgentState
 from app.core.memory.diff import diff_tracker
 from app.core.tools.executor import ToolExecutor as _ToolExecutor
 from app.infrastructure.queue.factory import get_scheduler
@@ -32,7 +33,7 @@ class AgentToolExecutor:
     def __init__(
         self,
         tool_map: dict[str, Any],
-        state: dict,
+        state: AgentState,
         config: dict,
         name: str = "Agent",
         enable_diff_tracking: bool = True,
@@ -103,8 +104,8 @@ class AgentToolExecutor:
                 )
 
             # Update context if modified
-            if pre_result.modified_context:
-                tool_args = pre_result.modified_context.tool_input or tool_args
+            if pre_result.modified_context and pre_result.modified_context.tool_input is not None:
+                tool_args = dict(pre_result.modified_context.tool_input)
 
             # Track tool execution history and detect repetitions (thread-safe)
             tool_sig = f"{tool_name}:{json.dumps(tool_args, sort_keys=True)}"

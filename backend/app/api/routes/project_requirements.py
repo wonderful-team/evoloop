@@ -11,6 +11,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, UploadFile
 from pydantic import BaseModel
+from typing import Any
 
 from app.api.deps import TokenDep, TokenDepOptional
 from app.core.config import settings
@@ -63,7 +64,115 @@ async def _save_uploaded_file(file: UploadFile, file_id: str) -> str:
     return str(file_path)
 
 
-@router.post("/projects/{project_id}/requirements/upload")
+class RequirementUploadResponse(BaseModel):
+    """Response after uploading a requirement document."""
+    document_id: str
+    thread_id: str
+    status: str
+    message: str
+
+
+class RequirementListItem(BaseModel):
+    """Item in requirement document list."""
+    id: str
+    file_name: str
+    file_type: str
+    status: str
+    created_at: str | None
+    analysis_count: int
+
+
+class RequirementListResponse(BaseModel):
+    """Response for listing requirement documents."""
+    items: list[RequirementListItem]
+
+
+class RequirementAnalysisItem(BaseModel):
+    """Analysis item in requirement detail."""
+    id: str
+    status: str
+    version: int
+    data: dict[str, Any] | None
+    user_edited: bool
+    confirmed_at: str | None
+    tasks_count: int
+    synced_tasks: int
+
+
+class RequirementDetailResponse(BaseModel):
+    """Response for requirement document detail."""
+    id: str
+    file_name: str
+    file_type: str
+    file_size: int
+    status: str
+    raw_content_preview: str | None
+    created_at: str | None
+    updated_at: str | None
+    analyses: list[RequirementAnalysisItem]
+
+
+class RequirementDeleteResponse(BaseModel):
+    """Response after deleting a requirement document."""
+    status: str
+    document_id: str
+
+
+class RequirementTaskItem(BaseModel):
+    """Task item in requirement task list."""
+    id: str
+    title: str
+    description: str
+    priority: str
+    estimated_hours: int
+    category: str
+    tags: list[str]
+    requirement_refs: list[str]
+    acceptance_criteria: list[str]
+    sync_status: str
+    sync_error: str | None
+    evocloud_task_id: str | None
+    synced_at: str | None
+    created_at: str | None
+
+
+class RequirementMapping(BaseModel):
+    """Requirement to task mapping."""
+    by_requirement: dict[str, list[str]]
+    by_task: dict[str, list[str]]
+    unmapped_tasks: list[str]
+
+
+class RequirementTasksResponse(BaseModel):
+    """Response for analysis tasks."""
+    analysis_id: str
+    document_id: str
+    project_id: int
+    sync_stats: dict[str, int]
+    tasks: list[RequirementTaskItem]
+    requirement_mapping: RequirementMapping
+
+
+class RequirementProgress(BaseModel):
+    """Sync progress stats."""
+    total: int
+    synced: int
+    failed: int
+    syncing: int
+    pending: int
+    percentage: float
+    is_complete: bool
+    has_failures: bool
+
+
+class RequirementSyncProgressResponse(BaseModel):
+    """Response for sync progress."""
+    analysis_id: str
+    progress: RequirementProgress
+    last_updated: str | None
+
+
+@router.post("/projects/{project_id}/requirements/upload", response_model=RequirementUploadResponse)
 async def upload_requirement_document(
     project_id: int,
     file: UploadFile,
@@ -130,19 +239,19 @@ async def upload_requirement_document(
             },
         )
 
-        return {
-            "document_id": file_id,
-            "thread_id": thread_id,
-            "status": "analysis_started",
-            "message": "文档上传成功，AI 分析已启动，请查看对话线程",
-        }
+        return RequirementUploadResponse(
+            document_id=file_id,
+            thread_id=thread_id,
+            status="analysis_started",
+            message="文档上传成功，AI 分析已启动，请查看对话线程",
+        )
 
     except Exception as e:
         logger.exception(f"Failed to upload requirement document: {e}")
         raise HTTPException(500, f"Failed to upload document: {e}")
 
 
-@router.get("/projects/{project_id}/requirements")
+@router.get("/projects/{project_id}/requirements", response_model=RequirementListResponse)
 async def list_project_requirements(
     project_id: int,
     _token: TokenDepOptional,
@@ -161,22 +270,22 @@ async def list_project_requirements(
         result = await session.execute(stmt)
         docs = result.scalars().all()
 
-        return {
-            "items": [
-                {
-                    "id": d.id,
-                    "file_name": d.file_name,
-                    "file_type": d.file_type,
-                    "status": d.status,
-                    "created_at": d.created_at.isoformat() if d.created_at else None,
-                    "analysis_count": len(d.analyses),
-                }
+        return RequirementListResponse(
+            items=[
+                RequirementListItem(
+                    id=d.id,
+                    file_name=d.file_name,
+                    file_type=d.file_type,
+                    status=d.status,
+                    created_at=d.created_at.isoformat() if d.created_at else None,
+                    analysis_count=len(d.analyses),
+                )
                 for d in docs
             ]
-        }
+        )
 
 
-@router.get("/projects/{project_id}/requirements/{doc_id}")
+@router.get("/projects/{project_id}/requirements/{doc_id}", response_model=RequirementDetailResponse)
 async def get_requirement_detail(
     project_id: int,
     doc_id: str,
@@ -189,38 +298,38 @@ async def get_requirement_detail(
         if not doc or doc.project_id != project_id:
             raise HTTPException(404, "Document not found")
 
-        return {
-            "id": doc.id,
-            "file_name": doc.file_name,
-            "file_type": doc.file_type,
-            "file_size": doc.file_size,
-            "status": doc.status,
-            "raw_content_preview": (
+        return RequirementDetailResponse(
+            id=doc.id,
+            file_name=doc.file_name,
+            file_type=doc.file_type,
+            file_size=doc.file_size,
+            status=doc.status,
+            raw_content_preview=(
                 doc.raw_content[:1000] if doc.raw_content else None
             ),
-            "created_at": doc.created_at.isoformat() if doc.created_at else None,
-            "updated_at": doc.updated_at.isoformat() if doc.updated_at else None,
-            "analyses": [
-                {
-                    "id": a.id,
-                    "status": a.status,
-                    "version": a.version,
-                    "data": a.analysis_data,
-                    "user_edited": a.user_edited,
-                    "confirmed_at": (
+            created_at=doc.created_at.isoformat() if doc.created_at else None,
+            updated_at=doc.updated_at.isoformat() if doc.updated_at else None,
+            analyses=[
+                RequirementAnalysisItem(
+                    id=a.id,
+                    status=a.status,
+                    version=a.version,
+                    data=a.analysis_data,
+                    user_edited=a.user_edited,
+                    confirmed_at=(
                         a.confirmed_at.isoformat() if a.confirmed_at else None
                     ),
-                    "tasks_count": len(a.tasks),
-                    "synced_tasks": sum(
+                    tasks_count=len(a.tasks),
+                    synced_tasks=sum(
                         1 for t in a.tasks if t.sync_status == "synced"
                     ),
-                }
+                )
                 for a in doc.analyses
             ],
-        }
+        )
 
 
-@router.delete("/projects/{project_id}/requirements/{doc_id}")
+@router.delete("/projects/{project_id}/requirements/{doc_id}", response_model=RequirementDeleteResponse)
 async def delete_requirement_document(
     project_id: int,
     doc_id: str,
@@ -243,10 +352,10 @@ async def delete_requirement_document(
         # Delete DB record (cascade will delete analyses and tasks)
         await session.delete(doc)
 
-        return {"status": "deleted", "document_id": doc_id}
+        return RequirementDeleteResponse(status="deleted", document_id=doc_id)
 
 
-@router.get("/projects/{project_id}/requirements/{doc_id}/analyses/{analysis_id}/tasks")
+@router.get("/projects/{project_id}/requirements/{doc_id}/analyses/{analysis_id}/tasks", response_model=RequirementTasksResponse)
 async def get_analysis_tasks(
     project_id: int,
     doc_id: str,
@@ -296,32 +405,34 @@ async def get_analysis_tasks(
         for task in tasks:
             sync_stats[task.sync_status] += 1
 
-        return {
-            "analysis_id": analysis_id,
-            "document_id": doc_id,
-            "project_id": project_id,
-            "sync_stats": sync_stats,
-            "tasks": [
-                {
-                    "id": t.id,
-                    "title": t.task_data.get("title", "Untitled"),
-                    "description": t.task_data.get("description", ""),
-                    "priority": t.task_data.get("priority", "medium"),
-                    "estimated_hours": t.task_data.get("estimated_hours", 0),
-                    "category": t.task_data.get("category", "general"),
-                    "tags": t.task_data.get("tags", []),
-                    "requirement_refs": t.task_data.get("requirement_refs", []),
-                    "acceptance_criteria": t.task_data.get("acceptance_criteria", []),
-                    "sync_status": t.sync_status,
-                    "sync_error": t.sync_error,
-                    "evocloud_task_id": t.evocloud_task_id,
-                    "synced_at": t.synced_at.isoformat() if t.synced_at else None,
-                    "created_at": t.created_at.isoformat() if t.created_at else None,
-                }
+        return RequirementTasksResponse(
+            analysis_id=analysis_id,
+            document_id=doc_id,
+            project_id=project_id,
+            sync_stats=sync_stats,
+            tasks=[
+                RequirementTaskItem(
+                    id=t.id,
+                    title=t.task_data.get("title", "Untitled"),
+                    description=t.task_data.get("description", ""),
+                    priority=t.task_data.get("priority", "medium"),
+                    estimated_hours=t.task_data.get("estimated_hours", 0),
+                    category=t.task_data.get("category", "general"),
+                    tags=t.task_data.get("tags", []),
+                    requirement_refs=t.task_data.get("requirement_refs", []),
+                    acceptance_criteria=t.task_data.get("acceptance_criteria", []),
+                    sync_status=t.sync_status,
+                    sync_error=t.sync_error,
+                    evocloud_task_id=t.evocloud_task_id,
+                    synced_at=t.synced_at.isoformat() if t.synced_at else None,
+                    created_at=t.created_at.isoformat() if t.created_at else None,
+                )
                 for t in tasks
             ],
-            "requirement_mapping": _build_requirement_mapping(tasks),
-        }
+            requirement_mapping=RequirementMapping.model_validate(
+                _build_requirement_mapping(tasks)
+            ),
+        )
 
 
 def _build_requirement_mapping(tasks: list) -> dict:
@@ -349,7 +460,7 @@ def _build_requirement_mapping(tasks: list) -> dict:
     return mapping
 
 
-@router.get("/projects/{project_id}/requirements/{doc_id}/analyses/{analysis_id}/sync-progress")
+@router.get("/projects/{project_id}/requirements/{doc_id}/analyses/{analysis_id}/sync-progress", response_model=RequirementSyncProgressResponse)
 async def get_analysis_sync_progress(
     project_id: int,
     doc_id: str,
@@ -394,19 +505,19 @@ async def get_analysis_sync_progress(
         pending = stats.get("pending", 0)
 
         # Calculate progress
-        progress = {
-            "total": total,
-            "synced": synced,
-            "failed": failed,
-            "syncing": syncing,
-            "pending": pending,
-            "percentage": round((synced / total * 100), 1) if total > 0 else 0,
-            "is_complete": pending == 0 and syncing == 0,
-            "has_failures": failed > 0,
-        }
+        progress = RequirementProgress(
+            total=total,
+            synced=synced,
+            failed=failed,
+            syncing=syncing,
+            pending=pending,
+            percentage=round((synced / total * 100), 1) if total > 0 else 0,
+            is_complete=pending == 0 and syncing == 0,
+            has_failures=failed > 0,
+        )
 
-        return {
-            "analysis_id": analysis_id,
-            "progress": progress,
-            "last_updated": analysis.confirmed_at.isoformat() if analysis.confirmed_at else None,
-        }
+        return RequirementSyncProgressResponse(
+            analysis_id=analysis_id,
+            progress=progress,
+            last_updated=analysis.confirmed_at.isoformat() if analysis.confirmed_at else None,
+        )

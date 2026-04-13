@@ -373,7 +373,7 @@ async def suggest_ghost_text(
     cursor_line: int,
     cursor_column: int,
     current_line_text: str
-) -> dict | None:
+) -> GhostSuggestion | None:
     """Tool-friendly wrapper for Ghost Text suggestions."""
     try:
         with open(file_path, 'r', encoding='utf-8') as f:
@@ -388,7 +388,7 @@ async def suggest_ghost_text(
         )
         
         if suggestion:
-            return suggestion.to_dict()
+            return suggestion
         
         return None
         

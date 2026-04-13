@@ -9,8 +9,11 @@ import json
 import logging
 from typing import Any
 
+from pydantic import BaseModel, Field
+
 from app.infrastructure.cache import get_cache
 from app.infrastructure.cache.abstract import Cache
+from app.utils.model_helpers import LegacyDictMixin
 
 logger = logging.getLogger(__name__)
 
@@ -122,6 +125,44 @@ class LinkTokenService:
         return data if isinstance(data, str) else None
 
 
+class ActivityStep(BaseModel, LegacyDictMixin):
+    """A single step in the agent activity."""
+    id: int
+    name: str
+    status: str
+    type: str = "node"
+    parent_id: int | None = None
+    start_time: float
+    end_time: float | None = None
+    time: str = "0s"
+    input: dict | None = None
+    details: str | None = None
+
+
+class ActivityArtifact(BaseModel, LegacyDictMixin):
+    """An artifact tracked during agent activity."""
+    id: int
+    name: str
+    type: str
+    status: str
+    path: str | None = None
+    icon: str = "FileCode"
+
+
+class ActivityState(BaseModel, LegacyDictMixin):
+    """Full activity state for an agent run."""
+    status: str
+    main_goal: str = ""
+    updated_at: float = 0.0
+    steps: list[ActivityStep] = Field(default_factory=list)
+    artifacts: list[ActivityArtifact] = Field(default_factory=list)
+    agent_state: dict = Field(default_factory=dict)
+    verification: dict = Field(default_factory=dict)
+    active_memories: list[dict] = Field(default_factory=list)
+    human_request: dict | None = None
+    final_outcome: str = ""
+
+
 class ActivityStateService:
     """
     Service for managing agent activity state.
@@ -159,7 +200,7 @@ class ActivityStateService:
         await self._cache.expire(self._key(thread_id), self.DEFAULT_TTL)
         return True
 
-    async def end_run(self, thread_id: str, status: str = "done", final_outcome: str | None = None) -> dict:
+    async def end_run(self, thread_id: str, status: str = "done", final_outcome: str | None = None) -> ActivityState:
         """Mark run as ended and return final state."""
         import time
         key = self._key(thread_id)
@@ -188,34 +229,36 @@ class ActivityStateService:
                     modified = True
             if modified:
                 await self._cache.hset(key, "steps", json.dumps(steps))
-        
+
         return await self.get_state(thread_id)
 
-    async def get_state(self, thread_id: str) -> dict:
+    async def get_state(self, thread_id: str) -> ActivityState:
         """Get full activity state."""
         key = self._key(thread_id)
         data = await self._cache.hgetall(key)
-        
+
         if not data:
-            return {"status": "idle", "tasks": [], "artifacts": []}
-        
+            return ActivityState(status="idle")
+
         # Parse JSON fields
         try:
-            return {
-                "status": data.get("status", "unknown"),
-                "main_goal": data.get("main_goal", ""),
-                "updated_at": float(data.get("updated_at", 0)),
-                "steps": json.loads(data.get("steps", "[]")),
-                "artifacts": json.loads(data.get("artifacts", "[]")),
-                "agent_state": json.loads(data.get("agent_state", "{}")),
-                "verification": json.loads(data.get("verification", "{}")),
-                "active_memories": json.loads(data.get("active_memories", "[]")),
-                "human_request": json.loads(data.get("human_request")) if data.get("human_request") else None,
-                "final_outcome": data.get("final_outcome", ""),
-            }
+            steps_raw = json.loads(data.get("steps", "[]"))
+            artifacts_raw = json.loads(data.get("artifacts", "[]"))
+            return ActivityState(
+                status=data.get("status", "unknown"),
+                main_goal=data.get("main_goal", ""),
+                updated_at=float(data.get("updated_at", 0)),
+                steps=[ActivityStep.model_validate(s) for s in steps_raw],
+                artifacts=[ActivityArtifact.model_validate(a) for a in artifacts_raw],
+                agent_state=json.loads(data.get("agent_state", "{}")),
+                verification=json.loads(data.get("verification", "{}")),
+                active_memories=json.loads(data.get("active_memories", "[]")),
+                human_request=json.loads(data.get("human_request")) if data.get("human_request") else None,
+                final_outcome=data.get("final_outcome", ""),
+            )
         except (json.JSONDecodeError, ValueError) as e:
             logger.error(f"Failed to parse activity state for {thread_id}: {e}")
-            return {"status": "error", "tasks": [], "artifacts": []}
+            return ActivityState(status="error")
 
     async def update_field(self, thread_id: str, field: str, value: Any) -> bool:
         """Update a single field in the activity state."""
@@ -310,17 +353,17 @@ class ActivityStateService:
                 return None
 
             step_id = len(steps) + 1
-            new_step = {
-                "id": step_id,
-                "name": name,
-                "status": "running",
-                "type": step_type,
-                "parent_id": parent_id,
-                "start_time": time.time(),
-                "time": "0s",
-                "input": input_data,
-            }
-            steps.append(new_step)
+            new_step = ActivityStep(
+                id=step_id,
+                name=name,
+                status="running",
+                type=step_type,
+                parent_id=parent_id,
+                start_time=time.time(),
+                time="0s",
+                input=input_data,
+            )
+            steps.append(new_step.model_dump())
 
             await self._cache.hset(
                 key,
@@ -367,10 +410,10 @@ class ActivityStateService:
         """Add or update an artifact."""
         import time
         key = self._key(thread_id)
-        
+
         arts_json = await self._cache.hget(key, "artifacts")
         artifacts = json.loads(arts_json) if arts_json else []
-        
+
         # Check if exists
         for art in artifacts:
             if art["name"] == name:
@@ -383,17 +426,18 @@ class ActivityStateService:
                     }
                 )
                 return True
-        
+
         # Add new
-        artifacts.append({
-            "id": len(artifacts) + 1,
-            "name": name,
-            "type": artifact_type,
-            "status": status,
-            "path": path,
-            "icon": "FileCode",
-        })
-        
+        new_artifact = ActivityArtifact(
+            id=len(artifacts) + 1,
+            name=name,
+            type=artifact_type,
+            status=status,
+            path=path,
+            icon="FileCode",
+        )
+        artifacts.append(new_artifact.model_dump())
+
         await self._cache.hset(
             key,
             mapping={

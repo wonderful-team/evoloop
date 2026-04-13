@@ -10,13 +10,13 @@ from langchain_core.messages import AIMessage
 from langchain_core.runnables import RunnableConfig
 
 from app.core.engine.routers import RoutingTarget
-from app.core.engine.state import AgentState
+from app.core.engine.state import AgentState, StateUpdate
 from app.core.engine.tools.orchestration import aggregate_results
 
 logger = logging.getLogger(__name__)
 
 
-async def aggregator_node(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
+async def aggregator_node(state: AgentState, config: RunnableConfig) -> StateUpdate:
     """
     Subtask Aggregator — Joins parallel results (Phase 4).
     """
@@ -26,7 +26,7 @@ async def aggregator_node(state: AgentState, config: RunnableConfig) -> dict[str
 
     if not pending_agg:
         logger.warning("[Aggregator] No pending aggregation found")
-        return {"next_node": RoutingTarget.SUPERVISOR}
+        return StateUpdate(next_node=RoutingTarget.SUPERVISOR)
 
     strategy = pending_agg.get("strategy", "merge")
     logger.info(f"[Aggregator] 🧩 Aggregating {len(subtask_results)} results with strategy '{strategy}'")
@@ -49,11 +49,11 @@ async def aggregator_node(state: AgentState, config: RunnableConfig) -> dict[str
         blackboard["worker_outcome"] = "success"
         blackboard.setdefault("metadata", {})["last_aggregation_result"] = result_text
 
-        return {
-            "messages": [AIMessage(content=f"Aggregation complete. Strategy: {strategy}. Total results: {len(subtask_results)}.")],
-            "next_node": RoutingTarget.SUPERVISOR,
-            "blackboard": blackboard
-        }
+        return StateUpdate(
+            messages=[AIMessage(content=f"Aggregation complete. Strategy: {strategy}. Total results: {len(subtask_results)}.")],
+            next_node=RoutingTarget.SUPERVISOR,
+            blackboard=blackboard
+        )
 
     except Exception as e:
         logger.error(f"[Aggregator] Aggregation failed: {e}")
@@ -63,11 +63,11 @@ async def aggregator_node(state: AgentState, config: RunnableConfig) -> dict[str
         blackboard["spawn_plan"] = None
         blackboard["worker_outcome"] = "failed"
         blackboard.setdefault("metadata", {})["last_aggregation_result"] = f"Aggregation failed: {e}"
-        return {
-            "messages": [AIMessage(
+        return StateUpdate(
+            messages=[AIMessage(
                 content=f"Aggregation failed: {e}",
                 metadata={"is_error": True, "error_type": "aggregation_failed"}
             )],
-            "next_node": RoutingTarget.SUPERVISOR,
-            "blackboard": blackboard
-        }
+            next_node=RoutingTarget.SUPERVISOR,
+            blackboard=blackboard
+        )

@@ -10,6 +10,7 @@ from app.core.evocloud.interfaces.client import EvoCloudClientProtocol
 from app.core.evocloud.routes import RouteTarget, get_endpoint_route
 from app.core.evocloud.schemas import EvoCloudConfig
 from app.core.identity import identity_service
+from app.models.auth import EvoCloudProxyResponse, LoginResult
 from app.utils import http as http_utils
 from app.utils import json as json_utils
 from app.utils.security import generate_hmac_signature
@@ -157,7 +158,7 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
 
     # --- Account & Auth Methods ---
 
-    async def login(self, username, password) -> dict:
+    async def login(self, username, password) -> LoginResult:
         res = await self.request("POST", "/api/login/login", data={"username": username, "password": password})
         if res.get("code", -1) >= 0:
             data = res.get("data", {})
@@ -174,13 +175,13 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
                         member_id = 0
                 except Exception:
                     member_id = 0
-                return {
-                    "success": True,
-                    "token": token,
-                    "member_id": member_id,
-                    "data": data,
-                }
-        return {"success": False, "message": res.get("message", "Login failed")}
+                return LoginResult(
+                    success=True,
+                    token=token,
+                    member_id=member_id,
+                    data=data,
+                )
+        return LoginResult(success=False, message=res.get("message", "Login failed"))
 
     # Project
     async def get_projects(self, page=1, page_size=100) -> dict:
@@ -293,47 +294,49 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
         return await self.request("GET", "/api/AI/globalConfig")
 
     # Cancellation
-    async def get_cancellation_info(self) -> dict:
-        return await self.request("GET", "/membercancel/api/membercancel/info")
+    async def get_cancellation_info(self) -> EvoCloudProxyResponse:
+        return EvoCloudProxyResponse.model_validate(await self.request("GET", "/membercancel/api/membercancel/info"))
 
-    async def apply_cancellation(self) -> dict:
-        return await self.request("POST", "/membercancel/api/membercancel/apply")
+    async def apply_cancellation(self) -> EvoCloudProxyResponse:
+        return EvoCloudProxyResponse.model_validate(await self.request("POST", "/membercancel/api/membercancel/apply"))
 
-    async def cancel_cancellation_apply(self) -> dict:
-        return await self.request("POST", "/membercancel/api/membercancel/cancelApply")
+    async def cancel_cancellation_apply(self) -> EvoCloudProxyResponse:
+        return EvoCloudProxyResponse.model_validate(await self.request("POST", "/membercancel/api/membercancel/cancelApply"))
 
     # Public / Auth
-    async def get_captcha_config(self) -> dict:
-        return await self.request("GET", "/api/captcha/config")
+    async def get_captcha_config(self) -> EvoCloudProxyResponse:
+        return EvoCloudProxyResponse.model_validate(await self.request("GET", "/api/captcha/config"))
 
-    async def get_captcha(self, captcha_id: str) -> dict:
-        return await self.request("GET", "/api/captcha/get", params={"id": captcha_id})
+    async def get_captcha(self, captcha_id: str) -> EvoCloudProxyResponse:
+        return EvoCloudProxyResponse.model_validate(await self.request("GET", "/api/captcha/get", params={"id": captcha_id}))
 
-    async def get_register_config(self) -> dict:
-        return await self.request("GET", "/api/register/config")
+    async def get_register_config(self) -> EvoCloudProxyResponse:
+        return EvoCloudProxyResponse.model_validate(await self.request("GET", "/api/register/config"))
 
-    async def get_register_agreement(self) -> dict:
-        return await self.request("GET", "/api/register/agreement")
+    async def get_register_agreement(self) -> EvoCloudProxyResponse:
+        return EvoCloudProxyResponse.model_validate(await self.request("GET", "/api/register/agreement"))
 
-    async def send_mobile_code(self, mobile: str, captcha_id: str, captcha_code: str, type: str = "login") -> dict:
-        return await self.request(
-            "POST",
-            "/api/sms/send",
-            data={
-                "mobile": mobile,
-                "captcha_id": captcha_id,
-                "captcha_code": captcha_code,
-                "type": type,
-            },
+    async def send_mobile_code(self, mobile: str, captcha_id: str, captcha_code: str, type: str = "login") -> EvoCloudProxyResponse:
+        return EvoCloudProxyResponse.model_validate(
+            await self.request(
+                "POST",
+                "/api/sms/send",
+                data={
+                    "mobile": mobile,
+                    "captcha_id": captcha_id,
+                    "captcha_code": captcha_code,
+                    "type": type,
+                },
+            )
         )
 
-    async def register_mobile(self, data: dict) -> dict:
-        return await self.request("POST", "/api/register/mobile", data=data)
+    async def register_mobile(self, data: dict) -> EvoCloudProxyResponse:
+        return EvoCloudProxyResponse.model_validate(await self.request("POST", "/api/register/mobile", data=data))
 
-    async def register_username(self, data: dict) -> dict:
-        return await self.request("POST", "/api/register/account", data=data)
+    async def register_username(self, data: dict) -> EvoCloudProxyResponse:
+        return EvoCloudProxyResponse.model_validate(await self.request("POST", "/api/register/account", data=data))
 
-    async def login_mobile(self, mobile: str, key: str, code: str) -> dict:
+    async def login_mobile(self, mobile: str, key: str, code: str) -> LoginResult:
         res = await self.request(
             "POST",
             "/passport/api/login/mobile",
@@ -354,48 +357,56 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
                         member_id = 0
                 except Exception:
                     member_id = 0
-                return {
-                    "success": True,
-                    "token": token,
-                    "member_id": member_id,
-                    "data": data,
-                }
-        return {"success": False, "message": res.get("message", "Login failed")}
+                return LoginResult(
+                    success=True,
+                    token=token,
+                    member_id=member_id,
+                    data=data,
+                )
+        return LoginResult(success=False, message=res.get("message", "Login failed"))
 
-    async def check_mobile_exist(self, mobile: str) -> dict[str, Any]:
-        return await self.request("GET", "/passport/api/mobile/check", params={"mobile": mobile})
+    async def check_mobile_exist(self, mobile: str) -> EvoCloudProxyResponse:
+        return EvoCloudProxyResponse.model_validate(await self.request("GET", "/passport/api/mobile/check", params={"mobile": mobile}))
 
-    async def reset_password_by_mobile(self, mobile: str, code: str, key: str, password: str) -> dict[str, Any]:
-        return await self.request(
-            "POST",
-            "/passport/api/password/reset/mobile",
-            data={"mobile": mobile, "code": code, "key": key, "password": password},
+    async def reset_password_by_mobile(self, mobile: str, code: str, key: str, password: str) -> EvoCloudProxyResponse:
+        return EvoCloudProxyResponse.model_validate(
+            await self.request(
+                "POST",
+                "/passport/api/password/reset/mobile",
+                data={"mobile": mobile, "code": code, "key": key, "password": password},
+            )
         )
 
-    async def change_password(self, old_password: str, new_password: str, token: str | None = None) -> dict[str, Any]:
+    async def change_password(self, old_password: str, new_password: str, token: str | None = None) -> EvoCloudProxyResponse:
         """Change password for logged-in user."""
-        return await self.request(
-            "POST",
-            "/passport/api/password/change",
-            data={"old_password": old_password, "new_password": new_password},
-            token=token,
+        return EvoCloudProxyResponse.model_validate(
+            await self.request(
+                "POST",
+                "/passport/api/password/change",
+                data={"old_password": old_password, "new_password": new_password},
+                token=token,
+            )
         )
 
-    async def update_user_info(self, data: dict[str, Any], token: str | None = None) -> dict[str, Any]:
+    async def update_user_info(self, data: dict[str, Any], token: str | None = None) -> EvoCloudProxyResponse:
         """Update current user info."""
-        return await self.request(
-            "POST",
-            "/api/member/update",
-            data=data,
-            token=token,
+        return EvoCloudProxyResponse.model_validate(
+            await self.request(
+                "POST",
+                "/api/member/update",
+                data=data,
+                token=token,
+            )
         )
 
-    async def get_user_info(self, token: str | None = None) -> dict[str, Any]:
+    async def get_user_info(self, token: str | None = None) -> EvoCloudProxyResponse:
         """Get current user info from Member Center."""
-        return await self.request(
-            "GET",
-            "/api/member/info",
-            token=token,
+        return EvoCloudProxyResponse.model_validate(
+            await self.request(
+                "GET",
+                "/api/member/info",
+                token=token,
+            )
         )
 
     # Device Specific via API

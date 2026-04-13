@@ -8,6 +8,11 @@ from langchain_core.tools import StructuredTool
 
 from app.core.mcp.auth.manager import mcp_auth_manager
 from app.core.mcp.config import McpServerConfig
+from app.core.mcp.features.base import (
+    McpFeatureCapabilities,
+    McpPromptResult,
+    McpResourceContent,
+)
 from app.core.mcp.features.prompts import McpPromptsFeature
 from app.core.mcp.features.resources import McpResourcesFeature
 from app.core.mcp.features.tools import McpToolsFeature
@@ -184,7 +189,7 @@ class WorkerMcpSession:
             for r in resources
         ]
     
-    async def read_resource(self, server_name: str, uri: str) -> dict[str, Any]:
+    async def read_resource(self, server_name: str, uri: str) -> McpResourceContent:
         """Read a resource from a server."""
         feature = self._resources_feature.get(server_name)
         if not feature:
@@ -206,7 +211,7 @@ class WorkerMcpSession:
             for p in prompts
         ]
     
-    async def get_prompt(self, server_name: str, prompt_name: str, arguments: dict | None = None) -> dict[str, Any]:
+    async def get_prompt(self, server_name: str, prompt_name: str, arguments: dict | None = None) -> McpPromptResult:
         """Get a prompt from a server."""
         feature = self._prompts_feature.get(server_name)
         if not feature:

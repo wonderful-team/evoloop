@@ -43,22 +43,20 @@ Usage:
     await manager.regenerate_memory_md()
 """
 
+import asyncio
 import logging
 import re
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Any
-import asyncio
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.core.config import settings
 from app.core.memory.models import MemoryEntry, MemoryType, PrivacyLevel
 from app.utils.model_helpers import LegacyDictMixin
 
 logger = logging.getLogger(__name__)
-
-
-from pydantic import BaseModel, Field
 
 
 class SectionBudget(BaseModel, LegacyDictMixin):
@@ -73,12 +71,22 @@ class SectionBudget(BaseModel, LegacyDictMixin):
         return self.lines - self.used
 
 
+class MemorySectionEntry(BaseModel, LegacyDictMixin):
+    """A single entry in a MEMORY.md section."""
+    model_config = ConfigDict(extra="allow")
+    id: Optional[str] = None
+    title: str
+    description: str
+    score: Optional[float] = None
+    type: Optional[str] = None
+
+
 class MemorySection(BaseModel, LegacyDictMixin):
     """A section in MEMORY.md."""
     name: str
     title: str
     budget: int
-    entries: List[Dict[str, Any]] = Field(default_factory=list)
+    entries: List[MemorySectionEntry] = Field(default_factory=list)
     
     def to_markdown(self, max_lines: Optional[int] = None) -> str:
         """Generate markdown for this section."""
@@ -206,7 +214,7 @@ class TwoTierMemoryManager:
     async def update_section(
         self,
         section_name: str,
-        entries: List[Dict[str, Any]],
+        entries: List[MemorySectionEntry],
     ) -> None:
         """
         Update a specific section in MEMORY.md.
@@ -234,7 +242,7 @@ class TwoTierMemoryManager:
     async def add_to_section(
         self,
         section_name: str,
-        entry: Dict[str, Any],
+        entry: MemorySectionEntry,
     ) -> bool:
         """
         Add an entry to a section, respecting budget.

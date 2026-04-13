@@ -28,10 +28,11 @@ Usage:
     consolidator = LogConsolidator(memory_manager=memory_manager)
     await consolidator.consolidate_date(datetime.utcnow() - timedelta(days=1))
 """
+import asyncio
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 

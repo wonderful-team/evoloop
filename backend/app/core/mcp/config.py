@@ -1,11 +1,20 @@
 """MCP configuration models and types."""
 
-from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Optional, List, Dict
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.utils.model_helpers import LegacyDictMixin
+
+
+class AuthConfig(BaseModel, LegacyDictMixin):
+    """Authentication configuration for MCP servers."""
+    model_config = ConfigDict(extra="allow")
+
+
+class ServerCapabilities(BaseModel, LegacyDictMixin):
+    """Capabilities reported by an MCP server."""
+    model_config = ConfigDict(extra="allow")
 
 
 class TransportType(str, Enum):
@@ -35,7 +44,7 @@ class McpServerConfig(BaseModel, LegacyDictMixin):
     headers: Dict[str, str] = Field(default_factory=dict)
     # Authentication
     auth_type: AuthType = AuthType.NONE
-    auth_config: Dict[str, Any] = Field(default_factory=dict)
+    auth_config: AuthConfig = Field(default_factory=AuthConfig)
     # Behavior
     auto_connect: bool = True
     enabled: bool = True
@@ -62,12 +71,12 @@ class McpServerConfig(BaseModel, LegacyDictMixin):
                 env = {}
         
         # Parse auth config if stored
-        auth_config = {}
+        auth_config_data = {}
         auth_type = AuthType.NONE
         if hasattr(server, 'auth_config') and server.auth_config:
             try:
-                auth_config = json.loads(server.auth_config) if isinstance(server.auth_config, str) else server.auth_config
-                auth_type = AuthType(auth_config.get('method', 'none'))
+                auth_config_data = json.loads(server.auth_config) if isinstance(server.auth_config, str) else server.auth_config
+                auth_type = AuthType(auth_config_data.get('method', 'none'))
             except:
                 pass
         
@@ -87,7 +96,7 @@ class McpServerConfig(BaseModel, LegacyDictMixin):
             env=env or {},
             enabled=server.enabled,
             auth_type=auth_type,
-            auth_config=auth_config,
+            auth_config=AuthConfig(**auth_config_data),
         )
 
     def validate(self) -> None:
@@ -115,4 +124,4 @@ class ConnectionResult(BaseModel, LegacyDictMixin):
     server_name: str
     tools_count: int = 0
     error: Optional[str] = None
-    capabilities: Optional[Dict[str, Any]] = None
+    capabilities: Optional[ServerCapabilities] = None

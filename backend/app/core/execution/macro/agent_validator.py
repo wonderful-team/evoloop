@@ -77,7 +77,10 @@ class AgentMacroValidator:
 
         # Evolution tracking
         self.evolution_records: List[MacroEvolutionRecord] = []
-        self.current_macro: List[Dict[str, Any]] = request.macro_script.copy()
+        self.current_macro: List[Dict[str, Any]] = [
+            copy.deepcopy(s.model_dump() if hasattr(s, 'model_dump') else s)
+            for s in request.macro_script
+        ]
 
         # Statistics
         self.total_anomalies = 0

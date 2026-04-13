@@ -21,8 +21,6 @@ from langchain_core.outputs import LLMResult
 from app.core.tools.registry import is_state_mutating_tool, get_tool_affected_paths, get_tool_metadata
 from app.i18n.service import i18n
 from app.models.schemas.events import TokenEvent
-
-from app.core.tools.registry import is_state_mutating_tool, get_tool_affected_paths, get_tool_metadata
 from app.utils.model_helpers import LegacyDictMixin
 
 logger = logging.getLogger(__name__)

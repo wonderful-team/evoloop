@@ -49,6 +49,17 @@ class CacheEntry(BaseModel, LegacyDictMixin):
     last_verified: float = 0.0
 
 
+class CacheStats(BaseModel, LegacyDictMixin):
+    """Cache statistics."""
+    hits: int
+    misses: int
+    hit_rate: str
+    verifications: int
+    invalidations: int
+    cache_size: int
+    max_size: int
+
+
 class DeterministicToolCache:
     """
     Deterministic tool cache with content verification.
@@ -267,20 +278,20 @@ class DeterministicToolCache:
         
         logger.debug(f"[ToolCache] Evicted {to_remove} entries")
     
-    def get_stats(self) -> dict:
+    def get_stats(self) -> CacheStats:
         """Get cache statistics."""
         total = self._stats['hits'] + self._stats['misses']
         hit_rate = self._stats['hits'] / total if total > 0 else 0.0
         
-        return {
-            'hits': self._stats['hits'],
-            'misses': self._stats['misses'],
-            'hit_rate': f"{hit_rate:.1%}",
-            'verifications': self._stats['verifications'],
-            'invalidations': self._stats['invalidations'],
-            'cache_size': len(self._cache),
-            'max_size': self._maxsize,
-        }
+        return CacheStats(
+            hits=self._stats['hits'],
+            misses=self._stats['misses'],
+            hit_rate=f"{hit_rate:.1%}",
+            verifications=self._stats['verifications'],
+            invalidations=self._stats['invalidations'],
+            cache_size=len(self._cache),
+            max_size=self._maxsize,
+        )
     
     def invalidate_path(self, path: str):
         """Invalidate all cache entries for a given path."""

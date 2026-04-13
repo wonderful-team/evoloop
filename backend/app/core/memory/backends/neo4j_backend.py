@@ -18,7 +18,7 @@ from datetime import datetime
 from app.core.memory.interfaces.storage import (
     IMemoryStorage,
     StorageError,
-    StorageConnectionError,
+    StorageConnectionError, StorageHealthCheck,
 )
 from app.core.memory.models import (
     MemoryEntry,
@@ -155,10 +155,10 @@ class Neo4jMemoryStorage(IMemoryStorage):
             await session.run("MATCH (m:Memory) DETACH DELETE m")
             logger.warning("Neo4j storage flushed (all memory nodes deleted)")
     
-    async def health_check(self) -> Dict[str, Any]:
+    async def health_check(self) -> "StorageHealthCheck":
         """Check Neo4j health status."""
         if not self._driver:
-            return {"status": "not_initialized", "backend": "Neo4jMemoryStorage"}
+            return StorageHealthCheck(status="not_initialized", backend="Neo4jMemoryStorage")
         
         try:
             async with self._driver.session() as session:
@@ -166,17 +166,17 @@ class Neo4jMemoryStorage(IMemoryStorage):
                 record = await result.single()
                 count = record["count"] if record else 0
                 
-                return {
-                    "status": "healthy",
-                    "backend": "Neo4jMemoryStorage",
-                    "entry_count": count,
-                }
+                return StorageHealthCheck(
+                    status="healthy",
+                    backend="Neo4jMemoryStorage",
+                    entry_count=count,
+                )
         except Exception as e:
-            return {
-                "status": "unhealthy",
-                "backend": "Neo4jMemoryStorage",
-                "error": str(e),
-            }
+            return StorageHealthCheck(
+                status="unhealthy",
+                backend="Neo4jMemoryStorage",
+                error=str(e),
+            )
     
     # ==========================================================================
     # IMemoryStorage CRUD Operations

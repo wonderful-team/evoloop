@@ -18,7 +18,13 @@ from app.core.evocloud import evocloud_manager
 from app.core.file.service import filter_code_files, walk_tree
 from app.core.memory import MemoryContainer, MemoryConfig
 from app.i18n.service import i18n
-from app.models.wiki import WikiPage
+from app.models.wiki import (
+    WikiGap,
+    WikiPage,
+    WikiPagePlan,
+    WikiStructure,
+    WikiValidationResult,
+)
 from app.utils.file import normalize_path
 
 logger = logging.getLogger(__name__)
@@ -208,16 +214,19 @@ class WikiService:
 
     async def _validate_structure(
         self,
-        structure_data: dict,
+        structure_data: dict | WikiStructure,
         project_context: str,
-    ) -> dict:
+    ) -> WikiStructure:
         """
         Validate Wiki structure completeness using LLM-based dynamic analysis.
         Returns updated structure with any missing pages added.
         """
         try:
             builder = WikiBuilder()
-            validation_prompt = builder.build_validation_prompt(structure_data, project_context)
+            validation_prompt = builder.build_validation_prompt(
+                structure_data.model_dump() if isinstance(structure_data, WikiStructure) else structure_data,
+                project_context,
+            )
             from app.core.llm import InternalLLMService
             response = await InternalLLMService.invoke(
                 messages=[{"role": "user", "content": validation_prompt}],
@@ -229,43 +238,42 @@ class WikiService:
             json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
             if not json_match:
                 logger.info("Structure validation: No JSON in response, assuming complete")
-                return structure_data
+                return WikiStructure.model_validate(structure_data)
 
-            validation_result = json.loads(json_match.group(0))
-            is_complete = validation_result.get("is_complete", True)
-            gaps = validation_result.get("gaps", [])
+            validation_result = WikiValidationResult.model_validate(json.loads(json_match.group(0)))
 
-            if is_complete or not gaps:
+            if validation_result.is_complete or not validation_result.gaps:
                 logger.info("Structure validation: Structure is complete")
-                return structure_data
+                return WikiStructure.model_validate(structure_data)
 
             # Add missing pages
-            logger.info(f"Structure validation: Found {len(gaps)} gaps, adding pages")
-            pages = structure_data.get("pages", [])
+            logger.info(f"Structure validation: Found {len(validation_result.gaps)} gaps, adding pages")
+            wiki_structure = WikiStructure.model_validate(structure_data)
+            pages = list(wiki_structure.pages)
 
-            for gap in gaps:
-                suggested_title = gap.get("suggested_title", gap.get("area", "Additional Page"))
+            for gap in validation_result.gaps:
+                suggested_title = gap.suggested_title or gap.area or "Additional Page"
                 # Generate a slug from the title
                 slug = suggested_title.lower().replace(" ", "-").replace("_", "-")
                 slug = re.sub(r'[^a-z0-9-]', '', slug)[:50]
 
-                new_page = {
-                    "id": f"gap-{slug}",
-                    "title": suggested_title,
-                    "description": gap.get("reason", ""),
-                    "relevant_files": [],
-                    "importance": "medium",
-                    "children": []
-                }
+                new_page = WikiPagePlan(
+                    id=f"gap-{slug}",
+                    title=suggested_title,
+                    description=gap.reason,
+                    relevant_files=[],
+                    importance="medium",
+                    children=[],
+                )
                 pages.append(new_page)
                 logger.info(f"  -> Added page: {suggested_title}")
 
-            structure_data["pages"] = pages
-            return structure_data
+            wiki_structure.pages = pages
+            return wiki_structure
 
         except Exception as e:
             logger.warning(f"Structure validation failed: {e}. Proceeding with original structure.")
-            return structure_data
+            return WikiStructure.model_validate(structure_data)
 
     async def generate_wiki(self, project_id: int, topic: str, force_regenerate: bool = False):
         """
@@ -314,10 +322,11 @@ class WikiService:
             # Extract JSON
             json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
             if json_match:
-                structure_data = json.loads(json_match.group(0))
+                raw_structure = json.loads(json_match.group(0))
+                structure_data = WikiStructure.model_validate(raw_structure)
                 # Validate structure
-                if "pages" in structure_data and isinstance(structure_data["pages"], list):
-                    pages_to_generate = structure_data["pages"]
+                if structure_data.pages:
+                    pages_to_generate = structure_data.pages
                 else:
                     raise ValueError("Invalid JSON structure: missing 'pages' list")
             else:
@@ -327,11 +336,11 @@ class WikiService:
             logger.error(f"Failed to determine wiki structure: {e}. Falling back to default.")
             # Fallback structure
             pages_to_generate = [
-                {"title": i18n.get("wiki.fallback.overview"), "id": "overview", "relevant_files": []},
-                {"title": i18n.get("wiki.fallback.architecture"), "id": "architecture", "relevant_files": []},
-                {"title": i18n.get("wiki.fallback.setup"), "id": "setup", "relevant_files": []}
+                WikiPagePlan(id="overview", title=i18n.get("wiki.fallback.overview")),
+                WikiPagePlan(id="architecture", title=i18n.get("wiki.fallback.architecture")),
+                WikiPagePlan(id="setup", title=i18n.get("wiki.fallback.setup")),
             ]
-            structure_data = {"pages": pages_to_generate}
+            structure_data = WikiStructure(pages=pages_to_generate)
 
         # 1.5 Phase 1.5: Validate Structure Completeness
         logger.info("Phase 1.5: Validating Wiki Structure...")
@@ -341,17 +350,17 @@ class WikiService:
             structure_data=structure_data,
             project_context=project_context,
         )
-        pages_to_generate = validated_structure.get("pages", pages_to_generate)
+        pages_to_generate = validated_structure.pages
 
-        logger.info(f"Planned {len(pages_to_generate)} pages: {[p.get('title') for p in pages_to_generate]}")
+        logger.info(f"Planned {len(pages_to_generate)} pages: {[p.title for p in pages_to_generate]}")
 
         saved_pages = []
 
         # 2. Phase 2: Generate Content (Recursive)
-        async def process_page_recursive(plan, parent_id=None, order=0):
-            page_title = plan.get("title", "Untitled")
-            page_slug = plan.get("id", f"page-{order}")
-            relevant_files_hint = plan.get("relevant_files", [])
+        async def process_page_recursive(plan: WikiPagePlan, parent_id=None, order=0):
+            page_title = plan.title or "Untitled"
+            page_slug = plan.id or f"page-{order}"
+            relevant_files_hint = plan.relevant_files or []
 
             logger.info(f"Phase 2: Generating content for '{page_title}' (slug: {page_slug})")
 
@@ -378,8 +387,7 @@ class WikiService:
                         saved_pages.append(existing_page)
 
                         # Recurse Children even if skipped
-                        children = plan.get("children", [])
-                        for i, child_plan in enumerate(children):
+                        for i, child_plan in enumerate(plan.children):
                             await process_page_recursive(child_plan, parent_id=existing_page.id, order=i)
                         return
 
@@ -502,8 +510,7 @@ class WikiService:
                     logger.info(f"Extracted {len(extracted)} concepts from '{page_title}'")
 
             # Recurse Children
-            children = plan.get("children", [])
-            for i, child_plan in enumerate(children):
+            for i, child_plan in enumerate(plan.children):
                 await process_page_recursive(child_plan, parent_id=saved_page.id, order=i)
 
         # Kickoff recursion

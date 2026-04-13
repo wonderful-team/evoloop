@@ -10,6 +10,8 @@ import logging
 import time
 from typing import Any
 
+from pydantic import Field
+
 from app.infrastructure.cache import cache
 from app.models.schemas.events import (
     AgentStateEvent,
@@ -20,7 +22,41 @@ from app.models.schemas.events import (
 )
 from app.services.cache_services import ActivityStateService
 
+from pydantic import BaseModel, ConfigDict
+from app.utils.model_helpers import LegacyDictMixin
+
 logger = logging.getLogger(__name__)
+
+
+class AgentActivityState(BaseModel, LegacyDictMixin):
+    model_config = ConfigDict(extra="allow")
+    mode: str
+    task_name: str
+    task_status: str
+    details: dict | None = None
+
+
+class HumanRequestData(BaseModel, LegacyDictMixin):
+    model_config = ConfigDict(extra="allow")
+    type: str
+    prompt: str
+    allow_cancel: bool = True
+    payload: dict = Field(default_factory=dict)
+
+
+class InteractionPayload(BaseModel, LegacyDictMixin):
+    model_config = ConfigDict(extra="allow")
+
+
+class AgentStateDetails(BaseModel, LegacyDictMixin):
+    model_config = ConfigDict(extra="allow")
+
+
+class SystemLogPayload(BaseModel, LegacyDictMixin):
+    model_config = ConfigDict(extra="allow")
+    type: str
+    data: dict
+    timestamp: float
 
 
 class ActivityMonitor:
@@ -81,18 +117,19 @@ class ActivityMonitor:
         """Mark a run as interrupted (paused for human input)."""
         await self._state_service.set_interrupted(thread_id, reason)
 
-    async def set_human_request(self, thread_id: str, request_data: dict[str, Any]):
+    async def set_human_request(self, thread_id: str, request_data: HumanRequestData):
         """
         Store a structured Human Request (HITL).
         Replaces simple 'set_interrupted' for rich interactions.
         """
-        success = await self._state_service.set_human_request(thread_id, request_data)
+        request_dict = request_data.model_dump() if isinstance(request_data, HumanRequestData) else request_data
+        success = await self._state_service.set_human_request(thread_id, request_dict)
         
         if success:
             # Publish Event
             await cache.publish(
                 f"chat:{thread_id}:events",
-                HumanRequestEvent(action="create", data=request_data).model_dump_json(),
+                HumanRequestEvent(action="create", data=request_dict).model_dump_json(),
             )
 
             # [HITL FIX] Also publish StatusEvent so UI knows we are interrupted
@@ -122,7 +159,7 @@ class ActivityMonitor:
         thread_id: str,
         request_type: str,
         prompt: str,
-        payload: dict[str, Any] | None = None,
+        payload: InteractionPayload | None = None,
         allow_cancel: bool = True
     ) -> None:
         """
@@ -146,14 +183,14 @@ class ActivityMonitor:
             logger.warning(f"[ActivityMonitor] Unknown request type: {request_type}")
 
         # Store the request
-        request_data = {
-            "type": request_type,
-            "prompt": prompt,
-            "allow_cancel": allow_cancel,
-            "payload": payload or {},
-        }
+        request_data = HumanRequestData(
+            type=request_type,
+            prompt=prompt,
+            allow_cancel=allow_cancel,
+            payload=payload.model_dump() if isinstance(payload, InteractionPayload) else (payload or {}),
+        )
         
-        success = await self._state_service.set_human_request(thread_id, request_data)
+        success = await self._state_service.set_human_request(thread_id, request_data.model_dump())
         
         if success:
             # Publish Event
@@ -256,18 +293,17 @@ class ActivityMonitor:
             pass
 
     async def update_agent_state(
-        self, thread_id: str, mode: str, task_name: str, task_status: str, details: dict[str, Any] = None
+        self, thread_id: str, mode: str, task_name: str, task_status: str, details: AgentStateDetails | None = None
     ):
         """Update agent state and publish event."""
-        state = {
-            "mode": mode,
-            "task_name": task_name,
-            "task_status": task_status,
-        }
-        if details:
-            state["details"] = details
+        state = AgentActivityState(
+            mode=mode,
+            task_name=task_name,
+            task_status=task_status,
+            details=details or {}
+        )
 
-        await self._state_service.update_agent_state(thread_id, state)
+        await self._state_service.update_agent_state(thread_id, state.model_dump())
 
         # Publish Event
         await cache.publish(
@@ -278,21 +314,21 @@ class ActivityMonitor:
     async def log_event(self, event_type: str, data: dict[str, Any], thread_id: str = "system"):
         """Generic event logger for system and session events."""
         timestamp = time.time()
-        payload = {
-            "type": event_type,
-            "data": data,
-            "timestamp": timestamp
-        }
+        payload = SystemLogPayload(
+            type=event_type,
+            data=data,
+            timestamp=timestamp
+        )
         
         # Log to a system list in cache for persistence
-        await cache.lpush(f"system:logs:{event_type}", json.dumps(payload))
+        await cache.lpush(f"system:logs:{event_type}", payload.model_dump_json())
         await cache.ltrim(f"system:logs:{event_type}", 0, 99)  # Keep last 100
 
         # Publish to the chat stream if it's a session event
         if thread_id != "system":
             await cache.publish(
                 f"chat:{thread_id}:events",
-                json.dumps({"event": "system_log", "data": payload})
+                json.dumps({"event": "system_log", "data": payload.model_dump()})
             )
         
         logger.info(f"[ActivityMonitor] Event logged: {event_type} (Thread: {thread_id})")

@@ -8,13 +8,14 @@ from pydantic import BaseModel, Field
 from app.core.evocloud import evocloud_manager
 from app.core.identity import identity_service
 from app.models import Token
+from app.models.auth import EvoCloudProxyResponse
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["account"])
 
 
-# --- Request Schemas ---
+# --- Request / Response Schemas ---
 
 class MobileCodeRequest(BaseModel):
     mobile: str = Field(..., description="Phone number")
@@ -28,11 +29,41 @@ class MobileLoginRequest(BaseModel):
     key: str = Field(..., description="Verification key returned from code request")
 
 
+class MobileCodeResponse(BaseModel):
+    code: int
+    message: str
+    key: str | None = None
+
+
+class WeChatConfigResponse(BaseModel):
+    enabled: bool
+    app_id: str | None = None
+
+
+class WeChatQRResponse(BaseModel):
+    key: str | None = None
+    expire_time: int
+    qrcode_url: str | None = None
+    ticket: str
+
+
+class WeChatStatusResponse(BaseModel):
+    status: str
+    message: str
+    access_token: str | None = None
+    token_type: str | None = None
+
+
+class LogoutResponse(BaseModel):
+    code: int
+    message: str
+
+
 # --- Internal Helpers ---
 
-async def _member_center_request(method: str, endpoint: str, **kwargs) -> dict:
+async def _member_center_request(method: str, endpoint: str, **kwargs) -> EvoCloudProxyResponse:
     """Make request to Member Center API using EvoCloud client."""
-    return await evocloud_manager.api.request(method, endpoint, **kwargs)
+    return EvoCloudProxyResponse.model_validate(await evocloud_manager.api.request(method, endpoint, **kwargs))
 
 
 # --- Username/Password Login (Proxied) ---
@@ -64,7 +95,7 @@ async def login_access_token(form_data: Annotated[OAuth2PasswordRequestForm, Dep
 # --- Mobile Login (New Routines) ---
 
 @router.post("/login/mobile/code")
-async def request_mobile_code(req: MobileCodeRequest):
+async def request_mobile_code(req: MobileCodeRequest) -> MobileCodeResponse:
     """
     Request an SMS verification code via Member Center.
     """
@@ -81,11 +112,11 @@ async def request_mobile_code(req: MobileCodeRequest):
             detail=result.get("message", "Failed to send verification code"),
         )
         
-    return {
-        "code": 0,
-        "message": "Verification code sent",
-        "key": result.get("data", {}).get("key")
-    }
+    return MobileCodeResponse(
+        code=0,
+        message="Verification code sent",
+        key=result.get("data", {}).get("key")
+    )
 
 
 @router.post("/login/mobile", response_model=Token)
@@ -118,7 +149,7 @@ async def login_mobile(req: MobileLoginRequest):
 # --- WeChat Authentication (Proxied) ---
 
 @router.get("/auth/wechat/config")
-async def get_wechat_config():
+async def get_wechat_config() -> WeChatConfigResponse:
     """Get WeChat login configuration from Member Center."""
     try:
         result = await _member_center_request(
@@ -127,17 +158,14 @@ async def get_wechat_config():
         )
         is_configured = result.get("code", -1) == 0
 
-        return {
-            "enabled": is_configured,
-            "app_id": None,
-        }
+        return WeChatConfigResponse(enabled=is_configured, app_id=None)
     except Exception as e:
         logger.warning(f"Failed to check WeChat config: {e}")
-        return {"enabled": False, "app_id": None}
+        return WeChatConfigResponse(enabled=False, app_id=None)
 
 
 @router.post("/auth/wechat/qrcode")
-async def generate_qr_code():
+async def generate_qr_code() -> WeChatQRResponse:
     """Generate a QR code for WeChat login via Member Center."""
     try:
         result = await _member_center_request(
@@ -152,12 +180,12 @@ async def generate_qr_code():
             )
 
         data = result.get("data", {})
-        return {
-            "key": data.get("key"),
-            "expire_time": data.get("expire_time", 600),
-            "qrcode_url": data.get("qrcode"),
-            "ticket": data.get("ticket", ""),
-        }
+        return WeChatQRResponse(
+            key=data.get("key"),
+            expire_time=data.get("expire_time", 600),
+            qrcode_url=data.get("qrcode"),
+            ticket=data.get("ticket", ""),
+        )
     except HTTPException:
         raise
     except Exception as e:
@@ -171,7 +199,7 @@ async def generate_qr_code():
 @router.get("/auth/wechat/status")
 async def check_wechat_login_status(
     key: Annotated[str, Query(description="The unique key from QR code generation")],
-):
+) -> WeChatStatusResponse:
     """Check the login status for a given QR code key via Member Center."""
     try:
         result = await _member_center_request(
@@ -181,29 +209,29 @@ async def check_wechat_login_status(
         )
 
         if result.get("code", -1) < 0:
-            return {
-                "status": "expired",
-                "message": result.get("message", "QR code expired"),
-            }
+            return WeChatStatusResponse(
+                status="expired",
+                message=result.get("message", "QR code expired"),
+            )
 
         data = result.get("data", {})
         token = data.get("token")
 
         if token:
-            return {
-                "status": "confirmed",
-                "message": "Login successful",
-                "access_token": token,
-                "token_type": "bearer",
-            }
+            return WeChatStatusResponse(
+                status="confirmed",
+                message="Login successful",
+                access_token=token,
+                token_type="bearer",
+            )
         else:
-            return {
-                "status": "pending",
-                "message": "Waiting for scan",
-            }
+            return WeChatStatusResponse(
+                status="pending",
+                message="Waiting for scan",
+            )
     except Exception as e:
         logger.error(f"Failed to check login status: {e}")
-        return {"status": "error", "message": "Failed to check status"}
+        return WeChatStatusResponse(status="error", message="Failed to check status")
 
 
 @router.post("/auth/wechat/login-direct", response_model=Token)
@@ -275,9 +303,9 @@ async def wechat_callback(
 # --- Logout ---
 
 @router.post("/logout")
-async def logout():
+async def logout() -> LogoutResponse:
     """
     Clear local session and cloud tokens.
     """
     identity_service.logout()
-    return {"code": 0, "message": "Logged out successfully"}
+    return LogoutResponse(code=0, message="Logged out successfully")

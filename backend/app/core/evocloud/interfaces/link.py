@@ -3,7 +3,7 @@ from collections.abc import Callable
 from typing import Any
 
 from app.core.evocloud.interfaces.client import EvoCloudClientProtocol
-from app.core.evocloud.schemas import EvoCloudConfig
+from app.core.evocloud.schemas import EvoCloudConfig, ProjectSwitchEvent, RemoteCommand
 
 
 class DeviceLinkProtocol(ABC):
@@ -37,11 +37,11 @@ class DeviceLinkProtocol(ABC):
 
     # --- Callbacks ---
     @abstractmethod
-    def set_command_handler(self, handler: Callable[[dict[str, Any]], None]) -> None:
+    def set_command_handler(self, handler: Callable[[RemoteCommand], None]) -> None:
         """Set handler for incoming remote commands."""
         pass
 
     @abstractmethod
-    def set_event_handler(self, handler: Callable[[str, dict[str, Any]], None]) -> None:
+    def set_event_handler(self, handler: Callable[[str, ProjectSwitchEvent], None]) -> None:
         """Set handler for other events (e.g. project_switch)."""
         pass

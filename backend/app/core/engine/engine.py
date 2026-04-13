@@ -15,6 +15,8 @@ import time
 from datetime import datetime
 from typing import Any, Callable
 
+from pydantic import BaseModel, ConfigDict, Field
+
 from langchain_core.messages import (
     AIMessage,
     BaseMessage,
@@ -43,8 +45,20 @@ from app.infrastructure.config.service import SystemConfigService
 from app.infrastructure.llm.factory import LLMFactory
 from app.utils.id import gen_uuid
 from app.core.monitoring.telemetry import agent_telemetry
+from app.utils.model_helpers import LegacyDictMixin
 
 logger = logging.getLogger(__name__)
+
+
+class EngineResult(BaseModel, LegacyDictMixin):
+    """Structured result from AgentEngine.run_node() and internal execution methods."""
+    model_config = ConfigDict(extra="allow")
+    messages: list[Any] = Field(default_factory=list)
+    tool_history: list[str] = Field(default_factory=list)
+    blackboard: Any = None
+    is_truncated: bool = False
+    signal: Any = None
+    _routing_target: str | None = None
 
 
 class AgentEngine:
@@ -99,7 +113,7 @@ class AgentEngine:
         is_subtask: bool = False,
         node_source: str = None,
         parallel_tools: bool = False,
-    ) -> dict[str, Any]:
+    ) -> EngineResult:
         """
         Executes the standard Agent ReAct loop.
 
@@ -228,10 +242,10 @@ class AgentEngine:
         provider: str, # Added provider
         config: RunnableConfig,
         name: str,
-        state: dict,
+        state: AgentState,
         max_steps: int = 5,
         parallel_tools: bool = False,
-    ) -> dict[str, Any]:
+    ) -> EngineResult:
         """Core ReAct Loop Logic."""
         # 0. Build optimized system messages for Prompt Caching
         system_messages = self._build_system_messages(system_prompt, messages, provider)
@@ -244,7 +258,7 @@ class AgentEngine:
 
         if not history_messages:
             logger.error(f"[{name}] 🔴 No history messages! Returning empty.")
-            return {"messages": []}
+            return EngineResult(messages=[])
 
         new_messages = []
         local_tool_history = []
@@ -456,12 +470,12 @@ class AgentEngine:
 
             # 4. Dispatch Signal if present after tool execution
             if pending_signal:
-                return {
-                    "messages": new_messages,
-                    "signal": pending_signal,
-                    "tool_history": local_tool_history,
-                    "blackboard": state.get("blackboard"),
-                }
+                return EngineResult(
+                    messages=new_messages,
+                    signal=pending_signal,
+                    tool_history=local_tool_history,
+                    blackboard=state.get("blackboard"),
+                )
 
         # Loop ended
         is_truncated = False
@@ -474,12 +488,12 @@ class AgentEngine:
             new_messages.append(truncation_msg)
             is_truncated = True
 
-        return {
-            "messages": new_messages,
-            "tool_history": local_tool_history,
-            "blackboard": state.get("blackboard"),
-            "is_truncated": is_truncated,
-        }
+        return EngineResult(
+            messages=new_messages,
+            tool_history=local_tool_history,
+            blackboard=state.get("blackboard"),
+            is_truncated=is_truncated,
+        )
 
     async def _execute_single_shot(
         self,
@@ -490,7 +504,7 @@ class AgentEngine:
         provider: str, # Added provider
         config: RunnableConfig,
         name: str,
-        state: dict,
+        state: AgentState,
         parallel_tools: bool = False,
     ) -> dict[str, Any]:
         """Single-shot execution for subtasks."""
@@ -502,7 +516,7 @@ class AgentEngine:
 
         if not history_messages:
             logger.error(f"[{name}] 🔴 No history messages! Returning empty.")
-            return {"messages": []}
+            return EngineResult(messages=[])
 
         # [DIAGNOSTIC] Capture System Prompt stability and Latency
         sys_hash = hashlib.md5(system_prompt.encode()).hexdigest()
@@ -565,12 +579,12 @@ class AgentEngine:
             logger.error(f"[{name}] 🛑 SINGLE-SHOT VIOLATION: Subtask did not call any tool!")
             error_msg = AIMessage(content="Subtask failed: No tool was invoked.")
             new_messages.append(error_msg)
-            return {
-                "messages": new_messages,
-                "tool_history": local_tool_history,
-                "blackboard": state.get("blackboard"),
-                "_routing_target": None,
-            }
+            return EngineResult(
+                messages=new_messages,
+                tool_history=local_tool_history,
+                blackboard=state.get("blackboard"),
+                _routing_target=None,
+            )
 
         # 3. Execute Non-Signal Tools
         remaining_tool_calls = [tc for tc in response.tool_calls if tc["name"] not in ("route_to", "decompose_task")]
@@ -610,12 +624,12 @@ class AgentEngine:
 
         logger.info(f"[{name}] ✓ Single-shot complete. {len(response.tool_calls)} tool(s) executed.")
 
-        return {
-            "messages": new_messages,
-            "tool_history": local_tool_history,
-            "blackboard": state.get("blackboard"),
-            "_routing_target": None,
-        }
+        return EngineResult(
+            messages=new_messages,
+            tool_history=local_tool_history,
+            blackboard=state.get("blackboard"),
+            _routing_target=None,
+        )
 
     def _build_system_messages(self, system_prompt: str, messages: list, provider: str) -> list[BaseMessage]:
         """
@@ -638,7 +652,7 @@ class AgentEngine:
             # Standard string content for Moonshot/Kimi/DeepSeek/OpenAI
             return [SystemMessage(content=system_prompt)]
 
-    def _handle_llm_exception(self, e: Exception, name: str, state: dict) -> dict[str, Any]:
+    def _handle_llm_exception(self, e: Exception, name: str, state: AgentState) -> EngineResult:
         """Centralized handling for LLM invocation exceptions."""
         import openai
 
@@ -685,8 +699,8 @@ class AgentEngine:
         # NOTE: Unlike Supervisor protocol errors, LLM errors ARE valid terminal states
         # that should be visible to the user (e.g., "API quota exceeded")
         user_friendly_msg = self._get_user_friendly_error(error_type, str(e))
-        return {
-            "messages": [AIMessage(
+        return EngineResult(
+            messages=[AIMessage(
                 content=user_friendly_msg,
                 metadata={
                     "is_error": True,
@@ -695,9 +709,9 @@ class AgentEngine:
                     "raw_error": str(e)
                 }
             )],
-            "tool_history": [],
-            "blackboard": state.get("blackboard"),
-        }
+            tool_history=[],
+            blackboard=state.get("blackboard"),
+        )
 
     def _get_user_friendly_error(self, error_type: str, raw_error: str) -> str:
         """Convert technical errors to user-friendly messages."""

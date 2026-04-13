@@ -1,7 +1,9 @@
 """
 Awakening Event System
 """
+import logging
 from datetime import datetime
+from enum import Enum
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -51,7 +53,6 @@ class AwakenEvent(BaseEvent):
     event_type: AwakeningEventType = Field(default=AwakeningEventType.AWAKENING_COMPLETE)
     timestamp: datetime = Field(default_factory=datetime.now)
     source: str = "awakening"
-    data: dict[str, Any] = Field(default_factory=dict)
 
 
 class DeviceConnectedEvent(AwakenEvent):

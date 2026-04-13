@@ -27,6 +27,12 @@ class ResourceResponse(BaseModel):
     created_at: str
 
 
+class OperationResponse(BaseModel):
+    """Simple operation status response."""
+    status: str
+    id: int
+
+
 @router.get("", response_model=list[ResourceResponse])
 async def list_resources(project_id: int):
     """List all pinned resources for a project."""
@@ -99,7 +105,7 @@ async def create_resource(project_id: int, req: ResourceCreate):
         raise HTTPException(500, str(e))
 
 
-@router.delete("/{resource_id}")
+@router.delete("/{resource_id}", response_model=OperationResponse)
 async def delete_resource(project_id: int, resource_id: int):
     """Remove a resource."""
     try:
@@ -107,14 +113,14 @@ async def delete_resource(project_id: int, resource_id: int):
             resource = await session.get(ProjectResource, resource_id)
             if not resource:
                 # Silent success if already gone
-                return {"status": "success", "id": resource_id}
+                return OperationResponse(status="success", id=resource_id)
 
             if resource.project_id != project_id:
                 raise HTTPException(403, "Resource access denied")
 
             await session.delete(resource)
             await session.commit()
-            return {"status": "success", "id": resource_id}
+            return OperationResponse(status="success", id=resource_id)
     except HTTPException:
         raise
     except Exception as e:

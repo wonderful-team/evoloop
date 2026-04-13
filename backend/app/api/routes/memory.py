@@ -75,6 +75,29 @@ class VectorSearchResponse(BaseModel):
     search_type: str
 
 
+class HybridResultItem(BaseModel):
+    """Single item in hybrid search results."""
+    type: str
+    score: float
+    data: dict[str, Any]
+
+
+class HybridSearchResponse(BaseModel):
+    """Hybrid search response."""
+    results: list[HybridResultItem]
+    total: int
+    query: str
+    search_type: str
+    vector_results_count: int | None = None
+    text_results_count: int | None = None
+
+
+class ConceptOperationResponse(BaseModel):
+    """Response for concept add/delete/update operations."""
+    status: str
+    name: str
+
+
 @router.get("/concepts", response_model=list[ConceptResponse])
 async def list_concepts(project_id: int, manager=Depends(get_memory_manager)):
     """
@@ -142,7 +165,7 @@ async def get_concept(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/concepts")
+@router.post("/concepts", response_model=ConceptOperationResponse)
 async def add_concept(
     project_id: int, req: ConceptCreate, manager=Depends(get_memory_manager)
 ):
@@ -154,7 +177,7 @@ async def add_concept(
 
         concept = Concept(req.name, req.description, project_id, req.related_files)
         await manager.long_term.store_concept(concept)
-        return {"status": "success", "name": req.name}
+        return ConceptOperationResponse(status="success", name=req.name)
     except Exception as e:
         logger.error(f"Failed to add concept: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -295,7 +318,7 @@ async def _perform_vector_search(
     return results
 
 
-@router.get("/search/hybrid", response_model=dict)
+@router.get("/search/hybrid", response_model=HybridSearchResponse)
 async def search_memory_hybrid(
     q: str,
     project_id: int | None = None,
@@ -312,7 +335,7 @@ async def search_memory_hybrid(
         vector_weight: Weight for vector scores (0-1), text match gets (1-weight)
     """
     if not q:
-        return {"results": [], "total": 0, "query": q, "search_type": "hybrid"}
+        return HybridSearchResponse(results=[], total=0, query=q or "", search_type="hybrid")
     
     try:
         # Get vector results
@@ -332,11 +355,11 @@ async def search_memory_hybrid(
         # Add vector results with weighted score
         for r in vector_results:
             if r["id"] not in seen_ids:
-                combined_results.append({
-                    "type": "vector",
-                    "score": r["score"] * vector_weight,
-                    "data": r
-                })
+                combined_results.append(HybridResultItem(
+                    type="vector",
+                    score=r["score"] * vector_weight,
+                    data=r
+                ))
                 seen_ids.add(r["id"])
         
         # Add text results with weighted score
@@ -344,25 +367,25 @@ async def search_memory_hybrid(
             # Generate a pseudo-ID for text results
             result_id = f"text_{r['name']}"
             if result_id not in seen_ids:
-                combined_results.append({
-                    "type": "text",
-                    "score": (1 - vector_weight) * 0.8,  # Text matches get slightly lower base score
-                    "data": r
-                })
+                combined_results.append(HybridResultItem(
+                    type="text",
+                    score=(1 - vector_weight) * 0.8,  # Text matches get slightly lower base score
+                    data=r
+                ))
                 seen_ids.add(result_id)
         
         # Sort by score and take top_k
         combined_results.sort(key=lambda x: x["score"], reverse=True)
         final_results = combined_results[:top_k]
         
-        return {
-            "results": final_results,
-            "total": len(final_results),
-            "query": q,
-            "search_type": "hybrid",
-            "vector_results_count": len(vector_results),
-            "text_results_count": len(text_results)
-        }
+        return HybridSearchResponse(
+            results=final_results,
+            total=len(final_results),
+            query=q,
+            search_type="hybrid",
+            vector_results_count=len(vector_results),
+            text_results_count=len(text_results)
+        )
         
     except Exception as e:
         logger.error(f"Hybrid search failed: {e}")
@@ -372,15 +395,15 @@ async def search_memory_hybrid(
             await MemoryLifespanManager.ainitialize()
         container = MemoryLifespanManager.get_container()
         text_results = await container.memory_manager.long_term.search_concepts_data(q, project_id)
-        return {
-            "results": [{"type": "text", "score": 1.0, "data": r} for r in text_results],
-            "total": len(text_results),
-            "query": q,
-            "search_type": "text_fallback"
-        }
+        return HybridSearchResponse(
+            results=[HybridResultItem(type="text", score=1.0, data=r) for r in text_results],
+            total=len(text_results),
+            query=q,
+            search_type="text_fallback"
+        )
 
 
-@router.delete("/concepts/{concept_name}")
+@router.delete("/concepts/{concept_name}", response_model=ConceptOperationResponse)
 async def delete_concept(
     project_id: int, concept_name: str, manager=Depends(get_memory_manager)
 ):
@@ -393,7 +416,7 @@ async def delete_concept(
         success = await manager.delete_memory(memory_id)
         if not success:
             raise HTTPException(status_code=404, detail="Concept not found")
-        return {"status": "success", "name": concept_name}
+        return ConceptOperationResponse(status="success", name=concept_name)
     except HTTPException:
         raise
     except Exception as e:
@@ -401,7 +424,7 @@ async def delete_concept(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.put("/concepts/{concept_name}")
+@router.put("/concepts/{concept_name}", response_model=ConceptOperationResponse)
 async def update_concept(
     project_id: int, 
     concept_name: str, 
@@ -430,7 +453,7 @@ async def update_concept(
             existing.tags = ["concept"] + other_tags + req.related_files
             
         await manager.save_memory(existing)
-        return {"status": "success", "name": concept_name}
+        return ConceptOperationResponse(status="success", name=concept_name)
     except HTTPException:
         raise
     except Exception as e:

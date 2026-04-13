@@ -2,7 +2,7 @@ import time
 import psutil
 
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.api.deps import get_current_user
 from app.infrastructure.config import EmbeddingConfigService
@@ -23,6 +23,57 @@ class SystemStatusResponse(BaseModel):
     ram_used_gb: float
     ram_total_gb: float
     status: str = "ok"
+
+
+class HealthCheckResponse(BaseModel):
+    status: str
+    service: str
+
+
+class EmbeddingTestResponse(BaseModel):
+    success: bool
+    dimensions: int | None = None
+
+
+class EmbeddingApplyResponse(BaseModel):
+    status: str
+    message: str
+
+
+class LLMTestResponse(BaseModel):
+    success: bool
+    reply: str | None = None
+
+
+class LLMApplyResponse(BaseModel):
+    status: str
+    message: str
+
+
+class ResetKnowledgeResponse(BaseModel):
+    status: str
+    message: str
+
+
+class CloudStatusResponse(BaseModel):
+    is_logged_in: bool
+    device_id: str | None = None
+    is_linked: bool
+    device_name: str
+    api_url: str
+
+
+class ModelsListResponse(BaseModel):
+    models: list[dict[str, Any]]
+    last_updated: str
+
+
+class ProjectDiscoveryConfigUpdateResponse(BaseModel):
+    success: bool
+    enabled: bool
+    message: str
+    locked: bool | None = None
+    model_config = ConfigDict(extra="allow")
 
 
 @router.get("/status", dependencies=[Depends(get_current_user)])
@@ -48,11 +99,11 @@ def get_system_config() -> list[SystemConfig]:
 
 
 @router.get("/health")
-def health_check():
+def health_check() -> HealthCheckResponse:
     """
     Simple health check for startup probing.
     """
-    return {"status": "ok", "service": "evoloop-backend"}
+    return HealthCheckResponse(status="ok", service="evoloop-backend")
 
 
 @router.post("/config", dependencies=[Depends(get_current_user)])
@@ -71,7 +122,7 @@ class EmbeddingConfigRequest(BaseModel):
 
 
 @router.post("/embedding/test", dependencies=[Depends(get_current_user)])
-async def test_embedding_connection(req: EmbeddingConfigRequest):
+async def test_embedding_connection(req: EmbeddingConfigRequest) -> EmbeddingTestResponse:
     """
     Validate connection to embedding provider.
     """
@@ -81,11 +132,11 @@ async def test_embedding_connection(req: EmbeddingConfigRequest):
         model=req.model,
         api_key=req.api_key,
     )
-    return {"success": success, "dimensions": dim}
+    return EmbeddingTestResponse(success=success, dimensions=dim)
 
 
 @router.post("/embedding/apply", dependencies=[Depends(get_current_user)])
-async def apply_embedding_config(req: EmbeddingConfigRequest):
+async def apply_embedding_config(req: EmbeddingConfigRequest) -> EmbeddingApplyResponse:
     """
     Apply new embedding config. THIS IS DESTRUCTIVE (Resets Vector DB).
     """
@@ -97,10 +148,10 @@ async def apply_embedding_config(req: EmbeddingConfigRequest):
         dimensions=req.dimensions,
         current_project_id=req.project_id,
     )
-    return {
-        "status": "applied",
-        "message": "Embedding model switched. Re-indexing triggered.",
-    }
+    return EmbeddingApplyResponse(
+        status="applied",
+        message="Embedding model switched. Re-indexing triggered.",
+    )
 
 
 # --- LLM Config ---
@@ -114,7 +165,7 @@ class LLMConfigRequest(BaseModel):
 
 
 @router.post("/llm/test", dependencies=[Depends(get_current_user)])
-async def test_llm_connection(req: LLMConfigRequest):
+async def test_llm_connection(req: LLMConfigRequest) -> LLMTestResponse:
     """
     Validate connection to LLM provider.
     """
@@ -124,11 +175,11 @@ async def test_llm_connection(req: LLMConfigRequest):
         model=req.model,
         api_key=req.api_key,
     )
-    return {"success": success, "reply": reply}
+    return LLMTestResponse(success=success, reply=reply)
 
 
 @router.post("/llm/apply", dependencies=[Depends(get_current_user)])
-async def apply_llm_config(req: LLMConfigRequest):
+async def apply_llm_config(req: LLMConfigRequest) -> LLMApplyResponse:
     """
     Apply new LLM config.
     """
@@ -147,38 +198,38 @@ async def apply_llm_config(req: LLMConfigRequest):
     from app.infrastructure.llm.factory import LLMFactory
     LLMFactory.clear_cache()
 
-    return {"status": "applied", "message": "LLM Configuration applied successfully."}
+    return LLMApplyResponse(status="applied", message="LLM Configuration applied successfully.")
 
 
 @router.post("/reset-knowledge", dependencies=[Depends(get_current_user)])
-async def reset_knowledge_base():
+async def reset_knowledge_base() -> ResetKnowledgeResponse:
     """
     [DANGER] Wipe the entire Knowledge Base (Neo4j + Postgres Index).
     """
     from app.domain.knowledge.maintenance import wipe_knowledge_base
 
     await wipe_knowledge_base()
-    return {"status": "success", "message": "Knowledge Base Wiped."}
+    return ResetKnowledgeResponse(status="success", message="Knowledge Base Wiped.")
 
 
 @router.get("/cloud-status")
-async def get_cloud_status():
+async def get_cloud_status() -> CloudStatusResponse:
     """
     Debug endpoint to check EvoCloud connection status.
     """
     from app.core.evocloud import evocloud_manager
 
-    return {
-        "is_logged_in": bool(evocloud_manager.get_token()),
-        "device_id": evocloud_manager.device_id,
-        "is_linked": evocloud_manager.link.is_connected() if evocloud_manager.link else False,
-        "device_name": evocloud_manager.link.device_name if evocloud_manager.link else "Unknown",
-        "api_url": evocloud_manager.api.base_url if evocloud_manager.api else "Unknown"
-    }
+    return CloudStatusResponse(
+        is_logged_in=bool(evocloud_manager.get_token()),
+        device_id=evocloud_manager.device_id,
+        is_linked=evocloud_manager.link.is_connected() if evocloud_manager.link else False,
+        device_name=evocloud_manager.link.device_name if evocloud_manager.link else "Unknown",
+        api_url=evocloud_manager.api.base_url if evocloud_manager.api else "Unknown",
+    )
 
 
 @router.get("/llm/models")
-async def get_llm_models(config_type: str = None):
+async def get_llm_models(config_type: str = None) -> ModelsListResponse:
     """
     获取可用的 LLM 模型列表
     
@@ -192,22 +243,22 @@ async def get_llm_models(config_type: str = None):
         符合条件的模型列表
     """
     models = await get_available_llm_models(config_type=config_type)
-    return {
-        "models": models,
-        "last_updated": time.strftime("%Y-%m-%d")
-    }
+    return ModelsListResponse(
+        models=models,
+        last_updated=time.strftime("%Y-%m-%d")
+    )
 
 
 @router.get("/embedding/models")
-async def get_embedding_models():
+async def get_embedding_models() -> ModelsListResponse:
     """
     获取可用的 Embedding 模型列表（包含平台模型和自定义模型）
     """
     models = await get_available_embedding_models()
-    return {
-        "models": models,
-        "last_updated": time.strftime("%Y-%m-%d")
-    }
+    return ModelsListResponse(
+        models=models,
+        last_updated=time.strftime("%Y-%m-%d")
+    )
 
 
 # --- Project Discovery Config ---
@@ -247,7 +298,7 @@ class ProjectDiscoveryConfigRequest(BaseModel):
 
 
 @router.post("/project-discovery/config", dependencies=[Depends(get_current_user)])
-async def set_project_discovery_config(req: ProjectDiscoveryConfigRequest):
+async def set_project_discovery_config(req: ProjectDiscoveryConfigRequest) -> ProjectDiscoveryConfigUpdateResponse:
     """
     设置项目自动发现功能的启用/禁用状态。
     
@@ -258,18 +309,18 @@ async def set_project_discovery_config(req: ProjectDiscoveryConfigRequest):
     
     # Check if disabled by environment variable
     if not settings.ENABLE_PROJECT_DISCOVERY:
-        return {
-            "success": False,
-            "message": "Project discovery is disabled by environment variable (ENABLE_PROJECT_DISCOVERY=false). Cannot enable via API.",
-            "enabled": False,
-            "locked": True
-        }
+        return ProjectDiscoveryConfigUpdateResponse(
+            success=False,
+            message="Project discovery is disabled by environment variable (ENABLE_PROJECT_DISCOVERY=false). Cannot enable via API.",
+            enabled=False,
+            locked=True
+        )
     
     # Set the configuration
     success = await discovery_manager.set_discovery_enabled(req.enabled)
     
-    return {
-        "success": success,
-        "enabled": req.enabled,
-        "message": f"Project discovery {'enabled' if req.enabled else 'disabled'} successfully"
-    }
+    return ProjectDiscoveryConfigUpdateResponse(
+        success=success,
+        enabled=req.enabled,
+        message=f"Project discovery {'enabled' if req.enabled else 'disabled'} successfully"
+    )

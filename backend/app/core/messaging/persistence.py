@@ -12,7 +12,19 @@ from typing import Optional
 
 from app.core.messaging.category import MessageCategory
 
+from pydantic import BaseModel, ConfigDict
+from app.utils.model_helpers import LegacyDictMixin
+
 logger = logging.getLogger(__name__)
+
+
+class PersistencePolicyResult(BaseModel, LegacyDictMixin):
+    model_config = ConfigDict(extra="allow")
+    should_persist: bool
+    content: str | None = None
+    thinking: str | None = None
+    tool_calls: list | None = None
+    category: str
 
 
 class MessagePersistencePolicy:
@@ -88,7 +100,7 @@ class MessagePersistencePolicy:
         content: str,
         tool_calls: Optional[list] = None,
         thinking: Optional[str] = None,
-    ) -> dict:
+    ) -> PersistencePolicyResult:
         """
         应用持久化策略，返回处理后的数据
         
@@ -112,13 +124,13 @@ class MessagePersistencePolicy:
         storage_field = cls.get_storage_field(category)
         should_store_tools = cls.should_store_tool_calls(category)
         
-        result = {
-            "should_persist": should_persist,
-            "content": None,
-            "thinking": None,
-            "tool_calls": tool_calls if should_store_tools else None,
-            "category": category.value,
-        }
+        result = PersistencePolicyResult(
+            should_persist=should_persist,
+            content=None,
+            thinking=None,
+            tool_calls=tool_calls if should_store_tools else None,
+            category=category.value,
+        )
         
         if not should_persist:
             logger.debug(f"[PersistencePolicy] Skipping {category.value} message")

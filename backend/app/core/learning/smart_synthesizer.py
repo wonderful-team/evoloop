@@ -2,7 +2,27 @@ import logging
 import json
 from typing import Any, Dict, List, Optional
 
+from pydantic import BaseModel, ConfigDict, Field
+from app.utils.model_helpers import LegacyDictMixin
+
 logger = logging.getLogger(__name__)
+
+
+class SynthesizedSopConfig(BaseModel, LegacyDictMixin):
+    """Result of smart synthesis: a Phase 4 graph configuration."""
+    model_config = ConfigDict(extra="allow")
+    name: str = "synthesized_sop"
+    version: str = "1.0"
+    nodes: List[dict] = Field(default_factory=list)
+    edges: List[dict] = Field(default_factory=list)
+
+
+class TraceAction(BaseModel, LegacyDictMixin):
+    """A single action extracted from a trace."""
+    model_config = ConfigDict(extra="allow")
+    action: str
+    target: Optional[str] = None
+    params: dict = Field(default_factory=dict)
 
 
 class SmartSynthesizer:
@@ -25,7 +45,7 @@ class SmartSynthesizer:
         self.task_goal = task_goal
         self.annotations = annotations or []
 
-    async def synthesize(self, trace_file_path: Optional[str] = None) -> Dict[str, Any]:
+    async def synthesize(self, trace_file_path: Optional[str] = None) -> SynthesizedSopConfig:
         """
         Main entry point for synthesis.
         Reads a trace file and returns a Phase 4 compatible YAML structure.
@@ -58,19 +78,19 @@ class SmartSynthesizer:
         
         return sop_config
 
-    def _extract_patterns(self, traces: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def _extract_patterns(self, traces: List[Dict[str, Any]]) -> List[TraceAction]:
         """Identifies repeating sequences or logical groups of actions."""
         # Simplified for V1: Just group into a flat list of distinct steps
         patterns = []
         for t in traces:
-            patterns.append({
-                "action": t["action_type"],
-                "target": t["parameters"].get("element_name") or t["parameters"].get("text"),
-                "params": t["parameters"]
-            })
+            patterns.append(TraceAction(
+                action=t["action_type"],
+                target=t["parameters"].get("element_name") or t["parameters"].get("text"),
+                params=t["parameters"]
+            ))
         return patterns
 
-    async def _reason_sop_structure(self, patterns: List[Dict[str, Any]]) -> Dict[str, Any]:
+    async def _reason_sop_structure(self, patterns: List[TraceAction]) -> SynthesizedSopConfig:
         """
         Converts patterns into a Phase 4 Graph configuration.
         In a real implementation, this calls GPT-4o with the trace context.
@@ -85,7 +105,7 @@ class SmartSynthesizer:
             nodes.append({
                 "id": node_id,
                 "path": "app.core.engine.nodes.worker.worker_node",
-                "config": {"intent": f"Perform {step['action']} on {step['target']}"},
+                "config": {"intent": f"Perform {step.action} on {step.target}"},
                 "tools": ["mobile_control"]
             })
             if i > 0:
@@ -95,9 +115,9 @@ class SmartSynthesizer:
                     "type": "simple"
                 })
 
-        return {
-            "name": "synthesized_sop",
-            "version": "1.0",
-            "nodes": nodes,
-            "edges": edges
-        }
+        return SynthesizedSopConfig(
+            name="synthesized_sop",
+            version="1.0",
+            nodes=nodes,
+            edges=edges
+        )

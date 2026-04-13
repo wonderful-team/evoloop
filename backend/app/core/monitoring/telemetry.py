@@ -4,7 +4,13 @@ import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
+from app.utils.model_helpers import LegacyDictMixin
+
+
+class TelemetryMetadata(BaseModel, LegacyDictMixin):
+    """Dynamic metadata attached to an inference telemetry event."""
+    model_config = ConfigDict(extra="allow")
 
 
 class PromptStats(BaseModel):
@@ -37,7 +43,7 @@ class InferenceEvent(BaseModel):
     prompt: PromptStats
     usage: UsageMetadata
     response: ResponseStats
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    metadata: TelemetryMetadata = Field(default_factory=TelemetryMetadata)
 
 
 class TelemetryCollector:
@@ -112,7 +118,7 @@ class TelemetryCollector:
                 prompt=prompt,
                 usage=usage,
                 response=response,
-                metadata=metadata or {}
+                metadata=TelemetryMetadata(**(metadata or {}))
             )
             
             with open(self.current_log_file, "a", encoding="utf-8") as f:

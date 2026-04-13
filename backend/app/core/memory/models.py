@@ -4,7 +4,7 @@ import yaml
 from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional, Union
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from app.utils.model_helpers import LegacyDictMixin
 
 
@@ -20,6 +20,13 @@ class PrivacyLevel(str, Enum):
     """Privacy scope for memory entries."""
     PRIVATE = "private"
     TEAM = "team"
+
+
+class MemoryMetadata(BaseModel, LegacyDictMixin):
+    model_config = ConfigDict(extra="allow")
+    source_url: Optional[str] = None
+    author: Optional[str] = None
+    related_message_ids: List[str] = Field(default_factory=list)
 
 
 class MemoryEntry(BaseModel, LegacyDictMixin):
@@ -55,7 +62,7 @@ class MemoryEntry(BaseModel, LegacyDictMixin):
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     
     # Additional metadata
-    extra: Dict[str, Any] = Field(default_factory=dict)
+    extra: MemoryMetadata = Field(default_factory=MemoryMetadata)
 
     @model_validator(mode='before')
     @classmethod

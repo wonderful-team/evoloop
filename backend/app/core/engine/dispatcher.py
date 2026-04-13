@@ -7,6 +7,7 @@ from langchain_core.runnables import RunnableConfig
 
 from app.core.engine.routers import RoutingTarget
 from app.core.engine.signals import RouteToSignal, SpawnSubtasksSignal, TerminateSignal
+from app.core.engine.state import StateUpdate
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +19,7 @@ class SignalDispatcher:
     """
 
     @staticmethod
-    async def dispatch(state: dict, signal: Any, config: RunnableConfig) -> dict:
+    async def dispatch(state: dict, signal: Any, config: RunnableConfig) -> StateUpdate:
         """
         Dispatches the signal and returns the updated state for the next node.
         """
@@ -30,10 +31,10 @@ class SignalDispatcher:
             return await SignalDispatcher._handle_terminate(state, signal, config)
         
         logger.warning(f"[Dispatcher] Unknown signal type: {type(signal)}")
-        return {"next_node": RoutingTarget.SUPERVISOR}
+        return StateUpdate(next_node=RoutingTarget.SUPERVISOR)
 
     @staticmethod
-    async def _handle_route_to(state: dict, signal: RouteToSignal, config: RunnableConfig) -> dict:
+    async def _handle_route_to(state: dict, signal: RouteToSignal, config: RunnableConfig) -> StateUpdate:
         target = signal.target
         reason = signal.reason
         routing_context = signal.context
@@ -87,14 +88,14 @@ class SignalDispatcher:
             visited_nodes = visited_nodes + [target]
         blackboard["visited_nodes"] = visited_nodes
 
-        return {
-            "next_node": target,
-            "blackboard": blackboard,
-            "execution_ticket": execution_ticket
-        }
+        return StateUpdate(
+            next_node=target,
+            blackboard=blackboard,
+            execution_ticket=execution_ticket
+        )
 
     @staticmethod
-    async def _handle_spawn_subtasks(state: dict, signal: SpawnSubtasksSignal, config: RunnableConfig) -> dict:
+    async def _handle_spawn_subtasks(state: dict, signal: SpawnSubtasksSignal, config: RunnableConfig) -> StateUpdate:
         spawn_plan = signal.plan
         logger.info(f"[Dispatcher] 🚀 Spawning {len(spawn_plan.get('subtasks', []))} parallel subtasks")
 
@@ -108,13 +109,13 @@ class SignalDispatcher:
                 "parent_task": spawn_plan.get("parent_task", "")
             }
 
-        return {
-            "next_node": RoutingTarget.SPAWN_SUBTASKS,
-            "blackboard": blackboard
-        }
+        return StateUpdate(
+            next_node=RoutingTarget.SPAWN_SUBTASKS,
+            blackboard=blackboard
+        )
 
     @staticmethod
-    async def _handle_terminate(state: dict, signal: TerminateSignal, config: RunnableConfig) -> dict:
+    async def _handle_terminate(state: dict, signal: TerminateSignal, config: RunnableConfig) -> StateUpdate:
         logger.info(f"[Dispatcher] 🏁 Natural Termination Signal received. Outcome: {signal.outcome}")
         
         blackboard = copy.deepcopy(state.get("blackboard", {}))
@@ -123,7 +124,7 @@ class SignalDispatcher:
         metadata["termination_outcome"] = signal.outcome
         blackboard["metadata"] = metadata
 
-        return {
-            "next_node": RoutingTarget.FINISH,
-            "blackboard": blackboard
-        }
+        return StateUpdate(
+            next_node=RoutingTarget.FINISH,
+            blackboard=blackboard
+        )

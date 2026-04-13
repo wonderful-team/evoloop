@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -8,7 +9,23 @@ from app.models import CodeEntity, Repository
 router = APIRouter()
 
 
-@router.get("/projects/{project_id}/symbols", response_model=list[dict])
+class SymbolResponse(BaseModel):
+    """Code symbol search result."""
+    id: int
+    name: str
+    full_name: str
+    type: str
+    file_path: str
+    start_line: int
+    end_line: int
+
+
+class SymbolWikiResponse(BaseModel):
+    """Response for symbol wiki generation."""
+    content: str
+
+
+@router.get("/projects/{project_id}/symbols", response_model=list[SymbolResponse])
 async def search_symbols(
     project_id: int,
     q: str = Query(..., min_length=2, description="Search query for symbol name"),
@@ -52,23 +69,23 @@ async def search_symbols(
     # 3. Format Response
     response = []
     for ent in entities:
-        response.append({
-            "id": ent.id,
-            "name": ent.name,
-            "full_name": ent.full_name,
-            "type": ent.type,
-            "file_path": ent.file.path, # Lazy load might trigger query, async accessible?
+        response.append(SymbolResponse(
+            id=ent.id,
+            name=ent.name,
+            full_name=ent.full_name,
+            type=ent.type,
+            file_path=ent.file.path, # Lazy load might trigger query, async accessible?
             # Warning: accessing relationship in async loop without selectinload might fail or be slow.
             # Ideally we should use selectinload(CodeEntity.file) in the query.
             # Let's fix query options.
-            "start_line": ent.start_line,
-            "end_line": ent.end_line
-        })
+            start_line=ent.start_line,
+            end_line=ent.end_line
+        ))
 
     return response
 
 
-@router.post("/projects/{project_id}/symbols/{symbol_id}/wiki")
+@router.post("/projects/{project_id}/symbols/{symbol_id}/wiki", response_model=SymbolWikiResponse)
 async def generate_symbol_wiki(
     _project_id: int, symbol_id: int, db: AsyncSession = Depends(get_db)
 ):
@@ -83,7 +100,7 @@ async def generate_symbol_wiki(
     wiki_service = WikiService(db)
     try:
         content = await wiki_service.generate_doc_for_entity(symbol_id)
-        return {"content": content}
+        return SymbolWikiResponse(content=content)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:

@@ -31,6 +31,10 @@ from .system import Tool as Tool
 from .todo import TodoItem as TodoItem
 from .todo import TodoPriority as TodoPriority
 from .todo import TodoStatus as TodoStatus
+from .auth import CacheInvalidateResponse as CacheInvalidateResponse
+from .auth import EvoCloudProxyResponse as EvoCloudProxyResponse
+from .auth import LoginResult as LoginResult
+from .auth import MemberBenefitsResponse as MemberBenefitsResponse
 from .wiki import WikiPage as WikiPage
 
 __all__ = [
@@ -72,6 +76,10 @@ __all__ = [
     "User",
     "UserPublic",
     "UsersPublic",
+    "EvoCloudProxyResponse",
+    "LoginResult",
+    "MemberBenefitsResponse",
+    "CacheInvalidateResponse",
 ]
 
 

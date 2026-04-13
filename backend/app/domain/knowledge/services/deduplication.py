@@ -29,13 +29,35 @@ class DuplicateResult(BaseModel, LegacyDictMixin):
     suggested_action: str  # "keep", "merge", "delete"
 
 
+class MergeSuggestion(BaseModel, LegacyDictMixin):
+    """Suggested document merge."""
+    documents: list[str]
+    suggested_title: str
+    strategy: str  # "concatenate", "diff", "selective"
+
+
+class MergeResult(BaseModel, LegacyDictMixin):
+    """Result of merging documents."""
+    success: bool
+    path: Optional[str] = None
+    source_count: Optional[int] = None
+    strategy: Optional[str] = None
+    error: Optional[str] = None
+
+
+class DeleteDuplicatesResult(BaseModel, LegacyDictMixin):
+    """Result of deleting duplicate documents."""
+    deleted: int
+    errors: list[dict] = Field(default_factory=list)
+
+
 class DeduplicationReport(BaseModel, LegacyDictMixin):
     """Complete deduplication analysis."""
     total_documents: int
     exact_duplicates: list[tuple[str, str]] = Field(default_factory=list)  # pairs of doc_ids
     similar_documents: list[list[str]] = Field(default_factory=list)  # groups of similar docs
-    potential_merges: list[dict] = Field(default_factory=list)  # suggested merges
-    
+    potential_merges: list[MergeSuggestion] = Field(default_factory=list)  # suggested merges
+
     def to_dict(self) -> dict:
         """Backward compatibility for existing code calling to_dict manually."""
         return {
@@ -44,7 +66,7 @@ class DeduplicationReport(BaseModel, LegacyDictMixin):
             "similar_group_count": len(self.similar_documents),
             "exact_duplicates": self.exact_duplicates[:20],
             "similar_groups": self.similar_documents[:10],
-            "potential_merges": self.potential_merges[:10]
+            "potential_merges": [m.model_dump() for m in self.potential_merges[:10]]
         }
 
 
@@ -136,47 +158,47 @@ class DeduplicationService:
         for doc in documents:
             try:
                 # Read document content
-                result = self.store.read_document(doc["path"])
-                doc_content = result.get("content", "")
-                doc_title = doc.get("title", doc["path"])
-                
+                result = self.store.read_document(doc.path)
+                doc_content = result.content
+                doc_title = doc.title
+
                 # Check exact match
                 doc_hash = self._compute_content_hash(doc_content)
                 if doc_hash == content_hash:
                     similar.append(DuplicateResult(
-                        doc_id=doc["path"],
-                        path=doc["path"],
+                        doc_id=doc.path,
+                        path=doc.path,
                         similarity=1.0,
                         match_type="exact",
                         suggested_action="delete"
                     ))
                     continue
-                
+
                 # Check content similarity
                 content_sim = self._similarity_score(content, doc_content)
                 if content_sim >= threshold:
                     similar.append(DuplicateResult(
-                        doc_id=doc["path"],
-                        path=doc["path"],
+                        doc_id=doc.path,
+                        path=doc.path,
                         similarity=content_sim,
                         match_type="content",
                         suggested_action="merge" if content_sim > 0.9 else "review"
                     ))
                     continue
-                
+
                 # Check title similarity
                 title_sim = self._similarity_score(title.lower(), doc_title.lower())
                 if title_sim >= 0.9:
                     similar.append(DuplicateResult(
-                        doc_id=doc["path"],
-                        path=doc["path"],
+                        doc_id=doc.path,
+                        path=doc.path,
                         similarity=title_sim,
                         match_type="title",
                         suggested_action="review"
                     ))
-            
+
             except Exception as e:
-                logger.warning(f"Failed to compare with {doc['path']}: {e}")
+                logger.warning(f"Failed to compare with {doc.path}: {e}")
         
         # Sort by similarity descending
         similar.sort(key=lambda x: x.similarity, reverse=True)
@@ -203,12 +225,12 @@ class DeduplicationService:
         
         for doc in documents:
             try:
-                result = self.store.read_document(doc["path"])
-                content = result.get("content", "")
-                doc_contents[doc["path"]] = content
-                doc_hashes[doc["path"]] = self._compute_content_hash(content)
+                result = self.store.read_document(doc.path)
+                content = result.content
+                doc_contents[doc.path] = content
+                doc_hashes[doc.path] = self._compute_content_hash(content)
             except Exception as e:
-                logger.warning(f"Failed to read {doc['path']}: {e}")
+                logger.warning(f"Failed to read {doc.path}: {e}")
         
         # Find exact duplicates
         hash_to_docs = {}
@@ -252,11 +274,13 @@ class DeduplicationService:
         # Generate merge suggestions
         potential_merges = []
         for group in similar_groups[:5]:
-            potential_merges.append({
-                "documents": group,
-                "suggested_title": self._suggest_merge_title(group),
-                "strategy": "concatenate"  # or "diff", "selective"
-            })
+            potential_merges.append(
+                MergeSuggestion(
+                    documents=group,
+                    suggested_title=self._suggest_merge_title(group),
+                    strategy="concatenate"  # or "diff", "selective"
+                )
+            )
         
         return DeduplicationReport(
             total_documents=len(documents),
@@ -273,7 +297,7 @@ class DeduplicationService:
             try:
                 result = self.store.read_document(path)
                 # Extract title from content (first h1)
-                content = result.get("content", "")
+                content = result.content
                 if content.startswith("# "):
                     title = content[2:content.find('\n')]
                     titles.append(title)
@@ -297,7 +321,7 @@ class DeduplicationService:
         source_paths: list[str],
         target_path: Optional[str] = None,
         strategy: str = "concatenate"
-    ) -> dict:
+    ) -> MergeResult:
         """
         Merge multiple documents into one.
         
@@ -310,14 +334,14 @@ class DeduplicationService:
             Result info with merged document path
         """
         if len(source_paths) < 2:
-            return {"success": False, "error": "Need at least 2 documents to merge"}
-        
+            return MergeResult(success=False, error="Need at least 2 documents to merge")
+
         try:
             # Read all documents
             contents = []
             for path in source_paths:
                 result = self.store.read_document(path)
-                contents.append(result.get("content", ""))
+                contents.append(result.content)
             
             if strategy == "concatenate":
                 merged_content = "\n\n---\n\n".join(contents)
@@ -351,22 +375,22 @@ class DeduplicationService:
             target_path = "/".join(target.split("/")[1:]) if "/" in target else target
             self.store.save_document(merged_doc, collection=target_collection, path=target_path)
             
-            return {
-                "success": True,
-                "path": target,
-                "source_count": len(source_paths),
-                "strategy": strategy
-            }
-        
+            return MergeResult(
+                success=True,
+                path=target,
+                source_count=len(source_paths),
+                strategy=strategy
+            )
+
         except Exception as e:
             logger.error(f"Merge failed: {e}")
-            return {"success": False, "error": str(e)}
+            return MergeResult(success=False, error=str(e))
     
     async def delete_duplicates(
         self,
         duplicate_pairs: list[tuple[str, str]],
         keep_oldest: bool = True
-    ) -> dict:
+    ) -> DeleteDuplicatesResult:
         """
         Delete duplicate documents, keeping one copy.
         
@@ -379,7 +403,7 @@ class DeduplicationService:
         """
         deleted = 0
         errors = []
-        
+
         for pair in duplicate_pairs:
             try:
                 if len(pair) == 2:
@@ -387,14 +411,11 @@ class DeduplicationService:
                 else:
                     # Single item - skip
                     continue
-                
+
                 self.store.delete_document(to_delete)
                 deleted += 1
-            
+
             except Exception as e:
                 errors.append({"path": to_delete, "error": str(e)})
-        
-        return {
-            "deleted": deleted,
-            "errors": errors
-        }
+
+        return DeleteDuplicatesResult(deleted=deleted, errors=errors)

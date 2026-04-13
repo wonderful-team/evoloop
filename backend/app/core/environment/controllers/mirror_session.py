@@ -9,10 +9,11 @@ import subprocess
 import threading
 import time
 from pathlib import Path
-from typing import Any
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.core.config import settings
-from .android_event_recorder import AndroidEventRecorder
+from app.utils.model_helpers import LegacyDictMixin
+from .android_event_recorder import AndroidEventRecorder, AndroidTraceEvent
 
 logger = logging.getLogger(__name__)
 
@@ -37,10 +38,35 @@ class MirrorSession:
         self.should_be_active = False  # Persists through disconnects
         self.video_path: str | None = None  # Path to recorded video file
 
+
+class MirrorSessionStopResult(BaseModel, LegacyDictMixin):
+    model_config = ConfigDict(extra="allow")
+    video_path: str | None = None
+    events: list[AndroidTraceEvent] = Field(default_factory=list)
+    session_id: str
+
+
+class MirrorSession:
+    """
+    Represents a single active scrcpy mirroring session.
+    """
+    def __init__(self, session_id: str, device_id: str):
+        self.session_id = session_id
+        self.device_id = device_id
+        self.process: subprocess.Popen | None = None
+        self.is_active = False
+
+        # Video timestamp synchronization
+        self._video_start_time: float | None = None  # Unix timestamp when video recording started
+        self.port: int | None = None
+        self.error: str | None = None
+        self.should_be_active = False  # Persists through disconnects
+        self.video_path: str | None = None  # Path to recorded video file
+
         # Real-time event persistence
         self.event_recorder: AndroidEventRecorder | None = None
         self._recording_started = False
-        self.captured_events: list[dict] = []
+        self.captured_events: list[AndroidTraceEvent] = []
         self._event_queue = asyncio.Queue()
         self._persist_task = None
         self._step_counter = 0
@@ -109,7 +135,7 @@ class MirrorSession:
         if batch_buffer:
             await self._persist_event_batch(batch_buffer)
 
-    async def _persist_event_batch(self, events: list):
+    async def _persist_event_batch(self, events: list[AndroidTraceEvent]):
         """Persist a batch of events to database."""
         from app.infrastructure.database.sql.database import session_scope
         from app.models import TraceEvent
@@ -127,7 +153,7 @@ class MirrorSession:
                         recording_session_id=self.session_id,
                         thread_id="global",  # Mirror sessions use global thread
                         step_number=self._step_counter - len(events) + events.index(event_data) + 1,
-                        node_name=event_data.get("node_name", self.device_id),
+                        node_name=payload.get("node_name", self.device_id),
                         action_type="user_interaction",
                         timestamp=event_data["timestamp"],
                         event_type=event_data["event_type"],
@@ -281,13 +307,13 @@ class MirrorSession:
         recorder = AndroidEventRecorder()
         return recorder.get_current_package(self.device_id)
 
-    def stop(self) -> dict[str, Any] | None:
+    def stop(self) -> MirrorSessionStopResult | None:
         """
         Terminate the scrcpy process and stop event recording.
-        Returns dict with video_path and events (events are already persisted in real-time via _persist_loop).
+        Returns result with video_path and events (events are already persisted in real-time via _persist_loop).
         """
         # Stop event recording first
-        captured_events = []
+        captured_events: list[AndroidTraceEvent] = []
         if self.event_recorder and self._recording_started:
             android_events = self.event_recorder.stop_recording()
             captured_events = self.event_recorder.to_trace_events(
@@ -319,11 +345,11 @@ class MirrorSession:
         video_path = self.video_path
         if video_path and os.path.exists(video_path):
             logger.info(f"Mirror session {self.session_id} stopped. Video saved to: {video_path}")
-            return {
-                "video_path": video_path,
-                "events": captured_events,
-                "session_id": self.session_id
-            }
+            return MirrorSessionStopResult(
+                video_path=video_path,
+                events=captured_events,
+                session_id=self.session_id
+            )
         else:
             logger.warning(f"Mirror session {self.session_id} stopped but video file not found: {video_path}")
             return None
@@ -363,7 +389,7 @@ class MirrorSessionManager:
 
         return session.start_recording()
 
-    def stop_session(self, session_id: str) -> dict[str, Any] | None:
+    def stop_session(self, session_id: str) -> MirrorSessionStopResult | None:
         """Stop session and return video path and events."""
         session = self.sessions.pop(session_id, None)
         if session:
@@ -379,7 +405,7 @@ class MirrorSessionManager:
             return result
         return None
 
-    def get_session_events(self, session_id: str) -> list[dict]:
+    def get_session_events(self, session_id: str) -> list[AndroidTraceEvent]:
         """Get captured events for a session (for reference; events are already persisted in real-time)."""
         session = self.get_session(session_id)
         if session:

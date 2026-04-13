@@ -36,6 +36,82 @@ class UpdateProjectRequest(BaseModel):
     path: str | None = None
 
 
+class ProjectStatusActivity(BaseModel):
+    """System task activity state."""
+    status: str = "idle"
+    updated_at: float = 0.0
+    agent_state: dict = {}
+    steps: list = []
+
+
+class ProjectStatusResponse(BaseModel):
+    """Real-time project system status."""
+    indexing: ProjectStatusActivity
+    summarization: ProjectStatusActivity
+    wiki: ProjectStatusActivity
+
+
+class ProjectDeleteResponse(BaseModel):
+    """Project deletion response."""
+    status: str
+    id: int
+
+
+class IndexingRunResponse(BaseModel):
+    """Indexing dispatch response."""
+    status: str
+    project_id: int
+
+
+class DetectedProjectItem(BaseModel):
+    """Detected project awaiting import."""
+    id: int
+    name: str
+    path: str | None
+    detected_at: str | None
+
+
+class DetectedProjectsResponse(BaseModel):
+    """Response for detected projects."""
+    items: list[DetectedProjectItem]
+
+
+class ImportProjectResponse(BaseModel):
+    """Project import response."""
+    status: str
+    repo_id: int
+    name: str
+    message: str
+
+
+class IgnoreProjectResponse(BaseModel):
+    """Project ignore response."""
+    status: str
+    repo_id: int
+
+
+class UnignoreProjectResponse(BaseModel):
+    """Project unignore response."""
+    status: str
+    repo_id: int
+    name: str
+    message: str
+
+
+class BatchResultItem(BaseModel):
+    """Single result in batch operation."""
+    repo_id: int
+    name: str | None = None
+    error: str | None = None
+
+
+class BatchImportResponse(BaseModel):
+    """Batch import response."""
+    status: str
+    summary: str
+    results: dict[str, list[BatchResultItem]]
+
+
 def _extract_projects(response: dict | list) -> tuple[list, dict | None]:
     """
     Extract projects list from API response.
@@ -455,7 +531,7 @@ async def create_project(req: CreateProjectRequest, _token: TokenDep):
         raise HTTPException(500, str(e))
 
 
-@router.get("/{project_id}/status")
+@router.get("/{project_id}/status", response_model=ProjectStatusResponse)
 async def get_project_status(project_id: int):
     """
     Get real-time status of system tasks (Indexing, Summarization) for a project.
@@ -485,14 +561,14 @@ async def get_project_status(project_id: int):
             }
         except: return {"status": "idle"}
 
-    return {
-        "indexing": parse_act(results[0]),
-        "summarization": parse_act(results[1]),
-        "wiki": parse_act(results[2])
-    }
+    return ProjectStatusResponse(
+        indexing=ProjectStatusActivity.model_validate(parse_act(results[0])),
+        summarization=ProjectStatusActivity.model_validate(parse_act(results[1])),
+        wiki=ProjectStatusActivity.model_validate(parse_act(results[2]))
+    )
 
 
-@router.delete("/{project_id}")
+@router.delete("/{project_id}", response_model=ProjectDeleteResponse)
 async def delete_project(project_id: int):
     """Delete a project (Unlink from Member Center)."""
     try:
@@ -500,7 +576,7 @@ async def delete_project(project_id: int):
         if res.get("code") == 0:
             # Invalidate cache to ensure fresh data on next request
             evocloud_manager.invalidate_projects_cache()
-            return {"status": "success", "id": project_id}
+            return ProjectDeleteResponse(status="success", id=project_id)
         else:
             raise HTTPException(500, f"Failed to delete project: {res.get('message')}")
     except Exception as e:
@@ -508,20 +584,20 @@ async def delete_project(project_id: int):
         raise HTTPException(500, str(e))
 
 
-@router.post("/indexing/run")
+@router.post("/indexing/run", response_model=IndexingRunResponse)
 async def run_indexing_endpoint(req: IndexingRequest):
     """
     Trigger full indexing for a project (Celery Dispatch).
     """
     indexing_manager.dispatch_full_index(req.project_id)
-    return {"status": "queued", "project_id": req.project_id}
+    return IndexingRunResponse(status="queued", project_id=req.project_id)
 
 
 # ============================================================================
 # Project Import Management Endpoints
 # ============================================================================
 
-@router.get("/detected")
+@router.get("/detected", response_model=DetectedProjectsResponse)
 async def get_detected_projects(_token: TokenDepOptional = None):
     """
     Get all newly detected projects awaiting user confirmation.
@@ -538,7 +614,7 @@ async def get_detected_projects(_token: TokenDepOptional = None):
     # Priority: Environment Variable > System Config
     if not settings.ENABLE_PROJECT_DISCOVERY:
         logger.debug("[ProjectsAPI] Project discovery disabled by environment variable, returning empty detected list")
-        return {"items": []}
+        return DetectedProjectsResponse(items=[])
     
     config_value = SystemConfigService.get_value("PROJECT_DISCOVERY_ENABLED")
     if config_value is not None and config_value.lower() not in ("true", "1", "yes", "on"):
@@ -547,23 +623,23 @@ async def get_detected_projects(_token: TokenDepOptional = None):
 
     try:
         repos = await project_sync_service.get_detected_projects()
-        return {
-            "items": [
-                {
-                    "id": r.id,
-                    "name": r.name,
-                    "path": r.local_path,
-                    "detected_at": r.detected_at.isoformat() if r.detected_at else None,
-                }
+        return DetectedProjectsResponse(
+            items=[
+                DetectedProjectItem(
+                    id=r.id,
+                    name=r.name,
+                    path=r.local_path,
+                    detected_at=r.detected_at.isoformat() if r.detected_at else None,
+                )
                 for r in repos
             ]
-        }
+        )
     except Exception as e:
         logger.error(f"Failed to get detected projects: {e}")
         raise HTTPException(500, f"Failed to get detected projects: {str(e)}")
 
 
-@router.post("/{repo_id}/import")
+@router.post("/{repo_id}/import", response_model=ImportProjectResponse)
 async def import_detected_project(repo_id: int, _token: TokenDep):
     """
     Import a detected project (user confirmed).
@@ -577,12 +653,12 @@ async def import_detected_project(repo_id: int, _token: TokenDep):
 
     try:
         repo = await project_sync_service.import_project(repo_id)
-        return {
-            "status": "success",
-            "repo_id": repo.id,
-            "name": repo.name,
-            "message": f"Project '{repo.name}' imported successfully"
-        }
+        return ImportProjectResponse(
+            status="success",
+            repo_id=repo.id,
+            name=repo.name,
+            message=f"Project '{repo.name}' imported successfully"
+        )
     except ValueError as e:
         raise HTTPException(400, str(e))
     except Exception as e:
@@ -590,7 +666,7 @@ async def import_detected_project(repo_id: int, _token: TokenDep):
         raise HTTPException(500, f"Failed to import project: {str(e)}")
 
 
-@router.post("/{repo_id}/ignore")
+@router.post("/{repo_id}/ignore", response_model=IgnoreProjectResponse)
 async def ignore_detected_project(repo_id: int, _token: TokenDep):
     """
     Ignore a detected project (user chose not to import).
@@ -601,7 +677,7 @@ async def ignore_detected_project(repo_id: int, _token: TokenDep):
 
     try:
         await project_sync_service.ignore_project(repo_id)
-        return {"status": "ignored", "repo_id": repo_id}
+        return IgnoreProjectResponse(status="ignored", repo_id=repo_id)
     except ValueError as e:
         raise HTTPException(400, str(e))
     except Exception as e:
@@ -609,7 +685,7 @@ async def ignore_detected_project(repo_id: int, _token: TokenDep):
         raise HTTPException(500, f"Failed to ignore project: {str(e)}")
 
 
-@router.get("/ignored")
+@router.get("/ignored", response_model=DetectedProjectsResponse)
 async def get_ignored_projects(_token: TokenDep):
     """
     Get all ignored projects.
@@ -620,23 +696,23 @@ async def get_ignored_projects(_token: TokenDep):
 
     try:
         repos = await project_sync_service.get_ignored_projects()
-        return {
-            "items": [
-                {
-                    "id": r.id,
-                    "name": r.name,
-                    "path": r.local_path,
-                    "detected_at": r.detected_at.isoformat() if r.detected_at else None,
-                }
+        return DetectedProjectsResponse(
+            items=[
+                DetectedProjectItem(
+                    id=r.id,
+                    name=r.name,
+                    path=r.local_path,
+                    detected_at=r.detected_at.isoformat() if r.detected_at else None,
+                )
                 for r in repos
             ]
-        }
+        )
     except Exception as e:
         logger.error(f"Failed to get ignored projects: {e}")
         raise HTTPException(500, f"Failed to get ignored projects: {str(e)}")
 
 
-@router.post("/{repo_id}/unignore")
+@router.post("/{repo_id}/unignore", response_model=UnignoreProjectResponse)
 async def unignore_project(repo_id: int, _token: TokenDep):
     """
     Restore an ignored project to detected status.
@@ -647,12 +723,12 @@ async def unignore_project(repo_id: int, _token: TokenDep):
 
     try:
         repo = await project_sync_service.unignore_project(repo_id)
-        return {
-            "status": "restored",
-            "repo_id": repo.id,
-            "name": repo.name,
-            "message": f"Project '{repo.name}' restored to detected state"
-        }
+        return UnignoreProjectResponse(
+            status="restored",
+            repo_id=repo.id,
+            name=repo.name,
+            message=f"Project '{repo.name}' restored to detected state"
+        )
     except ValueError as e:
         raise HTTPException(400, str(e))
     except Exception as e:
@@ -664,7 +740,7 @@ class BatchImportRequest(BaseModel):
     repo_ids: list[int]
 
 
-@router.post("/batch/import")
+@router.post("/batch/import", response_model=BatchImportResponse)
 async def batch_import_projects(req: BatchImportRequest, _token: TokenDep):
     """
     Import multiple detected projects in batch.
@@ -675,69 +751,67 @@ async def batch_import_projects(req: BatchImportRequest, _token: TokenDep):
     """
     from app.domain.project.sync_service import project_sync_service
 
-    results = {
+    results: dict[str, list[BatchResultItem]] = {
         "success": [],
         "failed": [],
-        "total": len(req.repo_ids)
     }
 
     for repo_id in req.repo_ids:
         try:
             repo = await project_sync_service.import_project(repo_id)
-            results["success"].append({
-                "repo_id": repo.id,
-                "name": repo.name
-            })
+            results["success"].append(BatchResultItem(
+                repo_id=repo.id,
+                name=repo.name
+            ))
         except ValueError as e:
-            results["failed"].append({
-                "repo_id": repo_id,
-                "error": str(e)
-            })
+            results["failed"].append(BatchResultItem(
+                repo_id=repo_id,
+                error=str(e)
+            ))
         except Exception as e:
             logger.error(f"Failed to import project {repo_id}: {e}")
-            results["failed"].append({
-                "repo_id": repo_id,
-                "error": str(e)
-            })
+            results["failed"].append(BatchResultItem(
+                repo_id=repo_id,
+                error=str(e)
+            ))
 
-    return {
-        "status": "completed",
-        "summary": f"Imported {len(results['success'])} of {results['total']} projects",
-        "results": results
-    }
+    return BatchImportResponse(
+        status="completed",
+        summary=f"Imported {len(results['success'])} of {len(req.repo_ids)} projects",
+        results=results
+    )
 
 
-@router.post("/batch/ignore")
+@router.post("/batch/ignore", response_model=BatchImportResponse)
 async def batch_ignore_projects(req: BatchImportRequest, _token: TokenDep):
     """
     Ignore multiple detected projects in batch.
     """
     from app.domain.project.sync_service import project_sync_service
 
-    results = {
+    results: dict[str, list[BatchResultItem]] = {
         "success": [],
         "failed": [],
-        "total": len(req.repo_ids)
     }
 
     for repo_id in req.repo_ids:
         try:
             await project_sync_service.ignore_project(repo_id)
-            results["success"].append({"repo_id": repo_id})
+            results["success"].append(BatchResultItem(repo_id=repo_id))
         except ValueError as e:
-            results["failed"].append({
-                "repo_id": repo_id,
-                "error": str(e)
-            })
+            results["failed"].append(BatchResultItem(
+                repo_id=repo_id,
+                error=str(e)
+            ))
         except Exception as e:
             logger.error(f"Failed to ignore project {repo_id}: {e}")
-            results["failed"].append({
-                "repo_id": repo_id,
-                "error": str(e)
-            })
+            results["failed"].append(BatchResultItem(
+                repo_id=repo_id,
+                error=str(e)
+            ))
 
-    return {
-        "status": "completed",
-        "summary": f"Ignored {len(results['success'])} of {results['total']} projects",
-        "results": results
-    }
+    return BatchImportResponse(
+        status="completed",
+        summary=f"Ignored {len(results['success'])} of {len(req.repo_ids)} projects",
+        results=results
+    )

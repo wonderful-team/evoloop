@@ -11,6 +11,7 @@ from typing import Annotated
 
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import InjectedToolArg
+from pydantic import BaseModel
 
 from app.core.tools import evoloop_tool, get_working_directory
 from app.core.file.editor import EditEngine
@@ -23,6 +24,13 @@ from .utils import resolve_and_validate_path
 _background_tasks: set[asyncio.Task] = set()
 
 
+class FileEditOperation(BaseModel):
+    """Single edit operation for multiedit_file."""
+    target: str
+    replacement: str
+    allow_multiple: bool = False
+
+
 @evoloop_tool(
     is_state_mutating=True,
     affected_path_keys=["path"],
@@ -32,7 +40,7 @@ _background_tasks: set[asyncio.Task] = set()
 )
 async def multiedit_file(
     path: str | None = None,
-    edits: list[dict] | None = None,
+    edits: list[FileEditOperation] | None = None,
     expected_hash: str | None = None,
     verify_types: bool = True,
     config: Annotated[RunnableConfig, InjectedToolArg] = None,
@@ -146,12 +154,15 @@ async def multiedit_file(
         validated_edits = []
 
         for i, edit in enumerate(edits):
-            if not isinstance(edit, dict):
-                return "Edit #{i+1} is not a valid dictionary. Each edit must be {'target': '...', 'replacement': '...'}"
+            if not isinstance(edit, (FileEditOperation, dict)):
+                return "Edit #{i+1} is not a valid edit operation. Each edit must be FileEditOperation(target='...', replacement='...')"
 
-            target = edit.get("target", "")
-            replacement = edit.get("replacement", "")
-            allow_multiple = edit.get("allow_multiple", False)
+            if isinstance(edit, dict):
+                edit = FileEditOperation.model_validate(edit)
+
+            target = edit.target
+            replacement = edit.replacement
+            allow_multiple = edit.allow_multiple
 
             # Safety check: target length
             if len(target.strip()) < 3:

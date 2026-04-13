@@ -176,6 +176,33 @@ class OpenFileRequest(BaseModel):
     path: str
 
 
+class OpenFileResponse(BaseModel):
+    """Response for opening a file."""
+    status: str
+    message: str
+
+
+class FileUploadResponse(BaseModel):
+    """Response for uploading a file."""
+    url: str
+    filename: str
+    path: str
+
+
+class FileSearchResult(BaseModel):
+    """Single file content search result."""
+    file: str
+    line: int
+    content: str
+
+
+class FileNameSearchResult(BaseModel):
+    """Single file name search result."""
+    name: str
+    path: str
+    type: str
+
+
 @router.post("/open")
 async def open_file(project_id: int, req: OpenFileRequest):
     """
@@ -205,7 +232,7 @@ async def open_file(project_id: int, req: OpenFileRequest):
             os.startfile(target_file)
         else:
             subprocess.run(["xdg-open", target_file], check=True)
-        return {"status": "success", "message": "File opened"}
+        return OpenFileResponse(status="success", message="File opened")
     except Exception as e:
         logger.error(f"Failed to open file {target_file}: {e}")
         raise HTTPException(500, f"Failed to open file: {str(e)}")
@@ -296,14 +323,14 @@ async def upload_file(project_id: int, file: UploadFile = File(...)):
 
         rel_path = f"uploads/{filename}"
         url = f"/api/projects/{project_id}/files/raw?path={rel_path}"
-        return {"url": url, "filename": filename, "path": rel_path}
+        return FileUploadResponse(url=url, filename=filename, path=rel_path)
 
     except Exception as e:
         logger.error(f"Failed to upload file {target_path}: {e}")
         raise HTTPException(500, f"Failed to upload file: {str(e)}")
 
 
-@router.get("/search", response_model=list[dict])
+@router.get("/search", response_model=list[FileSearchResult])
 async def search_files(project_id: int, q: str):
     """
     Search for text content within project files (simple grep).
@@ -365,11 +392,11 @@ async def search_files(project_id: int, q: str):
                             # If root_path is absolute, output is absolute.
                             rel_path = os.path.relpath(file_path_part, root_path)
 
-                        results.append({
-                            "file": rel_path,
-                            "line": int(line_num),
-                            "content": content.strip()[:200],
-                        })
+                        results.append(FileSearchResult(
+                            file=rel_path,
+                            line=int(line_num),
+                            content=content.strip()[:200]
+                        ))
                 except Exception:
                     continue
 
@@ -379,7 +406,7 @@ async def search_files(project_id: int, q: str):
     return results
 
 
-@router.get("/search_name", response_model=list[dict])
+@router.get("/search_name", response_model=list[FileNameSearchResult])
 async def search_files_by_name(project_id: int, q: str):
     """
     Search for file NAMES (not content).
@@ -433,7 +460,7 @@ async def search_files_by_name(project_id: int, q: str):
                     full_path = os.path.join(root, file)
                     rel_path = os.path.relpath(full_path, root_path)
 
-                    results.append({"name": file, "path": rel_path, "type": "file"})
+                    results.append(FileNameSearchResult(name=file, path=rel_path, type="file"))
                     count += 1
                     if count >= 20:  # Limit results
                         return results
@@ -443,7 +470,7 @@ async def search_files_by_name(project_id: int, q: str):
                 if q_lower in d.lower():
                     full_path = os.path.join(root, d)
                     rel_path = os.path.relpath(full_path, root_path)
-                    results.append({"name": d, "path": rel_path, "type": "directory"})
+                    results.append(FileNameSearchResult(name=d, path=rel_path, type="directory"))
                     count += 1
                     if count >= 20:
                         return results
