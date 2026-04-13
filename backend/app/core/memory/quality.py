@@ -9,22 +9,18 @@ This module provides:
 
 Inspired by Claude Code's memory management and drift detection.
 """
-
 import logging
-import math
-import re
-from dataclasses import dataclass
-from datetime import datetime, timedelta
-from typing import List, Optional, Dict, Any, Tuple
-from collections import defaultdict
+from typing import Dict, List
+
+from pydantic import BaseModel, Field
 
 from app.core.memory.models import MemoryEntry, MemoryType
+from app.utils.model_helpers import LegacyDictMixin
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class QualityScores:
+class QualityScores(BaseModel, LegacyDictMixin):
     """Quality scores for a memory entry."""
     freshness: float  # 0-1, how recent
     usage: float  # 0-1, how often recalled
@@ -42,14 +38,13 @@ class QualityScores:
         }
 
 
-@dataclass
-class CleanupRecommendation:
+class CleanupRecommendation(BaseModel, LegacyDictMixin):
     """Recommendation for memory cleanup."""
     entry: MemoryEntry
     action: str  # 'archive', 'update', 'delete', 'keep'
     reason: str
     scores: QualityScores
-    suggestions: List[str]
+    suggestions: List[str] = Field(default_factory=list)
 
 
 class MemoryQualityAnalyzer:

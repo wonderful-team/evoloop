@@ -7,6 +7,9 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum, auto
 from typing import Any, Callable, Dict, List, Optional, Set
+from pydantic import BaseModel, Field, ConfigDict
+
+from app.utils.model_helpers import LegacyDictMixin
 
 
 class TaskStatus(str, Enum):
@@ -32,38 +35,12 @@ class TaskType(str, Enum):
     CUSTOM = "custom"             # User-defined tasks
 
 
-@dataclass
-class BackgroundTask:
+class BackgroundTask(BaseModel, LegacyDictMixin):
     """
     Represents a background task instance.
-    
-    This is a value object - once created, it's stored in TaskManager.
-    All mutable operations go through TaskManager.
-    
-    Attributes:
-        task_id: Unique identifier (e.g., "cmd-a1b2c3d4")
-        task_type: Category of task
-        status: Current lifecycle state
-        title: Human-readable description
-        description: Detailed description (optional)
-        
-        tool_name: Which tool created this task
-        thread_id: Which conversation/thread owns this task
-        project_id: Optional project association
-        
-        process_id: OS process ID (for cancellation)
-        
-        created_at: When task was created
-        started_at: When execution began
-        completed_at: When execution finished
-        timeout_seconds: Maximum allowed execution time
-        
-        output_buffer: Recent output lines (circular buffer)
-        result: Final result data (if completed)
-        error_message: Error details (if failed)
-        
-        metadata: Tool-specific data
     """
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     # Identity
     task_id: str
     task_type: TaskType
@@ -83,43 +60,39 @@ class BackgroundTask:
     timeout_seconds: int = 3600  # Default 1 hour max
     
     # Timing
-    created_at: datetime = field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=datetime.now)
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
     
     # Output
-    output_buffer: deque = field(default_factory=lambda: deque(maxlen=1000))
+    output_buffer: deque = Field(default_factory=lambda: deque(maxlen=1000))
     result: Any = None
     error_message: Optional[str] = None
     
     # Extension point for tool-specific data
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
     
     # Internal: cancellation callback
-    _cancel_fn: Optional[Callable[[], None]] = field(default=None, repr=False)
+    _cancel_fn: Optional[Callable[[], None]] = Field(default=None, exclude=True)
     
     def to_dict(self, include_output: bool = True, output_lines: int = 50) -> Dict:
         """Convert to dictionary for API responses."""
-        data = {
-            "task_id": self.task_id,
-            "task_type": self.task_type.value,
-            "status": self.status.value,
-            "title": self.title,
-            "description": self.description,
-            "tool_name": self.tool_name,
-            "thread_id": self.thread_id,
-            "project_id": self.project_id,
-            "process_id": self.process_id,
-            "timeout_seconds": self.timeout_seconds,
-            "created_at": self.created_at.isoformat(),
-            "started_at": self.started_at.isoformat() if self.started_at else None,
-            "completed_at": self.completed_at.isoformat() if self.completed_at else None,
-            "elapsed_seconds": self.elapsed_seconds,
-            "is_completed": self.is_completed,
-            "is_running": self.is_running,
-            "can_cancel": self.can_cancel,
-        }
+
+        data = self.model_dump()
         
+        # Override timing to string
+        data["created_at"] = self.created_at.isoformat()
+        data["started_at"] = self.started_at.isoformat() if self.started_at else None
+        data["completed_at"] = self.completed_at.isoformat() if self.completed_at else None
+        
+        # Add derived properties
+        data["elapsed_seconds"] = self.elapsed_seconds
+        data["is_completed"] = self.is_completed
+        data["is_running"] = self.is_running
+        data["can_cancel"] = self.can_cancel
+        data["task_type"] = self.task_type.value
+        data["status"] = self.status.value
+
         if include_output:
             data["output"] = self.get_recent_output(output_lines)
             data["output_line_count"] = len(self.output_buffer)

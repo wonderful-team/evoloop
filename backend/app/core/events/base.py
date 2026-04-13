@@ -8,12 +8,13 @@ All domain-specific event buses should inherit from AsyncEventBus.
 import asyncio
 import logging
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Generic, TypeVar
+from typing import Any, Dict, Generic, List, Optional, TypeVar
+from pydantic import BaseModel, Field
 
 from app.utils.async_utils import LoopBoundResource
+from app.utils.model_helpers import LegacyDictMixin
 
 logger = logging.getLogger(__name__)
 
@@ -22,23 +23,24 @@ logger = logging.getLogger(__name__)
 E = TypeVar("E", bound="BaseEvent")
 
 
-@dataclass
-class BaseEvent:
+class BaseEvent(BaseModel, LegacyDictMixin):
     """
     Base class for all system events.
-    
-    All events share common metadata: timestamp, source, and data payload.
-    Subclasses should define their own fields and set event_type appropriately.
     """
-    event_type: str = ""  # Will be set by subclass __post_init__
-    timestamp: datetime = field(default_factory=datetime.now)
+    event_type: str = ""
+    timestamp: datetime = Field(default_factory=datetime.now)
     source: str = "system"
-    data: dict[str, Any] = field(default_factory=dict)
+    data: Dict[str, Any] = Field(default_factory=dict)
 
     @property
     def type_name(self) -> str:
         """Human-readable event type name."""
         return self.event_type or self.__class__.__name__
+
+    def model_post_init(self, __context: Any) -> None:
+        """Ensure event_type is set if not provided."""
+        if not self.event_type:
+            self.event_type = self.__class__.__name__
 
 
 # Type alias for event handlers

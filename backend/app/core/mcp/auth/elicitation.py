@@ -2,14 +2,16 @@
 
 import asyncio
 import logging
-from dataclasses import dataclass
 from typing import Any
+
+from pydantic import BaseModel, Field
+
+from app.utils.model_helpers import LegacyDictMixin
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class ElicitationField:
+class ElicitationField(BaseModel, LegacyDictMixin):
     """A field requiring user input."""
     name: str
     description: str
@@ -18,15 +20,14 @@ class ElicitationField:
     field_type: str = "string"  # string, number, boolean, url
 
 
-@dataclass
-class ElicitationRequest:
+class ElicitationRequest(BaseModel, LegacyDictMixin):
     """Request for additional configuration."""
     server_name: str
     message: str
-    fields: list[ElicitationField]
+    fields: list[ElicitationField] = Field(default_factory=list)
     
     def to_dict(self) -> dict[str, Any]:
-        """Convert to dict for API response."""
+        """Backward compatibility for existing code calling to_dict manually."""
         return {
             "server_name": self.server_name,
             "message": self.message,

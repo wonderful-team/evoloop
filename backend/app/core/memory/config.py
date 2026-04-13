@@ -5,13 +5,19 @@ Centralized configuration for the memory system to avoid scattered settings acce
 All memory-related settings are encapsulated in the MemoryConfig dataclass.
 """
 
+import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional, List
 
+from pydantic import BaseModel, Field
 
-@dataclass
-class MemoryConfig:
+from app.utils.model_helpers import LegacyDictMixin
+
+logger = logging.getLogger(__name__)
+
+
+class MemoryConfig(BaseModel, LegacyDictMixin):
     """
     Centralized configuration for the memory system.
     
@@ -31,7 +37,7 @@ class MemoryConfig:
     """
     
     # Storage settings
-    memory_root: Path = field(default_factory=lambda: Path.home() / ".evoloop" / "memory")
+    memory_root: Path = Field(default_factory=lambda: Path.home() / ".evoloop" / "memory")
     """Root directory for file-based memory storage."""
     
     backend_type: str = "file"
@@ -125,19 +131,8 @@ class MemoryConfig:
         )
     
     def to_dict(self) -> dict:
-        """Convert configuration to dictionary."""
-        return {
-            'memory_root': str(self.memory_root),
-            'backend_type': self.backend_type,
-            'neo4j_uri': self.neo4j_uri,
-            'short_term_backend': self.short_term_backend,
-            'extraction_interval': self.extraction_interval,
-            'min_messages_for_extraction': self.min_messages_for_extraction,
-            'default_search_limit': self.default_search_limit,
-            'min_relevance_score': self.min_relevance_score,
-            'quality_check_enabled': self.quality_check_enabled,
-            'hot_memory_max_chars': self.hot_memory_max_chars,
-        }
+        """Convert configuration to dictionary (legacy support)."""
+        return self.model_dump()
     
     @property
     def is_file_backend(self) -> bool:
@@ -156,6 +151,4 @@ class MemoryConfig:
 
 
 # Default configuration instance (for backward compatibility)
-# In production, use MemoryConfig.from_settings()
-# In tests, create custom MemoryConfig instances
 default_memory_config = MemoryConfig()

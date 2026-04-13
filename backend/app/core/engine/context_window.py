@@ -18,10 +18,9 @@ Usage:
 """
 
 import logging
-import time
-from typing import List, Optional, Dict, Any
-from dataclasses import dataclass
-from datetime import datetime
+from typing import List, Optional
+
+from pydantic import BaseModel, Field
 
 from langchain_core.messages import (
     BaseMessage,
@@ -33,12 +32,12 @@ from langchain_core.messages import (
 
 from app.core.engine.hooks import hook_system, HookEvent, HookContext
 from app.core.config import settings
+from app.utils.model_helpers import LegacyDictMixin
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class CompactionResult:
+class CompactionResult(BaseModel, LegacyDictMixin):
     """Result of context compaction."""
     messages: List[BaseMessage]
     summary: str

@@ -16,29 +16,29 @@ Usage:
 """
 
 import time
-from dataclasses import dataclass, field
-from threading import Lock
-from typing import Any
+from typing import Optional, Any
+
+from pydantic import BaseModel, Field
 
 from app.core.tools.registry import get_tool_metadata
 from app.i18n.service import i18n
+from app.utils.model_helpers import LegacyDictMixin
 
 logger = __import__("logging").getLogger(__name__)
 
 
-@dataclass
-class ToolState:
+class ToolState(BaseModel, LegacyDictMixin):
     """
     Immutable state for a single tool execution.
     
-    This dataclass holds all information needed to track a tool's
+    This model holds all information needed to track a tool's
     lifecycle and generate summaries for various outputs.
     """
     name: str
     arguments: str
     start_time: float
-    path: str | None = None
-    metadata: dict[str, Any] = field(default_factory=dict)
+    path: Optional[str] = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
     def get_summary(self, output: str) -> tuple[str, bool]:
         """

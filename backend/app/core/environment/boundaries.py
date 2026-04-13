@@ -9,6 +9,10 @@ import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
+from typing import Optional
+
+from pydantic import BaseModel, Field
+from app.utils.model_helpers import LegacyDictMixin
 
 logger = logging.getLogger(__name__)
 
@@ -23,15 +27,14 @@ class BoundaryCategory(str, Enum):
     UNKNOWN = "unknown"
 
 
-@dataclass
-class DynamicBoundary:
+class DynamicBoundary(BaseModel, LegacyDictMixin):
     """A learned capability boundary with TTL"""
     description: str
     category: BoundaryCategory
     source_tool: str
     source_error: str
-    created_at: datetime = field(default_factory=datetime.now)
-    expires_at: datetime | None = None
+    created_at: datetime = Field(default_factory=datetime.now)
+    expires_at: Optional[datetime] = None
     occurrence_count: int = 1
 
     @property

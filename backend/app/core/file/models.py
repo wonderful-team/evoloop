@@ -1,15 +1,10 @@
-"""
-Core file models - Data classes for file operations.
-
-These models are domain-agnostic and can be used by any layer.
-"""
-
-from dataclasses import dataclass, field
-from typing import Optional, Any
 from enum import Enum
+from typing import Any, Dict, List, Optional
+from pydantic import BaseModel, Field, field_validator
+from app.utils.model_helpers import LegacyDictMixin
 
 
-class FileStatus(Enum):
+class FileStatus(str, Enum):
     """Status of a file operation."""
     SUCCESS = "success"
     NOT_FOUND = "not_found"
@@ -18,8 +13,7 @@ class FileStatus(Enum):
     ERROR = "error"
 
 
-@dataclass
-class FileInfo:
+class FileInfo(BaseModel, LegacyDictMixin):
     """Basic file information."""
     path: str
     size: int
@@ -29,15 +23,17 @@ class FileInfo:
     is_large: bool = False
     is_binary: bool = False
     exists: bool = True
-    
-    def __post_init__(self):
+
+    @field_validator("content_hash")
+    @classmethod
+    def truncate_hash(cls, v: str) -> str:
         """Ensure hash is truncated for display."""
-        if len(self.content_hash) > 16:
-            self.content_hash = self.content_hash[:16]
+        if len(v) > 16:
+            return v[:16]
+        return v
 
 
-@dataclass
-class ReadResult:
+class ReadResult(BaseModel, LegacyDictMixin):
     """Result of a file read operation."""
     content: str
     encoding: str
@@ -52,11 +48,12 @@ class ReadResult:
     @property
     def has_more(self) -> bool:
         """Check if there's more content (for paginated reads)."""
-        return self.metadata.total_lines > self.metadata.total_lines
+        # Note: logic in original was metadata.total_lines > metadata.total_lines which is always False.
+        # Assuming it meant current lines vs total. For now keeping original logic if it's a marker.
+        return False
 
 
-@dataclass
-class WriteResult:
+class WriteResult(BaseModel, LegacyDictMixin):
     """Result of a file write operation."""
     path: str
     status: FileStatus
@@ -69,8 +66,7 @@ class WriteResult:
         return self.status == FileStatus.SUCCESS
 
 
-@dataclass
-class FileChunk:
+class FileChunk(BaseModel, LegacyDictMixin):
     """A chunk of file content for streaming."""
     content: str
     line_start: int
@@ -78,8 +74,7 @@ class FileChunk:
     is_last: bool = False
 
 
-@dataclass
-class PaginationInfo:
+class PaginationInfo(BaseModel, LegacyDictMixin):
     """Pagination metadata."""
     total_lines: int
     start_line: int
@@ -88,5 +83,5 @@ class PaginationInfo:
     page_size: int = 100
 
 
-# Convenience type aliases
+# Convenience type alias
 FileMetadata = FileInfo

@@ -8,6 +8,7 @@ Event types and data structures for macro execution.
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, List, Optional
+from pydantic import Field
 
 from app.core.events.base import BaseEvent
 
@@ -19,13 +20,11 @@ class MacroEventType(str, Enum):
     EXECUTION_FAILED = "macro.execution_failed"
 
 
-@dataclass
 class MacroEvent(BaseEvent):
     """Base class for macro-related events."""
     source: str = "macro_engine"
 
 
-@dataclass
 class MacroExecutionFailedEvent(MacroEvent):
     """
     Event emitted when a deterministic macro execution fails.
@@ -38,9 +37,9 @@ class MacroExecutionFailedEvent(MacroEvent):
     thread_id: str = "default"
     
     # Listeners can append to this to provide guidance back to the agent
-    suggestions: List[str] = field(default_factory=list)
+    suggestions: List[str] = Field(default_factory=list)
 
-    def __post_init__(self):
+    def model_post_init(self, __context: Any) -> None:
         self.event_type = MacroEventType.EXECUTION_FAILED
         self.data = {
             "skill_id": self.skill_id,

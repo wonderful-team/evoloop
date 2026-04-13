@@ -1,11 +1,14 @@
 import contextvars
 import json
-from dataclasses import dataclass, field
-from typing import Any
+import time
+from typing import Any, Dict, List, Optional, Union
+
+from pydantic import BaseModel, Field
 
 from app.core.exceptions import GlobalModeError
 from app.utils.id import gen_uuid
 from app.services.cache_services import ContextCacheService
+from app.utils.model_helpers import LegacyDictMixin
 
 
 # ==========================================
@@ -13,24 +16,23 @@ from app.services.cache_services import ContextCacheService
 # ==========================================
 
 
-@dataclass
-class EvoContext:
+class EvoContext(BaseModel, LegacyDictMixin):
     """
     Unified Execution Context for EvoLoop.
     Holds request-scoped or task-scoped information.
     """
-    request_id: str = field(default_factory=gen_uuid)
-    timestamp: float = field(default_factory=lambda: __import__("time").time())
+    request_id: str = Field(default_factory=gen_uuid)
+    timestamp: float = Field(default_factory=time.time)
 
     # Identity
-    user_id: str | None = None
-    project_id: int | None = None
-    thread_id: str | None = None
+    user_id: Optional[str] = None
+    project_id: Optional[int] = None
+    thread_id: Optional[str] = None
 
     # Execution Environment
-    working_directory: str | None = None
-    command_id: int | None = None   # For EvoCloud command tracing
-    trace_id: str | None = None     # Distributed trace ID
+    working_directory: Optional[str] = None
+    command_id: Optional[int] = None   # For EvoCloud command tracing
+    trace_id: Optional[str] = None     # Distributed trace ID
 
     # Feature Flags / Runtime Config
     is_dry_run: bool = False
@@ -38,48 +40,25 @@ class EvoContext:
 
     # [Subconscious Pool]
     # Dynamically injected context from Environment/Learning plugins via EventBus
-    short_term_memory: list[str] = field(default_factory=list)
-    active_boundaries: list[str] = field(default_factory=list)
-    spatial_awareness: list[str] | dict[str, Any] = field(default_factory=list)
-    environment_summaries: list[str] | dict[str, Any] = field(default_factory=list)
-    memory_replay: list[str] | dict[str, Any] = field(default_factory=list)
-    identity_rules: list[str] = field(default_factory=list)
-    environment_block: str | None = None
+    short_term_memory: List[str] = Field(default_factory=list)
+    active_boundaries: List[str] = Field(default_factory=list)
+    spatial_awareness: Union[List[str], Dict[str, Any]] = Field(default_factory=list)
+    environment_summaries: Union[List[str], Dict[str, Any]] = Field(default_factory=list)
+    memory_replay: Union[List[str], Dict[str, Any]] = Field(default_factory=list)
+    identity_rules: List[str] = Field(default_factory=list)
+    environment_block: Optional[str] = None
     
     # Extra Metadata (Plugins, etc.)
-    metadata: dict[str, Any] = field(default_factory=dict)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
 
-    def to_dict(self) -> dict:
-        """Convert the context to a serializable dictionary."""
-        return {
-            "request_id": self.request_id,
-            "timestamp": self.timestamp,
-            "user_id": self.user_id,
-            "project_id": self.project_id,
-            "thread_id": self.thread_id,
-            "working_directory": self.working_directory,
-            "command_id": self.command_id,
-            "trace_id": self.trace_id,
-            "is_dry_run": self.is_dry_run,
-            "language": self.language,
-            "short_term_memory": self.short_term_memory,
-            "active_boundaries": self.active_boundaries,
-            "spatial_awareness": self.spatial_awareness,
-            "environment_summaries": self.environment_summaries,
-            "memory_replay": self.memory_replay,
-            "identity_rules": self.identity_rules,
-            "environment_block": self.environment_block,
-            "metadata": self.metadata,
-        }
+    def to_dict(self) -> Dict[str, Any]:
+        """Legacy compatibility method."""
+        return self.model_dump()
 
     @classmethod
-    def from_dict(cls, data: dict) -> "EvoContext":
-        """Reconstruct a context from a dictionary."""
-        ctx = cls()
-        for key, value in data.items():
-            if hasattr(ctx, key):
-                setattr(ctx, key, value)
-        return ctx
+    def from_dict(cls, data: Dict[str, Any]) -> "EvoContext":
+        """Legacy compatibility method."""
+        return cls.model_validate(data)
 
 
 # ==========================================

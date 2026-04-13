@@ -11,27 +11,27 @@ Safety guarantees:
 - Automatic invalidation on project/skill changes
 """
 
-import hashlib
-import json
 import logging
 import time
-from dataclasses import dataclass, field
 from typing import Any, Optional
+
+from pydantic import BaseModel, Field
+
+from app.utils.model_helpers import LegacyDictMixin
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class StaticContextLayer:
+class StaticContextLayer(BaseModel, LegacyDictMixin):
     """Static context that can be safely cached across nodes."""
     project_concepts: Optional[str] = None
-    active_skills_index: list = field(default_factory=list)
-    environment_telemetry: dict = field(default_factory=dict)
-    system_preferences: dict = field(default_factory=dict)
+    active_skills_index: list = Field(default_factory=list)
+    environment_telemetry: dict = Field(default_factory=dict)
+    system_preferences: dict = Field(default_factory=dict)
     
     # Metadata
     project_id: int = 0
-    cached_at: float = field(default_factory=time.time)
+    cached_at: float = Field(default_factory=time.time)
     version: str = "1.0"
     
     def is_valid(self, max_age: int = 300) -> bool:
@@ -39,12 +39,11 @@ class StaticContextLayer:
         return (time.time() - self.cached_at) < max_age
 
 
-@dataclass
-class DynamicContextLayer:
+class DynamicContextLayer(BaseModel, LegacyDictMixin):
     """Dynamic context that must always be fresh."""
-    blackboard: dict = field(default_factory=dict)
+    blackboard: dict = Field(default_factory=dict)
     execution_ticket: Optional[dict] = None
-    messages: list = field(default_factory=list)
+    messages: list = Field(default_factory=list)
     iteration_count: int = 0
     verification_status: Optional[dict] = None
 

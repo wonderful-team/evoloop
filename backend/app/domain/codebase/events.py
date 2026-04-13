@@ -31,19 +31,17 @@ class IndexingEventType(str, Enum):
     FILE_MOVED = "indexing.file_moved"        # New: file renamed/moved
 
 
-@dataclass
 class CodebaseEvent(BaseEvent):
     """Base class for codebase domain events."""
     source: str = "codebase"
 
 
-@dataclass
 class IndexingStartedEvent(CodebaseEvent):
     """Published when indexing starts for a repository."""
     repo_id: int = 0
     path: str = ""
     
-    def __post_init__(self):
+    def model_post_init(self, __context: Any) -> None:
         self.event_type = IndexingEventType.INDEXING_STARTED
         self.data = {
             "repo_id": self.repo_id,
@@ -51,7 +49,6 @@ class IndexingStartedEvent(CodebaseEvent):
         }
 
 
-@dataclass
 class IndexingCompletedEvent(CodebaseEvent):
     """Published when indexing completes successfully."""
     repo_id: int = 0
@@ -59,7 +56,7 @@ class IndexingCompletedEvent(CodebaseEvent):
     file_count: int = 0
     duration_seconds: float = 0.0
     
-    def __post_init__(self):
+    def model_post_init(self, __context: Any) -> None:
         self.event_type = IndexingEventType.INDEXING_COMPLETED
         self.data = {
             "repo_id": self.repo_id,
@@ -69,14 +66,13 @@ class IndexingCompletedEvent(CodebaseEvent):
         }
 
 
-@dataclass
 class IndexingFailedEvent(CodebaseEvent):
     """Published when indexing fails."""
     repo_id: int = 0
     path: str = ""
     error: str = ""
     
-    def __post_init__(self):
+    def model_post_init(self, __context: Any) -> None:
         self.event_type = IndexingEventType.INDEXING_FAILED
         self.data = {
             "repo_id": self.repo_id,
@@ -85,14 +81,13 @@ class IndexingFailedEvent(CodebaseEvent):
         }
 
 
-@dataclass
 class FileIndexedEvent(CodebaseEvent):
     """Published when a file is indexed."""
     repo_id: int = 0
     file_path: str = ""
     language: str = ""
     
-    def __post_init__(self):
+    def model_post_init(self, __context: Any) -> None:
         self.event_type = IndexingEventType.FILE_INDEXED
         self.data = {
             "repo_id": self.repo_id,
@@ -101,13 +96,12 @@ class FileIndexedEvent(CodebaseEvent):
         }
 
 
-@dataclass
 class FileRemovedEvent(CodebaseEvent):
     """Published when a file is removed from index."""
     repo_id: int = 0
     file_path: str = ""
     
-    def __post_init__(self):
+    def model_post_init(self, __context: Any) -> None:
         self.event_type = IndexingEventType.FILE_REMOVED
         self.data = {
             "repo_id": self.repo_id,
@@ -115,13 +109,12 @@ class FileRemovedEvent(CodebaseEvent):
         }
 
 
-@dataclass
 class FileModifiedEvent(CodebaseEvent):
     """Published when a file is modified (content changed)."""
     repo_id: int = 0
     file_path: str = ""
     
-    def __post_init__(self):
+    def model_post_init(self, __context: Any) -> None:
         self.event_type = IndexingEventType.FILE_MODIFIED
         self.data = {
             "repo_id": self.repo_id,
@@ -129,14 +122,13 @@ class FileModifiedEvent(CodebaseEvent):
         }
 
 
-@dataclass
 class FileMovedEvent(CodebaseEvent):
     """Published when a file is moved/renamed."""
     repo_id: int = 0
     src_path: str = ""
     dest_path: str = ""
     
-    def __post_init__(self):
+    def model_post_init(self, __context: Any) -> None:
         self.event_type = IndexingEventType.FILE_MOVED
         self.data = {
             "repo_id": self.repo_id,

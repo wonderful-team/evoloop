@@ -9,28 +9,29 @@ import logging
 import os
 import tempfile
 import zipfile
+from datetime import datetime
 from pathlib import Path
 from typing import BinaryIO, Optional
-from dataclasses import dataclass, field
-from datetime import datetime
+from pydantic import BaseModel, Field
 
 from app.domain.knowledge.services.pipeline import IngestionPipeline, IngestionResult
+from app.utils.model_helpers import LegacyDictMixin
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class BulkImportResult:
+class BulkImportResult(BaseModel, LegacyDictMixin):
     """Result of bulk import operation."""
     total_files: int = 0
     successful: int = 0
     failed: int = 0
     skipped: int = 0
-    errors: list[dict] = field(default_factory=list)
-    imported_paths: list[str] = field(default_factory=list)
+    errors: list[dict] = Field(default_factory=list)
+    imported_paths: list[str] = Field(default_factory=list)
     duration_ms: float = 0.0
     
     def to_dict(self) -> dict:
+        """Backward compatibility for existing code calling to_dict manually."""
         return {
             "total_files": self.total_files,
             "successful": self.successful,

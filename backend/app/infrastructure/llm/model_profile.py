@@ -8,11 +8,12 @@ to replace hardcoded constants throughout the system.
 import logging
 
 from pydantic import BaseModel
+from app.utils.model_helpers import LegacyDictMixin
 
 logger = logging.getLogger(__name__)
 
 
-class ModelProfile(BaseModel):
+class ModelProfile(BaseModel, LegacyDictMixin):
     """Profile defining a model's capabilities and tuning parameters."""
 
     name: str

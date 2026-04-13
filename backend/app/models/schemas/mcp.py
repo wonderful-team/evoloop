@@ -1,7 +1,8 @@
 from pydantic import BaseModel
+from app.utils.model_helpers import LegacyDictMixin
 
 
-class McpServerBase(BaseModel):
+class McpServerBase(BaseModel, LegacyDictMixin):
     name: str
     command: str
     args: list[str] | None = []
@@ -18,7 +19,7 @@ class McpServerRead(McpServerBase):
     tools_count: int
 
 
-class McpServerUpdate(BaseModel):
+class McpServerUpdate(BaseModel, LegacyDictMixin):
     command: str | None = None
     args: list[str] | None = None
     env: dict[str, str] | None = None

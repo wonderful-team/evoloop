@@ -20,32 +20,33 @@ from app.utils.random import (
 )
 from app.utils.registry import ClassRegistry
 
+from pydantic import BaseModel, Field
+
 from app.core.execution.macro.verification_models import (
     RoundConfig,
     RoundReport,
     VerificationStatus,
 )
+from app.utils.model_helpers import LegacyDictMixin
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class InterferenceConfig:
+class InterferenceConfig(BaseModel, LegacyDictMixin):
     """Configuration for interference injection"""
     enabled: bool = False
     type: str = "none"  # none, delay, chaos, network_degradation
     intensity: float = 0.3  # 0.0 - 1.0
-    targets: List[str] = field(default_factory=list)  # step types to target
-    custom_params: Dict[str, Any] = field(default_factory=dict)
+    targets: List[str] = Field(default_factory=list)  # step types to target
+    custom_params: Dict[str, Any] = Field(default_factory=dict)
 
 
-@dataclass
-class RoundContext:
+class RoundContext(BaseModel, LegacyDictMixin):
     """Context passed between rounds"""
     round_number: int
     previous_reports: List[RoundReport]
-    shared_state: Dict[str, Any] = field(default_factory=dict)
-    accumulated_anomalies: List[Dict[str, Any]] = field(default_factory=list)
+    shared_state: Dict[str, Any] = Field(default_factory=dict)
+    accumulated_anomalies: List[Dict[str, Any]] = Field(default_factory=list)
 
 
 class InterferenceInjector(ABC):

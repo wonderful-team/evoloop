@@ -2,7 +2,10 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field, model_validator
 
 
-class NodeConfig(BaseModel):
+from app.utils.model_helpers import LegacyDictMixin
+
+
+class NodeConfig(BaseModel, LegacyDictMixin):
     """Configuration for a graph node."""
     id: str
     xpath: str | None = Field(alias="path", default=None)  # e.g. "app.core.engine.nodes.worker.worker_node"
@@ -22,7 +25,7 @@ class NodeConfig(BaseModel):
         return self
 
 
-class EdgeConfig(BaseModel):
+class EdgeConfig(BaseModel, LegacyDictMixin):
     """Configuration for a graph edge."""
     from_node: str = Field(alias="from")
     to_node: str | None = Field(alias="to", default=None)
@@ -41,7 +44,7 @@ class EdgeConfig(BaseModel):
         return self
 
 
-class AgentConfig(BaseModel):
+class AgentConfig(BaseModel, LegacyDictMixin):
     """Configuration for an agent graph."""
     name: str
     version: str

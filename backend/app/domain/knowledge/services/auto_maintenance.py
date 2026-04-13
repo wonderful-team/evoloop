@@ -24,28 +24,27 @@ import hashlib
 import json
 import logging
 from collections import defaultdict
-from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from difflib import SequenceMatcher
-from pathlib import Path
 from typing import Optional
+
+from pydantic import BaseModel, Field, ConfigDict
 
 from app.domain.knowledge.models import MarkdownDocument
 from app.domain.knowledge.services.citations import get_citation_tracker
 from app.domain.knowledge.services.deduplication import DeduplicationService
 from app.domain.knowledge.services.search import get_fts_service
 from app.domain.knowledge.services.store import KnowledgeStoreService
+from app.utils.model_helpers import LegacyDictMixin
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class MaintenanceReport:
+class MaintenanceReport(BaseModel, LegacyDictMixin):
     """知识库整理报告"""
-    timestamp: datetime
-    duration_seconds: float
-    tasks_completed: list[str]
-    tasks_failed: list[str]
+    timestamp: datetime = Field(default_factory=datetime.now)
+    duration_seconds: float = 0.0
+    tasks_completed: list[str] = Field(default_factory=list)
+    tasks_failed: list[str] = Field(default_factory=list)
 
     # 重复文档处理
     duplicates_found: int = 0
@@ -62,13 +61,14 @@ class MaintenanceReport:
 
     # 热点优化
     hot_docs_found: int = 0
-    hot_optimization_suggestions: list[dict] = field(default_factory=list)
+    hot_optimization_suggestions: list[dict] = Field(default_factory=list)
 
     # 知识图谱
     entities_extracted: int = 0
     relations_created: int = 0
 
     def to_dict(self) -> dict:
+        """Backward compatibility for existing code calling to_dict manually."""
         return {
             "timestamp": self.timestamp.isoformat(),
             "duration_seconds": self.duration_seconds,
@@ -98,13 +98,12 @@ class MaintenanceReport:
         }
 
 
-@dataclass
-class DocumentQuality:
+class DocumentQuality(BaseModel, LegacyDictMixin):
     """文档质量评估"""
     path: str
     score: float  # 0.0 - 1.0
-    issues: list[str]
-    suggestions: list[str]
+    issues: list[str] = Field(default_factory=list)
+    suggestions: list[str] = Field(default_factory=list)
 
 
 class UsageAnalyzer:
@@ -340,7 +339,7 @@ class AutoMaintenanceService:
     async def _get_fts(self):
         """延迟初始化 FTS 服务"""
         if self.fts_service is None:
-            self.fts_service = await get_fts_service()
+            self.fts_service = get_fts_service()
         return self.fts_service
 
     async def run_maintenance(

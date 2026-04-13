@@ -10,12 +10,14 @@
 
 import io
 import logging
-from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from PIL import Image
+from pydantic import BaseModel, Field, field_validator
+
+from app.utils.model_helpers import LegacyDictMixin
 
 logger = logging.getLogger(__name__)
 
@@ -27,8 +29,7 @@ class CompressionStrategy(Enum):
     ICON_UI = "icon_ui"           # 图标导航：512px, low detail
 
 
-@dataclass
-class CompressionConfig:
+class CompressionConfig(BaseModel, LegacyDictMixin):
     """压缩配置"""
     max_width: int
     quality: int                  # JPEG 质量 0-100
@@ -56,8 +57,7 @@ PRESETS = {
 }
 
 
-@dataclass
-class CompressedFrame:
+class CompressedFrame(BaseModel, LegacyDictMixin):
     """压缩后的帧数据"""
     data: bytes                   # JPEG 数据
     width: int
@@ -69,18 +69,29 @@ class CompressedFrame:
     # 动态注入的语义信息
     timestamp: Optional[float] = None
     description: Optional[str] = None
-    norm_events: List[dict] = field(default_factory=list)
+    norm_events: List[Dict[str, Any]] = Field(default_factory=list)
 
 
-@dataclass
-class NormalizedEvent:
+class NormalizedEvent(BaseModel, LegacyDictMixin):
     """归一化后的事件"""
     action: str
-    norm_x: Optional[float]       # 0.0-1.0
-    norm_y: Optional[float]
-    target_text: Optional[str]
+    norm_x: Optional[float] = Field(None, ge=0.0, le=1.0)       # 0.0-1.0
+    norm_y: Optional[float] = Field(None, ge=0.0, le=1.0)
+    target_text: Optional[str] = None
     timestamp: float
     description: str              # 人类可读描述
+
+
+class KeyframeCandidate(BaseModel, LegacyDictMixin):
+    """关键帧候选"""
+    timestamp: float
+    context: str           # "pre_action", "post_action", "transition"
+    description: str
+    related_event: Any
+    priority: int          # 3=high, 2=medium, 1=low
+
+    def __repr__(self):
+        return f"Keyframe({self.timestamp:.2f}s, {self.context}, P{self.priority})"
 
 
 class CoordinateNormalizer:
@@ -485,16 +496,3 @@ class KeyframeSelector:
                     result.append(frame)
 
         return result
-
-
-@dataclass
-class KeyframeCandidate:
-    """关键帧候选"""
-    timestamp: float
-    context: str           # "pre_action", "post_action", "transition"
-    description: str
-    related_event: Any
-    priority: int          # 3=high, 2=medium, 1=low
-
-    def __repr__(self):
-        return f"Keyframe({self.timestamp:.2f}s, {self.context}, P{self.priority})"

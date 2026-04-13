@@ -6,20 +6,25 @@ from typing import Any
 from app.core.mcp.config import AuthType, McpServerConfig, TransportType
 
 
-@dataclass
-class WorkerMcpServerConfig:
+from typing import Any, Dict, List, Optional
+from pydantic import BaseModel, Field
+from app.utils.model_helpers import LegacyDictMixin
+from app.core.mcp.config import AuthType, McpServerConfig, TransportType
+
+
+class WorkerMcpServerConfig(BaseModel, LegacyDictMixin):
     """MCP server configuration for a specific Worker."""
     name: str
     # Connection
     transport: TransportType = TransportType.STDIO
-    command: str | None = None
-    args: list[str] = field(default_factory=list)
-    env: dict[str, str] = field(default_factory=dict)
-    url: str | None = None
-    headers: dict[str, str] = field(default_factory=dict)
+    command: Optional[str] = None
+    args: List[str] = Field(default_factory=list)
+    env: Dict[str, str] = Field(default_factory=dict)
+    url: Optional[str] = None
+    headers: Dict[str, str] = Field(default_factory=dict)
     # Auth
     auth_type: AuthType = AuthType.NONE
-    auth_config: dict[str, Any] = field(default_factory=dict)
+    auth_config: Dict[str, Any] = Field(default_factory=dict)
     # Inheritance
     inherit_from_global: bool = False  # If True, reuse global connection
     
@@ -39,10 +44,11 @@ class WorkerMcpServerConfig:
         )
     
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "WorkerMcpServerConfig":
+    def from_dict(cls, data: Dict[str, Any]) -> "WorkerMcpServerConfig":
         """Create from dict (e.g., from YAML config)."""
         transport = TransportType(data.get("transport", "stdio"))
-        auth_type = AuthType(data.get("auth", {}).get("method", "none"))
+        auth_data = data.get("auth", {})
+        auth_type = AuthType(auth_data.get("method", "none"))
         
         return cls(
             name=data["name"],
@@ -53,23 +59,22 @@ class WorkerMcpServerConfig:
             url=data.get("url"),
             headers=data.get("headers", {}),
             auth_type=auth_type,
-            auth_config=data.get("auth", {}),
+            auth_config=auth_data,
             inherit_from_global=data.get("inherit_from_global", False),
         )
 
 
-@dataclass
-class WorkerMcpConfig:
+class WorkerMcpConfig(BaseModel, LegacyDictMixin):
     """MCP configuration for a Worker."""
     # Worker-specific MCP servers
-    servers: list[WorkerMcpServerConfig] = field(default_factory=list)
+    servers: List[WorkerMcpServerConfig] = Field(default_factory=list)
     # Global MCP servers to inherit
-    inherit_servers: list[str] = field(default_factory=list)
+    inherit_servers: List[str] = Field(default_factory=list)
     # Auto-connect on worker start
     auto_connect: bool = True
     
     @classmethod
-    def from_dict(cls, data: dict[str, Any] | None) -> "WorkerMcpConfig":
+    def from_dict(cls, data: Optional[Dict[str, Any]]) -> "WorkerMcpConfig":
         """Create from dict (e.g., from Skill YAML)."""
         if not data:
             return cls()
@@ -86,7 +91,7 @@ class WorkerMcpConfig:
         )
     
     @classmethod
-    def from_skill_config(cls, skill_config: dict[str, Any]) -> "WorkerMcpConfig":
+    def from_skill_config(cls, skill_config: Dict[str, Any]) -> "WorkerMcpConfig":
         """Extract MCP config from Skill configuration."""
         mcp_data = skill_config.get("mcp", {})
         return cls.from_dict(mcp_data)

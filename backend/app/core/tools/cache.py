@@ -19,6 +19,9 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Callable, Optional
 from pathlib import Path
+from pydantic import BaseModel, Field, ConfigDict
+
+from app.utils.model_helpers import LegacyDictMixin
 
 import aiofiles
 import aiofiles.os
@@ -26,9 +29,10 @@ import aiofiles.os
 logger = logging.getLogger(__name__)
 
 
-@dataclass(frozen=True)
-class CacheKey:
+class CacheKey(BaseModel):
     """Immutable cache key with content verification."""
+    model_config = ConfigDict(frozen=True)
+    
     tool_name: str
     args_hash: str
     content_hash: str = ""  # File content hash for verification
@@ -37,11 +41,10 @@ class CacheKey:
         return hash((self.tool_name, self.args_hash, self.content_hash))
 
 
-@dataclass
-class CacheEntry:
+class CacheEntry(BaseModel, LegacyDictMixin):
     """Cache entry with metadata."""
     result: Any
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = Field(default_factory=time.time)
     access_count: int = 0
     last_verified: float = 0.0
 

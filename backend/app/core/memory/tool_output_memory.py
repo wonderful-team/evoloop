@@ -7,17 +7,18 @@ Provides safe forgetting mechanism with:
 - Soft forgetting (keep summary)
 - Recall capability
 """
-
 import logging
 import time
-from dataclasses import dataclass, field
 from typing import Optional
+
+from pydantic import BaseModel, Field
+
+from app.utils.model_helpers import LegacyDictMixin
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class ForgottenRecord:
+class ForgottenRecord(BaseModel, LegacyDictMixin):
     """Record of a forgotten tool output."""
     tool_call_id: str
     tool_name: str
@@ -28,8 +29,7 @@ class ForgottenRecord:
     step_index: int  # The message index when it was forgotten
 
 
-@dataclass
-class AuditEntry:
+class AuditEntry(BaseModel, LegacyDictMixin):
     """Audit log entry for tracking forget/recall operations."""
     action: str  # "forget" or "recall"
     tool_call_id: str

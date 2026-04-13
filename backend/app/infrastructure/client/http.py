@@ -11,34 +11,35 @@ This is the fallback mechanism when WebSocket is not available.
 """
 
 import asyncio
+import httpx
 import json
 import logging
 import uuid
-from typing import Any, Optional
-from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-
-import httpx
+from pydantic import BaseModel, Field, ConfigDict
+from typing import Any, Optional
 
 from app.core.config import settings
+from app.utils.model_helpers import LegacyDictMixin
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class ToolRequest:
+class ToolRequest(BaseModel, LegacyDictMixin):
     """Represents a pending tool execution request."""
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     request_id: str
     thread_id: str
     tool: str
     params: dict[str, Any]
     status: str = "pending"  # pending, executing, completed, failed
-    result: Optional[Any] = None
-    error: Optional[str] = None
-    created_at: datetime = field(default_factory=datetime.utcnow)
-    completed_at: Optional[datetime] = None
+    result: Any | None = None
+    error: str | None = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    completed_at: datetime | None = None
     # Async event for waiting
-    _event: asyncio.Event = field(default_factory=asyncio.Event, repr=False)
+    _event: asyncio.Event = Field(default_factory=asyncio.Event, exclude=True)
 
 
 class ToolRequestManager:

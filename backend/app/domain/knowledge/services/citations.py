@@ -14,34 +14,33 @@ import sqlite3
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
-from dataclasses import dataclass
+from pydantic import BaseModel, Field
 
 from app.core.config import settings
+from app.utils.model_helpers import LegacyDictMixin
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class CitationEvent:
+class CitationEvent(BaseModel, LegacyDictMixin):
     """A single citation event."""
     doc_id: str
     doc_path: str
     tool_used: str  # kb_read, kb_search, etc.
-    session_id: Optional[str]
-    agent_message: Optional[str]  # Context of the citation
-    timestamp: datetime
+    session_id: Optional[str] = None
+    agent_message: Optional[str] = None  # Context of the citation
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
 
 
-@dataclass
-class DocumentStats:
+class DocumentStats(BaseModel, LegacyDictMixin):
     """Citation statistics for a document."""
     doc_id: str
     doc_path: str
-    total_citations: int
-    unique_sessions: int
-    last_accessed: Optional[datetime]
-    tools_used: dict[str, int]  # tool -> count
-    related_docs: list[str]  # docs often cited together
+    total_citations: int = 0
+    unique_sessions: int = 0
+    last_accessed: Optional[datetime] = None
+    tools_used: dict[str, int] = Field(default_factory=dict)  # tool -> count
+    related_docs: list[str] = Field(default_factory=list)  # docs often cited together
 
 
 class CitationTracker:

@@ -12,6 +12,8 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Set, Tuple
 
+from pydantic import BaseModel, Field
+
 from app.core.execution.macro.verification_models import (
     AdaptationRecord,
     AnomalyType,
@@ -19,12 +21,12 @@ from app.core.execution.macro.verification_models import (
     StepExecutionStatus,
     StepResult,
 )
+from app.utils.model_helpers import LegacyDictMixin
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class EvolutionRule:
+class EvolutionRule(BaseModel, LegacyDictMixin):
     """Rule for transforming a step based on anomaly type"""
     name: str
     anomaly_type: AnomalyType
@@ -32,8 +34,7 @@ class EvolutionRule:
     priority: int = 0
 
 
-@dataclass
-class EvolutionContext:
+class EvolutionContext(BaseModel, LegacyDictMixin):
     """Context for macro evolution"""
     original_macro: List[Dict[str, Any]]
     step_results: List[StepResult]
@@ -41,10 +42,10 @@ class EvolutionContext:
     target_platform: str = "web"
 
     # Track which steps have been modified
-    modified_steps: Set[int] = field(default_factory=set)
+    modified_steps: Set[int] = Field(default_factory=set)
 
     # Track added steps (insertions)
-    inserted_steps: Dict[int, List[Dict[str, Any]]] = field(default_factory=dict)
+    inserted_steps: Dict[int, List[Dict[str, Any]]] = Field(default_factory=dict)
 
 
 class StepTransformer(ABC):

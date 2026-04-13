@@ -4,13 +4,14 @@ Apply patch tool for complex structural changes within a single file.
 This tool uses a custom patch language for atomic, multi-hunk edits.
 Prefer this tool for complex structural changes (multiple related blocks, renames, moves).
 """
-
+import logging
 import asyncio
 import os
 import shutil
 import tempfile
-from dataclasses import dataclass
-from typing import Annotated, List, Optional
+from typing import List, Annotated
+
+from pydantic import BaseModel, Field
 
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import InjectedToolArg
@@ -18,29 +19,29 @@ from langchain_core.tools import InjectedToolArg
 from app.core.tools import evoloop_tool, get_working_directory
 from app.core.file.editor import EditEngine
 from app.core.file import safe_read_with_hash, write_file_with_verification
+from app.domain.tools.files.utils import resolve_and_validate_path
 from app.i18n.service import i18n
+from app.utils.model_helpers import LegacyDictMixin
 
-from .utils import resolve_and_validate_path
+logger = logging.getLogger(__name__)
 
 # Keep references to background tasks to prevent GC
 _background_tasks: set[asyncio.Task] = set()
 
 
-@dataclass
-class PatchHunk:
+class PatchHunk(BaseModel, LegacyDictMixin):
     """Represents a single hunk in a patch."""
-    old_lines: List[str]
-    new_lines: List[str]
+    old_lines: list[str] = Field(default_factory=list)
+    new_lines: list[str] = Field(default_factory=list)
 
 
-@dataclass
-class PatchOperation:
+class PatchOperation(BaseModel, LegacyDictMixin):
     """Represents a file operation in a patch."""
     operation: str  # 'add', 'delete', 'update'
     path: str
-    move_to: Optional[str] = None  # For rename operations
-    hunks: Optional[List[PatchHunk]] = None  # For update operations
-    content: Optional[str] = None  # For add operations
+    move_to: str | None = None  # For rename operations
+    hunks: list[PatchHunk] | None = None  # For update operations
+    content: str | None = None  # For add operations
 
 
 class PatchParseError(Exception):

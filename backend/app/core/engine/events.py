@@ -5,10 +5,11 @@ Agent Engine Event Types and Data Structures
 Event types and data classes for agent execution lifecycle.
 """
 
-from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any
+from typing import Any, Dict
 
+from pydantic import BaseModel, Field
+from app.utils.model_helpers import LegacyDictMixin
 from app.core.events.base import BaseEvent
 
 
@@ -26,22 +27,20 @@ class AgentEventType(str, Enum):
     HITL_RESPONDED = "agent.hitl_responded"
 
 
-@dataclass
-class AgentEvent(BaseEvent):
+class AgentEvent(BaseEvent, LegacyDictMixin):
     """Base class for agent-related events."""
     source: str = "agent_engine"
 
 
-@dataclass
 class AgentRunCompletedEvent(AgentEvent):
     """Event emitted when an agent run (thread) finishes successfully."""
     thread_id: str = ""
     project_id: int = 1
     goal: str = ""
     status: str = "done"
-    payload: dict[str, Any] = field(default_factory=dict)
+    payload: Dict[str, Any] = Field(default_factory=dict)
 
-    def __post_init__(self):
+    def model_post_init(self, __context: Any) -> None:
         self.event_type = AgentEventType.RUN_COMPLETED
         self.data = {
             "thread_id": self.thread_id,

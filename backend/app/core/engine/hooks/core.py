@@ -36,12 +36,13 @@ import logging
 import asyncio
 import re
 from enum import Enum, auto
-from dataclasses import dataclass, field
 from typing import Dict, List, Callable, Any, Optional, Union, Awaitable
 from datetime import datetime
-from functools import wraps
 
 from langchain_core.messages import BaseMessage, SystemMessage
+from pydantic import BaseModel, Field
+
+from app.utils.model_helpers import LegacyDictMixin
 
 logger = logging.getLogger(__name__)
 
@@ -83,15 +84,14 @@ class HookEvent(Enum):
     PROMPT_POLISHING = auto()    # Context-aware prompt polishing (domain expert hook)
 
 
-@dataclass
-class HookContext:
+class HookContext(BaseModel, LegacyDictMixin):
     """Context passed to hook handlers - enriched with Claude Code-like fields."""
     thread_id: str
     project_id: Optional[int] = None
     user_id: Optional[str] = None
-    messages: List[BaseMessage] = field(default_factory=list)
-    blackboard: Dict[str, Any] = field(default_factory=dict)
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    messages: List[BaseMessage] = Field(default_factory=list)
+    blackboard: Dict[str, Any] = Field(default_factory=dict)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
     
     # For tool-related events
     tool_name: Optional[str] = None
@@ -112,19 +112,24 @@ class HookContext:
     memory_config: Optional[Any] = None   # MemoryConfig instance
     
     # Allow arbitrary additional data
-    extra: Dict[str, Any] = field(default_factory=dict)
+    extra: Dict[str, Any] = Field(default_factory=dict)
+
+    class Config:
+        arbitrary_types_allowed = True
 
 
-@dataclass
-class HookResult:
+class HookResult(BaseModel, LegacyDictMixin):
     """Result from hook handler."""
     success: bool = True
     block: bool = False  # For blocking hooks (PreToolUse, Stop)
     retry: bool = False  # For PermissionDenied - allow retry
     message: Optional[str] = None
     modified_context: Optional[HookContext] = None
-    data: Dict[str, Any] = field(default_factory=dict)
+    data: Dict[str, Any] = Field(default_factory=dict)
     error: Optional[Exception] = None
+
+    class Config:
+        arbitrary_types_allowed = True
 
 
 # Handler type alias

@@ -7,32 +7,27 @@ Instead of storing coordinates, we store interaction strategies.
 
 import json
 import logging
-from dataclasses import dataclass, field
 from typing import Any
 
+from pydantic import BaseModel, Field
+
 from app.infrastructure.cache import cache
-from app.utils.dataclass_helpers import NestedSerializableMixin
 
 logger = logging.getLogger(__name__)
 
 REDIS_KEY_ATLAS_STRATEGIES = "atlas:strategies"
 
 
-@dataclass
-class InteractionStrategy(NestedSerializableMixin):
+class InteractionStrategy(BaseModel):
     """
     A strategy for finding/interacting with an element.
     Examples: "search_then_click", "scroll_until_visible", "static_click"
     """
-    strategy_type: str  # "search_then_click", "scroll_until_visible", "static_click", "menu_navigate"
+    strategy_type: str  # "search_then_click", "scroll_until_visible", etc.
     target_element: str  # What we're looking for (e.g., "Alice", "Send button")
 
     # Strategy-specific parameters
-    parameters: dict[str, Any] = field(default_factory=dict)
-    # Example for search_then_click:
-    #   {"search_bar_id": "com.x:id/search", "result_container": "com.x:id/results"}
-    # Example for scroll_until_visible:
-    #   {"scroll_container": "com.x:id/list", "scroll_direction": "vertical"}
+    parameters: dict[str, Any] = Field(default_factory=dict)
 
     # Reliability metrics
     success_count: int = 0
@@ -48,13 +43,16 @@ class InteractionStrategy(NestedSerializableMixin):
 
     def to_dict(self) -> dict:
         """Convert to dictionary including computed property."""
-        base = super().to_dict()
-        base["reliability_score"] = self.reliability_score
-        return base
+        data = self.model_dump()
+        data["reliability_score"] = self.reliability_score
+        return data
+
+    @classmethod
+    def from_dict(cls, data: dict) -> InteractionStrategy:
+        return cls.model_validate(data)
 
 
-@dataclass
-class AppStrategy(NestedSerializableMixin):
+class AppStrategy(BaseModel):
     """
     Complete strategy set for a dynamic app.
     Stores infrastructure elements (static) and interaction strategies.
@@ -63,20 +61,13 @@ class AppStrategy(NestedSerializableMixin):
     platform: str
 
     # Static infrastructure elements (toolbars, search bars, etc)
-    infrastructure: list[dict] = field(default_factory=list)
+    infrastructure: list[dict] = Field(default_factory=list)
 
     # Known interaction strategies
-    strategies: list[InteractionStrategy] = field(default_factory=list)
+    strategies: list[InteractionStrategy] = Field(default_factory=list)
 
     # App-specific hints
-    hints: dict[str, Any] = field(default_factory=dict)
-    # Example:
-    #   {
-    #       "has_search_bar": True,
-    #       "search_bar_location": "top",
-    #       "main_list_container": "com.tencent.mm:id/conversation_list",
-    #       "common_actions": ["search_contact", "open_chat"]
-    #   }
+    hints: dict[str, Any] = Field(default_factory=dict)
 
     def get_strategy_for(self, target: str) -> InteractionStrategy | None:
         """Find the best strategy for a target element."""
@@ -92,6 +83,13 @@ class AppStrategy(NestedSerializableMixin):
             if elem.get("role") == role or elem.get("label") == role:
                 return elem
         return None
+
+    def to_dict(self) -> dict:
+        return self.model_dump()
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "AppStrategy":
+        return cls.model_validate(data)
 
 
 class AtlasStrategyStore:

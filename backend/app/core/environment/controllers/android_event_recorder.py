@@ -10,14 +10,14 @@ import re
 import subprocess
 import threading
 import time
-from dataclasses import dataclass, field
-from typing import Callable
+from pydantic import BaseModel, ConfigDict
+
+from app.utils.model_helpers import LegacyDictMixin
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class AndroidEvent:
+class AndroidEvent(BaseModel, LegacyDictMixin):
     """Represents a single Android input event."""
     timestamp: float
     event_type: str  # "touch_down", "touch_up", "touch_move", "swipe", "key"
@@ -31,8 +31,7 @@ class AndroidEvent:
     swipe_duration_ms: float | None = None
 
 
-@dataclass
-class DebounceConfig:
+class DebounceConfig(BaseModel, LegacyDictMixin):
     """Configuration for event debouncing."""
     # Time threshold in milliseconds - ignore events within this window
     time_threshold_ms: float = 50.0

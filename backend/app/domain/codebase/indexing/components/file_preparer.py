@@ -1,11 +1,8 @@
-"""
-FilePreparer: Handles file filtering, reading, and validation before indexing.
-"""
 import logging
 import os
-from dataclasses import dataclass
 from datetime import datetime, timezone
 
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,13 +11,15 @@ from app.domain.codebase.filter import FileFilter
 from app.models import Repository, SourceFile
 from app.utils.file import get_file_ext
 from app.utils.hash import compute_md5
+from app.utils.model_helpers import LegacyDictMixin
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class PreparedFile:
+class PreparedFile(BaseModel, LegacyDictMixin):
     """Result of file preparation, ready for indexing."""
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     file_path: str
     rel_path: str
     content: str

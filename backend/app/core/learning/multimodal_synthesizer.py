@@ -21,11 +21,12 @@ import logging
 import subprocess
 import time
 import base64
+import yaml
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional, Tuple
+from pydantic import BaseModel, Field
 
-import yaml
 from sqlalchemy import select, or_
 
 from app.core.config import settings
@@ -52,12 +53,12 @@ from app.infrastructure.llm.vision import VisionLLMFactory
 from app.infrastructure.config.service import SystemConfigService
 from app.infrastructure.drivers.adb import adb_driver
 from app.models import TraceEvent, LearnedSkill
+from app.utils.model_helpers import LegacyDictMixin
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class RecordingSession:
+class RecordingSession(BaseModel, LegacyDictMixin):
     """录制会话数据"""
     video_path: str
     session_id: str
@@ -65,8 +66,7 @@ class RecordingSession:
     thread_id: Optional[str] = None
 
 
-@dataclass
-class VideoInfo:
+class VideoInfo(BaseModel, LegacyDictMixin):
     """视频元信息"""
     duration: float
     width: int

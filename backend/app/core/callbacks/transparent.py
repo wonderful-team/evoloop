@@ -10,9 +10,10 @@ import ast
 import json
 import logging
 import time
-from dataclasses import dataclass, asdict
 from enum import Enum
 from typing import Any
+
+from pydantic import BaseModel, Field
 
 from langchain_core.callbacks import AsyncCallbackHandler
 from langchain_core.outputs import LLMResult
@@ -20,6 +21,9 @@ from langchain_core.outputs import LLMResult
 from app.core.tools.registry import is_state_mutating_tool, get_tool_affected_paths, get_tool_metadata
 from app.i18n.service import i18n
 from app.models.schemas.events import TokenEvent
+
+from app.core.tools.registry import is_state_mutating_tool, get_tool_affected_paths, get_tool_metadata
+from app.utils.model_helpers import LegacyDictMixin
 
 logger = logging.getLogger(__name__)
 
@@ -36,8 +40,7 @@ class StreamEventType(Enum):
     COMPLETE = "complete"
 
 
-@dataclass
-class StreamEvent:
+class StreamEvent(BaseModel, LegacyDictMixin):
     """A structured streaming event for frontend consumption."""
     type: str
     message: str
@@ -45,14 +48,14 @@ class StreamEvent:
     progress: int | None = None
     timestamp: str | None = None
     
-    def __post_init__(self):
+    def model_post_init(self, __context):
         if self.timestamp is None:
             from datetime import datetime
             self.timestamp = datetime.utcnow().isoformat()
     
     def to_json(self) -> str:
         """Convert to JSON string for SSE."""
-        return json.dumps(asdict(self), default=str)
+        return self.model_dump_json(exclude_none=True)
 
 
 class TransparentCallbackHandler(AsyncCallbackHandler):

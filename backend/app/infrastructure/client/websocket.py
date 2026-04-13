@@ -10,19 +10,20 @@ Flow:
        │──── execute_tool ───────────────────────►│
        │◄─── execute_result ──────────────────────│
 """
-
 import asyncio
 import json
 import logging
 import platform
-from typing import Any, Optional
-from dataclasses import dataclass, field
 from datetime import datetime
+from typing import Any, Optional
+
+from pydantic import BaseModel, Field, ConfigDict
 
 import websockets
 from websockets.exceptions import ConnectionClosed
 
 from app.core.config import settings
+from app.utils.model_helpers import LegacyDictMixin
 
 try:
     from zeroconf import IPVersion, ServiceInfo, Zeroconf
@@ -33,15 +34,16 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class PendingToolRequest:
+class PendingToolRequest(BaseModel, LegacyDictMixin):
     """Represents a pending tool request awaiting response."""
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     request_id: str
     thread_id: str
     tool: str
     params: dict[str, Any]
-    future: asyncio.Future = field(default_factory=lambda: asyncio.get_event_loop().create_future())
-    created_at: datetime = field(default_factory=datetime.utcnow)
+    future: asyncio.Future = Field(default_factory=lambda: asyncio.get_event_loop().create_future(), exclude=True)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
 class ClientWebSocketManager:

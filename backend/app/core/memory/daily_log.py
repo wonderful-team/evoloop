@@ -28,31 +28,29 @@ Usage:
     consolidator = LogConsolidator(memory_manager=memory_manager)
     await consolidator.consolidate_date(datetime.utcnow() - timedelta(days=1))
 """
-
 import logging
-from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
-from typing import List, Optional, Dict, Any, Tuple
-import re
-import asyncio
+from typing import Optional
+
+from pydantic import BaseModel, Field
 
 from app.core.memory.models import MemoryEntry, MemoryType, PrivacyLevel
 from app.core.config import settings
+from app.utils.model_helpers import LegacyDictMixin
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class LogEntry:
+class LogEntry(BaseModel, LegacyDictMixin):
     """An entry in the daily log."""
-    timestamp: datetime
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
     memory_id: str
     memory_type: str
     title: str
     description: str
-    user_id: Optional[str]
-    project_id: Optional[int]
+    user_id: Optional[str] = None
+    project_id: Optional[int] = None
     
     def to_markdown(self) -> str:
         """Convert to markdown format for daily log."""

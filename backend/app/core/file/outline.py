@@ -12,14 +12,15 @@ import os
 import re
 from dataclasses import dataclass
 from typing import Optional
+from pydantic import BaseModel
 
+from app.utils.model_helpers import LegacyDictMixin
 from .io import detect_encoding
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class OutlineEntry:
+class OutlineEntry(BaseModel, LegacyDictMixin):
     """A single entry in file outline."""
     type: str  # 'class', 'function', 'method', 'variable', etc.
     name: str

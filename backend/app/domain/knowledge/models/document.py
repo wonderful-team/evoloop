@@ -2,32 +2,29 @@
 Core document models for knowledge extraction.
 """
 
-from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, BinaryIO, Optional
+from pydantic import BaseModel, Field
+from typing import Any, BinaryIO, Optional, List, Dict
+from app.utils.model_helpers import LegacyDictMixin
 
 
-@dataclass
-class MarkdownDocument:
+class MarkdownDocument(BaseModel, LegacyDictMixin):
     """
     Represents a document extracted to Markdown format.
     
     This is the universal format for all extracted content in the knowledge base.
     """
-    content: str
+    content: str = ""
     source: str                    # Original filename/path
     mime_type: str                 # Original MIME type
-    metadata: dict[str, Any] = field(default_factory=dict)
-    extracted_at: datetime = field(default_factory=datetime.utcnow)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+    extracted_at: datetime = Field(default_factory=datetime.utcnow)
     
     # Optional chunking for large documents
-    chunks: Optional[list[str]] = None
+    chunks: Optional[List[str]] = None
     
-    def __post_init__(self):
-        """Validate document content."""
-        if not self.content:
-            self.content = ""
-        
+    def model_post_init(self, __context: Any) -> None:
+        """Validate document content after initialization."""
         # Ensure metadata has required fields
         if "source" not in self.metadata:
             self.metadata["source"] = self.source
@@ -106,13 +103,23 @@ class MarkdownDocument:
         
         content = parts[2].strip()
         
+        # Determine extracted_at
+        extracted_at_str = metadata.get("extracted_at")
+        if extracted_at_str:
+            try:
+                extracted_at = datetime.fromisoformat(extracted_at_str)
+            except (ValueError, TypeError):
+                extracted_at = datetime.utcnow()
+        else:
+            extracted_at = datetime.utcnow()
+            
         return cls(
             content=content,
             source=metadata.get("source", "unknown"),
             mime_type=metadata.get("mime_type", "text/plain"),
             metadata={k: v for k, v in metadata.items() 
                      if k not in ("source", "mime_type", "extracted_at")},
-            extracted_at=datetime.fromisoformat(metadata.get("extracted_at", datetime.utcnow().isoformat()))
+            extracted_at=extracted_at
         )
 
 

@@ -5,10 +5,10 @@ Events related to project lifecycle and synchronization.
 These events enable decoupling between ProjectSyncService and IndexingManager.
 """
 
-from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from typing import Any
+from pydantic import Field
 
 from app.core.events.base import BaseEvent
 
@@ -27,16 +27,14 @@ class ProjectEventType(str, Enum):
     NEW_PROJECT_DETECTED = "project.new_detected"
 
 
-@dataclass
 class ProjectEvent(BaseEvent):
     """Base class for project domain events."""
-    event_type: ProjectEventType = field(default=ProjectEventType.PROJECT_CREATED)
-    timestamp: datetime = field(default_factory=datetime.now)
+    event_type: ProjectEventType = ProjectEventType.PROJECT_CREATED
+    timestamp: datetime = Field(default_factory=datetime.now)
     source: str = "project"
-    data: dict[str, Any] = field(default_factory=dict)
+    data: dict[str, Any] = Field(default_factory=dict)
 
 
-@dataclass
 class ProjectCreatedEvent(ProjectEvent):
     """
     Published when a new project directory is detected.
@@ -48,7 +46,7 @@ class ProjectCreatedEvent(ProjectEvent):
     project_id: int | None = None
     project_name: str = ""
 
-    def __post_init__(self):
+    def model_post_init(self, __context: Any) -> None:
         self.event_type = ProjectEventType.PROJECT_CREATED
         self.data = {
             "path": self.path,
@@ -58,7 +56,6 @@ class ProjectCreatedEvent(ProjectEvent):
         }
 
 
-@dataclass
 class ProjectDeletedEvent(ProjectEvent):
     """
     Published when a project directory is deleted.
@@ -69,7 +66,7 @@ class ProjectDeletedEvent(ProjectEvent):
     repo_id: int = 0
     project_id: int | None = None
 
-    def __post_init__(self):
+    def model_post_init(self, __context: Any) -> None:
         self.event_type = ProjectEventType.PROJECT_DELETED
         self.data = {
             "path": self.path,
@@ -78,7 +75,6 @@ class ProjectDeletedEvent(ProjectEvent):
         }
 
 
-@dataclass
 class ProjectMovedEvent(ProjectEvent):
     """
     Published when a project directory is moved/renamed.
@@ -88,7 +84,7 @@ class ProjectMovedEvent(ProjectEvent):
     repo_id: int = 0
     new_name: str = ""
 
-    def __post_init__(self):
+    def model_post_init(self, __context: Any) -> None:
         self.event_type = ProjectEventType.PROJECT_MOVED
         self.data = {
             "src_path": self.src_path,
@@ -98,7 +94,6 @@ class ProjectMovedEvent(ProjectEvent):
         }
 
 
-@dataclass
 class ProjectSwitchedEvent(ProjectEvent):
     """
     Published when user switches active project context.
@@ -107,7 +102,7 @@ class ProjectSwitchedEvent(ProjectEvent):
     project_name: str = ""
     path: str = ""
 
-    def __post_init__(self):
+    def model_post_init(self, __context: Any) -> None:
         self.event_type = ProjectEventType.PROJECT_SWITCHED
         self.data = {
             "project_id": self.project_id,
@@ -116,7 +111,6 @@ class ProjectSwitchedEvent(ProjectEvent):
         }
 
 
-@dataclass
 class NewProjectDetectedEvent(ProjectEvent):
     """
     Published when a new project directory is detected but not yet imported.
@@ -127,9 +121,9 @@ class NewProjectDetectedEvent(ProjectEvent):
     repo_id: int = 0
     path: str = ""
     name: str = ""
-    detected_at: datetime = field(default_factory=datetime.now)
+    detected_at: datetime = Field(default_factory=datetime.now)
 
-    def __post_init__(self):
+    def model_post_init(self, __context: Any) -> None:
         self.event_type = ProjectEventType.NEW_PROJECT_DETECTED
         self.data = {
             "repo_id": self.repo_id,

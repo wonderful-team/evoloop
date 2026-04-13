@@ -9,7 +9,9 @@ import json
 from typing import Optional
 from dataclasses import dataclass
 
+from pydantic import BaseModel, Field
 
+from app.utils.model_helpers import LegacyDictMixin
 
 logger = logging.getLogger(__name__)
 
@@ -41,14 +43,13 @@ for category in TAG_CATEGORIES.values():
     ALL_VALID_TAGS.update(category)
 
 
-@dataclass
-class TaggingResult:
+class TaggingResult(BaseModel, LegacyDictMixin):
     """Result of auto-tagging."""
-    tags: list[str]
+    tags: list[str] = Field(default_factory=list)
     category: str  # primary category
     confidence: float
     summary: str  # brief summary of document
-    keywords: list[str]  # extracted keywords
+    keywords: list[str] = Field(default_factory=list)  # extracted keywords
 
 
 class AutoTaggerService:

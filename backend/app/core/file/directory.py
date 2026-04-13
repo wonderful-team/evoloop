@@ -12,8 +12,10 @@ from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from typing import Callable, Optional
+from pydantic import BaseModel, Field
 
 from app.constants import DEFAULT_EXCLUDED_DIRS
+from app.utils.model_helpers import LegacyDictMixin
 
 logger = logging.getLogger(__name__)
 
@@ -28,8 +30,7 @@ class DirectoryStatus(Enum):
     ERROR = "error"
 
 
-@dataclass
-class DirectoryInfo:
+class DirectoryInfo(BaseModel, LegacyDictMixin):
     """Information about a directory."""
     path: str
     exists: bool
@@ -39,8 +40,7 @@ class DirectoryInfo:
     total_size: int = 0
 
 
-@dataclass
-class DirectoryOperationResult:
+class DirectoryOperationResult(BaseModel, LegacyDictMixin):
     """Result of a directory operation."""
     success: bool
     status: DirectoryStatus
@@ -49,8 +49,7 @@ class DirectoryOperationResult:
     destination: Optional[str] = None  # For move operations
 
 
-@dataclass
-class DirectoryEntry:
+class DirectoryEntry(BaseModel, LegacyDictMixin):
     """A single entry in directory listing."""
     name: str
     path: str

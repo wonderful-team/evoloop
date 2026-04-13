@@ -53,12 +53,15 @@ import asyncio
 
 from app.core.config import settings
 from app.core.memory.models import MemoryEntry, MemoryType, PrivacyLevel
+from app.utils.model_helpers import LegacyDictMixin
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class SectionBudget:
+from pydantic import BaseModel, Field
+
+
+class SectionBudget(BaseModel, LegacyDictMixin):
     """Budget allocation for a MEMORY.md section."""
     name: str
     lines: int
@@ -70,13 +73,12 @@ class SectionBudget:
         return self.lines - self.used
 
 
-@dataclass
-class MemorySection:
+class MemorySection(BaseModel, LegacyDictMixin):
     """A section in MEMORY.md."""
     name: str
     title: str
     budget: int
-    entries: List[Dict[str, Any]] = field(default_factory=list)
+    entries: List[Dict[str, Any]] = Field(default_factory=list)
     
     def to_markdown(self, max_lines: Optional[int] = None) -> str:
         """Generate markdown for this section."""
@@ -93,6 +95,7 @@ class MemorySection:
             lines.append(f"\n*... and {overflow_count} more in cold memory*")
         
         return "\n".join(lines) + "\n\n"
+
 
 
 class TwoTierMemoryManager:

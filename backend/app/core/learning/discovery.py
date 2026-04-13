@@ -3,7 +3,8 @@ import logging
 import os
 import shutil
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any, Dict, Optional
+from pydantic import BaseModel, Field
 
 from sqlalchemy import func, select
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
@@ -13,18 +14,18 @@ from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.llm.factory import LLMFactory
 from app.core.learning.prompts import prompt_builder
 from app.models.learning import LearnedSkill
+from app.utils.model_helpers import LegacyDictMixin
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class SkillMatch:
+class SkillMatch(BaseModel, LegacyDictMixin):
     """Result of skill matching (intentional execution)."""
     skill_id: int
     skill_name: str
     confidence: float
     reasoning: str
-    extracted_params: dict[str, Any]
+    extracted_params: Dict[str, Any]
 
 
 class SkillDiscovery:

@@ -1,9 +1,10 @@
 """Base class for MCP authentication handlers."""
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
 from enum import Enum
-from typing import Any
+from pydantic import BaseModel, Field
+
+from app.utils.model_helpers import LegacyDictMixin
 
 
 class AuthMethod(str, Enum):
@@ -14,8 +15,7 @@ class AuthMethod(str, Enum):
     OAUTH_CLIENT_CREDENTIALS = "oauth_client_credentials"
 
 
-@dataclass
-class AuthToken:
+class AuthToken(BaseModel, LegacyDictMixin):
     """Authentication token data."""
     access_token: str
     token_type: str = "Bearer"
@@ -31,8 +31,7 @@ class AuthToken:
         return time.time() >= (self.expires_at - buffer_seconds)
 
 
-@dataclass
-class AuthConfig:
+class AuthConfig(BaseModel, LegacyDictMixin):
     """Authentication configuration for an MCP server."""
     method: AuthMethod
     # API Key auth

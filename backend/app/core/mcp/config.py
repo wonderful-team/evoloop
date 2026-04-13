@@ -2,7 +2,10 @@
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Optional
+from typing import Any, Optional, List, Dict
+from pydantic import BaseModel, Field, field_validator
+
+from app.utils.model_helpers import LegacyDictMixin
 
 
 class TransportType(str, Enum):
@@ -19,21 +22,20 @@ class AuthType(str, Enum):
     OAUTH_DEVICE_CODE = "oauth_device_code"
 
 
-@dataclass
-class McpServerConfig:
+class McpServerConfig(BaseModel, LegacyDictMixin):
     """Configuration for an MCP server connection."""
     name: str
     transport: TransportType = TransportType.STDIO
     # Stdio transport
     command: Optional[str] = None
-    args: list[str] = field(default_factory=list)
-    env: dict[str, str] = field(default_factory=dict)
+    args: List[str] = Field(default_factory=list)
+    env: Dict[str, str] = Field(default_factory=dict)
     # SSE transport
     url: Optional[str] = None
-    headers: dict[str, str] = field(default_factory=dict)
+    headers: Dict[str, str] = Field(default_factory=dict)
     # Authentication
     auth_type: AuthType = AuthType.NONE
-    auth_config: dict[str, Any] = field(default_factory=dict)
+    auth_config: Dict[str, Any] = Field(default_factory=dict)
     # Behavior
     auto_connect: bool = True
     enabled: bool = True
@@ -98,8 +100,7 @@ class McpServerConfig:
                 raise ValueError(f"MCP server '{self.name}': url is required for sse transport")
 
 
-@dataclass
-class ConnectionState:
+class ConnectionState(BaseModel, LegacyDictMixin):
     """Connection state tracking."""
     server_name: str
     is_connected: bool = False
@@ -108,11 +109,10 @@ class ConnectionState:
     error_message: Optional[str] = None
 
 
-@dataclass
-class ConnectionResult:
+class ConnectionResult(BaseModel, LegacyDictMixin):
     """Result of a connection attempt."""
     success: bool
     server_name: str
     tools_count: int = 0
     error: Optional[str] = None
-    capabilities: Optional[dict] = None
+    capabilities: Optional[Dict[str, Any]] = None

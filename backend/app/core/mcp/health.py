@@ -5,14 +5,16 @@ import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Optional
+from pydantic import BaseModel, Field
 
 from mcp import ClientSession
+
+from app.utils.model_helpers import LegacyDictMixin
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class HealthStatus:
+class HealthStatus(BaseModel, LegacyDictMixin):
     """Health check result."""
     is_healthy: bool
     server_name: str

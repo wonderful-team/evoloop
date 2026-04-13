@@ -10,15 +10,15 @@ from dataclasses import dataclass
 
 import tree_sitter
 
-from app.domain.codebase.indexing.parsers import parser_registry
+from pydantic import BaseModel
 
-from .base_extractor import SemanticExtractorBase
+from app.domain.codebase.indexing.parsers import parser_registry
+from app.utils.model_helpers import LegacyDictMixin
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class APIEndpoint:
+class APIEndpoint(BaseModel, LegacyDictMixin):
     method: str
     path: str
     handler_name: str

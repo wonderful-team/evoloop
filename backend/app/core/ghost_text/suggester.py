@@ -6,10 +6,12 @@ Provides inline code suggestions (Ghost Text) for editor integration.
 """
 
 import logging
-from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
+
+from pydantic import BaseModel, Field
 
 from app.domain.codebase.indexing.parsers import parser_registry
+from app.utils.model_helpers import LegacyDictMixin
 
 if TYPE_CHECKING:
     pass
@@ -17,37 +19,24 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class GhostSuggestion:
+class GhostSuggestion(BaseModel, LegacyDictMixin):
     """A ghost text suggestion for inline display."""
-    text: str
-    trigger_position: int
-    confidence: float
-    source: str
-    type: str = "completion"  # completion, edit_preview, snippet
-    description: str | None = None
-    display_text: str | None = None
-    
-    def to_dict(self) -> dict:
-        return {
-            "text": self.text,
-            "trigger_position": self.trigger_position,
-            "confidence": self.confidence,
-            "source": self.source,
-            "type": self.type,
-            "description": self.description,
-            "display_text": self.display_text or self.text,
-        }
+    text: str = Field(..., description="The suggested text to insert")
+    trigger_position: int = Field(..., description="Position where the suggestion was triggered")
+    confidence: float = Field(..., description="Confidence score (0-1)", ge=0, le=1)
+    source: str = Field(..., description="Source: pattern, llm, context")
+    type: str = Field("completion", description="Suggestion type: completion, edit_preview, snippet")
+    description: Optional[str] = Field(None, description="Tooltip description")
+    display_text: Optional[str] = Field(None, description="Formatted display text")
 
 
-@dataclass
-class EditPreview:
+class EditPreview(BaseModel, LegacyDictMixin):
     """An edit preview showing original and suggested text."""
-    original_text: str
-    suggested_text: str
-    description: str
-    line_start: int
-    line_end: int
+    original_text: str = Field(..., description="The original text before edit")
+    suggested_text: str = Field(..., description="The suggested text after edit")
+    description: str = Field(..., description="Description of the change")
+    line_start: int = Field(..., description="Starting line of the edit", ge=1)
+    line_end: int = Field(..., description="Ending line of the edit", ge=1)
 
 
 class GhostTextSuggester:

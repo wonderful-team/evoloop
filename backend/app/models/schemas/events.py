@@ -1,37 +1,47 @@
 import time
-from typing import Any, Literal
-
+from typing import Any, Dict, List, Literal, Optional, Union
 from pydantic import BaseModel, Field
 
 
-class EventBase(BaseModel):
+from app.utils.model_helpers import LegacyDictMixin
+
+
+class EventBase(BaseModel, LegacyDictMixin):
     timestamp: float = Field(default_factory=time.time)
 
 
-# --- Step Events (formerly Task Events) ---
+# --- Step Events ---
 class StepEvent(EventBase):
     type: Literal["step"] = "step"
     action: Literal["create", "update"]
     id: int
-    data: dict[str, Any]  # The delta or full object
+    data: Dict[str, Any]  # Delta or full object
 
 
 # --- Artifact Events ---
+class ArtifactPayload(BaseModel, LegacyDictMixin):
+    name: str
+    artifact_type: str  # "code", "design", "log"
+    path: Optional[str] = None
+    content: Optional[str] = None
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+
 class ArtifactEvent(EventBase):
     type: Literal["artifact"] = "artifact"
     action: Literal["create", "update"]
-    name: str = ""  # Usually keyed by name or ID, let's assume we pass enough info
-    data: dict[str, Any]
+    name: str = ""
+    data: Union[ArtifactPayload, Dict[str, Any]]
 
 
 # --- Agent State Events ---
 class AgentStateEvent(EventBase):
     type: Literal["state"] = "state"
     action: Literal["update"] = "update"
-    data: dict[str, Any]
+    data: Dict[str, Any]
 
 
-# --- Token Events (for consistency, though usually raw) ---
+# --- Token Events ---
 class TokenEvent(EventBase):
     type: Literal["token"] = "token"
     content: str
@@ -41,27 +51,29 @@ class TokenEvent(EventBase):
 class StatusEvent(EventBase):
     type: Literal["status"] = "status"
     status: str
+    message: Optional[str] = None
 
 
 # --- Message Events ---
 class MessageEvent(EventBase):
     type: Literal["message"] = "message"
     action: Literal["create"] = "create"
-    data: dict[str, Any]  # Serialized Message model
+    data: Dict[str, Any]  # Serialized Message model
 
 
-# --- Human Request Events (HITL + UI Actions) ---
+# --- Human Request Events ---
+class HumanRequestPayload(BaseModel, LegacyDictMixin):
+    type: Literal["text_input", "project_switch", "confirm", "file_select", "approval"]
+    prompt: str
+    allow_cancel: bool = True
+    payload: Dict[str, Any] = Field(default_factory=dict)
+    options: Optional[List[str]] = None
+
+
 class HumanRequestEvent(EventBase):
     type: Literal["human_request"] = "human_request"
     action: Literal["create", "update", "clear"] = "create"
-    data: dict[str, Any]
-    # data 结构:
-    # {
-    #   "type": "text_input" | "project_switch" | "confirm" | "file_select",
-    #   "prompt": str,
-    #   "allow_cancel": bool,
-    #   "payload": {...}  # type-specific data
-    # }
+    data: Union[HumanRequestPayload, Dict[str, Any]]
 
 
 # --- Quota Exhausted Event ---
@@ -73,14 +85,14 @@ class QuotaExhaustedEvent(EventBase):
     action_text: str = "Check Quota"
 
 
-# Union type for easy parsing if needed
-StreamEvent = (
-    StepEvent
-    | ArtifactEvent
-    | AgentStateEvent
-    | TokenEvent
-    | StatusEvent
-    | MessageEvent
-    | HumanRequestEvent
-    | QuotaExhaustedEvent
-)
+# Union type for easy parsing
+StreamEvent = Union[
+    StepEvent,
+    ArtifactEvent,
+    AgentStateEvent,
+    TokenEvent,
+    StatusEvent,
+    MessageEvent,
+    HumanRequestEvent,
+    QuotaExhaustedEvent
+]

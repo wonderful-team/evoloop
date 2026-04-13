@@ -3,6 +3,7 @@ from enum import Enum
 from typing import Any, Dict, List, Optional, Union
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from app.utils.model_helpers import LegacyDictMixin
 from app.utils.yaml import macro_from_yaml, macro_to_yaml, YAMLError
 
 
@@ -101,6 +102,87 @@ class CollectMode(str, Enum):
     AUTO = "auto"      # Automatic: collect list first, then execute detail steps
 
 
+class NavigationPayload(BaseModel, LegacyDictMixin):
+    """Payload for navigation actions (goto, open_app)."""
+    url: Optional[str] = None
+    package_name: Optional[str] = Field(None, alias="package")
+    app_name: Optional[str] = None
+    wait_until: str = "load" # load | domcontentloaded | networkidle
+    timeout_ms: int = 30000
+
+    class Config:
+        populate_by_name = True
+
+
+class InteractionPayload(BaseModel, LegacyDictMixin):
+    """Payload for UI interactions (click, input, scroll)."""
+    # Coordinates (used if target_selector is missing or for vision correction)
+    x: Optional[int] = None
+    y: Optional[int] = None
+    original_x: Optional[int] = None
+    original_y: Optional[int] = None
+    vision_corrected: bool = False
+    
+    # Text input
+    text: Optional[str] = None
+    append: bool = False
+    enter: bool = True # Press enter after input
+    
+    # Mouse/Keyboard
+    button: str = "left" # left | middle | right
+    clicks: int = 1
+    modifiers: List[str] = Field(default_factory=list) # shift | control | alt | meta
+    
+    # Scroll / Swipe
+    direction: str = "down" # up | down | left | right
+    amount: float = 0.5 # 0.0 to 1.0 or pixels
+    duration_ms: int = 300
+    
+    # Timing
+    delay_after_ms: int = 100
+    timeout_ms: int = 10000
+
+
+class ControlPayload(BaseModel, LegacyDictMixin):
+    """Payload for control flow (loop, if)."""
+    # Loop specific
+    items_key: str = "items"
+    max_iterations: Union[int, str] = 100
+    max_retries: int = 3
+    backoff_base: float = 2.0
+    
+    # Batch collection (Phase 6)
+    state_file: Optional[str] = None
+    list_config: Dict[str, Any] = Field(default_factory=dict)
+    detail_config: Dict[str, Any] = Field(default_factory=dict)
+
+
+class ExtractionPayload(BaseModel, LegacyDictMixin):
+    """Payload for data extraction steps."""
+    attribute: Optional[str] = None
+    script: Optional[str] = Field(None, alias="expression")
+    region: Optional[Dict[str, int]] = None # {"x": 0, "y": 0, "w": 100, "h": 100}
+    wait_for_selector: Optional[str] = None
+    timeout_ms: int = 5000
+    
+    # Loop detail collection
+    data_capture: Dict[str, str] = Field(default_factory=dict)
+
+    class Config:
+        populate_by_name = True
+
+
+
+# Unified Payload Type
+MacroPayload = Union[
+    NavigationPayload, 
+    InteractionPayload, 
+    ControlPayload, 
+    ExtractionPayload, 
+    Dict[str, Any]
+]
+
+
 class MacroCondition(BaseModel):
     type: str = "element_exists"
     target_selector: Optional[str] = None
@@ -108,7 +190,7 @@ class MacroCondition(BaseModel):
     params: Dict[str, Any] = Field(default_factory=dict)
 
 
-class MacroStep(BaseModel):
+class MacroStep(BaseModel, LegacyDictMixin):
     step_number: Optional[int] = None
     type: MacroStepType
     description: Optional[str] = None
@@ -117,7 +199,7 @@ class MacroStep(BaseModel):
     # Optional fields for specific types
     event_type: Optional[MacroActionType] = None
     target_selector: Optional[str] = None
-    payload: Dict[str, Any] = Field(default_factory=dict)
+    payload: MacroPayload = Field(default_factory=dict)
     
     # Control Flow (if/loop)
     condition: Optional[MacroCondition] = None

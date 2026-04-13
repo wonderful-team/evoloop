@@ -37,14 +37,15 @@ class RewindEventType(str, Enum):
     BLACKBOARD_RESET = "rewind.blackboard.reset"    # Reset blackboard data
 
 
-@dataclass
+from pydantic import Field
+
+
 class RewindEvent(BaseEvent):
     """Base class for all rewind events."""
     source: str = "rewind_service"
     thread_id: str = ""
 
 
-@dataclass
 class RewindRequestedEvent(RewindEvent):
     """
     Published when a rewind operation is requested.
@@ -58,7 +59,7 @@ class RewindRequestedEvent(RewindEvent):
     reset_state: bool = True              # Whether to reset LangGraph state
     reason: str = "user_request"          # Why the rewind was triggered
     
-    def __post_init__(self):
+    def model_post_init(self, __context: Any) -> None:
         self.event_type = RewindEventType.REWIND_REQUESTED
         self.data = {
             "thread_id": self.thread_id,
@@ -70,13 +71,12 @@ class RewindRequestedEvent(RewindEvent):
         }
 
 
-@dataclass
 class MessagesCleanupEvent(RewindEvent):
     """Published to trigger message deletion."""
-    message_ids: list[str] = field(default_factory=list)
+    message_ids: list[str] = Field(default_factory=list)
     delete_references: bool = True
     
-    def __post_init__(self):
+    def model_post_init(self, __context: Any) -> None:
         self.event_type = RewindEventType.MESSAGES_CLEANUP
         self.data = {
             "thread_id": self.thread_id,
@@ -85,13 +85,12 @@ class MessagesCleanupEvent(RewindEvent):
         }
 
 
-@dataclass
 class FilesCleanupEvent(RewindEvent):
     """Published to trigger file restoration."""
-    file_operations: list[dict] = field(default_factory=list)
+    file_operations: list[dict] = Field(default_factory=list)
     # Each dict: {"path": str, "operation": "ADD|EDIT|DELETE", "backup_content": str|None}
     
-    def __post_init__(self):
+    def model_post_init(self, __context: Any) -> None:
         self.event_type = RewindEventType.FILES_CLEANUP
         self.data = {
             "thread_id": self.thread_id,
@@ -99,13 +98,12 @@ class FilesCleanupEvent(RewindEvent):
         }
 
 
-@dataclass
 class MemoryCleanupEvent(RewindEvent):
     """Published to trigger memory deletion."""
-    source_message_ids: list[str] = field(default_factory=list)
-    run_ids: list[str] = field(default_factory=list)
+    source_message_ids: list[str] = Field(default_factory=list)
+    run_ids: list[str] = Field(default_factory=list)
     
-    def __post_init__(self):
+    def model_post_init(self, __context: Any) -> None:
         self.event_type = RewindEventType.MEMORY_CLEANUP
         self.data = {
             "thread_id": self.thread_id,
@@ -114,14 +112,13 @@ class MemoryCleanupEvent(RewindEvent):
         }
 
 
-@dataclass
 class StateResetEvent(RewindEvent):
     """Published to trigger LangGraph state reset."""
     checkpoint_id: str | None = None
     reset_blackboard: bool = True
     reset_iteration_count: bool = True
 
-    def __post_init__(self):
+    def model_post_init(self, __context: Any) -> None:
         self.event_type = RewindEventType.STATE_RESET
         self.data = {
             "thread_id": self.thread_id,
@@ -131,13 +128,12 @@ class StateResetEvent(RewindEvent):
         }
 
 
-@dataclass
 class CheckpointCleanupEvent(RewindEvent):
     """Published to trigger checkpoint deletion from SQLite."""
-    checkpoint_ids: list[str] = field(default_factory=list)
+    checkpoint_ids: list[str] = Field(default_factory=list)
     min_checkpoint_id: str | None = None  # Alternative: delete all >= this ID
 
-    def __post_init__(self):
+    def model_post_init(self, __context: Any) -> None:
         self.event_type = RewindEventType.CHECKPOINT_CLEANUP
         self.data = {
             "thread_id": self.thread_id,
@@ -147,12 +143,11 @@ class CheckpointCleanupEvent(RewindEvent):
         }
 
 
-@dataclass
 class TodoCleanupEvent(RewindEvent):
     """Published to trigger todo item deletion."""
-    source_message_ids: list[str] = field(default_factory=list)
+    source_message_ids: list[str] = Field(default_factory=list)
     
-    def __post_init__(self):
+    def model_post_init(self, __context: Any) -> None:
         self.event_type = RewindEventType.TODO_CLEANUP
         self.data = {
             "thread_id": self.thread_id,
@@ -161,12 +156,11 @@ class TodoCleanupEvent(RewindEvent):
         }
 
 
-@dataclass
 class TraceCleanupEvent(RewindEvent):
     """Published to trigger trace event deletion."""
-    source_message_ids: list[str] = field(default_factory=list)
+    source_message_ids: list[str] = Field(default_factory=list)
     
-    def __post_init__(self):
+    def model_post_init(self, __context: Any) -> None:
         self.event_type = RewindEventType.TRACE_CLEANUP
         self.data = {
             "thread_id": self.thread_id,
@@ -175,7 +169,6 @@ class TraceCleanupEvent(RewindEvent):
         }
 
 
-@dataclass
 class RewindCompletedEvent(RewindEvent):
     """Published when rewind operation completes successfully."""
     removed_message_count: int = 0
@@ -183,7 +176,7 @@ class RewindCompletedEvent(RewindEvent):
     removed_memory_count: int = 0
     new_checkpoint_id: str | None = None
     
-    def __post_init__(self):
+    def model_post_init(self, __context: Any) -> None:
         self.event_type = RewindEventType.REWIND_COMPLETED
         self.data = {
             "thread_id": self.thread_id,
@@ -194,14 +187,13 @@ class RewindCompletedEvent(RewindEvent):
         }
 
 
-@dataclass
 class RewindFailedEvent(RewindEvent):
     """Published when rewind operation fails."""
     error: str = ""
     failed_step: str = "unknown"
-    partial_results: dict = field(default_factory=dict)
+    partial_results: dict = Field(default_factory=dict)
     
-    def __post_init__(self):
+    def model_post_init(self, __context: Any) -> None:
         self.event_type = RewindEventType.REWIND_FAILED
         self.data = {
             "thread_id": self.thread_id,

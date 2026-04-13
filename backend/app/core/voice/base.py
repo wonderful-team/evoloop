@@ -4,9 +4,10 @@ Voice Service Base Classes and Models
 """
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
-from typing import Optional, BinaryIO, AsyncIterator
 from enum import Enum
+from pydantic import BaseModel, Field
+
+from app.utils.model_helpers import LegacyDictMixin
 
 
 class VoiceGender(str, Enum):
@@ -28,8 +29,7 @@ class VoiceLocale(str, Enum):
     AUTO = "auto"      # 自动检测
 
 
-@dataclass
-class Voice:
+class Voice(BaseModel, LegacyDictMixin):
     """声音定义"""
     id: str
     name: str
@@ -37,13 +37,12 @@ class Voice:
     description: str
     locale: VoiceLocale
     provider: str
-    preview_text: Optional[str] = None
+    preview_text: str | None = None
     is_streaming: bool = True
     supports_speed: bool = True
 
 
-@dataclass
-class TTSOptions:
+class TTSOptions(BaseModel, LegacyDictMixin):
     """TTS 合成选项"""
     text: str
     voice_id: str
@@ -51,37 +50,34 @@ class TTSOptions:
     pitch: float = 0.0           # 音调调整（部分支持）
     volume: float = 1.0          # 音量（部分支持）
     format: str = "mp3"          # mp3, wav, opus, aac
-    locale: Optional[VoiceLocale] = None
+    locale: VoiceLocale | None = None
 
 
-@dataclass
-class TTSSResult:
+class TTSSResult(BaseModel, LegacyDictMixin):
     """TTS 合成结果"""
     audio_data: bytes
     content_type: str
-    duration_ms: Optional[int] = None
-    sample_rate: Optional[int] = None
+    duration_ms: int | None = None
+    sample_rate: int | None = None
 
 
-@dataclass
-class STTOptions:
+class STTOptions(BaseModel, LegacyDictMixin):
     """STT 识别选项"""
     audio_data: bytes
     audio_format: str = "webm"   # webm, mp3, wav, m4a
     language: VoiceLocale = VoiceLocale.AUTO
-    model: Optional[str] = None   # 模型选择
-    prompt: Optional[str] = None  # 提示词（热词等）
-    timestamp_granularities: Optional[list] = None
+    model: str | None = None   # 模型选择
+    prompt: str | None = None  # 提示词（热词等）
+    timestamp_granularities: list | None = None
 
 
-@dataclass
-class STTResult:
+class STTResult(BaseModel, LegacyDictMixin):
     """STT 识别结果"""
     text: str
     language: VoiceLocale
-    duration_ms: Optional[int] = None
-    confidence: Optional[float] = None
-    words: Optional[list] = None  # 词级别时间戳
+    duration_ms: int | None = None
+    confidence: float | None = None
+    words: list | None = None  # 词级别时间戳
 
 
 class BaseTTSProvider(ABC):

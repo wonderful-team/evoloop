@@ -31,18 +31,20 @@ from typing import List, Optional, Dict, Any, Set
 import json
 import math
 
+from pydantic import BaseModel, Field
+
 from app.core.memory.models import MemoryEntry, MemoryType, PrivacyLevel
+from app.utils.model_helpers import LegacyDictMixin
 from app.utils.template import render_template
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class RetrievalContext:
+class RetrievalContext(BaseModel, LegacyDictMixin):
     """Context for memory retrieval."""
     query: str
-    recent_tools: List[str]
-    already_surfaced: Set[str]  # Memory IDs already shown to user
+    recent_tools: List[str] = Field(default_factory=list)
+    already_surfaced: Set[str] = Field(default_factory=set)  # Memory IDs already shown to user
     user_id: Optional[str] = None
     project_id: Optional[int] = None
 

@@ -21,17 +21,18 @@ Usage:
     if not decision.allowed:
         logger.info(f"Self-healing disabled: {decision.reason}")
 """
-
-from dataclasses import dataclass
 from typing import Optional, Dict, Any, TYPE_CHECKING
+
+from pydantic import BaseModel, Field
+
 from app.core.config import settings
+from app.utils.model_helpers import LegacyDictMixin
 
 if TYPE_CHECKING:
     from app.models import LearnedSkill
 
 
-@dataclass(frozen=True)
-class HealingDecision:
+class HealingDecision(BaseModel, LegacyDictMixin):
     """Result of a self-healing policy check."""
     allowed: bool
     reason: str

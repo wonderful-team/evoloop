@@ -1,30 +1,26 @@
 from abc import ABC
-from typing import Any, Optional
-from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional
+from pydantic import BaseModel, Field
 
 
-@dataclass
-class AgentSignal(ABC):
+class AgentSignal(BaseModel, ABC):
     """Base class for all Agent-driven control signals."""
     reason: str = ""
 
 
-@dataclass
 class RouteToSignal(AgentSignal):
     """Signal to transition to another Graph Node."""
     target: str = "finish"
-    context: dict[str, Any] = field(default_factory=dict)
-    authorized_tools: Optional[list[str]] = None
+    context: Dict[str, Any] = Field(default_factory=dict)
+    authorized_tools: Optional[List[str]] = None
     skill_id: Optional[int] = None
 
 
-@dataclass
 class SpawnSubtasksSignal(AgentSignal):
     """Signal to spawn parallel sub-agents."""
-    plan: dict[str, Any] = field(default_factory=dict)
+    plan: Dict[str, Any] = Field(default_factory=dict)
 
 
-@dataclass
 class TerminateSignal(AgentSignal):
     """Signal to end the session naturally."""
     summary: str = ""

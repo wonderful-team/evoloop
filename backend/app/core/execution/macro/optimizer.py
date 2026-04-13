@@ -3,7 +3,10 @@ from dataclasses import dataclass, field
 from typing import List, Tuple
 from enum import Enum
 
+from pydantic import BaseModel, Field
+
 from app.core.execution.macro.schema import MacroScript, MacroStep, MacroStepType, MacroActionType
+from app.utils.model_helpers import LegacyDictMixin
 
 logger = logging.getLogger(__name__)
 
@@ -16,14 +19,13 @@ class OptimizationStrategy(Enum):
     COALESCE_EXTRACTS = "coalesce_extracts"
 
 
-@dataclass
-class OptimizationResult:
+class OptimizationResult(BaseModel, LegacyDictMixin):
     original_steps: int
     optimized_steps: int
     removed_steps: int
     merged_steps: int
     time_saved_ms: int
-    strategies_applied: List[str] = field(default_factory=list)
+    strategies_applied: List[str] = Field(default_factory=list)
 
     @property
     def reduction_ratio(self) -> float:

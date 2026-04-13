@@ -1,15 +1,13 @@
 """
 Awakening Event System
 """
-
-import logging
-from collections.abc import Awaitable, Callable
-from dataclasses import dataclass, field
 from datetime import datetime
-from enum import Enum
 from typing import Any
 
+from pydantic import BaseModel, Field
+
 from app.core.events.base import AsyncEventBus, BaseEvent
+from app.utils.model_helpers import LegacyDictMixin
 
 logger = logging.getLogger(__name__)
 
@@ -48,37 +46,33 @@ class AwakeningEventType(str, Enum):
     BOUNDARY_LEARNED = "system.boundary_learned"
 
 
-@dataclass
 class AwakenEvent(BaseEvent):
     """Base event class for awakening system"""
-    event_type: AwakeningEventType = field(default=AwakeningEventType.AWAKENING_COMPLETE)
-    timestamp: datetime = field(default_factory=datetime.now)
+    event_type: AwakeningEventType = Field(default=AwakeningEventType.AWAKENING_COMPLETE)
+    timestamp: datetime = Field(default_factory=datetime.now)
     source: str = "awakening"
-    data: dict[str, Any] = field(default_factory=dict)
+    data: dict[str, Any] = Field(default_factory=dict)
 
 
-@dataclass
 class DeviceConnectedEvent(AwakenEvent):
     """Device connection event"""
     device_id: str = ""
     device_type: str = "android"  # android, macos
 
-    def __post_init__(self):
+    def model_post_init(self, __context):
         self.event_type = AwakeningEventType.DEVICE_CONNECTED
         self.data = {"device_id": self.device_id, "device_type": self.device_type}
 
 
-@dataclass
 class DeviceDisconnectedEvent(AwakenEvent):
     """Device disconnection event"""
     device_id: str = ""
 
-    def __post_init__(self):
+    def model_post_init(self, __context):
         self.event_type = AwakeningEventType.DEVICE_DISCONNECTED
         self.data = {"device_id": self.device_id}
 
 
-@dataclass
 class SkillExecutedEvent(AwakenEvent):
     """Skill execution result event"""
     skill_id: int = 0
@@ -86,7 +80,7 @@ class SkillExecutedEvent(AwakenEvent):
     success: bool = True
     confidence_delta: float = 0.0
 
-    def __post_init__(self):
+    def model_post_init(self, __context):
         self.event_type = AwakeningEventType.SKILL_EXECUTED
         self.data = {
             "skill_id": self.skill_id,
@@ -96,7 +90,6 @@ class SkillExecutedEvent(AwakenEvent):
         }
 
 
-@dataclass
 class SkillPromotedEvent(AwakenEvent):
     """Skill promotion event"""
     skill_id: int = 0
@@ -104,7 +97,7 @@ class SkillPromotedEvent(AwakenEvent):
     old_status: str = ""
     new_status: str = ""
 
-    def __post_init__(self):
+    def model_post_init(self, __context):
         self.event_type = AwakeningEventType.SKILL_PROMOTED
         self.data = {
             "skill_id": self.skill_id,
@@ -114,14 +107,13 @@ class SkillPromotedEvent(AwakenEvent):
         }
 
 
-@dataclass
 class SkillDeprecatedEvent(AwakenEvent):
     """Skill deprecation event"""
     skill_id: int = 0
     skill_name: str = ""
     reason: str = ""
 
-    def __post_init__(self):
+    def model_post_init(self, __context):
         self.event_type = AwakeningEventType.SKILL_DEPRECATED
         self.data = {
             "skill_id": self.skill_id,
@@ -130,17 +122,16 @@ class SkillDeprecatedEvent(AwakenEvent):
         }
 
 
-@dataclass
 class UiTreeObservedEvent(AwakenEvent):
     """Event emitted when a UI tree snapshot is captured by any explorer or tool."""
     platform: str = ""
     bundle_id: str = ""
     window_title: str = ""
-    elements: list = field(default_factory=list)
+    elements: list = Field(default_factory=list)
     screenshot_hash: str = ""
     version_hash: str = ""
 
-    def __post_init__(self):
+    def model_post_init(self, __context):
         self.event_type = AwakeningEventType.UI_TREE_OBSERVED
         self.data = {
             "platform": self.platform,
@@ -153,14 +144,13 @@ class UiTreeObservedEvent(AwakenEvent):
         }
 
 
-@dataclass
 class BoundaryLearnedEvent(AwakenEvent):
     """Dynamic boundary learned event"""
     tool_name: str = ""
     category: str = ""
     description: str = ""
 
-    def __post_init__(self):
+    def model_post_init(self, __context):
         self.event_type = AwakeningEventType.BOUNDARY_LEARNED
         self.data = {
             "tool_name": self.tool_name,

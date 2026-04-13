@@ -12,15 +12,17 @@ from app.domain.project import cache as project_cache
 from app.infrastructure.database.sql.database import session_scope
 from app.models import CodeChunk, SourceFile
 
+from pydantic import BaseModel, Field
+from app.utils.model_helpers import LegacyDictMixin
+
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class TreeNode:
+class TreeNode(BaseModel, LegacyDictMixin):
     name: str
     type: str  # 'dir', 'file', 'class', 'function', 'method'
-    children: list["TreeNode"] = field(default_factory=list)
-    metadata: dict = field(default_factory=dict)
+    children: list["TreeNode"] = Field(default_factory=list)
+    metadata: dict = Field(default_factory=dict)
 
     def add_child(self, node: "TreeNode"):
         self.children.append(node)

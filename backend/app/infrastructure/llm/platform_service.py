@@ -6,16 +6,16 @@ LLM Platform Service - 从 EvoLoop Gateway 获取模型配置
 import asyncio
 import logging
 import time
+from pydantic import BaseModel
 from typing import Dict, List, Any, Optional
-from dataclasses import dataclass
 
 from app.core.evocloud import evocloud_manager
+from app.utils.model_helpers import LegacyDictMixin
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class PlatformModel:
+class PlatformModel(BaseModel, LegacyDictMixin):
     """平台模型配置"""
     model_id: str
     display_name: str

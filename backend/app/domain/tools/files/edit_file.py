@@ -1,15 +1,16 @@
+import asyncio
 import difflib
+import logging
 import os
-from dataclasses import dataclass
 from enum import Enum
 from typing import Annotated
+
+from pydantic import BaseModel, ConfigDict
 
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import InjectedToolArg
 
 from app.core.tools import evoloop_tool, get_working_directory
-import asyncio
-
 from app.core.file.editor import EditEngine
 from app.core.file import (
     safe_read_with_hash,
@@ -17,8 +18,10 @@ from app.core.file import (
     get_file_info,  # Replaces get_file_stats
 )
 from app.i18n.service import i18n
-
+from app.utils.model_helpers import LegacyDictMixin
 from .utils import resolve_and_validate_path
+
+logger = logging.getLogger(__name__)
 
 # Keep references to background tasks to prevent GC
 _background_tasks: set[asyncio.Task] = set()
@@ -32,16 +35,17 @@ class MatchConfidence(Enum):
     NONE = "none"  # No match found
 
 
-@dataclass
-class EditPreviewResult:
+class EditPreviewResult(BaseModel, LegacyDictMixin):
     """Result of previewing an edit."""
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     success: bool
     confidence: MatchConfidence
     diff: str
     original_content: str
     new_content: str
-    matched_text: str | None
-    strategy_used: str | None
+    matched_text: str | None = None
+    strategy_used: str | None = None
     message: str
 
 

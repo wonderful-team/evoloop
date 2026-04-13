@@ -1,12 +1,13 @@
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from pydantic import BaseModel, Field
 from typing import Any
 
+from app.utils.model_helpers import LegacyDictMixin
 
-@dataclass
-class Document:
+
+class Document(BaseModel, LegacyDictMixin):
     content: str
-    metadata: dict[str, Any]
+    metadata: dict[str, Any] = Field(default_factory=dict)
     id: str | None = None
     embedding: list[float] | None = None
 

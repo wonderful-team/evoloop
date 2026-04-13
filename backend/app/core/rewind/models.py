@@ -1,30 +1,20 @@
-"""
-Rewind Models
-=============
-
-Data models for rewind operations.
-"""
-
-from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, List, Optional
+from pydantic import BaseModel, Field
+from app.utils.model_helpers import LegacyDictMixin
 
 
-@dataclass
-class RewindRequest:
+class RewindRequest(BaseModel, LegacyDictMixin):
     """Request parameters for a rewind operation."""
-    
     thread_id: str
-    target_message_id: str | None = None  # None = rewind to last human message
+    target_message_id: Optional[str] = None  # None = rewind to last human message
     include_target: bool = False          # Whether to delete the target message
     revert_files: bool = True             # Whether to revert file changes
     reset_state: bool = True              # Whether to reset LangGraph state
     reason: str = "user_request"          # Why the rewind was triggered
 
 
-@dataclass
-class RewindResult:
+class RewindResult(BaseModel, LegacyDictMixin):
     """Result of a rewind operation."""
-    
     status: str  # "success", "partial", "failed", "empty", "no_human_message_found"
     thread_id: str
     removed_message_count: int = 0
@@ -32,8 +22,8 @@ class RewindResult:
     removed_memory_count: int = 0
     removed_todo_count: int = 0
     removed_trace_count: int = 0
-    checkpoint_id: str | None = None
-    errors: list[str] = field(default_factory=list)
+    checkpoint_id: Optional[str] = None
+    errors: List[str] = Field(default_factory=list)
     
     def to_dict(self) -> dict[str, Any]:
         """Convert result to dictionary for API response."""

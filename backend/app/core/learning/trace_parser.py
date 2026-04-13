@@ -12,28 +12,27 @@ Key Concepts:
 
 import json
 import logging
-from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any
+from typing import Any, Dict, List, Optional
 
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 
 from app.infrastructure.database.sql.database import session_scope
 from app.models import TraceEvent
+from app.utils.model_helpers import LegacyDictMixin
 
 logger = logging.getLogger(__name__)
 
 
 class ActionSource(str, Enum):
     """Who initiated the action."""
-
     AGENT = "agent"
     HUMAN = "human"
 
 
 class ActionCategory(str, Enum):
     """High-level categorization of actions."""
-
     NAVIGATION = "navigation"  # File/URL navigation
     EDIT = "edit"  # Content modification
     QUERY = "query"  # Information retrieval
@@ -44,22 +43,18 @@ class ActionCategory(str, Enum):
     OTHER = "other"
 
 
-@dataclass
-class UIContext:
+class UIContext(BaseModel, LegacyDictMixin):
     """Visual/UI context at the time of action."""
+    screenshot_path: Optional[str] = None
+    element_selector: Optional[str] = None
+    element_text: Optional[str] = None
 
-    screenshot_path: str | None = None
-    element_selector: str | None = None
-    element_text: str | None = None
 
-
-@dataclass
-class TraceStep:
+class TraceStep(BaseModel, LegacyDictMixin):
     """
     A single semantic step in a trace sequence.
     Represents one complete action-observation pair.
     """
-
     step_number: int
     source: ActionSource
     category: ActionCategory
@@ -67,41 +62,39 @@ class TraceStep:
     # Core action info
     action_type: str  # Raw type (tool_call, click, input, etc.)
     action_name: str  # Semantic name (e.g., "read_file", "click_button")
-    action_args: dict[str, Any] = field(default_factory=dict)
+    action_args: Dict[str, Any] = Field(default_factory=dict)
 
     # Observation/result
-    observation: str | None = None
+    observation: Optional[str] = None
     success: bool = True
 
     # Context
     node_name: str = "unknown"
-    state_context: dict[str, Any] = field(default_factory=dict)
-    ui_context: UIContext | None = None
+    state_context: Dict[str, Any] = Field(default_factory=dict)
+    ui_context: Optional[UIContext] = None
 
     # Metadata
-    timestamp: float | None = None
-    user_feedback: str | None = None
+    timestamp: Optional[float] = None
+    user_feedback: Optional[str] = None
 
 
-@dataclass
-class TraceSequence:
+class TraceSequence(BaseModel, LegacyDictMixin):
     """
     A complete sequence of steps representing a task.
     Can be used for pattern analysis and workflow synthesis.
     """
-
     thread_id: str
-    session_id: str | None = None
-    task_name: str | None = None
+    session_id: Optional[str] = None
+    task_name: Optional[str] = None
 
-    steps: list[TraceStep] = field(default_factory=list)
+    steps: List[TraceStep] = Field(default_factory=list)
 
     # Derived metadata
-    tools_used: list[str] = field(default_factory=list)
+    tools_used: List[str] = Field(default_factory=list)
     has_human_intervention: bool = False
     success: bool = True
 
-    def summarize(self) -> dict[str, Any]:
+    def summarize(self) -> Dict[str, Any]:
         """Generate a summary for LLM consumption."""
         return {
             "thread_id": self.thread_id,

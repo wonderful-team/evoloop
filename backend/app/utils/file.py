@@ -11,12 +11,26 @@ from dataclasses import dataclass
 from typing import Iterator
 from urllib.parse import urlparse
 
+from pydantic import BaseModel
+
+from app.utils.model_helpers import LegacyDictMixin
+
 logger = logging.getLogger(__name__)
 
 # Large file threshold (10MB)
 LARGE_FILE_THRESHOLD = 10 * 1024 * 1024
 # Default page size for pagination
 DEFAULT_PAGE_SIZE = 100
+
+
+class FileStats(BaseModel, LegacyDictMixin):
+    """File statistics for pagination and navigation."""
+    path: str
+    size: int
+    total_lines: int
+    encoding: str
+    is_large: bool
+    content_hash: str  # MD5 hash for change detection
 
 
 # ============================================================================
@@ -141,17 +155,6 @@ def get_file_encoding(file_path: str) -> str:
         except UnicodeDecodeError:
             continue
     return "utf-8"
-
-
-@dataclass
-class FileStats:
-    """File statistics for pagination and navigation."""
-    path: str
-    size: int
-    total_lines: int
-    encoding: str
-    is_large: bool
-    content_hash: str  # MD5 hash for change detection
 
 
 def get_file_stats(file_path: str) -> FileStats:

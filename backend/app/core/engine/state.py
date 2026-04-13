@@ -1,228 +1,228 @@
 import logging
 import operator
-from typing import Annotated, Any, TypedDict
+import time
+from typing import Annotated, Any, Dict, List, Optional, Union, TypedDict
+from pydantic import BaseModel, Field
 
 from langchain_core.messages import BaseMessage
 from langgraph.graph.message import add_messages
 
+from app.utils.model_helpers import LegacyDictMixin
+
 logger = logging.getLogger(__name__)
 
 
-class ClipboardItem(TypedDict):
+class ClipboardItem(BaseModel, LegacyDictMixin):
     """
     Standardized item for the Workspace Clipboard.
     """
     content: Any  # Text, path to image, or element bounds
     mime_type: str  # "text/plain", "image/png", "application/json"
-    metadata: dict[str, Any]
-    created_at: float
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+    created_at: float = Field(default_factory=time.time)
 
 
-class WorkspaceContext(TypedDict):
+class WorkspaceContext(BaseModel, LegacyDictMixin):
     """
     Universal workspace context cache to reduce redundant IO.
     """
-    structure: str | None
-    structure_updated_at: float | None  # Timestamp
+    structure: Optional[str] = None
+    structure_updated_at: Optional[float] = None  # Timestamp
 
 
-class AgentConfig(TypedDict):
+class AgentConfig(BaseModel, LegacyDictMixin):
     """
     Blueprint for a Dynamic Sub-Agent.
     """
     role_name: str
     system_instructions: str
-    tools: list[str]  # List of tool names to hydrate
-    model_override: str | None  # Optional model override (e.g. "gpt-4o")
-    namespace_context: str | None  # Track 8: Dynamic SOP namespace mounting
+    tools: List[str]  # List of tool names to hydrate
+    model_override: Optional[str] = None
+    namespace_context: Optional[str] = None
 
 
-class ExecutionTicket(TypedDict):
+class ExecutionTicket(BaseModel, LegacyDictMixin):
     """
     Structured mission ticket for any Specialist Node.
     """
     ticket_type: str  # e.g., "bugfix", "web_research", "wiki_update"
-    priority: str
-    acceptance_criteria: list[str]
+    priority: str = "normal"
+    acceptance_criteria: List[str] = Field(default_factory=list)
 
     # Target-specific context
-    focus_paths: list[str] | None  # Primary for Operator/Documenter
-    topic: str | None              # Primary for Researcher
+    focus_paths: Optional[List[str]] = None
+    topic: Optional[str] = None
 
     # Catch-all for specialized parameters
-    parameters: dict[str, Any] | None
+    parameters: Optional[Dict[str, Any]] = None
 
-    # [NEW] Macro context for subtasks
-    macro_goal: str | None
+    # Macro context for subtasks
+    macro_goal: Optional[str] = None
 
-    # Dynamic Agent Configuration (v4.0)
-    agent_config: AgentConfig | None
+    # Dynamic Agent Configuration
+    agent_config: Optional[AgentConfig] = None
 
-    constraints: list[str] | None
-    expected_outcomes: list[str] | None
+    constraints: Optional[List[str]] = None
+    expected_outcomes: Optional[List[str]] = None
 
     # Track 8: Deterministic SOP Routing
-    namespace_context: str | None
+    namespace_context: Optional[str] = None
 
 
-class RetrievalContext(TypedDict):
+class RetrievalContext(BaseModel, LegacyDictMixin):
     repo_id: int
-    files: list[str]  # Paths
-    snippets: list[str]  # Content or summaries
+    files: List[str] = Field(default_factory=list)
+    snippets: List[str] = Field(default_factory=list)
 
 
-class HITLState(TypedDict):
+class HITLState(BaseModel, LegacyDictMixin):
     """
     Human-in-the-Loop state for managing interrupts and user interactions.
-
-    This is a generic structure that replaces task-specific fields like `pending_wiki_plan`.
     """
-
-    request_id: str  # Unique ID for this HITL request
+    request_id: str
     request_type: str  # "approval", "input", "confirmation"
-    resume_node: str  # Node to resume after user responds
-    context: dict[str, Any]  # Node-specific context (e.g., wiki plan, file changes)
-    created_at: str | None  # ISO timestamp
+    resume_node: str
+    context: Dict[str, Any] = Field(default_factory=dict)
+    created_at: Optional[str] = None
 
 
-class BlackboardState(TypedDict):
+class BlackboardState(BaseModel, LegacyDictMixin):
     """
-    Unified task and state management (Phase 4).
-    Consolidates Ticket, Scratchpad, and Verification.
+    Unified task and state management.
     """
-    ticket: ExecutionTicket | None
-    verification: dict[str, Any] | None
-    route_reason: str | None
+    ticket: Optional[ExecutionTicket] = None
+    verification: Optional[Dict[str, Any]] = None
+    route_reason: Optional[str] = None
     
-    # [NEW] Unified Dynamic Fields
-    metadata: dict[str, Any]
-    clipboard: list[ClipboardItem]
-    visited_nodes: list[str]
-    working_directory: str | None
+    # Unified Dynamic Fields
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+    clipboard: List[ClipboardItem] = Field(default_factory=list)
+    visited_nodes: List[str] = Field(default_factory=list)
+    working_directory: Optional[str] = None
     
-    # [NEW] Parallel Execution State
-    spawn_plan: dict[str, Any] | None
-    pending_aggregation: dict[str, Any] | None
-    subtask_results: list[dict[str, Any]]
+    # Parallel Execution State
+    spawn_plan: Optional[Dict[str, Any]] = None
+    pending_aggregation: Optional[Dict[str, Any]] = None
+    subtask_results: List[Dict[str, Any]] = Field(default_factory=list)
     
-    # [NEW] Planning State
-    plan_approved: bool
+    # Planning State
+    plan_approved: bool = False
+    worker_outcome: Optional[str] = None
 
 
-
-def merge_blackboard(old: BlackboardState | None, new: BlackboardState | None) -> BlackboardState | None:
+def merge_blackboard(old: Optional[BlackboardState], new: Union[BlackboardState, Dict[str, Any], None]) -> Optional[BlackboardState]:
     """
-    Custom reducer for BlackboardState to handle parallel results safely (Phase 5).
-    Performs a deep-ish merge of metadata and ensures subtask_results are appended.
+    Custom reducer for BlackboardState to handle parallel results safely.
+    Supports both model instances and raw dictionaries.
     """
     if old is None:
+        if isinstance(new, dict):
+            return BlackboardState.model_validate(new)
         return new
     if new is None:
         return old
 
-    merged = old.copy()
-    
+    # Ensure new is a dict for merging
+    if isinstance(new, BaseModel):
+        new_data = new.model_dump(exclude_unset=True)
+    else:
+        new_data = new
+
+    # Create a copy of old data for merging
+    merged_data = old.model_dump()
+
     # Standard field updates (overwrite)
-    for key in ["ticket", "verification", "route_reason", "spawn_plan", "pending_aggregation", "working_directory", "plan_approved", "worker_outcome"]:
-        if key in new:
-            merged[key] = new[key]
+    simple_fields = [
+        "ticket", "verification", "route_reason", "spawn_plan", 
+        "pending_aggregation", "working_directory", "plan_approved", "worker_outcome"
+    ]
+    for key in simple_fields:
+        if key in new_data:
+            merged_data[key] = new_data[key]
 
     # [CRITICAL] Parallel List Concatenation (Deduplicated)
-    if "subtask_results" in new:
-        old_results = old.get("subtask_results") or []
-        new_results = new["subtask_results"] or []
+    if "subtask_results" in new_data:
+        old_results = merged_data.get("subtask_results") or []
+        new_results = new_data["subtask_results"] or []
         if not new_results:
-            # Explicitly clearing results (e.g. from Aggregator)
-            merged["subtask_results"] = []
+            merged_data["subtask_results"] = []
         else:
-            # Deduplicate by subtask_id to prevent exponential explosion
             seen_ids = {r.get("subtask_id") for r in old_results if r.get("subtask_id")}
             delta_results = []
 
             for r in new_results:
                 sid = r.get("subtask_id")
-                if not sid:
-                    # No ID provided - always append to prevent data loss
-                    delta_results.append(r)
-                elif sid not in seen_ids:
+                if not sid or sid not in seen_ids:
                     delta_results.append(r)
                 else:
-                    # Potential collision or redundant full-sync attempt
                     logger.debug(f"[State] ℹ️ Subtask ID collision/sync for '{sid}' - skipping duplicate.")
             
-            # Concatenate only new results from parallel branches or worker delta
-            merged["subtask_results"] = old_results + delta_results
+            merged_data["subtask_results"] = old_results + delta_results
 
     # Metadata & Clipboard Merges
-    if "metadata" in new:
-        old_meta = old.get("metadata") or {}
-        merged["metadata"] = {**old_meta, **new["metadata"]}
+    if "metadata" in new_data:
+        old_meta = merged_data.get("metadata") or {}
+        merged_data["metadata"] = {**old_meta, **new_data["metadata"]}
     
-    if "visited_nodes" in new:
-        old_nodes = old.get("visited_nodes") or []
-        new_nodes = new["visited_nodes"] or []
+    if "visited_nodes" in new_data:
+        old_nodes = merged_data.get("visited_nodes") or []
+        new_nodes = new_data["visited_nodes"] or []
         # Preserve order while deduplicating
         combined = old_nodes + [n for n in new_nodes if n not in old_nodes]
-        merged["visited_nodes"] = combined
+        merged_data["visited_nodes"] = combined
 
-    if "clipboard" in new:
-        merged["clipboard"] = (old.get("clipboard") or []) + new["clipboard"]
+    if "clipboard" in new_data:
+        merged_data["clipboard"] = (merged_data.get("clipboard") or []) + new_data["clipboard"]
 
-    return merged
+    return BlackboardState.model_validate(merged_data)
 
 
 class AgentState(TypedDict):
-    # Conversation history (managed by LangGraph's add_messages reducer)
-    messages: Annotated[list[BaseMessage], add_messages]
+    """
+    Top-level Agent State for LangGraph.
+    Uses TypedDict for compatibility with LangGraph's message history and reducers.
+    """
+    # Conversation history
+    messages: Annotated[List[BaseMessage], add_messages]
 
-    # [NEW Phase 5] Explicit thread tracking
-    thread_id: str | None
-    is_retry: bool | None
+    # Thread tracking
+    thread_id: Optional[str]
+    is_retry: Optional[bool]
 
     # Project Scope
-    project_id: int | None
+    project_id: Optional[int]
 
-    # Current Plan / Intent
-    current_plan: str | None
-    structured_plan: str | None  # JSON string of domain.planning.models.Plan
+    # Current Plan
+    current_plan: Optional[str]
+    structured_plan: Optional[str]  # JSON string
 
-    # Context retrieved by Researcher
-    context: RetrievalContext | None
+    # Domain Context
+    context: Optional[RetrievalContext]
+    workspace_context: Optional[WorkspaceContext]
+    execution_artifact: Optional[str]
 
-    # [NEW] Shared Workspace Context Cache
-    workspace_context: WorkspaceContext | None
-
-    # Execution artifacts (e.g. documents, code snippets)
-    execution_artifact: str | None
-
-    # [REFINED Phase 5] Unified Blackboard with custom reducer
-    blackboard: Annotated[BlackboardState | None, merge_blackboard]
+    # Unified Blackboard with custom reducer
+    blackboard: Annotated[Optional[BlackboardState], merge_blackboard]
 
     # Loop Control
     iteration_count: int
-    error: str | None
-    next_node: Annotated[str | None, lambda a, b: b]
+    error: Optional[str]
+    next_node: Annotated[Optional[str], lambda a, b: b]
     
-    # [NEW Phase 5] Execution Ticket for mission context
-    execution_ticket: ExecutionTicket | None
+    # Execution Ticket for mission context
+    execution_ticket: Optional[ExecutionTicket]
 
     # Memory
-    user_preferences: str | None
+    user_preferences: Optional[str]
+    situation_analysis: Optional[str]
+    action_plan: Optional[str]
 
-    # Planning
-    situation_analysis: str | None
-    action_plan: str | None
-
-    # Skill Execution (Imitation Learning)
-    skill_execution_attempted: bool | None
-
-    # Tool Orchestration
-    active_tool_profile: str | None  # e.g. "DEVOPS", "RESEARCH"
+    # Skill Execution
+    skill_execution_attempted: Optional[bool]
+    active_tool_profile: Optional[str]
 
     # Human-in-the-Loop State (Generic)
-    # Used by documenter and other nodes for HITL flow
-    # Wiki plan is stored in hitl_state.context["wiki_plan"]
-    hitl_state: HITLState | None
+    hitl_state: Optional[HITLState]
 
-    # Tool History (for finish node knowledge harvesting)
-    tool_history: Annotated[list[str], operator.add]
+    # Tool History
+    tool_history: Annotated[List[str], operator.add]

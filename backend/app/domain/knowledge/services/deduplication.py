@@ -9,18 +9,18 @@ Identifies similar documents and provides options to:
 
 import hashlib
 import logging
-from typing import Optional
-from dataclasses import dataclass
 from difflib import SequenceMatcher
+from typing import Optional
+from pydantic import BaseModel, Field
 
 from app.domain.knowledge.services.store import KnowledgeStoreService
 from app.domain.knowledge.services.search import get_fts_service
+from app.utils.model_helpers import LegacyDictMixin
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class DuplicateResult:
+class DuplicateResult(BaseModel, LegacyDictMixin):
     """Result of duplicate detection."""
     doc_id: str
     path: str
@@ -29,15 +29,15 @@ class DuplicateResult:
     suggested_action: str  # "keep", "merge", "delete"
 
 
-@dataclass
-class DeduplicationReport:
+class DeduplicationReport(BaseModel, LegacyDictMixin):
     """Complete deduplication analysis."""
     total_documents: int
-    exact_duplicates: list[tuple[str, str]]  # pairs of doc_ids
-    similar_documents: list[list[str]]  # groups of similar docs
-    potential_merges: list[dict]  # suggested merges
+    exact_duplicates: list[tuple[str, str]] = Field(default_factory=list)  # pairs of doc_ids
+    similar_documents: list[list[str]] = Field(default_factory=list)  # groups of similar docs
+    potential_merges: list[dict] = Field(default_factory=list)  # suggested merges
     
     def to_dict(self) -> dict:
+        """Backward compatibility for existing code calling to_dict manually."""
         return {
             "total_documents": self.total_documents,
             "exact_duplicate_count": len(self.exact_duplicates),

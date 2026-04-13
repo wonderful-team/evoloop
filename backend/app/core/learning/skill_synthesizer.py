@@ -6,11 +6,12 @@ It produces structured skill configurations that can be registered and executed.
 """
 
 import logging
-from dataclasses import asdict, dataclass, field
-from typing import Any, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import yaml
+from pydantic import BaseModel, Field
 
+from app.utils.model_helpers import LegacyDictMixin
 from sqlalchemy import select
 
 from app.core.learning.prompts import prompt_builder
@@ -43,48 +44,44 @@ ALLOWED_UI_ACTIONS = {
 }
 
 
-@dataclass
-class SkillParameter:
+class SkillParameter(BaseModel, LegacyDictMixin):
     """A parameter for a learned skill."""
-
     name: str
     type: str = "string"
     description: str = ""
     required: bool = True
-    default: str | None = None
+    default: Optional[str] = None
 
 
-@dataclass
-class SynthesizedSkill:
+class SynthesizedSkill(BaseModel, LegacyDictMixin):
     """
     A complete learned skill configuration.
     This is the output of the synthesis process.
     """
-
     name: str
     description: str
     namespace: str = "misc"  # Logical grouping (e.g., os/macos, web/research)
-    trigger_patterns: list[str] = field(default_factory=list)
-    parameters: list[SkillParameter] = field(default_factory=list)
-    preconditions: list[str] = field(default_factory=list)
-    instructions: str | None = None  # Markdown instructions (心法)
+    trigger_patterns: List[str] = Field(default_factory=list)
+    parameters: List[SkillParameter] = Field(default_factory=list)
+    preconditions: List[str] = Field(default_factory=list)
+    instructions: Optional[str] = None  # Markdown instructions (心法)
     
     # Deterministic Execution
     execution_mode: str = "agentic" # "agentic" or "deterministic"
     macro_script: str = ""  # YAML format for storage and execution
 
     # Metadata
-    source_thread_id: str | None = None
-    source_session_id: str | None = None
-    tools_used: list[str] = field(default_factory=list)
+    source_thread_id: Optional[str] = None
+    source_session_id: Optional[str] = None
+    tools_used: List[str] = Field(default_factory=list)
 
     def to_yaml(self) -> str:
         """Convert to YAML for storage/display."""
-        return yaml.dump(asdict(self), default_flow_style=False, allow_unicode=True)
+        return yaml.dump(self.model_dump(), default_flow_style=False, allow_unicode=True, sort_keys=False)
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary."""
-        return asdict(self)
+        return self.model_dump()
 
 
 class WorkflowSynthesizer:
@@ -471,7 +468,7 @@ class WorkflowSynthesizer:
             "namespace": skill.namespace,
             "description": skill.description,
             "trigger_patterns": skill.trigger_patterns,
-            "parameters": [asdict(p) for p in skill.parameters],
+            "parameters": [p.model_dump() for p in skill.parameters],
             "preconditions": skill.preconditions,
             "instructions": skill.instructions,
         }

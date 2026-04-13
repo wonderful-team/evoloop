@@ -10,11 +10,12 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from app.models.todo import TodoPriority, TodoStatus
+from app.utils.model_helpers import LegacyDictMixin
 
 
 # ============== Base Schemas ==============
 
-class TodoBase(BaseModel):
+class TodoBase(BaseModel, LegacyDictMixin):
     """Base Todo fields."""
     title: str = Field(..., min_length=1, max_length=255)
     description: str | None = None
@@ -26,7 +27,7 @@ class TodoBase(BaseModel):
 
 # ============== Create Schemas ==============
 
-class TodoCreate(BaseModel):
+class TodoCreate(BaseModel, LegacyDictMixin):
     """Schema for creating a new Todo."""
     title: str = Field(..., min_length=1, max_length=255)
     description: str | None = None
@@ -38,7 +39,7 @@ class TodoCreate(BaseModel):
     source_message_id: str | None = None
 
 
-class TodoCreateInternal(BaseModel):
+class TodoCreateInternal(BaseModel, LegacyDictMixin):
     """Internal schema after parsing and validation."""
     title: str
     description: str | None = None
@@ -52,7 +53,7 @@ class TodoCreateInternal(BaseModel):
 
 # ============== Update Schemas ==============
 
-class TodoUpdate(BaseModel):
+class TodoUpdate(BaseModel, LegacyDictMixin):
     """Schema for updating an existing Todo."""
     title: str | None = Field(None, min_length=1, max_length=255)
     description: str | None = None
@@ -65,7 +66,7 @@ class TodoUpdate(BaseModel):
 
 # ============== Response Schemas ==============
 
-class TodoResponse(BaseModel):
+class TodoResponse(BaseModel, LegacyDictMixin):
     """Schema for Todo responses."""
     id: str
     title: str
@@ -86,7 +87,7 @@ class TodoResponse(BaseModel):
 
 # ============== Filter Schemas ==============
 
-class TodoFilter(BaseModel):
+class TodoFilter(BaseModel, LegacyDictMixin):
     """Schema for filtering Todos."""
     status: TodoStatus | None = None
     statuses: list[TodoStatus] | None = None  # For multiple status filter

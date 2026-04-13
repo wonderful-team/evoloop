@@ -5,19 +5,18 @@ Database Extractor
 Extracts database schema definitions from code files.
 """
 
-import logging
-from dataclasses import dataclass
+from pydantic import BaseModel, Field
 
-from .base_extractor import SemanticExtractorBase
+from app.domain.codebase.indexing.extractors.base_extractor import SemanticExtractorBase
+from app.utils.model_helpers import LegacyDictMixin
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class DBTable:
+class DBTable(BaseModel, LegacyDictMixin):
     name: str
     file_path: str
-    columns: list[str]
+    columns: list[str] = Field(default_factory=list)
 
 
 class DBExtractor(SemanticExtractorBase[DBTable]):

@@ -8,15 +8,19 @@ import time
 import termios
 import uuid
 from dataclasses import dataclass, field
-from typing import Tuple
+from typing import Tuple, Optional
 
 from app.core.context.manager import ContextManager
+
+from pydantic import BaseModel, Field
+
+from app.core.context.manager import ContextManager
+from app.utils.model_helpers import LegacyDictMixin
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class PersistentTerminal:
+class PersistentTerminal(BaseModel, LegacyDictMixin):
     """
     Manages a long-running interactive shell process via PTY with robust signal tracking.
     """
@@ -24,11 +28,14 @@ class PersistentTerminal:
     cwd: str
     env: dict[str, str]
     
-    _master_fd: int = field(init=False, default=-1)
-    _proc: subprocess.Popen = field(init=False, default=None)
+    _master_fd: int = -1
+    _proc: Optional[subprocess.Popen] = None
 
-    def __post_init__(self):
+    def model_post_init(self, __context):
         self._start_shell()
+
+    class Config:
+        arbitrary_types_allowed = True
 
     def _start_shell(self):
         """Start a persistent bash instance with a PTY."""
@@ -177,21 +184,23 @@ class PersistentTerminal:
             except: pass
 
 
-@dataclass
-class TerminalSession:
+class TerminalSession(BaseModel, LegacyDictMixin):
     """
     Represents a persistent shell session for a specific context (Thread/Task).
     Holds the state (cwd, env) and the underlying PTY process.
     """
     cwd: str
-    env: dict[str, str] = field(default_factory=lambda: os.environ.copy())
-    pty: PersistentTerminal = field(init=False, default=None)
-    _lock: threading.Lock = field(init=False, default_factory=threading.Lock)
+    env: dict[str, str] = Field(default_factory=lambda: os.environ.copy())
+    pty: Optional[PersistentTerminal] = Field(default=None)
+    _lock: threading.Lock = Field(default_factory=threading.Lock)
 
-    def __post_init__(self):
+    def model_post_init(self, __context):
         if "TERM" not in self.env:
             self.env["TERM"] = "xterm-256color"
-            
+
+    class Config:
+        arbitrary_types_allowed = True
+
     def get_pty(self, session_id: str) -> PersistentTerminal:
         if not self.pty:
             self.pty = PersistentTerminal(session_id, self.cwd, self.env)

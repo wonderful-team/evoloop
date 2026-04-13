@@ -6,8 +6,7 @@ context management, including when to use forget_tool_outputs.
 """
 
 import logging
-from dataclasses import dataclass
-from typing import Optional
+from pydantic import BaseModel, Field
 
 from langchain_core.messages import (
     AIMessage,
@@ -15,6 +14,7 @@ from langchain_core.messages import (
     HumanMessage,
     ToolMessage,
 )
+from app.utils.model_helpers import LegacyDictMixin
 
 from app.constants import (
     CONTEXT_WARNING_THRESHOLD,
@@ -26,8 +26,7 @@ from app.core.engine.message_utils import get_message_text
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class ToolCallInfo:
+class ToolCallInfo(BaseModel, LegacyDictMixin):
     """Information about a recent tool call."""
     tool_call_id: str
     name: str
@@ -35,26 +34,16 @@ class ToolCallInfo:
     char_count: int
 
 
-@dataclass
-class ContextStats:
+class ContextStats(BaseModel, LegacyDictMixin):
     """
     Context usage statistics for Agent awareness.
-
-    Attributes:
-        total_chars: Total characters in context
-        max_chars: Maximum allowed characters
-        message_count: Total number of messages
-        tool_message_count: Number of tool messages
-        tool_chars: Characters used by tool messages
-        recent_tools: List of recent tool calls (last 5)
-        usage_ratio: Percentage of context used (0.0 - 1.0)
     """
     total_chars: int
     max_chars: int
     message_count: int
     tool_message_count: int
     tool_chars: int
-    recent_tools: list[ToolCallInfo]
+    recent_tools: list[ToolCallInfo] = Field(default_factory=list)
     usage_ratio: float
 
     def to_prompt(self) -> str:

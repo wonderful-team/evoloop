@@ -28,7 +28,6 @@ class FileSystemEventType(str, Enum):
     WATCHER_STOPPED = "fs.watcher_stopped"
 
 
-@dataclass
 class FileWatcherEvent(BaseEvent):
     """
     File system event for the event bus.
@@ -38,7 +37,7 @@ class FileWatcherEvent(BaseEvent):
     # Inherited: event_type, timestamp, source, data
     source: str = "file_watcher"
     
-    def __post_init__(self):
+    def model_post_init(self, __context: Any) -> None:
         # Ensure source is set to file_watcher if not explicitly provided
         if not self.source or self.source == "system":
             self.source = "file_watcher"

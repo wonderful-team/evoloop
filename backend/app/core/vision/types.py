@@ -1,11 +1,11 @@
-from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any
+from typing import Any, List, Optional, Tuple
+from pydantic import BaseModel, Field
 
-from app.utils.dataclass_helpers import SerializableMixin
+from app.utils.model_helpers import LegacyDictMixin
 
 
-class ElementType(Enum):
+class ElementType(str, Enum):
     """Type of UI element."""
     BUTTON = "button"
     INPUT = "input"
@@ -19,7 +19,7 @@ class ElementType(Enum):
     UNKNOWN = "unknown"
 
 
-class VisionTask(Enum):
+class VisionTask(str, Enum):
     """Types of vision tasks."""
     OCR = "ocr"             # Text extraction
     DETECT = "detect"       # Object/Element detection
@@ -28,8 +28,7 @@ class VisionTask(Enum):
     COMPARE = "compare"     # Screenshot comparison
 
 
-@dataclass
-class UIElement:
+class UIElement(BaseModel, LegacyDictMixin):
     """
     Represents a detected UI element on screen.
     """
@@ -43,10 +42,10 @@ class UIElement:
     clickable: bool = True
     confidence: float = 1.0
     source: str = ""  # "ocr", "native", "llm"
-    metadata: dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
     @property
-    def bounds(self) -> tuple[int, int, int, int]:
+    def bounds(self) -> Tuple[int, int, int, int]:
         """Return (x1, y1, x2, y2) bounds."""
         half_w = self.width // 2
         half_h = self.height // 2
@@ -63,31 +62,14 @@ class UIElement:
         text_preview = self.text[:30] + "..." if len(self.text) > 30 else self.text
         return f"[{self.id}] \"{text_preview}\" ({self.x}, {self.y}) [{type_str}]"
 
-    def to_dict(self) -> dict[str, Any]:
-        """Serialize to dictionary."""
-        return {
-            "id": self.id,
-            "text": self.text,
-            "x": self.x,
-            "y": self.y,
-            "width": self.width,
-            "height": self.height,
-            "element_type": self.element_type.value,
-            "clickable": self.clickable,
-            "confidence": self.confidence,
-            "source": self.source,
-            "metadata": self.metadata
-        }
 
-
-@dataclass
-class VisionResult:
+class VisionResult(BaseModel, LegacyDictMixin):
     """Standardized result from VisionEngine."""
     task: VisionTask
     success: bool
-    elements: list[UIElement] = field(default_factory=list)
-    summary: str | None = None
+    elements: List[UIElement] = Field(default_factory=list)
+    summary: Optional[str] = None
     raw_output: Any = None
-    screenshot_path: str | None = None
+    screenshot_path: Optional[str] = None
     latency_ms: float = 0
-    metadata: dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)

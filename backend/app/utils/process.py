@@ -1,13 +1,14 @@
 import asyncio
 import logging
 import subprocess
-from dataclasses import dataclass
+from pydantic import BaseModel
+
+from app.utils.model_helpers import LegacyDictMixin
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class CommandResult:
+class CommandResult(BaseModel, LegacyDictMixin):
     returncode: int
     stdout: str
     stderr: str

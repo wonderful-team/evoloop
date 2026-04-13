@@ -12,15 +12,15 @@ import logging
 import sqlite3
 from pathlib import Path
 from typing import Optional
-from dataclasses import dataclass
+from pydantic import BaseModel, Field
 
 from app.core.config import settings
+from app.utils.model_helpers import LegacyDictMixin
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class SearchResult:
+class SearchResult(BaseModel, LegacyDictMixin):
     """Single search result."""
     doc_id: str
     path: str
@@ -32,13 +32,12 @@ class SearchResult:
     bm25_score: float
 
 
-@dataclass
-class SearchResults:
+class SearchResults(BaseModel, LegacyDictMixin):
     """Collection of search results."""
     query: str
     total: int
     results: list[SearchResult]
-    facets: dict  # collection counts, tag counts, etc.
+    facets: dict = Field(default_factory=dict)  # collection counts, tag counts, etc.
 
 
 class FTSService:
