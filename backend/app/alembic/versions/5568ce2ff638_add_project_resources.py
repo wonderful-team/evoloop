@@ -5,11 +5,10 @@ Revises: g9d3b5f20c84
 Create Date: 2026-01-06 15:16:02.013792
 
 """
-from alembic import op
 import sqlalchemy as sa
-import sqlmodel.sql.sqltypes
-from sqlalchemy.dialects import postgresql
+from alembic import op
 from pgvector.sqlalchemy import Vector
+from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision = '5568ce2ff638'

@@ -3,12 +3,12 @@ import json
 import time
 from typing import Any, Dict, List, Optional, Union
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import Field
 
 from app.core.exceptions import GlobalModeError
-from app.utils.id import gen_uuid
-from app.services.cache_services import ContextCacheService
 from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.services.cache_services import ContextCacheService
+from app.utils.id import gen_uuid
 
 
 class ContextMetadata(DynamicBaseModel):

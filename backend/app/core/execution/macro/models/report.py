@@ -3,11 +3,12 @@
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
 
-from pydantic import BaseModel, Field
-from app.infrastructure.pydantic_base import DynamicBaseModel
+from pydantic import Field
 
 from app.core.execution.macro.models.enums import VerificationStatus
 from app.core.execution.macro.models.execution import StepResult
+from app.infrastructure.pydantic_base import DynamicBaseModel
+
 
 class RoundReport(DynamicBaseModel):
     """单轮验证报告"""

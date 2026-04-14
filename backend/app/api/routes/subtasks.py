@@ -8,12 +8,12 @@ import logging
 from typing import Any, Optional
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, Field
-from app.infrastructure.pydantic_base import DynamicBaseModel
+from pydantic import Field
 
 from app.api.deps import TokenDep
 from app.api.responses import BaseAPIResponse
 from app.domain.project.subtask_service import subtask_service
+from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.utils.id import gen_uuid
 
 logger = logging.getLogger(__name__)

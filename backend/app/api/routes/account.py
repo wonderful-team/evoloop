@@ -3,13 +3,12 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
-from pydantic import BaseModel, Field
-from app.infrastructure.pydantic_base import DynamicBaseModel
+from pydantic import Field
 
 from app.api.responses import BaseAPIResponse
-
 from app.core.evocloud import evocloud_manager
 from app.core.identity import identity_service
+from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.models import Token
 from app.models.schemas.auth import EvoCloudProxyResponse
 

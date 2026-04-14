@@ -17,9 +17,9 @@ Usage:
 
 import time
 from threading import Lock
-from typing import Optional, Any
+from typing import Optional
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import Field
 
 from app.core.tools.registry import get_tool_metadata
 from app.i18n.service import i18n

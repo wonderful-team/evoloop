@@ -19,17 +19,12 @@ Knowledge Base Auto-Maintenance Service - 知识库自动整理系统
     await service.run_scheduled_maintenance()
 """
 
-import asyncio
-import hashlib
-import json
 import logging
-from collections import defaultdict
 from datetime import datetime, timedelta
 from typing import Optional
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field
 
-from app.domain.knowledge.models import MarkdownDocument
 from app.domain.knowledge.services.citations import get_citation_tracker
 from app.domain.knowledge.services.deduplication import DeduplicationService
 from app.domain.knowledge.services.search import get_fts_service, IndexDocumentRequest

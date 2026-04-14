@@ -29,17 +29,16 @@ from app.core.voice.base import (
     BaseTTSProvider,
     BaseSTTProvider,
 )
-
-from app.core.voice.tts.factory import (
-    get_tts_provider,
-    TTSFactory,
-)
-
 from app.core.voice.stt.factory import (
     get_stt_provider,
     STTFactory,
     transcribe_audio,
 )
+from app.core.voice.tts.factory import (
+    get_tts_provider,
+    TTSFactory,
+)
+
 
 # 便捷函数
 def list_tts_voices(locale=None):

@@ -15,11 +15,11 @@ import logging
 import os
 import shutil
 import sys
-from typing import Optional, AsyncIterator
 from pathlib import Path
+from typing import Optional, AsyncIterator
 
-from app.core.voice.stt.base import BaseSTTProvider, STTOptions, STTResult, VoiceLocale
 from app.core.config import settings
+from app.core.voice.stt.base import BaseSTTProvider, STTOptions, STTResult, VoiceLocale
 
 logger = logging.getLogger(__name__)
 

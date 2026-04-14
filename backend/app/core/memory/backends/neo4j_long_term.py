@@ -2,7 +2,6 @@ import logging
 import time
 
 from app.core.config import settings
-from app.utils.id import gen_uuid
 from app.core.memory.interfaces.long_term import (
     Concept,
     Episode,
@@ -11,6 +10,7 @@ from app.core.memory.interfaces.long_term import (
 )
 from app.infrastructure.database.graph.driver import get_graph_db
 from app.infrastructure.embeddings.factory import EmbedderFactory
+from app.utils.id import gen_uuid
 
 logger = logging.getLogger(__name__)
 

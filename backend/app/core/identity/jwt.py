@@ -1,5 +1,4 @@
 from datetime import datetime, timedelta, timezone
-from pydantic import BaseModel, ConfigDict
 
 import jwt
 

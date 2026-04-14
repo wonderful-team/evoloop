@@ -1,16 +1,16 @@
 """Macro verification request models."""
 
-from datetime import datetime
-from typing import Any, Dict, List, Optional, Union
+from typing import List, Optional
 
-from pydantic import BaseModel, Field
-from app.infrastructure.pydantic_base import DynamicBaseModel
+from pydantic import Field
 
-from app.core.execution.macro.models.enums import ExecutionMode, VerificationStatus
 from app.core.execution.macro.models.config import EnvironmentConfig, RoundConfig, VerificationAgentConfig
+from app.core.execution.macro.models.enums import ExecutionMode, VerificationStatus
 from app.core.execution.macro.models.execution import MacroEvolutionRecord
 from app.core.execution.macro.models.report import VerificationIssue, VerificationReport
 from app.core.execution.macro.schema import MacroStep
+from app.infrastructure.pydantic_base import DynamicBaseModel
+
 
 class VerificationRequest(DynamicBaseModel):
     """验证请求"""

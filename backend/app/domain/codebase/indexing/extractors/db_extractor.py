@@ -5,7 +5,7 @@ Database Extractor
 Extracts database schema definitions from code files.
 """
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from app.domain.codebase.indexing.extractors.base_extractor import SemanticExtractorBase
 from app.infrastructure.pydantic_base import DynamicBaseModel

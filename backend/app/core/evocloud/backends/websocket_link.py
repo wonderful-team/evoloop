@@ -13,7 +13,8 @@ from websockets.client import ClientConnection
 
 from app.core.evocloud.interfaces.client import EvoCloudClientProtocol
 from app.core.evocloud.interfaces.link import DeviceLinkProtocol
-from app.core.evocloud.schemas import EvoCloudConfig, ProjectSwitchEvent, QueryResponse, RemoteCommand, WebSocketHandshake, WebSocketPing
+from app.core.evocloud.schemas import EvoCloudConfig, ProjectSwitchEvent, QueryResponse, RemoteCommand, \
+    WebSocketHandshake, WebSocketPing
 from app.core.identity import identity_service
 from app.utils import file as file_utils
 from app.utils.async_utils import run_in_thread

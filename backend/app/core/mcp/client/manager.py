@@ -4,10 +4,10 @@ import json
 import logging
 import os
 from contextlib import AsyncExitStack
-from typing import Any, Optional
-from pydantic import BaseModel, Field
+from typing import Any
 
 from langchain_core.tools import StructuredTool
+from pydantic import Field
 from sqlalchemy import select
 
 from app.core.mcp.auth.manager import mcp_auth_manager
@@ -19,8 +19,8 @@ from app.core.mcp.features.tools import McpToolsFeature
 from app.core.mcp.health import McpHealthChecker, HealthStatus
 from app.core.mcp.transport import McpTransport
 from app.infrastructure.database.sql.database import session_scope
-from app.models import McpServer
 from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.models import McpServer
 
 
 class McpResource(DynamicBaseModel):

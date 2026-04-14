@@ -1,5 +1,13 @@
 """Learning schemas package."""
 
+from app.core.learning.schemas.events import (
+    GlobalEventData,
+    DomEventData,
+    RecordingSessionItem,
+    PreviewVideoInfo,
+    PreviewEventsSummary,
+    PreviewKeyframeSummary,
+)
 from app.core.learning.schemas.requests import (
     HumanInputRequestOut,
     ExecuteSkillRequest,
@@ -19,21 +27,6 @@ from app.core.learning.schemas.requests import (
     SmartSynthesisRequest,
     CreateSkillFromYamlRequest,
     ValidateYamlRequest,
-)
-from app.core.learning.schemas.events import (
-    GlobalEventData,
-    DomEventData,
-    RecordingSessionItem,
-    PreviewVideoInfo,
-    PreviewEventsSummary,
-    PreviewKeyframeSummary,
-)
-from app.core.learning.schemas.skills import (
-    SkillExecutionParams,
-    SkillDTO,
-    SkillDetailResponse,
-    SkillResponse,
-    SkillParameter,
 )
 from app.core.learning.schemas.responses import (
     PaginatedSkillsResponse,
@@ -61,4 +54,11 @@ from app.core.learning.schemas.responses import (
     SmartSynthesisResponse,
     SynthesisJobResponse,
     ValidateYamlResponse,
+)
+from app.core.learning.schemas.skills import (
+    SkillExecutionParams,
+    SkillDTO,
+    SkillDetailResponse,
+    SkillResponse,
+    SkillParameter,
 )

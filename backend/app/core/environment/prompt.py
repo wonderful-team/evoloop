@@ -5,14 +5,13 @@ Centralizes the logic for generating the "Awakening" section of the system promp
 This ensures both the Supervisor and Skills share the same understanding of the environment.
 """
 import logging
-from app.utils import render_template
-from langchain_core.messages import BaseMessage
 
 from app.core.context.manager import ContextManager
 from app.core.context.plugins import plugin_registry
 from app.core.tools.manager import tool_manager
-from app.infrastructure.drivers.browser import browser_manager
 from app.infrastructure.config.service import SystemConfigService
+from app.infrastructure.drivers.browser import browser_manager
+from app.utils import render_template
 
 logger = logging.getLogger(__name__)
 

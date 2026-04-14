@@ -6,7 +6,6 @@ LLM Platform Service - 从 EvoLoop Gateway 获取模型配置
 import asyncio
 import logging
 import time
-from pydantic import BaseModel
 from typing import Dict, List, Any, Optional
 
 from app.core.evocloud import evocloud_manager

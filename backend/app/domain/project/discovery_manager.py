@@ -2,9 +2,9 @@ import logging
 import os
 
 from app.core.config import settings
-from app.infrastructure.config.service import SystemConfigService
-from app.domain.watchers import ProjectDiscoveryWatcher
 from app.domain.project.sync_service import project_sync_service
+from app.domain.watchers import ProjectDiscoveryWatcher
+from app.infrastructure.config.service import SystemConfigService
 
 logger = logging.getLogger(__name__)
 

@@ -6,8 +6,10 @@ Revises: 7e8cbf993ca1
 Create Date: 2025-03-21 00:00:00.000000
 """
 from typing import Sequence, Union
-from alembic import op
+
 import sqlalchemy as sa
+from alembic import op
+
 from app.utils.yaml import macro_to_yaml
 
 # revision identifiers, used by Alembic.

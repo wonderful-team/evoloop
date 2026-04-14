@@ -4,12 +4,11 @@ Automatic document tagging service using LLM.
 Analyzes document content and generates relevant tags for categorization.
 """
 
-import logging
 import json
+import logging
 from typing import Optional
-from dataclasses import dataclass
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from app.infrastructure.pydantic_base import DynamicBaseModel
 

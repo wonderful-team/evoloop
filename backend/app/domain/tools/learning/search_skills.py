@@ -3,7 +3,6 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from app.core.learning.discovery import SkillDiscovery
 from app.core.tools import evoloop_tool
 
 

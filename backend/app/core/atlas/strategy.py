@@ -7,9 +7,8 @@ Instead of storing coordinates, we store interaction strategies.
 
 import json
 import logging
-from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import Field
 
 from app.infrastructure.cache import cache
 from app.infrastructure.pydantic_base import DynamicBaseModel

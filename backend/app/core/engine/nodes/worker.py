@@ -12,19 +12,17 @@ from sqlalchemy import select
 from app.core.config import settings
 from app.core.context import ContextManager
 from app.core.engine import get_default_engine
-from app.core.engine.engine import EngineResult
 from app.core.engine.context_monitor import ContextMonitor
+from app.core.engine.engine import EngineResult
 from app.core.engine.message_utils import get_message_text
+from app.core.engine.nodes.base import BaseAgentNode
 from app.core.engine.prompts import WorkerPromptBuilder
 from app.core.engine.routers import RoutingTarget
 from app.core.engine.state import AgentState, StateUpdate
 from app.core.engine.state.blackboard import VerificationStatus
 from app.core.engine.state.config import ExecutionTicket, AgentRuntimeConfig
-from app.core.environment import get_awakened_state
 from app.core.tools.manager import tool_manager
 from app.core.tools.registry import get_tool_metadata
-
-from app.core.engine.nodes.base import BaseAgentNode
 
 logger = logging.getLogger(__name__)
 

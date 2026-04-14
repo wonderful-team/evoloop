@@ -10,8 +10,7 @@ import logging
 import time
 from typing import Any, Callable
 
-from pydantic import BaseModel, ConfigDict, Field
-
+from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.utils import (
     cleanup_file,
     normalize_coordinates,
@@ -19,7 +18,6 @@ from app.utils import (
     render_template,
 )
 from app.utils.text import truncate_output
-from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 

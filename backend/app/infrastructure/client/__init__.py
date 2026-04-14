@@ -8,12 +8,12 @@ Provides communication infrastructure for Backend to connect with Client:
 - Executor: Tool execution routing
 """
 
-from .proxy import ClientProxy, get_executor, is_proxy_required, client_proxy
-from .websocket import (
-    ClientWebSocketManager,
-    DirectClientToolExecutor,
-    client_ws_manager,
-    get_direct_client_executor,
+from .executor import (
+    should_use_client,
+    execute_via_client,
+    wrap_tool_for_client,
+    ClientToolWrapper,
+    wrap_tools_for_client,
 )
 from .http import (
     ToolRequest,
@@ -23,12 +23,12 @@ from .http import (
     tool_request_manager,
     get_client_executor,
 )
-from .executor import (
-    should_use_client,
-    execute_via_client,
-    wrap_tool_for_client,
-    ClientToolWrapper,
-    wrap_tools_for_client,
+from .proxy import ClientProxy, get_executor, is_proxy_required, client_proxy
+from .websocket import (
+    ClientWebSocketManager,
+    DirectClientToolExecutor,
+    client_ws_manager,
+    get_direct_client_executor,
 )
 
 __all__ = [

@@ -1,6 +1,5 @@
 import json
 import logging
-from typing import Any
 
 from app.core.environment.explorers.base import BaseExplorer
 from app.infrastructure.cache import cache

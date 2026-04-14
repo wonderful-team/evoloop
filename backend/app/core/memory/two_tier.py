@@ -46,14 +46,14 @@ Usage:
 import asyncio
 import logging
 import re
-from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Any
-from pydantic import BaseModel, ConfigDict, Field
+
+from pydantic import Field
 
 from app.core.config import settings
-from app.core.memory.models import MemoryEntry, MemoryType, PrivacyLevel
+from app.core.memory.models import MemoryEntry, MemoryType
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)

@@ -8,8 +8,6 @@ Tracks pending file edits and auto-creates checkpoints for batch operations.
 import logging
 from typing import TYPE_CHECKING
 
-from app.core.context.manager import ContextManager
-
 if TYPE_CHECKING:
     pass
 

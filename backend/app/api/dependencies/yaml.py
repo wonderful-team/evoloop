@@ -3,7 +3,7 @@ YAML Content-Type support for FastAPI
 """
 
 from fastapi import Request, HTTPException
-from typing import Any
+
 from app.utils.yaml import macro_from_yaml, YAMLError
 
 

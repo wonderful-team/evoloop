@@ -10,12 +10,9 @@ import ast
 import logging
 import os
 import re
-from dataclasses import dataclass
-from typing import Optional
-from pydantic import BaseModel, ConfigDict
 
-from .io import detect_encoding
 from app.infrastructure.pydantic_base import DynamicBaseModel
+from .io import detect_encoding
 
 logger = logging.getLogger(__name__)
 

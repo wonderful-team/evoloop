@@ -9,7 +9,7 @@ Complements the automatic FileOperation system.
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, Index, LargeBinary, Text, JSON
+from sqlalchemy import DateTime, ForeignKey, Integer, String, Index, LargeBinary, Text, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.infrastructure.database.sql.database import Base

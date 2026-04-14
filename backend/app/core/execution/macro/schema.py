@@ -1,10 +1,11 @@
 import json
 from enum import Enum
 from typing import Any, Dict, List, Optional, Union
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.infrastructure.pydantic_base import DynamicBaseModel
-from app.utils.yaml import macro_from_yaml, macro_to_yaml, YAMLError
+from app.utils.yaml import macro_from_yaml, macro_to_yaml
 
 
 class MacroSource(str, Enum):

@@ -7,9 +7,7 @@ Conversation Sync Tasks - Huey-based background sync for EvoCloud.
 - 批量处理优化
 """
 
-import asyncio
 import logging
-from typing import Any
 
 from app.core.evocloud.schemas import SyncConversation
 from app.infrastructure.queue.factory import shared_task

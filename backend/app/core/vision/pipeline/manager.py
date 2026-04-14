@@ -1,8 +1,5 @@
 import asyncio
 import logging
-import os
-import tempfile
-from datetime import datetime
 
 from app.core.config import settings
 from app.core.vision.providers.native.android_a11y import AndroidA11yProvider

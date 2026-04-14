@@ -5,8 +5,8 @@ Provides functions for handling UI bounds, coordinates, and geometric calculatio
 across different platforms (Android, iOS, macOS, Web).
 """
 
-import re
 import logging
+import re
 from typing import NamedTuple
 
 logger = logging.getLogger(__name__)

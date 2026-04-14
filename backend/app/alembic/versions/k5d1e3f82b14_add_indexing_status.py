@@ -12,8 +12,8 @@ This migration adds tracking for repository indexing state:
 
 from typing import Sequence, Union
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "k5d1e3f82b14"

@@ -11,16 +11,16 @@ This is the fallback mechanism when WebSocket is not available.
 """
 
 import asyncio
-import httpx
-import json
 import logging
 import uuid
 from datetime import datetime, timedelta
-from pydantic import BaseModel, Field, ConfigDict
-from app.infrastructure.pydantic_base import DynamicBaseModel
 from typing import Any, Optional
 
+import httpx
+from pydantic import Field, ConfigDict
+
 from app.core.config import settings
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 

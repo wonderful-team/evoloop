@@ -1,9 +1,8 @@
 import logging
-from dataclasses import dataclass, field
-from typing import List, Tuple
 from enum import Enum
+from typing import List, Tuple
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from app.core.execution.macro.schema import MacroScript, MacroStep, MacroStepType, MacroActionType
 from app.infrastructure.pydantic_base import DynamicBaseModel

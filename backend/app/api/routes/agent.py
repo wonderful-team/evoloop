@@ -8,20 +8,16 @@ from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from langchain_core.messages import HumanMessage, ToolMessage
-from pydantic import BaseModel, ConfigDict
-from app.models.schemas.base import ScopedRequest
-
-from app.api.responses import BaseAPIResponse
 from sqlalchemy import func, select
 
 from app.api.deps import (
     CurrentUserOptional,
     verify_guest_access,
 )
+from app.api.responses import BaseAPIResponse
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.context import thread_context_store
 from app.core.context.manager import ContextManager, EvoContext
-
 # --- Background Worker ---
 from app.core.engine.background_agent import run_agent_background
 from app.core.evocloud import evocloud_manager
@@ -31,13 +27,14 @@ from app.domain.codebase.indexing.manager import indexing_manager
 from app.domain.codebase.indexing.service import IndexingService
 from app.domain.integration.adapters import EventAdapter
 from app.infrastructure.database.sql.database import session_scope
+from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.models import (
     Conversation,
     Message,
     MessageReference,
 )
 from app.models.learning import LearnedSkill
-from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.models.schemas.base import ScopedRequest
 
 logger = logging.getLogger(__name__)
 

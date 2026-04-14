@@ -2,13 +2,12 @@ import asyncio
 import logging
 import os
 
-# Unified task queue (Huey in embedded mode, Celery in full mode)
-from app.infrastructure.queue.factory import shared_task
-
 from app.core.atlas.models import AtlasApp
 from app.core.environment.events import UiTreeObservedEvent, event_bus
 from app.infrastructure.drivers.adb import adb_driver
 from app.infrastructure.drivers.macos import macos_driver
+# Unified task queue (Huey in embedded mode, Celery in full mode)
+from app.infrastructure.queue.factory import shared_task
 from app.utils.async_utils import flush_loop_bound_resources
 
 logger = logging.getLogger(__name__)

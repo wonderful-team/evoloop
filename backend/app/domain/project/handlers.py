@@ -21,17 +21,6 @@ from app.domain.project.events import (
 )
 from app.domain.project.sync_service import ProjectSyncService
 
-import logging
-
-from app.core.events.decorators import event_register, event_subscribe
-from app.domain.project.events import (
-    ProjectCreatedEvent,
-    ProjectDeletedEvent,
-    ProjectEventType,
-    ProjectMovedEvent,
-)
-from app.domain.project.sync_service import ProjectSyncService
-
 logger = logging.getLogger(__name__)
 
 

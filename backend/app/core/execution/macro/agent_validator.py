@@ -12,8 +12,8 @@ import time
 from typing import Any, Dict, List, Optional, Tuple
 
 from app.core.execution.macro.evolution_engine import MacroEvolutionEngine
-from app.core.execution.macro.reasoning_engine import AgentReasoningEngine
 from app.core.execution.macro.optimizer import MacroOptimizer
+from app.core.execution.macro.reasoning_engine import AgentReasoningEngine
 from app.core.execution.macro.round_orchestrator import (
     BaselineStrategy,
     ChaosStrategy,
@@ -27,7 +27,6 @@ from app.core.execution.macro.verification_models import (
     ExecutionDetail,
     ExecutionMode,
     RedundancyCheckResult,
-    RedundancyType,
     RoundConfig,
     RoundReport,
     StepExecutionStatus,

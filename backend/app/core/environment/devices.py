@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import time
-from typing import Optional, List, Set
+from typing import Optional, List
 
 from app.core.environment import get_awakened_state
 from app.infrastructure.cache import cache

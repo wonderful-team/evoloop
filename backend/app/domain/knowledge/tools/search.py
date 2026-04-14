@@ -11,9 +11,8 @@ from langchain_core.tools import InjectedToolArg
 from pydantic import Field
 
 from app.core.tools import evoloop_tool
-from app.domain.knowledge.services.store import KnowledgeStoreService
 from app.domain.knowledge.services.search import get_fts_service
-from app.domain.knowledge.services.citations import get_citation_tracker
+from app.domain.knowledge.services.store import KnowledgeStoreService
 
 logger = logging.getLogger(__name__)
 

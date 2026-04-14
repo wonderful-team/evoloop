@@ -1,7 +1,7 @@
 import time
 from typing import Any, Dict, List, Literal, Optional, Union
-from pydantic import BaseModel, Field
 
+from pydantic import Field
 
 from app.infrastructure.pydantic_base import DynamicBaseModel
 

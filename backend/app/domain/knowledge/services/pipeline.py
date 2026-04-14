@@ -3,22 +3,19 @@ Ingestion pipeline for processing document uploads.
 """
 
 import logging
-import tempfile
 from datetime import datetime
-from pathlib import Path
 from typing import BinaryIO, Optional
 
 from app.domain.knowledge.extractors import ExtractorRegistry
-from app.domain.knowledge.extractors.base import BaseExtractor
 from app.domain.knowledge.models import (
     DocumentMetadata,
     ExtractionError,
     ExtractorInfo,
     MarkdownDocument,
 )
-from app.domain.knowledge.services.store import KnowledgeStoreService
-from app.domain.knowledge.services.search import FTSService, get_fts_service, IndexDocumentRequest
 from app.domain.knowledge.services.auto_tagger import get_auto_tagger
+from app.domain.knowledge.services.search import get_fts_service, IndexDocumentRequest
+from app.domain.knowledge.services.store import KnowledgeStoreService
 
 logger = logging.getLogger(__name__)
 
@@ -264,8 +261,7 @@ class IngestionPipeline:
         Returns:
             List of IngestionResults
         """
-        import asyncio
-        
+
         results = []
         for file, filename, mime_type in files:
             result = await self.process(file, filename, mime_type, project)

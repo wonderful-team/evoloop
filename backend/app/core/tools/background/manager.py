@@ -38,13 +38,11 @@ import asyncio
 import json
 import logging
 import uuid
-from typing import Any, Callable, Dict, List, Optional, Set
 from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional, Set
 
-from pydantic import BaseModel
-
-from .models import BackgroundTask, TaskMetadata, TaskStatus, TaskType
 from app.infrastructure.pydantic_base import DynamicBaseModel
+from .models import BackgroundTask, TaskMetadata, TaskStatus, TaskType
 
 logger = logging.getLogger(__name__)
 

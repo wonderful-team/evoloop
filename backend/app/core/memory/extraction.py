@@ -6,14 +6,13 @@ Inspired by Claude Code's extractMemories.ts
 """
 
 import logging
-from typing import List, Optional, Dict, Any
 from datetime import datetime
+from typing import List, Optional, Dict, Any
 
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
 
-from app.core.config import settings
-from app.core.memory.models import MemoryEntry, MemoryType, PrivacyLevel
 from app.core.memory.backends.file_backend import FileMemoryStorage
+from app.core.memory.models import MemoryEntry, MemoryType, PrivacyLevel
 from app.utils.template import render_template
 
 logger = logging.getLogger(__name__)
@@ -230,8 +229,7 @@ class MemoryExtractionService:
             List of parsed memory entries
         """
         import json
-        import uuid
-        
+
         entries = []
         
         # Try JSON parsing first

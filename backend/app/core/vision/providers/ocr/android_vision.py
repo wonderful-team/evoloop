@@ -1,4 +1,5 @@
 import logging
+
 from app.core.vision.providers.ocr.macos_vision import MacOSVisionOCRProvider
 from app.infrastructure.drivers.adb import adb_driver
 

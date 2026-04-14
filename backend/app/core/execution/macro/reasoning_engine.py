@@ -3,16 +3,17 @@ AgentReasoningEngine - Phase 4: Perception-First Reasoning
 Encapsulates LLM-based decision making for the verification loop.
 """
 
-import logging
 import json
+import logging
 import re
 from typing import Any, Dict, List, Optional, Tuple
-from pydantic import BaseModel
-from app.infrastructure.pydantic_base import DynamicBaseModel
 
-from app.core.execution.macro.verification_models import AnomalyType, RedundancyCheckResult, RedundancyType, AIAnalysisResult, RoundReport, VerificationIssue
+from langchain_core.messages import SystemMessage
+
+from app.core.execution.macro.verification_models import RedundancyCheckResult, RedundancyType, AIAnalysisResult, \
+    RoundReport, VerificationIssue
 from app.infrastructure.llm.vision import VisionLLMFactory
-from langchain_core.messages import HumanMessage, SystemMessage
+from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.utils import render_template
 from app.utils.yaml import safe_yaml_dumps
 

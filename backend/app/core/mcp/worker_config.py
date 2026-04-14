@@ -1,10 +1,9 @@
 """Configuration models for Worker-specific MCP."""
 
-from dataclasses import dataclass, field
-from typing import Any
-
 from typing import Any, Dict, List, Optional
-from pydantic import BaseModel, Field
+
+from pydantic import Field
+
 from app.core.mcp.config import AuthType, McpServerConfig, TransportType
 from app.infrastructure.pydantic_base import DynamicBaseModel
 

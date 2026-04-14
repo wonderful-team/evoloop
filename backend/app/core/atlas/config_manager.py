@@ -9,14 +9,14 @@ Manages dynamic configurations for Atlas system:
 All configurations are stored in cache (for fast lookup) with database persistence.
 """
 
-import json
 import logging
 from typing import Any
 
+from sqlmodel import Session
+
+from app.core.db import engine
 from app.infrastructure.cache import cache
 from app.models.system import SystemConfig
-from sqlmodel import Session, select
-from app.core.db import engine
 
 logger = logging.getLogger(__name__)
 

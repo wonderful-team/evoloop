@@ -6,9 +6,10 @@ Event types and data classes for agent execution lifecycle.
 """
 
 from enum import Enum
-from typing import Any, Dict
+from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import Field
+
 from app.core.events.base import BaseEvent
 from app.infrastructure.pydantic_base import DynamicBaseModel
 

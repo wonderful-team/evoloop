@@ -9,7 +9,6 @@ from langchain_core.tools import StructuredTool
 from app.core.mcp.auth.manager import mcp_auth_manager
 from app.core.mcp.config import McpServerConfig
 from app.core.mcp.features.base import (
-    McpFeatureCapabilities,
     McpPromptResult,
     McpResourceContent,
 )

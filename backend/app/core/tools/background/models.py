@@ -3,14 +3,13 @@ Data models for background task management.
 """
 
 from collections import deque
-from dataclasses import dataclass, field
 from datetime import datetime
-from enum import Enum, auto
-from typing import Any, Callable, Dict, List, Optional, Set
-from pydantic import BaseModel, Field, ConfigDict
+from enum import Enum
+from typing import Any, Callable, Dict, Optional
+
+from pydantic import Field, ConfigDict
 
 from app.infrastructure.pydantic_base import DynamicBaseModel
-
 
 
 class TaskStatus(str, Enum):

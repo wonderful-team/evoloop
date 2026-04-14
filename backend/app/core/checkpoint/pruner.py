@@ -4,9 +4,9 @@ Designed to work with LangGraph's AsyncSqliteSaver schema.
 """
 
 import logging
-import asyncio
-import aiosqlite
 from typing import Optional
+
+import aiosqlite
 
 logger = logging.getLogger(__name__)
 

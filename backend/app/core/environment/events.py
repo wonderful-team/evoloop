@@ -4,9 +4,8 @@ Awakening Event System
 import logging
 from datetime import datetime
 from enum import Enum
-from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from app.core.events.base import AsyncEventBus, BaseEvent
 

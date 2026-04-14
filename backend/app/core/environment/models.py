@@ -6,7 +6,7 @@ import time
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from pydantic import BaseModel, Field, PrivateAttr, ConfigDict
+from pydantic import Field, PrivateAttr
 
 from app.infrastructure.pydantic_base import DynamicBaseModel
 

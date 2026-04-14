@@ -9,7 +9,7 @@ import json
 import logging
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from app.infrastructure.cache import get_cache
 from app.infrastructure.cache.abstract import Cache

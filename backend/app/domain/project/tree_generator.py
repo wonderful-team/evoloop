@@ -1,19 +1,17 @@
 import fnmatch
 import logging
 import os
-from dataclasses import dataclass, field
 
+from pydantic import Field
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.core.config import settings
-from app.utils import render_template
 from app.domain.project import cache as project_cache
 from app.infrastructure.database.sql.database import session_scope
-from app.models import CodeChunk, SourceFile
-
-from pydantic import BaseModel, Field
 from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.models import CodeChunk, SourceFile
+from app.utils import render_template
 
 logger = logging.getLogger(__name__)
 

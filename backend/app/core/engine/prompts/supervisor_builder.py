@@ -5,17 +5,15 @@ Constructs the system prompt for the Supervisor ReAct Agent.
 Allows for dynamic context injection and potential LLM-specific adaptations.
 """
 
-import json
 import logging
 from typing import Optional
 
 from langchain_core.runnables import RunnableConfig
 
-from app.core.config import settings
 from app.core.engine.state.blackboard import BlackboardState
 from app.core.environment import get_awakened_state
 from app.infrastructure.config.service import SystemConfigService
-from app.utils import ControllerResponse, render_template
+from app.utils import render_template
 
 logger = logging.getLogger(__name__)
 
@@ -82,7 +80,7 @@ class SupervisorPromptBuilder:
         (not System Prompt), the static System Prompt remains cacheable.
         """
         from app.core.context import ContextManager, plugin_registry
-        from .utils import get_mapped_cwd, get_sandbox_mode
+        from .utils import get_mapped_cwd
 
         ctx = ContextManager.current()
         plugin_registry.hydrate_context(ctx)

@@ -11,12 +11,12 @@ restoring files to their state before Agent modification.
 import logging
 from pathlib import Path
 
+from app.core.rewind.events import FilesCleanupEvent, RewindRequestedEvent
+from app.core.rewind.events import RewindEventType
 from sqlalchemy import delete, select
 
-from app.core.rewind.events import RewindEventType
 from app.core.events.base import AsyncEventBus
 from app.core.events.decorators import event_register, event_subscribe
-from app.core.rewind.events import FilesCleanupEvent, RewindRequestedEvent
 from app.infrastructure.database.sql.database import session_scope
 from app.models.file_operation import FileOperation
 
@@ -115,8 +115,7 @@ class FileRewind:
             
             if target_message_id:
                 # Filter by message ID range
-                from app.models import Message
-                
+
                 target_id = int(target_message_id)
                 
                 if include_target:

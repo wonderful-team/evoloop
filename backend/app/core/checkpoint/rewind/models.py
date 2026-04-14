@@ -1,5 +1,7 @@
 from typing import Any, List, Optional
-from pydantic import BaseModel, Field
+
+from pydantic import Field
+
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 

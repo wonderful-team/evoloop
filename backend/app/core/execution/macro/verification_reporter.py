@@ -8,21 +8,13 @@ Supports multiple output formats: Markdown, JSON, HTML.
 import json
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional
-
-from app.utils import render_template
 
 from app.core.execution.macro.verification_models import (
-    AdaptationRecord,
-    ExecutionMode,
-    MacroEvolutionRecord,
-    RoundReport,
     StepExecutionStatus,
-    VerificationIssue,
-    VerificationReport,
     VerificationResponse,
     VerificationStatus,
 )
+from app.utils import render_template
 
 logger = logging.getLogger(__name__)
 

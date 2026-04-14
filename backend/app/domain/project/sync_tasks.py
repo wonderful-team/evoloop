@@ -1,9 +1,9 @@
 import logging
 from datetime import datetime
-from app.utils import render_template
 
 # Unified task queue (Huey in embedded mode, Celery in full mode)
 from app.infrastructure.queue.factory import get_scheduler
+from app.utils import render_template
 
 # Get scheduler instance
 _task_scheduler = get_scheduler()

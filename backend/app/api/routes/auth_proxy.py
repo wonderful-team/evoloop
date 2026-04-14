@@ -1,8 +1,7 @@
 from fastapi import APIRouter
-from pydantic import BaseModel
-from app.infrastructure.pydantic_base import DynamicBaseModel
 
 from app.core.evocloud import evocloud_manager
+from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.models.schemas.auth import EvoCloudProxyResponse, LoginResult
 
 router = APIRouter()

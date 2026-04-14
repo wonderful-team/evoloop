@@ -7,14 +7,12 @@ Audio processing API - Speech-to-Text and Text-to-Speech
 """
 
 import logging
-import tempfile
 import os
+import tempfile
 from typing import Optional, Any
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, Form
 from fastapi.responses import StreamingResponse, FileResponse
-from pydantic import BaseModel
-from app.infrastructure.pydantic_base import DynamicBaseModel
 
 from app.api.deps import require_benefit
 from app.core.voice import (
@@ -24,6 +22,7 @@ from app.core.voice import (
     STTOptions,
     VoiceLocale,
 )
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["audio"])

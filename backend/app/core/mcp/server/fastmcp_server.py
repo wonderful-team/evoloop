@@ -2,25 +2,23 @@ import os
 
 from mcp.server.fastmcp import FastMCP
 
-from app.domain.codebase.indexing.tools import index_path
-from app.domain.codebase.retrieval.tools import search_codebase
-
 # Import tools via MCP
 from app.domain.codebase.exploration import (
     find_symbol,
     ask_codebase,
     analyze_impact,
 )
-from app.domain.tools.files import search_files as search_code
+from app.domain.codebase.indexing.tools import index_path
+from app.domain.codebase.retrieval.tools import search_codebase
 from app.domain.tools.execution import execute_command
 from app.domain.tools.files import (
     edit_file,
     list_directory,
     manage_directory,
     read_file,
-    search_files,
     write_file,
 )
+from app.domain.tools.files import search_files as search_code
 from app.utils import json as json_utils
 
 # Initialize FastMCP Server

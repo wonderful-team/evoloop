@@ -18,8 +18,7 @@ from app.domain.todo.schemas import (
     TodoResponse,
     TodoUpdate,
 )
-from app.domain.todo.utils import format_todo_summary, is_overdue, parse_due_date
-from app.utils import parse_relative_time
+from app.domain.todo.utils import parse_due_date
 from app.i18n.service import i18n
 from app.models.todo import TodoItem, TodoPriority, TodoStatus
 from app.utils import ContentFormatter

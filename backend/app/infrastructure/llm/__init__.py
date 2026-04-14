@@ -4,8 +4,9 @@ LLM Infrastructure Module
 Provides LLM factory, adapters, and configuration services.
 """
 
-from app.infrastructure.llm.factory import LLMFactory, get_default_llm
+from app.infrastructure.llm.adaptive import AdaptiveChatOpenAI
 from app.infrastructure.llm.config import LLMConfigService
+from app.infrastructure.llm.factory import LLMFactory, get_default_llm
 from app.infrastructure.llm.platform_service import (
     LLMPlatformService,
     llm_platform_service,
@@ -13,7 +14,7 @@ from app.infrastructure.llm.platform_service import (
     get_available_embedding_models,
     PlatformModel,
 )
-from app.infrastructure.llm.adaptive import AdaptiveChatOpenAI
+
 
 # Lazy import to avoid circular dependency
 # CompatibleChatAnthropic imports from app.core.engine

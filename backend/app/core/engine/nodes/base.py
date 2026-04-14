@@ -2,14 +2,13 @@ import logging
 from abc import ABC, abstractmethod
 from typing import Any, Tuple
 
-from langchain_core.messages import BaseMessage, HumanMessage
+from langchain_core.messages import HumanMessage
 from langchain_core.runnables import RunnableConfig
 
 from app.core.engine import get_default_engine
 from app.core.engine.engine import EngineResult
 from app.core.engine.routers import RoutingTarget
 from app.core.engine.state import AgentState, StateUpdate
-from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 

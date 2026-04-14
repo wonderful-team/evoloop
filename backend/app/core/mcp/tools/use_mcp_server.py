@@ -2,8 +2,8 @@ import logging
 
 from pydantic import BaseModel, Field
 
-from app.core.tools import evoloop_tool
 from app.core.mcp import mcp_client_manager
+from app.core.tools import evoloop_tool
 
 logger = logging.getLogger(__name__)
 

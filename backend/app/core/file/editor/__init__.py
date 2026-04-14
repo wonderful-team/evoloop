@@ -4,6 +4,7 @@ Core file editing engine - Fuzzy matching and replacement strategies.
 This module provides the foundational editing capabilities used by file tools.
 """
 
+from .algorithms import levenshtein
 from .engine import EditEngine
 from .strategies import (
     STRATEGIES,
@@ -17,7 +18,6 @@ from .strategies import (
     indentation_flexible_replacer,
     multi_occurrence_replacer,
 )
-from .algorithms import levenshtein
 
 __all__ = [
     # Main engine

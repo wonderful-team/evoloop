@@ -7,10 +7,8 @@ are interchangeable.
 """
 
 from abc import ABC, abstractmethod
-from typing import List, Optional, Dict, Any
-from datetime import datetime
+from typing import List, Optional, Dict
 
-from pydantic import BaseModel, ConfigDict
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 

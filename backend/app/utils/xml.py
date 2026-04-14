@@ -4,8 +4,8 @@ XML Processing Utilities
 Provides safe XML parsing and content extraction functions.
 """
 
-import re
 import logging
+import re
 from xml.etree import ElementTree as ET
 
 logger = logging.getLogger(__name__)

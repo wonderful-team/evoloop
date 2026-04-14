@@ -6,9 +6,7 @@ to the frontend to request human input or actions. All interactions are
 blocking (agent paused) until user responds.
 """
 from enum import Enum
-from typing import Any
 
-from pydantic import BaseModel
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 

@@ -13,9 +13,7 @@ Usage:
 import logging
 
 from app.core.events.decorators import event_register, event_subscribe
-from app.core.events import system_bus
 from app.domain.codebase.events import (
-    FileIndexedEvent,
     FileModifiedEvent,
     FileMovedEvent,
     FileRemovedEvent,

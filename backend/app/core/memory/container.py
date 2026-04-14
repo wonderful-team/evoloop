@@ -29,18 +29,18 @@ Usage:
 import logging
 from typing import Optional
 
-from app.core.memory.config import MemoryConfig
-from app.core.memory.manager import MemoryManager
+from app.core.memory.auto_extraction import AutoMemoryExtractor
 from app.core.memory.backends.file_backend import FileMemoryStorage
 from app.core.memory.backends.sql_short_term import SqlShortTermMemory
+from app.core.memory.config import MemoryConfig
+from app.core.memory.daily_log import DailyLogWriter, LogConsolidator
 from app.core.memory.extraction import MemoryExtractionService, MemoryConsolidationService
 from app.core.memory.interfaces.storage import IMemoryStorage
-from app.core.memory.retrieval import MemoryRetriever
+from app.core.memory.manager import MemoryManager
 from app.core.memory.quality import MemoryQualityAnalyzer
+from app.core.memory.retrieval import MemoryRetriever
 from app.core.memory.state_tracking import MemoryStateTracker
-from app.core.memory.daily_log import DailyLogWriter, LogConsolidator
 from app.core.memory.two_tier import TwoTierMemoryManager
-from app.core.memory.auto_extraction import AutoMemoryExtractor
 
 logger = logging.getLogger(__name__)
 

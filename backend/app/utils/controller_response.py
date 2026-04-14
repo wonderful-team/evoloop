@@ -6,6 +6,7 @@ Eliminates repetitive render_template calls for report/response.prompt.j2
 """
 
 from typing import Optional, Dict, Any
+
 from app.utils.template import render_template
 
 

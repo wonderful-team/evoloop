@@ -1,16 +1,15 @@
 """Top-level AgentState and StateUpdate models."""
-import operator
 from typing import Annotated, Any, List, Optional
 
 from langchain_core.messages import BaseMessage
 from langgraph.graph.message import add_messages
 from pydantic import Field
-from app.infrastructure.pydantic_base import DynamicBaseModel
 
 from app.core.engine.state.blackboard import BlackboardState, VerificationStatus, merge_blackboard
 from app.core.engine.state.config import ExecutionTicket
 from app.core.engine.state.hitl import HITLState
 from app.core.engine.state.workspace import RetrievalContext, WorkspaceContext
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 
 class AgentStateBase(DynamicBaseModel):

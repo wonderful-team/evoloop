@@ -9,12 +9,11 @@ System TTS Provider (macOS say command)
 - Eddy, Flo, Grandma, Grandpa, Reed, Rocko, Sandy, Shelley
 """
 
-import logging
 import asyncio
-import tempfile
+import logging
 import os
+import tempfile
 from typing import Optional, AsyncIterator
-from pathlib import Path
 
 from app.core.voice.tts.base import BaseTTSProvider, TTSOptions, TTSSResult, Voice, VoiceGender, VoiceLocale
 

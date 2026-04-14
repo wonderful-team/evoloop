@@ -8,11 +8,10 @@ with concurrent modification detection.
 import logging
 import os
 from typing import Optional
-from pydantic import BaseModel, ConfigDict
 
-from .models import FileInfo
-from .io import get_file_info, read_file, write_file, FileStatus
 from app.infrastructure.pydantic_base import DynamicBaseModel
+from .io import get_file_info, read_file, write_file
+from .models import FileInfo
 
 # FileStats is an alias for FileInfo for backward compatibility
 FileStats = FileInfo

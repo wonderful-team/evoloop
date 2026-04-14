@@ -34,10 +34,10 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
-from app.core.memory.models import MemoryEntry, MemoryType, PrivacyLevel
 from app.core.config import settings
+from app.core.memory.models import MemoryEntry, MemoryType, PrivacyLevel
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)

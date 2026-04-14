@@ -6,7 +6,6 @@ Revises: m6n7o8p9q0r1_add_file_checkpoints
 Create Date: 2026-03-21 14:30:00
 """
 from alembic import op
-import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = 'n8o9p0q1r2s3'

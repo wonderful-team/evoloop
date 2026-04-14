@@ -6,7 +6,6 @@ Voice Service Base Classes and Models
 from abc import ABC, abstractmethod
 from enum import Enum
 from typing import AsyncIterator, Optional
-from pydantic import BaseModel, Field
 
 from app.infrastructure.pydantic_base import DynamicBaseModel
 

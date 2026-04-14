@@ -6,16 +6,13 @@ Generates robust macros with fallback mechanisms and error handling.
 """
 
 import copy
-import json
 import logging
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Set, Tuple
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from app.core.execution.macro.verification_models import (
-    AdaptationRecord,
     AnomalyType,
     MacroEvolutionRecord,
     StepExecutionStatus,

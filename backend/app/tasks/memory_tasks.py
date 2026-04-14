@@ -54,8 +54,7 @@ def nightly_consolidation(days: int = 1):
     
     async def run():
         from app.core.memory.daily_log import log_consolidator
-        from app.core.memory import MemoryContainer, MemoryConfig
-        
+
         logger.info(f"[NightlyConsolidation] Starting consolidation for last {days} days")
         
         results = {

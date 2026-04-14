@@ -11,9 +11,9 @@ from typing import Annotated
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import InjectedToolArg
 
+from app.core.checkpoint.manager import checkpoint_manager
 from app.core.context.manager import ContextManager
 from app.core.tools import evoloop_tool
-from app.core.checkpoint.manager import checkpoint_manager
 from app.utils import SystemToolsFormatter
 
 logger = logging.getLogger(__name__)

@@ -2,12 +2,10 @@ import logging
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
-from app.infrastructure.pydantic_base import DynamicBaseModel
 
-from app.core.memory import MemoryContainer, MemoryConfig
-from app.infrastructure.embeddings.factory import EmbedderFactory
 from app.infrastructure.database.vector.lancedb_store import get_vector_store
+from app.infrastructure.embeddings.factory import EmbedderFactory
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 

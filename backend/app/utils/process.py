@@ -1,7 +1,6 @@
 import asyncio
 import logging
 import subprocess
-from pydantic import BaseModel
 
 from app.infrastructure.pydantic_base import DynamicBaseModel
 

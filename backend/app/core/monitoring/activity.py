@@ -13,6 +13,7 @@ from typing import Any
 from pydantic import Field
 
 from app.infrastructure.cache import cache
+from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.models.schemas.events import (
     AgentStateEvent,
     ArtifactEvent,
@@ -21,9 +22,6 @@ from app.models.schemas.events import (
     StepEvent,
 )
 from app.services.cache_services import ActivityStateService
-
-from pydantic import BaseModel, ConfigDict
-from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 

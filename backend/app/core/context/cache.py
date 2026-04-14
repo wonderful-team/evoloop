@@ -13,14 +13,14 @@ Safety guarantees:
 
 import logging
 import time
-from typing import Any, Optional
+from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from app.core.engine.state import AgentState
-from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.core.engine.state.blackboard import BlackboardState, VerificationStatus
 from app.core.engine.state.config import ExecutionTicket
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 

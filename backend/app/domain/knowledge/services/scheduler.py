@@ -18,7 +18,7 @@ Knowledge Base Maintenance Scheduler - 知识库维护调度器
 
 import asyncio
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Optional
 
 from app.domain.knowledge.services.auto_maintenance import get_maintenance_service

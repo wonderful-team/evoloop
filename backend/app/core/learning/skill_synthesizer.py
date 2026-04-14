@@ -6,26 +6,23 @@ It produces structured skill configurations that can be registered and executed.
 """
 
 import logging
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
 
 import yaml
-from pydantic import BaseModel, Field
-
+from pydantic import Field
 from sqlalchemy import select
 
-from app.core.learning.prompts import prompt_builder
-from app.core.learning.trace_parser import TraceParser, TraceSequence
 from app.core.execution.macro.verification_service import SynthesisVerificationResult
+from app.core.learning.prompts import prompt_builder
 from app.core.learning.synthesizer_utils import (
     cleanup_macro_steps,
     export_skill_to_filesystem,
 )
-
+from app.core.learning.trace_parser import TraceParser, TraceSequence
 from app.i18n.service import i18n
 from app.infrastructure.database.sql.database import session_scope
-
-from app.models import Message
 from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.models import Message
 
 logger = logging.getLogger(__name__)
 

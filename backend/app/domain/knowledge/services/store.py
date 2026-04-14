@@ -4,22 +4,17 @@ Knowledge store service for file operations.
 
 import json
 import logging
-import os
 import shutil
 from datetime import datetime
 from pathlib import Path
 from typing import Iterator, Optional
 
-from pydantic import BaseModel
-
-from app.core.config import settings
 from app.domain.knowledge.models import DocumentMetadata, MarkdownDocument
+from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.utils.file import (
-    get_file_stats,
     read_file_content,
     write_file_contents,
 )
-from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 

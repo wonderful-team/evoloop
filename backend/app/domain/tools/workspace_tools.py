@@ -1,6 +1,5 @@
 from typing import Any
 
-from langchain_core.runnables import RunnableConfig
 from pydantic import BaseModel, Field
 
 from app.core.tools import evoloop_tool

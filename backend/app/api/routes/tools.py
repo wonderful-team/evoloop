@@ -1,11 +1,10 @@
 from typing import Any
 
 from fastapi import APIRouter
-from pydantic import BaseModel
-from app.infrastructure.pydantic_base import DynamicBaseModel
 
 from app.core.tools.manager import tool_manager
 from app.core.tools.runtime_registry import get_runtime_tools
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 router = APIRouter(prefix="/tools", tags=["tools"])
 

@@ -12,9 +12,10 @@ import zipfile
 from datetime import datetime
 from pathlib import Path
 from typing import BinaryIO, Optional
-from pydantic import BaseModel, Field
 
-from app.domain.knowledge.services.pipeline import IngestionPipeline, IngestionResult
+from pydantic import Field
+
+from app.domain.knowledge.services.pipeline import IngestionPipeline
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)

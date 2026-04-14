@@ -6,7 +6,7 @@ implementation (Redis in production, FileCache in embedded mode).
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, AsyncIterator, Protocol
+from typing import Any
 
 
 class PubSubBackend(ABC):

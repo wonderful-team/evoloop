@@ -8,8 +8,6 @@ import logging
 from typing import Optional
 
 from app.core.messaging.category import MessageCategory
-
-from pydantic import BaseModel, ConfigDict
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)

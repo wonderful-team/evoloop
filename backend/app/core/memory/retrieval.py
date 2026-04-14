@@ -22,20 +22,18 @@ Usage:
     )
 """
 
-import asyncio
+import json
 import logging
+import math
 import time
-from dataclasses import dataclass
 from datetime import datetime
 from typing import List, Optional, Dict, Any, Set
-import json
-import math
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from app.core.memory.models import MemoryEntry, MemoryType, PrivacyLevel
-from app.utils.template import render_template
 from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.utils.template import render_template
 
 logger = logging.getLogger(__name__)
 

@@ -10,11 +10,12 @@ import logging
 from collections.abc import Awaitable, Callable
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, Generic, List, Optional, TypeVar
-from pydantic import BaseModel, ConfigDict, Field
+from typing import Any, Generic, TypeVar
 
-from app.utils.async_utils import LoopBoundResource
+from pydantic import Field
+
 from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.utils.async_utils import LoopBoundResource
 
 logger = logging.getLogger(__name__)
 

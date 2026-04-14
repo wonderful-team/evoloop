@@ -6,13 +6,12 @@ and parses it into UIElement objects.
 """
 
 import logging
-import re
 import xml.etree.ElementTree as ET
 
 from app.core.vision.providers.base import VisionProvider
 from app.core.vision.types import ElementType, UIElement, VisionResult, VisionTask
 from app.infrastructure.drivers.adb import ADBError, adb_driver
-from app.utils.geometry import parse_bounds, Bounds
+from app.utils.geometry import parse_bounds
 
 logger = logging.getLogger(__name__)
 

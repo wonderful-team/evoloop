@@ -13,10 +13,9 @@ Features:
 """
 
 import asyncio
-import functools
 import logging
 from pathlib import Path
-from typing import Any, Callable, Coroutine, Optional, Union
+from typing import Any, Callable, Optional
 
 from app.core.config import settings
 
@@ -359,7 +358,6 @@ class HueyTaskScheduler(TaskScheduler, SyncTaskMixin):
         consumer = Consumer(self._huey, **consumer_kwargs)
         
         # Override signal handling to avoid errors in non-main thread
-        import signal
         consumer._set_signal_handlers = lambda: None  # Disable signal handlers
         
         consumer.run()

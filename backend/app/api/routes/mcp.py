@@ -1,10 +1,8 @@
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
 
 from app.api.responses import BaseAPIResponse
-
 from app.core.mcp import mcp_client_manager
 from app.core.mcp.schemas import McpServerCreate
 

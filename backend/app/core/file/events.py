@@ -5,7 +5,6 @@ File System Event Types and Data Structures
 Event types and data classes for file system monitoring and changes.
 """
 
-from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Callable
 

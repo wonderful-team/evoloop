@@ -13,12 +13,12 @@ cleanup of trace data during rewind operations.
 
 import logging
 
+from app.core.rewind.events import RewindEventType
+from app.core.rewind.events import RewindRequestedEvent, TraceCleanupEvent
 from sqlalchemy import delete, select
 
-from app.core.rewind.events import RewindEventType
 from app.core.events.base import AsyncEventBus
 from app.core.events.decorators import event_register, event_subscribe
-from app.core.rewind.events import RewindRequestedEvent, TraceCleanupEvent
 from app.infrastructure.database.sql.database import session_scope
 
 logger = logging.getLogger(__name__)

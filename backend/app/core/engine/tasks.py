@@ -1,29 +1,23 @@
 import asyncio
 import logging
 import os
+import re
 import shutil
 import time
 from datetime import datetime
-from typing import Any, cast
+from typing import Any
 
-from langchain_core.messages import SystemMessage
-
-
-
-# Unified task queue (Huey in embedded mode, Celery in full mode)
-from app.infrastructure.queue.factory import shared_task
 from sqlalchemy import text, select, desc, func
 
-from app.core.config import settings
 from app.constants import DEFAULT_PROJECT_ID
-from app.core.learning.trace_recorder import sync_thread_to_graph
-
-from app.core.memory.interfaces.long_term import Concept as MemConcept
+from app.core.config import settings
 from app.core.environment.events import UiTreeObservedEvent, event_bus
+from app.core.learning.trace_recorder import sync_thread_to_graph
+from app.core.memory.interfaces.long_term import Concept as MemConcept
 from app.infrastructure.database.sql.database import session_scope
+# Unified task queue (Huey in embedded mode, Celery in full mode)
+from app.infrastructure.queue.factory import shared_task
 from app.models import FileOperation
-import xml.etree.ElementTree as ET
-import re
 
 logger = logging.getLogger(__name__)
 
@@ -553,7 +547,6 @@ def reconcile_skill_macro_task(skill_id: int, thread_id: str):
     async def _run():
         from app.core.learning.skill_synthesizer import WorkflowSynthesizer
         from app.models.learning import LearnedSkill
-        import json
 
         try:
             logger.info(f"[Celery] Reconciling Skill {skill_id} from thread {thread_id}...")

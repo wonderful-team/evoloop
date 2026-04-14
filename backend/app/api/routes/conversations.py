@@ -2,16 +2,14 @@ import logging
 from datetime import datetime
 
 from fastapi import APIRouter, HTTPException, Request
-from pydantic import BaseModel
-from app.infrastructure.pydantic_base import DynamicBaseModel
 from sqlalchemy import delete, select, func
-
-from app.api.responses import BaseAPIResponse, ListResponse
 from sqlalchemy.orm import selectinload
 
-from app.core.monitoring.activity import activity_monitor
+from app.api.responses import BaseAPIResponse, ListResponse
 from app.core.messaging.category import MessageCategory
+from app.core.monitoring.activity import activity_monitor
 from app.infrastructure.database.sql.database import get_db_session
+from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.models import Conversation, FileOperation, Message
 
 logger = logging.getLogger(__name__)

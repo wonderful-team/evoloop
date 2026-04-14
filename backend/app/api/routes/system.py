@@ -1,21 +1,20 @@
 import time
+
 import psutil
-
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel, Field
-from app.infrastructure.pydantic_base import DynamicBaseModel
-from app.models.schemas.base import ScopedRequest
-
-from app.api.responses import BaseAPIResponse
+from pydantic import Field
 
 from app.api.deps import get_current_user
+from app.api.responses import BaseAPIResponse
 from app.infrastructure.config import EmbeddingConfigService
-from app.infrastructure.llm import LLMConfigService
 from app.infrastructure.config.service import SystemConfigService
+from app.infrastructure.llm import LLMConfigService
 from app.infrastructure.llm.platform_service import (
     get_available_llm_models,
     get_available_embedding_models,
 )
+from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.models.schemas.base import ScopedRequest
 from app.models.system import SystemConfig
 
 router = APIRouter(prefix="/system", tags=["system"])

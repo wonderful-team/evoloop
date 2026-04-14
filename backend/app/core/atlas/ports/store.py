@@ -1,6 +1,5 @@
 from abc import ABC, abstractmethod
 
-from pydantic import BaseModel, ConfigDict
 from app.core.atlas.models import AtlasApp
 from app.infrastructure.pydantic_base import DynamicBaseModel
 

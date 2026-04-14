@@ -9,14 +9,13 @@ inline in the editor as gray/ghost text.
 """
 
 import logging
-from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
-from pydantic import BaseModel, Field
-from app.infrastructure.pydantic_base import DynamicBaseModel
-from app.models.schemas.base import ScopedRequest
+from pydantic import Field
 
 from app.core.ghost_text import EditPreview, GhostSuggestion, ghost_suggester
+from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.models.schemas.base import ScopedRequest
 
 logger = logging.getLogger(__name__)
 

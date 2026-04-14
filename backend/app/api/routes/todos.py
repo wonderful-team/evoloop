@@ -1,7 +1,4 @@
-from datetime import datetime
-
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,7 +7,6 @@ from app.domain.todo.schemas import TodoCreate, TodoResponse, TodoUpdate
 from app.infrastructure.database.sql.database import get_db
 from app.models.todo import (
     TodoItem,
-    TodoPriority,
     TodoStatus,
 )
 

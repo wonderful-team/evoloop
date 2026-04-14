@@ -3,20 +3,18 @@ import logging
 import os
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
-from app.infrastructure.pydantic_base import DynamicBaseModel
-from app.models.schemas.base import ScopedRequest
-
-from app.api.responses import BaseAPIResponse, ListResponse
 from sqlalchemy import select
 
 from app.api.deps import TokenDep, TokenDepOptional
+from app.api.responses import BaseAPIResponse, ListResponse
 from app.core.config import settings
 from app.core.evocloud import evocloud_manager
-from app.infrastructure.config.service import SystemConfigService
 from app.domain.codebase.indexing.manager import indexing_manager
+from app.infrastructure.config.service import SystemConfigService
 from app.infrastructure.database.sql.database import AsyncSessionLocal
+from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.models import Repository
+from app.models.schemas.base import ScopedRequest
 from app.utils.time import utcnow
 
 logger = logging.getLogger(__name__)

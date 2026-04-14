@@ -32,17 +32,18 @@ Usage:
     await hook_system.trigger(HookEvent.PRE_COMPACT, context)
 """
 
-import logging
 import asyncio
+import logging
 import re
+from datetime import datetime
 from enum import Enum, auto
 from typing import Dict, List, Callable, Any, Optional, Union, Awaitable
-from datetime import datetime
 
-from langchain_core.messages import BaseMessage, SystemMessage
-from pydantic import BaseModel, ConfigDict, Field
-from app.infrastructure.pydantic_base import DynamicBaseModel
+from langchain_core.messages import BaseMessage
+from pydantic import ConfigDict, Field
+
 from app.core.engine.state.blackboard import BlackboardState
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 

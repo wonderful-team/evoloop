@@ -1,5 +1,3 @@
-from dataclasses import dataclass
-
 from app.core.events.base import BaseEvent
 from app.core.vision.types import VisionResult
 

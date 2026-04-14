@@ -11,8 +11,6 @@ import logging
 import time
 from typing import Optional
 
-from pydantic import BaseModel, Field
-
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)

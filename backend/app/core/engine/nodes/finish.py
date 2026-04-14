@@ -1,25 +1,23 @@
 import asyncio
-import json
 import logging
 import re
 import time
 
-from langchain_core.messages import AIMessage, HumanMessage, RemoveMessage, SystemMessage
+from langchain_core.messages import AIMessage, RemoveMessage
 from langchain_core.runnables import RunnableConfig
 
-from app.utils.id import gen_uuid
+from app.constants import DEFAULT_PROJECT_ID
+from app.core.checkpoint.pruner import auto_prune_on_completion
 from app.core.config import settings
 from app.core.context.manager import ContextManager
 from app.core.engine import get_default_engine
 from app.core.engine.prompts.finish import FinishPromptBuilder
 from app.core.engine.state import AgentState, StateUpdate
 from app.core.engine.state.blackboard import BlackboardState, VerificationStatus
-
 from app.core.monitoring.activity import activity_monitor
 from app.core.tools.manager import tool_manager
-from app.core.checkpoint.pruner import auto_prune_on_completion
-from app.constants import DEFAULT_PROJECT_ID
 from app.i18n.service import i18n
+from app.utils.id import gen_uuid
 
 logger = logging.getLogger(__name__)
 
@@ -314,7 +312,7 @@ async def _comprehensive_audit(state: AgentState, config: RunnableConfig) -> Sta
     ctx = ContextManager.current()
     messages = list(state.messages)
     blackboard = (state.blackboard or {})
-    
+
     current_plan = (state.current_plan or "")
     execution_ticket = state.execution_ticket
     verification_status = (blackboard.verification if blackboard else None) or state.verification_status or VerificationStatus(status="unverified")

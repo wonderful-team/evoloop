@@ -17,13 +17,12 @@ import platform
 from datetime import datetime
 from typing import Any, Optional
 
-from pydantic import BaseModel, Field, ConfigDict
-from app.infrastructure.pydantic_base import DynamicBaseModel
-
 import websockets
+from pydantic import Field, ConfigDict
 from websockets.exceptions import ConnectionClosed
 
 from app.core.config import settings
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 try:
     from zeroconf import IPVersion, ServiceInfo, Zeroconf
@@ -400,7 +399,7 @@ class DirectClientToolExecutor:
         timeout: float
     ) -> Any:
         """HTTP fallback using ClientToolExecutor."""
-        from app.infrastructure.client.http import ClientToolExecutor, ToolExecutionError
+        from app.infrastructure.client.http import ClientToolExecutor
 
         if self._http_fallback is None:
             self._http_fallback = ClientToolExecutor()

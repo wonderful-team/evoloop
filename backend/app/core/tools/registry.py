@@ -15,7 +15,6 @@ from pathlib import Path
 
 import yaml
 from langchain_core.tools import BaseTool
-from pydantic import BaseModel, ConfigDict
 
 from app.core.tools.runtime_registry import get_runtime_tools
 from app.infrastructure.pydantic_base import DynamicBaseModel

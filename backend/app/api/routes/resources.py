@@ -2,11 +2,10 @@ import logging
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
-from app.infrastructure.pydantic_base import DynamicBaseModel
 from sqlalchemy import select
 
 from app.infrastructure.database.sql.database import get_db_session
+from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.models import ProjectResource
 
 logger = logging.getLogger(__name__)

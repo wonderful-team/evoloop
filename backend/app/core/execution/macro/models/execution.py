@@ -1,13 +1,13 @@
 """Macro verification execution models."""
 
-from datetime import datetime
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field
-from app.infrastructure.pydantic_base import DynamicBaseModel
+from pydantic import Field
 
 from app.core.execution.macro.models.enums import AnomalyType, RedundancyType, StepExecutionStatus
 from app.core.execution.macro.schema import MacroStep
+from app.infrastructure.pydantic_base import DynamicBaseModel
+
 
 class RedundancyCheckResult(DynamicBaseModel):
     """冗余检查结果"""

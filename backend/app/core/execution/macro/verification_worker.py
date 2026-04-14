@@ -573,7 +573,7 @@ class VerificationWorker:
             Extraction result
         """
         from app.core.execution.macro.engine import MacroEngine
-        from app.core.execution.macro.schema import MacroStep, MacroStepType, MacroSource
+        from app.core.execution.macro.schema import MacroStep, MacroStepType
 
         key = step.get("key", "unknown")
         extract_type = step.get("extract_type", "gui_extract")

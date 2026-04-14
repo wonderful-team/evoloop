@@ -13,9 +13,8 @@ This migration adds support for the project import confirmation workflow:
 
 from typing import Sequence, Union
 
-from alembic import op
 import sqlalchemy as sa
-from sqlalchemy.dialects import postgresql
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "j4c9d2e71a03"

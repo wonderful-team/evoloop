@@ -4,7 +4,6 @@ Subtask Aggregation Node - Phase 1
 Collects and aggregates results from parallel subtask executions.
 """
 import logging
-from typing import Any
 
 from langchain_core.messages import AIMessage
 from langchain_core.runnables import RunnableConfig

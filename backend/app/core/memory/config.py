@@ -6,11 +6,10 @@ All memory-related settings are encapsulated in the MemoryConfig dataclass.
 """
 
 import logging
-from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional, List
+from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from app.infrastructure.pydantic_base import DynamicBaseModel
 

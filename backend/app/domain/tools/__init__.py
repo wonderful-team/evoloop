@@ -9,32 +9,8 @@ This module organizes tools by functionality:
 """
 
 # Import submodules to ensure tools are registered
-from app.domain.tools import (
-    atlas,
-    checkpoint_tools,
-    document_reader,
-    dynamic,
-    execution,
-    facades,
-    ghost_text,
-    human_input,
-    knowledge,
-    mcp_manager,
-    project_tools,
-    research,
-    scheduler,
-    vision,
-    wiki_tools,
-    workspace_tools,
-)
 
 # Todo tools are now part of the todo domain module
-from app.domain.todo import (
-    cancel_todo,
-    complete_todo,
-    create_todo,
-    list_todos,
-)
 
 # Import sub-packages
 from app.domain.tools import (
@@ -45,13 +21,6 @@ from app.domain.tools import (
 )
 
 # Import codebase exploration tools (replaces consult_lsp, explore_codebase)
-from app.domain.codebase.exploration import (
-    find_symbol,
-    ask_codebase,
-    analyze_impact,
-    check_types,
-    inspect_symbol,
-)
 
 # Import search_code from files (search_code is an alias for search_files)
 from app.domain.tools.files import search_files as search_code

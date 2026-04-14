@@ -9,8 +9,7 @@ import hashlib
 import logging
 import os
 from collections.abc import Iterator
-from pathlib import Path
-from typing import Optional, Tuple
+from typing import Optional
 
 from .models import FileInfo, FileStatus, ReadResult, WriteResult, PaginationInfo
 

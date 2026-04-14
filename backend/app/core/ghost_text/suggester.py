@@ -8,7 +8,7 @@ Provides inline code suggestions (Ghost Text) for editor integration.
 import logging
 from typing import TYPE_CHECKING, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from app.domain.codebase.indexing.parsers import parser_registry
 from app.infrastructure.pydantic_base import DynamicBaseModel

@@ -33,21 +33,20 @@ Usage:
 import logging
 from typing import List, Optional, Dict, Any
 
-from pydantic import BaseModel, ConfigDict
 from langchain_core.messages import BaseMessage
 
 from app.core.config import settings
+from app.core.memory.backends.file_backend import FileMemoryStorage
+from app.core.memory.backends.sql_short_term import SqlShortTermMemory
+from app.core.memory.extraction import MemoryExtractionService, MemoryConsolidationService
+from app.core.memory.interfaces.short_term import IShortTermMemory
 from app.core.memory.models import (
     MemoryEntry,
     MemorySearchResult,
     MemoryType,
     PrivacyLevel,
 )
-from app.core.memory.backends.file_backend import FileMemoryStorage
-from app.core.memory.extraction import MemoryExtractionService, MemoryConsolidationService
 from app.core.memory.retrieval import MemoryRetriever
-from app.core.memory.interfaces.short_term import IShortTermMemory
-from app.core.memory.backends.sql_short_term import SqlShortTermMemory
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)

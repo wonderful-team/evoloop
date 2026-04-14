@@ -16,22 +16,22 @@ New structure:
     └── memory-map.json   # Memory index
 """
 
+import json
 import logging
 import time
-import json
-from pathlib import Path
-from typing import List, Optional, Dict, Any
 from datetime import datetime
 from enum import Enum
+from pathlib import Path
+from typing import List, Optional, Dict
 
 from app.core.config import settings
+from app.core.memory.interfaces.storage import IMemoryStorage, StorageHealthCheck
 from app.core.memory.models import (
     MemoryEntry,
     MemorySearchResult,
     MemoryType,
     PrivacyLevel,
 )
-from app.core.memory.interfaces.storage import IMemoryStorage, StorageError, StorageHealthCheck
 
 logger = logging.getLogger(__name__)
 

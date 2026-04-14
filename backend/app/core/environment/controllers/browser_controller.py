@@ -12,22 +12,21 @@ import logging
 import os
 import re
 import time
-from typing import Any, Literal
+from typing import Any
 
 from app.core.context import ContextManager
-from app.core.learning.trace_recorder import get_recorder
-from app.core.vision import vision_engine, VisionTask
-from app.infrastructure.drivers.browser import browser_manager
-from app.utils import (
-    cleanup_file,
-    ControllerResponse,
-    PerceptionsFormatter,
-    render_template,
-)
 from app.core.environment.controllers.utils import (
     RecordingContext,
     truncate_output,
     BatchExecutor,
+)
+from app.core.learning.trace_recorder import get_recorder
+from app.core.vision import vision_engine, VisionTask
+from app.infrastructure.drivers.browser import browser_manager
+from app.utils import (
+    ControllerResponse,
+    PerceptionsFormatter,
+    render_template,
 )
 
 logger = logging.getLogger(__name__)

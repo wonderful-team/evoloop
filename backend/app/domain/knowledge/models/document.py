@@ -3,8 +3,10 @@ Core document models for knowledge extraction.
 """
 
 from datetime import datetime
-from pydantic import BaseModel, Field
-from typing import Any, BinaryIO, Optional, List, Dict
+from typing import Any, Optional, List, Dict
+
+from pydantic import Field
+
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 

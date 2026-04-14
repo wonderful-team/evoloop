@@ -13,13 +13,12 @@ import logging
 from typing import Any, AsyncGenerator
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
-from app.infrastructure.pydantic_base import DynamicBaseModel
 
 from app.api.deps import get_current_user
 from app.core.config import settings
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 

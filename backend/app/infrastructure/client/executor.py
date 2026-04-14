@@ -9,8 +9,8 @@ This module provides decorators and wrappers for transparent routing.
 """
 
 import logging
-from typing import Any, Callable
 from functools import wraps
+from typing import Any, Callable
 
 from app.core.config import settings
 from app.infrastructure.client import get_client_executor, ToolExecutionError

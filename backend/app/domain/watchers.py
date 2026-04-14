@@ -16,7 +16,6 @@ from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
 
 from app.domain.codebase.filter import FileFilter
-
 from app.utils.detect import is_code_file
 
 logger = logging.getLogger(__name__)

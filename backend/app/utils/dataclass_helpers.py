@@ -15,7 +15,7 @@ Dataclass 序列化辅助工具
     restored = AtlasElement.from_dict(data)
 """
 
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict
 from datetime import datetime
 from typing import TypeVar, Type, Any, get_type_hints
 

@@ -4,10 +4,11 @@ YAML Utilities for Macro Script Processing
 Provides safe YAML parsing and conversion to/from JSON.
 """
 
-import yaml
 from typing import Any
-from yaml.scanner import ScannerError
+
+import yaml
 from yaml.parser import ParserError
+from yaml.scanner import ScannerError
 
 
 class YAMLError(Exception):

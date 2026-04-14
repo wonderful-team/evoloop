@@ -27,9 +27,9 @@ EvoLoop Messaging System - 统一消息处理系统
 
 from app.core.messaging.category import MessageCategory
 from app.core.messaging.classifier import MessageClassifier
+from app.core.messaging.handler import MessageHandler
 from app.core.messaging.persistence import MessagePersistencePolicy
 from app.core.messaging.stream import MessageStreamPolicy
-from app.core.messaging.handler import MessageHandler
 
 __all__ = [
     "MessageCategory",

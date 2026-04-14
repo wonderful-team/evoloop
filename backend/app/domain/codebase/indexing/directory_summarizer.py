@@ -2,7 +2,6 @@ import logging
 
 from app.infrastructure.database.graph.driver import get_graph_db
 
-
 logger = logging.getLogger(__name__)
 
 

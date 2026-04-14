@@ -1,10 +1,5 @@
 """Macro verification enums models."""
 
-from datetime import datetime
-from typing import Any, Dict, List, Optional, Union
-
-from pydantic import BaseModel, Field
-from app.infrastructure.pydantic_base import DynamicBaseModel
 
 class VerificationStatus(str, Enum):
     """验证状态"""

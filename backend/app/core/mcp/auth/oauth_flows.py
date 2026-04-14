@@ -11,8 +11,8 @@ from urllib.parse import urlencode, parse_qs, urlparse
 
 import aiohttp
 
-from app.core.mcp.auth.base import AuthConfig, AuthHandler, AuthMethod, AuthToken
 from app.core.identity.store import IdentityStore
+from app.core.mcp.auth.base import AuthConfig, AuthHandler, AuthMethod, AuthToken
 
 logger = logging.getLogger(__name__)
 

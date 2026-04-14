@@ -1,5 +1,6 @@
-from typing import Any, Literal
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from typing import Literal
+
+from pydantic import Field, model_validator
 
 from app.infrastructure.pydantic_base import DynamicBaseModel
 

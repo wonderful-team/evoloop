@@ -1,8 +1,7 @@
 """
 Git-related Pydantic models for knowledge extraction and harvesting.
 """
-from pydantic import BaseModel, Field
-
+from pydantic import Field
 
 from app.infrastructure.pydantic_base import DynamicBaseModel
 

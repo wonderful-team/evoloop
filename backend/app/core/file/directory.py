@@ -8,11 +8,9 @@ import logging
 import os
 import shutil
 from collections.abc import Iterator
-from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Callable, Optional
-from pydantic import BaseModel, Field
+from typing import Optional
 
 from app.constants import DEFAULT_EXCLUDED_DIRS
 from app.infrastructure.pydantic_base import DynamicBaseModel

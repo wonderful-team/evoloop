@@ -5,7 +5,6 @@ import os
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import settings
 from app.core.evocloud import evocloud_manager
 from app.domain.codebase.indexing.components.content_indexer import ContentIndexer
 from app.domain.codebase.indexing.components.file_preparer import FilePreparer

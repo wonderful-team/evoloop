@@ -1,11 +1,10 @@
 import logging
 
 from fastapi import APIRouter
-from pydantic import BaseModel
-from app.infrastructure.pydantic_base import DynamicBaseModel
 from sqlalchemy import select
 
 from app.infrastructure.database.sql.database import session_scope
+from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.models.planning import Plan, PlanStep
 
 logger = logging.getLogger(__name__)

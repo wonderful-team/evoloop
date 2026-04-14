@@ -11,26 +11,21 @@ import subprocess
 import traceback
 from datetime import datetime
 from pathlib import Path
-from typing import Any, cast
 from uuid import uuid4
 
-from fastapi import Depends, APIRouter, BackgroundTasks, Body, File, HTTPException, Query, Request, Response, UploadFile
-from sqlalchemy import or_, func, select, update
+from fastapi import Depends, APIRouter, BackgroundTasks, Body, File, HTTPException, Query, Response, UploadFile
+from sqlalchemy import or_, func, select
 
-from app.utils.yaml import macro_from_yaml, macro_to_yaml, YAMLError, validate_macro_yaml
-
+from app.api.deps import require_benefit
 from app.core.engine.background_agent import run_agent_background
+from app.core.environment.capabilities.registry import ActionRegistry, ActionDef
+from app.core.environment.controllers.mirror_session import mirror_manager
 from app.core.execution.macro.service import MacroService
 from app.core.learning.discovery import skill_discovery
-from app.core.learning.skill_importer import SkillImporter
-from app.core.learning.skill_synthesizer import WorkflowSynthesizer
-from app.core.learning.skill_validator import SkillValidator
 from app.core.learning.multimodal_synthesizer import (
     MultimodalSkillSynthesizer,
     RecordingSession,
 )
-from app.api.deps import require_benefit
-from app.api.responses import BaseAPIResponse, DataResponse, ListResponse
 from app.core.learning.schemas import (
     AnnotationResponse,
     AndroidExtractPointRequest,
@@ -39,11 +34,9 @@ from app.core.learning.schemas import (
     CreateSkillFromYamlRequest,
     CreateSkillFromYamlResponse,
     DeviceResolutionResponse,
-    DomEventData,
     DomEventsRequest,
     ExecuteSkillRequest,
     ExecuteSkillResponse,
-    GlobalEventData,
     GlobalEventsRequest,
     HumanInputRequestOut,
     ImportSkillsRequest,
@@ -58,14 +51,10 @@ from app.core.learning.schemas import (
     PreviewKeyframeSummary,
     PreviewRecordingDataResponse,
     PreviewVideoInfo,
-    RecordingSessionItem,
     RecordingSessionsResponse,
     RespondRequest,
     SkillDTO,
     SkillDetailResponse,
-    SkillExecutionParams,
-    SkillParameter,
-    SkillResponse,
     SmartSynthesisRequest,
     SmartSynthesisResponse,
     StartMirrorRecordingRequest,
@@ -87,7 +76,9 @@ from app.core.learning.schemas import (
     ValidateYamlRequest,
     ValidateYamlResponse,
 )
-from app.core.environment.controllers.mirror_session import mirror_manager
+from app.core.learning.skill_importer import SkillImporter
+from app.core.learning.skill_synthesizer import WorkflowSynthesizer
+from app.core.learning.skill_validator import SkillValidator
 from app.domain.tools.human_input import (
     cancel_request,
     cleanup_old_requests,
@@ -105,7 +96,7 @@ from app.models import (
     SynthesisJob,
     TraceEvent,
 )
-from app.core.environment.capabilities.registry import ActionRegistry, ActionDef
+from app.utils.yaml import macro_from_yaml, YAMLError, validate_macro_yaml
 
 logger = logging.getLogger(__name__)
 
@@ -664,8 +655,7 @@ async def execute_macro_with_fallback(
         macro_payload: Macro script steps
         params: Execution parameters
     """
-    from app.core.execution.macro.healing_policy import SelfHealingPolicy
-    
+
     # Prepare execution params with metadata
     execution_params = params.copy() if params else {}
     execution_params["_skill_id"] = skill.id
@@ -1790,7 +1780,7 @@ async def cleanup_recording_session(
 
     [Scheme A] 已废弃 RecordingAnnotation 表，标注数据统一存储在 TraceEvent 中
     """
-    from sqlalchemy import select, delete
+    from sqlalchemy import delete
     import os
 
     deleted_counts = {

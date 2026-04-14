@@ -9,7 +9,7 @@ Logs only the timestamp of maintenance runs to ~/.evoloop/memory/.maintenance
 
 import asyncio
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
@@ -17,8 +17,8 @@ from jinja2 import Template
 
 from app.core.config import settings
 from app.core.globals import get_graph
-from app.infrastructure.queue.factory import periodic_task
 from app.core.memory.lifespan import MemoryLifespanManager
+from app.infrastructure.queue.factory import periodic_task
 
 logger = logging.getLogger(__name__)
 

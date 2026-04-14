@@ -5,8 +5,8 @@ Revises:
 Create Date: 2026-03-28 12:40:00.000000
 
 """
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = '20250328_add_meta_data'

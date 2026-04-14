@@ -3,7 +3,6 @@ import logging
 import os
 
 from langchain_core.output_parsers import JsonOutputParser
-from langchain_core.prompts import ChatPromptTemplate
 
 # Unified task queue (Huey in embedded mode, Celery in full mode)
 from app.infrastructure.queue.factory import get_scheduler
@@ -17,12 +16,10 @@ def _task(name, **kwargs):
         return _task_scheduler.task(f, name=name, **kwargs)
     return decorator
 from app.core.evocloud import evocloud_manager
-from app.core.memory import MemoryContainer, MemoryConfig
 from app.core.monitoring.activity import activity_monitor
 from app.domain.codebase.filter import FileFilter
 from app.domain.project.service import project_context_manager
 from app.infrastructure.database.graph.driver import get_graph_db
-from app.infrastructure.llm.factory import LLMFactory
 from app.utils import file as file_utils
 from app.utils import json as json_utils
 from app.utils.async_utils import flush_loop_bound_resources

@@ -10,12 +10,12 @@ import logging
 
 from app.core.events.base import BaseEvent
 from app.core.events.decorators import event_register, event_subscribe
-from app.domain.project.events import ProjectEventType
 from app.domain.project.events import (
     ProjectCreatedEvent,
     ProjectDeletedEvent,
     ProjectMovedEvent,
 )
+from app.domain.project.events import ProjectEventType
 
 logger = logging.getLogger(__name__)
 

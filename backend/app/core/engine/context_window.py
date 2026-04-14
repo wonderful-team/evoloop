@@ -20,8 +20,6 @@ Usage:
 import logging
 from typing import List, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
-
 from langchain_core.messages import (
     BaseMessage,
     SystemMessage,
@@ -29,9 +27,9 @@ from langchain_core.messages import (
     AIMessage,
     ToolMessage,
 )
+from pydantic import Field
 
 from app.core.engine.hooks import hook_system, HookEvent, HookContext
-from app.core.config import settings
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)

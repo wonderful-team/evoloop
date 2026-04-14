@@ -10,7 +10,6 @@ STT Provider Factory
 import logging
 from typing import Optional
 
-from app.core.config import settings
 from app.core.voice.stt.base import BaseSTTProvider, STTOptions, STTResult, VoiceLocale
 from app.core.voice.stt.funasr import FunASRProvider, FunASRManager
 
@@ -155,8 +154,7 @@ async def transcribe_audio(audio_data: bytes, language: Optional[str] = None, **
     Returns:
         STTResult: 识别结果
     """
-    import asyncio
-    
+
     provider = get_stt_provider()
     
     # 转换语言代码

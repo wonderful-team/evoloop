@@ -16,17 +16,15 @@
 7. 解析并保存 Skill
 """
 
+import base64
 import json
 import logging
 import subprocess
 import time
-import base64
-import yaml
-from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional, Tuple
-from pydantic import BaseModel, Field
 
+import yaml
 from sqlalchemy import select, or_
 
 from app.core.config import settings
@@ -36,7 +34,6 @@ from app.core.learning.frame_compressor import (
     FrameCompressor,
     KeyframeCandidate,
     KeyframeSelector,
-    NormalizedEvent,
 )
 from app.core.learning.prompts.builder import LearningPromptBuilder
 from app.core.learning.skill_synthesizer import SynthesizedSkill
@@ -50,12 +47,12 @@ from app.core.learning.synthesizer_utils import (
     verify_macro_script,
     MacroVerificationResult,
 )
-from app.infrastructure.database.sql.database import session_scope
-from app.infrastructure.llm.vision import VisionLLMFactory
 from app.infrastructure.config.service import SystemConfigService
+from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.drivers.adb import adb_driver
-from app.models import TraceEvent, LearnedSkill
+from app.infrastructure.llm.vision import VisionLLMFactory
 from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.models import TraceEvent
 
 logger = logging.getLogger(__name__)
 

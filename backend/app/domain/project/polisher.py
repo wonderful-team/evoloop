@@ -11,7 +11,7 @@ import logging
 import re
 from typing import Optional
 
-from app.core.events.base import BaseEvent, EventHandler
+from app.core.events.base import BaseEvent
 
 logger = logging.getLogger(__name__)
 

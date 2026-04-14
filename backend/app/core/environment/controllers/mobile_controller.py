@@ -12,17 +12,20 @@ import logging
 import math
 import os
 import time
-from typing import Any, Dict, List, Optional, Tuple
-
-from pydantic import BaseModel, ConfigDict
+from typing import Any, Dict, Optional
 
 from app.core.atlas import atlas_engine
 from app.core.atlas.models import AtlasApp
 from app.core.context import ContextManager
+from app.core.environment.controllers.utils import (
+    RecordingContext,
+    resolve_element_alias,
+)
+from app.core.learning.trace_recorder import get_recorder
 from app.core.vision import vision_engine, VisionTask
 from app.core.vision.providers.native.android_a11y import android_a11y_provider
 from app.infrastructure.drivers.adb import ADBError, adb_driver
-from app.core.learning.trace_recorder import get_recorder
+from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.utils import (
     cleanup_file,
     ControllerResponse,
@@ -30,11 +33,6 @@ from app.utils import (
     PerceptionsFormatter,
     render_template,
 )
-from app.core.environment.controllers.utils import (
-    RecordingContext,
-    resolve_element_alias,
-)
-from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 

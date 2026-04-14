@@ -9,14 +9,12 @@ import logging
 import time
 from typing import Any, Optional
 
-from app.infrastructure.queue.factory import get_scheduler
 from app.core.messaging.category import MessageCategory
 from app.core.messaging.classifier import MessageClassifier
 from app.core.messaging.persistence import MessagePersistencePolicy
 from app.core.messaging.stream import MessageStreamPolicy
-
-from pydantic import BaseModel, ConfigDict
 from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.infrastructure.queue.factory import get_scheduler
 
 logger = logging.getLogger(__name__)
 

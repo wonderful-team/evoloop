@@ -1,12 +1,10 @@
 import logging
 from typing import Any, Dict, List, Optional, Union
 
-from pydantic import BaseModel, Field
-
 from app.core.execution.macro.engine import MacroEngine
+from app.core.execution.macro.healing_policy import SelfHealingPolicy
 from app.core.execution.macro.optimizer import MacroOptimizer
 from app.core.execution.macro.schema import MacroScript
-from app.core.execution.macro.healing_policy import SelfHealingPolicy
 from app.core.monitoring.activity import activity_monitor
 from app.infrastructure.pydantic_base import DynamicBaseModel
 

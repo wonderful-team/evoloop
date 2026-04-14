@@ -23,7 +23,6 @@ from app.core.context import ContextManager, EvoContext
 from app.core.context.cache import LayeredContextCache
 from app.core.engine.hooks import hook_system, HookEvent, HookContext
 from app.core.engine.state import AgentState
-from app.infrastructure.config.service import SystemConfigService
 from app.utils.id import gen_uuid
 
 logger = logging.getLogger(__name__)

@@ -3,7 +3,6 @@ LanceDB vector storage implementation for EvoLoop Backend (Embedded Mode).
 Replaces PostgreSQL + pgvector with embedded file-based storage.
 """
 
-import json
 import hashlib
 from pathlib import Path
 from typing import Any, Optional

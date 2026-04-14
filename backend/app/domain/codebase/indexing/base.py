@@ -1,10 +1,9 @@
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
 from typing import Any, Optional, Dict, List
 
-from pydantic import BaseModel, Field
-from app.infrastructure.pydantic_base import DynamicBaseModel
+from pydantic import Field
 
+from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.models.schemas.document import Document
 
 

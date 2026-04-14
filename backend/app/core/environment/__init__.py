@@ -12,7 +12,6 @@ The awakening process integrates:
 import asyncio
 import logging
 from datetime import datetime
-from typing import Optional
 
 from app.core.environment.boundaries import boundary_manager
 from app.core.environment.context_plugin import EnvironmentContextPlugin

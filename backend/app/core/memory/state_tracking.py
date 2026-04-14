@@ -21,9 +21,9 @@ Usage:
 """
 
 import logging
-from typing import Set, Dict, List, Optional
-from collections import defaultdict
 import time
+from collections import defaultdict
+from typing import Set, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 

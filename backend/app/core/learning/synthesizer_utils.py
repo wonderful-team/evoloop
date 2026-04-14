@@ -7,16 +7,14 @@ Skill Synthesizer 共享工具函数
 
 import logging
 import os
-from dataclasses import asdict
 from typing import Any, List, Optional, Tuple
 
 import yaml
 
 from app.core.config import settings
 from app.infrastructure.pydantic_base import DynamicBaseModel
-from app.models import TraceEvent
-from app.utils.extract import extract_yaml_block as _extract_yaml_block
 from app.utils.extract import extract_section as _extract_section
+from app.utils.extract import extract_yaml_block as _extract_yaml_block
 from app.utils.path import ensure_dir
 from app.utils.time import normalize_timestamp_ms_to_sec as _normalize_timestamp
 

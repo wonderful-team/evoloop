@@ -5,9 +5,9 @@ Macro Execution Event Types
 Event types and data structures for macro execution.
 """
 
-from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, List, Optional
+
 from pydantic import Field
 
 from app.core.events.base import BaseEvent

@@ -11,13 +11,13 @@ import os
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING
 
+from pydantic import BaseModel
 from sqlalchemy import desc, select, delete
 from sqlalchemy.orm import joinedload
 
 from app.infrastructure.database.sql.database import session_scope
-from app.models.checkpoint import FileCheckpoint, FileCheckpointSnapshot
-from pydantic import BaseModel
 from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.models.checkpoint import FileCheckpoint, FileCheckpointSnapshot
 
 if TYPE_CHECKING:
     pass

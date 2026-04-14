@@ -6,6 +6,7 @@ Learning Module Event Handlers
 
 import asyncio
 import logging
+
 from app.core.events import system_bus, SystemEventType
 
 logger = logging.getLogger(__name__)

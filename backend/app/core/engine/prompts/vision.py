@@ -1,4 +1,5 @@
 import logging
+
 from app.infrastructure.config.service import SystemConfigService
 from app.utils import render_template
 

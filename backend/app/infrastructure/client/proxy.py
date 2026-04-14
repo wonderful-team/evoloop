@@ -33,7 +33,6 @@ Performance:
     2. HTTP callback (fallback)
 """
 
-import asyncio
 import logging
 from typing import Any, Optional
 

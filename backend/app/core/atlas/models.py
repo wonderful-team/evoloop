@@ -10,10 +10,11 @@ Defines the core data structures that represent an application's UI topology:
 
 from __future__ import annotations
 
-import json
 from datetime import datetime
 from typing import Any, Dict, List, Optional
+
 from pydantic import BaseModel, Field, model_validator, ConfigDict
+
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 

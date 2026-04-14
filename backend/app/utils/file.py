@@ -7,11 +7,8 @@ import re
 import shutil
 import tempfile
 import urllib.request
-from dataclasses import dataclass
 from typing import Iterator
 from urllib.parse import urlparse
-
-from pydantic import BaseModel
 
 from app.infrastructure.pydantic_base import DynamicBaseModel
 

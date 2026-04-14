@@ -1,5 +1,4 @@
 import hashlib
-from typing import Any
 
 
 def compute_md5(content: str | bytes) -> str:

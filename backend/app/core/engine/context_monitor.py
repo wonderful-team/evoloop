@@ -8,14 +8,11 @@ context management, including when to use forget_tool_outputs.
 import logging
 from typing import Optional
 
-from pydantic import BaseModel, Field
-
 from langchain_core.messages import (
-    AIMessage,
     BaseMessage,
-    HumanMessage,
     ToolMessage,
 )
+from pydantic import Field
 
 from app.constants import (
     CONTEXT_WARNING_THRESHOLD,
@@ -93,8 +90,7 @@ class ContextStats(DynamicBaseModel):
             return []
             
         # Filter for candidates
-        from app.constants import FORGET_SAFETY_WINDOW
-        
+
         # We need the full list from stats, which calculate() produces
         # But stats only has last 5. We need to find them from the messages.
         return [] # Logic moved to calculate or similar

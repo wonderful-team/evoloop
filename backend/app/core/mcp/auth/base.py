@@ -2,7 +2,6 @@
 
 from abc import ABC, abstractmethod
 from enum import Enum
-from pydantic import BaseModel, Field
 
 from app.infrastructure.pydantic_base import DynamicBaseModel
 

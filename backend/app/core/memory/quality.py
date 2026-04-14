@@ -13,9 +13,9 @@ import logging
 from collections import defaultdict
 from typing import Dict, List, Optional, Tuple
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
-from app.core.memory.models import MemoryEntry, MemoryType
+from app.core.memory.models import MemoryEntry
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)

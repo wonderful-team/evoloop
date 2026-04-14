@@ -6,12 +6,12 @@ import re
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
-from app.core.environment.controllers.browser_controller import BrowserController
-from app.core.environment.controllers.mobile_controller import MobileController
-from app.core.environment.controllers.desktop_controller import DesktopController
-from app.core.monitoring.activity import activity_monitor
-from app.core.execution.macro.schema import MacroStep, MacroStepType, MacroSource
 from app.core.environment.capabilities.registry import ActionRegistry
+from app.core.environment.controllers.browser_controller import BrowserController
+from app.core.environment.controllers.desktop_controller import DesktopController
+from app.core.environment.controllers.mobile_controller import MobileController
+from app.core.execution.macro.schema import MacroStep, MacroStepType, MacroSource
+from app.core.monitoring.activity import activity_monitor
 from app.utils.geometry import parse_bounds
 from app.utils.xml import clean_xml_content
 

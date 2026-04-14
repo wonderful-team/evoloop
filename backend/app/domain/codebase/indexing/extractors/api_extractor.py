@@ -6,11 +6,8 @@ Extracts API endpoint definitions from code files using TreeSitter.
 """
 
 import logging
-from dataclasses import dataclass
 
 import tree_sitter
-
-from pydantic import BaseModel
 
 from app.domain.codebase.indexing.parsers import parser_registry
 from app.infrastructure.pydantic_base import DynamicBaseModel

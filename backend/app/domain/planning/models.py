@@ -1,9 +1,9 @@
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
-from app.utils.id import gen_uuid
 from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.utils.id import gen_uuid
 
 
 class Step(DynamicBaseModel):

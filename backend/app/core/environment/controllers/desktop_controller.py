@@ -13,21 +13,25 @@ import logging
 import math
 import os
 import time
-import base64
-from typing import Any, Dict, List, Optional, Tuple
-
+from typing import Any
 
 import markdownify
-from pydantic import BaseModel, ConfigDict
 
 from app.constants import MAX_OUTPUT_LENGTH
 from app.core.atlas import atlas_engine, get_bundle_id
 from app.core.config import settings
+from app.core.context.manager import ContextManager
+from app.core.environment.controllers.utils import (
+    RecordingContext,
+    resolve_element_alias,
+    truncate_output,
+    BatchExecutor,
+)
+from app.core.learning.trace_recorder import get_recorder
 from app.core.shortcuts import get_shortcut
 from app.core.vision import vision_engine, VisionTask, get_vision_router
 from app.infrastructure.drivers.macos import macos_driver
-from app.core.learning.trace_recorder import get_recorder
-from app.core.context.manager import ContextManager
+from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.utils import (
     cleanup_file,
     ControllerResponse,
@@ -35,13 +39,6 @@ from app.utils import (
     PerceptionsFormatter,
     render_template,
 )
-from app.core.environment.controllers.utils import (
-    RecordingContext,
-    resolve_element_alias,
-    truncate_output,
-    BatchExecutor,
-)
-from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 

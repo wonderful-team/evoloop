@@ -8,10 +8,15 @@ Supports baseline, stress test, and chaos rounds.
 import copy
 import logging
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
-from datetime import datetime
-from typing import Any, Callable, Dict, List, Optional, Tuple, Type
+from typing import Any, Dict, List, Optional, Tuple, Type
 
+from pydantic import Field
+
+from app.core.execution.macro.verification_models import (
+    RoundConfig,
+    RoundReport,
+)
+from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.utils.random import (
     random_delay_ms,
     random_drift,
@@ -19,15 +24,6 @@ from app.utils.random import (
     should_trigger,
 )
 from app.utils.registry import ClassRegistry
-
-from pydantic import BaseModel, Field
-
-from app.core.execution.macro.verification_models import (
-    RoundConfig,
-    RoundReport,
-    VerificationStatus,
-)
-from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 

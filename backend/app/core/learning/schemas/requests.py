@@ -1,11 +1,9 @@
 """Learning schemas."""
 
-from datetime import datetime
-from typing import Any, cast
+from typing import Any
 
-from pydantic import BaseModel, Field
-from app.infrastructure.pydantic_base import DynamicBaseModel
-from app.api.responses import BaseAPIResponse, ListResponse
+from pydantic import BaseModel
+
 from app.models.schemas.base import ScopedRequest
 
 

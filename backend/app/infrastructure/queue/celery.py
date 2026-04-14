@@ -18,7 +18,7 @@ import asyncio
 import functools
 import logging
 from pathlib import Path
-from typing import Any, Callable, Coroutine, Union
+from typing import Any, Callable
 
 from app.core.config import settings
 from app.infrastructure.queue.base import TaskScheduler, SyncTaskMixin

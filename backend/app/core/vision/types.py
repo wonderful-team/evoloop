@@ -1,6 +1,7 @@
 from enum import Enum
 from typing import Any, List, Optional, Tuple
-from pydantic import BaseModel, Field, ConfigDict
+
+from pydantic import Field
 
 from app.infrastructure.pydantic_base import DynamicBaseModel
 

@@ -1,6 +1,5 @@
 from abc import ABC, abstractmethod
 from collections.abc import Callable
-from typing import Any
 
 from app.core.evocloud.interfaces.client import EvoCloudClientProtocol
 from app.core.evocloud.schemas import EvoCloudConfig, ProjectSwitchEvent, RemoteCommand

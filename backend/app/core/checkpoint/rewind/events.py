@@ -5,7 +5,6 @@ Rewind/Rollback Event Types and Data Structures
 Event types and data classes for conversation rewinding operations.
 """
 
-from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 

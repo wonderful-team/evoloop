@@ -1,7 +1,6 @@
 import json
 import logging
 from datetime import datetime
-from typing import Any
 
 from app.core.atlas.models import AtlasApp
 from app.core.atlas.ports.store import IAtlasStore, AtlasAppSummary, AtlasStateDetail, AtlasAppInfo

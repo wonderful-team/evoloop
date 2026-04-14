@@ -1,5 +1,6 @@
 from abc import ABC
 from typing import Any, Dict, List, Optional
+
 from pydantic import BaseModel, Field
 
 from app.core.engine.state.blackboard import SpawnPlan

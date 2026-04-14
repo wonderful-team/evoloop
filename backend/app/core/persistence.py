@@ -1,8 +1,6 @@
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
-    from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
     from psycopg_pool import AsyncConnectionPool
 
 _db_pool: "AsyncConnectionPool | None" = None

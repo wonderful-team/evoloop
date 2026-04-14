@@ -16,14 +16,14 @@ from typing import Optional
 
 import aiosqlite
 
-from app.core.events.decorators import event_register, event_subscribe
-from app.core.events.base import AsyncEventBus
-from app.core.persistence import get_checkpointer
 from app.core.checkpoint.rewind.events import (
     CheckpointCleanupEvent,
     RewindEventType,
     RewindRequestedEvent,
 )
+from app.core.events.base import AsyncEventBus
+from app.core.events.decorators import event_register, event_subscribe
+from app.core.persistence import get_checkpointer
 
 logger = logging.getLogger(__name__)
 

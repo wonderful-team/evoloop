@@ -3,12 +3,12 @@ import os
 from typing import Any
 
 from pydantic import BaseModel
-from app.utils import render_template
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.constants import BINARY_EXTENSIONS
 from app.core.file.document_reader import document_reader_service
 from app.models.conversation import Message
+from app.utils import render_template
 
 logger = logging.getLogger(__name__)
 

@@ -11,10 +11,10 @@ import hashlib
 import logging
 from difflib import SequenceMatcher
 from typing import Optional
-from pydantic import BaseModel, Field
+
+from pydantic import Field
 
 from app.domain.knowledge.services.store import KnowledgeStoreService
-from app.domain.knowledge.services.search import get_fts_service
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)

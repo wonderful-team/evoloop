@@ -43,14 +43,30 @@ Architecture:
     └── Retrieval: MemoryRetriever
 """
 
-# Main facade
-from app.core.memory.manager import MemoryManager
-
+# Backends
+from app.core.memory.backends.file_backend import FileMemoryStorage
 # New: Configuration and Dependency Injection
 from app.core.memory.config import MemoryConfig, default_memory_config
 from app.core.memory.container import MemoryContainer, get_container, reset_container
+from app.core.memory.daily_log import DailyLogWriter, LogConsolidator
+# Services
+from app.core.memory.extraction import (
+    MemoryExtractionService,
+    MemoryConsolidationService,
+)
 from app.core.memory.factory import MemoryFactory, CompleteMemorySystem
-
+# Legacy models (for backward compatibility)
+from app.core.memory.interfaces.long_term import Concept, Episode, SearchResult
+# Maintenance
+from app.core.memory.maintenance import (
+    MemoryMaintenanceAgent,
+    MaintenanceScheduler,
+    scheduled_memory_maintenance,
+    trigger_maintenance,
+    get_maintenance_status,
+)
+# Main facade
+from app.core.memory.manager import MemoryManager
 # Data models
 from app.core.memory.models import (
     MemoryEntry,
@@ -59,26 +75,12 @@ from app.core.memory.models import (
     MemoryType,
     PrivacyLevel,
 )
-
-# Legacy models (for backward compatibility)
-from app.core.memory.interfaces.long_term import Concept, Episode, SearchResult
-
-# Backends
-from app.core.memory.backends.file_backend import FileMemoryStorage
-
-# Services
-from app.core.memory.extraction import (
-    MemoryExtractionService,
-    MemoryConsolidationService,
-)
-from app.core.memory.retrieval import MemoryRetriever, get_relevant_memories
-
-
 from app.core.memory.quality import (
     MemoryQualityAnalyzer,
     QualityScores,
     CleanupRecommendation,
 )
+from app.core.memory.retrieval import MemoryRetriever, get_relevant_memories
 from app.core.memory.state_tracking import (
     MemoryStateTracker,
     memory_tracker,
@@ -86,20 +88,10 @@ from app.core.memory.state_tracking import (
     get_surfaced_memory_ids,
     filter_unsurfaced_memories,
 )
-from app.core.memory.daily_log import DailyLogWriter, LogConsolidator
 from app.core.memory.two_tier import (
     TwoTierMemoryManager,
     MemorySection,
     SectionBudget,
-)
-
-# Maintenance
-from app.core.memory.maintenance import (
-    MemoryMaintenanceAgent,
-    MaintenanceScheduler,
-    scheduled_memory_maintenance,
-    trigger_maintenance,
-    get_maintenance_status,
 )
 
 __all__ = [

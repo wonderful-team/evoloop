@@ -1,12 +1,10 @@
-import os
 import logging
 from typing import Any
 
-from app.core.config import settings
 from app.core.context import ContextManager, plugin_registry
 from app.core.engine.state.blackboard import BlackboardState
 from app.core.engine.state.config import AgentRuntimeConfig, ExecutionTicket
-from app.utils import ControllerResponse, render_template
+from app.utils import render_template
 
 logger = logging.getLogger(__name__)
 

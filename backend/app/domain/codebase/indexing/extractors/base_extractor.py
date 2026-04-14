@@ -8,10 +8,9 @@ to reduce code duplication.
 
 import os
 from abc import ABC, abstractmethod
-from typing import Any, Generic, TypeVar
+from typing import Generic, TypeVar
 
 from app.constants import SEMANTIC_LANGUAGE_MAP
-from app.domain.codebase.indexing.parsers import parser_registry
 from app.utils.file import read_file_content
 
 T = TypeVar('T')

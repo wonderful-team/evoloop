@@ -6,11 +6,9 @@ import asyncio
 import fcntl
 import logging
 import os
-import re
 import subprocess
 import threading
 import time
-from pydantic import BaseModel, ConfigDict
 
 from app.infrastructure.pydantic_base import DynamicBaseModel
 

@@ -10,8 +10,6 @@ Can be run as:
 import logging
 from datetime import datetime
 
-from pydantic import BaseModel, Field
-
 from app.core.vision.storage import screenshot_storage, screen_recording_storage
 from app.infrastructure.pydantic_base import DynamicBaseModel
 

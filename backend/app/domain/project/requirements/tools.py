@@ -10,10 +10,8 @@ from langchain_core.runnables import RunnableConfig
 
 from app.core.file.document_reader import document_reader_service
 from app.core.tools import evoloop_tool
-
 from app.utils.id import gen_uuid
 from app.utils.time import utcnow
-
 from .models import ProjectRequirementAnalysis, ProjectRequirementDocument
 from .prompts import render_analysis_prompt
 from .service import breakdown_requirements_to_tasks

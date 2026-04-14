@@ -23,8 +23,6 @@ Usage:
 """
 from typing import Optional, Dict, Any, TYPE_CHECKING
 
-from pydantic import BaseModel, Field
-
 from app.core.config import settings
 from app.infrastructure.pydantic_base import DynamicBaseModel
 

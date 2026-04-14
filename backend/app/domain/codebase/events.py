@@ -5,8 +5,6 @@ Codebase/Indexing Event Types and Data Structures
 Event types and data classes for codebase indexing and file watching.
 """
 
-from dataclasses import dataclass, field
-from datetime import datetime
 from enum import Enum
 from typing import Any
 

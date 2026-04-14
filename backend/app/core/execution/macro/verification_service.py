@@ -10,19 +10,18 @@ High-level service for integrating agent-based verification with:
 import logging
 from typing import Any, Dict, List, Optional, Union
 
+from pydantic import Field
+
 from app.core.execution.macro import (
     AgentMacroValidator,
     EnvironmentConfig,
     VerificationRequest,
-    VerificationResponse,
     VerificationReporter,
 )
 from app.core.execution.macro.schema import MacroScript, MacroStep
 from app.core.execution.macro.service import MacroService, MacroRunResult
-from app.utils.yaml import macro_from_yaml
-
-from pydantic import BaseModel, Field
 from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.utils.yaml import macro_from_yaml
 
 
 class VerificationSummary(DynamicBaseModel):

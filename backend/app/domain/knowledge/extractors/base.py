@@ -3,9 +3,9 @@ Abstract base class for all document extractors.
 """
 
 from abc import ABC, abstractmethod
-from typing import BinaryIO, Optional
+from typing import BinaryIO
 
-from app.domain.knowledge.models import MarkdownDocument, ExtractionError
+from app.domain.knowledge.models import MarkdownDocument
 
 
 class BaseExtractor(ABC):

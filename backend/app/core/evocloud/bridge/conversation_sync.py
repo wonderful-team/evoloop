@@ -2,10 +2,8 @@
 # 职责: 将本地 SQLite 的 conversations/messages 同步到 Member Center
 
 import asyncio
-import json
 import logging
-from datetime import datetime, timedelta
-from typing import Any
+from datetime import datetime
 
 from sqlalchemy import select
 

@@ -2,6 +2,7 @@ import logging
 import time
 
 from langchain_core.messages import SystemMessage
+
 from app.core.vision.providers.base import VisionProvider
 from app.core.vision.types import VisionResult, VisionTask
 from app.infrastructure.llm.vision import VisionLLMFactory, get_vision_llm

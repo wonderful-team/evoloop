@@ -8,19 +8,16 @@ import logging
 from typing import Optional
 
 from fastapi import APIRouter, Body, File, Form, HTTPException, Query, UploadFile
-from pydantic import BaseModel
-from app.infrastructure.pydantic_base import DynamicBaseModel
 
 from app.api.responses import BaseAPIResponse, ListResponse
-from app.models.schemas.base import SearchResponse
-
-from app.domain.knowledge.services.pipeline import IngestionPipeline
-from app.domain.knowledge.services.store import KnowledgeStoreService
 from app.domain.knowledge.services.bulk_import import BulkImportService
-from app.domain.knowledge.services.search import get_fts_service
-from app.domain.knowledge.services.deduplication import DeduplicationService
 from app.domain.knowledge.services.citations import get_citation_tracker
-from app.domain.knowledge.models.document import MarkdownDocument
+from app.domain.knowledge.services.deduplication import DeduplicationService
+from app.domain.knowledge.services.pipeline import IngestionPipeline
+from app.domain.knowledge.services.search import get_fts_service
+from app.domain.knowledge.services.store import KnowledgeStoreService
+from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.models.schemas.base import SearchResponse
 
 logger = logging.getLogger(__name__)
 

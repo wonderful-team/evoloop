@@ -2,6 +2,7 @@
 from typing import Any, List, Optional
 
 from pydantic import Field
+
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 

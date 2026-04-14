@@ -8,11 +8,10 @@ import logging
 import os
 import shutil
 from pathlib import Path
+from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, UploadFile
-from pydantic import BaseModel
-from app.infrastructure.pydantic_base import DynamicBaseModel
-from typing import Any
+from sqlalchemy.orm import selectinload
 
 from app.api.deps import TokenDep, TokenDepOptional
 from app.core.config import settings
@@ -22,8 +21,8 @@ from app.domain.project.requirements import (
     ProjectRequirementDocument,
 )
 from app.infrastructure.database.sql.database import session_scope
+from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.utils.id import gen_uuid
-from sqlalchemy.orm import selectinload
 
 logger = logging.getLogger(__name__)
 

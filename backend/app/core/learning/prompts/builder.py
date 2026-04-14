@@ -1,11 +1,11 @@
 import logging
 from typing import Any, Dict, List
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import Field
 
 from app.core.environment.capabilities.registry import ActionRegistry
-from app.utils import render_template
 from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.utils import render_template
 
 logger = logging.getLogger(__name__)
 

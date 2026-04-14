@@ -1,13 +1,12 @@
 import time
 
 from starlette.middleware.base import BaseHTTPMiddleware
-
-from app.utils.id import gen_uuid
 from starlette.requests import Request
 
 from app.core.context.manager import ContextManager, EvoContext
 from app.core.context.plugins import plugin_registry
 from app.core.identity import decode_local_jwt
+from app.utils.id import gen_uuid
 
 
 class ContextMiddleware(BaseHTTPMiddleware):

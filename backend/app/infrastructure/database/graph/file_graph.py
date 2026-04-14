@@ -7,9 +7,7 @@ Suitable for small-to-medium projects.
 
 import json
 import logging
-import os
 from pathlib import Path
-from typing import Any
 
 from app.core.config import settings
 
@@ -123,7 +121,6 @@ class FileGraphSession:
 
     async def _handle_merge(self, query: str, parameters: dict):
         """Handle MERGE (create/update) operations."""
-        import networkx as nx
 
         # Extract node info from MERGE (n:Label {prop: $val})
         # Simplified parsing - assumes single node merge

@@ -1,9 +1,8 @@
 from fastapi import APIRouter, Depends, Header, HTTPException
-from pydantic import BaseModel
-from app.models.schemas.base import ScopedRequest
 
 from app.api.deps import TokenDep, require_benefit
 from app.core.evocloud import evocloud_manager
+from app.models.schemas.base import ScopedRequest
 
 router = APIRouter()
 

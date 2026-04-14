@@ -4,16 +4,16 @@ import time
 from collections.abc import Callable
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import Field
 
 from app.core.config import settings
 from app.core.context.manager import ContextManager
 from app.core.evocloud.backends.http_client import EvoCloudHTTPClient
 from app.core.evocloud.backends.websocket_link import EvoCloudWebSocketLink
 from app.core.evocloud.schemas import EvoCloudConfig, ProjectSwitchEvent, RemoteCommand
+from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.models.schemas.auth import LoginResult
 from app.utils.async_utils import LoopBoundResource
-from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 

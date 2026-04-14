@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.api.deps import TokenDep, require_benefit
+from app.domain.wiki.schemas import WikiGenerationRequest, WikiGenerationResponse, WikiPageRead
 from app.domain.wiki.service import wiki_service
 from app.i18n.service import i18n
-from app.domain.wiki.schemas import WikiGenerationRequest, WikiGenerationResponse, WikiPageRead
 
 router = APIRouter(tags=["wiki"])
 

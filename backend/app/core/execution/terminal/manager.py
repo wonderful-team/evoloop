@@ -1,16 +1,13 @@
 import logging
-import threading
 import os
 import pty
 import select
 import subprocess
-import time
 import termios
+import threading
+import time
 import uuid
-from dataclasses import dataclass, field
 from typing import Tuple, Optional
-
-from app.core.context.manager import ContextManager
 
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 

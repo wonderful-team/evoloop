@@ -12,9 +12,9 @@ import logging
 import sqlite3
 from pathlib import Path
 from typing import Optional
+
 from pydantic import BaseModel, Field
 
-from app.core.config import settings
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)

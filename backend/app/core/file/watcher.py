@@ -37,14 +37,13 @@ import asyncio
 import logging
 import os
 import threading
-from datetime import datetime
-from typing import Any, Callable, Optional, Set
+from typing import Any, Callable, Optional
 
 from watchdog.events import FileSystemEvent, FileSystemEventHandler
 from watchdog.observers import Observer
 
 from app.core.events import system_bus
-from app.core.file.events import FileSystemEventType, FileWatcherEvent, FileEventHandler
+from app.core.file.events import FileSystemEventType, FileWatcherEvent
 
 logger = logging.getLogger(__name__)
 

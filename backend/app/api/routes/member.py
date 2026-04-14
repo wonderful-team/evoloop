@@ -1,13 +1,13 @@
 import logging
 from typing import Any, List
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, Field
-from app.infrastructure.pydantic_base import DynamicBaseModel
+from fastapi import APIRouter, HTTPException, status
+from pydantic import Field
 
 from app.api.deps import CurrentUser, TokenDep
 from app.core.evocloud import evocloud_manager
 from app.core.identity import identity_service
+from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.models import User, UserPublic
 from app.models.schemas.auth import CacheInvalidateResponse, EvoCloudProxyResponse, MemberBenefitsResponse
 from app.services.benefit_service import benefit_service

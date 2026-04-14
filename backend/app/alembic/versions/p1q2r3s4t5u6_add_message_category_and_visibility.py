@@ -5,8 +5,8 @@ Revision ID: p1q2r3s4t5u6
 Revises: n8o9p0q1r2s3_normalize_message_roles
 Create Date: 2026-04-06 11:00:00
 """
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = 'p1q2r3s4t5u6'

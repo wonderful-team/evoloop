@@ -1,7 +1,6 @@
 import logging
 from typing import List
 
-from pydantic import BaseModel, ConfigDict
 from app.core.vision.providers.native.android_a11y import android_a11y_provider
 from app.infrastructure.pydantic_base import DynamicBaseModel
 

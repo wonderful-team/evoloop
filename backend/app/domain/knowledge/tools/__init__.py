@@ -7,9 +7,9 @@ Tools for Agent to interact with the knowledge base:
 - kb_list: List documents (like ls/find)
 """
 
+from app.domain.knowledge.tools.list import kb_list
 from app.domain.knowledge.tools.read import kb_read
 from app.domain.knowledge.tools.search import kb_search
-from app.domain.knowledge.tools.list import kb_list
 
 __all__ = [
     "kb_read",

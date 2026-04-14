@@ -1,12 +1,11 @@
 """Macro verification config models."""
 
-from datetime import datetime
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
+
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
-from app.core.execution.macro.models.enums import ExecutionMode
 
 class EnvironmentConfig(DynamicBaseModel):
     """验证环境配置"""

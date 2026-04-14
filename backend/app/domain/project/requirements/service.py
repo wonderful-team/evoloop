@@ -6,9 +6,7 @@ import json
 import logging
 from typing import TYPE_CHECKING
 
-
 from app.utils.id import gen_uuid
-
 from .models import ProjectRequirementTask
 from .prompts import render_breakdown_prompt
 

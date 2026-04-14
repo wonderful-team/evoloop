@@ -9,8 +9,8 @@ import logging
 from pathlib import Path
 from typing import Optional
 
-from app.utils.process import run_command
 from app.constants import DEFAULT_EXCLUDED_DIRS
+from app.utils.process import run_command
 
 logger = logging.getLogger(__name__)
 

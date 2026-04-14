@@ -4,8 +4,9 @@ from datetime import datetime
 from typing import Any
 
 from pydantic import BaseModel
+
+from app.api.responses import BaseAPIResponse
 from app.infrastructure.pydantic_base import DynamicBaseModel
-from app.api.responses import BaseAPIResponse, ListResponse
 
 
 class SkillParameter(BaseModel):

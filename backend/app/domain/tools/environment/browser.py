@@ -8,10 +8,8 @@ call it via function calling. All actual logic lives in:
 import logging
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict
-
-from app.core.tools import evoloop_tool
 from app.core.environment.controllers.browser_controller import BrowserController
+from app.core.tools import evoloop_tool
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)

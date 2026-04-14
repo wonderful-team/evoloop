@@ -6,12 +6,12 @@ Boundaries are injected into prompts to prevent repeated failures.
 """
 
 import logging
-from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
+
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)

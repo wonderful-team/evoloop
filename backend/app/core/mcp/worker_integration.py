@@ -1,7 +1,6 @@
 """Integration between Worker nodes and MCP sessions."""
 
 import logging
-from typing import Any
 
 from langchain_core.tools import StructuredTool
 
