@@ -13,16 +13,17 @@ from datetime import datetime, timedelta
 # Unified task queue (Huey in embedded mode, Celery in full mode)
 from app.infrastructure.queue.factory import get_scheduler
 
+logger = logging.getLogger(__name__)
+
 # Get scheduler instance
 _task_scheduler = get_scheduler()
+
 
 # Create task decorator
 def _task(name, **kwargs):
     def decorator(f):
         return _task_scheduler.task(f, name=name, **kwargs)
     return decorator
-
-logger = logging.getLogger(__name__)
 
 
 @_task(name="memory.nightly_consolidation")

@@ -14,26 +14,24 @@ from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.llm.factory import LLMFactory
 from app.core.learning.prompts import prompt_builder
 from app.models.learning import LearnedSkill
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 
 
-class SkillParams(BaseModel, LegacyDictMixin):
+class SkillParams(DynamicBaseModel):
     """Dynamic parameters extracted during skill matching."""
-    model_config = ConfigDict(extra="allow")
 
 
-class SkillListItem(BaseModel, LegacyDictMixin):
+class SkillListItem(DynamicBaseModel):
     """Lightweight item for active skills list."""
-    model_config = ConfigDict(extra="allow")
     id: int
     name: str
     namespace: str = "general"
     description: str = ""
 
 
-class SkillMatch(BaseModel, LegacyDictMixin):
+class SkillMatch(DynamicBaseModel):
     """Result of skill matching (intentional execution)."""
     skill_id: int
     skill_name: str

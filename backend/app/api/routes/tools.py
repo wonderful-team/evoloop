@@ -2,6 +2,7 @@ from typing import Any
 
 from fastapi import APIRouter
 from pydantic import BaseModel
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 from app.core.tools.manager import tool_manager
 from app.core.tools.runtime_registry import get_runtime_tools
@@ -9,7 +10,7 @@ from app.core.tools.runtime_registry import get_runtime_tools
 router = APIRouter(prefix="/tools", tags=["tools"])
 
 
-class ToolInfo(BaseModel):
+class ToolInfo(DynamicBaseModel):
     name: str
     description: str
     args_schema: dict[str, Any] | None = None
@@ -45,7 +46,7 @@ async def list_all_tools() -> list[ToolInfo]:
     """
     List ALL available tools (Static + Runtime).
     """
-    tools = tool_manager.get_all_capabilities()
+    tools = await tool_manager.get_all_capabilities()
     results = []
     for t in tools:
         args_schema = {}

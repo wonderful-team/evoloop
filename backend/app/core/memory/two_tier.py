@@ -54,12 +54,12 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.core.config import settings
 from app.core.memory.models import MemoryEntry, MemoryType, PrivacyLevel
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 
 
-class SectionBudget(BaseModel, LegacyDictMixin):
+class SectionBudget(DynamicBaseModel):
     """Budget allocation for a MEMORY.md section."""
     name: str
     lines: int
@@ -71,9 +71,8 @@ class SectionBudget(BaseModel, LegacyDictMixin):
         return self.lines - self.used
 
 
-class MemorySectionEntry(BaseModel, LegacyDictMixin):
+class MemorySectionEntry(DynamicBaseModel):
     """A single entry in a MEMORY.md section."""
-    model_config = ConfigDict(extra="allow")
     id: Optional[str] = None
     title: str
     description: str
@@ -81,7 +80,7 @@ class MemorySectionEntry(BaseModel, LegacyDictMixin):
     type: Optional[str] = None
 
 
-class MemorySection(BaseModel, LegacyDictMixin):
+class MemorySection(DynamicBaseModel):
     """A section in MEMORY.md."""
     name: str
     title: str

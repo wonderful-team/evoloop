@@ -15,7 +15,7 @@ from typing import Callable, Optional
 from pydantic import BaseModel, Field
 
 from app.constants import DEFAULT_EXCLUDED_DIRS
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +30,7 @@ class DirectoryStatus(Enum):
     ERROR = "error"
 
 
-class DirectoryInfo(BaseModel, LegacyDictMixin):
+class DirectoryInfo(DynamicBaseModel):
     """Information about a directory."""
     path: str
     exists: bool
@@ -40,7 +40,7 @@ class DirectoryInfo(BaseModel, LegacyDictMixin):
     total_size: int = 0
 
 
-class DirectoryOperationResult(BaseModel, LegacyDictMixin):
+class DirectoryOperationResult(DynamicBaseModel):
     """Result of a directory operation."""
     success: bool
     status: DirectoryStatus
@@ -49,7 +49,7 @@ class DirectoryOperationResult(BaseModel, LegacyDictMixin):
     destination: Optional[str] = None  # For move operations
 
 
-class DirectoryEntry(BaseModel, LegacyDictMixin):
+class DirectoryEntry(DynamicBaseModel):
     """A single entry in directory listing."""
     name: str
     path: str

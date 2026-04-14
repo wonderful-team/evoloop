@@ -130,28 +130,28 @@ class EvoContextMiddleware:
         request_id = ctx.request_id
         if request_id != "global-fallback" and EvoContextMiddleware._is_recently_hydrated(request_id):
             # Still need to update dynamic layer, but skip static hydration
-            blackboard = state.get("blackboard") or {}
+            blackboard = (state.blackboard or {})
             state["blackboard"] = blackboard
             state[EvoContextMiddleware.HYDRATION_MARKER] = EvoContextMiddleware.HYDRATION_VERSION
             return state
         
         # Layer 2: Check state marker (for sequential node execution)
-        if state.get(EvoContextMiddleware.HYDRATION_MARKER) == EvoContextMiddleware.HYDRATION_VERSION:
+        if getattr(state, EvoContextMiddleware.HYDRATION_MARKER, None) == EvoContextMiddleware.HYDRATION_VERSION:
             return state
         
         # 1. Resolve or Create Context (ctx already fetched above for dedup check)
-        blackboard = state.get("blackboard") or {}
+        blackboard = (state.blackboard or {})
         
-        if ctx.request_id == "global-fallback" or state.get("is_subtask"):
-            project_id = state.get("project_id")
+        if ctx.request_id == "global-fallback" or state.is_subtask:
+            project_id = state.project_id
             if project_id is None:
                 project_id = config.get("configurable", {}).get("project_id", DEFAULT_PROJECT_ID)
 
             working_directory = (
-                blackboard.get("working_directory") or 
-                config.get("configurable", {}).get("working_directory")
+                (blackboard.working_directory if blackboard else None)
+                or config.get("configurable", {}).get("working_directory")
             )
-            thread_id = state.get("thread_id") or config.get("configurable", {}).get("thread_id")
+            thread_id = state.thread_id or config.get("configurable", {}).get("thread_id")
 
             ctx = EvoContext(
                 project_id=project_id,
@@ -187,7 +187,7 @@ class EvoContextMiddleware:
 
         # Extract last human message for memory operations
         last_human_msg = ""
-        messages = state.get("messages", [])
+        messages = list(state.messages)
         for msg in reversed(messages):
             if hasattr(msg, "type") and msg.type == "human":
                 content = msg.content
@@ -208,7 +208,7 @@ class EvoContextMiddleware:
         # 2. Memory Loading (Predictive Cache Strategy)
         # Try pre-loaded cache first (populated by bg task), fallback to direct query
         memory_data = {}
-        if last_human_msg and not state.get("is_subtask"):
+        if last_human_msg and not state.is_subtask:
             memory_start = time.time()
             current_run_id = config.get("configurable", {}).get("run_id")
             
@@ -390,7 +390,7 @@ class EvoContextMiddleware:
                 source="context_hydrator",
                 data={
                     "ctx": ctx,
-                    "topic": (blackboard.get("ticket", {}) or {}).get("topic") or "",
+                    "topic": (blackboard.ticket.topic if blackboard and blackboard.ticket else ""),
                 }
             )
             await system_bus.publish(polishing_event)
@@ -398,13 +398,14 @@ class EvoContextMiddleware:
             logger.warning(f"[Middleware] CONTEXT_POLISHING event failed (non-fatal): {e}")
 
         # 6. State Harmonization
-        if not blackboard.get("verification") and state.get("verification_status"):
-            blackboard["verification"] = state.get("verification_status")
+        if not (blackboard.verification if blackboard else None) and state.verification_status:
+            if blackboard:
+                blackboard.verification = state.verification_status
 
         # 7. Metadata Reset (Industrial Hardening)
         is_retry = config.get("metadata", {}).get("is_retry", False)
 
-        if (state.get("is_retry") or is_retry) and not state.get("is_subtask"):
+        if (state.is_retry or is_retry) and not state.is_subtask:
             logger.info("[Middleware] 🔄 Retry detected: Performing deep blackboard cleanup.")
             for key in ["ticket", "verification", "route_reason"]:
                 blackboard[key] = None
@@ -417,7 +418,7 @@ class EvoContextMiddleware:
 
             # CRITICAL: Clean up accumulated error messages from previous failed attempts
             # This prevents error message pollution that confuses the LLM
-            messages = state.get("messages", [])
+            messages = list(state.messages)
             if messages:
                 from langchain_core.messages import AIMessage
 
@@ -456,16 +457,17 @@ class EvoContextMiddleware:
                     state["messages"] = cleaned_messages
                     logger.info(f"[Middleware] ✓ Message cleanup: {len(messages)} -> {len(cleaned_messages)} messages")
             
-        elif "metadata" in blackboard and not state.get("is_subtask"):
+        elif "metadata" in blackboard and not state.is_subtask:
             for key in ["final_outcome", "shadow_audit"]:
                 if key in blackboard["metadata"]:
                     logger.debug(f"[Middleware] Resetting terminal metadata '{key}' for new run.")
                     del blackboard["metadata"][key]
 
         # 8. Ticket Synchronization
-        execution_ticket = state.get("execution_ticket")
-        if execution_ticket and not blackboard.get("ticket"):
-            blackboard["ticket"] = execution_ticket
+        execution_ticket = state.execution_ticket
+        if execution_ticket and not (blackboard.ticket if blackboard else None):
+            if blackboard:
+                blackboard.ticket = execution_ticket
 
         state["blackboard"] = blackboard
         
@@ -483,7 +485,6 @@ class EvoContextMiddleware:
             logger.info(f"[Middleware] Hydration completed in {duration_ms:.1f}ms")
         
         return state
-
 
 
 # ==============================================================================
@@ -540,9 +541,9 @@ class SkillHydrator:
             return await skill_discovery.get_namespace_index(namespace_context)
 
         # Eager mode: Fetch and return full SOP instructions
-        execution_ticket = state.get("execution_ticket") or {}
+        execution_ticket = state.execution_ticket
         # skill_id takes priority from the ticket if present, otherwise fallback to topic
-        query = execution_ticket.get("skill_id") or topic
+        query = execution_ticket.skill_id if execution_ticket else topic
 
         logger.info(f"[Hydrator] Eagerly hydrating skills for query: {query}")
         match, relevant, reasoning = await skill_discovery.exact_search(
@@ -558,19 +559,21 @@ class SkillHydrator:
         """
         Helper to get skills tailored for a specific node type.
         """
-        execution_ticket = state.get("execution_ticket") or {}
-        topic = execution_ticket.get("topic", "")
-        namespace_context = execution_ticket.get("namespace_context")
+        execution_ticket = state.execution_ticket
+        topic = execution_ticket.topic or "" if execution_ticket else ""
+        namespace_context = execution_ticket.namespace_context if execution_ticket else None
 
         # In Unified Graph (v5), we default to 'eager' hydration for standard Workers.
         # But for sub-tasks, we skip eager hydration to prevent cognitive overload
         # unless a specific skill_hint is provided.
-        if state.get("is_subtask") and not execution_ticket.get("agent_config", {}).get("skill_hint"):
+        agent_config = execution_ticket.agent_config if execution_ticket else None
+        if state.is_subtask and not (agent_config and agent_config.skill_hint):
             logger.info(f"[Hydrator] Skipping eager hydration for subtask: {topic}")
             return []
 
         # Future optimization: allow Supervisor to specify 'lazy' via Ticket parameters.
-        is_lazy = execution_ticket.get("parameters", {}).get("lazy_hydration", False)
+        parameters = execution_ticket.parameters if execution_ticket else None
+        is_lazy = parameters.lazy_hydration if parameters else False
         mode = "lazy" if is_lazy else "eager"
 
         return await SkillHydrator.hydrate(state, topic, namespace_context=namespace_context, mode=mode)

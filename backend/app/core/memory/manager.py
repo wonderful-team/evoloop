@@ -35,7 +35,6 @@ from typing import List, Optional, Dict, Any
 
 from pydantic import BaseModel, ConfigDict
 from langchain_core.messages import BaseMessage
-from app.utils.model_helpers import LegacyDictMixin
 
 from app.core.config import settings
 from app.core.memory.models import (
@@ -49,6 +48,7 @@ from app.core.memory.extraction import MemoryExtractionService, MemoryConsolidat
 from app.core.memory.retrieval import MemoryRetriever
 from app.core.memory.interfaces.short_term import IShortTermMemory
 from app.core.memory.backends.sql_short_term import SqlShortTermMemory
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 
@@ -619,9 +619,8 @@ class MemoryManager:
         return await self._storage.get_recent(count)
 
 
-class CheckpointDedupResult(BaseModel, LegacyDictMixin):
+class CheckpointDedupResult(DynamicBaseModel):
     """Result of a checkpoint deduplication operation."""
-    model_config = ConfigDict(extra="allow")
     dry_run: bool = True
     total_checkpoints: int = 0
     duplicate_groups: int = 0

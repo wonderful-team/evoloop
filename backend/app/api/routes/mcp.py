@@ -3,19 +3,20 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from app.api.responses import BaseAPIResponse
+
 from app.core.mcp import mcp_client_manager
-from app.models.schemas.mcp import McpServerCreate
+from app.core.mcp.schemas import McpServerCreate
 
 router = APIRouter()
 
 
-class McpOperationResponse(BaseModel):
+class McpOperationResponse(BaseAPIResponse):
     """Response for MCP add/remove operations."""
     status: str
-    message: str
 
 
-class McpConnectResponse(BaseModel):
+class McpConnectResponse(BaseAPIResponse):
     """Response for MCP connect operation."""
     status: str
     name: str

@@ -3,7 +3,7 @@ from enum import Enum
 from typing import Any, Dict, List, Optional, Union
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.utils.yaml import macro_from_yaml, macro_to_yaml, YAMLError
 
 
@@ -102,7 +102,7 @@ class CollectMode(str, Enum):
     AUTO = "auto"      # Automatic: collect list first, then execute detail steps
 
 
-class NavigationPayload(BaseModel, LegacyDictMixin):
+class NavigationPayload(DynamicBaseModel):
     """Payload for navigation actions (goto, open_app)."""
     model_config = ConfigDict(extra="allow", populate_by_name=True)
 
@@ -113,9 +113,8 @@ class NavigationPayload(BaseModel, LegacyDictMixin):
     timeout_ms: int = 30000
 
 
-class InteractionPayload(BaseModel, LegacyDictMixin):
+class InteractionPayload(DynamicBaseModel):
     """Payload for UI interactions (click, input, scroll)."""
-    model_config = ConfigDict(extra="allow")
 
     # Coordinates (used if target_selector is missing or for vision correction)
     x: Optional[int] = None
@@ -144,9 +143,8 @@ class InteractionPayload(BaseModel, LegacyDictMixin):
     timeout_ms: int = 10000
 
 
-class ControlPayload(BaseModel, LegacyDictMixin):
+class ControlPayload(DynamicBaseModel):
     """Payload for control flow (loop, if)."""
-    model_config = ConfigDict(extra="allow")
 
     # Loop specific
     items_key: str = "items"
@@ -160,7 +158,7 @@ class ControlPayload(BaseModel, LegacyDictMixin):
     detail_config: Dict[str, Any] = Field(default_factory=dict)
 
 
-class ExtractionPayload(BaseModel, LegacyDictMixin):
+class ExtractionPayload(DynamicBaseModel):
     """Payload for data extraction steps."""
     model_config = ConfigDict(extra="allow", populate_by_name=True)
 
@@ -184,14 +182,14 @@ MacroPayload = Union[
 ]
 
 
-class MacroCondition(BaseModel):
+class MacroCondition(DynamicBaseModel):
     type: str = "element_exists"
     target_selector: Optional[str] = None
     # For future expansion (e.g., text_matches, url_is)
     params: Dict[str, Any] = Field(default_factory=dict)
 
 
-class MacroStep(BaseModel, LegacyDictMixin):
+class MacroStep(DynamicBaseModel):
     step_number: Optional[int] = None
     type: MacroStepType
     description: Optional[str] = None
@@ -281,7 +279,7 @@ class MacroMetadata(BaseModel):
     thread_id: Optional[str] = None
 
 
-class MacroScript(BaseModel):
+class MacroScript(DynamicBaseModel):
     metadata: MacroMetadata = Field(default_factory=MacroMetadata)
     steps: List[MacroStep] = Field(default_factory=list)
     parameters_schema: List[Dict[str, Any]] = Field(default_factory=list)
@@ -347,7 +345,7 @@ class MacroScript(BaseModel):
             if hasattr(step, 'model_dump'):
                 steps_data.append(step.model_dump(mode="json"))
             elif hasattr(step, 'dict'):
-                steps_data.append(step.dict())
+                steps_data.append(step.model_dump())
             else:
                 steps_data.append(dict(step))
         return macro_to_yaml(steps_data)

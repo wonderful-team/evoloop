@@ -5,7 +5,7 @@ from .codebase import CodeEntity as CodeEntity
 from .codebase import CodeRelation as CodeRelation
 from .codebase import Repository as Repository
 from .codebase import SourceFile as SourceFile
-from .config import SystemConfig as SystemConfig
+from .system import SystemConfig as SystemConfig
 from .conversation import Conversation as Conversation
 from .conversation import HumanRequest as HumanRequest
 from .conversation import Message as Message
@@ -17,10 +17,10 @@ from .learning import TraceEvent as TraceEvent
 from .memory import MemoryConcept as MemoryConcept
 from .checkpoint import FileCheckpoint as FileCheckpoint
 from .checkpoint import FileCheckpointSnapshot as FileCheckpointSnapshot
-from .persistence import Checkpoint as Checkpoint
-from .persistence import CheckpointBlob as CheckpointBlob
-from .persistence import CheckpointMigration as CheckpointMigration
-from .persistence import CheckpointWrite as CheckpointWrite
+from .checkpoint import Checkpoint as Checkpoint
+from .checkpoint import CheckpointBlob as CheckpointBlob
+from .checkpoint import CheckpointMigration as CheckpointMigration
+from .checkpoint import CheckpointWrite as CheckpointWrite
 from .planning import Plan as Plan
 from .planning import PlanStep as PlanStep
 from .scheduler import AutonomousTask as AutonomousTask
@@ -31,10 +31,10 @@ from .system import Tool as Tool
 from .todo import TodoItem as TodoItem
 from .todo import TodoPriority as TodoPriority
 from .todo import TodoStatus as TodoStatus
-from .auth import CacheInvalidateResponse as CacheInvalidateResponse
-from .auth import EvoCloudProxyResponse as EvoCloudProxyResponse
-from .auth import LoginResult as LoginResult
-from .auth import MemberBenefitsResponse as MemberBenefitsResponse
+from .schemas.auth import CacheInvalidateResponse as CacheInvalidateResponse
+from .schemas.auth import EvoCloudProxyResponse as EvoCloudProxyResponse
+from .schemas.auth import LoginResult as LoginResult
+from .schemas.auth import MemberBenefitsResponse as MemberBenefitsResponse
 from .wiki import WikiPage as WikiPage
 
 __all__ = [

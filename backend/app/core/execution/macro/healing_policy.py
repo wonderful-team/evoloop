@@ -26,13 +26,13 @@ from typing import Optional, Dict, Any, TYPE_CHECKING
 from pydantic import BaseModel, Field
 
 from app.core.config import settings
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 if TYPE_CHECKING:
     from app.models import LearnedSkill
 
 
-class HealingDecision(BaseModel, LegacyDictMixin):
+class HealingDecision(DynamicBaseModel):
     """Result of a self-healing policy check."""
     allowed: bool
     reason: str

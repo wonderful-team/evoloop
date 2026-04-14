@@ -66,7 +66,7 @@ class OAuthAuthorizationCodeHandler(AuthHandler):
         try:
             import json
             data = json.loads(token_data)
-            token = AuthToken(**data)
+            token = AuthToken.model_validate(data)
             
             # Check if expired and refresh if needed
             if token.is_expired() and token.refresh_token:

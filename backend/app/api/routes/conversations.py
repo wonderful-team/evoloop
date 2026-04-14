@@ -2,8 +2,11 @@ import logging
 from datetime import datetime
 
 from fastapi import APIRouter, HTTPException, Request
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel
+from app.infrastructure.pydantic_base import DynamicBaseModel
 from sqlalchemy import delete, select, func
+
+from app.api.responses import BaseAPIResponse, ListResponse
 from sqlalchemy.orm import selectinload
 
 from app.core.monitoring.activity import activity_monitor
@@ -19,7 +22,7 @@ router = APIRouter()
 # --- Schemas ---
 
 
-class SearchResult(BaseModel):
+class ConversationConversationSearchResult(DynamicBaseModel):
     id: int  # Message ID
     thread_id: str
     role: str
@@ -28,11 +31,11 @@ class SearchResult(BaseModel):
     match_snippet: str | None = None
 
 
-class RenameRequest(BaseModel):
+class RenameRequest(DynamicBaseModel):
     title: str
 
 
-class ConversationListItem(BaseModel):
+class ConversationListItem(DynamicBaseModel):
     thread_id: str
     title: str
     project_id: int | None
@@ -40,9 +43,8 @@ class ConversationListItem(BaseModel):
     status: str = "idle"
 
 
-class ReferenceItemMetadata(BaseModel):
+class ReferenceItemMetadata(DynamicBaseModel):
     """Metadata for a message reference. Extra fields allowed per reference type."""
-    model_config = ConfigDict(extra="allow")
     duration: float | None = None
     transcript: str | None = None
     waveform: list[float] | None = None
@@ -50,7 +52,7 @@ class ReferenceItemMetadata(BaseModel):
     mime_type: str | None = None
 
 
-class ReferenceItem(BaseModel):
+class ReferenceItem(DynamicBaseModel):
     id: str
     type: str
     target_id: str
@@ -64,7 +66,7 @@ def get_tool_display_name(tool_name: str) -> str | None:
     return get_tool_friendly_name(tool_name, lang="zh")
 
 
-class ToolStep(BaseModel):
+class ToolStep(DynamicBaseModel):
     id: str
     tool: str  # Original tool identifier (e.g., "search_web")
     tool_name: str | None = None  # Friendly name (e.g., "搜索网页")
@@ -74,7 +76,7 @@ class ToolStep(BaseModel):
     duration: float | None = None
 
 
-class MessageItem(BaseModel):
+class MessageItem(DynamicBaseModel):
     id: str
     role: str
     content: str
@@ -90,7 +92,7 @@ class MessageItem(BaseModel):
     tool_calls: list[dict] | None = None  # Tool calls for AI messages that trigger tools
 
 
-class ChangesetNode(BaseModel):
+class ChangesetNode(DynamicBaseModel):
     """Hierarchical node for file operation tree."""
     name: str
     path: str
@@ -100,30 +102,30 @@ class ChangesetNode(BaseModel):
     children: list["ChangesetNode"] = []
 
 
-class RewindResponse(BaseModel):
+class RewindResponse(BaseAPIResponse):
     status: str
     thread_id: str
     removed_count: int = 0
     files_reverted: int = 0
 
 
-class ConversationRenameResponse(BaseModel):
+class ConversationRenameResponse(BaseAPIResponse):
     status: str
     thread_id: str
     title: str
 
 
-class ConversationDeleteResponse(BaseModel):
+class ConversationDeleteResponse(BaseAPIResponse):
     status: str
     thread_id: str
 
 
-class RewindRequest(BaseModel):
+class RewindRequest(DynamicBaseModel):
     revert_files: bool = True  # Whether to also revert file changes
     message_id: str | None = None  # Optional: target message to rewind to
 
 
-class MessageListResponse(BaseModel):
+class MessageListResponse(ListResponse):
     """Response model for paginated message list."""
     items: list[MessageItem]
     has_more: bool
@@ -421,7 +423,7 @@ async def get_conversation_messages(
         )
 
 
-@router.get("/search", response_model=list[SearchResult])
+@router.get("/search", response_model=list[ConversationSearchResult])
 async def search_conversations(q: str, project_id: int | None = None):
     """
     Full-text search on message logs.
@@ -451,7 +453,7 @@ async def search_conversations(q: str, project_id: int | None = None):
         logs = result.scalars().all()
 
         return [
-            SearchResult(
+            ConversationSearchResult(
                 id=log.id,
                 thread_id=log.thread_id,
                 role=log.role,

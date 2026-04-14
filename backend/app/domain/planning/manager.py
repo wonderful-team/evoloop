@@ -9,17 +9,17 @@ class PlanStep(BaseModel):
     details: str | None = None
 
 
-class Plan(BaseModel):
+class PlanDefinition(BaseModel):
     title: str
     steps: list[PlanStep] = Field(default_factory=list)
 
 
 class PlanManager:
     @staticmethod
-    def parse_plan_data(content: str) -> Plan | None:
+    def parse_plan_data(content: str) -> PlanDefinition | None:
         try:
             data = json.loads(content)
-            return Plan(**data)
+            return PlanDefinition(**data)
         except Exception:
             return None
 

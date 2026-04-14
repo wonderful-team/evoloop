@@ -19,13 +19,12 @@ from app.utils import (
     render_template,
 )
 from app.utils.text import truncate_output
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 
 
-class BatchStepResult(BaseModel, LegacyDictMixin):
-    model_config = ConfigDict(extra="allow")
+class BatchStepResult(DynamicBaseModel):
     step: int
     action: str
     status: str

@@ -14,25 +14,22 @@ import json
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field, model_validator, ConfigDict
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 
-class AtlasStateMetadata(BaseModel, LegacyDictMixin):
-    model_config = ConfigDict(extra="allow")
+class AtlasStateMetadata(DynamicBaseModel):
     screenshot_hash: str | None = None
     platform_version: str | None = None
     app_tags: list[str] = Field(default_factory=list)
 
 
-class MenuItem(BaseModel, LegacyDictMixin):
-    model_config = ConfigDict(extra="allow")
+class MenuItem(DynamicBaseModel):
     label: str
     action: str | None = None
     children: list["MenuItem"] = Field(default_factory=list)
 
 
-class MenuTree(BaseModel, LegacyDictMixin):
-    model_config = ConfigDict(extra="allow")
+class MenuTree(DynamicBaseModel):
     menus: list[MenuItem] = Field(default_factory=list)
 
 
@@ -45,12 +42,11 @@ class Rect(BaseModel):
     height: int
 
 
-class ElementExtra(BaseModel, LegacyDictMixin):
+class ElementExtra(DynamicBaseModel):
     """Catch-all additional attributes for a UI element."""
-    model_config = ConfigDict(extra="allow")
 
 
-class ElementMetadata(BaseModel, LegacyDictMixin):
+class ElementMetadata(DynamicBaseModel):
     """Platform-specific metadata for a UI element."""
     model_config = ConfigDict(populate_by_name=True)
 
@@ -91,7 +87,7 @@ class ElementMetadata(BaseModel, LegacyDictMixin):
         return values
 
 
-class AtlasElement(BaseModel, LegacyDictMixin):
+class AtlasElement(DynamicBaseModel):
     """
     A semantic anchor for a single interactive UI element.
     Platform-agnostic representation.
@@ -124,7 +120,7 @@ class AtlasElement(BaseModel, LegacyDictMixin):
         return cls.model_validate(data)
 
 
-class AtlasState(BaseModel, LegacyDictMixin):
+class AtlasState(DynamicBaseModel):
     """
     A snapshot of the application at a given UI state (a 'screen').
     """
@@ -150,7 +146,7 @@ class AtlasState(BaseModel, LegacyDictMixin):
         return cls.model_validate(data)
 
 
-class AtlasTransition(BaseModel, LegacyDictMixin):
+class AtlasTransition(DynamicBaseModel):
     """
     Records a causal link between states.
     """
@@ -168,7 +164,7 @@ class AtlasTransition(BaseModel, LegacyDictMixin):
         return cls.model_validate(data)
 
 
-class AtlasApp(BaseModel):
+class AtlasApp(DynamicBaseModel):
     """
     The complete structural map of an application.
     """

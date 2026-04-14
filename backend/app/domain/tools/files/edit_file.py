@@ -18,7 +18,6 @@ from app.core.file import (
     get_file_info,  # Replaces get_file_stats
 )
 from app.i18n.service import i18n
-from app.utils.model_helpers import LegacyDictMixin
 from .utils import resolve_and_validate_path
 
 logger = logging.getLogger(__name__)
@@ -46,7 +45,7 @@ class EditFileRequest(BaseModel):
     config: RunnableConfig | None = None
 
 
-class EditPreviewResult(BaseModel, LegacyDictMixin):
+class EditPreviewResult(BaseModel):
     """Result of previewing an edit."""
     model_config = ConfigDict(arbitrary_types_allowed=True)
 

@@ -6,17 +6,16 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 
 
-class ElicitationValues(BaseModel, LegacyDictMixin):
+class ElicitationValues(DynamicBaseModel):
     """Values provided for an elicitation request."""
-    model_config = ConfigDict(extra="allow")
 
 
-class ElicitationField(BaseModel, LegacyDictMixin):
+class ElicitationField(DynamicBaseModel):
     """A field requiring user input."""
     name: str
     description: str
@@ -25,7 +24,7 @@ class ElicitationField(BaseModel, LegacyDictMixin):
     field_type: str = "string"  # string, number, boolean, url
 
 
-class ElicitationRequest(BaseModel, LegacyDictMixin):
+class ElicitationRequest(DynamicBaseModel):
     """Request for additional configuration."""
     server_name: str
     message: str

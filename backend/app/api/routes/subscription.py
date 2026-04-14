@@ -3,6 +3,7 @@ from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 from app.api.deps import TokenDep
 from app.core.evocloud import evocloud_manager
@@ -39,7 +40,7 @@ async def get_subscription_detail(_token: TokenDep):
     return await evocloud_manager.api.get_subscription_detail()
 
 
-class CreateOrderRequest(BaseModel):
+class CreateOrderRequest(DynamicBaseModel):
     level_id: int
     auto_renew: bool = False
 
@@ -89,7 +90,7 @@ async def get_ai_quota_history(page: int = 1, page_size: int = 20, _token: Token
 
 # --- Webhook for Benefits Update ---
 
-class BenefitsUpdateWebhook(BaseModel):
+class BenefitsUpdateWebhook(DynamicBaseModel):
     member_id: int
     event: str  # "subscription_created", "subscription_renewed", "subscription_cancelled"
     level_id: int | None = None
@@ -97,10 +98,9 @@ class BenefitsUpdateWebhook(BaseModel):
     signature: str  # HMAC签名用于验证
 
 
-class WebhookResponse(BaseModel):
+class WebhookResponse(BaseAPIResponse):
     """Webhook processing response."""
     code: int
-    message: str
 
 
 @router.post("/webhook/benefits-update")

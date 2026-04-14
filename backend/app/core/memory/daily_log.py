@@ -38,12 +38,12 @@ from pydantic import BaseModel, Field
 
 from app.core.memory.models import MemoryEntry, MemoryType, PrivacyLevel
 from app.core.config import settings
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 
 
-class LogEntry(BaseModel, LegacyDictMixin):
+class LogEntry(DynamicBaseModel):
     """An entry in the daily log."""
     timestamp: datetime = Field(default_factory=datetime.utcnow)
     memory_id: str

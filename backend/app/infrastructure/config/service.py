@@ -4,7 +4,7 @@ from typing import Callable, Awaitable
 from sqlmodel import Session, select
 
 from app.core.db import engine
-from app.models.config import SystemConfig
+from app.models.system import SystemConfig
 
 logger = logging.getLogger(__name__)
 _cache: dict[str, str] = {}

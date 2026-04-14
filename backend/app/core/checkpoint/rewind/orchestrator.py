@@ -13,8 +13,8 @@ import logging
 from typing import TYPE_CHECKING
 
 from app.core.events import system_bus
-from app.core.rewind.events import RewindEventType
-from app.core.rewind.events import (
+from app.core.checkpoint.rewind.events import RewindEventType
+from app.core.checkpoint.rewind.events import (
     FilesCleanupEvent,
     MemoryCleanupEvent,
     MessagesCleanupEvent,
@@ -23,14 +23,14 @@ from app.core.rewind.events import (
     RewindRequestedEvent,
     StateResetEvent,
 )
-from app.core.rewind.exceptions import (
+from app.core.checkpoint.rewind.exceptions import (
     CheckpointNotFoundError,
     MessageNotFoundError,
     NoHumanMessageError,
     PartialRewindError,
     RewindError,
 )
-from app.core.rewind.models import RewindRequest, RewindResult
+from app.core.checkpoint.rewind.models import RewindRequest, RewindResult
 
 if TYPE_CHECKING:
     from app.core.events.base import AsyncEventBus

@@ -7,10 +7,12 @@ Allows for dynamic context injection and potential LLM-specific adaptations.
 
 import json
 import logging
+from typing import Optional
 
 from langchain_core.runnables import RunnableConfig
 
 from app.core.config import settings
+from app.core.engine.state.blackboard import BlackboardState
 from app.core.environment import get_awakened_state
 from app.infrastructure.config.service import SystemConfigService
 from app.utils import ControllerResponse, render_template
@@ -102,7 +104,7 @@ class SupervisorPromptBuilder:
         except Exception as e:
             logger.warning(f"[ContextTicket] Failed to fetch telemetry: {e}")
 
-        blackboard = self.context.get("blackboard", {}) if self.context else {}
+        blackboard: Optional["BlackboardState"] = self.context.get("blackboard") if self.context else None
         active_plan_data = self.context.get("structured_plan")
         if isinstance(active_plan_data, str):
             try:
@@ -112,7 +114,7 @@ class SupervisorPromptBuilder:
                 active_plan_data = None
 
         env_block = ctx.environment_block or ""
-        topic = (blackboard.get("ticket", {}).get("topic") or "")
+        topic = (blackboard.ticket.topic if blackboard and blackboard.ticket else "")
 
         template_vars = {
             "iteration_count": self.iteration_count,
@@ -125,14 +127,14 @@ class SupervisorPromptBuilder:
                 "core_raw": ctx.metadata.get("core_memory_raw", ""),
             },
             "blackboard": {
-                "ticket": blackboard.get("ticket"),
-                "subtask_results": blackboard.get("subtask_results", []),
-                "visited_nodes": blackboard.get("visited_nodes", []),
-                "verification": blackboard.get("verification"),
-                "metadata": blackboard.get("metadata", {}),
+                "ticket": blackboard.ticket if blackboard else None,
+                "subtask_results": blackboard.subtask_results if blackboard else [],
+                "visited_nodes": blackboard.visited_nodes if blackboard else [],
+                "verification": blackboard.verification if blackboard else None,
+                "metadata": dict(blackboard.metadata) if blackboard and blackboard.metadata else {},
             },
             "plan": active_plan_data,
-            "plan_approved": blackboard.get("plan_approved", False),
+            "plan_approved": blackboard.plan_approved if blackboard else False,
             "project_concepts": ctx.metadata.get("project_concepts", ""),
             "active_skills": [
                 {"id": s.get("id"), "name": s.get("name"), "namespace": s.get("namespace", "default")} 

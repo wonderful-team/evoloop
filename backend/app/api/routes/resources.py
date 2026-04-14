@@ -3,6 +3,7 @@ from typing import Literal
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
+from app.infrastructure.pydantic_base import DynamicBaseModel
 from sqlalchemy import select
 
 from app.infrastructure.database.sql.database import get_db_session
@@ -12,13 +13,13 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/projects/{project_id}/resources", tags=["resources"])
 
 
-class ResourceCreate(BaseModel):
+class ResourceCreate(DynamicBaseModel):
     type: Literal["file", "link"]
     name: str  # user friendly name
     content: str  # Relative Path for file, or URL for link
 
 
-class ResourceResponse(BaseModel):
+class ResourceResponse(BaseAPIResponse):
     id: int
     project_id: int
     type: str
@@ -27,7 +28,7 @@ class ResourceResponse(BaseModel):
     created_at: str
 
 
-class OperationResponse(BaseModel):
+class OperationResponse(BaseAPIResponse):
     """Simple operation status response."""
     status: str
     id: int

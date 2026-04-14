@@ -5,14 +5,13 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.core.environment.capabilities.registry import ActionRegistry
 from app.utils import render_template
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 
 
-class ActionRegistryItem(BaseModel, LegacyDictMixin):
+class ActionRegistryItem(DynamicBaseModel):
     """Action metadata injected into prompt templates."""
-    model_config = ConfigDict(extra="allow")
     id: str
     description: str
     params: List[str] = Field(default_factory=list)

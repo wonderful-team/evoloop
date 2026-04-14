@@ -17,12 +17,12 @@ from typing import Optional
 from pydantic import BaseModel, Field
 
 from app.core.config import settings
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 
 
-class CitationEvent(BaseModel, LegacyDictMixin):
+class CitationEvent(DynamicBaseModel):
     """A single citation event."""
     doc_id: str
     doc_path: str
@@ -32,7 +32,7 @@ class CitationEvent(BaseModel, LegacyDictMixin):
     timestamp: datetime = Field(default_factory=datetime.utcnow)
 
 
-class DocumentStats(BaseModel, LegacyDictMixin):
+class DocumentStats(DynamicBaseModel):
     """Citation statistics for a document."""
     doc_id: str
     doc_path: str
@@ -43,7 +43,7 @@ class DocumentStats(BaseModel, LegacyDictMixin):
     related_docs: list[str] = Field(default_factory=list)  # docs often cited together
 
 
-class UsageAnalytics(BaseModel, LegacyDictMixin):
+class UsageAnalytics(DynamicBaseModel):
     """Overall usage analytics."""
     period_days: int
     total_citations: int
@@ -53,7 +53,7 @@ class UsageAnalytics(BaseModel, LegacyDictMixin):
     most_cited: list[str]
 
 
-class DocumentRecommendation(BaseModel, LegacyDictMixin):
+class DocumentRecommendation(DynamicBaseModel):
     """Document recommendation based on citation patterns."""
     path: str
     reason: str

@@ -38,7 +38,7 @@ class BaseAgentNode(ABC):
         # 1. State Preparation & Environment Hydration
         # Includes early-exit checks (e.g., Aggregator routing)
         state_update = await self.prepare_state(state, config)
-        if state_update and state_update.get("next_node"):
+        if state_update and state_update.next_node:
             return state_update
             
         # Optional updated state from prepare
@@ -52,7 +52,7 @@ class BaseAgentNode(ABC):
         tools = await self.get_tools(state)
 
         # Prepend Context Ticket if provided
-        messages = list(state.get("messages", []))
+        messages = list(list(state.messages))
         if dynamic_ticket_text:
             ticket_msg = HumanMessage(content=dynamic_ticket_text, name="context_ticket")
             messages = [ticket_msg] + messages
@@ -65,7 +65,7 @@ class BaseAgentNode(ABC):
         engine = get_default_engine()
         
         try:
-            is_subtask = state.get("execution_ticket", {}).get("agent_config", {}).get("is_subtask", False)
+            is_subtask = state.execution_ticket.agent_config.is_subtask if state.execution_ticket and state.execution_ticket.agent_config else False
             engine_result = await engine.run_node(
                 state=execution_state,
                 config=config,
@@ -109,12 +109,12 @@ class BaseAgentNode(ABC):
         """Return the list of LangChain tools available to this node."""
         pass
 
-    async def handle_outcome(self, original_state: AgentState, engine_result: EngineResult | dict[str, Any], config: RunnableConfig) -> StateUpdate:
+    async def handle_outcome(self, original_state: AgentState, engine_result: EngineResult, config: RunnableConfig) -> StateUpdate:
         """
         Standard outcome handler. Processes SignalDispatching.
         Subclasses should typically call `super().handle_outcome(...)` first.
         """
-        signal = engine_result.get("signal")
+        signal = engine_result.signal
         if signal:
             from app.core.engine.dispatcher import SignalDispatcher
             dispatch_result = await SignalDispatcher.dispatch(original_state, signal, config)
@@ -122,9 +122,9 @@ class BaseAgentNode(ABC):
 
         # Provide a default fallback if the subclass doesn't implement advanced handling
         return StateUpdate(
-            messages=engine_result.get("messages", []),
-            next_node=engine_result.get("_routing_target") or RoutingTarget.FINISH,
-            blackboard=engine_result.get("blackboard", original_state.get("blackboard")),
+            messages=engine_result.messages or [],
+            next_node=engine_result._routing_target or RoutingTarget.FINISH,
+            blackboard=engine_result.blackboard or original_state.blackboard,
         )
 
     async def handle_error(self, state: AgentState, error: Exception) -> StateUpdate:

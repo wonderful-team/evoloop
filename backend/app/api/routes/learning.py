@@ -15,8 +15,6 @@ from typing import Any, cast
 from uuid import uuid4
 
 from fastapi import Depends, APIRouter, BackgroundTasks, Body, File, HTTPException, Query, Request, Response, UploadFile
-from pydantic import BaseModel, ConfigDict
-from app.utils.model_helpers import LegacyDictMixin
 from sqlalchemy import or_, func, select, update
 
 from app.utils.yaml import macro_from_yaml, macro_to_yaml, YAMLError, validate_macro_yaml
@@ -32,6 +30,63 @@ from app.core.learning.multimodal_synthesizer import (
     RecordingSession,
 )
 from app.api.deps import require_benefit
+from app.api.responses import BaseAPIResponse, DataResponse, ListResponse
+from app.core.learning.schemas import (
+    AnnotationResponse,
+    AndroidExtractPointRequest,
+    AndroidExtractPointResponse,
+    CleanupRecordingResponse,
+    CreateSkillFromYamlRequest,
+    CreateSkillFromYamlResponse,
+    DeviceResolutionResponse,
+    DomEventData,
+    DomEventsRequest,
+    ExecuteSkillRequest,
+    ExecuteSkillResponse,
+    GlobalEventData,
+    GlobalEventsRequest,
+    HumanInputRequestOut,
+    ImportSkillsRequest,
+    ImportSkillsResponse,
+    MirrorDevicesResponse,
+    MirrorPersistResponse,
+    MirrorRecordingResponse,
+    MirrorSessionResponse,
+    PaginatedSkillsResponse,
+    PersistMirrorEventsRequest,
+    PreviewEventsSummary,
+    PreviewKeyframeSummary,
+    PreviewRecordingDataResponse,
+    PreviewVideoInfo,
+    RecordingSessionItem,
+    RecordingSessionsResponse,
+    RespondRequest,
+    SkillDTO,
+    SkillDetailResponse,
+    SkillExecutionParams,
+    SkillParameter,
+    SkillResponse,
+    SmartSynthesisRequest,
+    SmartSynthesisResponse,
+    StartMirrorRecordingRequest,
+    StartMirrorRequest,
+    StartRecordingRequest,
+    StartRecordingResponse,
+    StopMirrorRequest,
+    StopMirrorResponse,
+    StopRecordingResponse,
+    SynthesisJobResponse,
+    SynthesizeFromRecordingRequest,
+    SynthesizeFromRecordingResponse,
+    SynthesizeRequest,
+    SynthesizeSkillResponse,
+    UpdateSkillRequest,
+    UpdateSkillResponse,
+    UploadScreenshotResponse,
+    ValidateSkillResponse,
+    ValidateYamlRequest,
+    ValidateYamlResponse,
+)
 from app.core.environment.controllers.mirror_session import mirror_manager
 from app.domain.tools.human_input import (
     cancel_request,
@@ -55,272 +110,6 @@ from app.core.environment.capabilities.registry import ActionRegistry, ActionDef
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-
-
-# ============ Schemas ============
-
-
-class HumanInputRequestOut(BaseModel):
-    id: str
-    thread_id: str
-    request_type: str
-    prompt: str
-    options: list[str] | None = None
-    context: str | None = None
-    default_value: str | None = None
-    created_at: str
-    status: str
-
-
-class SkillExecutionParams(BaseModel, LegacyDictMixin):
-    """Parameters for skill execution. Extra fields are allowed per skill type."""
-    model_config = ConfigDict(extra="allow")
-
-
-class ExecuteSkillRequest(BaseModel):
-    thread_id: str
-    params: SkillExecutionParams
-    project_id: int | None = 1
-    execution_mode: str | None = None  # Optional: override skill's execution mode
-
-
-class RespondRequest(BaseModel):
-    response: Any
-
-
-class RespondResponse(BaseModel):
-    success: bool
-    message: str
-
-
-class StartMirrorRequest(BaseModel):
-    device_id: str
-    record_video: bool = True
-
-
-class StopMirrorRequest(BaseModel):
-    session_id: str
-
-
-class StartMirrorRecordingRequest(BaseModel):
-    """[NEW] Request to start event recording for an active mirror session."""
-    session_id: str
-
-
-class PersistMirrorEventsRequest(BaseModel):
-    """请求模型：持久化存储镜像事件"""
-    session_id: str
-    thread_id: str | None = None  # [NEW] Optional thread binding
-
-
-class GlobalEventData(BaseModel):
-    """全局桌面事件数据"""
-    timestamp: float
-    event_type: str  # "mouse_click", "key_press"
-    key: str | None = None
-    mouse_button: str | None = None
-    position: tuple[float, float] | None = None
-    window_title: str | None = None
-    app_name: str | None = None
-    process_id: int | None = None
-    source: str | None = None # [NEW] Optional source override (e.g. "mobile" for mirror clicks)
-
-
-class GlobalEventsRequest(BaseModel):
-    """请求模型：接收全局桌面事件"""
-    session_id: str
-    thread_id: str
-    events: list[GlobalEventData]
-
-
-class DomEventData(BaseModel):
-    """DOM 事件数据"""
-    timestamp: float
-    event_type: str  # "click", "input", "scroll", etc.
-    selector: str | None = None
-    target_text: str | None = None
-    value: str | None = None
-    url: str | None = None
-    xpath: str | None = None
-    coordinates: dict | None = None  # {x, y, width, height}
-
-
-class DomEventsRequest(BaseModel):
-    """请求模型：接收 DOM 事件"""
-    session_id: str
-    thread_id: str
-    events: list[DomEventData]
-
-
-class ImportSkillsRequest(BaseModel):
-    directory: str
-
-
-class SkillParameter(BaseModel):
-    name: str
-    type: str
-    description: str
-    default: Any | None = None
-    required: bool = False
-
-
-class SkillDTO(BaseModel):
-    id: int
-    name: str
-    description: str
-    namespace: str | None = None
-    trigger_patterns: list[str]
-    parameters: list[SkillParameter]
-    tools_used: list[str]
-    success_count: int
-    failure_count: int
-    is_active: bool
-    status: str
-    execution_mode: str = "agentic"
-    macro_script: str | None = None  # YAML format
-    validation_report: dict[str, Any] | None = None
-    instructions: str | None = None
-    created_at: datetime
-    updated_at: datetime
-
-
-class PaginatedSkillsResponse(BaseModel):
-    items: list[SkillDTO]
-    total: int
-    page: int
-    page_size: int
-    total_pages: int
-
-
-class RecordingSessionItem(BaseModel):
-    session_id: str
-    thread_id: str
-    task_name: str | None = None
-    started_at: str
-    event_count: int
-
-
-class RecordingSessionsResponse(BaseModel):
-    sessions: list[RecordingSessionItem]
-
-
-class SynthesizeSkillResponse(BaseModel):
-    success: bool
-    skill_id: int
-    skill_name: str
-    skill_yaml: str
-
-
-class ImportSkillsResponse(BaseModel):
-    success: bool
-    results: dict[str, Any]
-
-
-class SkillDetailResponse(SkillDTO):
-    preconditions: list[dict[str, Any]] = []
-    source_thread_id: str | None = None
-    source_session_id: str | None = None
-    resource_path: str | None = None
-
-
-class UpdateSkillResponse(BaseModel):
-    success: bool
-    message: str
-    skill: SkillDetailResponse
-
-
-class ExecuteSkillResponse(BaseModel):
-    success: bool
-    message: str
-    execution_mode: str
-
-
-class MirrorDevicesResponse(BaseModel):
-    devices: list[dict[str, Any]]
-    scrcpy_available: bool
-
-
-class MirrorSessionResponse(BaseModel):
-    success: bool
-    session_id: str
-    device_id: str
-
-
-class MirrorRecordingResponse(BaseModel):
-    success: bool
-    message: str
-    session_id: str
-
-
-class MirrorPersistResponse(BaseModel):
-    success: bool
-    message: str
-    count: int
-
-
-class StopMirrorResponse(BaseModel):
-    success: bool
-    message: str
-    video_path: str | None = None
-    session_id: str
-    event_count: int
-
-
-class DeviceResolutionResponse(BaseModel):
-    width: int
-    height: int
-
-
-class ValidateSkillResponse(BaseModel):
-    success: bool
-    validation: dict[str, Any] | None = None
-    error: str | None = None
-
-
-class PreviewVideoInfo(BaseModel):
-    path: str
-    duration: float
-    resolution: str
-    fps: float
-
-
-class PreviewEventsSummary(BaseModel):
-    total: int
-    types: list[str]
-
-
-class PreviewKeyframeSummary(BaseModel):
-    planned: int
-    est_frames: int
-    est_tokens: str
-    details: list[dict[str, Any]]
-
-
-class PreviewRecordingDataResponse(BaseModel):
-    video_info: PreviewVideoInfo
-    events: PreviewEventsSummary
-    keyframes: PreviewKeyframeSummary
-
-
-class CleanupRecordingResponse(BaseModel):
-    success: bool
-    message: str
-    deleted: dict[str, Any]
-
-
-class CreateSkillFromYamlResponse(BaseModel):
-    success: bool
-    skill_id: int
-    skill_name: str
-    step_count: int
-
-
-class UpdateSkillFromYamlResponse(BaseModel):
-    success: bool
-    message: str
-    step_count: int
-
-# ============ Endpoints ============
 
 
 @router.get("/capabilities/actions", response_model=list[ActionDef])
@@ -492,30 +281,7 @@ async def cleanup_requests(max_age_hours: int = 24):
 # ============ Trace Recording API (Phase 1) ============
 
 
-class StartRecordingRequest(BaseModel):
-    thread_id: str
-    task_name: str | None = None
-
-
-class StartRecordingResponse(BaseModel):
-    session_id: str
-    message: str
-
-
-class StopRecordingResponse(BaseModel):
-    session_id: str
-    event_count: int
-    message: str
-
-
-# In-memory session tracking
 _active_sessions: dict[str, dict] = {}
-
-
-class UploadScreenshotResponse(BaseModel):
-    success: bool
-    path: str
-    message: str
 
 
 @router.post("/traces/start", response_model=StartRecordingResponse, dependencies=[Depends(require_benefit("skill_learning"))])
@@ -574,23 +340,6 @@ async def list_recording_sessions(thread_id: str | None = None):
 
 
 # ============ Skill Management API (Phase 2) ============
-
-
-class SynthesizeRequest(BaseModel):
-    thread_id: str
-    session_id: str | None = None
-    auto_optimize: bool = True
-
-
-class SkillResponse(BaseModel):
-    id: int
-    name: str
-    description: str
-    trigger_patterns: list[str]
-    tools_used: list[str]
-    success_count: int
-    failure_count: int
-    is_active: bool
 
 
 @router.post("/skills/synthesize", response_model=SynthesizeSkillResponse, dependencies=[Depends(require_benefit("skill_learning"))])
@@ -806,18 +555,6 @@ async def delete_skill(skill_id: int):
     finally:
         # 4. Invalidate Cache
         await skill_discovery.reload()
-
-
-class UpdateSkillRequest(BaseModel):
-    name: str | None = None
-    description: str | None = None
-    namespace: str | None = None
-    trigger_patterns: list[str] | None = None
-    parameters: list[dict[str, Any]] | None = None
-    instructions: str | None = None
-    preconditions: list[dict[str, Any]] | None = None
-    execution_mode: str | None = None
-    macro_script: str | None = None  # YAML format
 
 
 @router.put("/skills/{skill_id}", response_model=UpdateSkillResponse)
@@ -1423,40 +1160,13 @@ async def validate_skill(skill_id: int):
         validation = SkillValidator.validate_folder(Path(skill.resource_path))
 
         # Update skill record with new validation report
-        skill.validation_report = validation.dict()
+        skill.validation_report = validation.model_dump()
         skill.status = "verified" if validation.status == "healthy" else "candidate"
 
-        return ValidateSkillResponse(success=True, validation=validation.dict())
+        return ValidateSkillResponse(success=True, validation=validation.model_dump())
 
 
 # ============ Multimodal Synthesis API (NEW) ============
-
-
-class SynthesizeFromRecordingRequest(BaseModel):
-    """从录制合成 Skill 的请求（v3 统一版）
-
-    [v3 统一架构] 所有录制类型（Desktop/Global/Android）的事件都已通过
-    实时 API（/global/events, /dom/events, /mirror/events）持久化到数据库，
-    合成时统一从数据库读取，不再支持通过请求体传入事件。
-    """
-    video_path: str           # Tauri 返回的视频文件路径
-    session_id: str           # 关联事件的 session_id（用于从数据库查询事件）
-    task_description: str     # 用户描述的任务
-    thread_id: str | None = None
-
-
-class SynthesizeFromRecordingResponse(BaseModel):
-    """从录制合成 Skill 的响应"""
-    success: bool
-    skill_id: int | None
-    skill_name: str | None
-    skill_yaml: str | None
-    macro_script: str | None = None  # YAML format
-    verification: dict | None = None
-    error: str | None
-    processing_time_seconds: float
-    frames_analyzed: int
-    events_processed: int
 
 
 @router.post("/skills/synthesize-from-recording", response_model=SynthesizeFromRecordingResponse)
@@ -1672,72 +1382,6 @@ async def preview_recording_data(
 
 
 # ============ Smart Replay Synthesis ============
-
-class AnnotationResponse(BaseModel):
-    """标注响应"""
-    id: int
-    session_id: str
-    annotation_type: str
-    video_timestamp_ms: int
-    region: dict | None
-    user_note: str | None
-    created_at: datetime
-
-
-class AndroidExtractPointRequest(BaseModel):
-    """Android镜像实时提取点标记请求 - 支持区域标记"""
-    session_id: str
-    thread_id: str | None = None
-    x: float  # 区域左上角 X 坐标（相对坐标 0-1）
-    y: float  # 区域左上角 Y 坐标（相对坐标 0-1）
-    width: float | None = None   # 区域宽度（相对坐标 0-1），null 表示单点标记
-    height: float | None = None  # 区域高度（相对坐标 0-1），null 表示单点标记
-    timestamp_ms: int | None = None  # 可选：录制时间戳
-    note: str | None = None  # 可选：用户备注
-
-
-class AndroidExtractPointResponse(BaseModel):
-    """Android镜像提取点标记响应"""
-    id: int
-    session_id: str
-    x: float
-    y: float
-    width: float | None  # 区域宽度（相对坐标 0-1）
-    height: float | None  # 区域高度（相对坐标 0-1）
-    timestamp_ms: int | None
-    note: str | None
-    created_at: datetime
-
-
-class SmartSynthesisRequest(BaseModel):
-    """智能合成请求"""
-    session_id: str
-    thread_id: str | None = None
-    task_goal: str
-    annotation_ids: list[int] | None = None  # 指定使用哪些标注，null表示使用全部
-
-
-class SmartSynthesisResponse(BaseModel):
-    """智能合成响应"""
-    job_id: int
-    status: str
-    message: str
-
-
-class SynthesisJobResponse(BaseModel):
-    """合成任务状态响应"""
-    id: int
-    session_id: str
-    status: str
-    progress_percent: int
-    current_phase: str | None
-    task_goal: str
-    created_at: datetime
-    started_at: datetime | None
-    completed_at: datetime | None
-    result: dict | None  # 完成后包含 generated_skill
-    error: dict | None  # 失败时包含错误信息
-
 
 @router.get("/recordings/{session_id}/annotations", response_model=list[AnnotationResponse])
 async def list_annotations(session_id: str):
@@ -2227,26 +1871,6 @@ async def confirm_learned_skill(skill_id: int):
 
 
 # ============ YAML Macro Support (NEW) ============
-
-
-class CreateSkillFromYamlRequest(BaseModel):
-    """Request to create a skill from YAML macro definition."""
-    name: str
-    description: str | None = None
-    namespace: str | None = None
-    yaml_content: str
-
-
-class ValidateYamlRequest(BaseModel):
-    """Request to validate YAML macro format."""
-    yaml_content: str
-
-
-class ValidateYamlResponse(BaseModel):
-    """Response from YAML validation."""
-    valid: bool
-    errors: list[str]
-    step_count: int = 0
 
 
 @router.post("/skills/from-yaml", response_model=CreateSkillFromYamlResponse)

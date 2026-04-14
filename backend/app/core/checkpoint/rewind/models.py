@@ -1,9 +1,9 @@
 from typing import Any, List, Optional
 from pydantic import BaseModel, Field
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 
-class RewindRequest(BaseModel, LegacyDictMixin):
+class RewindOperation(DynamicBaseModel):
     """Request parameters for a rewind operation."""
     thread_id: str
     target_message_id: Optional[str] = None  # None = rewind to last human message
@@ -13,7 +13,7 @@ class RewindRequest(BaseModel, LegacyDictMixin):
     reason: str = "user_request"          # Why the rewind was triggered
 
 
-class RewindResult(BaseModel, LegacyDictMixin):
+class RewindResult(DynamicBaseModel):
     """Result of a rewind operation."""
     status: str  # "success", "partial", "failed", "empty", "no_human_message_found"
     thread_id: str

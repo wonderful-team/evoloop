@@ -12,12 +12,12 @@ from typing import Optional, List
 
 from pydantic import BaseModel, Field
 
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 
 
-class MemoryConfig(BaseModel, LegacyDictMixin):
+class MemoryConfig(DynamicBaseModel):
     """
     Centralized configuration for the memory system.
     

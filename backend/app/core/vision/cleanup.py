@@ -13,12 +13,12 @@ from datetime import datetime
 from pydantic import BaseModel, Field
 
 from app.core.vision.storage import screenshot_storage, screen_recording_storage
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 
 
-class CleanupResult(BaseModel, LegacyDictMixin):
+class CleanupResult(DynamicBaseModel):
     """Result of a single cleanup operation."""
     dry_run: bool
     total: int
@@ -35,7 +35,7 @@ class RecordingCleanupResult(CleanupResult):
     items_cleaned: dict[str, int]
 
 
-class CombinedCleanupResult(BaseModel, LegacyDictMixin):
+class CombinedCleanupResult(DynamicBaseModel):
     """Combined result of screenshot and recording cleanup."""
     dry_run: bool
     screenshots: ScreenshotCleanupResult
@@ -44,14 +44,14 @@ class CombinedCleanupResult(BaseModel, LegacyDictMixin):
     timestamp: str
 
 
-class StorageCategorySummary(BaseModel, LegacyDictMixin):
+class StorageCategorySummary(DynamicBaseModel):
     """Summary for a single storage category."""
     total_files: int
     total_size_mb: float
     total_size_gb: float
 
 
-class StorageReport(BaseModel, LegacyDictMixin):
+class StorageReport(DynamicBaseModel):
     """Full storage statistics report."""
     screenshots: dict
     recordings: dict

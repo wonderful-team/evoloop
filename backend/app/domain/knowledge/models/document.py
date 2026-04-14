@@ -5,10 +5,10 @@ Core document models for knowledge extraction.
 from datetime import datetime
 from pydantic import BaseModel, Field
 from typing import Any, BinaryIO, Optional, List, Dict
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 
-class MarkdownDocument(BaseModel, LegacyDictMixin):
+class MarkdownDocument(DynamicBaseModel):
     """
     Represents a document extracted to Markdown format.
     

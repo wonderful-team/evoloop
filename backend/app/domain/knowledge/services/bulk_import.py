@@ -15,18 +15,18 @@ from typing import BinaryIO, Optional
 from pydantic import BaseModel, Field
 
 from app.domain.knowledge.services.pipeline import IngestionPipeline, IngestionResult
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 
 
-class BulkImportError(BaseModel, LegacyDictMixin):
+class BulkImportError(DynamicBaseModel):
     """Error entry for a bulk import operation."""
     file: str
     error: str
 
 
-class ArchiveValidationResult(BaseModel, LegacyDictMixin):
+class ArchiveValidationResult(DynamicBaseModel):
     """Result of archive validation."""
     valid: bool
     total_files: int = 0
@@ -37,7 +37,7 @@ class ArchiveValidationResult(BaseModel, LegacyDictMixin):
     error: Optional[str] = None
 
 
-class BulkImportResult(BaseModel, LegacyDictMixin):
+class BulkImportResult(DynamicBaseModel):
     """Result of bulk import operation."""
     total_files: int = 0
     successful: int = 0

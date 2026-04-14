@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from enum import Enum
 from pydantic import BaseModel, Field
 
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 
 class AuthMethod(str, Enum):
@@ -15,7 +15,7 @@ class AuthMethod(str, Enum):
     OAUTH_CLIENT_CREDENTIALS = "oauth_client_credentials"
 
 
-class AuthToken(BaseModel, LegacyDictMixin):
+class AuthToken(DynamicBaseModel):
     """Authentication token data."""
     access_token: str
     token_type: str = "Bearer"
@@ -31,7 +31,7 @@ class AuthToken(BaseModel, LegacyDictMixin):
         return time.time() >= (self.expires_at - buffer_seconds)
 
 
-class AuthConfig(BaseModel, LegacyDictMixin):
+class AuthConfig(DynamicBaseModel):
     """Authentication configuration for an MCP server."""
     method: AuthMethod
     # API Key auth

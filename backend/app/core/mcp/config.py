@@ -4,17 +4,16 @@ from enum import Enum
 from typing import Any, Optional, List, Dict
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 
-class AuthConfig(BaseModel, LegacyDictMixin):
-    """Authentication configuration for MCP servers."""
-    model_config = ConfigDict(extra="allow")
+def is_sse_url(command: str | None) -> bool:
+    """Check if a command string represents an SSE transport URL."""
+    return bool(command and command.startswith(("http://", "https://")))
 
 
-class ServerCapabilities(BaseModel, LegacyDictMixin):
+class ServerCapabilities(DynamicBaseModel):
     """Capabilities reported by an MCP server."""
-    model_config = ConfigDict(extra="allow")
 
 
 class TransportType(str, Enum):
@@ -31,7 +30,7 @@ class AuthType(str, Enum):
     OAUTH_DEVICE_CODE = "oauth_device_code"
 
 
-class McpServerConfig(BaseModel, LegacyDictMixin):
+class McpServerConfig(DynamicBaseModel):
     """Configuration for an MCP server connection."""
     name: str
     transport: TransportType = TransportType.STDIO
@@ -44,7 +43,7 @@ class McpServerConfig(BaseModel, LegacyDictMixin):
     headers: Dict[str, str] = Field(default_factory=dict)
     # Authentication
     auth_type: AuthType = AuthType.NONE
-    auth_config: AuthConfig = Field(default_factory=AuthConfig)
+    auth_config: dict[str, Any] = Field(default_factory=dict)
     # Behavior
     auto_connect: bool = True
     enabled: bool = True
@@ -81,12 +80,7 @@ class McpServerConfig(BaseModel, LegacyDictMixin):
                 pass
         
         # Determine transport
-        transport = TransportType.SSE if (
-            server.command and (
-                server.command.startswith("http://") or 
-                server.command.startswith("https://")
-            )
-        ) else TransportType.STDIO
+        transport = TransportType.SSE if is_sse_url(server.command) else TransportType.STDIO
         
         return cls(
             name=server.name,
@@ -96,7 +90,7 @@ class McpServerConfig(BaseModel, LegacyDictMixin):
             env=env or {},
             enabled=server.enabled,
             auth_type=auth_type,
-            auth_config=AuthConfig(**auth_config_data),
+            auth_config=auth_config_data,
         )
 
     def validate(self) -> None:
@@ -109,7 +103,7 @@ class McpServerConfig(BaseModel, LegacyDictMixin):
                 raise ValueError(f"MCP server '{self.name}': url is required for sse transport")
 
 
-class ConnectionState(BaseModel, LegacyDictMixin):
+class ConnectionState(DynamicBaseModel):
     """Connection state tracking."""
     server_name: str
     is_connected: bool = False
@@ -118,7 +112,7 @@ class ConnectionState(BaseModel, LegacyDictMixin):
     error_message: Optional[str] = None
 
 
-class ConnectionResult(BaseModel, LegacyDictMixin):
+class ConnectionResult(DynamicBaseModel):
     """Result of a connection attempt."""
     success: bool
     server_name: str

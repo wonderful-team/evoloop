@@ -2,7 +2,11 @@ import time
 import psutil
 
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, Field
+from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.models.schemas.base import ScopedRequest
+
+from app.api.responses import BaseAPIResponse
 
 from app.api.deps import get_current_user
 from app.infrastructure.config import EmbeddingConfigService
@@ -12,12 +16,12 @@ from app.infrastructure.llm.platform_service import (
     get_available_llm_models,
     get_available_embedding_models,
 )
-from app.models.config import SystemConfig
+from app.models.system import SystemConfig
 
 router = APIRouter(prefix="/system", tags=["system"])
 
 
-class SystemStatusResponse(BaseModel):
+class SystemStatusResponse(BaseAPIResponse):
     cpu_percent: float
     ram_percent: float
     ram_used_gb: float
@@ -25,37 +29,32 @@ class SystemStatusResponse(BaseModel):
     status: str = "ok"
 
 
-class HealthCheckResponse(BaseModel):
+class HealthCheckResponse(BaseAPIResponse):
     status: str
     service: str
 
 
-class EmbeddingTestResponse(BaseModel):
-    success: bool
+class EmbeddingTestResponse(BaseAPIResponse):
     dimensions: int | None = None
 
 
-class EmbeddingApplyResponse(BaseModel):
+class EmbeddingApplyResponse(BaseAPIResponse):
     status: str
-    message: str
 
 
-class LLMTestResponse(BaseModel):
-    success: bool
+class LLMTestResponse(BaseAPIResponse):
     reply: str | None = None
 
 
-class LLMApplyResponse(BaseModel):
+class LLMApplyResponse(BaseAPIResponse):
     status: str
-    message: str
 
 
-class ResetKnowledgeResponse(BaseModel):
+class ResetKnowledgeResponse(BaseAPIResponse):
     status: str
-    message: str
 
 
-class CloudStatusResponse(BaseModel):
+class CloudStatusResponse(BaseAPIResponse):
     is_logged_in: bool
     device_id: str | None = None
     is_linked: bool
@@ -63,17 +62,14 @@ class CloudStatusResponse(BaseModel):
     api_url: str
 
 
-class ModelsListResponse(BaseModel):
+class ModelsListResponse(BaseAPIResponse):
     models: list[dict[str, Any]]
     last_updated: str
 
 
-class ProjectDiscoveryConfigUpdateResponse(BaseModel):
-    success: bool
+class ProjectDiscoveryConfigUpdateResponse(BaseAPIResponse):
     enabled: bool
-    message: str
     locked: bool | None = None
-    model_config = ConfigDict(extra="allow")
 
 
 @router.get("/status", dependencies=[Depends(get_current_user)])
@@ -112,7 +108,7 @@ async def update_system_config(config: SystemConfig) -> SystemConfig:
     return await SystemConfigService.set_value_async(config.key, config.value, config.description)
 
 
-class EmbeddingConfigRequest(BaseModel):
+class EmbeddingConfigRequest(ScopedRequest):
     provider: str = Field(..., description="openai, ollama, or generic")
     base_url: str = Field(..., description="API Base URL")
     model: str = Field(..., description="Model Name")
@@ -155,7 +151,7 @@ async def apply_embedding_config(req: EmbeddingConfigRequest) -> EmbeddingApplyR
 
 
 # --- LLM Config ---
-class LLMConfigRequest(BaseModel):
+class LLMConfigRequest(DynamicBaseModel):
     provider: str = Field(..., description="供应商名称: openai, anthropic, moonshot, deepseek")
     provider_type: str = Field(default="openai", description="协议类型: openai | anthropic")
     base_url: str = Field(..., description="API Base URL")
@@ -262,7 +258,7 @@ async def get_embedding_models() -> ModelsListResponse:
 
 
 # --- Project Discovery Config ---
-class ProjectDiscoveryConfigResponse(BaseModel):
+class ProjectDiscoveryConfigResponse(BaseAPIResponse):
     enabled: bool
     source: str  # "env" | "config" | "default"
 
@@ -293,7 +289,7 @@ async def get_project_discovery_config():
     return ProjectDiscoveryConfigResponse(enabled=True, source="default")
 
 
-class ProjectDiscoveryConfigRequest(BaseModel):
+class ProjectDiscoveryConfigRequest(DynamicBaseModel):
     enabled: bool
 
 

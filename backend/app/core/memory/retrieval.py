@@ -34,13 +34,13 @@ import math
 from pydantic import BaseModel, Field
 
 from app.core.memory.models import MemoryEntry, MemoryType, PrivacyLevel
-from app.utils.model_helpers import LegacyDictMixin
 from app.utils.template import render_template
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 
 
-class RetrievalContext(BaseModel, LegacyDictMixin):
+class RetrievalContext(DynamicBaseModel):
     """Context for memory retrieval."""
     query: str
     recent_tools: List[str] = Field(default_factory=list)

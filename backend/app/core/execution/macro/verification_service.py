@@ -22,30 +22,30 @@ from app.core.execution.macro.service import MacroService, MacroRunResult
 from app.utils.yaml import macro_from_yaml
 
 from pydantic import BaseModel, Field
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 
-class VerificationSummary(BaseModel, LegacyDictMixin):
+class VerificationSummary(DynamicBaseModel):
     success_rate: float
     adaptation_rate: float
     anomalies_detected: int
     adaptations_applied: int
 
 
-class VerificationIssueOut(BaseModel, LegacyDictMixin):
+class VerificationIssueOut(DynamicBaseModel):
     severity: str
     category: str
     description: str
     affected_steps: list[Union[int, str]] = Field(default_factory=list)
 
 
-class VerificationReportOut(BaseModel, LegacyDictMixin):
+class VerificationReportOut(DynamicBaseModel):
     summary: VerificationSummary
     issues: list[VerificationIssueOut] = Field(default_factory=list)
     recommendations: list[str] = Field(default_factory=list)
 
 
-class MacroVerificationResult(BaseModel, LegacyDictMixin):
+class MacroVerificationResult(DynamicBaseModel):
     success: bool
     status: Optional[str] = None
     execution_mode: Optional[str] = None
@@ -57,14 +57,14 @@ class MacroVerificationResult(BaseModel, LegacyDictMixin):
     error: Optional[str] = None
 
 
-class ModeRecommendation(BaseModel, LegacyDictMixin):
+class ModeRecommendation(DynamicBaseModel):
     can_execute: bool
     recommended_mode: str
     reason: str
     confidence: float
 
 
-class MacroEvolutionResult(BaseModel, LegacyDictMixin):
+class MacroEvolutionResult(DynamicBaseModel):
     success: bool
     original_macro: Union[list[dict[str, Any]], MacroScript, str]
     evolved_macro: Optional[list[dict[str, Any]]] = None
@@ -75,7 +75,7 @@ class MacroEvolutionResult(BaseModel, LegacyDictMixin):
     error: Optional[str] = None
 
 
-class SynthesisVerificationResult(BaseModel, LegacyDictMixin):
+class SynthesisVerificationResult(DynamicBaseModel):
     status: str
     evolved_macro: Optional[list[dict[str, Any]]] = None
     execution_mode: Optional[str] = None
@@ -149,7 +149,7 @@ class VerificationService:
             )
 
         # Build verification request with agent config
-        from app.core.execution.macro.verification_models import AgentConfig
+        from app.core.execution.macro.verification_models import VerificationAgentConfig as AgentConfig
         agent_config = AgentConfig(conservative_mode=stop_on_failure)
 
         request = VerificationRequest(

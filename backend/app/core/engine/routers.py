@@ -14,7 +14,7 @@ from langgraph.types import Send
 
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.config import settings
-from app.core.engine.state import AgentState, AgentConfig, ExecutionTicket
+from app.core.engine.state import AgentState, AgentRuntimeConfig as AgentConfig, ExecutionTicket
 from app.core.engine.schema import EdgeCondition
 
 logger = logging.getLogger(__name__)
@@ -38,45 +38,48 @@ def route_supervisor(state: AgentState) -> str | list[Send]:
     """
     Decides the next node after Supervisor.
     """
-    next_node = state.get("next_node")
-    blackboard = copy.deepcopy(state.get("blackboard", {}))
+    next_node = state.next_node
+    blackboard = copy.deepcopy(state.blackboard) if state.blackboard else None
+    if not blackboard:
+        from app.core.engine.state.blackboard import BlackboardState
+        blackboard = BlackboardState()
 
     # --- Phase 5: Resource Constraints Enforcement ---
-    iteration_count = state.get("iteration_count", 0)
+    iteration_count = (state.iteration_count or 0)
     if iteration_count >= settings.SUPERVISOR_AGENT_MAX_STEPS:
         logger.warning(f"[Router] Hard limit reached ({iteration_count}/{settings.SUPERVISOR_AGENT_MAX_STEPS}). Forcing termination.")
         return RoutingTarget.FINISH
 
     # --- 🏅 Phase 4: Dynamic Subtask Spawning (Blackboard Driven) ---
-    spawn_plan = blackboard.get("spawn_plan")
-    if spawn_plan and spawn_plan.get("subtasks"):
-        subtasks = spawn_plan["subtasks"]
-        project_id = state.get("project_id", DEFAULT_PROJECT_ID)
-        parent_thread_id = state.get("thread_id", "unknown")
+    spawn_plan = blackboard.spawn_plan
+    if spawn_plan and spawn_plan.subtasks:
+        subtasks = spawn_plan.subtasks
+        project_id = (state.project_id or DEFAULT_PROJECT_ID)
+        parent_thread_id = (state.thread_id or "unknown")
 
         logger.info(f"[Router] Spawning {len(subtasks)} parallel subtasks")
 
         sends = []
         for i, subtask in enumerate(subtasks):
-            subtask_id = subtask.get("id", f"subtask_{i}")
+            subtask_id = subtask.id or f"subtask_{i}"
             # [CRITICAL Phase 5] Scoped Identity for concurrency safety
             scoped_thread_id = f"{parent_thread_id}:sub:{subtask_id}"
-            
-            skill_hint = subtask.get("skill_hint") or spawn_plan.get("suggested_skill")
+
+            skill_hint = subtask.skill_hint or getattr(spawn_plan, "suggested_skill", None)
             # Refined professional instructions for subtasks
             system_instructions = "Analyze the mission goal and execute the necessary tools effectively."
             if skill_hint:
                 system_instructions += f" Use learned skill: {skill_hint}."
 
             # Get tools from subtask, but ensure it's not empty
-            subtask_tools = subtask.get("tools", [])
+            subtask_tools = subtask.tools or []
             # If no tools specified, allow all worker tools by not setting the field
             # (ToolManager will use full tool set when dynamic_tools is falsy)
             agent_config = AgentConfig(
                 role_name=f"Field Specialist {subtask_id}",
                 system_instructions=system_instructions,
                 is_subtask=True,
-                subtask_context=subtask.get("context", {}),
+                subtask_context=subtask.context or {},
                 skill_hint=skill_hint,
                 tools=subtask_tools if subtask_tools else None,
             )
@@ -88,18 +91,18 @@ def route_supervisor(state: AgentState) -> str | list[Send]:
             # Build rich context for subtask execution
             # Include description as acceptance criteria and context as parameters
             subtask_acceptance_criteria = []
-            if subtask.get("description"):
-                subtask_acceptance_criteria.append(subtask["description"])
-            if subtask.get("title") and subtask["title"] != subtask["intent"]:
-                subtask_acceptance_criteria.append(f"Task: {subtask['title']}")
-            
-            subtask_parameters = subtask.get("context", {})
-            if subtask.get("dependencies"):
-                subtask_parameters["dependencies"] = subtask["dependencies"]
-            
+            if subtask.description:
+                subtask_acceptance_criteria.append(subtask.description)
+            if subtask.title and subtask.title != subtask.intent:
+                subtask_acceptance_criteria.append(f"Task: {subtask.title}")
+
+            subtask_parameters = subtask.context or {}
+            if subtask.dependencies:
+                subtask_parameters["dependencies"] = subtask.dependencies
+
             # Inherit historical context from parent task's execution_ticket (if available)
-            parent_ticket = blackboard.get("ticket", {})
-            
+            parent_ticket = state.execution_ticket
+
             ticket = ExecutionTicket(
                 ticket_type="subtask",
                 topic=subtask["intent"],
@@ -109,13 +112,13 @@ def route_supervisor(state: AgentState) -> str | list[Send]:
                 acceptance_criteria=subtask_acceptance_criteria if subtask_acceptance_criteria else None,
                 parameters=subtask_parameters if subtask_parameters else None,
                 # Inherit historical context from parent task for continuity
-                historical_context=parent_ticket.get("historical_context") if parent_ticket else None,
-                referenced_tech=parent_ticket.get("referenced_tech") if parent_ticket else None,
+                historical_context=parent_ticket.historical_context if parent_ticket else None,
+                referenced_tech=parent_ticket.referenced_tech if parent_ticket else None,
                 # [NEW] Macro context for subtask alignment
-                macro_goal=parent_ticket.get("topic") if parent_ticket else None,
+                macro_goal=parent_ticket.topic if parent_ticket else None,
                 # Note: MCP servers are NOT inherited by subtasks
                 # Each subtask must explicitly request MCP servers via use_mcp_server
-            ).model_dump(exclude_none=True)
+            )
 
             sends.append(Send(RoutingTarget.WORKER, {
                 "project_id": project_id,
@@ -150,11 +153,11 @@ def route_supervisor(state: AgentState) -> str | list[Send]:
 
         # Extract execution_ticket from blackboard (set by SignalDispatcher)
         # and place it at state root for WorkerNode to access
-        execution_ticket = blackboard.get("ticket")
+        execution_ticket = blackboard.ticket
         if execution_ticket:
             # Use Send to pass execution_ticket to worker
             return Send(RoutingTarget.WORKER, {
-                "project_id": state.get("project_id", DEFAULT_PROJECT_ID),
+                "project_id": (state.project_id or DEFAULT_PROJECT_ID),
                 "execution_ticket": execution_ticket,
             })
 
@@ -340,7 +343,7 @@ def _safe_eval_expr(expr: str, context: dict) -> bool:
 def make_expression_router(conditions: list[EdgeCondition], default: str) -> Callable[[AgentState], str]:
     def expression_router(state: AgentState) -> str:
         # Prepare evaluation context (Phase 4: Blackboard Only)
-        blackboard = state.get("blackboard", {})
+        blackboard = state.blackboard or {}
         eval_context = {
             "state": state,
             "blackboard": blackboard,

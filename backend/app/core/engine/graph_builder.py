@@ -6,7 +6,7 @@ from typing import Any
 import yaml
 from langgraph.graph import END, StateGraph
 
-from app.core.engine.schema import AgentConfig
+from app.core.engine.schema import AgentGraphConfig as AgentConfig
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +46,7 @@ class GraphBuilder:
         with open(config_path) as f:
             raw_config = yaml.safe_load(f)
 
-        agent_config = AgentConfig(**raw_config)
+        agent_config = AgentConfig.model_validate(raw_config)
 
         # 2. Load State Schema
         StateClass = self._import_obj(agent_config.state_schema)

@@ -3,10 +3,10 @@ from typing import Any, Dict, List, Literal, Optional, Union
 from pydantic import BaseModel, Field
 
 
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 
-class EventBase(BaseModel, LegacyDictMixin):
+class EventBase(DynamicBaseModel):
     timestamp: float = Field(default_factory=time.time)
 
 
@@ -19,7 +19,7 @@ class StepEvent(EventBase):
 
 
 # --- Artifact Events ---
-class ArtifactPayload(BaseModel, LegacyDictMixin):
+class ArtifactPayload(DynamicBaseModel):
     name: str
     artifact_type: str  # "code", "design", "log"
     path: Optional[str] = None
@@ -62,7 +62,7 @@ class MessageEvent(EventBase):
 
 
 # --- Human Request Events ---
-class HumanRequestPayload(BaseModel, LegacyDictMixin):
+class HumanRequestPayload(DynamicBaseModel):
     type: Literal["text_input", "project_switch", "confirm", "file_select", "approval"]
     prompt: str
     allow_cancel: bool = True

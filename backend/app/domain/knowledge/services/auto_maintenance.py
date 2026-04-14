@@ -34,7 +34,7 @@ from app.domain.knowledge.services.citations import get_citation_tracker
 from app.domain.knowledge.services.deduplication import DeduplicationService
 from app.domain.knowledge.services.search import get_fts_service, IndexDocumentRequest
 from app.domain.knowledge.services.store import KnowledgeStoreService
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +48,7 @@ class MaintenanceConfig(BaseModel):
     min_quality_score: float = 0.3
 
 
-class UsageDocInfo(BaseModel, LegacyDictMixin):
+class UsageDocInfo(DynamicBaseModel):
     """Usage information for a single document."""
     path: str
     citations: int
@@ -56,14 +56,14 @@ class UsageDocInfo(BaseModel, LegacyDictMixin):
     unique_sessions: Optional[int] = None
 
 
-class UsageAnalysisResult(BaseModel, LegacyDictMixin):
+class UsageAnalysisResult(DynamicBaseModel):
     """Result of analyzing document usage patterns."""
     hot_docs: list[UsageDocInfo] = Field(default_factory=list)
     cold_docs: list[UsageDocInfo] = Field(default_factory=list)
     total_analyzed: int = 0
 
 
-class OptimizationSuggestion(BaseModel, LegacyDictMixin):
+class OptimizationSuggestion(DynamicBaseModel):
     """Optimization suggestion based on usage analysis."""
     type: str
     reason: str
@@ -72,7 +72,7 @@ class OptimizationSuggestion(BaseModel, LegacyDictMixin):
     count: Optional[int] = None
 
 
-class MaintenanceReport(BaseModel, LegacyDictMixin):
+class MaintenanceReport(DynamicBaseModel):
     """知识库整理报告"""
     timestamp: datetime = Field(default_factory=datetime.now)
     duration_seconds: float = 0.0
@@ -131,7 +131,7 @@ class MaintenanceReport(BaseModel, LegacyDictMixin):
         }
 
 
-class DocumentQuality(BaseModel, LegacyDictMixin):
+class DocumentQuality(DynamicBaseModel):
     """文档质量评估"""
     path: str
     score: float  # 0.0 - 1.0

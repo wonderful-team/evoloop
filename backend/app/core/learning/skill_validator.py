@@ -5,14 +5,13 @@ from typing import Any
 import yaml
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 
 
-class ValidationMetadata(BaseModel, LegacyDictMixin):
+class ValidationMetadata(DynamicBaseModel):
     """Dynamic metadata from skill validation."""
-    model_config = ConfigDict(extra="allow")
 
 
 class ValidationResult(BaseModel):

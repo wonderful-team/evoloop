@@ -30,19 +30,22 @@ from app.core.execution.macro.round_orchestrator import (
     RoundStrategy,
     StressTestStrategy,
 )
-from app.core.execution.macro.verification_models import (
+from app.core.execution.macro.models import (
     AdaptationRecord,
-    AgentConfig,
+    AIAnalysisResult,
     AnomalyType,
     EnvironmentConfig,
     ExecutionDetail,
     ExecutionMode,
     MacroEvolutionRecord,
+    RedundancyCheckResult,
+    RedundancyType,
     ReportSummary,
     RoundConfig,
     RoundReport,
     StepExecutionStatus,
     StepResult,
+    VerificationAgentConfig,
     VerificationIssue,
     VerificationReport,
     VerificationRequest,
@@ -116,7 +119,7 @@ __all__ = [
     "VerificationReport",
     "VerificationStatus",
     "EnvironmentConfig",
-    "AgentConfig",
+    "VerificationAgentConfig",
     "RoundConfig",
     "RoundReport",
     "StepResult",
@@ -128,6 +131,9 @@ __all__ = [
     "ReportSummary",
     "VerificationIssue",
     "AnomalyType",
+    "AIAnalysisResult",
+    "RedundancyCheckResult",
+    "RedundancyType",
 ]
 
 __version__ = "1.1.0"

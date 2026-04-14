@@ -3,17 +3,12 @@ from dataclasses import dataclass
 from typing import Any, Optional, Dict, List
 
 from pydantic import BaseModel, Field
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
+
+from app.models.schemas.document import Document
 
 
-class Document(BaseModel, LegacyDictMixin):
-    content: str
-    metadata: Dict[str, Any] = Field(default_factory=dict)
-    id: Optional[str] = None
-    embedding: Optional[List[float]] = None
-
-
-class ExtractedEntity(BaseModel, LegacyDictMixin):
+class ExtractedEntity(DynamicBaseModel):
     name: str
     type: str
     full_name: str
@@ -23,14 +18,14 @@ class ExtractedEntity(BaseModel, LegacyDictMixin):
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
 
-class ExtractedRelation(BaseModel, LegacyDictMixin):
+class ExtractedRelation(DynamicBaseModel):
     source_full_name: str
     target_full_name: str
     relation_type: str
     start_line: Optional[int] = None
 
 
-class ExtractionResult(BaseModel, LegacyDictMixin):
+class ExtractionResult(DynamicBaseModel):
     documents: List[Document] = Field(default_factory=list)
     entities: List[ExtractedEntity] = Field(default_factory=list)
     relations: List[ExtractedRelation] = Field(default_factory=list)

@@ -13,7 +13,7 @@ from app.core.tools import evoloop_tool
 from app.utils import json as json_utils
 from app.utils.detect import detect_language
 from app.utils.file import ensure_local_path, read_file_content, resolve_path
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 try:
     import docx
@@ -37,22 +37,22 @@ class DocxHeading(BaseModel):
     text: str
 
 
-class ExcelSheetInfo(BaseModel, LegacyDictMixin):
+class ExcelSheetInfo(DynamicBaseModel):
     columns: list[str]
     preview: list[dict]
 
 
-class ExcelInspectionResult(BaseModel, LegacyDictMixin):
+class ExcelInspectionResult(DynamicBaseModel):
     sheets: list[str]
     details: dict[str, ExcelSheetInfo]
 
 
-class DocxInspectionResult(BaseModel, LegacyDictMixin):
+class DocxInspectionResult(DynamicBaseModel):
     headings_count: int
     headings: list[DocxHeading]
 
 
-class PdfInspectionResult(BaseModel, LegacyDictMixin):
+class PdfInspectionResult(DynamicBaseModel):
     pages: int
     metadata: dict | None = None
 

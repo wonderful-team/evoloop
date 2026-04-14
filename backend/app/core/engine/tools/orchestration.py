@@ -15,36 +15,32 @@ from app.core.tools import evoloop_tool
 from app.utils.text import extract_json_from_markdown
 
 from pydantic import BaseModel, ConfigDict
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 
 
-class ToolResult(BaseModel, LegacyDictMixin):
-    model_config = ConfigDict(extra="allow")
+class ToolResult(DynamicBaseModel):
     status: str
     message: str
     _signal: str | None = None
     data: dict | None = None
 
 
-class DecomposeTaskResult(BaseModel, LegacyDictMixin):
-    model_config = ConfigDict(extra="allow")
+class DecomposeTaskResult(DynamicBaseModel):
     status: str
     error: str | None = None
     _routing_target: str | None = None
     _spawn_plan: dict | None = None
 
 
-class SpawnAgentsResult(BaseModel, LegacyDictMixin):
-    model_config = ConfigDict(extra="allow")
+class SpawnAgentsResult(DynamicBaseModel):
     status: str
     _routing_target: str | None = None
     _spawn_plan: dict | None = None
 
 
-class AggregateResult(BaseModel, LegacyDictMixin):
-    model_config = ConfigDict(extra="allow")
+class AggregateResult(DynamicBaseModel):
     status: str
     aggregated: Any
 

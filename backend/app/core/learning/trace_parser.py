@@ -20,7 +20,7 @@ from sqlalchemy import select
 
 from app.infrastructure.database.sql.database import session_scope
 from app.models import TraceEvent
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 
@@ -43,26 +43,23 @@ class ActionCategory(str, Enum):
     OTHER = "other"
 
 
-class UIContext(BaseModel, LegacyDictMixin):
+class UIContext(DynamicBaseModel):
     """Visual/UI context at the time of action."""
     screenshot_path: Optional[str] = None
     element_selector: Optional[str] = None
     element_text: Optional[str] = None
 
 
-class TraceActionArgs(BaseModel, LegacyDictMixin):
+class TraceActionArgs(DynamicBaseModel):
     """Dynamic arguments for a trace action."""
-    model_config = ConfigDict(extra="allow")
 
 
-class TraceStateContext(BaseModel, LegacyDictMixin):
+class TraceStateContext(DynamicBaseModel):
     """Dynamic state context for a trace step."""
-    model_config = ConfigDict(extra="allow")
 
 
-class TraceSummary(BaseModel, LegacyDictMixin):
+class TraceSummary(DynamicBaseModel):
     """Summary of a trace sequence."""
-    model_config = ConfigDict(extra="allow")
     thread_id: str
     task_name: Optional[str] = None
     total_steps: int
@@ -72,7 +69,7 @@ class TraceSummary(BaseModel, LegacyDictMixin):
     success: bool = True
 
 
-class TraceStep(BaseModel, LegacyDictMixin):
+class TraceStep(DynamicBaseModel):
     """
     A single semantic step in a trace sequence.
     Represents one complete action-observation pair.
@@ -100,7 +97,7 @@ class TraceStep(BaseModel, LegacyDictMixin):
     user_feedback: Optional[str] = None
 
 
-class TraceSequence(BaseModel, LegacyDictMixin):
+class TraceSequence(DynamicBaseModel):
     """
     A complete sequence of steps representing a task.
     Can be used for pattern analysis and workflow synthesis.

@@ -90,7 +90,7 @@ class AgentToolExecutor:
                 tool_name=tool_name,
                 tool_input=tool_args,
                 tool_use_id=tool_id,
-                blackboard=self.state.get("blackboard", {}),
+                blackboard=self.state.blackboard or {},
             )
             pre_result = await hook_system.trigger(HookEvent.PRE_TOOL_USE, pre_ctx, blocking=True)
 
@@ -126,7 +126,7 @@ class AgentToolExecutor:
                 tool_input=tool_args,
                 tool_result=content,
                 tool_use_id=tool_id,
-                blackboard=self.state.get("blackboard", {}),
+                blackboard=self.state.blackboard or {},
             )
             # Fire-and-forget hook with error handling wrapper
             async def _fire_hook():
@@ -161,7 +161,7 @@ class AgentToolExecutor:
                 tool_use_id=tool_id,
                 error=e,
                 error_message=str(e),
-                blackboard=self.state.get("blackboard", {}),
+                blackboard=self.state.blackboard or {},
             )
             # Fire-and-forget hook with error handling wrapper
             async def _fire_fail_hook():

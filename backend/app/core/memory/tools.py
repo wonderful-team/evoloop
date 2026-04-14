@@ -340,8 +340,8 @@ async def list_forgotten_outputs(
     if ctx is None:
         return "Error: No ContextManager available."
 
-    blackboard = ctx.metadata.get("blackboard", {})
-    bb_metadata = blackboard.get("metadata", {})
+    blackboard = ctx.metadata.get("blackboard")
+    bb_metadata = dict(blackboard.metadata) if blackboard and blackboard.metadata else {}
     tool_memory_data = bb_metadata.get("tool_memory")
 
     if not tool_memory_data:

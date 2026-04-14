@@ -13,13 +13,12 @@ from typing import Optional
 from app.core.messaging.category import MessageCategory
 
 from pydantic import BaseModel, ConfigDict
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 
 
-class PersistencePolicyResult(BaseModel, LegacyDictMixin):
-    model_config = ConfigDict(extra="allow")
+class PersistencePolicyResult(DynamicBaseModel):
     should_persist: bool
     content: str | None = None
     thinking: str | None = None

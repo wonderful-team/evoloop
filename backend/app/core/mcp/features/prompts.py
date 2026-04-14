@@ -78,29 +78,32 @@ class McpPromptsFeature(McpFeature):
             
             messages: list[McpPromptMessage] = []
             for msg in result.messages:
-                msg_data: dict[str, Any] = {
-                    "role": msg.role,
-                    "content": None,
-                    "content_type": None,
-                }
-                
                 # Handle text content
                 if msg.content.type == "text":
-                    msg_data["content"] = msg.content.text
-                    msg_data["content_type"] = "text"
+                    messages.append(McpPromptMessage(
+                        role=msg.role,
+                        content=msg.content.text,
+                        content_type="text",
+                    ))
                 # Handle image content
                 elif msg.content.type == "image":
-                    msg_data["content"] = msg.content.data
-                    msg_data["content_type"] = "image"
-                    msg_data["mime_type"] = msg.content.mimeType
+                    messages.append(McpPromptMessage(
+                        role=msg.role,
+                        content=msg.content.data,
+                        content_type="image",
+                        mime_type=msg.content.mimeType,
+                    ))
                 # Handle resource content
                 elif msg.content.type == "resource":
                     resource = msg.content.resource
-                    msg_data["content"] = resource.text if hasattr(resource, 'text') else str(resource)
-                    msg_data["content_type"] = "resource"
-                    msg_data["resource_uri"] = resource.uri if hasattr(resource, 'uri') else None
-                
-                messages.append(McpPromptMessage(**msg_data))
+                    content = resource.text if hasattr(resource, 'text') else str(resource)
+                    resource_uri = resource.uri if hasattr(resource, 'uri') else None
+                    messages.append(McpPromptMessage(
+                        role=msg.role,
+                        content=content,
+                        content_type="resource",
+                        resource_uri=resource_uri,
+                    ))
             
             return McpPromptResult(
                 name=name,

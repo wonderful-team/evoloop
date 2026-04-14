@@ -9,13 +9,12 @@ from enum import Enum
 from typing import Any, Dict
 
 from pydantic import BaseModel, ConfigDict, Field
-from app.utils.model_helpers import LegacyDictMixin
 from app.core.events.base import BaseEvent
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 
-class AgentEventPayload(BaseModel, LegacyDictMixin):
+class AgentEventPayload(DynamicBaseModel):
     """Dynamic payload for agent lifecycle events."""
-    model_config = ConfigDict(extra="allow")
 
 
 class AgentEventType(str, Enum):
@@ -32,7 +31,7 @@ class AgentEventType(str, Enum):
     HITL_RESPONDED = "agent.hitl_responded"
 
 
-class AgentEvent(BaseEvent, LegacyDictMixin):
+class AgentEvent(BaseEvent):
     """Base class for agent-related events."""
     source: str = "agent_engine"
 

@@ -1,14 +1,13 @@
 """MCP Tools feature implementation."""
 
 import logging
-import re
 from typing import Any
 
 from langchain_core.tools import StructuredTool
 from mcp import ClientSession
 from pydantic import Field, create_model
 
-from app.core.mcp.features.base import McpFeature, McpFeatureCapabilities
+from app.core.mcp.features.base import McpFeature, McpFeatureCapabilities, format_mcp_tool_name
 
 logger = logging.getLogger(__name__)
 
@@ -84,8 +83,8 @@ class McpToolsFeature(McpFeature):
             args_schema = self._create_args_schema(tool.name, tool.inputSchema)
             
             # Generate standardized tool name
-            formatted_name = self._format_tool_name(server_name, tool.name)
-            
+            formatted_name = format_mcp_tool_name(server_name, tool.name)
+
             lc_tool = StructuredTool.from_function(
                 func=None,
                 coroutine=_tool_func,
@@ -96,32 +95,6 @@ class McpToolsFeature(McpFeature):
             lc_tools.append(lc_tool)
         
         return lc_tools
-    
-    def _format_tool_name(self, server_name: str, tool_name: str) -> str:
-        """
-        Format tool name to standardized format.
-        
-        Format: mcp__{server}__{tool}
-        OpenAI restriction: ^[a-zA-Z0-9_-]{1,64}$
-        
-        Args:
-            server_name: MCP server name
-            tool_name: Original tool name
-            
-        Returns:
-            Formatted tool name (max 64 chars)
-        """
-        # Sanitize names
-        safe_server = re.sub(r'[^a-zA-Z0-9_]', '_', server_name).lower()
-        safe_tool = re.sub(r'[^a-zA-Z0-9_]', '_', tool_name).lower()
-        
-        formatted = f"mcp__{safe_server}__{safe_tool}"
-        
-        # Truncate to 64 chars (OpenAI limit)
-        if len(formatted) > 64:
-            formatted = formatted[:64]
-        
-        return formatted
     
     def _create_args_schema(self, tool_name: str, schema: dict[str, Any]) -> type:
         """

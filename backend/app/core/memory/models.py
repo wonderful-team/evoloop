@@ -5,7 +5,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional, Union
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 
 class MemoryType(str, Enum):
@@ -22,14 +22,13 @@ class PrivacyLevel(str, Enum):
     TEAM = "team"
 
 
-class MemoryMetadata(BaseModel, LegacyDictMixin):
-    model_config = ConfigDict(extra="allow")
+class MemoryMetadata(DynamicBaseModel):
     source_url: Optional[str] = None
     author: Optional[str] = None
     related_message_ids: List[str] = Field(default_factory=list)
 
 
-class MemoryEntry(BaseModel, LegacyDictMixin):
+class MemoryEntry(DynamicBaseModel):
     """
     Unified memory entry model.
     Format compatible with Claude Code memory files (Markdown + YAML Frontmatter).
@@ -169,7 +168,7 @@ class MemoryEntry(BaseModel, LegacyDictMixin):
         )
 
 
-class MemorySearchResult(BaseModel, LegacyDictMixin):
+class MemorySearchResult(DynamicBaseModel):
     """Lightweight result for search operations (without full content)."""
     id: str
     type: MemoryType
@@ -183,7 +182,7 @@ class MemorySearchResult(BaseModel, LegacyDictMixin):
         return self.model_dump()
 
 
-class MemoryIndexEntry(BaseModel, LegacyDictMixin):
+class MemoryIndexEntry(DynamicBaseModel):
     """Entry in MEMORY.md index file."""
     title: str
     path: str

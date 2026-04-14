@@ -1,6 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, ConfigDict
 from typing import Any
+
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+from app.infrastructure.pydantic_base import DynamicBaseModel
+
+from app.api.responses import BaseAPIResponse
 
 from app.api.deps import TokenDep, require_benefit
 from app.core.evocloud import evocloud_manager
@@ -9,14 +13,13 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-class BindResponse(BaseModel):
+class BindResponse(BaseAPIResponse):
     """Device bind response."""
     status: str
     data: dict[str, Any] | None = None
-    message: str | None = None
 
 
-class DebugStatusResponse(BaseModel):
+class DebugStatusResponse(BaseAPIResponse):
     """EvoCloud debug status response."""
     is_logged_in: bool
     token_prefix: str | None
@@ -26,24 +29,23 @@ class DebugStatusResponse(BaseModel):
     api_url: str
 
 
-class BindClientRequest(BaseModel):
+class BindClientRequest(DynamicBaseModel):
     client_id: str
 
 
-class CommandParams(BaseModel):
+class CommandParams(DynamicBaseModel):
     """Dynamic command parameters for device control.
     
     Different command_types accept different parameters.
     Extra fields are allowed to support all command types.
     """
-    model_config = ConfigDict(extra="allow")
 
 
 router = APIRouter()
 
 
 # --- Schemas (Basic) ---
-class SendCommandRequest(BaseModel):
+class SendCommandRequest(DynamicBaseModel):
     command_type: str
     params: CommandParams = CommandParams()
 
@@ -108,7 +110,7 @@ async def get_devices(token: TokenDep):
 @router.post("/{device_id}/command", dependencies=[Depends(require_benefit("mobile_control"))])
 async def send_command(device_id: int, req: SendCommandRequest, token: TokenDep):
     """Send remote command"""
-    res = await evocloud_manager.api.send_command_to_device(device_id, req.dict())
+    res = await evocloud_manager.api.send_command_to_device(device_id, req.model_dump())
     if res.get("code") != 0:
         raise HTTPException(500, res.get("message"))
     return res.get("data")

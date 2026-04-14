@@ -15,12 +15,12 @@ from typing import Optional
 from pydantic import BaseModel, Field
 
 from app.core.config import settings
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 
 
-class SearchResult(BaseModel, LegacyDictMixin):
+class KnowledgeKnowledgeSearchResult(DynamicBaseModel):
     """Single search result."""
     doc_id: str
     path: str
@@ -32,22 +32,22 @@ class SearchResult(BaseModel, LegacyDictMixin):
     bm25_score: float
 
 
-class SearchResults(BaseModel, LegacyDictMixin):
+class SearchResults(DynamicBaseModel):
     """Collection of search results."""
     query: str
     total: int
-    results: list[SearchResult]
+    results: list[KnowledgeSearchResult]
     facets: dict = Field(default_factory=dict)  # collection counts, tag counts, etc.
 
 
-class SearchSuggestion(BaseModel, LegacyDictMixin):
+class SearchSuggestion(DynamicBaseModel):
     """Single search suggestion."""
     text: str
     path: Optional[str] = None
     type: str  # "title", "tag"
 
 
-class SearchIndexStats(BaseModel, LegacyDictMixin):
+class SearchIndexStats(DynamicBaseModel):
     """Search index statistics."""
     total_documents: int
     total_terms: int
@@ -55,7 +55,7 @@ class SearchIndexStats(BaseModel, LegacyDictMixin):
     recent_searches: list[dict]
 
 
-class ReindexResult(BaseModel, LegacyDictMixin):
+class ReindexResult(DynamicBaseModel):
     """Result of reindexing all documents."""
     indexed: int
     failed: int
@@ -336,7 +336,7 @@ class FTSService:
         
         results = []
         for row in rows:
-            results.append(SearchResult(
+            results.append(KnowledgeSearchResult(
                 doc_id=row["doc_id"],
                 path=row["path"],
                 collection=row["collection"],

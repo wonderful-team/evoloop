@@ -10,13 +10,12 @@ from typing import Optional
 from app.core.messaging.category import MessageCategory
 
 from pydantic import BaseModel, ConfigDict
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 
 
-class StreamPolicyResult(BaseModel, LegacyDictMixin):
-    model_config = ConfigDict(extra="allow")
+class StreamPolicyResult(DynamicBaseModel):
     should_stream: bool
     frontend_type: str | None = None
     content: str

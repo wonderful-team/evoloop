@@ -1,15 +1,9 @@
 from abc import ABC, abstractmethod
-from pydantic import BaseModel, Field
 from typing import Any
 
-from app.utils.model_helpers import LegacyDictMixin
+from pydantic import BaseModel, Field
 
-
-class Document(BaseModel, LegacyDictMixin):
-    content: str
-    metadata: dict[str, Any] = Field(default_factory=dict)
-    id: str | None = None
-    embedding: list[float] | None = None
+from app.models.schemas.document import Document
 
 
 class BaseEmbedder(ABC):

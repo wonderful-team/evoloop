@@ -14,15 +14,14 @@ from dataclasses import dataclass
 from typing import Optional
 from pydantic import BaseModel, ConfigDict
 
-from app.utils.model_helpers import LegacyDictMixin
 from .io import detect_encoding
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 
 
-class FileStats(BaseModel, LegacyDictMixin):
+class FileStats(DynamicBaseModel):
     """File statistics for a preview."""
-    model_config = ConfigDict(extra="allow")
     path: str
     size: int
     total_lines: int
@@ -30,7 +29,7 @@ class FileStats(BaseModel, LegacyDictMixin):
     content_hash: str | None = None
 
 
-class OutlineEntry(BaseModel, LegacyDictMixin):
+class OutlineEntry(DynamicBaseModel):
     """A single entry in file outline."""
     type: str  # 'class', 'function', 'method', 'variable', etc.
     name: str
@@ -38,8 +37,7 @@ class OutlineEntry(BaseModel, LegacyDictMixin):
     indent: int  # indentation level in spaces
 
 
-class FilePreview(BaseModel, LegacyDictMixin):
-    model_config = ConfigDict(extra="allow")
+class FilePreview(DynamicBaseModel):
     stats: FileStats
     outline: list[OutlineEntry]
     preview: str

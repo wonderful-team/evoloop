@@ -9,10 +9,10 @@ import logging
 import os
 from typing import Optional
 from pydantic import BaseModel, ConfigDict
-from app.utils.model_helpers import LegacyDictMixin
 
 from .models import FileInfo
 from .io import get_file_info, read_file, write_file, FileStatus
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 # FileStats is an alias for FileInfo for backward compatibility
 FileStats = FileInfo
@@ -58,8 +58,7 @@ def verify_file_hash(file_path: str, expected_hash: str) -> bool:
         return False
 
 
-class FileWriteResult(BaseModel, LegacyDictMixin):
-    model_config = ConfigDict(extra="allow")
+class FileWriteResult(DynamicBaseModel):
     success: bool
     path: str | None = None
     new_hash: str | None = None

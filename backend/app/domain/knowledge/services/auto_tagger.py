@@ -11,7 +11,7 @@ from dataclasses import dataclass
 
 from pydantic import BaseModel, Field
 
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +43,7 @@ for category in TAG_CATEGORIES.values():
     ALL_VALID_TAGS.update(category)
 
 
-class TaggingResult(BaseModel, LegacyDictMixin):
+class TaggingResult(DynamicBaseModel):
     """Result of auto-tagging."""
     tags: list[str] = Field(default_factory=list)
     category: str  # primary category

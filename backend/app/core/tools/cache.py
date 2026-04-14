@@ -20,8 +20,8 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Optional
 from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
-from app.utils.model_helpers import LegacyDictMixin
 
 import aiofiles
 import aiofiles.os
@@ -41,7 +41,7 @@ class CacheKey(BaseModel):
         return hash((self.tool_name, self.args_hash, self.content_hash))
 
 
-class CacheEntry(BaseModel, LegacyDictMixin):
+class CacheEntry(DynamicBaseModel):
     """Cache entry with metadata."""
     result: Any
     timestamp: float = Field(default_factory=time.time)
@@ -49,7 +49,7 @@ class CacheEntry(BaseModel, LegacyDictMixin):
     last_verified: float = 0.0
 
 
-class CacheStats(BaseModel, LegacyDictMixin):
+class CacheStats(DynamicBaseModel):
     """Cache statistics."""
     hits: int
     misses: int

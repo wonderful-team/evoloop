@@ -3,6 +3,7 @@ from datetime import datetime
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import DateTime, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
+from sqlmodel import Field, SQLModel
 
 # Get embedding dimension from settings (Single Source of Truth)
 from app.core.config import settings
@@ -10,6 +11,12 @@ from app.infrastructure.database.sql.database import Base
 from app.utils.time import utcnow
 
 EMBEDDING_DIM = settings.EMBEDDING_DIMENSIONS
+
+
+class SystemConfig(SQLModel, table=True):
+    key: str = Field(primary_key=True)
+    value: str
+    description: str | None = None
 
 
 class Job(Base):

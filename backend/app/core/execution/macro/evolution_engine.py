@@ -21,12 +21,12 @@ from app.core.execution.macro.verification_models import (
     StepExecutionStatus,
     StepResult,
 )
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 
 
-class EvolutionRule(BaseModel, LegacyDictMixin):
+class EvolutionRule(DynamicBaseModel):
     """Rule for transforming a step based on anomaly type"""
     name: str
     anomaly_type: AnomalyType
@@ -34,7 +34,7 @@ class EvolutionRule(BaseModel, LegacyDictMixin):
     priority: int = 0
 
 
-class EvolutionContext(BaseModel, LegacyDictMixin):
+class EvolutionContext(DynamicBaseModel):
     """Context for macro evolution"""
     original_macro: List[Dict[str, Any]]
     step_results: List[StepResult]

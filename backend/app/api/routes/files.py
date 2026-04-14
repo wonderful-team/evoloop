@@ -8,6 +8,7 @@ import time
 from fastapi import APIRouter, File, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 from app.core.evocloud import evocloud_manager
 
@@ -15,7 +16,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/projects/{project_id}/files", tags=["files"])
 
 
-class FileNode(BaseModel):
+class FileNode(DynamicBaseModel):
     name: str  # display name
     path: str  # relative path to project root
     type: str  # 'file' or 'directory'
@@ -106,7 +107,7 @@ async def list_files(project_id: int, path: str | None = None):
     return build_tree(target_dir, path or "")
 
 
-class FileContent(BaseModel):
+class FileContent(DynamicBaseModel):
     content: str
     language: str
 
@@ -172,31 +173,30 @@ async def get_raw_file(project_id: int, path: str = Query(..., min_length=1)):
     return FileResponse(target_file)
 
 
-class OpenFileRequest(BaseModel):
+class OpenFileRequest(DynamicBaseModel):
     path: str
 
 
-class OpenFileResponse(BaseModel):
+class OpenFileResponse(BaseAPIResponse):
     """Response for opening a file."""
     status: str
-    message: str
 
 
-class FileUploadResponse(BaseModel):
+class FileUploadResponse(BaseAPIResponse):
     """Response for uploading a file."""
     url: str
     filename: str
     path: str
 
 
-class FileSearchResult(BaseModel):
+class FileSearchResult(DynamicBaseModel):
     """Single file content search result."""
     file: str
     line: int
     content: str
 
 
-class FileNameSearchResult(BaseModel):
+class FileNameSearchResult(DynamicBaseModel):
     """Single file name search result."""
     name: str
     path: str
@@ -238,7 +238,7 @@ async def open_file(project_id: int, req: OpenFileRequest):
         raise HTTPException(500, f"Failed to open file: {str(e)}")
 
 
-class CreateFileRequest(BaseModel):
+class CreateFileRequest(DynamicBaseModel):
     path: str
     content: str
 

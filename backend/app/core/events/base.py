@@ -14,7 +14,7 @@ from typing import Any, Dict, Generic, List, Optional, TypeVar
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.utils.async_utils import LoopBoundResource
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 
@@ -23,12 +23,11 @@ logger = logging.getLogger(__name__)
 E = TypeVar("E", bound="BaseEvent")
 
 
-class EventData(BaseModel, LegacyDictMixin):
+class EventData(DynamicBaseModel):
     """Dynamic payload for system events."""
-    model_config = ConfigDict(extra="allow")
 
 
-class BaseEvent(BaseModel, LegacyDictMixin):
+class BaseEvent(DynamicBaseModel):
     """
     Base class for all system events.
     """

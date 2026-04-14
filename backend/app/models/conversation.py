@@ -1,15 +1,11 @@
 from datetime import datetime
-from typing import ForwardRef, Optional
+from typing import Optional
 
 from sqlalchemy import JSON, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.infrastructure.database.sql.database import Base
 from app.utils.time import utcnow
-
-# Use ForwardRef for deferred resolution to avoid circular imports with 'planning.py'
-Plan = ForwardRef("Plan")
-
 
 class Message(Base):
     """

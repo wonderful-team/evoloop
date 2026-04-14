@@ -9,7 +9,7 @@ from app.models import CodeEntity, Repository
 router = APIRouter()
 
 
-class SymbolResponse(BaseModel):
+class SymbolResponse(BaseAPIResponse):
     """Code symbol search result."""
     id: int
     name: str
@@ -20,7 +20,7 @@ class SymbolResponse(BaseModel):
     end_line: int
 
 
-class SymbolWikiResponse(BaseModel):
+class SymbolWikiResponse(BaseAPIResponse):
     """Response for symbol wiki generation."""
     content: str
 

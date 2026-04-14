@@ -18,7 +18,7 @@ from langchain_core.tools import BaseTool
 from pydantic import BaseModel, ConfigDict
 
 from app.core.tools.runtime_registry import get_runtime_tools
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 
@@ -60,9 +60,8 @@ SYSTEM_TOOL_METADATA = {
 }
 
 
-class ToolMetadata(BaseModel, LegacyDictMixin):
+class ToolRegistryMetadata(DynamicBaseModel):
     """Metadata for a tool, merging registry and system fallback data."""
-    model_config = ConfigDict(extra="allow")
 
 
 class AutoDiscoveryRegistry:
@@ -297,10 +296,10 @@ def get_node_tools(node_role: str, config_path: str | None = None) -> list[BaseT
 # --- Convenience Accessors ---
 
 
-def get_supervisor_tools() -> list[BaseTool]:
+async def get_supervisor_tools() -> list[BaseTool]:
     """Return tools for the Supervisor agent."""
     from app.core.tools.manager import tool_manager
-    return tool_manager.get_node_tools("supervisor")
+    return await tool_manager.get_node_tools("supervisor")
 
 
 # --- Utility Functions ---
@@ -323,7 +322,7 @@ def is_pollable_tool(tool_name: str) -> bool:
     return getattr(tool_map[tool_name], "metadata", {}).get("is_pollable", False)
 
 
-def get_tool_metadata(tool_name: str) -> ToolMetadata:
+def get_tool_metadata(tool_name: str) -> ToolRegistryMetadata:
     """Return the metadata for a tool by name, merging with system fallbacks."""
     tool_map = get_tool_map()
     metadata: dict = {}
@@ -338,7 +337,7 @@ def get_tool_metadata(tool_name: str) -> ToolMetadata:
             if k not in metadata or not metadata[k]:
                 metadata[k] = v
 
-    return ToolMetadata(**metadata)
+    return ToolRegistryMetadata.model_validate(metadata)
 
 
 def get_tool_friendly_name(tool_name: str, lang: str = "zh") -> str | None:

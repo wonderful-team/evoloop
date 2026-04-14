@@ -19,12 +19,12 @@ from app.utils.file import (
     read_file_content,
     write_file_contents,
 )
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 
 
-class DocumentSaveResult(BaseModel, LegacyDictMixin):
+class DocumentSaveResult(DynamicBaseModel):
     """Result of saving a document to the knowledge base."""
     path: str
     title: str
@@ -35,7 +35,7 @@ class DocumentSaveResult(BaseModel, LegacyDictMixin):
     source_project_id: Optional[int] = None
 
 
-class DocumentReadResult(BaseModel, LegacyDictMixin):
+class DocumentReadResult(DynamicBaseModel):
     """Result of reading a document from the knowledge base."""
     content: str
     frontmatter: dict
@@ -49,7 +49,7 @@ class DocumentReadResult(BaseModel, LegacyDictMixin):
     content_hash: Optional[str] = None
 
 
-class DocumentListItem(BaseModel, LegacyDictMixin):
+class DocumentListItem(DynamicBaseModel):
     """Item in a document list from the knowledge base."""
     path: str
     size_bytes: int

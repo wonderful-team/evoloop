@@ -3,12 +3,12 @@ import logging
 import subprocess
 from pydantic import BaseModel
 
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 
 
-class CommandResult(BaseModel, LegacyDictMixin):
+class CommandResult(DynamicBaseModel):
     returncode: int
     stdout: str
     stderr: str

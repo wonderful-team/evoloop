@@ -5,11 +5,11 @@ from typing import Any
 
 from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
-from app.utils.model_helpers import LegacyDictMixin
-from app.core.mcp.config import AuthConfig, AuthType, McpServerConfig, TransportType
+from app.core.mcp.config import AuthType, McpServerConfig, TransportType
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 
-class WorkerMcpServerConfig(BaseModel, LegacyDictMixin):
+class WorkerMcpServerConfig(DynamicBaseModel):
     """MCP server configuration for a specific Worker."""
     name: str
     # Connection
@@ -21,7 +21,7 @@ class WorkerMcpServerConfig(BaseModel, LegacyDictMixin):
     headers: Dict[str, str] = Field(default_factory=dict)
     # Auth
     auth_type: AuthType = AuthType.NONE
-    auth_config: AuthConfig = Field(default_factory=AuthConfig)
+    auth_config: dict[str, Any] = Field(default_factory=dict)
     # Inheritance
     inherit_from_global: bool = False  # If True, reuse global connection
     
@@ -46,7 +46,7 @@ class WorkerMcpServerConfig(BaseModel, LegacyDictMixin):
         transport = TransportType(data.get("transport", "stdio"))
         auth_data = data.get("auth", {})
         auth_type = AuthType(auth_data.get("method", "none"))
-        
+
         return cls(
             name=data["name"],
             transport=transport,
@@ -56,12 +56,12 @@ class WorkerMcpServerConfig(BaseModel, LegacyDictMixin):
             url=data.get("url"),
             headers=data.get("headers", {}),
             auth_type=auth_type,
-            auth_config=AuthConfig(**auth_data),
+            auth_config=auth_data,
             inherit_from_global=data.get("inherit_from_global", False),
         )
 
 
-class WorkerMcpConfig(BaseModel, LegacyDictMixin):
+class WorkerMcpConfig(DynamicBaseModel):
     """MCP configuration for a Worker."""
     # Worker-specific MCP servers
     servers: List[WorkerMcpServerConfig] = Field(default_factory=list)

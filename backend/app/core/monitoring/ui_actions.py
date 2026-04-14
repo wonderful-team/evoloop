@@ -9,7 +9,7 @@ from enum import Enum
 from typing import Any
 
 from pydantic import BaseModel
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 
 class HumanRequestType(str, Enum):
@@ -36,7 +36,7 @@ class HumanRequestType(str, Enum):
     """Request user to select one or more files."""
 
 
-class TextInputRequest(BaseModel, LegacyDictMixin):
+class TextInputRequest(DynamicBaseModel):
     """Human request for text input."""
     type: HumanRequestType
     prompt: str
@@ -45,7 +45,7 @@ class TextInputRequest(BaseModel, LegacyDictMixin):
     allow_cancel: bool = True
 
 
-class ProjectSwitchPayload(BaseModel, LegacyDictMixin):
+class ProjectSwitchPayload(DynamicBaseModel):
     """Payload for project switch request."""
     allow_global: bool = False
     suggested_project_id: int | None = None
@@ -53,7 +53,7 @@ class ProjectSwitchPayload(BaseModel, LegacyDictMixin):
     temporary: bool = True
 
 
-class ProjectSwitchRequest(BaseModel, LegacyDictMixin):
+class ProjectSwitchRequest(DynamicBaseModel):
     """Human request for project switch."""
     type: HumanRequestType
     prompt: str
@@ -61,13 +61,13 @@ class ProjectSwitchRequest(BaseModel, LegacyDictMixin):
     payload: ProjectSwitchPayload
 
 
-class ConfirmPayload(BaseModel, LegacyDictMixin):
+class ConfirmPayload(DynamicBaseModel):
     """Payload for confirmation request."""
     confirm_text: str = "Confirm"
     cancel_text: str = "Cancel"
 
 
-class ConfirmRequest(BaseModel, LegacyDictMixin):
+class ConfirmRequest(DynamicBaseModel):
     """Human request for confirmation."""
     type: HumanRequestType
     prompt: str
@@ -76,13 +76,13 @@ class ConfirmRequest(BaseModel, LegacyDictMixin):
     payload: ConfirmPayload
 
 
-class FileSelectPayload(BaseModel, LegacyDictMixin):
+class FileSelectPayload(DynamicBaseModel):
     """Payload for file selection request."""
     multiple: bool = False
     file_types: list[str] = []
 
 
-class FileSelectRequest(BaseModel, LegacyDictMixin):
+class FileSelectRequest(DynamicBaseModel):
     """Human request for file selection."""
     type: HumanRequestType
     prompt: str

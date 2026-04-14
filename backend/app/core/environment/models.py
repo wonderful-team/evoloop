@@ -8,13 +8,13 @@ from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, Field, PrivateAttr, ConfigDict
 
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 if TYPE_CHECKING:
     pass
 
 
-class AppUsageRecord(BaseModel):
+class AppUsageRecord(DynamicBaseModel):
     """
     Activity profile for a single application.
     Produced by UsageRanker and stored in MacOSEnvironment.app_usage_stats.
@@ -28,7 +28,7 @@ class AppUsageRecord(BaseModel):
     is_running: bool = False                   # Is the app currently running?
 
 
-class MacOSEnvironment(BaseModel):
+class MacOSEnvironment(DynamicBaseModel):
     """MacOS host environment information."""
     os_version: str
     model: str
@@ -39,7 +39,7 @@ class MacOSEnvironment(BaseModel):
     app_usage_stats: list[AppUsageRecord] = Field(default_factory=list)
 
 
-class AndroidDevice(BaseModel):
+class AndroidDevice(DynamicBaseModel):
     """Connected Android device information."""
     device_id: str
     model: str
@@ -57,50 +57,49 @@ class AndroidDevice(BaseModel):
         return self.device_id
 
 
-class NetworkStatus(BaseModel):
+class NetworkStatus(DynamicBaseModel):
     """Network connectivity status."""
     internet_connected: bool = False
     local_ips: list[str] = []
 
 
-class EpisodeSummary(BaseModel):
+class EpisodeSummary(DynamicBaseModel):
     """Summary of a past task execution."""
     date: str
     goal: str
     result: str  # SUCCESS, PARTIAL, FAILED
 
 
-class ConceptSummary(BaseModel):
+class ConceptSummary(DynamicBaseModel):
     """Summary of a knowledge concept."""
     name: str
     description: str = ""
 
 
-class MemoryContext(BaseModel):
+class MemoryContext(DynamicBaseModel):
     """Aggregated memory context for awakening."""
     episodes: list[EpisodeSummary] = []
     concepts: list[ConceptSummary] = []
     journal_highlights: str = ""
 
 
-class AndroidTelemetry(BaseModel, LegacyDictMixin):
+class AndroidTelemetry(DynamicBaseModel):
     id: str
     reachable: bool
 
 
-class TelemetrySnapshot(BaseModel, LegacyDictMixin):
-    model_config = ConfigDict(extra="allow")
+class TelemetrySnapshot(DynamicBaseModel):
     android: list[AndroidTelemetry] = Field(default_factory=list)
     macos: bool = False
     network: bool = False
 
 
-class PreferenceContext(BaseModel):
+class PreferenceContext(DynamicBaseModel):
     """User preferences."""
     preferences: dict[str, str] = {}
 
 
-class AwakenedState(BaseModel):
+class AwakenedState(DynamicBaseModel):
     """
     Complete awakened state of the Agent.
     Represents what the Agent "knows" about itself and its environment.

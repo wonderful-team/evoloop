@@ -11,6 +11,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, UploadFile
 from pydantic import BaseModel
+from app.infrastructure.pydantic_base import DynamicBaseModel
 from typing import Any
 
 from app.api.deps import TokenDep, TokenDepOptional
@@ -64,15 +65,14 @@ async def _save_uploaded_file(file: UploadFile, file_id: str) -> str:
     return str(file_path)
 
 
-class RequirementUploadResponse(BaseModel):
+class RequirementUploadResponse(BaseAPIResponse):
     """Response after uploading a requirement document."""
     document_id: str
     thread_id: str
     status: str
-    message: str
 
 
-class RequirementListItem(BaseModel):
+class RequirementListItem(DynamicBaseModel):
     """Item in requirement document list."""
     id: str
     file_name: str
@@ -82,12 +82,12 @@ class RequirementListItem(BaseModel):
     analysis_count: int
 
 
-class RequirementListResponse(BaseModel):
+class RequirementListResponse(ListResponse):
     """Response for listing requirement documents."""
     items: list[RequirementListItem]
 
 
-class RequirementAnalysisItem(BaseModel):
+class RequirementAnalysisItem(DynamicBaseModel):
     """Analysis item in requirement detail."""
     id: str
     status: str
@@ -99,7 +99,7 @@ class RequirementAnalysisItem(BaseModel):
     synced_tasks: int
 
 
-class RequirementDetailResponse(BaseModel):
+class RequirementDetailResponse(BaseAPIResponse):
     """Response for requirement document detail."""
     id: str
     file_name: str
@@ -112,13 +112,13 @@ class RequirementDetailResponse(BaseModel):
     analyses: list[RequirementAnalysisItem]
 
 
-class RequirementDeleteResponse(BaseModel):
+class RequirementDeleteResponse(BaseAPIResponse):
     """Response after deleting a requirement document."""
     status: str
     document_id: str
 
 
-class RequirementTaskItem(BaseModel):
+class RequirementTaskItem(DynamicBaseModel):
     """Task item in requirement task list."""
     id: str
     title: str
@@ -136,14 +136,14 @@ class RequirementTaskItem(BaseModel):
     created_at: str | None
 
 
-class RequirementMapping(BaseModel):
+class RequirementMapping(DynamicBaseModel):
     """Requirement to task mapping."""
     by_requirement: dict[str, list[str]]
     by_task: dict[str, list[str]]
     unmapped_tasks: list[str]
 
 
-class RequirementTasksResponse(BaseModel):
+class RequirementTasksResponse(BaseAPIResponse):
     """Response for analysis tasks."""
     analysis_id: str
     document_id: str
@@ -153,7 +153,7 @@ class RequirementTasksResponse(BaseModel):
     requirement_mapping: RequirementMapping
 
 
-class RequirementProgress(BaseModel):
+class RequirementProgress(DynamicBaseModel):
     """Sync progress stats."""
     total: int
     synced: int
@@ -165,7 +165,7 @@ class RequirementProgress(BaseModel):
     has_failures: bool
 
 
-class RequirementSyncProgressResponse(BaseModel):
+class RequirementSyncProgressResponse(BaseAPIResponse):
     """Response for sync progress."""
     analysis_id: str
     progress: RequirementProgress

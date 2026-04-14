@@ -3,6 +3,7 @@ import logging
 from langchain_core.tools import BaseTool
 
 from app.core.engine.state import AgentState
+from app.core.mcp.features.base import parse_mcp_tool_name
 
 logger = logging.getLogger(__name__)
 
@@ -10,7 +11,7 @@ logger = logging.getLogger(__name__)
 class ToolManager:
     """
     Unified ToolBox (v4.0 Architecture).
-    
+
     Serves as the single facade for all Agent Nodes to request tools.
     Encapsulates:
     1. Static Tool Discovery (@evoloop_tool)
@@ -26,7 +27,7 @@ class ToolManager:
             cls._instance = super().__new__(cls)
         return cls._instance
 
-    def get_node_tools(self, node_name: str, state: AgentState | None = None) -> list[BaseTool]:
+    async def get_node_tools(self, node_name: str, state: AgentState | None = None) -> list[BaseTool]:
         """
         Get tools for a specific agent role, handling Progressive Disclosure automatically.
         Nodes no longer need to manually parse execution_tickets or talk to MCP.
@@ -46,13 +47,13 @@ class ToolManager:
         # 2. Handle Progressive Disclosure (Skill-Tool Handshake & Dynamic Requests)
         # Only inject external tools if explicitly requested by the state.
         if state:
-            execution_ticket = state.get("execution_ticket") or {}
-            requested_servers = execution_ticket.get("mcp_servers_required", [])
-            requested_tools = execution_ticket.get("tools_used", [])
+            execution_ticket = state.execution_ticket
+            requested_tools = execution_ticket.tools_used if execution_ticket else []
 
             # Agent Config for Dynamic Specialist
-            agent_config = execution_ticket.get("agent_config") or {}
-            dynamic_tools = agent_config.get("tools", [])
+            agent_config = execution_ticket.agent_config if execution_ticket else None
+            requested_servers = execution_ticket.mcp_servers_required if execution_ticket else []
+            dynamic_tools = agent_config.tools if agent_config else []
 
             # Merge dynamically requested individual tools
             all_requested_tools = set(requested_tools + dynamic_tools)
@@ -64,8 +65,8 @@ class ToolManager:
                     # mcp_client_manager.get_tools() which returns cached tools is sufficient
                     # if ensure_connected was called previously (e.g. by `use_mcp_server`).
 
-                    # Use get_all_tools() instead of get_tools() to avoid async call in sync context
-                    all_mcp = mcp_client_manager.get_all_tools()
+                    # Use aget_all_tools() to ensure connections are alive before returning cached tools
+                    all_mcp = await mcp_client_manager.aget_all_tools()
 
                     # Filter for only what was requested to protect context
                     for t in all_mcp:
@@ -75,11 +76,9 @@ class ToolManager:
                         add_tool = False
 
                         # 1. Is its server explicitly requested?
-                        # Format is usually mcp__{server}__{tool}
-                        if t.name.startswith("mcp__"):
-                            parts = t.name.split("__")
-                            if len(parts) >= 3 and parts[1] in requested_servers:
-                                add_tool = True
+                        parsed = parse_mcp_tool_name(t.name)
+                        if parsed and parsed[0] in requested_servers:
+                            add_tool = True
 
                         # 2. Is the specific tool explicitly requested?
                         if t.name in all_requested_tools:
@@ -104,9 +103,9 @@ class ToolManager:
 
         return list(combined_map.values())
 
-    def get_all_capabilities(self) -> list[BaseTool]:
+    async def get_all_capabilities(self) -> list[BaseTool]:
         """
-        Global dictionary of all tools (NATIVE + CONNECTED MCP). 
+        Global dictionary of all tools (NATIVE + CONNECTED MCP).
         WARNING: Do NOT use this to build Prompts (Prompt Explosion).
         Used purely for `search_native_tools` tool-lookup.
         """
@@ -114,7 +113,7 @@ class ToolManager:
         from app.core.tools.registry import get_all_tools as _legacy_get_all_tools
 
         native_tools = _legacy_get_all_tools()
-        mcp_tools = mcp_client_manager.get_tools()
+        mcp_tools = await mcp_client_manager.aget_all_tools()
 
         return list(native_tools) + list(mcp_tools)
 

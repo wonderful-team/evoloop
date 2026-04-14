@@ -9,8 +9,10 @@ from typing import Any, Optional
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 from app.api.deps import TokenDep
+from app.api.responses import BaseAPIResponse
 from app.domain.project.subtask_service import subtask_service
 from app.utils.id import gen_uuid
 
@@ -21,7 +23,7 @@ router = APIRouter(prefix="/projects/{project_id}/subtasks", tags=["subtasks"])
 
 # --- Pydantic Models ---
 
-class SubtaskCreate(BaseModel):
+class SubtaskCreate(DynamicBaseModel):
     """Subtask creation request."""
     title: str = Field(..., min_length=1, max_length=255)
     description: str = ""
@@ -29,7 +31,7 @@ class SubtaskCreate(BaseModel):
     estimated_hours: int = 0
 
 
-class TaskWithSubtasksCreate(BaseModel):
+class TaskWithSubtasksCreate(DynamicBaseModel):
     """Create parent task with subtasks."""
     title: str = Field(..., min_length=1, max_length=255)
     description: str = ""
@@ -39,14 +41,14 @@ class TaskWithSubtasksCreate(BaseModel):
     analysis_id: Optional[str] = None  # Optional, can be dummy
 
 
-class TaskProgressUpdate(BaseModel):
+class TaskProgressUpdate(DynamicBaseModel):
     """Task progress update."""
     status: Optional[str] = None  # pending/in_progress/completed/failed
     progress: Optional[int] = Field(None, ge=0, le=100)
     result: Optional[str] = None  # Execution result summary
 
 
-class TaskTreeResponse(BaseModel):
+class TaskTreeResponse(DynamicBaseModel):
     """Task tree response."""
     id: str
     title: str
@@ -61,7 +63,7 @@ class TaskTreeResponse(BaseModel):
     subtasks: list["TaskTreeResponse"] = []
 
 
-class ExecutableTaskResponse(BaseModel):
+class ExecutableTaskResponse(DynamicBaseModel):
     """Next executable task response."""
     id: str
     title: str
@@ -70,40 +72,33 @@ class ExecutableTaskResponse(BaseModel):
     parent_title: Optional[str] = None
 
 
-class TaskCreateResponse(BaseModel):
+class TaskCreateResponse(BaseAPIResponse):
     """Response after creating a task with subtasks."""
-    success: bool
-    message: str
     task: dict[str, Any]
 
 
-class TaskTreeWrapperResponse(BaseModel):
+class TaskTreeWrapperResponse(BaseAPIResponse):
     """Response wrapping a task tree."""
-    success: bool
     task: dict[str, Any]
 
 
-class TaskProgressUpdateResponse(BaseModel):
+class TaskProgressUpdateResponse(BaseAPIResponse):
     """Response after updating task progress."""
-    success: bool
-    message: str
+    pass
 
 
-class NextTaskResponse(BaseModel):
+class NextTaskResponse(BaseAPIResponse):
     """Response for next executable task."""
-    success: bool
-    message: str
     task: dict[str, Any] | None
 
 
-class TaskFlatResponse(BaseModel):
+class TaskFlatResponse(BaseAPIResponse):
     """Response for flattened task tree."""
-    success: bool
     count: int
     tasks: list[dict[str, Any]]
 
 
-class TaskListItem(BaseModel):
+class TaskListItem(DynamicBaseModel):
     """Item in root task list."""
     id: str
     title: str
@@ -114,9 +109,8 @@ class TaskListItem(BaseModel):
     created_at: str | None
 
 
-class TaskListResponse(BaseModel):
+class TaskListResponse(BaseAPIResponse):
     """Response for listing root tasks."""
-    success: bool
     count: int
     tasks: list[TaskListItem]
 

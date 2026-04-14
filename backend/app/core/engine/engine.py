@@ -45,14 +45,13 @@ from app.infrastructure.config.service import SystemConfigService
 from app.infrastructure.llm.factory import LLMFactory
 from app.utils.id import gen_uuid
 from app.core.monitoring.telemetry import agent_telemetry
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 
 
-class EngineResult(BaseModel, LegacyDictMixin):
+class EngineResult(DynamicBaseModel):
     """Structured result from AgentEngine.run_node() and internal execution methods."""
-    model_config = ConfigDict(extra="allow")
     messages: list[Any] = Field(default_factory=list)
     tool_history: list[str] = Field(default_factory=list)
     blackboard: Any = None
@@ -155,7 +154,7 @@ class AgentEngine:
         logger.info(f"[{name}] 🧪 Context Hydrated via Middleware")
 
         # 3. Message Handling & Repair
-        raw_messages = list(state.get("messages", []))
+        raw_messages = list(list(state.messages))
         logger.info(f"[{name}] 📨 Raw messages: {len(raw_messages)} | Types: {[type(m).__name__ for m in raw_messages]}")
 
         # 3.0 Context Pruning removed - Agent-controlled forgetting replaces it
@@ -219,7 +218,7 @@ class AgentEngine:
 
         # Add node_source marker to AI messages
         if node_source:
-            for msg in result.get("messages", []):
+            for msg in result.messages or []:
                 if isinstance(msg, AIMessage) and msg.content:
                     if not hasattr(msg, "metadata"):
                         msg.metadata = {}
@@ -334,8 +333,8 @@ class AgentEngine:
 
             if thinking_content:
                 logger.info(f"[{name}] 🧠 Thinking: {thinking_content}")
-                state["blackboard"] = self._parse_inferred_blackboard(
-                    thinking_content, state.get("blackboard", {}), name
+                state.blackboard = self._parse_inferred_blackboard(
+                    thinking_content, state.blackboard, name
                 )
 
             loop_messages.append(response)
@@ -422,11 +421,12 @@ class AgentEngine:
                         result = await executor.execute(tool, tc["args"], config=config)
 
                         if isinstance(result, dict) and result.get("_spawn_plan"):
-                            spawn_plan = result["_spawn_plan"]
-                            logger.info(f"[{name}] 🚀 Intent: Spawn {len(spawn_plan.get('subtasks', []))} subtasks")
+                            from app.core.engine.state.blackboard import SpawnPlan
+                            spawn_plan = SpawnPlan.model_validate(result["_spawn_plan"])
+                            logger.info(f"[{name}] 🚀 Intent: Spawn {len(spawn_plan.subtasks or [])} subtasks")
 
                             new_messages.append(ToolMessage(
-                                content=f"Task decomposed into {len(spawn_plan.get('subtasks', []))} subtasks.",
+                                content=f"Task decomposed into {len(spawn_plan.subtasks or [])} subtasks.",
                                 tool_call_id=tc["id"],
                                 name="decompose_task",
                                 id=gen_uuid(),
@@ -474,7 +474,7 @@ class AgentEngine:
                     messages=new_messages,
                     signal=pending_signal,
                     tool_history=local_tool_history,
-                    blackboard=state.get("blackboard"),
+                    blackboard=state.blackboard,
                 )
 
         # Loop ended
@@ -491,7 +491,7 @@ class AgentEngine:
         return EngineResult(
             messages=new_messages,
             tool_history=local_tool_history,
-            blackboard=state.get("blackboard"),
+            blackboard=state.blackboard,
             is_truncated=is_truncated,
         )
 
@@ -570,8 +570,8 @@ class AgentEngine:
         local_tool_history = []
 
         # Parse blackboard
-        state["blackboard"] = self._parse_inferred_blackboard(
-            response.content, state.get("blackboard", {}), name
+        state.blackboard = self._parse_inferred_blackboard(
+            response.content, state.blackboard, name
         )
 
         # CRITICAL: Subtask MUST call tools
@@ -582,7 +582,7 @@ class AgentEngine:
             return EngineResult(
                 messages=new_messages,
                 tool_history=local_tool_history,
-                blackboard=state.get("blackboard"),
+                blackboard=state.blackboard,
                 _routing_target=None,
             )
 
@@ -627,7 +627,7 @@ class AgentEngine:
         return EngineResult(
             messages=new_messages,
             tool_history=local_tool_history,
-            blackboard=state.get("blackboard"),
+            blackboard=state.blackboard,
             _routing_target=None,
         )
 
@@ -710,7 +710,7 @@ class AgentEngine:
                 }
             )],
             tool_history=[],
-            blackboard=state.get("blackboard"),
+            blackboard=state.blackboard,
         )
 
     def _get_user_friendly_error(self, error_type: str, raw_error: str) -> str:
@@ -728,7 +728,7 @@ class AgentEngine:
         }
         return error_messages.get(error_type, i18n.get("errors.llm_generic", default="An error occurred while processing your request. Please try again."))
 
-    def _parse_inferred_blackboard(self, content: Any, blackboard: dict, name: str) -> dict:
+    def _parse_inferred_blackboard(self, content: Any, blackboard: Optional["BlackboardState"], name: str) -> Optional["BlackboardState"]:
         """
         Parses the LLM response content for inferred blackboard updates.
         Returns updated blackboard without modifying input state directly.
@@ -742,9 +742,10 @@ class AgentEngine:
         matches = re.findall(pattern, content, re.DOTALL)
 
         if matches:
-            # Create copies to avoid modifying original
-            blackboard = dict(blackboard) if blackboard else {}
-            metadata = dict(blackboard.get("metadata", {}))
+            from app.core.engine.state.blackboard import BlackboardState, BlackboardMetadata
+            if not isinstance(blackboard, BlackboardState):
+                blackboard = BlackboardState.model_validate(blackboard) if blackboard else BlackboardState()
+            metadata = dict(blackboard.metadata) if blackboard.metadata else {}
 
             for key, val in matches:
                 val_str = val.strip()
@@ -760,7 +761,7 @@ class AgentEngine:
                 metadata[key] = val
                 logger.info(f"[{name}] 🖊️ Blackboard field '{key}' updated via Inference: {val}")
 
-            blackboard["metadata"] = metadata
+            blackboard.metadata = BlackboardMetadata.model_validate(metadata)
 
         return blackboard
 

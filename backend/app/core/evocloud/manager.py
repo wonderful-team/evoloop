@@ -11,9 +11,9 @@ from app.core.context.manager import ContextManager
 from app.core.evocloud.backends.http_client import EvoCloudHTTPClient
 from app.core.evocloud.backends.websocket_link import EvoCloudWebSocketLink
 from app.core.evocloud.schemas import EvoCloudConfig, ProjectSwitchEvent, RemoteCommand
-from app.models.auth import LoginResult
+from app.models.schemas.auth import LoginResult
 from app.utils.async_utils import LoopBoundResource
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 
@@ -21,8 +21,7 @@ logger = logging.getLogger(__name__)
 _conversation_sync_manager = None
 
 
-class EvoCloudProjectSummary(BaseModel, LegacyDictMixin):
-    model_config = ConfigDict(extra="allow")
+class EvoCloudProjectSummary(DynamicBaseModel):
     id: int | None = None
     name: str
     description: str = ""
@@ -32,8 +31,7 @@ class EvoCloudProjectSummary(BaseModel, LegacyDictMixin):
     owner: str = ""
 
 
-class EvoCloudLogStreamEntry(BaseModel, LegacyDictMixin):
-    model_config = ConfigDict(extra="allow")
+class EvoCloudLogStreamEntry(DynamicBaseModel):
     type: str
     name: str | None = None
     content: Any = None
@@ -42,8 +40,7 @@ class EvoCloudLogStreamEntry(BaseModel, LegacyDictMixin):
     timestamp: int
 
 
-class EvoCloudLogStreamPayload(BaseModel, LegacyDictMixin):
-    model_config = ConfigDict(extra="allow")
+class EvoCloudLogStreamPayload(DynamicBaseModel):
     type: str = "log_streaming"
     data: dict = Field(default_factory=dict)
 

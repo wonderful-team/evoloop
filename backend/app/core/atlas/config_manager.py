@@ -14,7 +14,7 @@ import logging
 from typing import Any
 
 from app.infrastructure.cache import cache
-from app.models.config import SystemConfig
+from app.models.system import SystemConfig
 from sqlmodel import Session, select
 from app.core.db import engine
 

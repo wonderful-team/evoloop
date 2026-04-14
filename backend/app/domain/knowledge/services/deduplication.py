@@ -15,12 +15,12 @@ from pydantic import BaseModel, Field
 
 from app.domain.knowledge.services.store import KnowledgeStoreService
 from app.domain.knowledge.services.search import get_fts_service
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 
 
-class DuplicateResult(BaseModel, LegacyDictMixin):
+class DuplicateResult(DynamicBaseModel):
     """Result of duplicate detection."""
     doc_id: str
     path: str
@@ -29,14 +29,14 @@ class DuplicateResult(BaseModel, LegacyDictMixin):
     suggested_action: str  # "keep", "merge", "delete"
 
 
-class MergeSuggestion(BaseModel, LegacyDictMixin):
+class MergeSuggestion(DynamicBaseModel):
     """Suggested document merge."""
     documents: list[str]
     suggested_title: str
     strategy: str  # "concatenate", "diff", "selective"
 
 
-class MergeResult(BaseModel, LegacyDictMixin):
+class MergeResult(DynamicBaseModel):
     """Result of merging documents."""
     success: bool
     path: Optional[str] = None
@@ -45,13 +45,13 @@ class MergeResult(BaseModel, LegacyDictMixin):
     error: Optional[str] = None
 
 
-class DeleteDuplicatesResult(BaseModel, LegacyDictMixin):
+class DeleteDuplicatesResult(DynamicBaseModel):
     """Result of deleting duplicate documents."""
     deleted: int
     errors: list[dict] = Field(default_factory=list)
 
 
-class DeduplicationReport(BaseModel, LegacyDictMixin):
+class DeduplicationReport(DynamicBaseModel):
     """Complete deduplication analysis."""
     total_documents: int
     exact_duplicates: list[tuple[str, str]] = Field(default_factory=list)  # pairs of doc_ids

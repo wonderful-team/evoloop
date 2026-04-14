@@ -1,10 +1,12 @@
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.responses import BaseAPIResponse
+from app.domain.todo.schemas import TodoCreate, TodoResponse, TodoUpdate
 from app.infrastructure.database.sql.database import get_db
 from app.models.todo import (
     TodoItem,
@@ -14,49 +16,9 @@ from app.models.todo import (
 
 router = APIRouter(tags=["todos"])
 
-# --- Pydantic Models ---
 
-
-class TodoCreate(BaseModel):
-    title: str
-    description: str | None = None
-    priority: TodoPriority = TodoPriority.MEDIUM
-    category: str | None = None
-    due_date: datetime | None = None
-    source_conversation_id: str | None = None
-    source_message_id: str | None = None
-    project_id: int | None = None
-
-
-class TodoUpdate(BaseModel):
-    title: str | None = None
-    description: str | None = None
-    status: TodoStatus | None = None
-    priority: TodoPriority | None = None
-    category: str | None = None
-    due_date: datetime | None = None
-    project_id: int | None = None
-
-
-class TodoResponse(BaseModel):
-    id: str
-    title: str
-    description: str | None
-    status: TodoStatus
-    priority: TodoPriority
-    category: str | None
-    due_date: datetime | None
-    source_conversation_id: str | None
-    source_message_id: str | None
-    project_id: int | None
-    created_at: datetime
-    updated_at: datetime
-
-    model_config = ConfigDict(from_attributes=True)
-
-
-class DeleteTodoResponse(BaseModel):
-    message: str
+class DeleteTodoResponse(BaseAPIResponse):
+    pass
 
 
 # --- Routes ---

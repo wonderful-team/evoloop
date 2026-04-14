@@ -8,6 +8,7 @@ import json
 import re
 from typing import Any, Dict, List, Optional, Tuple
 from pydantic import BaseModel
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 from app.core.execution.macro.verification_models import AnomalyType, RedundancyCheckResult, RedundancyType, AIAnalysisResult, RoundReport, VerificationIssue
 from app.infrastructure.llm.vision import VisionLLMFactory
@@ -18,7 +19,7 @@ from app.utils.yaml import safe_yaml_dumps
 logger = logging.getLogger(__name__)
 
 
-class ActionDecision(BaseModel):
+class ActionDecision(DynamicBaseModel):
     """Decision made by the reasoning engine"""
     action: str  # 'execute', 'correct', 'skip', 'retry', 'abort'
     reasoning: str

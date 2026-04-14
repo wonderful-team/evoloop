@@ -41,13 +41,12 @@ from app.core.environment.controllers.utils import (
     truncate_output,
     BatchExecutor,
 )
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 
 
-class ElementResolutionResult(BaseModel, LegacyDictMixin):
-    model_config = ConfigDict(extra="allow")
+class ElementResolutionResult(DynamicBaseModel):
     type: str | None = None
     value: str | None = None
     x: int | None = None

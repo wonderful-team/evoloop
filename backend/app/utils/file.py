@@ -13,7 +13,7 @@ from urllib.parse import urlparse
 
 from pydantic import BaseModel
 
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +23,7 @@ LARGE_FILE_THRESHOLD = 10 * 1024 * 1024
 DEFAULT_PAGE_SIZE = 100
 
 
-class FileStats(BaseModel, LegacyDictMixin):
+class FileStats(DynamicBaseModel):
     """File statistics for pagination and navigation."""
     path: str
     size: int

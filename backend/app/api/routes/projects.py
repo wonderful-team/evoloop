@@ -4,6 +4,10 @@ import os
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
+from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.models.schemas.base import ScopedRequest
+
+from app.api.responses import BaseAPIResponse, ListResponse
 from sqlalchemy import select
 
 from app.api.deps import TokenDep, TokenDepOptional
@@ -20,23 +24,23 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["projects"])
 
 
-class IndexingRequest(BaseModel):
+class IndexingRequest(ScopedRequest):
     project_id: int
 
 
-class CreateProjectRequest(BaseModel):
+class CreateProjectRequest(DynamicBaseModel):
     name: str
     description: str = ""
     path: str
 
 
-class UpdateProjectRequest(BaseModel):
+class UpdateProjectRequest(DynamicBaseModel):
     name: str | None = None
     description: str | None = None
     path: str | None = None
 
 
-class ProjectStatusActivity(BaseModel):
+class ProjectStatusActivity(DynamicBaseModel):
     """System task activity state."""
     status: str = "idle"
     updated_at: float = 0.0
@@ -44,26 +48,26 @@ class ProjectStatusActivity(BaseModel):
     steps: list = []
 
 
-class ProjectStatusResponse(BaseModel):
+class ProjectStatusResponse(BaseAPIResponse):
     """Real-time project system status."""
     indexing: ProjectStatusActivity
     summarization: ProjectStatusActivity
     wiki: ProjectStatusActivity
 
 
-class ProjectDeleteResponse(BaseModel):
+class ProjectDeleteResponse(BaseAPIResponse):
     """Project deletion response."""
     status: str
     id: int
 
 
-class IndexingRunResponse(BaseModel):
+class IndexingRunResponse(BaseAPIResponse):
     """Indexing dispatch response."""
     status: str
     project_id: int
 
 
-class DetectedProjectItem(BaseModel):
+class DetectedProjectItem(DynamicBaseModel):
     """Detected project awaiting import."""
     id: int
     name: str
@@ -71,41 +75,39 @@ class DetectedProjectItem(BaseModel):
     detected_at: str | None
 
 
-class DetectedProjectsResponse(BaseModel):
+class DetectedProjectsResponse(ListResponse):
     """Response for detected projects."""
     items: list[DetectedProjectItem]
 
 
-class ImportProjectResponse(BaseModel):
+class ImportProjectResponse(BaseAPIResponse):
     """Project import response."""
     status: str
     repo_id: int
     name: str
-    message: str
 
 
-class IgnoreProjectResponse(BaseModel):
+class IgnoreProjectResponse(BaseAPIResponse):
     """Project ignore response."""
     status: str
     repo_id: int
 
 
-class UnignoreProjectResponse(BaseModel):
+class UnignoreProjectResponse(BaseAPIResponse):
     """Project unignore response."""
     status: str
     repo_id: int
     name: str
-    message: str
 
 
-class BatchResultItem(BaseModel):
+class BatchResultItem(DynamicBaseModel):
     """Single result in batch operation."""
     repo_id: int
     name: str | None = None
     error: str | None = None
 
 
-class BatchImportResponse(BaseModel):
+class BatchImportResponse(BaseAPIResponse):
     """Batch import response."""
     status: str
     summary: str
@@ -736,7 +738,7 @@ async def unignore_project(repo_id: int, _token: TokenDep):
         raise HTTPException(500, f"Failed to restore project: {str(e)}")
 
 
-class BatchImportRequest(BaseModel):
+class BatchImportRequest(DynamicBaseModel):
     repo_ids: list[int]
 
 

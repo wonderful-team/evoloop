@@ -11,12 +11,11 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 
-class StorageHealthCheck(BaseModel, LegacyDictMixin):
+class StorageHealthCheck(DynamicBaseModel):
     """Health check result for a memory storage backend."""
-    model_config = ConfigDict(extra="allow")
     status: str = "unknown"
     backend: str = ""
     version: Optional[str] = None

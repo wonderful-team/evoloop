@@ -17,6 +17,7 @@ from sqlalchemy.orm import joinedload
 from app.infrastructure.database.sql.database import session_scope
 from app.models.checkpoint import FileCheckpoint, FileCheckpointSnapshot
 from pydantic import BaseModel
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 if TYPE_CHECKING:
     pass
@@ -24,7 +25,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class CheckpointRollbackFileResult(BaseModel):
+class CheckpointRollbackFileResult(DynamicBaseModel):
     path: str
     size: int | None = None
     lines: int | None = None
@@ -36,7 +37,7 @@ class CheckpointRollbackSkipped(BaseModel):
     reason: str
 
 
-class CheckpointRollbackResult(BaseModel):
+class CheckpointRollbackResult(DynamicBaseModel):
     checkpoint_id: int
     checkpoint_name: str
     dry_run: bool

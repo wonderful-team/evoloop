@@ -16,7 +16,8 @@ from app.core.evocloud import evocloud_manager
 from app.core.identity import decode_local_jwt, identity_service
 from app.services.cache_services import UserCacheService, RateLimitService
 from app.models import User
-from app.utils.model_helpers import LegacyDictMixin
+from app.services.benefit_service import benefit_service
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 
@@ -115,8 +116,6 @@ async def get_current_user_optional(token: TokenDepOptional) -> User | None:
 CurrentUserOptional = Annotated[User | None, Depends(get_current_user_optional)]
 
 
-from app.services.benefit_service import benefit_service
-
 # Fallback labels have been moved to the database (b2c_mall.member_privilege)
 # and are now served dynamically via BenefitService.
 
@@ -163,7 +162,7 @@ async def check_multiple_benefits(benefit_codes: list[str], token: TokenDep) -> 
         return {code: False for code in benefit_codes}
 
 
-class BenefitErrorDetail(BaseModel, LegacyDictMixin):
+class BenefitErrorDetail(DynamicBaseModel):
     """统一的权益错误详情."""
     code: str = "BENEFIT_REQUIRED"
     feature: str

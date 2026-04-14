@@ -11,11 +11,11 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import yaml
 from pydantic import BaseModel, Field
 
-from app.utils.model_helpers import LegacyDictMixin
 from sqlalchemy import select
 
 from app.core.learning.prompts import prompt_builder
 from app.core.learning.trace_parser import TraceParser, TraceSequence
+from app.core.execution.macro.verification_service import SynthesisVerificationResult
 from app.core.learning.synthesizer_utils import (
     cleanup_macro_steps,
     export_skill_to_filesystem,
@@ -25,6 +25,7 @@ from app.i18n.service import i18n
 from app.infrastructure.database.sql.database import session_scope
 
 from app.models import Message
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 
@@ -44,16 +45,10 @@ ALLOWED_UI_ACTIONS = {
 }
 
 
-class SkillParameter(BaseModel, LegacyDictMixin):
-    """A parameter for a learned skill."""
-    name: str
-    type: str = "string"
-    description: str = ""
-    required: bool = True
-    default: Optional[str] = None
+from app.core.learning.schemas import SkillParameter
 
 
-class SynthesizedSkill(BaseModel, LegacyDictMixin):
+class SynthesizedSkill(DynamicBaseModel):
     """
     A complete learned skill configuration.
     This is the output of the synthesis process.
@@ -135,8 +130,8 @@ class WorkflowSynthesizer:
         verification = await self.verify_macro(macro_script)
 
         # Use evolved macro if available
-        if verification["status"] == "success" and verification.get("evolved_macro"):
-            evolved_steps = verification["evolved_macro"]
+        if verification.status == "success" and verification.evolved_macro:
+            evolved_steps = verification.evolved_macro
             # Count lines/steps in original YAML for comparison
             original_steps = yaml.safe_load(macro_script) if macro_script else []
             original_count = len(original_steps)
@@ -145,11 +140,11 @@ class WorkflowSynthesizer:
             macro_script = yaml.dump(evolved_steps, default_flow_style=False, allow_unicode=True, sort_keys=False)
             logger.info(
                 f"[{self.thread_id}] Using evolved macro: {original_count} -> {evolved_count} steps, "
-                f"mode={verification.get('execution_mode', 'unknown')}"
+                f"mode={verification.execution_mode or 'unknown'}"
             )
-        elif verification["status"] != "success":
+        elif verification.status != "success":
             logger.warning(
-                f"[{self.thread_id}] ⚠️ Verification failed: {verification.get('error', 'Unknown error')}. "
+                f"[{self.thread_id}] ⚠️ Verification failed: {verification.error or 'Unknown error'}. "
                 f"Proceeding with unverified macro."
             )
             # Don't abort - let the LLM have a chance to fix it
@@ -161,7 +156,7 @@ class WorkflowSynthesizer:
         if not skill.macro_script:
             skill.macro_script = macro_script
             logger.info(f"[{self.thread_id}] Using compiled/evolved macro (No LLM macro found)")
-        elif verification.get("status") == "success":
+        elif verification.status == "success":
             # Use evolved macro which is more robust
             skill.macro_script = macro_script
             logger.info(f"[{self.thread_id}] Using evolved macro over LLM version for reliability")
@@ -169,10 +164,10 @@ class WorkflowSynthesizer:
             logger.info(f"[{self.thread_id}] Using LLM-synthesized smart macro script")
 
         # Set execution mode based on verification results
-        if verification.get("status") == "success":
+        if verification.status == "success":
             # Use the verified execution mode
-            skill.execution_mode = verification.get("execution_mode", "deterministic")
-            confidence = verification.get("confidence", 0)
+            skill.execution_mode = verification.execution_mode or "deterministic"
+            confidence = verification.confidence or 0
             logger.info(
                 f"[{self.thread_id}] Verified execution mode for {skill.name}: "
                 f"{skill.execution_mode} (confidence: {confidence:.2%})"
@@ -187,7 +182,7 @@ class WorkflowSynthesizer:
 
         return skill
 
-    async def verify_macro(self, macro_script: str, project_id: int = 1) -> dict:
+    async def verify_macro(self, macro_script: str, project_id: int = 1) -> SynthesisVerificationResult:
         """
         [Phase 5] Agent-based verification of a draft macro.
 
@@ -464,15 +459,6 @@ class WorkflowSynthesizer:
         Phase 5: Export the synthesized instructions into a physical workspace
         folder structure based on its namespace.
         """
-        skill_data = {
-            "name": skill.name,
-            "namespace": skill.namespace,
-            "description": skill.description,
-            "trigger_patterns": skill.trigger_patterns,
-            "parameters": [p.model_dump() for p in skill.parameters],
-            "preconditions": skill.preconditions,
-            "instructions": skill.instructions,
-        }
-        path = export_skill_to_filesystem(skill_data)
+        path = export_skill_to_filesystem(skill)
         if path:
             skill.resource_path = path

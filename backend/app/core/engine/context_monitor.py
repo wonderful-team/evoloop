@@ -16,7 +16,6 @@ from langchain_core.messages import (
     HumanMessage,
     ToolMessage,
 )
-from app.utils.model_helpers import LegacyDictMixin
 
 from app.constants import (
     CONTEXT_WARNING_THRESHOLD,
@@ -24,11 +23,12 @@ from app.constants import (
     DEFAULT_CONTEXT_LIMIT,
 )
 from app.core.engine.message_utils import get_message_text
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 
 
-class ToolCallInfo(BaseModel, LegacyDictMixin):
+class ToolCallInfo(DynamicBaseModel):
     """Information about a recent tool call."""
     tool_call_id: str
     name: str
@@ -36,7 +36,7 @@ class ToolCallInfo(BaseModel, LegacyDictMixin):
     char_count: int
 
 
-class ContextStats(BaseModel, LegacyDictMixin):
+class ContextStats(DynamicBaseModel):
     """
     Context usage statistics for Agent awareness.
     """

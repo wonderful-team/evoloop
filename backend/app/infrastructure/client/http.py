@@ -17,15 +17,15 @@ import logging
 import uuid
 from datetime import datetime, timedelta
 from pydantic import BaseModel, Field, ConfigDict
+from app.infrastructure.pydantic_base import DynamicBaseModel
 from typing import Any, Optional
 
 from app.core.config import settings
-from app.utils.model_helpers import LegacyDictMixin
 
 logger = logging.getLogger(__name__)
 
 
-class ToolRequest(BaseModel, LegacyDictMixin):
+class ToolRequest(DynamicBaseModel):
     """Represents a pending tool execution request."""
     model_config = ConfigDict(arbitrary_types_allowed=True)
 

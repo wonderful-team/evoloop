@@ -9,7 +9,7 @@ import logging
 import time
 from typing import Any, Dict, Optional
 
-from app.core.execution.macro.verification_models import AgentConfig, EnvironmentConfig
+from app.core.execution.macro.verification_models import VerificationAgentConfig as AgentConfig, EnvironmentConfig
 
 logger = logging.getLogger(__name__)
 

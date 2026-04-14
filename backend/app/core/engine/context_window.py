@@ -32,29 +32,27 @@ from langchain_core.messages import (
 
 from app.core.engine.hooks import hook_system, HookEvent, HookContext
 from app.core.config import settings
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 
 
-class CriticalContext(BaseModel, LegacyDictMixin):
+class CriticalContext(DynamicBaseModel):
     """Critical context extracted from messages before compaction."""
-    model_config = ConfigDict(extra="allow")
     decisions: List[str] = Field(default_factory=list)
     errors: List[str] = Field(default_factory=list)
     files_modified: List[str] = Field(default_factory=list)
     current_task: Optional[str] = None
 
 
-class ContextWindowStats(BaseModel, LegacyDictMixin):
+class ContextWindowStats(DynamicBaseModel):
     """Context window manager statistics."""
-    model_config = ConfigDict(extra="allow")
     max_tokens: int
     compact_threshold: float
     preserve_recent: int
 
 
-class CompactionResult(BaseModel, LegacyDictMixin):
+class CompactionResult(DynamicBaseModel):
     """Result of context compaction."""
     messages: List[BaseMessage]
     summary: str

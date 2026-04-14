@@ -11,7 +11,7 @@ from langchain_core.tools import StructuredTool
 from sqlalchemy import select
 
 from app.core.mcp.auth.manager import mcp_auth_manager
-from app.core.mcp.config import AuthType, McpServerConfig, TransportType, ConnectionResult, ConnectionState
+from app.core.mcp.config import AuthType, McpServerConfig, TransportType, ConnectionResult, ConnectionState, is_sse_url
 from app.core.mcp.features.base import McpPromptResult, McpResourceContent
 from app.core.mcp.features.prompts import McpPromptsFeature
 from app.core.mcp.features.resources import McpResourcesFeature
@@ -20,28 +20,28 @@ from app.core.mcp.health import McpHealthChecker, HealthStatus
 from app.core.mcp.transport import McpTransport
 from app.infrastructure.database.sql.database import session_scope
 from app.models import McpServer
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 
-class McpResource(BaseModel, LegacyDictMixin):
+class McpResource(DynamicBaseModel):
     uri: str
     name: str
     mimeType: str | None = None
     description: str | None = None
 
 
-class McpPromptArgument(BaseModel, LegacyDictMixin):
+class McpPromptArgument(DynamicBaseModel):
     name: str
     required: bool = False
 
 
-class McpPrompt(BaseModel, LegacyDictMixin):
+class McpPrompt(DynamicBaseModel):
     name: str
     description: str | None = None
     arguments: list[McpPromptArgument] = Field(default_factory=list)
 
 
-class McpServerSummary(BaseModel, LegacyDictMixin):
+class McpServerSummary(DynamicBaseModel):
     name: str
     command: str | None = None
     status: str
@@ -133,14 +133,18 @@ class McpClientManager:
             
             # Create transport and session
             stack = AsyncExitStack()
-            
-            async with self._transport.create_transport(config) as (read, write):
+            try:
+                read, write = await stack.enter_async_context(
+                    self._transport.create_transport(config)
+                )
                 session = await self._transport.create_session(read, write)
-                
-                # Keep stack open by moving it to instance
+
                 self._stacks[server_name] = stack
                 self._sessions[server_name] = session
                 self._configs[server_name] = config
+            except Exception:
+                await stack.aclose()
+                raise
             
             # Initialize features
             tools_feature = McpToolsFeature()
@@ -211,12 +215,7 @@ class McpClientManager:
             env = self._parse_json_field(server.env, {})
             
             # Determine transport type
-            transport = TransportType.SSE if (
-                server.command and (
-                    server.command.startswith("http://") or 
-                    server.command.startswith("https://")
-                )
-            ) else TransportType.STDIO
+            transport = TransportType.SSE if is_sse_url(server.command) else TransportType.STDIO
             
             config = McpServerConfig(
                 name=server.name,
@@ -356,7 +355,7 @@ class McpClientManager:
         """
         if server_name is None:
             # Return all tools from all connected servers
-            return self.get_all_tools()
+            return await self.aget_all_tools()
         
         if await self.ensure_connected(server_name):
             feature = self._tools_feature.get(server_name)
@@ -364,11 +363,14 @@ class McpClientManager:
                 return feature.get_tools()
         return []
     
-    def get_all_tools(self) -> list[StructuredTool]:
-        """Get all tools from all connected servers."""
+    async def aget_all_tools(self) -> list[StructuredTool]:
+        """Get all tools from all connected servers, ensuring connections are alive."""
         all_tools = []
-        for feature in self._tools_feature.values():
-            all_tools.extend(feature.get_tools())
+        for server_name in list(self._configs.keys()):
+            if await self.ensure_connected(server_name):
+                feature = self._tools_feature.get(server_name)
+                if feature:
+                    all_tools.extend(feature.get_tools())
         return all_tools
     
     # ═══════════════════════════════════════════════════════════
@@ -533,9 +535,7 @@ class McpClientManager:
                 session.add(db_server)
         
         # Connect
-        transport = TransportType.SSE if (
-            details.get("command", "").startswith(("http://", "https://"))
-        ) else TransportType.STDIO
+        transport = TransportType.SSE if is_sse_url(details.get("command")) else TransportType.STDIO
         
         config = McpServerConfig(
             name=name,

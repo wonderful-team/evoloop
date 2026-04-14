@@ -39,6 +39,7 @@ from app.core.learning.frame_compressor import (
     NormalizedEvent,
 )
 from app.core.learning.prompts.builder import LearningPromptBuilder
+from app.core.learning.skill_synthesizer import SynthesizedSkill
 from app.core.learning.synthesizer_utils import (
     cleanup_macro_steps,
     describe_normalized_position,
@@ -47,18 +48,19 @@ from app.core.learning.synthesizer_utils import (
     extract_yaml_block,
     normalize_timestamp_to_seconds,
     verify_macro_script,
+    MacroVerificationResult,
 )
 from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.llm.vision import VisionLLMFactory
 from app.infrastructure.config.service import SystemConfigService
 from app.infrastructure.drivers.adb import adb_driver
 from app.models import TraceEvent, LearnedSkill
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 
 
-class RecordingSession(BaseModel, LegacyDictMixin):
+class RecordingSession(DynamicBaseModel):
     """录制会话数据"""
     video_path: str
     session_id: str
@@ -66,7 +68,7 @@ class RecordingSession(BaseModel, LegacyDictMixin):
     thread_id: Optional[str] = None
 
 
-class VideoInfo(BaseModel, LegacyDictMixin):
+class VideoInfo(DynamicBaseModel):
     """视频元信息"""
     duration: float
     width: int
@@ -180,7 +182,7 @@ class MultimodalSkillSynthesizer:
         compiled_macro = await self._compile_macro_from_events(events)
         
         # Step 10: 验证 Dry-run (优先验证实际要返回的宏)
-        target_macro = skill_data.get("macro_script") or compiled_macro
+        target_macro = skill_data.macro_script or compiled_macro
         
         # 如果 LLM 返回的是字符串 JSON，尝试解析它
         if isinstance(target_macro, str):
@@ -272,7 +274,7 @@ class MultimodalSkillSynthesizer:
                 return []
         return macro_yaml if isinstance(macro_yaml, list) else []
 
-    async def verify_macro(self, macro_script: str, project_id: int = 1) -> dict:
+    async def verify_macro(self, macro_script: str, project_id: int = 1) -> MacroVerificationResult:
         """Dry-run 验证宏脚本的有效性"""
         return await verify_macro_script(
             macro_script=macro_script,
@@ -600,7 +602,7 @@ class MultimodalSkillSynthesizer:
         """将归一化坐标转换为精细的语义描述 (5x5 风格)"""
         return describe_normalized_position(norm_x, norm_y)
 
-    def _parse_llm_response(self, response: str, recording: RecordingSession) -> dict:
+    def _parse_llm_response(self, response: str, recording: RecordingSession) -> SynthesizedSkill:
         """解析 LLM 返回的混合格式"""
         yaml_content = self._extract_yaml(response)
         instructions = self._extract_instructions(response)
@@ -611,20 +613,18 @@ class MultimodalSkillSynthesizer:
             logger.error(f"Failed to parse LLM YAML metadata: {e}")
             metadata = {}
 
-        return {
-            "name": metadata.get("name", "unnamed_skill"),
-            "namespace": metadata.get("namespace", "misc"),
-            "description": metadata.get("description", ""),
-            "trigger_patterns": metadata.get("trigger_patterns", []),
-            "parameters": metadata.get("parameters", []),
-            "instructions": instructions or response,
-            "source_session_id": recording.session_id,
-            "source_thread_id": recording.thread_id,
-            "skill_source": "multimodal_record",
-            "status": "pending_review",
-            "macro_script": metadata.get("macro_script"),
-            "execution_mode": "deterministic" if metadata.get("macro_script") else "agentic"
-        }
+        return SynthesizedSkill(
+            name=metadata.get("name", "unnamed_skill"),
+            namespace=metadata.get("namespace", "misc"),
+            description=metadata.get("description", ""),
+            trigger_patterns=metadata.get("trigger_patterns", []),
+            parameters=metadata.get("parameters", []),
+            instructions=instructions or response,
+            source_session_id=recording.session_id,
+            source_thread_id=recording.thread_id,
+            macro_script=metadata.get("macro_script") or "",
+            execution_mode="deterministic" if metadata.get("macro_script") else "agentic",
+        )
 
     def _extract_yaml(self, text: str) -> Optional[str]:
         """提取 YAML 代码块"""

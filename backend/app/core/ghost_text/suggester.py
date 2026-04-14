@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Optional
 from pydantic import BaseModel, Field
 
 from app.domain.codebase.indexing.parsers import parser_registry
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 if TYPE_CHECKING:
     pass
@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class GhostSuggestion(BaseModel, LegacyDictMixin):
+class GhostSuggestion(DynamicBaseModel):
     """A ghost text suggestion for inline display."""
     text: str = Field(..., description="The suggested text to insert")
     trigger_position: int = Field(..., description="Position where the suggestion was triggered")
@@ -30,7 +30,7 @@ class GhostSuggestion(BaseModel, LegacyDictMixin):
     display_text: Optional[str] = Field(None, description="Formatted display text")
 
 
-class EditPreview(BaseModel, LegacyDictMixin):
+class EditPreview(DynamicBaseModel):
     """An edit preview showing original and suggested text."""
     original_text: str = Field(..., description="The original text before edit")
     suggested_text: str = Field(..., description="The suggested text after edit")

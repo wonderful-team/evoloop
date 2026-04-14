@@ -10,7 +10,7 @@ from mcp import ClientSession
 from mcp.client.sse import sse_client
 from mcp.client.stdio import stdio_client, StdioServerParameters
 
-from app.core.mcp.config import McpServerConfig, TransportType
+from app.core.mcp.config import McpServerConfig, TransportType, is_sse_url
 
 logger = logging.getLogger(__name__)
 
@@ -53,12 +53,7 @@ class McpTransport:
         Yields:
             Tuple of (read_stream, write_stream)
         """
-        if config.transport == TransportType.SSE or (
-            config.command and (
-                config.command.startswith("http://") or 
-                config.command.startswith("https://")
-            )
-        ):
+        if config.transport == TransportType.SSE or is_sse_url(config.command):
             # SSE transport
             url = config.url or config.command
             logger.info(f"Connecting via SSE to {url}")

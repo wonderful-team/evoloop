@@ -26,7 +26,7 @@ Usage:
     @hook_system.register(HookEvent.PostToolUse, matcher="^Write$|^Edit$")
     async def format_on_write(context):
         # Only triggers for Write/Edit tools
-        await formatter.format(context.tool_input.get("path"))
+        await formatter.format(getattr(context.tool_input, "path", None) if context.tool_input else None)
     
     # Trigger hooks
     await hook_system.trigger(HookEvent.PRE_COMPACT, context)
@@ -41,8 +41,8 @@ from datetime import datetime
 
 from langchain_core.messages import BaseMessage, SystemMessage
 from pydantic import BaseModel, ConfigDict, Field
-
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.core.engine.state.blackboard import BlackboardState
 
 logger = logging.getLogger(__name__)
 
@@ -84,27 +84,23 @@ class HookEvent(Enum):
     PROMPT_POLISHING = auto()    # Context-aware prompt polishing (domain expert hook)
 
 
-class HookMetadata(BaseModel, LegacyDictMixin):
+class HookMetadata(DynamicBaseModel):
     """Dynamic metadata for hook events."""
-    model_config = ConfigDict(extra="allow")
 
 
-class ToolInput(BaseModel, LegacyDictMixin):
+class ToolInput(DynamicBaseModel):
     """Typed wrapper for tool input arguments."""
-    model_config = ConfigDict(extra="allow")
 
 
-class HookExtra(BaseModel, LegacyDictMixin):
+class HookExtra(DynamicBaseModel):
     """Arbitrary extra data attached to a hook context."""
-    model_config = ConfigDict(extra="allow")
 
 
-class HookResultData(BaseModel, LegacyDictMixin):
+class HookResultData(DynamicBaseModel):
     """Dynamic data payload returned by a hook handler."""
-    model_config = ConfigDict(extra="allow")
 
 
-class HookContext(BaseModel, LegacyDictMixin):
+class HookContext(DynamicBaseModel):
     """Context passed to hook handlers - enriched with Claude Code-like fields."""
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -112,7 +108,7 @@ class HookContext(BaseModel, LegacyDictMixin):
     project_id: Optional[int] = None
     user_id: Optional[str] = None
     messages: List[BaseMessage] = Field(default_factory=list)
-    blackboard: Dict[str, Any] = Field(default_factory=dict)
+    blackboard: Optional[BlackboardState] = None
     metadata: HookMetadata = Field(default_factory=HookMetadata)
 
     # For tool-related events
@@ -137,7 +133,7 @@ class HookContext(BaseModel, LegacyDictMixin):
     extra: HookExtra = Field(default_factory=HookExtra)
 
 
-class HookResult(BaseModel, LegacyDictMixin):
+class HookResult(DynamicBaseModel):
     """Result from hook handler."""
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -489,8 +485,8 @@ async def pre_compact_save_state(context: HookContext) -> HookResult:
             "message_count": len(context.messages),
             "task_progress": task_progress,
             "key_decisions": key_decisions,
-            "remaining_work": context.blackboard.get("remaining_work"),
-            "current_goal": context.blackboard.get("current_goal"),
+            "remaining_work": getattr(context.blackboard, "remaining_work", None) if context.blackboard else None,
+            "current_goal": getattr(context.blackboard, "current_goal", None) if context.blackboard else None,
             "compact_trigger": context.compact_trigger or "auto",
         }
         logger.debug(f"[PreCompact] Checkpoint data: {len(context.messages)} messages, trigger={checkpoint['compact_trigger']}")
@@ -644,16 +640,16 @@ async def stop_quality_gate(context: HookContext) -> HookResult:
     - No TODOs left in code
     """
     blackboard = context.blackboard
-    
+
     # Check if there were any failures in the session
-    if blackboard.get("test_failures"):
+    if getattr(blackboard, "test_failures", None) if blackboard else None:
         return HookResult(
             success=False,
             block=True,
             message="Tests failed. Please fix before completing.",
         )
-    
-    if blackboard.get("lint_errors"):
+
+    if getattr(blackboard, "lint_errors", None) if blackboard else None:
         return HookResult(
             success=False,
             block=True,
@@ -708,13 +704,14 @@ async def subagent_start_handler(context: HookContext) -> HookResult:
     logger.info(f"[SubagentStart] Spawned {agent_type} agent ({agent_id}) for: {parent_task[:50]}...")
     
     # Track in blackboard
-    active_agents = context.blackboard.get("active_subagents", [])
+    active_agents = getattr(context.blackboard, "active_subagents", []) if context.blackboard else []
     active_agents.append({
         "agent_id": agent_id,
         "agent_type": agent_type,
         "started_at": datetime.utcnow().isoformat(),
     })
-    context.blackboard["active_subagents"] = active_agents
+    if context.blackboard:
+        context.blackboard.active_subagents = active_agents
     
     return HookResult(
         success=True,
@@ -738,18 +735,20 @@ async def subagent_stop_handler(context: HookContext) -> HookResult:
     logger.info(f"[SubagentStop] Agent {agent_id} completed with outcome: {outcome}")
     
     # Update tracking
-    active_agents = context.blackboard.get("active_subagents", [])
+    active_agents = getattr(context.blackboard, "active_subagents", []) if context.blackboard else []
     active_agents = [a for a in active_agents if a["agent_id"] != agent_id]
-    context.blackboard["active_subagents"] = active_agents
-    
+    if context.blackboard:
+        context.blackboard.active_subagents = active_agents
+
     # Track completed
-    completed = context.blackboard.get("completed_subagents", [])
+    completed = getattr(context.blackboard, "completed_subagents", []) if context.blackboard else []
     completed.append({
         "agent_id": agent_id,
         "outcome": outcome,
         "completed_at": datetime.utcnow().isoformat(),
     })
-    context.blackboard["completed_subagents"] = completed
+    if context.blackboard:
+        context.blackboard.completed_subagents = completed
     
     return HookResult(
         success=True,

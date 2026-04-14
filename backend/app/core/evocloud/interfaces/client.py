@@ -4,7 +4,7 @@ from typing import Any
 import httpx
 
 from app.core.evocloud.schemas import EvoCloudConfig
-from app.models.auth import LoginResult
+from app.models.schemas.auth import LoginResult
 
 
 class EvoCloudClientProtocol(ABC):

@@ -34,13 +34,12 @@ from app.core.environment.controllers.utils import (
     RecordingContext,
     resolve_element_alias,
 )
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 
 
-class AppInfo(BaseModel, LegacyDictMixin):
-    model_config = ConfigDict(extra="allow")
+class AppInfo(DynamicBaseModel):
     package: str
     activity: str = ""
     confidence: float = 1.0

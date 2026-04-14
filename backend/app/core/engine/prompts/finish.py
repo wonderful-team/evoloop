@@ -3,6 +3,8 @@ from app.infrastructure.config.service import SystemConfigService
 
 from app.core.config import settings
 from app.core.context import ContextManager
+from app.core.engine.state.blackboard import BlackboardState, VerificationStatus
+from app.core.engine.state.config import ExecutionTicket
 from app.utils import ControllerResponse, render_template
 
 logger = logging.getLogger(__name__)
@@ -15,13 +17,13 @@ class FinishPromptBuilder:
     def __init__(
         self,
         current_plan: str,
-        execution_ticket: dict | None,
-        verification_status: dict | None,
+        execution_ticket: ExecutionTicket | None,
+        verification_status: VerificationStatus | None,
         action_context: str,
         iteration_count: int = 0,
         project_id: int | None = None,
         telemetry: dict | None = None,
-        blackboard: dict | None = None
+        blackboard: BlackboardState | None = None
     ):
         self.current_plan = current_plan
         self.execution_ticket = execution_ticket
@@ -61,7 +63,7 @@ class FinishPromptBuilder:
                 "ticket": self.execution_ticket,
                 "verification": self.verification_status,
                 "metadata": sanitized_metadata,
-                "subtask_results": self.blackboard.get("subtask_results", []),
+                "subtask_results": self.blackboard.subtask_results if self.blackboard else [],
             },
             "sys_info": {
                 "cwd": actual_cwd,

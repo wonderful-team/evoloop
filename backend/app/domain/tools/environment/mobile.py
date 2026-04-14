@@ -11,15 +11,13 @@ from pydantic import BaseModel, ConfigDict
 
 from app.core.tools import evoloop_tool
 from app.core.environment.controllers.mobile_controller import MobileController
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 
 
-class MobileControlRequest(BaseModel, LegacyDictMixin):
+class MobileControlRequest(DynamicBaseModel):
     """Structured request for Android mobile device automation actions."""
-
-    model_config = ConfigDict(extra="allow")
 
     action: Literal["screenshot", "tap", "click", "long_press", "swipe", "scroll", "input_text", "press_key", "dump_ui", "list_devices", "get_info", "list_apps", "open_app", "push", "pull", "intent_flow", "read_sms", "gui_extract"] = "screenshot"
     x: int | None = None

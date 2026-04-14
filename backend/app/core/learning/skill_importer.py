@@ -10,14 +10,13 @@ from sqlalchemy import select
 from app.core.learning.skill_validator import SkillValidator
 from app.infrastructure.database.sql.database import session_scope
 from app.models.learning import LearnedSkill
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 
 
-class SkillImportResult(BaseModel, LegacyDictMixin):
+class SkillImportResult(DynamicBaseModel):
     """Result of a bulk skill import operation."""
-    model_config = ConfigDict(extra="allow")
     total_found: int = 0
     imported: int = 0
     skipped: int = 0
@@ -106,7 +105,7 @@ class SkillImporter:
                 existing.trigger_patterns = json.dumps([metadata["name"]] + (metadata.get("trigger_patterns", [])))
                 existing.parameters = json.dumps(metadata.get("parameters", []))
                 existing.status = "verified" if validation.status == "healthy" else "candidate"
-                existing.validation_report = validation.dict()
+                existing.validation_report = validation.model_dump()
             else:
                 # Create new skill
                 new_skill = LearnedSkill(
@@ -119,7 +118,7 @@ class SkillImporter:
                     parameters=json.dumps(metadata.get("parameters", [])),
                     status="verified" if validation.status == "healthy" else "candidate",
                     is_active=True,
-                    validation_report=validation.dict()
+                    validation_report=validation.model_dump()
                 )
                 db.add(new_skill)
 

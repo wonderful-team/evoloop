@@ -5,7 +5,6 @@ import time
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, ConfigDict, Field
-from app.utils.model_helpers import LegacyDictMixin
 
 from langchain_core.callbacks import AsyncCallbackHandler
 from langchain_core.outputs import LLMResult
@@ -14,21 +13,20 @@ from app.core.config import settings
 from app.core.context.manager import ContextManager
 from app.infrastructure.database.sql.database import session_scope
 from app.utils.path import ensure_dir
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 
 
-class TraceParameters(BaseModel, LegacyDictMixin):
+class TraceParameters(DynamicBaseModel):
     """Dynamic parameters for a recorded action."""
-    model_config = ConfigDict(extra="allow")
 
 
-class TraceContext(BaseModel, LegacyDictMixin):
+class TraceContext(DynamicBaseModel):
     """Dynamic context (view hierarchy, URL, etc.) for a recorded action."""
-    model_config = ConfigDict(extra="allow")
 
 
-class ActionTrace(BaseModel, LegacyDictMixin):
+class ActionTrace(DynamicBaseModel):
     """Represents a single user action captured during demonstration."""
     timestamp: float
     action_type: str  # click, type, swipe, key, navigate, etc.
@@ -243,7 +241,7 @@ class TraceCallbackHandler(AsyncCallbackHandler):
             # Strip heavy/sensitive fields
             return {k: v for k, v in state.items() if k not in ("environment_block",)}
         if hasattr(state, "dict"):
-            return state.dict()
+            return state.model_dump()
         return {"raw_state_type": type(state).__name__, "raw_state_value": str(state)}
 
 

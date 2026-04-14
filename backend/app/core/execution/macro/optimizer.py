@@ -6,7 +6,7 @@ from enum import Enum
 from pydantic import BaseModel, Field
 
 from app.core.execution.macro.schema import MacroScript, MacroStep, MacroStepType, MacroActionType
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +19,7 @@ class OptimizationStrategy(Enum):
     COALESCE_EXTRACTS = "coalesce_extracts"
 
 
-class OptimizationResult(BaseModel, LegacyDictMixin):
+class OptimizationResult(DynamicBaseModel):
     original_steps: int
     optimized_steps: int
     removed_steps: int

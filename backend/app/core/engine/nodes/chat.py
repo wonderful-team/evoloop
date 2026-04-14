@@ -2,6 +2,7 @@ from typing import Any, Tuple
 
 from langchain_core.runnables import RunnableConfig
 
+from app.core.engine.engine import EngineResult
 from app.core.engine.nodes.base import BaseAgentNode
 from app.core.engine.routers import RoutingTarget
 from app.core.engine.state import AgentState, StateUpdate
@@ -31,10 +32,10 @@ class ChatNode(BaseAgentNode):
         """Memory tools only."""
         return CHAT_TOOLS
 
-    async def handle_outcome(self, original_state: AgentState, engine_result: dict[str, Any], config: RunnableConfig) -> StateUpdate:
+    async def handle_outcome(self, original_state: AgentState, engine_result: "EngineResult", config: RunnableConfig) -> StateUpdate:
         """Chat node usually ends after one turn."""
         return StateUpdate(
-            messages=engine_result.get("messages", []),
+            messages=engine_result.messages or [],
             next_node=RoutingTarget.FINISH
         )
 

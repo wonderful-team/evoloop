@@ -1,7 +1,7 @@
 import logging
 from typing import Any
 
-from app.models.auth import LoginResult
+from app.models.schemas.auth import LoginResult
 
 from .jwt import create_local_jwt, decode_local_jwt, JwtPayload
 from .store import IdentityStore

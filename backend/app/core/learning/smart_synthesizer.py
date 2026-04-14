@@ -3,23 +3,21 @@ import json
 from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 
 
-class SynthesizedSopConfig(BaseModel, LegacyDictMixin):
+class SynthesizedSopConfig(DynamicBaseModel):
     """Result of smart synthesis: a Phase 4 graph configuration."""
-    model_config = ConfigDict(extra="allow")
     name: str = "synthesized_sop"
     version: str = "1.0"
     nodes: List[dict] = Field(default_factory=list)
     edges: List[dict] = Field(default_factory=list)
 
 
-class TraceAction(BaseModel, LegacyDictMixin):
+class TraceAction(DynamicBaseModel):
     """A single action extracted from a trace."""
-    model_config = ConfigDict(extra="allow")
     action: str
     target: Optional[str] = None
     params: dict = Field(default_factory=dict)

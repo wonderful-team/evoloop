@@ -1,16 +1,15 @@
 from datetime import datetime, timedelta, timezone
 from pydantic import BaseModel, ConfigDict
-from app.utils.model_helpers import LegacyDictMixin
 
 import jwt
 
 from app.core.config import settings
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 ALGORITHM = "HS256"
 
 
-class JwtPayload(BaseModel, LegacyDictMixin):
-    model_config = ConfigDict(extra="allow")
+class JwtPayload(DynamicBaseModel):
     sub: str | None = None
     user_id: str | None = None
     device_id: str | None = None

@@ -18,12 +18,12 @@ from datetime import datetime
 from typing import Any, Optional
 
 from pydantic import BaseModel, Field, ConfigDict
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 import websockets
 from websockets.exceptions import ConnectionClosed
 
 from app.core.config import settings
-from app.utils.model_helpers import LegacyDictMixin
 
 try:
     from zeroconf import IPVersion, ServiceInfo, Zeroconf
@@ -34,7 +34,7 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
-class PendingToolRequest(BaseModel, LegacyDictMixin):
+class PendingToolRequest(DynamicBaseModel):
     """Represents a pending tool request awaiting response."""
     model_config = ConfigDict(arbitrary_types_allowed=True)
 

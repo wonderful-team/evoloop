@@ -5,12 +5,11 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 from pydantic import BaseModel, ConfigDict, Field
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 
-class TelemetryMetadata(BaseModel, LegacyDictMixin):
+class TelemetryMetadata(DynamicBaseModel):
     """Dynamic metadata attached to an inference telemetry event."""
-    model_config = ConfigDict(extra="allow")
 
 
 class PromptStats(BaseModel):
@@ -34,7 +33,7 @@ class ResponseStats(BaseModel):
     tool_names: List[str] = Field(default_factory=list)
 
 
-class InferenceEvent(BaseModel):
+class InferenceEvent(DynamicBaseModel):
     """A complete record of a single inference call."""
     timestamp: str = Field(default_factory=lambda: datetime.now().isoformat())
     node_name: str

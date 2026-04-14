@@ -11,7 +11,7 @@ async def health_check() -> bool:
     return True
 
 
-class EvoloopStatusResponse(BaseModel):
+class EvoloopStatusResponse(BaseAPIResponse):
     connected: bool
     device_id: str | None = None
     device_name: str

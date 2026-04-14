@@ -19,7 +19,7 @@ import aiosqlite
 from app.core.events.decorators import event_register, event_subscribe
 from app.core.events.base import AsyncEventBus
 from app.core.persistence import get_checkpointer
-from app.core.rewind.events import (
+from app.core.checkpoint.rewind.events import (
     CheckpointCleanupEvent,
     RewindEventType,
     RewindRequestedEvent,

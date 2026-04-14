@@ -13,12 +13,12 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 
 
-class ForgottenRecord(BaseModel, LegacyDictMixin):
+class ForgottenRecord(DynamicBaseModel):
     """Record of a forgotten tool output."""
     tool_call_id: str
     tool_name: str
@@ -29,7 +29,7 @@ class ForgottenRecord(BaseModel, LegacyDictMixin):
     step_index: int  # The message index when it was forgotten
 
 
-class AuditEntry(BaseModel, LegacyDictMixin):
+class AuditEntry(DynamicBaseModel):
     """Audit log entry for tracking forget/recall operations."""
     action: str  # "forget" or "recall"
     tool_call_id: str
@@ -298,18 +298,18 @@ class ToolOutputMemory:
         return memory
 
 
-def get_tool_memory_from_state(state: dict) -> ToolOutputMemory:
+def get_tool_memory_from_state(state: "AgentState") -> ToolOutputMemory:
     """
     Helper to get or create ToolOutputMemory from AgentState.
 
     Args:
-        state: AgentState dictionary
+        state: AgentState
 
     Returns:
         ToolOutputMemory instance
     """
-    blackboard = state.get("blackboard") or {}
-    metadata = blackboard.get("metadata") or {}
+    blackboard = state.blackboard
+    metadata = dict(blackboard.metadata) if blackboard and blackboard.metadata else {}
     tool_memory_data = metadata.get("tool_memory")
 
     if tool_memory_data:
@@ -321,14 +321,15 @@ def get_tool_memory_from_state(state: dict) -> ToolOutputMemory:
     return ToolOutputMemory()
 
 
-def save_tool_memory_to_state(state: dict, memory: ToolOutputMemory) -> None:
+def save_tool_memory_to_state(state: "AgentState", memory: ToolOutputMemory) -> None:
     """
     Helper to save ToolOutputMemory back to AgentState.
     """
-    if "blackboard" not in state or state["blackboard"] is None:
-        state["blackboard"] = {}
+    from app.core.engine.state.blackboard import BlackboardState, BlackboardMetadata
+    if not state.blackboard:
+        state.blackboard = BlackboardState()
 
-    if "metadata" not in state["blackboard"]:
-        state["blackboard"]["metadata"] = {}
+    if not state.blackboard.metadata:
+        state.blackboard.metadata = BlackboardMetadata()
 
-    state["blackboard"]["metadata"]["tool_memory"] = memory.to_dict()
+    state.blackboard.metadata["tool_memory"] = memory.to_dict()

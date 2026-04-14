@@ -84,13 +84,18 @@ class WorkerMcpSession:
             
             # Create transport and session
             stack = AsyncExitStack()
-            
-            async with self._transport.create_transport(config) as (read, write):
+            try:
+                read, write = await stack.enter_async_context(
+                    self._transport.create_transport(config)
+                )
                 session = await self._transport.create_session(read, write)
-                
+
                 self._stacks[server_name] = stack
                 self._sessions[server_name] = session
                 self._configs[server_name] = config
+            except Exception:
+                await stack.aclose()
+                raise
             
             # Initialize features
             tools_feature = McpToolsFeature()

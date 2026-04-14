@@ -9,7 +9,6 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from app.core.events.base import AsyncEventBus, BaseEvent
-from app.utils.model_helpers import LegacyDictMixin
 
 logger = logging.getLogger(__name__)
 

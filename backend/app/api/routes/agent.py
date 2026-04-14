@@ -9,6 +9,9 @@ from typing import Any
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from langchain_core.messages import HumanMessage, ToolMessage
 from pydantic import BaseModel, ConfigDict
+from app.models.schemas.base import ScopedRequest
+
+from app.api.responses import BaseAPIResponse
 from sqlalchemy import func, select
 
 from app.api.deps import (
@@ -24,7 +27,6 @@ from app.core.engine.background_agent import run_agent_background
 from app.core.evocloud import evocloud_manager
 from app.core.exceptions import AgentHumanInterruptException
 from app.core.monitoring.activity import activity_monitor
-from app.utils.model_helpers import LegacyDictMixin
 from app.domain.codebase.indexing.manager import indexing_manager
 from app.domain.codebase.indexing.service import IndexingService
 from app.domain.integration.adapters import EventAdapter
@@ -35,13 +37,14 @@ from app.models import (
     MessageReference,
 )
 from app.models.learning import LearnedSkill
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
 
-class ChatRequest(BaseModel):
+class ChatRequest(ScopedRequest):
     thread_id: str
     message: str
     project_id: int | None = 1
@@ -54,25 +57,24 @@ class ChatRequest(BaseModel):
     revert_files: bool = True  # For retry/undo support
 
 
-class WebhookPayload(BaseModel, LegacyDictMixin):
+class WebhookPayload(DynamicBaseModel):
     """External webhook payload. Extra fields are allowed per source/event_type."""
-    model_config = ConfigDict(extra="allow")
 
 
-class WebhookRequest(BaseModel):
+class WebhookRequest(ScopedRequest):
     source: str
     event_type: str
     payload: WebhookPayload
     thread_id: str | None = None
 
 
-class ResumeRequest(BaseModel):
+class ResumeRequest(ScopedRequest):
     thread_id: str
     user_input: str | None = None  # Optional user response for HITL
     command_id: int | None = None  # Explicit command_id for resumption trace
 
 
-class CancelHITLRequest(BaseModel):
+class CancelHITLRequest(ScopedRequest):
     thread_id: str
     reason: str | None = None  # Optional reason for cancellation
 
@@ -293,26 +295,26 @@ async def chat_endpoint(
     )
 
 
-class StopChatResponse(BaseModel):
+class StopChatResponse(BaseAPIResponse):
     """Response for stopping a chat."""
     status: str
     thread_id: str
 
 
-class ResumeChatResponse(BaseModel):
+class ResumeChatResponse(BaseAPIResponse):
     """Response for resuming a chat."""
     status: str
     thread_id: str
 
 
-class CancelHITLResponse(BaseModel):
+class CancelHITLResponse(BaseAPIResponse):
     """Response for cancelling a HITL request."""
     status: str
     thread_id: str
     request_id: str | None
 
 
-class WebhookResponse(BaseModel):
+class WebhookResponse(BaseAPIResponse):
     """Response for webhook endpoint."""
     status: str
     thread_id: str

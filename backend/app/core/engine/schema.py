@@ -1,27 +1,25 @@
 from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 
-class NodeParameters(BaseModel, LegacyDictMixin):
-    model_config = ConfigDict(extra="allow")
+class NodeParameters(DynamicBaseModel):
+    pass
 
 
-class NodeConfigPayload(BaseModel, LegacyDictMixin):
-    model_config = ConfigDict(extra="allow")
+class NodeConfigPayload(DynamicBaseModel):
     intent: str | None = None
     parameters: NodeParameters = Field(default_factory=NodeParameters)
     tools: list[str] = Field(default_factory=list)
 
 
-class EdgeCondition(BaseModel, LegacyDictMixin):
-    model_config = ConfigDict(extra="allow")
+class EdgeCondition(DynamicBaseModel):
     expr: str
     to: str
 
 
-class NodeConfig(BaseModel, LegacyDictMixin):
+class NodeConfig(DynamicBaseModel):
     """Configuration for a graph node."""
     id: str
     xpath: str | None = Field(alias="path", default=None)  # e.g. "app.core.engine.nodes.worker.worker_node"
@@ -41,7 +39,7 @@ class NodeConfig(BaseModel, LegacyDictMixin):
         return self
 
 
-class EdgeConfig(BaseModel, LegacyDictMixin):
+class EdgeConfig(DynamicBaseModel):
     """Configuration for a graph edge."""
     from_node: str = Field(alias="from")
     to_node: str | None = Field(alias="to", default=None)
@@ -60,7 +58,7 @@ class EdgeConfig(BaseModel, LegacyDictMixin):
         return self
 
 
-class AgentConfig(BaseModel, LegacyDictMixin):
+class AgentGraphConfig(DynamicBaseModel):
     """Configuration for an agent graph."""
     name: str
     version: str
@@ -71,7 +69,7 @@ class AgentConfig(BaseModel, LegacyDictMixin):
     interrupt_after: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
-    def validate_graph_connectivity(self) -> 'AgentConfig':
+    def validate_graph_connectivity(self) -> 'AgentGraphConfig':
         """Ensure all nodes referenced in edges exist in the node list."""
         node_ids = {node.id for node in self.nodes}
         node_ids.add("END")
@@ -86,7 +84,7 @@ class AgentConfig(BaseModel, LegacyDictMixin):
             if edge.conditions:
                 for cond in edge.conditions:
                     if cond.to not in node_ids:
-                        raise ValueError(f"Conditional edge branch lead to unknown node '{cond.get('to')}'")
+                        raise ValueError(f"Conditional edge branch lead to unknown node '{cond.to}'")
             
             if edge.map:
                 for target_node in edge.map.values():

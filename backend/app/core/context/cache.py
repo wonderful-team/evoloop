@@ -17,12 +17,15 @@ from typing import Any, Optional
 
 from pydantic import BaseModel, Field
 
-from app.utils.model_helpers import LegacyDictMixin
+from app.core.engine.state import AgentState
+from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.core.engine.state.blackboard import BlackboardState, VerificationStatus
+from app.core.engine.state.config import ExecutionTicket
 
 logger = logging.getLogger(__name__)
 
 
-class StaticContextLayer(BaseModel, LegacyDictMixin):
+class StaticContextLayer(DynamicBaseModel):
     """Static context that can be safely cached across nodes."""
     project_concepts: Optional[str] = None
     active_skills_index: list = Field(default_factory=list)
@@ -39,13 +42,13 @@ class StaticContextLayer(BaseModel, LegacyDictMixin):
         return (time.time() - self.cached_at) < max_age
 
 
-class DynamicContextLayer(BaseModel, LegacyDictMixin):
+class DynamicContextLayer(DynamicBaseModel):
     """Dynamic context that must always be fresh."""
-    blackboard: dict = Field(default_factory=dict)
-    execution_ticket: Optional[dict] = None
+    blackboard: Optional[BlackboardState] = None
+    execution_ticket: Optional[ExecutionTicket] = None
     messages: list = Field(default_factory=list)
     iteration_count: int = 0
-    verification_status: Optional[dict] = None
+    verification_status: Optional[VerificationStatus] = None
 
 
 class LayeredContextCache:
@@ -117,26 +120,26 @@ class LayeredContextCache:
         return layer
     
     @classmethod
-    def get_dynamic_layer(cls, state: dict) -> DynamicContextLayer:
+    def get_dynamic_layer(cls, state: "AgentState") -> DynamicContextLayer:
         """
         Get dynamic context layer - always fresh, never cached.
         """
         cls._stats['dynamic_loads'] += 1
-        
+
         # Extract last human message
-        messages = state.get("messages", [])
+        messages = list(state.messages) if state else []
         last_human_msg = ""
         for msg in reversed(messages):
             if hasattr(msg, "type") and msg.type == "human":
                 last_human_msg = msg.content
                 break
-        
+
         return DynamicContextLayer(
-            blackboard=state.get("blackboard", {}).copy(),
-            execution_ticket=state.get("execution_ticket"),
+            blackboard=state.blackboard,
+            execution_ticket=state.execution_ticket,
             messages=messages,
-            iteration_count=state.get("iteration_count", 0),
-            verification_status=state.get("verification_status"),
+            iteration_count=state.iteration_count or 0,
+            verification_status=state.verification_status,
         )
     
     @classmethod

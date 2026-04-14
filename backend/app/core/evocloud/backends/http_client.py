@@ -10,7 +10,7 @@ from app.core.evocloud.interfaces.client import EvoCloudClientProtocol
 from app.core.evocloud.routes import RouteTarget, get_endpoint_route
 from app.core.evocloud.schemas import EvoCloudConfig
 from app.core.identity import identity_service
-from app.models.auth import EvoCloudProxyResponse, LoginResult
+from app.models.schemas.auth import EvoCloudProxyResponse, LoginResult
 from app.utils import http as http_utils
 from app.utils import json as json_utils
 from app.utils.security import generate_hmac_signature

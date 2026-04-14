@@ -8,12 +8,11 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.core.exceptions import GlobalModeError
 from app.utils.id import gen_uuid
 from app.services.cache_services import ContextCacheService
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 
-class ContextMetadata(BaseModel, LegacyDictMixin):
+class ContextMetadata(DynamicBaseModel):
     """Dynamic metadata attached to an EvoContext."""
-    model_config = ConfigDict(extra="allow")
 
 
 # ==========================================
@@ -21,7 +20,7 @@ class ContextMetadata(BaseModel, LegacyDictMixin):
 # ==========================================
 
 
-class EvoContext(BaseModel, LegacyDictMixin):
+class EvoContext(DynamicBaseModel):
     """
     Unified Execution Context for EvoLoop.
     Holds request-scoped or task-scoped information.

@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field, field_validator
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 
 class FileStatus(str, Enum):
@@ -13,7 +13,7 @@ class FileStatus(str, Enum):
     ERROR = "error"
 
 
-class FileInfo(BaseModel, LegacyDictMixin):
+class FileInfo(DynamicBaseModel):
     """Basic file information."""
     path: str
     size: int
@@ -33,7 +33,7 @@ class FileInfo(BaseModel, LegacyDictMixin):
         return v
 
 
-class ReadResult(BaseModel, LegacyDictMixin):
+class ReadResult(DynamicBaseModel):
     """Result of a file read operation."""
     content: str
     encoding: str
@@ -53,7 +53,7 @@ class ReadResult(BaseModel, LegacyDictMixin):
         return False
 
 
-class WriteResult(BaseModel, LegacyDictMixin):
+class WriteResult(DynamicBaseModel):
     """Result of a file write operation."""
     path: str
     status: FileStatus
@@ -66,7 +66,7 @@ class WriteResult(BaseModel, LegacyDictMixin):
         return self.status == FileStatus.SUCCESS
 
 
-class FileChunk(BaseModel, LegacyDictMixin):
+class FileChunk(DynamicBaseModel):
     """A chunk of file content for streaming."""
     content: str
     line_start: int
@@ -74,7 +74,7 @@ class FileChunk(BaseModel, LegacyDictMixin):
     is_last: bool = False
 
 
-class PaginationInfo(BaseModel, LegacyDictMixin):
+class PaginationInfo(DynamicBaseModel):
     """Pagination metadata."""
     total_lines: int
     start_line: int

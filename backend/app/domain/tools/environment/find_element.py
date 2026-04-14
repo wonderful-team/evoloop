@@ -90,7 +90,7 @@ async def find_element(
                 platform=platform,
                 bundle_id=bundle_id,
                 window_title=window_title,
-                elements=[e.model_dump() if hasattr(e, "model_dump") else e.dict() for e in elements],
+                elements=[e.model_dump() for e in elements],
                 screenshot_hash=result.metadata.get("file_hash", "")
             )))
         except Exception as e:

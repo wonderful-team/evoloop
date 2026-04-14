@@ -9,7 +9,7 @@ from langchain_anthropic import ChatAnthropic
 
 from app.infrastructure.llm.adaptive import AdaptiveChatOpenAI
 from app.utils.async_utils import LoopBoundResource
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +54,7 @@ _HTTP_CLIENT_POOL = LoopBoundResource(
 )
 
 
-class LLMCacheStats(BaseModel, LegacyDictMixin):
+class LLMCacheStats(DynamicBaseModel):
     """Statistics for the LLM instance cache."""
     cache_hits: int
     cache_misses: int

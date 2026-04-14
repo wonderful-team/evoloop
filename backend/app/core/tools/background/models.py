@@ -9,7 +9,8 @@ from enum import Enum, auto
 from typing import Any, Callable, Dict, List, Optional, Set
 from pydantic import BaseModel, Field, ConfigDict
 
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
+
 
 
 class TaskStatus(str, Enum):
@@ -35,23 +36,21 @@ class TaskType(str, Enum):
     CUSTOM = "custom"             # User-defined tasks
 
 
-class TaskMetadata(BaseModel, LegacyDictMixin):
-    model_config = ConfigDict(extra="allow")
+class TaskMetadata(DynamicBaseModel):
     shell_env: dict[str, str] = Field(default_factory=dict)
     browser_profile: str | None = None
     device_id: str | None = None
     working_directory: str | None = None
 
 
-class TaskResult(BaseModel, LegacyDictMixin):
-    model_config = ConfigDict(extra="allow")
+class TaskResult(DynamicBaseModel):
     success: bool = True
     output: str = ""
     exit_code: int | None = None
     data: Any = None
 
 
-class BackgroundTask(BaseModel, LegacyDictMixin):
+class BackgroundTask(DynamicBaseModel):
     """
     Represents a background task instance.
     """

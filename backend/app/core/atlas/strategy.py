@@ -12,22 +12,22 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.infrastructure.cache import cache
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 
 REDIS_KEY_ATLAS_STRATEGIES = "atlas:strategies"
 
 
-class StrategyParameters(BaseModel, LegacyDictMixin):
-    model_config = ConfigDict(extra="allow")
+class StrategyParameters(DynamicBaseModel):
+    pass
 
 
-class AppHints(BaseModel, LegacyDictMixin):
-    model_config = ConfigDict(extra="allow")
+class AppHints(DynamicBaseModel):
+    pass
 
 
-class InteractionStrategy(BaseModel):
+class InteractionStrategy(DynamicBaseModel):
     """
     A strategy for finding/interacting with an element.
     Examples: "search_then_click", "scroll_until_visible", "static_click"
@@ -61,7 +61,7 @@ class InteractionStrategy(BaseModel):
         return cls.model_validate(data)
 
 
-class AppStrategy(BaseModel):
+class AppStrategy(DynamicBaseModel):
     """
     Complete strategy set for a dynamic app.
     Stores infrastructure elements (static) and interaction strategies.

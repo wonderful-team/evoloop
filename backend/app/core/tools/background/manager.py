@@ -44,12 +44,12 @@ from datetime import datetime, timedelta
 from pydantic import BaseModel
 
 from .models import BackgroundTask, TaskMetadata, TaskStatus, TaskType
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 
 
-class CreateBackgroundTaskRequest(BaseModel):
+class CreateBackgroundTaskRequest(DynamicBaseModel):
     """Request model for creating a background task."""
     task_type: TaskType
     title: str
@@ -61,7 +61,7 @@ class CreateBackgroundTaskRequest(BaseModel):
     metadata: Optional[TaskMetadata] = None
 
 
-class BackgroundTaskManagerStats(BaseModel, LegacyDictMixin):
+class BackgroundTaskManagerStats(DynamicBaseModel):
     """Background task manager statistics."""
     total_tasks: int
     by_status: dict[str, int]

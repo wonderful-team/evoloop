@@ -8,7 +8,7 @@ This module provides a centralized rewind orchestrator that coordinates
 cleanup operations across different domains through event-driven handlers.
 
 Usage:
-    from app.core.rewind import RewindOrchestrator, RewindResult
+    from app.core.checkpoint.rewind import RewindOrchestrator, RewindResult
     
     orchestrator = RewindOrchestrator(event_bus=system_bus)
     result = await orchestrator.perform_rewind(
@@ -17,12 +17,10 @@ Usage:
         revert_files=True
     )
 """
-
-from app.core.rewind.models import RewindRequest, RewindResult
-from app.core.rewind.orchestrator import RewindOrchestrator
-from app.core.rewind.exceptions import RewindError, PartialRewindError
-from app.core.rewind.handlers import MessageRewind
-from app.core.rewind.checkpoint_handler import CheckpointRewind
+from app.api.routes.conversations import RewindRequest
+from app.core.checkpoint.rewind.exceptions import RewindError, PartialRewindError
+from app.core.checkpoint.rewind.handlers import MessageRewind
+from app.core.checkpoint.rewind.checkpoint_handler import CheckpointRewind
 
 __all__ = [
     # Main orchestrator
@@ -37,3 +35,7 @@ __all__ = [
     "RewindError",
     "PartialRewindError",
 ]
+
+from app.core.checkpoint.rewind.models import RewindResult
+
+from app.core.checkpoint.rewind.orchestrator import RewindOrchestrator

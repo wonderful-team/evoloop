@@ -27,12 +27,12 @@ from app.core.execution.macro.verification_models import (
     RoundReport,
     VerificationStatus,
 )
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 
 
-class InterferenceConfig(BaseModel, LegacyDictMixin):
+class InterferenceConfig(DynamicBaseModel):
     """Configuration for interference injection"""
     enabled: bool = False
     type: str = "none"  # none, delay, chaos, network_degradation
@@ -41,7 +41,7 @@ class InterferenceConfig(BaseModel, LegacyDictMixin):
     custom_params: Dict[str, Any] = Field(default_factory=dict)
 
 
-class RoundContext(BaseModel, LegacyDictMixin):
+class RoundContext(DynamicBaseModel):
     """Context passed between rounds"""
     round_number: int
     previous_reports: List[RoundReport]

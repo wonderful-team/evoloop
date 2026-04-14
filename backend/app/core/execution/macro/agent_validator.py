@@ -22,7 +22,7 @@ from app.core.execution.macro.round_orchestrator import (
 )
 from app.core.execution.macro.verification_models import (
     AdaptationRecord,
-    AgentConfig,
+    VerificationAgentConfig,
     AnomalyType,
     ExecutionDetail,
     ExecutionMode,
@@ -59,7 +59,7 @@ class AgentMacroValidator:
 
     def __init__(self, request: VerificationRequest):
         self.request = request
-        self.agent_config = request.agent_config or AgentConfig()
+        self.agent_config = request.agent_config or VerificationAgentConfig()
         # Phase 4: Perception-First Reasoning Engine
         self.reasoning_engine = AgentReasoningEngine(
             mental_model=request.instructions or "Execute the macro faithfully and handle UI anomalies proactively."

@@ -111,5 +111,3 @@ __all__ = [
     "McpTransport",
     "restore_std_streams",
 ]
-
-__version__ = "2.2.0"

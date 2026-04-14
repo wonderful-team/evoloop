@@ -2,7 +2,7 @@ from enum import Enum
 from typing import Any, List, Optional, Tuple
 from pydantic import BaseModel, Field, ConfigDict
 
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 
 class ElementType(str, Enum):
@@ -28,25 +28,23 @@ class VisionTask(str, Enum):
     COMPARE = "compare"     # Screenshot comparison
 
 
-class NativeAttributes(BaseModel, LegacyDictMixin):
-    model_config = ConfigDict(extra="allow")
+class NativeAttributes(DynamicBaseModel):
+    pass
 
 
-class UIMetadata(BaseModel, LegacyDictMixin):
-    model_config = ConfigDict(extra="allow")
+class UIMetadata(DynamicBaseModel):
     provider: str | None = None
     ocr_confidence: float | None = None
     native_attrs: NativeAttributes = Field(default_factory=NativeAttributes)
 
 
-class VisionMetadata(BaseModel, LegacyDictMixin):
-    model_config = ConfigDict(extra="allow")
+class VisionMetadata(DynamicBaseModel):
     provider: str | None = None
     model_version: str | None = None
     latency_breakdown: dict[str, float] = Field(default_factory=dict)
 
 
-class UIElement(BaseModel, LegacyDictMixin):
+class UIElement(DynamicBaseModel):
     """
     Represents a detected UI element on screen.
     """
@@ -81,7 +79,7 @@ class UIElement(BaseModel, LegacyDictMixin):
         return f"[{self.id}] \"{text_preview}\" ({self.x}, {self.y}) [{type_str}]"
 
 
-class VisionResult(BaseModel, LegacyDictMixin):
+class VisionResult(DynamicBaseModel):
     """Standardized result from VisionEngine."""
     task: VisionTask
     success: bool

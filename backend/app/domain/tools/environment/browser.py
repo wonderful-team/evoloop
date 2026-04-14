@@ -12,15 +12,13 @@ from pydantic import BaseModel, ConfigDict
 
 from app.core.tools import evoloop_tool
 from app.core.environment.controllers.browser_controller import BrowserController
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 
 
-class BrowserControlRequest(BaseModel, LegacyDictMixin):
+class BrowserControlRequest(DynamicBaseModel):
     """Structured request for browser automation actions."""
-
-    model_config = ConfigDict(extra="allow")
 
     action: Literal[
         # Navigation

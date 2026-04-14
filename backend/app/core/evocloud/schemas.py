@@ -2,10 +2,10 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 
-class EvoCloudConfig(BaseModel):
+class EvoCloudConfig(DynamicBaseModel):
     """Configuration for EvoCloud connectivity."""
 
     api_url: str
@@ -26,9 +26,8 @@ class EvoCloudConfig(BaseModel):
     ssl_verify: bool = True
 
 
-class EvoCloudAttachment(BaseModel, LegacyDictMixin):
+class EvoCloudAttachment(DynamicBaseModel):
     """Attachment metadata in an EvoCloud command."""
-    model_config = ConfigDict(extra="allow")
 
 
 class CommandData(BaseModel):
@@ -44,7 +43,7 @@ class CommandData(BaseModel):
     project_id: int | None = None
 
 
-class DeviceStatus(BaseModel):
+class DeviceStatus(DynamicBaseModel):
     """Current status of the device connection."""
 
     is_logged_in: bool
@@ -54,7 +53,7 @@ class DeviceStatus(BaseModel):
     device_name: str | None = None
 
 
-class SyncConversation(BaseModel, LegacyDictMixin):
+class SyncConversation(DynamicBaseModel):
     id: str
     project_id: int = 0
     title: str = "新会话"
@@ -62,7 +61,7 @@ class SyncConversation(BaseModel, LegacyDictMixin):
     updated_at: int
 
 
-class SyncMessage(BaseModel, LegacyDictMixin):
+class SyncMessage(DynamicBaseModel):
     id: str | int
     thread_id: str
     project_id: int = 0
@@ -82,8 +81,7 @@ class SyncMessage(BaseModel, LegacyDictMixin):
     category: str = ""
 
 
-class RemoteCommand(BaseModel, LegacyDictMixin):
-    model_config = ConfigDict(extra="allow")
+class RemoteCommand(DynamicBaseModel):
     command_id: str | int | None = None
     type: str = "chat_message"
     content: dict[str, Any] | None = None
@@ -93,51 +91,49 @@ class RemoteCommand(BaseModel, LegacyDictMixin):
     project_id: int | None = None
 
 
-class ProjectSwitchEvent(BaseModel, LegacyDictMixin):
+class ProjectSwitchEvent(DynamicBaseModel):
     project_id: int | None = None
     project_name: str | None = None
     external_path: str | None = None
     path: str | None = None
 
 
-class QueryResponseData(BaseModel, LegacyDictMixin):
+class QueryResponseData(DynamicBaseModel):
     """Payload for a query response."""
-    model_config = ConfigDict(extra="allow")
 
 
-class QueryResponse(BaseModel, LegacyDictMixin):
+class QueryResponse(DynamicBaseModel):
     type: str = "query_response"
     request_id: str | int | None = None
     data: QueryResponseData
 
 
-class HandshakePayload(BaseModel, LegacyDictMixin):
+class HandshakePayload(DynamicBaseModel):
     """Payload for the EvoCloud WebSocket handshake."""
-    model_config = ConfigDict(extra="allow")
 
 
-class WebSocketHandshake(BaseModel, LegacyDictMixin):
+class WebSocketHandshake(DynamicBaseModel):
     type: str = "connect"
     payload: HandshakePayload
 
 
-class WebSocketPing(BaseModel, LegacyDictMixin):
+class WebSocketPing(DynamicBaseModel):
     type: str = "ping"
     timestamp: int
 
 
-class ToolLogState(BaseModel, LegacyDictMixin):
+class ToolLogState(DynamicBaseModel):
     content: str | None = None
     timestamp: float = 0.0
     name: str | None = None
 
 
-class ThoughtLogState(BaseModel, LegacyDictMixin):
+class ThoughtLogState(DynamicBaseModel):
     content: str | None = None
     timestamp: float = 0.0
 
 
-class ConversationQueryItem(BaseModel, LegacyDictMixin):
+class ConversationQueryItem(DynamicBaseModel):
     id: str
     title: str
     project_id: int | None = None
@@ -145,19 +141,19 @@ class ConversationQueryItem(BaseModel, LegacyDictMixin):
     updated_at: str | None = None
 
 
-class MessageQueryItem(BaseModel, LegacyDictMixin):
+class MessageQueryItem(DynamicBaseModel):
     id: str
     role: str
     content: str | None = None
     created_at: str | None = None
 
 
-class McpServerInfo(BaseModel, LegacyDictMixin):
+class McpServerInfo(DynamicBaseModel):
     name: str
     type: str
     connected: bool
 
 
-class ModelInfo(BaseModel, LegacyDictMixin):
+class ModelInfo(DynamicBaseModel):
     id: str
     name: str

@@ -13,8 +13,10 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
+from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.models.schemas.base import ScopedRequest
 
-from app.core.ghost_text import ghost_suggester
+from app.core.ghost_text import EditPreview, GhostSuggestion, ghost_suggester
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +27,7 @@ router = APIRouter(prefix="/ghost-text", tags=["ghost-text"])
 # Request/Response Models
 # =============================================================================
 
-class InlineCompletionRequest(BaseModel):
+class InlineCompletionRequest(ScopedRequest):
     """Request for inline code completion."""
     file_path: str = Field(..., description="Path to the file being edited")
     cursor_line: int = Field(..., description="Current line number (1-indexed)", ge=1)
@@ -35,23 +37,13 @@ class InlineCompletionRequest(BaseModel):
     project_id: int | None = Field(None, description="Project ID for context-aware suggestions")
 
 
-class GhostSuggestion(BaseModel):
-    """A single ghost text suggestion."""
-    text: str = Field(..., description="The suggested text to insert")
-    confidence: float = Field(..., description="Confidence score (0-1)", ge=0, le=1)
-    type: str = Field(..., description="Suggestion type: completion, edit_preview, snippet")
-    source: str = Field(..., description="Source: pattern, llm, context")
-    display_text: str | None = Field(None, description="Formatted display text")
-    description: str | None = Field(None, description="Tooltip description")
-
-
-class InlineCompletionResponse(BaseModel):
+class InlineCompletionResponse(BaseAPIResponse):
     """Response for inline completion request."""
     suggestion: GhostSuggestion | None = Field(None, description="Primary suggestion")
     alternative_suggestions: list[GhostSuggestion] = Field(default_factory=list, description="Alternative suggestions")
 
 
-class EditPreviewRequest(BaseModel):
+class EditPreviewRequest(ScopedRequest):
     """Request for edit preview as ghost text."""
     file_path: str = Field(..., description="Path to the file")
     edit_description: str = Field(..., description="Natural language description of the edit")
@@ -60,12 +52,12 @@ class EditPreviewRequest(BaseModel):
     project_id: int | None = Field(None, description="Project ID for context")
 
 
-class EditPreviewResponse(BaseModel):
+class EditPreviewResponse(BaseAPIResponse):
     """Response for edit preview request."""
-    preview: dict[str, Any] | None = Field(None, description="Edit preview data")
+    preview: EditPreview | None = Field(None, description="Edit preview data")
 
 
-class GhostPatternItem(BaseModel):
+class GhostPatternItem(DynamicBaseModel):
     """Single ghost text pattern item."""
     pattern: str
     suggestion: str
@@ -212,15 +204,7 @@ async def preview_edit_ghost(request: EditPreviewRequest) -> EditPreviewResponse
         if not preview:
             return EditPreviewResponse(preview=None)
 
-        return EditPreviewResponse(
-            preview={
-                "original_text": preview.original_text,
-                "suggested_text": preview.suggested_text,
-                "description": preview.description,
-                "line_start": preview.line_start,
-                "line_end": preview.line_end,
-            }
-        )
+        return EditPreviewResponse(preview=preview)
 
     except Exception as e:
         logger.error(f"Failed to get edit preview: {e}")

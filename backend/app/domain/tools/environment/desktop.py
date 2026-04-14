@@ -12,15 +12,13 @@ from pydantic import BaseModel, ConfigDict
 
 from app.core.tools import evoloop_tool
 from app.core.environment.controllers.desktop_controller import DesktopController
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 
 
-class DesktopControlRequest(BaseModel, LegacyDictMixin):
+class DesktopControlRequest(DynamicBaseModel):
     """Structured request for desktop automation actions."""
-
-    model_config = ConfigDict(extra="allow")
 
     action: Literal["screenshot", "click", "double_click", "type_text", "key_press", "open_app", "applescript", "get_info", "list_apps", "batch", "get_active_app", "scroll", "drag_drop", "dump_ui", "gui_extract"] = "screenshot"
     x: int | None = None
@@ -53,10 +51,8 @@ class DesktopControlRequest(BaseModel, LegacyDictMixin):
     max_depth: int = 10
 
 
-class VerifyUiStateRequest(BaseModel, LegacyDictMixin):
+class VerifyUiStateRequest(DynamicBaseModel):
     """Structured request for desktop UI state verification."""
-
-    model_config = ConfigDict(extra="allow")
 
     expected_element: str | None = None
     expected_role: str | None = None
@@ -64,10 +60,8 @@ class VerifyUiStateRequest(BaseModel, LegacyDictMixin):
     timeout_seconds: int = 5
 
 
-class QuickCheckScreenRequest(BaseModel, LegacyDictMixin):
+class QuickCheckScreenRequest(DynamicBaseModel):
     """Structured request for quick screen state checks."""
-
-    model_config = ConfigDict(extra="allow")
 
     check_type: Literal["has_text", "has_element", "is_loaded"] = "is_loaded"
     target: str | None = None

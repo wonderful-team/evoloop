@@ -4,11 +4,14 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel, Field
+from app.infrastructure.pydantic_base import DynamicBaseModel
+
+from app.api.responses import BaseAPIResponse
 
 from app.core.evocloud import evocloud_manager
 from app.core.identity import identity_service
 from app.models import Token
-from app.models.auth import EvoCloudProxyResponse
+from app.models.schemas.auth import EvoCloudProxyResponse
 
 logger = logging.getLogger(__name__)
 
@@ -17,46 +20,43 @@ router = APIRouter(tags=["account"])
 
 # --- Request / Response Schemas ---
 
-class MobileCodeRequest(BaseModel):
+class MobileCodeRequest(DynamicBaseModel):
     mobile: str = Field(..., description="Phone number")
     captcha_id: str | None = None
     captcha_code: str | None = None
 
 
-class MobileLoginRequest(BaseModel):
+class MobileLoginRequest(DynamicBaseModel):
     mobile: str = Field(..., description="Phone number")
     code: str = Field(..., description="SMS verification code")
     key: str = Field(..., description="Verification key returned from code request")
 
 
-class MobileCodeResponse(BaseModel):
+class MobileCodeResponse(BaseAPIResponse):
     code: int
-    message: str
     key: str | None = None
 
 
-class WeChatConfigResponse(BaseModel):
+class WeChatConfigResponse(BaseAPIResponse):
     enabled: bool
     app_id: str | None = None
 
 
-class WeChatQRResponse(BaseModel):
+class WeChatQRResponse(BaseAPIResponse):
     key: str | None = None
     expire_time: int
     qrcode_url: str | None = None
     ticket: str
 
 
-class WeChatStatusResponse(BaseModel):
+class WeChatStatusResponse(BaseAPIResponse):
     status: str
-    message: str
     access_token: str | None = None
     token_type: str | None = None
 
 
-class LogoutResponse(BaseModel):
+class LogoutResponse(BaseAPIResponse):
     code: int
-    message: str
 
 
 # --- Internal Helpers ---

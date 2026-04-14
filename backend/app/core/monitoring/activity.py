@@ -23,37 +23,34 @@ from app.models.schemas.events import (
 from app.services.cache_services import ActivityStateService
 
 from pydantic import BaseModel, ConfigDict
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 
 
-class AgentActivityState(BaseModel, LegacyDictMixin):
-    model_config = ConfigDict(extra="allow")
+class AgentActivityState(DynamicBaseModel):
     mode: str
     task_name: str
     task_status: str
     details: dict | None = None
 
 
-class HumanRequestData(BaseModel, LegacyDictMixin):
-    model_config = ConfigDict(extra="allow")
+class HumanRequestData(DynamicBaseModel):
     type: str
     prompt: str
     allow_cancel: bool = True
     payload: dict = Field(default_factory=dict)
 
 
-class InteractionPayload(BaseModel, LegacyDictMixin):
-    model_config = ConfigDict(extra="allow")
+class InteractionPayload(DynamicBaseModel):
+    pass
 
 
-class AgentStateDetails(BaseModel, LegacyDictMixin):
-    model_config = ConfigDict(extra="allow")
+class AgentStateDetails(DynamicBaseModel):
+    pass
 
 
-class SystemLogPayload(BaseModel, LegacyDictMixin):
-    model_config = ConfigDict(extra="allow")
+class SystemLogPayload(DynamicBaseModel):
     type: str
     data: dict
     timestamp: float

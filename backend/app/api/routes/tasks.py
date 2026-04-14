@@ -9,6 +9,8 @@ from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, Header, HTTPException
 from pydantic import BaseModel
+from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.models.schemas.base import ScopedRequest
 
 from app.api.deps import TokenDep, TokenDepOptional
 from app.core.evocloud import evocloud_manager
@@ -27,7 +29,7 @@ def get_token(authorization: str | None = Header(None)):
     return authorization
 
 
-class TaskCreateRequest(BaseModel):
+class TaskCreateRequest(ScopedRequest):
     project_id: int
     task_title: str
     task_desc: str | None = ""
@@ -41,7 +43,7 @@ class TaskCreateRequest(BaseModel):
     deliverables: Any | None = None
 
 
-class TaskUpdateRequest(BaseModel):
+class TaskUpdateRequest(DynamicBaseModel):
     task_title: str | None = None
     task_desc: str | None = None
     priority: int | None = None
@@ -56,15 +58,14 @@ class TaskUpdateRequest(BaseModel):
     deliverables: Any | None = None
 
 
-class TaskStatusUpdate(BaseModel):
+class TaskStatusUpdate(DynamicBaseModel):
     status: int
     progress: int | None = 0
 
 
-class TaskExecutionResponse(BaseModel):
+class TaskExecutionResponse(BaseAPIResponse):
     status: str
     thread_id: str
-    message: str
 
 
 @router.get("/")

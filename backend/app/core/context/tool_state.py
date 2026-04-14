@@ -23,13 +23,12 @@ from pydantic import BaseModel, Field, ConfigDict
 
 from app.core.tools.registry import get_tool_metadata
 from app.i18n.service import i18n
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = __import__("logging").getLogger(__name__)
 
 
-class ToolMetadata(BaseModel, LegacyDictMixin):
-    model_config = ConfigDict(extra="allow")
+class ToolMetadata(DynamicBaseModel):
     affected_path_keys: list[str] = Field(default_factory=list)
     result_summary_template: str | None = None
     is_state_mutating: bool = False
@@ -37,7 +36,7 @@ class ToolMetadata(BaseModel, LegacyDictMixin):
     hidden: bool = False
 
 
-class ToolState(BaseModel, LegacyDictMixin):
+class ToolState(DynamicBaseModel):
     """
     Immutable state for a single tool execution.
     

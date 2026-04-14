@@ -11,12 +11,11 @@ from app.domain.codebase.filter import FileFilter
 from app.models import Repository, SourceFile
 from app.utils.file import get_file_ext
 from app.utils.hash import compute_md5
-from app.utils.model_helpers import LegacyDictMixin
 
 logger = logging.getLogger(__name__)
 
 
-class PreparedFile(BaseModel, LegacyDictMixin):
+class PreparedFile(BaseModel):
     """Result of file preparation, ready for indexing."""
     model_config = ConfigDict(arbitrary_types_allowed=True)
 

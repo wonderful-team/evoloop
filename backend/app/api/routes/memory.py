@@ -3,6 +3,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 from app.core.memory import MemoryContainer, MemoryConfig
 from app.infrastructure.embeddings.factory import EmbedderFactory
@@ -23,18 +24,18 @@ async def get_memory_manager():
     yield MemoryLifespanManager.get_manager()
 
 
-class ConceptCreate(BaseModel):
+class ConceptCreate(DynamicBaseModel):
     name: str
     description: str
     related_files: list[str] | None = None
 
 
-class ConceptUpdate(BaseModel):
+class ConceptUpdate(DynamicBaseModel):
     description: str | None = None
     related_files: list[str] | None = None
 
 
-class ConceptResponse(BaseModel):
+class ConceptResponse(BaseAPIResponse):
     name: str
     description: str | None = None
     episode_count: int | None = 0
@@ -45,7 +46,7 @@ class ConceptWithEpisodeCount(ConceptResponse):
     pass
 
 
-class EpisodeResponse(BaseModel):
+class EpisodeResponse(BaseAPIResponse):
     id: str
     goal: str
     result: str | None
@@ -53,7 +54,7 @@ class EpisodeResponse(BaseModel):
     timestamp: str | None  # ISO format datetime string from Neo4j
 
 
-class VectorSearchResult(BaseModel):
+class VectorSearchResult(DynamicBaseModel):
     """Vector search result item."""
     id: str
     content: str
@@ -67,32 +68,30 @@ class VectorSearchResult(BaseModel):
     score: float
 
 
-class VectorSearchResponse(BaseModel):
+class VectorSearchResponse(ListResponse):
     """Vector search response."""
-    results: list[VectorSearchResult]
-    total: int
+    items: list[VectorSearchResult]
     query: str
     search_type: str
 
 
-class HybridResultItem(BaseModel):
+class HybridResultItem(DynamicBaseModel):
     """Single item in hybrid search results."""
     type: str
     score: float
     data: dict[str, Any]
 
 
-class HybridSearchResponse(BaseModel):
+class HybridSearchResponse(ListResponse):
     """Hybrid search response."""
-    results: list[HybridResultItem]
-    total: int
+    items: list[HybridResultItem]
     query: str
     search_type: str
     vector_results_count: int | None = None
     text_results_count: int | None = None
 
 
-class ConceptOperationResponse(BaseModel):
+class ConceptOperationResponse(BaseAPIResponse):
     """Response for concept add/delete/update operations."""
     status: str
     name: str

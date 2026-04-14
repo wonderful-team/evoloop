@@ -1,8 +1,8 @@
 from pydantic import BaseModel
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 
-class McpServerBase(BaseModel, LegacyDictMixin):
+class McpServerBase(DynamicBaseModel):
     name: str
     command: str
     args: list[str] | None = []
@@ -19,7 +19,7 @@ class McpServerRead(McpServerBase):
     tools_count: int
 
 
-class McpServerUpdate(BaseModel, LegacyDictMixin):
+class McpServerUpdate(DynamicBaseModel):
     command: str | None = None
     args: list[str] | None = None
     env: dict[str, str] | None = None

@@ -9,6 +9,10 @@ from typing import Optional
 
 from fastapi import APIRouter, Body, File, Form, HTTPException, Query, UploadFile
 from pydantic import BaseModel
+from app.infrastructure.pydantic_base import DynamicBaseModel
+
+from app.api.responses import BaseAPIResponse, ListResponse
+from app.models.schemas.base import SearchResponse
 
 from app.domain.knowledge.services.pipeline import IngestionPipeline
 from app.domain.knowledge.services.store import KnowledgeStoreService
@@ -28,22 +32,19 @@ bulk_import = BulkImportService(pipeline)
 
 # ============ Schemas ============
 
-class DocumentResponse(BaseModel):
+class DocumentResponse(BaseAPIResponse):
     """Response for document operations."""
-    success: bool
-    message: str
     path: Optional[str] = None
     document: Optional[dict] = None
 
 
-class DocumentListResponse(BaseModel):
+class DocumentListResponse(ListResponse):
     """Response for listing documents."""
-    total: int
     documents: list[dict]
     collections: list[str]
 
 
-class DocumentMetadataResponse(BaseModel):
+class DocumentMetadataResponse(BaseAPIResponse):
     """Structured metadata for a document chunk/response."""
     title: str | None = None
     source_file: str | None = None
@@ -53,7 +54,7 @@ class DocumentMetadataResponse(BaseModel):
     source_project_id: int | None = None
 
 
-class DocumentContentResponse(BaseModel):
+class DocumentContentResponse(BaseAPIResponse):
     """Response for reading document content."""
     path: str
     content: str
@@ -64,44 +65,40 @@ class DocumentContentResponse(BaseModel):
     has_more: bool
 
 
-class CollectionResponse(BaseModel):
+class CollectionResponse(BaseAPIResponse):
     """Response for listing collections."""
     collections: list[str]
     stats: dict[str, Any]
 
 
-class TagItem(BaseModel):
+class TagItem(DynamicBaseModel):
     """Single tag with document count."""
     name: str
     count: int
 
 
-class TagResponse(BaseModel):
+class TagResponse(BaseAPIResponse):
     """Response for listing tags."""
     tags: list[TagItem]
     total: int
 
 
-class DocumentSearchResponse(BaseModel):
+class DocumentSearchResponse(SearchResponse):
     """Response for document search."""
-    query: str
     results: list[dict[str, Any]]
-    total_matches: int
 
 
-class BulkUploadResponse(BaseModel):
+class BulkUploadResponse(BaseAPIResponse):
     """Response for bulk upload."""
-    success: bool
-    message: str
+    pass
 
 
-class ZipImportResponse(BaseModel):
+class ZipImportResponse(BaseAPIResponse):
     """Response for ZIP import."""
-    success: bool
-    message: str
+    pass
 
 
-class FTSSearchResult(BaseModel):
+class FTSSearchResult(DynamicBaseModel):
     """Single FTS search result."""
     doc_id: str
     path: str
@@ -112,15 +109,13 @@ class FTSSearchResult(BaseModel):
     score: float
 
 
-class FTSSearchResponse(BaseModel):
+class FTSSearchResponse(SearchResponse):
     """Response for FTS search."""
-    query: str
-    total: int
     results: list[FTSSearchResult]
     facets: dict[str, Any]
 
 
-class FTSSuggestResponse(BaseModel):
+class FTSSuggestResponse(BaseAPIResponse):
     """Response for FTS suggestions."""
     suggestions: list[str]
 
@@ -345,7 +340,7 @@ async def search_documents(
         return DocumentSearchResponse(
             query=q,
             results=results,
-            total_matches=sum(r.get("match_count", 0) for r in results)
+            total=sum(r.get("match_count", 0) for r in results)
         )
     
     except Exception as e:

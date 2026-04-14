@@ -9,13 +9,13 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.models.schemas.requests import BaseFilter
 from app.models.todo import TodoPriority, TodoStatus
-from app.utils.model_helpers import LegacyDictMixin
 
 
 # ============== Base Schemas ==============
 
-class TodoBase(BaseModel, LegacyDictMixin):
+class TodoBase(BaseModel):
     """Base Todo fields."""
     title: str = Field(..., min_length=1, max_length=255)
     description: str | None = None
@@ -27,7 +27,7 @@ class TodoBase(BaseModel, LegacyDictMixin):
 
 # ============== Create Schemas ==============
 
-class TodoCreate(BaseModel, LegacyDictMixin):
+class TodoCreate(BaseModel):
     """Schema for creating a new Todo."""
     title: str = Field(..., min_length=1, max_length=255)
     description: str | None = None
@@ -39,7 +39,7 @@ class TodoCreate(BaseModel, LegacyDictMixin):
     source_message_id: str | None = None
 
 
-class TodoCreateInternal(BaseModel, LegacyDictMixin):
+class TodoCreateInternal(BaseModel):
     """Internal schema after parsing and validation."""
     title: str
     description: str | None = None
@@ -53,7 +53,7 @@ class TodoCreateInternal(BaseModel, LegacyDictMixin):
 
 # ============== Update Schemas ==============
 
-class TodoUpdate(BaseModel, LegacyDictMixin):
+class TodoUpdate(BaseModel):
     """Schema for updating an existing Todo."""
     title: str | None = Field(None, min_length=1, max_length=255)
     description: str | None = None
@@ -66,7 +66,7 @@ class TodoUpdate(BaseModel, LegacyDictMixin):
 
 # ============== Response Schemas ==============
 
-class TodoResponse(BaseModel, LegacyDictMixin):
+class TodoResponse(BaseModel):
     """Schema for Todo responses."""
     id: str
     title: str
@@ -86,7 +86,7 @@ class TodoResponse(BaseModel, LegacyDictMixin):
 
 # ============== Filter Schemas ==============
 
-class TodoFilter(BaseModel, LegacyDictMixin):
+class TodoFilter(BaseFilter):
     """Schema for filtering Todos."""
     status: TodoStatus | None = None
     statuses: list[TodoStatus] | None = None  # For multiple status filter

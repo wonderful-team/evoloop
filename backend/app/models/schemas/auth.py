@@ -2,20 +2,18 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 
-class EvoCloudProxyResponse(BaseModel, LegacyDictMixin):
+class EvoCloudProxyResponse(DynamicBaseModel):
     """Generic transparent proxy response from EvoCloud / Member Center APIs."""
-
-    model_config = ConfigDict(extra="allow")
     code: int = -1
     message: str | None = None
     data: Any | None = None
     success: bool | None = None
 
 
-class LoginResult(BaseModel, LegacyDictMixin):
+class LoginResult(DynamicBaseModel):
     """Enriched login result from EvoCloud auth methods."""
 
     success: bool
@@ -25,11 +23,11 @@ class LoginResult(BaseModel, LegacyDictMixin):
     message: str | None = None
 
 
-class MemberBenefitsResponse(BaseModel, LegacyDictMixin):
+class MemberBenefitsResponse(DynamicBaseModel):
     code: int = 0
     data: dict[str, Any] | None = None
 
 
-class CacheInvalidateResponse(BaseModel, LegacyDictMixin):
+class CacheInvalidateResponse(DynamicBaseModel):
     code: int = 0
     message: str

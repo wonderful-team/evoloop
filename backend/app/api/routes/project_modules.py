@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel
+from app.models.schemas.base import ScopedRequest
 
 from app.api.deps import TokenDep, require_benefit
 from app.core.evocloud import evocloud_manager
@@ -18,7 +19,7 @@ def get_token(authorization: str | None = Header(None)):
 # The get_token helper is replaced by TokenDep in the new route definitions.
 
 
-class TimesheetQuickAddRequest(BaseModel):
+class TimesheetQuickAddRequest(ScopedRequest):
     project_id: int
     hours: float
     description: str

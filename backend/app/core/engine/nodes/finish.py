@@ -13,6 +13,7 @@ from app.core.context.manager import ContextManager
 from app.core.engine import get_default_engine
 from app.core.engine.prompts.finish import FinishPromptBuilder
 from app.core.engine.state import AgentState, StateUpdate
+from app.core.engine.state.blackboard import BlackboardState, VerificationStatus
 
 from app.core.monitoring.activity import activity_monitor
 from app.core.tools.manager import tool_manager
@@ -75,7 +76,7 @@ def _extract_final_summary(messages: list) -> str:
     return i18n.get("finish.session_concluded")
 
 
-async def _trigger_session_recording(ctx, config: RunnableConfig, summary: str, original_skill_id: int | None = None, execution_ticket: dict | None = None):
+async def _trigger_session_recording(ctx, config: RunnableConfig, summary: str, original_skill_id: int | None = None, execution_ticket: ExecutionTicket | None = None):
     """Trigger async side-effects when session ends."""
     try:
         thread_id = ctx.thread_id
@@ -91,8 +92,8 @@ async def _trigger_session_recording(ctx, config: RunnableConfig, summary: str, 
         # Determine a friendly goal for the Episode
         episode_goal = "[Auto-recorded by Finish Node]"
         if execution_ticket:
-            ticket_topic = execution_ticket.get("topic")
-            ticket_reason = execution_ticket.get("reason")
+            ticket_topic = execution_ticket.topic
+            ticket_reason = getattr(execution_ticket, "reason", None)
             if ticket_topic and len(ticket_topic) > 5:
                 episode_goal = ticket_topic
             elif ticket_reason and len(ticket_reason) > 5:
@@ -165,7 +166,7 @@ class LayeredAuditor:
         r'Failed to', r'Permission denied', r'File not found',
     ]
     
-    def classify_tier(self, tool_history: list, messages: list, blackboard: dict, state: dict) -> AuditDecision:
+    def classify_tier(self, tool_history: list, messages: list, blackboard: "BlackboardState", state: AgentState) -> AuditDecision:
         """Classify which audit tier is appropriate."""
         used_tools = set()
         for sig in tool_history:
@@ -193,12 +194,12 @@ class LayeredAuditor:
                 triggers.append("error_detected")
                 break
         
-        ticket = blackboard.get("ticket") or {}
-        if ticket.get("complexity") == "high":
+        ticket = state.execution_ticket
+        if ticket and getattr(ticket, "complexity", None) == "high":
             triggers.append("high_complexity")
         
-        verification = blackboard.get("verification") or {}
-        if verification.get("status") in ("failed", "error"):
+        verification = blackboard.verification if blackboard else None
+        if verification and verification.status in ("failed", "error"):
             triggers.append("verification_failed")
         
         if len(messages) > 20:
@@ -213,7 +214,7 @@ class LayeredAuditor:
             len(last_content) > 50,
             len(last_content) < 3000,
             not any(re.search(p, last_content) for p in self.ERROR_PATTERNS),
-            not state.get("is_subtask"),
+            not state.is_subtask,
         ]
         
         if all(minimal_ok):
@@ -221,7 +222,7 @@ class LayeredAuditor:
         
         return AuditDecision("standard", "default", 0.90)
     
-    async def audit_minimal(self, messages: list, blackboard: dict) -> tuple[str, dict]:
+    async def audit_minimal(self, messages: list, blackboard: "BlackboardState") -> tuple[str, dict]:
         """Rule-based audit, < 10ms."""
         last_content = ""
         tool_usage = []
@@ -244,29 +245,33 @@ class LayeredAuditor:
         
         return summary, {'tier': 'minimal', 'duration_ms': 5, 'tools': list(set(tool_usage))}
     
-    async def audit_standard(self, messages: list, blackboard: dict, config: RunnableConfig) -> tuple[str, dict]:
+    async def audit_standard(self, messages: list, blackboard: "BlackboardState", config: RunnableConfig) -> tuple[str, dict]:
         """Lightweight LLM audit, ~500-800ms."""
         start = time.time()
-        
-        ticket = blackboard.get("ticket", {})
+
+        from app.core.engine.state.blackboard import BlackboardState
+        if isinstance(blackboard, BlackboardState) and blackboard.ticket:
+            ticket = blackboard.ticket
+        else:
+            ticket = None
         tool_usage = []
-        
+
         for msg in messages:
             if hasattr(msg, 'tool_calls') and msg.tool_calls:
                 for tc in msg.tool_calls:
                     name = tc.get('name') if isinstance(tc, dict) else getattr(tc, 'name', None)
                     if name:
                         tool_usage.append(name)
-        
+
         last_content = ""
         for msg in reversed(messages):
             if isinstance(msg, AIMessage) and msg.content:
                 last_content = str(msg.content)
                 break
-        
+
         prompt = f"""Summarize this session in 2-3 sentences.
 
-Task: {ticket.get('topic', 'Unknown')}
+Task: {ticket.topic if ticket else 'Unknown'}
 Tools: {', '.join(set(tool_usage)) if tool_usage else 'None'}
 
 Result:
@@ -307,16 +312,16 @@ def _get_auditor() -> LayeredAuditor:
 async def _comprehensive_audit(state: AgentState, config: RunnableConfig) -> StateUpdate:
     """Original comprehensive audit logic."""
     ctx = ContextManager.current()
-    messages = state.get("messages", [])
-    blackboard = state.get("blackboard") or {}
+    messages = list(state.messages)
+    blackboard = (state.blackboard or {})
     
-    current_plan = state.get("current_plan", "")
-    execution_ticket = blackboard.get("ticket") or state.get("execution_ticket")
-    verification_status = blackboard.get("verification") or state.get("verification_status", {})
+    current_plan = (state.current_plan or "")
+    execution_ticket = state.execution_ticket
+    verification_status = (blackboard.verification if blackboard else None) or state.verification_status or VerificationStatus(status="unverified")
     action_context = _extract_tool_usage(messages)
 
-    iteration_count = state.get("iteration_count", 0)
-    project_id = ctx.project_id or state.get("project_id") or DEFAULT_PROJECT_ID
+    iteration_count = (state.iteration_count or 0)
+    project_id = ctx.project_id or state.project_id or DEFAULT_PROJECT_ID
     
     from app.core.environment import get_awakened_state
     env_state = get_awakened_state()
@@ -336,7 +341,7 @@ async def _comprehensive_audit(state: AgentState, config: RunnableConfig) -> Sta
         blackboard=blackboard
     )
     system_prompt = builder.build()
-    tools = tool_manager.get_node_tools("finish", state)
+    tools = await tool_manager.get_node_tools("finish", state)
 
     logger.info("[Finish] 🕵️ Starting Comprehensive Audit")
     
@@ -358,7 +363,12 @@ async def _comprehensive_audit(state: AgentState, config: RunnableConfig) -> Sta
         node_source="finish",
     )
     
-    return StateUpdate(**result)
+    return StateUpdate(
+        messages=result.messages or [],
+        next_node=result._routing_target,
+        blackboard=result.blackboard,
+        tool_history=result.tool_history,
+    )
 
 
 async def finish_node(state: AgentState, config: RunnableConfig) -> StateUpdate:
@@ -368,13 +378,13 @@ async def finish_node(state: AgentState, config: RunnableConfig) -> StateUpdate:
     start_time = time.time()
     
     ctx = ContextManager.current()
-    messages = state.get("messages", [])
-    blackboard = state.get("blackboard") or {}
+    messages = list(state.messages)
+    blackboard = state.blackboard
 
-    is_shadow_mode = blackboard.get("metadata", {}).get("shadow_audit", False)
-    
+    is_shadow_mode = getattr(blackboard.metadata if blackboard else None, "shadow_audit", False) or False
+
     # 1. Get tool history from blackboard (stored by WorkerNode)
-    tool_history = blackboard.get("metadata", {}).get("tool_history", [])
+    tool_history = getattr(blackboard.metadata if blackboard else None, "tool_history", []) or []
 
     if is_shadow_mode:
         logger.info("[Finish] 👻 Shadow Mode")
@@ -400,8 +410,8 @@ async def finish_node(state: AgentState, config: RunnableConfig) -> StateUpdate:
             
         else:  # comprehensive
             result = await _comprehensive_audit(state, config)
-            messages = result.get("messages", messages)
-            blackboard = result.get("blackboard", blackboard)
+            messages = result.messages or messages
+            blackboard = result.blackboard or blackboard
             summary = _extract_final_summary(messages)
             audit_meta = {"tier": "comprehensive", "duration_ms": (time.time() - start_time) * 1000}
     
@@ -411,7 +421,11 @@ async def finish_node(state: AgentState, config: RunnableConfig) -> StateUpdate:
     final_outcome = ""
     if outcome_match:
         final_outcome = outcome_match.group(1).strip()
-        blackboard.setdefault("metadata", {})["final_outcome"] = final_outcome
+        if blackboard:
+            if not blackboard.metadata:
+                from app.core.engine.state.blackboard import BlackboardMetadata
+                blackboard.metadata = BlackboardMetadata()
+            blackboard.metadata["final_outcome"] = final_outcome
         logger.info(f"[Finish] 🎯 Outcome: {final_outcome}")
 
     # Apply summary (unless comprehensive already did)
@@ -426,7 +440,7 @@ async def finish_node(state: AgentState, config: RunnableConfig) -> StateUpdate:
 
     metadata = config.get("metadata", {})
     original_skill_id = metadata.get("original_skill_id")
-    blackboard_ticket = blackboard.get("ticket") or state.get("execution_ticket")
+    blackboard_ticket = state.execution_ticket
     await _trigger_session_recording(ctx, config, summary, original_skill_id=original_skill_id, execution_ticket=blackboard_ticket)
     
     # Trigger automatic memory extraction (fire and forget)
@@ -471,7 +485,7 @@ async def finish_node(state: AgentState, config: RunnableConfig) -> StateUpdate:
     messages_to_return = list(messages)
     removed_ids = []
 
-    for msg in state.get("messages", []):
+    for msg in list(state.messages):
         if isinstance(msg, AIMessage) and msg.content:
             content = str(msg.content)
             if "<audit>" in content and "<report>" in content and hasattr(msg, 'id') and msg.id:

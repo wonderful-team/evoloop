@@ -483,7 +483,7 @@ def git_harvest_task(cwd: str, project_id: int):
     """
     async def _run():
         import subprocess
-        from app.models.schemas.git import ExtractionResult
+        from app.models.schemas.git import GitConceptExtractionResult
         from app.infrastructure.config.service import SystemConfigService
 
         # 1. Get Diff
@@ -517,11 +517,11 @@ def git_harvest_task(cwd: str, project_id: int):
                     {"role": "system", "content": prompt_text}
                 ],
                 purpose="memory_extraction",
-                output_schema=ExtractionResult,
+                output_schema=GitConceptExtractionResult,
                 temperature=0.0,
             )
 
-            if isinstance(result, ExtractionResult) and result.concepts:
+            if isinstance(result, GitConceptExtractionResult) and result.concepts:
                 # Use singleton container to store concepts
                 from app.core.memory.lifespan import MemoryLifespanManager
                 if not MemoryLifespanManager.is_initialized():

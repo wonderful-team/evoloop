@@ -12,11 +12,14 @@ from sqlalchemy import select
 from app.core.config import settings
 from app.core.context import ContextManager
 from app.core.engine import get_default_engine
+from app.core.engine.engine import EngineResult
 from app.core.engine.context_monitor import ContextMonitor
 from app.core.engine.message_utils import get_message_text
 from app.core.engine.prompts import WorkerPromptBuilder
 from app.core.engine.routers import RoutingTarget
 from app.core.engine.state import AgentState, StateUpdate
+from app.core.engine.state.blackboard import VerificationStatus
+from app.core.engine.state.config import ExecutionTicket, AgentRuntimeConfig
 from app.core.environment import get_awakened_state
 from app.core.tools.manager import tool_manager
 from app.core.tools.registry import get_tool_metadata
@@ -46,35 +49,35 @@ class WorkerNode(BaseAgentNode):
         """Hydration and validation logic."""
         from app.core.engine.context_hydrator import EvoContextMiddleware
         state = await EvoContextMiddleware.hydrate(state, config)
-        
-        execution_ticket = state.get("execution_ticket")
-        if not execution_ticket or not execution_ticket.get("agent_config"):
+
+        execution_ticket = state.execution_ticket
+        if not execution_ticket or not execution_ticket.agent_config:
             logger.warning("[Worker] No AgentConfig found in ticket! Using default configuration.")
-            blackboard = state.get("blackboard") or {}
-            route_reason = blackboard.get("route_reason", "Execute task")
-            execution_ticket = {
-                "ticket_type": "task",
-                "topic": route_reason,
-                "agent_config": {
-                    "role_name": "Worker",
-                    "system_instructions": "Execute the following task steps accurately and provide the result.",
-                }
-            }
-            state["execution_ticket"] = execution_ticket
+            blackboard = (state.blackboard or {})
+            route_reason = blackboard.route_reason if blackboard else "Execute task"
+            execution_ticket = ExecutionTicket(
+                ticket_type="task",
+                topic=route_reason,
+                agent_config=AgentRuntimeConfig(
+                    role_name="Worker",
+                    system_instructions="Execute the following task steps accurately and provide the result.",
+                )
+            )
+            state.execution_ticket = execution_ticket
 
         return state
 
     async def build_prompt_pair(self, state: AgentState, config: RunnableConfig) -> tuple[str, str]:
         """Construct (Static System Prompt, Dynamic Mission Message)."""
-        execution_ticket = state["execution_ticket"]
-        agent_config = execution_ticket["agent_config"]
-        blackboard = state.get("blackboard") or {}
+        execution_ticket = state.execution_ticket
+        agent_config = execution_ticket.agent_config if execution_ticket else None
+        blackboard = (state.blackboard or {})
         ctx = ContextManager.current()
-        
+
         # Hydrate internal context
-        full_plan = state.get("structured_plan") or state.get("current_plan") or blackboard.get("plan")
+        full_plan = state.structured_plan or state.current_plan or getattr(blackboard, "plan", None)
         focus_files = await self._hydrate_focus_files(execution_ticket, ctx)
-        relevant_sops = state.get("relevant_sops", [])
+        relevant_sops = list(state.relevant_sops)
 
         prompt_builder = WorkerPromptBuilder(
             agent_config,
@@ -89,7 +92,7 @@ class WorkerNode(BaseAgentNode):
         static_system_prompt = await prompt_builder.build(config)
 
         # 2. Dynamic Mission (Turn-based context)
-        all_messages = state.get("messages", [])
+        all_messages = list(state.messages)
         context_stats = ContextMonitor.calculate(all_messages).to_prompt()
 
         from app.core.engine.prompts.utils import get_mapped_cwd
@@ -111,19 +114,19 @@ class WorkerNode(BaseAgentNode):
 
     async def get_tools(self, state: AgentState) -> list[Any]:
         """Load authorized tools based on ticket skills."""
-        return await asyncio.to_thread(tool_manager.get_node_tools, "worker", state)
+        return await tool_manager.get_node_tools("worker", state)
 
-    async def handle_outcome(self, original_state: AgentState, engine_result: dict[str, Any], config: RunnableConfig) -> StateUpdate:
+    async def handle_outcome(self, original_state: AgentState, engine_result: "EngineResult", config: RunnableConfig) -> StateUpdate:
         """Post-processing and signal dispatching."""
         # 1. Base Signal Handling
-        signal = engine_result.get("signal")
+        signal = engine_result.signal
         if signal:
             from app.core.engine.dispatcher import SignalDispatcher
             return await SignalDispatcher.dispatch(original_state, signal, config)
 
         # 2. Worker Post-processing (Outcome determination, Blackboard updates, etc.)
-        execution_ticket = original_state.get("execution_ticket", {})
-        role_name = execution_ticket.get("agent_config", {}).get("role_name", "Worker")
+        execution_ticket = original_state.execution_ticket
+        role_name = execution_ticket.agent_config.role_name if execution_ticket and execution_ticket.agent_config else "Worker"
 
         return self._post_process_result(original_state, engine_result, execution_ticket, role_name)
 
@@ -131,30 +134,30 @@ class WorkerNode(BaseAgentNode):
         """Override to handle sequential multi-skill logic."""
         # 1. Initial Hydration
         state = await self.prepare_state(state, config)
-        execution_ticket = state["execution_ticket"]
-        
+        execution_ticket = state.execution_ticket
+
         # Check for multi-skill workflow
-        skill_ids = execution_ticket.get("skill_ids") or []
-        workflow_mode = execution_ticket.get("workflow_mode", "single")
-        
+        skill_ids = execution_ticket.skill_ids or [] if execution_ticket else []
+        workflow_mode = execution_ticket.workflow_mode or "single" if execution_ticket else "single"
+
         # Backward compatibility
-        if not skill_ids and execution_ticket.get("skill_id"):
-            skill_ids = [execution_ticket["skill_id"]]
+        if not skill_ids and execution_ticket and execution_ticket.skill_id:
+            skill_ids = [execution_ticket.skill_id]
             workflow_mode = "single"
-            
+
         is_multi_skill_workflow = workflow_mode == "sequential" and len(skill_ids) > 1
-        
+
         # Hydrate SOPs (Load early for both modes)
         from app.core.engine.context_hydrator import SkillHydrator
         if is_multi_skill_workflow:
             relevant_sops = await self._load_skills_by_ids(skill_ids)
         else:
             relevant_sops = await SkillHydrator.get_node_skills(state, "worker")
-            
+
         # Optional: Inject Fallback Recovery SOPs (omitted for brevity here but should be preserved in real implementation)
         # For this refactor, I'll keep the specialized SOP injection logic in a private helper.
         relevant_sops = await self._inject_fallback_sops(relevant_sops, config)
-        state["relevant_sops"] = relevant_sops
+        state.relevant_sops = relevant_sops
 
         if is_multi_skill_workflow:
             logger.info(f"[Worker] 🔄 Launching sequential workflow with {len(skill_ids)} skills...")
@@ -164,8 +167,8 @@ class WorkerNode(BaseAgentNode):
                 skills=relevant_sops,
                 tools=await self.get_tools(state),
                 execution_ticket=execution_ticket,
-                agent_config=execution_ticket["agent_config"],
-                role_name=execution_ticket["agent_config"].get("role_name", "Worker"),
+                agent_config=execution_ticket.agent_config,
+                role_name=execution_ticket.agent_config.role_name if execution_ticket.agent_config else "Worker",
             )
             
         # Standard ReAct loop (Delegated to BaseAgentNode)
@@ -217,8 +220,8 @@ class WorkerNode(BaseAgentNode):
         config: RunnableConfig,
         skills: list[Any],
         tools: list,
-        execution_ticket: dict,
-        agent_config: dict,
+        execution_ticket: ExecutionTicket,
+        agent_config: AgentRuntimeConfig,
         role_name: str,
     ) -> dict[str, Any]:
         """
@@ -228,9 +231,9 @@ class WorkerNode(BaseAgentNode):
         from app.core.context import ContextManager
         
         results = []
-        blackboard = state.get("blackboard") or {}
+        blackboard = (state.blackboard or {})
         ctx = ContextManager.current()
-        full_plan = state.get("structured_plan") or state.get("current_plan") or blackboard.get("plan")
+        full_plan = state.structured_plan or state.current_plan or getattr(blackboard, "plan", None)
         
         for i, skill in enumerate(skills):
             is_last = (i == len(skills) - 1)
@@ -254,9 +257,9 @@ class WorkerNode(BaseAgentNode):
             
             # 更新 ticket 用于当前步骤
             step_ticket = copy.deepcopy(execution_ticket)
-            step_ticket["workflow_context"] = workflow_context
-            step_ticket["skill_id"] = skill.id  # 当前步骤的技能 ID
-            step_ticket["topic"] = f"Step {i+1}: {skill.name}"
+            step_ticket.workflow_context = workflow_context
+            step_ticket.skill_id = skill.id  # 当前步骤的技能 ID
+            step_ticket.topic = f"Step {i+1}: {skill.name}"
             
             # 加载 Focus Files（只加载一次）
             focus_files = await self._hydrate_focus_files(execution_ticket, ctx) if is_first else []
@@ -284,12 +287,12 @@ class WorkerNode(BaseAgentNode):
             
             try:
                 # 执行当前步骤
-                worker_state = copy.deepcopy(state) if agent_config.get("is_subtask") else state.copy()
-                worker_state["messages"] = messages
-                
+                worker_state = copy.deepcopy(state) if agent_config.is_subtask else state.copy()
+                worker_state.messages = messages
+
                 # Get user selected model from config (if any)
                 model = config.get("configurable", {}).get("model")
-                
+
                 step_engine = get_default_engine()
                 engine_result = await step_engine.run_node(
                     state=worker_state,
@@ -298,8 +301,8 @@ class WorkerNode(BaseAgentNode):
                     tools=tools,
                     model=model,  # Use user selected model
                     name=f"Worker-{role_name}-Step{i+1}",
-                    max_steps=1 if agent_config.get("is_subtask") else settings.WORKER_AGENT_MAX_STEPS,
-                    is_subtask=agent_config.get("is_subtask", False),
+                    max_steps=1 if agent_config.is_subtask else settings.WORKER_AGENT_MAX_STEPS,
+                    is_subtask=agent_config.is_subtask or False,
                 )
 
                 # 提取步骤输出
@@ -367,7 +370,7 @@ class WorkerNode(BaseAgentNode):
         self,
         state: AgentState,
         engine_result: dict,
-        execution_ticket: dict,
+        execution_ticket: ExecutionTicket,
         role_name: str
     ) -> StateUpdate:
         """
@@ -377,8 +380,8 @@ class WorkerNode(BaseAgentNode):
         """
         last_msg = engine_result["messages"][-1]
         content = get_message_text(last_msg) if isinstance(last_msg, AIMessage) else ""
-        tool_history = engine_result.get("tool_history", [])
-        routing_target = engine_result.get("_routing_target")
+        tool_history = engine_result.tool_history or []
+        routing_target = engine_result._routing_target
 
         logger.info(f"[Worker][{role_name}] Loop finished. Content len: {len(content)}, Tools used: {len(tool_history)}, Target: {routing_target}")
 
@@ -393,8 +396,8 @@ class WorkerNode(BaseAgentNode):
         # the detailed output for context continuity in multi-turn dialogues.
 
         # Check if verbose output is requested (default: True for multi-turn support)
-        parameters = execution_ticket.get("parameters", {})
-        verbose_output = parameters.get("verbose_output", True)
+        parameters = execution_ticket.parameters
+        verbose_output = parameters.verbose_output if parameters else True
 
         if verbose_output:
             # Return full execution result for multi-turn conversation continuity
@@ -403,23 +406,18 @@ class WorkerNode(BaseAgentNode):
             # Legacy minimal mode - brief confirmation only
             worker_content = f"{role_name} completed."
 
-        return_state: dict[str, Any] = {
-            "messages": [AIMessage(content=worker_content)],
-            "next_node": routing_target or RoutingTarget.FINISH,
-        }
-
         # --- Structured outcome via Blackboard ---
-        blackboard = state.get("blackboard") or {}
-        agent_config = execution_ticket.get("agent_config", {})
+        blackboard = state.blackboard
+        subtask_agent_config = execution_ticket.agent_config
         # Subtask workers do NOT set worker_outcome directly;
         # the Aggregator determines the final outcome after merging all parallel results.
-        if not agent_config.get("is_subtask"):
-            blackboard["worker_outcome"] = worker_outcome
+        if blackboard and not (subtask_agent_config and subtask_agent_config.is_subtask):
+            blackboard.worker_outcome = worker_outcome
 
         # --- Subtask Result Collection ---
-        if agent_config.get("is_subtask"):
-            subtask_id = execution_ticket.get("subtask_id", "unknown")
-            parent_task_id = execution_ticket.get("parent_task_id", "unknown")
+        if blackboard and subtask_agent_config and subtask_agent_config.is_subtask:
+            subtask_id = execution_ticket.subtask_id or "unknown"
+            parent_task_id = execution_ticket.parent_task_id or "unknown"
 
             subtask_result = {
                 "subtask_id": subtask_id,
@@ -429,18 +427,16 @@ class WorkerNode(BaseAgentNode):
                 "timestamp": asyncio.get_event_loop().time(),
             }
 
-            if "subtask_results" not in blackboard or blackboard["subtask_results"] is None:
-                blackboard["subtask_results"] = []
+            if not blackboard.subtask_results:
+                blackboard.subtask_results = []
 
-            blackboard["subtask_results"].append(subtask_result)
-            
-            pending_agg = blackboard.get("pending_aggregation", {})
+            blackboard.subtask_results.append(subtask_result)
+
+            pending_agg = blackboard.pending_aggregation
             if pending_agg:
-                expected_count = pending_agg.get("expected_count", 0)
-                current_count = len(blackboard["subtask_results"])
+                expected_count = pending_agg.expected_count or 0
+                current_count = len(blackboard.subtask_results)
                 logger.debug(f"[Worker] 📊 Subtask completion progress: {current_count}/{expected_count}")
-
-        return_state["blackboard"] = blackboard
 
         # 5a. Cache Invalidation (Universal via Metadata)
         has_changes = False
@@ -452,15 +448,17 @@ class WorkerNode(BaseAgentNode):
                 logger.info(f"[Worker][{role_name}] ♻️ State mutation detected via tool '{tool_name}' - Invalidating caches")
                 break
 
+        workspace_context = None
         if has_changes:
-            return_state["workspace_context"] = {"structure": None, "structure_updated_at": 0.0}
+            workspace_context = {"structure": None, "structure_updated_at": 0.0}
 
         # 5b. Verification Signal Capture (from Operator)
-        verification_summary = {"status": "unverified", "signals": []}
+        verification_signals = []
+        updated_execution_ticket = execution_ticket
         for t_sig in tool_history:
             tool_name = t_sig.split(":")[0] if ":" in t_sig else t_sig
-            if tool_name not in verification_summary["signals"]:
-                verification_summary["signals"].append(tool_name)
+            if tool_name not in verification_signals:
+                verification_signals.append(tool_name)
 
             # 5c. MCP Server Interception (from Operator + legacy Specialist)
             if tool_name == "use_mcp_server":
@@ -469,24 +467,31 @@ class WorkerNode(BaseAgentNode):
                     args = json.loads(args_json)
                     server_name = args.get("server_name")
                     if server_name:
-                        req_servers = set(execution_ticket.get("mcp_servers_required", []))
+                        req_servers = set(updated_execution_ticket.mcp_servers_required or [])
                         req_servers.add(server_name)
-                        execution_ticket["mcp_servers_required"] = list(req_servers)
-                        return_state["execution_ticket"] = execution_ticket
+                        updated_execution_ticket.mcp_servers_required = list(req_servers)
                         logger.info(f"[Worker] 🔌 Appended MCP server '{server_name}' to execution_ticket.")
                 except Exception as e:
                     logger.error(f"[Worker] Failed to parse use_mcp_server arguments: {e}")
 
-        return_state['verification_status'] = verification_summary
-        return StateUpdate(**return_state)
+        verification_summary = VerificationStatus(status="unverified", signals=verification_signals)
 
-    async def _hydrate_focus_files(self, ticket: dict, ctx) -> list[dict]:
+        return StateUpdate(
+            messages=[AIMessage(content=worker_content)],
+            next_node=routing_target or RoutingTarget.FINISH,
+            blackboard=blackboard,
+            workspace_context=workspace_context,
+            execution_ticket=updated_execution_ticket,
+            verification_status=verification_summary,
+        )
+
+    async def _hydrate_focus_files(self, ticket: ExecutionTicket, ctx) -> list[dict]:
         """
         Retrieve focus-file data as structured objects.
         Returns a list of dicts with keys: rel_path, status, content/detail.
         Rendering is handled by the Jinja2 template.
         """
-        focus_paths = ticket.get("focus_paths", [])
+        focus_paths = ticket.focus_paths or []
         if not focus_paths:
             return []
 

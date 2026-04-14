@@ -12,8 +12,8 @@ from pathlib import Path
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.core.config import settings
-from app.utils.model_helpers import LegacyDictMixin
 from .android_event_recorder import AndroidEventRecorder, AndroidTraceEvent
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 
@@ -21,26 +21,7 @@ logger = logging.getLogger(__name__)
 ANDROID_RECORDINGS_DIR = Path(settings.ANDROID_RECORDINGS_DIR)
 
 
-class MirrorSession:
-    """
-    Represents a single active scrcpy mirroring session.
-    """
-    def __init__(self, session_id: str, device_id: str):
-        self.session_id = session_id
-        self.device_id = device_id
-        self.process: subprocess.Popen | None = None
-        self.is_active = False
-
-        # Video timestamp synchronization
-        self._video_start_time: float | None = None  # Unix timestamp when video recording started
-        self.port: int | None = None
-        self.error: str | None = None
-        self.should_be_active = False  # Persists through disconnects
-        self.video_path: str | None = None  # Path to recorded video file
-
-
-class MirrorSessionStopResult(BaseModel, LegacyDictMixin):
-    model_config = ConfigDict(extra="allow")
+class MirrorSessionStopResult(DynamicBaseModel):
     video_path: str | None = None
     events: list[AndroidTraceEvent] = Field(default_factory=list)
     session_id: str

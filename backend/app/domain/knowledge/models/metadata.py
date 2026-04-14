@@ -5,17 +5,17 @@ Metadata models for knowledge extraction.
 from datetime import datetime
 from pydantic import BaseModel, Field
 from typing import Any, Optional, Dict, List
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 
-class ExtractorInfo(BaseModel, LegacyDictMixin):
+class ExtractorInfo(DynamicBaseModel):
     """Information about the extractor used."""
     name: str
     version: str = "1.0"
     config: Dict[str, Any] = Field(default_factory=dict)
 
 
-class DocumentMetadata(BaseModel, LegacyDictMixin):
+class DocumentMetadata(DynamicBaseModel):
     """
     Rich metadata for extracted documents.
     

@@ -5,6 +5,7 @@ from typing import Any
 
 from langchain_core.tools import StructuredTool
 
+from app.core.engine.state.config import ExecutionTicket
 from app.core.mcp import mcp_client_manager
 from app.core.mcp.worker import worker_mcp_manager
 from app.core.mcp.worker_config import WorkerMcpConfig
@@ -27,7 +28,7 @@ class WorkerMcpIntegration:
         worker_id: str,
         worker_name: str,
         mcp_config: WorkerMcpConfig | None,
-        execution_ticket: dict[str, Any]
+        execution_ticket: ExecutionTicket | None
     ) -> list[StructuredTool]:
         """
         Initialize MCP for a Worker and return available tools.
@@ -44,7 +45,7 @@ class WorkerMcpIntegration:
         if not mcp_config or mcp_config.is_empty():
             # No Worker-specific MCP config, use global MCP only
             # Check execution_ticket for requested global servers
-            requested_servers = execution_ticket.get("mcp_servers_required", [])
+            requested_servers = execution_ticket.mcp_servers_required or [] if execution_ticket else []
             if requested_servers:
                 # Ensure global servers are connected and return their tools
                 tools = []
@@ -85,7 +86,7 @@ class WorkerMcpIntegration:
         # 2. Handle inherited global servers
         for server_name in mcp_config.inherit_servers:
             # Check if this server was explicitly requested in ticket
-            requested_servers = execution_ticket.get("mcp_servers_required", [])
+            requested_servers = execution_ticket.mcp_servers_required or [] if execution_ticket else []
             
             if server_name in requested_servers:
                 # Use global connection, get tools
@@ -102,7 +103,7 @@ class WorkerMcpIntegration:
         
         # 3. Handle dynamically requested servers from execution_ticket
         # These are servers requested via use_mcp_server tool
-        requested_servers = execution_ticket.get("mcp_servers_required", [])
+        requested_servers = execution_ticket.mcp_servers_required or [] if execution_ticket else []
         for server_name in requested_servers:
             # Skip if already handled
             if any(s.name == server_name for s in mcp_config.servers):

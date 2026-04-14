@@ -16,12 +16,12 @@ from typing import Dict, List, Optional, Tuple
 from pydantic import BaseModel, Field
 
 from app.core.memory.models import MemoryEntry, MemoryType
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 
 
-class QualityScores(BaseModel, LegacyDictMixin):
+class QualityScores(DynamicBaseModel):
     """Quality scores for a memory entry."""
     freshness: float  # 0-1, how recent
     usage: float  # 0-1, how often recalled
@@ -39,7 +39,7 @@ class QualityScores(BaseModel, LegacyDictMixin):
         }
 
 
-class CleanupRecommendation(BaseModel, LegacyDictMixin):
+class CleanupRecommendation(DynamicBaseModel):
     """Recommendation for memory cleanup."""
     entry: MemoryEntry
     action: str  # 'archive', 'update', 'delete', 'keep'

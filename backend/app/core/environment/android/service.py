@@ -2,15 +2,14 @@ import logging
 from typing import List
 
 from pydantic import BaseModel, ConfigDict
-from app.utils.model_helpers import LegacyDictMixin
 from app.core.vision.providers.native.android_a11y import android_a11y_provider
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 
 
-class DehydratedElement(BaseModel, LegacyDictMixin):
+class DehydratedElement(DynamicBaseModel):
     """A dehydrated Android UI element."""
-    model_config = ConfigDict(extra="allow")
     id: int
     text: str
     x: int

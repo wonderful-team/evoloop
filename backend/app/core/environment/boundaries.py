@@ -12,7 +12,7 @@ from enum import Enum
 from typing import Optional
 
 from pydantic import BaseModel, Field
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ class BoundaryCategory(str, Enum):
     UNKNOWN = "unknown"
 
 
-class DynamicBoundary(BaseModel, LegacyDictMixin):
+class DynamicBoundary(DynamicBaseModel):
     """A learned capability boundary with TTL"""
     description: str
     category: BoundaryCategory

@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 
 from app.infrastructure.cache import get_cache
 from app.infrastructure.cache.abstract import Cache
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 
@@ -125,7 +125,7 @@ class LinkTokenService:
         return data if isinstance(data, str) else None
 
 
-class ActivityStep(BaseModel, LegacyDictMixin):
+class ActivityStep(DynamicBaseModel):
     """A single step in the agent activity."""
     id: int
     name: str
@@ -139,7 +139,7 @@ class ActivityStep(BaseModel, LegacyDictMixin):
     details: str | None = None
 
 
-class ActivityArtifact(BaseModel, LegacyDictMixin):
+class ActivityArtifact(DynamicBaseModel):
     """An artifact tracked during agent activity."""
     id: int
     name: str
@@ -149,7 +149,7 @@ class ActivityArtifact(BaseModel, LegacyDictMixin):
     icon: str = "FileCode"
 
 
-class ActivityState(BaseModel, LegacyDictMixin):
+class ActivityState(DynamicBaseModel):
     """Full activity state for an agent run."""
     status: str
     main_goal: str = ""

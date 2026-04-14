@@ -8,7 +8,7 @@ from enum import Enum
 from typing import AsyncIterator, Optional
 from pydantic import BaseModel, Field
 
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 
 class VoiceGender(str, Enum):
@@ -30,7 +30,7 @@ class VoiceLocale(str, Enum):
     AUTO = "auto"      # 自动检测
 
 
-class Voice(BaseModel, LegacyDictMixin):
+class Voice(DynamicBaseModel):
     """声音定义"""
     id: str
     name: str
@@ -43,7 +43,7 @@ class Voice(BaseModel, LegacyDictMixin):
     supports_speed: bool = True
 
 
-class TTSOptions(BaseModel, LegacyDictMixin):
+class TTSOptions(DynamicBaseModel):
     """TTS 合成选项"""
     text: str
     voice_id: str
@@ -54,7 +54,7 @@ class TTSOptions(BaseModel, LegacyDictMixin):
     locale: VoiceLocale | None = None
 
 
-class TTSSResult(BaseModel, LegacyDictMixin):
+class TTSSResult(DynamicBaseModel):
     """TTS 合成结果"""
     audio_data: bytes
     content_type: str
@@ -62,7 +62,7 @@ class TTSSResult(BaseModel, LegacyDictMixin):
     sample_rate: int | None = None
 
 
-class STTOptions(BaseModel, LegacyDictMixin):
+class STTOptions(DynamicBaseModel):
     """STT 识别选项"""
     audio_data: bytes
     audio_format: str = "webm"   # webm, mp3, wav, m4a
@@ -72,7 +72,7 @@ class STTOptions(BaseModel, LegacyDictMixin):
     timestamp_granularities: list | None = None
 
 
-class STTResult(BaseModel, LegacyDictMixin):
+class STTResult(DynamicBaseModel):
     """STT 识别结果"""
     text: str
     language: VoiceLocale

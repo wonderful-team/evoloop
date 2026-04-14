@@ -2,6 +2,7 @@ import logging
 from typing import Any, Optional
 
 from pydantic import BaseModel, Field
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 from app.core.context.manager import ContextManager
 from app.core.tools.base import evoloop_tool
@@ -9,7 +10,7 @@ from app.core.tools.base import evoloop_tool
 logger = logging.getLogger(__name__)
 
 
-class SynthesizeSkillInput(BaseModel):
+class SynthesizeSkillInput(DynamicBaseModel):
     reason: str = Field(
         ..., 
         description="Reason for triggering skill synthesis. Explain why this session is valuable (e.g., 'Successfully solved a complex bug', 'Implemented a new reusable component')."

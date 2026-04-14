@@ -26,7 +26,7 @@ async def search_native_tools(query: str = "") -> dict[str, Any]:
     from app.core.tools.registry import clear_registry_cache
 
     clear_registry_cache()
-    all_tools = tool_manager.get_all_capabilities()
+    all_tools = await tool_manager.get_all_capabilities()
 
     query_lower = query.lower() if query else ""
     

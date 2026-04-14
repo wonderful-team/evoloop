@@ -8,12 +8,12 @@ Extracts database schema definitions from code files.
 from pydantic import BaseModel, Field
 
 from app.domain.codebase.indexing.extractors.base_extractor import SemanticExtractorBase
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 
 
-class DBTable(BaseModel, LegacyDictMixin):
+class DBTable(DynamicBaseModel):
     name: str
     file_path: str
     columns: list[str] = Field(default_factory=list)

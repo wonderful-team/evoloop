@@ -3,12 +3,13 @@ from typing import Any, List
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 from app.api.deps import CurrentUser, TokenDep
 from app.core.evocloud import evocloud_manager
 from app.core.identity import identity_service
 from app.models import User, UserPublic
-from app.models.auth import CacheInvalidateResponse, EvoCloudProxyResponse, MemberBenefitsResponse
+from app.models.schemas.auth import CacheInvalidateResponse, EvoCloudProxyResponse, MemberBenefitsResponse
 from app.services.benefit_service import benefit_service
 
 logger = logging.getLogger(__name__)
@@ -18,19 +19,19 @@ router = APIRouter(tags=["member"])
 
 # --- Request/Response Schemas ---
 
-class ChangePasswordRequest(BaseModel):
+class ChangePasswordRequest(DynamicBaseModel):
     old_password: str = Field(..., min_length=1, description="Current password")
     new_password: str = Field(..., min_length=8, description="New password (min 8 characters)")
 
 
-class UpdateUserRequest(BaseModel):
+class UpdateUserRequest(DynamicBaseModel):
     nickname: str | None = Field(None, description="User nickname")
     headimg: str | None = Field(None, description="Avatar URL")
     email: str | None = Field(None, description="Email address")
 
 
-class MessageResponse(BaseModel):
-    message: str
+class MessageResponse(BaseAPIResponse):
+    pass
 
 
 # --- User Profile (Unified) ---
@@ -182,11 +183,11 @@ async def cancel_cancellation(_token: TokenDep) -> EvoCloudProxyResponse:
 
 # --- Batch Benefits & Cache Management ---
 
-class BatchCheckRequest(BaseModel):
+class BatchCheckRequest(DynamicBaseModel):
     benefit_codes: List[str]
 
 
-class BatchCheckResponse(BaseModel):
+class BatchCheckResponse(BaseAPIResponse):
     results: dict[str, bool]
     is_expired: bool
     level_name: str

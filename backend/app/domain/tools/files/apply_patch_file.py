@@ -21,7 +21,7 @@ from app.core.file.editor import EditEngine
 from app.core.file import safe_read_with_hash, write_file_with_verification
 from app.domain.tools.files.utils import resolve_and_validate_path
 from app.i18n.service import i18n
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 
@@ -29,13 +29,13 @@ logger = logging.getLogger(__name__)
 _background_tasks: set[asyncio.Task] = set()
 
 
-class PatchHunk(BaseModel, LegacyDictMixin):
+class PatchHunk(DynamicBaseModel):
     """Represents a single hunk in a patch."""
     old_lines: list[str] = Field(default_factory=list)
     new_lines: list[str] = Field(default_factory=list)
 
 
-class PatchOperation(BaseModel, LegacyDictMixin):
+class PatchOperation(DynamicBaseModel):
     """Represents a file operation in a patch."""
     operation: str  # 'add', 'delete', 'update'
     path: str

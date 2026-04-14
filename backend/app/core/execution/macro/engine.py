@@ -161,7 +161,7 @@ class MacroEngine:
                         logger.error(f"Failed to capture failure screenshot: {se}")
 
                     fallback_context = {
-                        "failed_step": step.model_copy().dict(),
+                        "failed_step": step.model_copy().model_dump(),
                         "error_message": error_msg,
                         "source": source,
                         "screenshot": screenshot_path
@@ -241,7 +241,7 @@ class MacroEngine:
                 if not success:
                     # Enrich fallback with loop progress
                     if not fallback:
-                        fallback = {"failed_step": step.model_copy().dict()}
+                        fallback = {"failed_step": step.model_copy().model_dump()}
 
                     fallback["loop_progress"] = {
                         "loop_step_number": step.step_number,

@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 from PIL import Image
 from pydantic import BaseModel, Field, field_validator
 
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +29,7 @@ class CompressionStrategy(Enum):
     ICON_UI = "icon_ui"           # 图标导航：512px, low detail
 
 
-class CompressionConfig(BaseModel, LegacyDictMixin):
+class CompressionConfig(DynamicBaseModel):
     """压缩配置"""
     max_width: int
     quality: int                  # JPEG 质量 0-100
@@ -57,7 +57,7 @@ PRESETS = {
 }
 
 
-class CompressedFrame(BaseModel, LegacyDictMixin):
+class CompressedFrame(DynamicBaseModel):
     """压缩后的帧数据"""
     data: bytes                   # JPEG 数据
     width: int
@@ -72,7 +72,7 @@ class CompressedFrame(BaseModel, LegacyDictMixin):
     norm_events: List[Dict[str, Any]] = Field(default_factory=list)
 
 
-class NormalizedEvent(BaseModel, LegacyDictMixin):
+class NormalizedEvent(DynamicBaseModel):
     """归一化后的事件"""
     action: str
     norm_x: Optional[float] = Field(None, ge=0.0, le=1.0)       # 0.0-1.0
@@ -82,7 +82,7 @@ class NormalizedEvent(BaseModel, LegacyDictMixin):
     description: str              # 人类可读描述
 
 
-class KeyframeCandidate(BaseModel, LegacyDictMixin):
+class KeyframeCandidate(DynamicBaseModel):
     """关键帧候选"""
     timestamp: float
     context: str           # "pre_action", "post_action", "transition"

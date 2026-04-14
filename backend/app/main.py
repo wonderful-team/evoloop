@@ -325,10 +325,6 @@ async def lifespan(app: FastAPI):
     from app.domain.project.handlers import register_project_polisher
     register_project_polisher()
 
-    async def event_router(etype, edata):
-        if etype == "project_switch":
-            await handle_project_switch_event(edata)
-
     # 8. Task Queue Worker
     # Note: Worker runs as separate process, started via: python -m scripts.run_worker
     # See scripts/run_worker.py for standalone worker startup

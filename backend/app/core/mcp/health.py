@@ -9,12 +9,12 @@ from pydantic import BaseModel, Field
 
 from mcp import ClientSession
 
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 
 
-class HealthStatus(BaseModel, LegacyDictMixin):
+class HealthStatus(DynamicBaseModel):
     """Health check result."""
     is_healthy: bool
     server_name: str

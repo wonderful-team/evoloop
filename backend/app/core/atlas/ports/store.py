@@ -1,13 +1,12 @@
 from abc import ABC, abstractmethod
 
 from pydantic import BaseModel, ConfigDict
-from app.utils.model_helpers import LegacyDictMixin
 from app.core.atlas.models import AtlasApp
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 
-class AtlasAppSummary(BaseModel, LegacyDictMixin):
+class AtlasAppSummary(DynamicBaseModel):
     """Summary of an Atlas app for LLM context generation."""
-    model_config = ConfigDict(extra="allow")
     app_name: str
     bundle_id: str
     platform: str
@@ -16,17 +15,15 @@ class AtlasAppSummary(BaseModel, LegacyDictMixin):
     states: list = []
 
 
-class AtlasStateDetail(BaseModel, LegacyDictMixin):
+class AtlasStateDetail(DynamicBaseModel):
     """Detailed information about a specific UI state."""
-    model_config = ConfigDict(extra="allow")
     state_id: str
     window_title: str | None = None
     elements: list = []
 
 
-class AtlasAppInfo(BaseModel, LegacyDictMixin):
+class AtlasAppInfo(DynamicBaseModel):
     """Lightweight info for a mapped app."""
-    model_config = ConfigDict(extra="allow")
     app_name: str
     bundle_id: str
     platform: str

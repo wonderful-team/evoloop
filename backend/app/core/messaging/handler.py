@@ -16,13 +16,12 @@ from app.core.messaging.persistence import MessagePersistencePolicy
 from app.core.messaging.stream import MessageStreamPolicy
 
 from pydantic import BaseModel, ConfigDict
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 
 
-class MessageHandlerResult(BaseModel, LegacyDictMixin):
-    model_config = ConfigDict(extra="allow")
+class MessageHandlerResult(DynamicBaseModel):
     category: str
     persisted: bool
     streamed: bool

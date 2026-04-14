@@ -12,12 +12,12 @@ import threading
 import time
 from pydantic import BaseModel, ConfigDict
 
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 
 
-class AndroidEvent(BaseModel, LegacyDictMixin):
+class AndroidEvent(DynamicBaseModel):
     """Represents a single Android input event."""
     timestamp: float
     event_type: str  # "touch_down", "touch_up", "touch_move", "swipe", "key"
@@ -31,7 +31,7 @@ class AndroidEvent(BaseModel, LegacyDictMixin):
     swipe_duration_ms: float | None = None
 
 
-class DebounceConfig(BaseModel, LegacyDictMixin):
+class DebounceConfig(DynamicBaseModel):
     """Configuration for event debouncing."""
     # Time threshold in milliseconds - ignore events within this window
     time_threshold_ms: float = 50.0
@@ -41,9 +41,8 @@ class DebounceConfig(BaseModel, LegacyDictMixin):
     max_swipe_points: int = 5
 
 
-class AndroidTraceEvent(BaseModel, LegacyDictMixin):
+class AndroidTraceEvent(DynamicBaseModel):
     """Trace event representation for Android mirror sessions."""
-    model_config = ConfigDict(extra="allow")
     timestamp: int
     event_type: str
     target_selector: str | None = None

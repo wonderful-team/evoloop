@@ -8,11 +8,12 @@ Skill Synthesizer 共享工具函数
 import logging
 import os
 from dataclasses import asdict
-from typing import Any, List, Tuple
+from typing import Any, List, Optional, Tuple
 
 import yaml
 
 from app.core.config import settings
+from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.models import TraceEvent
 from app.utils.extract import extract_yaml_block as _extract_yaml_block
 from app.utils.extract import extract_section as _extract_section
@@ -22,12 +23,20 @@ from app.utils.time import normalize_timestamp_ms_to_sec as _normalize_timestamp
 logger = logging.getLogger(__name__)
 
 
+class MacroVerificationResult(DynamicBaseModel):
+    status: str
+    success: bool
+    missing_keys: List[str] = []
+    extracted_count: int = 0
+    error: Optional[str] = None
+
+
 async def verify_macro_script(
     macro_script: list[dict] | str,
     thread_id: str = "verifier",
     project_id: int = 1,
     params: dict | None = None
-) -> dict:
+) -> MacroVerificationResult:
     """
     统一宏脚本验证函数
 
@@ -83,20 +92,20 @@ async def verify_macro_script(
             f"Extracted keys: {list(extracted_data.keys())}"
         )
 
-        return {
-            "status": status,
-            "success": success,
-            "missing_keys": missing_keys,
-            "extracted_count": len(extracted_data),
-            "error": result.get("error")
-        }
+        return MacroVerificationResult(
+            status=status,
+            success=success,
+            missing_keys=missing_keys,
+            extracted_count=len(extracted_data),
+            error=result.get("error")
+        )
     except Exception as e:
         logger.error(f"[{thread_id}] Macro verification crashed: {e}")
-        return {
-            "status": "error",
-            "success": False,
-            "error": str(e)
-        }
+        return MacroVerificationResult(
+            status="error",
+            success=False,
+            error=str(e)
+        )
 
 
 def cleanup_macro_steps(
@@ -160,14 +169,14 @@ def cleanup_macro_steps(
     return clean_steps, current_idx
 
 
-def export_skill_to_filesystem(skill_data: dict) -> str | None:
+def export_skill_to_filesystem(skill_data: Any) -> str | None:
     """
     导出技能到文件系统
 
     将合成的技能保存为物理文件（SKILL.md）。
 
     Args:
-        skill_data: 技能数据字典，包含 name, namespace, description,
+        skill_data: 技能数据对象，包含 name, namespace, description,
                    trigger_patterns, parameters, preconditions, instructions
 
     Returns:
@@ -175,8 +184,8 @@ def export_skill_to_filesystem(skill_data: dict) -> str | None:
     """
     try:
         base_dir = settings.SKILLS_DIR
-        namespace = skill_data.get("namespace") or "misc"
-        name = skill_data.get("name", "unnamed_skill")
+        namespace = getattr(skill_data, "namespace", None) or "misc"
+        name = getattr(skill_data, "name", "unnamed_skill")
         namespace_path = os.path.join(base_dir, namespace, name)
 
         ensure_dir(namespace_path)
@@ -185,13 +194,13 @@ def export_skill_to_filesystem(skill_data: dict) -> str | None:
         # 构建 frontmatter
         frontmatter = {
             "name": name,
-            "description": skill_data.get("description", ""),
-            "trigger_patterns": skill_data.get("trigger_patterns", []),
-            "parameters": skill_data.get("parameters", []),
-            "preconditions": skill_data.get("preconditions", []),
+            "description": getattr(skill_data, "description", "") or "",
+            "trigger_patterns": getattr(skill_data, "trigger_patterns", []) or [],
+            "parameters": getattr(skill_data, "parameters", []) or [],
+            "preconditions": getattr(skill_data, "preconditions", []) or [],
         }
 
-        instructions = skill_data.get("instructions", "")
+        instructions = getattr(skill_data, "instructions", "") or ""
         content = (
             f"---\n{yaml.dump(frontmatter, sort_keys=False)}---\n\n{instructions}"
         )

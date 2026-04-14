@@ -15,12 +15,11 @@ from app.core.context.manager import ContextManager
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 
 from app.core.context.manager import ContextManager
-from app.utils.model_helpers import LegacyDictMixin
 
 logger = logging.getLogger(__name__)
 
 
-class PersistentTerminal(BaseModel, LegacyDictMixin):
+class PersistentTerminal(BaseModel):
     """
     Manages a long-running interactive shell process via PTY with robust signal tracking.
     """
@@ -183,7 +182,7 @@ class PersistentTerminal(BaseModel, LegacyDictMixin):
             except: pass
 
 
-class TerminalSession(BaseModel, LegacyDictMixin):
+class TerminalSession(BaseModel):
     """
     Represents a persistent shell session for a specific context (Thread/Task).
     Holds the state (cwd, env) and the underlying PTY process.

@@ -8,12 +8,12 @@ from app.core.execution.macro.optimizer import MacroOptimizer
 from app.core.execution.macro.schema import MacroScript
 from app.core.execution.macro.healing_policy import SelfHealingPolicy
 from app.core.monitoring.activity import activity_monitor
-from app.utils.model_helpers import LegacyDictMixin
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 
 
-class MacroRunResult(BaseModel, LegacyDictMixin):
+class MacroRunResult(DynamicBaseModel):
     success: bool
     message: str
     extracted_data: Optional[Dict[str, Any]] = None

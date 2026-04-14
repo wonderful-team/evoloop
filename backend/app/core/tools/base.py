@@ -5,6 +5,7 @@ import os
 from typing import Any
 
 from pydantic import BaseModel, Field
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool as langchain_tool
@@ -15,7 +16,7 @@ from app.core.context.manager import ContextManager
 logger = logging.getLogger(__name__)
 
 
-class EvoLoopToolConfig(BaseModel):
+class EvoLoopToolConfig(DynamicBaseModel):
     """Configuration for EvoLoop tool metadata injected by the @evoloop_tool decorator."""
     is_pollable: bool = False
     is_state_mutating: bool = False

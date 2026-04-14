@@ -20,15 +20,15 @@ async def aggregator_node(state: AgentState, config: RunnableConfig) -> StateUpd
     """
     Subtask Aggregator — Joins parallel results (Phase 4).
     """
-    blackboard = state.get("blackboard") or {}
-    subtask_results = blackboard.get("subtask_results", [])
-    pending_agg = blackboard.get("pending_aggregation", {})
+    blackboard = state.blackboard
+    subtask_results = blackboard.subtask_results if blackboard else []
+    pending_agg = blackboard.pending_aggregation if blackboard else None
 
     if not pending_agg:
         logger.warning("[Aggregator] No pending aggregation found")
         return StateUpdate(next_node=RoutingTarget.SUPERVISOR)
 
-    strategy = pending_agg.get("strategy", "merge")
+    strategy = pending_agg.strategy or "merge"
     logger.info(f"[Aggregator] 🧩 Aggregating {len(subtask_results)} results with strategy '{strategy}'")
 
     try:
@@ -36,18 +36,21 @@ async def aggregator_node(state: AgentState, config: RunnableConfig) -> StateUpd
         agg_result = await aggregate_results(
             aggregation_strategy=strategy,
             results=subtask_results,
-            original_task=pending_agg.get("parent_task", "")
+            original_task=pending_agg.parent_task or ""
         )
 
         # 4. Success Signal
-        result_text = agg_result.get("aggregated", "Aggregation failed")
-        
+        result_text = agg_result.aggregated if agg_result else "Aggregation failed"
+
         # 5. Update Blackboard (Clear all orchestration state + Save result)
-        blackboard["subtask_results"] = []
-        blackboard["pending_aggregation"] = None
-        blackboard["spawn_plan"] = None
-        blackboard["worker_outcome"] = "success"
-        blackboard.setdefault("metadata", {})["last_aggregation_result"] = result_text
+        if blackboard:
+            blackboard.subtask_results = []
+            blackboard.pending_aggregation = None
+            blackboard.spawn_plan = None
+            blackboard.worker_outcome = "success"
+            if not blackboard.metadata:
+                blackboard.metadata = {}
+            blackboard.metadata["last_aggregation_result"] = result_text
 
         return StateUpdate(
             messages=[AIMessage(content=f"Aggregation complete. Strategy: {strategy}. Total results: {len(subtask_results)}.")],
@@ -58,11 +61,15 @@ async def aggregator_node(state: AgentState, config: RunnableConfig) -> StateUpd
     except Exception as e:
         logger.error(f"[Aggregator] Aggregation failed: {e}")
         # Ensure blackboard is returned even on error, potentially clearing pending state
-        blackboard["subtask_results"] = []
-        blackboard["pending_aggregation"] = None
-        blackboard["spawn_plan"] = None
-        blackboard["worker_outcome"] = "failed"
-        blackboard.setdefault("metadata", {})["last_aggregation_result"] = f"Aggregation failed: {e}"
+        if blackboard:
+            blackboard.subtask_results = []
+            blackboard.pending_aggregation = None
+            blackboard.spawn_plan = None
+            blackboard.worker_outcome = "failed"
+            if not blackboard.metadata:
+                from app.core.engine.state.blackboard import BlackboardMetadata
+                blackboard.metadata = BlackboardMetadata()
+            blackboard.metadata["last_aggregation_result"] = f"Aggregation failed: {e}"
         return StateUpdate(
             messages=[AIMessage(
                 content=f"Aggregation failed: {e}",
