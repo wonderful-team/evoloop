@@ -110,7 +110,7 @@ class EvoContextMiddleware:
     async def hydrate(state: AgentState, config: RunnableConfig) -> AgentState:
         """
         Layered context hydration with caching and predictive memory loading.
-        
+
         Optimizations:
         - Hydration Deduplication: Skips if already hydrated in this request
         - Single MemoryContainer: Creates container once and reuses for all memory operations
@@ -129,17 +129,17 @@ class EvoContextMiddleware:
         request_id = ctx.request_id
         if request_id != "global-fallback" and EvoContextMiddleware._is_recently_hydrated(request_id):
             # Still need to update dynamic layer, but skip static hydration
-            blackboard = (state.blackboard or {})
+            blackboard = state.blackboard
             state["blackboard"] = blackboard
-            state[EvoContextMiddleware.HYDRATION_MARKER] = EvoContextMiddleware.HYDRATION_VERSION
+            state.hydration_marker = EvoContextMiddleware.HYDRATION_VERSION
             return state
 
         # Layer 2: Check state marker (for sequential node execution)
-        if getattr(state, EvoContextMiddleware.HYDRATION_MARKER, None) == EvoContextMiddleware.HYDRATION_VERSION:
+        if state.hydration_marker == EvoContextMiddleware.HYDRATION_VERSION:
             return state
 
         # 1. Resolve or Create Context (ctx already fetched above for dedup check)
-        blackboard = (state.blackboard or {})
+        blackboard = state.blackboard
 
         if ctx.request_id == "global-fallback" or state.is_subtask:
             project_id = state.project_id
@@ -213,7 +213,7 @@ class EvoContextMiddleware:
 
             if settings.USE_NEO4J_MEMORY:
                 # Neo4j mode: Use predictive loader
-                from app.core.engine.predictive_memory_loader import (
+                from app.core.memory.predictive_loader import (
                     clear_predictive_memory,
                     get_predictive_memory,
                 )
@@ -363,17 +363,17 @@ class EvoContextMiddleware:
         )
 
         # Apply static layer to context
-        ctx.metadata["project_concepts"] = static_layer.project_concepts
-        ctx.metadata["active_skills"] = static_layer.active_skills_index
-        ctx.metadata["environment_telemetry"] = static_layer.environment_telemetry
+        ctx.metadata.project_concepts = static_layer.project_concepts
+        ctx.metadata.active_skills = static_layer.active_skills_index
+        ctx.metadata.environment_telemetry = static_layer.environment_telemetry
 
         # 4. Dynamic Layer (always fresh, never cached)
         # These change between nodes and must be current
         dynamic_layer = LayeredContextCache.get_dynamic_layer(state)
 
-        ctx.metadata["blackboard"] = dynamic_layer.blackboard
-        ctx.metadata["execution_ticket"] = dynamic_layer.execution_ticket
-        ctx.metadata["iteration_count"] = dynamic_layer.iteration_count
+        ctx.metadata.blackboard = dynamic_layer.blackboard
+        ctx.metadata.execution_ticket = dynamic_layer.execution_ticket
+        ctx.metadata.iteration_count = dynamic_layer.iteration_count
 
         # 5. Environment Hydration (always run for plugin discovery)
         from app.core.context.plugins import plugin_registry
@@ -399,22 +399,17 @@ class EvoContextMiddleware:
         except Exception as e:
             logger.warning(f"[Middleware] CONTEXT_POLISHING event failed (non-fatal): {e}")
 
-        # 6. State Harmonization
-        if not (blackboard.verification if blackboard else None) and state.verification_status:
-            if blackboard:
-                blackboard.verification = state.verification_status
-
-        # 7. Metadata Reset (Industrial Hardening)
+        # 6. Metadata Reset (Industrial Hardening)
         is_retry = config.get("metadata", {}).get("is_retry", False)
 
         if (state.is_retry or is_retry) and not state.is_subtask:
             logger.info("[Middleware] 🔄 Retry detected: Performing deep blackboard cleanup.")
             for key in ["ticket", "verification", "route_reason"]:
                 blackboard[key] = None
-            if "metadata" in blackboard:
+            if blackboard.metadata:
                 for key in ["final_outcome", "shadow_audit"]:
-                    if key in blackboard["metadata"]:
-                        del blackboard["metadata"][key]
+                    if getattr(blackboard.metadata, key, None) is not None:
+                        setattr(blackboard.metadata, key, None)
             # Also invalidate static cache on retry
             LayeredContextCache.invalidate_static(session_id)
 
@@ -459,23 +454,23 @@ class EvoContextMiddleware:
                     state["messages"] = cleaned_messages
                     logger.info(f"[Middleware] ✓ Message cleanup: {len(messages)} -> {len(cleaned_messages)} messages")
 
-        elif "metadata" in blackboard and not state.is_subtask:
+        elif blackboard.metadata and not state.is_subtask:
             for key in ["final_outcome", "shadow_audit"]:
-                if key in blackboard["metadata"]:
+                if getattr(blackboard.metadata, key, None) is not None:
                     logger.debug(f"[Middleware] Resetting terminal metadata '{key}' for new run.")
-                    del blackboard["metadata"][key]
+                    setattr(blackboard.metadata, key, None)
 
-        # 8. Ticket Synchronization
-        execution_ticket = state.execution_ticket
-        if execution_ticket and not (blackboard.ticket if blackboard else None):
-            if blackboard:
-                blackboard.ticket = execution_ticket
+        # 8. Ensure blackboard exists for downstream nodes
+        if not blackboard:
+            from app.core.engine.state.blackboard import BlackboardState
+            blackboard = BlackboardState()
+            state["blackboard"] = blackboard
 
         state["blackboard"] = blackboard
 
         # Mark as hydrated to prevent redundant calls
         # This marker is checked at the beginning of hydrate() to skip duplicate work
-        state[EvoContextMiddleware.HYDRATION_MARKER] = EvoContextMiddleware.HYDRATION_VERSION
+        state.hydration_marker = EvoContextMiddleware.HYDRATION_VERSION
 
         # Track at request level for concurrent node deduplication
         if request_id != "global-fallback":
@@ -544,7 +539,7 @@ class SkillHydrator:
             return await skill_discovery.get_namespace_index(namespace_context)
 
         # Eager mode: Fetch and return full SOP instructions
-        execution_ticket = state.execution_ticket
+        execution_ticket = state.blackboard.ticket if state.blackboard else None
         # skill_id takes priority from the ticket if present, otherwise fallback to topic
         query = execution_ticket.skill_id if execution_ticket else topic
 
@@ -562,7 +557,7 @@ class SkillHydrator:
         """
         Helper to get skills tailored for a specific node type.
         """
-        execution_ticket = state.execution_ticket
+        execution_ticket = state.blackboard.ticket if state.blackboard else None
         topic = execution_ticket.topic or "" if execution_ticket else ""
         namespace_context = execution_ticket.namespace_context if execution_ticket else None
 

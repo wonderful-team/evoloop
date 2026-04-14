@@ -39,7 +39,7 @@ class ToolRequest(DynamicBaseModel):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     completed_at: datetime | None = None
     # Async event for waiting
-    _event: asyncio.Event = Field(default_factory=asyncio.Event, exclude=True)
+    event: asyncio.Event = Field(default_factory=asyncio.Event, exclude=True)
 
 
 class ToolRequestManager:
@@ -140,7 +140,7 @@ class ToolRequestManager:
             request.result = result
             request.error = error
             request.completed_at = datetime.utcnow()
-            request._event.set()
+            request.event.set()
 
         logger.info(f"[Client] Request {request_id} completed")
         return True
@@ -156,7 +156,7 @@ class ToolRequestManager:
             return None
 
         try:
-            await asyncio.wait_for(request._event.wait(), timeout=timeout)
+            await asyncio.wait_for(request.event.wait(), timeout=timeout)
             return request
         except asyncio.TimeoutError:
             logger.error(f"[Client] Timeout waiting for request {request_id}")
@@ -173,7 +173,7 @@ class ToolRequestManager:
                 if req and req.status == "pending":
                     req.status = "failed"
                     req.error = "Cancelled"
-                    req._event.set()
+                    req.event.set()
             self._thread_requests[thread_id] = []
 
     async def _cleanup_loop(self):

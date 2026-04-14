@@ -88,18 +88,27 @@ class HookEvent(Enum):
 
 class HookMetadata(DynamicBaseModel):
     """Dynamic metadata for hook events."""
+    summary: str | None = None
+    audit_tier: str | None = None
+    final_outcome: str | None = None
+    duration_ms: float | None = None
+    prompt: str | None = None
 
 
 class ToolInput(DynamicBaseModel):
     """Typed wrapper for tool input arguments."""
+    command: str | None = None
+    path: str | None = None
+    content: str | None = None
+    query: str | None = None
+    args: dict[str, Any] | None = None
 
 
-class HookExtra(DynamicBaseModel):
-    """Arbitrary extra data attached to a hook context."""
-
-
-class HookResultData(DynamicBaseModel):
-    """Dynamic data payload returned by a hook handler."""
+class ToolResult(DynamicBaseModel):
+    """Structured wrapper for tool execution results."""
+    output: Any | None = None
+    error: str | None = None
+    data: dict[str, Any] | None = None
 
 
 class HookContext(DynamicBaseModel):
@@ -116,7 +125,7 @@ class HookContext(DynamicBaseModel):
     # For tool-related events
     tool_name: str | None = None
     tool_input: ToolInput | None = None
-    tool_result: Any | None = None
+    tool_result: ToolResult | None = None
     tool_use_id: str | None = None
     error: Exception | None = None
     error_message: str | None = None
@@ -132,7 +141,7 @@ class HookContext(DynamicBaseModel):
     memory_config: Any | None = None   # MemoryConfig instance
 
     # Allow arbitrary additional data
-    extra: HookExtra = Field(default_factory=HookExtra)
+    extra: dict[str, Any] = Field(default_factory=dict)
 
 
 class HookResult(DynamicBaseModel):
@@ -144,7 +153,7 @@ class HookResult(DynamicBaseModel):
     retry: bool = False  # For PermissionDenied - allow retry
     message: str | None = None
     modified_context: HookContext | None = None
-    data: HookResultData = Field(default_factory=HookResultData)
+    data: dict[str, Any] = Field(default_factory=dict)
     error: Exception | None = None
 
 
@@ -821,7 +830,7 @@ async def user_prompt_submit_handler(context: HookContext) -> HookResult:
 
     if prompt in shortcuts:
         modified_context = context
-        modified_context.metadata["prompt"] = shortcuts[prompt]
+        modified_context.metadata.prompt = shortcuts[prompt]
         return HookResult(
             success=True,
             message=f"Expanded shortcut: {prompt}",

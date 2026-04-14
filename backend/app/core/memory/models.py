@@ -96,7 +96,7 @@ class MemoryEntry(DynamicBaseModel):
             "updated_at": self.updated_at.isoformat(),
         }
         if self.extra:
-            frontmatter["extra"] = self.extra
+            frontmatter["extra"] = self.extra.model_dump()
 
         yaml_content = yaml.safe_dump(frontmatter, default_flow_style=False, allow_unicode=True, sort_keys=False)
         return f"---\n{yaml_content}---\n\n{self.content}"

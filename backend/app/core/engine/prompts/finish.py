@@ -32,7 +32,7 @@ class FinishPromptBuilder:
         self.iteration_count = iteration_count
         self.project_id = project_id
         self.telemetry = telemetry or {}
-        self.blackboard = blackboard or {}
+        self.blackboard = blackboard or BlackboardState()
 
     def build(self) -> str:
         """

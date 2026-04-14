@@ -680,7 +680,7 @@ async def run_maintenance(
 
 
 @router.get("/maintenance/duplicates")
-async def analyze_duplicates(
+async def analyze_maintenance_duplicates(
     collection: Optional[str] = Query(None, description="Target collection")
 ):
     """Analyze and return duplicate document report."""
@@ -698,7 +698,7 @@ async def analyze_duplicates(
 
 
 @router.post("/maintenance/merge")
-async def merge_documents(
+async def merge_maintenance_documents(
     paths: list[str] = Body(..., description="Document paths to merge"),
     strategy: str = Query("deduplicate", description="Merge strategy: concatenate, deduplicate"),
     target_path: Optional[str] = Query(None, description="Target path for merged document")

@@ -29,7 +29,7 @@ class SystemEventType(str, Enum):
 # Note: Module-specific event types are defined in their respective modules:
 # - AgentEventType -> app.core.engine.events
 # - MacroEventType -> app.core.execution.macro.events
-# - RewindEventType -> app.core.rewind.events
+# - RewindEventType -> app.core.checkpoint.rewind.events
 # - AwakeningEventType -> app.core.environment.events
 # - ProjectEventType -> app.domain.project.events
 # - IndexingEventType -> app.domain.codebase.events

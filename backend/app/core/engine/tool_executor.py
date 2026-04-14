@@ -11,7 +11,7 @@ from typing import Any
 
 from langchain_core.messages import ToolMessage
 
-from app.core.engine.hooks import HookContext, HookEvent, hook_system
+from app.core.engine.hooks import HookContext, HookEvent, ToolResult, hook_system
 from app.core.engine.state import AgentState
 from app.core.memory.diff import diff_tracker
 from app.core.tools.executor import ToolExecutor as _ToolExecutor
@@ -49,7 +49,7 @@ class AgentToolExecutor:
     async def execute_tool(
         self,
         tool_name: str,
-        tool_args: dict,
+        tool_args: dict[str, Any],
         tool_id: str,
         local_tool_history: list[str],
     ) -> ToolMessage:
@@ -90,7 +90,7 @@ class AgentToolExecutor:
                 tool_name=tool_name,
                 tool_input=tool_args,
                 tool_use_id=tool_id,
-                blackboard=self.state.blackboard or {},
+                blackboard=self.state.blackboard,
             )
             pre_result = await hook_system.trigger(HookEvent.PRE_TOOL_USE, pre_ctx, blocking=True)
 
@@ -105,7 +105,8 @@ class AgentToolExecutor:
 
             # Update context if modified
             if pre_result.modified_context and pre_result.modified_context.tool_input is not None:
-                tool_args = dict(pre_result.modified_context.tool_input)
+                tool_input = pre_result.modified_context.tool_input
+                tool_args = tool_input.args if tool_input.args else tool_args
 
             # Track tool execution history and detect repetitions (thread-safe)
             tool_sig = f"{tool_name}:{json.dumps(tool_args, sort_keys=True)}"
@@ -124,9 +125,9 @@ class AgentToolExecutor:
                 project_id=project_id,
                 tool_name=tool_name,
                 tool_input=tool_args,
-                tool_result=content,
+                tool_result=ToolResult(output=content),
                 tool_use_id=tool_id,
-                blackboard=self.state.blackboard or {},
+                blackboard=self.state.blackboard,
             )
             # Fire-and-forget hook with error handling wrapper
             async def _fire_hook():
@@ -161,7 +162,7 @@ class AgentToolExecutor:
                 tool_use_id=tool_id,
                 error=e,
                 error_message=str(e),
-                blackboard=self.state.blackboard or {},
+                blackboard=self.state.blackboard,
             )
             # Fire-and-forget hook with error handling wrapper
             async def _fire_fail_hook():

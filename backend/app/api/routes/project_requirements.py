@@ -271,7 +271,7 @@ async def list_project_requirements(
         docs = result.scalars().all()
 
         return RequirementListResponse(
-            items=[
+            data=[
                 RequirementListItem(
                     id=d.id,
                     file_name=d.file_name,

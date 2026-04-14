@@ -10,7 +10,7 @@ deleting memories that are linked to rolled-back messages.
 
 import logging
 
-from app.core.rewind.events import (
+from app.core.checkpoint.rewind.events import (
     MemoryCleanupEvent,
     RewindEventType,
     RewindRequestedEvent,

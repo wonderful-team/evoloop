@@ -19,7 +19,7 @@ Safety Guarantees:
 - TTL based: Cache expires to prevent stale data
 
 Optimization Notes:
-- Benign Race Condition: If LangGraph initializes faster (<50ms) than Neo4j 
+- Benign Race Condition: If LangGraph initializes faster (<50ms) than Neo4j
   query (~400ms), cache miss occurs and fallback query executes. This results
   in duplicate Neo4j queries but no functional impact.
 - Future enhancement: Could implement singleflight pattern for high-concurrency
@@ -52,7 +52,7 @@ async def predictive_memory_load(
 ):
     """
     Background task to pre-load memory search results into Redis.
-    
+
     Args:
         thread_id: The conversation thread ID
         project_id: The project ID for scoping search
@@ -128,7 +128,7 @@ async def predictive_memory_load(
         await cache.set(cache_key, data, ex=PREDICTIVE_MEMORY_TTL)
 
         elapsed = (time.time() - start_time) * 1000
-        logger.info(f"[PredictiveMemory] ✓ Pre-loaded memory for thread {thread_id}: "
+        logger.info(f"[PredictiveMemory] Pre-loaded memory for thread {thread_id}: "
                    f"{len(data['concepts'])} concepts, {len(data['episodes'])} episodes "
                    f"in {elapsed:.1f}ms")
 
@@ -151,13 +151,13 @@ async def get_predictive_memory(
     """
     Retrieve pre-loaded memory from Redis.
     Called by middleware.hydrate() to get cached search results.
-    
+
     Args:
         thread_id: The conversation thread ID
         human_message: The user's message (for validation)
         project_id: The project ID (for validation)
         run_id: Unique run identifier
-        
+
     Returns:
         Dict with 'concepts' and 'episodes' if cache hit, None if cache miss
     """
@@ -205,7 +205,7 @@ async def get_predictive_memory(
                 e["summary"] for e in data["episodes"]
             ])
 
-        logger.info(f"[PredictiveMemory] ✓ Cache hit for thread {thread_id}: "
+        logger.info(f"[PredictiveMemory] Cache hit for thread {thread_id}: "
                    f"{len(data.get('concepts', []))} concepts, "
                    f"{len(data.get('episodes', []))} episodes")
 

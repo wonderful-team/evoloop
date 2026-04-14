@@ -15,7 +15,7 @@ router = APIRouter(prefix="/conversations/{thread_id}/plan", tags=["planning"])
 
 class PlanStepResponse(BaseAPIResponse):
     """Plan step item."""
-    id: int
+    id: str
     title: str
     status: str
     result: str | None
@@ -23,16 +23,16 @@ class PlanStepResponse(BaseAPIResponse):
 
 class PlanDataResponse(DynamicBaseModel):
     """Nested plan data."""
-    id: int
+    id: str
     title: str
     steps: list[PlanStepResponse]
-    current_step_id: int | None
+    current_step_id: str | None
 
 
 class PlanResponse(BaseAPIResponse):
     """Plan API response."""
     status: str
-    plan: PlanDataResponse | None
+    plan: PlanDataResponse | None = None
     generated_at: str | None = None
     error: str | None = None
 

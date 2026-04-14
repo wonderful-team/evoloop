@@ -448,7 +448,7 @@ async def list_skills(
         total_pages = math.ceil(total / page_size) if page_size > 0 else 0
 
         return PaginatedSkillsResponse(
-            items=[
+            data=[
                 SkillDTO(
                     id=s.id,
                     name=s.name,

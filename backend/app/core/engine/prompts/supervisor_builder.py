@@ -92,16 +92,13 @@ class SupervisorPromptBuilder:
         state = get_awakened_state()
         telemetry_data = {}
         MAX_INSTALLED_APPS = 10
-        try:
-            if state:
-                telemetry_data = state.get_telemetry_snapshot()
-                if "macos" in telemetry_data and "installed_apps" in telemetry_data["macos"]:
-                    original = len(telemetry_data["macos"]["installed_apps"])
-                    telemetry_data["macos"]["installed_apps"] = telemetry_data["macos"]["installed_apps"][:MAX_INSTALLED_APPS]
-                    if original > MAX_INSTALLED_APPS:
-                        logger.debug(f"[ContextTicket] Pruned macOS apps {original} → {MAX_INSTALLED_APPS}")
-        except Exception as e:
-            logger.warning(f"[ContextTicket] Failed to fetch telemetry: {e}")
+        if state:
+            telemetry_data = state.get_telemetry_snapshot() or {}
+            if telemetry_data and "macos" in telemetry_data and "installed_apps" in telemetry_data["macos"]:
+                original = len(telemetry_data["macos"]["installed_apps"])
+                telemetry_data["macos"]["installed_apps"] = telemetry_data["macos"]["installed_apps"][:MAX_INSTALLED_APPS]
+                if original > MAX_INSTALLED_APPS:
+                    logger.debug(f"[ContextTicket] Pruned macOS apps {original} → {MAX_INSTALLED_APPS}")
 
         blackboard: BlackboardState | None = self.context.get("blackboard") if self.context else None
         active_plan_data = self.context.get("structured_plan")
@@ -137,7 +134,7 @@ class SupervisorPromptBuilder:
             "project_concepts": ctx.metadata.get("project_concepts", ""),
             "active_skills": [
                 {"id": s.get("id"), "name": s.get("name"), "namespace": s.get("namespace", "default")}
-                for s in ctx.metadata.get("active_skills", [])
+                for s in (ctx.metadata.get("active_skills") or [])
             ],
         }
 

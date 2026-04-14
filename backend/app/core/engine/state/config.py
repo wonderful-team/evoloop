@@ -1,24 +1,40 @@
+from __future__ import annotations
 """Agent runtime configuration and execution tickets."""
 from typing import Any
 
 from pydantic import Field
 
+from app.core.engine.state.workspace import SubtaskContext
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 
 class TicketParameters(DynamicBaseModel):
-    pass
+    task_steps: list[str] | None = None
+    fallback_strategy: str | None = None
+    target_apps: list[str] | None = None
+    lazy_hydration: bool = False
+    verbose_output: bool = True
+    dependencies: list[str] | None = None
+
+
+class WorkflowContext(DynamicBaseModel):
+    step_number: int | None = None
+    total_steps: int | None = None
+    is_first_step: bool | None = None
+    is_last_step: bool | None = None
+    previous_results: list[Any] = Field(default_factory=list)
+    current_skill: dict[str, Any] | None = None
 
 
 class AgentRuntimeConfig(DynamicBaseModel):
     """Blueprint for a Dynamic Sub-Agent."""
-    role_name: str
-    system_instructions: str
-    tools: list[str]
+    role_name: str = ""
+    system_instructions: str = ""
+    tools: list[str] = Field(default_factory=list)
     model_override: str | None = None
     namespace_context: str | None = None
     is_subtask: bool = False
-    subtask_context: dict = Field(default_factory=dict)
+    subtask_context: SubtaskContext | None = None
     skill_hint: str | None = None
 
 
@@ -46,3 +62,5 @@ class ExecutionTicket(DynamicBaseModel):
     workflow_mode: str | None = None
     mcp_servers_required: list[str] = Field(default_factory=list)
     reason: str | None = None
+    complexity: str | None = None
+    workflow_context: WorkflowContext | None = None

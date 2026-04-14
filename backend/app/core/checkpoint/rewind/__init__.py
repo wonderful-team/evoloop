@@ -17,10 +17,11 @@ Usage:
         revert_files=True
     )
 """
-from app.api.routes.conversations import RewindRequest
 from app.core.checkpoint.rewind.checkpoint_handler import CheckpointRewind
 from app.core.checkpoint.rewind.exceptions import PartialRewindError, RewindError
 from app.core.checkpoint.rewind.handlers import MessageRewind
+from app.core.checkpoint.rewind.models import RewindOperation as RewindRequest, RewindResult
+from app.core.checkpoint.rewind.orchestrator import RewindOrchestrator
 
 __all__ = [
     # Main orchestrator
@@ -35,6 +36,3 @@ __all__ = [
     "RewindError",
     "PartialRewindError",
 ]
-
-from app.core.checkpoint.rewind.models import RewindResult
-from app.core.checkpoint.rewind.orchestrator import RewindOrchestrator

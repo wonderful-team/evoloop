@@ -55,6 +55,9 @@ class TraceActionArgs(DynamicBaseModel):
 
 class TraceStateContext(DynamicBaseModel):
     """Dynamic state context for a trace step."""
+    app_name: str | None = None
+    is_mirrored: bool | None = None
+    window_title: str | None = None
 
 
 class TraceSummary(DynamicBaseModel):

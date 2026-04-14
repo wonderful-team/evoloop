@@ -117,7 +117,7 @@ class WorkerPromptBuilder:
         ctx = ContextManager.current()
 
         # Determine visualization needs dynamically for this turn
-        needs_visualization = any(kw in (self.ticket.topic or "").lower() or kw in (getattr(self.ticket, "reason", None) or "").lower() for kw in ["chart", "plot", "viz", "统计", "图表"])
+        needs_visualization = any(kw in (self.ticket.topic or "").lower() or kw in (self.ticket.reason or "").lower() for kw in ["chart", "plot", "viz", "统计", "图表"])
 
         template_vars = {
             "topic": self.ticket.topic if self.ticket else "General Task",

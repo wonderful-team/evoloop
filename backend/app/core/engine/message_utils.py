@@ -5,6 +5,8 @@ Contains common functions for message processing, history repair, and extraction
 """
 
 import logging
+from datetime import datetime
+from typing import Any
 
 from langchain_core.messages import (
     AIMessage,
@@ -21,6 +23,7 @@ from app.constants import (
     MAX_OUTPUT_LENGTH,
 )
 from app.core.memory.tool_output_memory import ToolOutputMemory
+from app.core.engine.state.history import FoldedMessage, ToolCall, ToolStep
 from app.i18n.service import i18n
 from app.infrastructure.llm.model_profile import get_profile
 
@@ -111,10 +114,18 @@ def get_last_human_message(messages: list) -> str | None:
     return None
 
 
-def repair_message_history(
-    messages: list[BaseMessage],
-    i18n_overrides: dict | None = None,
-) -> list[BaseMessage]:
+def prune_trailing_errors(messages: list[BaseMessage]) -> list[BaseMessage]:
+    """Remove trailing AIMessages that are marked as errors to prevent LLM confusion on retry."""
+    while messages and isinstance(messages[-1], AIMessage):
+        metadata = getattr(messages[-1], "metadata", {}) or {}
+        if metadata.get("is_error"):
+            messages.pop()
+        else:
+            break
+    return messages
+
+
+def repair_message_history(messages: list[BaseMessage]) -> list[BaseMessage]:
     """
     Ensure the message history is valid for strict LLM APIs (like Anthropic/GLM).
     1. No orphaned ToolMessages (must have preceding AIMessage with tool_calls).
@@ -124,33 +135,22 @@ def repair_message_history(
 
     Args:
         messages: The message list to repair.
-        i18n_overrides: Optional dict to override default messages.
-                       Keys: orphaned_tool, interrupted_tool_response, conversation_continuation
     """
-    # Default messages (no i18n dependency for tests)
+    # Default message templates
     defaults = {
         "orphaned_tool": "[Tool execution context missing]",
         "interrupted_tool_response": "[Tool execution was interrupted]",
         "conversation_continuation": "[Conversation continues]",
     }
-    if i18n_overrides:
-        defaults.update(i18n_overrides)
 
     def get_msg(key: str) -> str:
-        """Get message with fallback to defaults."""
-        # If i18n_overrides provided, use it directly (for testing)
-        if i18n_overrides is not None:
-            return defaults[key]
-        # Production: try i18n first, fallback to defaults
+        """Get translated message with fallback to defaults."""
         try:
             result = i18n.get(f"core_utils.{key}", default=defaults[key])
-            # Ensure we got a string, not a mock or other type
-            if isinstance(result, str):
-                return result
-            return defaults[key]
+            return result if isinstance(result, str) else defaults[key]
         except Exception:
-            # Fall back to defaults for tests or any error
             return defaults[key]
+
     # Phase 1: Basic cleanup & Orphaned ToolMessage repair
     stage1 = []
     for msg in messages:
@@ -168,18 +168,18 @@ def repair_message_history(
             if stage1:
                 last = stage1[-1]
                 if isinstance(last, AIMessage) and last.tool_calls:
-                    ids = [tc["id"] for tc in last.tool_calls]
+                    ids = [tc.id for tc in (ToolCall.model_validate(t) if isinstance(t, dict) else t for t in last.tool_calls)]
                     if msg.tool_call_id in ids:
                         is_orphaned = False
 
             if is_orphaned:
                 dummy = AIMessage(
                     content=get_msg("orphaned_tool"),
-                    tool_calls=[{
-                        "id": msg.tool_call_id,
-                        "name": msg.name or "unknown_tool",
-                        "args": {}
-                    }]
+                    tool_calls=[ToolCall(
+                        id=msg.tool_call_id,
+                        name=msg.name or "unknown_tool",
+                        args={}
+                    ).model_dump()]
                 )
                 stage1.append(dummy)
 
@@ -220,7 +220,8 @@ def repair_message_history(
 
         if isinstance(msg, AIMessage) and msg.tool_calls:
             for tc in msg.tool_calls:
-                open_tool_calls[tc["id"]] = tc["name"]
+                tool_call = ToolCall.model_validate(tc) if isinstance(tc, dict) else tc
+                open_tool_calls[tool_call.id] = tool_call.name
 
         if isinstance(msg, ToolMessage):
             # Clear opened call
@@ -251,10 +252,7 @@ def repair_message_history(
     return final_repaired
 
 
-def apply_forgotten_status(
-    messages: list[BaseMessage],
-    tool_memory: ToolOutputMemory,
-) -> list[BaseMessage]:
+def apply_forgotten_status(messages: list[BaseMessage], tool_memory: ToolOutputMemory) -> list[BaseMessage]:
     """
     Apply forgotten status to messages based on ToolOutputMemory.
 
@@ -280,15 +278,14 @@ def apply_forgotten_status(
             if record:
                 # Create a summary message that maintains the tool structure
                 # but replaces heavy content with lightweight summary
-                summary_content = (
-                    f"[FORGOTTEN - Summary Only]\n"
-                    f"Tool: {record.tool_name}\n"
-                    f"Original size: {record.original_length} chars\n"
-                    f"Reason: {record.reason}\n"
-                    f"---\n"
-                    f"Summary: {record.summary}\n"
-                    f"---\n"
-                    f"Use recall_tool_output('{msg.tool_call_id}') to restore full content."
+                from app.utils.template import render_template
+                summary_content = render_template(
+                    "fragments/forgotten_summary.j2",
+                    tool_name=record.tool_name,
+                    original_length=record.original_length,
+                    reason=record.reason,
+                    summary=record.summary,
+                    tool_call_id=msg.tool_call_id,
                 )
 
                 # Create new ToolMessage with summary instead of full content
@@ -318,7 +315,38 @@ def apply_forgotten_status(
 # API Layer Message Folding
 # ==============================================================================
 
-def fold_messages(messages: list[BaseMessage]) -> list[dict]:
+def to_base_message(msg: Any) -> BaseMessage | None:
+    """
+    Convert a database Message record or similar object to a LangChain BaseMessage.
+    
+    Args:
+        msg: Object with role, content, and optionally tool_calls / tool_call_id
+        
+    Returns:
+        A LangChain message object or None if role is unknown
+    """
+    role = getattr(msg, "role", None)
+    content = getattr(msg, "content", "")
+    
+    if role == "human":
+        return HumanMessage(content=content)
+    elif role == "ai":
+        tool_calls = getattr(msg, "tool_calls", [])
+        return AIMessage(content=content, tool_calls=tool_calls if isinstance(tool_calls, list) else [])
+    elif role == "tool":
+        # For database records, name might be stored in 'name' or derived from tool_calls
+        return ToolMessage(
+            content=content,
+            tool_call_id=getattr(msg, "tool_call_id", ""),
+            name=getattr(msg, "name", None)
+        )
+    elif role == "system":
+        return SystemMessage(content=content)
+    
+    return None
+
+
+def fold_messages(messages: list[BaseMessage]) -> list[FoldedMessage]:
     """
     Fold flat message list into nested format with embedded steps.
     
@@ -329,95 +357,102 @@ def fold_messages(messages: list[BaseMessage]) -> list[dict]:
         messages: Flat list of messages (AIMessage, ToolMessage, HumanMessage)
         
     Returns:
-        Folded list where each AI message contains nested 'steps' array
-        
-    Example:
-        Input:  [AIMessage(tool_calls=[...]), ToolMessage(...), AIMessage(...)]
-        Output: [
-            {
-                role: "ai",
-                content: "...",
-                tool_calls: [...],
-                steps: [{tool: "read_file", output: "...", status: "done"}]
-            },
-            {role: "ai", content: "...", steps: []}
-        ]
+        Folded list of FoldedMessage objects
     """
-    result = []
+    from app.core.tools.registry import get_tool_metadata, get_tool_friendly_name
+
+    result: list[FoldedMessage] = []
     i = 0
 
     while i < len(messages):
         msg = messages[i]
+        msg_id = getattr(msg, "id", f"msg-{i}")
+        created_at = getattr(msg, "created_at", None)
+        if isinstance(created_at, datetime):
+            created_at = created_at.isoformat()
 
         if isinstance(msg, AIMessage):
             # Collect tool execution results for this AI message
             steps = []
-            tool_calls = msg.tool_calls or []
+            tool_calls = getattr(msg, "tool_calls", []) or []
 
             # Look ahead for ToolMessages matching our tool_calls
             j = i + 1
-            tool_call_ids = {tc.get("id"): tc for tc in tool_calls}
+            tool_call_ids = {tc.id: tc for tc in (ToolCall.model_validate(t) if isinstance(t, dict) else t for t in tool_calls)}
 
             while j < len(messages) and isinstance(messages[j], ToolMessage):
                 tool_msg = messages[j]
-
+                
                 # Match with tool_call_id
                 tool_call = tool_call_ids.get(tool_msg.tool_call_id)
+                tool_name = tool_msg.name or (tool_call.get("name") if tool_call else "unknown")
 
-                steps.append({
-                    "id": f"step-{tool_msg.tool_call_id}",
-                    "tool": tool_msg.name or (tool_call.get("name") if tool_call else "unknown"),
-                    "input": tool_call.get("args") if tool_call else {},
-                    "output": get_message_text(tool_msg),
-                    "status": "done",
-                    "tool_call_id": tool_msg.tool_call_id
-                })
+                # Check if tool should be hidden in UI
+                metadata = get_tool_metadata(tool_name) or {}
+                if metadata.get("is_hidden", False):
+                    j += 1
+                    continue
+
+                steps.append(ToolStep(
+                    id=f"step-{tool_msg.tool_call_id}",
+                    tool=tool_name,
+                    tool_name=get_tool_friendly_name(tool_name) or tool_name,
+                    input=tool_call.get("args") if tool_call else {},
+                    output=get_message_text(tool_msg),
+                    status="success",
+                    tool_call_id=tool_msg.tool_call_id
+                ))
                 j += 1
 
-            result.append({
-                "id": getattr(msg, "id", f"msg-{i}"),
-                "role": "ai",
-                "content": get_message_text(msg),
-                "thinking": getattr(msg, "thinking", None),
-                "tool_calls": tool_calls,
-                "steps": steps,
-                "timestamp": getattr(msg, "created_at", None)
-            })
+            result.append(FoldedMessage(
+                id=msg_id,
+                role="ai",
+                content=get_message_text(msg),
+                thinking=getattr(msg, "thinking", None),
+                tool_calls=[tc.model_dump() for tc in (ToolCall.model_validate(t) if isinstance(t, dict) else t for t in tool_calls)] if tool_calls else None,
+                steps=steps,
+                created_at=created_at
+            ))
 
             i = j  # Skip processed ToolMessages
 
         elif isinstance(msg, ToolMessage):
-            # Orphan ToolMessage (shouldn't happen after repair, but handle gracefully)
-            result.append({
-                "id": f"orphan-{msg.tool_call_id}",
-                "role": "tool",
-                "tool": msg.name or "unknown",
-                "output": get_message_text(msg),
-                "tool_call_id": msg.tool_call_id,
-                "orphan": True
-            })
+            # Orphan ToolMessage
+            tool_name = msg.name or "unknown"
+            
+            # Still filter hidden tools if orphan
+            metadata = get_tool_metadata(tool_name) or {}
+            if not metadata.get("is_hidden", False):
+                result.append(FoldedMessage(
+                    id=f"orphan-{msg.tool_call_id}",
+                    role="tool",
+                    content=get_message_text(msg),
+                    metadata={
+                        "tool": tool_name,
+                        "tool_call_id": msg.tool_call_id,
+                        "orphan": True
+                    }
+                ))
             i += 1
 
         elif isinstance(msg, HumanMessage):
-            result.append({
-                "id": getattr(msg, "id", f"msg-{i}"),
-                "role": "human",
-                "content": get_message_text(msg),
-                "timestamp": getattr(msg, "created_at", None)
-            })
+            result.append(FoldedMessage(
+                id=msg_id,
+                role="human",
+                content=get_message_text(msg),
+                created_at=created_at
+            ))
             i += 1
 
         elif isinstance(msg, SystemMessage):
-            # System messages usually not shown in chat, but include if needed
-            result.append({
-                "id": f"system-{i}",
-                "role": "system",
-                "content": get_message_text(msg)
-            })
+            result.append(FoldedMessage(
+                id=f"system-{i}",
+                role="system",
+                content=get_message_text(msg)
+            ))
             i += 1
 
         else:
-            # Unknown message type, skip
             i += 1
 
     return result

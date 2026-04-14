@@ -81,10 +81,16 @@ from app.core.memory.models import (
     MemoryType,
     PrivacyLevel,
 )
+from app.core.memory.predictive_loader import (
+    clear_predictive_memory,
+    get_predictive_memory,
+    predictive_memory_load,
+)
 from app.core.memory.quality import (
     CleanupRecommendation,
     MemoryQualityAnalyzer,
     QualityScores,
+    quality_analyzer,
 )
 from app.core.memory.retrieval import MemoryRetriever, get_relevant_memories
 from app.core.memory.state_tracking import (
@@ -134,6 +140,7 @@ __all__ = [
     "MemoryRetriever",
     "get_relevant_memories",
     "MemoryQualityAnalyzer",
+    "quality_analyzer",
 
     # Types
     "QualityScores",
@@ -155,4 +162,9 @@ __all__ = [
     "scheduled_memory_maintenance",
     "trigger_maintenance",
     "get_maintenance_status",
+
+    # Predictive loader
+    "predictive_memory_load",
+    "get_predictive_memory",
+    "clear_predictive_memory",
 ]

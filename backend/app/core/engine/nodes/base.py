@@ -34,15 +34,16 @@ class BaseAgentNode(ABC):
 
     async def __call__(self, state: AgentState, config: RunnableConfig) -> StateUpdate:
         """The standard LangGraph node entry point."""
+        # LangGraph may pass a raw dict (e.g. from checkpoint resume or interrupt).
+        # Normalize at the framework boundary so downstream code never sees a dict.
+        if not isinstance(state, AgentState):
+            state = AgentState.model_validate(state)
+
         # 1. State Preparation & Environment Hydration
         # Includes early-exit checks (e.g., Aggregator routing)
         state_update = await self.prepare_state(state, config)
         if state_update and state_update.next_node:
             return state_update
-
-        # Optional updated state from prepare
-        if isinstance(state_update, dict):
-            state.update({k: v for k, v in state_update.items() if k != "next_node"})
 
         # 2. Build Prompts (Enforcing Static/Dynamic Split)
         # static_prompt: Huge instructions + tools -> goes to generic SystemMessage
@@ -56,15 +57,14 @@ class BaseAgentNode(ABC):
             ticket_msg = HumanMessage(content=dynamic_ticket_text, name="context_ticket")
             messages = [ticket_msg] + messages
 
-        execution_state = dict(state)
-        execution_state["messages"] = messages
+        execution_state = state.model_copy(update={"messages": messages})
 
         # 3. Engine Execution
         model = config.get("configurable", {}).get("model")
         engine = get_default_engine()
 
         try:
-            is_subtask = state.execution_ticket.agent_config.is_subtask if state.execution_ticket and state.execution_ticket.agent_config else False
+            is_subtask = state.blackboard.ticket.agent_config.is_subtask if state.blackboard and state.blackboard.ticket and state.blackboard.ticket.agent_config else False
             engine_result = await engine.run_node(
                 state=execution_state,
                 config=config,
@@ -122,7 +122,7 @@ class BaseAgentNode(ABC):
         # Provide a default fallback if the subclass doesn't implement advanced handling
         return StateUpdate(
             messages=engine_result.messages or [],
-            next_node=engine_result._routing_target or RoutingTarget.FINISH,
+            next_node=engine_result.routing_target or RoutingTarget.FINISH,
             blackboard=engine_result.blackboard or original_state.blackboard,
         )
 

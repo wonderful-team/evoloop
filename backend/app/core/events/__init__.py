@@ -5,7 +5,7 @@ Provides the foundational event-driven infrastructure for the entire system.
 
 Note: Module-specific events should be imported directly from their modules:
   - from app.core.engine.events import AgentEventType, AgentRunCompletedEvent
-  - from app.core.rewind.events import RewindEventType, RewindRequestedEvent
+  - from app.core.checkpoint.rewind.events import RewindEventType, RewindRequestedEvent
   - from app.core.execution.macro.events import MacroEventType
   - from app.core.environment.events import AwakeningEventType
   - from app.domain.project.events import ProjectEventType

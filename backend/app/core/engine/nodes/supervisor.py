@@ -33,6 +33,10 @@ class SupervisorNode(BaseAgentNode):
 
     async def prepare_state(self, state: AgentState, config: RunnableConfig) -> StateUpdate | None:
         """Pre-computation: Check for subtask completion and worker outcome."""
+        # 0. History Cleanup (Prevent retry loops on internal errors)
+        from app.core.engine.message_utils import prune_trailing_errors
+        state.messages = prune_trailing_errors(list(state.messages))
+
         # Clean stale routing and outcomes from previous turns
         state.next_node = None
         if state.blackboard:
@@ -106,13 +110,11 @@ class SupervisorNode(BaseAgentNode):
             dispatch_result = await SignalDispatcher.dispatch(original_state, signal, config)
             if isinstance(dispatch_result, StateUpdate):
                 dispatch_result.iteration_count = new_iter_count
-            elif isinstance(dispatch_result, dict):
-                dispatch_result["iteration_count"] = new_iter_count
             return dispatch_result
 
         # 2. Protocol Violation Check (Supervisor MUST route or be an error)
         new_messages = engine_result.messages or []
-        blackboard = engine_result.blackboard or original_state.blackboard or {}
+        blackboard = engine_result.blackboard or original_state.blackboard
 
         # Check for infrastructure errors
         has_error_msg = any(
@@ -170,7 +172,7 @@ class SupervisorNode(BaseAgentNode):
         last_msg = get_last_human_message(messages)
 
         # Get blackboard from state for prompt builder
-        blackboard = (state.blackboard or {})
+        blackboard = state.blackboard
 
         return {
             "tools": core_tools,

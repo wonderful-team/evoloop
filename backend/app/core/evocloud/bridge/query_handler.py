@@ -3,12 +3,16 @@
 import logging
 from typing import Any
 
+from sqlalchemy import select
+
 from app.core.evocloud.schemas import (
     ConversationQueryItem,
     McpServerInfo,
     MessageQueryItem,
     ModelInfo,
 )
+from app.infrastructure.database.sql.database import get_db_session
+from app.models import Conversation, Message
 
 logger = logging.getLogger(__name__)
 
@@ -48,15 +52,14 @@ async def handle_query_request(query_type: str, thread_id: str, params: dict[str
 async def _query_conversations(params: dict[str, Any]) -> list[ConversationQueryItem]:
     """查询对话列表"""
     try:
-        # 延迟导入避免循环依赖
-        from app.api.deps import get_db_session
-        from app.services.conversation_service import ConversationService
-
         project_id = params.get("project_id")
 
         async with get_db_session() as db:
-            service = ConversationService(db)
-            conversations = await service.list_conversations(project_id=project_id)
+            stmt = select(Conversation).order_by(Conversation.updated_at.desc())
+            if project_id is not None:
+                stmt = stmt.where(Conversation.project_id == project_id)
+            result = await db.execute(stmt)
+            conversations = result.scalars().all()
             return [
                 ConversationQueryItem(
                     id=str(c.id),
@@ -78,14 +81,17 @@ async def _query_history(thread_id: str, params: dict[str, Any]) -> list[Message
         return {"error": "thread_id required"}
 
     try:
-        from app.api.deps import get_db_session
-        from app.services.conversation_service import ConversationService
-
         limit = int(params.get("limit", 50))
 
         async with get_db_session() as db:
-            service = ConversationService(db)
-            messages = await service.get_messages(thread_id, limit=limit)
+            stmt = (
+                select(Message)
+                .where(Message.thread_id == thread_id)
+                .order_by(Message.created_at.desc())
+                .limit(limit)
+            )
+            result = await db.execute(stmt)
+            messages = result.scalars().all()
             return [
                 MessageQueryItem(
                     id=str(m.id),
@@ -109,10 +115,10 @@ async def _query_skills(params: dict[str, Any]) -> list[Any]:
 async def _query_mcp_servers(params: dict[str, Any]) -> list[McpServerInfo]:
     """查询 MCP 服务器列表"""
     try:
-        from app.core.mcp.client import mcp_client
+        from app.core.mcp.client import mcp_client_manager
 
         servers = []
-        for name, server in mcp_client._servers.items():
+        for name, server in mcp_client_manager._servers.items():
             servers.append(McpServerInfo(
                 name=name,
                 type=server.type.value if hasattr(server.type, 'value') else str(server.type),
@@ -126,9 +132,12 @@ async def _query_mcp_servers(params: dict[str, Any]) -> list[McpServerInfo]:
 
 async def _query_models(params: dict[str, Any]) -> list[ModelInfo]:
     """查询可用模型列表"""
-    from app.core.llm import llm_factory
+    from app.infrastructure.llm.platform_service import get_available_llm_models
 
     models = []
-    for model_id in llm_factory.list_models():
-        models.append(ModelInfo(id=model_id, name=model_id))
+    raw_models = await get_available_llm_models()
+    for m in raw_models:
+        model_id = m.get("model_id", "")
+        display_name = m.get("display_name", model_id)
+        models.append(ModelInfo(id=model_id, name=display_name))
     return models

@@ -266,7 +266,7 @@ async def chat_endpoint(
     # This runs in parallel with LangGraph initialization (~100ms), effectively
     # hiding the ~800ms Neo4j query latency.
     # ==========================================================================
-    from app.core.engine.predictive_memory_loader import predictive_memory_load
+    from app.core.memory.predictive_loader import predictive_memory_load
     
     run_id = f"run-{req.thread_id}-{int(time.time())}"
     bg_tasks.add_task(
@@ -338,8 +338,8 @@ async def retry_chat(
     
     Uses the new event-driven RewindOrchestrator for distributed cleanup.
     """
-    from app.core.rewind import RewindOrchestrator
-    from app.core.rewind.exceptions import (
+    from app.core.checkpoint.rewind import RewindOrchestrator
+    from app.core.checkpoint.rewind.exceptions import (
         MessageNotFoundError,
         NoHumanMessageError,
         RewindError

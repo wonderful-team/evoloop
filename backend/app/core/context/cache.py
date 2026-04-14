@@ -47,7 +47,6 @@ class DynamicContextLayer(DynamicBaseModel):
     execution_ticket: ExecutionTicket | None = None
     messages: list = Field(default_factory=list)
     iteration_count: int = 0
-    verification_status: VerificationStatus | None = None
 
 
 class LayeredContextCache:
@@ -135,10 +134,9 @@ class LayeredContextCache:
 
         return DynamicContextLayer(
             blackboard=state.blackboard,
-            execution_ticket=state.execution_ticket,
+            execution_ticket=state.blackboard.ticket if state.blackboard else None,
             messages=messages,
             iteration_count=state.iteration_count or 0,
-            verification_status=state.verification_status,
         )
 
     @classmethod

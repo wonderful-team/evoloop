@@ -68,7 +68,7 @@ class ProjectContextPlugin(ContextPlugin):
                         else:
                             active_plan_context += "\n\n-> ACTION: Mark the next step as in_progress."
 
-                        ctx.metadata["active_plan_context"] = active_plan_context
+                        ctx.metadata.active_plan_context = active_plan_context
 
         except Exception as e:
             logger.error(f"[ProjectContextPlugin] Failed to fetch context from DB: {e}")

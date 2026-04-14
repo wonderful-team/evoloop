@@ -13,7 +13,7 @@ import logging
 import re
 from typing import TYPE_CHECKING
 
-from app.core.rewind.events import (
+from app.core.checkpoint.rewind.events import (
     RewindEventType,
     RewindRequestedEvent,
     StateResetEvent,
@@ -25,7 +25,7 @@ from app.core.events.decorators import event_register, event_subscribe
 from app.core.globals import get_graph
 
 if TYPE_CHECKING:
-    from app.core.rewind.events import RewindRequestedEvent
+    from app.core.checkpoint.rewind.events import RewindRequestedEvent
 
 logger = logging.getLogger(__name__)
 

@@ -15,8 +15,10 @@ from langgraph.types import Send
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.config import settings
 from app.core.engine.schema import EdgeCondition
-from app.core.engine.state import AgentRuntimeConfig as AgentConfig
+from app.core.engine.state import AgentRuntimeConfig as AgentConfig, TicketParameters
 from app.core.engine.state import AgentState, ExecutionTicket
+from app.core.engine.state.blackboard import BlackboardState
+from app.core.engine.state.workspace import SubtaskContext
 
 logger = logging.getLogger(__name__)
 
@@ -40,9 +42,8 @@ def route_supervisor(state: AgentState) -> str | list[Send]:
     Decides the next node after Supervisor.
     """
     next_node = state.next_node
-    blackboard = copy.deepcopy(state.blackboard) if state.blackboard else None
+    blackboard = BlackboardState.model_validate(state.blackboard) if state.blackboard else None
     if not blackboard:
-        from app.core.engine.state.blackboard import BlackboardState
         blackboard = BlackboardState()
 
     # --- Phase 5: Resource Constraints Enforcement ---
@@ -76,11 +77,12 @@ def route_supervisor(state: AgentState) -> str | list[Send]:
             subtask_tools = subtask.tools or []
             # If no tools specified, allow all worker tools by not setting the field
             # (ToolManager will use full tool set when dynamic_tools is falsy)
+            subtask_ctx = subtask.context
             agent_config = AgentConfig(
                 role_name=f"Field Specialist {subtask_id}",
                 system_instructions=system_instructions,
                 is_subtask=True,
-                subtask_context=subtask.context or {},
+                subtask_context=subtask_ctx,
                 skill_hint=skill_hint,
                 tools=subtask_tools if subtask_tools else None,
             )
@@ -97,12 +99,10 @@ def route_supervisor(state: AgentState) -> str | list[Send]:
             if subtask.title and subtask.title != subtask.intent:
                 subtask_acceptance_criteria.append(f"Task: {subtask.title}")
 
-            subtask_parameters = subtask.context or {}
-            if subtask.dependencies:
-                subtask_parameters["dependencies"] = subtask.dependencies
+            subtask_parameters = TicketParameters(dependencies=subtask.dependencies) if subtask.dependencies else None
 
-            # Inherit historical context from parent task's execution_ticket (if available)
-            parent_ticket = state.execution_ticket
+            # Inherit historical context from parent task's blackboard ticket (if available)
+            parent_ticket = state.blackboard.ticket if state.blackboard else None
 
             ticket = ExecutionTicket(
                 ticket_type="subtask",
@@ -121,11 +121,12 @@ def route_supervisor(state: AgentState) -> str | list[Send]:
                 # Each subtask must explicitly request MCP servers via use_mcp_server
             )
 
+            subtask_blackboard = blackboard.model_copy(deep=True)
+            subtask_blackboard.ticket = ticket
             sends.append(Send(RoutingTarget.WORKER, {
                 "project_id": project_id,
                 "thread_id": scoped_thread_id, # Target isolation
-                "execution_ticket": ticket,
-                "blackboard": copy.deepcopy(blackboard), # Deep copy to prevent subtask mutation affecting parent
+                "blackboard": subtask_blackboard, # Deep copy to prevent subtask mutation affecting parent
                 "is_subtask": True,
                 # [CRITICAL] Start with empty messages to prevent inheriting parent history
                 # Worker will set the mission message via build_mission_message()
@@ -133,7 +134,7 @@ def route_supervisor(state: AgentState) -> str | list[Send]:
             }))
 
         # Consume the spawn_plan to prevent re-triggering on next router pass
-        blackboard["spawn_plan"] = None
+        blackboard.spawn_plan = None
 
         return sends
 
@@ -152,19 +153,12 @@ def route_supervisor(state: AgentState) -> str | list[Send]:
     if next_node:
         logger.info(f"[Router] Remapping intelligent target '{next_node}' -> 'worker'")
 
-        # Extract execution_ticket from blackboard (set by SignalDispatcher)
-        # and place it at state root for WorkerNode to access
-        execution_ticket = blackboard.ticket
-        if execution_ticket:
-            # Use Send to pass execution_ticket to worker
+        # Verify ticket exists in blackboard (set by SignalDispatcher) before routing to worker
+        if blackboard.ticket:
             return Send(RoutingTarget.WORKER, {
                 "project_id": (state.project_id or DEFAULT_PROJECT_ID),
-                "execution_ticket": execution_ticket,
             })
 
-        # CRITICAL: No execution ticket found - this indicates a Supervisor routing bug
-        logger.error(f"[Router] CRITICAL: No execution ticket in blackboard for target '{next_node}'. "
-                     f"Supervisor must always create a ticket via route_to when routing to worker-like nodes.")
         raise ValueError(
             f"Supervisor routing error: No execution ticket found for target '{next_node}'. "
             "Supervisor must call route_to() with a valid execution_ticket before routing to Worker."
@@ -344,7 +338,7 @@ def _safe_eval_expr(expr: str, context: dict) -> bool:
 def make_expression_router(conditions: list[EdgeCondition], default: str) -> Callable[[AgentState], str]:
     def expression_router(state: AgentState) -> str:
         # Prepare evaluation context (Phase 4: Blackboard Only)
-        blackboard = state.blackboard or {}
+        blackboard = state.blackboard
         eval_context = {
             "state": state,
             "blackboard": blackboard,

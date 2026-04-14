@@ -10,6 +10,8 @@ from typing import Any
 from langchain_core.runnables import RunnableConfig
 
 from app.core.engine.routers import RoutingTarget
+from app.core.engine.signals import RoutingContext
+from app.core.engine.state.blackboard import SpawnPlan
 from app.core.tools import evoloop_tool
 from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.utils.text import extract_json_from_markdown
@@ -27,14 +29,14 @@ class ToolResult(DynamicBaseModel):
 class DecomposeTaskResult(DynamicBaseModel):
     status: str
     error: str | None = None
-    _routing_target: str | None = None
-    _spawn_plan: dict | None = None
+    routing_target: str | None = None
+    spawn_plan: SpawnPlan | None = None
 
 
 class SpawnAgentsResult(DynamicBaseModel):
     status: str
-    _routing_target: str | None = None
-    _spawn_plan: dict | None = None
+    routing_target: str | None = None
+    spawn_plan: SpawnPlan | None = None
 
 
 class AggregateResult(DynamicBaseModel):
@@ -105,7 +107,7 @@ def manage_session_metadata(key: str, value: Any, _config: RunnableConfig) -> To
 def route_to(
     target: RoutingTarget,
     reason: str,
-    context: dict[str, Any] | None = None,
+    context: RoutingContext | None = None,
     authorized_tools: list[str] | None = None,
     skill_id: int | None = None,
     # 新增：支持多技能工作流
@@ -140,19 +142,20 @@ def route_to(
     """
     target_val = target.value if hasattr(target, "value") else target
 
-    context = context or {}
+    ctx = context or RoutingContext()
+    context_dict = ctx.model_dump()
     if authorized_tools:
-        context["authorized_tools"] = authorized_tools
+        context_dict["authorized_tools"] = authorized_tools
 
     # 处理多技能工作流参数
     if skill_ids:
-        context["skill_ids"] = skill_ids
-        context["workflow_mode"] = workflow_mode
+        context_dict["skill_ids"] = skill_ids
+        context_dict["workflow_mode"] = workflow_mode
     elif skill_id:
-        context["skill_id"] = skill_id
-        context["workflow_mode"] = "single"
+        context_dict["skill_id"] = skill_id
+        context_dict["workflow_mode"] = "single"
 
-    context_str = json.dumps(context, ensure_ascii=False)
+    context_str = json.dumps(context_dict, ensure_ascii=False)
     skill_info = f" | Skill ID: {skill_id}" if skill_id else ""
     if skill_ids:
         skill_info = f" | Skill IDs: {skill_ids}"
@@ -205,17 +208,17 @@ async def decompose_task(
                 error=f"Expected JSON array of tasks, got {type(subtasks).__name__}. Please ensure the prompt requests an array format."
             )
 
-        plan = {
-            "subtasks": subtasks,
-            "_routing_signal": "spawn_subtasks",
-            "_requires_aggregation": requires_aggregation,
-            "parent_task": task_description
-        }
+        plan = SpawnPlan(
+            subtasks=subtasks,
+            routing_signal="spawn_subtasks",
+            requires_aggregation=requires_aggregation,
+            parent_task=task_description
+        )
 
         return DecomposeTaskResult(
             status="success",
-            _routing_target="spawn_subtasks",
-            _spawn_plan=plan
+            routing_target="spawn_subtasks",
+            spawn_plan=plan
         )
     except Exception as e:
         logger.error(f"[decompose_task] Failed: {e}")
@@ -227,7 +230,7 @@ async def decompose_task(
     name_map={"zh": "生成代理", "en": "Spawn Agents"}
 )
 async def spawn_agents(
-    mission_plan: dict[str, Any],
+    mission_plan: SpawnPlan | dict[str, Any],
     reasoning: str = "",
     requires_aggregation: bool = True
 ) -> SpawnAgentsResult:
@@ -235,27 +238,39 @@ async def spawn_agents(
     Directly spawns multiple sub-agents based on a provided mission plan.
     High-level coordination for models that prefer explicitly managing parallelism.
     """
-    logger.info(f"[spawn_agents] 🚀 Spawning {len(mission_plan.get('subtasks', []))} agents: {reasoning}")
+    if isinstance(mission_plan, dict):
+        # Normalize raw dict input before Pydantic validation
+        raw_subtasks = mission_plan.get("subtasks") or []
+        for idx, subtask in enumerate(raw_subtasks):
+            if isinstance(subtask, dict):
+                if "subtask_id" in subtask and "id" not in subtask:
+                    subtask["id"] = subtask.pop("subtask_id")
+                if not subtask.get("id") or subtask.get("id") == "unknown":
+                    from app.utils.id import gen_uuid
+                    subtask["id"] = f"agent-{gen_uuid()[:8]}-{idx}"
+        mission_plan = SpawnPlan.model_validate(mission_plan)
 
-    subtasks = mission_plan.get("subtasks", [])
+    logger.info(f"[spawn_agents] 🚀 Spawning {len(mission_plan.subtasks or [])} agents: {reasoning}")
+
+    subtasks = list(mission_plan.subtasks or [])
 
     # Enforce unique IDs for spawned agents
     for idx, subtask in enumerate(subtasks):
-        if not subtask.get("subtask_id") or subtask.get("subtask_id") == "unknown":
+        if not subtask.id or subtask.id == "unknown":
             from app.utils.id import gen_uuid
-            subtask["subtask_id"] = f"agent-{gen_uuid()[:8]}-{idx}"
+            subtasks[idx] = subtask.model_copy(update={"id": f"agent-{gen_uuid()[:8]}-{idx}"})
 
-    plan = {
-        "subtasks": subtasks,
-        "aggregation_strategy": mission_plan.get("aggregation_strategy", "merge"),
-        "_requires_aggregation": requires_aggregation,
-        "parent_task": reasoning or "Autonomous Mission",
-    }
+    plan = SpawnPlan(
+        subtasks=subtasks,
+        aggregation_strategy=mission_plan.aggregation_strategy or "merge",
+        requires_aggregation=requires_aggregation,
+        parent_task=reasoning or "Autonomous Mission",
+    )
 
     return SpawnAgentsResult(
         status="success",
-        _routing_target="spawn_subtasks",
-        _spawn_plan=plan
+        routing_target="spawn_subtasks",
+        spawn_plan=plan
     )
 
 

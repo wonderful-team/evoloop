@@ -17,10 +17,11 @@ from app.core.engine.engine import EngineResult
 from app.core.engine.message_utils import get_message_text
 from app.core.engine.nodes.base import BaseAgentNode
 from app.core.engine.prompts import WorkerPromptBuilder
+from app.core.engine.engine import EngineResult
 from app.core.engine.routers import RoutingTarget
 from app.core.engine.state import AgentState, StateUpdate
-from app.core.engine.state.blackboard import VerificationStatus
-from app.core.engine.state.config import AgentRuntimeConfig, ExecutionTicket
+from app.core.engine.state.blackboard import SubtaskResult, VerificationStatus, WorkflowStepResult
+from app.core.engine.state.config import AgentRuntimeConfig, ExecutionTicket, WorkflowContext
 from app.core.tools.manager import tool_manager
 from app.core.tools.registry import get_tool_metadata
 
@@ -48,10 +49,10 @@ class WorkerNode(BaseAgentNode):
         from app.core.engine.context_hydrator import EvoContextMiddleware
         state = await EvoContextMiddleware.hydrate(state, config)
 
-        execution_ticket = state.execution_ticket
+        execution_ticket = state.blackboard.ticket if state.blackboard else None
         if not execution_ticket or not execution_ticket.agent_config:
             logger.warning("[Worker] No AgentConfig found in ticket! Using default configuration.")
-            blackboard = (state.blackboard or {})
+            blackboard = state.blackboard
             route_reason = blackboard.route_reason if blackboard else "Execute task"
             execution_ticket = ExecutionTicket(
                 ticket_type="task",
@@ -61,15 +62,18 @@ class WorkerNode(BaseAgentNode):
                     system_instructions="Execute the following task steps accurately and provide the result.",
                 )
             )
-            state.execution_ticket = execution_ticket
+            if state.blackboard is None:
+                from app.core.engine.state.blackboard import BlackboardState
+                state.blackboard = BlackboardState()
+            state.blackboard.ticket = execution_ticket
 
         return state
 
     async def build_prompt_pair(self, state: AgentState, config: RunnableConfig) -> tuple[str, str]:
         """Construct (Static System Prompt, Dynamic Mission Message)."""
-        execution_ticket = state.execution_ticket
+        execution_ticket = state.blackboard.ticket if state.blackboard else None
         agent_config = execution_ticket.agent_config if execution_ticket else None
-        blackboard = (state.blackboard or {})
+        blackboard = state.blackboard
         ctx = ContextManager.current()
 
         # Hydrate internal context
@@ -123,7 +127,7 @@ class WorkerNode(BaseAgentNode):
             return await SignalDispatcher.dispatch(original_state, signal, config)
 
         # 2. Worker Post-processing (Outcome determination, Blackboard updates, etc.)
-        execution_ticket = original_state.execution_ticket
+        execution_ticket = original_state.blackboard.ticket if original_state.blackboard else None
         role_name = execution_ticket.agent_config.role_name if execution_ticket and execution_ticket.agent_config else "Worker"
 
         return self._post_process_result(original_state, engine_result, execution_ticket, role_name)
@@ -132,7 +136,7 @@ class WorkerNode(BaseAgentNode):
         """Override to handle sequential multi-skill logic."""
         # 1. Initial Hydration
         state = await self.prepare_state(state, config)
-        execution_ticket = state.execution_ticket
+        execution_ticket = state.blackboard.ticket if state.blackboard else None
 
         # Check for multi-skill workflow
         skill_ids = execution_ticket.skill_ids or [] if execution_ticket else []
@@ -165,8 +169,8 @@ class WorkerNode(BaseAgentNode):
                 skills=relevant_sops,
                 tools=await self.get_tools(state),
                 execution_ticket=execution_ticket,
-                agent_config=execution_ticket.agent_config,
-                role_name=execution_ticket.agent_config.role_name if execution_ticket.agent_config else "Worker",
+                agent_config=execution_ticket.agent_config if execution_ticket else None,
+                role_name=execution_ticket.agent_config.role_name if execution_ticket and execution_ticket.agent_config else "Worker",
             )
 
         # Standard ReAct loop (Delegated to BaseAgentNode)
@@ -221,7 +225,7 @@ class WorkerNode(BaseAgentNode):
         execution_ticket: ExecutionTicket,
         agent_config: AgentRuntimeConfig,
         role_name: str,
-    ) -> dict[str, Any]:
+    ) -> StateUpdate:
         """
         顺序执行多个技能，上一步输出作为下一步输入
         """
@@ -229,7 +233,7 @@ class WorkerNode(BaseAgentNode):
         from app.core.engine.prompts import WorkerPromptBuilder
 
         results = []
-        blackboard = (state.blackboard or {})
+        blackboard = state.blackboard
         ctx = ContextManager.current()
         full_plan = state.structured_plan or state.current_plan or getattr(blackboard, "plan", None)
 
@@ -240,18 +244,18 @@ class WorkerNode(BaseAgentNode):
             logger.info(f"[Worker] 🔄 Workflow Step {i+1}/{len(skills)}: {skill.name}")
 
             # 构建工作流上下文
-            workflow_context = {
-                "step_number": i + 1,
-                "total_steps": len(skills),
-                "is_first_step": is_first,
-                "is_last_step": is_last,
-                "previous_results": results,
-                "current_skill": {
+            workflow_context = WorkflowContext(
+                step_number=i + 1,
+                total_steps=len(skills),
+                is_first_step=is_first,
+                is_last_step=is_last,
+                previous_results=results,
+                current_skill={
                     "id": skill.id,
                     "name": skill.name,
                     "description": skill.description or ""
                 }
-            }
+            )
 
             # 更新 ticket 用于当前步骤
             step_ticket = copy.deepcopy(execution_ticket)
@@ -304,21 +308,21 @@ class WorkerNode(BaseAgentNode):
                 )
 
                 # 提取步骤输出
-                last_msg = engine_result["messages"][-1]
+                last_msg = engine_result.messages[-1]
                 step_output = get_message_text(last_msg) if isinstance(last_msg, AIMessage) else ""
 
-                results.append({
-                    "skill_id": skill.id,
-                    "skill_name": skill.name,
-                    "output": step_output,
-                    "status": "success"
-                })
+                results.append(WorkflowStepResult(
+                    skill_id=skill.id,
+                    skill_name=skill.name,
+                    output=step_output,
+                    status="success"
+                ))
 
                 # 检查是否需要中断
                 if "[ERROR:" in step_output or step_output.strip().startswith("Error:"):
                     logger.error(f"[Worker] Workflow failed at step {i+1}")
                     summary = f"Workflow failed at step {i+1}/{len(skills)}: {skill.name}\n\n{step_output}"
-                    blackboard["workflow_results"] = results
+                    blackboard.workflow_results = results
                     return StateUpdate(
                         messages=[AIMessage(
                             content=summary,
@@ -326,18 +330,17 @@ class WorkerNode(BaseAgentNode):
                         )],
                         next_node=RoutingTarget.SUPERVISOR,
                         blackboard=blackboard,
-                        workflow_results=results
                     )
 
             except Exception as e:
                 logger.error(f"[Worker] Step {i+1} failed: {e}")
-                results.append({
-                    "skill_id": skill.id,
-                    "skill_name": skill.name,
-                    "output": str(e),
-                    "status": "failed"
-                })
-                blackboard["workflow_results"] = results
+                results.append(WorkflowStepResult(
+                    skill_id=skill.id,
+                    skill_name=skill.name,
+                    output=str(e),
+                    status="failed"
+                ))
+                blackboard.workflow_results = results
                 return StateUpdate(
                     messages=[AIMessage(
                         content=f"Workflow failed at step {i+1}: {e}",
@@ -345,29 +348,27 @@ class WorkerNode(BaseAgentNode):
                     )],
                     next_node=RoutingTarget.SUPERVISOR,
                     blackboard=blackboard,
-                    workflow_results=results
                 )
 
         # 所有步骤完成
         # NOTE: Worker should NOT generate detailed summaries.
         # Return minimal content - Finish node will generate the comprehensive summary.
-        final_result = results[-1] if results else {"output": "No output"}
+        final_result = results[-1] if results else WorkflowStepResult(output="No output")
         brief_confirmation = f"Completed {len(skills)} step(s)."
 
         # Store workflow results in blackboard for downstream access
-        blackboard["workflow_results"] = results
+        blackboard.workflow_results = results
 
         return StateUpdate(
             messages=[AIMessage(content=brief_confirmation)],
             next_node=RoutingTarget.FINISH,
             blackboard=blackboard,
-            workflow_results=results
         )
 
     def _post_process_result(
         self,
         state: AgentState,
-        engine_result: dict,
+        engine_result: EngineResult,
         execution_ticket: ExecutionTicket,
         role_name: str
     ) -> StateUpdate:
@@ -376,10 +377,10 @@ class WorkerNode(BaseAgentNode):
         Handles: result summary, cache invalidation, verification capture, MCP interception,
         and subtask result collection (Phase 1).
         """
-        last_msg = engine_result["messages"][-1]
+        last_msg = engine_result.messages[-1]
         content = get_message_text(last_msg) if isinstance(last_msg, AIMessage) else ""
         tool_history = engine_result.tool_history or []
-        routing_target = engine_result._routing_target
+        routing_target = engine_result.routing_target
 
         logger.info(f"[Worker][{role_name}] Loop finished. Content len: {len(content)}, Tools used: {len(tool_history)}, Target: {routing_target}")
 
@@ -417,13 +418,13 @@ class WorkerNode(BaseAgentNode):
             subtask_id = execution_ticket.subtask_id or "unknown"
             parent_task_id = execution_ticket.parent_task_id or "unknown"
 
-            subtask_result = {
-                "subtask_id": subtask_id,
-                "status": "completed",
-                "result": content,
-                "tools_used": tool_history,
-                "timestamp": asyncio.get_event_loop().time(),
-            }
+            subtask_result = SubtaskResult(
+                subtask_id=subtask_id,
+                status="completed",
+                result=content,
+                tools_used=tool_history,
+                timestamp=asyncio.get_event_loop().time(),
+            )
 
             if not blackboard.subtask_results:
                 blackboard.subtask_results = []
@@ -474,13 +475,15 @@ class WorkerNode(BaseAgentNode):
 
         verification_summary = VerificationStatus(status="unverified", signals=verification_signals)
 
+        if blackboard:
+            blackboard.ticket = updated_execution_ticket
+            blackboard.verification = verification_summary
+
         return StateUpdate(
             messages=[AIMessage(content=worker_content)],
             next_node=routing_target or RoutingTarget.FINISH,
             blackboard=blackboard,
             workspace_context=workspace_context,
-            execution_ticket=updated_execution_ticket,
-            verification_status=verification_summary,
         )
 
     async def _hydrate_focus_files(self, ticket: ExecutionTicket, ctx) -> list[dict]:

@@ -256,14 +256,14 @@ class WorkflowSynthesizer:
 
             # Identify if this was a global (OS/Android) or DOM action
             source_type = "dom"
-            current_package = step.state_context.get("app_name") or step.node_name
+            current_package = step.state_context.app_name or step.node_name
 
             if step.action_name == "mobile_control":
                 source_type = "mobile"
             elif step.action_name == "desktop_control":
                 source_type = "desktop"
             elif step.node_name in ("global_observation", "mobile_interaction"):
-                if step.state_context.get("is_mirrored"):
+                if step.state_context.is_mirrored:
                     source_type = "mobile"
                 else:
                     source_type = "desktop"

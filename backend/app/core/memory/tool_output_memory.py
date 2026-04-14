@@ -330,4 +330,4 @@ def save_tool_memory_to_state(state: "AgentState", memory: ToolOutputMemory) -> 
     if not state.blackboard.metadata:
         state.blackboard.metadata = BlackboardMetadata()
 
-    state.blackboard.metadata["tool_memory"] = memory.to_dict()
+    state.blackboard.metadata.tool_memory = memory.to_dict()

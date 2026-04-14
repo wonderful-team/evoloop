@@ -12,6 +12,7 @@ from fastapi.responses import StreamingResponse
 
 from app.api.deps import verify_guest_access
 from app.core.monitoring.activity import activity_monitor
+from app.core.engine.state.history import ToolStep
 from app.infrastructure.cache import cache
 
 logger = logging.getLogger(__name__)
@@ -145,19 +146,20 @@ async def stream_chat(thread_id: str):
                                     # Get friendly display name if available
                                     tool_name_display = msg_data.get('tool_name_display')
                                     
-                                    step = {
-                                        'id': msg_data.get('id') or f'step-{asyncio.get_event_loop().time()}',
-                                        'tool': tool_name,
-                                        'tool_name': tool_name_display,  # Friendly name from backend
-                                        'input': tool_input,
-                                        'output': msg_data.get('content', ''),
-                                        'status': 'success',
-                                        'duration': 0,
-                                    }
+                                    step = ToolStep(
+                                        id=msg_data.get('id') or f"step-{asyncio.get_event_loop().time()}",
+                                        tool=tool_name,
+                                        tool_name=tool_name_display,
+                                        input=tool_input,
+                                        output=msg_data.get('content', ''),
+                                        status='success',
+                                        duration=0,
+                                        tool_call_id=msg_data.get('tool_call_id'),
+                                    )
                                     
                                     if 'steps' not in last_ai_message:
                                         last_ai_message['steps'] = []
-                                    last_ai_message['steps'].append(step)
+                                    last_ai_message['steps'].append(step.model_dump())
                                     
                                     yield f"event: message\ndata: {json.dumps(last_ai_message)}\n\n"
                                 else:

@@ -13,15 +13,22 @@ from app.core.engine.hooks.core import (
     HookEvent,
     HookResult,
     HookSystem,
+    ToolInput,
+    ToolResult,
     hook_system,
     setup_default_hooks,
 )
+
+ToolOutput = ToolResult
 
 __all__ = [
     "HookEvent",
     "HookContext",
     "HookResult",
     "HookSystem",
+    "ToolInput",
+    "ToolOutput",
+    "ToolResult",
     "hook_system",
     "setup_default_hooks",
 ]

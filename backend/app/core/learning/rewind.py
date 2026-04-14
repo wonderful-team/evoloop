@@ -13,7 +13,7 @@ cleanup of trace data during rewind operations.
 
 import logging
 
-from app.core.rewind.events import (
+from app.core.checkpoint.rewind.events import (
     RewindEventType,
     RewindRequestedEvent,
     TraceCleanupEvent,

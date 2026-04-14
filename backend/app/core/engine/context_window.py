@@ -19,7 +19,6 @@ Usage:
 
 import logging
 import time
-from typing import Dict
 
 from langchain_core.messages import (
     AIMessage,
@@ -31,6 +30,7 @@ from langchain_core.messages import (
 from pydantic import Field
 
 from app.core.engine.hooks import HookContext, HookEvent, hook_system
+from app.core.engine.state.blackboard import BlackboardState
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
@@ -224,7 +224,7 @@ class ContextWindowManager:
         thread_id: str,
         project_id: int | None = None,
         user_id: str | None = None,
-        blackboard: Dict | None = None,
+        blackboard: BlackboardState | None = None,
     ) -> list[BaseMessage]:
         """
         Check token count and compact if needed.
@@ -271,7 +271,7 @@ class ContextWindowManager:
         thread_id: str,
         project_id: int | None = None,
         user_id: str | None = None,
-        blackboard: Dict | None = None,
+        blackboard: BlackboardState | None = None,
     ) -> CompactionResult:
         """
         Compact context by summarizing old messages.
@@ -296,7 +296,7 @@ class ContextWindowManager:
             project_id=project_id,
             user_id=user_id,
             messages=messages,
-            blackboard=blackboard or {},
+            blackboard=blackboard,
             metadata={
                 "token_count": original_tokens,
                 "compaction_reason": "threshold_exceeded",

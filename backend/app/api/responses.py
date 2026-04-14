@@ -20,19 +20,13 @@ class DataResponse(BaseAPIResponse):
     data: Any | None = None
 
 
-import warnings
+class ListResponse(BaseAPIResponse, Generic[T]):
+    """Paginated list response."""
 
-with warnings.catch_warnings():
-    # Silencing Pydantic's UserWarning about 'items' shadowing LegacyDictMixin.items()
-    warnings.simplefilter("ignore", category=UserWarning)
-
-    class ListResponse(BaseAPIResponse, Generic[T]):
-        """Paginated list response."""
-
-        items: list[T] = Field(default_factory=list)
-        total: int = 0
-        page: int = 1
-        page_size: int = 20
+    data: list[T] = Field(default_factory=list)
+    total: int = 0
+    page: int = 1
+    page_size: int = 20
 
 
 class ErrorResponse(BaseAPIResponse):

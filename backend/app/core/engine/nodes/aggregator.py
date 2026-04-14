@@ -48,8 +48,9 @@ async def aggregator_node(state: AgentState, config: RunnableConfig) -> StateUpd
             blackboard.spawn_plan = None
             blackboard.worker_outcome = "success"
             if not blackboard.metadata:
-                blackboard.metadata = {}
-            blackboard.metadata["last_aggregation_result"] = result_text
+                from app.core.engine.state.blackboard import BlackboardMetadata
+                blackboard.metadata = BlackboardMetadata()
+            blackboard.metadata.last_aggregation_result = result_text
 
         return StateUpdate(
             messages=[AIMessage(content=f"Aggregation complete. Strategy: {strategy}. Total results: {len(subtask_results)}.")],
@@ -68,7 +69,7 @@ async def aggregator_node(state: AgentState, config: RunnableConfig) -> StateUpd
             if not blackboard.metadata:
                 from app.core.engine.state.blackboard import BlackboardMetadata
                 blackboard.metadata = BlackboardMetadata()
-            blackboard.metadata["last_aggregation_result"] = f"Aggregation failed: {e}"
+            blackboard.metadata.last_aggregation_result = f"Aggregation failed: {e}"
         return StateUpdate(
             messages=[AIMessage(
                 content=f"Aggregation failed: {e}",

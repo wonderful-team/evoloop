@@ -11,7 +11,7 @@ restoring files to their state before Agent modification.
 import logging
 from pathlib import Path
 
-from app.core.rewind.events import (
+from app.core.checkpoint.rewind.events import (
     FilesCleanupEvent,
     RewindEventType,
     RewindRequestedEvent,

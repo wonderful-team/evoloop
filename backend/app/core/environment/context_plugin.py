@@ -40,14 +40,14 @@ class EnvironmentContextPlugin(ContextPlugin):
             state = get_awakened_state()
 
             # Reset metadata flags
-            ctx.metadata["has_android"] = False
-            ctx.metadata["has_macos"] = False
+            ctx.metadata.has_android = False
+            ctx.metadata.has_macos = False
 
             if state:
                 if state.android_devices:
-                    ctx.metadata["has_android"] = True
+                    ctx.metadata.has_android = True
                 if state.macos:
-                    ctx.metadata["has_macos"] = True
+                    ctx.metadata.has_macos = True
 
                 # 3. Hydrate Spatial Awareness (Discovery Report)
                 if getattr(state, "discovery_report", None):
@@ -129,7 +129,7 @@ class EnvironmentContextPlugin(ContextPlugin):
 
                 # Pass raw user preferences to templates for rendering
                 if getattr(state, "user_preferences", None):
-                    ctx.metadata["user_preferences"] = state.user_preferences
+                    ctx.metadata.user_preferences = state.user_preferences
 
         except Exception as e:
             logger.error(f"Failed to hydrate EnvironmentContextPlugin: {e}")

@@ -298,3 +298,9 @@ class MemoryQualityAnalyzer:
     def record_access(self, entry_id: str) -> None:
         """Record that a memory was accessed (for usage scoring)."""
         self._access_counts[entry_id] += 1
+
+
+# Global singleton instance for convenience
+# Note: storage is None by default; methods requiring storage will raise if called
+# without proper initialization. This is sufficient for global access patterns.
+quality_analyzer = MemoryQualityAnalyzer(storage=None)

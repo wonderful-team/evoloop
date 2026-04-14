@@ -2,10 +2,10 @@
 import logging
 from typing import Any
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from app.core.engine.state.config import ExecutionTicket
-from app.core.engine.state.workspace import ClipboardItem
+from app.core.engine.state.workspace import ClipboardItem, SubtaskContext
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
@@ -25,24 +25,33 @@ class SpawnPlanSubtask(DynamicBaseModel):
     intent: str
     description: str | None = None
     title: str | None = None
-    context: Any | None = None
+    context: SubtaskContext | None = None
     dependencies: list[str] | None = None
     tools: list[str] | None = None
     skill_hint: str | None = None
 
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_subtask_id(cls, data: Any) -> Any:
+        if isinstance(data, dict) and "subtask_id" in data and "id" not in data:
+            data = dict(data)
+            data["id"] = data.pop("subtask_id")
+        return data
+
 
 class SpawnPlan(DynamicBaseModel):
     subtasks: list[SpawnPlanSubtask] = Field(default_factory=list)
-    _requires_aggregation: bool = True
+    requires_aggregation: bool = True
     parent_task: str = ""
     aggregation_strategy: str = "merge"
-    _routing_signal: str | None = None
+    routing_signal: str | None = None
 
 
 class PendingAggregation(DynamicBaseModel):
     strategy: str
     expected_count: int
     actual_count: int | None = None
+    parent_task: str = ""
 
 
 class SubtaskResult(DynamicBaseModel):
@@ -53,8 +62,27 @@ class SubtaskResult(DynamicBaseModel):
     timestamp: float | None = None
 
 
+class AuditMeta(DynamicBaseModel):
+    tier: str
+    duration_ms: float | None = None
+
+
 class BlackboardMetadata(DynamicBaseModel):
-    pass
+    tool_memory: dict | None = None
+    final_outcome: str | None = None
+    shadow_audit: bool | None = None
+    termination_outcome: str | None = None
+    last_aggregation_result: str | None = None
+    audit_tier: str | None = None
+    audit_meta: AuditMeta | None = None
+    blocked_by_hook: bool | None = None
+
+
+class WorkflowStepResult(DynamicBaseModel):
+    skill_id: int | str | None = None
+    skill_name: str | None = None
+    output: str | None = None
+    status: str | None = None
 
 
 class BlackboardState(DynamicBaseModel):
@@ -68,25 +96,27 @@ class BlackboardState(DynamicBaseModel):
     spawn_plan: SpawnPlan | None = None
     pending_aggregation: PendingAggregation | None = None
     subtask_results: list[SubtaskResult] = Field(default_factory=list)
-    plan_approved: bool = False
+    plan_approved: bool | None = False
     worker_outcome: str | None = None
+    workflow_results: list[WorkflowStepResult] | None = None
 
 
-def merge_blackboard(old: BlackboardState | None, new: BlackboardState | dict[str, Any] | None) -> BlackboardState | None:
+def merge_blackboard(old: Any, new: Any) -> BlackboardState | None:
+    """Merge two blackboard values. Accepts instances or dicts (from LangGraph serde)."""
     if old is None:
-        if isinstance(new, dict):
-            return BlackboardState.model_validate(new)
-        return new
+        return BlackboardState.model_validate(new) if new is not None else None
     if new is None:
-        return old
-    if isinstance(new, dict):
-        new = BlackboardState.model_validate(new)
+        return BlackboardState.model_validate(old)
+
+    old = BlackboardState.model_validate(old)
+    new = BlackboardState.model_validate(new)
 
     merged = old.model_copy(deep=True)
 
     simple_fields = [
         "ticket", "verification", "route_reason", "spawn_plan",
-        "pending_aggregation", "working_directory", "plan_approved", "worker_outcome"
+        "pending_aggregation", "working_directory", "plan_approved", "worker_outcome",
+        "workflow_results"
     ]
     for key in simple_fields:
         val = getattr(new, key, None)
@@ -109,8 +139,9 @@ def merge_blackboard(old: BlackboardState | None, new: BlackboardState | dict[st
             merged.subtask_results = old_results + delta
 
     if new.metadata is not None:
-        old_meta = dict(merged.metadata) if merged.metadata else {}
-        merged.metadata = {**old_meta, **dict(new.metadata)}
+        old_meta = merged.metadata.model_dump() if merged.metadata else {}
+        new_meta = new.metadata.model_dump() if new.metadata else {}
+        merged.metadata = BlackboardMetadata.model_validate({**old_meta, **new_meta})
 
     if new.visited_nodes is not None:
         old_nodes = list(merged.visited_nodes or [])

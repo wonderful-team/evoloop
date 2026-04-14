@@ -10,8 +10,8 @@ deleting todo items that are linked to rolled-back messages.
 
 import logging
 
-from app.core.rewind.events import RewindEventType
-from app.core.rewind.events import RewindRequestedEvent, TodoCleanupEvent
+from app.core.checkpoint.rewind.events import RewindEventType
+from app.core.checkpoint.rewind.events import RewindRequestedEvent, TodoCleanupEvent
 from sqlalchemy import delete, select
 
 from app.core.events.base import AsyncEventBus

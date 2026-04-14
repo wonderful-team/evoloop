@@ -42,7 +42,7 @@ async def elevated_privilege_gate(context: HookContext) -> HookResult:
     
     Priority 5 (lower than default 100) ensures this runs early in the hook chain.
     """
-    command = getattr(context.tool_input, "command", "") if context.tool_input else ""
+    command = context.tool_input.command if context.tool_input else ""
     if not command:
         return HookResult(success=True)
 
@@ -75,7 +75,7 @@ async def dangerous_command_gate(context: HookContext) -> HookResult:
     These commands may cause system instability or security risks.
     Priority 6 runs after elevated_privilege_gate.
     """
-    command = getattr(context.tool_input, "command", "") if context.tool_input else ""
+    command = context.tool_input.command if context.tool_input else ""
     if not command:
         return HookResult(success=True)
 

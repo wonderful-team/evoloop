@@ -34,7 +34,9 @@ from app.core.engine.message_utils import (
     repair_message_history,
     smart_window_slice,
 )
-from app.core.engine.state import AgentState, BlackboardState
+from app.core.engine.signals import AgentSignal
+from app.core.engine.state import AgentState, BlackboardState, BlackboardMetadata
+from app.core.engine.state.history import ToolCall
 from app.core.engine.tool_executor import AgentToolExecutor
 from app.core.memory.tool_output_memory import get_tool_memory_from_state
 from app.core.monitoring.activity import activity_monitor
@@ -51,10 +53,10 @@ class EngineResult(DynamicBaseModel):
     """Structured result from AgentEngine.run_node() and internal execution methods."""
     messages: list[Any] = Field(default_factory=list)
     tool_history: list[str] = Field(default_factory=list)
-    blackboard: Any = None
+    blackboard: BlackboardState | None = None
     is_truncated: bool = False
-    signal: Any = None
-    _routing_target: str | None = None
+    signal: AgentSignal | None = None
+    routing_target: str | None = None
 
 
 class AgentEngine:
@@ -95,6 +97,25 @@ class AgentEngine:
         self._config_service = config_service or SystemConfigService
         self._tool_executor_class = tool_executor_class
         self._enable_diff_tracking = enable_diff_tracking
+
+    @staticmethod
+    def _normalize_tool_calls(raw_tool_calls: list[dict[str, Any]] | None) -> list[ToolCall]:
+        """Convert LangChain raw tool call dicts into structured ToolCall models."""
+        if not raw_tool_calls:
+            return []
+        normalized = []
+        for tc in raw_tool_calls:
+            if isinstance(tc, ToolCall):
+                normalized.append(tc)
+            else:
+                normalized.append(
+                    ToolCall(
+                        id=tc.get("id", gen_uuid()),
+                        name=tc.get("name", ""),
+                        args=tc.get("args", {}),
+                    )
+                )
+        return normalized
 
     async def run_node(
         self,
@@ -296,7 +317,7 @@ class AgentEngine:
                         "content": response.content,
                         "usage": getattr(response, "usage_metadata", {}),
                         "is_tool_call": bool(response.tool_calls),
-                        "tool_names": [tc["name"] for tc in response.tool_calls]
+                        "tool_names": [tc.name for tc in self._normalize_tool_calls(response.tool_calls)]
                     },
                     latency_ms=latency * 1000,
                     metadata={"max_steps": max_steps, "parallel_tools": parallel_tools}
@@ -357,28 +378,30 @@ class AgentEngine:
                     evoloop_handler = cb
                     break
 
-            for tc in response.tool_calls:
+            tool_calls = self._normalize_tool_calls(response.tool_calls)
+
+            for tc in tool_calls:
                 # Skip if we already have a pending signal (only one signal per turn allowed)
                 if pending_signal is not None:
-                    logger.warning(f"[{name}] ⚠️ Multiple signals detected in one turn. Ignoring additional signal: {tc['name']}")
+                    logger.warning(f"[{name}] ⚠️ Multiple signals detected in one turn. Ignoring additional signal: {tc.name}")
                     continue
 
                 # 1. Check for route_to signal
-                if tc["name"] == "route_to":
+                if tc.name == "route_to":
                     if evoloop_handler:
                         try:
                             await evoloop_handler.on_tool_start(
                                 serialized={"name": "route_to"},
-                                input_str=json.dumps(tc["args"], ensure_ascii=False),
-                                run_id=tc["id"]
+                                input_str=json.dumps(tc.args, ensure_ascii=False),
+                                run_id=tc.id
                             )
                         except Exception as e:
                             logger.error(f"Failed to log intercepted tool start: {e}")
 
-                    target = tc["args"].get("target", "finish")
-                    reason = tc["args"].get("reason", "")
-                    context = tc["args"].get("context", {})
-                    authorized_tools = tc["args"].get("authorized_tools")
+                    target = tc.args.get("target", "finish")
+                    reason = tc.args.get("reason", "")
+                    context = tc.args.get("context", {})
+                    authorized_tools = tc.args.get("authorized_tools")
 
                     if isinstance(context, str):
                         try:
@@ -392,46 +415,45 @@ class AgentEngine:
                         reason=reason,
                         context=context,
                         authorized_tools=authorized_tools,
-                        skill_id=tc["args"].get("skill_id")
+                        skill_id=tc.args.get("skill_id")
                     )
 
                     output_msg = f"Routing to {target}"
                     # Add ToolMessage for route_to to satisfy protocol (every tool_call needs a response)
                     new_messages.append(ToolMessage(
                         content=output_msg,
-                        tool_call_id=tc["id"],
+                        tool_call_id=tc.id,
                         name="route_to",
                         id=gen_uuid(),
                     ))
 
                     if evoloop_handler:
                         try:
-                            await evoloop_handler.on_tool_end(output=output_msg, run_id=tc["id"])
+                            await evoloop_handler.on_tool_end(output=output_msg, run_id=tc.id)
                         except Exception as e:
                             logger.error(f"Failed to log intercepted tool end: {e}")
 
                 # 2. Check for decompose_task signal
-                elif tc["name"] == "decompose_task":
+                elif tc.name == "decompose_task":
                     tool = tool_map.get("decompose_task")
                     if tool:
                         executor = _ToolExecutor()
-                        result = await executor.execute(tool, tc["args"], config=config)
+                        result = await executor.execute(tool, tc.args, config=config)
 
-                        if isinstance(result, dict) and result.get("_spawn_plan"):
-                            from app.core.engine.state.blackboard import SpawnPlan
-                            spawn_plan = SpawnPlan.model_validate(result["_spawn_plan"])
+                        if hasattr(result, "spawn_plan") and result.spawn_plan:
+                            spawn_plan = result.spawn_plan
                             logger.info(f"[{name}] 🚀 Intent: Spawn {len(spawn_plan.subtasks or [])} subtasks")
 
                             new_messages.append(ToolMessage(
                                 content=f"Task decomposed into {len(spawn_plan.subtasks or [])} subtasks.",
-                                tool_call_id=tc["id"],
+                                tool_call_id=tc.id,
                                 name="decompose_task",
                                 id=gen_uuid(),
                             ))
                             pending_signal = SpawnSubtasksSignal(plan=spawn_plan)
 
             # 3. Execute Non-Signal Tools
-            remaining_tool_calls = [tc for tc in response.tool_calls if tc["name"] not in ("route_to", "decompose_task")]
+            remaining_tool_calls = [tc for tc in tool_calls if tc.name not in ("route_to", "decompose_task")]
 
             if remaining_tool_calls:
                 tool_executor = self._tool_executor_class(
@@ -442,11 +464,11 @@ class AgentEngine:
                     enable_diff_tracking=self._enable_diff_tracking,
                 )
 
-                async def _process_single_tool(tc):
+                async def _process_single_tool(tc: ToolCall):
                     return await tool_executor.execute_tool(
-                        tool_name=tc["name"],
-                        tool_args=tc["args"],
-                        tool_id=tc["id"],
+                        tool_name=tc.name,
+                        tool_args=tc.args,
+                        tool_id=tc.id,
                         local_tool_history=local_tool_history,
                     )
 
@@ -503,7 +525,7 @@ class AgentEngine:
         name: str,
         state: AgentState,
         parallel_tools: bool = False,
-    ) -> dict[str, Any]:
+    ) -> EngineResult:
         """Single-shot execution for subtasks."""
         # Build optimized system messages for Prompt Caching
         system_messages = self._build_system_messages(system_prompt, messages, provider)
@@ -545,7 +567,7 @@ class AgentEngine:
                     "content": response.content,
                     "usage": getattr(response, "usage_metadata", {}),
                     "is_tool_call": bool(response.tool_calls),
-                    "tool_names": [tc["name"] for tc in response.tool_calls]
+                    "tool_names": [tc.name for tc in self._normalize_tool_calls(response.tool_calls)]
                 },
                 latency_ms=latency * 1000,
                 metadata={"is_single_shot": True}
@@ -571,8 +593,10 @@ class AgentEngine:
             response.content, state.blackboard, name
         )
 
+        tool_calls = self._normalize_tool_calls(response.tool_calls)
+
         # CRITICAL: Subtask MUST call tools
-        if not response.tool_calls:
+        if not tool_calls:
             logger.error(f"[{name}] 🛑 SINGLE-SHOT VIOLATION: Subtask did not call any tool!")
             error_msg = AIMessage(content="Subtask failed: No tool was invoked.")
             new_messages.append(error_msg)
@@ -580,11 +604,11 @@ class AgentEngine:
                 messages=new_messages,
                 tool_history=local_tool_history,
                 blackboard=state.blackboard,
-                _routing_target=None,
+                routing_target=None,
             )
 
         # 3. Execute Non-Signal Tools
-        remaining_tool_calls = [tc for tc in response.tool_calls if tc["name"] not in ("route_to", "decompose_task")]
+        remaining_tool_calls = [tc for tc in tool_calls if tc.name not in ("route_to", "decompose_task")]
 
         if remaining_tool_calls:
             # Execute Tools using shared AgentToolExecutor
@@ -596,11 +620,11 @@ class AgentEngine:
                 enable_diff_tracking=self._enable_diff_tracking,
             )
 
-            async def _execute_tool(tc: dict) -> ToolMessage:
+            async def _execute_tool(tc: ToolCall) -> ToolMessage:
                 return await tool_executor.execute_tool(
-                    tool_name=tc["name"],
-                    tool_args=tc["args"],
-                    tool_id=tc["id"],
+                    tool_name=tc.name,
+                    tool_args=tc.args,
+                    tool_id=tc.id,
                     local_tool_history=local_tool_history,
                 )
 
@@ -725,13 +749,13 @@ class AgentEngine:
         }
         return error_messages.get(error_type, i18n.get("errors.llm_generic", default="An error occurred while processing your request. Please try again."))
 
-    def _parse_inferred_blackboard(self, content: Any, blackboard: Optional["BlackboardState"], name: str) -> Optional["BlackboardState"]:
+    def _parse_inferred_blackboard(self, content: Any, blackboard: Optional[BlackboardState], name: str) -> BlackboardState:
         """
         Parses the LLM response content for inferred blackboard updates.
         Returns updated blackboard without modifying input state directly.
         """
         if not content or not isinstance(content, str):
-            return blackboard
+            return blackboard or BlackboardState()
 
         # Support [BLACKBOARD: key=value] pattern
         # Optimized to support multi-line values and handle greedy matching more safely
@@ -739,13 +763,9 @@ class AgentEngine:
         matches = re.findall(pattern, content, re.DOTALL)
 
         if matches:
-            from app.core.engine.state.blackboard import (
-                BlackboardMetadata,
-                BlackboardState,
-            )
             if not isinstance(blackboard, BlackboardState):
                 blackboard = BlackboardState.model_validate(blackboard) if blackboard else BlackboardState()
-            metadata = dict(blackboard.metadata) if blackboard.metadata else {}
+            metadata_updates = {}
 
             for key, val in matches:
                 val_str = val.strip()
@@ -758,12 +778,14 @@ class AgentEngine:
                 else:
                     val = val_str
 
-                metadata[key] = val
+                metadata_updates[key] = val
                 logger.info(f"[{name}] 🖊️ Blackboard field '{key}' updated via Inference: {val}")
 
-            blackboard.metadata = BlackboardMetadata.model_validate(metadata)
+            blackboard.metadata = (blackboard.metadata or BlackboardMetadata()).model_copy(
+                update=metadata_updates
+            )
 
-        return blackboard
+        return blackboard or BlackboardState()
 
 
 # Global default instance for backward compatibility

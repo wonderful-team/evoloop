@@ -47,16 +47,15 @@ class ToolManager:
         # 2. Handle Progressive Disclosure (Skill-Tool Handshake & Dynamic Requests)
         # Only inject external tools if explicitly requested by the state.
         if state:
-            execution_ticket = state.execution_ticket
-            requested_tools = execution_ticket.tools_used if execution_ticket else []
+            execution_ticket = state.blackboard.ticket if state.blackboard else None
 
             # Agent Config for Dynamic Specialist
             agent_config = execution_ticket.agent_config if execution_ticket else None
             requested_servers = execution_ticket.mcp_servers_required if execution_ticket else []
             dynamic_tools = agent_config.tools if agent_config else []
 
-            # Merge dynamically requested individual tools
-            all_requested_tools = set(requested_tools + dynamic_tools)
+            # Dynamically requested individual tools come from agent_config.tools
+            all_requested_tools = set(dynamic_tools)
 
             if requested_servers or all_requested_tools:
                 try:

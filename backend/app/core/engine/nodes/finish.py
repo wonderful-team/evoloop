@@ -13,7 +13,7 @@ from app.core.context.manager import ContextManager
 from app.core.engine import get_default_engine
 from app.core.engine.prompts.finish import FinishPromptBuilder
 from app.core.engine.state import AgentState, StateUpdate, ExecutionTicket
-from app.core.engine.state.blackboard import BlackboardState, VerificationStatus
+from app.core.engine.state.blackboard import AuditMeta, BlackboardState, VerificationStatus
 from app.core.monitoring.activity import activity_monitor
 from app.core.tools.manager import tool_manager
 from app.i18n.service import i18n
@@ -94,7 +94,7 @@ async def _trigger_session_recording(ctx, config: RunnableConfig, summary: str, 
         episode_goal = "[Auto-recorded by Finish Node]"
         if execution_ticket:
             ticket_topic = execution_ticket.topic
-            ticket_reason = getattr(execution_ticket, "reason", None)
+            ticket_reason = execution_ticket.reason if execution_ticket else None
             if ticket_topic and len(ticket_topic) > 5:
                 episode_goal = ticket_topic
             elif ticket_reason and len(ticket_reason) > 5:
@@ -195,8 +195,8 @@ class LayeredAuditor:
                 triggers.append("error_detected")
                 break
 
-        ticket = state.execution_ticket
-        if ticket and getattr(ticket, "complexity", None) == "high":
+        ticket = state.blackboard.ticket if state.blackboard else None
+        if ticket and ticket.complexity == "high":
             triggers.append("high_complexity")
 
         verification = blackboard.verification if blackboard else None
@@ -314,11 +314,11 @@ async def _comprehensive_audit(state: AgentState, config: RunnableConfig) -> Sta
     """Original comprehensive audit logic."""
     ctx = ContextManager.current()
     messages = list(state.messages)
-    blackboard = (state.blackboard or {})
+    blackboard = state.blackboard
 
     current_plan = (state.current_plan or "")
-    execution_ticket = state.execution_ticket
-    verification_status = (blackboard.verification if blackboard else None) or state.verification_status or VerificationStatus(status="unverified")
+    execution_ticket = state.blackboard.ticket if state.blackboard else None
+    verification_status = (blackboard.verification if blackboard else None) or VerificationStatus(status="unverified")
     action_context = _extract_tool_usage(messages)
 
     iteration_count = (state.iteration_count or 0)
@@ -366,7 +366,7 @@ async def _comprehensive_audit(state: AgentState, config: RunnableConfig) -> Sta
 
     return StateUpdate(
         messages=result.messages or [],
-        next_node=result._routing_target,
+        next_node=result.routing_target,
         blackboard=result.blackboard,
         tool_history=result.tool_history,
     )
@@ -391,7 +391,7 @@ async def finish_node(state: AgentState, config: RunnableConfig) -> StateUpdate:
         logger.info("[Finish] 👻 Shadow Mode")
         summary = _extract_final_summary(messages)
         audit_tier = "shadow"
-        audit_meta = {"tier": "shadow", "duration_ms": 10}
+        audit_meta = AuditMeta(tier="shadow", duration_ms=10)
     else:
         # Layered auditing
         auditor = _get_auditor()
@@ -414,7 +414,7 @@ async def finish_node(state: AgentState, config: RunnableConfig) -> StateUpdate:
             messages = result.messages or messages
             blackboard = result.blackboard or blackboard
             summary = _extract_final_summary(messages)
-            audit_meta = {"tier": "comprehensive", "duration_ms": (time.time() - start_time) * 1000}
+            audit_meta = AuditMeta(tier="comprehensive", duration_ms=(time.time() - start_time) * 1000)
 
     # Extract outcome
     full_text = "".join([str(m.content) for m in messages if isinstance(m, AIMessage)])
@@ -426,7 +426,7 @@ async def finish_node(state: AgentState, config: RunnableConfig) -> StateUpdate:
             if not blackboard.metadata:
                 from app.core.engine.state.blackboard import BlackboardMetadata
                 blackboard.metadata = BlackboardMetadata()
-            blackboard.metadata["final_outcome"] = final_outcome
+            blackboard.metadata.final_outcome = final_outcome
         logger.info(f"[Finish] 🎯 Outcome: {final_outcome}")
 
     # Apply summary (unless comprehensive already did)
@@ -441,7 +441,7 @@ async def finish_node(state: AgentState, config: RunnableConfig) -> StateUpdate:
 
     metadata = config.get("metadata", {})
     original_skill_id = metadata.get("original_skill_id")
-    blackboard_ticket = state.execution_ticket
+    blackboard_ticket = state.blackboard.ticket if state.blackboard else None
     await _trigger_session_recording(ctx, config, summary, original_skill_id=original_skill_id, execution_ticket=blackboard_ticket)
 
     # Trigger automatic memory extraction (fire and forget)
@@ -499,6 +499,14 @@ async def finish_node(state: AgentState, config: RunnableConfig) -> StateUpdate:
     total_duration = (time.time() - start_time) * 1000
     logger.info(f"[Finish] ✅ {audit_tier.upper()} audit complete: {total_duration:.0f}ms")
 
+    # Persist audit metadata to blackboard for downstream observability
+    if blackboard:
+        if not blackboard.metadata:
+            from app.core.engine.state.blackboard import BlackboardMetadata
+            blackboard.metadata = BlackboardMetadata()
+        blackboard.metadata.audit_tier = audit_tier
+        blackboard.metadata.audit_meta = audit_meta
+
     # Trigger STOP hook for quality gates
     # This can block completion if quality checks fail
     try:
@@ -523,13 +531,15 @@ async def finish_node(state: AgentState, config: RunnableConfig) -> StateUpdate:
             block_msg = AIMessage(content=f"\n\n[Quality Gate Blocked] {stop_result.message}\nPlease address the issues before completing.")
             messages_to_return.append(block_msg)
             # Don't end the session, return to user for fixes
+            if blackboard:
+                if not blackboard.metadata:
+                    from app.core.engine.state.blackboard import BlackboardMetadata
+                    blackboard.metadata = BlackboardMetadata()
+                blackboard.metadata.blocked_by_hook = True
             return StateUpdate(
                 messages=messages_to_return,
                 next_node="supervisor",  # Return to supervisor for more work
                 blackboard=blackboard,
-                _audit_tier=audit_tier,
-                _audit_meta=audit_meta,
-                _blocked_by_hook=True,
             )
     except Exception as e:
         logger.warning(f"[Finish] Stop hook failed: {e}")
@@ -538,6 +548,4 @@ async def finish_node(state: AgentState, config: RunnableConfig) -> StateUpdate:
         messages=messages_to_return,
         next_node="END",
         blackboard=blackboard,
-        _audit_tier=audit_tier,
-        _audit_meta=audit_meta,
     )

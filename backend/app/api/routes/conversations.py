@@ -8,6 +8,8 @@ from sqlalchemy.orm import selectinload
 from app.api.responses import BaseAPIResponse, ListResponse
 from app.core.messaging.category import MessageCategory
 from app.core.monitoring.activity import activity_monitor
+from app.core.engine.state.history import FoldedMessage, ToolStep
+from app.core.engine.message_utils import to_base_message, fold_messages
 from app.infrastructure.database.sql.database import get_db_session
 from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.models import Conversation, FileOperation, Message
@@ -64,30 +66,16 @@ def get_tool_display_name(tool_name: str) -> str | None:
     return get_tool_friendly_name(tool_name, lang="zh")
 
 
-class ToolStep(DynamicBaseModel):
-    id: str
-    tool: str  # Original tool identifier (e.g., "search_web")
-    tool_name: str | None = None  # Friendly name (e.g., "搜索网页")
-    input: dict | str
-    output: str
-    status: str = "success"
-    duration: float | None = None
+# ToolStep and FoldedMessage are now imported from app.core.engine.state.history
 
 
-class MessageItem(DynamicBaseModel):
-    id: str
-    role: str
-    content: str
-    thinking: str | None
-    created_at: str | None
+class MessageItem(FoldedMessage):
     steps_snapshot: list[dict] | None = None  # Historical task steps for completed runs
     run_id: str | None = None  # Deep Linking
     parent_id: int | None = None  # Threading
     references: list[ReferenceItem] = []  # Persistent References
-    steps: list[ToolStep] = []  # Tool execution steps folded into AI message
     has_file_operations: bool = False  # For Undo/Retry optimization
     changeset_count: int = 0  # Number of file changes associated with this message
-    tool_calls: list[dict] | None = None  # Tool calls for AI messages that trigger tools
 
 
 class ChangesetNode(DynamicBaseModel):
@@ -281,14 +269,24 @@ async def get_conversation_messages(
             changeset_count_result = await session.execute(changeset_count_stmt)
             message_changeset_counts = {str(row.message_id): row.count for row in changeset_count_result.all()}
 
-            # Server-side tool message folding into parent AI message
-            # We aggregate 'tool' messages into the 'steps' of the preceding 'ai' message.
-            final_items = []
-            last_ai_item: MessageItem | None = None
-            pending_tool_calls = []  # FIFO queue of (id, name, args) derived from AI message
+            # Conversion: Message DB -> LangChain BaseMessage -> FoldedMessage
+            langchain_messages = [to_base_message(m) for m in all_messages if to_base_message(m)]
+            folded = fold_messages(langchain_messages)
 
-            for m in all_messages:
-                # 1. Parse References (Common)
+            # Map folded results back to API MessageItem with extra metadata
+            # We need to map by ID to keep the extra visibility/changeset data
+            # Note: LangChain objects used in fold_messages preserve the 'id' attribute
+            db_msg_map = {str(m.id): m for m in all_messages}
+            final_items = []
+            
+            for f in folded:
+                db_m = db_msg_map.get(str(f.id))
+                if not db_m:
+                    # Likely a system or generated message not in DB, keep as is
+                    final_items.append(MessageItem(**f.model_dump()))
+                    continue
+
+                # Parse References
                 refs = (
                     [
                         ReferenceItem(
@@ -298,111 +296,32 @@ async def get_conversation_messages(
                             target_name=ref.target_name,
                             metadata=ref.metadata,
                         )
-                        for ref in m.references
+                        for ref in db_m.references
                     ]
-                    if m.references
+                    if db_m.references
                     else []
                 )
 
-                # 2. Handle Message Types
-                if m.role == "human":
-                    item = MessageItem(
-                        id=str(m.id),
-                        role="human",
-                        content=m.content,
-                        thinking=m.thinking,
-                        created_at=m.created_at.isoformat() if m.created_at else None,
-                        steps_snapshot=m.steps_snapshot,
-                        run_id=m.run_id,
-                        parent_id=m.parent_id,
-                        references=refs,
-                        steps=[],
-                        has_file_operations=bool(str(m.id) in messages_with_files or (m.run_id and m.run_id in messages_with_files)),
-                        changeset_count=message_changeset_counts.get(str(m.id), 0),
-                    )
-                    final_items.append(item)
-                    last_ai_item = None
-                    pending_tool_calls = []
-
-                elif m.role == "ai":
-                    # Simplified: Use category to determine message type
-                    category = m.category
-                    
-                    # Check if this is a tool call message (should be folded)
-                    is_tool_call = category == MessageCategory.ASSISTANT_TOOL_CALL.value
-                    
-                    if is_tool_call and m.tool_calls:
-                        # Track tool calls for folding
-                        if isinstance(m.tool_calls, list):
-                            pending_tool_calls.extend(m.tool_calls)
-                        
-                        # Skip empty tool calling messages
-                        if not m.content or m.content.strip() in ["", "正在执行工具..."]:
-                            continue
-
-                    item = MessageItem(
-                        id=str(m.id),
-                        role="ai",  # Normalize to "ai" for frontend
-                        content=m.content,
-                        thinking=m.thinking,
-                        created_at=m.created_at.isoformat() if m.created_at else None,
-                        steps_snapshot=m.steps_snapshot,
-                        run_id=m.run_id,
-                        parent_id=m.parent_id,
-                        references=refs,
-                        steps=[],
-                        has_file_operations=bool(
-                            str(m.id) in messages_with_files or
-                            (m.run_id and m.run_id in messages_with_files) or
-                            any(tc.get("id") in messages_with_files for tc in (m.tool_calls or []) if isinstance(tc, dict))
-                        ),
-                        changeset_count=message_changeset_counts.get(str(m.id), 0),
-                        tool_calls=m.tool_calls if isinstance(m.tool_calls, list) else None,
-                    )
-
-                    # Store as potential parent for subsequent tool outputs
-                    final_items.append(item)
-                    last_ai_item = item
-
-                    # Parse tool calls to create linking queue
-                    if m.tool_calls:
-                        # tool_calls is a list of dicts: [{id, name, args}, ...]
-                        # We copy it to consume as we find tool outputs
-                        pending_tool_calls = list(m.tool_calls) if isinstance(m.tool_calls, list) else []
-
-                elif m.role == "tool":
-                    # Check if this is a hidden tool output by category
-                    if m.category == MessageCategory.INTERNAL_TOOL_CALL.value:
-                        continue  # Skip internal tool outputs
-                    
-                    # Fold into last AI message if available
-                    if last_ai_item and pending_tool_calls:
-                        # Match FIFO (Assuming Sequential Execution)
-                        call_info = pending_tool_calls.pop(0)
-                        tool_name = call_info.get("name", "unknown") if isinstance(call_info, dict) else "unknown"
-
-                        # Skip hidden tools (double check)
-                        from app.core.tools.registry import get_tool_metadata
-                        metadata = get_tool_metadata(tool_name) or {}
-                        if metadata.get("is_hidden", False):
-                            continue
-
-                        step = ToolStep(
-                            id=call_info.get("id", "unknown") if isinstance(call_info, dict) else "unknown",
-                            tool=tool_name,
-                            tool_name=get_tool_display_name(tool_name) or tool_name,
-                            input=call_info.get("args", {}) if isinstance(call_info, dict) else {},
-                            output=m.content or "",
-                            status="done",
-                        )
-                        last_ai_item.steps.append(step)
+                item = MessageItem(
+                    **f.model_dump(),
+                    steps_snapshot=db_m.steps_snapshot,
+                    run_id=db_m.run_id,
+                    parent_id=db_m.parent_id,
+                    references=refs,
+                    has_file_operations=bool(
+                        str(db_m.id) in messages_with_files or 
+                        (db_m.run_id and db_m.run_id in messages_with_files)
+                    ),
+                    changeset_count=message_changeset_counts.get(str(db_m.id), 0),
+                )
+                final_items.append(item)
 
             # Build response with cursors (based on visible messages only)
             first_id = visible_messages[0].id if visible_messages else None
             last_id = visible_messages[-1].id if visible_messages else None
             
             return MessageListResponse(
-                items=final_items,
+                data=final_items,
                 has_more=has_more,
                 first_id=first_id,
                 last_id=last_id,
@@ -412,7 +331,7 @@ async def get_conversation_messages(
     except Exception as e:
         logger.error(f"Failed to fetch history for {thread_id}: {e}")
         return MessageListResponse(
-            items=[],
+            data=[],
             has_more=False,
             first_id=None,
             last_id=None,
@@ -529,8 +448,9 @@ async def rewind_conversation(
     
     Uses the new event-driven RewindOrchestrator for distributed cleanup.
     """
-    from app.core.rewind import RewindOrchestrator, RewindRequest as RewindReq
-    from app.core.rewind.exceptions import MessageNotFoundError, NoHumanMessageError
+    from app.core.checkpoint.rewind import RewindOrchestrator
+    from app.core.checkpoint.rewind.models import RewindOperation as RewindReq
+    from app.core.checkpoint.rewind.exceptions import MessageNotFoundError, NoHumanMessageError
     from app.core.events import system_bus
 
     # Create orchestrator on-demand (stateless, lightweight)
