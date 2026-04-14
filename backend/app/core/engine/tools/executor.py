@@ -10,15 +10,22 @@ import logging
 from typing import Any
 
 from langchain_core.messages import ToolMessage
+from pydantic import BaseModel
 
 from app.core.engine.hooks import HookContext, HookEvent, ToolResult, hook_system
-from app.core.engine.state import AgentState
+from app.core.engine.state import AgentState, RunnableConfigMetadata
 from app.core.memory.diff import diff_tracker
 from app.core.tools.executor import ToolExecutor as _ToolExecutor
 from app.infrastructure.queue.factory import get_scheduler
 from app.utils.id import gen_uuid
 
 logger = logging.getLogger(__name__)
+
+
+class ToolExecutionResult(BaseModel):
+    """Result of a tool execution, including the message and raw output."""
+    message: ToolMessage
+    raw_result: Any | None = None
 
 
 class AgentToolExecutor:
@@ -38,8 +45,9 @@ class AgentToolExecutor:
         name: str = "Agent",
         enable_diff_tracking: bool = True,
     ):
+        from app.core.engine.state import ensure_state
         self.tool_map = tool_map
-        self.state = state
+        self.state = ensure_state(state)
         self.config = config
         self.name = name
         self.enable_diff_tracking = enable_diff_tracking
@@ -52,7 +60,7 @@ class AgentToolExecutor:
         tool_args: dict[str, Any],
         tool_id: str,
         local_tool_history: list[str],
-    ) -> ToolMessage:
+    ) -> ToolExecutionResult:
         """
         Execute a single tool with full lifecycle management.
 
@@ -65,21 +73,23 @@ class AgentToolExecutor:
         Returns:
             ToolMessage with execution result
         """
-        thread_id = self.config.get("configurable", {}).get("thread_id", "unknown")
-        user_id = self.config.get("configurable", {}).get("user_id")
-        project_id = self.config.get("configurable", {}).get("project_id")
-        run_id = self.config.get("configurable", {}).get("run_id")
+        meta = RunnableConfigMetadata.from_config(self.config)
+        thread_id = meta.thread_id
+        user_id = meta.user_id
+        project_id = meta.project_id
+        run_id = meta.run_id
 
         logger.info(f"[{self.name}] 🛠️ Call: {tool_name} | Args: {json.dumps(tool_args)}")
 
         tool = self.tool_map.get(tool_name)
         if not tool:
-            return self._create_tool_message(
+            msg = self._create_tool_message(
                 content=f"Error: Tool {tool_name} not found.",
                 tool_id=tool_id,
                 tool_name=tool_name,
                 run_id=run_id,
             )
+            return ToolExecutionResult(message=msg)
 
         try:
             # === HOOK: PreToolUse ===
@@ -96,12 +106,13 @@ class AgentToolExecutor:
 
             if pre_result.block:
                 logger.warning(f"[{self.name}] 🚫 Tool {tool_name} blocked by hook: {pre_result.message}")
-                return self._create_tool_message(
+                msg = self._create_tool_message(
                     content=f"Error: Tool execution blocked - {pre_result.message}",
                     tool_id=tool_id,
                     tool_name=tool_name,
                     run_id=run_id,
                 )
+                return ToolExecutionResult(message=msg)
 
             # Update context if modified
             if pre_result.modified_context and pre_result.modified_context.tool_input is not None:
@@ -142,12 +153,13 @@ class AgentToolExecutor:
             if self.enable_diff_tracking:
                 await self._track_diffs(tool_name, tool_args, thread_id, tool_id)
 
-            return self._create_tool_message(
+            msg = self._create_tool_message(
                 content=str(content),
                 tool_id=tool_id,
                 tool_name=tool_name,
                 run_id=run_id,
             )
+            return ToolExecutionResult(message=msg, raw_result=content)
 
         except Exception as e:
             content = f"Error executing {tool_name}: {e}"
@@ -173,12 +185,13 @@ class AgentToolExecutor:
 
             asyncio.create_task(_fire_fail_hook())
 
-            return self._create_tool_message(
+            msg = self._create_tool_message(
                 content=content,
                 tool_id=tool_id,
                 tool_name=tool_name,
                 run_id=run_id,
             )
+            return ToolExecutionResult(message=msg, raw_result=None)
 
     async def _track_diffs(
         self,
@@ -203,7 +216,9 @@ class AgentToolExecutor:
                 if diff:
                     logger.info(f"📝 Diff Detected ({operation}) on {path} (Persisting in Background)")
                     try:
-                        msg_id = self.config.get("configurable", {}).get("run_id") or tool_id
+                        from app.core.engine.state.config import RunnableConfigMetadata
+                        meta = RunnableConfigMetadata.from_config(self.config)
+                        msg_id = meta.run_id or tool_id
                         get_scheduler().send_task(
                             "engine_persist_file_operation",
                             kwargs={

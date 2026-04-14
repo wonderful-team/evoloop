@@ -51,20 +51,13 @@ async def stream_chat(thread_id: str):
                 activity = await activity_monitor.get_activity(thread_id)
 
             if activity:
-                snapshot = {
-                    "steps": activity.get("steps", []),
-                    "artifacts": activity.get("artifacts", []),
-                    "agent_state": activity.get("agent_state", {}),
-                    "active_memories": activity.get("active_memories", []),
-                    "verification": activity.get("verification", {}),
-                    "status": activity.get("status", "unknown"),
-                    "human_request": activity.get("human_request"),
-                    "final_outcome": activity.get("final_outcome", ""),
-                }
+                # activity is an ActivityState Pydantic model. 
+                # model_dump() ensures nested ActivityStep/ActivityArtifact models are serialized to dicts.
+                snapshot = activity.model_dump() if hasattr(activity, "model_dump") else activity
                 yield f"event: activity\ndata: {json.dumps(snapshot)}\n\n"
 
-                if activity.get("human_request"):
-                    yield f"event: human_request\ndata: {json.dumps(activity['human_request'])}\n\n"
+                if snapshot.get("human_request"):
+                    yield f"event: human_request\ndata: {json.dumps(snapshot['human_request'])}\n\n"
 
             # 2. Subscribe to cache channel
             pubsub = cache.pubsub()

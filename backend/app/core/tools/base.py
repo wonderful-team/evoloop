@@ -187,6 +187,7 @@ def evoloop_tool(
         # Inject EvoLoop metadata for engine orchestration
         if not hasattr(tool_instance, "metadata") or tool_instance.metadata is None:
             tool_instance.metadata = {}
+
         tool_instance.metadata["is_pollable"] = config.is_pollable
         tool_instance.metadata["is_state_mutating"] = config.is_state_mutating
         tool_instance.metadata["affected_path_keys"] = config.affected_path_keys

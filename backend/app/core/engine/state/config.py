@@ -2,10 +2,40 @@ from __future__ import annotations
 """Agent runtime configuration and execution tickets."""
 from typing import Any
 
-from pydantic import Field
+from pydantic import Field, field_validator
 
 from app.core.engine.state.workspace import SubtaskContext
 from app.infrastructure.pydantic_base import DynamicBaseModel
+
+
+class RunnableConfigMetadata(DynamicBaseModel):
+    """Metadata extracted from LangGraph RunnableConfig."""
+    thread_id: str = "unknown"
+    user_id: str | None = None
+    project_id: int | None = None
+    run_id: str | None = None
+    model: str | None = None
+
+    @classmethod
+    def from_config(cls, config: dict | Any) -> RunnableConfigMetadata:
+        """Hydrate metadata from a raw RunnableConfig dictionary."""
+        if not config:
+            return cls()
+        
+        # RunnableConfig is usually a dict, but let's be safe
+        configurable = config if isinstance(config, dict) else getattr(config, "configurable", {})
+        if isinstance(config, dict):
+            configurable = config.get("configurable", {})
+            if not configurable: # Fallback for flat dicts if any
+                configurable = config
+
+        return cls(
+            thread_id=str(configurable.get("thread_id", "unknown")),
+            user_id=configurable.get("user_id"),
+            project_id=configurable.get("project_id"),
+            run_id=configurable.get("run_id"),
+            model=configurable.get("model"),
+        )
 
 
 class TicketParameters(DynamicBaseModel):
@@ -30,12 +60,19 @@ class AgentRuntimeConfig(DynamicBaseModel):
     """Blueprint for a Dynamic Sub-Agent."""
     role_name: str = ""
     system_instructions: str = ""
-    tools: list[str] = Field(default_factory=list)
+    tools: list[str] = []
     model_override: str | None = None
     namespace_context: str | None = None
     is_subtask: bool = False
     subtask_context: SubtaskContext | None = None
     skill_hint: str | None = None
+
+    @field_validator("tools", mode="before")
+    @classmethod
+    def _ensure_tools_list(cls, v):
+        if v is None:
+            return []
+        return v
 
 
 class ExecutionTicket(DynamicBaseModel):
@@ -57,10 +94,17 @@ class ExecutionTicket(DynamicBaseModel):
     historical_context: Any | None = None
     referenced_tech: Any | None = None
     # Skill routing
-    skill_id: str | None = None
-    skill_ids: list[str] | None = None
+    skill_id: int | str | None = None
+    skill_ids: list[int | str] | None = None
     workflow_mode: str | None = None
     mcp_servers_required: list[str] = Field(default_factory=list)
     reason: str | None = None
     complexity: str | None = None
     workflow_context: WorkflowContext | None = None
+
+    @field_validator("skill_id", mode="before")
+    @classmethod
+    def _coerce_skill_id(cls, v):
+        if v is not None:
+            return str(v)
+        return v

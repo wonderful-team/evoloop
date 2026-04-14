@@ -195,11 +195,11 @@ class LayeredAuditor:
                 triggers.append("error_detected")
                 break
 
-        ticket = state.blackboard.ticket if state.blackboard else None
+        ticket = state.blackboard.ticket
         if ticket and ticket.complexity == "high":
             triggers.append("high_complexity")
 
-        verification = blackboard.verification if blackboard else None
+        verification = blackboard.verification
         if verification and verification.status in ("failed", "error"):
             triggers.append("verification_failed")
 
@@ -317,8 +317,8 @@ async def _comprehensive_audit(state: AgentState, config: RunnableConfig) -> Sta
     blackboard = state.blackboard
 
     current_plan = (state.current_plan or "")
-    execution_ticket = state.blackboard.ticket if state.blackboard else None
-    verification_status = (blackboard.verification if blackboard else None) or VerificationStatus(status="unverified")
+    execution_ticket = state.blackboard.ticket
+    verification_status = blackboard.verification or VerificationStatus(status="unverified")
     action_context = _extract_tool_usage(messages)
 
     iteration_count = (state.iteration_count or 0)
@@ -382,10 +382,11 @@ async def finish_node(state: AgentState, config: RunnableConfig) -> StateUpdate:
     messages = list(state.messages)
     blackboard = state.blackboard
 
-    is_shadow_mode = getattr(blackboard.metadata if blackboard else None, "shadow_audit", False) or False
+    is_shadow_mode = (blackboard.metadata.shadow_audit if blackboard and blackboard.metadata else False) or False
 
     # 1. Get tool history from blackboard (stored by WorkerNode)
-    tool_history = getattr(blackboard.metadata if blackboard else None, "tool_history", []) or []
+    # tool_history is a dynamically-extended field on BlackboardMetadata
+    tool_history = getattr(blackboard.metadata, "tool_history", []) or []
 
     if is_shadow_mode:
         logger.info("[Finish] 👻 Shadow Mode")
@@ -422,11 +423,7 @@ async def finish_node(state: AgentState, config: RunnableConfig) -> StateUpdate:
     final_outcome = ""
     if outcome_match:
         final_outcome = outcome_match.group(1).strip()
-        if blackboard:
-            if not blackboard.metadata:
-                from app.core.engine.state.blackboard import BlackboardMetadata
-                blackboard.metadata = BlackboardMetadata()
-            blackboard.metadata.final_outcome = final_outcome
+        blackboard.metadata.final_outcome = final_outcome
         logger.info(f"[Finish] 🎯 Outcome: {final_outcome}")
 
     # Apply summary (unless comprehensive already did)
@@ -441,7 +438,7 @@ async def finish_node(state: AgentState, config: RunnableConfig) -> StateUpdate:
 
     metadata = config.get("metadata", {})
     original_skill_id = metadata.get("original_skill_id")
-    blackboard_ticket = state.blackboard.ticket if state.blackboard else None
+    blackboard_ticket = state.blackboard.ticket
     await _trigger_session_recording(ctx, config, summary, original_skill_id=original_skill_id, execution_ticket=blackboard_ticket)
 
     # Trigger automatic memory extraction (fire and forget)
@@ -500,12 +497,8 @@ async def finish_node(state: AgentState, config: RunnableConfig) -> StateUpdate:
     logger.info(f"[Finish] ✅ {audit_tier.upper()} audit complete: {total_duration:.0f}ms")
 
     # Persist audit metadata to blackboard for downstream observability
-    if blackboard:
-        if not blackboard.metadata:
-            from app.core.engine.state.blackboard import BlackboardMetadata
-            blackboard.metadata = BlackboardMetadata()
-        blackboard.metadata.audit_tier = audit_tier
-        blackboard.metadata.audit_meta = audit_meta
+    blackboard.metadata.audit_tier = audit_tier
+    blackboard.metadata.audit_meta = audit_meta
 
     # Trigger STOP hook for quality gates
     # This can block completion if quality checks fail
@@ -531,11 +524,7 @@ async def finish_node(state: AgentState, config: RunnableConfig) -> StateUpdate:
             block_msg = AIMessage(content=f"\n\n[Quality Gate Blocked] {stop_result.message}\nPlease address the issues before completing.")
             messages_to_return.append(block_msg)
             # Don't end the session, return to user for fixes
-            if blackboard:
-                if not blackboard.metadata:
-                    from app.core.engine.state.blackboard import BlackboardMetadata
-                    blackboard.metadata = BlackboardMetadata()
-                blackboard.metadata.blocked_by_hook = True
+            blackboard.metadata.blocked_by_hook = True
             return StateUpdate(
                 messages=messages_to_return,
                 next_node="supervisor",  # Return to supervisor for more work

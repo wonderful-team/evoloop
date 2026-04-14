@@ -23,7 +23,7 @@ class AgentStateBase(DynamicBaseModel):
     execution_artifact: str | None = None
     blackboard: BlackboardState | None = None
     error: str | None = None
-    user_preferences: str | None = None
+    user_preferences: Any | None = None
     situation_analysis: str | None = None
     action_plan: str | None = None
     skill_execution_attempted: bool | None = None
@@ -49,9 +49,11 @@ class AgentState(AgentStateBase):
     @field_validator("blackboard", mode="before")
     @classmethod
     def _ensure_blackboard(cls, v):
-        """Backward-compat: old checkpoints may have None or plain dict."""
+        """Backward-compat: ensure we have a BlackboardState instance."""
         if v is None:
             return BlackboardState()
+        if isinstance(v, dict):
+            return BlackboardState.model_validate(v)
         return v
 
     @field_validator("error", mode="before")

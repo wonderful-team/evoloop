@@ -9,6 +9,7 @@ from app.core.config import settings
 from app.core.engine.engine import EngineResult
 from app.core.engine.message_utils import get_last_human_message
 from app.core.engine.nodes.base import BaseAgentNode
+from app.core.engine.prompts import SupervisorContext, SupervisorPromptBuilder
 from app.core.engine.routers import RoutingTarget
 from app.core.engine.state import AgentState, StateUpdate
 from app.core.tools.manager import tool_manager
@@ -39,16 +40,15 @@ class SupervisorNode(BaseAgentNode):
 
         # Clean stale routing and outcomes from previous turns
         state.next_node = None
-        if state.blackboard:
-            state.blackboard.worker_outcome = None
+        state.blackboard.worker_outcome = None
 
         # Optional: Emit initial status
         await self._emit_status(config, i18n.get("supervisor.status_analyzing"))
 
         # 1. Aggregate Parallel Results
         blackboard = state.blackboard
-        subtask_results = blackboard.subtask_results if blackboard else []
-        pending_agg = blackboard.pending_aggregation if blackboard else None
+        subtask_results = blackboard.subtask_results
+        pending_agg = blackboard.pending_aggregation
 
         if pending_agg and pending_agg.expected_count:
             expected = pending_agg.expected_count
@@ -57,7 +57,7 @@ class SupervisorNode(BaseAgentNode):
                 return StateUpdate(next_node=RoutingTarget.AGGREGATOR)
 
         # 2. Check Worker/Aggregator Outcome
-        worker_outcome = blackboard.worker_outcome if blackboard else None
+        worker_outcome = blackboard.worker_outcome
         if worker_outcome:
             # Consume the signal
             blackboard.worker_outcome = None
@@ -76,7 +76,6 @@ class SupervisorNode(BaseAgentNode):
 
     async def build_prompt_pair(self, state: AgentState, config: RunnableConfig) -> tuple[str, str]:
         """Construct (Static Instructions, Dynamic Context Ticket)."""
-        from app.core.engine.prompts import SupervisorPromptBuilder
         project_id = (state.project_id or DEFAULT_PROJECT_ID)
         messages = list(state.messages)
 
@@ -85,7 +84,7 @@ class SupervisorNode(BaseAgentNode):
 
         prompt_builder = SupervisorPromptBuilder(
             project_id=project_id,
-            iteration_count=context["iteration_count"],
+            iteration_count=context.iteration_count,
             context=context,
         )
         # Static Prompt (Cacheable)
@@ -106,7 +105,7 @@ class SupervisorNode(BaseAgentNode):
         new_iter_count = (original_state.iteration_count or 0) + 1
 
         if signal:
-            from app.core.engine.dispatcher import SignalDispatcher
+            from app.core.engine.signals import SignalDispatcher
             dispatch_result = await SignalDispatcher.dispatch(original_state, signal, config)
             if isinstance(dispatch_result, StateUpdate):
                 dispatch_result.iteration_count = new_iter_count
@@ -165,7 +164,7 @@ class SupervisorNode(BaseAgentNode):
 
     async def _build_context(
         self, state: AgentState, config: RunnableConfig, messages: list, project_id: int
-    ) -> dict[str, Any]:
+    ) -> "SupervisorContext":
         """Simplified context builder for LLM planning (Phase 1)."""
         # 1. Get Core Routing Tools
         core_tools = await tool_manager.get_node_tools("supervisor", state)
@@ -174,13 +173,13 @@ class SupervisorNode(BaseAgentNode):
         # Get blackboard from state for prompt builder
         blackboard = state.blackboard
 
-        return {
-            "tools": core_tools,
-            "iteration_count": (state.iteration_count or 0),
-            "last_human_msg": last_msg,
-            "blackboard": blackboard,
-            "current_plan": state.current_plan or state.structured_plan,
-        }
+        return SupervisorContext(
+            tools=core_tools,
+            iteration_count=(state.iteration_count or 0),
+            last_human_msg=last_msg,
+            blackboard=blackboard,
+            structured_plan=state.structured_plan or state.current_plan,
+        )
 
 
 # Create singleton instance for graph registration

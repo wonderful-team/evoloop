@@ -35,10 +35,11 @@ from app.core.engine.message_utils import (
     smart_window_slice,
 )
 from app.core.engine.signals import AgentSignal
-from app.core.engine.state import AgentState, BlackboardState, BlackboardMetadata
+from app.core.engine.state import AgentState, BlackboardState, BlackboardMetadata, ensure_state, RunnableConfigMetadata
 from app.core.engine.state.history import ToolCall
-from app.core.engine.tool_executor import AgentToolExecutor
+from app.core.engine.tools import AgentToolExecutor, ToolExecutionResult
 from app.core.memory.tool_output_memory import get_tool_memory_from_state
+from app.core.engine.signals import signal_manager
 from app.core.monitoring.activity import activity_monitor
 from app.core.monitoring.telemetry import agent_telemetry
 from app.infrastructure.config.service import SystemConfigService
@@ -139,8 +140,9 @@ class AgentEngine:
                        Subtasks must execute tools immediately in one turn.
         """
         # 1. Initialize LLM (with instance caching for performance)
+        config_meta = RunnableConfigMetadata.from_config(config)
         if model is None:
-            model = config.get("configurable", {}).get("model")
+            model = config_meta.model
 
         llm = await self._llm_factory.create_llm(model_name=model, temperature=temperature)
 
@@ -167,8 +169,10 @@ class AgentEngine:
         config = self._setup_callbacks(config)
 
         # 2.1 Unified Hydration (Phase 1 Optimization)
+        from app.core.engine.state import ensure_state
         from app.core.engine.context_hydrator import EvoContextMiddleware
         state = await EvoContextMiddleware.hydrate(state, config)
+        state = ensure_state(state)
         logger.info(f"[{name}] 🧪 Context Hydrated via Middleware")
 
         # 3. Message Handling & Repair
@@ -183,18 +187,16 @@ class AgentEngine:
         logger.info(f"[{name}] 🧠 After forgetting: {len(messages_with_forgetting)} messages")
 
         # 3.2 Hierarchical Smart Windowing
-        ctx_config = config.get("configurable", {})
         effective_window = NODE_WINDOW_SIZES.get(node_source, DEFAULT_WINDOW_SIZE)
-
         windowed_messages = await smart_window_slice(
             messages_with_forgetting,
             window_size=effective_window,
             max_total_chars=DEFAULT_CONTEXT_LIMIT,
             model=model,
             node_source=node_source or "default",
-            thread_id=ctx_config.get("thread_id"),
-            user_id=ctx_config.get("user_id"),
-            project_id=ctx_config.get("project_id"),
+            thread_id=config_meta.thread_id,
+            user_id=config_meta.user_id,
+            project_id=config_meta.project_id,
         )
 
         logger.info(
@@ -216,6 +218,7 @@ class AgentEngine:
                 system_prompt=system_prompt,
                 provider=provider, # Pass detected provider
                 config=config,
+                config_meta=config_meta,
                 name=name,
                 state=state,
                 parallel_tools=parallel_tools,
@@ -228,6 +231,7 @@ class AgentEngine:
                 system_prompt=system_prompt,
                 provider=provider, # Pass detected provider
                 config=config,
+                config_meta=config_meta,
                 max_steps=max_steps,
                 name=name,
                 state=state,
@@ -258,12 +262,14 @@ class AgentEngine:
         system_prompt: str,
         provider: str, # Added provider
         config: RunnableConfig,
+        config_meta: RunnableConfigMetadata,
         name: str,
         state: AgentState,
-        max_steps: int = 5,
-        parallel_tools: bool = False,
+        max_steps: int = 10,
+        parallel_tools: bool = True,
     ) -> EngineResult:
         """Core ReAct Loop Logic."""
+        state = ensure_state(state)
         # 0. Build optimized system messages for Prompt Caching
         system_messages = self._build_system_messages(system_prompt, messages, provider)
 
@@ -283,9 +289,8 @@ class AgentEngine:
 
         for i in range(max_steps):
             # Check for cancellation
-            thread_id = config.get("configurable", {}).get("thread_id")
-            if thread_id:
-                await activity_monitor.check_cancellation(thread_id)
+            if config_meta.thread_id:
+                await activity_monitor.check_cancellation(config_meta.thread_id)
 
             logger.info(f"--- {name} Loop Step {i+1} ---")
 
@@ -294,15 +299,6 @@ class AgentEngine:
                 start_perf = time.perf_counter()
                 response = await llm_with_tools.ainvoke(loop_messages, config=config)
                 latency = time.perf_counter() - start_perf
-
-                # Update log with success
-                try:
-                    with open("tests/monitoring/audit_evidence.log", "a") as f:
-                        f.write(f"TURN_POST_CALL: {name} | Success | Latency: {latency:.2f}s\n")
-                        f.flush()
-                        os.fsync(f.fileno())
-                except Exception:
-                    pass
 
                 # [TELEMETRY] Record inference
                 agent_telemetry.record_inference(
@@ -328,14 +324,13 @@ class AgentEngine:
                 return self._handle_llm_exception(e, name, state)
 
             # Inject run_id
-            run_id = config.get("configurable", {}).get("run_id")
-            if run_id:
+            if config_meta.run_id:
                 if not hasattr(response, "metadata"):
                     response.metadata = {}
-                response.metadata["run_id"] = run_id
+                response.metadata["run_id"] = config_meta.run_id
                 if not hasattr(response, "additional_kwargs"):
                     response.additional_kwargs = {}
-                response.additional_kwargs["run_id"] = run_id
+                response.additional_kwargs["run_id"] = config_meta.run_id
 
             # Parse thinking content
             thinking_content = ""
@@ -363,7 +358,6 @@ class AgentEngine:
                 break
 
             from app.core.callbacks.transparent import TransparentCallbackHandler
-            from app.core.engine.signals import RouteToSignal, SpawnSubtasksSignal
             from app.core.tools.executor import ToolExecutor as _ToolExecutor
 
             # Turn-level signal tracking
@@ -380,50 +374,30 @@ class AgentEngine:
 
             tool_calls = self._normalize_tool_calls(response.tool_calls)
 
+            # 1. Intercept Pre-Execution Signals (e.g., route_to)
+            signal_tools = []
             for tc in tool_calls:
-                # Skip if we already have a pending signal (only one signal per turn allowed)
-                if pending_signal is not None:
-                    logger.warning(f"[{name}] ⚠️ Multiple signals detected in one turn. Ignoring additional signal: {tc.name}")
-                    continue
-
-                # 1. Check for route_to signal
-                if tc.name == "route_to":
+                signal = await signal_manager.intercept(tc)
+                if signal:
+                    # Observability for virtual tools
                     if evoloop_handler:
                         try:
                             await evoloop_handler.on_tool_start(
-                                serialized={"name": "route_to"},
+                                serialized={"name": tc.name},
                                 input_str=json.dumps(tc.args, ensure_ascii=False),
                                 run_id=tc.id
                             )
                         except Exception as e:
                             logger.error(f"Failed to log intercepted tool start: {e}")
 
-                    target = tc.args.get("target", "finish")
-                    reason = tc.args.get("reason", "")
-                    context = tc.args.get("context", {})
-                    authorized_tools = tc.args.get("authorized_tools")
-
-                    if isinstance(context, str):
-                        try:
-                            context = json.loads(context)
-                        except Exception:
-                            context = {}
-
-                    logger.info(f"[{name}] 🚀 Intent: → {target} ({reason})")
-                    pending_signal = RouteToSignal(
-                        target=target,
-                        reason=reason,
-                        context=context,
-                        authorized_tools=authorized_tools,
-                        skill_id=tc.args.get("skill_id")
-                    )
-
-                    output_msg = f"Routing to {target}"
-                    # Add ToolMessage for route_to to satisfy protocol (every tool_call needs a response)
+                    pending_signal = signal
+                    output_msg = f"Signal emitted: {tc.name}"
+                    
+                    # Protocol fulfillment: every tool_call gets a response
                     new_messages.append(ToolMessage(
                         content=output_msg,
                         tool_call_id=tc.id,
-                        name="route_to",
+                        name=tc.name,
                         id=gen_uuid(),
                     ))
 
@@ -433,27 +407,11 @@ class AgentEngine:
                         except Exception as e:
                             logger.error(f"Failed to log intercepted tool end: {e}")
 
-                # 2. Check for decompose_task signal
-                elif tc.name == "decompose_task":
-                    tool = tool_map.get("decompose_task")
-                    if tool:
-                        executor = _ToolExecutor()
-                        result = await executor.execute(tool, tc.args, config=config)
+                    signal_tools.append(tc.name)
+                    break # Single signal per turn priority
 
-                        if hasattr(result, "spawn_plan") and result.spawn_plan:
-                            spawn_plan = result.spawn_plan
-                            logger.info(f"[{name}] 🚀 Intent: Spawn {len(spawn_plan.subtasks or [])} subtasks")
-
-                            new_messages.append(ToolMessage(
-                                content=f"Task decomposed into {len(spawn_plan.subtasks or [])} subtasks.",
-                                tool_call_id=tc.id,
-                                name="decompose_task",
-                                id=gen_uuid(),
-                            ))
-                            pending_signal = SpawnSubtasksSignal(plan=spawn_plan)
-
-            # 3. Execute Non-Signal Tools
-            remaining_tool_calls = [tc for tc in tool_calls if tc.name not in ("route_to", "decompose_task")]
+            # 2. Execute Non-Intercepted Tools
+            remaining_tool_calls = [tc for tc in tool_calls if tc.name not in signal_tools]
 
             if remaining_tool_calls:
                 tool_executor = self._tool_executor_class(
@@ -464,7 +422,7 @@ class AgentEngine:
                     enable_diff_tracking=self._enable_diff_tracking,
                 )
 
-                async def _process_single_tool(tc: ToolCall):
+                async def _process_single_tool(tc: ToolCall) -> "ToolExecutionResult":
                     return await tool_executor.execute_tool(
                         tool_name=tc.name,
                         tool_args=tc.args,
@@ -482,10 +440,21 @@ class AgentEngine:
                         res = await _process_single_tool(tc)
                         tool_results.append(res)
 
-                for tool_msg in tool_results:
+                for res in tool_results:
+                    tool_msg = res.message
+                    raw_content = res.raw_result
+                    
                     logger.info(f"[{name}] ✅ Result ({tool_msg.name}): {str(tool_msg.content[:300])}...")
                     loop_messages.append(tool_msg)
                     new_messages.append(tool_msg)
+
+                    # 3.1 Check for Post-Execution Signals (Standardized)
+                    if not pending_signal:
+                        signal = signal_manager.detect_post_execution_signal(tool_msg.name, raw_content)
+                        if signal:
+                            pending_signal = signal
+                            # We found a signal, but we continue processing other parallel results 
+                            # if they were already gathering. However, we won't detect more signals.
 
             # 4. Dispatch Signal if present after tool execution
             if pending_signal:
@@ -522,11 +491,13 @@ class AgentEngine:
         system_prompt: str,
         provider: str, # Added provider
         config: RunnableConfig,
+        config_meta: RunnableConfigMetadata,
         name: str,
         state: AgentState,
         parallel_tools: bool = False,
     ) -> EngineResult:
         """Single-shot execution for subtasks."""
+        state = ensure_state(state)
         # Build optimized system messages for Prompt Caching
         system_messages = self._build_system_messages(system_prompt, messages, provider)
         history_messages = [m for m in messages if not isinstance(m, SystemMessage)]
@@ -543,14 +514,6 @@ class AgentEngine:
         try:
             response = await llm_with_tools.ainvoke(loop_messages, config=config)
             latency = time.perf_counter() - start_perf
-
-            try:
-                with open("tests/monitoring/audit_evidence.log", "a") as f:
-                    f.write(f"TURN_MARKER: {name}_subtask | Hash: {sys_hash} | Latency: {latency:.2f}s | Length: {len(system_prompt)}\n")
-                    f.flush()
-                    os.fsync(f.fileno())
-            except Exception:
-                pass
 
             logger.warning(f"[{name}] 🧩 PROMPT CACHE DIAGNOSTIC: SystemPromptHash={sys_hash} | Latency={latency:.2f}s")
 
@@ -576,14 +539,13 @@ class AgentEngine:
             return self._handle_llm_exception(e, name, state)
 
         # Inject run_id
-        run_id = config.get("configurable", {}).get("run_id")
-        if run_id:
+        if config_meta.run_id:
             if not hasattr(response, "metadata"):
                 response.metadata = {}
-            response.metadata["run_id"] = run_id
+            response.metadata["run_id"] = config_meta.run_id
             if not hasattr(response, "additional_kwargs"):
                 response.additional_kwargs = {}
-            response.additional_kwargs["run_id"] = run_id
+            response.additional_kwargs["run_id"] = config_meta.run_id
 
         new_messages = [response]
         local_tool_history = []
@@ -595,21 +557,55 @@ class AgentEngine:
 
         tool_calls = self._normalize_tool_calls(response.tool_calls)
 
-        # CRITICAL: Subtask MUST call tools
-        if not tool_calls:
-            logger.error(f"[{name}] 🛑 SINGLE-SHOT VIOLATION: Subtask did not call any tool!")
-            error_msg = AIMessage(content="Subtask failed: No tool was invoked.")
-            new_messages.append(error_msg)
-            return EngineResult(
-                messages=new_messages,
-                tool_history=local_tool_history,
-                blackboard=state.blackboard,
-                routing_target=None,
-            )
+        # 1. Intercept Pre-Execution Signals
+        signal_tools = []
+        pending_signal = None
+        
+        # Pull evoloop_handler for signal observability
+        evoloop_handler = None
+        callbacks = config.get("callbacks", []) if config else []
+        callback_list = callbacks if isinstance(callbacks, list) else getattr(callbacks, "handlers", [])
+        from app.core.callbacks.transparent import TransparentCallbackHandler
+        for cb in callback_list:
+            if isinstance(cb, TransparentCallbackHandler):
+                evoloop_handler = cb
+                break
+        
+        for tc in tool_calls:
+            signal = await signal_manager.intercept(tc)
+            if signal:
+                if evoloop_handler:
+                    try:
+                        await evoloop_handler.on_tool_start(
+                            serialized={"name": tc.name},
+                            input_str=json.dumps(tc.args, ensure_ascii=False),
+                            run_id=tc.id
+                        )
+                    except Exception as e:
+                        logger.error(f"Failed to log intercepted tool start: {e}")
 
-        # 3. Execute Non-Signal Tools
-        remaining_tool_calls = [tc for tc in tool_calls if tc.name not in ("route_to", "decompose_task")]
+                pending_signal = signal
+                output_msg = f"Signal emitted: {tc.name}"
+                new_messages.append(ToolMessage(
+                    content=output_msg,
+                    tool_call_id=tc.id,
+                    name=tc.name,
+                    id=gen_uuid(),
+                ))
+                
+                if evoloop_handler:
+                    try:
+                        await evoloop_handler.on_tool_end(output=output_msg, run_id=tc.id)
+                    except Exception as e:
+                        logger.error(f"Failed to log intercepted tool end: {e}")
 
+                signal_tools.append(tc.name)
+                break
+
+        # 2. Execute Non-Intercepted Tools
+        remaining_tool_calls = [tc for tc in tool_calls if tc.name not in signal_tools]
+
+        tool_results = []
         if remaining_tool_calls:
             # Execute Tools using shared AgentToolExecutor
             tool_executor = self._tool_executor_class(
@@ -620,7 +616,7 @@ class AgentEngine:
                 enable_diff_tracking=self._enable_diff_tracking,
             )
 
-            async def _execute_tool(tc: ToolCall) -> ToolMessage:
+            async def _execute_tool(tc: ToolCall) -> "ToolExecutionResult":
                 return await tool_executor.execute_tool(
                     tool_name=tc.name,
                     tool_args=tc.args,
@@ -634,14 +630,32 @@ class AgentEngine:
                 tool_results = await asyncio.gather(*[_execute_tool(tc) for tc in remaining_tool_calls])
             else:
                 logger.info(f"[{name}] ⛓️ Executing {len(remaining_tool_calls)} tools sequentially")
-                tool_results = []
                 for tc in remaining_tool_calls:
                     res = await _execute_tool(tc)
                     tool_results.append(res)
 
-            for tool_msg in tool_results:
+            for res in tool_results:
+                tool_msg = res.message
+                raw_content = res.raw_result
                 logger.info(f"[{name}] ✅ Result ({tool_msg.name}): {str(tool_msg.content[:300])}...")
                 new_messages.append(tool_msg)
+                
+                # 3.1 Post-Execution Signal Detection
+                if not pending_signal:
+                    signal = signal_manager.detect_post_execution_signal(tool_msg.name, raw_content)
+                    if signal:
+                        pending_signal = signal
+
+        # 3. Protocol Violation Check (Subtask MUST result in a signal or tool execution)
+        if not pending_signal and not tool_calls:
+            logger.error(f"[{name}] 🛑 SINGLE-SHOT VIOLATION: Subtask did not call any tool!")
+            error_msg = AIMessage(content="Subtask failed: No tool was invoked.")
+            new_messages.append(error_msg)
+            return EngineResult(
+                messages=new_messages,
+                tool_history=local_tool_history,
+                blackboard=state.blackboard,
+            )
 
         logger.info(f"[{name}] ✓ Single-shot complete. {len(response.tool_calls)} tool(s) executed.")
 
@@ -649,7 +663,7 @@ class AgentEngine:
             messages=new_messages,
             tool_history=local_tool_history,
             blackboard=state.blackboard,
-            _routing_target=None,
+            signal=pending_signal,
         )
 
     def _build_system_messages(self, system_prompt: str, messages: list, provider: str) -> list[BaseMessage]:
@@ -674,80 +688,38 @@ class AgentEngine:
             return [SystemMessage(content=system_prompt)]
 
     def _handle_llm_exception(self, e: Exception, name: str, state: AgentState) -> EngineResult:
-        """Centralized handling for LLM invocation exceptions."""
-        import openai
+        """Centralized handling for LLM invocation exceptions using LLMErrorHandler."""
+        from app.core.engine.error_handler import LLMErrorHandler
+        from app.i18n.service import i18n
 
         logger.error(f"[{name}] LLM invocation failed: {e}")
 
-        error_str = str(e).lower()
-        error_type = "llm_invocation_system"
-        status_code = None
+        # Use the centralized classifier
+        classification = LLMErrorHandler.classify_exception(e)
 
-        # [CRITICAL] Check for EvoLoop platform auth errors first
-        # These are raised as ValueError, not OpenAIError
-        if "not authenticated with evoloop" in error_str or "please login first" in error_str:
-            error_type = "auth_expired"
-            status_code = 401
-            logger.warning(f"[{name}] EvoLoop platform authentication expired")
+        icon_failed = i18n.get("icons.failed") or "❌"
 
-        elif isinstance(e, openai.OpenAIError):
-            if hasattr(e, "status_code"):
-                status_code = e.status_code
+        # Construct a rich error message for the AI message content
+        user_friendly_msg = (
+            f"{icon_failed} **{classification.title}**: "
+            f"{classification.message}\n\n"
+            f"{classification.hint}\n\n"
+            f"> {classification.raw_error[:200]}"
+        )
 
-        if error_type != "auth_expired":
-            if status_code == 401 or "unauthorized" in error_str or "auth" in error_str:
-                error_type = "llm_auth"
-                status_code = 401
-            elif status_code == 403:
-                if "quota" in error_str or "usage limit" in error_str or "billing" in error_str:
-                    error_type = "quota_exhausted"
-                else:
-                    error_type = "llm_auth"
-            elif status_code == 429 or "rate limit" in error_str or "too many requests" in error_str:
-                error_type = "rate_limit"
-                status_code = 429
-        elif status_code in (500, 502, 503, 504) or any(kw in error_str for kw in ("unavailable", "overloaded", "gateway", "service error")):
-            error_type = "service_unavailable"
-            status_code = status_code or 503
-        elif any(kw in error_str for kw in ("timeout", "connection", "socket", "network")):
-            error_type = "network_error"
-        elif "model_not_found" in error_str or "not found" in error_str:
-            error_type = "invalid_config"
-            status_code = 404
-
-        # Return error message as AIMessage - this is a terminal error (LLM failed)
-        # The context_hydrator will clean up accumulated errors on retry
-        # NOTE: Unlike Supervisor protocol errors, LLM errors ARE valid terminal states
-        # that should be visible to the user (e.g., "API quota exceeded")
-        user_friendly_msg = self._get_user_friendly_error(error_type, str(e))
         return EngineResult(
             messages=[AIMessage(
                 content=user_friendly_msg,
                 metadata={
                     "is_error": True,
-                    "error_type": error_type,
-                    "status_code": status_code,
-                    "raw_error": str(e)
+                    "error_type": classification.error_type,
+                    "status_code": classification.status_code,
+                    "raw_error": classification.raw_error
                 }
             )],
             tool_history=[],
             blackboard=state.blackboard,
         )
-
-    def _get_user_friendly_error(self, error_type: str, raw_error: str) -> str:
-        """Convert technical errors to user-friendly messages."""
-        from app.i18n.service import i18n
-
-        error_messages = {
-            "llm_auth": i18n.get("errors.llm_auth", default="Authentication failed. Please check your API key configuration."),
-            "auth_expired": i18n.get("errors.auth_expired", default="EvoLoop session expired. Please login again to continue."),
-            "quota_exhausted": i18n.get("errors.quota_exhausted", default="API quota exhausted. Please try again later or contact support."),
-            "rate_limit": i18n.get("errors.rate_limit", default="Request rate limit reached. Please wait a moment and try again."),
-            "service_unavailable": i18n.get("errors.service_unavailable", default="AI service is temporarily unavailable. Please try again in a moment."),
-            "network_error": i18n.get("errors.network_error", default="Network connection issue. Please check your internet connection."),
-            "invalid_config": i18n.get("errors.invalid_config", default="Invalid AI model configuration. Please check your settings."),
-        }
-        return error_messages.get(error_type, i18n.get("errors.llm_generic", default="An error occurred while processing your request. Please try again."))
 
     def _parse_inferred_blackboard(self, content: Any, blackboard: Optional[BlackboardState], name: str) -> BlackboardState:
         """
@@ -763,8 +735,7 @@ class AgentEngine:
         matches = re.findall(pattern, content, re.DOTALL)
 
         if matches:
-            if not isinstance(blackboard, BlackboardState):
-                blackboard = BlackboardState.model_validate(blackboard) if blackboard else BlackboardState()
+            blackboard = blackboard or BlackboardState()
             metadata_updates = {}
 
             for key, val in matches:
@@ -781,7 +752,7 @@ class AgentEngine:
                 metadata_updates[key] = val
                 logger.info(f"[{name}] 🖊️ Blackboard field '{key}' updated via Inference: {val}")
 
-            blackboard.metadata = (blackboard.metadata or BlackboardMetadata()).model_copy(
+            blackboard.metadata = blackboard.metadata.model_copy(
                 update=metadata_updates
             )
 

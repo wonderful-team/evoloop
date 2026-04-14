@@ -17,7 +17,7 @@ class ContextMetadata(DynamicBaseModel):
     """Dynamic metadata attached to an EvoContext."""
     has_android: bool | None = None
     has_macos: bool | None = None
-    user_preferences: str | None = None
+    user_preferences: Any | None = None
     project_concepts: Any | None = None
     active_skills: Any | None = None
     environment_telemetry: Any | None = None

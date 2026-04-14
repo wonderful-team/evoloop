@@ -26,7 +26,7 @@ Usage:
     @hook_system.register(HookEvent.PostToolUse, matcher="^Write$|^Edit$")
     async def format_on_write(context):
         # Only triggers for Write/Edit tools
-        await formatter.format(getattr(context.tool_input, "path", None) if context.tool_input else None)
+        await formatter.format(context.tool_input.path if context.tool_input else None)
     
     # Trigger hooks
     await hook_system.trigger(HookEvent.PRE_COMPACT, context)

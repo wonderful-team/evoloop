@@ -17,6 +17,7 @@ Usage:
 
 import time
 from threading import Lock
+from typing import Any
 
 from pydantic import Field
 
@@ -25,14 +26,6 @@ from app.i18n.service import i18n
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = __import__("logging").getLogger(__name__)
-
-
-class ToolMetadata(DynamicBaseModel):
-    affected_path_keys: list[str] = Field(default_factory=list)
-    result_summary_template: str | None = None
-    is_state_mutating: bool = False
-    description: str = ""
-    hidden: bool = False
 
 
 class ToolState(DynamicBaseModel):
@@ -46,7 +39,7 @@ class ToolState(DynamicBaseModel):
     arguments: str
     start_time: float
     path: str | None = None
-    metadata: ToolMetadata = Field(default_factory=ToolMetadata)
+    metadata: Any = Field(default_factory=dict)
 
     def get_summary(self, output: str) -> tuple[str, bool]:
         """

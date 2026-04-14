@@ -270,7 +270,12 @@ async def get_conversation_messages(
             message_changeset_counts = {str(row.message_id): row.count for row in changeset_count_result.all()}
 
             # Conversion: Message DB -> LangChain BaseMessage -> FoldedMessage
-            langchain_messages = [to_base_message(m) for m in all_messages if to_base_message(m)]
+            langchain_messages = []
+            for m in all_messages:
+                bm = to_base_message(m)
+                if bm:
+                    langchain_messages.append(bm)
+            
             folded = fold_messages(langchain_messages)
 
             # Map folded results back to API MessageItem with extra metadata

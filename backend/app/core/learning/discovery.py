@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import shutil
+from typing import Any
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from pydantic import Field
@@ -316,7 +317,7 @@ class SkillDiscovery:
         history: list[dict] | None = None,
         namespace_context: str | None = None,
         current_plan: str | None = None,
-        user_preferences: str | None = None
+        user_preferences: Any | None = None
     ) -> tuple[SkillMatch | None, list[LearnedSkill], str]:
         """
         Pure LLM-Based Skill Discovery with History support.

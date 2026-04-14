@@ -168,7 +168,7 @@ def repair_message_history(messages: list[BaseMessage]) -> list[BaseMessage]:
             if stage1:
                 last = stage1[-1]
                 if isinstance(last, AIMessage) and last.tool_calls:
-                    ids = [tc.id for tc in (ToolCall.model_validate(t) if isinstance(t, dict) else t for t in last.tool_calls)]
+                    ids = [tc['id'] if isinstance(tc, dict) else tc.id for tc in last.tool_calls]
                     if msg.tool_call_id in ids:
                         is_orphaned = False
 
@@ -220,8 +220,10 @@ def repair_message_history(messages: list[BaseMessage]) -> list[BaseMessage]:
 
         if isinstance(msg, AIMessage) and msg.tool_calls:
             for tc in msg.tool_calls:
-                tool_call = ToolCall.model_validate(tc) if isinstance(tc, dict) else tc
-                open_tool_calls[tool_call.id] = tool_call.name
+                # Still handle dict access for raw LangChain messages, but remove redundant validation
+                tcid = tc['id'] if isinstance(tc, dict) else tc.id
+                tname = tc['name'] if isinstance(tc, dict) else tc.name
+                open_tool_calls[tcid] = tname
 
         if isinstance(msg, ToolMessage):
             # Clear opened call
@@ -328,20 +330,39 @@ def to_base_message(msg: Any) -> BaseMessage | None:
     role = getattr(msg, "role", None)
     content = getattr(msg, "content", "")
     
+    # Preserve key metadata that fold_messages and other utilities need
+    msg_id = str(getattr(msg, "id", "")) or None
+    created_at = getattr(msg, "created_at", None)
+    thinking = getattr(msg, "thinking", None)
+    
+    # LangChain messages use additional_kwargs for extra metadata
+    kwargs = {"id": msg_id}
+    if created_at:
+        kwargs["created_at"] = created_at
+    if thinking:
+        kwargs["thinking"] = thinking
+
     if role == "human":
-        return HumanMessage(content=content)
+        return HumanMessage(content=content, id=msg_id, additional_kwargs=kwargs)
     elif role == "ai":
         tool_calls = getattr(msg, "tool_calls", [])
-        return AIMessage(content=content, tool_calls=tool_calls if isinstance(tool_calls, list) else [])
+        return AIMessage(
+            content=content, 
+            id=msg_id,
+            tool_calls=tool_calls if isinstance(tool_calls, list) else [],
+            additional_kwargs=kwargs
+        )
     elif role == "tool":
         # For database records, name might be stored in 'name' or derived from tool_calls
         return ToolMessage(
             content=content,
+            id=msg_id,
             tool_call_id=getattr(msg, "tool_call_id", ""),
-            name=getattr(msg, "name", None)
+            name=getattr(msg, "name", None),
+            additional_kwargs=kwargs
         )
     elif role == "system":
-        return SystemMessage(content=content)
+        return SystemMessage(content=content, id=msg_id, additional_kwargs=kwargs)
     
     return None
 
@@ -366,8 +387,9 @@ def fold_messages(messages: list[BaseMessage]) -> list[FoldedMessage]:
 
     while i < len(messages):
         msg = messages[i]
-        msg_id = getattr(msg, "id", f"msg-{i}")
-        created_at = getattr(msg, "created_at", None)
+        # Robustly get ID and timestamp, checking both attributes and additional_kwargs
+        msg_id = getattr(msg, "id", None) or msg.additional_kwargs.get("id") or f"msg-{i}"
+        created_at = getattr(msg, "created_at", None) or msg.additional_kwargs.get("created_at")
         if isinstance(created_at, datetime):
             created_at = created_at.isoformat()
 
@@ -378,7 +400,10 @@ def fold_messages(messages: list[BaseMessage]) -> list[FoldedMessage]:
 
             # Look ahead for ToolMessages matching our tool_calls
             j = i + 1
-            tool_call_ids = {tc.id: tc for tc in (ToolCall.model_validate(t) if isinstance(t, dict) else t for t in tool_calls)}
+            tool_call_ids = {
+                (tc['id'] if isinstance(tc, dict) else tc.id): tc 
+                for tc in tool_calls
+            }
 
             while j < len(messages) and isinstance(messages[j], ToolMessage):
                 tool_msg = messages[j]
@@ -397,7 +422,7 @@ def fold_messages(messages: list[BaseMessage]) -> list[FoldedMessage]:
                     id=f"step-{tool_msg.tool_call_id}",
                     tool=tool_name,
                     tool_name=get_tool_friendly_name(tool_name) or tool_name,
-                    input=tool_call.get("args") if tool_call else {},
+                    input=tool_call['args'] if isinstance(tool_call, dict) else tool_call.args,
                     output=get_message_text(tool_msg),
                     status="success",
                     tool_call_id=tool_msg.tool_call_id
@@ -408,8 +433,8 @@ def fold_messages(messages: list[BaseMessage]) -> list[FoldedMessage]:
                 id=msg_id,
                 role="ai",
                 content=get_message_text(msg),
-                thinking=getattr(msg, "thinking", None),
-                tool_calls=[tc.model_dump() for tc in (ToolCall.model_validate(t) if isinstance(t, dict) else t for t in tool_calls)] if tool_calls else None,
+                thinking=getattr(msg, "thinking", None) or msg.additional_kwargs.get("thinking"),
+                tool_calls=[(tc.model_dump() if hasattr(tc, 'model_dump') else tc) for tc in tool_calls] if tool_calls else None,
                 steps=steps,
                 created_at=created_at
             ))

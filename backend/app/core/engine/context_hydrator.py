@@ -130,7 +130,7 @@ class EvoContextMiddleware:
         if request_id != "global-fallback" and EvoContextMiddleware._is_recently_hydrated(request_id):
             # Still need to update dynamic layer, but skip static hydration
             blackboard = state.blackboard
-            state["blackboard"] = blackboard
+            state.blackboard = blackboard
             state.hydration_marker = EvoContextMiddleware.HYDRATION_VERSION
             return state
 
@@ -147,7 +147,7 @@ class EvoContextMiddleware:
                 project_id = config.get("configurable", {}).get("project_id", DEFAULT_PROJECT_ID)
 
             working_directory = (
-                (blackboard.working_directory if blackboard else None)
+                blackboard.working_directory
                 or config.get("configurable", {}).get("working_directory")
             )
             thread_id = state.thread_id or config.get("configurable", {}).get("thread_id")
@@ -392,7 +392,7 @@ class EvoContextMiddleware:
                 source="context_hydrator",
                 data={
                     "ctx": ctx,
-                    "topic": (blackboard.ticket.topic if blackboard and blackboard.ticket else ""),
+                    "topic": (blackboard.ticket.topic if blackboard.ticket else ""),
                 }
             )
             await system_bus.publish(polishing_event)
@@ -405,11 +405,10 @@ class EvoContextMiddleware:
         if (state.is_retry or is_retry) and not state.is_subtask:
             logger.info("[Middleware] 🔄 Retry detected: Performing deep blackboard cleanup.")
             for key in ["ticket", "verification", "route_reason"]:
-                blackboard[key] = None
-            if blackboard.metadata:
-                for key in ["final_outcome", "shadow_audit"]:
-                    if getattr(blackboard.metadata, key, None) is not None:
-                        setattr(blackboard.metadata, key, None)
+                setattr(blackboard, key, None)
+            if blackboard.metadata is not None:
+                blackboard.metadata.final_outcome = None
+                blackboard.metadata.shadow_audit = None
             # Also invalidate static cache on retry
             LayeredContextCache.invalidate_static(session_id)
 
@@ -451,22 +450,17 @@ class EvoContextMiddleware:
                 cleaned_messages = non_error_messages + error_messages
 
                 if len(cleaned_messages) < len(messages):
-                    state["messages"] = cleaned_messages
+                    state.messages = cleaned_messages
                     logger.info(f"[Middleware] ✓ Message cleanup: {len(messages)} -> {len(cleaned_messages)} messages")
 
-        elif blackboard.metadata and not state.is_subtask:
-            for key in ["final_outcome", "shadow_audit"]:
-                if getattr(blackboard.metadata, key, None) is not None:
-                    logger.debug(f"[Middleware] Resetting terminal metadata '{key}' for new run.")
-                    setattr(blackboard.metadata, key, None)
+        else:
+            if blackboard.metadata is not None:
+                if blackboard.metadata.final_outcome is not None or blackboard.metadata.shadow_audit is not None:
+                    logger.debug("[Middleware] Resetting terminal metadata 'final_outcome' and 'shadow_audit' for new run.")
+                blackboard.metadata.final_outcome = None
+                blackboard.metadata.shadow_audit = None
 
-        # 8. Ensure blackboard exists for downstream nodes
-        if not blackboard:
-            from app.core.engine.state.blackboard import BlackboardState
-            blackboard = BlackboardState()
-            state["blackboard"] = blackboard
-
-        state["blackboard"] = blackboard
+        state.blackboard = blackboard
 
         # Mark as hydrated to prevent redundant calls
         # This marker is checked at the beginning of hydrate() to skip duplicate work
@@ -539,7 +533,7 @@ class SkillHydrator:
             return await skill_discovery.get_namespace_index(namespace_context)
 
         # Eager mode: Fetch and return full SOP instructions
-        execution_ticket = state.blackboard.ticket if state.blackboard else None
+        execution_ticket = state.blackboard.ticket
         # skill_id takes priority from the ticket if present, otherwise fallback to topic
         query = execution_ticket.skill_id if execution_ticket else topic
 
@@ -557,7 +551,7 @@ class SkillHydrator:
         """
         Helper to get skills tailored for a specific node type.
         """
-        execution_ticket = state.blackboard.ticket if state.blackboard else None
+        execution_ticket = state.blackboard.ticket
         topic = execution_ticket.topic or "" if execution_ticket else ""
         namespace_context = execution_ticket.namespace_context if execution_ticket else None
 

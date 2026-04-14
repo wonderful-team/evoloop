@@ -8,7 +8,7 @@ from langchain_core.runnables import RunnableConfig
 from app.core.engine import get_default_engine
 from app.core.engine.engine import EngineResult
 from app.core.engine.routers import RoutingTarget
-from app.core.engine.state import AgentState, StateUpdate
+from app.core.engine.state import AgentState, StateUpdate, ensure_state
 
 logger = logging.getLogger(__name__)
 
@@ -34,37 +34,44 @@ class BaseAgentNode(ABC):
 
     async def __call__(self, state: AgentState, config: RunnableConfig) -> StateUpdate:
         """The standard LangGraph node entry point."""
-        # LangGraph may pass a raw dict (e.g. from checkpoint resume or interrupt).
-        # Normalize at the framework boundary so downstream code never sees a dict.
-        if not isinstance(state, AgentState):
-            state = AgentState.model_validate(state)
-
-        # 1. State Preparation & Environment Hydration
-        # Includes early-exit checks (e.g., Aggregator routing)
-        state_update = await self.prepare_state(state, config)
-        if state_update and state_update.next_node:
-            return state_update
-
-        # 2. Build Prompts (Enforcing Static/Dynamic Split)
-        # static_prompt: Huge instructions + tools -> goes to generic SystemMessage
-        # dynamic_ticket: Small turn-based telemetry -> prepended as HumanMessage
-        static_system_prompt, dynamic_ticket_text = await self.build_prompt_pair(state, config)
-        tools = await self.get_tools(state)
-
-        # Prepend Context Ticket if provided
-        messages = list(list(state.messages))
-        if dynamic_ticket_text:
-            ticket_msg = HumanMessage(content=dynamic_ticket_text, name="context_ticket")
-            messages = [ticket_msg] + messages
-
-        execution_state = state.model_copy(update={"messages": messages})
-
-        # 3. Engine Execution
-        model = config.get("configurable", {}).get("model")
-        engine = get_default_engine()
-
         try:
-            is_subtask = state.blackboard.ticket.agent_config.is_subtask if state.blackboard and state.blackboard.ticket and state.blackboard.ticket.agent_config else False
+            state = ensure_state(state)
+
+            # 1. State Preparation & Environment Hydration
+            # Includes early-exit checks (e.g., Aggregator routing)
+            state_update = await self.prepare_state(state, config)
+            if state_update and state_update.next_node:
+                return state_update
+
+            # 2. Build Prompts (Enforcing Static/Dynamic Split)
+            # static_prompt: Huge instructions + tools -> goes to generic SystemMessage
+            # dynamic_ticket: Small turn-based telemetry -> prepended as HumanMessage
+            static_system_prompt, dynamic_ticket_text = await self.build_prompt_pair(state, config)
+            tools = await self.get_tools(state)
+
+            # Prepend Context Ticket if provided
+            messages = list(list(state.messages))
+            if dynamic_ticket_text:
+                ticket_msg = HumanMessage(content=dynamic_ticket_text, name="context_ticket")
+                messages = [ticket_msg] + messages
+
+            execution_state = state.model_copy(update={"messages": messages})
+
+            # 3. Engine Execution
+            model = config.get("configurable", {}).get("model")
+            engine = get_default_engine()
+
+            # Robust access to is_subtask for both AgentState objects and raw dicts
+            is_subtask = False
+            blackboard = getattr(state, "blackboard", None) or (state.get("blackboard") if isinstance(state, dict) else None)
+            if blackboard:
+                ticket = getattr(blackboard, "ticket", None) or (blackboard.get("ticket") if isinstance(blackboard, dict) else None)
+                if ticket:
+                    # ticket might be dict or ExecutionTicket
+                    agent_config = getattr(ticket, "agent_config", None) or (ticket.get("agent_config") if isinstance(ticket, dict) else None)
+                    if agent_config:
+                        is_subtask = getattr(agent_config, "is_subtask", False) or (agent_config.get("is_subtask", False) if isinstance(agent_config, dict) else False)
+
             engine_result = await engine.run_node(
                 state=execution_state,
                 config=config,
@@ -115,7 +122,7 @@ class BaseAgentNode(ABC):
         """
         signal = engine_result.signal
         if signal:
-            from app.core.engine.dispatcher import SignalDispatcher
+            from app.core.engine.signals import SignalDispatcher
             dispatch_result = await SignalDispatcher.dispatch(original_state, signal, config)
             return dispatch_result
 
@@ -128,6 +135,7 @@ class BaseAgentNode(ABC):
 
     async def handle_error(self, state: AgentState, error: Exception) -> StateUpdate:
         """Handle execution bubbling errors."""
+        state = ensure_state(state)
         from langchain_core.messages import AIMessage
         error_msg = AIMessage(
             content=f"Node '{self.node_name}' failed: {error}",

@@ -4,17 +4,31 @@ Supervisor Prompt Builder
 Constructs the system prompt for the Supervisor ReAct Agent.
 Allows for dynamic context injection and potential LLM-specific adaptations.
 """
-
+import json
 import logging
+
+from langchain_core.runnables import RunnableConfig
+
+from typing import Any
 
 from langchain_core.runnables import RunnableConfig
 
 from app.core.engine.state.blackboard import BlackboardState
 from app.core.environment import get_awakened_state
 from app.infrastructure.config.service import SystemConfigService
+from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.utils import render_template
 
 logger = logging.getLogger(__name__)
+
+
+class SupervisorContext(DynamicBaseModel):
+    """Formalized context structure for Supervisor decision making."""
+    tools: list[Any]
+    iteration_count: int
+    last_human_msg: str
+    blackboard: BlackboardState
+    structured_plan: str | dict | None = None
 
 
 class SupervisorPromptBuilder:
@@ -22,7 +36,7 @@ class SupervisorPromptBuilder:
         self,
         project_id: int,
         iteration_count: int,
-        context: dict = None,
+        context: SupervisorContext,
     ):
         self.project_id = project_id
         self.iteration_count = iteration_count
@@ -100,11 +114,10 @@ class SupervisorPromptBuilder:
                 if original > MAX_INSTALLED_APPS:
                     logger.debug(f"[ContextTicket] Pruned macOS apps {original} → {MAX_INSTALLED_APPS}")
 
-        blackboard: BlackboardState | None = self.context.get("blackboard") if self.context else None
-        active_plan_data = self.context.get("structured_plan")
+        blackboard = self.context.blackboard
+        active_plan_data = self.context.structured_plan
         if isinstance(active_plan_data, str):
             try:
-                import json
                 active_plan_data = json.loads(active_plan_data)
             except Exception:
                 active_plan_data = None
@@ -130,7 +143,7 @@ class SupervisorPromptBuilder:
                 "metadata": dict(blackboard.metadata) if blackboard and blackboard.metadata else {},
             },
             "plan": active_plan_data,
-            "plan_approved": blackboard.plan_approved if blackboard else False,
+            "plan_approved": blackboard.plan_approved,
             "project_concepts": ctx.metadata.get("project_concepts", ""),
             "active_skills": [
                 {"id": s.get("id"), "name": s.get("name"), "namespace": s.get("namespace", "default")}

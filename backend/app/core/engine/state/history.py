@@ -31,7 +31,7 @@ class FoldedMessage(DynamicBaseModel):
     Base model for messages in a folded format where tool outputs 
     are nested inside their parent AI message.
     """
-    id: str
+    id: str | None = None
     role: str  # human, ai, system, tool
     content: str = ""
     thinking: str | None = None

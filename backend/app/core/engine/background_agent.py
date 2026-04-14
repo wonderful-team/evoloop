@@ -340,145 +340,97 @@ async def _upload_final_log(graph, config, thread_id, command_id, project_id):
 
 
 async def _handle_task_exception(thread_id: str, project_id: int, e: Exception):
-    """Handle exceptions during graph execution (Phase 5: Global Error Boundaries)."""
+    """Handle exceptions during graph execution using unified LLMErrorHandler."""
     from app.core.exceptions import AgentHumanInterruptException
     from app.models.schemas.events import QuotaExhaustedEvent
+    from app.core.engine.error_handler import LLMErrorHandler
 
     # Check for context
     exc_name = type(e).__name__
-    error_str = str(e).lower()
-    error_full = str(e)
-
     if isinstance(e, AgentHumanInterruptException) or "Interrupt" in exc_name or "GraphInterrupt" in exc_name:
         logger.info(f"Task {thread_id} interrupted for human input: {e}")
         return
 
     logger.error(f"Error running thread {thread_id}: {e}", exc_info=True)
 
-    # 1. Distinguish between Retryable, Quota Exhausted, LLM Auth Error, and Fatal Errors
-    # 403 Forbidden is often a quota issue (e.g. Kimi), check keywords
-    is_quota_exhausted = any(kw in error_str for kw in [
-        "quota_exhausted", "insufficient quota", "usage limit", "billing cycle", "refresh"
-    ]) or ("403" in error_full and ("quota" in error_str or "limit" in error_str))
+    # 1. Classify the exception
+    classification = LLMErrorHandler.classify_exception(e)
+    error_type = classification.error_type
 
-    # Check for LLM API authentication errors (401 unauthorized from LLM provider)
-    is_llm_auth_error = (
-        "authenticationerror" in exc_name.lower() or
-        ("401" in error_full and "unauthorized" in error_str) or
-        ("api_error" in error_str and "token expired" in error_str)
-    ) and not is_quota_exhausted
-
-    # Check for EvoLoop platform auth errors (ValueError raised by LLMFactory)
-    is_auth_expired = (
-        "not authenticated with evoloop" in error_str or
-        "please login first" in error_str
-    )
-
-    is_retryable = any(kw in error_str for kw in [
-        "timeout", "rate limit", "connection error", "api_error",
-        "unavailable", "overloaded", "socket", "httpx", "503", "502", "504"
-    ]) and not is_llm_auth_error and not is_quota_exhausted and not is_auth_expired
-
-    # 2. Handle EvoLoop Platform Auth Error - Redirect to login
-    if is_auth_expired:
+    # 2. Handle specific terminal errors with dedicated UI flows
+    if error_type == "auth_expired":
         logger.warning(f"[EvoLoopAuth] Thread {thread_id} platform auth expired")
-
         await activity_monitor.end_run(thread_id, "failed")
-
-        auth_title = i18n.get('core_engine.evoloop_auth_title') or '会话已过期'
-        auth_desc = i18n.get('core_engine.evoloop_auth_desc') or 'EvoLoop 平台会话已过期，请重新登录后继续对话。'
-        auth_hint = i18n.get('core_engine.evoloop_auth_hint') or '点击右上角头像重新登录'
-
         await cache.publish(
             f"chat:{thread_id}:events",
             json.dumps({
                 "type": "auth_expired",
                 "status": "auth_expired",
-                "title": auth_title,
-                "message": auth_desc,
-                "hint": auth_hint,
+                "title": classification.title,
+                "message": classification.message,
+                "hint": classification.hint,
             })
         )
         return
 
-    # 3. Handle LLM Authentication Error - Special flow
-    if is_llm_auth_error:
+    if error_type == "llm_auth":
         logger.warning(f"[LLMAuthError] Thread {thread_id} hit LLM API authentication error")
-
-        # Set failed status
         await activity_monitor.end_run(thread_id, "failed")
-
-        # Get translated messages (with fallback)
-        llm_auth_title = i18n.get('core_engine.llm_auth_error_title') or 'LLM API认证失败'
-        llm_auth_desc = i18n.get('core_engine.llm_auth_error_desc') or 'LLM API密钥无效或已过期。'
-        llm_auth_solution = i18n.get('core_engine.llm_auth_error_solution') or '请检查系统设置中的LLM配置，确保API密钥正确。'
-        icon_failed = i18n.get('icons.failed') or '❌'
-
-        # Create user-friendly error message
-        user_message = (
-            f"{icon_failed} **{llm_auth_title}**: "
-            f"{llm_auth_desc}\n\n"
-            f"{llm_auth_solution}\n\n"
-            f"> {str(e)[:200]}"
-        )
-
-        # Note: 401 errors are system errors (ERROR_SYSTEM), not persisted to DB
-        # They provide no value for agent learning, only notify user via SSE
-
-        # Publish error event for UI to show immediately
         await cache.publish(
             f"chat:{thread_id}:events",
             json.dumps({
                 "type": "llm_auth_error",
                 "status": "failed",
-                "title": llm_auth_title,
-                "message": llm_auth_desc,
-                "hint": llm_auth_solution,
+                "title": classification.title,
+                "message": classification.message,
+                "hint": classification.hint,
             })
         )
         return
 
-    # 3. Handle Quota Exhausted - Special flow
-    if is_quota_exhausted:
+    if error_type == "quota_exhausted":
         logger.warning(f"[QuotaExhausted] Thread {thread_id} hit quota limit")
-
-        # Set special status (does not pollute message history)
         await activity_monitor.end_run(thread_id, "quota_exhausted")
-
-        # Publish special event for UI
         await cache.publish(
             f"chat:{thread_id}:events",
             QuotaExhaustedEvent(
                 type="quota_exhausted",
-                title=i18n.get('core_engine.quota_exhausted_title'),
-                message=i18n.get('core_engine.quota_exhausted_desc'),
-                hint=i18n.get('core_engine.quota_exhausted_hint'),
+                title=classification.title,
+                message=classification.message,
+                hint=classification.hint,
                 action_text=i18n.get('core_engine.quota_exhausted_action'),
             ).model_dump_json()
         )
         return
 
-    # 4. Handle other errors
+    # 3. Handle Retryable or Fatal errors
     await activity_monitor.end_run(thread_id, "failed")
+    
+    # Standard classification of "retryable" keywords
+    is_retryable = error_type in ("rate_limit", "service_unavailable", "network_error")
+    
+    icon_warning = i18n.get('icons.warning') or '⚠️'
+    icon_failed = i18n.get('icons.failed') or '❌'
 
     if is_retryable:
         user_message = (
-            f"{i18n.get('icons.warning')} **{i18n.get('core_engine.retryable_error_title')}**: "
-            f"{i18n.get('core_engine.retryable_error_desc')}\n\n"
-            f"> {str(e)}\n\n"
-            f"I have paused execution to prevent state corruption. You can try to **Resume** this task."
+            f"{icon_warning} **{classification.title}**: "
+            f"{classification.message}\n\n"
+            f"{classification.hint}\n\n"
+            f"> {classification.raw_error[:200]}"
         )
         action_type = "warning"
     else:
+        # Generic system/config error
         user_message = (
-            f"{i18n.get('icons.failed')} **{i18n.get('core_engine.system_error_title')}**: "
-            f"{i18n.get('core_engine.execution_failed')}\n\n"
-            f"{i18n.get('core_engine.error_details')}:\n> {str(e)}\n\n"
-            f"{i18n.get('core_engine.retry_prompt')}"
+            f"{icon_failed} **{classification.title}**: "
+            f"{classification.message}\n\n"
+            f"{classification.hint}\n\n"
+            f"> {classification.raw_error[:200]}"
         )
         action_type = "system"
 
-    # 4. Persist to DB
+    # Persist the failure message to DB for visibility and future learning (if applicable)
     await _persist_system_error(thread_id, project_id, user_message, action_type=action_type)
 
 

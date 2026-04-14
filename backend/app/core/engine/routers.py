@@ -16,7 +16,7 @@ from app.constants import DEFAULT_PROJECT_ID
 from app.core.config import settings
 from app.core.engine.schema import EdgeCondition
 from app.core.engine.state import AgentRuntimeConfig as AgentConfig, TicketParameters
-from app.core.engine.state import AgentState, ExecutionTicket
+from app.core.engine.state import AgentState, ExecutionTicket, ensure_state
 from app.core.engine.state.blackboard import BlackboardState
 from app.core.engine.state.workspace import SubtaskContext
 
@@ -41,10 +41,10 @@ def route_supervisor(state: AgentState) -> str | list[Send]:
     """
     Decides the next node after Supervisor.
     """
+    state = ensure_state(state)
     next_node = state.next_node
-    blackboard = BlackboardState.model_validate(state.blackboard) if state.blackboard else None
-    if not blackboard:
-        blackboard = BlackboardState()
+    # Note: blackboard is already guaranteed to be a BlackboardState by AgentState validator
+    blackboard = state.blackboard
 
     # --- Phase 5: Resource Constraints Enforcement ---
     iteration_count = (state.iteration_count or 0)
@@ -84,7 +84,7 @@ def route_supervisor(state: AgentState) -> str | list[Send]:
                 is_subtask=True,
                 subtask_context=subtask_ctx,
                 skill_hint=skill_hint,
-                tools=subtask_tools if subtask_tools else None,
+                tools=subtask_tools or [], # Use empty list instead of None to prevent validation errors
             )
             if subtask_tools:
                 logger.info(f"[Router] Subtask {subtask_id} assigned tools: {subtask_tools}")
@@ -338,6 +338,7 @@ def _safe_eval_expr(expr: str, context: dict) -> bool:
 def make_expression_router(conditions: list[EdgeCondition], default: str) -> Callable[[AgentState], str]:
     def expression_router(state: AgentState) -> str:
         # Prepare evaluation context (Phase 4: Blackboard Only)
+        state = ensure_state(state)
         blackboard = state.blackboard
         eval_context = {
             "state": state,

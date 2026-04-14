@@ -19,7 +19,7 @@ from app.core.engine.nodes.base import BaseAgentNode
 from app.core.engine.prompts import WorkerPromptBuilder
 from app.core.engine.engine import EngineResult
 from app.core.engine.routers import RoutingTarget
-from app.core.engine.state import AgentState, StateUpdate
+from app.core.engine.state import AgentState, StateUpdate, ensure_state
 from app.core.engine.state.blackboard import SubtaskResult, VerificationStatus, WorkflowStepResult
 from app.core.engine.state.config import AgentRuntimeConfig, ExecutionTicket, WorkflowContext
 from app.core.tools.manager import tool_manager
@@ -49,11 +49,10 @@ class WorkerNode(BaseAgentNode):
         from app.core.engine.context_hydrator import EvoContextMiddleware
         state = await EvoContextMiddleware.hydrate(state, config)
 
-        execution_ticket = state.blackboard.ticket if state.blackboard else None
+        execution_ticket = state.blackboard.ticket
         if not execution_ticket or not execution_ticket.agent_config:
             logger.warning("[Worker] No AgentConfig found in ticket! Using default configuration.")
-            blackboard = state.blackboard
-            route_reason = blackboard.route_reason if blackboard else "Execute task"
+            route_reason = state.blackboard.route_reason
             execution_ticket = ExecutionTicket(
                 ticket_type="task",
                 topic=route_reason,
@@ -62,22 +61,19 @@ class WorkerNode(BaseAgentNode):
                     system_instructions="Execute the following task steps accurately and provide the result.",
                 )
             )
-            if state.blackboard is None:
-                from app.core.engine.state.blackboard import BlackboardState
-                state.blackboard = BlackboardState()
             state.blackboard.ticket = execution_ticket
 
         return state
 
     async def build_prompt_pair(self, state: AgentState, config: RunnableConfig) -> tuple[str, str]:
         """Construct (Static System Prompt, Dynamic Mission Message)."""
-        execution_ticket = state.blackboard.ticket if state.blackboard else None
+        execution_ticket = state.blackboard.ticket
         agent_config = execution_ticket.agent_config if execution_ticket else None
         blackboard = state.blackboard
         ctx = ContextManager.current()
 
         # Hydrate internal context
-        full_plan = state.structured_plan or state.current_plan or getattr(blackboard, "plan", None)
+        full_plan = state.structured_plan or state.current_plan
         focus_files = await self._hydrate_focus_files(execution_ticket, ctx)
         relevant_sops = list(state.relevant_sops)
 
@@ -120,23 +116,25 @@ class WorkerNode(BaseAgentNode):
 
     async def handle_outcome(self, original_state: AgentState, engine_result: "EngineResult", config: RunnableConfig) -> StateUpdate:
         """Post-processing and signal dispatching."""
+        original_state = ensure_state(original_state)
         # 1. Base Signal Handling
         signal = engine_result.signal
         if signal:
-            from app.core.engine.dispatcher import SignalDispatcher
+            from app.core.engine.signals import SignalDispatcher
             return await SignalDispatcher.dispatch(original_state, signal, config)
 
         # 2. Worker Post-processing (Outcome determination, Blackboard updates, etc.)
-        execution_ticket = original_state.blackboard.ticket if original_state.blackboard else None
+        execution_ticket = original_state.blackboard.ticket
         role_name = execution_ticket.agent_config.role_name if execution_ticket and execution_ticket.agent_config else "Worker"
 
         return self._post_process_result(original_state, engine_result, execution_ticket, role_name)
 
     async def __call__(self, state: AgentState, config: RunnableConfig) -> StateUpdate:
         """Override to handle sequential multi-skill logic."""
+        state = ensure_state(state)
         # 1. Initial Hydration
         state = await self.prepare_state(state, config)
-        execution_ticket = state.blackboard.ticket if state.blackboard else None
+        execution_ticket = state.blackboard.ticket
 
         # Check for multi-skill workflow
         skill_ids = execution_ticket.skill_ids or [] if execution_ticket else []
@@ -235,7 +233,7 @@ class WorkerNode(BaseAgentNode):
         results = []
         blackboard = state.blackboard
         ctx = ContextManager.current()
-        full_plan = state.structured_plan or state.current_plan or getattr(blackboard, "plan", None)
+        full_plan = state.structured_plan or state.current_plan
 
         for i, skill in enumerate(skills):
             is_last = (i == len(skills) - 1)
@@ -407,14 +405,15 @@ class WorkerNode(BaseAgentNode):
 
         # --- Structured outcome via Blackboard ---
         blackboard = state.blackboard
-        subtask_agent_config = execution_ticket.agent_config
+        agent_config = execution_ticket.agent_config if execution_ticket else None
+
         # Subtask workers do NOT set worker_outcome directly;
         # the Aggregator determines the final outcome after merging all parallel results.
-        if blackboard and not (subtask_agent_config and subtask_agent_config.is_subtask):
+        if not (agent_config and agent_config.is_subtask):
             blackboard.worker_outcome = worker_outcome
 
         # --- Subtask Result Collection ---
-        if blackboard and subtask_agent_config and subtask_agent_config.is_subtask:
+        if agent_config and agent_config.is_subtask:
             subtask_id = execution_ticket.subtask_id or "unknown"
             parent_task_id = execution_ticket.parent_task_id or "unknown"
 
@@ -475,9 +474,8 @@ class WorkerNode(BaseAgentNode):
 
         verification_summary = VerificationStatus(status="unverified", signals=verification_signals)
 
-        if blackboard:
-            blackboard.ticket = updated_execution_ticket
-            blackboard.verification = verification_summary
+        blackboard.ticket = updated_execution_ticket
+        blackboard.verification = verification_summary
 
         return StateUpdate(
             messages=[AIMessage(content=worker_content)],

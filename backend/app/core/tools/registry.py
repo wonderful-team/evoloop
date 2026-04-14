@@ -15,6 +15,7 @@ from pathlib import Path
 
 import yaml
 from langchain_core.tools import BaseTool
+from pydantic import Field
 
 from app.core.tools.runtime_registry import get_runtime_tools
 from app.infrastructure.pydantic_base import DynamicBaseModel
@@ -61,6 +62,15 @@ SYSTEM_TOOL_METADATA = {
 
 class ToolRegistryMetadata(DynamicBaseModel):
     """Metadata for a tool, merging registry and system fallback data."""
+    affected_path_keys: list[str] = Field(default_factory=list)
+    result_summary_template: str | None = None
+    is_state_mutating: bool = False
+    is_pollable: bool = False
+    description: str = ""
+    is_hidden: bool = False
+    name_map: dict[str, str] = Field(default_factory=dict)
+    summary_template: str | None = None  # Legacy support for i18n
+    is_memory_tool: bool = False
 
 
 class AutoDiscoveryRegistry:

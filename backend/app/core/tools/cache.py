@@ -214,7 +214,7 @@ class DeterministicToolCache:
             if path:
                 content_hash = await self._compute_file_hash(path)
 
-        return CacheKey(tool_name, args_hash, content_hash)
+        return CacheKey(tool_name=tool_name, args_hash=args_hash, content_hash=content_hash)
 
     async def _compute_file_hash(self, path: str) -> str:
         """Compute SHA256 hash of file content."""

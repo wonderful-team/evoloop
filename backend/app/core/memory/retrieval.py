@@ -357,7 +357,8 @@ class MemoryRetriever:
             logger.info(f"[_llm_select] Prompt built: {prompt_chars} chars, {prompt_lines} lines in {prompt_build_elapsed:.1f}ms")
 
             # Log prompt preview for debugging
-            logger.debug(f"[_llm_select] Prompt preview:\n{prompt[:500]}...")
+            # logger.debug(f"[_llm_select] Prompt preview:\n{prompt[:500]}...")
+            logger.debug(f"[_llm_select] Prompt preview:\n{prompt}")
 
             # Call LLM using InternalLLMService (automatically disables callbacks)
             llm_start = time.time()
@@ -379,7 +380,7 @@ class MemoryRetriever:
             # Parse selection
             parse_start = time.time()
             content = response.content if hasattr(response, 'content') else str(response)
-            content_preview = content[:200] if content else "(empty)"
+            content_preview = content if content else "(empty)"
             logger.debug(f"[_llm_select] Response content preview: {content_preview}...")
 
             selected_ids = self._parse_selection_response(content, candidates)
