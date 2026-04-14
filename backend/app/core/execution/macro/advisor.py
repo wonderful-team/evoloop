@@ -46,7 +46,7 @@ class MacroSelfHealingAdvisor:
             skill=None,  # Skill-level check already done in MacroService
             execution_params=event.data
         )
-        
+
         if not decision.allowed:
             logger.info(f"[Self-Healing] {decision.source}-level skip for macro failure in thread {event.thread_id}")
             event.suggestions.append(

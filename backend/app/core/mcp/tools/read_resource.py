@@ -41,29 +41,29 @@ async def read_mcp_resource(server_name: str, uri: str) -> str:
         connected = await mcp_client_manager.ensure_connected(server_name)
         if not connected:
             return f"Error: MCP server '{server_name}' is not connected. Please call use_mcp_server('{server_name}') first."
-        
+
         # Read resource
         result = await mcp_client_manager.read_resource(server_name, uri)
-        
+
         content = result.get("content", "")
         mime_type = result.get("mime_type", "unknown")
         is_binary = result.get("is_binary", False)
-        
+
         # Format output
         lines = [
             f"# Resource: {uri}",
             f"**MIME Type:** {mime_type}",
             "",
         ]
-        
+
         if is_binary:
             lines.append("*Binary content (base64-encoded)*")
             lines.append(content[:500] + "..." if len(content) > 500 else content)
         else:
             lines.append(content)
-        
+
         return "\n".join(lines)
-        
+
     except Exception as e:
         logger.error(f"Error reading MCP resource: {e}")
         return f"Error reading resource '{uri}' from '{server_name}': {str(e)}"

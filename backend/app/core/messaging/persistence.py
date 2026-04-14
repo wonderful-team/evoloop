@@ -8,7 +8,6 @@ MessagePersistencePolicy - 消息持久化策略
 """
 
 import logging
-from typing import Optional
 
 from app.core.messaging.category import MessageCategory
 from app.infrastructure.pydantic_base import DynamicBaseModel
@@ -30,7 +29,7 @@ class MessagePersistencePolicy:
     
     集中管理所有消息的持久化规则，避免分散在各处的过滤逻辑。
     """
-    
+
     # 分类 → (是否入库, 存储字段, 是否记录 tool_calls)
     _RULES = {
         MessageCategory.USER: (True, "content", False),
@@ -45,7 +44,7 @@ class MessagePersistencePolicy:
         MessageCategory.AUTH_EXPIRED: (False, None, False),  # EvoLoop认证过期不入库
         MessageCategory.ERROR_BUSINESS: (True, "content", False),  # 业务错误入库供Agent学习
     }
-    
+
     @classmethod
     def should_persist(cls, category: MessageCategory) -> bool:
         """
@@ -59,9 +58,9 @@ class MessagePersistencePolicy:
         """
         should, _, _ = cls._RULES.get(category, (False, None, False))
         return should
-    
+
     @classmethod
-    def get_storage_field(cls, category: MessageCategory) -> Optional[str]:
+    def get_storage_field(cls, category: MessageCategory) -> str | None:
         """
         获取存储字段
         
@@ -75,7 +74,7 @@ class MessagePersistencePolicy:
         """
         _, field, _ = cls._RULES.get(category, (False, None, False))
         return field
-    
+
     @classmethod
     def should_store_tool_calls(cls, category: MessageCategory) -> bool:
         """
@@ -89,14 +88,14 @@ class MessagePersistencePolicy:
         """
         _, _, store_tools = cls._RULES.get(category, (False, None, False))
         return store_tools
-    
+
     @classmethod
     def apply_policy(
         cls,
         category: MessageCategory,
         content: str,
-        tool_calls: Optional[list] = None,
-        thinking: Optional[str] = None,
+        tool_calls: list | None = None,
+        thinking: str | None = None,
     ) -> PersistencePolicyResult:
         """
         应用持久化策略，返回处理后的数据
@@ -120,7 +119,7 @@ class MessagePersistencePolicy:
         should_persist = cls.should_persist(category)
         storage_field = cls.get_storage_field(category)
         should_store_tools = cls.should_store_tool_calls(category)
-        
+
         result = PersistencePolicyResult(
             should_persist=should_persist,
             content=None,
@@ -128,11 +127,11 @@ class MessagePersistencePolicy:
             tool_calls=tool_calls if should_store_tools else None,
             category=category.value,
         )
-        
+
         if not should_persist:
             logger.debug(f"[PersistencePolicy] Skipping {category.value} message")
             return result
-        
+
         # 根据存储字段映射内容
         if storage_field == "content":
             result["content"] = content
@@ -144,14 +143,14 @@ class MessagePersistencePolicy:
             # content 字段可以为空或保留摘要
             result["thinking"] = content
             result["content"] = ""  # 或生成摘要
-        
+
         return result
-    
+
     @classmethod
     def get_all_categories(cls) -> list[MessageCategory]:
         """获取所有支持的分类"""
         return list(cls._RULES.keys())
-    
+
     @classmethod
     def get_persisted_categories(cls) -> list[MessageCategory]:
         """获取会持久化的分类列表"""

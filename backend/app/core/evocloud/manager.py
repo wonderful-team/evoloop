@@ -62,7 +62,7 @@ class EvoCloudManager:
         self._link_pool: LoopBoundResource[EvoCloudWebSocketLink] | None = None
         self._command_handler = None
         self._event_handler = None
-        
+
         # Project cache with TTL
         self._projects_cache: list[EvoCloudProjectSummary] | None = None
         self._projects_cache_time: float = 0.0
@@ -91,18 +91,18 @@ class EvoCloudManager:
             )
 
         self._config = config
-        
+
         async def cleanup_api(api):
             await api.close()
-            
+
         async def cleanup_link(link):
             await link.stop()
-            
+
         self._api_pool = LoopBoundResource(
             factory=lambda: EvoCloudHTTPClient(self._config),
             cleanup=cleanup_api
         )
-        
+
         def create_link():
             link = EvoCloudWebSocketLink(self._config, self.api)
             if self._command_handler:
@@ -112,7 +112,7 @@ class EvoCloudManager:
             if hasattr(self, '_query_handler') and self._query_handler:
                 link.set_query_handler(self._query_handler)
             return link
-            
+
         self._link_pool = LoopBoundResource(
             factory=create_link,
             cleanup=cleanup_link
@@ -127,7 +127,7 @@ class EvoCloudManager:
         """Start background services (Link) for the current loop."""
         if self.link:
             await self.link.start()
-        
+
         # Wait for device_id from WebSocket handshake (with timeout)
         if self.link:
             logger.info("[EvoCloud] Waiting for device_id from WebSocket...")
@@ -136,10 +136,10 @@ class EvoCloudManager:
                 logger.info(f"[EvoCloud] Received device_id from WebSocket: {device_id}")
             else:
                 logger.warning("[EvoCloud] Timeout waiting for device_id from WebSocket, will try HTTP fallback")
-        
+
         # Ensure device_id is available (fetch from MC if not provided by Gateway)
         await self._ensure_device_id()
-        
+
         # Start conversation sync to MC
         await self._start_conversation_sync()
 
@@ -147,14 +147,14 @@ class EvoCloudManager:
         """Ensure device_id is available from MC."""
         if self.link and self.link.device_id:
             return
-        
+
         try:
             # Fetch from MC using device_key
             device_key = self.link.device_key if self.link else None
             if not device_key:
                 logger.warning("[EvoCloud] Cannot get device_id: no device_key available")
                 return
-            
+
             result = await self.api.get_devices()
             if result.get("code") == 0:
                 devices = result.get("data", {}).get("list", [])
@@ -180,7 +180,7 @@ class EvoCloudManager:
         """Stop background services across all tracked loops."""
         # Stop conversation sync
         await self._stop_conversation_sync()
-        
+
         if self._link_pool:
             await self._link_pool.flush_all()
         if self._api_pool:
@@ -191,7 +191,9 @@ class EvoCloudManager:
         global _conversation_sync_manager
 
         try:
-            from app.core.evocloud.bridge.conversation_sync import ConversationSyncManager
+            from app.core.evocloud.bridge.conversation_sync import (
+                ConversationSyncManager,
+            )
 
             if _conversation_sync_manager is None:
                 # Get device_key from link (it's generated in WebSocketLink)
@@ -247,7 +249,7 @@ class EvoCloudManager:
         self._projects_cache_time = 0.0
         logger.debug("[EvoCloud] Projects cache invalidated")
 
-    async def _fallback_upload_log(self, device_id: int, thread_id: str, log_type: str, 
+    async def _fallback_upload_log(self, device_id: int, thread_id: str, log_type: str,
                                    content: Any, name: str | None, command_id: int | None,
                                    project_id: int | None):
         """
@@ -255,7 +257,7 @@ class EvoCloudManager:
         Runs as fire-and-forget task to not block main flow.
         """
         try:
-            await self.api.upload_log(device_id, thread_id, log_type, content, 
+            await self.api.upload_log(device_id, thread_id, log_type, content,
                                       name=name, command_id=command_id, project_id=project_id)
             logger.info(f"[EvoCloud] Fallback upload succeeded for {log_type}")
         except Exception as fallback_ex:
@@ -322,7 +324,7 @@ class EvoCloudManager:
         if not self._initialized:
             self.initialize()
         return self._link_pool.get()
-    
+
     @property
     def device_id(self) -> int | None:
         """Get device_id from WebSocket link (assigned by MC via Gateway)."""
@@ -389,7 +391,7 @@ class EvoCloudManager:
                 # This ensures API responsiveness even if EvoCloud API is slow/down
                 asyncio.create_task(
                     self._fallback_upload_log(
-                        target_device_id, thread_id, log_type, content, 
+                        target_device_id, thread_id, log_type, content,
                         name, command_id, project_id
                     )
                 )
@@ -402,27 +404,27 @@ class EvoCloudManager:
         Cache is invalidated when projects are modified.
         """
         now = time.time()
-        
+
         # Check if cache is valid
-        if (self._projects_cache is not None and 
+        if (self._projects_cache is not None and
             (now - self._projects_cache_time) < self._projects_cache_ttl):
             logger.debug(f"[EvoCloud] Using cached projects ({len(self._projects_cache)} items, "
                         f"age: {now - self._projects_cache_time:.1f}s)")
             return list(self._projects_cache)  # Return copy to prevent mutation
-        
+
         # Fetch fresh data
         try:
             start_time = time.time()
             projects = await self._fetch_projects_from_api()
             fetch_time = (time.time() - start_time) * 1000
-            
+
             # Update cache
             self._projects_cache = projects
             self._projects_cache_time = time.time()
-            
+
             logger.info(f"[EvoCloud] Fetched {len(projects)} projects from API in {fetch_time:.1f}ms")
             return list(projects)
-            
+
         except Exception as e:
             logger.error(f"scan_projects failed: {e}")
             # Return stale cache if available, otherwise empty list

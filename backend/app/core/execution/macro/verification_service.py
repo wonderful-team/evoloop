@@ -8,18 +8,15 @@ High-level service for integrating agent-based verification with:
 """
 
 import logging
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 from pydantic import Field
 
-from app.core.execution.macro import (
-    AgentMacroValidator,
-    EnvironmentConfig,
-    VerificationRequest,
-    VerificationReporter,
-)
+from app.core.execution.macro.agent_validator import AgentMacroValidator
+from app.core.execution.macro.models import EnvironmentConfig, VerificationRequest
 from app.core.execution.macro.schema import MacroScript, MacroStep
-from app.core.execution.macro.service import MacroService, MacroRunResult
+from app.core.execution.macro.service import MacroRunResult, MacroService
+from app.core.execution.macro.verification_reporter import VerificationReporter
 from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.utils.yaml import macro_from_yaml
 
@@ -35,7 +32,7 @@ class VerificationIssueOut(DynamicBaseModel):
     severity: str
     category: str
     description: str
-    affected_steps: list[Union[int, str]] = Field(default_factory=list)
+    affected_steps: list[int | str] = Field(default_factory=list)
 
 
 class VerificationReportOut(DynamicBaseModel):
@@ -46,14 +43,14 @@ class VerificationReportOut(DynamicBaseModel):
 
 class MacroVerificationResult(DynamicBaseModel):
     success: bool
-    status: Optional[str] = None
-    execution_mode: Optional[str] = None
-    confidence_score: Optional[float] = None
-    rounds_completed: Optional[int] = None
-    evolved_macro: Optional[list[dict[str, Any]]] = None
-    verification_report: Optional[VerificationReportOut] = None
-    markdown_report: Optional[str] = None
-    error: Optional[str] = None
+    status: str | None = None
+    execution_mode: str | None = None
+    confidence_score: float | None = None
+    rounds_completed: int | None = None
+    evolved_macro: list[dict[str, Any]] | None = None
+    verification_report: VerificationReportOut | None = None
+    markdown_report: str | None = None
+    error: str | None = None
 
 
 class ModeRecommendation(DynamicBaseModel):
@@ -65,22 +62,22 @@ class ModeRecommendation(DynamicBaseModel):
 
 class MacroEvolutionResult(DynamicBaseModel):
     success: bool
-    original_macro: Union[list[dict[str, Any]], MacroScript, str]
-    evolved_macro: Optional[list[dict[str, Any]]] = None
-    execution_mode: Optional[str] = None
-    confidence: Optional[float] = None
+    original_macro: list[dict[str, Any]] | MacroScript | str
+    evolved_macro: list[dict[str, Any]] | None = None
+    execution_mode: str | None = None
+    confidence: float | None = None
     improvements: list[str] = Field(default_factory=list)
-    report: Optional[VerificationReportOut] = None
-    error: Optional[str] = None
+    report: VerificationReportOut | None = None
+    error: str | None = None
 
 
 class SynthesisVerificationResult(DynamicBaseModel):
     status: str
-    evolved_macro: Optional[list[dict[str, Any]]] = None
-    execution_mode: Optional[str] = None
-    confidence: Optional[float] = None
-    report: Optional[VerificationReportOut] = None
-    error: Optional[str] = None
+    evolved_macro: list[dict[str, Any]] | None = None
+    execution_mode: str | None = None
+    confidence: float | None = None
+    report: VerificationReportOut | None = None
+    error: str | None = None
 
 
 
@@ -98,11 +95,11 @@ class VerificationService:
     @classmethod
     async def verify_macro(
         cls,
-        macro_script: Union[List[MacroStep], MacroScript, str],
+        macro_script: list[MacroStep] | MacroScript | str,
         platform: str = "web",
         max_rounds: int = 2,
         auto_evolve: bool = True,
-        thread_id: Optional[str] = None,
+        thread_id: str | None = None,
         stop_on_failure: bool = True
     ) -> MacroVerificationResult:
         """
@@ -148,7 +145,7 @@ class VerificationService:
             )
 
         # Build verification request with agent config
-        from app.core.execution.macro.verification_models import VerificationAgentConfig as AgentConfig
+        from app.core.execution.macro.models import VerificationAgentConfig as AgentConfig
         agent_config = AgentConfig(conservative_mode=stop_on_failure)
 
         request = VerificationRequest(
@@ -224,7 +221,7 @@ class VerificationService:
     @classmethod
     async def verify_and_select_mode(
         cls,
-        macro_script: Union[List[MacroStep], MacroScript],
+        macro_script: list[MacroStep] | MacroScript,
         platform: str = "web",
         confidence_threshold: float = 0.8
     ) -> ModeRecommendation:
@@ -284,7 +281,7 @@ class VerificationService:
     @classmethod
     async def evolve_macro(
         cls,
-        macro_script: Union[List[MacroStep], MacroScript, str],
+        macro_script: list[MacroStep] | MacroScript | str,
         platform: str = "web",
         max_rounds: int = 2
     ) -> MacroEvolutionResult:
@@ -366,7 +363,7 @@ class SynthesisIntegration:
 
     @staticmethod
     async def verify_for_synthesis(
-        macro_script: Union[List[Dict[str, Any]], Any],
+        macro_script: list[dict[str, Any]] | Any,
         thread_id: str,
         project_id: int = 1
     ) -> SynthesisVerificationResult:
@@ -430,7 +427,7 @@ class SynthesisIntegration:
             )
 
     @staticmethod
-    def _detect_platform(macro_script: List[MacroStep]) -> str:
+    def _detect_platform(macro_script: list[MacroStep]) -> str:
         """Detect platform from macro steps (handles nested if/else structures)"""
         sources = set()
 
@@ -488,8 +485,8 @@ class MacroServiceIntegration:
     @staticmethod
     async def execute_with_verification(
         thread_id: str,
-        macro_script: Union[MacroScript, List[Dict]],
-        params: Optional[Dict[str, Any]] = None,
+        macro_script: MacroScript | list[dict],
+        params: dict[str, Any] | None = None,
         verify_first: bool = True,
         confidence_threshold: float = 0.7
     ) -> MacroRunResult:
@@ -539,7 +536,7 @@ class MacroServiceIntegration:
 # Convenience functions for direct import
 
 async def verify_macro(
-    macro_script: List[MacroStep],
+    macro_script: list[MacroStep],
     platform: str = "web",
     max_rounds: int = 2
 ) -> MacroVerificationResult:
@@ -560,7 +557,7 @@ async def verify_macro(
 
 
 async def quick_verify(
-    macro_script: List[MacroStep],
+    macro_script: list[MacroStep],
     platform: str = "web"
 ) -> ModeRecommendation:
     """

@@ -38,15 +38,15 @@ async def list_mcp_resources(server_name: str) -> str:
         connected = await mcp_client_manager.ensure_connected(server_name)
         if not connected:
             return f"Error: MCP server '{server_name}' is not connected. Please call use_mcp_server('{server_name}') first."
-        
+
         # Get formatted list
         output = mcp_client_manager.get_resources_formatted(server_name)
-        
+
         if not output or output == "*No resources available on this server.*":
             return f"MCP server '{server_name}' is connected but has no resources available."
-        
+
         return output
-        
+
     except Exception as e:
         logger.error(f"Error listing MCP resources: {e}")
         return f"Error listing resources from '{server_name}': {str(e)}"

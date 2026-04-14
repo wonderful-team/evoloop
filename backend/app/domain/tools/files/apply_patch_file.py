@@ -4,21 +4,18 @@ Apply patch tool for complex structural changes within a single file.
 This tool uses a custom patch language for atomic, multi-hunk edits.
 Prefer this tool for complex structural changes (multiple related blocks, renames, moves).
 """
-import logging
 import asyncio
+import logging
 import os
-import shutil
-import tempfile
 from typing import List, Annotated
-
-from pydantic import BaseModel, Field
 
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import InjectedToolArg
+from pydantic import Field
 
-from app.core.tools import evoloop_tool, get_working_directory
-from app.core.file.editor import EditEngine
 from app.core.file import safe_read_with_hash, write_file_with_verification
+from app.core.file.editor import EditEngine
+from app.core.tools import evoloop_tool, get_working_directory
 from app.domain.tools.files.utils import resolve_and_validate_path
 from app.i18n.service import i18n
 from app.infrastructure.pydantic_base import DynamicBaseModel

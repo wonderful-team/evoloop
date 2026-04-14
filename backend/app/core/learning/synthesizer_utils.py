@@ -7,7 +7,7 @@ Skill Synthesizer 共享工具函数
 
 import logging
 import os
-from typing import Any, List, Optional, Tuple
+from typing import Any
 
 import yaml
 
@@ -24,9 +24,9 @@ logger = logging.getLogger(__name__)
 class MacroVerificationResult(DynamicBaseModel):
     status: str
     success: bool
-    missing_keys: List[str] = []
+    missing_keys: list[str] = []
     extracted_count: int = 0
-    error: Optional[str] = None
+    error: str | None = None
 
 
 async def verify_macro_script(
@@ -79,7 +79,7 @@ async def verify_macro_script(
         if isinstance(macro_script, str):
             from app.utils.yaml import macro_from_yaml
             steps = macro_from_yaml(macro_script)
-        
+
         expected_keys = [s["key"] for s in steps if s.get("type") == "extract"]
         missing_keys = [k for k in expected_keys if k not in extracted_data]
 
@@ -107,9 +107,9 @@ async def verify_macro_script(
 
 
 def cleanup_macro_steps(
-    steps: List[dict],
+    steps: list[dict],
     start_index: int = 1
-) -> Tuple[List[dict], int]:
+) -> tuple[list[dict], int]:
     """
     规范化宏步骤
 

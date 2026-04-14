@@ -22,10 +22,9 @@ import logging
 import subprocess
 import time
 from pathlib import Path
-from typing import List, Optional, Tuple
 
 import yaml
-from sqlalchemy import select, or_
+from sqlalchemy import or_, select
 
 from app.core.config import settings
 from app.core.learning.frame_compressor import (
@@ -38,6 +37,7 @@ from app.core.learning.frame_compressor import (
 from app.core.learning.prompts.builder import LearningPromptBuilder
 from app.core.learning.skill_synthesizer import SynthesizedSkill
 from app.core.learning.synthesizer_utils import (
+    MacroVerificationResult,
     cleanup_macro_steps,
     describe_normalized_position,
     export_skill_to_filesystem,
@@ -45,7 +45,6 @@ from app.core.learning.synthesizer_utils import (
     extract_yaml_block,
     normalize_timestamp_to_seconds,
     verify_macro_script,
-    MacroVerificationResult,
 )
 from app.infrastructure.config.service import SystemConfigService
 from app.infrastructure.database.sql.database import session_scope
@@ -62,7 +61,7 @@ class RecordingSession(DynamicBaseModel):
     video_path: str
     session_id: str
     task_description: str
-    thread_id: Optional[str] = None
+    thread_id: str | None = None
 
 
 class VideoInfo(DynamicBaseModel):
@@ -177,10 +176,10 @@ class MultimodalSkillSynthesizer:
 
         # Step 9: 辅助生成确定性宏脚本 (Fallback/Verification Basis)
         compiled_macro = await self._compile_macro_from_events(events)
-        
+
         # Step 10: 验证 Dry-run (优先验证实际要返回的宏)
         target_macro = skill_data.macro_script or compiled_macro
-        
+
         # 如果 LLM 返回的是字符串 JSON，尝试解析它
         if isinstance(target_macro, str):
             cleaned_macro = target_macro.strip()
@@ -190,7 +189,7 @@ class MultimodalSkillSynthesizer:
                 cleaned_macro = cleaned_macro[3:].strip()
             if cleaned_macro.endswith("```"):
                 cleaned_macro = cleaned_macro[:-3].strip()
-                
+
             if cleaned_macro.startswith("[") or cleaned_macro.startswith("{"):
                 try:
                     target_macro = json.loads(cleaned_macro)
@@ -211,13 +210,13 @@ class MultimodalSkillSynthesizer:
         # 如果没有有效的宏，使用编译出来的作为兜底
         if not final_steps or not isinstance(final_steps, list):
             final_steps = compiled_macro
-        
+
         # Convert to YAML string for storage
         if final_steps:
             skill_data["macro_script"] = yaml.dump(
-                final_steps, 
-                default_flow_style=False, 
-                allow_unicode=True, 
+                final_steps,
+                default_flow_style=False,
+                allow_unicode=True,
                 sort_keys=False
             )
             skill_data["execution_mode"] = "deterministic"
@@ -242,21 +241,21 @@ class MultimodalSkillSynthesizer:
             }
         }
 
-    async def _compile_macro_from_events(self, events: List[TraceEvent]) -> List[dict]:
+    async def _compile_macro_from_events(self, events: list[TraceEvent]) -> list[dict]:
         """从 TraceEvent 序列编译确定性宏脚本 (复用 WorkflowSynthesizer)"""
         from app.core.learning.skill_synthesizer import WorkflowSynthesizer
         from app.core.learning.trace_parser import TraceParser
-        
+
         if not events:
             return []
-            
+
         thread_id = events[0].thread_id or "unknown"
         session_id = events[0].recording_session_id
-        
+
         parser = TraceParser(thread_id=thread_id, session_id=session_id)
         # 转换为 TraceSequence
         sequence = parser._convert_to_sequence(events)
-        
+
         synth = WorkflowSynthesizer(thread_id=thread_id)
         macro_yaml = synth._compile_macro_script(sequence)
         # Parse YAML string to list
@@ -293,15 +292,15 @@ class MultimodalSkillSynthesizer:
             ]
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
             data = json.loads(result.stdout)
-            
+
             stream = data["streams"][0]
             format_data = data.get("format", {})
-            
+
             # 优先从 format 获取 duration
             duration = float(format_data.get("duration") or stream.get("duration", 0.0))
             width = int(stream["width"])
             height = int(stream["height"])
-            
+
             # 解析帧率
             fps_str = stream.get("r_frame_rate", "15/1")
             fps = float(fps_str.split("/")[0]) / float(fps_str.split("/")[1]) if "/" in fps_str else float(fps_str)
@@ -311,7 +310,7 @@ class MultimodalSkillSynthesizer:
             logger.error(f"Failed to get video info for {video_path}: {e}")
             return VideoInfo(duration=30.0, width=1920, height=1080, fps=self.DEFAULT_VIDEO_FPS)
 
-    async def _fetch_events(self, session_id: str) -> List[TraceEvent]:
+    async def _fetch_events(self, session_id: str) -> list[TraceEvent]:
         """从数据库获取事件并进行时间轴归一化"""
         async with session_scope() as session:
             stmt = select(TraceEvent).where(
@@ -342,9 +341,9 @@ class MultimodalSkillSynthesizer:
     async def _extract_and_compress_frames(
         self,
         video_path: str,
-        keyframes: List[KeyframeCandidate],
-        original_resolution: Tuple[int, int]
-    ) -> List[CompressedFrame]:
+        keyframes: list[KeyframeCandidate],
+        original_resolution: tuple[int, int]
+    ) -> list[CompressedFrame]:
         """批量提取并压缩帧"""
         frames = []
         logger.info(f"[KeyframeExtraction] Starting extraction of {len(keyframes)} keyframes from video: {video_path}")
@@ -417,11 +416,11 @@ class MultimodalSkillSynthesizer:
         output_path = Path(tempfile.gettempdir()) / f"evoloop_frame_{timestamp:.3f}.jpg"
 
         cmd = [
-            "ffmpeg", "-y", 
-            "-ss", str(timestamp), 
-            "-i", video_path, 
-            "-frames:v", "1", 
-            "-q:v", "2", 
+            "ffmpeg", "-y",
+            "-ss", str(timestamp),
+            "-i", video_path,
+            "-frames:v", "1",
+            "-q:v", "2",
             "-pix_fmt", "yuvj420p", # Mac JPEG 兼容性
             str(output_path)
         ]
@@ -430,20 +429,20 @@ class MultimodalSkillSynthesizer:
             raise RuntimeError(f"FFmpeg extraction failed: {result.stderr.decode()}")
         return str(output_path)
 
-    def _build_event_context(self, events: List[TraceEvent], original_resolution: Tuple[int, int]) -> str:
+    def _build_event_context(self, events: list[TraceEvent], original_resolution: tuple[int, int]) -> str:
         """构建详细的事件内容上下文 (用于 Prompt) - 使用模板渲染"""
         from app.utils import render_template
-        
+
         normalizer = CoordinateNormalizer(original_resolution[0], original_resolution[1])
-        
+
         # 准备原始数据，格式化逻辑移至模板
         event_data = []
         for event in events:
             if event.action_type in ("mouse_move", "cursor_move", "touch_up"):
                 continue
-            
+
             norm_pos = normalizer.normalize(getattr(event, 'mouse_x', None), getattr(event, 'mouse_y', None))
-            
+
             event_data.append({
                 "action_name": "tap" if event.action_type == "touch_down" else event.action_type,
                 "timestamp": getattr(event, 'timestamp', 0.0),
@@ -454,7 +453,7 @@ class MultimodalSkillSynthesizer:
                 "app": getattr(event, 'app_name', None),
                 "key": getattr(event, 'key_name', None),
             })
-        
+
         return render_template(
             "events/event_context.prompt.j2",
             events=event_data,
@@ -463,12 +462,12 @@ class MultimodalSkillSynthesizer:
 
     def _associate_events_to_frames(
         self,
-        frames: List[CompressedFrame],
-        keyframes: List[KeyframeCandidate],
+        frames: list[CompressedFrame],
+        keyframes: list[KeyframeCandidate],
         normalizer: CoordinateNormalizer
-    ) -> List[CompressedFrame]:
+    ) -> list[CompressedFrame]:
         """将事件语义关联到关键帧对象中"""
-        for frame, keyframe in zip(frames, keyframes):
+        for frame, keyframe in zip(frames, keyframes, strict=False):
             if keyframe.related_event:
                 pos = normalizer.normalize(
                     getattr(keyframe.related_event, 'mouse_x', None),
@@ -485,7 +484,7 @@ class MultimodalSkillSynthesizer:
                 }]
         return frames
 
-    async def _get_bundle_id_from_events(self, events: List[TraceEvent]) -> str:
+    async def _get_bundle_id_from_events(self, events: list[TraceEvent]) -> str:
         """
         从事件中提取包名。对于跨应用场景，返回逗号分隔的列表。
         """
@@ -522,10 +521,10 @@ class MultimodalSkillSynthesizer:
 
         if not all_apps:
             return "unknown"
-            
+
         return ", ".join(all_apps)
 
-    async def _call_vision_llm(self, task_description: str, bundle_id: str, frames: List[CompressedFrame], event_context: str) -> str:
+    async def _call_vision_llm(self, task_description: str, bundle_id: str, frames: list[CompressedFrame], event_context: str) -> str:
         """构建多模态消息并调用 LLM"""
         from langchain_core.messages import HumanMessage, SystemMessage
 
@@ -534,21 +533,21 @@ class MultimodalSkillSynthesizer:
 
         # 构建人机交互内容
         content = []
-        
+
         # 1. 构建核心任务上下文
         app_context_label = "Target Applications" if ", " in bundle_id else "Target Application (Package Name)"
-        
+
         context_vars = {
             "task_description": task_description,
             "app_context_label": app_context_label,
             "bundle_id": bundle_id,
             "event_context": event_context
         }
-        
+
         task_context = self.prompt_builder.build_multimodal_context_prompt(context_vars)
 
         content.append({
-            "type": "text", 
+            "type": "text",
             "text": task_context
         })
 
@@ -579,7 +578,7 @@ class MultimodalSkillSynthesizer:
         except Exception as e:
             logger.error(f"Failed to render Multimodal Frames template: {e}")
             content.append({"type": "text", "text": "## Keyframes Analysis\n(Error rendering frames detail)"})
-            
+
             # 插入 Base64 图片
             base64_img = base64.b64encode(frame.data).decode('utf-8')
             content.append({
@@ -591,7 +590,7 @@ class MultimodalSkillSynthesizer:
             SystemMessage(content=system_prompt),
             HumanMessage(content=content)
         ]
-        
+
         response = await self.vision_llm.ainvoke(messages)
         return str(response.content)
 
@@ -623,11 +622,11 @@ class MultimodalSkillSynthesizer:
             execution_mode="deterministic" if metadata.get("macro_script") else "agentic",
         )
 
-    def _extract_yaml(self, text: str) -> Optional[str]:
+    def _extract_yaml(self, text: str) -> str | None:
         """提取 YAML 代码块"""
         return extract_yaml_block(text)
 
-    def _extract_instructions(self, text: str) -> Optional[str]:
+    def _extract_instructions(self, text: str) -> str | None:
         """从响应中提取 Markdown 文档部分"""
         # [v4 Meta-Clean] 动态匹配预定义的标准化标记
         result = extract_instructions_section(text)

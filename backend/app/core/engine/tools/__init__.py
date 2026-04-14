@@ -2,6 +2,7 @@
 Engine Tools - Dynamic task planning and execution utilities.
 """
 
+from .learning import synthesize_skill
 from .orchestration import (
     aggregate_results,
     decompose_task,
@@ -9,7 +10,6 @@ from .orchestration import (
     route_to,
     spawn_agents,
 )
-from .learning import synthesize_skill
 
 __all__ = [
     # "update_blackboard",

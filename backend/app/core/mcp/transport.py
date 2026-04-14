@@ -3,12 +3,13 @@
 import logging
 import os
 import sys
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager, contextmanager
-from typing import Any, AsyncGenerator
+from typing import Any
 
 from mcp import ClientSession
 from mcp.client.sse import sse_client
-from mcp.client.stdio import stdio_client, StdioServerParameters
+from mcp.client.stdio import StdioServerParameters, stdio_client
 
 from app.core.mcp.config import McpServerConfig, TransportType, is_sse_url
 
@@ -59,18 +60,18 @@ class McpTransport:
             logger.info(f"Connecting via SSE to {url}")
             async with sse_client(url, headers=config.headers) as (read, write):
                 yield read, write
-                
+
         else:
             # Stdio transport
             full_env = os.environ.copy()
             full_env.update(config.env)
-            
+
             server_params = StdioServerParameters(
                 command=config.command,
                 args=config.args,
                 env=full_env
             )
-            
+
             logger.info(f"Connecting via stdio to {config.command}")
             with restore_std_streams():
                 async with stdio_client(server_params) as (read, write):
@@ -78,7 +79,7 @@ class McpTransport:
 
     @staticmethod
     async def create_session(
-        read_stream: Any, 
+        read_stream: Any,
         write_stream: Any
     ) -> ClientSession:
         """

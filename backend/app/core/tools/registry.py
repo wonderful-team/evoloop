@@ -375,12 +375,12 @@ def get_tool_affected_paths(tool_name: str, tool_args: dict) -> list[str]:
         tool = tool_map[tool_name]
         metadata = getattr(tool, "metadata", {})
         path_keys = metadata.get("affected_path_keys", [])
-        
+
         for key in path_keys:
             val = tool_args.get(key)
             if val and isinstance(val, str):
                 snapshot_paths.append(val)
-                
-    # Legacy fallback removed. 
+
+    # Legacy fallback removed.
     # All mutation-sensitive tools MUST use @evoloop_tool(affected_path_keys=[...])
     return snapshot_paths

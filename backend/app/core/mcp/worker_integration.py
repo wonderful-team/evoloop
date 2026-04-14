@@ -21,7 +21,7 @@ class WorkerMcpIntegration:
     2. Provide tools to Worker during execution
     3. Cleanup sessions when Worker ends
     """
-    
+
     @staticmethod
     async def initialize_worker_mcp(
         worker_id: str,
@@ -53,21 +53,21 @@ class WorkerMcpIntegration:
                     tools.extend(server_tools)
                 return tools
             return []
-        
+
         # Create isolated Worker MCP session
         session = worker_mcp_manager.create_session(worker_id, worker_name)
         all_tools: list[StructuredTool] = []
-        
+
         # 1. Connect Worker-specific servers
         if mcp_config.auto_connect:
             for server_config in mcp_config.servers:
                 # Skip if inheriting from global
                 if server_config.inherit_from_global:
                     continue
-                
+
                 mcp_cfg = server_config.to_mcp_config()
                 success = await session.connect_server(mcp_cfg)
-                
+
                 if success:
                     # Add tools from this server
                     server_tools = session.get_tools_for(server_config.name)
@@ -81,12 +81,12 @@ class WorkerMcpIntegration:
                         f"[WorkerMcp] {worker_name} failed to connect to "
                         f"{server_config.name}"
                     )
-        
+
         # 2. Handle inherited global servers
         for server_name in mcp_config.inherit_servers:
             # Check if this server was explicitly requested in ticket
             requested_servers = execution_ticket.mcp_servers_required or [] if execution_ticket else []
-            
+
             if server_name in requested_servers:
                 # Use global connection, get tools
                 server_tools = await mcp_client_manager.get_tools(server_name)
@@ -99,7 +99,7 @@ class WorkerMcpIntegration:
                     f"[WorkerMcp] {worker_name} inherited {len(server_tools)} tools "
                     f"from global {server_name}"
                 )
-        
+
         # 3. Handle dynamically requested servers from execution_ticket
         # These are servers requested via use_mcp_server tool
         requested_servers = execution_ticket.mcp_servers_required or [] if execution_ticket else []
@@ -109,7 +109,7 @@ class WorkerMcpIntegration:
                 continue
             if server_name in mcp_config.inherit_servers:
                 continue
-            
+
             # Try to connect dynamically
             server_tools = await mcp_client_manager.get_tools(server_name)
             all_tools.extend(server_tools)
@@ -117,7 +117,7 @@ class WorkerMcpIntegration:
                 f"[WorkerMcp] {worker_name} dynamically loaded {len(server_tools)} tools "
                 f"from {server_name}"
             )
-        
+
         # Log summary
         summary = session.get_connection_summary()
         logger.info(
@@ -125,9 +125,9 @@ class WorkerMcpIntegration:
             f"{summary['tools_count']} tools from "
             f"{len(summary['connected_servers'])} servers"
         )
-        
+
         return all_tools
-    
+
     @staticmethod
     def get_worker_tools(worker_id: str) -> list[StructuredTool]:
         """
@@ -143,7 +143,7 @@ class WorkerMcpIntegration:
         if session:
             return session.get_tools()
         return []
-    
+
     @staticmethod
     async def cleanup_worker_mcp(worker_id: str) -> None:
         """
@@ -153,7 +153,7 @@ class WorkerMcpIntegration:
             worker_id: Worker instance ID
         """
         await worker_mcp_manager.cleanup_session(worker_id)
-    
+
     @staticmethod
     def has_worker_mcp(worker_id: str) -> bool:
         """Check if a Worker has an active MCP session."""

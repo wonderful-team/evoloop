@@ -1,19 +1,19 @@
-import logging
 import json
+import logging
 import os
 import time
 from datetime import datetime
-from typing import Any, Dict, List, Optional
-from pydantic import BaseModel, ConfigDict, Field
+from typing import Any
 
 from langchain_core.callbacks import AsyncCallbackHandler
 from langchain_core.outputs import LLMResult
+from pydantic import Field
 
 from app.core.config import settings
 from app.core.context.manager import ContextManager
 from app.infrastructure.database.sql.database import session_scope
-from app.utils.path import ensure_dir
 from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.utils.path import ensure_dir
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +33,7 @@ class ActionTrace(DynamicBaseModel):
     platform: str     # android, web, desktop
     parameters: TraceParameters
     context: TraceContext = Field(default_factory=TraceContext) # View hierarchy, URL, etc.
-    screenshot_path: Optional[str] = None
+    screenshot_path: str | None = None
 
 
 class TraceRecorder:
@@ -41,14 +41,14 @@ class TraceRecorder:
     Captures user interaction traces from Mirror Sessions or Browsers.
     These traces are the raw material for Imitation Learning.
     """
-    
+
     def __init__(self, session_id: str):
         self.session_id = session_id
-        self.traces: List[ActionTrace] = []
+        self.traces: list[ActionTrace] = []
         self.is_recording = False
         self.output_dir = os.path.join(settings.BROWSER_ARTIFACTS_DIR, "traces", session_id)
         ensure_dir(self.output_dir)
-        
+
     def start(self):
         """Starts the recording session."""
         logger.info(f"[TraceRecorder] Starting recording for session: {self.session_id}")
@@ -63,12 +63,12 @@ class TraceRecorder:
         return file_path
 
     async def record_action(
-        self, 
-        action_type: str, 
-        platform: str, 
-        parameters: Dict[str, Any], 
-        context: Optional[Dict[str, Any]] = None, 
-        screenshot_data: Optional[bytes] = None
+        self,
+        action_type: str,
+        platform: str,
+        parameters: dict[str, Any],
+        context: dict[str, Any] | None = None,
+        screenshot_data: bytes | None = None
     ):
         """Records a single action with its context."""
         if not self.is_recording:
@@ -76,7 +76,7 @@ class TraceRecorder:
 
         timestamp = time.time()
         screenshot_path = None
-        
+
         if screenshot_data:
             screenshot_path = os.path.join(self.output_dir, f"step_{len(self.traces)}_{int(timestamp)}.png")
             with open(screenshot_path, "wb") as f:
@@ -110,16 +110,16 @@ class TraceRecorder:
                 } for t in self.traces
             ]
         }
-        
+
         file_path = os.path.join(self.output_dir, "trace.json")
         with open(file_path, "w", encoding="utf-8") as f:
             json.dump(trace_data, f, indent=2, ensure_ascii=False)
-            
+
         return file_path
 
 
 # Global registry for active recorders
-_active_recorders: Dict[str, TraceRecorder] = {}
+_active_recorders: dict[str, TraceRecorder] = {}
 
 
 def get_recorder(session_id: str) -> TraceRecorder:
@@ -214,7 +214,9 @@ class TraceCallbackHandler(AsyncCallbackHandler):
         """Persist a single trace event into the TraceEvent table."""
         try:
             from app.infrastructure.database.sql.database import session_scope
-            from app.models.learning import TraceEvent  # avoid circular import at module load
+            from app.models.learning import (
+                TraceEvent,  # avoid circular import at module load
+            )
 
             self._step += 1
             ctx = ContextManager.current()
@@ -274,9 +276,9 @@ async def sync_thread_to_graph(
         source_message_id: Optional originating message ID for traceability.
     """
     try:
-        from app.models.learning import TraceEvent
-        from app.core.memory import MemoryContainer, MemoryConfig
         from sqlalchemy import select
+
+        from app.models.learning import TraceEvent
 
         async with session_scope() as session:
             stmt = select(TraceEvent).where(TraceEvent.thread_id == thread_id).order_by(TraceEvent.step_number)
@@ -289,14 +291,14 @@ async def sync_thread_to_graph(
 
         # Build a compact action summary from the recorded events using template
         from app.utils import render_template
-        
+
         action_data = []
         for ev in events[:50]:  # cap at 50 events
             try:
                 payload = ev.action_payload if isinstance(ev.action_payload, dict) else json.loads(ev.action_payload) if ev.action_payload else {}
             except Exception:
                 payload = {}
-            
+
             action_info = {
                 "type": ev.action_type,
                 "name": payload.get('name', '?') if ev.action_type == "tool_call" else None,
@@ -305,7 +307,7 @@ async def sync_thread_to_graph(
                 "content": payload.get("content") if ev.action_type == "llm_output" else None,
             }
             action_data.append(action_info)
-        
+
         actions_text = render_template("events/action_summary.prompt.j2", actions=action_data)
 
         # Improved result summary fallback

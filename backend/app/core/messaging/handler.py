@@ -7,7 +7,7 @@ MessageHandler - 消息处理器
 
 import logging
 import time
-from typing import Any, Optional
+from typing import Any
 
 from app.core.messaging.category import MessageCategory
 from app.core.messaging.classifier import MessageClassifier
@@ -46,12 +46,12 @@ class MessageHandler:
             metadata={"node_source": "worker"}
         )
     """
-    
+
     def __init__(
         self,
         thread_id: str,
-        project_id: Optional[int] = None,
-        run_id: Optional[str] = None,
+        project_id: int | None = None,
+        run_id: str | None = None,
         start_sequence: int = 0,
     ):
         self.thread_id = thread_id
@@ -60,13 +60,13 @@ class MessageHandler:
         self._sequence_counter = start_sequence
         self._last_logged_hash = None
         self._last_logged_time = 0
-    
+
     async def handle_ai_message(
         self,
         content: str,
-        tool_calls: Optional[list] = None,
-        thinking: Optional[str] = None,
-        metadata: Optional[dict] = None,
+        tool_calls: list | None = None,
+        thinking: str | None = None,
+        metadata: dict | None = None,
     ) -> MessageHandlerResult:
         """
         处理 AI 助手消息
@@ -92,7 +92,7 @@ class MessageHandler:
             tool_calls=tool_calls,
             metadata=metadata,
         )
-        
+
         # 2. 应用策略
         persist_data = MessagePersistencePolicy.apply_policy(
             category=category,
@@ -100,18 +100,18 @@ class MessageHandler:
             tool_calls=tool_calls,
             thinking=thinking,
         )
-        
+
         logger.info(f"[UnifiedHandler] AI message classified as: {category.value}, persist={persist_data['should_persist']}")
-        
+
         stream_data = MessageStreamPolicy.apply_policy(
             category=category,
             content=content,
             metadata=metadata,
         )
-        
+
         # 3. 去重检查
         if self._is_duplicate(category, content, tool_calls):
-            logger.debug(f"[UnifiedHandler] Duplicate message detected, skipping")
+            logger.debug("[UnifiedHandler] Duplicate message detected, skipping")
             return MessageHandlerResult(
                 category=category.value,
                 persisted=False,
@@ -119,7 +119,7 @@ class MessageHandler:
                 message_id=None,
                 reason="duplicate",
             )
-        
+
         # 4. 持久化
         message_id = None
         if persist_data.should_persist:
@@ -131,7 +131,7 @@ class MessageHandler:
                 category=category.value,
                 is_visible=category.is_visible_to_user,
             )
-        
+
         # 5. 流式推送
         if stream_data.should_stream:
             await self._stream_to_frontend(
@@ -141,19 +141,19 @@ class MessageHandler:
                 metadata=metadata,
                 tool_calls=persist_data.tool_calls,
             )
-        
+
         return MessageHandlerResult(
             category=category.value,
             persisted=persist_data.should_persist,
             streamed=stream_data.should_stream,
             message_id=message_id,
         )
-    
+
     async def handle_tool_output(
         self,
         tool_name: str,
         output: Any,
-        run_id: Optional[str] = None,
+        run_id: str | None = None,
     ) -> MessageHandlerResult:
         """
         处理工具输出消息
@@ -168,22 +168,22 @@ class MessageHandler:
         """
         # 1. 分类
         category = MessageClassifier.classify_tool_output(tool_name, output)
-        
+
         content = str(output) if output else ""
-        
+
         # 2. 应用策略
         persist_data = MessagePersistencePolicy.apply_policy(
             category=category,
             content=content,
         )
-        
+
         logger.info(f"[UnifiedHandler] Tool {tool_name} output classified as: {category.value}, persist={persist_data['should_persist']}")
-        
+
         stream_data = MessageStreamPolicy.apply_policy(
             category=category,
             content=content,
         )
-        
+
         # 3. 持久化
         message_id = None
         if persist_data.should_persist:
@@ -194,7 +194,7 @@ class MessageHandler:
                 action_type="tool_output",
                 is_visible=category.is_visible_to_user,
             )
-        
+
         # 4. 流式推送
         if stream_data.should_stream:
             await self._stream_to_frontend(
@@ -203,18 +203,18 @@ class MessageHandler:
                 category=category.value,
                 tool_name=tool_name,
             )
-        
+
         return MessageHandlerResult(
             category=category.value,
             persisted=persist_data.should_persist,
             streamed=stream_data.should_stream,
             message_id=message_id,
         )
-    
+
     async def handle_user_message(
         self,
         content: str,
-        metadata: Optional[dict] = None,
+        metadata: dict | None = None,
     ) -> MessageHandlerResult:
         """
         处理用户消息
@@ -227,7 +227,7 @@ class MessageHandler:
             dict: 处理结果
         """
         category = MessageCategory.USER
-        
+
         # 用户消息默认持久化和推送
         message_id = await self._persist_to_db(
             role="human",
@@ -235,25 +235,25 @@ class MessageHandler:
             category=category.value,
             is_visible=True,
         )
-        
+
         await self._stream_to_frontend(
             content=content,
             frontend_type="human",
             category=category.value,
         )
-        
+
         return MessageHandlerResult(
             category=category.value,
             persisted=True,
             streamed=True,
             message_id=message_id,
         )
-    
+
     def _is_duplicate(
         self,
         category: MessageCategory,
         content: str,
-        tool_calls: Optional[list],
+        tool_calls: list | None,
     ) -> bool:
         """
         检查是否是重复消息（简单去重）
@@ -261,34 +261,34 @@ class MessageHandler:
         基于内容的哈希和时间窗口判断
         """
         import hashlib
-        
+
         content_hash = hashlib.md5(
             f"{category.value}:{content}:{str(tool_calls)}".encode()
         ).hexdigest()[:16]
-        
+
         current_time = time.time()
-        
+
         # 2 秒内的相同内容视为重复
         if (
             content_hash == self._last_logged_hash
             and (current_time - self._last_logged_time) < 2.0
         ):
             return True
-        
+
         self._last_logged_hash = content_hash
         self._last_logged_time = current_time
         return False
-    
+
     async def _persist_to_db(
         self,
         role: str,
-        content: Optional[str],
-        thinking: Optional[str] = None,
-        tool_calls: Optional[list] = None,
+        content: str | None,
+        thinking: str | None = None,
+        tool_calls: list | None = None,
         category: str = "",
         action_type: str = "text",
         is_visible: bool = True,
-    ) -> Optional[str]:
+    ) -> str | None:
         """
         持久化消息到数据库
         
@@ -297,12 +297,12 @@ class MessageHandler:
         if not content and not thinking:
             logger.warning(f"[UnifiedHandler] Skipping persist for {role}: no content or thinking")
             return None
-        
+
         try:
             self._sequence_counter += 1
-            
+
             logger.info(f"[UnifiedHandler] Persisting {role} message (seq={self._sequence_counter}, cat={category})")
-            
+
             # 发送到 Celery 后台任务
             get_scheduler().send_task(
                 "engine_persist_message",
@@ -320,35 +320,35 @@ class MessageHandler:
                     "is_visible": is_visible,
                 }
             )
-            
+
             # 返回临时 ID（实际 DB ID 会在后台生成）
             return f"temp-{self.thread_id}-{self._sequence_counter}"
-            
+
         except Exception as e:
             logger.error(f"[UnifiedHandler] Failed to persist message: {e}")
             return None
-    
+
     async def _stream_to_frontend(
         self,
         content: str,
         frontend_type: str,
         category: str,
-        metadata: Optional[dict] = None,
-        tool_name: Optional[str] = None,
-        tool_calls: Optional[list] = None,
+        metadata: dict | None = None,
+        tool_name: str | None = None,
+        tool_calls: list | None = None,
     ):
         """
         推送消息到前端（SSE/WebSocket）
         """
         try:
+
             from app.core.monitoring.activity import activity_monitor
-            from app.models.schemas.events import MessageEvent
             from app.core.tools.registry import get_tool_friendly_name
-            import json
-            
+            from app.models.schemas.events import MessageEvent
+
             if not activity_monitor or not hasattr(activity_monitor, "client"):
                 return
-            
+
             msg_data = {
                 "id": f"temp-{time.time()}",
                 "role": frontend_type,
@@ -358,10 +358,10 @@ class MessageHandler:
                 "timestamp": int(time.time() * 1000),
                 "tool_calls": tool_calls,
             }
-            
+
             if metadata:
                 msg_data["metadata"] = metadata
-            
+
             if tool_name:
                 # 传递原始工具名
                 msg_data["tool_name"] = tool_name
@@ -369,11 +369,11 @@ class MessageHandler:
                 friendly_name = get_tool_friendly_name(tool_name, lang="zh")
                 if friendly_name:
                     msg_data["tool_name_display"] = friendly_name
-            
+
             channel = f"chat:{self.thread_id}:events"
             message = MessageEvent(data=msg_data).model_dump_json()
-            
+
             await activity_monitor.client.publish(channel, message)
-            
+
         except Exception as e:
             logger.warning(f"[UnifiedHandler] Failed to stream message: {e}")

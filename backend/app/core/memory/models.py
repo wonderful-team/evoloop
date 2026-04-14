@@ -1,8 +1,7 @@
 import uuid
-import uuid
 from datetime import datetime
 from enum import Enum
-from typing import Any, List, Optional
+from typing import Any, Optional
 
 import yaml
 from pydantic import Field, model_validator
@@ -25,9 +24,9 @@ class PrivacyLevel(str, Enum):
 
 
 class MemoryMetadata(DynamicBaseModel):
-    source_url: Optional[str] = None
-    author: Optional[str] = None
-    related_message_ids: List[str] = Field(default_factory=list)
+    source_url: str | None = None
+    author: str | None = None
+    related_message_ids: list[str] = Field(default_factory=list)
 
 
 class MemoryEntry(DynamicBaseModel):
@@ -37,31 +36,31 @@ class MemoryEntry(DynamicBaseModel):
     """
     # Identity
     id: str = Field(default_factory=lambda: f"mem_{uuid.uuid4().hex[:8]}")
-    
+
     # Classification
     type: MemoryType = MemoryType.PROJECT
     privacy: PrivacyLevel = PrivacyLevel.PRIVATE
-    
+
     # Content
     title: str
     content: str
     description: str = ""
-    
+
     # Metadata
-    project_id: Optional[int] = None
-    user_id: Optional[str] = None
-    tags: List[str] = Field(default_factory=list)
-    
+    project_id: int | None = None
+    user_id: str | None = None
+    tags: list[str] = Field(default_factory=list)
+
     # Source tracking
     source: str = "manual"
-    source_message_id: Optional[str] = None
+    source_message_id: str | None = None
     confidence: float = Field(default=1.0, ge=0.0, le=1.0)
-    
+
     # Versioning
     version: int = 1
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
-    
+
     # Additional metadata
     extra: MemoryMetadata = Field(default_factory=MemoryMetadata)
 
@@ -103,52 +102,52 @@ class MemoryEntry(DynamicBaseModel):
         return f"---\n{yaml_content}---\n\n{self.content}"
 
     @classmethod
-    def from_frontmatter(cls, text: str, file_path: Optional[str] = None) -> "MemoryEntry":
+    def from_frontmatter(cls, text: str, file_path: str | None = None) -> "MemoryEntry":
         """Parse from Markdown with YAML frontmatter."""
         if not text.startswith("---"):
             return cls._from_content_only(text, file_path)
-        
+
         parts = text.split("---", 2)
         if len(parts) < 3:
             raise ValueError(f"Invalid frontmatter format in {file_path or 'unknown'}")
-        
+
         try:
             frontmatter = yaml.safe_load(parts[1])
         except yaml.YAMLError as e:
             raise ValueError(f"Invalid YAML frontmatter in {file_path or 'unknown'}: {e}")
-        
+
         if not isinstance(frontmatter, dict):
             raise ValueError(f"Frontmatter must be a dict in {file_path or 'unknown'}")
-        
+
         content = parts[2].strip()
-        
+
         # Parse timestamps safely via Pydantic validator or manual
         data = {**frontmatter, "content": content}
         return cls.model_validate(data)
 
     @classmethod
-    def _from_content_only(cls, text: str, file_path: Optional[str] = None) -> "MemoryEntry":
+    def _from_content_only(cls, text: str, file_path: str | None = None) -> "MemoryEntry":
         """Create entry from content only (infer metadata from path)."""
         mem_type = MemoryType.PROJECT
         privacy = PrivacyLevel.PRIVATE
-        
+
         if file_path:
             path_lower = file_path.lower()
             if "/private/" in path_lower:
                 privacy = PrivacyLevel.PRIVATE
             elif "/team/" in path_lower:
                 privacy = PrivacyLevel.TEAM
-            
+
             if "/user" in path_lower:
                 mem_type = MemoryType.USER
             elif "/feedback" in path_lower:
                 mem_type = MemoryType.FEEDBACK
             elif "/reference" in path_lower:
                 mem_type = MemoryType.REFERENCE
-        
+
         lines = text.strip().split("\n")
         title = lines[0][:100] if lines else "Untitled"
-        
+
         return cls(
             type=mem_type,
             privacy=privacy,
@@ -178,7 +177,7 @@ class MemorySearchResult(DynamicBaseModel):
     description: str
     created_at: datetime
     updated_at: datetime
-    
+
     def to_dict(self) -> dict:
         """Legacy compatibility method."""
         return self.model_dump()
@@ -189,13 +188,13 @@ class MemoryIndexEntry(DynamicBaseModel):
     title: str
     path: str
     description: str
-    
+
     def to_index_line(self) -> str:
         """Format as index line."""
         if self.description:
             return f"- [{self.title}]({self.path}) — {self.description[:100]}"
         return f"- [{self.title}]({self.path})"
-    
+
     @classmethod
     def from_index_line(cls, line: str) -> Optional["MemoryIndexEntry"]:
         """Parse from index line."""
@@ -205,3 +204,15 @@ class MemoryIndexEntry(DynamicBaseModel):
         if match:
             return cls(title=match.group(1), path=match.group(2), description=match.group(3) or "")
         return None
+
+
+class CheckpointDedupResult(DynamicBaseModel):
+    """Result of a checkpoint deduplication operation."""
+    dry_run: bool = True
+    total_checkpoints: int = 0
+    duplicate_groups: int = 0
+    duplicates_found: int = 0
+    duplicates_removed: int = 0
+    bytes_saved: int = 0
+    elapsed_ms: int = 0
+    error: str | None = None

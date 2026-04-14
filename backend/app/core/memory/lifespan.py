@@ -25,8 +25,8 @@ Usage:
 
 import asyncio
 import logging
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import Optional, AsyncGenerator
 
 from fastapi import FastAPI
 
@@ -47,13 +47,13 @@ class MemoryLifespanManager:
     3. Graceful shutdown at exit
     4. Thread-safe access
     """
-    
-    _instance: Optional[MemoryContainer] = None
-    _config: Optional[MemoryConfig] = None
+
+    _instance: MemoryContainer | None = None
+    _config: MemoryConfig | None = None
     _lock = asyncio.Lock()
-    
+
     @classmethod
-    def initialize(cls, config: Optional[MemoryConfig] = None) -> MemoryContainer:
+    def initialize(cls, config: MemoryConfig | None = None) -> MemoryContainer:
         """
         Initialize the global memory container.
         
@@ -68,16 +68,16 @@ class MemoryLifespanManager:
         """
         if cls._instance is not None:
             raise RuntimeError("MemoryContainer already initialized. Call shutdown() first.")
-        
+
         cls._config = config or MemoryConfig.from_settings()
         cls._instance = MemoryContainer(cls._config)
-        
+
         # Note: We don't call initialize() here because it's async
         # Use ainit() for async initialization
         return cls._instance
-    
+
     @classmethod
-    async def ainitialize(cls, config: Optional[MemoryConfig] = None) -> MemoryContainer:
+    async def ainitialize(cls, config: MemoryConfig | None = None) -> MemoryContainer:
         """
         Async initialize the global memory container.
         """
@@ -87,19 +87,19 @@ class MemoryLifespanManager:
                 return cls._instance
             # Wait for it (this is a simple spin wait, better would be a lock)
             # For now, let's just use a lock
-            
+
         async with cls._lock:
             if cls._instance is not None:
                 if not cls._instance._initialized:
                     await cls._instance.initialize()
                 return cls._instance
-                
+
             cls._config = config or MemoryConfig.from_settings()
             cls._instance = MemoryContainer(cls._config)
             await cls._instance.initialize()
             logger.info("[MemoryLifespan] MemoryContainer initialized")
             return cls._instance
-    
+
     @classmethod
     async def shutdown(cls) -> None:
         """
@@ -116,7 +116,7 @@ class MemoryLifespanManager:
             finally:
                 cls._instance = None
                 cls._config = None
-    
+
     @classmethod
     def get_container(cls) -> MemoryContainer:
         """
@@ -134,7 +134,7 @@ class MemoryLifespanManager:
                 "Call MemoryLifespanManager.ainitialize() first."
             )
         return cls._instance
-    
+
     @classmethod
     def get_manager(cls) -> MemoryManager:
         """
@@ -149,7 +149,7 @@ class MemoryLifespanManager:
             RuntimeError: If not initialized
         """
         return cls.get_container().memory_manager
-    
+
     @classmethod
     def is_initialized(cls) -> bool:
         """Check if the memory container is fully initialized."""
@@ -171,7 +171,7 @@ def get_memory_manager() -> MemoryManager:
 # FastAPI lifespan context manager
 
 @asynccontextmanager
-async def memory_lifespan(app: Optional[FastAPI] = None) -> AsyncGenerator[MemoryContainer, None]:
+async def memory_lifespan(app: FastAPI | None = None) -> AsyncGenerator[MemoryContainer, None]:
     """
     FastAPI lifespan context manager for memory system.
     

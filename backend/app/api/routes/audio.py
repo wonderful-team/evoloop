@@ -15,6 +15,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, Form
 from fastapi.responses import StreamingResponse, FileResponse
 
 from app.api.deps import require_benefit
+from app.api.responses import BaseAPIResponse
 from app.core.voice import (
     get_tts_provider,
     get_stt_provider,

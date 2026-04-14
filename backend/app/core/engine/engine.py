@@ -10,9 +10,10 @@ import asyncio
 import hashlib
 import json
 import logging
+import os
 import re
 import time
-from typing import Any
+from typing import Any, Optional
 
 from langchain_core.messages import (
     AIMessage,
@@ -33,7 +34,7 @@ from app.core.engine.message_utils import (
     repair_message_history,
     smart_window_slice,
 )
-from app.core.engine.state import AgentState
+from app.core.engine.state import AgentState, BlackboardState
 from app.core.engine.tool_executor import AgentToolExecutor
 from app.core.memory.tool_output_memory import get_tool_memory_from_state
 from app.core.monitoring.activity import activity_monitor
@@ -121,7 +122,7 @@ class AgentEngine:
             model = config.get("configurable", {}).get("model")
 
         llm = await self._llm_factory.create_llm(model_name=model, temperature=temperature)
-        
+
         # 1.1 Detect Provider for Prompt Caching
         provider = "openai"
         try:
@@ -244,11 +245,11 @@ class AgentEngine:
         """Core ReAct Loop Logic."""
         # 0. Build optimized system messages for Prompt Caching
         system_messages = self._build_system_messages(system_prompt, messages, provider)
-        
+
         # 1. Separate context ticket and history messages
         # Standard ReAct: System + History
         history_messages = [m for m in messages if not isinstance(m, SystemMessage)]
-        
+
         loop_messages = system_messages + history_messages
 
         if not history_messages:
@@ -272,7 +273,7 @@ class AgentEngine:
                 start_perf = time.perf_counter()
                 response = await llm_with_tools.ainvoke(loop_messages, config=config)
                 latency = time.perf_counter() - start_perf
-                
+
                 # Update log with success
                 try:
                     with open("tests/monitoring/audit_evidence.log", "a") as f:
@@ -340,13 +341,13 @@ class AgentEngine:
                 logger.info(f"[{name}] 🏁 Finished with text response (no tool calls).")
                 break
 
+            from app.core.callbacks.transparent import TransparentCallbackHandler
             from app.core.engine.signals import RouteToSignal, SpawnSubtasksSignal
             from app.core.tools.executor import ToolExecutor as _ToolExecutor
-            from app.core.callbacks.transparent import TransparentCallbackHandler
 
             # Turn-level signal tracking
             pending_signal = None
-            
+
             # Extract TransparentCallbackHandler to restore observability for intercepted tools
             evoloop_handler = None
             callbacks = config.get("callbacks", []) if config else []
@@ -367,7 +368,7 @@ class AgentEngine:
                     if evoloop_handler:
                         try:
                             await evoloop_handler.on_tool_start(
-                                serialized={"name": "route_to"}, 
+                                serialized={"name": "route_to"},
                                 input_str=json.dumps(tc["args"], ensure_ascii=False),
                                 run_id=tc["id"]
                             )
@@ -393,7 +394,7 @@ class AgentEngine:
                         authorized_tools=authorized_tools,
                         skill_id=tc["args"].get("skill_id")
                     )
-                    
+
                     output_msg = f"Routing to {target}"
                     # Add ToolMessage for route_to to satisfy protocol (every tool_call needs a response)
                     new_messages.append(ToolMessage(
@@ -507,7 +508,7 @@ class AgentEngine:
         # Build optimized system messages for Prompt Caching
         system_messages = self._build_system_messages(system_prompt, messages, provider)
         history_messages = [m for m in messages if not isinstance(m, SystemMessage)]
-        
+
         loop_messages = system_messages + history_messages
 
         if not history_messages:
@@ -520,7 +521,7 @@ class AgentEngine:
         try:
             response = await llm_with_tools.ainvoke(loop_messages, config=config)
             latency = time.perf_counter() - start_perf
-            
+
             try:
                 with open("tests/monitoring/audit_evidence.log", "a") as f:
                     f.write(f"TURN_MARKER: {name}_subtask | Hash: {sys_hash} | Latency: {latency:.2f}s | Length: {len(system_prompt)}\n")
@@ -528,7 +529,7 @@ class AgentEngine:
                     os.fsync(f.fileno())
             except Exception:
                 pass
-                
+
             logger.warning(f"[{name}] 🧩 PROMPT CACHE DIAGNOSTIC: SystemPromptHash={sys_hash} | Latency={latency:.2f}s")
 
             # [TELEMETRY] Record inference
@@ -738,7 +739,10 @@ class AgentEngine:
         matches = re.findall(pattern, content, re.DOTALL)
 
         if matches:
-            from app.core.engine.state.blackboard import BlackboardState, BlackboardMetadata
+            from app.core.engine.state.blackboard import (
+                BlackboardMetadata,
+                BlackboardState,
+            )
             if not isinstance(blackboard, BlackboardState):
                 blackboard = BlackboardState.model_validate(blackboard) if blackboard else BlackboardState()
             metadata = dict(blackboard.metadata) if blackboard.metadata else {}

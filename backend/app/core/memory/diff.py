@@ -6,6 +6,6 @@ The actual implementation has been moved to app.utils.diff.
 """
 
 # Re-export from utils for backward compatibility
-from app.utils.diff import DiffTracker, diff_tracker, compute_text_diff, get_diff_stats
+from app.utils.diff import DiffTracker, compute_text_diff, diff_tracker, get_diff_stats
 
 __all__ = ["DiffTracker", "diff_tracker", "compute_text_diff", "get_diff_stats"]

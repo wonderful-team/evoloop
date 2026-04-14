@@ -55,7 +55,7 @@ async def sync_conversation_task(device_id: int, conversation: dict) -> dict:
             )
             # 业务错误，不重试（通过检查 code 判断）
             if result.get("code") in (-1001, -1002, -1003):  # 认证/权限错误
-                logger.warning(f"[SyncTask] Auth error, skipping retry")
+                logger.warning("[SyncTask] Auth error, skipping retry")
                 return result
             raise Exception(f"Sync failed: {error_msg}")
 
@@ -196,9 +196,10 @@ async def incremental_sync_task(device_id: int, conversation_ids: list[str]) -> 
         API 响应结果
     """
     from sqlalchemy import select
+
+    from app.core.evocloud import evocloud_manager
     from app.infrastructure.database.sql.database import get_db_session
     from app.models import Conversation as ConversationModel
-    from app.core.evocloud import evocloud_manager
 
     api = evocloud_manager.api
     results = {"synced": 0, "failed": 0}

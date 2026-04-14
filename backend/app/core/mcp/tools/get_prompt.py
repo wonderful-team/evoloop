@@ -49,32 +49,32 @@ async def get_mcp_prompt(server_name: str, prompt_name: str, arguments: str = "{
                 return "Error: arguments must be a JSON object (e.g., '{\"key\": \"value\"}')"
         except json.JSONDecodeError as e:
             return f"Error parsing arguments JSON: {e}"
-        
+
         # Ensure connected
         connected = await mcp_client_manager.ensure_connected(server_name)
         if not connected:
             return f"Error: MCP server '{server_name}' is not connected. Please call use_mcp_server('{server_name}') first."
-        
+
         # Get prompt
         result = await mcp_client_manager.get_prompt(server_name, prompt_name, args_dict)
-        
+
         # Format output
         lines = [
             f"# Prompt: {prompt_name}",
         ]
-        
+
         if result.get("description"):
             lines.append(f"*{result['description']}*")
         lines.append("")
-        
+
         # Render messages
         for i, msg in enumerate(result.get("messages", []), 1):
             role = msg.get("role", "unknown")
             content = msg.get("content", "")
             content_type = msg.get("content_type", "text")
-            
+
             lines.append(f"## Message {i} ({role})")
-            
+
             if content_type == "image":
                 lines.append("*[Image content]*")
             elif content_type == "resource":
@@ -83,11 +83,11 @@ async def get_mcp_prompt(server_name: str, prompt_name: str, arguments: str = "{
                 lines.append(content)
             else:
                 lines.append(content)
-            
+
             lines.append("")
-        
+
         return "\n".join(lines)
-        
+
     except Exception as e:
         logger.error(f"Error getting MCP prompt: {e}")
         return f"Error getting prompt '{prompt_name}' from '{server_name}': {str(e)}"

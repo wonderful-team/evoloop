@@ -5,7 +5,6 @@ MessageStreamPolicy - 消息流式推送策略
 """
 
 import logging
-from typing import Optional
 
 from app.core.messaging.category import MessageCategory
 from app.infrastructure.pydantic_base import DynamicBaseModel
@@ -27,7 +26,7 @@ class MessageStreamPolicy:
     
     集中管理所有消息的实时推送规则。
     """
-    
+
     # 分类 → (是否推送, 前端显示类型)
     _RULES = {
         MessageCategory.USER: (True, "human"),
@@ -42,7 +41,7 @@ class MessageStreamPolicy:
         MessageCategory.AUTH_EXPIRED: (False, None),  # EvoLoop认证过期不流式推送
         MessageCategory.ERROR_BUSINESS: (False, None),  # 业务错误不流式推送
     }
-    
+
     @classmethod
     def should_stream(cls, category: MessageCategory) -> bool:
         """
@@ -56,9 +55,9 @@ class MessageStreamPolicy:
         """
         should, _ = cls._RULES.get(category, (False, None))
         return should
-    
+
     @classmethod
-    def get_frontend_type(cls, category: MessageCategory) -> Optional[str]:
+    def get_frontend_type(cls, category: MessageCategory) -> str | None:
         """
         获取前端显示类型
         
@@ -71,13 +70,13 @@ class MessageStreamPolicy:
         """
         _, frontend_type = cls._RULES.get(category, (False, None))
         return frontend_type
-    
+
     @classmethod
     def apply_policy(
         cls,
         category: MessageCategory,
         content: str,
-        metadata: Optional[dict] = None,
+        metadata: dict | None = None,
     ) -> StreamPolicyResult:
         """
         应用流式推送策略
@@ -97,10 +96,10 @@ class MessageStreamPolicy:
         """
         should_stream = cls.should_stream(category)
         frontend_type = cls.get_frontend_type(category)
-        
+
         if not should_stream:
             logger.debug(f"[StreamPolicy] Not streaming {category.value} message")
-        
+
         return StreamPolicyResult(
             should_stream=should_stream,
             frontend_type=frontend_type,
@@ -108,7 +107,7 @@ class MessageStreamPolicy:
             category=category.value,
             metadata=metadata or {},
         )
-    
+
     @classmethod
     def get_streamed_categories(cls) -> list[MessageCategory]:
         """获取会推送到前端的分类列表"""

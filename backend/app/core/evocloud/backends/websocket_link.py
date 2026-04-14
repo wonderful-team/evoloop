@@ -13,8 +13,14 @@ from websockets.client import ClientConnection
 
 from app.core.evocloud.interfaces.client import EvoCloudClientProtocol
 from app.core.evocloud.interfaces.link import DeviceLinkProtocol
-from app.core.evocloud.schemas import EvoCloudConfig, ProjectSwitchEvent, QueryResponse, RemoteCommand, \
-    WebSocketHandshake, WebSocketPing
+from app.core.evocloud.schemas import (
+    EvoCloudConfig,
+    ProjectSwitchEvent,
+    QueryResponse,
+    RemoteCommand,
+    WebSocketHandshake,
+    WebSocketPing,
+)
 from app.core.identity import identity_service
 from app.utils import file as file_utils
 from app.utils.async_utils import run_in_thread
@@ -59,7 +65,7 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
     @property
     def device_id(self) -> int | None:
         return self._device_id
-    
+
     async def wait_for_device_id(self, timeout: float = 10.0) -> int | None:
         """等待 WebSocket 握手完成并返回 device_id"""
         if self._device_id:
@@ -252,13 +258,13 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
                 init_data = data.get("data", {})
                 client_id = init_data.get("client_id")
                 device_id = init_data.get("device_id")
-                
+
                 # Set device_id from Gateway (assigned by MC)
                 if device_id:
                     self._device_id = int(device_id)
                     self._device_id_event.set()  # 通知等待者
                     logger.info(f"[EvoCloud] Got device_id from Gateway: {self._device_id}")
-                
+
                 if client_id:
                     await self._bind_client_id(client_id)
 

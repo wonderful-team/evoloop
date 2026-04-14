@@ -28,7 +28,7 @@ class Neo4jPreferenceStore(IPreferenceStore):
         async with driver.session() as session:
             await session.run("MATCH (p:Preference) DETACH DELETE p")
             await session.run("MATCH (u:User) DETACH DELETE u")
-        
+
         # Clear cache
         _PREF_CACHE.clear()
         logger.info("Neo4jPreferenceStore: Flushed all preferences")

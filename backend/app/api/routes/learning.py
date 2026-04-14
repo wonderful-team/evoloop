@@ -17,6 +17,7 @@ from fastapi import Depends, APIRouter, BackgroundTasks, Body, File, HTTPExcepti
 from sqlalchemy import or_, func, select
 
 from app.api.deps import require_benefit
+from app.api.responses import BaseAPIResponse
 from app.core.engine.background_agent import run_agent_background
 from app.core.environment.capabilities.registry import ActionRegistry, ActionDef
 from app.core.environment.controllers.mirror_session import mirror_manager
@@ -69,6 +70,7 @@ from app.core.learning.schemas import (
     SynthesizeFromRecordingResponse,
     SynthesizeRequest,
     SynthesizeSkillResponse,
+    UpdateSkillFromYamlResponse,
     UpdateSkillRequest,
     UpdateSkillResponse,
     UploadScreenshotResponse,
@@ -212,7 +214,7 @@ async def get_request(request_id: str):
     )
 
 
-@router.post("/human-requests/{request_id}/respond", response_model=RespondResponse)
+@router.post("/human-requests/{request_id}/respond", response_model=BaseAPIResponse)
 async def respond_to_request(request_id: str, body: RespondRequest):
     """
     Submit a response to a pending human input request.
@@ -230,14 +232,14 @@ async def respond_to_request(request_id: str, body: RespondRequest):
     success = await complete_request(request_id, body.response)
 
     if success:
-        return RespondResponse(
+        return BaseAPIResponse(
             success=True, message=f"Response recorded for request {request_id}"
         )
     else:
         raise HTTPException(status_code=500, detail="Failed to complete request")
 
 
-@router.post("/human-requests/{request_id}/cancel", response_model=RespondResponse)
+@router.post("/human-requests/{request_id}/cancel", response_model=BaseAPIResponse)
 async def cancel_pending_request(request_id: str):
     """
     Cancel a pending human input request.
@@ -255,18 +257,18 @@ async def cancel_pending_request(request_id: str):
     success = await cancel_request(request_id)
 
     if success:
-        return RespondResponse(success=True, message=f"Request {request_id} cancelled")
+        return BaseAPIResponse(success=True, message=f"Request {request_id} cancelled")
     else:
         raise HTTPException(status_code=500, detail="Failed to cancel request")
 
 
-@router.post("/cleanup", response_model=RespondResponse)
+@router.post("/cleanup", response_model=BaseAPIResponse)
 async def cleanup_requests(max_age_hours: int = 24):
     """
     Clean up old completed/cancelled requests.
     """
     await cleanup_old_requests(max_age_hours)
-    return RespondResponse(success=True, message="Cleanup completed")
+    return BaseAPIResponse(success=True, message="Cleanup completed")
 
 
 # ============ Trace Recording API (Phase 1) ============
@@ -513,7 +515,7 @@ async def get_skill(skill_id: int):
         )
 
 
-@router.delete("/skills/{skill_id}", response_model=RespondResponse)
+@router.delete("/skills/{skill_id}", response_model=BaseAPIResponse)
 async def delete_skill(skill_id: int):
     """
     Physically delete a skill and its resources.
@@ -542,7 +544,7 @@ async def delete_skill(skill_id: int):
             await db.delete(skill)
             await db.flush()
             
-        return RespondResponse(success=True, message=f"Skill {skill_id} physically deleted")
+        return BaseAPIResponse(success=True, message=f"Skill {skill_id} physically deleted")
     finally:
         # 4. Invalidate Cache
         await skill_discovery.reload()
@@ -1827,7 +1829,7 @@ async def cleanup_recording_session(
         raise HTTPException(status_code=500, detail=f"Cleanup failed: {str(e)}")
 
 
-@router.post("/skills/{skill_id}/confirm", response_model=RespondResponse)
+@router.post("/skills/{skill_id}/confirm", response_model=BaseAPIResponse)
 async def confirm_learned_skill(skill_id: int):
     """
     [NEW] 用户确认合成的技能。
@@ -1841,7 +1843,7 @@ async def confirm_learned_skill(skill_id: int):
             raise HTTPException(status_code=404, detail="Skill not found")
 
         if skill.status != "pending_review":
-            return RespondResponse(
+            return BaseAPIResponse(
                 success=False, 
                 message=f"Skill is not in pending_review status (current: {skill.status})"
             )
@@ -1853,7 +1855,7 @@ async def confirm_learned_skill(skill_id: int):
         # 记录日志
         logger.info(f"Skill {skill.id} ({skill.name}) confirmed by user.")
         
-        return RespondResponse(
+        return BaseAPIResponse(
             success=True, 
             message=f"Skill '{skill.name}' confirmed and activated."
         )

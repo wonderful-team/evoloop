@@ -37,7 +37,8 @@ import asyncio
 import logging
 import os
 import threading
-from typing import Any, Callable, Optional
+from collections.abc import Callable
+from typing import Any
 
 from watchdog.events import FileSystemEvent, FileSystemEventHandler
 from watchdog.observers import Observer
@@ -54,13 +55,13 @@ class _EventBusHandler(FileSystemEventHandler):
     
     This handler is thread-safe and can be called from watchdog's observer thread.
     """
-    
+
     def __init__(
         self,
         watch_path: str,
-        file_filter: Optional[Callable[[str], bool]] = None,
+        file_filter: Callable[[str], bool] | None = None,
         debounce_delay: float = 0.0,
-        event_loop: Optional[asyncio.AbstractEventLoop] = None,
+        event_loop: asyncio.AbstractEventLoop | None = None,
     ):
         self.watch_path = watch_path
         self.file_filter = file_filter
@@ -68,13 +69,13 @@ class _EventBusHandler(FileSystemEventHandler):
         self._event_loop = event_loop
         self._pending_tasks: dict[str, Any] = {}
         self._lock = threading.Lock()
-    
+
     def _should_process(self, path: str) -> bool:
         """Check if path should be processed."""
         if self.file_filter is None:
             return True
         return self.file_filter(path)
-    
+
     def _publish_event(self, event_type: FileSystemEventType, path: str, **extra_data):
         """Publish event to system bus from any thread."""
         event = FileWatcherEvent(
@@ -85,7 +86,7 @@ class _EventBusHandler(FileSystemEventHandler):
                 **extra_data
             }
         )
-        
+
         # Use the stored event loop to publish from main thread
         if self._event_loop and self._event_loop.is_running():
             try:
@@ -97,7 +98,7 @@ class _EventBusHandler(FileSystemEventHandler):
                 logger.error(f"Failed to schedule event publish: {e}")
         else:
             logger.debug(f"Event loop not available, skipping event: {event_type}")
-    
+
     def _schedule_publish(self, event_type: FileSystemEventType, path: str, **extra_data):
         """Schedule event publish with optional debouncing."""
         if self.debounce_delay > 0:
@@ -105,7 +106,7 @@ class _EventBusHandler(FileSystemEventHandler):
                 # Cancel pending task for this path
                 if path in self._pending_tasks:
                     self._pending_tasks[path].cancel()
-                
+
                 # Schedule new task using the event loop
                 if self._event_loop and self._event_loop.is_running():
                     try:
@@ -123,42 +124,42 @@ class _EventBusHandler(FileSystemEventHandler):
                     self._publish_event(event_type, path, **extra_data)
         else:
             self._publish_event(event_type, path, **extra_data)
-    
+
     def on_created(self, event: FileSystemEvent):
         path = event.src_path
         if not self._should_process(path):
             return
-        
+
         if event.is_directory:
             self._publish_event(FileSystemEventType.DIRECTORY_CREATED, path)
         else:
             self._publish_event(FileSystemEventType.FILE_CREATED, path)
-    
+
     def on_modified(self, event: FileSystemEvent):
         path = event.src_path
         if not self._should_process(path):
             return
-        
+
         if not event.is_directory:
             self._schedule_publish(FileSystemEventType.FILE_MODIFIED, path)
-    
+
     def on_deleted(self, event: FileSystemEvent):
         path = event.src_path
         if not self._should_process(path):
             return
-        
+
         if event.is_directory:
             self._publish_event(FileSystemEventType.DIRECTORY_DELETED, path)
         else:
             self._publish_event(FileSystemEventType.FILE_DELETED, path)
-    
+
     def on_moved(self, event: FileSystemEvent):
         src_path = event.src_path
         dest_path = event.dest_path
-        
+
         if not self._should_process(src_path) and not self._should_process(dest_path):
             return
-        
+
         self._publish_event(
             FileSystemEventType.FILE_MOVED,
             src_path,
@@ -189,14 +190,14 @@ class FileWatcher:
         
         system_bus.subscribe(FileSystemEventType.FILE_MODIFIED, on_change)
     """
-    
+
     def __init__(
         self,
         path: str,
         *,
         recursive: bool = True,
         debounce_delay: float = 0.0,
-        file_filter: Optional[Callable[[str], bool]] = None,
+        file_filter: Callable[[str], bool] | None = None,
     ):
         """
         Initialize file watcher.
@@ -211,19 +212,19 @@ class FileWatcher:
         self.recursive = recursive
         self.debounce_delay = debounce_delay
         self.file_filter = file_filter
-        
-        self._observer: Optional[Observer] = None
-        self._handler: Optional[_EventBusHandler] = None
+
+        self._observer: Observer | None = None
+        self._handler: _EventBusHandler | None = None
         self._watch = None
         self._started = False
-        self._event_loop: Optional[asyncio.AbstractEventLoop] = None
-    
+        self._event_loop: asyncio.AbstractEventLoop | None = None
+
     def start(self) -> "FileWatcher":
         """Start watching and publish FILE_WATCHER_STARTED event."""
         if self._started:
             logger.warning(f"Watcher already started for {self.path}")
             return self
-        
+
         try:
             # Store the current event loop for cross-thread communication
             try:
@@ -231,7 +232,7 @@ class FileWatcher:
             except RuntimeError:
                 self._event_loop = None
                 logger.warning("No running event loop, events will not be published")
-            
+
             self._observer = Observer()
             self._handler = _EventBusHandler(
                 watch_path=self.path,
@@ -246,7 +247,7 @@ class FileWatcher:
             )
             self._observer.start()
             self._started = True
-            
+
             # Publish started event
             if self._event_loop and self._event_loop.is_running():
                 event = FileWatcherEvent(
@@ -254,24 +255,24 @@ class FileWatcher:
                     data={"path": self.path, "recursive": self.recursive}
                 )
                 asyncio.create_task(system_bus.publish(event))
-            
+
             logger.info(f"Started file watcher: {self.path}")
-            
+
         except Exception as e:
             logger.error(f"Failed to start watcher for {self.path}: {e}")
             self._cleanup()
             raise
-        
+
         return self
-    
+
     def stop(self):
         """Stop watching and publish FILE_WATCHER_STOPPED event."""
         if not self._started:
             return
-        
+
         self._cleanup()
         self._started = False
-        
+
         # Publish stopped event
         try:
             if self._event_loop and self._event_loop.is_running():
@@ -282,9 +283,9 @@ class FileWatcher:
                 asyncio.create_task(system_bus.publish(event))
         except Exception as e:
             logger.error(f"Failed to publish watcher stopped event: {e}")
-        
+
         logger.info(f"Stopped file watcher: {self.path}")
-    
+
     def _cleanup(self):
         """Clean up resources."""
         if self._observer:
@@ -300,14 +301,14 @@ class FileWatcher:
                 self._handler = None
                 self._watch = None
                 self._event_loop = None
-    
+
     def __enter__(self) -> "FileWatcher":
         self.start()
         return self
-    
+
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.stop()
-    
+
     @property
     def is_running(self) -> bool:
         return self._started and self._observer is not None
@@ -332,17 +333,17 @@ class FileWatcherManager:
         from app.core.file.events import FileSystemEventType
         system_bus.subscribe(FileSystemEventType.FILE_MODIFIED, on_any_file_change)
     """
-    
+
     def __init__(self):
         self._watchers: dict[str, FileWatcher] = {}
-    
+
     def create_watcher(
         self,
         path: str,
         *,
         recursive: bool = True,
         debounce_delay: float = 0.0,
-        file_filter: Optional[Callable[[str], bool]] = None,
+        file_filter: Callable[[str], bool] | None = None,
     ) -> FileWatcher:
         """
         Create and start a new watcher.
@@ -357,12 +358,12 @@ class FileWatcherManager:
             Started FileWatcher instance
         """
         abs_path = os.path.abspath(path)
-        
+
         # Stop existing watcher for this path
         if abs_path in self._watchers:
             self._watchers[abs_path].stop()
             del self._watchers[abs_path]
-        
+
         # Create and start new watcher
         watcher = FileWatcher(
             path=abs_path,
@@ -371,34 +372,34 @@ class FileWatcherManager:
             file_filter=file_filter,
         )
         watcher.start()
-        
+
         self._watchers[abs_path] = watcher
         return watcher
-    
+
     def stop_watcher(self, path: str):
         """Stop watcher for specific path."""
         abs_path = os.path.abspath(path)
         if abs_path in self._watchers:
             self._watchers[abs_path].stop()
             del self._watchers[abs_path]
-    
+
     def stop_all(self):
         """Stop all watchers."""
         for watcher in self._watchers.values():
             watcher.stop()
         self._watchers.clear()
-    
-    def get_watcher(self, path: str) -> Optional[FileWatcher]:
+
+    def get_watcher(self, path: str) -> FileWatcher | None:
         """Get watcher for specific path."""
         return self._watchers.get(os.path.abspath(path))
-    
+
     @property
     def watcher_count(self) -> int:
         """Number of active watchers."""
         return len(self._watchers)
-    
+
     def __enter__(self) -> "FileWatcherManager":
         return self
-    
+
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.stop_all()

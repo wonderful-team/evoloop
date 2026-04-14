@@ -26,8 +26,8 @@ class EnvironmentProbe:
     @staticmethod
     async def probe_macos() -> MacOSEnvironment | None:
         """Probe MacOS host environment using macos_driver."""
-        from app.infrastructure.drivers.macos import macos_driver
         from app.core.environment.explorers.dynamic_apps import DynamicAppTriage
+        from app.infrastructure.drivers.macos import macos_driver
 
         try:
             # Run blocking driver calls in threads

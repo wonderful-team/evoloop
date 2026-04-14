@@ -25,7 +25,7 @@ class EvoCloudCallbackHandler(AsyncCallbackHandler):
         # Deduplication and Merging State
         self._last_tool_log = ToolLogState()
         self._last_thought_log = ThoughtLogState()
-        
+
         from app.core.context import tool_state_store
         self._tool_store = tool_state_store
 

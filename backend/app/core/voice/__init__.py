@@ -19,24 +19,24 @@ EvoLoop Voice Module
 """
 
 from app.core.voice.base import (
+    BaseSTTProvider,
+    BaseTTSProvider,
+    STTOptions,
+    STTResult,
+    TTSOptions,
+    TTSSResult,
     Voice,
     VoiceGender,
     VoiceLocale,
-    TTSOptions,
-    TTSSResult,
-    STTOptions,
-    STTResult,
-    BaseTTSProvider,
-    BaseSTTProvider,
 )
 from app.core.voice.stt.factory import (
-    get_stt_provider,
     STTFactory,
+    get_stt_provider,
     transcribe_audio,
 )
 from app.core.voice.tts.factory import (
-    get_tts_provider,
     TTSFactory,
+    get_tts_provider,
 )
 
 
@@ -52,7 +52,7 @@ def list_stt_providers():
 __all__ = [
     # 数据模型
     "Voice",
-    "VoiceGender", 
+    "VoiceGender",
     "VoiceLocale",
     "TTSOptions",
     "TTSSResult",

@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -11,15 +11,15 @@ class ActionDef(BaseModel):
     Acts as the single source of truth for prompts, UI, and execution.
     """
     id: str
-    platforms: List[str]  # ["dom", "mobile", "desktop"]
+    platforms: list[str]  # ["dom", "mobile", "desktop"]
     icon: str  # Lucide icon name
     description: str  # For Agent prompt instructions
     translation_key: str  # i18n key for translations (e.g., "actions.click")
-    params: Dict[str, Any] = Field(default_factory=dict)
+    params: dict[str, Any] = Field(default_factory=dict)
 
     # Mapping to technical tool action names
     # e.g., mappings={"mobile": "tap"} for a "click" action
-    mappings: Dict[str, str] = Field(default_factory=dict)
+    mappings: dict[str, str] = Field(default_factory=dict)
 
     def get_label(self, lang: str = "zh") -> str:
         """Get the localized label for this action."""
@@ -32,19 +32,19 @@ class ActionDef(BaseModel):
 
 class ActionRegistry:
     """Central registry for all Agent capabilities."""
-    
-    _actions: Dict[str, ActionDef] = {}
+
+    _actions: dict[str, ActionDef] = {}
 
     @classmethod
     def register(cls, action: ActionDef):
         cls._actions[action.id] = action
 
     @classmethod
-    def get_action(cls, action_id: str) -> Optional[ActionDef]:
+    def get_action(cls, action_id: str) -> ActionDef | None:
         return cls._actions.get(action_id)
 
     @classmethod
-    def list_actions(cls, platform: Optional[str] = None) -> List[ActionDef]:
+    def list_actions(cls, platform: str | None = None) -> list[ActionDef]:
         if platform:
             return [a for a in cls._actions.values() if platform in a.platforms]
         return list(cls._actions.values())

@@ -17,19 +17,19 @@ logger = logging.getLogger(__name__)
 
 class McpPromptsFeature(McpFeature):
     """MCP Prompts feature - handles prompt templates."""
-    
+
     feature_name = "prompts"
-    
+
     def __init__(self):
         self._session: ClientSession | None = None
         self._server_name: str = ""
         self._prompts: list = []
-    
+
     async def initialize(self, session: ClientSession, server_name: str) -> None:
         """Initialize by fetching prompts from server."""
         self._session = session
         self._server_name = server_name
-        
+
         try:
             result = await session.list_prompts()
             self._prompts = result.prompts
@@ -37,7 +37,7 @@ class McpPromptsFeature(McpFeature):
         except Exception as e:
             logger.debug(f"Prompts not supported by {server_name}: {e}")
             self._prompts = []
-    
+
     async def get_capabilities(self) -> McpFeatureCapabilities:
         """Get prompts capabilities."""
         return McpFeatureCapabilities(
@@ -54,11 +54,11 @@ class McpPromptsFeature(McpFeature):
                 for p in self._prompts
             ],
         )
-    
+
     def get_prompts(self) -> list:
         """Get list of available prompts."""
         return self._prompts
-    
+
     async def get_prompt(self, name: str, arguments: dict[str, str] | None = None) -> McpPromptResult:
         """
         Get a rendered prompt with optional arguments.
@@ -72,10 +72,10 @@ class McpPromptsFeature(McpFeature):
         """
         if not self._session:
             raise RuntimeError("Not connected to MCP server")
-        
+
         try:
             result = await self._session.get_prompt(name, arguments=arguments or {})
-            
+
             messages: list[McpPromptMessage] = []
             for msg in result.messages:
                 # Handle text content
@@ -104,36 +104,36 @@ class McpPromptsFeature(McpFeature):
                         content_type="resource",
                         resource_uri=resource_uri,
                     ))
-            
+
             return McpPromptResult(
                 name=name,
                 description=result.description,
                 messages=messages,
             )
-            
+
         except Exception as e:
             logger.error(f"Failed to get prompt '{name}': {e}")
             raise
-    
+
     def reset(self) -> None:
         """Reset state."""
         self._session = None
         self._server_name = ""
         self._prompts = []
-    
+
     def format_prompts_list(self) -> str:
         """Format prompts as markdown for display."""
         lines = ["### Available Prompts\n"]
-        
+
         if not self._prompts:
             lines.append("*No prompts available on this server.*")
             return "\n".join(lines)
-        
+
         for p in self._prompts:
             lines.append(f"**{p.name}**")
             if p.description:
                 lines.append(f"- Description: {p.description}")
-            
+
             if p.arguments:
                 lines.append("- Arguments:")
                 for arg in p.arguments:
@@ -142,9 +142,9 @@ class McpPromptsFeature(McpFeature):
             else:
                 lines.append("- Arguments: None")
             lines.append("")
-        
+
         return "\n".join(lines)
-    
+
     def find_prompt(self, name: str) -> Any | None:
         """Find a prompt by name."""
         for p in self._prompts:

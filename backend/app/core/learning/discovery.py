@@ -2,19 +2,17 @@ import json
 import logging
 import os
 import shutil
-from dataclasses import dataclass
-from typing import Any, Dict, Optional
-from pydantic import BaseModel, Field, ConfigDict
 
-from sqlalchemy import func, select
-from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from pydantic import Field
+from sqlalchemy import select
 
 from app.core.config import settings
-from app.infrastructure.database.sql.database import session_scope
-from app.infrastructure.llm.factory import LLMFactory
 from app.core.learning.prompts import prompt_builder
-from app.models.learning import LearnedSkill
+from app.infrastructure.database.sql.database import session_scope
+from app.infrastructure.llm import get_default_llm
 from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.models.learning import LearnedSkill
 
 logger = logging.getLogger(__name__)
 
@@ -127,21 +125,21 @@ class SkillDiscovery:
             stmt = select(LearnedSkill).where(LearnedSkill.is_active == True)
             result = await db.execute(stmt)
             items = list(result.scalars().all())
-            
+
             # Populate Memory Maps for O(1) Lookup
             self._id_map = {s.id: s for s in items}
             self._name_map = {s.name.lower(): s for s in items}
-            
+
             self._skills_cache = items
-            
+
             # Clear derivative caches to force re-calculation if needed
             self._skills_list_cache = None
-            
+
             logger.info(f"[Discovery] Specialized expertise indexed: {len(self._id_map)} skills resident in memory.")
-        
+
         return self._skills_cache
 
-    async def get_skill_by_id(self, skill_id: int) -> Optional[LearnedSkill]:
+    async def get_skill_by_id(self, skill_id: int) -> LearnedSkill | None:
         """
         Phase 5 Deterministic Routing:
         Fetch a specific skill by its unique ID.
@@ -149,7 +147,7 @@ class SkillDiscovery:
         """
         if not skill_id:
             return None
-            
+
         await self._get_active_skills()
         return self._id_map.get(skill_id)
 
@@ -162,9 +160,9 @@ class SkillDiscovery:
         all_skills = await self._get_active_skills()
         if not namespace_prefix:
             return all_skills
-            
+
         return [
-            s for s in all_skills 
+            s for s in all_skills
             if s.namespace and s.namespace.startswith(namespace_prefix)
         ]
 
@@ -189,23 +187,23 @@ class SkillDiscovery:
         """
         # Ensure cache is ready (will be warm at startup, but safe fallback)
         all_skills = await self._get_active_skills()
-        
+
         if not query:
             return None, [], "Empty query provided."
 
         query_clean = str(query).strip()
-        
+
         # 1. Try ID lookup (O(1))
         best_skill = None
         if query_clean.isdigit():
             target_id = int(query_clean)
             best_skill = self._id_map.get(target_id)
-        
+
         # 2. Try Exact Name lookup (O(1))
         if not best_skill:
             query_lower = query_clean.lower()
             best_skill = self._name_map.get(query_lower)
-            
+
         # 3. Try Namespace-Prefix lookup (O(N) Fallback for specific tree traversal)
         if not best_skill and "/" in query_clean:
             # Simple prefix match within the same depth
@@ -221,7 +219,7 @@ class SkillDiscovery:
             )
             return match, [best_skill], "Exact match found."
 
-        # If no deterministic match, return empty. 
+        # If no deterministic match, return empty.
         # We no longer trigger implicit LLM here to ensure transparency.
         logger.info(f"[Discovery] No deterministic match for: {query_clean}")
         return None, [], "No exact match found."
@@ -247,36 +245,36 @@ class SkillDiscovery:
         """
         all_skills = await self._get_active_skills()
         matches = []
-        
+
         # If explicit steps provided, match each step
         if task_steps and len(task_steps) > 1:
             logger.info(f"[Discovery] Multi-step task detected: {len(task_steps)} steps")
-            
+
             for step in task_steps:
                 # Try exact match first
                 match, _, _ = await self.exact_search(step, namespace_context)
-                
+
                 if not match:
                     # Fallback to semantic search for this step
                     match, _, _ = await self.semantic_search(step, namespace_context=namespace_context)
-                
+
                 if match and match.skill_id not in [m.skill_id for m in matches]:
                     matches.append(match)
-                    
+
                 if len(matches) >= max_skills:
                     break
-        
+
         # If no matches from steps, try to extract multiple intents from main query
         if not matches:
             # Use LLM to analyze if this is a multi-skill task
             analysis = await self._analyze_task_complexity(query)
-            
+
             if analysis.get("is_multi_step", False):
                 for skill_name in analysis.get("required_skills", [])[:max_skills]:
                     match, _, _ = await self.exact_search(skill_name, namespace_context)
                     if match and match.skill_id not in [m.skill_id for m in matches]:
                         matches.append(match)
-        
+
         reasoning = f"Matched {len(matches)} skills for multi-step task"
         return matches, reasoning
 
@@ -286,10 +284,10 @@ class SkillDiscovery:
         Uses lightweight LLM call with modular prompt template.
         """
         from app.core.learning.prompts import prompt_builder
-        
+
         # Use modular prompt template instead of hardcoded string
         prompt = prompt_builder.build_task_complexity_prompt(query)
-        
+
         # Fallback to basic structure if template rendering failed
         if prompt.startswith("Error loading"):
             logger.warning("[Discovery] Failed to load task complexity template, using fallback")
@@ -302,11 +300,11 @@ class SkillDiscovery:
                 purpose="task_analysis",
                 temperature=0.0,
             )
-            
+
             content = response.content.strip() if hasattr(response, 'content') else str(response).strip()
             if "```json" in content:
                 content = content.split("```json")[-1].split("```")[0].strip()
-            
+
             return json.loads(content)
         except Exception as e:
             logger.error(f"[Discovery] Task analysis failed: {e}")

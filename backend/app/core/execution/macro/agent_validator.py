@@ -9,9 +9,28 @@ import asyncio
 import copy
 import logging
 import time
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from app.core.execution.macro.evolution_engine import MacroEvolutionEngine
+from app.core.execution.macro.models import (
+    AdaptationRecord,
+    AnomalyType,
+    ExecutionDetail,
+    ExecutionMode,
+    MacroEvolutionRecord,
+    RedundancyCheckResult,
+    ReportSummary,
+    RoundConfig,
+    RoundReport,
+    StepExecutionStatus,
+    StepResult,
+    VerificationAgentConfig,
+    VerificationIssue,
+    VerificationReport,
+    VerificationRequest,
+    VerificationResponse,
+    VerificationStatus,
+)
 from app.core.execution.macro.optimizer import MacroOptimizer
 from app.core.execution.macro.reasoning_engine import AgentReasoningEngine
 from app.core.execution.macro.round_orchestrator import (
@@ -19,25 +38,6 @@ from app.core.execution.macro.round_orchestrator import (
     ChaosStrategy,
     RoundOrchestrator,
     StressTestStrategy,
-)
-from app.core.execution.macro.verification_models import (
-    AdaptationRecord,
-    VerificationAgentConfig,
-    AnomalyType,
-    ExecutionDetail,
-    ExecutionMode,
-    RedundancyCheckResult,
-    RoundConfig,
-    RoundReport,
-    StepExecutionStatus,
-    StepResult,
-    VerificationIssue,
-    VerificationReport,
-    VerificationRequest,
-    VerificationResponse,
-    VerificationStatus,
-    MacroEvolutionRecord,
-    ReportSummary,
 )
 from app.core.execution.macro.verification_worker import VerificationWorker
 
@@ -63,20 +63,20 @@ class AgentMacroValidator:
         self.reasoning_engine = AgentReasoningEngine(
             mental_model=request.instructions or "Execute the macro faithfully and handle UI anomalies proactively."
         )
-        
-        self.worker: Optional[VerificationWorker] = None
+
+        self.worker: VerificationWorker | None = None
 
         # Phase 4: Round orchestration
         self.orchestrator = self._create_orchestrator()
 
         # Execution state
-        self.execution_history: List[Dict[str, Any]] = []
-        self.adaptation_records: List[AdaptationRecord] = []
-        self.round_reports: List[RoundReport] = []
+        self.execution_history: list[dict[str, Any]] = []
+        self.adaptation_records: list[AdaptationRecord] = []
+        self.round_reports: list[RoundReport] = []
 
         # Evolution tracking
-        self.evolution_records: List[MacroEvolutionRecord] = []
-        self.current_macro: List[Dict[str, Any]] = [
+        self.evolution_records: list[MacroEvolutionRecord] = []
+        self.current_macro: list[dict[str, Any]] = [
             copy.deepcopy(s.model_dump() if hasattr(s, 'model_dump') else s)
             for s in request.macro_script
         ]
@@ -84,10 +84,10 @@ class AgentMacroValidator:
         # Statistics
         self.total_anomalies = 0
         self.total_adaptations = 0
-        self.start_time: Optional[float] = None
+        self.start_time: float | None = None
 
         # Redundancy detection state
-        self._executed_steps: List[StepResult] = []
+        self._executed_steps: list[StepResult] = []
         self._redundant_step_numbers: set = set()
 
     def _create_orchestrator(self) -> RoundOrchestrator:
@@ -203,7 +203,7 @@ class AgentMacroValidator:
         self,
         round_num: int,
         config: RoundConfig,
-        macro_script: Optional[List[Dict[str, Any]]] = None
+        macro_script: list[dict[str, Any]] | None = None
     ) -> RoundReport:
         """
         Execute a single verification round
@@ -223,7 +223,7 @@ class AgentMacroValidator:
             started_at=datetime.now()
         )
 
-        step_results: List[StepResult] = []
+        step_results: list[StepResult] = []
 
         for step_idx, step in enumerate(steps_to_execute):
             step_number = step_idx + 1
@@ -276,8 +276,8 @@ class AgentMacroValidator:
 
     async def _check_step_redundancy(
         self,
-        step: Dict[str, Any],
-        ui_state: Dict[str, Any],
+        step: dict[str, Any],
+        ui_state: dict[str, Any],
         step_number: int = None
     ) -> RedundancyCheckResult:
         """
@@ -313,7 +313,7 @@ class AgentMacroValidator:
 
     async def _execute_step_with_adaptation(
         self,
-        step: Dict[str, Any],
+        step: dict[str, Any],
         step_number: int,
         round_config: RoundConfig,
         is_loop_substep: bool = False
@@ -380,19 +380,19 @@ class AgentMacroValidator:
             result.status = StepExecutionStatus.SKIPPED
             result.error_message = f"Agent decided to skip: {decision.reasoning}"
             return result
-        
+
         if decision.action == "abort":
             result.status = StepExecutionStatus.FAILED
             result.error_message = f"Agent decided to abort: {decision.reasoning}"
             return result
-            
+
         if decision.action == "correct" or (decision.additional_steps and decision.action != "execute"):
             self.total_anomalies += 1
             # Handle additional steps (e.g., closing a popup)
             for i, add_step in enumerate(decision.additional_steps):
                 logger.info(f"[Validator] Executing pre-step {i+1}: {add_step.get('event_type')}")
                 await self._execute_step(add_step, round_config)
-            
+
             # Record adaptation
             adaptation = AdaptationRecord(
                 anomaly_type=AnomalyType.UNEXPECTED_FLOW if decision.additional_steps else AnomalyType.COORDINATE_DRIFT,
@@ -528,11 +528,11 @@ class AgentMacroValidator:
 
     async def _execute_loop_with_adaptation(
         self,
-        step: Dict[str, Any],
+        step: dict[str, Any],
         step_number: int,
         round_config: RoundConfig,
         result: StepResult
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Execute a loop step with anomaly detection and adaptation for sub-steps.
 
@@ -605,7 +605,7 @@ class AgentMacroValidator:
             "sub_step_adaptations": len(sub_step_adaptations)
         }
 
-    async def _capture_app_state_only(self) -> Dict[str, Any]:
+    async def _capture_app_state_only(self) -> dict[str, Any]:
         """
         Lightweight state capture for app launch - only package name, no UI dump or screenshot.
         Much faster than full capture_state().
@@ -621,7 +621,9 @@ class AgentMacroValidator:
 
         try:
             if self.worker.config.platform == "android":
-                from app.core.environment.controllers.mobile_controller import MobileController
+                from app.core.environment.controllers.mobile_controller import (
+                    MobileController,
+                )
                 current_app = await MobileController.get_current_app_cached(
                     self.worker.config.device_id
                 )
@@ -634,9 +636,9 @@ class AgentMacroValidator:
 
     async def _execute_step(
         self,
-        step: Dict[str, Any],
+        step: dict[str, Any],
         config: RoundConfig,
-        step_validator: Optional[Any] = None
+        step_validator: Any | None = None
     ) -> Any:
         """Execute a single step through the worker"""
         try:
@@ -670,7 +672,7 @@ class AgentMacroValidator:
 
         return False
 
-    def _sanitize_step_for_evolution(self, step: Dict[str, Any], original_step: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def _sanitize_step_for_evolution(self, step: dict[str, Any], original_step: dict[str, Any] | None = None) -> dict[str, Any]:
         """
         Ensure step has all required fields for MacroScript validation.
         Fixes None values for list fields that cause Pydantic validation errors.
@@ -754,7 +756,7 @@ class AgentMacroValidator:
         summary = self._calculate_basic_summary()
         summary.total_anomalies_detected = self.total_anomalies
         summary.total_adaptations_applied = self.total_adaptations
-        
+
         # Store for response
         self._analysis_result = analysis
 
@@ -785,7 +787,7 @@ class AgentMacroValidator:
             average_execution_time_ms=average_time
         )
 
-    def _build_evolved_macro(self) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+    def _build_evolved_macro(self) -> tuple[list[dict[str, Any]], dict[str, Any]]:
         """
         Build evolved macro using MacroEvolutionEngine (Phase 3)
 
@@ -812,7 +814,7 @@ class AgentMacroValidator:
                 logger.info(f"[Validator] Building evolved macro with {len(self.evolution_records)} records")
 
         # Collect all step results from all rounds
-        all_step_results: List[StepResult] = []
+        all_step_results: list[StepResult] = []
         for round_report in self.round_reports:
             all_step_results.extend(round_report.step_results)
 
@@ -857,8 +859,8 @@ class AgentMacroValidator:
 
     def _filter_redundant_steps_from_macro(
         self,
-        macro: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
+        macro: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
         """
         从宏中过滤掉被标记为冗余的步骤（包括 loop 内的子步骤）
         """

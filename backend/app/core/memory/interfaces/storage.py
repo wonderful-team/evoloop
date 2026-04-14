@@ -7,8 +7,14 @@ are interchangeable.
 """
 
 from abc import ABC, abstractmethod
-from typing import List, Optional, Dict
+from typing import Optional
 
+from app.core.memory.models import (
+    MemoryEntry,
+    MemorySearchResult,
+    MemoryType,
+    PrivacyLevel,
+)
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 
@@ -16,10 +22,10 @@ class StorageHealthCheck(DynamicBaseModel):
     """Health check result for a memory storage backend."""
     status: str = "unknown"
     backend: str = ""
-    version: Optional[str] = None
-    entry_count: Optional[int] = None
-    latency_ms: Optional[float] = None
-    error: Optional[str] = None
+    version: str | None = None
+    entry_count: int | None = None
+    latency_ms: float | None = None
+    error: str | None = None
 
 
 class IMemoryStorage(ABC):
@@ -34,11 +40,11 @@ to ensure they are interchangeable and can be used polymorphically.
         await storage.save(entry)
         results = await storage.search("query", project_id=42)
     """
-    
+
     # ==========================================================================
     # Basic CRUD Operations (Required)
     # ==========================================================================
-    
+
     @abstractmethod
     async def save(self, entry: "MemoryEntry") -> None:
         """
@@ -51,7 +57,7 @@ to ensure they are interchangeable and can be used polymorphically.
             StorageError: If save operation fails
         """
         pass
-    
+
     @abstractmethod
     async def get(self, entry_id: str) -> Optional["MemoryEntry"]:
         """
@@ -64,8 +70,8 @@ to ensure they are interchangeable and can be used polymorphically.
             Memory entry if found, None otherwise
         """
         pass
-    
-    async def get_multi(self, entry_ids: List[str]) -> Dict[str, "MemoryEntry"]:
+
+    async def get_multi(self, entry_ids: list[str]) -> dict[str, "MemoryEntry"]:
         """
         Retrieve multiple memory entries by IDs (batch operation).
 
@@ -97,20 +103,20 @@ to ensure they are interchangeable and can be used polymorphically.
             True if deleted successfully, False if not found
         """
         pass
-    
+
     # ==========================================================================
     # Query Operations (Required)
     # ==========================================================================
-    
+
     @abstractmethod
     async def search(
         self,
         query: str,
-        types: Optional[List["MemoryType"]] = None,
+        types: list["MemoryType"] | None = None,
         privacy: Optional["PrivacyLevel"] = None,
-        project_id: Optional[int] = None,
+        project_id: int | None = None,
         limit: int = 10,
-    ) -> List["MemoryEntry"]:
+    ) -> list["MemoryEntry"]:
         """
         Search memory entries by text query.
         
@@ -129,13 +135,13 @@ to ensure they are interchangeable and can be used polymorphically.
             List of matching memory entries
         """
         pass
-    
+
     @abstractmethod
     async def list_all(
         self,
         type_filter: Optional["MemoryType"] = None,
         privacy_filter: Optional["PrivacyLevel"] = None,
-    ) -> List["MemorySearchResult"]:
+    ) -> list["MemorySearchResult"]:
         """
         List all memory entries (lightweight, for indexing).
         
@@ -147,17 +153,17 @@ to ensure they are interchangeable and can be used polymorphically.
             List of memory search results (without full content)
         """
         pass
-    
+
     # ==========================================================================
     # Advanced Operations (Optional - may raise NotImplementedError)
     # ==========================================================================
-    
+
     async def search_similar(
         self,
-        query_embedding: List[float],
+        query_embedding: list[float],
         top_k: int = 10,
-        project_id: Optional[int] = None,
-    ) -> List["MemoryEntry"]:
+        project_id: int | None = None,
+    ) -> list["MemoryEntry"]:
         """
         Search by vector similarity (semantic search).
         
@@ -176,13 +182,13 @@ to ensure they are interchangeable and can be used polymorphically.
             NotImplementedError: If backend doesn't support vector search
         """
         raise NotImplementedError(f"{self.__class__.__name__} does not support vector search")
-    
+
     async def get_related(
         self,
         entry_id: str,
-        relation_type: Optional[str] = None,
+        relation_type: str | None = None,
         limit: int = 10,
-    ) -> List["MemoryEntry"]:
+    ) -> list["MemoryEntry"]:
         """
         Get memories related to a given entry (graph traversal).
         
@@ -200,12 +206,12 @@ to ensure they are interchangeable and can be used polymorphically.
             Non-graph backends may return empty list
         """
         return []
-    
+
     async def get_by_project(
         self,
         project_id: int,
         limit: int = 100,
-    ) -> List["MemoryEntry"]:
+    ) -> list["MemoryEntry"]:
         """
         Get all memories for a specific project.
         
@@ -228,11 +234,11 @@ to ensure they are interchangeable and can be used polymorphically.
             if entry and entry.project_id == project_id:
                 results.append(entry)
         return results
-    
+
     # ==========================================================================
     # Lifecycle Methods
     # ==========================================================================
-    
+
     @abstractmethod
     async def initialize(self) -> None:
         """
@@ -244,7 +250,7 @@ to ensure they are interchangeable and can be used polymorphically.
         - Creating indexes
         """
         pass
-    
+
     @abstractmethod
     async def close(self) -> None:
         """
@@ -253,7 +259,7 @@ to ensure they are interchangeable and can be used polymorphically.
         Should be called during shutdown.
         """
         pass
-    
+
     async def flush(self) -> None:
         """
         Clear all data (for testing).
@@ -261,11 +267,11 @@ to ensure they are interchangeable and can be used polymorphically.
         Optional operation. Default does nothing.
         """
         pass
-    
+
     # ==========================================================================
     # Health & Stats
     # ==========================================================================
-    
+
     async def health_check(self) -> StorageHealthCheck:
         """
         Check storage health status.

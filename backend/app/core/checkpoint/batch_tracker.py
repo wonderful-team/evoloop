@@ -26,11 +26,11 @@ class BatchEditTracker:
                 await create_auto_checkpoint(thread_id, pending_files)
             # Perform edit
     """
-    
+
     def __init__(self, threshold: int = 3):
         self.threshold = threshold
         self._pending_files: dict[str, list[str]] = {}  # thread_id -> file_paths
-    
+
     def register_pending(self, thread_id: str, file_path: str) -> int:
         """
         Register a file as pending edit.
@@ -40,22 +40,22 @@ class BatchEditTracker:
         """
         if thread_id not in self._pending_files:
             self._pending_files[thread_id] = []
-        
+
         # Avoid duplicates
         if file_path not in self._pending_files[thread_id]:
             self._pending_files[thread_id].append(file_path)
-        
+
         return len(self._pending_files[thread_id])
-    
+
     def get_pending(self, thread_id: str) -> list[str]:
         """Get list of pending files for a thread."""
         return self._pending_files.get(thread_id, []).copy()
-    
+
     def clear_pending(self, thread_id: str):
         """Clear pending files after checkpoint created."""
         if thread_id in self._pending_files:
             del self._pending_files[thread_id]
-    
+
     def should_create_checkpoint(self, thread_id: str) -> bool:
         """Check if we have enough pending files to warrant a checkpoint."""
         pending_count = len(self._pending_files.get(thread_id, []))
@@ -83,15 +83,15 @@ async def maybe_create_auto_checkpoint(
         (created: bool, message: str)
     """
     from app.core.checkpoint.manager import checkpoint_manager
-    
+
     # Register this file
     pending_count = batch_tracker.register_pending(thread_id, file_path)
-    
+
     # Check if threshold reached and we haven't created one yet
     if batch_tracker.should_create_checkpoint(thread_id):
         # Get all pending files
         pending_files = batch_tracker.get_pending(thread_id)
-        
+
         try:
             checkpoint = await checkpoint_manager.create_checkpoint(
                 thread_id=thread_id,
@@ -101,15 +101,15 @@ async def maybe_create_auto_checkpoint(
                 project_id=project_id,
                 created_by="auto"
             )
-            
+
             # Clear pending after creation
             batch_tracker.clear_pending(thread_id)
-            
+
             logger.info(f"Auto-created checkpoint {checkpoint.id} for batch edit")
             return True, f"Auto-created checkpoint #{checkpoint.id}"
-            
+
         except Exception as e:
             logger.error(f"Failed to auto-create checkpoint: {e}")
             return False, f"Failed to create checkpoint: {e}"
-    
+
     return False, ""

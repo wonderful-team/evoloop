@@ -9,9 +9,8 @@ import hashlib
 import logging
 import os
 from collections.abc import Iterator
-from typing import Optional
 
-from .models import FileInfo, FileStatus, ReadResult, WriteResult, PaginationInfo
+from .models import FileInfo, FileStatus, PaginationInfo, ReadResult, WriteResult
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +34,7 @@ def detect_encoding(file_path: str) -> str:
         Detected encoding name (default: utf-8)
     """
     encodings = ["utf-8", "latin-1", "utf-16", "ascii", "gbk", "big5"]
-    
+
     for encoding in encodings:
         try:
             with open(file_path, encoding=encoding) as f:
@@ -43,7 +42,7 @@ def detect_encoding(file_path: str) -> str:
                 return encoding
         except UnicodeDecodeError:
             continue
-    
+
     logger.warning(f"Could not detect encoding for {file_path}, defaulting to utf-8")
     return "utf-8"
 
@@ -88,17 +87,17 @@ def get_file_info(file_path: str) -> FileInfo:
             content_hash="",
             exists=False
         )
-    
+
     size = os.path.getsize(file_path)
     encoding = detect_encoding(file_path)
     content_hash = compute_file_hash(file_path)
-    
+
     # Count lines
     total_lines = 0
     with open(file_path, "rb") as f:
         for _ in f:
             total_lines += 1
-    
+
     return FileInfo(
         path=file_path,
         size=size,
@@ -134,9 +133,9 @@ def _is_binary_file(file_path: str) -> bool:
 
 def read_file(
     file_path: str,
-    start_line: Optional[int] = None,
-    end_line: Optional[int] = None,
-    encoding: Optional[str] = None,
+    start_line: int | None = None,
+    end_line: int | None = None,
+    encoding: str | None = None,
 ) -> ReadResult:
     """
     Read file content with optional line range.
@@ -156,11 +155,11 @@ def read_file(
             content="",
             encoding=encoding or "utf-8",
             status=FileStatus.NOT_FOUND,
-            metadata=FileInfo(path=file_path, size=0, total_lines=0, 
+            metadata=FileInfo(path=file_path, size=0, total_lines=0,
                             encoding="utf-8", content_hash="", exists=False),
             error_message=f"File not found: {file_path}"
         )
-    
+
     # Get file info
     try:
         info = get_file_info(file_path)
@@ -173,15 +172,15 @@ def read_file(
                             encoding="utf-8", content_hash="", exists=False),
             error_message=f"Failed to get file info: {e}"
         )
-    
+
     # Use detected encoding if not specified
     if encoding is None:
         encoding = info.encoding
-    
+
     # Determine read range
     start_idx = (start_line - 1) if start_line else 0
     end_idx = (end_line - 1) if end_line else None
-    
+
     try:
         # For small files or full read, read all at once
         if not info.is_large and start_idx == 0 and end_idx is None:
@@ -193,17 +192,17 @@ def read_file(
                 status=FileStatus.SUCCESS,
                 metadata=info
             )
-        
+
         # For large files or paginated reads, use streaming
         content = _read_lines_range(file_path, encoding, start_idx, end_idx)
-        
+
         return ReadResult(
             content=content,
             encoding=encoding,
             status=FileStatus.SUCCESS,
             metadata=info
         )
-        
+
     except UnicodeDecodeError as e:
         return ReadResult(
             content="",
@@ -226,7 +225,7 @@ def _read_lines_range(
     file_path: str,
     encoding: str,
     start_idx: int = 0,
-    end_idx: Optional[int] = None
+    end_idx: int | None = None
 ) -> str:
     """
     Read specific line range from file efficiently.
@@ -254,7 +253,7 @@ def _read_lines_range(
 def read_lines_streaming(
     file_path: str,
     start_line: int = 1,
-    limit: Optional[int] = None,
+    limit: int | None = None,
 ) -> Iterator[str]:
     """
     Stream file lines one by one (memory efficient).
@@ -270,7 +269,7 @@ def read_lines_streaming(
     encoding = detect_encoding(file_path)
     start_idx = start_line - 1
     end_idx = (start_idx + limit) if limit else None
-    
+
     with open(file_path, encoding=encoding) as f:
         for i, line in enumerate(f):
             if i < start_idx:
@@ -308,25 +307,25 @@ def write_file(
             parent = os.path.dirname(os.path.abspath(file_path))
             if parent:
                 os.makedirs(parent, exist_ok=True)
-        
+
         # Write atomically using temp file
         temp_path = file_path + ".tmp"
         with open(temp_path, "w", encoding=encoding) as f:
             f.write(content)
-        
+
         # Atomic rename
         os.replace(temp_path, file_path)
-        
+
         # Compute new hash
         new_hash = compute_file_hash(file_path)
-        
+
         return WriteResult(
             path=file_path,
             status=FileStatus.SUCCESS,
             bytes_written=len(content.encode(encoding)),
             new_hash=new_hash
         )
-        
+
     except PermissionError as e:
         return WriteResult(
             path=file_path,
@@ -360,16 +359,16 @@ def append_to_file(
     try:
         with open(file_path, "a", encoding=encoding) as f:
             f.write(content)
-        
+
         new_hash = compute_file_hash(file_path)
-        
+
         return WriteResult(
             path=file_path,
             status=FileStatus.SUCCESS,
             bytes_written=len(content.encode(encoding)),
             new_hash=new_hash
         )
-        
+
     except Exception as e:
         return WriteResult(
             path=file_path,
@@ -414,7 +413,7 @@ def get_pagination_info(
     """
     info = get_file_info(file_path)
     end_line = min(start_line + page_size - 1, info.total_lines)
-    
+
     return PaginationInfo(
         total_lines=info.total_lines,
         start_line=start_line,

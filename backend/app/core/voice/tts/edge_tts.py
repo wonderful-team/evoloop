@@ -4,7 +4,7 @@ Edge-TTS Provider Implementation
 """
 
 import logging
-from typing import Optional, AsyncIterator
+from collections.abc import AsyncIterator
 
 try:
     import edge_tts
@@ -12,7 +12,14 @@ try:
 except ImportError:
     EDGE_TTS_AVAILABLE = False
 
-from app.core.voice.tts.base import BaseTTSProvider, TTSOptions, TTSSResult, Voice, VoiceGender, VoiceLocale
+from app.core.voice.tts.base import (
+    BaseTTSProvider,
+    TTSOptions,
+    TTSSResult,
+    Voice,
+    VoiceGender,
+    VoiceLocale,
+)
 from app.core.voice.utils import optimize_for_tts
 
 logger = logging.getLogger(__name__)
@@ -57,19 +64,19 @@ class EdgeTTSProvider(BaseTTSProvider):
     使用微软 Edge 浏览器的语音合成服务，完全免费，无需 API Key。
     支持多种语言和声音，中文效果极佳。
     """
-    
+
     name = "edge-tts"
     supports_streaming = False  # Edge-TTS 不支持真正的流式，需要完整合成
     supports_speed_control = True
-    
+
     def __init__(self):
         self._voices = None
-    
+
     def is_available(self) -> bool:
         """检查 Edge-TTS 是否可用"""
         return EDGE_TTS_AVAILABLE
-    
-    def list_voices(self, locale: Optional[VoiceLocale] = None) -> list[Voice]:
+
+    def list_voices(self, locale: VoiceLocale | None = None) -> list[Voice]:
         """
         获取可用声音列表
         
@@ -83,7 +90,7 @@ class EdgeTTSProvider(BaseTTSProvider):
         for voice_id, info in EDGE_TTS_VOICES.items():
             if locale and info["locale"] != locale:
                 continue
-            
+
             voices.append(Voice(
                 id=voice_id,
                 name=info["name"],
@@ -95,9 +102,9 @@ class EdgeTTSProvider(BaseTTSProvider):
                 is_streaming=False,
                 supports_speed=True
             ))
-        
+
         return voices
-    
+
     def get_default_voice(self, locale: VoiceLocale = VoiceLocale.ZH_CN) -> str:
         """获取默认声音 ID"""
         defaults = {
@@ -110,7 +117,7 @@ class EdgeTTSProvider(BaseTTSProvider):
             VoiceLocale.KO_KR: "ko-KR-SunHiNeural",
         }
         return defaults.get(locale, "zh-CN-XiaoxiaoNeural")
-    
+
     async def synthesize(self, options: TTSOptions) -> TTSSResult:
         """
         合成语音
@@ -123,49 +130,49 @@ class EdgeTTSProvider(BaseTTSProvider):
         """
         if not EDGE_TTS_AVAILABLE:
             raise RuntimeError("Edge-TTS not installed. Run: pip install edge-tts")
-        
+
         # 验证声音 ID
         voice_id = options.voice_id
         if voice_id not in EDGE_TTS_VOICES:
             logger.warning(f"Unknown voice {voice_id}, using default")
             voice_id = self.get_default_voice(options.locale or VoiceLocale.ZH_CN)
-        
+
         # 清理 Markdown 格式，优化文本
         text = optimize_for_tts(options.text)
         if not text.strip():
             raise RuntimeError("Text is empty after processing")
-        
+
         # 转换语速为 Edge-TTS 格式
         # Edge-TTS rate: -50% to +50%，对应 0.5x - 1.5x 速度
         rate_percent = int((options.speed - 1.0) * 100)
         rate_str = f"{max(-50, min(50, rate_percent)):+d}%"
-        
+
         try:
             communicate = edge_tts.Communicate(
                 text,
                 voice_id,
                 rate=rate_str
             )
-            
+
             # 收集所有音频数据
             audio_chunks = []
             async for chunk in communicate.stream():
                 if chunk["type"] == "audio":
                     audio_chunks.append(chunk["data"])
-            
+
             audio_data = b"".join(audio_chunks)
-            
+
             return TTSSResult(
                 audio_data=audio_data,
                 content_type="audio/mpeg",
                 duration_ms=None,  # Edge-TTS 不返回时长
                 sample_rate=24000  # Edge-TTS 默认 24kHz
             )
-            
+
         except Exception as e:
             logger.error(f"Edge-TTS synthesis failed: {e}")
             raise RuntimeError(f"TTS synthesis failed: {e}")
-    
+
     async def synthesize_stream(self, options: TTSOptions) -> AsyncIterator[bytes]:
         """
         流式合成语音（模拟流式，实际 Edge-TTS 不支持真正的流式）
@@ -180,46 +187,46 @@ class EdgeTTSProvider(BaseTTSProvider):
         """
         if not EDGE_TTS_AVAILABLE:
             raise RuntimeError("Edge-TTS not installed")
-        
+
         # 验证声音 ID
         voice_id = options.voice_id
         if voice_id not in EDGE_TTS_VOICES:
             logger.warning(f"Unknown voice {voice_id}, using default")
             voice_id = self.get_default_voice(options.locale or VoiceLocale.ZH_CN)
-        
+
         # 清理 Markdown 格式，优化文本
         text = optimize_for_tts(options.text)
         if not text.strip():
             raise RuntimeError("Text is empty after processing")
-        
+
         # 转换语速
         rate_percent = int((options.speed - 1.0) * 100)
         rate_str = f"{max(-50, min(50, rate_percent)):+d}%"
-        
+
         try:
             communicate = edge_tts.Communicate(
                 text,
                 voice_id,
                 rate=rate_str
             )
-            
+
             # 边合成边返回（模拟流式）
             buffer = bytearray()
             buffer_size = 16384  # 16KB 缓冲区
-            
+
             async for chunk in communicate.stream():
                 if chunk["type"] == "audio":
                     buffer.extend(chunk["data"])
-                    
+
                     # 缓冲区满时 yield
                     while len(buffer) >= buffer_size:
                         yield bytes(buffer[:buffer_size])
                         buffer = buffer[buffer_size:]
-            
+
             # 返回剩余数据
             if buffer:
                 yield bytes(buffer)
-                
+
         except Exception as e:
             logger.error(f"Edge-TTS streaming failed: {e}")
             raise RuntimeError(f"TTS streaming failed: {e}")

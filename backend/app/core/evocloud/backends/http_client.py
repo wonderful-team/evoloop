@@ -507,7 +507,7 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
     async def check_subscription_order_status(self, order_id: str) -> dict:
         """检查订阅订单支付状态"""
         return await self.request(
-            "GET", 
+            "GET",
             "/subscription/api/order/checkStatus",
             params={"order_id": order_id}
         )
@@ -677,7 +677,7 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
             "device_id": device_id,
             "conversation": conversation,
         }
-        
+
         return await self.request(
             "POST",
             "/evolooplink/api/sync/conversation",
@@ -701,7 +701,7 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
             "thread_id": thread_id,
             "messages": messages,
         }
-        
+
         return await self.request(
             "POST",
             "/evolooplink/api/sync/messages",
@@ -727,7 +727,7 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
             "device_id": device_id,
             "data": data,
         }
-        
+
         return await self.request(
             "POST",
             "/evolooplink/api/sync/full",
@@ -777,7 +777,7 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
         }
         if project_id > 0:
             params["project_id"] = project_id
-        
+
         return await self.request(
             "GET",
             "/evolooplink/api/conversation/list",
@@ -785,9 +785,9 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
         )
 
     async def get_conversation_messages(
-        self, 
-        conversation_id: str, 
-        limit: int = 50, 
+        self,
+        conversation_id: str,
+        limit: int = 50,
         before_message_id: str | None = None
     ) -> dict:
         """
@@ -807,7 +807,7 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
         }
         if before_message_id:
             params["before_message_id"] = before_message_id
-        
+
         return await self.request(
             "GET",
             "/evolooplink/api/conversation/messages",

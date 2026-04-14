@@ -18,7 +18,6 @@ Usage:
 """
 
 import logging
-from typing import Optional
 
 from app.core.memory.auto_extraction import AutoMemoryExtractor
 from app.core.memory.backends.file_backend import FileMemoryStorage
@@ -26,7 +25,10 @@ from app.core.memory.backends.neo4j_backend import Neo4jMemoryStorage
 from app.core.memory.backends.sql_short_term import SqlShortTermMemory
 from app.core.memory.config import MemoryConfig
 from app.core.memory.daily_log import DailyLogWriter, LogConsolidator
-from app.core.memory.extraction import MemoryExtractionService, MemoryConsolidationService
+from app.core.memory.extraction import (
+    MemoryConsolidationService,
+    MemoryExtractionService,
+)
 from app.core.memory.interfaces.storage import IMemoryStorage
 from app.core.memory.manager import MemoryManager
 from app.core.memory.quality import MemoryQualityAnalyzer
@@ -44,7 +46,7 @@ class MemoryFactory:
     This factory centralizes component creation logic and ensures
     that components are created with their required dependencies.
     """
-    
+
     @staticmethod
     def create_storage(config: MemoryConfig) -> IMemoryStorage:
         """
@@ -62,21 +64,21 @@ class MemoryFactory:
         if config.is_file_backend:
             logger.info(f"[MemoryFactory] Creating FileMemoryStorage at {config.memory_root}")
             return FileMemoryStorage(str(config.memory_root))
-        
+
         elif config.is_neo4j_backend:
             if not all([config.neo4j_uri, config.neo4j_user, config.neo4j_password]):
                 raise ValueError("Neo4j backend requires uri, user, and password")
-            
+
             logger.info(f"[MemoryFactory] Creating Neo4jMemoryStorage at {config.neo4j_uri}")
             return Neo4jMemoryStorage(
                 uri=config.neo4j_uri,
                 user=config.neo4j_user,
                 password=config.neo4j_password,
             )
-        
+
         else:
             raise ValueError(f"Unsupported backend type: {config.backend_type}")
-    
+
     @staticmethod
     def create_short_term_memory(config: MemoryConfig) -> SqlShortTermMemory:
         """
@@ -88,15 +90,15 @@ class MemoryFactory:
         Returns:
             Short-term memory instance
         """
-        logger.info(f"[MemoryFactory] Creating SqlShortTermMemory")
+        logger.info("[MemoryFactory] Creating SqlShortTermMemory")
         return SqlShortTermMemory()
-    
+
     @classmethod
     def create_manager(
         cls,
-        config: Optional[MemoryConfig] = None,
-        storage: Optional[FileMemoryStorage] = None,
-        short_term: Optional[SqlShortTermMemory] = None,
+        config: MemoryConfig | None = None,
+        storage: FileMemoryStorage | None = None,
+        short_term: SqlShortTermMemory | None = None,
     ) -> MemoryManager:
         """
         Create memory manager with all dependencies.
@@ -110,20 +112,20 @@ class MemoryFactory:
             Configured MemoryManager instance
         """
         config = config or MemoryConfig()
-        
+
         if storage is None:
             storage = cls.create_storage(config)
-        
+
         if short_term is None:
             short_term = cls.create_short_term_memory(config)
-        
-        logger.info(f"[MemoryFactory] Creating MemoryManager")
+
+        logger.info("[MemoryFactory] Creating MemoryManager")
         return MemoryManager(
             config=config,
             storage=storage,
             short_term=short_term,
         )
-    
+
     @classmethod
     def create_extractor(
         cls,
@@ -144,7 +146,7 @@ class MemoryFactory:
             storage=storage,
             config=config,
         )
-    
+
     @classmethod
     def create_consolidator(
         cls,
@@ -160,7 +162,7 @@ class MemoryFactory:
             MemoryConsolidationService instance
         """
         return MemoryConsolidationService(storage=storage)
-    
+
     @classmethod
     def create_retriever(
         cls,
@@ -181,7 +183,7 @@ class MemoryFactory:
             storage=storage,
             config=config,
         )
-    
+
     @classmethod
     def create_quality_analyzer(
         cls,
@@ -202,7 +204,7 @@ class MemoryFactory:
             storage=storage,
             config=config,
         )
-    
+
     @staticmethod
     def create_state_tracker() -> MemoryStateTracker:
         """
@@ -212,7 +214,7 @@ class MemoryFactory:
             MemoryStateTracker instance
         """
         return MemoryStateTracker()
-    
+
     @classmethod
     def create_daily_log_writer(
         cls,
@@ -228,7 +230,7 @@ class MemoryFactory:
             DailyLogWriter instance
         """
         return DailyLogWriter(root_path=config.memory_root)
-    
+
     @classmethod
     def create_log_consolidator(
         cls,
@@ -244,7 +246,7 @@ class MemoryFactory:
             LogConsolidator instance
         """
         return LogConsolidator(root_path=config.memory_root)
-    
+
     @classmethod
     def create_two_tier_manager(
         cls,
@@ -265,7 +267,7 @@ class MemoryFactory:
             storage=storage,
             config=config,
         )
-    
+
     @classmethod
     def create_auto_extractor(
         cls,
@@ -286,11 +288,11 @@ class MemoryFactory:
             memory_manager=manager,
             config=config,
         )
-    
+
     @classmethod
     def create_complete_system(
         cls,
-        config: Optional[MemoryConfig] = None,
+        config: MemoryConfig | None = None,
     ) -> "CompleteMemorySystem":
         """
         Create a complete memory system with all components.
@@ -305,11 +307,11 @@ class MemoryFactory:
             CompleteMemorySystem with all components
         """
         config = config or MemoryConfig()
-        
+
         storage = cls.create_storage(config)
         short_term = cls.create_short_term_memory(config)
         manager = cls.create_manager(config, storage, short_term)
-        
+
         return CompleteMemorySystem(
             config=config,
             storage=storage,
@@ -326,7 +328,7 @@ class CompleteMemorySystem:
     This is a convenience class that holds references to all
     components created by the factory.
     """
-    
+
     def __init__(
         self,
         config: MemoryConfig,
@@ -340,23 +342,23 @@ class CompleteMemorySystem:
         self.short_term = short_term
         self.manager = manager
         self._factory = factory
-        
+
         # Lazy-loaded components
-        self._extraction: Optional[MemoryExtractionService] = None
-        self._smart_retriever: Optional[MemoryRetriever] = None
-        self._quality: Optional[MemoryQualityAnalyzer] = None
-    
+        self._extraction: MemoryExtractionService | None = None
+        self._smart_retriever: MemoryRetriever | None = None
+        self._quality: MemoryQualityAnalyzer | None = None
+
     async def initialize(self) -> None:
         """Initialize all components."""
         await self.short_term.initialize()
         await self.manager.initialize()
-    
+
     async def shutdown(self) -> None:
         """Shutdown all components."""
         # Note: We do NOT call flush() here because it deletes all data.
         # flush() is only for testing. This method just releases resources.
         pass
-    
+
     @property
     def extraction(self) -> MemoryExtractionService:
         """Get extraction service (lazy)."""
@@ -365,7 +367,7 @@ class CompleteMemorySystem:
                 self.config, self.storage
             )
         return self._extraction
-    
+
     @property
     def smart_retriever(self) -> MemoryRetriever:
         """Get smart retriever (lazy)."""
@@ -374,7 +376,7 @@ class CompleteMemorySystem:
                 self.config, self.storage
             )
         return self._smart_retriever
-    
+
     @property
     def quality(self) -> MemoryQualityAnalyzer:
         """Get quality analyzer (lazy)."""

@@ -13,7 +13,7 @@ from functools import wraps
 from typing import Any, Callable
 
 from app.core.config import settings
-from app.infrastructure.client import get_client_executor, ToolExecutionError
+from app.infrastructure.client.http import get_client_executor, ToolExecutionError
 
 logger = logging.getLogger(__name__)
 
@@ -81,7 +81,7 @@ def should_use_client(tool_name: str) -> bool:
         return False
 
     # Priority 1: Check WebSocket capabilities
-    from app.infrastructure.client import client_ws_manager
+    from .websocket import client_ws_manager
 
     if client_ws_manager.is_connected():
         # If client reported capabilities, use them

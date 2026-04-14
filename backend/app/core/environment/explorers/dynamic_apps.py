@@ -129,7 +129,7 @@ class DynamicAppTriage(BaseExplorer):
             content = response.content.strip() if hasattr(response, 'content') else str(response).strip()
             if "```json" in content:
                 content = content.split("```json")[1].split("```")[0].strip()
-            
+
             data = json.loads(content)
             return data.get("results", {})
         except Exception as e:

@@ -15,7 +15,11 @@ from typing import Any
 from langchain_core.callbacks import AsyncCallbackHandler
 from langchain_core.outputs import LLMResult
 
-from app.core.tools.registry import is_state_mutating_tool, get_tool_affected_paths, get_tool_metadata
+from app.core.tools.registry import (
+    get_tool_affected_paths,
+    get_tool_metadata,
+    is_state_mutating_tool,
+)
 from app.i18n.service import i18n
 from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.models.schemas.events import TokenEvent
@@ -42,12 +46,12 @@ class StreamEvent(DynamicBaseModel):
     data: dict | None = None
     progress: int | None = None
     timestamp: str | None = None
-    
+
     def model_post_init(self, __context):
         if self.timestamp is None:
             from datetime import datetime
             self.timestamp = datetime.utcnow().isoformat()
-    
+
     def to_json(self) -> str:
         """Convert to JSON string for SSE."""
         return self.model_dump_json(exclude_none=True)
@@ -69,14 +73,14 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
     def __init__(self, thread_id: str = None):
         super().__init__()
         self.thread_id = thread_id
-        from app.core.monitoring.activity import activity_monitor
         from app.core.context import tool_state_store
+        from app.core.monitoring.activity import activity_monitor
         from app.infrastructure.cache import cache
 
         self.monitor = activity_monitor
         self._cache = cache
         self._tool_store = tool_state_store
-        
+
         # Step tracking
         self.llm_task_id = None
         self.tool_task_id = None  # Legacy: single tool task (for sync compatibility)
@@ -84,7 +88,7 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
         self.active_llm_run_id = None
         self._current_phase_task_id = None
         self._active_nodes = {}
-        
+
         # Stream tracking
         self._current_stream_buffer = ""
 
@@ -101,7 +105,7 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
         """
         if not self.thread_id:
             return
-            
+
         try:
             # Unified: Publish to events channel (same as TokenEvent)
             # Frontend distinguishes by event structure (type field)
@@ -193,12 +197,12 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
                 # --- 🏅 Token-level Technical Tag Filtering (Phase 5 UI Optimization) ---
                 # We want to hide <audit>...</audit> and <think>...</think> from the user stream.
                 # We also want to strip <report> and </report> tags but keep their content.
-                
+
                 if not hasattr(self, "_in_hidden_tag"):
                     self._in_hidden_tag = False
                 if not hasattr(self, "_tag_buffer"):
                     self._tag_buffer = ""
-                
+
                 # Update tag buffer to detect tag boundaries
                 self._tag_buffer += token
                 if len(self._tag_buffer) > 100: # Safety cap
@@ -212,7 +216,7 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
                             # The tokens that formed the tag shouldn't be published
                             # (Note: simpler to just stop publishing from this point)
                             break
-                
+
                 # 2. Detect end of hidden tags
                 if self._in_hidden_tag:
                     for tag in ["</audit>", "</think>", "</thought>", "</outcome>", "</reason>", "</proof_points>"]:
@@ -220,8 +224,8 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
                             self._in_hidden_tag = False
                             self._tag_buffer = "" # Clear buffer after finding end tag
                             break
-                    
-                    # While in hidden tag, we still update the step (for full history) 
+
+                    # While in hidden tag, we still update the step (for full history)
                     # but we don't ADD to the publish buffer.
                     return
 
@@ -421,7 +425,7 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
 
         # Ensure output is string for fallback and logging
         output_str = str(output) if not isinstance(output, str) else output
-        
+
         if tool_state:
             log_output, _ = tool_state.get_summary(output)
             duration = self._tool_store.get_duration(self.thread_id, run_id) if self.thread_id else None
@@ -429,7 +433,7 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
             # Fallback if state not found
             log_output = output_str[:500] if len(output_str) > 500 else output_str
             duration = None
-        
+
         log_output_str = str(log_output) if not isinstance(log_output, str) else log_output
 
         logger.info(f"[Tool End] {tool_name} (hidden={is_hidden})")
@@ -449,7 +453,7 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
         is_hidden = metadata.get("is_hidden", False)
 
         logger.error(f"Tool Error in thread {self.thread_id}: {error}")
-        
+
         # Get the correct task_id for this tool run (support parallel tools)
         run_id = str(kwargs.get("run_id", "default"))
         task_id = self._tool_task_ids.pop(run_id, None)

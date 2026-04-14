@@ -10,7 +10,7 @@ Can be run as:
 import logging
 from datetime import datetime
 
-from app.core.vision.storage import screenshot_storage, screen_recording_storage
+from app.core.vision.storage import screen_recording_storage, screenshot_storage
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)

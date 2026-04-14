@@ -15,8 +15,8 @@ import logging
 import os
 import shutil
 import sys
+from collections.abc import AsyncIterator
 from pathlib import Path
-from typing import Optional, AsyncIterator
 
 from app.core.config import settings
 from app.core.voice.stt.base import BaseSTTProvider, STTOptions, STTResult, VoiceLocale
@@ -55,7 +55,7 @@ FUNASR_MODELS = {
 }
 
 
-def _get_bundled_models_path() -> Optional[Path]:
+def _get_bundled_models_path() -> Path | None:
     """
     获取应用 bundle 中的模型路径 (Tauri 打包场景)
     
@@ -68,7 +68,7 @@ def _get_bundled_models_path() -> Optional[Path]:
         bundle_models = Path(settings.TAURI_RESOURCE_DIR) / "models"
         if bundle_models.exists():
             return bundle_models
-    
+
     # Fallback: Check if running from a PyInstaller bundle
     if getattr(sys, 'frozen', False):
         # Running in a bundle
@@ -76,17 +76,17 @@ def _get_bundled_models_path() -> Optional[Path]:
         bundle_models = bundle_dir / "models"
         if bundle_models.exists():
             return bundle_models
-    
+
     # Check for models in current working directory (development)
     cwd_models = Path.cwd() / "models"
     if cwd_models.exists():
         return cwd_models
-    
+
     # Check for models in backend resources (src-tauri sidecar mode)
     backend_models = Path(__file__).parent.parent.parent.parent.parent / "src-tauri" / "models"
     if backend_models.exists():
         return backend_models
-    
+
     return None
 
 
@@ -98,19 +98,19 @@ def _copy_bundled_models_if_needed():
     bundled_path = _get_bundled_models_path()
     if not bundled_path:
         return
-    
+
     user_models_dir = Path(settings.MODELS_DIR)
-    
+
     # Check if models already exist in user directory
     if user_models_dir.exists() and any(user_models_dir.iterdir()):
         logger.debug(f"Models already exist in {user_models_dir}, skipping copy")
         return
-    
+
     logger.info(f"Found bundled models at {bundled_path}, copying to {user_models_dir}")
-    
+
     try:
         user_models_dir.mkdir(parents=True, exist_ok=True)
-        
+
         # Copy all models from bundle to user directory
         for item in bundled_path.iterdir():
             dest = user_models_dir / item.name
@@ -121,7 +121,7 @@ def _copy_bundled_models_if_needed():
                 logger.info(f"Copied model directory: {item.name}")
             else:
                 shutil.copy2(item, dest)
-        
+
         logger.info(f"Successfully copied bundled models to {user_models_dir}")
     except Exception as e:
         logger.warning(f"Failed to copy bundled models: {e}")
@@ -139,18 +139,18 @@ class FunASRProvider(BaseSTTProvider):
     - 支持热词增强
     - 首次使用自动下载模型
     """
-    
+
     name = "funasr"
     supports_streaming = True
     supports_timestamps = True
-    
-    def __init__(self, model_name: Optional[str] = None):
+
+    def __init__(self, model_name: str | None = None):
         from app.core.config import settings
         self.model_name = model_name or settings.FUNASR_MODEL
         self.device = settings.FUNASR_DEVICE
         self._model = None
         self._funasr_available = self._check_dependencies()
-    
+
     def _check_dependencies(self) -> bool:
         """检查依赖是否安装"""
         try:
@@ -161,52 +161,52 @@ class FunASRProvider(BaseSTTProvider):
         except ImportError as e:
             logger.warning(f"FunASR dependencies not installed: {e}")
             return False
-    
+
     def is_available(self) -> bool:
         """检查 FunASR 是否可用"""
         return self._funasr_available
-    
+
     def _load_model(self):
         """加载模型（延迟加载，首次使用时）"""
         if self._model is not None:
             return
-        
+
         if not self._funasr_available:
             raise RuntimeError(
                 "FunASR not installed. Please install: "
                 "pip install funasr modelscope torch torchaudio"
             )
-        
+
         # Try to copy bundled models before loading (for packaged apps)
         _copy_bundled_models_if_needed()
-        
+
         try:
             from funasr import AutoModel
-            
+
             model_config = FUNASR_MODELS.get(self.model_name, FUNASR_MODELS["paraformer-zh"])
             model_id = model_config["model_id"]
-            
+
             logger.info(f"Loading FunASR model: {self.model_name} ({model_id}) on {self.device}")
             logger.info(f"Model cache directory: {settings.MODELS_DIR}")
-            
+
             # Check if model needs to be downloaded
             if not FunASRManager.is_model_downloaded(self.model_name):
                 logger.info(f"Model {self.model_name} not found locally, will download from ModelScope...")
-            
+
             # 自动下载并加载模型 (使用 MODELSCOPE_CACHE 环境变量指定的路径)
             self._model = AutoModel(
                 model=model_id,
                 model_revision="v2.0.4",
                 device=self.device,
             )
-            
+
             logger.info(f"FunASR model loaded successfully: {self.model_name}")
-            
+
         except Exception as e:
             logger.error(f"Failed to load FunASR model: {e}")
             raise RuntimeError(f"Failed to load FunASR model: {e}")
-    
-    def list_models(self, language: Optional[VoiceLocale] = None) -> list[str]:
+
+    def list_models(self, language: VoiceLocale | None = None) -> list[str]:
         """
         获取可用模型列表
         
@@ -227,9 +227,9 @@ class FunASRProvider(BaseSTTProvider):
                 VoiceLocale.AUTO: list(FUNASR_MODELS.keys()),
             }
             return lang_map.get(language, list(FUNASR_MODELS.keys()))
-        
+
         return list(FUNASR_MODELS.keys())
-    
+
     def get_default_model(self, language: VoiceLocale = VoiceLocale.ZH_CN) -> str:
         """获取默认模型"""
         defaults = {
@@ -241,7 +241,7 @@ class FunASRProvider(BaseSTTProvider):
             VoiceLocale.AUTO: "paraformer-zh",
         }
         return defaults.get(language, "paraformer-zh")
-    
+
     async def transcribe(self, options: STTOptions) -> STTResult:
         """
         识别语音
@@ -253,16 +253,16 @@ class FunASRProvider(BaseSTTProvider):
             STTResult: 识别结果
         """
         self._load_model()
-        
+
         # 保存音频到临时文件
-        import tempfile
         import asyncio
-        
+        import tempfile
+
         suffix = f".{options.audio_format}" if options.audio_format else ".wav"
         with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
             tmp.write(options.audio_data)
             tmp_path = tmp.name
-        
+
         try:
             # FunASR 的 generate 是同步的，在线程池中运行
             loop = asyncio.get_event_loop()
@@ -270,14 +270,14 @@ class FunASRProvider(BaseSTTProvider):
                 None,  # 使用默认线程池
                 lambda: self._model.generate(input=tmp_path, batch_size=1)
             )
-            
+
             # 解析结果
             if result and len(result) > 0:
                 text = result[0].get("text", "").strip()
-                
+
                 # 检测语言
                 detected_lang = self._detect_language(text)
-                
+
                 return STTResult(
                     text=text,
                     language=detected_lang,
@@ -291,14 +291,14 @@ class FunASRProvider(BaseSTTProvider):
                     duration_ms=0,
                     confidence=0,
                 )
-                
+
         finally:
             # 清理临时文件
             try:
                 os.unlink(tmp_path)
             except:
                 pass
-    
+
     async def transcribe_stream(self, options: STTOptions) -> AsyncIterator[STTResult]:
         """
         流式识别（使用流式模型）
@@ -309,20 +309,20 @@ class FunASRProvider(BaseSTTProvider):
         # 这里简单实现为一次性返回
         result = await self.transcribe(options)
         yield result
-    
+
     def _detect_language(self, text: str) -> VoiceLocale:
         """简单检测语言"""
         import re
-        
+
         # 检查是否主要是中文
         chinese_chars = len(re.findall(r'[\u4e00-\u9fff]', text))
         total_chars = len(text.replace(" ", ""))
-        
+
         if total_chars == 0:
             return VoiceLocale.ZH_CN
-        
+
         chinese_ratio = chinese_chars / total_chars
-        
+
         if chinese_ratio > 0.5:
             return VoiceLocale.ZH_CN
         else:
@@ -335,16 +335,16 @@ class FunASRManager:
     
     用于预加载和管理多个模型实例
     """
-    
+
     _instances: dict[str, FunASRProvider] = {}
-    
+
     @classmethod
     def get_provider(cls, model_name: str = "paraformer-zh") -> FunASRProvider:
         """获取或创建 FunASR 提供商"""
         if model_name not in cls._instances:
             cls._instances[model_name] = FunASRProvider(model_name)
         return cls._instances[model_name]
-    
+
     @classmethod
     def preload_model(cls, model_name: str = "paraformer-zh"):
         """预加载模型"""
@@ -354,15 +354,15 @@ class FunASRManager:
             logger.info(f"FunASR model preloaded: {model_name}")
         except Exception as e:
             logger.error(f"Failed to preload model {model_name}: {e}")
-    
+
     @classmethod
     def clear_cache(cls):
         """清除缓存"""
         cls._instances.clear()
         logger.info("FunASR cache cleared")
-    
+
     @classmethod
-    def get_model_path(cls, model_name: str = "paraformer-zh") -> Optional[Path]:
+    def get_model_path(cls, model_name: str = "paraformer-zh") -> Path | None:
         """
         获取模型存储路径
         
@@ -373,7 +373,7 @@ class FunASRManager:
         model_id = model_config["model_id"]
         # ModelScope stores models in: MODELS_DIR/hub/{model_id}
         return Path(settings.MODELS_DIR) / "hub" / model_id
-    
+
     @classmethod
     def is_model_downloaded(cls, model_name: str = "paraformer-zh") -> bool:
         """

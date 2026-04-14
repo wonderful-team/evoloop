@@ -1,6 +1,7 @@
 """
 YAML Content-Type support for FastAPI
 """
+import json
 
 from fastapi import Request, HTTPException
 
@@ -24,7 +25,6 @@ async def parse_macro_body(request: Request) -> list[dict]:
         if "yaml" in content_type or content_type == "text/yaml":
             return macro_from_yaml(content)
         else:
-            import json
             data = json.loads(content)
             # Handle both {steps: [...]} and [...] formats
             return data.get("steps", data) if isinstance(data, dict) else data

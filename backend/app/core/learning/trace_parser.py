@@ -13,14 +13,13 @@ Key Concepts:
 import json
 import logging
 from enum import Enum
-from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import Field
 from sqlalchemy import select
 
 from app.infrastructure.database.sql.database import session_scope
-from app.models import TraceEvent
 from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.models import TraceEvent
 
 logger = logging.getLogger(__name__)
 
@@ -45,9 +44,9 @@ class ActionCategory(str, Enum):
 
 class UIContext(DynamicBaseModel):
     """Visual/UI context at the time of action."""
-    screenshot_path: Optional[str] = None
-    element_selector: Optional[str] = None
-    element_text: Optional[str] = None
+    screenshot_path: str | None = None
+    element_selector: str | None = None
+    element_text: str | None = None
 
 
 class TraceActionArgs(DynamicBaseModel):
@@ -61,11 +60,11 @@ class TraceStateContext(DynamicBaseModel):
 class TraceSummary(DynamicBaseModel):
     """Summary of a trace sequence."""
     thread_id: str
-    task_name: Optional[str] = None
+    task_name: str | None = None
     total_steps: int
     human_steps: int
     agent_steps: int
-    tools_used: List[str] = Field(default_factory=list)
+    tools_used: list[str] = Field(default_factory=list)
     success: bool = True
 
 
@@ -84,17 +83,17 @@ class TraceStep(DynamicBaseModel):
     action_args: TraceActionArgs = Field(default_factory=TraceActionArgs)
 
     # Observation/result
-    observation: Optional[str] = None
+    observation: str | None = None
     success: bool = True
 
     # Context
     node_name: str = "unknown"
     state_context: TraceStateContext = Field(default_factory=TraceStateContext)
-    ui_context: Optional[UIContext] = None
+    ui_context: UIContext | None = None
 
     # Metadata
-    timestamp: Optional[float] = None
-    user_feedback: Optional[str] = None
+    timestamp: float | None = None
+    user_feedback: str | None = None
 
 
 class TraceSequence(DynamicBaseModel):
@@ -103,13 +102,13 @@ class TraceSequence(DynamicBaseModel):
     Can be used for pattern analysis and workflow synthesis.
     """
     thread_id: str
-    session_id: Optional[str] = None
-    task_name: Optional[str] = None
+    session_id: str | None = None
+    task_name: str | None = None
 
-    steps: List[TraceStep] = Field(default_factory=list)
+    steps: list[TraceStep] = Field(default_factory=list)
 
     # Derived metadata
-    tools_used: List[str] = Field(default_factory=list)
+    tools_used: list[str] = Field(default_factory=list)
     has_human_intervention: bool = False
     success: bool = True
 

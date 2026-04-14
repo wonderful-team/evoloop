@@ -5,7 +5,7 @@ Handles document upload, retrieval, and management for the Agent knowledge base.
 """
 
 import logging
-from typing import Optional
+from typing import Optional, Any
 
 from fastapi import APIRouter, Body, File, Form, HTTPException, Query, UploadFile
 
@@ -35,7 +35,7 @@ class DocumentResponse(BaseAPIResponse):
     document: Optional[dict] = None
 
 
-class DocumentListResponse(ListResponse):
+class DocumentListResponse(ListResponse[dict]):
     """Response for listing documents."""
     documents: list[dict]
     collections: list[str]

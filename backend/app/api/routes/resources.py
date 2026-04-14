@@ -4,6 +4,7 @@ from typing import Literal
 from fastapi import APIRouter, HTTPException
 from sqlalchemy import select
 
+from app.api.responses import BaseAPIResponse
 from app.infrastructure.database.sql.database import get_db_session
 from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.models import ProjectResource

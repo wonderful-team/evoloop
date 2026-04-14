@@ -2,7 +2,6 @@ import logging
 from typing import Annotated
 
 from langchain_core.runnables import RunnableConfig
-from app.utils import render_template
 from langchain_core.tools import InjectedToolArg
 from sqlmodel import Session, select
 
@@ -11,6 +10,7 @@ from app.core.db import engine
 from app.core.tools import evoloop_tool
 from app.domain.wiki.service import wiki_service
 from app.models.wiki import WikiPage
+from app.utils import render_template
 
 logger = logging.getLogger(__name__)
 

@@ -179,7 +179,7 @@ async def run_agent_background(thread_id: str, inputs: dict[str, Any]):
 
         # Memory Injection (Parallelized)
         from app.core.memory.lifespan import MemoryLifespanManager
-        
+
         if not MemoryLifespanManager.is_initialized():
             await MemoryLifespanManager.ainitialize()
         container = MemoryLifespanManager.get_container()
@@ -267,14 +267,14 @@ async def run_agent_background(thread_id: str, inputs: dict[str, Any]):
             # Reduced from 1.0s to 0.2s based on actual profiling (Celery task completion <100ms typical)
             if not settings.EMBEDDED_MODE:
                 await asyncio.sleep(0.2)
-            
+
             await activity_monitor.end_run(thread_id, "done")
 
             # Publish AgentRunCompletedEvent for automated learning
             try:
-                from app.core.events import system_bus
                 from app.core.engine.events import AgentRunCompletedEvent
-                
+                from app.core.events import system_bus
+
                 # We use the thread_id as the primary key for the learning trigger
                 # goal can be reconstructed from the first message in the thread
                 await system_bus.publish(AgentRunCompletedEvent(
@@ -354,20 +354,20 @@ async def _handle_task_exception(thread_id: str, project_id: int, e: Exception):
         return
 
     logger.error(f"Error running thread {thread_id}: {e}", exc_info=True)
-    
+
     # 1. Distinguish between Retryable, Quota Exhausted, LLM Auth Error, and Fatal Errors
     # 403 Forbidden is often a quota issue (e.g. Kimi), check keywords
     is_quota_exhausted = any(kw in error_str for kw in [
         "quota_exhausted", "insufficient quota", "usage limit", "billing cycle", "refresh"
     ]) or ("403" in error_full and ("quota" in error_str or "limit" in error_str))
-    
+
     # Check for LLM API authentication errors (401 unauthorized from LLM provider)
     is_llm_auth_error = (
         "authenticationerror" in exc_name.lower() or
         ("401" in error_full and "unauthorized" in error_str) or
         ("api_error" in error_str and "token expired" in error_str)
     ) and not is_quota_exhausted
-    
+
     # Check for EvoLoop platform auth errors (ValueError raised by LLMFactory)
     is_auth_expired = (
         "not authenticated with evoloop" in error_str or
@@ -404,16 +404,16 @@ async def _handle_task_exception(thread_id: str, project_id: int, e: Exception):
     # 3. Handle LLM Authentication Error - Special flow
     if is_llm_auth_error:
         logger.warning(f"[LLMAuthError] Thread {thread_id} hit LLM API authentication error")
-        
+
         # Set failed status
         await activity_monitor.end_run(thread_id, "failed")
-        
+
         # Get translated messages (with fallback)
         llm_auth_title = i18n.get('core_engine.llm_auth_error_title') or 'LLM API认证失败'
         llm_auth_desc = i18n.get('core_engine.llm_auth_error_desc') or 'LLM API密钥无效或已过期。'
         llm_auth_solution = i18n.get('core_engine.llm_auth_error_solution') or '请检查系统设置中的LLM配置，确保API密钥正确。'
         icon_failed = i18n.get('icons.failed') or '❌'
-        
+
         # Create user-friendly error message
         user_message = (
             f"{icon_failed} **{llm_auth_title}**: "
@@ -421,10 +421,10 @@ async def _handle_task_exception(thread_id: str, project_id: int, e: Exception):
             f"{llm_auth_solution}\n\n"
             f"> {str(e)[:200]}"
         )
-        
+
         # Note: 401 errors are system errors (ERROR_SYSTEM), not persisted to DB
         # They provide no value for agent learning, only notify user via SSE
-        
+
         # Publish error event for UI to show immediately
         await cache.publish(
             f"chat:{thread_id}:events",
@@ -437,14 +437,14 @@ async def _handle_task_exception(thread_id: str, project_id: int, e: Exception):
             })
         )
         return
-    
+
     # 3. Handle Quota Exhausted - Special flow
     if is_quota_exhausted:
         logger.warning(f"[QuotaExhausted] Thread {thread_id} hit quota limit")
-        
+
         # Set special status (does not pollute message history)
         await activity_monitor.end_run(thread_id, "quota_exhausted")
-        
+
         # Publish special event for UI
         await cache.publish(
             f"chat:{thread_id}:events",
@@ -457,10 +457,10 @@ async def _handle_task_exception(thread_id: str, project_id: int, e: Exception):
             ).model_dump_json()
         )
         return
-    
+
     # 4. Handle other errors
     await activity_monitor.end_run(thread_id, "failed")
-    
+
     if is_retryable:
         user_message = (
             f"{i18n.get('icons.warning')} **{i18n.get('core_engine.retryable_error_title')}**: "

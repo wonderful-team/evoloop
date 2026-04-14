@@ -7,28 +7,32 @@ from langchain_core.tools import StructuredTool
 from mcp import ClientSession
 from pydantic import Field, create_model
 
-from app.core.mcp.features.base import McpFeature, McpFeatureCapabilities, format_mcp_tool_name
+from app.core.mcp.features.base import (
+    McpFeature,
+    McpFeatureCapabilities,
+    format_mcp_tool_name,
+)
 
 logger = logging.getLogger(__name__)
 
 
 class McpToolsFeature(McpFeature):
     """MCP Tools feature - handles tool listing and conversion."""
-    
+
     feature_name = "tools"
-    
+
     def __init__(self):
         self._session: ClientSession | None = None
         self._server_name: str = ""
         self._tools: list = []
         self._schemas: dict[str, Any] = {}
         self._lc_tools: list[StructuredTool] = []
-    
+
     async def initialize(self, session: ClientSession, server_name: str) -> None:
         """Initialize by fetching tools from server."""
         self._session = session
         self._server_name = server_name
-        
+
         try:
             result = await session.list_tools()
             self._tools = result.tools
@@ -38,7 +42,7 @@ class McpToolsFeature(McpFeature):
             logger.error(f"Failed to list tools for {server_name}: {e}")
             self._tools = []
             self._lc_tools = []
-    
+
     async def get_capabilities(self) -> McpFeatureCapabilities:
         """Get tools capabilities."""
         return McpFeatureCapabilities(
@@ -48,15 +52,15 @@ class McpToolsFeature(McpFeature):
                 for t in self._tools
             ]
         )
-    
+
     def get_tools(self) -> list[StructuredTool]:
         """Get converted LangChain tools."""
         return self._lc_tools
-    
+
     def get_tool_names(self) -> list[str]:
         """Get list of tool names."""
         return [t.name for t in self._lc_tools]
-    
+
     def reset(self) -> None:
         """Reset state."""
         self._session = None
@@ -64,24 +68,24 @@ class McpToolsFeature(McpFeature):
         self._tools = []
         self._schemas = {}
         self._lc_tools = []
-    
+
     def _convert_to_langchain_tools(self) -> list[StructuredTool]:
         """Convert MCP tools to LangChain StructuredTools."""
         if not self._session:
             return []
-        
+
         lc_tools = []
         session = self._session  # Capture for closure
         server_name = self._server_name
-        
+
         for tool in self._tools:
             # Create async function that calls the MCP tool
             async def _tool_func(*_args, tool_name: str = tool.name, **kwargs) -> Any:
                 return await session.call_tool(tool_name, arguments=kwargs)
-            
+
             # Create Pydantic schema from JSON schema
             args_schema = self._create_args_schema(tool.name, tool.inputSchema)
-            
+
             # Generate standardized tool name
             formatted_name = format_mcp_tool_name(server_name, tool.name)
 
@@ -93,9 +97,9 @@ class McpToolsFeature(McpFeature):
                 args_schema=args_schema,
             )
             lc_tools.append(lc_tool)
-        
+
         return lc_tools
-    
+
     def _create_args_schema(self, tool_name: str, schema: dict[str, Any]) -> type:
         """
         Dynamically create a Pydantic model from JSON schema.
@@ -116,15 +120,15 @@ class McpToolsFeature(McpFeature):
             "object": dict,
             "null": type(None),
         }
-        
+
         fields = {}
         required_fields = set(schema.get("required", []))
         properties = schema.get("properties", {})
-        
+
         for field_name, field_def in properties.items():
             field_type = type_map.get(field_def.get("type", "string"), str)
             description = field_def.get("description", "")
-            
+
             if field_name in required_fields:
                 fields[field_name] = (field_type, Field(description=description))
             else:
@@ -132,6 +136,6 @@ class McpToolsFeature(McpFeature):
                     field_type | None,
                     Field(default=None, description=description),
                 )
-        
+
         model_name = f"{tool_name}Input"
         return create_model(model_name, **fields)

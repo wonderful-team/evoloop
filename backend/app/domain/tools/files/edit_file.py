@@ -5,18 +5,17 @@ import os
 from enum import Enum
 from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict
-
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import InjectedToolArg
+from pydantic import BaseModel, ConfigDict
 
-from app.core.tools import evoloop_tool, get_working_directory
-from app.core.file.editor import EditEngine
 from app.core.file import (
     safe_read_with_hash,
     write_file_with_verification,
-    get_file_info,  # Replaces get_file_stats
+    # Replaces get_file_stats
 )
+from app.core.file.editor import EditEngine
+from app.core.tools import evoloop_tool, get_working_directory
 from app.i18n.service import i18n
 from .utils import resolve_and_validate_path
 

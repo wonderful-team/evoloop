@@ -1,22 +1,21 @@
 import logging
-from typing import Any, Optional
 
-from pydantic import BaseModel, Field
-from app.infrastructure.pydantic_base import DynamicBaseModel
+from pydantic import Field
 
 from app.core.context.manager import ContextManager
 from app.core.tools.base import evoloop_tool
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 
 
 class SynthesizeSkillInput(DynamicBaseModel):
     reason: str = Field(
-        ..., 
+        ...,
         description="Reason for triggering skill synthesis. Explain why this session is valuable (e.g., 'Successfully solved a complex bug', 'Implemented a new reusable component')."
     )
-    thread_id: Optional[str] = Field(
-        None, 
+    thread_id: str | None = Field(
+        None,
         description="The thread ID to synthesize. Defaults to current thread if not provided."
     )
 
@@ -26,7 +25,7 @@ class SynthesizeSkillInput(DynamicBaseModel):
     is_state_mutating=False,
     name_map={"zh": "合成技能", "en": "Synthesize Skill"}
 )
-async def synthesize_skill(reason: str, thread_id: Optional[str] = None) -> str:
+async def synthesize_skill(reason: str, thread_id: str | None = None) -> str:
     """
     Manually trigger skill synthesis for the current or a specific thread.
     Use this when you have successfully completed a non-trivial task that 
@@ -40,10 +39,10 @@ async def synthesize_skill(reason: str, thread_id: Optional[str] = None) -> str:
         return "Error: Could not determine thread_id for synthesis."
 
     logger.info(f"[Tool] Agent triggered manual skill synthesis for thread {target_thread}. Reason: {reason}")
-    
+
     try:
         from app.infrastructure.queue.factory import get_scheduler
-        
+
         # Trigger the recording task with auto_synthesize=True
         get_scheduler().send_task(
             "engine_record_episode",

@@ -1,7 +1,7 @@
 import logging
 
 from app.models.schemas.auth import LoginResult
-from .jwt import create_local_jwt, decode_local_jwt, JwtPayload
+from .jwt import JwtPayload, create_local_jwt, decode_local_jwt
 from .store import IdentityStore
 
 logger = logging.getLogger(__name__)

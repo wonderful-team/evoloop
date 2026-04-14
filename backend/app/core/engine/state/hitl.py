@@ -1,5 +1,4 @@
 """Human-in-the-Loop state models."""
-from typing import List, Optional
 
 from pydantic import Field
 
@@ -11,9 +10,9 @@ class MessagePayload(DynamicBaseModel):
 
 
 class HITLContext(DynamicBaseModel):
-    prompt: Optional[str] = None
-    options: Optional[List[str]] = None
-    default_value: Optional[str] = None
+    prompt: str | None = None
+    options: list[str] | None = None
+    default_value: str | None = None
     allow_cancel: bool = True
     payload: MessagePayload = Field(default_factory=MessagePayload)
 
@@ -23,4 +22,4 @@ class HITLState(DynamicBaseModel):
     request_type: str
     resume_node: str
     context: HITLContext = Field(default_factory=HITLContext)
-    created_at: Optional[str] = None
+    created_at: str | None = None

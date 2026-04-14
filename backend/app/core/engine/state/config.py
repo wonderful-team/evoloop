@@ -1,5 +1,5 @@
 """Agent runtime configuration and execution tickets."""
-from typing import Any, List, Optional
+from typing import Any
 
 from pydantic import Field
 
@@ -14,35 +14,35 @@ class AgentRuntimeConfig(DynamicBaseModel):
     """Blueprint for a Dynamic Sub-Agent."""
     role_name: str
     system_instructions: str
-    tools: List[str]
-    model_override: Optional[str] = None
-    namespace_context: Optional[str] = None
+    tools: list[str]
+    model_override: str | None = None
+    namespace_context: str | None = None
     is_subtask: bool = False
     subtask_context: dict = Field(default_factory=dict)
-    skill_hint: Optional[str] = None
+    skill_hint: str | None = None
 
 
 class ExecutionTicket(DynamicBaseModel):
     """Structured mission ticket for any Specialist Node."""
     ticket_type: str
     priority: str = "normal"
-    acceptance_criteria: List[str] = Field(default_factory=list)
-    focus_paths: Optional[List[str]] = None
-    topic: Optional[str] = None
-    parameters: Optional[TicketParameters] = None
-    macro_goal: Optional[str] = None
-    agent_config: Optional[AgentRuntimeConfig] = None
-    constraints: Optional[List[str]] = None
-    expected_outcomes: Optional[List[str]] = None
-    namespace_context: Optional[str] = None
+    acceptance_criteria: list[str] = Field(default_factory=list)
+    focus_paths: list[str] | None = None
+    topic: str | None = None
+    parameters: TicketParameters | None = None
+    macro_goal: str | None = None
+    agent_config: AgentRuntimeConfig | None = None
+    constraints: list[str] | None = None
+    expected_outcomes: list[str] | None = None
+    namespace_context: str | None = None
     # Subtask / routing extensions
-    parent_task_id: Optional[str] = None
-    subtask_id: Optional[str] = None
-    historical_context: Optional[Any] = None
-    referenced_tech: Optional[Any] = None
+    parent_task_id: str | None = None
+    subtask_id: str | None = None
+    historical_context: Any | None = None
+    referenced_tech: Any | None = None
     # Skill routing
-    skill_id: Optional[str] = None
-    skill_ids: Optional[List[str]] = None
-    workflow_mode: Optional[str] = None
-    mcp_servers_required: List[str] = Field(default_factory=list)
-    reason: Optional[str] = None
+    skill_id: str | None = None
+    skill_ids: list[str] | None = None
+    workflow_mode: str | None = None
+    mcp_servers_required: list[str] = Field(default_factory=list)
+    reason: str | None = None

@@ -1,4 +1,4 @@
-from typing import Any, Tuple
+from typing import Any
 
 from langchain_core.runnables import RunnableConfig
 
@@ -23,7 +23,7 @@ class ChatNode(BaseAgentNode):
     async def prepare_state(self, state: AgentState, config: RunnableConfig) -> StateUpdate | None:
         return None
 
-    async def build_prompt_pair(self, state: AgentState, config: RunnableConfig) -> Tuple[str, str]:
+    async def build_prompt_pair(self, state: AgentState, config: RunnableConfig) -> tuple[str, str]:
         static_prompt = "You are EvoLoop Chat. Answer the user's question concisely and helpfully."
         # No dynamic ticket needed for simple chat
         return static_prompt, ""

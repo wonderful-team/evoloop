@@ -7,7 +7,6 @@ with concurrent modification detection.
 
 import logging
 import os
-from typing import Optional
 
 from app.infrastructure.pydantic_base import DynamicBaseModel
 from .io import get_file_info, read_file, write_file
@@ -31,11 +30,11 @@ def safe_read_with_hash(file_path: str) -> tuple[str, str, FileInfo]:
     """
     info = get_file_info(file_path)
     result = read_file(file_path)
-    
+
     if not result.success:
         # Return empty content but still provide stats
         return "", info.encoding, info
-    
+
     return result.content, result.encoding, info
 
 
@@ -70,7 +69,7 @@ class FileWriteResult(DynamicBaseModel):
 def write_file_with_verification(
     content: str,
     file_path: str,
-    expected_hash: Optional[str] = None
+    expected_hash: str | None = None
 ) -> FileWriteResult:
     """
     Write file with optional hash verification for concurrent modification detection.
@@ -95,10 +94,10 @@ def write_file_with_verification(
                     error="FILE_MODIFIED",
                     message="File was modified by another process. Please re-read and try again."
                 )
-        
+
         # Use core write operation
         result = write_file(content, file_path)
-        
+
         if result.success:
             return FileWriteResult(
                 success=True,
@@ -112,7 +111,7 @@ def write_file_with_verification(
                 error="WRITE_FAILED",
                 message=result.error_message or "Unknown write error"
             )
-        
+
     except Exception as e:
         logger.error(f"Failed to write file {file_path}: {e}")
         # Clean up temp file if exists
@@ -133,7 +132,7 @@ def apply_edit_with_verification(
     file_path: str,
     old_string: str,
     new_string: str,
-    expected_hash: Optional[str] = None,
+    expected_hash: str | None = None,
     allow_multiple: bool = False
 ) -> FileWriteResult:
     """
@@ -152,7 +151,7 @@ def apply_edit_with_verification(
     try:
         # Read current content
         content, encoding, info = safe_read_with_hash(file_path)
-        
+
         # Verify hash if provided
         if expected_hash and info.content_hash != expected_hash:
             return FileWriteResult(
@@ -161,7 +160,7 @@ def apply_edit_with_verification(
                 message="File was modified by another process. Please re-read and try again.",
                 current_hash=info.content_hash
             )
-        
+
         # Apply replacement
         if allow_multiple:
             new_content = content.replace(old_string, new_string)
@@ -169,24 +168,24 @@ def apply_edit_with_verification(
         else:
             new_content = content.replace(old_string, new_string, 1)
             change_count = 1 if old_string in content else 0
-        
+
         if change_count == 0:
             return FileWriteResult(
                 success=False,
                 error="NOT_FOUND",
                 message=f"Could not find target text in file: {old_string[:50]}..."
             )
-        
+
         # Write with verification
         write_result = write_file_with_verification(
             new_content, file_path, expected_hash
         )
-        
+
         if write_result["success"]:
             write_result["change_count"] = change_count
-            
+
         return write_result
-        
+
     except Exception as e:
         logger.error(f"Failed to apply edit to {file_path}: {e}")
         return FileWriteResult(

@@ -7,7 +7,7 @@ import time
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import text, select, desc, func
+from sqlalchemy import desc, func, select, text
 
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.config import settings
@@ -25,9 +25,10 @@ logger = logging.getLogger(__name__)
 async def _notify_file_operation(thread_id: str, message_id: str, file_path: str, operation: str):
     """Notify frontend of new file operation via SSE."""
     try:
-        from app.infrastructure.cache import cache
         import json
-        
+
+        from app.infrastructure.cache import cache
+
         event_data = {
             "type": "file_operation",
             "thread_id": thread_id,
@@ -36,7 +37,7 @@ async def _notify_file_operation(thread_id: str, message_id: str, file_path: str
             "operation": operation,  # "ADD", "EDIT", "DELETE"
             "timestamp": datetime.now().isoformat(),
         }
-        
+
         await cache.publish(f"chat:{thread_id}:events", json.dumps(event_data))
         logger.debug(f"[Celery] Published file operation event for {file_path}")
     except Exception as e:
@@ -66,7 +67,7 @@ def persist_file_operation_task(
                 )
                 session.add(op)
             logger.debug(f"[Celery] Persisted file operation for {file_path}")
-            
+
             # Notify frontend via SSE
             await _notify_file_operation(thread_id, message_id, file_path, operation)
         except Exception as e:
@@ -78,7 +79,7 @@ def persist_file_operation_task(
         finally:
             from app.utils.async_utils import flush_loop_bound_resources
             await flush_loop_bound_resources()
-            
+
     asyncio.run(_run_with_flush())
 
 
@@ -98,9 +99,9 @@ def upload_cloud_log_task(
             from app.core.evocloud import evocloud_manager
             if not evocloud_manager._initialized:
                 evocloud_manager.initialize()
-            
+
             await evocloud_manager.api.upload_log(
-                device_id, thread_id, log_type, content, 
+                device_id, thread_id, log_type, content,
                 name=name, command_id=command_id, project_id=project_id
             )
             logger.debug(f"[Celery] Uploaded cloud log: {log_type}")
@@ -113,7 +114,7 @@ def upload_cloud_log_task(
         finally:
             from app.utils.async_utils import flush_loop_bound_resources
             await flush_loop_bound_resources()
-            
+
     asyncio.run(_run_with_flush())
 
 
@@ -159,11 +160,11 @@ def snapshot_steps_task(
                         }
                         for t in steps
                     ]
-                    
+
                     # Append to existing steps instead of overwriting
                     existing_steps = last_msg.steps_snapshot or []
                     last_msg.steps_snapshot = existing_steps + serialized_steps
-                    
+
             logger.debug(f"[Celery] Snapshotted {len(steps)} steps for thread {thread_id}")
         except Exception as e:
             logger.error(f"[Celery] Failed to snapshot steps: {e}")
@@ -174,7 +175,7 @@ def snapshot_steps_task(
         finally:
             from app.utils.async_utils import flush_loop_bound_resources
             await flush_loop_bound_resources()
-            
+
     asyncio.run(_run_with_flush())
 
 
@@ -193,25 +194,25 @@ def harvest_concepts_task(concepts_data: list[dict], project_id: int):
         for c in concepts_data:
             name = c["name"]
             description = c["description"]
-            
+
             try:
                 # Optimized logic for Android layouts
                 if name.startswith("android_layout:"):
                     logger.info(f"Optimizing layout concept: {name}")
                     elements, summary = await android_service.dehydrate_layout(description)
-                    
+
                     if elements:
                         # 1. Trigger App Atlas mapping (Structured Storage)
                         pkg_match = re.search(r"\(([^)]+)\)", name)
                         bundle_id = pkg_match.group(1) if pkg_match else "unknown"
-                        
+
                         await event_bus.publish(UiTreeObservedEvent(
                             platform="android",
                             bundle_id=bundle_id,
                             window_title=name.replace("android_layout:", "").split('(')[0].strip(),
                             elements=elements
                         ))
-                        
+
                         # 2. Use dehydrated summary as Concept description
                         description = summary
                         logger.debug(f"Dehydrated {name} into summary: {summary}")
@@ -233,7 +234,7 @@ def harvest_concepts_task(concepts_data: list[dict], project_id: int):
         finally:
             from app.utils.async_utils import flush_loop_bound_resources
             await flush_loop_bound_resources()
-            
+
     asyncio.run(_run_with_flush())
 
 
@@ -268,13 +269,13 @@ def record_episode_task(
             if auto_synthesize:
                 from app.core.learning.skill_synthesizer import WorkflowSynthesizer
                 from app.models.learning import TraceEvent
-                
+
                 # Check if there are meaningful events to synthesize
                 async with session_scope() as db:
                     stmt = select(func.count(TraceEvent.id)).where(TraceEvent.thread_id == thread_id)
                     count_res = await db.execute(stmt)
                     event_count = count_res.scalar()
-                
+
                 if event_count and event_count >= 3: # Minimum threshold for a synthesis-worthy skill
                     logger.info(f"[Celery] 🧬 Auto-triggering skill synthesis for thread {thread_id} ({event_count} events)")
                     synthesizer = WorkflowSynthesizer(thread_id=thread_id)
@@ -282,7 +283,7 @@ def record_episode_task(
                     if result:
                         logger.info(f"[Celery] ✅ Skill synthesis complete: {result.name}")
                     else:
-                        logger.info(f"[Celery] ⏩ Skill synthesis skipped (no unique pattern found)")
+                        logger.info("[Celery] ⏩ Skill synthesis skipped (no unique pattern found)")
                 else:
                     logger.info(f"[Celery] ⏩ Skill synthesis skipped (insufficient events: {event_count})")
 
@@ -295,7 +296,7 @@ def record_episode_task(
         finally:
             from app.utils.async_utils import flush_loop_bound_resources
             await flush_loop_bound_resources()
-            
+
     asyncio.run(_run_with_flush())
 
 
@@ -321,11 +322,11 @@ def prune_checkpoints_task(keep_days: int = 7):
                     # 1. Prune checkpoint_writes (Execution history)
                     q1 = text("DELETE FROM checkpoint_writes WHERE timestamp < now() - interval ':days day'")
                     await session.execute(q1, {"days": keep_days})
-                    
+
                     # 2. Prune checkpoints (State snapshots)
                     q2 = text("DELETE FROM checkpoints WHERE thread_id NOT IN (SELECT thread_id FROM checkpoint_writes)")
                     await session.execute(q2)
-                    
+
                     # 3. Prune blobs (Large data)
                     q3 = text("DELETE FROM checkpoint_blobs WHERE thread_id NOT IN (SELECT thread_id FROM checkpoints)")
                     await session.execute(q3)
@@ -341,7 +342,7 @@ def prune_checkpoints_task(keep_days: int = 7):
         finally:
             from app.utils.async_utils import flush_loop_bound_resources
             await flush_loop_bound_resources()
-            
+
     asyncio.run(_run_with_flush())
 
 
@@ -368,10 +369,11 @@ def persist_message_task(
     No manual calculation based on role/content.
     """
     async def _run():
-        from app.models import Message, MessageReference
-        from app.core.messaging.category import MessageCategory
         from uuid import UUID
-        
+
+        from app.core.messaging.category import MessageCategory
+        from app.models import Message, MessageReference
+
         try:
             async with session_scope() as session:
                 target_parent_id = parent_id
@@ -440,7 +442,7 @@ def persist_message_task(
         finally:
             from app.utils.async_utils import flush_loop_bound_resources
             await flush_loop_bound_resources()
-            
+
     asyncio.run(_run_with_flush())
 
 
@@ -456,7 +458,7 @@ def cleanup_artifacts_task(max_age_days: int = 3):
     for directory in target_dirs:
         if not os.path.exists(directory):
             continue
-            
+
         logger.info(f"[Celery] Cleaning up old artifacts in {directory}...")
         for filename in os.listdir(directory):
             file_path = os.path.join(directory, filename)
@@ -477,8 +479,9 @@ def git_harvest_task(cwd: str, project_id: int):
     """
     async def _run():
         import subprocess
-        from app.models.schemas.git import GitConceptExtractionResult
+
         from app.infrastructure.config.service import SystemConfigService
+        from app.models.schemas.git import GitConceptExtractionResult
 
         # 1. Get Diff
         try:
@@ -534,7 +537,7 @@ def git_harvest_task(cwd: str, project_id: int):
         finally:
             from app.utils.async_utils import flush_loop_bound_resources
             await flush_loop_bound_resources()
-            
+
     asyncio.run(_run_with_flush())
 
 
@@ -550,11 +553,11 @@ def reconcile_skill_macro_task(skill_id: int, thread_id: str):
 
         try:
             logger.info(f"[Celery] Reconciling Skill {skill_id} from thread {thread_id}...")
-            
+
             # 1. Synthesize the correction from the successful thread
             synthesizer = WorkflowSynthesizer(thread_id)
             repaired_skill = await synthesizer.synthesize()
-            
+
             if not repaired_skill.macro_script:
                 logger.warning(f"[Celery] No valid macro synthesized from recovery thread {thread_id}. Aborting patch.")
                 return
@@ -564,17 +567,17 @@ def reconcile_skill_macro_task(skill_id: int, thread_id: str):
                 stmt = select(LearnedSkill).where(LearnedSkill.id == skill_id)
                 result = await session.execute(stmt)
                 original_skill = result.scalar_one_or_none()
-                
+
                 if original_skill:
                     # Update macro and instructions (心法)
                     original_skill.macro_script = repaired_skill.macro_script
                     if repaired_skill.instructions:
                         original_skill.instructions = repaired_skill.instructions
-                    
+
                     logger.info(f"[Celery] ✅ Skill {skill_id} ('{original_skill.name}') has been self-healed and updated in DB.")
                 else:
                     logger.error(f"[Celery] Target Skill {skill_id} not found for reconciliation.")
-                    
+
         except Exception as e:
             logger.error(f"[Celery] Macro reconciliation failed: {e}")
 
@@ -584,7 +587,7 @@ def reconcile_skill_macro_task(skill_id: int, thread_id: str):
         finally:
             from app.utils.async_utils import flush_loop_bound_resources
             await flush_loop_bound_resources()
-            
+
     asyncio.run(_run_with_flush())
 
 
@@ -607,7 +610,7 @@ def engine_scheduler_tick():
         finally:
             from app.utils.async_utils import flush_loop_bound_resources
             await flush_loop_bound_resources()
-            
+
     asyncio.run(_run_with_flush())
 
 
@@ -619,11 +622,11 @@ def run_autonomous_task_execution(task_id: int, project_id: int | None = None):
     Now supports multi-device reservation.
     """
     async def _run():
-        from app.models.scheduler import AutonomousTask
-        from app.models.learning import LearnedSkill
         from app.core.engine.background_agent import run_agent_background
         from app.core.environment.devices import DevicePool
-        
+        from app.models.learning import LearnedSkill
+        from app.models.scheduler import AutonomousTask
+
         device_id = None
         try:
             # 1. Reserve a device
@@ -638,7 +641,7 @@ def run_autonomous_task_execution(task_id: int, project_id: int | None = None):
                 if not task:
                     logger.error(f"[Celery] Autonomous task {task_id} not found.")
                     return
-                
+
                 skill = await session.get(LearnedSkill, task.skill_id)
                 if not skill:
                     logger.error(f"[Celery] Skill {task.skill_id} for task {task_id} not found.")
@@ -646,7 +649,7 @@ def run_autonomous_task_execution(task_id: int, project_id: int | None = None):
 
                 # Construct execution context
                 thread_id = f"auton-{task_id}-{int(time.time())}"
-                
+
                 # Instruction to the Agent (rendered from template)
                 from app.utils import render_template
                 prompt = render_template(
@@ -656,7 +659,7 @@ def run_autonomous_task_execution(task_id: int, project_id: int | None = None):
                     skill_id=skill.id,
                     device_id=device_id
                 )
-                
+
                 inputs = {
                     "messages": [{"type": "human", "content": prompt}],
                     "project_id": project_id or DEFAULT_PROJECT_ID,
@@ -667,14 +670,14 @@ def run_autonomous_task_execution(task_id: int, project_id: int | None = None):
                         "device_id": device_id  # Inject device_id for tools to pick up
                     }
                 }
-                
+
                 logger.info(f"[Celery] Starting autonomous agent for task {task_id} on {device_id} (Thread: {thread_id})")
-                
+
                 # Update task status: successful start
-                task.consecutive_failures = 0 
-                
+                task.consecutive_failures = 0
+
                 await run_agent_background(thread_id, inputs)
-                
+
         except Exception as e:
             logger.error(f"[Celery] Autonomous task execution failed for {task_id}: {e}")
         finally:
@@ -687,5 +690,5 @@ def run_autonomous_task_execution(task_id: int, project_id: int | None = None):
         finally:
             from app.utils.async_utils import flush_loop_bound_resources
             await flush_loop_bound_resources()
-            
+
     asyncio.run(_run_with_flush())

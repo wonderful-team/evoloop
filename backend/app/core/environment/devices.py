@@ -1,7 +1,6 @@
 import asyncio
 import logging
 import time
-from typing import Optional, List
 
 from app.core.environment import get_awakened_state
 from app.infrastructure.cache import cache
@@ -20,18 +19,18 @@ class DevicePool:
     """
 
     @classmethod
-    async def get_available_devices(cls) -> List[str]:
+    async def get_available_devices(cls) -> list[str]:
         """
         Get all devices that are currently 'device' status in AwakenedState.
         """
         state = get_awakened_state()
         if not state or not state.android_devices:
             return []
-        
+
         return [d.device_id for d in state.android_devices if d.is_reachable]
 
     @classmethod
-    async def reserve_device(cls, task_id: str, preferred_device: Optional[str] = None, timeout: int = 30) -> Optional[str]:
+    async def reserve_device(cls, task_id: str, preferred_device: str | None = None, timeout: int = 30) -> str | None:
         """
         Try to reserve a device for a specific task.
         Uses cache to ensure exclusive access.
@@ -45,7 +44,7 @@ class DevicePool:
             The device_id if successfully reserved, else None.
         """
         start_time = time.time()
-        
+
         while time.time() - start_time < timeout:
             available_serials = await cls.get_available_devices()
             if not available_serials:
@@ -54,7 +53,7 @@ class DevicePool:
 
             # If a preferred device is specified, try it first
             targets = [preferred_device] if preferred_device and preferred_device in available_serials else available_serials
-            
+
             for serial in targets:
                 lock_key = f"{REDIS_KEY_DEVICE_LOCK_PREFIX}{serial}"
                 # Set NX (Not Exists) with an expiry to prevent deadlocks (e.g. 1 hour)
@@ -65,9 +64,9 @@ class DevicePool:
                     if success:
                         logger.info(f"Locked device {serial} for task {task_id}")
                         return serial
-            
+
             await asyncio.sleep(1) # Poll interval
-            
+
         return None
 
     @classmethod
@@ -77,7 +76,7 @@ class DevicePool:
         Only releases if the task_id still matches.
         """
         lock_key = f"{REDIS_KEY_DEVICE_LOCK_PREFIX}{device_id}"
-        
+
         current_owner = await cache.get(lock_key)
         if current_owner == task_id:
             await cache.delete(lock_key)
@@ -86,12 +85,12 @@ class DevicePool:
             logger.warning(f"Task {task_id} tried to release device {device_id} but owner is {current_owner}")
 
     @classmethod
-    async def list_status(cls) -> List[dict]:
+    async def list_status(cls) -> list[dict]:
         """
         Provide a detailed status map of all physical devices and their current owners.
         """
         serials = await cls.get_available_devices()
-        
+
         results = []
         for s in serials:
             owner = await cache.get(f"{REDIS_KEY_DEVICE_LOCK_PREFIX}{s}")

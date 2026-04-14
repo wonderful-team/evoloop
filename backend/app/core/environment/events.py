@@ -218,7 +218,7 @@ def register_environment_system_handlers():
     - Auto-start device watcher when app starts
     - Graceful shutdown when app stops
     """
-    from app.core.events import system_bus, SystemEventType
+    from app.core.events import SystemEventType, system_bus
     system_bus.subscribe(SystemEventType.APP_STARTED, _on_app_started)
     system_bus.subscribe(SystemEventType.APP_STOPPING, _on_app_stopping)
     logger.info("[Environment] System lifecycle handlers registered")

@@ -4,6 +4,8 @@ from typing import Any
 
 from pydantic import BaseModel
 
+from app.core.learning.schemas.events import DomEventData, GlobalEventData
+from app.core.learning.schemas.skills import SkillExecutionParams
 from app.models.schemas.base import ScopedRequest
 
 

@@ -1,16 +1,15 @@
 import json
 import logging
 from pathlib import Path
-from typing import Any
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import Field
 from sqlalchemy import select
 
 from app.core.learning.skill_validator import SkillValidator
 from app.infrastructure.database.sql.database import session_scope
-from app.models.learning import LearnedSkill
 from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.models.learning import LearnedSkill
 
 logger = logging.getLogger(__name__)
 

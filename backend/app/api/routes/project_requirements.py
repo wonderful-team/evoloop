@@ -14,6 +14,7 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, UploadFile
 from sqlalchemy.orm import selectinload
 
 from app.api.deps import TokenDep, TokenDepOptional
+from app.api.responses import BaseAPIResponse, ListResponse
 from app.core.config import settings
 from app.core.engine.background_agent import run_agent_background
 from app.core.file.document_reader import document_reader_service
@@ -81,9 +82,9 @@ class RequirementListItem(DynamicBaseModel):
     analysis_count: int
 
 
-class RequirementListResponse(ListResponse):
+class RequirementListResponse(ListResponse[RequirementListItem]):
     """Response for listing requirement documents."""
-    items: list[RequirementListItem]
+    pass
 
 
 class RequirementAnalysisItem(DynamicBaseModel):

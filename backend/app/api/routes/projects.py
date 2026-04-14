@@ -73,9 +73,9 @@ class DetectedProjectItem(DynamicBaseModel):
     detected_at: str | None
 
 
-class DetectedProjectsResponse(ListResponse):
+class DetectedProjectsResponse(ListResponse[DetectedProjectItem]):
     """Response for detected projects."""
-    items: list[DetectedProjectItem]
+    pass
 
 
 class ImportProjectResponse(BaseAPIResponse):

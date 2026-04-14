@@ -20,7 +20,10 @@ from app.core.checkpoint.rewind.events import (
     RewindEventType,
     RewindRequestedEvent,
 )
-from app.core.checkpoint.rewind.exceptions import MessageNotFoundError, NoHumanMessageError
+from app.core.checkpoint.rewind.exceptions import (
+    MessageNotFoundError,
+    NoHumanMessageError,
+)
 from app.core.events.base import AsyncEventBus
 from app.core.events.decorators import event_register, event_subscribe
 from app.infrastructure.database.sql.database import session_scope
@@ -69,7 +72,7 @@ class MessageRewind:
                 target_message_id=event.target_message_id,
                 include_target=event.include_target
             )
-            
+
             if message_ids:
                 # Publish specific cleanup event
                 from app.core.events import system_bus
@@ -81,7 +84,7 @@ class MessageRewind:
                 logger.info(f"[MessageRewind] Prepared {len(message_ids)} messages for deletion")
             else:
                 logger.info(f"[MessageRewind] No messages to delete for thread {event.thread_id}")
-                
+
         except Exception as e:
             logger.error(f"[MessageRewind] Failed to prepare message cleanup: {e}")
             raise
@@ -127,21 +130,21 @@ class MessageRewind:
         """
         async with session_scope() as session:
             min_id_to_delete = None
-            
+
             if target_message_id:
                 # Use specified target message
                 try:
                     msg_id_int = int(target_message_id)
                     target_msg = await session.get(Message, msg_id_int)
-                    
+
                     if not target_msg:
                         raise MessageNotFoundError(
                             f"Target message {target_message_id} not found",
                             thread_id=thread_id
                         )
-                    
+
                     min_id_to_delete = target_msg.id
-                    
+
                 except (ValueError, TypeError):
                     logger.error(f"[MessageRewind] Invalid target message ID: {target_message_id}")
                     return []
@@ -156,18 +159,18 @@ class MessageRewind:
                 )
                 result = await session.execute(stmt)
                 last_human = result.scalar_one_or_none()
-                
+
                 if not last_human:
                     raise NoHumanMessageError(
                         "No human message found to rewind to",
                         thread_id=thread_id
                     )
-                
+
                 min_id_to_delete = last_human.id
-            
+
             if min_id_to_delete is None:
                 return []
-            
+
             # Query all messages to delete
             if include_target:
                 stmt = select(Message.id).where(
@@ -179,7 +182,7 @@ class MessageRewind:
                     Message.thread_id == thread_id,
                     Message.id > min_id_to_delete
                 )
-            
+
             result = await session.execute(stmt)
             return [str(row[0]) for row in result.all()]
 
@@ -200,13 +203,13 @@ class MessageRewind:
         """
         if not message_ids:
             return 0
-        
+
         # Convert string IDs to integers
         int_ids = [int(mid) for mid in message_ids if mid.isdigit()]
-        
+
         if not int_ids:
             return 0
-        
+
         async with session_scope() as session:
             # 1. Delete references first (if requested)
             if delete_references:
@@ -215,7 +218,7 @@ class MessageRewind:
                     .where(MessageReference.message_id.in_(int_ids))
                 )
                 logger.debug(f"[MessageRewind] Deleted {ref_result.rowcount} references")
-            
+
             # 2. Update parent_id for messages pointing to deleted messages
             # This prevents foreign key constraint issues
             await session.execute(
@@ -223,12 +226,12 @@ class MessageRewind:
                 .where(Message.parent_id.in_(int_ids))
                 .values(parent_id=None)
             )
-            
+
             # 3. Delete messages
             msg_result = await session.execute(
                 delete(Message).where(Message.id.in_(int_ids))
             )
-            
+
             deleted_count = msg_result.rowcount
             logger.info(f"🗑️ Deleted {deleted_count} Message records")
             return deleted_count

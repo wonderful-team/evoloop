@@ -1,10 +1,14 @@
 """Macro verification execution models."""
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from pydantic import Field
 
-from app.core.execution.macro.models.enums import AnomalyType, RedundancyType, StepExecutionStatus
+from app.core.execution.macro.models.enums import (
+    AnomalyType,
+    RedundancyType,
+    StepExecutionStatus,
+)
 from app.core.execution.macro.schema import MacroStep
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
@@ -14,7 +18,7 @@ class RedundancyCheckResult(DynamicBaseModel):
     is_redundant: bool = False
     redundancy_type: RedundancyType = RedundancyType.UNKNOWN
     reason: str = ""
-    similar_to_step: Optional[int] = None  # 如果是重复的，指向哪个步骤
+    similar_to_step: int | None = None  # 如果是重复的，指向哪个步骤
     suggested_action: str = "keep"  # keep / skip / merge / remove
 
 
@@ -34,17 +38,17 @@ class AdaptationRecord(DynamicBaseModel):
     attempt_number: int = 1
 
     # 额外步骤（在 adapted_strategy 之前执行）
-    additional_steps: List[MacroStep] = Field(default_factory=list)
+    additional_steps: list[MacroStep] = Field(default_factory=list)
 
 
 
 class ExecutionDetail(DynamicBaseModel):
     """执行详情"""
-    pre_state: Optional[Dict[str, Any]] = None
+    pre_state: dict[str, Any] | None = None
     action_taken: MacroStep = Field(default_factory=lambda: MacroStep(type="action"))
-    post_state: Optional[Dict[str, Any]] = None
-    screenshot_path: Optional[str] = None
-    ui_dump: Optional[Dict[str, Any]] = None
+    post_state: dict[str, Any] | None = None
+    screenshot_path: str | None = None
+    ui_dump: dict[str, Any] | None = None
 
 
 
@@ -54,17 +58,17 @@ class StepResult(DynamicBaseModel):
     original_step: MacroStep = Field(default_factory=lambda: MacroStep(type="action"))
     status: StepExecutionStatus = StepExecutionStatus.PENDING
 
-    execution: Optional[ExecutionDetail] = None
-    adaptations: List[AdaptationRecord] = Field(default_factory=list)
+    execution: ExecutionDetail | None = None
+    adaptations: list[AdaptationRecord] = Field(default_factory=list)
 
     execution_time_ms: int = 0
-    error_message: Optional[str] = None
+    error_message: str | None = None
 
     # 修正后的实际执行参数（用于宏进化）
-    effective_parameters: Optional[MacroStep] = None
+    effective_parameters: MacroStep | None = None
 
     # 冗余检查信息
-    redundancy_check: Optional[RedundancyCheckResult] = None
+    redundancy_check: RedundancyCheckResult | None = None
 
 
 
@@ -81,7 +85,7 @@ class MacroEvolutionRecord(DynamicBaseModel):
     confidence: float = 1.0
 
     # 额外步骤（在 evolved_step 之前执行）
-    additional_steps: List[MacroStep] = Field(default_factory=list)
+    additional_steps: list[MacroStep] = Field(default_factory=list)
 
 
 

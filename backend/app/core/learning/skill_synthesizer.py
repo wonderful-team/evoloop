@@ -5,8 +5,10 @@ This module synthesizes learned skills from trace sequences using LLM analysis.
 It produces structured skill configurations that can be registered and executed.
 """
 
+from __future__ import annotations
+
 import logging
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import yaml
 from pydantic import Field
@@ -14,6 +16,7 @@ from sqlalchemy import select
 
 from app.core.execution.macro.verification_service import SynthesisVerificationResult
 from app.core.learning.prompts import prompt_builder
+from app.core.learning.schemas import SkillParameter
 from app.core.learning.synthesizer_utils import (
     cleanup_macro_steps,
     export_skill_to_filesystem,
@@ -34,15 +37,12 @@ ALLOWED_UI_ACTIONS = {
     # Mobile / Android
     "tap", "long_press", "swipe", "input_text", "open_app", "back", "home",
     # Desktop / Global
-    "applescript", "drag_drop", "key_press",
-    # Automation Primitives
+    "applescript", "drag_drop", # Automation Primitives
     "detect_pagination", "scroll_to_bottom",
     # System
     "screenshot", "dump", "dump_ui"
 }
 
-
-from app.core.learning.schemas import SkillParameter
 
 
 class SynthesizedSkill(DynamicBaseModel):
@@ -53,25 +53,25 @@ class SynthesizedSkill(DynamicBaseModel):
     name: str
     description: str
     namespace: str = "misc"  # Logical grouping (e.g., os/macos, web/research)
-    trigger_patterns: List[str] = Field(default_factory=list)
-    parameters: List[SkillParameter] = Field(default_factory=list)
-    preconditions: List[str] = Field(default_factory=list)
-    instructions: Optional[str] = None  # Markdown instructions (心法)
-    
+    trigger_patterns: list[str] = Field(default_factory=list)
+    parameters: list[SkillParameter] = Field(default_factory=list)
+    preconditions: list[str] = Field(default_factory=list)
+    instructions: str | None = None  # Markdown instructions (心法)
+
     # Deterministic Execution
     execution_mode: str = "agentic" # "agentic" or "deterministic"
     macro_script: str = ""  # YAML format for storage and execution
 
     # Metadata
-    source_thread_id: Optional[str] = None
-    source_session_id: Optional[str] = None
-    tools_used: List[str] = Field(default_factory=list)
+    source_thread_id: str | None = None
+    source_session_id: str | None = None
+    tools_used: list[str] = Field(default_factory=list)
 
     def to_yaml(self) -> str:
         """Convert to YAML for storage/display."""
         return yaml.dump(self.model_dump(), default_flow_style=False, allow_unicode=True, sort_keys=False)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return self.model_dump()
 
@@ -248,7 +248,7 @@ class WorkflowSynthesizer:
         macro = []
         has_extract = False
         last_package = None
-        
+
         for step in sequence.steps:
             # [Phase 13] Explicitly skip agentic bridge events early
             if step.action_type in ("node_start", "llm_output", "tool_result", "macro_thought"):
@@ -276,7 +276,7 @@ class WorkflowSynthesizer:
                     system_apps = ("com.android.launcher", "com.android.systemui", "android", "scrcpy", "EvoLoop", "com.android.settings")
 
                     # IGNORE system noise during transitions
-                    # Note: We keep "com.android.settings" in case the user actually wants to automate settings, 
+                    # Note: We keep "com.android.settings" in case the user actually wants to automate settings,
                     # but usually it's noise if it's just a quick toggle. For now we treat it as a target if it's a switch.
 
                     is_current_system = any(current_package.startswith(sys) for sys in system_apps)
@@ -311,7 +311,7 @@ class WorkflowSynthesizer:
 
             event_type = step.action_type
             payload = dict(step.action_args)
-            
+
             # Ensure package_name is in payload for all steps
             if current_package and current_package not in ("global_observation", "mobile_interaction", "unknown"):
                 payload["package_name"] = current_package
@@ -327,7 +327,7 @@ class WorkflowSynthesizer:
                     pass
 
             action_name = payload.get("action")
-            
+
             # Map generic tool_call from Agents back to explicit macro events
             if event_type == "tool_call":
                 if action_name:
@@ -353,7 +353,7 @@ class WorkflowSynthesizer:
                 continue
 
             target_selector = step.ui_context.element_selector if step.ui_context else None
-            
+
             # Automatic Extractor Nodes mapping
             is_extract = False
             if event_type in ("get_text", "get_html", "get_attribute"):
@@ -387,12 +387,12 @@ class WorkflowSynthesizer:
                     "target_selector": target_selector,
                     "payload": payload
                 }
-            
+
             if is_extract:
                 has_extract = True
-                
+
             macro.append(macro_step)
-            
+
         # Append Dump Data Sink if any extraction occurred
         if has_extract:
             macro.append({
@@ -407,7 +407,7 @@ class WorkflowSynthesizer:
         return yaml.dump(steps, default_flow_style=False, allow_unicode=True, sort_keys=False)
 
     @classmethod
-    def _cleanup_macro(cls, steps: List[dict], start_index: int = 1) -> Tuple[List[dict], int]:
+    def _cleanup_macro(cls, steps: list[dict], start_index: int = 1) -> tuple[list[dict], int]:
         """规范化 LLM 生成的宏步骤 (修复常见格式错误并确保全局步骤编号唯一)"""
         return cleanup_macro_steps(steps, start_index)
 

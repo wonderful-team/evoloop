@@ -7,13 +7,14 @@ Inspired by Claude Code's extractMemories.ts
 
 import logging
 from datetime import datetime
-from typing import List, Optional, Dict, Any
+from typing import Any, Optional
 
-from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 
 from app.core.memory.backends.file_backend import FileMemoryStorage
 from app.core.memory.models import MemoryEntry, MemoryType, PrivacyLevel
 from app.utils.template import render_template
+from .config import MemoryConfig
 
 logger = logging.getLogger(__name__)
 
@@ -25,10 +26,10 @@ class MemoryExtractionService:
     This service runs as a background task (similar to Claude Code's forked agent)
     to analyze conversation history and extract valuable information worth remembering.
     """
-    
+
     def __init__(
         self,
-        storage: Optional[FileMemoryStorage] = None,
+        storage: FileMemoryStorage | None = None,
         config: Optional['MemoryConfig'] = None,
     ):
         """
@@ -40,14 +41,14 @@ class MemoryExtractionService:
         """
         self.storage = storage or FileMemoryStorage()
         self.config = config
-    
+
     async def extract_from_conversation(
         self,
         thread_id: str,
-        messages: List[BaseMessage],
-        project_id: Optional[int] = None,
-        user_id: Optional[str] = None,
-    ) -> List[MemoryEntry]:
+        messages: list[BaseMessage],
+        project_id: int | None = None,
+        user_id: str | None = None,
+    ) -> list[MemoryEntry]:
         """
         Extract memories from a conversation.
         
@@ -62,43 +63,43 @@ class MemoryExtractionService:
         """
         if not messages:
             return []
-        
+
         # Get existing memories to avoid duplicates
         existing_memories = await self.storage.list_all()
         existing_manifest = self._format_existing_memories(existing_memories)
-        
+
         # Build extraction prompt
         prompt = self._build_extraction_prompt(
             messages=messages,
             existing_memories=existing_manifest,
         )
-        
+
         # Call LLM for extraction (using background agent pattern)
         try:
             extraction_result = await self._run_extraction_agent(prompt, messages)
-            
+
             # Parse extracted memories
             new_entries = self._parse_extraction_result(
                 extraction_result,
                 project_id=project_id,
                 user_id=user_id,
             )
-            
+
             # Deduplicate against existing memories
             deduplicated = self._deduplicate(new_entries, existing_memories)
-            
+
             # Save new memories
             for entry in deduplicated:
                 await self.storage.save(entry)
                 logger.info(f"Extracted and saved memory: {entry.id} ({entry.type.value})")
-            
+
             return deduplicated
-            
+
         except Exception as e:
             logger.error(f"Memory extraction failed: {e}")
             return []
-    
-    def _format_existing_memories(self, memories: List[Any]) -> str:
+
+    def _format_existing_memories(self, memories: list[Any]) -> str:
         """
         Format existing memories for prompt context.
         
@@ -110,15 +111,15 @@ class MemoryExtractionService:
         """
         if not memories:
             return "No existing memories yet."
-        
+
         lines = [f"Total: {len(memories)} existing memories", ""]
-        
+
         # Group by type
-        by_type: Dict[str, List] = {}
+        by_type: dict[str, list] = {}
         for mem in memories:
             mem_type = mem.type.value if hasattr(mem, 'type') else 'unknown'
             by_type.setdefault(mem_type, []).append(mem)
-        
+
         for mem_type, mems in by_type.items():
             lines.append(f"### {mem_type.upper()}")
             for mem in mems[:10]:  # Limit to 10 per type
@@ -127,12 +128,12 @@ class MemoryExtractionService:
             if len(mems) > 10:
                 lines.append(f"- ... and {len(mems) - 10} more")
             lines.append("")
-        
+
         return "\n".join(lines)
-    
+
     def _build_extraction_prompt(
         self,
-        messages: List[BaseMessage],
+        messages: list[BaseMessage],
         existing_memories: str,
     ) -> str:
         """
@@ -147,15 +148,15 @@ class MemoryExtractionService:
         """
         # Format recent messages for context
         recent_messages = self._format_messages(messages[-20:])  # Last 20 messages
-        
+
         return render_template(
             "memory/extraction.prompt.j2",
             message_count=len(messages),
             recent_messages=recent_messages,
             existing_memories=existing_memories,
         )
-    
-    def _format_messages(self, messages: List[BaseMessage]) -> str:
+
+    def _format_messages(self, messages: list[BaseMessage]) -> str:
         """Format messages for prompt."""
         lines = []
         for msg in messages:
@@ -165,20 +166,20 @@ class MemoryExtractionService:
                 role = "Assistant"
             else:
                 role = "System"
-            
+
             content = msg.content if isinstance(msg.content, str) else str(msg.content)
             # Truncate long messages
             if len(content) > 500:
                 content = content[:500] + "..."
-            
+
             lines.append(f"{role}: {content}")
-        
+
         return "\n\n".join(lines)
-    
+
     async def _run_extraction_agent(
         self,
         prompt: str,
-        context_messages: List[BaseMessage],
+        context_messages: list[BaseMessage],
     ) -> str:
         """
         Run extraction agent to analyze conversation.
@@ -194,29 +195,29 @@ class MemoryExtractionService:
         messages = [
             {"role": "system", "content": prompt},
         ]
-        
+
         # Add context summary
         context_summary = self._format_messages(context_messages[-10:])
         messages.append({
             "role": "user",
             "content": f"Analyze this conversation and extract memories:\n\n{context_summary}",
         })
-        
+
         # Call LLM using InternalLLMService
         from app.core.llm import InternalLLMService
         response = await InternalLLMService.invoke(
             messages=messages,
             purpose="memory_extraction",
         )
-        
+
         return response.content if hasattr(response, 'content') else str(response)
-    
+
     def _parse_extraction_result(
         self,
         result: str,
-        project_id: Optional[int] = None,
-        user_id: Optional[str] = None,
-    ) -> List[MemoryEntry]:
+        project_id: int | None = None,
+        user_id: str | None = None,
+    ) -> list[MemoryEntry]:
         """
         Parse extraction result into memory entries.
         
@@ -231,7 +232,7 @@ class MemoryExtractionService:
         import json
 
         entries = []
-        
+
         # Try JSON parsing first
         try:
             data = json.loads(result)
@@ -256,25 +257,25 @@ class MemoryExtractionService:
         except json.JSONDecodeError:
             # Fallback: parse text format
             entries = self._parse_text_format(result, project_id, user_id)
-        
+
         return entries
-    
+
     def _create_entry_from_dict(
         self,
-        data: Dict[str, Any],
-        project_id: Optional[int] = None,
-        user_id: Optional[str] = None,
-    ) -> Optional[MemoryEntry]:
+        data: dict[str, Any],
+        project_id: int | None = None,
+        user_id: str | None = None,
+    ) -> MemoryEntry | None:
         """Create memory entry from dictionary."""
         import uuid
-        
+
         mem_type_str = data.get("type", "project").lower()
         try:
             mem_type = MemoryType(mem_type_str)
         except ValueError:
             logger.warning(f"Unknown memory type: {mem_type_str}")
             return None
-        
+
         # Determine privacy based on type
         privacy_defaults = {
             MemoryType.USER: PrivacyLevel.PRIVATE,
@@ -283,7 +284,7 @@ class MemoryExtractionService:
             MemoryType.REFERENCE: PrivacyLevel.TEAM,
         }
         privacy = PrivacyLevel(data.get("privacy", privacy_defaults[mem_type].value))
-        
+
         return MemoryEntry(
             id=f"mem_{mem_type.value}_{uuid.uuid4().hex[:8]}",
             type=mem_type,
@@ -297,40 +298,40 @@ class MemoryExtractionService:
             source="extracted",
             confidence=data.get("confidence", 0.8),
         )
-    
+
     def _parse_text_format(
         self,
         text: str,
-        project_id: Optional[int] = None,
-        user_id: Optional[str] = None,
-    ) -> List[MemoryEntry]:
+        project_id: int | None = None,
+        user_id: str | None = None,
+    ) -> list[MemoryEntry]:
         """Parse text format extraction result."""
         import re
         import uuid
-        
+
         entries = []
-        
+
         # Look for patterns like:
         # TYPE: user
         # TITLE: User is a Python expert
         # CONTENT: ...
-        
+
         pattern = r"TYPE:\s*(\w+)\s*\nTITLE:\s*(.+?)\s*\nCONTENT:\s*([\s\S]+?)(?=\n\nTYPE:|\Z)"
         matches = re.findall(pattern, text, re.IGNORECASE)
-        
+
         for mem_type_str, title, content in matches:
             try:
                 mem_type = MemoryType(mem_type_str.lower())
             except ValueError:
                 continue
-            
+
             privacy_defaults = {
                 MemoryType.USER: PrivacyLevel.PRIVATE,
                 MemoryType.FEEDBACK: PrivacyLevel.PRIVATE,
                 MemoryType.PROJECT: PrivacyLevel.TEAM,
                 MemoryType.REFERENCE: PrivacyLevel.TEAM,
             }
-            
+
             entries.append(MemoryEntry(
                 id=f"mem_{mem_type.value}_{uuid.uuid4().hex[:8]}",
                 type=mem_type,
@@ -343,14 +344,14 @@ class MemoryExtractionService:
                 source="extracted",
                 confidence=0.7,
             ))
-        
+
         return entries
-    
+
     def _deduplicate(
         self,
-        new_entries: List[MemoryEntry],
-        existing_memories: List[Any],
-    ) -> List[MemoryEntry]:
+        new_entries: list[MemoryEntry],
+        existing_memories: list[Any],
+    ) -> list[MemoryEntry]:
         """
         Remove duplicates from new entries.
         
@@ -363,14 +364,14 @@ class MemoryExtractionService:
         """
         # Simple deduplication based on title similarity
         existing_titles = {m.title.lower() for m in existing_memories}
-        
+
         deduplicated = []
         for entry in new_entries:
             # Check title similarity
             if entry.title.lower() in existing_titles:
                 logger.debug(f"Skipping duplicate: {entry.title}")
                 continue
-            
+
             # Check content similarity (simple substring match)
             is_duplicate = False
             for existing in existing_memories:
@@ -379,23 +380,23 @@ class MemoryExtractionService:
                     if self._content_similarity(entry.content, existing.content) > 0.8:
                         is_duplicate = True
                         break
-            
+
             if not is_duplicate:
                 deduplicated.append(entry)
-        
+
         return deduplicated
-    
+
     def _content_similarity(self, content1: str, content2: str) -> float:
         """Calculate simple content similarity (Jaccard index)."""
         words1 = set(content1.lower().split())
         words2 = set(content2.lower().split())
-        
+
         if not words1 or not words2:
             return 0.0
-        
+
         intersection = words1 & words2
         union = words1 | words2
-        
+
         return len(intersection) / len(union)
 
 
@@ -405,15 +406,15 @@ class MemoryConsolidationService:
     
     Similar to Brain's MemoryConsolidator but using the new file-based system.
     """
-    
-    def __init__(self, storage: Optional[FileMemoryStorage] = None):
+
+    def __init__(self, storage: FileMemoryStorage | None = None):
         self.storage = storage or FileMemoryStorage()
-    
+
     async def consolidate(
         self,
         working_content: str,
         source: str = "consolidated",
-    ) -> Optional[MemoryEntry]:
+    ) -> MemoryEntry | None:
         """
         Consolidate working memory content into long-term storage.
         
@@ -427,14 +428,14 @@ class MemoryConsolidationService:
         if not working_content or len(working_content.strip()) < 50:
             # Too short to consolidate
             return None
-        
+
         # Generate summary using template
         try:
             summary = render_template(
                 "memory/consolidation.prompt.j2",
                 content=working_content,
             )
-            
+
             # Create memory entry
             entry = MemoryEntry(
                 id=f"mem_consolidated_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}",
@@ -445,12 +446,12 @@ class MemoryConsolidationService:
                 description=summary[:200],
                 source=source,
             )
-            
+
             await self.storage.save(entry)
             logger.info(f"Consolidated working memory to {entry.id}")
-            
+
             return entry
-            
+
         except Exception as e:
             logger.error(f"Consolidation failed: {e}")
             return None

@@ -10,8 +10,11 @@ deleting memories that are linked to rolled-back messages.
 
 import logging
 
-from app.core.rewind.events import MemoryCleanupEvent, RewindRequestedEvent
-from app.core.rewind.events import RewindEventType
+from app.core.rewind.events import (
+    MemoryCleanupEvent,
+    RewindEventType,
+    RewindRequestedEvent,
+)
 
 from app.core.events.base import AsyncEventBus
 from app.core.events.decorators import event_register, event_subscribe
@@ -57,7 +60,7 @@ class MemoryRewind:
                 target_message_id=event.target_message_id,
                 include_target=event.include_target
             )
-            
+
             if message_ids:
                 # Publish specific cleanup event
                 from app.core.events import system_bus
@@ -105,20 +108,21 @@ class MemoryRewind:
         Returns:
             List of message IDs as strings
         """
-        from app.models import Message
         from sqlalchemy import select
+
         from app.infrastructure.database.sql.database import session_scope
-        
+        from app.models import Message
+
         async with session_scope() as session:
             stmt = select(Message.id).where(Message.thread_id == thread_id)
-            
+
             if target_message_id:
                 target_id = int(target_message_id)
                 if include_target:
                     stmt = stmt.where(Message.id >= target_id)
                 else:
                     stmt = stmt.where(Message.id > target_id)
-            
+
             result = await session.execute(stmt)
             # Convert to strings for consistency
             return [str(row[0]) for row in result.all()]
@@ -139,17 +143,17 @@ class MemoryRewind:
             Number of memories deleted
         """
         from app.core.memory.lifespan import MemoryLifespanManager
-        
+
         count = 0
-        
+
         try:
             # Initialize memory manager if needed
             if not MemoryLifespanManager.is_initialized():
                 await MemoryLifespanManager.ainitialize()
-            
+
             container = MemoryLifespanManager.get_container()
             memory_manager = container.memory_manager
-            
+
             # Delete by source message ID
             for msg_id in source_message_ids:
                 try:
@@ -158,20 +162,20 @@ class MemoryRewind:
                         query=f"source_message_id:{msg_id}",
                         limit=100
                     )
-                    
+
                     for mem in results:
                         if await memory_manager.delete_memory(mem.id):
                             count += 1
-                            
+
                 except Exception as e:
                     logger.warning(f"[MemoryRewind] Failed to delete memories for msg {msg_id}: {e}")
-            
+
             # TODO: Delete by run_id if memory system supports it
             # This would require the memory system to index by run_id
-            
+
         except Exception as e:
             logger.error(f"[MemoryRewind] Memory manager initialization failed: {e}")
-        
+
         return count
 
     async def cleanup(self, message_ids: list[str], **kwargs) -> int:

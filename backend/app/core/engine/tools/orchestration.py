@@ -5,17 +5,14 @@ Consolidates engine-level control tools (Routing, State, Parallelism) into a uni
 
 import json
 import logging
-import re
-from typing import Any, Optional
+from typing import Any
 
 from langchain_core.runnables import RunnableConfig
 
 from app.core.engine.routers import RoutingTarget
 from app.core.tools import evoloop_tool
-from app.utils.text import extract_json_from_markdown
-
-from pydantic import BaseModel, ConfigDict
 from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.utils.text import extract_json_from_markdown
 
 logger = logging.getLogger(__name__)
 
@@ -142,7 +139,7 @@ def route_to(
         workflow_mode: "single" for one skill, "sequential" for step-by-step execution.
     """
     target_val = target.value if hasattr(target, "value") else target
-    
+
     context = context or {}
     if authorized_tools:
         context["authorized_tools"] = authorized_tools
@@ -239,7 +236,7 @@ async def spawn_agents(
     High-level coordination for models that prefer explicitly managing parallelism.
     """
     logger.info(f"[spawn_agents] 🚀 Spawning {len(mission_plan.get('subtasks', []))} agents: {reasoning}")
-    
+
     subtasks = mission_plan.get("subtasks", [])
 
     # Enforce unique IDs for spawned agents
@@ -288,7 +285,7 @@ async def aggregate_results(
         aggregation_strategy=aggregation_strategy,
         results_json=json.dumps(results, ensure_ascii=False)
     )
-    
+
     response = await InternalLLMService.invoke(
         messages=[{"role": "user", "content": prompt}],
         purpose="result_aggregation",

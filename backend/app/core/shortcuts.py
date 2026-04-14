@@ -21,7 +21,7 @@ SHORTCUTS = {
         "关闭": "cmd+w",
         "close": "cmd+w",
     },
-    
+
     # Chrome / Chromium
     "com.google.Chrome": {
         "地址栏": "cmd+l",
@@ -40,7 +40,7 @@ SHORTCUTS = {
         "复制": "cmd+c",
         "粘贴": "cmd+v",
     },
-    
+
     # Safari
     "com.apple.Safari": {
         "地址栏": "cmd+l",
@@ -49,7 +49,7 @@ SHORTCUTS = {
         "刷新": "cmd+r",
         "查找": "cmd+f",
     },
-    
+
     # System / Finder
     "com.apple.finder": {
         "新建文件夹": "cmd+shift+n",
@@ -61,14 +61,14 @@ SHORTCUTS = {
         "删除": "cmd+delete",
         "搜索": "cmd+f",
     },
-    
+
     # Notes
     "com.apple.Notes": {
         "新建": "cmd+n",
         "删除": "cmd+delete",
         "搜索": "cmd+f",
     },
-    
+
     # Terminal
     "com.apple.Terminal": {
         "新建窗口": "cmd+n",
@@ -84,7 +84,7 @@ SHORTCUTS = {
 GENERIC_SHORTCUTS = {
     "复制": "cmd+c",
     "copy": "cmd+c",
-    "粘贴": "cmd+v", 
+    "粘贴": "cmd+v",
     "paste": "cmd+v",
     "剪切": "cmd+x",
     "cut": "cmd+x",
@@ -128,7 +128,7 @@ def get_shortcut(bundle_id: str, element_name: str) -> str | None:
     """
     # Normalize input
     element_key = element_name.lower().replace(" ", "_")
-    
+
     # 1. Check app-specific shortcuts
     if bundle_id in SHORTCUTS:
         app_shortcuts = SHORTCUTS[bundle_id]
@@ -136,13 +136,13 @@ def get_shortcut(bundle_id: str, element_name: str) -> str | None:
             return shortcut
         if shortcut := app_shortcuts.get(element_key):
             return shortcut
-    
+
     # 2. Check generic shortcuts
     if shortcut := GENERIC_SHORTCUTS.get(element_name):
         return shortcut
     if shortcut := GENERIC_SHORTCUTS.get(element_key):
         return shortcut
-    
+
     return None
 
 

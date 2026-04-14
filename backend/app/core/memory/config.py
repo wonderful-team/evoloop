@@ -7,7 +7,6 @@ All memory-related settings are encapsulated in the MemoryConfig dataclass.
 
 import logging
 from pathlib import Path
-from typing import Optional
 
 from pydantic import Field
 
@@ -34,68 +33,68 @@ class MemoryConfig(DynamicBaseModel):
             extraction_interval=1,
         )
     """
-    
+
     # Storage settings
     memory_root: Path = Field(default_factory=lambda: Path.home() / ".evoloop" / "memory")
     """Root directory for file-based memory storage."""
-    
+
     backend_type: str = "file"
     """Backend type: 'file' or 'neo4j'."""
-    
+
     # Neo4j settings (for full mode)
-    neo4j_uri: Optional[str] = None
-    neo4j_user: Optional[str] = None
-    neo4j_password: Optional[str] = None
-    
+    neo4j_uri: str | None = None
+    neo4j_user: str | None = None
+    neo4j_password: str | None = None
+
     # Short-term memory settings
     short_term_backend: str = "sqlite"
     """Short-term backend: 'sqlite' or 'postgresql'."""
-    
-    database_url: Optional[str] = None
+
+    database_url: str | None = None
     """Database URL for PostgreSQL mode."""
-    
+
     # Extraction settings
     extraction_interval: int = 1
     """Extract memories every N conversations (0 to disable)."""
-    
+
     min_messages_for_extraction: int = 4
     """Minimum messages required to trigger extraction."""
-    
+
     max_extraction_turns: int = 5
     """Maximum turns for extraction agent."""
-    
+
     # Retrieval settings
     default_search_limit: int = 10
     """Default number of results to return from search."""
-    
+
     min_relevance_score: float = 0.7
     """Minimum relevance score for search results."""
-    
+
     # Quality settings
     quality_check_enabled: bool = True
     """Enable automatic quality analysis."""
-    
+
     auto_cleanup_enabled: bool = False
     """Enable automatic cleanup of low-quality memories."""
-    
+
     # Two-tier settings
     hot_memory_max_chars: int = 8000
     """Maximum characters for hot (tier-1) memory."""
-    
+
     cold_memory_results: int = 5
     """Number of cold memory results to retrieve."""
-    
+
     # Pruning settings
     pruning_threshold: int = 100
     """Number of messages before pruning is considered."""
-    
+
     context_window_size: int = 20
     """Number of recent messages to keep in context."""
-    
+
     # Logging
     log_level: str = "INFO"
     """Logging level for memory system."""
-    
+
     @classmethod
     def from_settings(cls) -> "MemoryConfig":
         """
@@ -105,9 +104,9 @@ class MemoryConfig(DynamicBaseModel):
         MemoryConfig instances directly with test values.
         """
         from app.core.config import settings
-        
+
         return cls(
-            memory_root=Path(getattr(settings, 'BRAIN_MEMORY_ROOT', 
+            memory_root=Path(getattr(settings, 'BRAIN_MEMORY_ROOT',
                                      Path.home() / ".evoloop" / "memory")),
             backend_type=getattr(settings, 'MEMORY_BACKEND', 'file'),
             neo4j_uri=getattr(settings, 'NEO4J_URI', None),
@@ -128,21 +127,21 @@ class MemoryConfig(DynamicBaseModel):
             context_window_size=getattr(settings, 'CONTEXT_WINDOW_SIZE', 20),
             log_level=getattr(settings, 'MEMORY_LOG_LEVEL', 'INFO'),
         )
-    
+
     def to_dict(self) -> dict:
         """Convert configuration to dictionary (legacy support)."""
         return self.model_dump()
-    
+
     @property
     def is_file_backend(self) -> bool:
         """Check if using file-based backend."""
         return self.backend_type == "file"
-    
+
     @property
     def is_neo4j_backend(self) -> bool:
         """Check if using Neo4j backend."""
         return self.backend_type == "neo4j"
-    
+
     @property
     def extraction_enabled(self) -> bool:
         """Check if auto-extraction is enabled."""

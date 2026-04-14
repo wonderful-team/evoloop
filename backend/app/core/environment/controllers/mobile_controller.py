@@ -12,7 +12,7 @@ import logging
 import math
 import os
 import time
-from typing import Any, Dict, Optional
+from typing import Any
 
 from app.core.atlas import atlas_engine
 from app.core.atlas.models import AtlasApp
@@ -22,15 +22,15 @@ from app.core.environment.controllers.utils import (
     resolve_element_alias,
 )
 from app.core.learning.trace_recorder import get_recorder
-from app.core.vision import vision_engine, VisionTask
+from app.core.vision import VisionTask, vision_engine
 from app.core.vision.providers.native.android_a11y import android_a11y_provider
 from app.infrastructure.drivers.adb import ADBError, adb_driver
 from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.utils import (
-    cleanup_file,
     ControllerResponse,
-    normalize_text,
     PerceptionsFormatter,
+    cleanup_file,
+    normalize_text,
     render_template,
 )
 
@@ -54,11 +54,11 @@ class MobileController:
 
     # Package name cache: {device_id: (package_name, timestamp)}
     # Used to avoid repeated ADB queries within a single operation (500ms TTL)
-    _package_cache: Dict[str, tuple[str, float]] = {}
+    _package_cache: dict[str, tuple[str, float]] = {}
     _package_cache_ttl_ms: float = 500.0
-    
+
     # Screenshot cache: {device_id: (path, timestamp)}
-    _screenshot_cache: Dict[str, tuple[str, float]] = {}
+    _screenshot_cache: dict[str, tuple[str, float]] = {}
     _screenshot_cache_ttl_ms: float = 1000.0 # 1 second TTL
 
     @classmethod
@@ -152,7 +152,7 @@ class MobileController:
         fast_probe: bool = False,
         passive_safety: bool = False,
         compressed_dump: bool = True,
-        expected_pkg: Optional[str] = None,
+        expected_pkg: str | None = None,
         **kwargs: Any
     ) -> str:
         """Execute a mobile action. All business logic lives here."""
@@ -195,7 +195,7 @@ class MobileController:
                 """Phase 4/6: wait_after_ms logic and standardized rendering."""
                 if wait_after_ms > 0:
                     await asyncio.sleep(wait_after_ms / 1000.0)
-                
+
                 if isinstance(msg, str):
                     # Combine wait note with caller-provided note
                     wait_note = f"Wait: {wait_after_ms}ms" if wait_after_ms > 0 else None
@@ -297,13 +297,13 @@ class MobileController:
                 2. If no expected_pkg, use detected.
                 """
                 detected_pkg = await _get_current_package()
-                
+
                 if not expected_pkg:
                     return detected_pkg
-                    
+
                 if not detected_pkg or detected_pkg == "unknown":
                     return expected_pkg
-                    
+
                 # Noisy packages that we should NOT follow if they appear during a macro
                 # unless they are the expected target.
                 NOISY_PACKAGES = {
@@ -313,15 +313,15 @@ class MobileController:
                     "com.google.android.inputmethod.latin", # Keyboard
                     "android",                # System
                 }
-                
+
                 if detected_pkg in NOISY_PACKAGES and detected_pkg != expected_pkg:
                     logger.debug(f"[Mobile] Detected noisy package '{detected_pkg}', sticking to expected '{expected_pkg}'")
                     return expected_pkg
-                    
+
                 # If it's a different but legitimate App, we follow it
                 if detected_pkg != expected_pkg:
                     logger.info(f"[Mobile] Legitimate cross-app switch detected: {expected_pkg} -> {detected_pkg}")
-                
+
                 return detected_pkg
 
             async def _resolve_with_fallback(
@@ -335,9 +335,9 @@ class MobileController:
             ) -> tuple[int, int] | str:
                 """Resolve element with coordinate fallback."""
                 resolved = await resolve_element(
-                    name, role, 
-                    timeout_val=timeout_val, 
-                    expected_pkg=expected_pkg, 
+                    name, role,
+                    timeout_val=timeout_val,
+                    expected_pkg=expected_pkg,
                     fast_probe=fast_probe_enabled,
                     has_fallback=(fallback_x is not None and fallback_y is not None)
                 )
@@ -371,9 +371,9 @@ class MobileController:
                 return True
 
             async def resolve_element(
-                name: str, 
-                role: str | None = None, 
-                timeout_val: float = 8.0, 
+                name: str,
+                role: str | None = None,
+                timeout_val: float = 8.0,
                 expected_pkg: str | None = None,
                 fast_probe: bool = False,
                 has_fallback: bool = False
@@ -445,7 +445,7 @@ class MobileController:
                         a11y_result = await android_a11y_provider.process(
                             VisionTask.DETECT, "", device_id=device_id, compressed=compressed_dump
                         )
-                        
+
                     if a11y_result.success and a11y_result.elements:
                         candidates = []
                         for el in a11y_result.elements:
@@ -545,9 +545,9 @@ class MobileController:
                                 # Ensure we don't exceed image bounds
                                 img_w, img_h = img.size
                                 box = (
-                                    max(0, rx), 
-                                    max(0, ry), 
-                                    min(img_w, rx + rw), 
+                                    max(0, rx),
+                                    max(0, ry),
+                                    min(img_w, rx + rw),
                                     min(img_h, ry + rh)
                                 )
                                 cropped = img.crop(box)
@@ -705,27 +705,27 @@ class MobileController:
                 max_scrolls = int(kwargs.get("max_scrolls", 5))
                 scroll_amount = kwargs.get("scroll_amount", "medium")
                 # Scroll delay removed for faster macro execution
-                
+
                 # Mapping distance
                 size = await asyncio.to_thread(adb_driver.get_screen_size, device_id=device_id)
                 width, height = size
-                
+
                 start_x = width // 2
                 end_x = start_x
-                
+
                 if scroll_amount == "small":
                     distance = height // 4
                 elif scroll_amount == "large":
                     distance = (height // 4) * 3
                 else: # medium
                     distance = height // 2
-                
+
                 start_y = (height // 2) + (distance // 2)
                 end_y = (height // 2) - (distance // 2)
-                
+
                 scroll_count = 0
                 last_ui_hash = ""
-                
+
                 while scroll_count < max_scrolls:
                     # 1. Capture current state for stability check
                     try:
@@ -733,17 +733,17 @@ class MobileController:
                         curr_hash = str(hash(curr_ui))
                     except:
                         curr_hash = str(time.time()) # Fallback if dump fails
-                    
+
                     if curr_hash == last_ui_hash:
                         logger.info(f"[Mobile] Scroll reached bottom (UI stable) after {scroll_count} scrolls.")
                         break
-                    
+
                     last_ui_hash = curr_hash
-                    
+
                     # 2. Perform Swipe
                     await asyncio.to_thread(adb_driver.swipe, start_x, start_y, end_x, end_y, duration_ms=400, device_id=device_id)
                     scroll_count += 1
-                
+
                 return ControllerResponse.success(
                     "Scrolled to bottom.",
                     note=f"Completed {scroll_count} iterations."
@@ -914,7 +914,7 @@ class MobileController:
                 cache_key = device_id or "default"
                 now = time.time()
                 cached_path, ts = cls._screenshot_cache.get(cache_key, (None, 0))
-                
+
                 if cached_path and os.path.exists(cached_path) and (now - ts < cls._screenshot_cache_ttl_ms / 1000.0):
                     filepath = cached_path
                     logger.debug(f"[Mobile] Reusing cached screenshot for GUI extraction: {filepath}")
@@ -922,7 +922,7 @@ class MobileController:
                     filepath = await asyncio.to_thread(adb_driver.screenshot, device_id=device_id)
                     if filepath:
                         cls._screenshot_cache[cache_key] = (filepath, now)
-                        
+
                 if region and filepath:
                     _crop_screenshot(filepath, region)
 

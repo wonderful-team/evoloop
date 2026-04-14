@@ -75,10 +75,10 @@ class SupervisorNode(BaseAgentNode):
         from app.core.engine.prompts import SupervisorPromptBuilder
         project_id = (state.project_id or DEFAULT_PROJECT_ID)
         messages = list(state.messages)
-        
+
         # Build logical context for the prompt builder
         context = await self._build_context(state, config, messages, project_id)
-        
+
         prompt_builder = SupervisorPromptBuilder(
             project_id=project_id,
             iteration_count=context["iteration_count"],
@@ -88,7 +88,7 @@ class SupervisorNode(BaseAgentNode):
         static_system_prompt = await prompt_builder.build(config)
         # Dynamic Ticket (Injected via HumanMessage in BaseAgentNode)
         dynamic_context_ticket = await prompt_builder.build_context_ticket(config)
-        
+
         return static_system_prompt, dynamic_context_ticket
 
     async def get_tools(self, state: AgentState) -> list[Any]:
@@ -113,7 +113,7 @@ class SupervisorNode(BaseAgentNode):
         # 2. Protocol Violation Check (Supervisor MUST route or be an error)
         new_messages = engine_result.messages or []
         blackboard = engine_result.blackboard or original_state.blackboard or {}
-        
+
         # Check for infrastructure errors
         has_error_msg = any(
             getattr(msg, "metadata", {}).get("is_error") for msg in new_messages
@@ -131,7 +131,7 @@ class SupervisorNode(BaseAgentNode):
         ai_content = ""
         if new_messages and isinstance(new_messages[-1], AIMessage):
             ai_content = str(new_messages[-1].content).strip()
-            
+
         if ai_content:
             logger.warning("[Supervisor] ⚠️ Protocol violation: No route_to but returned content. Falling back to 'chat'.")
             return StateUpdate(

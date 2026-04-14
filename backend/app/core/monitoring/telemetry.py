@@ -1,7 +1,6 @@
 from datetime import datetime
-from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -21,16 +20,16 @@ class PromptStats(BaseModel):
 
 class UsageMetadata(BaseModel):
     """Token usage metrics from the LLM provider."""
-    prompt_tokens: Optional[int] = None
-    completion_tokens: Optional[int] = None
-    total_tokens: Optional[int] = None
+    prompt_tokens: int | None = None
+    completion_tokens: int | None = None
+    total_tokens: int | None = None
 
 
 class ResponseStats(BaseModel):
     """Metrics for the LLM response."""
     content_len: int = 0
     is_tool_call: bool = False
-    tool_names: List[str] = Field(default_factory=list)
+    tool_names: list[str] = Field(default_factory=list)
 
 
 class InferenceEvent(DynamicBaseModel):
@@ -50,9 +49,9 @@ class TelemetryCollector:
     Structured telemetry collector for Agent performance monitoring.
     Saves metrics to JSON-L files for later analysis.
     """
-    
+
     _instance = None
-    
+
     def __new__(cls, *args, **kwargs):
         if not cls._instance:
             cls._instance = super(TelemetryCollector, cls).__new__(cls)
@@ -62,10 +61,10 @@ class TelemetryCollector:
     def __init__(self, log_dir: str = "tests/monitoring/telemetry"):
         if self._initialized:
             return
-            
+
         self.log_dir = Path(log_dir)
         self.log_dir.mkdir(parents=True, exist_ok=True)
-        
+
         # Create a new session file for each run
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         self.current_log_file = self.log_dir / f"trace_{timestamp}.jsonl"
@@ -75,10 +74,10 @@ class TelemetryCollector:
         self,
         node_name: str,
         turn_id: int,
-        prompt_info: Union[Dict[str, Any], PromptStats],
-        response_info: Dict[str, Any],
+        prompt_info: dict[str, Any] | PromptStats,
+        response_info: dict[str, Any],
         latency_ms: float,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: dict[str, Any] | None = None
     ):
         """
         Record the performance metrics of a single LLM inference call.
@@ -119,10 +118,10 @@ class TelemetryCollector:
                 response=response,
                 metadata=TelemetryMetadata(**(metadata or {}))
             )
-            
+
             with open(self.current_log_file, "a", encoding="utf-8") as f:
                 f.write(event.model_dump_json() + "\n")
-                
+
         except Exception as e:
             # Observability should never crash the engine
             print(f"[Telemetry] Failed to record inference: {e}")

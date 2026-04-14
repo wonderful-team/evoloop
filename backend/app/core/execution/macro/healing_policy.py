@@ -21,7 +21,7 @@ Usage:
     if not decision.allowed:
         logger.info(f"Self-healing disabled: {decision.reason}")
 """
-from typing import Optional, Dict, Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Optional
 
 from app.core.config import settings
 from app.infrastructure.pydantic_base import DynamicBaseModel
@@ -45,12 +45,12 @@ class SelfHealingPolicy:
     All self-healing decisions should go through this class to ensure
     consistent behavior across the codebase.
     """
-    
+
     @classmethod
     def check(
         cls,
         skill: Optional["LearnedSkill"] = None,
-        execution_params: Optional[Dict[str, Any]] = None
+        execution_params: dict[str, Any] | None = None
     ) -> HealingDecision:
         """
         Check if self-healing is allowed based on all policy levels.
@@ -69,7 +69,7 @@ class SelfHealingPolicy:
                 reason="Global policy disables macro self-healing",
                 source="global"
             )
-        
+
         # Level 2: Skill-level switch
         if skill is not None and not skill.allow_self_healing:
             return HealingDecision(
@@ -77,31 +77,31 @@ class SelfHealingPolicy:
                 reason=f"Skill '{skill.name}' has self-healing disabled",
                 source="skill"
             )
-        
+
         # Level 3: Execution-time override
         exec_params = execution_params or {}
         # Support both key formats for backward compatibility
         allow_healing = exec_params.get("_allow_self_healing", True)
-        
+
         if not allow_healing:
             return HealingDecision(
                 allowed=False,
                 reason="Execution explicitly disabled self-healing",
                 source="execution"
             )
-        
+
         # All checks passed
         return HealingDecision(
             allowed=True,
             reason="Self-healing is enabled",
             source="allowed"
         )
-    
+
     @classmethod
     def is_allowed(
         cls,
         skill: Optional["LearnedSkill"] = None,
-        execution_params: Optional[Dict[str, Any]] = None
+        execution_params: dict[str, Any] | None = None
     ) -> bool:
         """
         Simple boolean check if self-healing is allowed.
@@ -114,7 +114,7 @@ class SelfHealingPolicy:
             True if self-healing is allowed, False otherwise
         """
         return cls.check(skill, execution_params).allowed
-    
+
     @classmethod
     def get_disabled_message(cls, decision: HealingDecision) -> str:
         """
@@ -128,7 +128,7 @@ class SelfHealingPolicy:
         """
         if decision.allowed:
             return ""
-        
+
         messages = {
             "global": (
                 "[SELF_HEALING_DISABLED] Global policy prevents automatic recovery. "
@@ -142,11 +142,11 @@ class SelfHealingPolicy:
                 "[SELF_HEALING_DISABLED] This specific execution task requested no automatic recovery."
             ),
         }
-        
+
         return messages.get(decision.source, f"[SELF_HEALING_DISABLED] {decision.reason}")
-    
+
     @classmethod
-    def get_enabled_message(cls, skill_name: Optional[str] = None, error_message: Optional[str] = None) -> str:
+    def get_enabled_message(cls, skill_name: str | None = None, error_message: str | None = None) -> str:
         """
         Get a user-friendly message suggesting self-healing recovery.
         
@@ -163,8 +163,8 @@ class SelfHealingPolicy:
             "using basic tools (browser_control, desktop_control, etc.) to complete the mission. "
             "After successful recovery, you may call `reconcile_skill` to fix this macro permanently."
         )
-        
+
         if skill_name and error_message:
             return f"[HINT] Macro '{skill_name}' failed: {error_message}. " + base_msg[7:]  # Remove the tag from base
-        
+
         return base_msg

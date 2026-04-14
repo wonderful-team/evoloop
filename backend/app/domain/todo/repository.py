@@ -8,10 +8,9 @@ from typing import Sequence
 
 from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
-from app.models.todo import TodoItem, TodoStatus
 from app.domain.todo.schemas import TodoCreateInternal, TodoFilter, TodoUpdate
+from app.models.todo import TodoItem, TodoStatus
 
 
 class TodoRepository:

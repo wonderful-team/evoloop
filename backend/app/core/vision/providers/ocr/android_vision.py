@@ -23,7 +23,7 @@ class AndroidVisionOCRProvider(MacOSVisionOCRProvider):
         vision_avail = await super().is_available()
         if not vision_avail:
             return False
-            
+
         try:
             devices = adb_driver.list_devices()
             return any(d["status"] == "device" for d in devices)

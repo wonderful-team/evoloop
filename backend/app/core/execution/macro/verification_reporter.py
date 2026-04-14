@@ -9,7 +9,7 @@ import json
 import logging
 from datetime import datetime
 
-from app.core.execution.macro.verification_models import (
+from app.core.execution.macro.models import (
     StepExecutionStatus,
     VerificationResponse,
     VerificationStatus,

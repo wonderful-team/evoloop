@@ -20,7 +20,7 @@ from app.infrastructure.pydantic_base import DynamicBaseModel
 logger = logging.getLogger(__name__)
 
 
-class KnowledgeKnowledgeSearchResult(DynamicBaseModel):
+class KnowledgeSearchResult(DynamicBaseModel):
     """Single search result."""
     doc_id: str
     path: str

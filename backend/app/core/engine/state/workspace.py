@@ -1,19 +1,20 @@
 """Workspace and clipboard state models."""
 import time
-from typing import Any, List, Optional
+from typing import Any
 
 from pydantic import Field
+
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 
 class ClipboardMetadata(DynamicBaseModel):
-    source_file: Optional[str] = None
-    line_range: Optional[tuple[int, int]] = None
+    source_file: str | None = None
+    line_range: tuple[int, int] | None = None
 
 
 class SubtaskContext(DynamicBaseModel):
-    description: Optional[str] = None
-    dependencies: Optional[List[str]] = None
+    description: str | None = None
+    dependencies: list[str] | None = None
 
 
 class ClipboardItem(DynamicBaseModel):
@@ -24,11 +25,11 @@ class ClipboardItem(DynamicBaseModel):
 
 
 class WorkspaceContext(DynamicBaseModel):
-    structure: Optional[str] = None
-    structure_updated_at: Optional[float] = None
+    structure: str | None = None
+    structure_updated_at: float | None = None
 
 
 class RetrievalContext(DynamicBaseModel):
     repo_id: int
-    files: List[str] = Field(default_factory=list)
-    snippets: List[str] = Field(default_factory=list)
+    files: list[str] = Field(default_factory=list)
+    snippets: list[str] = Field(default_factory=list)

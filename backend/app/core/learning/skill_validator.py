@@ -1,9 +1,8 @@
 import logging
 from pathlib import Path
-from typing import Any
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel
 
 from app.infrastructure.pydantic_base import DynamicBaseModel
 

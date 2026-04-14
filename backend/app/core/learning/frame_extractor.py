@@ -128,7 +128,7 @@ class FrameExtractor:
         )
 
         results = []
-        for ts_ms, frame_path in zip(timestamps_ms, frame_paths):
+        for ts_ms, frame_path in zip(timestamps_ms, frame_paths, strict=False):
             result = {
                 "timestamp_ms": ts_ms,
                 "screenshot_path": frame_path,

@@ -12,7 +12,6 @@ in embedded mode uses SQLite with `writes` table.
 """
 
 import logging
-from typing import Optional
 
 import aiosqlite
 
@@ -59,7 +58,7 @@ class CheckpointRewind:
         register_instance_handlers(instance, bus)
         return instance
 
-    def _get_db_path(self) -> Optional[str]:
+    def _get_db_path(self) -> str | None:
         """Resolve the SQLite database path from the checkpointer."""
         try:
             cp = get_checkpointer()
@@ -127,9 +126,9 @@ class CheckpointRewind:
     async def _find_checkpoints_to_delete(
         self,
         thread_id: str,
-        target_message_id: Optional[str],
+        target_message_id: str | None,
         include_target: bool
-    ) -> Optional[tuple[list[str], Optional[str]]]:
+    ) -> tuple[list[str], str | None] | None:
         """
         Find checkpoint IDs to delete based on message range.
 
@@ -217,7 +216,7 @@ class CheckpointRewind:
         self,
         thread_id: str,
         checkpoint_ids: list[str],
-        min_checkpoint_id: Optional[str] = None,
+        min_checkpoint_id: str | None = None,
     ) -> int:
         """
         Delete checkpoints and associated writes from SQLite.
@@ -318,8 +317,8 @@ class CheckpointRewind:
     async def cleanup(
         self,
         thread_id: str,
-        checkpoint_ids: Optional[list[str]] = None,
-        min_checkpoint_id: Optional[str] = None,
+        checkpoint_ids: list[str] | None = None,
+        min_checkpoint_id: str | None = None,
     ) -> int:
         """Direct cleanup entry point (non-event-driven usage)."""
         return await self._delete_checkpoints(

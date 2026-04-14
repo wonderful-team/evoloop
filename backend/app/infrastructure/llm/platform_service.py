@@ -8,7 +8,6 @@ import logging
 import time
 from typing import Dict, List, Any, Optional
 
-from app.core.evocloud import evocloud_manager
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
@@ -71,6 +70,7 @@ class LLMPlatformService:
             
             try:
                 # 使用标准化的 HTTP client（自动处理 SSL、认证、路由）
+                from app.core.evocloud import evocloud_manager
                 resp = await evocloud_manager.api.get_llm_models()
                 
                 if resp.get("code", -1) != 0:

@@ -55,12 +55,12 @@ def event_subscribe(event_type: str | Any) -> Callable[[F], F]:
         if not hasattr(func, "_event_types"):
             func._event_types = []
         func._event_types.append(event_type)
-        
+
         # Mark function as an event handler
         func._is_event_handler = True
-        
+
         return func
-    
+
     return decorator
 
 
@@ -76,28 +76,28 @@ def register_instance_handlers(instance: Any, bus: Any = None) -> None:
     """
     if bus is None:
         bus = system_bus
-    
+
     instance_class = instance.__class__
     registered_count = 0
-    
+
     # Get all methods that have event handlers
     for method_name in dir(instance_class):
         method = getattr(instance_class, method_name, None)
         if not callable(method) or not hasattr(method, "_is_event_handler"):
             continue
-        
+
         # Get event types for this method
         event_types = getattr(method, "_event_types", [])
-        
+
         # Create bound method for this instance
         bound_method = getattr(instance, method_name)
-        
+
         # Subscribe to each event type
         for event_type in event_types:
             bus.subscribe(event_type, bound_method)
             registered_count += 1
             logger.debug(f"[EventRegister] {instance_class.__name__}.{method_name} -> {event_type}")
-    
+
     if registered_count > 0:
         logger.info(f"[EventRegister] {instance_class.__name__}: {registered_count} handlers registered")
 
@@ -123,7 +123,7 @@ def event_register(bus: Any = None) -> Callable[[type], type]:
     """
     if bus is None:
         bus = system_bus
-    
+
     return event_register_with_bus(bus)
 
 
@@ -153,18 +153,18 @@ def event_register_with_bus(bus: Any) -> Callable[[type], type]:
         # Mark the class for discovery
         cls._auto_register = True
         cls._event_bus = bus  # Store the bus for reference
-        
+
         original_init = cls.__init__
-        
+
         def new_init(self, *args, **kwargs):
             # Call original __init__
             original_init(self, *args, **kwargs)
             # Register handlers after init
             register_instance_handlers(self, bus)
-        
+
         # Mark the new __init__ for discovery compatibility
         new_init._auto_register = True
         cls.__init__ = new_init
         return cls
-    
+
     return decorator

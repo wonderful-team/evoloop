@@ -17,7 +17,6 @@ Usage:
 
 import time
 from threading import Lock
-from typing import Optional
 
 from pydantic import Field
 
@@ -46,7 +45,7 @@ class ToolState(DynamicBaseModel):
     name: str
     arguments: str
     start_time: float
-    path: Optional[str] = None
+    path: str | None = None
     metadata: ToolMetadata = Field(default_factory=ToolMetadata)
 
     def get_summary(self, output: str) -> tuple[str, bool]:
@@ -67,25 +66,25 @@ class ToolState(DynamicBaseModel):
         # Check if tool affects file paths (for UI display)
         affected_keys = self.metadata.get("affected_path_keys", [])
         is_file_content = len(affected_keys) > 0
-        
+
         # Try to use result summary template from metadata
         summary_template = self.metadata.get("result_summary_template")
-        
+
         # Ensure output is string for processing
         output_str = str(output) if not isinstance(output, str) else output
-        
+
         if summary_template and output:
             try:
                 line_count = len(output_str.splitlines())
                 file_info = self.path or "file"
                 return (
-                    i18n.get(summary_template, path=file_info, count=line_count, 
+                    i18n.get(summary_template, path=file_info, count=line_count,
                             lines=line_count, items=line_count),
                     is_file_content
                 )
             except Exception:
                 pass
-        
+
         # Truncate if output is too long (>500 chars or >20 lines)
         if len(output_str) > 500:
             lines = output_str.splitlines()
@@ -94,7 +93,7 @@ class ToolState(DynamicBaseModel):
                     f"{output_str[:300]}\n...\n[Truncated {len(lines)} lines / {len(output_str)} chars]",
                     is_file_content
                 )
-        
+
         return output_str, is_file_content
 
 
@@ -126,7 +125,7 @@ class ToolStateStore:
         self._tools: dict[str, dict[str, ToolState]] = {}
         self._store_lock = Lock()
 
-    def start_tool(self, thread_id: str, run_id: str, name: str, 
+    def start_tool(self, thread_id: str, run_id: str, name: str,
                    arguments: str, path: str | None = None) -> ToolState:
         """
         Record the start of a tool execution.
@@ -149,12 +148,12 @@ class ToolStateStore:
             path=path,
             metadata=metadata
         )
-        
+
         with self._store_lock:
             if thread_id not in self._tools:
                 self._tools[thread_id] = {}
             self._tools[thread_id][run_id] = state
-        
+
         return state
 
     def end_tool(self, thread_id: str, run_id: str) -> ToolState | None:

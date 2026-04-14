@@ -2,7 +2,6 @@
 
 import re
 from abc import ABC, abstractmethod
-from typing import List, Optional
 
 from mcp import ClientSession
 from pydantic import Field
@@ -41,35 +40,35 @@ class McpResourceContent(DynamicBaseModel):
     """Content returned from reading an MCP resource."""
     uri: str = ""
     content: str = ""
-    mime_type: Optional[str] = None
+    mime_type: str | None = None
     is_binary: bool = False
 
 
 class McpPromptMessage(DynamicBaseModel):
     """A single message within an MCP prompt result."""
     role: str
-    content: Optional[str] = None
-    content_type: Optional[str] = None
-    mime_type: Optional[str] = None
-    resource_uri: Optional[str] = None
+    content: str | None = None
+    content_type: str | None = None
+    mime_type: str | None = None
+    resource_uri: str | None = None
 
 
 class McpPromptResult(DynamicBaseModel):
     """Result of getting a rendered MCP prompt."""
     name: str = ""
-    description: Optional[str] = None
-    messages: List[McpPromptMessage] = Field(default_factory=list)
+    description: str | None = None
+    messages: list[McpPromptMessage] = Field(default_factory=list)
 
 
 class McpFeature(ABC):
     """Base class for MCP protocol features."""
-    
+
     @property
     @abstractmethod
     def feature_name(self) -> str:
         """Feature name: tools, resources, prompts, etc."""
         pass
-    
+
     @abstractmethod
     async def initialize(self, session: ClientSession, server_name: str) -> None:
         """
@@ -80,12 +79,12 @@ class McpFeature(ABC):
             server_name: Name of the connected server
         """
         pass
-    
+
     @abstractmethod
     async def get_capabilities(self) -> McpFeatureCapabilities:
         """Get feature capabilities."""
         pass
-    
+
     def reset(self) -> None:
         """Reset feature state (called on disconnect)."""
         pass

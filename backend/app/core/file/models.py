@@ -1,5 +1,4 @@
 from enum import Enum
-from typing import Optional
 
 from pydantic import field_validator
 
@@ -41,12 +40,12 @@ class ReadResult(DynamicBaseModel):
     encoding: str
     status: FileStatus
     metadata: FileInfo
-    error_message: Optional[str] = None
-    
+    error_message: str | None = None
+
     @property
     def success(self) -> bool:
         return self.status == FileStatus.SUCCESS
-    
+
     @property
     def has_more(self) -> bool:
         """Check if there's more content (for paginated reads)."""
@@ -60,9 +59,9 @@ class WriteResult(DynamicBaseModel):
     path: str
     status: FileStatus
     bytes_written: int = 0
-    new_hash: Optional[str] = None
-    error_message: Optional[str] = None
-    
+    new_hash: str | None = None
+    error_message: str | None = None
+
     @property
     def success(self) -> bool:
         return self.status == FileStatus.SUCCESS

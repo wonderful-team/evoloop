@@ -1,10 +1,14 @@
 import logging
 from enum import Enum
-from typing import List, Tuple
 
 from pydantic import Field
 
-from app.core.execution.macro.schema import MacroScript, MacroStep, MacroStepType, MacroActionType
+from app.core.execution.macro.schema import (
+    MacroActionType,
+    MacroScript,
+    MacroStep,
+    MacroStepType,
+)
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
@@ -24,7 +28,7 @@ class OptimizationResult(DynamicBaseModel):
     removed_steps: int
     merged_steps: int
     time_saved_ms: int
-    strategies_applied: List[str] = Field(default_factory=list)
+    strategies_applied: list[str] = Field(default_factory=list)
 
     @property
     def reduction_ratio(self) -> float:
@@ -37,7 +41,7 @@ class MacroOptimizer:
     Standardized Macro Optimizer.
     Operates on MacroStep models to remove redundancy and optimize timing.
     """
-    
+
     MIN_STEP_INTERVAL_MS = 300
     MIN_WAIT_DURATION_MS = 100
     MAX_WAIT_DURATION_MS = 5000
@@ -55,7 +59,7 @@ class MacroOptimizer:
             OptimizationStrategy.COALESCE_EXTRACTS: enable_all_strategies,
         }
 
-    def optimize(self, script: MacroScript) -> Tuple[MacroScript, OptimizationResult]:
+    def optimize(self, script: MacroScript) -> tuple[MacroScript, OptimizationResult]:
         steps = script.steps
         if not steps:
             return script, OptimizationResult(0, 0, 0, 0, 0)
@@ -64,7 +68,7 @@ class MacroOptimizer:
         stats = {'removed': 0, 'merged': 0, 'time_saved': 0, 'strategies': []}
 
         # Lossless port of the 5-round optimization pipeline
-        
+
         # Round 1: Filter redundant
         current_steps = steps
         if self.strategies_enabled[OptimizationStrategy.FILTER_REDUNDANT]:
@@ -106,7 +110,7 @@ class MacroOptimizer:
         # Renumber and return
         for i, step in enumerate(current_steps, 1):
             step.step_number = i
-            
+
         optimized_script = script.model_copy(update={"steps": current_steps})
         result = OptimizationResult(
             original_steps=original_count,
@@ -118,7 +122,7 @@ class MacroOptimizer:
         )
         return optimized_script, result
 
-    def _filter_redundant(self, steps: List[MacroStep]) -> List[MacroStep]:
+    def _filter_redundant(self, steps: list[MacroStep]) -> list[MacroStep]:
         filtered = []
         for step in steps:
             if step.event_type in self.LOW_VALUE_ACTIONS: continue
@@ -130,7 +134,7 @@ class MacroOptimizer:
             filtered.append(step)
         return filtered
 
-    def _merge_waits(self, steps: List[MacroStep]) -> Tuple[List[MacroStep], int, int]:
+    def _merge_waits(self, steps: list[MacroStep]) -> tuple[list[MacroStep], int, int]:
         merged = []
         merge_count = 0
         time_saved = 0
@@ -141,7 +145,7 @@ class MacroOptimizer:
                 merged.append(step)
                 i += 1
                 continue
-            
+
             total_wait_ms = step.payload.get('duration_ms', 0) + (step.payload.get('seconds', 0) * 1000)
             consecutive = 1
             j = i + 1
@@ -149,7 +153,7 @@ class MacroOptimizer:
                 total_wait_ms += steps[j].payload.get('duration_ms', 0) + (steps[j].payload.get('seconds', 0) * 1000)
                 consecutive += 1
                 j += 1
-            
+
             new_step = step.model_copy()
             final_wait_ms = min(max(total_wait_ms, self.MIN_WAIT_DURATION_MS), self.MAX_WAIT_DURATION_MS)
             time_saved += (total_wait_ms - final_wait_ms) + (consecutive - 1) * 50
@@ -161,14 +165,14 @@ class MacroOptimizer:
             i = j
         return merged, merge_count, time_saved
 
-    def _remove_duplicates(self, steps: List[MacroStep]) -> Tuple[List[MacroStep], int]:
+    def _remove_duplicates(self, steps: list[MacroStep]) -> tuple[list[MacroStep], int]:
         deduped = []
         removed = 0
         for i, step in enumerate(steps):
             if step.type != MacroStepType.ACTION:
                 deduped.append(step)
                 continue
-            
+
             is_dup = False
             for prev in deduped[-self.DUPLICATE_DETECTION_WINDOW:]:
                 if prev.event_type == step.event_type and prev.target_selector == step.target_selector:
@@ -184,14 +188,14 @@ class MacroOptimizer:
                         # General payload match
                         if {k:v for k,v in step.payload.items() if k!='timestamp'} == {k:v for k,v in prev.payload.items() if k!='timestamp'}:
                             is_dup = True; break
-            
+
             if is_dup:
                 removed += 1
             else:
                 deduped.append(step)
         return deduped, removed
 
-    def _optimize_intervals(self, steps: List[MacroStep]) -> Tuple[List[MacroStep], int]:
+    def _optimize_intervals(self, steps: list[MacroStep]) -> tuple[list[MacroStep], int]:
         optimized = []
         time_saved = 0
         last_ts = 0
@@ -215,7 +219,7 @@ class MacroOptimizer:
             last_ts = ts if ts > 0 else last_ts
         return optimized, time_saved
 
-    def _coalesce_extracts(self, steps: List[MacroStep]) -> Tuple[List[MacroStep], int]:
+    def _coalesce_extracts(self, steps: list[MacroStep]) -> tuple[list[MacroStep], int]:
         coalesced = []
         count = 0
         i = 0
@@ -224,13 +228,13 @@ class MacroOptimizer:
                 coalesced.append(steps[i])
                 i += 1
                 continue
-            
+
             extracts = [steps[i]]
             j = i + 1
             while j < len(steps) and steps[j].type == MacroStepType.EXTRACT:
                 extracts.append(steps[j])
                 j += 1
-            
+
             if len(extracts) == 1:
                 coalesced.append(steps[i])
             else:

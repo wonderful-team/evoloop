@@ -15,7 +15,8 @@ from langgraph.types import Send
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.config import settings
 from app.core.engine.schema import EdgeCondition
-from app.core.engine.state import AgentState, AgentRuntimeConfig as AgentConfig, ExecutionTicket
+from app.core.engine.state import AgentRuntimeConfig as AgentConfig
+from app.core.engine.state import AgentState, ExecutionTicket
 
 logger = logging.getLogger(__name__)
 
@@ -139,8 +140,8 @@ def route_supervisor(state: AgentState) -> str | list[Send]:
     # --- Phase 5: Routing Topology Whitelist ---
     # These nodes can be reached directly from Supervisor without an execution ticket wrapper
     terminal_nodes = (
-        RoutingTarget.CHAT, 
-        RoutingTarget.FINISH, 
+        RoutingTarget.CHAT,
+        RoutingTarget.FINISH,
         RoutingTarget.SUPERVISOR,
         RoutingTarget.AGGREGATOR,
         RoutingTarget.SPAWN_SUBTASKS
@@ -256,7 +257,7 @@ def _safe_eval_expr(expr: str, context: dict) -> bool:
             }
             # Block In/NotIn to prevent __contains__ exploitation
             result = True
-            for op_node, comparator in zip(node.ops, node.comparators):
+            for op_node, comparator in zip(node.ops, node.comparators, strict=False):
                 if type(op_node) in (ast.In, ast.NotIn):
                     return False
                 right = _eval_node(comparator)
@@ -334,7 +335,7 @@ def _safe_eval_expr(expr: str, context: dict) -> bool:
         elif isinstance(node, ast.Tuple):
             return tuple(_eval_node(elt) for elt in node.elts)
         elif isinstance(node, ast.Dict):
-            return {_eval_node(k): _eval_node(v) for k, v in zip(node.keys, node.values)}
+            return {_eval_node(k): _eval_node(v) for k, v in zip(node.keys, node.values, strict=False)}
         return False
 
     return _eval_node(tree.body)

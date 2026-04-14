@@ -13,7 +13,7 @@ Also includes:
 
 import logging
 import time
-from typing import Any, Optional
+from typing import Any
 
 from langchain_core.runnables import RunnableConfig
 
@@ -21,7 +21,7 @@ from app.constants import DEFAULT_PROJECT_ID
 from app.core.config import settings
 from app.core.context import ContextManager, EvoContext
 from app.core.context.cache import LayeredContextCache
-from app.core.engine.hooks import hook_system, HookEvent, HookContext
+from app.core.engine.hooks import HookContext, HookEvent, hook_system
 from app.core.engine.state import AgentState
 from app.utils.id import gen_uuid
 
@@ -39,10 +39,10 @@ class EvoContextMiddleware:
     - Single Container: Creates MemoryContainer once and reuses for all memory operations
     - Request-level caching: Tracks hydrated requests to avoid redundant work
     """
-    
+
     HYDRATION_MARKER = "_hydrated_v1"
     HYDRATION_VERSION = "2024.1"  # Bump this if hydration logic changes
-    
+
     # Request-level hydration tracking to avoid duplicate hydration across nodes
     # Key: request_id, Value: timestamp when hydrated
     _hydrated_requests: dict[str, float] = {}
@@ -52,7 +52,7 @@ class EvoContextMiddleware:
     # Shared MemoryContainer for efficiency
     _memory_container: Any = None
     _container_lock: Any = None
-    
+
     @classmethod
     def _get_container_lock(cls):
         """Lazy initialization of async lock."""
@@ -73,12 +73,12 @@ class EvoContextMiddleware:
     async def _get_shared_memory_container(cls) -> Any:
         """Get shared MemoryContainer via MemoryLifespanManager (singleton)."""
         from app.core.memory.lifespan import MemoryLifespanManager
-        
+
         if not MemoryLifespanManager.is_initialized():
             await MemoryLifespanManager.ainitialize()
-        
+
         return MemoryLifespanManager.get_container()
-    
+
     @classmethod
     def _is_recently_hydrated(cls, request_id: str) -> bool:
         """Check if this request was recently hydrated."""
@@ -90,7 +90,7 @@ class EvoContextMiddleware:
                 # Expired, clean up
                 del cls._hydrated_requests[request_id]
             return False
-    
+
     @classmethod
     def _mark_hydrated(cls, request_id: str) -> None:
         """Mark a request as hydrated."""
@@ -119,10 +119,10 @@ class EvoContextMiddleware:
         - Dynamic layer (always fresh): Blackboard, execution state, messages
         """
         start_time = time.time()
-        
+
         # Get shared memory container (initialized once per process)
         memory_container = await EvoContextMiddleware._get_shared_memory_container()
-        
+
         # OPTIMIZATION: Hydration Deduplication - Multiple layers
         # Layer 1: Check request-level tracking (for concurrent node execution)
         ctx = ContextManager.current()
@@ -133,14 +133,14 @@ class EvoContextMiddleware:
             state["blackboard"] = blackboard
             state[EvoContextMiddleware.HYDRATION_MARKER] = EvoContextMiddleware.HYDRATION_VERSION
             return state
-        
+
         # Layer 2: Check state marker (for sequential node execution)
         if getattr(state, EvoContextMiddleware.HYDRATION_MARKER, None) == EvoContextMiddleware.HYDRATION_VERSION:
             return state
-        
+
         # 1. Resolve or Create Context (ctx already fetched above for dedup check)
         blackboard = (state.blackboard or {})
-        
+
         if ctx.request_id == "global-fallback" or state.is_subtask:
             project_id = state.project_id
             if project_id is None:
@@ -160,7 +160,7 @@ class EvoContextMiddleware:
             )
             ContextManager.set(ctx)
             logger.info(f"[Middleware] 🧪 Context Initialized: project_id={project_id}")
-        
+
         # 1b. Trigger SessionStart Hook
         # This allows hooks to initialize state, load context, etc.
         try:
@@ -210,29 +210,32 @@ class EvoContextMiddleware:
         if last_human_msg and not state.is_subtask:
             memory_start = time.time()
             current_run_id = config.get("configurable", {}).get("run_id")
-            
+
             if settings.USE_NEO4J_MEMORY:
                 # Neo4j mode: Use predictive loader
-                from app.core.engine.predictive_memory_loader import get_predictive_memory, clear_predictive_memory
-                
+                from app.core.engine.predictive_memory_loader import (
+                    clear_predictive_memory,
+                    get_predictive_memory,
+                )
+
                 cached_memory = await get_predictive_memory(
                     thread_id=thread_id,
                     human_message=last_human_msg,
                     project_id=project_id,
                     run_id=current_run_id
                 )
-                
+
                 if cached_memory:
                     memory_data['project_concepts'] = cached_memory.get('concepts')
                     memory_data['episodes'] = cached_memory.get('episodes')
-                    
+
                     memory_elapsed = (time.time() - memory_start) * 1000
                     logger.info(f"[Middleware] ✓ Memory from predictive cache in {memory_elapsed:.1f}ms")
                     await clear_predictive_memory(thread_id)
                 else:
                     # Cache miss - fallback to direct query using shared container
-                    logger.debug(f"[Middleware] Predictive cache miss, falling back to Neo4j query")
-                    
+                    logger.debug("[Middleware] Predictive cache miss, falling back to Neo4j query")
+
                     try:
                         # Use shared memory container already initialized above
                         memory_manager = memory_container.memory_manager
@@ -312,7 +315,7 @@ class EvoContextMiddleware:
                 except Exception as e:
                     memory_elapsed = (time.time() - memory_start) * 1000
                     logger.error(f"[Middleware] Failed to load embedded memory after {memory_elapsed:.1f}ms: {e}", exc_info=True)
-        
+
         # 2b. Load Tier 1 Hot Memory (Two-Tier Architecture)
         # This is always loaded from MEMORY.md - most important knowledge
         # OPTIMIZATION: Use shared memory container already initialized above
@@ -330,48 +333,48 @@ class EvoContextMiddleware:
         async def _load_static_data():
             """Load static context data (excluding memory which is handled above)."""
             data = {}
-            
+
             # Inject pre-loaded memory data
             if memory_data:
                 data.update(memory_data)
-            
+
             # Skills index
             from app.core.learning.discovery import skill_discovery
             data['active_skills'] = await skill_discovery.get_active_skills_list()
-            
+
             # Environment telemetry
             from app.core.environment import get_awakened_state
             env_state = get_awakened_state()
             if env_state:
                 data['telemetry'] = {
-                    "android": [{"id": d.device_id, "reachable": d.is_reachable} 
+                    "android": [{"id": d.device_id, "reachable": d.is_reachable}
                                for d in env_state.android_devices],
                     "macos": bool(env_state.macos),
                     "network": env_state.network.internet_connected if env_state.network else False
                 }
-            
+
             return data
-        
+
         # Load static layer with caching
         static_layer = await LayeredContextCache.get_static_layer(
             session_id=session_id,
             project_id=project_id,
             loader_fn=_load_static_data
         )
-        
+
         # Apply static layer to context
         ctx.metadata["project_concepts"] = static_layer.project_concepts
         ctx.metadata["active_skills"] = static_layer.active_skills_index
         ctx.metadata["environment_telemetry"] = static_layer.environment_telemetry
-        
+
         # 4. Dynamic Layer (always fresh, never cached)
         # These change between nodes and must be current
         dynamic_layer = LayeredContextCache.get_dynamic_layer(state)
-        
+
         ctx.metadata["blackboard"] = dynamic_layer.blackboard
         ctx.metadata["execution_ticket"] = dynamic_layer.execution_ticket
         ctx.metadata["iteration_count"] = dynamic_layer.iteration_count
-        
+
         # 5. Environment Hydration (always run for plugin discovery)
         from app.core.context.plugins import plugin_registry
         plugin_registry.hydrate_context(ctx)
@@ -382,8 +385,8 @@ class EvoContextMiddleware:
         # Engine has zero knowledge of specific languages, frameworks, or industry domain logic.
         try:
             from app.core.events import system_bus
-            from app.core.events.registry import SystemEventType
             from app.core.events.base import BaseEvent
+            from app.core.events.registry import SystemEventType
             polishing_event = BaseEvent(
                 event_type=SystemEventType.CONTEXT_POLISHING,
                 source="context_hydrator",
@@ -455,7 +458,7 @@ class EvoContextMiddleware:
                 if len(cleaned_messages) < len(messages):
                     state["messages"] = cleaned_messages
                     logger.info(f"[Middleware] ✓ Message cleanup: {len(messages)} -> {len(cleaned_messages)} messages")
-            
+
         elif "metadata" in blackboard and not state.is_subtask:
             for key in ["final_outcome", "shadow_audit"]:
                 if key in blackboard["metadata"]:
@@ -469,20 +472,20 @@ class EvoContextMiddleware:
                 blackboard.ticket = execution_ticket
 
         state["blackboard"] = blackboard
-        
+
         # Mark as hydrated to prevent redundant calls
         # This marker is checked at the beginning of hydrate() to skip duplicate work
         state[EvoContextMiddleware.HYDRATION_MARKER] = EvoContextMiddleware.HYDRATION_VERSION
-        
+
         # Track at request level for concurrent node deduplication
         if request_id != "global-fallback":
             EvoContextMiddleware._mark_hydrated(request_id)
-        
+
         # Log performance (only if took significant time)
         duration_ms = (time.time() - start_time) * 1000
         if duration_ms > 50:  # Only log if hydration took > 50ms
             logger.info(f"[Middleware] Hydration completed in {duration_ms:.1f}ms")
-        
+
         return state
 
 
@@ -497,12 +500,13 @@ class SkillHydrator:
     """
 
     @staticmethod
-    async def get_skill_by_id(skill_id: int) -> Optional[Any]:
+    async def get_skill_by_id(skill_id: int) -> Any | None:
         """
         Fetch a single skill by its ID.
         Used for direct skill lookup without search overhead.
         """
         from sqlalchemy import select
+
         from app.infrastructure.database.sql.database import session_scope
         from app.models.learning import LearnedSkill
 
@@ -605,7 +609,7 @@ class ConversationContext:
         Returns:
             Formatted context string
         """
-        from langchain_core.messages import HumanMessage, AIMessage
+        from langchain_core.messages import AIMessage, HumanMessage
 
         # Get recent human-ai exchanges
         recent_exchanges = []

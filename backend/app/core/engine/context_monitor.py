@@ -6,7 +6,6 @@ context management, including when to use forget_tool_outputs.
 """
 
 import logging
-from typing import Optional
 
 from langchain_core.messages import (
     BaseMessage,
@@ -15,8 +14,8 @@ from langchain_core.messages import (
 from pydantic import Field
 
 from app.constants import (
-    CONTEXT_WARNING_THRESHOLD,
     CONTEXT_CRITICAL_THRESHOLD,
+    CONTEXT_WARNING_THRESHOLD,
     DEFAULT_CONTEXT_LIMIT,
 )
 from app.core.engine.message_utils import get_message_text
@@ -88,7 +87,7 @@ class ContextStats(DynamicBaseModel):
         """
         if not self.is_near_limit():
             return []
-            
+
         # Filter for candidates
 
         # We need the full list from stats, which calculate() produces
@@ -102,7 +101,7 @@ class ContextMonitor:
     @staticmethod
     def calculate(
         messages: list[BaseMessage],
-        max_chars: Optional[int] = None,
+        max_chars: int | None = None,
     ) -> ContextStats:
         """
         Calculate context statistics from message list.
@@ -158,7 +157,7 @@ class ContextMonitor:
     def inject_into_prompt(
         system_prompt: str,
         messages: list[BaseMessage],
-        max_chars: Optional[int] = None,
+        max_chars: int | None = None,
     ) -> str:
         """
         Inject context stats into system prompt.
@@ -181,7 +180,7 @@ class ContextMonitor:
 
 def get_context_status_for_agent(
     messages: list[BaseMessage],
-    max_chars: Optional[int] = None,
+    max_chars: int | None = None,
 ) -> dict:
     """
     Get context status as a dict for programmatic use.

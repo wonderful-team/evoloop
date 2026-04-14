@@ -20,7 +20,7 @@ from app.core.engine.prompts import WorkerPromptBuilder
 from app.core.engine.routers import RoutingTarget
 from app.core.engine.state import AgentState, StateUpdate
 from app.core.engine.state.blackboard import VerificationStatus
-from app.core.engine.state.config import ExecutionTicket, AgentRuntimeConfig
+from app.core.engine.state.config import AgentRuntimeConfig, ExecutionTicket
 from app.core.tools.manager import tool_manager
 from app.core.tools.registry import get_tool_metadata
 
@@ -85,7 +85,7 @@ class WorkerNode(BaseAgentNode):
             focus_files=focus_files,
             plan=full_plan
         )
-        
+
         # 1. Static Instructions (Cacheable)
         static_system_prompt = await prompt_builder.build(config)
 
@@ -95,7 +95,7 @@ class WorkerNode(BaseAgentNode):
 
         from app.core.engine.prompts.utils import get_mapped_cwd
         actual_cwd = get_mapped_cwd(ctx.working_directory or ctx.metadata.get("cwd", ""))
-        
+
         from app.core.environment import get_awakened_state
         awakened = get_awakened_state()
         telemetry = awakened.get_telemetry_snapshot() if awakened else {}
@@ -107,7 +107,7 @@ class WorkerNode(BaseAgentNode):
             telemetry=telemetry,
             plan=full_plan
         )
-        
+
         return static_system_prompt, mission_msg
 
     async def get_tools(self, state: AgentState) -> list[Any]:
@@ -168,7 +168,7 @@ class WorkerNode(BaseAgentNode):
                 agent_config=execution_ticket.agent_config,
                 role_name=execution_ticket.agent_config.role_name if execution_ticket.agent_config else "Worker",
             )
-            
+
         # Standard ReAct loop (Delegated to BaseAgentNode)
         # Note: BaseAgentNode.__call__ uses build_prompt_pair and get_tools
         return await super().__call__(state, config)
@@ -188,7 +188,7 @@ class WorkerNode(BaseAgentNode):
                     if skill and skill.instructions:
                         if not any(getattr(s, 'id', None) == original_skill_id for s in relevant_sops):
                             relevant_sops.insert(0, skill)
-                    
+
                     healer_stmt = select(LearnedSkill).where(LearnedSkill.name == "Macro Recovery Specialist")
                     healer_result = await session.execute(healer_stmt)
                     generic_healer = healer_result.scalar_one_or_none()
@@ -225,20 +225,20 @@ class WorkerNode(BaseAgentNode):
         """
         顺序执行多个技能，上一步输出作为下一步输入
         """
-        from app.core.engine.prompts import WorkerPromptBuilder
         from app.core.context import ContextManager
-        
+        from app.core.engine.prompts import WorkerPromptBuilder
+
         results = []
         blackboard = (state.blackboard or {})
         ctx = ContextManager.current()
         full_plan = state.structured_plan or state.current_plan or getattr(blackboard, "plan", None)
-        
+
         for i, skill in enumerate(skills):
             is_last = (i == len(skills) - 1)
             is_first = (i == 0)
-            
+
             logger.info(f"[Worker] 🔄 Workflow Step {i+1}/{len(skills)}: {skill.name}")
-            
+
             # 构建工作流上下文
             workflow_context = {
                 "step_number": i + 1,
@@ -252,16 +252,16 @@ class WorkerNode(BaseAgentNode):
                     "description": skill.description or ""
                 }
             }
-            
+
             # 更新 ticket 用于当前步骤
             step_ticket = copy.deepcopy(execution_ticket)
             step_ticket.workflow_context = workflow_context
             step_ticket.skill_id = skill.id  # 当前步骤的技能 ID
             step_ticket.topic = f"Step {i+1}: {skill.name}"
-            
+
             # 加载 Focus Files（只加载一次）
             focus_files = await self._hydrate_focus_files(execution_ticket, ctx) if is_first else []
-            
+
             # 构建 Prompt
             prompt_builder = WorkerPromptBuilder(
                 agent_config,
@@ -273,7 +273,7 @@ class WorkerNode(BaseAgentNode):
             )
             system_prompt = await prompt_builder.build(config)
             mission_msg = prompt_builder.build_mission_message()
-            
+
             # 构建消息
             if is_first:
                 messages = [HumanMessage(content=mission_msg)]
@@ -282,7 +282,7 @@ class WorkerNode(BaseAgentNode):
                 prev_output = results[-1].get("output", "") if results else ""
                 enhanced_mission = f"{mission_msg}\n\n[Previous Step Output]: {prev_output[:500]}"
                 messages = [HumanMessage(content=enhanced_mission)]
-            
+
             try:
                 # 执行当前步骤
                 worker_state = copy.deepcopy(state) if agent_config.is_subtask else state.copy()
@@ -306,14 +306,14 @@ class WorkerNode(BaseAgentNode):
                 # 提取步骤输出
                 last_msg = engine_result["messages"][-1]
                 step_output = get_message_text(last_msg) if isinstance(last_msg, AIMessage) else ""
-                
+
                 results.append({
                     "skill_id": skill.id,
                     "skill_name": skill.name,
                     "output": step_output,
                     "status": "success"
                 })
-                
+
                 # 检查是否需要中断
                 if "[ERROR:" in step_output or step_output.strip().startswith("Error:"):
                     logger.error(f"[Worker] Workflow failed at step {i+1}")
@@ -328,7 +328,7 @@ class WorkerNode(BaseAgentNode):
                         blackboard=blackboard,
                         workflow_results=results
                     )
-                    
+
             except Exception as e:
                 logger.error(f"[Worker] Step {i+1} failed: {e}")
                 results.append({
@@ -347,7 +347,7 @@ class WorkerNode(BaseAgentNode):
                     blackboard=blackboard,
                     workflow_results=results
                 )
-        
+
         # 所有步骤完成
         # NOTE: Worker should NOT generate detailed summaries.
         # Return minimal content - Finish node will generate the comprehensive summary.
@@ -515,8 +515,8 @@ class WorkerNode(BaseAgentNode):
                 if os.path.isdir(full_path):
                     # For directories, provide a basic info instead of failing
                     results.append({
-                        "rel_path": display_path, 
-                        "status": "directory", 
+                        "rel_path": display_path,
+                        "status": "directory",
                         "detail": "This is a directory. Use 'list_directory(tree=True)' to examine."
                     })
                     continue

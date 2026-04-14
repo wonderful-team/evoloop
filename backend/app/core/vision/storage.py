@@ -364,7 +364,7 @@ class ScreenRecordingStorage:
         """Ensure all recording directories exist."""
         ensure_dir(settings.SCREEN_RECORDINGS_DIR)
         ensure_dir(settings.SCREEN_RECORDING_FRAMES_DIR)
-        logger.debug(f"[ScreenRecordingStorage] Ensured directories")
+        logger.debug("[ScreenRecordingStorage] Ensured directories")
 
     def get_recording_path(
         self,

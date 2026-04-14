@@ -21,7 +21,7 @@ class AuthToken(DynamicBaseModel):
     expires_at: float | None = None  # Unix timestamp
     refresh_token: str | None = None
     scope: str | None = None
-    
+
     def is_expired(self, buffer_seconds: int = 60) -> bool:
         """Check if token is expired (with buffer)."""
         import time
@@ -50,27 +50,27 @@ class AuthConfig(DynamicBaseModel):
 
 class AuthHandler(ABC):
     """Base class for MCP authentication handlers."""
-    
+
     def __init__(self, server_name: str, config: AuthConfig):
         self.server_name = server_name
         self.config = config
-    
+
     @property
     @abstractmethod
     def method(self) -> AuthMethod:
         """Return the auth method this handler supports."""
         pass
-    
+
     @abstractmethod
     async def authenticate(self) -> AuthToken:
         """Perform authentication and return token."""
         pass
-    
+
     @abstractmethod
     async def refresh(self, token: AuthToken) -> AuthToken:
         """Refresh an existing token."""
         pass
-    
+
     def get_headers(self, token: AuthToken) -> dict[str, str]:
         """Get HTTP headers for authentication."""
         return {"Authorization": f"{token.token_type} {token.access_token}"}

@@ -3,12 +3,11 @@ from datetime import datetime, timezone
 from typing import Any
 
 from croniter import croniter
-from sqlalchemy import select, update
+from sqlalchemy import select
 
 from app.infrastructure.database.sql.database import session_scope
-from app.models.scheduler import AutonomousTask
 from app.models.learning import LearnedSkill
-
+from app.models.scheduler import AutonomousTask
 
 logger = logging.getLogger(__name__)
 

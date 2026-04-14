@@ -37,7 +37,7 @@ def _file_storage_get(key: str) -> str | None:
         token_file = _get_token_file_path()
         if not token_file.exists():
             return None
-        with open(token_file, 'r') as f:
+        with open(token_file) as f:
             data = json.load(f)
         return data.get(key)
     except Exception as e:
@@ -51,7 +51,7 @@ def _file_storage_set(key: str, value: str) -> bool:
         token_file = _get_token_file_path()
         data = {}
         if token_file.exists():
-            with open(token_file, 'r') as f:
+            with open(token_file) as f:
                 data = json.load(f)
         data[key] = value
         with open(token_file, 'w') as f:
@@ -68,7 +68,7 @@ def _file_storage_delete(key: str) -> bool:
         token_file = _get_token_file_path()
         if not token_file.exists():
             return True
-        with open(token_file, 'r') as f:
+        with open(token_file) as f:
             data = json.load(f)
         if key in data:
             del data[key]

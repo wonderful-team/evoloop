@@ -13,12 +13,13 @@ Features:
 
 import logging
 from datetime import datetime
-from typing import List, Optional, Any
+from typing import Any
 
 from app.core.memory.interfaces.storage import (
     IMemoryStorage,
+    StorageConnectionError,
     StorageError,
-    StorageConnectionError, StorageHealthCheck,
+    StorageHealthCheck,
 )
 from app.core.memory.models import (
     MemoryEntry,
@@ -32,6 +33,7 @@ logger = logging.getLogger(__name__)
 # Optional Neo4j import
 try:
     from neo4j import AsyncGraphDatabase
+
     from app.infrastructure.database.graph.driver import get_graph_db
     HAS_NEO4J = True
 except ImportError:
@@ -50,12 +52,12 @@ class Neo4jMemoryStorage(IMemoryStorage):
     (vector search, graph relationships) are prepared but require
     additional setup (embeddings, indexes).
     """
-    
+
     def __init__(
         self,
-        uri: Optional[str] = None,
-        user: Optional[str] = None,
-        password: Optional[str] = None,
+        uri: str | None = None,
+        user: str | None = None,
+        password: str | None = None,
     ):
         """
         Initialize Neo4j storage.
@@ -72,19 +74,19 @@ class Neo4jMemoryStorage(IMemoryStorage):
         self._user = user
         self._password = password
         self._driver = None
-        
+
         if not HAS_NEO4J:
             raise StorageError(
                 "Neo4j driver not installed. "
                 "Install with: pip install neo4j"
             )
-        
+
         logger.info("Neo4jMemoryStorage initialized (connection deferred)")
-    
+
     # ==========================================================================
     # IMemoryStorage Lifecycle Methods
     # ==========================================================================
-    
+
     async def initialize(self) -> None:
         """
         Initialize Neo4j connection and schema.
@@ -93,7 +95,7 @@ class Neo4jMemoryStorage(IMemoryStorage):
         """
         if not HAS_NEO4J:
             raise StorageError("Neo4j driver not available")
-        
+
         try:
             # Get driver from configured source or create new
             if self._uri:
@@ -103,23 +105,23 @@ class Neo4jMemoryStorage(IMemoryStorage):
                 )
             else:
                 self._driver = await get_graph_db()
-            
+
             # Verify connectivity
             await self._driver.verify_connectivity()
-            
+
             # Create schema (indexes and constraints)
             await self._create_schema()
-            
+
             logger.info("Neo4j storage initialized and connected")
-            
+
         except Exception as e:
             raise StorageConnectionError(f"Failed to connect to Neo4j: {e}")
-    
+
     async def _create_schema(self) -> None:
         """Create Neo4j schema (indexes and constraints)."""
         if not self._driver:
             return
-        
+
         async with self._driver.session() as session:
             # Create constraints
             constraints = [
@@ -128,20 +130,20 @@ class Neo4jMemoryStorage(IMemoryStorage):
                 "CREATE INDEX memory_type IF NOT EXISTS FOR (m:Memory) ON (m.type)",
                 "CREATE INDEX memory_privacy IF NOT EXISTS FOR (m:Memory) ON (m.privacy)",
             ]
-            
+
             for constraint in constraints:
                 try:
                     await session.run(constraint)
                 except Exception as e:
                     logger.warning(f"Schema creation warning (may already exist): {e}")
-    
+
     async def close(self) -> None:
         """Close Neo4j connection."""
         if self._driver:
             await self._driver.close()
             self._driver = None
             logger.info("Neo4j storage connection closed")
-    
+
     async def flush(self) -> None:
         """
         Clear all memory data (for testing).
@@ -150,22 +152,22 @@ class Neo4jMemoryStorage(IMemoryStorage):
         """
         if not self._driver:
             return
-        
+
         async with self._driver.session() as session:
             await session.run("MATCH (m:Memory) DETACH DELETE m")
             logger.warning("Neo4j storage flushed (all memory nodes deleted)")
-    
+
     async def health_check(self) -> "StorageHealthCheck":
         """Check Neo4j health status."""
         if not self._driver:
             return StorageHealthCheck(status="not_initialized", backend="Neo4jMemoryStorage")
-        
+
         try:
             async with self._driver.session() as session:
                 result = await session.run("MATCH (m:Memory) RETURN count(m) as count")
                 record = await result.single()
                 count = record["count"] if record else 0
-                
+
                 return StorageHealthCheck(
                     status="healthy",
                     backend="Neo4jMemoryStorage",
@@ -177,11 +179,11 @@ class Neo4jMemoryStorage(IMemoryStorage):
                 backend="Neo4jMemoryStorage",
                 error=str(e),
             )
-    
+
     # ==========================================================================
     # IMemoryStorage CRUD Operations
     # ==========================================================================
-    
+
     async def save(self, entry: MemoryEntry) -> None:
         """
         Save a memory entry to Neo4j.
@@ -190,11 +192,11 @@ class Neo4jMemoryStorage(IMemoryStorage):
         """
         if not self._driver:
             raise StorageError("Neo4j not initialized. Call initialize() first.")
-        
+
         async with self._driver.session() as session:
             # Update timestamp
             entry.updated_at = datetime.utcnow()
-            
+
             query = """
             MERGE (m:Memory {id: $id})
             SET m.type = $type,
@@ -213,7 +215,7 @@ class Neo4jMemoryStorage(IMemoryStorage):
                 m.updated_at = $updated_at
             RETURN m
             """
-            
+
             await session.run(
                 query,
                 id=entry.id,
@@ -232,32 +234,32 @@ class Neo4jMemoryStorage(IMemoryStorage):
                 created_at=entry.created_at.isoformat(),
                 updated_at=entry.updated_at.isoformat(),
             )
-            
+
             logger.debug(f"Saved memory {entry.id} to Neo4j")
-    
-    async def get(self, entry_id: str) -> Optional[MemoryEntry]:
+
+    async def get(self, entry_id: str) -> MemoryEntry | None:
         """Get a memory entry by ID from Neo4j."""
         if not self._driver:
             raise StorageError("Neo4j not initialized. Call initialize() first.")
-        
+
         async with self._driver.session() as session:
             result = await session.run(
                 "MATCH (m:Memory {id: $id}) RETURN m",
                 id=entry_id,
             )
             record = await result.single()
-            
+
             if not record:
                 return None
-            
+
             node = record["m"]
             return self._node_to_entry(node)
-    
+
     async def delete(self, entry_id: str) -> bool:
         """Delete a memory entry from Neo4j."""
         if not self._driver:
             raise StorageError("Neo4j not initialized. Call initialize() first.")
-        
+
         async with self._driver.session() as session:
             result = await session.run(
                 "MATCH (m:Memory {id: $id}) DETACH DELETE m RETURN count(m) as deleted",
@@ -265,24 +267,24 @@ class Neo4jMemoryStorage(IMemoryStorage):
             )
             record = await result.single()
             deleted = record["deleted"] if record else 0
-            
+
             if deleted > 0:
                 logger.debug(f"Deleted memory {entry_id} from Neo4j")
                 return True
             return False
-    
+
     # ==========================================================================
     # IMemoryStorage Query Operations
     # ==========================================================================
-    
+
     async def search(
         self,
         query: str,
-        types: Optional[List[MemoryType]] = None,
-        privacy: Optional[PrivacyLevel] = None,
-        project_id: Optional[int] = None,
+        types: list[MemoryType] | None = None,
+        privacy: PrivacyLevel | None = None,
+        project_id: int | None = None,
         limit: int = 10,
-    ) -> List[MemoryEntry]:
+    ) -> list[MemoryEntry]:
         """
         Search memory entries in Neo4j.
         
@@ -291,35 +293,35 @@ class Neo4jMemoryStorage(IMemoryStorage):
         """
         if not self._driver:
             raise StorageError("Neo4j not initialized. Call initialize() first.")
-        
+
         async with self._driver.session() as session:
             # Build query with filters
             where_clauses = []
             params = {"query": query.lower(), "limit": limit}
-            
+
             # Text search (case-insensitive)
             where_clauses.append(
                 "(toLower(m.title) CONTAINS $query OR toLower(m.content) CONTAINS $query OR toLower(m.description) CONTAINS $query)"
             )
-            
+
             # Type filter
             if types:
                 type_values = [t.value for t in types]
                 where_clauses.append("m.type IN $types")
                 params["types"] = type_values
-            
+
             # Privacy filter
             if privacy:
                 where_clauses.append("m.privacy = $privacy")
                 params["privacy"] = privacy.value
-            
+
             # Project filter
             if project_id is not None:
                 where_clauses.append("(m.project_id = $project_id OR m.project_id IS NULL)")
                 params["project_id"] = project_id
-            
+
             where_clause = " AND ".join(where_clauses) if where_clauses else "TRUE"
-            
+
             cypher = f"""
             MATCH (m:Memory)
             WHERE {where_clause}
@@ -327,41 +329,41 @@ class Neo4jMemoryStorage(IMemoryStorage):
             ORDER BY m.updated_at DESC
             LIMIT $limit
             """
-            
+
             result = await session.run(cypher, **params)
             records = await result.data()
-            
+
             entries = []
             for record in records:
                 entry = self._node_to_entry(record["m"])
                 if entry:
                     entries.append(entry)
-            
+
             return entries
-    
+
     async def list_all(
         self,
-        type_filter: Optional[MemoryType] = None,
-        privacy_filter: Optional[PrivacyLevel] = None,
-    ) -> List[MemorySearchResult]:
+        type_filter: MemoryType | None = None,
+        privacy_filter: PrivacyLevel | None = None,
+    ) -> list[MemorySearchResult]:
         """List all memories (lightweight)."""
         if not self._driver:
             raise StorageError("Neo4j not initialized. Call initialize() first.")
-        
+
         async with self._driver.session() as session:
             where_clauses = []
             params = {}
-            
+
             if type_filter:
                 where_clauses.append("m.type = $type")
                 params["type"] = type_filter.value
-            
+
             if privacy_filter:
                 where_clauses.append("m.privacy = $privacy")
                 params["privacy"] = privacy_filter.value
-            
+
             where_clause = " AND ".join(where_clauses) if where_clauses else "TRUE"
-            
+
             cypher = f"""
             MATCH (m:Memory)
             WHERE {where_clause}
@@ -369,10 +371,10 @@ class Neo4jMemoryStorage(IMemoryStorage):
                    m.type as type, m.updated_at as updated_at
             ORDER BY m.updated_at DESC
             """
-            
+
             result = await session.run(cypher, **params)
             records = await result.data()
-            
+
             results = []
             for record in records:
                 results.append(
@@ -384,19 +386,19 @@ class Neo4jMemoryStorage(IMemoryStorage):
                         updated_at=datetime.fromisoformat(record["updated_at"]),
                     )
                 )
-            
+
             return results
-    
+
     # ==========================================================================
     # IMemoryStorage Advanced Operations
     # ==========================================================================
-    
+
     async def search_similar(
         self,
-        query_embedding: List[float],
+        query_embedding: list[float],
         top_k: int = 10,
-        project_id: Optional[int] = None,
-    ) -> List[MemoryEntry]:
+        project_id: int | None = None,
+    ) -> list[MemoryEntry]:
         """
         Vector similarity search.
         
@@ -412,13 +414,13 @@ class Neo4jMemoryStorage(IMemoryStorage):
             "Vector search requires Neo4j GDS and pre-computed embeddings. "
             "Use text search (search()) as fallback."
         )
-    
+
     async def get_related(
         self,
         entry_id: str,
-        relation_type: Optional[str] = None,
+        relation_type: str | None = None,
         limit: int = 10,
-    ) -> List[MemoryEntry]:
+    ) -> list[MemoryEntry]:
         """
         Get related memories via graph traversal.
         
@@ -427,11 +429,11 @@ class Neo4jMemoryStorage(IMemoryStorage):
         """
         if not self._driver:
             raise StorageError("Neo4j not initialized. Call initialize() first.")
-        
+
         async with self._driver.session() as session:
             # For now, return memories from same project as "related"
             # TODO: Implement explicit relationship tracking
-            
+
             query = """
             MATCH (m:Memory {id: $entry_id})
             OPTIONAL MATCH (m)-[:RELATED_TO]->(related:Memory)
@@ -439,28 +441,28 @@ class Neo4jMemoryStorage(IMemoryStorage):
             RETURN related
             LIMIT $limit
             """
-            
+
             result = await session.run(query, entry_id=entry_id, limit=limit)
             records = await result.data()
-            
+
             entries = []
             for record in records:
                 if record["related"]:
                     entry = self._node_to_entry(record["related"])
                     if entry:
                         entries.append(entry)
-            
+
             return entries
-    
+
     async def get_by_project(
         self,
         project_id: int,
         limit: int = 100,
-    ) -> List[MemoryEntry]:
+    ) -> list[MemoryEntry]:
         """Get all memories for a specific project (optimized for Neo4j)."""
         if not self._driver:
             raise StorageError("Neo4j not initialized. Call initialize() first.")
-        
+
         async with self._driver.session() as session:
             result = await session.run(
                 """
@@ -474,22 +476,22 @@ class Neo4jMemoryStorage(IMemoryStorage):
                 limit=limit,
             )
             records = await result.data()
-            
+
             return [
                 self._node_to_entry(record["m"])
                 for record in records
                 if record["m"]
             ]
-    
+
     # ==========================================================================
     # Helper Methods
     # ==========================================================================
-    
-    def _node_to_entry(self, node: Any) -> Optional[MemoryEntry]:
+
+    def _node_to_entry(self, node: Any) -> MemoryEntry | None:
         """Convert Neo4j node to MemoryEntry."""
         try:
             from datetime import datetime
-            
+
             return MemoryEntry(
                 id=node["id"],
                 type=MemoryType(node["type"]),

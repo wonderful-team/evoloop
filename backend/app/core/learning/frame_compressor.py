@@ -12,10 +12,10 @@ import io
 import logging
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any
 
 from PIL import Image
-from pydantic import BaseModel, Field, field_validator
+from pydantic import Field
 
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
@@ -62,22 +62,22 @@ class CompressedFrame(DynamicBaseModel):
     data: bytes                   # JPEG 数据
     width: int
     height: int
-    original_size: Tuple[int, int]  # 原始分辨率
+    original_size: tuple[int, int]  # 原始分辨率
     compression_ratio: float      # 压缩比
     detail_level: str             # "low" or "high"
-    
+
     # 动态注入的语义信息
-    timestamp: Optional[float] = None
-    description: Optional[str] = None
-    norm_events: List[Dict[str, Any]] = Field(default_factory=list)
+    timestamp: float | None = None
+    description: str | None = None
+    norm_events: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class NormalizedEvent(DynamicBaseModel):
     """归一化后的事件"""
     action: str
-    norm_x: Optional[float] = Field(None, ge=0.0, le=1.0)       # 0.0-1.0
-    norm_y: Optional[float] = Field(None, ge=0.0, le=1.0)
-    target_text: Optional[str] = None
+    norm_x: float | None = Field(None, ge=0.0, le=1.0)       # 0.0-1.0
+    norm_y: float | None = Field(None, ge=0.0, le=1.0)
+    target_text: str | None = None
     timestamp: float
     description: str              # 人类可读描述
 
@@ -105,7 +105,7 @@ class CoordinateNormalizer:
     def __init__(self, original_width: int, original_height: int):
         self.original = (original_width, original_height)
 
-    def normalize(self, x: Optional[int], y: Optional[int]) -> Optional[Tuple[float, float]]:
+    def normalize(self, x: int | None, y: int | None) -> tuple[float, float] | None:
         """
         原始像素坐标 -> 归一化坐标
         """
@@ -122,7 +122,7 @@ class CoordinateNormalizer:
         norm_y: float,
         compressed_width: int,
         compressed_height: int
-    ) -> Tuple[int, int]:
+    ) -> tuple[int, int]:
         """
         归一化坐标 -> 压缩图像上的绝对坐标（用于可视化）
         """
@@ -187,8 +187,8 @@ class FrameCompressor:
     def compress(
         self,
         image_path: str,
-        strategy: Optional[CompressionStrategy] = None,
-        config: Optional[CompressionConfig] = None
+        strategy: CompressionStrategy | None = None,
+        config: CompressionConfig | None = None
     ) -> CompressedFrame:
         """
         压缩单帧图像
@@ -367,7 +367,7 @@ class KeyframeSelector:
     TRANSITION_DELAY_MS = 800      # 页面切换等待
     MIN_INTERVAL_MS = 300          # 最小帧间隔
 
-    def __init__(self, max_keyframes: Optional[int] = None):
+    def __init__(self, max_keyframes: int | None = None):
         """
         Args:
             max_keyframes: 最大关键帧数，默认使用 DEFAULT_MAX_KEYFRAMES
@@ -378,9 +378,9 @@ class KeyframeSelector:
         self,
         events: list,
         video_duration: float,
-        video_resolution: Tuple[int, int],
-        max_frames: Optional[int] = None
-    ) -> List["KeyframeCandidate"]:
+        video_resolution: tuple[int, int],
+        max_frames: int | None = None
+    ) -> list["KeyframeCandidate"]:
         """
         基于事件选择关键帧
 
@@ -451,8 +451,8 @@ class KeyframeSelector:
 
     def _temporal_deduplication(
         self,
-        candidates: List["KeyframeCandidate"]
-    ) -> List["KeyframeCandidate"]:
+        candidates: list["KeyframeCandidate"]
+    ) -> list["KeyframeCandidate"]:
         """
         时间窗口去重：过于接近的帧只保留高优先级的
         """
@@ -475,9 +475,9 @@ class KeyframeSelector:
 
     def _prioritize_frames(
         self,
-        candidates: List["KeyframeCandidate"],
+        candidates: list["KeyframeCandidate"],
         limit: int = 15
-    ) -> List["KeyframeCandidate"]:
+    ) -> list["KeyframeCandidate"]:
         """
         当帧数超过限制时，按优先级筛选
         """

@@ -109,46 +109,46 @@ class RewindOrchestrator:
                 reset_state=reset_state,
                 reason=reason
             )
-            
+
             await self.bus.publish(rewind_event)
-            
+
             # Phase 2: Collect results from handlers
             # For now, we use a simple approach: query the counts after events are processed
             # A more sophisticated approach would use event callbacks or shared state
-            
+
             # Small delay to allow handlers to process (async events are processed sequentially)
             await asyncio.sleep(0.1)
-            
+
             # Phase 3: Build and return result with actual counts
             # The counts are currently logged by handlers but not aggregated
             # For now, return a success result - handlers log their results
-            
+
             result = RewindResult(
                 status="success",
                 thread_id=thread_id,
                 # Note: Actual counts would need to be collected from handlers
                 # This is a placeholder for the full implementation
                 removed_message_count=0,  # TODO: Collect from MessageRewind
-                reverted_file_count=0,    # TODO: Collect from FileRewind  
+                reverted_file_count=0,    # TODO: Collect from FileRewind
                 removed_memory_count=0,   # TODO: Collect from MemoryRewind
                 removed_todo_count=0,     # TODO: Collect from TodoRewind
                 removed_trace_count=0,    # TODO: Collect from TraceRewind
             )
-            
+
             logger.info(f"[RewindOrchestrator] Rewind completed for thread={thread_id}")
-            
+
             return result
-            
+
         except Exception as e:
             logger.error(f"[RewindOrchestrator] Rewind failed for thread={thread_id}: {e}")
-            
+
             # Publish failure event
             await self.bus.publish(RewindFailedEvent(
                 thread_id=thread_id,
                 error=str(e),
                 failed_step="orchestrator"
             ))
-            
+
             raise RewindError(
                 message=f"Rewind operation failed: {e}",
                 thread_id=thread_id

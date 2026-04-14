@@ -5,8 +5,9 @@ File System Event Types and Data Structures
 Event types and data classes for file system monitoring and changes.
 """
 
+from collections.abc import Callable
 from enum import Enum
-from typing import Any, Callable
+from typing import Any
 
 from app.core.events.base import BaseEvent
 
@@ -35,7 +36,7 @@ class FileWatcherEvent(BaseEvent):
     """
     # Inherited: event_type, timestamp, source, data
     source: str = "file_watcher"
-    
+
     def model_post_init(self, __context: Any) -> None:
         # Ensure source is set to file_watcher if not explicitly provided
         if not self.source or self.source == "system":

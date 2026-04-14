@@ -1,4 +1,4 @@
-from typing import Any, List, Optional
+from typing import Any
 
 from pydantic import Field
 
@@ -8,7 +8,7 @@ from app.infrastructure.pydantic_base import DynamicBaseModel
 class RewindOperation(DynamicBaseModel):
     """Request parameters for a rewind operation."""
     thread_id: str
-    target_message_id: Optional[str] = None  # None = rewind to last human message
+    target_message_id: str | None = None  # None = rewind to last human message
     include_target: bool = False          # Whether to delete the target message
     revert_files: bool = True             # Whether to revert file changes
     reset_state: bool = True              # Whether to reset LangGraph state
@@ -24,9 +24,9 @@ class RewindResult(DynamicBaseModel):
     removed_memory_count: int = 0
     removed_todo_count: int = 0
     removed_trace_count: int = 0
-    checkpoint_id: Optional[str] = None
-    errors: List[str] = Field(default_factory=list)
-    
+    checkpoint_id: str | None = None
+    errors: list[str] = Field(default_factory=list)
+
     def to_dict(self) -> dict[str, Any]:
         """Convert result to dictionary for API response."""
         return {

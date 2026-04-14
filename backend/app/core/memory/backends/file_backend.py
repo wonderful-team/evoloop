@@ -22,11 +22,11 @@ import time
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import List, Optional, Dict
 
 from app.core.config import settings
 from app.core.memory.interfaces.storage import IMemoryStorage, StorageHealthCheck
 from app.core.memory.models import (
+    CheckpointDedupResult,
     MemoryEntry,
     MemorySearchResult,
     MemoryType,
@@ -55,7 +55,7 @@ class FileMemoryStorage(IMemoryStorage):
     - decisions: Key decisions with Why/How rationale
     """
 
-    def __init__(self, root_path: Optional[str] = None):
+    def __init__(self, root_path: str | None = None):
         """
         Initialize file storage.
 
@@ -72,7 +72,7 @@ class FileMemoryStorage(IMemoryStorage):
         self.index_file = self.index_dir / "memory-map.json"
 
         # ID -> (path, category) index for O(1) lookups
-        self._id_index: Dict[str, tuple[Path, MemoryCategory]] = {}
+        self._id_index: dict[str, tuple[Path, MemoryCategory]] = {}
         self._index_loaded = False
 
         # Ensure directories exist
@@ -266,7 +266,7 @@ class FileMemoryStorage(IMemoryStorage):
         try:
             index_data = {}
             if self.index_file.exists():
-                with open(self.index_file, "r", encoding="utf-8") as f:
+                with open(self.index_file, encoding="utf-8") as f:
                     index_data = json.load(f)
 
             # Update index structure
@@ -313,7 +313,7 @@ class FileMemoryStorage(IMemoryStorage):
         except Exception as e:
             logger.warning(f"Failed to update index: {e}")
 
-    async def get(self, entry_id: str) -> Optional[MemoryEntry]:
+    async def get(self, entry_id: str) -> MemoryEntry | None:
         """Get a memory entry by ID."""
         start_time = time.time()
 
@@ -349,7 +349,7 @@ class FileMemoryStorage(IMemoryStorage):
         logger.debug(f"[FileStorage.get] {entry_id} not found in {elapsed:.1f}ms")
         return None
 
-    def _parse_journal_entry(self, text: str, entry_id: str, path: Path) -> Optional[MemoryEntry]:
+    def _parse_journal_entry(self, text: str, entry_id: str, path: Path) -> MemoryEntry | None:
         """Parse a specific entry from journal file."""
         # For now, return the whole journal as one entry
         # TODO: Parse individual sections by entry_id (timestamp)
@@ -367,7 +367,7 @@ class FileMemoryStorage(IMemoryStorage):
             source="journal",
         )
 
-    async def get_multi(self, entry_ids: List[str]) -> Dict[str, MemoryEntry]:
+    async def get_multi(self, entry_ids: list[str]) -> dict[str, MemoryEntry]:
         """Get multiple memory entries by IDs."""
         results = {}
 
@@ -404,7 +404,7 @@ class FileMemoryStorage(IMemoryStorage):
             if not self.index_file.exists():
                 return
 
-            with open(self.index_file, "r", encoding="utf-8") as f:
+            with open(self.index_file, encoding="utf-8") as f:
                 index_data = json.load(f)
 
             if "entries" in index_data and entry_id in index_data["entries"]:
@@ -426,11 +426,11 @@ class FileMemoryStorage(IMemoryStorage):
     async def search(
         self,
         query: str,
-        types: Optional[List[MemoryType]] = None,
-        privacy: Optional[PrivacyLevel] = None,
-        project_id: Optional[int] = None,
+        types: list[MemoryType] | None = None,
+        privacy: PrivacyLevel | None = None,
+        project_id: int | None = None,
         limit: int = 10,
-    ) -> List[MemoryEntry]:
+    ) -> list[MemoryEntry]:
         """Search memory entries by text query."""
         results = []
         query_lower = query.lower()
@@ -478,10 +478,10 @@ class FileMemoryStorage(IMemoryStorage):
 
     async def list_all(
         self,
-        type_filter: Optional[MemoryType] = None,
-        privacy_filter: Optional[PrivacyLevel] = None,
-        limit: Optional[int] = None,
-    ) -> List[MemorySearchResult]:
+        type_filter: MemoryType | None = None,
+        privacy_filter: PrivacyLevel | None = None,
+        limit: int | None = None,
+    ) -> list[MemorySearchResult]:
         """List all memory entries (lightweight)."""
         start_time = time.time()
         results = []
@@ -489,7 +489,7 @@ class FileMemoryStorage(IMemoryStorage):
         # Try to use index first
         if self.index_file.exists():
             try:
-                with open(self.index_file, "r", encoding="utf-8") as f:
+                with open(self.index_file, encoding="utf-8") as f:
                     index_data = json.load(f)
 
                 for entry_id, entry_data in index_data.get("entries", {}).items():
@@ -537,7 +537,7 @@ class FileMemoryStorage(IMemoryStorage):
 
         return results
 
-    async def get_recent(self, count: int = 5) -> List[MemoryEntry]:
+    async def get_recent(self, count: int = 5) -> list[MemoryEntry]:
         """Get most recently updated memories."""
         results = []
 
@@ -646,10 +646,7 @@ class FileMemoryStorage(IMemoryStorage):
             duplicates_removed=0,
         )
 
-    async def find_by_source_message_ids(
-        self,
-        message_ids: list[str],
-    ) -> list[MemoryEntry]:
+    async def find_by_source_message_ids(self, message_ids: list[str]) -> list[MemoryEntry]:
         """Find memory entries by their source_message_id."""
         results = []
         message_id_set = set(message_ids)
@@ -719,7 +716,7 @@ class MemoryStorageFactory:
     """Factory for creating memory storage backends."""
 
     @staticmethod
-    def create_storage(backend_type: Optional[str] = None):
+    def create_storage(backend_type: str | None = None):
         """
         Create appropriate storage backend.
 

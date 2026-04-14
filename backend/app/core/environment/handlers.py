@@ -90,7 +90,7 @@ class SkillEventHandler:
         """
         skill_name = event.data.get("skill_name")
         thread_id = event.data.get("thread_id")
-        
+
         logger.debug(f"🎯 Skill executed: {skill_name} in thread {thread_id}")
 
     @event_subscribe(EventType.SKILL_PROMOTED)
@@ -101,7 +101,7 @@ class SkillEventHandler:
         Triggered when a learned skill is promoted to built-in.
         """
         skill_name = event.data.get("skill_name")
-        
+
         logger.info(f"⭐ Skill promoted to built-in: {skill_name}")
 
     @event_subscribe(EventType.SKILL_DEPRECATED)
@@ -113,7 +113,7 @@ class SkillEventHandler:
         """
         skill_name = event.data.get("skill_name")
         reason = event.data.get("reason", "No reason provided")
-        
+
         logger.info(f"🗑️ Skill deprecated: {skill_name} - {reason}")
 
 
@@ -133,7 +133,7 @@ class SystemEventHandler:
         """
         platforms = event.data.get("platforms", [])
         project = event.data.get("project")
-        
+
         logger.info(f"🧠 Awakening complete. Platforms: {platforms}, Project: {project}")
 
     @event_subscribe(EventType.STATE_REFRESHED)
@@ -154,7 +154,7 @@ class SystemEventHandler:
         """
         platform = event.data.get("platform")
         boundary_type = event.data.get("boundary_type")
-        
+
         logger.info(f"🚧 Learned boundary: {boundary_type} on {platform}")
 
 
@@ -163,15 +163,15 @@ class SystemEventHandler:
 # @event_register_with_bus(event_bus)
 # class AppAtlasEventHandler:
 #     """Handles UI tree observation events for App Atlas"""
-# 
+#
 #     def __init__(self):
 #         pass
-# 
+#
 #     @event_subscribe(EventType.UI_TREE_OBSERVED)
 #     async def on_ui_tree_observed(self, event: AwakenEvent) -> None:
 #         """
 #         Process UI tree for App Atlas learning.
-#         
+#
 #         Triggered when a UI tree is observed (e.g., from screenshot analysis).
 #         """
 #         from app.core.atlas import atlas_engine

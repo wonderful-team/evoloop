@@ -13,6 +13,7 @@ import logging
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import Field
 
+from app.api.responses import BaseAPIResponse
 from app.core.ghost_text import EditPreview, GhostSuggestion, ghost_suggester
 from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.models.schemas.base import ScopedRequest

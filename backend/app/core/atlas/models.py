@@ -11,9 +11,9 @@ Defines the core data structures that represent an application's UI topology:
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-from pydantic import BaseModel, Field, model_validator, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
@@ -27,7 +27,7 @@ class AtlasStateMetadata(DynamicBaseModel):
 class MenuItem(DynamicBaseModel):
     label: str
     action: str | None = None
-    children: list["MenuItem"] = Field(default_factory=list)
+    children: list[MenuItem] = Field(default_factory=list)
 
 
 class MenuTree(DynamicBaseModel):
@@ -52,21 +52,21 @@ class ElementMetadata(DynamicBaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     # Common cross-platform attributes
-    class_name: Optional[str] = Field(None, alias="class")
-    resource_id: Optional[str] = None
-    
+    class_name: str | None = Field(None, alias="class")
+    resource_id: str | None = None
+
     # Android specific
-    package_name: Optional[str] = None
-    content_desc: Optional[str] = None
+    package_name: str | None = None
+    content_desc: str | None = None
     checkable: bool = False
     checked: bool = False
     scrollable: bool = False
-    
+
     # MacOS specific
-    ax_identifier: Optional[str] = None
-    ax_role: Optional[str] = None
-    ax_subrole: Optional[str] = None
-    
+    ax_identifier: str | None = None
+    ax_role: str | None = None
+    ax_subrole: str | None = None
+
     # Catch-all for additional attributes
     extra: ElementExtra = Field(default_factory=ElementExtra)
 
@@ -75,15 +75,15 @@ class ElementMetadata(DynamicBaseModel):
     def capture_extra(cls, values: Any) -> Any:
         if not isinstance(values, dict):
             return values
-        
+
         # Identify known fields (including aliases)
         known_fields = {f.alias or name for name, f in cls.model_fields.items()}
-        
+
         extra = values.get("extra", {})
         for k, v in list(values.items()):
             if k not in known_fields and k != "extra":
                 extra[k] = values.pop(k)
-        
+
         values["extra"] = extra
         return values
 
@@ -96,13 +96,13 @@ class AtlasElement(DynamicBaseModel):
     role: str = ""                   # e.g., "BUTTON", "INPUT", "AXButton"
     label: str = ""                  # e.g., "Save", "File"
     ax_path: str = ""                # Primary structural path/locator (Legacy/macOS specific)
-    os_identifier: Optional[str] = None # Cross-platform OS identifier
-    ocr_confidence: Optional[float] = None # Vision/OCR confidence score
-    shortcut: Optional[str] = None
-    visual_hash: Optional[str] = None
-    bounds: Optional[Rect] = None
+    os_identifier: str | None = None # Cross-platform OS identifier
+    ocr_confidence: float | None = None # Vision/OCR confidence score
+    shortcut: str | None = None
+    visual_hash: str | None = None
+    bounds: Rect | None = None
     is_enabled: bool = True
-    parent_menu: Optional[str] = None
+    parent_menu: str | None = None
 
     # Element classification
     element_category: str = "unknown"  # static | dynamic | container_*
@@ -127,16 +127,16 @@ class AtlasState(DynamicBaseModel):
     """
     state_id: str
     window_title: str
-    elements: List[AtlasElement] = Field(default_factory=list)
-    screenshot_hash: Optional[str] = None
+    elements: list[AtlasElement] = Field(default_factory=list)
+    screenshot_hash: str | None = None
     metadata: AtlasStateMetadata = Field(default_factory=AtlasStateMetadata)
     is_infrastructure_only: bool = False
 
-    def get_element_by_label(self, label: str) -> Optional[AtlasElement]:
+    def get_element_by_label(self, label: str) -> AtlasElement | None:
         label_lower = label.lower()
         return next((e for e in self.elements if e.label.lower() == label_lower), None)
 
-    def get_element_by_path(self, ax_path: str) -> Optional[AtlasElement]:
+    def get_element_by_path(self, ax_path: str) -> AtlasElement | None:
         return next((e for e in self.elements if e.ax_path == ax_path), None)
 
     def to_dict(self) -> dict:
@@ -172,8 +172,8 @@ class AtlasApp(DynamicBaseModel):
     app_name: str
     bundle_id: str
     platform: str
-    states: Dict[str, AtlasState] = Field(default_factory=dict)
-    transitions: List[AtlasTransition] = Field(default_factory=list)
+    states: dict[str, AtlasState] = Field(default_factory=dict)
+    transitions: list[AtlasTransition] = Field(default_factory=list)
     menu_tree: MenuTree = Field(default_factory=MenuTree)
     version_hash: str = ""
     explored_at: datetime = Field(default_factory=datetime.now)
@@ -181,24 +181,24 @@ class AtlasApp(DynamicBaseModel):
     is_dynamic: bool = False
 
     @property
-    def all_elements(self) -> List[AtlasElement]:
+    def all_elements(self) -> list[AtlasElement]:
         elements = []
         for state in self.states.values():
             elements.extend(state.elements)
         return elements
 
     @property
-    def infrastructure_elements(self) -> List[AtlasElement]:
+    def infrastructure_elements(self) -> list[AtlasElement]:
         return [e for e in self.all_elements if e.is_infrastructure]
 
-    def get_element_by_path(self, ax_path: str) -> Optional[AtlasElement]:
+    def get_element_by_path(self, ax_path: str) -> AtlasElement | None:
         """Search for an element by path across all states."""
         for state in self.states.values():
             if elem := state.get_element_by_path(ax_path):
                 return elem
         return None
 
-    def get_state_elements(self, state_id: str) -> List[AtlasElement]:
+    def get_state_elements(self, state_id: str) -> list[AtlasElement]:
         """Get elements for a specific state."""
         if state := self.states.get(state_id):
             return state.elements
@@ -212,7 +212,7 @@ class AtlasApp(DynamicBaseModel):
         content = f"{self.bundle_id}:{version_name or ''}:{update_time or ''}:{len(self.states)}:{len(self.transitions)}"
         return _compute_version_hash(content)
 
-    def get_infrastructure_only(self) -> "AtlasApp":
+    def get_infrastructure_only(self) -> AtlasApp:
         """
         Return a copy with only infrastructure (static) elements.
         """
@@ -243,7 +243,7 @@ class AtlasApp(DynamicBaseModel):
             is_dynamic=True,
         )
 
-    def get_element_by_label(self, label: str) -> Optional[AtlasElement]:
+    def get_element_by_label(self, label: str) -> AtlasElement | None:
         """Search for an element by label across all states."""
         for state in self.states.values():
             if elem := state.get_element_by_label(label):

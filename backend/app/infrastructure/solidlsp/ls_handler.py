@@ -14,7 +14,10 @@ from typing import Any
 import psutil
 
 from app.infrastructure.solidlsp.ls_config import Language
-from app.infrastructure.solidlsp.ls_exceptions import SolidLSPException
+from app.infrastructure.solidlsp.ls_exceptions import (
+    LanguageServerTerminatedException,
+    SolidLSPException,
+)
 from app.infrastructure.solidlsp.ls_request import LanguageServerRequest
 from app.infrastructure.solidlsp.lsp_protocol_handler.lsp_requests import (
     LspNotification,
@@ -40,21 +43,6 @@ from app.infrastructure.solidlsp.util.subprocess_util import (
 )
 
 log = logging.getLogger(__name__)
-
-
-class LanguageServerTerminatedException(Exception):
-    """
-    Exception raised when the language server process has terminated unexpectedly.
-    """
-
-    def __init__(self, message: str, language: Language, cause: Exception | None = None) -> None:
-        super().__init__(message)
-        self.message = message
-        self.language = language
-        self.cause = cause
-
-    def __str__(self) -> str:
-        return f"LanguageServerTerminatedException: {self.message}" + (f"; Cause: {self.cause}" if self.cause else "")
 
 
 class Request:

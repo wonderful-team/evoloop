@@ -141,19 +141,19 @@ class PipelineManager:
             return "No UI elements detected."
 
         from app.utils import render_template
-        
+
         # Sort by Y coordinate (top to bottom), then X (left to right)
         sorted_elements = sorted(elements, key=lambda e: (e.y, e.x))
-        
+
         # Limit to max_elements
         if len(sorted_elements) > max_elements:
             display_elements = sorted_elements[:max_elements]
         else:
             display_elements = sorted_elements
-        
+
         # Prepare data for template
         element_data = [{"line": el.to_prompt_line()} for el in display_elements]
-        
+
         return render_template(
             "vision/elements_list.prompt.j2",
             elements=element_data,

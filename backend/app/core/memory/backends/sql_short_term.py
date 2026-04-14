@@ -2,7 +2,13 @@
 
 import logging
 
-from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
+from langchain_core.messages import (
+    AIMessage,
+    BaseMessage,
+    HumanMessage,
+    SystemMessage,
+    ToolMessage,
+)
 from sqlalchemy import delete, or_, select
 
 from app.core.memory.interfaces.short_term import IShortTermMemory
@@ -95,10 +101,10 @@ class SqlShortTermMemory(IShortTermMemory):
 
             result = await db.execute(visible_stmt)
             visible_messages = result.scalars().all()
-            
+
             # Reverse to temporal order
             visible_messages = list(reversed(visible_messages))
-            
+
             # 2. Identify the run_ids of the LAST 2 visible AI elements
             # This represents the "recent" active context where we want full granular tool fidelity
             recent_run_ids = set()
@@ -109,7 +115,7 @@ class SqlShortTermMemory(IShortTermMemory):
                     ai_count += 1
                     if ai_count >= 2:
                         break
-                        
+
             # Fallback: catch the absolute latest active run_id in case it hasn't produced a visible msg yet
             latest_run_stmt = select(Message.run_id).where(
                 Message.thread_id == thread_id, Message.run_id.is_not(None)
@@ -126,7 +132,7 @@ class SqlShortTermMemory(IShortTermMemory):
                     Message.is_visible == False,
                     Message.run_id.in_(recent_run_ids)
                 ).order_by(Message.id.asc())
-                
+
                 invisible_result = await db.execute(invisible_stmt)
                 invisible_messages = invisible_result.scalars().all()
 
@@ -160,9 +166,9 @@ class SqlShortTermMemory(IShortTermMemory):
                 else:
                     tool_call_id = f"orphan_{msg.id}"
                     name = "unknown"
-                
+
                 lc_messages.append(ToolMessage(
-                    content=msg.content or "", 
+                    content=msg.content or "",
                     tool_call_id=tool_call_id,
                     name=name
                 ))
@@ -216,7 +222,7 @@ class SqlShortTermMemory(IShortTermMemory):
         async with session_scope() as db:
             # Build multi-keyword search (space-separated = OR)
             keywords = [k.strip() for k in query.split() if k.strip()]
-            
+
             if len(keywords) == 1:
                 # Single keyword - simple LIKE
                 stmt = select(Message).where(Message.content.ilike(f"%{keywords[0]}%"))
@@ -227,14 +233,14 @@ class SqlShortTermMemory(IShortTermMemory):
             else:
                 # Empty query - return nothing
                 return []
-            
+
             if thread_id:
                 stmt = stmt.where(Message.thread_id == thread_id)
-            
+
             # Focus on visible main conversation nodes for cleaner results
             stmt = stmt.where(Message.is_visible == True)
             stmt = stmt.order_by(Message.created_at.desc()).limit(limit)
-            
+
             result = await db.execute(stmt)
             db_messages = result.scalars().all()
 
@@ -246,5 +252,5 @@ class SqlShortTermMemory(IShortTermMemory):
                 lc_messages.append(AIMessage(content=msg.content))
             elif msg.role == "system":
                 lc_messages.append(SystemMessage(content=msg.content))
-        
+
         return lc_messages

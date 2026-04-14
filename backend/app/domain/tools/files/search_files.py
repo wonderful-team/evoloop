@@ -5,9 +5,8 @@ from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import InjectedToolArg
 
 from app.constants import DEFAULT_EXCLUDED_DIRS
-from app.core.tools import evoloop_tool, get_working_directory
+from app.core.tools import evoloop_tool
 from app.utils.process import run_command
-
 from .utils import resolve_and_validate_path
 
 

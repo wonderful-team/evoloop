@@ -31,33 +31,37 @@ Usage:
 """
 
 import logging
-from typing import List, Optional, Dict, Any
+from typing import Any, Optional
 
 from langchain_core.messages import BaseMessage
 
 from app.core.config import settings
 from app.core.memory.backends.file_backend import FileMemoryStorage
 from app.core.memory.backends.sql_short_term import SqlShortTermMemory
-from app.core.memory.extraction import MemoryExtractionService, MemoryConsolidationService
+from app.core.memory.config import MemoryConfig
+from app.core.memory.extraction import (
+    MemoryConsolidationService,
+    MemoryExtractionService,
+)
 from app.core.memory.interfaces.short_term import IShortTermMemory
 from app.core.memory.models import (
+    CheckpointDedupResult,
     MemoryEntry,
     MemorySearchResult,
     MemoryType,
     PrivacyLevel,
 )
 from app.core.memory.retrieval import MemoryRetriever
-from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 
 
 class _PreferenceAdapter:
     """Adapter to provide preferences interface on top of new memory system."""
-    
+
     def __init__(self, manager: "MemoryManager"):
         self._manager = manager
-    
+
     async def set_preference(
         self,
         user_id: str,
@@ -79,7 +83,7 @@ class _PreferenceAdapter:
             tags=["preference", key],
         )
         await self._manager.save_memory(entry)
-    
+
     async def get_merged_preferences(self, user_id: str, project_id: int | None = None) -> str:
         """Get merged preferences for a user."""
         memories = await self._manager.search_memories(
@@ -89,29 +93,29 @@ class _PreferenceAdapter:
             project_id=project_id,
             limit=50,
         )
-        
+
         if not memories:
             return "No specific preferences recorded."
-        
+
         lines = ["**User Preferences:**"]
         for mem in memories:
             if "preference" in mem.tags:
                 lines.append(f"- {mem.description}")
-        
+
         return "\n".join(lines) if len(lines) > 1 else "No specific preferences recorded."
 
 
 class _GraphAdapter:
     """Adapter to provide graph interface on top of new memory system."""
-    
+
     def __init__(self, manager: "MemoryManager"):
         self._manager = manager
-    
+
     async def get_directory_info(self, project_id: int, path: str) -> dict:
         """Get directory info (placeholder for GraphRAG)."""
         # In file-based mode, this is not supported
         return {"summary": "", "sub_modules": [], "dependencies": []}
-    
+
     async def search(self, query: str, limit: int = 5) -> str:
         """Search graph (delegates to memory search)."""
         results = await self._manager.search_memories(query, limit=limit)
@@ -119,7 +123,7 @@ class _GraphAdapter:
             return ""
         lines = [f"- **{r.title}**: {r.description}" for r in results]
         return "\n".join(lines)
-    
+
     async def traverse(self, start_node_id: str, relation_type: str, max_depth: int = 2) -> list:
         """Graph traversal (not supported in file mode)."""
         return []
@@ -127,10 +131,10 @@ class _GraphAdapter:
 
 class _LongTermAdapter:
     """Adapter to provide legacy long_term interface."""
-    
+
     def __init__(self, storage):
         self._storage = storage
-    
+
     # Concept methods
     async def search_concepts(self, query: str, project_id: int | None = None, min_score: float = 0.7):
         """Search concepts (mapped to PROJECT memories)."""
@@ -149,7 +153,7 @@ class _LongTermAdapter:
                 'files': [],
             })() for r in results
         ]
-    
+
     async def search_concepts_data(self, query: str, project_id: int | None = None) -> list[dict]:
         """Raw concept search."""
         results = await self.search_concepts(query, project_id)
@@ -160,7 +164,7 @@ class _LongTermAdapter:
                 'project_id': project_id or 0,
             } for r in results
         ]
-    
+
     async def store_concept(self, concept) -> None:
         """Store a concept as a PROJECT memory."""
         entry = MemoryEntry(
@@ -174,7 +178,7 @@ class _LongTermAdapter:
             tags=["concept"] + (concept.related_files or []),
         )
         await self._storage.save(entry)
-    
+
     async def list_concepts(self, project_id: int, limit: int = 50) -> list[dict]:
         """List concepts for a project."""
         results = await self._storage.list_all(
@@ -187,12 +191,12 @@ class _LongTermAdapter:
                 'episode_count': 0,
             } for r in results[:limit]
         ]
-    
+
     async def get_project_concepts(self, project_id: int) -> list[str]:
         """Get concepts as strings for a project."""
         results = await self.list_concepts(project_id)
         return [f"{r['name']}: {r['description']}" for r in results]
-    
+
     # Episode methods
     async def record_episode(self, episode) -> str | None:
         """Record an episode as a PROJECT memory.
@@ -201,19 +205,19 @@ class _LongTermAdapter:
         with detailed plan information.
         """
         import uuid
-        
+
         # Generate unique ID to avoid conflicts
         entry_id = f"session_{episode.source_message_id or uuid.uuid4().hex[:8]}"
-        
+
         # Format content: if result looks like a session summary, use it directly
         # otherwise wrap it in a friendly format
         content = episode.result
         if episode.plan_summary and len(episode.plan_summary) > 20:
             content += f"\n\nExecution Plan:\n{episode.plan_summary}"
-        
+
         # Create a concise title
         goal_short = episode.goal[:60] + "..." if len(episode.goal) > 60 else episode.goal
-        
+
         entry = MemoryEntry(
             id=entry_id,
             type=MemoryType.PROJECT,
@@ -229,7 +233,7 @@ class _LongTermAdapter:
         await self._storage.save(entry)
         logger.info(f"[MemoryManager] Recorded session memory: {entry_id}")
         return entry.id
-    
+
     async def retrieve_experience(self, goal: str, project_id: int, top_k: int = 3) -> str:
         """Retrieve similar experiences."""
         results = await self._storage.search(
@@ -242,10 +246,10 @@ class _LongTermAdapter:
             return ""
         lines = [f"- {r.title}: {r.description}" for r in results]
         return "Past Experiences:\n" + "\n".join(lines)
-    
+
     async def find_episodes_by_concept(self, concept_name: str, project_id: int, limit: int = 10) -> list[dict]:
         """Find episodes by concept."""
-        # In file-based mode, we search for project memories tagged with "episode" 
+        # In file-based mode, we search for project memories tagged with "episode"
         # or containing the concept name in text search
         results = await self._storage.search(
             query=concept_name,
@@ -253,39 +257,39 @@ class _LongTermAdapter:
             project_id=project_id,
             limit=limit,
         )
-        
+
         episodes = []
         for r in results:
             if "concept" in r.tags and r.title == concept_name:
                 # This is the concept definition itself, not an episode
                 continue
-                
+
             # Clean up goal title
             goal = r.title
             if goal.startswith("Episode: "):
                 goal = goal[len("Episode: "):]
-            
-            # Result is stored in content or description 
+
+            # Result is stored in content or description
             # (In trace_recorder.py, we store the summary in description/content)
             # We prefer content as it's the full Markdown body
             result = r.content if (r.content and len(r.content) > 10) else r.description
             if not result:
                 result = "No summary available for this execution."
-            
+
             # If the result is a full block, try to keep it all, no truncation here
             episodes.append({
                 'id': r.id,
                 'goal': goal,
                 'result': result,
-                'error': None, 
+                'error': None,
                 'timestamp': r.updated_at.isoformat() if hasattr(r, 'updated_at') and r.updated_at else '',
             })
         return episodes
-    
+
     async def link_episode_to_concepts(self, episode_id: str, concept_names: list[str], project_id: int) -> None:
         """Link episode to concepts (no-op in file mode)."""
         pass
-    
+
     async def delete_episodes_by_message_ids(self, message_ids: list[str]) -> int:
         """Delete episodes by message IDs."""
         count = 0
@@ -297,15 +301,15 @@ class _LongTermAdapter:
                     await self._storage.delete(r.id)
                     count += 1
         return count
-    
+
     async def delete_episodes_by_run_ids(self, run_ids: list[str]) -> int:
         """Delete episodes by run IDs."""
         return await self.delete_episodes_by_message_ids(run_ids)
-    
+
     # Passthrough methods
     async def search(self, query: str, **kwargs):
         return await self._storage.search(query, **kwargs)
-    
+
     async def save(self, entry: MemoryEntry):
         return await self._storage.save(entry)
 
@@ -339,16 +343,16 @@ class MemoryManager:
         manager = MemoryManager(config=config, storage=storage, short_term=short_term)
         await manager.initialize()
     """
-    
+
     def __init__(
         self,
         config: Optional['MemoryConfig'] = None,
-        storage: Optional[FileMemoryStorage] = None,
-        short_term: Optional[IShortTermMemory] = None,
+        storage: FileMemoryStorage | None = None,
+        short_term: IShortTermMemory | None = None,
     ):
         """
         Initialize memory manager with appropriate backends.
-        
+
         Args:
             config: Memory configuration. If None, uses default from settings.
             storage: Storage backend. If None, creates based on config.
@@ -356,21 +360,22 @@ class MemoryManager:
         """
         # Import here to avoid circular imports at module level
         from app.core.memory.config import MemoryConfig
-        
+
         self.config = config or MemoryConfig.from_settings()
-        
+
         # Short-term memory (always SQL)
         if short_term is not None:
             self.short_term = short_term
         else:
             self.short_term: IShortTermMemory = SqlShortTermMemory()
-        
+
         # Long-term memory backend
         if storage is not None:
             self._storage = storage
-            logger.info(f"MemoryManager: Using provided storage backend")
+            logger.info("MemoryManager: Using provided storage backend")
         elif settings.EMBEDDED_MODE:
             # File-based storage for embedded mode
+            from app.core.memory.backends.file_backend import FileMemoryStorage
             self._storage = FileMemoryStorage()
             logger.info("MemoryManager: Initialized with FileBackend (embedded mode)")
         else:
@@ -381,25 +386,26 @@ class MemoryManager:
                 logger.info("MemoryManager: Initialized with Neo4jBackend (full mode)")
             except ImportError:
                 # Fallback to file if Neo4j not available
+                from app.core.memory.backends.file_backend import FileMemoryStorage
                 self._storage = FileMemoryStorage()
                 logger.warning("MemoryManager: Neo4j not available, falling back to FileBackend")
-        
+
         # Legacy adapters for backward compatibility
         self.long_term = _LongTermAdapter(self._storage)
         self.preferences = _PreferenceAdapter(self)
         self.graph = _GraphAdapter(self)
-        
+
         # Services (use storage directly)
         self.extraction = MemoryExtractionService(self._storage, config=self.config)
         self.consolidation = MemoryConsolidationService(self._storage)
         self.retrieval = MemoryRetriever(self._storage, config=self.config)
-    
+
     async def initialize(self) -> None:
         """Initialize all memory components."""
         await self.short_term.initialize()
         # File/Neo4j backends initialize lazily
         logger.info("MemoryManager: All components initialized")
-    
+
     async def flush(self) -> None:
         """Flush all memory components (for testing)."""
         await self.short_term.flush()
@@ -408,11 +414,11 @@ class MemoryManager:
         if hasattr(self._storage, 'flush'):
             await self._storage.flush()
         logger.info("MemoryManager: All components flushed")
-    
+
     # ========================================================================
     # Short-term Memory Operations
     # ========================================================================
-    
+
     async def add_message(self, thread_id: str, message: BaseMessage) -> None:
         """
         Add a message to the conversation history.
@@ -422,12 +428,12 @@ class MemoryManager:
             message: The message to store
         """
         await self.short_term.add_message(thread_id, message)
-    
+
     async def get_context(
         self,
         thread_id: str,
         limit: int = 50,
-    ) -> List[BaseMessage]:
+    ) -> list[BaseMessage]:
         """
         Retrieve recent conversation context.
         
@@ -439,13 +445,13 @@ class MemoryManager:
             List of messages in chronological order
         """
         return await self.short_term.get_context(thread_id, limit)
-    
+
     async def search_messages(
         self,
         query: str,
-        thread_id: Optional[str] = None,
+        thread_id: str | None = None,
         limit: int = 10,
-    ) -> List[BaseMessage]:
+    ) -> list[BaseMessage]:
         """
         Search conversation history.
         
@@ -458,11 +464,11 @@ class MemoryManager:
             List of matching messages
         """
         return await self.short_term.search_messages(query, thread_id, limit)
-    
+
     # ========================================================================
     # Long-term Memory Operations
     # ========================================================================
-    
+
     async def save_memory(self, entry: MemoryEntry) -> None:
         """
         Save a memory entry to long-term storage.
@@ -473,7 +479,7 @@ class MemoryManager:
             entry: Memory entry to save
         """
         await self._storage.save(entry)
-        
+
         # KAIROS: Append to daily log for nightly consolidation
         try:
             from app.core.memory.daily_log import daily_log_writer
@@ -481,8 +487,8 @@ class MemoryManager:
         except Exception as e:
             # Log but don't fail the save
             logger.warning(f"[MemoryManager] Failed to append to daily log: {e}")
-    
-    async def get_memory(self, entry_id: str) -> Optional[MemoryEntry]:
+
+    async def get_memory(self, entry_id: str) -> MemoryEntry | None:
         """
         Get a memory entry by ID.
         
@@ -493,7 +499,7 @@ class MemoryManager:
             Memory entry or None if not found
         """
         return await self._storage.get(entry_id)
-    
+
     async def delete_memory(self, entry_id: str) -> bool:
         """
         Delete a memory entry.
@@ -505,15 +511,15 @@ class MemoryManager:
             True if deleted, False if not found
         """
         return await self._storage.delete(entry_id)
-    
+
     async def search_memories(
         self,
         query: str,
-        types: Optional[List[MemoryType]] = None,
-        privacy: Optional[PrivacyLevel] = None,
-        project_id: Optional[int] = None,
+        types: list[MemoryType] | None = None,
+        privacy: PrivacyLevel | None = None,
+        project_id: int | None = None,
         limit: int = 10,
-    ) -> List[MemoryEntry]:
+    ) -> list[MemoryEntry]:
         """
         Search long-term memories.
         
@@ -534,11 +540,11 @@ class MemoryManager:
             project_id=project_id,
             limit=limit,
         )
-    
+
     # ========================================================================
     # Two-Tier Memory Operations
     # ========================================================================
-    
+
     async def get_hot_memory(self) -> str:
         """
         Get Tier 1 hot memory (MEMORY.md).
@@ -552,12 +558,12 @@ class MemoryManager:
         from app.core.memory.two_tier import TwoTierMemoryManager
         two_tier = TwoTierMemoryManager(storage=self._storage, config=self.config)
         return await two_tier.get_hot_memory()
-    
+
     async def search_cold_memory(
         self,
         query: str,
         max_results: int = 5,
-    ) -> List[MemoryEntry]:
+    ) -> list[MemoryEntry]:
         """
         Search Tier 2 cold memory (full storage).
         
@@ -574,7 +580,7 @@ class MemoryManager:
         from app.core.memory.two_tier import TwoTierMemoryManager
         two_tier = TwoTierMemoryManager(storage=self._storage, config=self.config)
         return await two_tier.search_cold_memory(query, max_results)
-    
+
     async def regenerate_memory_md(self) -> None:
         """
         Regenerate MEMORY.md from cold memory.
@@ -585,13 +591,13 @@ class MemoryManager:
         from app.core.memory.two_tier import TwoTierMemoryManager
         two_tier = TwoTierMemoryManager(storage=self._storage, config=self.config)
         await two_tier.regenerate_memory_md()
-    
+
     async def list_memories(
         self,
-        type_filter: Optional[MemoryType] = None,
-        privacy_filter: Optional[PrivacyLevel] = None,
-        limit: Optional[int] = None,
-    ) -> List[MemorySearchResult]:
+        type_filter: MemoryType | None = None,
+        privacy_filter: PrivacyLevel | None = None,
+        limit: int | None = None,
+    ) -> list[MemorySearchResult]:
         """
         List all memories (lightweight).
 
@@ -604,8 +610,8 @@ class MemoryManager:
             List of memory search results
         """
         return await self._storage.list_all(type_filter, privacy_filter, limit)
-    
-    async def get_recent_memories(self, count: int = 5) -> List[MemoryEntry]:
+
+    async def get_recent_memories(self, count: int = 5) -> list[MemoryEntry]:
         """
         Get most recently updated memories.
 
@@ -618,16 +624,6 @@ class MemoryManager:
         return await self._storage.get_recent(count)
 
 
-class CheckpointDedupResult(DynamicBaseModel):
-    """Result of a checkpoint deduplication operation."""
-    dry_run: bool = True
-    total_checkpoints: int = 0
-    duplicate_groups: int = 0
-    duplicates_found: int = 0
-    duplicates_removed: int = 0
-    bytes_saved: int = 0
-    elapsed_ms: int = 0
-    error: Optional[str] = None
 
     async def deduplicate_checkpoints(self, dry_run: bool = True) -> "CheckpointDedupResult":
         """
@@ -642,6 +638,7 @@ class CheckpointDedupResult(DynamicBaseModel):
         Returns:
             Dict with deduplication stats
         """
+        from app.core.memory.backends.file_backend import FileMemoryStorage
         if isinstance(self._storage, FileMemoryStorage):
             return await self._storage.deduplicate_checkpoints(dry_run)
         else:
@@ -660,14 +657,14 @@ class CheckpointDedupResult(DynamicBaseModel):
     # ========================================================================
     # Extraction Operations
     # ========================================================================
-    
+
     async def extract_memories(
         self,
         thread_id: str,
-        messages: List[BaseMessage],
-        project_id: Optional[int] = None,
-        user_id: Optional[str] = None,
-    ) -> List[MemoryEntry]:
+        messages: list[BaseMessage],
+        project_id: int | None = None,
+        user_id: str | None = None,
+    ) -> list[MemoryEntry]:
         """
         Automatically extract memories from a conversation.
         
@@ -686,12 +683,12 @@ class CheckpointDedupResult(DynamicBaseModel):
             project_id=project_id,
             user_id=user_id,
         )
-    
+
     async def consolidate_memory(
         self,
         working_content: str,
         source: str = "consolidated",
-    ) -> Optional[MemoryEntry]:
+    ) -> MemoryEntry | None:
         """
         Consolidate working memory into long-term storage.
         
@@ -703,17 +700,17 @@ class CheckpointDedupResult(DynamicBaseModel):
             Created memory entry or None
         """
         return await self.consolidation.consolidate(working_content, source)
-    
+
     # ========================================================================
     # Retrieval Operations
     # ========================================================================
-    
+
     async def find_relevant_memories(
         self,
         query: str,
-        context: Optional[Dict[str, Any]] = None,
+        context: dict[str, Any] | None = None,
         max_results: int = 5,
-    ) -> List[MemoryEntry]:
+    ) -> list[MemoryEntry]:
         """
         Find memories relevant to the current query.
         
@@ -732,13 +729,13 @@ class CheckpointDedupResult(DynamicBaseModel):
             context=context,
             max_results=max_results,
         )
-    
+
     async def get_context_memories(
         self,
         query: str,
-        user_id: Optional[str] = None,
-        project_id: Optional[int] = None,
-    ) -> Dict[str, List[MemoryEntry]]:
+        user_id: str | None = None,
+        project_id: int | None = None,
+    ) -> dict[str, list[MemoryEntry]]:
         """
         Get memories organized by type for context injection.
         

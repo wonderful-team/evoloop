@@ -22,7 +22,7 @@ class RewindEventType(str, Enum):
     REWIND_REQUESTED = "rewind.requested"           # Rewind operation initiated
     REWIND_COMPLETED = "rewind.completed"           # Rewind operation finished
     REWIND_FAILED = "rewind.failed"                 # Rewind operation failed
-    
+
     # Domain-specific cleanup events
     MESSAGES_CLEANUP = "rewind.messages.cleanup"    # Delete messages
     FILES_CLEANUP = "rewind.files.cleanup"          # Revert file changes
@@ -30,7 +30,7 @@ class RewindEventType(str, Enum):
     TODO_CLEANUP = "rewind.todo.cleanup"            # Delete todos
     TRACE_CLEANUP = "rewind.trace.cleanup"          # Delete trace events
     CHECKPOINT_CLEANUP = "rewind.checkpoint.cleanup" # Cleanup checkpoint state
-    
+
     # State reset events
     STATE_RESET = "rewind.state.reset"              # Reset LangGraph state
     BLACKBOARD_RESET = "rewind.blackboard.reset"    # Reset blackboard data
@@ -57,7 +57,7 @@ class RewindRequestedEvent(RewindEvent):
     revert_files: bool = True             # Whether to revert file changes
     reset_state: bool = True              # Whether to reset LangGraph state
     reason: str = "user_request"          # Why the rewind was triggered
-    
+
     def model_post_init(self, __context: Any) -> None:
         self.event_type = RewindEventType.REWIND_REQUESTED
         self.data = {
@@ -74,7 +74,7 @@ class MessagesCleanupEvent(RewindEvent):
     """Published to trigger message deletion."""
     message_ids: list[str] = Field(default_factory=list)
     delete_references: bool = True
-    
+
     def model_post_init(self, __context: Any) -> None:
         self.event_type = RewindEventType.MESSAGES_CLEANUP
         self.data = {
@@ -88,7 +88,7 @@ class FilesCleanupEvent(RewindEvent):
     """Published to trigger file restoration."""
     file_operations: list[dict] = Field(default_factory=list)
     # Each dict: {"path": str, "operation": "ADD|EDIT|DELETE", "backup_content": str|None}
-    
+
     def model_post_init(self, __context: Any) -> None:
         self.event_type = RewindEventType.FILES_CLEANUP
         self.data = {
@@ -101,7 +101,7 @@ class MemoryCleanupEvent(RewindEvent):
     """Published to trigger memory deletion."""
     source_message_ids: list[str] = Field(default_factory=list)
     run_ids: list[str] = Field(default_factory=list)
-    
+
     def model_post_init(self, __context: Any) -> None:
         self.event_type = RewindEventType.MEMORY_CLEANUP
         self.data = {
@@ -145,7 +145,7 @@ class CheckpointCleanupEvent(RewindEvent):
 class TodoCleanupEvent(RewindEvent):
     """Published to trigger todo item deletion."""
     source_message_ids: list[str] = Field(default_factory=list)
-    
+
     def model_post_init(self, __context: Any) -> None:
         self.event_type = RewindEventType.TODO_CLEANUP
         self.data = {
@@ -158,7 +158,7 @@ class TodoCleanupEvent(RewindEvent):
 class TraceCleanupEvent(RewindEvent):
     """Published to trigger trace event deletion."""
     source_message_ids: list[str] = Field(default_factory=list)
-    
+
     def model_post_init(self, __context: Any) -> None:
         self.event_type = RewindEventType.TRACE_CLEANUP
         self.data = {
@@ -174,7 +174,7 @@ class RewindCompletedEvent(RewindEvent):
     reverted_file_count: int = 0
     removed_memory_count: int = 0
     new_checkpoint_id: str | None = None
-    
+
     def model_post_init(self, __context: Any) -> None:
         self.event_type = RewindEventType.REWIND_COMPLETED
         self.data = {
@@ -191,7 +191,7 @@ class RewindFailedEvent(RewindEvent):
     error: str = ""
     failed_step: str = "unknown"
     partial_results: dict = Field(default_factory=dict)
-    
+
     def model_post_init(self, __context: Any) -> None:
         self.event_type = RewindEventType.REWIND_FAILED
         self.data = {

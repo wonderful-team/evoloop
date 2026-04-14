@@ -7,7 +7,6 @@ import termios
 import threading
 import time
 import uuid
-from typing import Tuple, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 
@@ -23,9 +22,9 @@ class PersistentTerminal(BaseModel):
     session_id: str
     cwd: str
     env: dict[str, str]
-    
+
     _master_fd: int = -1
-    _proc: Optional[subprocess.Popen] = None
+    _proc: subprocess.Popen | None = None
 
     def model_post_init(self, __context):
         self._start_shell()
@@ -35,7 +34,7 @@ class PersistentTerminal(BaseModel):
     def _start_shell(self):
         """Start a persistent bash instance with a PTY."""
         self._master_fd, slave_fd = pty.openpty()
-        
+
         # Disable echo to simplify parsing
         attr = termios.tcgetattr(self._master_fd)
         attr[3] = attr[3] & ~termios.ECHO
@@ -57,12 +56,12 @@ class PersistentTerminal(BaseModel):
             preexec_fn=os.setsid
         )
         os.close(slave_fd)
-        
+
         # Initial stabilization wait
         time.sleep(0.2)
         logger.debug(f"[PTY][{self.session_id}] Shell started (PID: {self._proc.pid}) at {self.cwd}")
 
-    def run_command(self, command: str, timeout: int = 60) -> Tuple[str, int]:
+    def run_command(self, command: str, timeout: int = 60) -> tuple[str, int]:
         """Execute a command synchronously and return (output, exit_code)."""
         if self._proc.poll() is not None:
             logger.warning(f"[PTY][{self.session_id}] Shell died. Restarting...")
@@ -74,7 +73,7 @@ class PersistentTerminal(BaseModel):
         # Wrap command to echo status at the end
         # Use printf for reliable exit code capture: outputs "MARKER0\n" or "MARKER1\n"
         full_cmd = f"{command}\nprintf '{marker}%d\\n' $?\n"
-        
+
         try:
             os.write(self._master_fd, full_cmd.encode())
         except OSError as e:
@@ -84,7 +83,7 @@ class PersistentTerminal(BaseModel):
 
         output = b""
         start_time = time.time()
-        
+
         while time.time() - start_time < timeout:
             r, _, _ = select.select([self._master_fd], [], [], 0.1)
             if r:
@@ -101,18 +100,18 @@ class PersistentTerminal(BaseModel):
                             break
                 except OSError:
                     break
-            
+
             if self._proc.poll() is not None:
                 break
-        
+
         text = output.decode("utf-8", errors="replace")
-        
+
         # Parse result by looking for marker followed by exit code
         # Format: "EVO_SIG_DONE_xxx_0" (marker + exit_code as single line)
         marker_with_code = None
         exit_code = -1
         actual_output = text
-        
+
         for line in text.split('\n'):
             if line.startswith(marker):
                 marker_with_code = line
@@ -123,7 +122,7 @@ class PersistentTerminal(BaseModel):
                     logger.error(f"[PTY][{self.session_id}] Failed to parse exit code from: {line[:100]}")
                     exit_code = -1
                 break
-        
+
         if marker_with_code:
             parts = text.split(marker_with_code)
             actual_output = parts[0].strip() if parts else text
@@ -133,7 +132,7 @@ class PersistentTerminal(BaseModel):
 
         # Periodic state sync (CWD)
         self._sync_state()
-        
+
         return actual_output, exit_code
 
     def _sync_state(self):
@@ -142,7 +141,7 @@ class PersistentTerminal(BaseModel):
         marker = f"EVO_PWD_SIG_{sig}_"
         cmd = f"pwd\nprintf '{marker}%d\\n' $?\n"
         os.write(self._master_fd, cmd.encode())
-        
+
         # Short timeout for internal sync
         output = b""
         start_time = time.time()
@@ -154,7 +153,7 @@ class PersistentTerminal(BaseModel):
                     output += chunk
                     if marker.encode() in output: break
                 except OSError: break
-        
+
         text = output.decode("utf-8", errors="replace")
         # Look for line starting with marker (format: "EVO_PWD_SIG_xxx_0")
         for line in text.split('\n'):
@@ -186,7 +185,7 @@ class TerminalSession(BaseModel):
     """
     cwd: str
     env: dict[str, str] = Field(default_factory=lambda: os.environ.copy())
-    pty: Optional[PersistentTerminal] = Field(default=None)
+    pty: PersistentTerminal | None = Field(default=None)
     _lock: threading.Lock = PrivateAttr(default_factory=threading.Lock)
 
     def model_post_init(self, __context):
@@ -231,7 +230,7 @@ class TerminalManager:
         session = cls.get_session()
         key = cls._get_session_key()
         pty_sess = session.get_pty(key)
-        
+
         command = command.strip()
         try:
             with session._lock:

@@ -86,13 +86,13 @@ class ActivityMonitor:
     async def end_run(self, thread_id: str, status="done", final_outcome: str = None):
         """Mark run as ended and publish status change."""
         result = await self._state_service.end_run(thread_id, status, final_outcome)
-        
+
         # Publish final status
         await cache.publish(
             f"chat:{thread_id}:events",
             StatusEvent(status=result.get("status", status)).model_dump_json()
         )
-        
+
         return result
 
     async def stop_run(self, thread_id: str):
@@ -119,7 +119,7 @@ class ActivityMonitor:
         """
         request_dict = request_data.model_dump() if isinstance(request_data, HumanRequestData) else request_data
         success = await self._state_service.set_human_request(thread_id, request_dict)
-        
+
         if success:
             # Publish Event
             await cache.publish(
@@ -129,14 +129,14 @@ class ActivityMonitor:
 
             # [HITL FIX] Also publish StatusEvent so UI knows we are interrupted
             await cache.publish(
-                f"chat:{thread_id}:events", 
+                f"chat:{thread_id}:events",
                 StatusEvent(status="interrupted").model_dump_json()
             )
 
     async def clear_human_request(self, thread_id: str):
         """Clear human request upon resumption."""
         success = await self._state_service.clear_human_request(thread_id)
-        
+
         if success:
             # Publish Event
             await cache.publish(
@@ -145,7 +145,7 @@ class ActivityMonitor:
             )
             # [UI Sync Fix]: Also publish StatusEvent to unlock input and hide card
             await cache.publish(
-                f"chat:{thread_id}:events", 
+                f"chat:{thread_id}:events",
                 StatusEvent(status="idle").model_dump_json()
             )
 
@@ -184,9 +184,9 @@ class ActivityMonitor:
             allow_cancel=allow_cancel,
             payload=payload.model_dump() if isinstance(payload, InteractionPayload) else (payload or {}),
         )
-        
+
         success = await self._state_service.set_human_request(thread_id, request_data.model_dump())
-        
+
         if success:
             # Publish Event
             await cache.publish(
@@ -196,7 +196,7 @@ class ActivityMonitor:
 
             # [HITL FIX] Also publish StatusEvent
             await cache.publish(
-                f"chat:{thread_id}:events", 
+                f"chat:{thread_id}:events",
                 StatusEvent(status="interrupted").model_dump_json()
             )
 
@@ -302,7 +302,7 @@ class ActivityMonitor:
 
         # Publish Event
         await cache.publish(
-            f"chat:{thread_id}:events", 
+            f"chat:{thread_id}:events",
             AgentStateEvent(data=state).model_dump_json()
         )
 
@@ -314,7 +314,7 @@ class ActivityMonitor:
             data=data,
             timestamp=timestamp
         )
-        
+
         # Log to a system list in cache for persistence
         await cache.lpush(f"system:logs:{event_type}", payload.model_dump_json())
         await cache.ltrim(f"system:logs:{event_type}", 0, 99)  # Keep last 100
@@ -325,7 +325,7 @@ class ActivityMonitor:
                 f"chat:{thread_id}:events",
                 json.dumps({"event": "system_log", "data": payload.model_dump()})
             )
-        
+
         logger.info(f"[ActivityMonitor] Event logged: {event_type} (Thread: {thread_id})")
 
     async def add_artifact(
@@ -338,12 +338,12 @@ class ActivityMonitor:
     ):
         """Add or update an artifact and publish event."""
         await self._state_service.add_artifact(thread_id, name, artifact_type, status, path)
-        
+
         # Get the artifact we just added
         activity = await self._state_service.get_state(thread_id)
         artifacts = activity.get("artifacts", [])
         target_art = next((a for a in artifacts if a["name"] == name), None)
-        
+
         if target_art:
             action = "update" if status == "modified" else "create"
             await cache.publish(

@@ -1,19 +1,19 @@
 """Blackboard state models and merge reducer."""
 import logging
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
-from pydantic import BaseModel, Field
-from app.infrastructure.pydantic_base import DynamicBaseModel
+from pydantic import Field
 
 from app.core.engine.state.config import ExecutionTicket
 from app.core.engine.state.workspace import ClipboardItem
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
 
 
 class VerificationStatus(DynamicBaseModel):
     status: str
-    signals: List[str] = Field(default_factory=list)
+    signals: list[str] = Field(default_factory=list)
 
 
 # Backward-compatible alias
@@ -23,34 +23,34 @@ BlackboardVerification = VerificationStatus
 class SpawnPlanSubtask(DynamicBaseModel):
     id: str
     intent: str
-    description: Optional[str] = None
-    title: Optional[str] = None
-    context: Optional[Any] = None
-    dependencies: Optional[List[str]] = None
-    tools: Optional[List[str]] = None
-    skill_hint: Optional[str] = None
+    description: str | None = None
+    title: str | None = None
+    context: Any | None = None
+    dependencies: list[str] | None = None
+    tools: list[str] | None = None
+    skill_hint: str | None = None
 
 
 class SpawnPlan(DynamicBaseModel):
-    subtasks: List[SpawnPlanSubtask] = Field(default_factory=list)
+    subtasks: list[SpawnPlanSubtask] = Field(default_factory=list)
     _requires_aggregation: bool = True
     parent_task: str = ""
     aggregation_strategy: str = "merge"
-    _routing_signal: Optional[str] = None
+    _routing_signal: str | None = None
 
 
 class PendingAggregation(DynamicBaseModel):
     strategy: str
     expected_count: int
-    actual_count: Optional[int] = None
+    actual_count: int | None = None
 
 
 class SubtaskResult(DynamicBaseModel):
     subtask_id: str
     status: str
     result: Any
-    tools_used: Optional[List[str]] = None
-    timestamp: Optional[float] = None
+    tools_used: list[str] | None = None
+    timestamp: float | None = None
 
 
 class BlackboardMetadata(DynamicBaseModel):
@@ -58,21 +58,21 @@ class BlackboardMetadata(DynamicBaseModel):
 
 
 class BlackboardState(DynamicBaseModel):
-    ticket: Optional[ExecutionTicket] = None
-    verification: Optional[BlackboardVerification] = None
-    route_reason: Optional[str] = None
+    ticket: ExecutionTicket | None = None
+    verification: BlackboardVerification | None = None
+    route_reason: str | None = None
     metadata: BlackboardMetadata = Field(default_factory=BlackboardMetadata)
-    clipboard: List[ClipboardItem] = Field(default_factory=list)
-    visited_nodes: List[str] = Field(default_factory=list)
-    working_directory: Optional[str] = None
-    spawn_plan: Optional[SpawnPlan] = None
-    pending_aggregation: Optional[PendingAggregation] = None
-    subtask_results: List[SubtaskResult] = Field(default_factory=list)
+    clipboard: list[ClipboardItem] = Field(default_factory=list)
+    visited_nodes: list[str] = Field(default_factory=list)
+    working_directory: str | None = None
+    spawn_plan: SpawnPlan | None = None
+    pending_aggregation: PendingAggregation | None = None
+    subtask_results: list[SubtaskResult] = Field(default_factory=list)
     plan_approved: bool = False
-    worker_outcome: Optional[str] = None
+    worker_outcome: str | None = None
 
 
-def merge_blackboard(old: Optional[BlackboardState], new: Union[BlackboardState, Dict[str, Any], None]) -> Optional[BlackboardState]:
+def merge_blackboard(old: BlackboardState | None, new: BlackboardState | dict[str, Any] | None) -> BlackboardState | None:
     if old is None:
         if isinstance(new, dict):
             return BlackboardState.model_validate(new)

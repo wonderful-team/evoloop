@@ -72,13 +72,13 @@ from app.core.execution.macro.verification_worker import VerificationWorker
 __all__ = [
     # Main validator
     "AgentMacroValidator",
-    
+
     # Evolution engine (Phase 3)
     "MacroEvolutionEngine",
     "EvolutionRule",
     "StepTransformer",
     "AgenticTransformer",
-    
+
     # Round orchestration (Phase 4)
     "RoundOrchestrator",
     "RoundContext",
@@ -94,25 +94,25 @@ __all__ = [
     "ElementInstabilityInjector",
     "PopupInterferenceInjector",
     "CoordinateDriftInjector",
-    
+
     # Phase 5: Integration
     "VerificationService",
     "SynthesisIntegration",
     "MacroServiceIntegration",
     "verify_macro",
     "quick_verify",
-    
+
     # Worker
     "VerificationWorker",
-    
+
     # Reporter
     "VerificationReporter",
     "generate_comparison_report",
-    
+
     # Self-healing
     "MacroSelfHealingAdvisor",
     "register_self_healing_advisor",
-    
+
     # Models
     "VerificationRequest",
     "VerificationResponse",

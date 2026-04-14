@@ -16,8 +16,8 @@ from langchain_core.messages import (
 
 from app.constants import (
     DEFAULT_CONTEXT_LIMIT,
-    DEFAULT_WINDOW_SIZE,
     DEFAULT_WINDOW_CONFIG,
+    DEFAULT_WINDOW_SIZE,
     MAX_OUTPUT_LENGTH,
 )
 from app.core.memory.tool_output_memory import ToolOutputMemory
@@ -63,11 +63,11 @@ def truncate_message_content(
         model: Model name for profile-aware limit derivation.
     """
     effective_limit = limit or _get_truncate_limit(model)
-    
+
     # Use the utility function with custom footer format
     if not content or len(content) <= effective_limit:
         return content
-    
+
     chars = len(content)
     lines = content.count("\n")
     truncated = content[:effective_limit]
@@ -231,7 +231,7 @@ def repair_message_history(
 
     # Final check for trailing tool calls (history cannot end with AIMessage(tool_calls))
     if open_tool_calls and final_repaired:
-        logger.warning(f"🔧 [Repair] History ends with dangling tool calls. Injecting dummy responses.")
+        logger.warning("🔧 [Repair] History ends with dangling tool calls. Injecting dummy responses.")
         for tcid, tname in list(open_tool_calls.items()):
             final_repaired.append(ToolMessage(
                 content=i18n.get("core_utils.interrupted_tool_response"),
@@ -345,25 +345,25 @@ def fold_messages(messages: list[BaseMessage]) -> list[dict]:
     """
     result = []
     i = 0
-    
+
     while i < len(messages):
         msg = messages[i]
-        
+
         if isinstance(msg, AIMessage):
             # Collect tool execution results for this AI message
             steps = []
             tool_calls = msg.tool_calls or []
-            
+
             # Look ahead for ToolMessages matching our tool_calls
             j = i + 1
             tool_call_ids = {tc.get("id"): tc for tc in tool_calls}
-            
+
             while j < len(messages) and isinstance(messages[j], ToolMessage):
                 tool_msg = messages[j]
-                
+
                 # Match with tool_call_id
                 tool_call = tool_call_ids.get(tool_msg.tool_call_id)
-                
+
                 steps.append({
                     "id": f"step-{tool_msg.tool_call_id}",
                     "tool": tool_msg.name or (tool_call.get("name") if tool_call else "unknown"),
@@ -373,7 +373,7 @@ def fold_messages(messages: list[BaseMessage]) -> list[dict]:
                     "tool_call_id": tool_msg.tool_call_id
                 })
                 j += 1
-            
+
             result.append({
                 "id": getattr(msg, "id", f"msg-{i}"),
                 "role": "ai",
@@ -383,9 +383,9 @@ def fold_messages(messages: list[BaseMessage]) -> list[dict]:
                 "steps": steps,
                 "timestamp": getattr(msg, "created_at", None)
             })
-            
+
             i = j  # Skip processed ToolMessages
-            
+
         elif isinstance(msg, ToolMessage):
             # Orphan ToolMessage (shouldn't happen after repair, but handle gracefully)
             result.append({
@@ -397,7 +397,7 @@ def fold_messages(messages: list[BaseMessage]) -> list[dict]:
                 "orphan": True
             })
             i += 1
-            
+
         elif isinstance(msg, HumanMessage):
             result.append({
                 "id": getattr(msg, "id", f"msg-{i}"),
@@ -406,7 +406,7 @@ def fold_messages(messages: list[BaseMessage]) -> list[dict]:
                 "timestamp": getattr(msg, "created_at", None)
             })
             i += 1
-            
+
         elif isinstance(msg, SystemMessage):
             # System messages usually not shown in chat, but include if needed
             result.append({
@@ -415,11 +415,11 @@ def fold_messages(messages: list[BaseMessage]) -> list[dict]:
                 "content": get_message_text(msg)
             })
             i += 1
-            
+
         else:
             # Unknown message type, skip
             i += 1
-    
+
     return result
 
 
@@ -456,34 +456,34 @@ def _hierarchical_slice(
     config = DEFAULT_WINDOW_CONFIG.get(node_source, DEFAULT_WINDOW_CONFIG["default"])
     full_keep = min(config["full_keep"], effective_window)
     summary_keep = config["summary_keep"]
-    
+
     result = []
-    
+
     # === Layer 1: Recent messages - FULL RETENTION ===
     # Always keep the most recent N messages completely intact
     recent_count = min(full_keep, len(messages))
     recent = messages[-recent_count:]
     result.extend(recent)
-    
+
     remaining_budget = effective_window - recent_count
     if remaining_budget <= 0 or len(messages) <= recent_count:
         return result
-    
+
     # === Layer 2: Middle section - SUMMARY RETENTION ===
     # Keep HumanMessages and AIMessages with tool_calls, collapse ToolMessages
     middle_start = max(0, len(messages) - recent_count - summary_keep)
     middle_end = len(messages) - recent_count
-    
+
     middle_messages = []
     for i in range(middle_start, middle_end):
         msg = messages[i]
-        
+
         if isinstance(msg, ToolMessage):
             # DISABLED: ToolMessage compression removed to avoid triple compression.
             # Agent-controlled forgetting (forget_tool_outputs) now handles this.
             # Keep original ToolMessage in middle section if within budget.
             middle_messages.append(msg)
-            
+
         elif isinstance(msg, AIMessage):
             if msg.tool_calls:
                 # Keep AI decision to call tools (important for context)
@@ -502,17 +502,17 @@ def _hierarchical_slice(
                     middle_messages.append(summarized)
                 else:
                     middle_messages.append(msg)
-        
+
         elif isinstance(msg, HumanMessage):
             # Keep user inputs (they're the conversation drivers)
             middle_messages.append(msg)
-        
+
         else:
             # System messages in middle section - keep brief ones only
             content = get_message_text(msg)
             if len(content) < 200:
                 middle_messages.append(msg)
-    
+
     # Add middle messages if within budget
     if len(middle_messages) <= remaining_budget:
         result = middle_messages + result
@@ -521,7 +521,7 @@ def _hierarchical_slice(
         # Budget exhausted, only add last portion of middle section
         result = middle_messages[-remaining_budget:] + result
         remaining_budget = 0
-    
+
     # === Layer 3: Early messages - TOPIC MARKER ONLY ===
     # If we have remaining budget and early messages exist, preserve topic marker
     if remaining_budget > 0 and middle_start > 0:
@@ -539,7 +539,7 @@ def _hierarchical_slice(
                 }
             )
             result.insert(0, topic_marker)
-    
+
     # === Character Budget Enforcement ===
     # If still over char limit, aggressively prune collapsed messages
     total_chars = sum(len(get_message_text(m)) for m in result)
@@ -550,7 +550,7 @@ def _hierarchical_slice(
         )
         # Remove collapsed tool messages first (they're re-executable)
         pruned = [
-            m for m in result 
+            m for m in result
             if not (isinstance(m, ToolMessage) and m.additional_kwargs.get("is_collapsed"))
         ]
         # If still over limit, keep only recent messages
@@ -575,7 +575,7 @@ def _hierarchical_slice(
                 result = preserved
         else:
             result = pruned
-    
+
     return result
 
 
@@ -620,7 +620,7 @@ async def smart_window_slice(
     # 2. Trigger PreCompact hook BEFORE context is lost
     if len(messages) > effective_window:
         try:
-            from app.core.engine.hooks import hook_system, HookEvent, HookContext
+            from app.core.engine.hooks import HookContext, HookEvent, hook_system
 
             hook_ctx = HookContext(
                 thread_id=thread_id or "unknown",
@@ -633,7 +633,7 @@ async def smart_window_slice(
             logger.debug(f"[HierarchicalSlice] PreCompact hook completed for {thread_id}")
         except Exception as e:
             logger.error(f"[HierarchicalSlice] PreCompact hook failed: {type(e).__name__}: {e}", exc_info=True)
-    
+
     # 3. Use hierarchical slicing (no LLM cost)
     return _hierarchical_slice(
         messages=messages,

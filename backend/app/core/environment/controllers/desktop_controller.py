@@ -22,21 +22,21 @@ from app.core.atlas import atlas_engine, get_bundle_id
 from app.core.config import settings
 from app.core.context.manager import ContextManager
 from app.core.environment.controllers.utils import (
+    BatchExecutor,
     RecordingContext,
     resolve_element_alias,
     truncate_output,
-    BatchExecutor,
 )
 from app.core.learning.trace_recorder import get_recorder
 from app.core.shortcuts import get_shortcut
-from app.core.vision import vision_engine, VisionTask, get_vision_router
+from app.core.vision import VisionTask, get_vision_router, vision_engine
 from app.infrastructure.drivers.macos import macos_driver
 from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.utils import (
-    cleanup_file,
     ControllerResponse,
-    normalize_text,
     PerceptionsFormatter,
+    cleanup_file,
+    normalize_text,
     render_template,
 )
 
@@ -60,7 +60,6 @@ class ElementResolutionResult(DynamicBaseModel):
 async def _trigger_atlas_harvest_macos(bundle_id: str):
     """Trigger Atlas harvest for macOS static apps."""
     try:
-        from app.core.environment.events import UiTreeObservedEvent, event_bus
         app_info = macos_driver.get_current_app()
         if app_info.get("bundle_id") != bundle_id:
             logger.debug(f"[AtlasHarvest] App mismatch, skipping harvest for {bundle_id}")
@@ -286,7 +285,7 @@ class DesktopController:
         while pending:
             # Wait for any task to complete
             done, pending = await asyncio.wait(
-                pending, 
+                pending,
                 return_when=asyncio.FIRST_COMPLETED
             )
 
@@ -371,7 +370,7 @@ class DesktopController:
 
             # Optimization: Cache app_info within single execute call to avoid repeated system calls
             _cached_app_info = None
-            
+
             async def _get_cached_app_info():
                 nonlocal _cached_app_info
                 if _cached_app_info is None:
@@ -391,7 +390,7 @@ class DesktopController:
             if action == "screenshot":
                 app_info = await _get_cached_app_info()
                 bundle_id = app_info.get("bundle_id")
-                
+
                 # 如果没有提供 region，根据配置决定是否自动使用当前窗口的 bounds
                 region_offset_x, region_offset_y = 0, 0
                 if region is None:
@@ -406,7 +405,7 @@ class DesktopController:
                     else:
                         # 禁用局部截图：使用全屏（region=None）
                         logger.info("[Desktop] Partial screenshot disabled, capturing full screen")
-                
+
                 # 解析 region 获取偏移量（用于 OCR 坐标转换）
                 if region:
                     try:
@@ -414,7 +413,7 @@ class DesktopController:
                         region_offset_x, region_offset_y = rx, ry
                     except ValueError:
                         pass
-                
+
                 filepath = await asyncio.to_thread(macos_driver.screenshot, region=region, purpose="temp", bundle_id=bundle_id)
                 result_msg = ControllerResponse.screenshot_result(success=True, filename=filepath)
                 if ocr:
@@ -433,10 +432,10 @@ class DesktopController:
                                     el_dict['relative_x'] = el.x
                                     el_dict['relative_y'] = el.y
                                 elements_for_prompt.append(el_dict)
-                            
+
                             if region_offset_x or region_offset_y:
                                 result_msg += f"\n\n> [!NOTE]\n> Screenshot region: {region}\n> OCR coordinates are converted to screen coordinates."
-                            
+
                             result_msg += "\n\n" + render_template(
                                 "vision/ocr_results.prompt.j2",
                                 platform="macos",
@@ -462,7 +461,7 @@ class DesktopController:
                             return f"Pressed shortcut '{shortcut}' (converted from click on '{element_name}') - Faster!"
                     except Exception as e:
                         logger.debug(f"[Desktop] Shortcut conversion failed: {e}, falling back to click")
-                
+
                 target_x, target_y = x, y
                 element_path = None
 
@@ -534,11 +533,11 @@ class DesktopController:
             elif action == "key_press":
                 if not key:
                     return ControllerResponse.missing_param("key")
-                
+
                 # [Phase 14] Normalize OS-prefixed keys (e.g. 'keyg' -> 'g')
                 if key.lower().startswith("key") and len(key) == 4:
                     key = key[3:].lower()
-                
+
                 await asyncio.to_thread(macos_driver.key_press, key)
                 await _record("key_press", {"key": key})
                 return ControllerResponse.success(f"Pressed key: {key}")
@@ -596,7 +595,11 @@ class DesktopController:
                 if not direction:
                     return ControllerResponse.missing_param("direction")
                 try:
-                    from Quartz import CGEventCreateScrollWheelEvent, CGEventPost, kCGHIDEventTap
+                    from Quartz import (
+                        CGEventCreateScrollWheelEvent,
+                        CGEventPost,
+                        kCGHIDEventTap,
+                    )
                     if direction == "up":
                         delta_y, delta_x = amount, 0
                     elif direction == "down":
@@ -643,9 +646,15 @@ class DesktopController:
                 if source_x is None or source_y is None or target_x is None or target_y is None:
                     return ControllerResponse.error("Drag-drop requires source and target coordinates, or element names.")
                 try:
-                    from Quartz import (CGEventCreateMouseEvent, CGEventPost, CGPointMake,
-                                        kCGEventLeftMouseDown, kCGEventLeftMouseUp,
-                                        kCGEventLeftMouseDragged, kCGHIDEventTap)
+                    from Quartz import (
+                        CGEventCreateMouseEvent,
+                        CGEventPost,
+                        CGPointMake,
+                        kCGEventLeftMouseDown,
+                        kCGEventLeftMouseDragged,
+                        kCGEventLeftMouseUp,
+                        kCGHIDEventTap,
+                    )
                     source_point = CGPointMake(source_x, source_y)
                     target_point = CGPointMake(target_x, target_y)
                     CGEventPost(kCGHIDEventTap, CGEventCreateMouseEvent(None, kCGEventLeftMouseDown, source_point, 0))
@@ -678,7 +687,7 @@ class DesktopController:
                         filtered_elements = [el for el in filtered_elements if role_filter.lower() in str(el.get("role", "")).lower()]
                     if name_filter:
                         filtered_elements = [el for el in filtered_elements if name_filter.lower() in str(el.get("name", "")).lower()]
-                    
+
                     try:
                         return "\n\n" + render_template(
                             "vision/ocr_results.prompt.j2",

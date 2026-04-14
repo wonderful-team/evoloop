@@ -16,12 +16,12 @@ from typing import Any
 
 from app.core.context import ContextManager
 from app.core.environment.controllers.utils import (
+    BatchExecutor,
     RecordingContext,
     truncate_output,
-    BatchExecutor,
 )
 from app.core.learning.trace_recorder import get_recorder
-from app.core.vision import vision_engine, VisionTask
+from app.core.vision import VisionTask, vision_engine
 from app.infrastructure.drivers.browser import browser_manager
 from app.utils import (
     ControllerResponse,
@@ -178,7 +178,7 @@ class BrowserController:
                     return ControllerResponse.missing_param("url")
                 await page.goto(url, wait_until="load", timeout=60_000)
                 await _record("navigate", {"url": url})
-                
+
                 post_url = page.url
                 post_title = await page.title()
                 note = "The page URL and title remained unchanged after this action." if (post_url == pre_url and post_title == pre_title) else None
@@ -220,7 +220,7 @@ class BrowserController:
                     except Exception as ve:
                         logger.debug(f"[Browser] Visibility wait failed: {ve}")
                         target = page.locator(loc).first
-                        
+
                     logger.debug(f"[Browser] Clicking locator: {loc} (target={target})")
                     if action == "click":
                         await target.click(timeout=timeout_ms)
@@ -228,7 +228,7 @@ class BrowserController:
                         await target.dblclick(timeout=timeout_ms)
                     verb = "Clicked" if action == "click" else "Double-clicked"
                     await _record(action, {"selector": loc, "x": x, "y": y})
-                    
+
                     post_url = page.url
                     post_title = await page.title()
                     note = "The page URL and title remained unchanged after this click." if (post_url == pre_url and post_title == pre_title) else None
@@ -242,7 +242,7 @@ class BrowserController:
                         await page.mouse.dblclick(x, y)
                     verb = "Clicked" if action == "click" else "Double-clicked"
                     await _record(action, {"x": x, "y": y})
-                    
+
                     post_url = page.url
                     post_title = await page.title()
                     note = "The page URL and title remained unchanged after this click." if (post_url == pre_url and post_title == pre_title) else None
@@ -263,7 +263,7 @@ class BrowserController:
                     return ControllerResponse.missing_param("selector or text")
                 if value is None:
                     return ControllerResponse.missing_param("value")
-                
+
                 # Prefer visible elements
                 target = page.locator(loc).first
                 try:
@@ -294,7 +294,7 @@ class BrowserController:
                 # Log the value being typed (truncated for privacy/length)
                 val_display = str(value)[:50] + ("..." if len(str(value)) > 50 else "")
                 logger.info(f"[Browser] Typing value '{val_display}' into locator: {loc}")
-                
+
                 await target.fill(value, timeout=timeout_ms)
                 await _record("type_text", {"selector": loc, "value": value})
                 preview = value[:60] + ("…" if len(value) > 60 else "")
@@ -423,11 +423,11 @@ class BrowserController:
                     elements = page.locator(loc)
                     count = await elements.count()
                     logger.info(f"[Browser] Found {count} elements for selector: {loc}")
-                    
+
                     # Optimization: Use batch JS evaluation instead of individual calls
                     # This reduces communication overhead from 2*N round-trips to 1
                     max_elements = min(count, 20)  # Limit to 20 for safety
-                    
+
                     js_batch_get_elements = """
                     (params) => {
                         const selector = params.selector;
@@ -450,7 +450,7 @@ class BrowserController:
                         return results;
                     }
                     """
-                    
+
                     # Fallback to CSS selector if the locator is simple enough
                     # For complex Playwright selectors, we use the original method
                     if loc.startswith('[data-testid=') or loc.startswith('.') or loc.startswith('#') or ',' in loc:
@@ -463,7 +463,7 @@ class BrowserController:
                             return json.dumps(batch_results)
                         except Exception as js_e:
                             logger.debug(f"[Browser] Batch JS failed, falling back: {js_e}")
-                    
+
                     # Fallback: Original serial approach for complex selectors
                     results = []
                     for i in range(max_elements):
@@ -592,7 +592,7 @@ class BrowserController:
                     body_preview = str(body)[:500]
                 except Exception:
                     body_preview = (await resp.text())[:500]
-                
+
                 data = {
                     "URL": resp.url,
                     "Status": status,
@@ -649,9 +649,9 @@ class BrowserController:
                 max_scrolls = int(payload.get("max_scrolls", 5)) or 5
                 delay_ms = int(payload.get("delay_ms", 2000)) or 2000
                 item_selector = selector or "[class*='item'], [class*='card'], .feed-card"
-                
+
                 logger.info(f"[Browser] Starting scroll_to_bottom (max={max_scrolls}, delay={delay_ms}ms)")
-                
+
                 last_count = 0
                 for i in range(max_scrolls):
                     # Get current count
@@ -659,16 +659,16 @@ class BrowserController:
                         count = await page.locator(item_selector).count()
                     except:
                         count = 0
-                        
+
                     if count > last_count and last_count > 0:
                         logger.info(f"[Browser] Scroll {i}: Items increased {last_count} -> {count}")
-                    
+
                     last_count = count
-                    
+
                     # Scroll
                     await page.evaluate("window.scrollBy(0, window.innerHeight * 0.8)")
                     await asyncio.sleep(delay_ms / 1000)
-                    
+
                     # Check if reached absolute bottom
                     is_bottom = await page.evaluate("(window.innerHeight + window.scrollY) >= document.body.scrollHeight - 100")
                     if is_bottom:
@@ -676,7 +676,7 @@ class BrowserController:
                         await page.evaluate("window.scrollBy(0, 500)")
                         await asyncio.sleep(1)
                         break
-                
+
                 final_count = await page.locator(item_selector).count()
                 return ControllerResponse.success(f"Scrolled to bottom. Final items: {final_count}")
 

@@ -9,6 +9,7 @@ import os
 import subprocess
 import threading
 import time
+from typing import Callable
 
 from app.infrastructure.pydantic_base import DynamicBaseModel
 

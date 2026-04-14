@@ -135,7 +135,7 @@ class Neo4jLongTermMemory(ILongTermMemory):
             await session.run("MATCH (e:Episode) DETACH DELETE e")
             await session.run("MATCH (p:Preference) DETACH DELETE p")
             await session.run("MATCH (u:User) DETACH DELETE u")
-        
+
         # Clear cache
         _CONCEPTS_CACHE.clear()
         logger.info("Neo4jLongTermMemory: Flushed all data")
@@ -260,7 +260,7 @@ class Neo4jLongTermMemory(ILongTermMemory):
 
         # Embed the Goal
         if not episode.goal:
-            logger.warning(f"Episode goal is empty or None, skipping episode recording")
+            logger.warning("Episode goal is empty or None, skipping episode recording")
             return None
 
         embedder = EmbedderFactory.get_embedder()
@@ -343,7 +343,7 @@ class Neo4jLongTermMemory(ILongTermMemory):
 
         # Prepare data for template rendering
         from app.utils import render_template
-        
+
         episodes = []
         for r in records:
             if r["score"] < 0.75:
@@ -355,10 +355,10 @@ class Neo4jLongTermMemory(ILongTermMemory):
                 "plan": r["plan"],
                 "score": r["score"],
             })
-        
+
         if not episodes:
             return ""
-        
+
         return render_template("memory/episodes_summary.prompt.j2", episodes=episodes)
 
     async def link_episode_to_concepts(

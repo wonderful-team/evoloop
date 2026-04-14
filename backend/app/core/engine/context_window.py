@@ -18,18 +18,19 @@ Usage:
 """
 
 import logging
-from typing import List, Optional
+import time
+from typing import Dict
 
 from langchain_core.messages import (
-    BaseMessage,
-    SystemMessage,
-    HumanMessage,
     AIMessage,
+    BaseMessage,
+    HumanMessage,
+    SystemMessage,
     ToolMessage,
 )
 from pydantic import Field
 
-from app.core.engine.hooks import hook_system, HookEvent, HookContext
+from app.core.engine.hooks import HookContext, HookEvent, hook_system
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
@@ -37,10 +38,10 @@ logger = logging.getLogger(__name__)
 
 class CriticalContext(DynamicBaseModel):
     """Critical context extracted from messages before compaction."""
-    decisions: List[str] = Field(default_factory=list)
-    errors: List[str] = Field(default_factory=list)
-    files_modified: List[str] = Field(default_factory=list)
-    current_task: Optional[str] = None
+    decisions: list[str] = Field(default_factory=list)
+    errors: list[str] = Field(default_factory=list)
+    files_modified: list[str] = Field(default_factory=list)
+    current_task: str | None = None
 
 
 class ContextWindowStats(DynamicBaseModel):
@@ -52,25 +53,25 @@ class ContextWindowStats(DynamicBaseModel):
 
 class CompactionResult(DynamicBaseModel):
     """Result of context compaction."""
-    messages: List[BaseMessage]
+    messages: list[BaseMessage]
     summary: str
     tokens_saved: int
     original_count: int
     compacted_count: int
-    checkpoint_id: Optional[str] = None
+    checkpoint_id: str | None = None
 
 
 class TokenEstimator:
     """Estimate token count for messages."""
-    
+
     # Rough approximation: 4 chars ≈ 1 token for English
     CHARS_PER_TOKEN = 4
-    
+
     # Overhead per message
     MESSAGE_OVERHEAD = 4
-    
+
     @classmethod
-    def estimate(cls, messages: List[BaseMessage]) -> int:
+    def estimate(cls, messages: list[BaseMessage]) -> int:
         """Estimate token count for messages."""
         total = 0
         for msg in messages:
@@ -80,7 +81,7 @@ class TokenEstimator:
             # Message overhead
             total += cls.MESSAGE_OVERHEAD
         return total
-    
+
     @classmethod
     def estimate_single(cls, message: BaseMessage) -> int:
         """Estimate tokens for a single message."""
@@ -90,10 +91,10 @@ class TokenEstimator:
 
 class ContextSummarizer:
     """Summarize conversation history for compaction."""
-    
+
     async def summarize(
         self,
-        messages: List[BaseMessage],
+        messages: list[BaseMessage],
         preserve_recent: int = 10,
     ) -> str:
         """
@@ -108,15 +109,15 @@ class ContextSummarizer:
         """
         if len(messages) <= preserve_recent:
             return ""
-        
+
         # Messages to summarize (older ones)
         to_summarize = messages[:-preserve_recent]
-        
+
         # Extract key information
         human_inputs = []
         ai_outputs = []
         tool_calls = []
-        
+
         for msg in to_summarize:
             if isinstance(msg, HumanMessage):
                 human_inputs.append(str(msg.content)[:100])
@@ -126,16 +127,16 @@ class ContextSummarizer:
                     ai_outputs.append(content[:100])
             elif isinstance(msg, ToolMessage):
                 tool_calls.append(f"Tool: {msg.name}")
-        
+
         # Build summary
         summary_parts = ["## Previous Conversation Summary\n"]
-        
+
         if human_inputs:
             summary_parts.append("### User Requests")
             for i, inp in enumerate(human_inputs[-5:], 1):
                 summary_parts.append(f"{i}. {inp}...")
             summary_parts.append("")
-        
+
         if ai_outputs:
             summary_parts.append("### Key Actions Taken")
             for i, out in enumerate(ai_outputs[-5:], 1):
@@ -143,31 +144,31 @@ class ContextSummarizer:
                 summary = out.split('.')[0][:80]
                 summary_parts.append(f"{i}. {summary}...")
             summary_parts.append("")
-        
+
         if tool_calls:
             summary_parts.append("### Tools Used")
             unique_tools = list(set(tool_calls))[-5:]
             summary_parts.append(", ".join(unique_tools))
             summary_parts.append("")
-        
+
         summary = "\n".join(summary_parts)
         return summary
-    
-    def extract_critical_context(self, messages: List[BaseMessage]) -> CriticalContext:
+
+    def extract_critical_context(self, messages: list[BaseMessage]) -> CriticalContext:
         """Extract critical context that must be preserved."""
         critical = CriticalContext()
-        
+
         for msg in messages:
             content = str(msg.content).lower() if hasattr(msg, 'content') else ""
-            
+
             # Extract decisions
             if any(kw in content for kw in ['decided', 'decision', 'choose', 'selected']):
                 critical.decisions.append(str(msg.content)[:150])
-            
+
             # Extract errors
             if any(kw in content for kw in ['error', 'failed', 'exception']):
                 critical.errors.append(str(msg.content)[:150])
-            
+
             # Extract file modifications
             if hasattr(msg, 'tool_calls') and msg.tool_calls:
                 for tc in msg.tool_calls:
@@ -175,13 +176,13 @@ class ContextSummarizer:
                         args = tc.get('args', {})
                         if 'file_path' in args:
                             critical.files_modified.append(args['file_path'])
-        
+
         # Get current task from most recent human message
         for msg in reversed(messages):
             if isinstance(msg, HumanMessage):
                 critical.current_task = str(msg.content)[:200]
                 break
-        
+
         return critical
 
 
@@ -196,35 +197,35 @@ class ContextWindowManager:
     4. Compact old messages to summary
     5. Preserve recent messages
     """
-    
+
     # Default thresholds
     DEFAULT_MAX_TOKENS = 150000  # Leave room for response
     COMPACT_THRESHOLD = 0.8      # Compact at 80% capacity
     PRESERVE_RECENT = 10         # Keep last 10 messages
-    
+
     def __init__(
         self,
-        max_tokens: Optional[int] = None,
-        compact_threshold: Optional[float] = None,
+        max_tokens: int | None = None,
+        compact_threshold: float | None = None,
     ):
         self.max_tokens = max_tokens or self.DEFAULT_MAX_TOKENS
         self.compact_threshold = compact_threshold or self.COMPACT_THRESHOLD
         self.token_estimator = TokenEstimator()
         self.summarizer = ContextSummarizer()
-        
+
         logger.info(
             f"[ContextManager] Initialized: max={self.max_tokens}, "
             f"threshold={self.compact_threshold}"
         )
-    
+
     async def check_and_compact(
         self,
-        messages: List[BaseMessage],
+        messages: list[BaseMessage],
         thread_id: str,
-        project_id: Optional[int] = None,
-        user_id: Optional[str] = None,
-        blackboard: Optional[Dict] = None,
-    ) -> List[BaseMessage]:
+        project_id: int | None = None,
+        user_id: str | None = None,
+        blackboard: Dict | None = None,
+    ) -> list[BaseMessage]:
         """
         Check token count and compact if needed.
         
@@ -243,16 +244,16 @@ class ContextWindowManager:
         """
         token_count = self.token_estimator.estimate(messages)
         threshold_tokens = int(self.max_tokens * self.compact_threshold)
-        
+
         if token_count < threshold_tokens:
             # No compaction needed
             return messages
-        
+
         logger.warning(
             f"[ContextManager] Context window at {token_count}/{self.max_tokens} "
             f"({token_count/self.max_tokens*100:.1f}%) - triggering compaction"
         )
-        
+
         # Trigger compaction
         result = await self.compact(
             messages=messages,
@@ -261,16 +262,16 @@ class ContextWindowManager:
             user_id=user_id,
             blackboard=blackboard,
         )
-        
+
         return result.messages
-    
+
     async def compact(
         self,
-        messages: List[BaseMessage],
+        messages: list[BaseMessage],
         thread_id: str,
-        project_id: Optional[int] = None,
-        user_id: Optional[str] = None,
-        blackboard: Optional[Dict] = None,
+        project_id: int | None = None,
+        user_id: str | None = None,
+        blackboard: Dict | None = None,
     ) -> CompactionResult:
         """
         Compact context by summarizing old messages.
@@ -302,7 +303,7 @@ class ContextWindowManager:
             },
         )
 
-        logger.debug(f"[ContextManager] Triggering PRE_COMPACT hook...")
+        logger.debug("[ContextManager] Triggering PRE_COMPACT hook...")
         hook_result = await hook_system.trigger(
             HookEvent.PRE_COMPACT,
             context,
@@ -394,7 +395,7 @@ class ContextWindowManager:
         logger.debug(f"[ContextManager] POST_COMPACT hook triggered in {postcompact_elapsed:.1f}ms")
 
         return result
-    
+
     def get_stats(self) -> ContextWindowStats:
         """Get context manager statistics."""
         return ContextWindowStats(
@@ -410,14 +411,14 @@ context_manager = ContextWindowManager()
 
 # Convenience functions
 async def check_and_compact_context(
-    messages: List[BaseMessage],
+    messages: list[BaseMessage],
     thread_id: str,
     **kwargs,
-) -> List[BaseMessage]:
+) -> list[BaseMessage]:
     """Convenience function for context compaction."""
     return await context_manager.check_and_compact(messages, thread_id, **kwargs)
 
 
-def estimate_tokens(messages: List[BaseMessage]) -> int:
+def estimate_tokens(messages: list[BaseMessage]) -> int:
     """Convenience function for token estimation."""
     return TokenEstimator.estimate(messages)

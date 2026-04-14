@@ -1,6 +1,6 @@
 """Configuration models for Worker-specific MCP."""
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from pydantic import Field
 
@@ -13,17 +13,17 @@ class WorkerMcpServerConfig(DynamicBaseModel):
     name: str
     # Connection
     transport: TransportType = TransportType.STDIO
-    command: Optional[str] = None
-    args: List[str] = Field(default_factory=list)
-    env: Dict[str, str] = Field(default_factory=dict)
-    url: Optional[str] = None
-    headers: Dict[str, str] = Field(default_factory=dict)
+    command: str | None = None
+    args: list[str] = Field(default_factory=list)
+    env: dict[str, str] = Field(default_factory=dict)
+    url: str | None = None
+    headers: dict[str, str] = Field(default_factory=dict)
     # Auth
     auth_type: AuthType = AuthType.NONE
     auth_config: dict[str, Any] = Field(default_factory=dict)
     # Inheritance
     inherit_from_global: bool = False  # If True, reuse global connection
-    
+
     def to_mcp_config(self) -> McpServerConfig:
         """Convert to standard McpServerConfig."""
         return McpServerConfig(
@@ -38,9 +38,9 @@ class WorkerMcpServerConfig(DynamicBaseModel):
             auth_config=self.auth_config,
             enabled=True,
         )
-    
+
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "WorkerMcpServerConfig":
+    def from_dict(cls, data: dict[str, Any]) -> "WorkerMcpServerConfig":
         """Create from dict (e.g., from YAML config)."""
         transport = TransportType(data.get("transport", "stdio"))
         auth_data = data.get("auth", {})
@@ -63,35 +63,35 @@ class WorkerMcpServerConfig(DynamicBaseModel):
 class WorkerMcpConfig(DynamicBaseModel):
     """MCP configuration for a Worker."""
     # Worker-specific MCP servers
-    servers: List[WorkerMcpServerConfig] = Field(default_factory=list)
+    servers: list[WorkerMcpServerConfig] = Field(default_factory=list)
     # Global MCP servers to inherit
-    inherit_servers: List[str] = Field(default_factory=list)
+    inherit_servers: list[str] = Field(default_factory=list)
     # Auto-connect on worker start
     auto_connect: bool = True
-    
+
     @classmethod
-    def from_dict(cls, data: Optional[Dict[str, Any]]) -> "WorkerMcpConfig":
+    def from_dict(cls, data: dict[str, Any] | None) -> "WorkerMcpConfig":
         """Create from dict (e.g., from Skill YAML)."""
         if not data:
             return cls()
-        
+
         servers = [
-            WorkerMcpServerConfig.from_dict(s) 
+            WorkerMcpServerConfig.from_dict(s)
             for s in data.get("servers", [])
         ]
-        
+
         return cls(
             servers=servers,
             inherit_servers=data.get("inherit", []),
             auto_connect=data.get("auto_connect", True),
         )
-    
+
     @classmethod
-    def from_skill_config(cls, skill_config: Dict[str, Any]) -> "WorkerMcpConfig":
+    def from_skill_config(cls, skill_config: dict[str, Any]) -> "WorkerMcpConfig":
         """Extract MCP config from Skill configuration."""
         mcp_data = skill_config.get("mcp", {})
         return cls.from_dict(mcp_data)
-    
+
     def is_empty(self) -> bool:
         """Check if no MCP configuration."""
         return not self.servers and not self.inherit_servers

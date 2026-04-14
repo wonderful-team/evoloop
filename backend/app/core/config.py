@@ -60,7 +60,7 @@ class Settings(BaseSettings):
 
     # Embedded Mode (No external dependencies)
     EMBEDDED_MODE: bool = False  # True: Use SQLite + LanceDB + LocalCelery, False: Use Postgres + Neo4j + Redis
-    
+
     # Memory System Settings
     AUTO_MEMORY_EXTRACTION: bool = True  # Enable automatic memory extraction at conversation end
     AUTO_MEMORY_EXTRACTION_INTERVAL: int = 1  # Extract every N turns (1 = every turn, 2 = every other turn, etc.)
@@ -156,7 +156,7 @@ class Settings(BaseSettings):
     # Cache backend (Redis in production, FileCache in embedded mode)
     REDIS_URL: str | None = "redis://localhost:6379/0"
     USE_REDIS: bool = True  # Set to False to disable Redis
-    
+
     # Task Queue Backend (celery | huey | local | auto)
     # - celery: Full Celery with Redis (requires Redis, not available in embedded mode)
     # - huey: Huey with SQLite (recommended for embedded mode, no external deps)
@@ -168,16 +168,16 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str = "sk-dummy-key-for-local-dev"
     OPENAI_BASE_URL: str = "http://localhost:1234/v1"
     OPENAI_MODEL_NAME: str = "gpt-4o"
-    
+
     # Voice/TTS Configuration
     TTS_PROVIDER: str = "auto"  # auto | system-tts | edge-tts
     TTS_DEFAULT_VOICE: str = "zh-CN-Tingting"  # macOS 系统语音: 婷婷
     TTS_DEFAULT_SPEED: float = 1.0  # 0.5 - 2.0
-    
+
     # Voice/STT Configuration (FunASR - local, Chinese optimized)
     FUNASR_MODEL: str = "paraformer-zh"  # paraformer-zh | paraformer-zh-plus | paraformer-zh-streaming
     FUNASR_DEVICE: str = "cpu"  # cpu | cuda
-    
+
     # AI Models Storage Configuration
     MODELS_DIR: Annotated[str, BeforeValidator(expand_path)] = Field(
         default_factory=lambda: os.path.expanduser("~/.evoloop/models"),
@@ -197,7 +197,7 @@ class Settings(BaseSettings):
 
     ENABLE_VISION_OCR: bool = True
     ENABLE_MACRO_SELF_HEALING: bool = True
-    
+
     # Screenshot Configuration
     ENABLE_PARTIAL_SCREENSHOT: bool = True  # True: Auto-capture current window region, False: Full screen only
 
@@ -209,7 +209,7 @@ class Settings(BaseSettings):
     ANTHROPIC_API_KEY: str | None = None
     GOOGLE_API_KEY: str | None = None
     BRAVE_API_KEY: str | None = None
-    
+
     # Path Security
     ALLOWED_PATH_PREFIXES: list[str] = [
         "/tmp/dataset",
@@ -423,14 +423,14 @@ class Settings(BaseSettings):
         default=False,
         validation_alias="DYNAMIC_PROTOCOL_LOADING"
     )  # Set to True to enable dynamic protocol injection based on user intent
-    
+
     # Protocol matcher confidence threshold (0.0 - 1.0)
     # Higher = more conservative, only inject protocols when strongly matched
     PROTOCOL_MATCHER_THRESHOLD: float = Field(
         default=0.7,
         validation_alias="PROTOCOL_MATCHER_THRESHOLD"
     )
-    
+
     # Protocol loader cache TTL in seconds
     PROTOCOL_LOADER_CACHE_TTL: int = Field(
         default=300,  # 5 minutes

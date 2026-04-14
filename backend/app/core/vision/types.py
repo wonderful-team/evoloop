@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Any, List, Optional, Tuple
+from typing import Any
 
 from pydantic import Field
 
@@ -62,7 +62,7 @@ class UIElement(DynamicBaseModel):
     metadata: UIMetadata = Field(default_factory=UIMetadata)
 
     @property
-    def bounds(self) -> Tuple[int, int, int, int]:
+    def bounds(self) -> tuple[int, int, int, int]:
         """Return (x1, y1, x2, y2) bounds."""
         half_w = self.width // 2
         half_h = self.height // 2
@@ -84,9 +84,9 @@ class VisionResult(DynamicBaseModel):
     """Standardized result from VisionEngine."""
     task: VisionTask
     success: bool
-    elements: List[UIElement] = Field(default_factory=list)
-    summary: Optional[str] = None
+    elements: list[UIElement] = Field(default_factory=list)
+    summary: str | None = None
     raw_output: Any = None
-    screenshot_path: Optional[str] = None
+    screenshot_path: str | None = None
     latency_ms: float = 0
     metadata: VisionMetadata = Field(default_factory=VisionMetadata)

@@ -5,8 +5,8 @@ from typing import Any
 
 from app.core.evocloud.schemas import (
     ConversationQueryItem,
-    MessageQueryItem,
     McpServerInfo,
+    MessageQueryItem,
     ModelInfo,
 )
 
@@ -26,7 +26,7 @@ async def handle_query_request(query_type: str, thread_id: str, params: dict[str
         查询结果
     """
     logger.debug(f"[QueryHandler] {query_type} (thread={thread_id}, params={params})")
-    
+
     try:
         if query_type == "conversations":
             return await _query_conversations(params)
@@ -51,9 +51,9 @@ async def _query_conversations(params: dict[str, Any]) -> list[ConversationQuery
         # 延迟导入避免循环依赖
         from app.api.deps import get_db_session
         from app.services.conversation_service import ConversationService
-        
+
         project_id = params.get("project_id")
-        
+
         async with get_db_session() as db:
             service = ConversationService(db)
             conversations = await service.list_conversations(project_id=project_id)
@@ -76,13 +76,13 @@ async def _query_history(thread_id: str, params: dict[str, Any]) -> list[Message
     """查询对话历史"""
     if not thread_id:
         return {"error": "thread_id required"}
-    
+
     try:
         from app.api.deps import get_db_session
         from app.services.conversation_service import ConversationService
-        
+
         limit = int(params.get("limit", 50))
-        
+
         async with get_db_session() as db:
             service = ConversationService(db)
             messages = await service.get_messages(thread_id, limit=limit)
@@ -110,7 +110,7 @@ async def _query_mcp_servers(params: dict[str, Any]) -> list[McpServerInfo]:
     """查询 MCP 服务器列表"""
     try:
         from app.core.mcp.client import mcp_client
-        
+
         servers = []
         for name, server in mcp_client._servers.items():
             servers.append(McpServerInfo(

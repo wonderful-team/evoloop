@@ -1,6 +1,6 @@
 import json
 from enum import Enum
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Union
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -107,9 +107,9 @@ class NavigationPayload(DynamicBaseModel):
     """Payload for navigation actions (goto, open_app)."""
     model_config = ConfigDict(extra="allow", populate_by_name=True)
 
-    url: Optional[str] = None
-    package_name: Optional[str] = Field(None, alias="package")
-    app_name: Optional[str] = None
+    url: str | None = None
+    package_name: str | None = Field(None, alias="package")
+    app_name: str | None = None
     wait_until: str = "load" # load | domcontentloaded | networkidle
     timeout_ms: int = 30000
 
@@ -118,21 +118,21 @@ class InteractionPayload(DynamicBaseModel):
     """Payload for UI interactions (click, input, scroll)."""
 
     # Coordinates (used if target_selector is missing or for vision correction)
-    x: Optional[int] = None
-    y: Optional[int] = None
-    original_x: Optional[int] = None
-    original_y: Optional[int] = None
+    x: int | None = None
+    y: int | None = None
+    original_x: int | None = None
+    original_y: int | None = None
     vision_corrected: bool = False
 
     # Text input
-    text: Optional[str] = None
+    text: str | None = None
     append: bool = False
     enter: bool = True # Press enter after input
 
     # Mouse/Keyboard
     button: str = "left" # left | middle | right
     clicks: int = 1
-    modifiers: List[str] = Field(default_factory=list) # shift | control | alt | meta
+    modifiers: list[str] = Field(default_factory=list) # shift | control | alt | meta
 
     # Scroll / Swipe
     direction: str = "down" # up | down | left | right
@@ -149,28 +149,28 @@ class ControlPayload(DynamicBaseModel):
 
     # Loop specific
     items_key: str = "items"
-    max_iterations: Union[int, str] = 100
+    max_iterations: int | str = 100
     max_retries: int = 3
     backoff_base: float = 2.0
 
     # Batch collection (Phase 6)
-    state_file: Optional[str] = None
-    list_config: Dict[str, Any] = Field(default_factory=dict)
-    detail_config: Dict[str, Any] = Field(default_factory=dict)
+    state_file: str | None = None
+    list_config: dict[str, Any] = Field(default_factory=dict)
+    detail_config: dict[str, Any] = Field(default_factory=dict)
 
 
 class ExtractionPayload(DynamicBaseModel):
     """Payload for data extraction steps."""
     model_config = ConfigDict(extra="allow", populate_by_name=True)
 
-    attribute: Optional[str] = None
-    script: Optional[str] = Field(None, alias="expression")
-    region: Optional[Dict[str, int]] = None # {"x": 0, "y": 0, "w": 100, "h": 100}
-    wait_for_selector: Optional[str] = None
+    attribute: str | None = None
+    script: str | None = Field(None, alias="expression")
+    region: dict[str, int] | None = None # {"x": 0, "y": 0, "w": 100, "h": 100}
+    wait_for_selector: str | None = None
     timeout_ms: int = 5000
 
     # Loop detail collection
-    data_capture: Dict[str, str] = Field(default_factory=dict)
+    data_capture: dict[str, str] = Field(default_factory=dict)
 
 
 # Unified Payload Type
@@ -179,34 +179,34 @@ MacroPayload = Union[
     InteractionPayload,
     ControlPayload,
     ExtractionPayload,
-    Dict[str, Any]
+    dict[str, Any]
 ]
 
 
 class MacroCondition(DynamicBaseModel):
     type: str = "element_exists"
-    target_selector: Optional[str] = None
+    target_selector: str | None = None
     # For future expansion (e.g., text_matches, url_is)
-    params: Dict[str, Any] = Field(default_factory=dict)
+    params: dict[str, Any] = Field(default_factory=dict)
 
 
 class MacroStep(DynamicBaseModel):
-    step_number: Optional[int] = None
+    step_number: int | None = None
     type: MacroStepType
-    description: Optional[str] = None
+    description: str | None = None
     source: MacroSource = MacroSource.DOM
-    
+
     # Optional fields for specific types
-    event_type: Optional[MacroActionType] = None
-    target_selector: Optional[str] = None
+    event_type: MacroActionType | None = None
+    target_selector: str | None = None
     payload: MacroPayload = Field(default_factory=dict)
-    
+
     # Control Flow (if/loop)
-    condition: Optional[MacroCondition] = None
-    then_steps: List["MacroStep"] = Field(default_factory=list)
-    else_steps: List["MacroStep"] = Field(default_factory=list)
-    steps: List["MacroStep"] = Field(default_factory=list)
-    max_iterations: Union[int, str] = 100
+    condition: MacroCondition | None = None
+    then_steps: list["MacroStep"] = Field(default_factory=list)
+    else_steps: list["MacroStep"] = Field(default_factory=list)
+    steps: list["MacroStep"] = Field(default_factory=list)
+    max_iterations: int | str = 100
 
     # Batch Collection Mode (for LOOP steps)
     # Enables two-phase collection: LIST (gather) -> DETAIL (execute)
@@ -254,10 +254,10 @@ class MacroStep(DynamicBaseModel):
                 values["collect_mode"] = payload.get("collect_mode")
 
         return values
-    
+
     # Extraction
-    extract_type: Optional[ExtractType] = None
-    key: Optional[str] = "data"
+    extract_type: ExtractType | None = None
+    key: str | None = "data"
 
     @model_validator(mode='after')
     def validate_extract_type(self):
@@ -275,15 +275,15 @@ class MacroStep(DynamicBaseModel):
 
 class MacroMetadata(BaseModel):
     version: str = "1.0"
-    created_at: Optional[float] = None
-    author: Optional[str] = "system"
-    thread_id: Optional[str] = None
+    created_at: float | None = None
+    author: str | None = "system"
+    thread_id: str | None = None
 
 
 class MacroScript(DynamicBaseModel):
     metadata: MacroMetadata = Field(default_factory=MacroMetadata)
-    steps: List[MacroStep] = Field(default_factory=list)
-    parameters_schema: List[Dict[str, Any]] = Field(default_factory=list)
+    steps: list[MacroStep] = Field(default_factory=list)
+    parameters_schema: list[dict[str, Any]] = Field(default_factory=list)
 
     @model_validator(mode='before')
     @classmethod
@@ -338,7 +338,7 @@ class MacroScript(DynamicBaseModel):
         """Parse macro from YAML string."""
         steps = macro_from_yaml(yaml_content)
         return cls(steps=steps)
-    
+
     def to_yaml(self) -> str:
         """Export macro to YAML string."""
         steps_data = []
@@ -350,7 +350,7 @@ class MacroScript(DynamicBaseModel):
             else:
                 steps_data.append(dict(step))
         return macro_to_yaml(steps_data)
-    
+
     @classmethod
     def parse(cls, content: str, format: str = "auto") -> "MacroScript":
         """
@@ -371,7 +371,7 @@ class MacroScript(DynamicBaseModel):
                 format = "json"
             else:
                 format = "yaml"
-        
+
         if format == "yaml":
             return cls.from_yaml(content)
         else:

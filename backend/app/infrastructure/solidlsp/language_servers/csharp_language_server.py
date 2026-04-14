@@ -27,7 +27,6 @@ from app.infrastructure.solidlsp.lsp_protocol_handler.lsp_types import (
 from app.infrastructure.solidlsp.lsp_protocol_handler.server import ProcessLaunchInfo
 from app.infrastructure.solidlsp.settings import SolidLSPSettings
 from app.infrastructure.solidlsp.util.zip import SafeZipExtractor
-
 from .common import RuntimeDependency, RuntimeDependencyCollection
 
 log = logging.getLogger(__name__)

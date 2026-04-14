@@ -9,6 +9,7 @@ import logging
 
 import tree_sitter
 
+from app.domain.codebase.indexing.extractors.base_extractor import SemanticExtractorBase
 from app.domain.codebase.indexing.parsers import parser_registry
 from app.infrastructure.pydantic_base import DynamicBaseModel
 

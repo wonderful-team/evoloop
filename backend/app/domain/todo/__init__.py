@@ -24,6 +24,8 @@ Usage:
     from app.domain.todo import create_todo, list_todos
 """
 
+# Repository
+from app.domain.todo.repository import TodoRepository, TodoRepositorySync
 # Schemas
 from app.domain.todo.schemas import (
     TodoBase,
@@ -34,10 +36,6 @@ from app.domain.todo.schemas import (
     TodoResponse,
     TodoUpdate,
 )
-
-# Repository
-from app.domain.todo.repository import TodoRepository, TodoRepositorySync
-
 # Service
 from app.domain.todo.service import (
     TodoService,
@@ -48,7 +46,6 @@ from app.domain.todo.service import (
     get_todo_service,
     get_todo_service_sync,
 )
-
 # Tools (auto-registered via @evoloop_tool decorator)
 from app.domain.todo.tools import (
     cancel_todo,
@@ -56,7 +53,6 @@ from app.domain.todo.tools import (
     create_todo,
     list_todos,
 )
-
 # Utils
 from app.domain.todo.utils import (
     format_todo_summary,

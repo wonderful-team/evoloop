@@ -30,27 +30,27 @@ class WorkerMcpSession:
     2. Lifecycle-bound to the Worker (created on start, cleaned up on end)
     3. Configurable via Skill/Worker definition
     """
-    
+
     def __init__(self, worker_id: str, worker_name: str):
         self.worker_id = worker_id
         self.worker_name = worker_name
-        
+
         # Connection state
         self._sessions: dict[str, Any] = {}
         self._stacks: dict[str, AsyncExitStack] = {}
         self._configs: dict[str, McpServerConfig] = {}
-        
+
         # Features
         self._tools_feature: dict[str, McpToolsFeature] = {}
         self._resources_feature: dict[str, McpResourcesFeature] = {}
         self._prompts_feature: dict[str, McpPromptsFeature] = {}
-        
+
         # Sub-components
         self._transport = McpTransport()
         self._health_checker = McpHealthChecker()
-        
+
         logger.debug(f"[WorkerMcpSession] Created for worker '{worker_name}' ({worker_id})")
-    
+
     async def connect_server(self, config: McpServerConfig) -> bool:
         """
         Connect to an MCP server for this worker.
@@ -62,11 +62,11 @@ class WorkerMcpSession:
             True if connected successfully
         """
         server_name = config.name
-        
+
         # Disconnect existing if any
         if server_name in self._stacks:
             await self.disconnect_server(server_name)
-        
+
         try:
             # Handle authentication
             auth_headers = {}
@@ -76,11 +76,11 @@ class WorkerMcpSession:
                     logger.info(f"[WorkerMcp] Authenticating {self.worker_name} with {server_name}")
                     token = await mcp_auth_manager.authenticate(server_name)
                     auth_headers = mcp_auth_manager.get_headers(server_name)
-            
+
             # Merge auth headers
             if auth_headers:
                 config.headers.update(auth_headers)
-            
+
             # Create transport and session
             stack = AsyncExitStack()
             try:
@@ -95,34 +95,34 @@ class WorkerMcpSession:
             except Exception:
                 await stack.aclose()
                 raise
-            
+
             # Initialize features
             tools_feature = McpToolsFeature()
             await tools_feature.initialize(session, server_name)
             self._tools_feature[server_name] = tools_feature
-            
+
             resources_feature = McpResourcesFeature()
             await resources_feature.initialize(session, server_name)
             self._resources_feature[server_name] = resources_feature
-            
+
             prompts_feature = McpPromptsFeature()
             await prompts_feature.initialize(session, server_name)
             self._prompts_feature[server_name] = prompts_feature
-            
+
             tools_count = len(tools_feature.get_tools())
             logger.info(
                 f"[WorkerMcp] {self.worker_name} connected to {server_name} "
                 f"({tools_count} tools)"
             )
-            
+
             return True
-            
+
         except Exception as e:
             logger.error(f"[WorkerMcp] {self.worker_name} failed to connect to {server_name}: {e}")
             if 'stack' in locals():
                 await stack.aclose()
             return False
-    
+
     async def connect_servers(self, configs: list[McpServerConfig]) -> dict[str, bool]:
         """
         Connect to multiple MCP servers.
@@ -138,7 +138,7 @@ class WorkerMcpSession:
             success = await self.connect_server(config)
             results[config.name] = success
         return results
-    
+
     async def disconnect_server(self, server_name: str) -> None:
         """Disconnect a single server."""
         if server_name in self._stacks:
@@ -147,41 +147,41 @@ class WorkerMcpSession:
             except Exception as e:
                 logger.debug(f"[WorkerMcp] Error closing stack for '{server_name}': {e}")
             del self._stacks[server_name]
-        
+
         self._sessions.pop(server_name, None)
         self._configs.pop(server_name, None)
         self._tools_feature.pop(server_name, None)
         self._resources_feature.pop(server_name, None)
         self._prompts_feature.pop(server_name, None)
         self._health_checker.reset(server_name)
-        
+
         logger.debug(f"[WorkerMcp] {self.worker_name} disconnected from {server_name}")
-    
+
     async def disconnect_all(self) -> None:
         """Disconnect all servers."""
         for name in list(self._stacks.keys()):
             await self.disconnect_server(name)
-        
+
         logger.info(f"[WorkerMcp] {self.worker_name} disconnected from all MCP servers")
-    
+
     def get_tools(self) -> list[StructuredTool]:
         """Get all tools from all connected servers."""
         all_tools = []
         for feature in self._tools_feature.values():
             all_tools.extend(feature.get_tools())
         return all_tools
-    
+
     def get_tools_for(self, server_name: str) -> list[StructuredTool]:
         """Get tools for a specific server."""
         feature = self._tools_feature.get(server_name)
         return feature.get_tools() if feature else []
-    
+
     async def list_resources(self, server_name: str) -> list[dict[str, Any]]:
         """List resources from a server."""
         feature = self._resources_feature.get(server_name)
         if not feature:
             return []
-        
+
         resources = feature.get_resources()
         return [
             {
@@ -192,20 +192,20 @@ class WorkerMcpSession:
             }
             for r in resources
         ]
-    
+
     async def read_resource(self, server_name: str, uri: str) -> McpResourceContent:
         """Read a resource from a server."""
         feature = self._resources_feature.get(server_name)
         if not feature:
             raise RuntimeError(f"Server '{server_name}' not connected")
         return await feature.read_resource(uri)
-    
+
     async def list_prompts(self, server_name: str) -> list[dict[str, Any]]:
         """List prompts from a server."""
         feature = self._prompts_feature.get(server_name)
         if not feature:
             return []
-        
+
         prompts = feature.get_prompts()
         return [
             {
@@ -214,14 +214,14 @@ class WorkerMcpSession:
             }
             for p in prompts
         ]
-    
+
     async def get_prompt(self, server_name: str, prompt_name: str, arguments: dict | None = None) -> McpPromptResult:
         """Get a prompt from a server."""
         feature = self._prompts_feature.get(server_name)
         if not feature:
             raise RuntimeError(f"Server '{server_name}' not connected")
         return await feature.get_prompt(prompt_name, arguments)
-    
+
     def get_connection_summary(self) -> dict[str, Any]:
         """Get summary of all connections."""
         return {
@@ -240,10 +240,10 @@ class WorkerMcpManager:
     
     Creates and tracks isolated MCP sessions per Worker instance.
     """
-    
+
     def __init__(self):
         self._sessions: dict[str, WorkerMcpSession] = {}
-    
+
     def create_session(self, worker_id: str, worker_name: str) -> WorkerMcpSession:
         """
         Create a new MCP session for a Worker.
@@ -260,28 +260,28 @@ class WorkerMcpManager:
             logger.warning(f"[WorkerMcpManager] Session already exists for {worker_id}, cleaning up...")
             # Don't await here, just remove reference
             self._sessions.pop(worker_id, None)
-        
+
         session = WorkerMcpSession(worker_id, worker_name)
         self._sessions[worker_id] = session
         return session
-    
+
     def get_session(self, worker_id: str) -> WorkerMcpSession | None:
         """Get existing session for a Worker."""
         return self._sessions.get(worker_id)
-    
+
     async def cleanup_session(self, worker_id: str) -> None:
         """Clean up a Worker's MCP session."""
         session = self._sessions.pop(worker_id, None)
         if session:
             await session.disconnect_all()
             logger.info(f"[WorkerMcpManager] Cleaned up session for {worker_id}")
-    
+
     async def cleanup_all(self) -> None:
         """Clean up all Worker MCP sessions."""
         worker_ids = list(self._sessions.keys())
         for worker_id in worker_ids:
             await self.cleanup_session(worker_id)
-    
+
     def get_active_sessions(self) -> list[dict[str, Any]]:
         """Get summary of all active sessions."""
         return [session.get_connection_summary() for session in self._sessions.values()]

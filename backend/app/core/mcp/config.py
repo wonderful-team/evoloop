@@ -1,7 +1,7 @@
 """MCP configuration models and types."""
 
 from enum import Enum
-from typing import Any, Optional, List, Dict
+from typing import Any
 
 from pydantic import Field
 
@@ -36,24 +36,24 @@ class McpServerConfig(DynamicBaseModel):
     name: str
     transport: TransportType = TransportType.STDIO
     # Stdio transport
-    command: Optional[str] = None
-    args: List[str] = Field(default_factory=list)
-    env: Dict[str, str] = Field(default_factory=dict)
+    command: str | None = None
+    args: list[str] = Field(default_factory=list)
+    env: dict[str, str] = Field(default_factory=dict)
     # SSE transport
-    url: Optional[str] = None
-    headers: Dict[str, str] = Field(default_factory=dict)
+    url: str | None = None
+    headers: dict[str, str] = Field(default_factory=dict)
     # Authentication
     auth_type: AuthType = AuthType.NONE
     auth_config: dict[str, Any] = Field(default_factory=dict)
     # Behavior
     auto_connect: bool = True
     enabled: bool = True
-    
+
     @classmethod
     def from_db_model(cls, server: Any) -> "McpServerConfig":
         """Create config from database model."""
         import json
-        
+
         # Parse args
         args = server.args
         if isinstance(args, str):
@@ -61,7 +61,7 @@ class McpServerConfig(DynamicBaseModel):
                 args = json.loads(args)
             except:
                 args = []
-        
+
         # Parse env
         env = server.env
         if isinstance(env, str):
@@ -69,7 +69,7 @@ class McpServerConfig(DynamicBaseModel):
                 env = json.loads(env)
             except:
                 env = {}
-        
+
         # Parse auth config if stored
         auth_config_data = {}
         auth_type = AuthType.NONE
@@ -79,10 +79,10 @@ class McpServerConfig(DynamicBaseModel):
                 auth_type = AuthType(auth_config_data.get('method', 'none'))
             except:
                 pass
-        
+
         # Determine transport
         transport = TransportType.SSE if is_sse_url(server.command) else TransportType.STDIO
-        
+
         return cls(
             name=server.name,
             transport=transport,
@@ -108,9 +108,9 @@ class ConnectionState(DynamicBaseModel):
     """Connection state tracking."""
     server_name: str
     is_connected: bool = False
-    last_health_check: Optional[float] = None
+    last_health_check: float | None = None
     tools_count: int = 0
-    error_message: Optional[str] = None
+    error_message: str | None = None
 
 
 class ConnectionResult(DynamicBaseModel):
@@ -118,5 +118,5 @@ class ConnectionResult(DynamicBaseModel):
     success: bool
     server_name: str
     tools_count: int = 0
-    error: Optional[str] = None
-    capabilities: Optional[ServerCapabilities] = None
+    error: str | None = None
+    capabilities: ServerCapabilities | None = None

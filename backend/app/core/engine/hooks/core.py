@@ -35,9 +35,10 @@ Usage:
 import asyncio
 import logging
 import re
+from collections.abc import Awaitable, Callable
 from datetime import datetime
 from enum import Enum, auto
-from typing import Dict, List, Callable, Any, Optional, Union, Awaitable
+from typing import Any
 
 from langchain_core.messages import BaseMessage
 from pydantic import ConfigDict, Field
@@ -53,34 +54,34 @@ class HookEvent(Enum):
     # Session lifecycle
     SESSION_START = auto()       # Session begins
     SESSION_END = auto()         # Session terminates
-    
+
     # User interaction
     USER_PROMPT_SUBMIT = auto()  # User sends prompt
     NOTIFICATION = auto()        # System notification
-    
+
     # Tool execution
     PRE_TOOL_USE = auto()        # Before tool executes (can block)
     POST_TOOL_USE = auto()       # After tool succeeds
     POST_TOOL_USE_FAILURE = auto()  # After tool fails
-    
+
     # Permission
     PERMISSION_REQUEST = auto()  # Permission dialog shown
     PERMISSION_DENIED = auto()   # Tool call denied
-    
+
     # Context management
     PRE_COMPACT = auto()         # Before context compression (CRITICAL)
     POST_COMPACT = auto()        # After context compression
-    
+
     # Task/Agent lifecycle
     STOP = auto()                # Agent finishes response (quality gates)
     SUBAGENT_START = auto()      # Subagent spawned
     SUBAGENT_STOP = auto()       # Subagent completes
     TASK_CREATED = auto()        # Task created
     TASK_COMPLETED = auto()      # Task marked complete
-    
+
     # Error handling
     ERROR = auto()               # Error occurred
-    
+
     # Prompt Enrichment
     PROMPT_POLISHING = auto()    # Context-aware prompt polishing (domain expert hook)
 
@@ -106,29 +107,29 @@ class HookContext(DynamicBaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     thread_id: str
-    project_id: Optional[int] = None
-    user_id: Optional[str] = None
-    messages: List[BaseMessage] = Field(default_factory=list)
-    blackboard: Optional[BlackboardState] = None
+    project_id: int | None = None
+    user_id: str | None = None
+    messages: list[BaseMessage] = Field(default_factory=list)
+    blackboard: BlackboardState | None = None
     metadata: HookMetadata = Field(default_factory=HookMetadata)
 
     # For tool-related events
-    tool_name: Optional[str] = None
-    tool_input: Optional[ToolInput] = None
-    tool_result: Optional[Any] = None
-    tool_use_id: Optional[str] = None
-    error: Optional[Exception] = None
-    error_message: Optional[str] = None
+    tool_name: str | None = None
+    tool_input: ToolInput | None = None
+    tool_result: Any | None = None
+    tool_use_id: str | None = None
+    error: Exception | None = None
+    error_message: str | None = None
 
     # For permission events
-    permission_mode: Optional[str] = None  # "ask", "allow", "deny"
+    permission_mode: str | None = None  # "ask", "allow", "deny"
 
     # For compact events
-    compact_trigger: Optional[str] = None  # "manual" or "auto"
+    compact_trigger: str | None = None  # "manual" or "auto"
 
     # For dependency injection (optional, falls back to global singleton)
-    memory_manager: Optional[Any] = None  # MemoryManager instance
-    memory_config: Optional[Any] = None   # MemoryConfig instance
+    memory_manager: Any | None = None  # MemoryManager instance
+    memory_config: Any | None = None   # MemoryConfig instance
 
     # Allow arbitrary additional data
     extra: HookExtra = Field(default_factory=HookExtra)
@@ -141,14 +142,14 @@ class HookResult(DynamicBaseModel):
     success: bool = True
     block: bool = False  # For blocking hooks (PreToolUse, Stop)
     retry: bool = False  # For PermissionDenied - allow retry
-    message: Optional[str] = None
-    modified_context: Optional[HookContext] = None
+    message: str | None = None
+    modified_context: HookContext | None = None
     data: HookResultData = Field(default_factory=HookResultData)
-    error: Optional[Exception] = None
+    error: Exception | None = None
 
 
 # Handler type alias
-HookHandler = Callable[[HookContext], Union[HookResult, Awaitable[HookResult]]]
+HookHandler = Callable[[HookContext], HookResult | Awaitable[HookResult]]
 
 
 class HookSystem:
@@ -161,24 +162,24 @@ class HookSystem:
     - Blocking capability
     - Multiple handler types (function, prompt)
     """
-    
+
     def __init__(self):
-        self._hooks: Dict[HookEvent, List[HookHandler]] = {
+        self._hooks: dict[HookEvent, list[HookHandler]] = {
             event: [] for event in HookEvent
         }
-        self._prompts: Dict[HookEvent, List[str]] = {
+        self._prompts: dict[HookEvent, list[str]] = {
             event: [] for event in HookEvent
         }
-        self._metrics: Dict[HookEvent, Dict[str, Any]] = {}
+        self._metrics: dict[HookEvent, dict[str, Any]] = {}
         logger.info("[HookSystem] Initialized")
-    
+
     def register(
         self,
         event: HookEvent,
-        handler: Optional[HookHandler] = None,
+        handler: HookHandler | None = None,
         priority: int = 100,
-        matcher: Optional[str] = None,
-    ) -> Union[Callable, HookHandler]:
+        matcher: str | None = None,
+    ) -> Callable | HookHandler:
         """
         Register a hook handler with optional matcher pattern.
         
@@ -204,22 +205,22 @@ class HookSystem:
             func._hook_event = event
             func._hook_matcher = matcher
             func._hook_name = func.__name__
-            
+
             self._hooks[event].append(func)
             # Sort by priority
             self._hooks[event].sort(key=lambda h: getattr(h, '_hook_priority', 100))
-            
+
             match_str = f" [matcher: {matcher}]" if matcher else ""
             logger.debug(f"[HookSystem] Registered {func.__name__} for {event.name}{match_str}")
             return func
-        
+
         if handler is None:
             # Used as decorator
             return decorator
         else:
             # Used as function
             return decorator(handler)
-    
+
     def register_prompt(
         self,
         event: HookEvent,
@@ -239,7 +240,7 @@ class HookSystem:
             self._prompts[event] = []
         self._prompts[event].append(prompt)
         logger.debug(f"[HookSystem] Registered prompt for {event.name}")
-    
+
     def unregister(self, event: HookEvent, handler: HookHandler) -> bool:
         """Unregister a handler."""
         if handler in self._hooks[event]:
@@ -247,7 +248,7 @@ class HookSystem:
             logger.debug(f"[HookSystem] Unregistered {handler.__name__} from {event.name}")
             return True
         return False
-    
+
     async def trigger(
         self,
         event: HookEvent,
@@ -270,7 +271,7 @@ class HookSystem:
         handlers = self._hooks.get(event, [])
         if not handlers:
             return HookResult(success=True)
-        
+
         # Filter handlers by matcher
         matching_handlers = []
         for handler in handlers:
@@ -281,40 +282,40 @@ class HookSystem:
                 if not re.search(matcher, tool_name):
                     continue  # Skip non-matching handlers
             matching_handlers.append(handler)
-        
+
         if not matching_handlers:
             return HookResult(success=True)
-        
+
         start_time = datetime.utcnow()
         results = []
-        
+
         for handler in matching_handlers:
             try:
                 result = await self._execute_handler(handler, context)
                 results.append(result)
-                
+
                 # If blocking and handler says block, stop immediately
                 if blocking and result.block:
                     logger.warning(
                         f"[HookSystem] {event.name} blocked by {handler.__name__}: {result.message}"
                     )
                     return result
-                
+
                 # If PermissionDenied and retry requested
                 if event == HookEvent.PERMISSION_DENIED and result.retry:
                     return result
-                
+
                 # Update context if modified
                 if result.modified_context:
                     context = result.modified_context
-                    
+
             except Exception as e:
                 logger.error(f"[HookSystem] Handler {handler.__name__} failed: {e}")
                 if event == HookEvent.ERROR:
                     # Don't recurse on error
                     break
                 results.append(HookResult(success=False, error=e))
-        
+
         # Record metrics
         elapsed = (datetime.utcnow() - start_time).total_seconds()
         self._metrics[event] = {
@@ -322,14 +323,14 @@ class HookSystem:
             "handlers_succeeded": sum(1 for r in results if r.success),
             "elapsed_seconds": elapsed,
         }
-        
+
         # Combine results
         # Merge data from all handlers
         merged_data = {}
         for r in results:
             if r.data:
                 merged_data.update(r.data)
-        
+
         final_result = HookResult(
             success=all(r.success for r in results),
             block=any(r.block for r in results),
@@ -338,14 +339,14 @@ class HookSystem:
             modified_context=context,
             data=merged_data,
         )
-        
+
         logger.debug(f"[HookSystem] {event.name} triggered {len(matching_handlers)} handlers in {elapsed:.3f}s")
         return final_result
-    
-    def get_prompts(self, event: HookEvent) -> List[str]:
+
+    def get_prompts(self, event: HookEvent) -> list[str]:
         """Get all registered prompts for an event."""
         return self._prompts.get(event, []).copy()
-    
+
     async def _execute_handler(
         self,
         handler: HookHandler,
@@ -353,22 +354,22 @@ class HookSystem:
     ) -> HookResult:
         """Execute a single handler."""
         result = handler(context)
-        
+
         # Handle both sync and async handlers
         if asyncio.iscoroutine(result):
             result = await result
-        
+
         # Ensure result is HookResult
         if not isinstance(result, HookResult):
             result = HookResult(success=True, data=result if result else {})
-        
+
         return result
-    
+
     def get_handlers(
         self,
         event: HookEvent,
-        matcher: Optional[str] = None,
-    ) -> List[HookHandler]:
+        matcher: str | None = None,
+    ) -> list[HookHandler]:
         """
         Get all handlers for an event.
         
@@ -380,8 +381,8 @@ class HookSystem:
         if matcher:
             return [h for h in handlers if getattr(h, '_hook_matcher', None) == matcher]
         return handlers.copy()
-    
-    def get_metrics(self, event: Optional[HookEvent] = None) -> Dict[str, Any]:
+
+    def get_metrics(self, event: HookEvent | None = None) -> dict[str, Any]:
         """Get metrics for events."""
         if event:
             return self._metrics.get(event, {})
@@ -403,7 +404,7 @@ async def session_start_handler(context: HookContext) -> HookResult:
     Loads hot memories and sets up initial context.
     """
     logger.info(f"[SessionStart] Initializing session {context.thread_id}")
-    
+
     return HookResult(
         success=True,
         data={"initialized": True, "thread_id": context.thread_id}
@@ -531,30 +532,30 @@ Remaining: {checkpoint['remaining_work'] or 'Unknown'}
         return HookResult(success=False, error=e)
 
 
-def _extract_task_progress(messages: List[BaseMessage]) -> str:
+def _extract_task_progress(messages: list[BaseMessage]) -> str:
     """Extract current task progress from messages."""
     if not messages:
         return "No progress recorded"
-    
+
     # Look for the most recent human message
     for msg in reversed(messages):
         if hasattr(msg, 'type') and msg.type == 'human':
             return str(msg.content)[:200]
-    
+
     return "Unknown task"
 
 
-def _extract_decisions(messages: List[BaseMessage]) -> List[str]:
+def _extract_decisions(messages: list[BaseMessage]) -> list[str]:
     """Extract key decisions from messages."""
     decisions = []
-    
+
     for msg in messages:
         if hasattr(msg, 'type') and msg.type == 'ai':
             content = str(msg.content).lower()
             # Look for decision indicators
             if any(keyword in content for keyword in ['decided', 'decision', 'choose', 'selected', 'we will']):
                 decisions.append(str(msg.content)[:150])
-    
+
     return decisions[-5:]  # Last 5 decisions
 
 
@@ -565,7 +566,7 @@ async def session_end_auto_extract(context: HookContext) -> HookResult:
     This replaces manual "remember" calls with automatic extraction.
     """
     from app.core.memory.auto_extraction import AutoMemoryExtractor
-    
+
     try:
         # Use DI if memory_manager provided, otherwise use global singleton
         if context.memory_manager is not None and context.memory_config is not None:
@@ -576,7 +577,7 @@ async def session_end_auto_extract(context: HookContext) -> HookResult:
         else:
             from app.core.memory.auto_extraction import auto_extractor
             extractor = auto_extractor
-        
+
         if len(context.messages) >= 4:
             # Trigger auto-extraction
             extracted = await extractor.maybe_extract(
@@ -585,16 +586,16 @@ async def session_end_auto_extract(context: HookContext) -> HookResult:
                 project_id=context.project_id,
                 user_id=context.user_id,
             )
-            
+
             if extracted:
                 logger.info(f"[SessionEnd] Auto-extracted {len(extracted)} memories")
                 return HookResult(
                     success=True,
                     data={"extracted_count": len(extracted)},
                 )
-        
+
         return HookResult(success=True)
-        
+
     except Exception as e:
         logger.error(f"[SessionEnd] Auto-extraction failed: {e}")
         return HookResult(success=False, error=e)
@@ -604,12 +605,12 @@ async def post_tool_use_logging(context: HookContext) -> HookResult:
     """Log tool usage for analytics and memory."""
     if not context.tool_name:
         return HookResult(success=True)
-    
+
     logger.debug(f"[ToolUse] {context.tool_name}: success")
-    
+
     # Track tool usage for quality scoring
     # Could track which tools lead to successful outcomes
-    
+
     return HookResult(success=True)
 
 
@@ -617,10 +618,10 @@ async def post_tool_use_failure_logging(context: HookContext) -> HookResult:
     """Log tool failures for debugging and improvement."""
     if not context.tool_name:
         return HookResult(success=True)
-    
+
     error_str = str(context.error) if context.error else context.error_message or "Unknown error"
     logger.warning(f"[ToolUseFailure] {context.tool_name} failed: {error_str}")
-    
+
     return HookResult(
         success=True,
         data={
@@ -656,7 +657,7 @@ async def stop_quality_gate(context: HookContext) -> HookResult:
             block=True,
             message="Lint errors found. Please fix formatting.",
         )
-    
+
     logger.debug("[Stop] Quality gate passed")
     return HookResult(success=True)
 
@@ -673,16 +674,16 @@ async def notification_handler(context: HookContext) -> HookResult:
     """
     message = context.metadata.get("message", "")
     notification_type = context.metadata.get("type", "info")
-    
+
     logger.info(f"[Notification] {notification_type}: {message}")
-    
+
     # Example: Desktop notification (macOS)
     # import subprocess
     # subprocess.run([
     #     "osascript", "-e",
     #     f'display notification "{message}" with title "EvoLoop"'
     # ])
-    
+
     return HookResult(
         success=True,
         data={"notified": True, "type": notification_type}
@@ -701,9 +702,9 @@ async def subagent_start_handler(context: HookContext) -> HookResult:
     agent_id = context.metadata.get("agent_id", "unknown")
     agent_type = context.metadata.get("agent_type", "generic")
     parent_task = context.metadata.get("parent_task", "")
-    
+
     logger.info(f"[SubagentStart] Spawned {agent_type} agent ({agent_id}) for: {parent_task[:50]}...")
-    
+
     # Track in blackboard
     active_agents = getattr(context.blackboard, "active_subagents", []) if context.blackboard else []
     active_agents.append({
@@ -713,7 +714,7 @@ async def subagent_start_handler(context: HookContext) -> HookResult:
     })
     if context.blackboard:
         context.blackboard.active_subagents = active_agents
-    
+
     return HookResult(
         success=True,
         data={"agent_id": agent_id, "active_count": len(active_agents)},
@@ -732,9 +733,9 @@ async def subagent_stop_handler(context: HookContext) -> HookResult:
     """
     agent_id = context.metadata.get("agent_id", "unknown")
     outcome = context.metadata.get("outcome", "unknown")
-    
+
     logger.info(f"[SubagentStop] Agent {agent_id} completed with outcome: {outcome}")
-    
+
     # Update tracking
     active_agents = getattr(context.blackboard, "active_subagents", []) if context.blackboard else []
     active_agents = [a for a in active_agents if a["agent_id"] != agent_id]
@@ -750,7 +751,7 @@ async def subagent_stop_handler(context: HookContext) -> HookResult:
     })
     if context.blackboard:
         context.blackboard.completed_subagents = completed
-    
+
     return HookResult(
         success=True,
         data={"agent_id": agent_id, "remaining": len(active_agents)},
@@ -770,9 +771,9 @@ async def task_created_handler(context: HookContext) -> HookResult:
     task_id = context.metadata.get("task_id", "")
     task_name = context.metadata.get("task_name", "")
     task_description = context.metadata.get("description", "")
-    
+
     logger.info(f"[TaskCreated] Task '{task_name}' ({task_id}) created")
-    
+
     return HookResult(
         success=True,
         data={"task_id": task_id, "tracked": True}
@@ -791,9 +792,9 @@ async def task_completed_handler(context: HookContext) -> HookResult:
     task_id = context.metadata.get("task_id", "")
     task_name = context.metadata.get("task_name", "")
     final_status = context.metadata.get("status", "completed")
-    
+
     logger.info(f"[TaskCompleted] Task '{task_name}' ({task_id}) marked as {final_status}")
-    
+
     return HookResult(
         success=True,
         data={"task_id": task_id, "archived": True, "status": final_status}
@@ -810,14 +811,14 @@ async def user_prompt_submit_handler(context: HookContext) -> HookResult:
     - Context injection
     """
     prompt = context.metadata.get("prompt", "")
-    
+
     # Example: Command shortcuts
     shortcuts = {
         "/remember": "Please extract and save any important information from our conversation.",
         "/summary": "Please provide a summary of what we've accomplished so far.",
         "/compact": "The context is getting long. Please summarize key points and continue.",
     }
-    
+
     if prompt in shortcuts:
         modified_context = context
         modified_context.metadata["prompt"] = shortcuts[prompt]
@@ -826,7 +827,7 @@ async def user_prompt_submit_handler(context: HookContext) -> HookResult:
             message=f"Expanded shortcut: {prompt}",
             modified_context=modified_context,
         )
-    
+
     return HookResult(success=True)
 
 
@@ -841,13 +842,13 @@ async def error_handler(context: HookContext) -> HookResult:
     """
     error = context.error
     error_message = str(error) if error else context.error_message or "Unknown error"
-    
+
     logger.error(f"[ErrorHook] {error_message}")
-    
+
     # Could send to error tracking service
     # Could attempt recovery
     # Could notify user
-    
+
     return HookResult(
         success=True,
         data={"logged": True, "error": error_message}
@@ -863,41 +864,42 @@ def setup_default_hooks():
     # Session lifecycle
     hook_system.register(HookEvent.SESSION_START, session_start_handler, priority=10)
     hook_system.register(HookEvent.SESSION_END, session_end_auto_extract, priority=100)
-    
+
     # User interaction
     hook_system.register(HookEvent.USER_PROMPT_SUBMIT, user_prompt_submit_handler, priority=50)
     hook_system.register(HookEvent.NOTIFICATION, notification_handler, priority=100)
-    
+
     # Tool execution
     hook_system.register(HookEvent.POST_TOOL_USE, post_tool_use_logging, priority=200)
     hook_system.register(HookEvent.POST_TOOL_USE_FAILURE, post_tool_use_failure_logging, priority=100)
-    
+
     # Context management
     hook_system.register(HookEvent.PRE_COMPACT, pre_compact_save_state, priority=10)
-    
+
     # Agent/Subagent lifecycle
     hook_system.register(HookEvent.SUBAGENT_START, subagent_start_handler, priority=50)
     hook_system.register(HookEvent.SUBAGENT_STOP, subagent_stop_handler, priority=50)
-    
+
     # Task lifecycle
     hook_system.register(HookEvent.TASK_CREATED, task_created_handler, priority=100)
     hook_system.register(HookEvent.TASK_COMPLETED, task_completed_handler, priority=100)
-    
+
     # Error handling
     hook_system.register(HookEvent.ERROR, error_handler, priority=10)
-    
+
     # Quality gates (disabled by default, enable if needed)
     # hook_system.register(HookEvent.STOP, stop_quality_gate, priority=50)
-    
+
     # Prompt injections (examples)
     # hook_system.register_prompt(HookEvent.SESSION_START, "Remember to check MEMORY.md")
-    
+
     logger.info("[HookSystem] Default hooks registered")
 
 
 # Import at bottom to avoid circular imports
-from app.core.memory.models import MemoryEntry, MemoryType, PrivacyLevel
 import yaml
+
+from app.core.memory.models import MemoryEntry, MemoryType, PrivacyLevel
 
 # Setup on module load
 setup_default_hooks()

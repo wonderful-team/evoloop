@@ -1,7 +1,7 @@
 import contextvars
 import json
 import time
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 from pydantic import Field
 
@@ -29,14 +29,14 @@ class EvoContext(DynamicBaseModel):
     timestamp: float = Field(default_factory=time.time)
 
     # Identity
-    user_id: Optional[str] = None
-    project_id: Optional[int] = None
-    thread_id: Optional[str] = None
+    user_id: str | None = None
+    project_id: int | None = None
+    thread_id: str | None = None
 
     # Execution Environment
-    working_directory: Optional[str] = None
-    command_id: Optional[int] = None   # For EvoCloud command tracing
-    trace_id: Optional[str] = None     # Distributed trace ID
+    working_directory: str | None = None
+    command_id: int | None = None   # For EvoCloud command tracing
+    trace_id: str | None = None     # Distributed trace ID
 
     # Feature Flags / Runtime Config
     is_dry_run: bool = False
@@ -44,23 +44,23 @@ class EvoContext(DynamicBaseModel):
 
     # [Subconscious Pool]
     # Dynamically injected context from Environment/Learning plugins via EventBus
-    short_term_memory: List[str] = Field(default_factory=list)
-    active_boundaries: List[str] = Field(default_factory=list)
-    spatial_awareness: Union[List[str], Dict[str, Any]] = Field(default_factory=list)
-    environment_summaries: Union[List[str], Dict[str, Any]] = Field(default_factory=list)
-    memory_replay: Union[List[str], Dict[str, Any]] = Field(default_factory=list)
-    identity_rules: List[str] = Field(default_factory=list)
-    environment_block: Optional[str] = None
-    
+    short_term_memory: list[str] = Field(default_factory=list)
+    active_boundaries: list[str] = Field(default_factory=list)
+    spatial_awareness: list[str] | dict[str, Any] = Field(default_factory=list)
+    environment_summaries: list[str] | dict[str, Any] = Field(default_factory=list)
+    memory_replay: list[str] | dict[str, Any] = Field(default_factory=list)
+    identity_rules: list[str] = Field(default_factory=list)
+    environment_block: str | None = None
+
     # Extra Metadata (Plugins, etc.)
     metadata: ContextMetadata = Field(default_factory=ContextMetadata)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Legacy compatibility method."""
         return self.model_dump()
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "EvoContext":
+    def from_dict(cls, data: dict[str, Any]) -> "EvoContext":
         """Legacy compatibility method."""
         return cls.model_validate(data)
 
@@ -189,7 +189,7 @@ class ContextManager:
         if ctx.request_id == "global-fallback":
             return
 
-        # Use existing thread_id (e.g. from state) if available, 
+        # Use existing thread_id (e.g. from state) if available,
         # otherwise use the provided one (e.g. from config)
         thread_id = ctx.thread_id or thread_id
         try:
@@ -232,11 +232,11 @@ class ContextManager:
                 # Support both dict and list for flexible context fields
                 flexible_fields = {"spatial_awareness", "environment_summaries", "memory_replay"}
                 dict_fields = {"metadata"}
-                
+
                 for k, v in data.items():
                     if isinstance(v, bytes):
                         v = v.decode("utf-8")
-                    
+
                     if k in list_fields or k in flexible_fields or k in dict_fields:
                         try:
                             reconstructed[k] = json.loads(v) if v else (

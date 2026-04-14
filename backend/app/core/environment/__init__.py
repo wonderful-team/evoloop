@@ -19,7 +19,7 @@ from app.core.environment.discovery import EnvironmentProbe
 from app.core.environment.memory_replay import replay_memory
 from app.core.environment.models import AwakenedState
 from app.core.environment.preference_priming import prime_preferences
-from app.core.environment.state import set_awakened_state, get_awakened_state
+from app.core.environment.state import get_awakened_state, set_awakened_state
 
 logger = logging.getLogger(__name__)
 
@@ -46,14 +46,14 @@ async def awaken(project_id: int | None = None) -> AwakenedState:
 
     # 1, 2, 3. Parallel Hydration of Awareness components
     logger.info("  👁️ Awakening cognitive subsystems (Parallel)...")
-    
+
     # Bundle tasks
     probe_macos_task = EnvironmentProbe.probe_macos()
     probe_android_task = EnvironmentProbe.probe_android_devices()
     probe_network_task = EnvironmentProbe.probe_network()
     memory_task = replay_memory(project_id)
     pref_task = prime_preferences(project_id)
-    
+
     # Execute all
     results = await asyncio.gather(
         probe_macos_task,
@@ -62,7 +62,7 @@ async def awaken(project_id: int | None = None) -> AwakenedState:
         memory_task,
         pref_task
     )
-    
+
     # Assign results
     macos, android_devices, network, memory_context, pref_context = results
 
@@ -154,16 +154,16 @@ async def _refresh_network_state() -> None:
     re-probing devices (which are handled by DeviceWatcher).
     """
     from app.core.environment.boundaries import boundary_manager
-    
+
     # Get current state
     prev_state = get_awakened_state()
     if not prev_state:
         logger.debug("No previous state, skipping network refresh")
         return
-    
+
     # Only probe network (fast)
     network = await EnvironmentProbe.probe_network()
-    
+
     # Recompute boundaries with new network status
     boundaries = _compute_capability_boundaries(
         prev_state.macos,
@@ -171,7 +171,7 @@ async def _refresh_network_state() -> None:
         network
     )
     boundary_manager.set_static_boundaries(boundaries)
-    
+
     # Update state with new network info
     state = AwakenedState(
         timestamp=datetime.now(),
@@ -186,7 +186,7 @@ async def _refresh_network_state() -> None:
         capability_boundaries=boundaries,
     )
     set_awakened_state(state)
-    
+
     logger.debug(f"Network state refreshed: {'online' if network.internet_connected else 'offline'}")
 
 
@@ -199,13 +199,13 @@ def _compute_capability_boundaries(
     Uses Jinja2 template for rendering.
     """
     from app.utils import render_template
-    
+
     result = render_template(
         "environment/capability_boundaries.prompt.j2",
         has_android_devices=bool(android_devices),
         network_connected=network.internet_connected if network else False
     )
-    
+
     # Split into lines and filter empty ones
     return [line.strip() for line in result.strip().split("\n") if line.strip()]
 

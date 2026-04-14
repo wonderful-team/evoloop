@@ -8,7 +8,6 @@ Boundaries are injected into prompts to prevent repeated failures.
 import logging
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Optional
 
 from pydantic import Field
 
@@ -34,7 +33,7 @@ class DynamicBoundary(DynamicBaseModel):
     source_tool: str
     source_error: str
     created_at: datetime = Field(default_factory=datetime.now)
-    expires_at: Optional[datetime] = None
+    expires_at: datetime | None = None
     occurrence_count: int = 1
 
     @property

@@ -12,7 +12,6 @@ def _task(name, **kwargs):
     def decorator(f):
         return _task_scheduler.task(f, name=name, **kwargs)
     return decorator
-from app.domain.codebase.indexing.manager import indexing_manager
 from app.utils.async_utils import flush_loop_bound_resources
 
 logger = logging.getLogger(__name__)
@@ -26,6 +25,7 @@ def run_full_indexing_task(project_id: int, rebuild: bool = False):
     logger.info(f"[Celery] Starting Full Indexing for Project {project_id} (Rebuild={rebuild})")
 
     from app.core.monitoring.activity import activity_monitor
+    from app.domain.codebase.indexing.manager import indexing_manager
 
     sys_tid = f"sys:{project_id}:indexing"
 

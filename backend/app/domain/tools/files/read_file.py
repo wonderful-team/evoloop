@@ -8,20 +8,19 @@ All heavy lifting is done by app.core.file module.
 import os
 import re
 from typing import Annotated
-from langchain_core.tools import InjectedToolArg
-from langchain_core.runnables import RunnableConfig
 
-from app.core.tools import evoloop_tool
+from langchain_core.runnables import RunnableConfig
+from langchain_core.tools import InjectedToolArg
+
 from app.core.file import (
     read_file as core_read_file,
     get_file_info,
     get_large_file_preview,
     FileStatus,
-    LARGE_FILE_THRESHOLD,
 )
+from app.core.tools import evoloop_tool
 from app.domain.tools.document_reader import read_document
 from app.i18n.service import i18n
-
 from .utils import resolve_and_validate_path
 
 

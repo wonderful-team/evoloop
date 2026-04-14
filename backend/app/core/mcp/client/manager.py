@@ -11,12 +11,19 @@ from pydantic import Field
 from sqlalchemy import select
 
 from app.core.mcp.auth.manager import mcp_auth_manager
-from app.core.mcp.config import AuthType, McpServerConfig, TransportType, ConnectionResult, ConnectionState, is_sse_url
+from app.core.mcp.config import (
+    AuthType,
+    ConnectionResult,
+    ConnectionState,
+    McpServerConfig,
+    TransportType,
+    is_sse_url,
+)
 from app.core.mcp.features.base import McpPromptResult, McpResourceContent
 from app.core.mcp.features.prompts import McpPromptsFeature
 from app.core.mcp.features.resources import McpResourcesFeature
 from app.core.mcp.features.tools import McpToolsFeature
-from app.core.mcp.health import McpHealthChecker, HealthStatus
+from app.core.mcp.health import HealthStatus, McpHealthChecker
 from app.core.mcp.transport import McpTransport
 from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.pydantic_base import DynamicBaseModel
@@ -76,29 +83,29 @@ class McpClientManager:
         │  └────────────────────────────┘ │
         └─────────────────────────────────┘
     """
-    
+
     def __init__(self):
         # Connection state
         self._sessions: dict[str, Any] = {}
         self._stacks: dict[str, AsyncExitStack] = {}
         self._configs: dict[str, McpServerConfig] = {}
-        
+
         # Features
         self._tools_feature: dict[str, McpToolsFeature] = {}
         self._resources_feature: dict[str, McpResourcesFeature] = {}
         self._prompts_feature: dict[str, McpPromptsFeature] = {}
-        
+
         # Sub-components
         self._transport = McpTransport()
         self._health_checker = McpHealthChecker()
-        
+
         # Legacy migration
         self._legacy_config_path = "mcp_servers_config.json"
-    
+
     # ═══════════════════════════════════════════════════════════
     # Connection Lifecycle
     # ═══════════════════════════════════════════════════════════
-    
+
     async def connect(self, config: McpServerConfig) -> ConnectionResult:
         """
         Connect to an MCP server.
@@ -111,11 +118,11 @@ class McpClientManager:
         """
         config.validate()
         server_name = config.name
-        
+
         # Disconnect existing if any
         if server_name in self._stacks:
             await self.disconnect(server_name)
-        
+
         try:
             # Handle OAuth authentication if configured
             auth_headers = {}
@@ -126,11 +133,11 @@ class McpClientManager:
                     token = await mcp_auth_manager.authenticate(server_name)
                     auth_headers = mcp_auth_manager.get_headers(server_name)
                     logger.info(f"Successfully authenticated with {server_name}")
-            
+
             # Merge auth headers into config headers
             if auth_headers:
                 config.headers.update(auth_headers)
-            
+
             # Create transport and session
             stack = AsyncExitStack()
             try:
@@ -145,35 +152,35 @@ class McpClientManager:
             except Exception:
                 await stack.aclose()
                 raise
-            
+
             # Initialize features
             tools_feature = McpToolsFeature()
             await tools_feature.initialize(session, server_name)
             self._tools_feature[server_name] = tools_feature
-            
+
             resources_feature = McpResourcesFeature()
             await resources_feature.initialize(session, server_name)
             self._resources_feature[server_name] = resources_feature
-            
+
             prompts_feature = McpPromptsFeature()
             await prompts_feature.initialize(session, server_name)
             self._prompts_feature[server_name] = prompts_feature
-            
+
             tools_count = len(tools_feature.get_tools())
             resources_count = len(resources_feature.get_resources())
             prompts_count = len(prompts_feature.get_prompts())
-            
+
             logger.info(
                 f"Connected to MCP server: {server_name} "
                 f"({tools_count} tools, {resources_count} resources, {prompts_count} prompts)"
             )
-            
+
             return ConnectionResult(
                 success=True,
                 server_name=server_name,
                 tools_count=tools_count
             )
-            
+
         except Exception as e:
             logger.error(f"Error connecting to {server_name}: {e}")
             if 'stack' in locals():
@@ -183,7 +190,7 @@ class McpClientManager:
                 server_name=server_name,
                 error=str(e)
             )
-    
+
     async def connect_from_db(self, server_name: str) -> ConnectionResult:
         """
         Connect to a server using configuration from database.
@@ -202,21 +209,21 @@ class McpClientManager:
                 )
             )
             server = result.scalars().first()
-            
+
             if not server:
                 return ConnectionResult(
                     success=False,
                     server_name=server_name,
                     error=f"Server '{server_name}' not found in database or disabled"
                 )
-            
+
             # Parse args and env
             args = self._parse_json_field(server.args, [])
             env = self._parse_json_field(server.env, {})
-            
+
             # Determine transport type
             transport = TransportType.SSE if is_sse_url(server.command) else TransportType.STDIO
-            
+
             config = McpServerConfig(
                 name=server.name,
                 transport=transport,
@@ -225,9 +232,9 @@ class McpClientManager:
                 env=env,
                 enabled=server.enabled
             )
-            
+
             return await self.connect(config)
-    
+
     async def connect_all(self) -> list[ConnectionResult]:
         """
         Connect to all enabled servers from database.
@@ -237,17 +244,17 @@ class McpClientManager:
             List of connection results
         """
         results = []
-        
+
         # 1. Migrate legacy config if needed
         await self._seed_legacy_config()
-        
+
         # 2. Fetch and connect all enabled servers
         async with session_scope() as session:
             result = await session.execute(
                 select(McpServer).where(McpServer.enabled)
             )
             servers = result.scalars().all()
-            
+
             for server in servers:
                 try:
                     result = await self.connect_from_db(server.name)
@@ -259,13 +266,13 @@ class McpClientManager:
                         server_name=server.name,
                         error=str(e)
                     ))
-        
+
         # Check critical servers
         if "filesystem" not in self._sessions:
             logger.critical("CRITICAL: 'filesystem' MCP server failed to connect!")
-        
+
         return results
-    
+
     async def disconnect(self, server_name: str) -> None:
         """Disconnect a single server."""
         if server_name in self._stacks:
@@ -274,34 +281,34 @@ class McpClientManager:
             except Exception as e:
                 logger.debug(f"Error closing stack for '{server_name}': {e}")
             del self._stacks[server_name]
-        
+
         self._sessions.pop(server_name, None)
         self._configs.pop(server_name, None)
         self._tools_feature.pop(server_name, None)
         self._resources_feature.pop(server_name, None)
         self._prompts_feature.pop(server_name, None)
         self._health_checker.reset(server_name)
-        
+
         logger.info(f"Disconnected MCP server: {server_name}")
-    
+
     async def disconnect_all(self) -> None:
         """Disconnect all servers."""
         for name in list(self._stacks.keys()):
             await self.disconnect(name)
-    
+
     async def cleanup(self) -> None:
         """Alias for disconnect_all (for backward compatibility)."""
         await self.disconnect_all()
-    
+
     # ═══════════════════════════════════════════════════════════
     # Health & Reconnection
     # ═══════════════════════════════════════════════════════════
-    
+
     async def health_check(self, server_name: str) -> HealthStatus:
         """Check health of a server."""
         session = self._sessions.get(server_name)
         return await self._health_checker.check(server_name, session)
-    
+
     async def ensure_connected(self, server_name: str) -> bool:
         """
         Ensure server is connected, reconnect if necessary.
@@ -319,30 +326,30 @@ class McpClientManager:
                 return True
             logger.info(f"Stale session for '{server_name}', reconnecting...")
             await self.disconnect(server_name)
-        
+
         # Try reconnect from cached config
         if server_name in self._configs:
             result = await self.connect(self._configs[server_name])
             return result.success
-        
+
         # Try load from DB
         result = await self.connect_from_db(server_name)
         return result.success
-    
+
     # ═══════════════════════════════════════════════════════════
     # Tool Access
     # ═══════════════════════════════════════════════════════════
-    
+
     @property
     def sessions(self) -> dict[str, Any]:
         """Access sessions dict (for backward compatibility)."""
         return self._sessions
-    
+
     @property
     def _server_configs(self) -> dict[str, McpServerConfig]:
         """Access configs (for backward compatibility)."""
         return self._configs
-    
+
     async def get_tools(self, server_name: str | None = None) -> list[StructuredTool]:
         """
         Get tools for a specific server, or all tools if no server specified.
@@ -356,13 +363,13 @@ class McpClientManager:
         if server_name is None:
             # Return all tools from all connected servers
             return await self.aget_all_tools()
-        
+
         if await self.ensure_connected(server_name):
             feature = self._tools_feature.get(server_name)
             if feature:
                 return feature.get_tools()
         return []
-    
+
     async def aget_all_tools(self) -> list[StructuredTool]:
         """Get all tools from all connected servers, ensuring connections are alive."""
         all_tools = []
@@ -372,11 +379,11 @@ class McpClientManager:
                 if feature:
                     all_tools.extend(feature.get_tools())
         return all_tools
-    
+
     # ═══════════════════════════════════════════════════════════
     # Resources Access
     # ═══════════════════════════════════════════════════════════
-    
+
     async def list_resources(self, server_name: str) -> list[McpResource]:
         """
         List available resources from a server.
@@ -401,7 +408,7 @@ class McpClientManager:
                     for r in resources
                 ]
         return []
-    
+
     async def read_resource(self, server_name: str, uri: str) -> McpResourceContent:
         """
         Read content from a resource URI.
@@ -418,7 +425,7 @@ class McpClientManager:
             if feature:
                 return await feature.read_resource(uri)
         raise RuntimeError(f"Server '{server_name}' not connected or resources not available")
-    
+
     def get_resources_formatted(self, server_name: str) -> str:
         """
         Get formatted markdown list of resources.
@@ -433,11 +440,11 @@ class McpClientManager:
         if feature:
             return feature.format_resources_list()
         return "*Server not connected*"
-    
+
     # ═══════════════════════════════════════════════════════════
     # Prompts Access
     # ═══════════════════════════════════════════════════════════
-    
+
     async def list_prompts(self, server_name: str) -> list[McpPrompt]:
         """
         List available prompts from a server.
@@ -464,11 +471,11 @@ class McpClientManager:
                     for p in prompts
                 ]
         return []
-    
+
     async def get_prompt(
-        self, 
-        server_name: str, 
-        prompt_name: str, 
+        self,
+        server_name: str,
+        prompt_name: str,
         arguments: dict[str, str] | None = None
     ) -> McpPromptResult:
         """
@@ -487,7 +494,7 @@ class McpClientManager:
             if feature:
                 return await feature.get_prompt(prompt_name, arguments)
         raise RuntimeError(f"Server '{server_name}' not connected or prompts not available")
-    
+
     def get_prompts_formatted(self, server_name: str) -> str:
         """
         Get formatted markdown list of prompts.
@@ -502,11 +509,11 @@ class McpClientManager:
         if feature:
             return feature.format_prompts_list()
         return "*Server not connected*"
-    
+
     # ═══════════════════════════════════════════════════════════
     # Server Management
     # ═══════════════════════════════════════════════════════════
-    
+
     async def add_server(self, name: str, details: dict[str, Any]) -> ConnectionResult:
         """Add server to DB and connect."""
         # Update DB
@@ -515,10 +522,10 @@ class McpClientManager:
                 select(McpServer).where(McpServer.name == name)
             )
             db_server = result.scalars().first()
-            
+
             args_json = json.dumps(details.get("args", []))
             env_json = json.dumps(details.get("env", {}))
-            
+
             if db_server:
                 db_server.command = details.get("command")
                 db_server.args = args_json
@@ -533,10 +540,10 @@ class McpClientManager:
                     enabled=True
                 )
                 session.add(db_server)
-        
+
         # Connect
         transport = TransportType.SSE if is_sse_url(details.get("command")) else TransportType.STDIO
-        
+
         config = McpServerConfig(
             name=name,
             transport=transport,
@@ -545,13 +552,13 @@ class McpClientManager:
             env=details.get("env", {}),
             enabled=True
         )
-        
+
         return await self.connect(config)
-    
+
     async def remove_server(self, name: str) -> bool:
         """Remove server from DB and disconnect."""
         await self.disconnect(name)
-        
+
         async with session_scope() as session:
             result = await session.execute(
                 select(McpServer).where(McpServer.name == name)
@@ -561,19 +568,19 @@ class McpClientManager:
                 await session.delete(server)
                 return True
         return False
-    
+
     async def list_servers(self) -> list[McpServerSummary]:
         """List all servers with status."""
         async with session_scope() as session:
             result = await session.execute(select(McpServer))
             servers = result.scalars().all()
-            
+
             output = []
             for s in servers:
                 is_connected = s.name in self._sessions
                 feature = self._tools_feature.get(s.name)
                 tools_count = len(feature.get_tools()) if feature else 0
-                
+
                 output.append(McpServerSummary(
                     name=s.name,
                     command=s.command,
@@ -582,39 +589,39 @@ class McpClientManager:
                     enabled=s.enabled
                 ))
             return output
-    
+
     def get_connection_state(self, server_name: str) -> ConnectionState:
         """Get current connection state for a server."""
         is_connected = server_name in self._sessions
         feature = self._tools_feature.get(server_name)
-        
+
         return ConnectionState(
             server_name=server_name,
             is_connected=is_connected,
             last_health_check=self._health_checker.get_last_check_time(server_name),
             tools_count=len(feature.get_tools()) if feature else 0
         )
-    
+
     # ═══════════════════════════════════════════════════════════
     # Helpers
     # ═══════════════════════════════════════════════════════════
-    
+
     async def _seed_legacy_config(self) -> None:
         """Migrate legacy JSON config to database."""
         async with session_scope() as session:
             result = await session.execute(select(McpServer))
             if result.first() is not None:
                 return
-            
+
             if not os.path.exists(self._legacy_config_path):
                 return
-            
+
             logger.info("Migrating legacy MCP config to database...")
             try:
                 with open(self._legacy_config_path, encoding="utf-8") as f:
                     config = json.load(f)
                     servers = config.get("mcpServers", {})
-                    
+
                     for name, details in servers.items():
                         new_server = McpServer(
                             name=name,
@@ -627,7 +634,7 @@ class McpClientManager:
                 logger.info("Legacy MCP config migrated successfully.")
             except Exception as e:
                 logger.error(f"Failed to migrate legacy config: {e}")
-    
+
     @staticmethod
     def _parse_json_field(value: Any, default: Any) -> Any:
         """Parse JSON string field."""

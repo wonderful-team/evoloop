@@ -57,7 +57,7 @@ class ContextPluginRegistry:
         effective_thread_id = ctx.thread_id or ctx.request_id or "global"
         cache_key = (effective_thread_id, ctx.project_id or 0)
         now = time.time()
-        
+
         # Check cache
         if cache_key in self._hydration_cache:
             cached_result, cached_time = self._hydration_cache[cache_key]
@@ -75,30 +75,30 @@ class ContextPluginRegistry:
                 if _LOG_HYDRATION_DETAILS:
                     logger.debug(f"[PluginRegistry] Cache expired for {cache_key}")
                 del self._hydration_cache[cache_key]
-        
+
         # Cache miss: Run all plugins
         self._stats["misses"] += 1
         if _LOG_HYDRATION_DETAILS:
             logger.debug(f"[PluginRegistry] Cache miss, hydrating {len(self._plugins)} plugins")
-        
+
         for plugin in self._plugins:
             try:
                 plugin.hydrate(ctx)
             except Exception as e:
                 logger.error(f"Error executing ContextPlugin {plugin.__class__.__name__}: {e}")
-        
+
         # Cache the result
         self._hydration_cache[cache_key] = (
             {"environment_block": ctx.environment_block},
             now
         )
-        
+
         # Cleanup old cache entries (simple LRU)
         if len(self._hydration_cache) > 100:
-            oldest_key = min(self._hydration_cache.keys(), 
+            oldest_key = min(self._hydration_cache.keys(),
                            key=lambda k: self._hydration_cache[k][1])
             del self._hydration_cache[oldest_key]
-    
+
     def get_stats(self) -> dict:
         """Get cache statistics for monitoring."""
         total = self._stats["hits"] + self._stats["misses"] + self._stats["expired"]
@@ -109,7 +109,7 @@ class ContextPluginRegistry:
             "hit_rate": f"{hit_rate:.1f}%",
             "cache_size": len(self._hydration_cache),
         }
-    
+
     def reset_stats(self) -> None:
         """Reset cache statistics."""
         self._stats = {"hits": 0, "misses": 0, "expired": 0}

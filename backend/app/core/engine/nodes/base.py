@@ -1,6 +1,6 @@
 import logging
 from abc import ABC, abstractmethod
-from typing import Any, Tuple
+from typing import Any
 
 from langchain_core.messages import HumanMessage
 from langchain_core.runnables import RunnableConfig
@@ -39,7 +39,7 @@ class BaseAgentNode(ABC):
         state_update = await self.prepare_state(state, config)
         if state_update and state_update.next_node:
             return state_update
-            
+
         # Optional updated state from prepare
         if isinstance(state_update, dict):
             state.update({k: v for k, v in state_update.items() if k != "next_node"})
@@ -55,14 +55,14 @@ class BaseAgentNode(ABC):
         if dynamic_ticket_text:
             ticket_msg = HumanMessage(content=dynamic_ticket_text, name="context_ticket")
             messages = [ticket_msg] + messages
-            
+
         execution_state = dict(state)
         execution_state["messages"] = messages
-            
+
         # 3. Engine Execution
         model = config.get("configurable", {}).get("model")
         engine = get_default_engine()
-        
+
         try:
             is_subtask = state.execution_ticket.agent_config.is_subtask if state.execution_ticket and state.execution_ticket.agent_config else False
             engine_result = await engine.run_node(
@@ -77,10 +77,10 @@ class BaseAgentNode(ABC):
                 node_source=self.node_name.lower(),
                 is_subtask=is_subtask,
             )
-            
+
             # 4. Handle Outcome & Signal Dispatching
             return await self.handle_outcome(state, engine_result, config)
-            
+
         except Exception as e:
             logger.error(f"[{self.node_name}] Execution failed: {e}")
             return await self.handle_error(state, e)
@@ -95,7 +95,7 @@ class BaseAgentNode(ABC):
         pass
 
     @abstractmethod
-    async def build_prompt_pair(self, state: AgentState, config: RunnableConfig) -> Tuple[str, str]:
+    async def build_prompt_pair(self, state: AgentState, config: RunnableConfig) -> tuple[str, str]:
         """
         Return (static_system_prompt, dynamic_context_ticket).
         - static_system_prompt: Must be cacheable (no changing tokens during a session).

@@ -8,7 +8,7 @@ import json
 import re
 from typing import Any
 
-from app.utils.yaml import safe_yaml_loads, YAMLError
+from app.utils.yaml import YAMLError, safe_yaml_loads
 
 
 def extract_yaml_from_response(response: str) -> str | None:
@@ -25,12 +25,12 @@ def extract_yaml_from_response(response: str) -> str | None:
         r'```yaml\n(.*?)\n```',
         r'```yml\n(.*?)\n```',
     ]
-    
+
     for pattern in patterns:
         match = re.search(pattern, response, re.DOTALL | re.IGNORECASE)
         if match:
             return match.group(1).strip()
-    
+
     # Try generic code block
     generic_match = re.search(r'```\n(.*?)\n```', response, re.DOTALL)
     if generic_match:
@@ -38,12 +38,12 @@ def extract_yaml_from_response(response: str) -> str | None:
         # Check if it looks like YAML
         if content.startswith(('steps:', '- ', 'version:', 'metadata:')):
             return content
-    
+
     # Try to find YAML-like structure at the start
     lines = response.strip().split('\n')
     if lines and lines[0].startswith(('steps:', '- ', 'version:', 'metadata:')):
         return response.strip()
-    
+
     return None
 
 
@@ -54,22 +54,22 @@ def extract_json_from_response(response: str) -> str | None:
         r'```json\n(.*?)\n```',
         r'```\n(.*?)\n```',
     ]
-    
+
     for pattern in patterns:
         match = re.search(pattern, response, re.DOTALL)
         if match:
             return match.group(1).strip()
-    
+
     # Try to find JSON array
     array_match = re.search(r'\[.*\]', response, re.DOTALL)
     if array_match:
         return array_match.group()
-    
+
     # Try to find JSON object
     object_match = re.search(r'\{.*\}', response, re.DOTALL)
     if object_match:
         return object_match.group()
-    
+
     return None
 
 
@@ -88,13 +88,13 @@ def parse_macro_response(response: str) -> list[dict]:
         ValueError: If neither YAML nor JSON can be parsed
     """
     errors = []
-    
+
     # Try YAML first (preferred format)
     yaml_content = extract_yaml_from_response(response)
     if yaml_content:
         try:
             data = safe_yaml_loads(yaml_content)
-            
+
             # Handle different YAML structures
             if isinstance(data, dict):
                 steps = data.get("steps", data.get("macro_script"))
@@ -102,10 +102,10 @@ def parse_macro_response(response: str) -> list[dict]:
                     return steps
             elif isinstance(data, list):
                 return data
-                
+
         except YAMLError as e:
             errors.append(f"YAML parse error: {e}")
-    
+
     # Fallback to JSON (legacy format)
     json_content = extract_json_from_response(response)
     if json_content:
@@ -119,7 +119,7 @@ def parse_macro_response(response: str) -> list[dict]:
                     return steps
         except json.JSONDecodeError as e:
             errors.append(f"JSON parse error: {e}")
-    
+
     # If we get here, both formats failed
     error_msg = "; ".join(errors) if errors else "Could not extract valid YAML or JSON macro"
     raise ValueError(f"Failed to parse macro response: {error_msg}")
@@ -141,7 +141,7 @@ def parse_analysis_response(response: str) -> dict[str, Any]:
             return json.loads(json_content)
         except json.JSONDecodeError:
             pass
-    
+
     # Try YAML as fallback
     yaml_content = extract_yaml_from_response(response)
     if yaml_content:
@@ -149,5 +149,5 @@ def parse_analysis_response(response: str) -> dict[str, Any]:
             return safe_yaml_loads(yaml_content)
         except YAMLError:
             pass
-    
+
     raise ValueError("Could not parse analysis response")

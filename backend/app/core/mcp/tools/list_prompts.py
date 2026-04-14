@@ -38,15 +38,15 @@ async def list_mcp_prompts(server_name: str) -> str:
         connected = await mcp_client_manager.ensure_connected(server_name)
         if not connected:
             return f"Error: MCP server '{server_name}' is not connected. Please call use_mcp_server('{server_name}') first."
-        
+
         # Get formatted list
         output = mcp_client_manager.get_prompts_formatted(server_name)
-        
+
         if not output or output == "*No prompts available on this server.*":
             return f"MCP server '{server_name}' is connected but has no prompts available."
-        
+
         return output
-        
+
     except Exception as e:
         logger.error(f"Error listing MCP prompts: {e}")
         return f"Error listing prompts from '{server_name}': {str(e)}"

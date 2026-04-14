@@ -81,7 +81,7 @@ class AtlasEngine:
                         # If bounds are in pixels, we normalize them to points here for comparison with AX tree points.
                         cx = (bounds.get("x", 0) + bounds.get("width", 0) / 2)
                         cy = (bounds.get("y", 0) + bounds.get("height", 0) / 2)
-                        
+
                         # Use a small heuristic: if cx > screen_width, it's definitely pixels
                         log_w, _ = macos_driver.get_screen_size()
                         if cx > log_w and scale > 1.0:
@@ -102,8 +102,8 @@ class AtlasEngine:
         try:
             # We use 'name' or 'bundle_id' for app_name as default
             app_model = AtlasApp(
-                app_name=bundle_id, 
-                bundle_id=bundle_id, 
+                app_name=bundle_id,
+                bundle_id=bundle_id,
                 platform=platform,
                 version_hash=version_hash
             )
@@ -136,14 +136,14 @@ class AtlasEngine:
         """
         if state_id:
             # Handle detailed state query
-            # We need to find the bundle_id for this state_id if not provided, 
+            # We need to find the bundle_id for this state_id if not provided,
             # but usually it's better to require bundle_id for performance if possible.
             # For simplicity in tools, we'll try to find it.
             if isinstance(bundle_ids, str):
                 target_bundle = bundle_ids
             else:
                 target_bundle = bundle_ids[0] if bundle_ids else None
-                
+
             if not target_bundle:
                 # Fallback: list apps to find matches if needed, but Neo4j store can find by state_id
                 # Neo4jAtlasStore.get_state_detail already takes bundle_id.
@@ -203,11 +203,11 @@ class AtlasEngine:
             output = [
                 f"App UI Atlas: {summary['app_name']} ({bundle_id})",
             ]
-            
+
             if is_stale:
                 output.append("> [!WARNING]")
                 output.append("> **STALE DATA DETECTED**: The application version has changed since the last map was created. Coordinates may be inaccurate. **Priority: Use real-time perception (Vision/OCR).**")
-            
+
             output.append(f"**Known States ({summary['state_count']})**:")
 
             for state in summary["states"]:

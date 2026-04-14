@@ -7,7 +7,7 @@ import tempfile
 from typing import BinaryIO
 
 from app.domain.knowledge.extractors.base import BaseExtractor
-from app.domain.knowledge.models import MarkdownDocument, ExtractionError
+from app.domain.knowledge.models import MarkdownDocument
 
 logger = logging.getLogger(__name__)
 

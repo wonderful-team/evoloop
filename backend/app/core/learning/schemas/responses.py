@@ -4,10 +4,17 @@ from datetime import datetime
 from typing import Any
 
 from app.api.responses import BaseAPIResponse, ListResponse
+from app.core.learning.schemas.events import (
+    PreviewEventsSummary,
+    PreviewKeyframeSummary,
+    PreviewVideoInfo,
+    RecordingSessionItem,
+)
+from app.core.learning.schemas.skills import SkillDTO, SkillDetailResponse
 
 
-class PaginatedSkillsResponse(ListResponse):
-    items: list[SkillDTO]
+class PaginatedSkillsResponse(ListResponse[SkillDTO]):
+    pass
 
 
 class RecordingSessionsResponse(BaseAPIResponse):
@@ -26,6 +33,10 @@ class ImportSkillsResponse(BaseAPIResponse):
 
 class UpdateSkillResponse(BaseAPIResponse):
     skill: SkillDetailResponse
+
+
+class UpdateSkillFromYamlResponse(BaseAPIResponse):
+    step_count: int
 
 
 class ExecuteSkillResponse(BaseAPIResponse):

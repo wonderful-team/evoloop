@@ -47,7 +47,7 @@ class FinishPromptBuilder:
         # Metadata Filtering (Pollution Control)
         # We exclude large system-level objects and redundant keys that are handled explicitly below
         excluded_keys = {
-            "active_skills", "project_concepts", "cwd", "episodic_memory_raw", 
+            "active_skills", "project_concepts", "cwd", "episodic_memory_raw",
             "core_memory_raw", "sys_info", "is_global_mode", "has_macos", "has_android"
         }
         sanitized_metadata = {k: v for k, v in ctx.metadata.items() if k not in excluded_keys}

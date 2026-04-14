@@ -7,9 +7,10 @@ Interfaces with existing controllers to perform actions and capture state.
 
 import logging
 import time
-from typing import Any, Dict, Optional
+from typing import Any
 
-from app.core.execution.macro.verification_models import VerificationAgentConfig as AgentConfig, EnvironmentConfig
+from app.core.execution.macro.models import EnvironmentConfig
+from app.core.execution.macro.models import VerificationAgentConfig as AgentConfig
 
 logger = logging.getLogger(__name__)
 
@@ -29,19 +30,19 @@ class VerificationWorker:
         self,
         environment_config: EnvironmentConfig,
         agent_config: AgentConfig,
-        thread_id: Optional[str] = None
+        thread_id: str | None = None
     ):
         self.config = environment_config
         self.agent_config = agent_config
         self.thread_id = thread_id or f"verify_{id(self)}"
 
         # Platform-specific controllers (initialized lazily)
-        self._browser_controller: Optional[Any] = None
-        self._mobile_controller: Optional[Any] = None
-        self._desktop_controller: Optional[Any] = None
+        self._browser_controller: Any | None = None
+        self._mobile_controller: Any | None = None
+        self._desktop_controller: Any | None = None
 
         # Current state
-        self._current_platform: Optional[str] = None
+        self._current_platform: str | None = None
         self._initialized = False
 
     async def initialize(self) -> None:
@@ -79,7 +80,9 @@ class VerificationWorker:
     async def _init_mobile(self) -> None:
         """Initialize mobile controller"""
         try:
-            from app.core.environment.controllers.mobile_controller import MobileController
+            from app.core.environment.controllers.mobile_controller import (
+                MobileController,
+            )
 
             self._mobile_controller = MobileController()
             # MobileController uses classmethods, no connect needed
@@ -91,7 +94,9 @@ class VerificationWorker:
     async def _init_desktop(self) -> None:
         """Initialize desktop controller"""
         try:
-            from app.infrastructure.automation.desktop.controller import DesktopController
+            from app.infrastructure.automation.desktop.controller import (
+                DesktopController,
+            )
 
             self._desktop_controller = DesktopController()
 
@@ -101,8 +106,8 @@ class VerificationWorker:
 
     async def execute_step(
         self,
-        step: Dict[str, Any],
-        step_validator: Optional[Any] = None
+        step: dict[str, Any],
+        step_validator: Any | None = None
     ) -> Any:
         """
         Execute a single macro step
@@ -151,7 +156,7 @@ class VerificationWorker:
         self,
         step_type: str,
         event_type: str,
-        payload: Dict[str, Any]
+        payload: dict[str, Any]
     ) -> Any:
         """Execute browser/DOM step"""
         if not self._browser_controller:
@@ -259,10 +264,11 @@ class VerificationWorker:
         self,
         step_type: str,
         event_type: str,
-        payload: Dict[str, Any]
+        payload: dict[str, Any]
     ) -> Any:
         """Execute mobile/Android step using MobileController.execute"""
         import asyncio
+
         from app.core.environment.controllers.mobile_controller import MobileController
         from app.infrastructure.drivers.adb import adb_driver
 
@@ -433,7 +439,7 @@ class VerificationWorker:
         self,
         step_type: str,
         event_type: str,
-        payload: Dict[str, Any]
+        payload: dict[str, Any]
     ) -> Any:
         """Execute desktop step"""
         if not self._desktop_controller:
@@ -495,9 +501,9 @@ class VerificationWorker:
 
     async def _execute_loop_step(
         self,
-        step: Dict[str, Any],
-        step_validator: Optional[Any] = None
-    ) -> Dict[str, Any]:
+        step: dict[str, Any],
+        step_validator: Any | None = None
+    ) -> dict[str, Any]:
         """
         Execute a loop step - iterates over sub-steps
 
@@ -560,7 +566,7 @@ class VerificationWorker:
             "validated": step_validator is not None
         }
 
-    async def _execute_extract_step(self, step: Dict[str, Any]) -> Dict[str, Any]:
+    async def _execute_extract_step(self, step: dict[str, Any]) -> dict[str, Any]:
         """
         Execute an extract step (GUI data extraction)
 
@@ -638,7 +644,7 @@ class VerificationWorker:
                 "error": str(e)
             }
 
-    async def capture_state(self) -> Dict[str, Any]:
+    async def capture_state(self) -> dict[str, Any]:
         """
         Capture current UI state
 
@@ -668,7 +674,9 @@ class VerificationWorker:
                     state["screenshot"] = await self._browser_controller.screenshot()
 
             elif self._current_platform == "android":
-                from app.core.environment.controllers.mobile_controller import MobileController
+                from app.core.environment.controllers.mobile_controller import (
+                    MobileController,
+                )
 
                 # Get current app/activity
                 current_app = await MobileController.get_current_app_cached(self.config.device_id)

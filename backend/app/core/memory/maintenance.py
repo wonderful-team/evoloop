@@ -11,7 +11,6 @@ import asyncio
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 from jinja2 import Template
 
@@ -30,41 +29,41 @@ class MemoryMaintenanceAgent:
     Runs in isolated thread, cleans up after itself.
     Only logs timestamp of execution.
     """
-    
+
     def __init__(self):
         self.thread_id = f"maint_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         self.log_file = Path(settings.BRAIN_MEMORY_ROOT) / ".maintenance"
-        
+
         # Load prompt template from config/templates/memory/
         template_path = Path(__file__).parent.parent.parent / "config" / "templates" / "memory" / "maintenance.j2"
         self.prompt_template = Template(template_path.read_text(encoding="utf-8"))
-    
+
     async def run(self):
         """Execute maintenance."""
         start_time = datetime.utcnow()
         logger.info(f"[Maintenance] Starting: {self.thread_id}")
-        
+
         try:
             # Get graph and memory manager
             graph = get_graph()
-            
+
             # Initialize memory container if needed
             if not MemoryLifespanManager.is_initialized():
                 await MemoryLifespanManager.ainitialize()
-            
+
             # Render prompt
             system_prompt = self.prompt_template.render()
-            
+
             # Build initial state
-            from langchain_core.messages import SystemMessage, HumanMessage
-            
+            from langchain_core.messages import HumanMessage, SystemMessage
+
             initial_state = {
                 "messages": [
                     SystemMessage(content=system_prompt),
                     HumanMessage(content="请开始整理记忆。"),
                 ]
             }
-            
+
             # Run agent in isolated thread
             config = {
                 "configurable": {
@@ -72,19 +71,19 @@ class MemoryMaintenanceAgent:
                     "maintenance_mode": True,
                 }
             }
-            
+
             result = await graph.ainvoke(initial_state, config)
-            
+
             # Log completion time
             self._log_time(start_time)
-            
+
             logger.info(f"[Maintenance] Completed: {self.thread_id}")
-            
+
             # Cleanup: remove all messages from this thread
             await self._cleanup_thread()
-            
+
             return result
-            
+
         except Exception as e:
             logger.error(f"[Maintenance] Failed: {e}")
             # Still try to cleanup
@@ -93,54 +92,55 @@ class MemoryMaintenanceAgent:
             except Exception:
                 pass
             raise
-    
+
     def _log_time(self, time: datetime):
         """Log maintenance timestamp (one line per run)."""
         self.log_file.parent.mkdir(parents=True, exist_ok=True)
         with open(self.log_file, "a", encoding="utf-8") as f:
             f.write(f"{time.strftime('%Y-%m-%d %H:%M')}\n")
-    
+
     async def _cleanup_thread(self):
         """Delete all messages from maintenance thread (isolation)."""
         try:
             from sqlalchemy import delete
+
             from app.infrastructure.database.sql.database import session_scope
             from app.models.conversation import Message
-            
+
             async with session_scope() as session:
                 result = await session.execute(
                     delete(Message).where(Message.thread_id == self.thread_id)
                 )
                 await session.commit()
-                
+
                 deleted = result.rowcount if hasattr(result, 'rowcount') else 0
                 logger.debug(f"[Maintenance] Cleaned {deleted} messages from {self.thread_id}")
-                
+
         except Exception as e:
             logger.warning(f"[Maintenance] Cleanup warning: {e}")
-    
-    def get_last_time(self) -> Optional[datetime]:
+
+    def get_last_time(self) -> datetime | None:
         """Get last maintenance time from log file."""
         if not self.log_file.exists():
             return None
-        
+
         try:
-            with open(self.log_file, "r", encoding="utf-8") as f:
+            with open(self.log_file, encoding="utf-8") as f:
                 lines = [line.strip() for line in f if line.strip()]
                 if lines:
                     last_line = lines[-1]
                     return datetime.strptime(last_line, "%Y-%m-%d %H:%M")
         except Exception as e:
             logger.warning(f"[Maintenance] Failed to read log: {e}")
-        
+
         return None
-    
+
     def count_hot_memories(self) -> int:
         """Count hot memory entries (markdown files in memory dir)."""
         memory_dir = Path(settings.BRAIN_MEMORY_ROOT)
         if not memory_dir.exists():
             return 0
-        
+
         # Count all .md files except MEMORY.md and logs
         count = 0
         for path in memory_dir.rglob("*.md"):
@@ -149,7 +149,7 @@ class MemoryMaintenanceAgent:
             if "logs" in str(path):
                 continue
             count += 1
-        
+
         return count
 
 
@@ -161,10 +161,10 @@ class MaintenanceScheduler:
     - 3+ days since last maintenance, OR
     - 100+ hot memory entries
     """
-    
+
     def __init__(self):
         self.agent = MemoryMaintenanceAgent()
-    
+
     async def should_run(self) -> bool:
         """Check if maintenance should run."""
         # Check time condition
@@ -176,26 +176,26 @@ class MaintenanceScheduler:
                 return True
             if days_since < 3:
                 return False  # Minimum 3 days
-        
+
         # Check capacity condition
         hot_count = self.agent.count_hot_memories()
         if hot_count > 100:
             logger.info(f"[Maintenance] Trigger: {hot_count} hot memories")
             return True
-        
+
         # First run
         if not last_time:
             logger.info("[Maintenance] Trigger: first run")
             return True
-        
+
         return False
-    
+
     async def run(self):
         """Run maintenance if needed."""
         if not await self.should_run():
             logger.info("[Maintenance] Skip: conditions not met")
             return None
-        
+
         return await self.agent.run()
 
 
@@ -216,7 +216,7 @@ def scheduled_memory_maintenance():
         except Exception as e:
             logger.error(f"[Maintenance] Scheduled task failed: {e}")
             return {"triggered": False, "error": str(e)}
-    
+
     return asyncio.run(_run())
 
 
@@ -226,7 +226,7 @@ def trigger_maintenance():
     async def _run():
         agent = MemoryMaintenanceAgent()
         return await agent.run()
-    
+
     return asyncio.run(_run())
 
 
@@ -235,14 +235,14 @@ def get_maintenance_status():
     agent = MemoryMaintenanceAgent()
     last_time = agent.get_last_time()
     hot_count = agent.count_hot_memories()
-    
+
     status = {
         "last_maintenance": last_time.isoformat() if last_time else None,
         "hot_memory_count": hot_count,
         "days_since": None,
     }
-    
+
     if last_time:
         status["days_since"] = (datetime.utcnow() - last_time).days
-    
+
     return status

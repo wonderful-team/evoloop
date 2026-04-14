@@ -10,7 +10,7 @@ Provides security gates for tool execution:
 import logging
 import re
 
-from app.core.engine.hooks.core import hook_system, HookEvent, HookContext, HookResult
+from app.core.engine.hooks.core import HookContext, HookEvent, HookResult, hook_system
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +45,7 @@ async def elevated_privilege_gate(context: HookContext) -> HookResult:
     command = getattr(context.tool_input, "command", "") if context.tool_input else ""
     if not command:
         return HookResult(success=True)
-    
+
     # Check for elevated privilege patterns
     for pattern, cmd_type, description in _ELEVATED_PRIVILEGE_PATTERNS:
         if re.search(pattern, command, re.IGNORECASE):
@@ -63,7 +63,7 @@ async def elevated_privilege_gate(context: HookContext) -> HookResult:
                     f"3. 如需长期使用，请配置免密 sudo 或使用容器环境"
                 )
             )
-    
+
     return HookResult(success=True)
 
 
@@ -78,7 +78,7 @@ async def dangerous_command_gate(context: HookContext) -> HookResult:
     command = getattr(context.tool_input, "command", "") if context.tool_input else ""
     if not command:
         return HookResult(success=True)
-    
+
     # Check for dangerous patterns
     for pattern, cmd_type, description in _DANGEROUS_PATTERNS:
         if re.search(pattern, command, re.IGNORECASE):
@@ -94,7 +94,7 @@ async def dangerous_command_gate(context: HookContext) -> HookResult:
                     f"使用 `ask_human` 工具请求用户明确确认后手动执行"
                 )
             )
-    
+
     return HookResult(success=True)
 
 

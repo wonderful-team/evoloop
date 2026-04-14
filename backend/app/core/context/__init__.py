@@ -1,9 +1,9 @@
 # Core Context Module
 # Provides context injection utilities and thread-local state management
 from .cache import (
+    DynamicContextLayer,
     LayeredContextCache,
     StaticContextLayer,
-    DynamicContextLayer,
     get_context_cache_stats,
 )
 from .manager import ContextManager, EvoContext, get_context

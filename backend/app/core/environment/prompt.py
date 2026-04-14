@@ -116,7 +116,7 @@ def build_environment_summaries(relevance: str = "auto") -> dict:
                         dev_data["top_pkgs"] = dev.installed_packages[:10]
                         dev_data["more_count"] = max(0, len(dev.installed_packages) - 10)
                     data["android_devices"].append(dev_data)
-        
+
         # 3. Network
         if state.network:
             data["network"] = {

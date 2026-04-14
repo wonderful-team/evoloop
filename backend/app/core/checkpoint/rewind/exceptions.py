@@ -8,7 +8,7 @@ Custom exceptions for the rewind system.
 
 class RewindError(Exception):
     """Base exception for rewind operations."""
-    
+
     def __init__(self, message: str, thread_id: str | None = None):
         super().__init__(message)
         self.thread_id = thread_id
@@ -21,7 +21,7 @@ class PartialRewindError(RewindError):
     
     Some handlers may have completed successfully while others failed.
     """
-    
+
     def __init__(
         self,
         message: str,

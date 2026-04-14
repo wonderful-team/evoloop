@@ -19,7 +19,7 @@ Usage:
 """
 from app.api.routes.conversations import RewindRequest
 from app.core.checkpoint.rewind.checkpoint_handler import CheckpointRewind
-from app.core.checkpoint.rewind.exceptions import RewindError, PartialRewindError
+from app.core.checkpoint.rewind.exceptions import PartialRewindError, RewindError
 from app.core.checkpoint.rewind.handlers import MessageRewind
 
 __all__ = [
@@ -37,5 +37,4 @@ __all__ = [
 ]
 
 from app.core.checkpoint.rewind.models import RewindResult
-
 from app.core.checkpoint.rewind.orchestrator import RewindOrchestrator

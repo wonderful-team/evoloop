@@ -77,7 +77,7 @@ class ToolExecutor:
 
         # Normalize args to dict for caching
         args_dict = args if isinstance(args, dict) else {"_arg": args}
-        
+
         # Execute with cache
         output, cache_meta = await tool_cache.execute(
             tool_name=tool_name,

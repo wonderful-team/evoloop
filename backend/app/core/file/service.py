@@ -10,7 +10,8 @@ from app.constants import (
     TEST_FILE_PATTERNS,
     WHITELIST_FILE_EXTENSIONS,
 )
-from app.utils.file import get_file_ext, resolve_path as utils_resolve_path
+from app.utils.file import get_file_ext
+from app.utils.file import resolve_path as utils_resolve_path
 from app.utils.similarity import find_similar_file as _find_similar_file
 
 logger = logging.getLogger(__name__)

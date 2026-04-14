@@ -4,7 +4,6 @@ Designed to work with LangGraph's AsyncSqliteSaver schema.
 """
 
 import logging
-from typing import Optional
 
 import aiosqlite
 
@@ -31,7 +30,7 @@ def _get_db_path() -> str:
 async def prune_checkpoints(
     max_versions_per_thread: int = 10,
     keep_days: int = 7,
-    thread_id: Optional[str] = None
+    thread_id: str | None = None
 ):
     """
     Prune old checkpoints and blobs to save space.

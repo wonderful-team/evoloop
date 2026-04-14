@@ -82,7 +82,7 @@ class MacOSVisionOCRProvider(VisionProvider):
             from PIL import Image
             with Image.open(image_source) as img:
                 img_w, img_h = img.size
-            
+
             # Get scale factor if this is a MacOS screenshot
             scale = self._get_ui_scale_factor(image_source)
 
@@ -144,7 +144,7 @@ class MacOSVisionOCRProvider(VisionProvider):
         # Check if this is a macOS image by directory
         if "android" in image_source or "mobile" in image_source or "frames" in image_source:
              return 1.0
-             
+
         # macOS ones from ~/.evoloop/artifacts/screenshots
         try:
             return macos_driver.get_ui_scale_factor()

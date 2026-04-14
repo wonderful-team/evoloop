@@ -11,7 +11,7 @@ from typing import Any
 
 from langchain_core.messages import ToolMessage
 
-from app.core.engine.hooks import hook_system, HookEvent, HookContext
+from app.core.engine.hooks import HookContext, HookEvent, hook_system
 from app.core.engine.state import AgentState
 from app.core.memory.diff import diff_tracker
 from app.core.tools.executor import ToolExecutor as _ToolExecutor

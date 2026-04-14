@@ -6,6 +6,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.infrastructure.database.sql.database import Base
 from app.utils.time import utcnow
+from .planning import Plan
 
 
 class Message(Base):

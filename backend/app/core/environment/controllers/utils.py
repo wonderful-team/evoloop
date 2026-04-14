@@ -8,7 +8,8 @@ hierarchy. Uses composition over inheritance for better flexibility.
 import asyncio
 import logging
 import time
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.utils import (

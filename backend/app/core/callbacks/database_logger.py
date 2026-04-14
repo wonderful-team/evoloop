@@ -44,7 +44,7 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
         self.thread_id = thread_id
         self.project_id = project_id
         self.run_id = run_id
-        
+
         # 统一消息处理器
         self._handler = MessageHandler(
             thread_id=thread_id,
@@ -52,10 +52,10 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
             run_id=run_id,
             start_sequence=start_sequence,
         )
-        
+
         # 步骤追踪（用于与 activity_monitor 协调）
         self._last_attributed_step_index: int = 0
-        
+
         # 当前工具名称追踪（LangChain on_tool_end 不传递 name，需要在 on_tool_start 存储）
         self._current_tool_name: str = "unknown_tool"
         self._tool_name_by_run_id: dict[str, str] = {}
@@ -75,7 +75,7 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
 
             generation = response.generations[0][0]
             message = generation.message
-            
+
             # 提取内容
             content = self._extract_content(message.content)
             if not content:
@@ -88,10 +88,10 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
                 tool_calls = message.tool_calls
             elif hasattr(message, "additional_kwargs") and message.additional_kwargs:
                 tool_calls = message.additional_kwargs.get("tool_calls")
-            
+
             # 提取元数据（可能包含 source 标记）
             metadata = getattr(message, "metadata", None)
-            
+
             # 提取思考内容（从额外的 kwargs 或 content 中）
             thinking = self._extract_thinking(content)
             if thinking:
@@ -135,13 +135,13 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
         """
         try:
             run_id_str = str(run_id)
-            
+
             # 从存储的映射中获取工具名称（支持并行工具）
             tool_name = self._tool_name_by_run_id.pop(run_id_str, None)
             if not tool_name:
                 # 回退到当前工具名称（单工具场景）
                 tool_name = getattr(self, '_current_tool_name', 'unknown_tool')
-            
+
             # 委托给统一处理器
             result = await self._handler.handle_tool_output(
                 tool_name=tool_name,
@@ -162,7 +162,7 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
         """提取文本内容，处理多模态格式"""
         if not content:
             return ""
-        
+
         # 处理列表格式（Anthropic/Zhipu 结构化输出）
         if isinstance(content, list):
             text_parts = []
@@ -173,68 +173,68 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
                 elif isinstance(item, str):
                     text_parts.append(item)
             return "".join(text_parts)
-        
+
         return str(content)
 
     def _extract_thinking(self, content: str) -> str | None:
         """提取思考内容（<think> 或 <audit> 标签）"""
         if not content:
             return None
-        
+
         import re
-        
+
         thinking_parts = []
-        
+
         # 提取 <think> 内容
         think_match = re.search(
-            r"<think>(.*?)</think>", 
-            content, 
+            r"<think>(.*?)</think>",
+            content,
             re.DOTALL | re.IGNORECASE
         )
         if think_match:
             thinking_parts.append(think_match.group(1).strip())
-        
+
         # 提取 <audit> 内容
         audit_match = re.search(
-            r"<audit>(.*?)</audit>", 
-            content, 
+            r"<audit>(.*?)</audit>",
+            content,
             re.DOTALL | re.IGNORECASE
         )
         if audit_match:
             thinking_parts.append(f"--- Audit ---\n{audit_match.group(1).strip()}")
-        
+
         return "\n\n".join(thinking_parts) if thinking_parts else None
 
     def _remove_thinking_tags(self, content: str) -> str:
         """移除思考标签，保留其他内容"""
         if not content:
             return ""
-        
+
         import re
-        
+
         # 移除 <think> 标签
         content = re.sub(
-            r"<think>.*?</think>", 
-            "", 
-            content, 
+            r"<think>.*?</think>",
+            "",
+            content,
             flags=re.DOTALL | re.IGNORECASE
         )
-        
+
         # 移除 <audit> 标签
         content = re.sub(
-            r"<audit>.*?</audit>", 
-            "", 
-            content, 
+            r"<audit>.*?</audit>",
+            "",
+            content,
             flags=re.DOTALL | re.IGNORECASE
         )
-        
+
         # 清理空标签
         content = re.sub(r"<[^>]+>", "", content)
-        
+
         return content.strip()
 
     # ========== 不需要处理的方法 ==========
-    
+
     async def on_llm_new_token(self, token: str, **kwargs: Any) -> Any:
         """流式 token，不需要处理"""
         pass
@@ -268,13 +268,13 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
             # 提取工具名称
             tool_name = serialized.get("name") if serialized else "unknown_tool"
             run_id_str = str(run_id)
-            
+
             # 存储工具名称（支持并行工具）
             self._tool_name_by_run_id[run_id_str] = tool_name
             self._current_tool_name = tool_name
-            
+
             logger.debug(f"[DatabaseCallback] Tool started: {tool_name} (run_id={run_id_str})")
-            
+
         except Exception as e:
             logger.debug(f"[DatabaseCallback] Failed to track tool start: {e}")
 
@@ -296,10 +296,10 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
         """
         if not steps:
             return
-        
+
         try:
             from app.core.engine.tasks import snapshot_steps_task
-            
+
             # 使用 Celery 任务异步保存步骤
             snapshot_steps_task.delay(
                 thread_id=self.thread_id,
@@ -307,10 +307,10 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
                 run_id=self.run_id,
                 steps=steps
             )
-            
+
             # 更新最后归因的索引
             self._last_attributed_step_index += len(steps)
-            
+
             logger.debug(
                 f"[DatabaseCallback] Queued {len(steps)} steps for snapshot, "
                 f"new index: {self._last_attributed_step_index}"

@@ -6,7 +6,6 @@ TTS 提供商工厂
 """
 
 import logging
-from typing import Optional
 
 from app.core.voice.tts.base import BaseTTSProvider, VoiceLocale
 from app.core.voice.tts.edge_tts import EdgeTTSProvider
@@ -23,10 +22,10 @@ _TTS_PROVIDERS = {
 
 class TTSFactory:
     """TTS 提供商工厂"""
-    
-    _instance: Optional[BaseTTSProvider] = None
+
+    _instance: BaseTTSProvider | None = None
     _provider_name: str = ""
-    
+
     @classmethod
     def get_provider(cls, prefer_offline: bool = True) -> BaseTTSProvider:
         """
@@ -40,7 +39,7 @@ class TTSFactory:
         """
         if cls._instance is not None:
             return cls._instance
-        
+
         # 按优先级尝试各个提供商
         if prefer_offline:
             # 先尝试系统语音（macOS）
@@ -53,7 +52,7 @@ class TTSFactory:
                     return provider
             except Exception as e:
                 logger.warning(f"System TTS not available: {e}")
-            
+
             # 再尝试 Edge-TTS
             try:
                 provider = EdgeTTSProvider()
@@ -75,7 +74,7 @@ class TTSFactory:
                     return provider
             except Exception as e:
                 logger.warning(f"Edge-TTS not available: {e}")
-            
+
             # 回退到系统语音
             try:
                 provider = SystemTTSProvider()
@@ -86,13 +85,13 @@ class TTSFactory:
                     return provider
             except Exception as e:
                 logger.warning(f"System TTS not available: {e}")
-        
+
         raise RuntimeError(
             "No TTS provider available. "
             "On macOS, system voices should be available. "
             "Otherwise, please install: pip install edge-tts"
         )
-    
+
     @classmethod
     def get_provider_for_voice(cls, voice_id: str, prefer_offline: bool = True) -> BaseTTSProvider:
         """
@@ -107,7 +106,7 @@ class TTSFactory:
         """
         from app.core.voice.tts.edge_tts import EDGE_TTS_VOICES
         from app.core.voice.tts.system_tts import MACOS_VOICES
-        
+
         # 根据 voice_id 选择合适的提供商
         if voice_id in MACOS_VOICES:
             # 系统语音可用
@@ -119,9 +118,9 @@ class TTSFactory:
             # 未知声音，使用默认提供商
             logger.warning(f"Unknown voice {voice_id}, using default provider")
             return cls.get_provider(prefer_offline)
-    
+
     @classmethod
-    def list_all_voices(cls, locale: Optional[VoiceLocale] = None) -> list[dict]:
+    def list_all_voices(cls, locale: VoiceLocale | None = None) -> list[dict]:
         """
         获取所有可用声音列表
         
@@ -132,14 +131,14 @@ class TTSFactory:
             list[dict]: 所有声音的列表
         """
         voices = []
-        
+
         # 尝试获取所有提供商的声音
         for provider_name, provider_class in _TTS_PROVIDERS.items():
             try:
                 provider = provider_class()
                 if not provider.is_available():
                     continue
-                
+
                 for voice in provider.list_voices(locale):
                     voices.append({
                         "id": voice.id,
@@ -154,9 +153,9 @@ class TTSFactory:
                     })
             except Exception as e:
                 logger.warning(f"Failed to list voices from {provider_name}: {e}")
-        
+
         return voices
-    
+
     @classmethod
     def clear_cache(cls):
         """清除提供商实例缓存"""

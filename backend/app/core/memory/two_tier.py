@@ -48,12 +48,14 @@ import logging
 import re
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Any
 
 from pydantic import Field
 
 from app.core.config import settings
+from app.core.memory.backends.file_backend import FileMemoryStorage
 from app.core.memory.models import MemoryEntry, MemoryType
+from app.core.memory.retrieval import MemoryRetriever
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
@@ -65,7 +67,7 @@ class SectionBudget(DynamicBaseModel):
     lines: int
     used: int = 0
     overflow: bool = False
-    
+
     @property
     def remaining(self) -> int:
         return self.lines - self.used
@@ -73,11 +75,11 @@ class SectionBudget(DynamicBaseModel):
 
 class MemorySectionEntry(DynamicBaseModel):
     """A single entry in a MEMORY.md section."""
-    id: Optional[str] = None
+    id: str | None = None
     title: str
     description: str
-    score: Optional[float] = None
-    type: Optional[str] = None
+    score: float | None = None
+    type: str | None = None
 
 
 class MemorySection(DynamicBaseModel):
@@ -85,22 +87,22 @@ class MemorySection(DynamicBaseModel):
     name: str
     title: str
     budget: int
-    entries: List[MemorySectionEntry] = Field(default_factory=list)
-    
-    def to_markdown(self, max_lines: Optional[int] = None) -> str:
+    entries: list[MemorySectionEntry] = Field(default_factory=list)
+
+    def to_markdown(self, max_lines: int | None = None) -> str:
         """Generate markdown for this section."""
         max_lines = max_lines or self.budget
-        
+
         lines = [f"## {self.title}", ""]
-        
+
         for entry in self.entries[:max_lines]:
             lines.append(f"- **{entry['title']}**: {entry['description']}")
-        
+
         # Overflow indicator
         if len(self.entries) > max_lines:
             overflow_count = len(self.entries) - max_lines
             lines.append(f"\n*... and {overflow_count} more in cold memory*")
-        
+
         return "\n".join(lines) + "\n\n"
 
 
@@ -112,7 +114,7 @@ class TwoTierMemoryManager:
     Tier 1 (Hot): MEMORY.md - Always loaded, limited size
     Tier 2 (Cold): Full storage - Searched on demand
     """
-    
+
     # Default budget allocation (lines per section)
     DEFAULT_BUDGETS = {
         "architecture": 25,
@@ -122,11 +124,11 @@ class TwoTierMemoryManager:
         "progress": 30,
         "context": 15,
     }
-    
+
     # Maximum total size
     MAX_TOTAL_LINES = 200
     MAX_TOTAL_BYTES = 25 * 1024  # 25KB
-    
+
     # Section definitions
     SECTIONS = {
         "architecture": "Architecture",
@@ -136,12 +138,12 @@ class TwoTierMemoryManager:
         "progress": "Recent Progress",
         "context": "Current Context",
     }
-    
+
     def __init__(
         self,
         storage,
         config=None,
-        root_path: Optional[Path] = None,
+        root_path: Path | None = None,
     ):
         """
         Initialize two-tier memory manager.
@@ -153,30 +155,52 @@ class TwoTierMemoryManager:
         """
         self._storage = storage
         self._config = config
-        
+
         if config is not None:
             self.root = config.memory_root
         elif root_path is not None:
             self.root = Path(root_path)
         else:
             self.root = Path(settings.BRAIN_MEMORY_ROOT)
-        
+
         self.memory_md_path = self.root / "MEMORY.md"
         self.budgets = self.DEFAULT_BUDGETS.copy()
-    
+
     async def get_hot_memory(self) -> str:
         """
         Get Tier 1 memory (MEMORY.md) - always loaded.
-        
+
         Returns truncated content if exceeds limits.
         """
         if not self.memory_md_path.exists():
             # Generate if doesn't exist
             await self.regenerate_memory_md()
-        
+
         content = await self._read_truncated()
         return content
-    
+
+    async def search_cold_memory(
+        self,
+        query: str,
+        max_results: int = 5,
+    ) -> list[MemoryEntry]:
+        """
+        Search Tier 2 cold memory (full storage) using smart retrieval.
+
+        Args:
+            query: Search query
+            max_results: Maximum number of results
+
+        Returns:
+            List of relevant memory entries
+        """
+        retriever = MemoryRetriever(
+            self._storage,
+            config=self._config,
+            max_results=max_results,
+        )
+        return await retriever.find_relevant(query)
+
     async def regenerate_memory_md(self) -> None:
         """
         Regenerate MEMORY.md from cold memory.
@@ -189,31 +213,31 @@ class TwoTierMemoryManager:
         5. Write to MEMORY.md
         """
         logger.info("[TwoTier] Regenerating MEMORY.md from cold memory")
-        
+
         # Collect all memories
         all_memories = await self._collect_all_memories()
-        
+
         # Score and rank
         scored = self._score_memories(all_memories)
-        
+
         # Allocate to sections
         sections = self._allocate_to_sections(scored)
-        
+
         # Apply budgets with redistribution
         budgeted = self._apply_budgets(sections)
-        
+
         # Generate markdown
         content = self._generate_memory_md(budgeted)
-        
+
         # Write to file
         await self._write_memory_md(content)
-        
+
         logger.info("[TwoTier] MEMORY.md regenerated successfully")
-    
+
     async def update_section(
         self,
         section_name: str,
-        entries: List[MemorySectionEntry],
+        entries: list[MemorySectionEntry],
     ) -> None:
         """
         Update a specific section in MEMORY.md.
@@ -223,21 +247,21 @@ class TwoTierMemoryManager:
         if not self.memory_md_path.exists():
             await self.regenerate_memory_md()
             return
-        
+
         # Read current content
         content = self.memory_md_path.read_text(encoding="utf-8")
-        
+
         # Parse sections
         sections = self._parse_memory_md(content)
-        
+
         # Update specified section
         if section_name in sections:
             sections[section_name]["entries"] = entries
-        
+
         # Regenerate with updated section
         new_content = self._generate_memory_md(sections)
         await self._write_memory_md(new_content)
-    
+
     async def add_to_section(
         self,
         section_name: str,
@@ -250,33 +274,33 @@ class TwoTierMemoryManager:
         """
         if not self.memory_md_path.exists():
             await self.regenerate_memory_md()
-        
+
         content = self.memory_md_path.read_text(encoding="utf-8")
         sections = self._parse_memory_md(content)
-        
+
         section = sections.get(section_name)
         if not section:
             return False
-        
+
         budget = self.budgets.get(section_name, 25)
         if len(section["entries"]) >= budget:
             return False  # Budget full
-        
+
         section["entries"].append(entry)
-        
+
         new_content = self._generate_memory_md(sections)
         await self._write_memory_md(new_content)
-        
+
         return True
-    
-    async def get_section_stats(self) -> Dict[str, Dict[str, Any]]:
+
+    async def get_section_stats(self) -> dict[str, dict[str, Any]]:
         """Get statistics for each section."""
         if not self.memory_md_path.exists():
             await self.regenerate_memory_md()
-        
+
         content = self.memory_md_path.read_text(encoding="utf-8")
         sections = self._parse_memory_md(content)
-        
+
         stats = {}
         for name, section in sections.items():
             budget = self.budgets.get(name, 25)
@@ -286,20 +310,20 @@ class TwoTierMemoryManager:
                 "remaining": budget - len(section["entries"]),
                 "overflow": len(section["entries"]) > budget,
             }
-        
+
         return stats
-    
-    async def _collect_all_memories(self) -> List[MemoryEntry]:
+
+    async def _collect_all_memories(self) -> list[MemoryEntry]:
         """Collect all memories from cold storage."""
         # Use storage directly
         entries = await self._storage.list_all(limit=1000)
-        
+
         return entries
-    
+
     def _score_memories(
         self,
-        entries: List[MemoryEntry],
-    ) -> List[Tuple[MemoryEntry, float]]:
+        entries: list[MemoryEntry],
+    ) -> list[tuple[MemoryEntry, float]]:
         """
         Score memories for ranking in MEMORY.md.
         
@@ -307,26 +331,26 @@ class TwoTierMemoryManager:
         """
         now = datetime.utcnow()
         scored = []
-        
+
         for entry in entries:
             # Confidence (stored in metadata or default 0.5)
             confidence = getattr(entry, "confidence", 0.5)
-            
+
             # Access count (from quality analyzer)
             from app.core.memory.quality import quality_analyzer
             access_count = quality_analyzer._access_counts.get(entry.id, 0)
-            
+
             # Freshness (exponential decay)
             age_days = (now - entry.updated_at).days
             freshness = self._calculate_freshness(entry.type, age_days)
-            
+
             score = confidence * (1 + access_count) * freshness
             scored.append((entry, score))
-        
+
         # Sort by score descending
         scored.sort(key=lambda x: x[1], reverse=True)
         return scored
-    
+
     def _calculate_freshness(
         self,
         mem_type: MemoryType,
@@ -340,35 +364,35 @@ class TwoTierMemoryManager:
             MemoryType.PROJECT: None,    # Permanent
             MemoryType.REFERENCE: 7,     # 7 days
         }
-        
+
         lifespan = lifespans.get(mem_type)
         if lifespan is None:
             return 1.0  # No decay
-        
+
         # Linear decay to 0 over lifespan
         return max(0.0, 1.0 - (age_days / lifespan))
-    
+
     def _allocate_to_sections(
         self,
-        scored: List[Tuple[MemoryEntry, float]],
-    ) -> Dict[str, Dict[str, Any]]:
+        scored: list[tuple[MemoryEntry, float]],
+    ) -> dict[str, dict[str, Any]]:
         """Allocate memories to sections based on type."""
         sections = {
             name: {"title": title, "entries": []}
             for name, title in self.SECTIONS.items()
         }
-        
+
         # Type to section mapping
         type_mapping = {
             MemoryType.PROJECT: "architecture",
             MemoryType.USER: "patterns",
             MemoryType.FEEDBACK: "gotchas",
         }
-        
+
         for entry, score in scored:
             # Determine section by type
             section_name = type_mapping.get(entry.type, "context")
-            
+
             # Add to section
             sections[section_name]["entries"].append({
                 "id": entry.id,
@@ -377,13 +401,13 @@ class TwoTierMemoryManager:
                 "score": score,
                 "type": entry.type.value,
             })
-        
+
         return sections
-    
+
     def _apply_budgets(
         self,
-        sections: Dict[str, Dict[str, Any]],
-    ) -> Dict[str, Dict[str, Any]]:
+        sections: dict[str, dict[str, Any]],
+    ) -> dict[str, dict[str, Any]]:
         """
         Apply budget constraints with redistribution.
         
@@ -395,12 +419,12 @@ class TwoTierMemoryManager:
         result = {}
         unused_budget = 0
         overflowing = []
-        
+
         # First pass: allocate within budget
         for name, section in sections.items():
             budget = self.budgets.get(name, 25)
             entries = section["entries"]
-            
+
             if len(entries) <= budget:
                 # Within budget
                 result[name] = {
@@ -418,29 +442,29 @@ class TwoTierMemoryManager:
                     "overflow_count": len(entries) - budget,
                 }
                 overflowing.append(name)
-        
+
         # Second pass: redistribute unused budget
         if overflowing and unused_budget > 0:
             redistribution = unused_budget // len(overflowing)
-            
+
             for name in overflowing:
                 section = result[name]
                 original_overflow = section["overflow_count"]
-                
+
                 # Take from overflow
                 additional = min(redistribution, original_overflow)
                 current_len = len(section["entries"])
                 all_entries = sections[name]["entries"]
-                
+
                 section["entries"] = all_entries[:current_len + additional]
                 section["overflow_count"] = original_overflow - additional
                 section["overflow"] = section["overflow_count"] > 0
-        
+
         return result
-    
+
     def _generate_memory_md(
         self,
-        sections: Dict[str, Dict[str, Any]],
+        sections: dict[str, dict[str, Any]],
     ) -> str:
         """Generate MEMORY.md content."""
         lines = [
@@ -452,13 +476,13 @@ class TwoTierMemoryManager:
             "For full details, search the memory system.",
             "",
         ]
-        
+
         # Section order (important first)
         section_order = [
             "architecture", "decisions", "patterns",
             "gotchas", "progress", "context"
         ]
-        
+
         for name in section_order:
             if name in sections:
                 section = sections[name]
@@ -469,15 +493,15 @@ class TwoTierMemoryManager:
                     entries=section["entries"],
                 )
                 lines.append(section_obj.to_markdown())
-        
+
         return "\n".join(lines)
-    
-    def _parse_memory_md(self, content: str) -> Dict[str, Dict[str, Any]]:
+
+    def _parse_memory_md(self, content: str) -> dict[str, dict[str, Any]]:
         """Parse MEMORY.md into sections."""
         sections = {}
         current_section = None
         current_entries = []
-        
+
         for line in content.split("\n"):
             # Section header
             if line.startswith("## "):
@@ -486,7 +510,7 @@ class TwoTierMemoryManager:
                         "title": self.SECTIONS.get(current_section, current_section),
                         "entries": current_entries,
                     }
-                
+
                 section_title = line[3:].strip()
                 # Find section name from title
                 current_section = None
@@ -494,12 +518,12 @@ class TwoTierMemoryManager:
                     if title.lower() in section_title.lower():
                         current_section = name
                         break
-                
+
                 if not current_section:
                     current_section = section_title.lower().replace(" ", "_")
-                
+
                 current_entries = []
-            
+
             # Entry line
             elif line.startswith("- **") and current_section:
                 # Parse: - **Title**: Description
@@ -510,16 +534,16 @@ class TwoTierMemoryManager:
                         "title": title,
                         "description": desc,
                     })
-        
+
         # Don't forget last section
         if current_section:
             sections[current_section] = {
                 "title": self.SECTIONS.get(current_section, current_section),
                 "entries": current_entries,
             }
-        
+
         return sections
-    
+
     async def _write_memory_md(self, content: str) -> None:
         """Write to MEMORY.md."""
         loop = asyncio.get_event_loop()
@@ -528,27 +552,27 @@ class TwoTierMemoryManager:
             self._write_sync,
             content,
         )
-    
+
     def _write_sync(self, content: str) -> None:
         """Synchronous write."""
         self.memory_md_path.parent.mkdir(parents=True, exist_ok=True)
         self.memory_md_path.write_text(content, encoding="utf-8")
-    
+
     async def _read_truncated(self) -> str:
         """Read MEMORY.md with truncation."""
         if not self.memory_md_path.exists():
             return self._generate_default_content()
-        
+
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(
             None,
             self._read_truncated_sync,
         )
-    
+
     def _read_truncated_sync(self) -> str:
         """Synchronous read with truncation."""
         content = self.memory_md_path.read_text(encoding="utf-8")
-        
+
         # Check byte limit
         content_bytes = content.encode("utf-8")
         if len(content_bytes) > self.MAX_TOTAL_BYTES:
@@ -556,16 +580,16 @@ class TwoTierMemoryManager:
             truncated = content_bytes[:self.MAX_TOTAL_BYTES]
             content = truncated.decode("utf-8", errors="ignore")
             content += "\n\n*[Content truncated due to size limit]*"
-        
+
         # Check line limit
         lines = content.split("\n")
         if len(lines) > self.MAX_TOTAL_LINES:
             lines = lines[:self.MAX_TOTAL_LINES]
             lines.append("\n*[Content truncated due to line limit]*")
             content = "\n".join(lines)
-        
+
         return content
-    
+
     def _generate_default_content(self) -> str:
         """Generate default MEMORY.md content."""
         return """# Project Memory
@@ -583,3 +607,37 @@ class TwoTierMemoryManager:
 
 Memories are automatically extracted from conversations and ranked by importance.
 """
+
+
+# =============================================================================
+# Convenience Singleton and Functions
+# =============================================================================
+
+_two_tier_instance: TwoTierMemoryManager | None = None
+
+
+def _get_two_tier_manager() -> TwoTierMemoryManager:
+    """Lazy initialization of the default two-tier manager."""
+    global _two_tier_instance
+    if _two_tier_instance is None:
+        storage = FileMemoryStorage(str(settings.BRAIN_MEMORY_ROOT))
+        _two_tier_instance = TwoTierMemoryManager(storage=storage)
+    return _two_tier_instance
+
+
+two_tier_manager = _get_two_tier_manager()
+
+
+async def get_hot_memory() -> str:
+    """Get Tier 1 hot memory (MEMORY.md) using the default manager."""
+    return await _get_two_tier_manager().get_hot_memory()
+
+
+async def search_cold_memory(query: str, max_results: int = 5) -> list[MemoryEntry]:
+    """Search Tier 2 cold memory using the default manager."""
+    return await _get_two_tier_manager().search_cold_memory(query, max_results)
+
+
+async def regenerate_memory_md() -> None:
+    """Regenerate MEMORY.md using the default manager."""
+    await _get_two_tier_manager().regenerate_memory_md()

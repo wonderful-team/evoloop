@@ -31,7 +31,7 @@ InternalLLMService - 内部 LLM 调用服务
 """
 
 import logging
-from typing import Any, Optional, Type, TypeVar
+from typing import Any, TypeVar
 
 from pydantic import BaseModel
 
@@ -47,14 +47,14 @@ class InternalLLMService:
     所有内部处理都应该使用此服务，而不是直接调用 LLM。
     这确保了内部处理不会意外触发回调，导致消息泄露。
     """
-    
+
     @staticmethod
     async def invoke(
         messages: list[dict],
         purpose: str,
         temperature: float = 0.3,
         max_tokens: int = 500,
-        model: Optional[str] = None,
+        model: str | None = None,
         **kwargs
     ) -> Any:
         """
@@ -78,14 +78,14 @@ class InternalLLMService:
             - 记录调用日志（仅用于调试，不存储消息）
         """
         from app.infrastructure.llm.factory import get_default_llm
-        
+
         # 获取 LLM 实例
         llm = await get_default_llm(
             temperature=temperature,
             max_tokens=max_tokens,
             model=model,
         )
-        
+
         # 关键：禁用所有回调，防止消息泄露
         config = {
             "callbacks": [],  # 空列表 = 禁用所有回调
@@ -97,28 +97,28 @@ class InternalLLMService:
             },
             **kwargs.get("config", {}),
         }
-        
+
         # 记录内部调用（仅用于调试）
         logger.debug(
             f"[InternalLLM] Calling LLM for purpose: {purpose}, "
             f"messages: {len(messages)}, temp: {temperature}"
         )
-        
+
         try:
             response = await llm.ainvoke(messages, config=config)
-            
+
             logger.debug(f"[InternalLLM] Completed: {purpose}")
-            
+
             return response
-            
+
         except Exception as e:
             logger.error(f"[InternalLLM] Failed for purpose '{purpose}': {e}")
             raise
-    
+
     @staticmethod
     async def invoke_structured(
         messages: list[dict],
-        output_schema: Type[T],
+        output_schema: type[T],
         purpose: str,
         temperature: float = 0.3,
         max_tokens: int = 500,
@@ -153,15 +153,15 @@ class InternalLLMService:
             reasoning = result.reasoning
         """
         from app.infrastructure.llm.factory import get_default_llm
-        
+
         llm = await get_default_llm(
             temperature=temperature,
             max_tokens=max_tokens,
         )
-        
+
         # 绑定结构化输出
         structured_llm = llm.with_structured_output(output_schema)
-        
+
         config = {
             "callbacks": [],
             "metadata": {
@@ -172,32 +172,32 @@ class InternalLLMService:
                 "should_stream": False,
             },
         }
-        
+
         logger.debug(
             f"[InternalLLM] Structured call: {purpose}, "
             f"schema: {output_schema.__name__}"
         )
-        
+
         try:
             result = await structured_llm.ainvoke(messages, config=config)
-            
+
             logger.debug(f"[InternalLLM] Structured completed: {purpose}")
-            
+
             return result
-            
+
         except Exception as e:
             logger.error(
                 f"[InternalLLM] Structured failed for '{purpose}': {e}"
             )
             raise
-    
+
     @staticmethod
     async def invoke_with_fallback(
         messages: list[dict],
         purpose: str,
         temperature: float = 0.3,
         max_tokens: int = 500,
-        fallback_value: Optional[Any] = None,
+        fallback_value: Any | None = None,
         **kwargs
     ) -> Any:
         """
@@ -229,7 +229,7 @@ class InternalLLMService:
                 f"[InternalLLM] Using fallback for '{purpose}' due to: {e}"
             )
             return fallback_value
-    
+
     @staticmethod
     def validate_purpose(purpose: str) -> bool:
         """
@@ -252,11 +252,11 @@ class InternalLLMService:
         - vision_analysis: 视觉分析
         """
         import re
-        
+
         # 格式验证：小写字母和下划线
         if not re.match(r'^[a-z_]+$', purpose):
             return False
-        
+
         # 已知用途列表（可选验证）
         known_purposes = {
             "memory_selection",
@@ -273,12 +273,12 @@ class InternalLLMService:
             "skill_discovery",
             "skill_matching",
         }
-        
+
         # 如果不是已知用途，发出警告但不阻止
         if purpose not in known_purposes:
             logger.warning(
                 f"[InternalLLM] Unknown purpose: {purpose}. "
                 f"Consider adding it to the known purposes list."
             )
-        
+
         return True

@@ -8,36 +8,31 @@ This module provides extractors for:
 - Images (OCR for text extraction)
 """
 
-from app.domain.knowledge.extractors.base import BaseExtractor, ExtractionError
-from app.domain.knowledge.extractors.registry import (
-    ExtractorRegistry,
-    get_extractor_for_file
-)
-
-# Text extractors
-from app.domain.knowledge.extractors.text import (
-    PlainTextExtractor,
-    MarkdownExtractor,
-    CodeDocExtractor
-)
-
+from app.domain.knowledge.extractors.base import BaseExtractor
 # HTML extractor
 from app.domain.knowledge.extractors.html import HTMLExtractor
-
-# PDF extractors
-from app.domain.knowledge.extractors.pdf import PDFExtractor, PyPDF2Extractor
-
+# Image OCR extractors
+from app.domain.knowledge.extractors.image import (
+    ImageOCRExtractor,
+    ScreenshotExtractor
+)
 # Office extractors
 from app.domain.knowledge.extractors.office import (
     WordExtractor,
     ExcelExtractor,
     PowerPointExtractor
 )
-
-# Image OCR extractors
-from app.domain.knowledge.extractors.image import (
-    ImageOCRExtractor,
-    ScreenshotExtractor
+# PDF extractors
+from app.domain.knowledge.extractors.pdf import PDFExtractor, PyPDF2Extractor
+from app.domain.knowledge.extractors.registry import (
+    ExtractorRegistry,
+    get_extractor_for_file
+)
+# Text extractors
+from app.domain.knowledge.extractors.text import (
+    PlainTextExtractor,
+    MarkdownExtractor,
+    CodeDocExtractor
 )
 
 __all__ = [
@@ -70,3 +65,5 @@ __all__ = [
     "ImageOCRExtractor",
     "ScreenshotExtractor",
 ]
+
+from app.domain.knowledge.models import ExtractionError

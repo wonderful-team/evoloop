@@ -43,7 +43,7 @@ class WorkerPromptBuilder:
 
         from .utils import get_sandbox_mode
         mode = get_sandbox_mode()
-        
+
         # Static Sys Info (Project identity only)
         sys_info = {
             "is_global_mode": ctx.project_id == 0 or ctx.project_id is None,
@@ -115,7 +115,7 @@ class WorkerPromptBuilder:
         the System Prompt remains stable and cacheable.
         """
         ctx = ContextManager.current()
-        
+
         # Determine visualization needs dynamically for this turn
         needs_visualization = any(kw in (self.ticket.topic or "").lower() or kw in (getattr(self.ticket, "reason", None) or "").lower() for kw in ["chart", "plot", "viz", "统计", "图表"])
 

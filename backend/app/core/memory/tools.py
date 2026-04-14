@@ -7,18 +7,18 @@ import json
 import logging
 import time
 import uuid
-from typing import Annotated, Optional
+from typing import Annotated
 
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import InjectedToolArg
 
 from app.constants import FORGET_SAFETY_WINDOW
 from app.core.context.manager import ContextManager
-from app.core.memory import get_relevant_memories
 from app.core.memory.backends.sql_short_term import SqlShortTermMemory
 from app.core.memory.models import MemoryEntry, MemoryType, PrivacyLevel
 from app.core.tools.base import evoloop_tool
 from app.utils import ContentFormatter
+from .retrieval import get_relevant_memories
 
 logger = logging.getLogger(__name__)
 
@@ -50,26 +50,26 @@ async def remember(content: str, context: str = "", is_user_preference: bool = F
     """
     ctx = ContextManager.current()
     user_id = ctx.user_id if ctx else None
-    
+
     try:
         # Determine memory scope based on LLM's classification
         mem_type = MemoryType.USER if is_user_preference else MemoryType.PROJECT
         privacy = PrivacyLevel.PRIVATE if is_user_preference else PrivacyLevel.TEAM
-        
+
         title = content[:60] + "..." if len(content) > 60 else content
         full_content = content
         if context:
             full_content += f"\n\nContext: {context}"
-        
+
         entry_id = f"mem_{uuid.uuid4().hex[:12]}"
-        
+
         # Ensure IDs are types that MemoryEntry expects (support mocks in tests)
         project_id = ctx.project_id if ctx else None
         try:
             p_id = int(project_id) if project_id is not None else None
         except (ValueError, TypeError):
             p_id = None
-            
+
         entry = MemoryEntry(
             id=entry_id,
             type=mem_type,
@@ -83,17 +83,17 @@ async def remember(content: str, context: str = "", is_user_preference: bool = F
             source="agent_tool",
             source_message_id=None, # Ensure all fields are provided for dataclass
         )
-        
+
         from app.core.memory.lifespan import MemoryLifespanManager
         if not MemoryLifespanManager.is_initialized():
             await MemoryLifespanManager.ainitialize()
         container = MemoryLifespanManager.get_container()
         manager = container.memory_manager
         await manager.save_memory(entry)
-        
+
         logger.info(f"[MemoryTool] Remembered: {title[:40]}...")
         return f"Remembered: {title}"
-        
+
     except Exception as e:
         logger.error(f"[MemoryTool] Failed to remember: {e}")
         return f"Failed to save memory: {str(e)}"
@@ -120,7 +120,7 @@ async def recall(query: str, limit: int = 5) -> str:
     user_id = ctx.user_id if ctx else None
     project_id = ctx.project_id if ctx else None
     thread_id = ctx.thread_id if ctx else None
-    
+
     try:
         entries = await get_relevant_memories(
             query=query,
@@ -128,7 +128,7 @@ async def recall(query: str, limit: int = 5) -> str:
             project_id=project_id,
             max_results=limit,
         )
-        
+
         if not entries:
             # Fallback to searching conversation history if no semantic match in long-term
             if thread_id:
@@ -136,18 +136,18 @@ async def recall(query: str, limit: int = 5) -> str:
                 messages = await memory.search_messages(query, thread_id, limit=5)
                 if messages:
                     return ContentFormatter.chat_search_results(query, messages)
-            
+
             return f"No memories found for '{query}'."
-        
+
         # Format results
         lines = [f"Recalled {len(entries)} memories:\n"]
         for i, entry in enumerate(entries, 1):
             lines.append(f"{i}. [{entry.type.value.upper()}] {entry.title}")
             lines.append(f"   {entry.content[:300]}")
             lines.append("")
-        
+
         return "\n".join(lines)
-        
+
     except Exception as e:
         logger.error(f"[MemoryTool] Recall failed: {e}")
         return f"Failed to recall: {str(e)}"
@@ -165,7 +165,7 @@ async def recall(query: str, limit: int = 5) -> str:
 async def search_history(
     query: str,
     limit: int = 10,
-    thread_id: Optional[str] = None,
+    thread_id: str | None = None,
     config: Annotated[RunnableConfig, InjectedToolArg] = None,
 ) -> str:
     """
@@ -186,7 +186,7 @@ async def search_history(
     """
     if not query:
         return "Error: query is required."
-    
+
     ctx = ContextManager.current()
     target_thread = thread_id or ctx.thread_id
     if not target_thread:
@@ -198,7 +198,7 @@ async def search_history(
         if not results:
             return f"No messages found for '{query}' in history."
         return ContentFormatter.chat_search_results(query, results)
-        
+
     except Exception as e:
         logger.error(f"[MemoryTool] History search failed: {e}")
         return f"Failed to search history: {str(e)}"
@@ -229,15 +229,16 @@ async def forget_tool_outputs(
     thread_id = config.get("configurable", {}).get("thread_id", "unknown") if config else "unknown"
 
     try:
+        from sqlalchemy import select
+
         from app.infrastructure.database.sql.database import session_scope
         from app.models import Message
-        from sqlalchemy import select
 
         async with session_scope() as session:
             stmt = select(Message).where(Message.thread_id == thread_id).order_by(Message.sequence_number.asc())
             result = await session.execute(stmt)
             db_messages = result.scalars().all()
-            
+
         current_step = len(db_messages)
         message_map = {msg.tool_call_id: {"index": i, "msg": msg} for i, msg in enumerate(db_messages) if msg.tool_call_id}
 
@@ -272,7 +273,7 @@ async def forget_tool_outputs(
             results["forgotten"].append({"id": tc_id, "tool": tool_name, "summary": summary, "saved": len(content) - len(summary)})
 
         total_saved = sum(r["saved"] for r in results["forgotten"])
-        
+
         return json.dumps({
             "status": "success",
             "message": f"Successfully forgot {len(results['forgotten'])} outputs, saved {total_saved} chars.",
@@ -301,9 +302,10 @@ async def recall_tool_output(
     thread_id = config.get("configurable", {}).get("thread_id", "unknown") if config else "unknown"
 
     try:
+        from sqlalchemy import select
+
         from app.infrastructure.database.sql.database import session_scope
         from app.models import Message
-        from sqlalchemy import select
 
         async with session_scope() as session:
             stmt = select(Message).where(Message.thread_id == thread_id, Message.tool_call_id == tool_call_id).limit(1)
@@ -319,7 +321,7 @@ async def recall_tool_output(
                 "_signal": "recall_tool_output",
                 "data": {"tool_call_id": tool_call_id, "found": True, "content": msg.content}
             }, ensure_ascii=False)
-            
+
     except Exception as e:
         logger.error(f"[ContextMgmt] Recall failed: {e}")
         return json.dumps({"status": "error", "message": str(e)})
@@ -346,14 +348,14 @@ async def list_forgotten_outputs(
         return "No forgotten tool outputs in current context."
 
     from app.core.memory.tool_output_memory import ToolOutputMemory
-    
+
     try:
         memory = ToolOutputMemory.from_dict(tool_memory_data)
         forgotten_records = memory.list_forgotten(limit=limit)
-        
+
         if not forgotten_records:
             return "No forgotten tool outputs in current context."
-            
+
         lines = [f"### Forgotten Tool Outputs ({len(forgotten_records)})"]
         for record in forgotten_records:
             lines.append(f"- **ID**: {record.tool_call_id}")
@@ -361,7 +363,7 @@ async def list_forgotten_outputs(
             lines.append(f"  **Reason**: {record.reason}")
             lines.append(f"  **Summary**: {record.summary[:100]}...")
             lines.append("")
-            
+
         return "\n".join(lines)
     except Exception as e:
         logger.error(f"[ContextMgmt] List forgotten failed: {e}")
@@ -372,12 +374,12 @@ def _generate_summary(tool_name: str, content: str, max_length: int = 200) -> st
     """Internal helper to generate summaries for forgotten tool outputs."""
     if not content: return f"[{tool_name}: empty]"
     if len(content) <= max_length: return f"[{tool_name}: {content}]"
-    
+
     if tool_name == "read_file":
         lines = content.split('\n')
         return f"[read_file: {len(lines)} lines] {lines[0][:80]}..."
     elif tool_name == "list_directory":
         items = [l for l in content.split('\n') if l.strip()]
         return f"[list_directory: {len(items)} items] {', '.join(items[:3])}..."
-    
+
     return f"[{tool_name}: {len(content)} chars] {content[:max_length]}..."

@@ -4,13 +4,10 @@ import logging
 import os
 import re
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from app.core.environment.capabilities.registry import ActionRegistry
-from app.core.environment.controllers.browser_controller import BrowserController
-from app.core.environment.controllers.desktop_controller import DesktopController
-from app.core.environment.controllers.mobile_controller import MobileController
-from app.core.execution.macro.schema import MacroStep, MacroStepType, MacroSource
+from app.core.execution.macro.schema import MacroSource, MacroStep, MacroStepType
 from app.core.monitoring.activity import activity_monitor
 from app.utils.geometry import parse_bounds
 from app.utils.xml import clean_xml_content
@@ -29,10 +26,10 @@ class MacroEngine:
         cls,
         thread_id: str,
         script: Any, # MacroScript
-        params: Optional[Dict[str, Any]] = None,
-        extracted_data: Optional[Dict[str, Any]] = None,
+        params: dict[str, Any] | None = None,
+        extracted_data: dict[str, Any] | None = None,
         disable_ocr: bool = True
-    ) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
+    ) -> tuple[bool, str, dict[str, Any] | None]:
         """Public entry point for MacroScript execution.
 
         Args:
@@ -52,12 +49,12 @@ class MacroEngine:
     async def execute_steps(
         cls,
         thread_id: str,
-        steps: List[MacroStep],
-        params: Optional[Dict[str, Any]] = None,
-        extracted_data: Optional[Dict[str, Any]] = None,
+        steps: list[MacroStep],
+        params: dict[str, Any] | None = None,
+        extracted_data: dict[str, Any] | None = None,
         disable_ocr: bool = True,
-        active_bundle_id: Optional[str] = None
-    ) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
+        active_bundle_id: str | None = None
+    ) -> tuple[bool, str, dict[str, Any] | None]:
         """
         Internal recursive execution of macro steps.
         Returns (success, message, fallback_context).
@@ -73,11 +70,11 @@ class MacroEngine:
 
         for step in steps:
             step_num = step.step_number
-            
+
             # 1. Parameter Injection (Handled at step level)
             target_selector = cls._inject_params(step.target_selector, params)
             payload = cls._inject_payload_params(step.payload, params)
-            
+
             # Fallback for selector buried in payload
             target_selector = target_selector or payload.get("selector")
 
@@ -97,7 +94,7 @@ class MacroEngine:
                     desc += f"(max_iterations={max_iters})"
             elif step.type == MacroStepType.EXTRACT:
                 desc += f"(key='{step.key}')"
-                
+
             await activity_monitor.log_event("macro_thought", {"text": desc}, thread_id)
             logger.info(f"[{thread_id}] {desc}")
 
@@ -148,11 +145,15 @@ class MacroEngine:
                         logger.warning(f"Unknown macro source: {source}")
                 except Exception as e:
                     error_msg = str(e)
-                    
+
                     # --- Observability: Capture screenshot on failure ---
                     screenshot_path = None
                     try:
                         if source == MacroSource.DOM:
+                            from app.core.environment.controllers.browser_controller import (
+                                BrowserController,
+                            )
+
                             # Use 'debug' purpose which exists in ScreenshotPurpose enum
                             res = await BrowserController.execute(action="screenshot", purpose="debug")
                             match = re.search(r"(/.*\.png)", str(res))
@@ -166,13 +167,13 @@ class MacroEngine:
                         "source": source,
                         "screenshot": screenshot_path
                     }
-                    
+
                     if screenshot_path:
                         await activity_monitor.log_event("macro_thought", {
                             "text": f"[FAILED] Step {step_num} failed. Failure captured: {screenshot_path}"
                         }, thread_id)
                         logger.error(f"[{thread_id}] [FAILED] Macro Step {step_num} failed. Screenshot: {screenshot_path}")
-                    
+
                     return False, f"Step {step_num} failed: {error_msg}", fallback_context
 
                 await activity_monitor.check_cancellation(thread_id)
@@ -184,7 +185,7 @@ class MacroEngine:
         return True, "", None
 
     @classmethod
-    async def _handle_control_flow(cls, thread_id: str, step: MacroStep, payload: dict, params: dict, extracted_data: dict, disable_ocr: bool = True, active_bundle_id: Optional[str] = None):
+    async def _handle_control_flow(cls, thread_id: str, step: MacroStep, payload: dict, params: dict, extracted_data: dict, disable_ocr: bool = True, active_bundle_id: str | None = None):
         if params is None:
             params = {}
         # Implementation of If/While/Loop logic
@@ -259,7 +260,7 @@ class MacroEngine:
         return True, "", None
 
     @classmethod
-    async def _handle_loop(cls, thread_id: str, step: MacroStep, payload: dict, params: dict, extracted_data: dict, disable_ocr: bool = True, active_bundle_id: Optional[str] = None):
+    async def _handle_loop(cls, thread_id: str, step: MacroStep, payload: dict, params: dict, extracted_data: dict, disable_ocr: bool = True, active_bundle_id: str | None = None):
         """
         Handle a batch loop by iterating over a list of items and executing nested steps.
         Includes exponential backoff for network errors and DLQ support.
@@ -290,9 +291,12 @@ class MacroEngine:
         bundle_id = None
         if step.source == MacroSource.MOBILE:
             try:
-                from app.infrastructure.drivers.adb import adb_driver
-                from app.core.environment.explorers.dynamic_apps import DynamicAppTriage
+                from app.core.environment.controllers.mobile_controller import (
+                    MobileController,
+                )
                 from app.core.context.manager import ContextManager
+                from app.core.environment.explorers.dynamic_apps import DynamicAppTriage
+                from app.infrastructure.drivers.adb import adb_driver
 
                 device_id = ContextManager.get_var("device_id")
                 curr_app = await asyncio.to_thread(adb_driver.get_current_app, device_id=device_id)
@@ -328,20 +332,24 @@ class MacroEngine:
 
                     # 2. Execute nested steps (unified)
                     success, msg, fallback = await cls.execute_steps(thread_id, step.steps, iter_params, extracted_data, disable_ocr, active_bundle_id)
-                    
+
                     if success:
                         break
-                    
+
                     last_error = msg
                     # Determine if it's a network error
                     is_network_error = any(kw in msg.lower() for kw in ["network", "timeout", "connection", "http", "status 50", "429"])
-                    
+
                     if is_network_error:
                         sleep_time = backoff_base ** retry_count
                         logger.warning(f"[{thread_id}] Network error in batch iteration {index}. Retrying in {sleep_time}s... Error: {msg}")
                         await asyncio.sleep(sleep_time)
                         retry_count += 1
                     elif "ERR_ELEMENT_NOT_FOUND" in msg and current_scroll_attempt < scroll_attempts:
+                        from app.core.environment.controllers.mobile_controller import (
+                            MobileController,
+                        )
+
                         # Phase 3: Autonomous Scrolling for Dynamic Apps
                         logger.info(f"[{thread_id}] Element not found in dynamic app. Attempting autonomous scroll...")
                         await MobileController.execute(action="swipe", direction="up", duration_ms=800)
@@ -353,7 +361,7 @@ class MacroEngine:
                         # Non-network and non-scrollable error (e.g. fatal UI change)
                         logger.error(f"[{thread_id}] Functional error in batch iteration {index}: {msg}")
                         return False, msg, fallback
-                        
+
                 except Exception as e:
                     last_error = str(e)
                     logger.error(f"[{thread_id}] Unexpected error in batch iteration {index}: {e}")
@@ -383,8 +391,8 @@ class MacroEngine:
         extracted_data: dict,
         disable_ocr: bool,
         collect_mode: str,
-        active_bundle_id: Optional[str] = None
-    ) -> Tuple[bool, str, Optional[Dict]]:
+        active_bundle_id: str | None = None
+    ) -> tuple[bool, str, dict | None]:
         """
         Handle two-phase batch collection loop.
 
@@ -404,7 +412,7 @@ class MacroEngine:
         state = {"items": [], "phase": "list", "created_at": datetime.now().isoformat()}
         if os.path.exists(state_file):
             try:
-                with open(state_file, 'r', encoding='utf-8') as f:
+                with open(state_file, encoding='utf-8') as f:
                     state = json.load(f)
             except Exception as e:
                 logger.warning(f"[{thread_id}] Failed to load state file, starting fresh: {e}")
@@ -461,6 +469,10 @@ class MacroEngine:
 
                 # Scroll to next screen
                 try:
+                    from app.core.environment.controllers.mobile_controller import (
+                        MobileController,
+                    )
+
                     # Map swipe_distance to a ratio for the 'scroll' action
                     # Standard height is ~2400. 1200 is 0.5
                     scroll_ratio = min(0.9, max(0.1, swipe_distance / 2400.0 if swipe_distance > 1 else 0.5))
@@ -519,6 +531,10 @@ class MacroEngine:
                 logger.info(f"[{thread_id}] Processing item {i+1}/{len(pending_items)}: {item['signature'][:50]}")
 
                 try:
+                    from app.core.environment.controllers.mobile_controller import (
+                        MobileController,
+                    )
+
                     # Tap to open detail
                     tap_x = item.get("tap_x", 540)
                     tap_y = item.get("tap_y", item.get("anchor_y", 500))
@@ -553,7 +569,7 @@ class MacroEngine:
                         else:
                             item["status"] = "done"
                             item["completed_at"] = datetime.now().isoformat()
-                            
+
                             # NEW: Capture extraction results into the item for persistence/dumping
                             capture_config = detail_config.get("data_capture")
                             if capture_config:
@@ -562,7 +578,7 @@ class MacroEngine:
                                     if val is not None:
                                         item[target_key] = val
                                 logger.info(f"[{thread_id}] Captured {len(capture_config)} fields into item {i}")
-                            
+
                             success_count += 1
                     else:
                         # No nested steps, just mark as done
@@ -571,6 +587,10 @@ class MacroEngine:
                         success_count += 1
 
                     # Go back to list
+                    from app.core.environment.controllers.mobile_controller import (
+                        MobileController,
+                    )
+
                     await MobileController.execute(
                         action="press_key",
                         keycode=4,  # BACK
@@ -613,7 +633,7 @@ class MacroEngine:
         return True, "Collect loop processed", None
 
     @staticmethod
-    def _extract_collect_items_from_xml(xml_content: str, anchor_rule: dict, feature_config: dict) -> List[Dict]:
+    def _extract_collect_items_from_xml(xml_content: str, anchor_rule: dict, feature_config: dict) -> list[dict]:
         """Extract collectible items from UI dump XML."""
         import xml.etree.ElementTree as ET
 
@@ -700,6 +720,16 @@ class MacroEngine:
 
     @classmethod
     async def _evaluate_condition(cls, cond_type: str, selector: str, source: str) -> bool:
+        from app.core.environment.controllers.browser_controller import (
+            BrowserController,
+        )
+        from app.core.environment.controllers.desktop_controller import (
+            DesktopController,
+        )
+        from app.core.environment.controllers.mobile_controller import (
+            MobileController,
+        )
+
         if cond_type == "element_exists":
             if source == MacroSource.DOM:
                 res = await BrowserController.execute(action="check_element", selector=selector)
@@ -742,6 +772,16 @@ class MacroEngine:
 
     @classmethod
     async def _handle_extraction(cls, thread_id: str, step: MacroStep, selector: str, payload: dict, params: dict, extracted_data: dict):
+        from app.core.environment.controllers.browser_controller import (
+            BrowserController,
+        )
+        from app.core.environment.controllers.desktop_controller import (
+            DesktopController,
+        )
+        from app.core.environment.controllers.mobile_controller import (
+            MobileController,
+        )
+
         key = cls._inject_params(step.key, params) or "data"
         extract_type = step.extract_type or step.event_type
 
@@ -786,7 +826,7 @@ class MacroEngine:
                     res = await DesktopController.execute(action="screenshot", region=payload.get("region"))
                 else:
                     res = await MobileController.execute(action="screenshot", region=payload.get("region"))
-                
+
                 match = re.search(r"(/.*\.png)", str(res))
                 filepath = match.group(1) if match else str(res)
                 if selector and filepath.endswith(".png"):
@@ -798,29 +838,36 @@ class MacroEngine:
     @classmethod
     async def _handle_gui_extract(cls, thread_id: str, step: MacroStep, selector: str, payload: dict, params: dict, extracted_data: dict):
         """Handle Coordinate-based GUI extraction (OCR)."""
+        from app.core.environment.controllers.desktop_controller import (
+            DesktopController,
+        )
+        from app.core.environment.controllers.mobile_controller import (
+            MobileController,
+        )
+
         key = cls._inject_params(step.key, params) or "extracted_text"
         pos = payload.get("relative_position") or {"x": payload.get("x", 0.5), "y": payload.get("y", 0.5)}
         region = payload.get("region")
-        
+
         # [Refactor] Route through controllers for unified logic
         try:
             if step.source == MacroSource.DESKTOP:
                 res = await DesktopController.execute(
-                    action="gui_extract", 
-                    x=pos.get("x"), 
-                    y=pos.get("y"), 
+                    action="gui_extract",
+                    x=pos.get("x"),
+                    y=pos.get("y"),
                     region=region
                 )
                 extracted_data[key] = res
             elif step.source == MacroSource.MOBILE:
                 res = await MobileController.execute(
-                    action="gui_extract", 
-                    x=pos.get("x"), 
-                    y=pos.get("y"), 
+                    action="gui_extract",
+                    x=pos.get("x"),
+                    y=pos.get("y"),
                     region=region,
                     extraction_method=payload.get("extraction_method")
                 )
-                
+
                 # Deserialization check for structural results (like lists)
                 if isinstance(res, str) and (res.startswith("[") or res.startswith("{")):
                     try:
@@ -842,12 +889,15 @@ class MacroEngine:
     async def _crop_mobile_screenshot(cls, filepath: str, selector: str) -> str:
         try:
             from PIL import Image
-            from app.core.vision.providers.native.android_a11y import android_a11y_provider
+
+            from app.core.vision.providers.native.android_a11y import (
+                android_a11y_provider,
+            )
             from app.core.vision.types import VisionTask
 
             def _norm(t): return re.sub(r'\s+', '', t).lower() if t else ""
             a11y_res = await android_a11y_provider.process(VisionTask.DETECT, "", device_id=None)
-            
+
             if a11y_res.success:
                 target_norm = _norm(selector)
                 for el in a11y_res.elements:
@@ -867,14 +917,14 @@ class MacroEngine:
     async def _handle_dump(cls, thread_id: str, payload: dict, extracted_data: dict):
         """Handle data persistence - supports file, MCP, and webhook sinks."""
         sink_type = payload.get("sink_type", "file")
-        
+
         # Enrich data if requested from state file (for two-phase batch collection)
         data_to_dump = dict(extracted_data)
         if payload.get("include_state_items"):
             state_file = extracted_data.get("collect_results", {}).get("state_file")
             if state_file and os.path.exists(state_file):
                 try:
-                    with open(state_file, 'r', encoding='utf-8') as f:
+                    with open(state_file, encoding='utf-8') as f:
                         state_data = json.load(f)
                         # We use 'items' for MCP batch tools
                         data_to_dump["batch_items"] = state_data.get("items", [])
@@ -936,7 +986,7 @@ class MacroEngine:
                     if tool.name == mcp_tool_name or tool.name == formatted_name:
                         target_tool = tool
                         break
-                
+
                 # 2. Fuzzy match by operation (fallback)
                 if not mcp_tool_name:
                     tool_name = tool.name.lower()
@@ -965,7 +1015,7 @@ class MacroEngine:
                     else:
                         # Get value from extracted_data (could be simple key or batch_items)
                         data_payload[target_key] = extracted_data.get(source_key)
-                
+
                 # Check for empty payload
                 if not data_payload:
                     logger.warning(f"[{thread_id}] MCP data_mapping resulted in empty payload")
@@ -1056,9 +1106,9 @@ class MacroEngine:
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE
             )
-            
+
             stdout, stderr = await process.communicate()
-            
+
             if process.returncode != 0:
                 err_msg = stderr.decode().strip()
                 logger.error(f"[{thread_id}] Native script failed with code {process.returncode}: {err_msg}")
@@ -1068,9 +1118,9 @@ class MacroEngine:
             # Handle sync_state if provided
             if sync_state and os.path.exists(sync_state):
                 try:
-                    with open(sync_state, 'r', encoding='utf-8') as f:
+                    with open(sync_state, encoding='utf-8') as f:
                         state_data = json.load(f)
-                    
+
                     # Merge items into batch_items for dumping
                     items = state_data.get('items', [])
                     if items:
@@ -1087,6 +1137,9 @@ class MacroEngine:
     @classmethod
     async def _execute_browser_step(cls, event_type: str, selector: str, payload: dict):
         """Execute a browser step directly via BrowserController (no @evoloop_tool overhead)."""
+
+        from app.core.environment.controllers import BrowserController
+
         # Normalize event_type to lowercase for case-insensitive comparison
         event_type = event_type.lower() if event_type else event_type
         continue_on_error = payload.get("continue_on_error", False)
@@ -1150,6 +1203,9 @@ class MacroEngine:
     @classmethod
     async def _execute_desktop_step(cls, event_type: str, selector: str, payload: dict):
         """Execute a desktop step directly via DesktopController (no @evoloop_tool overhead)."""
+
+        from app.core.environment.controllers import DesktopController
+
         # Normalize event_type to lowercase for case-insensitive comparison
         event_type = event_type.lower() if event_type else event_type
         selector = selector or payload.get("element_name") or payload.get("target")
@@ -1183,8 +1239,11 @@ class MacroEngine:
             handle_res(await DesktopController.execute(action=tool_action))
 
     @classmethod
-    async def _execute_mobile_step(cls, event_type: str, selector: str, payload: dict, disable_ocr: bool = True, expected_pkg: Optional[str] = None):
+    async def _execute_mobile_step(cls, event_type: str, selector: str, payload: dict, disable_ocr: bool = True, expected_pkg: str | None = None):
         """Execute a mobile step directly via MobileController (no @evoloop_tool overhead)."""
+
+        from app.core.environment.controllers import MobileController
+
         # Normalize event_type to lowercase for case-insensitive comparison
         event_type = event_type.lower() if event_type else event_type
         tool_action = ActionRegistry.get_tool_action(event_type, "mobile")
@@ -1220,7 +1279,7 @@ class MacroEngine:
                 return p["end_y"]
 
             if "relative_position" in p:
-                # relative_position usually only handles a single point, 
+                # relative_position usually only handles a single point,
                 # but if swipe used it for the start, it map x, y
                 if key in ["x", "y"] and key in p["relative_position"]:
                     return p["relative_position"][key]
@@ -1239,7 +1298,7 @@ class MacroEngine:
             return None
 
         if event_type in ("click", "tap"):
-            logger.info(f"[_execute_mobile_step] Branch: click/tap")
+            logger.info("[_execute_mobile_step] Branch: click/tap")
             x, y = _get_coords(payload, "x"), _get_coords(payload, "y")
             # If coordinates provided, use them directly without element resolution
             if x is not None and y is not None:
@@ -1247,7 +1306,7 @@ class MacroEngine:
             else:
                 handle_res(await MobileController.execute(action=tool_action, x=x, y=y, element_name=selector or payload.get("element_name") or payload.get("target"), timeout=payload.get("timeout", 8.0), disable_atlas=True, disable_trace_screenshot=True, disable_ocr=disable_ocr, fast_probe=True, passive_safety=True))
         elif event_type == "long_press":
-            logger.info(f"[_execute_mobile_step] Branch: long_press")
+            logger.info("[_execute_mobile_step] Branch: long_press")
             x, y = _get_coords(payload, "x"), _get_coords(payload, "y")
             # If coordinates provided, use them directly without element resolution
             if x is not None and y is not None:
@@ -1321,9 +1380,9 @@ class MacroEngine:
 
     # --- Utils ---
     @classmethod
-    def _inject_params(cls, value: Optional[str], params: Optional[dict]) -> Optional[str]:
+    def _inject_params(cls, value: str | None, params: dict | None) -> str | None:
         if not value or not params: return value
-        
+
         def _get_nested(data: dict, path: str):
             parts = path.split('.')
             curr = data
@@ -1336,7 +1395,7 @@ class MacroEngine:
 
         # Regex to match {{key}}, {{parameters.key}}, {{item.selector}} etc.
         pattern = r"\{\{\s*(?:parameters\.)?([a-zA-Z0-9_\-\.]+)\s*\}\}"
-        
+
         def replacer(match):
             path = match.group(1)
             val = _get_nested(params, path)
@@ -1347,7 +1406,7 @@ class MacroEngine:
         return re.sub(pattern, replacer, value)
 
     @classmethod
-    def _inject_payload_params(cls, payload: Any, params: Optional[dict]) -> Any:
+    def _inject_payload_params(cls, payload: Any, params: dict | None) -> Any:
         if not params: return payload
         if isinstance(payload, str):
             return cls._inject_params(payload, params)

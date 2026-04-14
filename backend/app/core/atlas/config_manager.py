@@ -70,7 +70,7 @@ class AtlasConfigManager:
     async def set_app_name_mapping(app_name: str, bundle_id: str, persist: bool = True):
         """Add or update app name to bundle ID mapping."""
         try:
-            
+
             await cache.hset(REDIS_KEY_APP_NAME_MAP, app_name, bundle_id)
 
             if persist:
@@ -96,7 +96,7 @@ class AtlasConfigManager:
     async def remove_app_name_mapping(app_name: str):
         """Remove app name mapping."""
         try:
-            
+
             await cache.hdel(REDIS_KEY_APP_NAME_MAP, app_name)
 
             # Remove from database (using sync Session)
@@ -120,7 +120,7 @@ class AtlasConfigManager:
     async def get_dynamic_apps(platform: str = "android") -> set[str]:
         """Get all dynamic app bundle IDs from cache for a specific platform."""
         try:
-            
+
             key = AtlasConfigManager._get_dynamic_apps_key(platform)
             apps = await cache.smembers(key)
             return set(apps) if apps else set()
@@ -132,7 +132,7 @@ class AtlasConfigManager:
     async def mark_app_dynamic(bundle_id: str, platform: str = "android", reason: str = ""):
         """Mark an app as dynamic (coordinate-unstable)."""
         try:
-            
+
             key = AtlasConfigManager._get_dynamic_apps_key(platform)
             await cache.sadd(key, bundle_id)
             if reason:
@@ -147,7 +147,7 @@ class AtlasConfigManager:
     async def unmark_app_dynamic(bundle_id: str, platform: str = "android"):
         """Remove app from dynamic list."""
         try:
-            
+
             key = AtlasConfigManager._get_dynamic_apps_key(platform)
             await cache.srem(key, bundle_id)
             await cache.hdel(f"system:app_categorization:{platform}", bundle_id)
@@ -181,7 +181,7 @@ class AtlasConfigManager:
     async def set_app_strategy(bundle_id: str, strategy: dict[str, Any], platform: str = "android"):
         """Set default strategy for an app on a specific platform."""
         try:
-            from app.core.atlas.strategy import AtlasStrategyStore, AppStrategy
+            from app.core.atlas.strategy import AppStrategy, AtlasStrategyStore
             app_strategy = AppStrategy.from_dict(strategy)
             await AtlasStrategyStore.save_strategy(app_strategy)
             logger.info(f"[AtlasConfig] Set strategy for '{platform}:{bundle_id}'")
@@ -202,8 +202,6 @@ class AtlasConfigManager:
         }
 
         try:
-            
-
             # Check if mappings already exist
             existing = await cache.hlen(REDIS_KEY_APP_NAME_MAP)
             if existing == 0:

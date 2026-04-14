@@ -13,7 +13,6 @@ Safety guarantees:
 
 import logging
 import time
-from typing import Optional
 
 from pydantic import Field
 
@@ -27,16 +26,16 @@ logger = logging.getLogger(__name__)
 
 class StaticContextLayer(DynamicBaseModel):
     """Static context that can be safely cached across nodes."""
-    project_concepts: Optional[str] = None
+    project_concepts: str | None = None
     active_skills_index: list = Field(default_factory=list)
     environment_telemetry: dict = Field(default_factory=dict)
     system_preferences: dict = Field(default_factory=dict)
-    
+
     # Metadata
     project_id: int = 0
     cached_at: float = Field(default_factory=time.time)
     version: str = "1.0"
-    
+
     def is_valid(self, max_age: int = 300) -> bool:
         """Check if cache is still valid."""
         return (time.time() - self.cached_at) < max_age
@@ -44,31 +43,31 @@ class StaticContextLayer(DynamicBaseModel):
 
 class DynamicContextLayer(DynamicBaseModel):
     """Dynamic context that must always be fresh."""
-    blackboard: Optional[BlackboardState] = None
-    execution_ticket: Optional[ExecutionTicket] = None
+    blackboard: BlackboardState | None = None
+    execution_ticket: ExecutionTicket | None = None
     messages: list = Field(default_factory=list)
     iteration_count: int = 0
-    verification_status: Optional[VerificationStatus] = None
+    verification_status: VerificationStatus | None = None
 
 
 class LayeredContextCache:
     """
     Layered context cache with strict safety controls.
     """
-    
+
     # Static cache: session_id -> StaticContextLayer
     _static_cache: dict[str, StaticContextLayer] = {}
-    
+
     # Statistics
     _stats = {
         'static_hits': 0,
         'static_misses': 0,
         'dynamic_loads': 0,
     }
-    
+
     # TTL configuration (seconds)
     STATIC_TTL = 300  # 5 minutes for static data
-    
+
     @classmethod
     async def get_static_layer(
         cls,
@@ -85,7 +84,7 @@ class LayeredContextCache:
             loader_fn: Async function to load static data
         """
         cache_key = f"{session_id}:{project_id}"
-        
+
         # Check cache
         if cache_key in cls._static_cache:
             cached = cls._static_cache[cache_key]
@@ -96,15 +95,15 @@ class LayeredContextCache:
             else:
                 logger.debug(f"[ContextCache] TTL expired: {cache_key[:20]}...")
                 del cls._static_cache[cache_key]
-        
+
         # Load fresh data
         cls._stats['static_misses'] += 1
         logger.info(f"[ContextCache] Loading static layer for project {project_id}")
-        
+
         start_time = time.time()
         static_data = await loader_fn()
         load_time = (time.time() - start_time) * 1000
-        
+
         # Create cached layer
         layer = StaticContextLayer(
             project_concepts=static_data.get('project_concepts'),
@@ -113,12 +112,12 @@ class LayeredContextCache:
             system_preferences=static_data.get('preferences', {}),
             project_id=project_id,
         )
-        
+
         cls._static_cache[cache_key] = layer
         logger.info(f"[ContextCache] Static layer loaded in {load_time:.0f}ms")
-        
+
         return layer
-    
+
     @classmethod
     def get_dynamic_layer(cls, state: "AgentState") -> DynamicContextLayer:
         """
@@ -141,9 +140,9 @@ class LayeredContextCache:
             iteration_count=state.iteration_count or 0,
             verification_status=state.verification_status,
         )
-    
+
     @classmethod
-    def invalidate_static(cls, session_id: str, project_id: Optional[int] = None):
+    def invalidate_static(cls, session_id: str, project_id: int | None = None):
         """Invalidate static cache for a session or project."""
         if project_id:
             # Invalidate all entries for this project
@@ -162,13 +161,13 @@ class LayeredContextCache:
             ]
             for key in keys_to_remove:
                 del cls._static_cache[key]
-    
+
     @classmethod
     def get_stats(cls) -> dict:
         """Get cache statistics."""
         total_static = cls._stats['static_hits'] + cls._stats['static_misses']
         hit_rate = cls._stats['static_hits'] / total_static if total_static > 0 else 0.0
-        
+
         return {
             'static_hits': cls._stats['static_hits'],
             'static_misses': cls._stats['static_misses'],
@@ -177,7 +176,7 @@ class LayeredContextCache:
             'cache_entries': len(cls._static_cache),
             'estimated_time_saved_ms': cls._stats['static_hits'] * 200,  # Approx 200ms per hit
         }
-    
+
     @classmethod
     async def cleanup_expired(cls, max_age: int = 600):
         """Clean up expired cache entries."""
@@ -188,7 +187,7 @@ class LayeredContextCache:
         ]
         for key in expired:
             del cls._static_cache[key]
-        
+
         if expired:
             logger.info(f"[ContextCache] Cleaned up {len(expired)} expired entries")
 

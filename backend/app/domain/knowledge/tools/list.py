@@ -106,12 +106,12 @@ def _format_list(documents: list, total: int, limit: int) -> str:
     for doc in documents:
         proj = doc.get('collection', 'general')
         if proj not in by_collection:
-            by_collection[coll] = []
-        by_collection[coll].append(doc)
+            by_collection[proj] = []
+        by_collection[proj].append(doc)
     
     # Display by collection
     for coll, docs in sorted(by_collection.items()):
-        lines.append(f"[{proj}/]")
+        lines.append(f"[{coll}/]")
         
         for doc in docs:
             title = doc.get('title', 'Untitled')

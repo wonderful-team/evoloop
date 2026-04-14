@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException, status
 from pydantic import Field
 
 from app.api.deps import CurrentUser, TokenDep
+from app.api.responses import BaseAPIResponse
 from app.core.evocloud import evocloud_manager
 from app.core.identity import identity_service
 from app.infrastructure.pydantic_base import DynamicBaseModel

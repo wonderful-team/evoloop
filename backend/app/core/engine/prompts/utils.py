@@ -14,7 +14,7 @@ def get_mapped_cwd(ctx_cwd: str) -> str:
     """
     mode = SystemConfigService.get_value("EXECUTION_MODE") or settings.EXECUTION_MODE
     actual_cwd = ctx_cwd or ""
-    
+
     if str(mode).lower() == "docker":
         workspace_root = SystemConfigService.get_value("WORKSPACE_ROOT") or settings.WORKSPACE_ROOT
         if workspace_root:
@@ -23,7 +23,7 @@ def get_mapped_cwd(ctx_cwd: str) -> str:
             if actual_cwd.startswith(workspace_root):
                 rel_part = actual_cwd[len(workspace_root):].lstrip("/")
                 actual_cwd = os.path.join("/workspace", rel_part) if rel_part else "/workspace"
-    
+
     return actual_cwd
 
 

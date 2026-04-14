@@ -22,7 +22,7 @@ def set_graph(g: Any, config_path: str | None = None, checkpointer: Any | None =
 
 def get_graph() -> Any:
     global _graph, _config_path, _last_load_time, _checkpointer
-    
+
     # Hot Reload Logic
     if _config_path and os.path.exists(_config_path):
         mtime = os.path.getmtime(_config_path)
@@ -36,5 +36,5 @@ def get_graph() -> Any:
                 set_graph(new_graph, _config_path, _checkpointer)
             except Exception as e:
                 logger.error(f"[HotReload] Failed to reload graph: {e}")
-                
+
     return _graph

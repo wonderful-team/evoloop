@@ -4,9 +4,9 @@ from mcp.server.fastmcp import FastMCP
 
 # Import tools via MCP
 from app.domain.codebase.exploration import (
-    find_symbol,
-    ask_codebase,
     analyze_impact,
+    ask_codebase,
+    find_symbol,
 )
 from app.domain.codebase.indexing.tools import index_path
 from app.domain.codebase.retrieval.tools import search_codebase
@@ -244,8 +244,8 @@ async def remember_concept(name: str, description: str, related_files: list[str]
     if related_files is None:
         related_files = []
     try:
-        from app.core.memory.lifespan import MemoryLifespanManager
         from app.core.memory.interfaces.long_term import Concept
+        from app.core.memory.lifespan import MemoryLifespanManager
 
         if not MemoryLifespanManager.is_initialized():
             await MemoryLifespanManager.ainitialize()

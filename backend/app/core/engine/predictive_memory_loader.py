@@ -29,7 +29,6 @@ Optimization Notes:
 import asyncio
 import logging
 import time
-from typing import Optional
 
 from app.infrastructure.cache import cache
 
@@ -63,7 +62,7 @@ async def predictive_memory_load(
     if not human_message or not human_message.strip():
         logger.debug(f"[PredictiveMemory] Skipping empty message for thread {thread_id}")
         return
-    
+
     # Singleflight pattern: Mark this thread as having an in-flight request
     event = asyncio.Event()
     async with _inflight_lock:
@@ -72,15 +71,14 @@ async def predictive_memory_load(
             logger.debug(f"[PredictiveMemory] Skipping duplicate request for thread {thread_id}")
             return
         _inflight_requests[thread_id] = event
-    
+
     try:
         from app.core.config import settings
-        from app.core.memory import MemoryContainer, MemoryConfig
-        
+
         if not settings.USE_NEO4J_MEMORY:
-            logger.debug(f"[PredictiveMemory] Neo4j memory disabled, skipping")
+            logger.debug("[PredictiveMemory] Neo4j memory disabled, skipping")
             return
-        
+
         start_time = time.time()
 
         from app.core.memory.lifespan import MemoryLifespanManager
@@ -88,13 +86,13 @@ async def predictive_memory_load(
             await MemoryLifespanManager.ainitialize()
         container = MemoryLifespanManager.get_container()
         manager = container.memory_manager
-        
+
         # Parallel search for concepts and episodes
         concepts_task = manager.long_term.search_concepts(human_message, project_id)
         episodes_task = manager.episodic.search_episodes(human_message, project_id, limit=3)
-        
+
         concepts, episodes = await asyncio.gather(concepts_task, episodes_task, return_exceptions=True)
-        
+
         # Handle exceptions
         if isinstance(concepts, Exception):
             logger.warning(f"[PredictiveMemory] Concepts search failed: {concepts}")
@@ -102,14 +100,14 @@ async def predictive_memory_load(
         if isinstance(episodes, Exception):
             logger.warning(f"[PredictiveMemory] Episodes search failed: {episodes}")
             episodes = []
-        
+
         # Filter out episodes from current run (to avoid self-referencing)
         filtered_episodes = []
         if episodes:
             for e in episodes:
                 if getattr(e, "source_message_id", None) != run_id:
                     filtered_episodes.append(e)
-        
+
         # Serialize for Redis storage
         data = {
             "concepts": [
@@ -124,16 +122,16 @@ async def predictive_memory_load(
             "thread_id": thread_id,
             "project_id": project_id,
         }
-        
+
         # Store in Redis with TTL
         cache_key = f"{PREDICTIVE_MEMORY_KEY_PREFIX}:{thread_id}"
         await cache.set(cache_key, data, ex=PREDICTIVE_MEMORY_TTL)
-        
+
         elapsed = (time.time() - start_time) * 1000
         logger.info(f"[PredictiveMemory] ✓ Pre-loaded memory for thread {thread_id}: "
                    f"{len(data['concepts'])} concepts, {len(data['episodes'])} episodes "
                    f"in {elapsed:.1f}ms")
-        
+
     except Exception as e:
         # Never raise - this is an optimization, not critical path
         logger.warning(f"[PredictiveMemory] Failed to pre-load memory for thread {thread_id}: {e}")
@@ -149,7 +147,7 @@ async def get_predictive_memory(
     human_message: str,
     project_id: int,
     run_id: str
-) -> Optional[dict]:
+) -> dict | None:
     """
     Retrieve pre-loaded memory from Redis.
     Called by middleware.hydrate() to get cached search results.
@@ -170,7 +168,7 @@ async def get_predictive_memory(
             if thread_id in _inflight_requests:
                 inflight_event = _inflight_requests[thread_id]
                 logger.debug(f"[PredictiveMemory] Found in-flight request for thread {thread_id}, waiting...")
-        
+
         # If there's an in-flight request, wait for it (with timeout)
         if inflight_event:
             try:
@@ -178,45 +176,45 @@ async def get_predictive_memory(
                 await asyncio.wait_for(inflight_event.wait(), timeout=0.5)
                 logger.debug(f"[PredictiveMemory] In-flight request completed for thread {thread_id}")
             except asyncio.TimeoutError:
-                logger.debug(f"[PredictiveMemory] Timeout waiting for in-flight request, proceeding with cache check")
-        
+                logger.debug("[PredictiveMemory] Timeout waiting for in-flight request, proceeding with cache check")
+
         cache_key = f"{PREDICTIVE_MEMORY_KEY_PREFIX}:{thread_id}"
         data = await cache.get(cache_key)
-        
+
         if not data:
             logger.debug(f"[PredictiveMemory] Cache miss for thread {thread_id}")
             return None
-        
+
         # Validate the cached data matches current request
         # (Safety: ensure we're not using stale data from a different message)
         if data.get("project_id") != project_id:
             logger.debug(f"[PredictiveMemory] Project ID mismatch for thread {thread_id}")
             return None
-        
+
         concepts_formatted = None
         episodes_formatted = None
-        
+
         if data.get("concepts"):
             concepts_formatted = "\n".join([
                 f"- **{c['name']}**: {c['description']}"
                 for c in data["concepts"]
             ])
-        
+
         if data.get("episodes"):
             episodes_formatted = "\n".join([
                 e["summary"] for e in data["episodes"]
             ])
-        
+
         logger.info(f"[PredictiveMemory] ✓ Cache hit for thread {thread_id}: "
                    f"{len(data.get('concepts', []))} concepts, "
                    f"{len(data.get('episodes', []))} episodes")
-        
+
         return {
             "concepts": concepts_formatted,
             "episodes": episodes_formatted,
             "from_cache": True,
         }
-        
+
     except Exception as e:
         logger.warning(f"[PredictiveMemory] Error reading cache for thread {thread_id}: {e}")
         return None

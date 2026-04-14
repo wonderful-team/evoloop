@@ -6,7 +6,6 @@ Allows for dynamic context injection and potential LLM-specific adaptations.
 """
 
 import logging
-from typing import Optional
 
 from langchain_core.runnables import RunnableConfig
 
@@ -37,6 +36,7 @@ class SupervisorPromptBuilder:
         User Message prefix — this makes the System Prompt cacheable.
         """
         from app.core.context import ContextManager, plugin_registry
+
         from .utils import get_mapped_cwd, get_sandbox_mode
 
         # 1. Prepare Environment
@@ -65,7 +65,7 @@ class SupervisorPromptBuilder:
         # 4. Render Template
         try:
             rendered = render_template("agents/supervisor.prompt.j2", **template_vars)
-            
+
             logger.info(f"[SupervisorPrompt] 📝 Static prompt length: {len(rendered)} chars")
             return rendered
         except Exception as e:
@@ -80,13 +80,14 @@ class SupervisorPromptBuilder:
         (not System Prompt), the static System Prompt remains cacheable.
         """
         from app.core.context import ContextManager, plugin_registry
+
         from .utils import get_mapped_cwd
 
         ctx = ContextManager.current()
         plugin_registry.hydrate_context(ctx)
         actual_cwd = get_mapped_cwd(ctx.working_directory or ctx.metadata.get("cwd", ""))
         is_global_mode = self.project_id == 0 or self.project_id is None
-        
+
         # Get telemetry if available (trimmed)
         state = get_awakened_state()
         telemetry_data = {}
@@ -102,7 +103,7 @@ class SupervisorPromptBuilder:
         except Exception as e:
             logger.warning(f"[ContextTicket] Failed to fetch telemetry: {e}")
 
-        blackboard: Optional["BlackboardState"] = self.context.get("blackboard") if self.context else None
+        blackboard: BlackboardState | None = self.context.get("blackboard") if self.context else None
         active_plan_data = self.context.get("structured_plan")
         if isinstance(active_plan_data, str):
             try:
@@ -135,7 +136,7 @@ class SupervisorPromptBuilder:
             "plan_approved": blackboard.plan_approved if blackboard else False,
             "project_concepts": ctx.metadata.get("project_concepts", ""),
             "active_skills": [
-                {"id": s.get("id"), "name": s.get("name"), "namespace": s.get("namespace", "default")} 
+                {"id": s.get("id"), "name": s.get("name"), "namespace": s.get("namespace", "default")}
                 for s in ctx.metadata.get("active_skills", [])
             ],
         }

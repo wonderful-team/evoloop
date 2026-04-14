@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 from app.core.execution.macro.engine import MacroEngine
 from app.core.execution.macro.healing_policy import SelfHealingPolicy
@@ -14,13 +14,13 @@ logger = logging.getLogger(__name__)
 class MacroRunResult(DynamicBaseModel):
     success: bool
     message: str
-    extracted_data: Optional[Dict[str, Any]] = None
-    allow_self_healing: Optional[bool] = None
-    healing_disabled_reason: Optional[str] = None
-    healing_disabled_source: Optional[str] = None
-    suggestions: Optional[List[str]] = None
-    status: Optional[str] = None  # e.g. "fallback_required"
-    fallback_context: Optional[Dict[str, Any]] = None
+    extracted_data: dict[str, Any] | None = None
+    allow_self_healing: bool | None = None
+    healing_disabled_reason: str | None = None
+    healing_disabled_source: str | None = None
+    suggestions: list[str] | None = None
+    status: str | None = None  # e.g. "fallback_required"
+    fallback_context: dict[str, Any] | None = None
 
 
 class MacroService:
@@ -31,11 +31,11 @@ class MacroService:
 
     @classmethod
     async def run(
-        cls, 
-        thread_id: str, 
-        script_input: Union[MacroScript, List[Dict]], 
-        params: Optional[Dict[str, Any]] = None,
-        skill: Optional[Any] = None  # LearnedSkill, optional for policy check
+        cls,
+        thread_id: str,
+        script_input: MacroScript | list[dict],
+        params: dict[str, Any] | None = None,
+        skill: Any | None = None  # LearnedSkill, optional for policy check
     ) -> MacroRunResult:
         """
         High-level entry point to execute a macro.
@@ -64,38 +64,38 @@ class MacroService:
         logger.info(f"[{thread_id}] Starting Standardized Macro Execution ({len(script.steps)} steps)")
         if params is None:
             params = {}
-        
+
         # 2. Activity Monitoring
         await activity_monitor.start_run(thread_id)
-        
+
         extracted_data = {}
         try:
             # 3. Engine Dispatch
             success, msg, fallback_ctx = await MacroEngine.execute_steps(
                 thread_id, script.steps, params, extracted_data
             )
-            
+
             if not success:
                 logger.error(f"[{thread_id}] Macro execution failed: {msg}")
                 await activity_monitor.end_run(thread_id, "failed")
-                
+
                 # --- Unified Self-Healing Decision ---
                 decision = SelfHealingPolicy.check(skill=skill, execution_params=params)
-                
+
                 if not decision.allowed:
                     logger.warning(f"[{thread_id}] Self-healing disabled: {decision.reason}")
                     return MacroRunResult(
-                        success=False, 
+                        success=False,
                         message=msg,
                         allow_self_healing=False,
                         healing_disabled_reason=decision.reason,
                         healing_disabled_source=decision.source,
                     )
-                
+
                 # Self-healing is allowed - trigger fallback via event system
                 from app.core.events import system_bus
                 from app.core.execution.macro.events import MacroExecutionFailedEvent
-                
+
                 event = MacroExecutionFailedEvent(
                     skill_id=params.get("_skill_id") if params else None,
                     skill_name=params.get("_skill_name") if params else "manual_macro",
@@ -103,12 +103,12 @@ class MacroService:
                     fallback_context=fallback_ctx,
                     thread_id=thread_id
                 )
-                
+
                 # Publish event for listeners (advisor will add suggestions)
                 await system_bus.publish(event)
-                
+
                 return MacroRunResult(
-                    success=False, 
+                    success=False,
                     message=msg,
                     allow_self_healing=True,
                     suggestions=event.suggestions,
@@ -120,8 +120,8 @@ class MacroService:
             await activity_monitor.log_event("macro_thought", {"text": "Macro execution completed successfully."}, thread_id)
             await activity_monitor.end_run(thread_id, "done")
             return MacroRunResult(
-                success=True, 
-                message="Deterministic Macro Execution Complete.", 
+                success=True,
+                message="Deterministic Macro Execution Complete.",
                 extracted_data=extracted_data
             )
 
@@ -131,7 +131,7 @@ class MacroService:
             return MacroRunResult(success=False, message=f"System error during macro execution: {str(e)}")
 
     @classmethod
-    def optimize(cls, script_input: Union[MacroScript, List[Dict]]) -> MacroScript:
+    def optimize(cls, script_input: MacroScript | list[dict]) -> MacroScript:
         """
         Utility to optimize a macro script.
         """
@@ -139,13 +139,13 @@ class MacroService:
             script = MacroScript(steps=script_input)
         else:
             script = script_input
-            
+
         optimizer = MacroOptimizer()
         optimized_script, stats = optimizer.optimize(script)
-        
+
         if stats.reduction_ratio > 0:
             logger.info(f"Macro optimized via Service: {stats}")
-            
+
         return optimized_script
 
     @classmethod

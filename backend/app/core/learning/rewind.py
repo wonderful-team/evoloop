@@ -13,8 +13,11 @@ cleanup of trace data during rewind operations.
 
 import logging
 
-from app.core.rewind.events import RewindEventType
-from app.core.rewind.events import RewindRequestedEvent, TraceCleanupEvent
+from app.core.rewind.events import (
+    RewindEventType,
+    RewindRequestedEvent,
+    TraceCleanupEvent,
+)
 from sqlalchemy import delete, select
 
 from app.core.events.base import AsyncEventBus
@@ -61,7 +64,7 @@ class TraceRewind:
                 target_message_id=event.target_message_id,
                 include_target=event.include_target
             )
-            
+
             if message_ids:
                 # Publish specific cleanup event
                 from app.core.events import system_bus
@@ -108,17 +111,17 @@ class TraceRewind:
             List of message IDs as strings
         """
         from app.models import Message
-        
+
         async with session_scope() as session:
             stmt = select(Message.id).where(Message.thread_id == thread_id)
-            
+
             if target_message_id:
                 target_id = int(target_message_id)
                 if include_target:
                     stmt = stmt.where(Message.id >= target_id)
                 else:
                     stmt = stmt.where(Message.id > target_id)
-            
+
             result = await session.execute(stmt)
             return [str(row[0]) for row in result.all()]
 
@@ -133,25 +136,25 @@ class TraceRewind:
             Number of trace events deleted
         """
         from app.models.learning import TraceEvent
-        
+
         if not source_message_ids:
             return 0
-        
+
         async with session_scope() as session:
             # Convert string IDs to integers for message_id column
             int_ids = [int(mid) for mid in source_message_ids if mid.isdigit()]
-            
+
             if not int_ids:
                 return 0
-            
+
             # Delete by message_id or node_name (which may contain message IDs)
             stmt = delete(TraceEvent).where(
                 (TraceEvent.message_id.in_(int_ids)) |
                 (TraceEvent.node_name.in_(source_message_ids))
             )
-            
+
             result = await session.execute(stmt)
-            
+
             deleted_count = result.rowcount
             logger.info(f"🗑️ Deleted {deleted_count} TraceEvent records")
             return deleted_count

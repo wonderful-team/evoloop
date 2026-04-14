@@ -20,7 +20,7 @@ GATEWAY_PREFIXES: list[str] = [
     # WebSocket
     "/ws",
     "/health",
-    
+
     # Gateway API v1
     "/api/v1/user/",
     "/api/v1/quota/",

@@ -16,14 +16,13 @@ from app.infrastructure.solidlsp.ls_utils import LogTime, PlatformId, PlatformUt
 from app.infrastructure.solidlsp.lsp_protocol_handler.lsp_types import InitializeParams
 from app.infrastructure.solidlsp.lsp_protocol_handler.server import ProcessLaunchInfo
 from app.infrastructure.solidlsp.settings import SolidLSPSettings
-
 from .common import RuntimeDependency, RuntimeDependencyCollection
 
 log = logging.getLogger(__name__)
 
 # Platform-specific imports
 if os.name != "nt":  # Unix-like systems
-    import pwd
+    pass
 else:
     # Dummy pwd module for Windows
     class pwd:  # type: ignore

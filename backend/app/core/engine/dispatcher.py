@@ -6,9 +6,13 @@ from langchain_core.runnables import RunnableConfig
 
 from app.core.engine.routers import RoutingTarget
 from app.core.engine.signals import RouteToSignal, SpawnSubtasksSignal, TerminateSignal
-from app.core.engine.state import StateUpdate, AgentState
+from app.core.engine.state import AgentState, StateUpdate
 from app.core.engine.state.blackboard import BlackboardMetadata
-from app.core.engine.state.config import AgentRuntimeConfig, ExecutionTicket, TicketParameters
+from app.core.engine.state.config import (
+    AgentRuntimeConfig,
+    ExecutionTicket,
+    TicketParameters,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +34,7 @@ class SignalDispatcher:
             return await SignalDispatcher._handle_spawn_subtasks(state, signal, config)
         elif isinstance(signal, TerminateSignal):
             return await SignalDispatcher._handle_terminate(state, signal, config)
-        
+
         logger.warning(f"[Dispatcher] Unknown signal type: {type(signal)}")
         return StateUpdate(next_node=RoutingTarget.SUPERVISOR)
 
@@ -46,7 +50,7 @@ class SignalDispatcher:
         # 1. Update Blackboard (Phase 1 Pattern)
         blackboard = copy.deepcopy(state.blackboard or {})
         blackboard["route_reason"] = reason
-        
+
         # 2. Construct Execution Ticket
         inferred_namespace = routing_context.get("namespace_context")
 

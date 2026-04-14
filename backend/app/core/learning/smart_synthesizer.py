@@ -1,6 +1,6 @@
 import json
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from pydantic import Field
 
@@ -13,14 +13,14 @@ class SynthesizedSopConfig(DynamicBaseModel):
     """Result of smart synthesis: a Phase 4 graph configuration."""
     name: str = "synthesized_sop"
     version: str = "1.0"
-    nodes: List[dict] = Field(default_factory=list)
-    edges: List[dict] = Field(default_factory=list)
+    nodes: list[dict] = Field(default_factory=list)
+    edges: list[dict] = Field(default_factory=list)
 
 
 class TraceAction(DynamicBaseModel):
     """A single action extracted from a trace."""
     action: str
-    target: Optional[str] = None
+    target: str | None = None
     params: dict = Field(default_factory=dict)
 
 
@@ -29,14 +29,14 @@ class SmartSynthesizer:
     Analyzes raw action traces and synthesizes them into structured SOPs (Phase 4 YAMLs).
     Uses a multi-modal LLM/Reasoning approach to find patterns.
     """
-    
+
     def __init__(
-        self, 
-        job_id: int | None = None, 
-        session_id: str | None = None, 
-        thread_id: str | None = None, 
-        task_goal: str | None = None, 
-        annotations: List[Any] | None = None
+        self,
+        job_id: int | None = None,
+        session_id: str | None = None,
+        thread_id: str | None = None,
+        task_goal: str | None = None,
+        annotations: list[Any] | None = None
     ):
         self.job_id = job_id
         self.session_id = session_id
@@ -44,15 +44,15 @@ class SmartSynthesizer:
         self.task_goal = task_goal
         self.annotations = annotations or []
 
-    async def synthesize(self, trace_file_path: Optional[str] = None) -> SynthesizedSopConfig:
+    async def synthesize(self, trace_file_path: str | None = None) -> SynthesizedSopConfig:
         """
         Main entry point for synthesis.
         Reads a trace file and returns a Phase 4 compatible YAML structure.
         """
         if trace_file_path:
-            with open(trace_file_path, "r", encoding="utf-8") as f:
+            with open(trace_file_path, encoding="utf-8") as f:
                 data = json.load(f)
-            traces: List[Dict[str, Any]] = data.get("traces", [])
+            traces: list[dict[str, Any]] = data.get("traces", [])
         else:
             # Fallback to annotations if provided in __init__
             traces = []
@@ -64,20 +64,20 @@ class SmartSynthesizer:
                         "action_type": ann.action_type,
                         "parameters": payload
                     })
-        
+
         if not traces:
             return {"error": "Empty trace"}
 
         # 1. Pre-process: Group consecutive actions, filter noise
         patterns = self._extract_patterns(traces)
-        
+
         # 2. Reasoning: Use LLM to infer logic (loops, conditions)
         # This is where the "Smart" happens. We'd send the trace summary to LLM.
         sop_config = await self._reason_sop_structure(patterns)
-        
+
         return sop_config
 
-    def _extract_patterns(self, traces: List[Dict[str, Any]]) -> List[TraceAction]:
+    def _extract_patterns(self, traces: list[dict[str, Any]]) -> list[TraceAction]:
         """Identifies repeating sequences or logical groups of actions."""
         # Simplified for V1: Just group into a flat list of distinct steps
         patterns = []
@@ -89,7 +89,7 @@ class SmartSynthesizer:
             ))
         return patterns
 
-    async def _reason_sop_structure(self, patterns: List[TraceAction]) -> SynthesizedSopConfig:
+    async def _reason_sop_structure(self, patterns: list[TraceAction]) -> SynthesizedSopConfig:
         """
         Converts patterns into a Phase 4 Graph configuration.
         In a real implementation, this calls GPT-4o with the trace context.
@@ -97,7 +97,7 @@ class SmartSynthesizer:
         # Mocking the LLM synthesis for now
         nodes = []
         edges = []
-        
+
         # Simple linear transformation for V1
         for i, step in enumerate(patterns):
             node_id = f"step_{i}"

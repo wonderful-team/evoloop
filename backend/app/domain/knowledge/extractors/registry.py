@@ -2,9 +2,8 @@
 Extractor registry for managing and routing to extractors.
 """
 
-import asyncio
 import logging
-from typing import Optional, Type
+from typing import Optional
 
 from app.domain.knowledge.extractors.base import BaseExtractor
 

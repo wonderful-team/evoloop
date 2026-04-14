@@ -9,8 +9,8 @@ Provides safe forgetting mechanism with:
 """
 import logging
 import time
-from typing import Optional
 
+from app.core.engine.state import AgentState
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
@@ -136,7 +136,7 @@ class ToolOutputMemory:
         logger.info(f"[ToolOutputMemory] Forgot {tool_name} ({tool_call_id}): {reason}")
         return record
 
-    def get_summary(self, tool_call_id: str) -> Optional[str]:
+    def get_summary(self, tool_call_id: str) -> str | None:
         """
         Get the summary of a forgotten tool output.
 
@@ -152,14 +152,14 @@ class ToolOutputMemory:
         """Check if a tool output has been forgotten."""
         return tool_call_id in self.forgotten
 
-    def get_forgotten_info(self, tool_call_id: str) -> Optional[ForgottenRecord]:
+    def get_forgotten_info(self, tool_call_id: str) -> ForgottenRecord | None:
         """Get full forgotten record including metadata."""
         return self.forgotten.get(tool_call_id)
 
     def recall(
         self,
         tool_call_id: str,
-        full_content: Optional[str] = None,
+        full_content: str | None = None,
     ) -> tuple[bool, str]:
         """
         Mark a forgotten tool as "recalled" (needed again).
@@ -323,7 +323,7 @@ def save_tool_memory_to_state(state: "AgentState", memory: ToolOutputMemory) -> 
     """
     Helper to save ToolOutputMemory back to AgentState.
     """
-    from app.core.engine.state.blackboard import BlackboardState, BlackboardMetadata
+    from app.core.engine.state.blackboard import BlackboardMetadata, BlackboardState
     if not state.blackboard:
         state.blackboard = BlackboardState()
 

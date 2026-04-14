@@ -20,7 +20,7 @@ router = APIRouter()
 # --- Schemas ---
 
 
-class ConversationConversationSearchResult(DynamicBaseModel):
+class ConversationSearchResult(DynamicBaseModel):
     id: int  # Message ID
     thread_id: str
     role: str
@@ -123,9 +123,8 @@ class RewindRequest(DynamicBaseModel):
     message_id: str | None = None  # Optional: target message to rewind to
 
 
-class MessageListResponse(ListResponse):
+class MessageListResponse(ListResponse[MessageItem]):
     """Response model for paginated message list."""
-    items: list[MessageItem]
     has_more: bool
     first_id: int | None = None
     last_id: int | None = None

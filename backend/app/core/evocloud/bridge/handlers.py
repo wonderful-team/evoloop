@@ -4,7 +4,7 @@ import logging
 from app.core.context import thread_context_store
 from app.core.engine.background_agent import run_agent_background
 from app.core.evocloud import evocloud_manager
-from app.core.evocloud.schemas import RemoteCommand
+from app.core.evocloud.schemas import RemoteCommand, ProjectSwitchEvent
 
 logger = logging.getLogger(__name__)
 

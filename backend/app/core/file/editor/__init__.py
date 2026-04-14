@@ -8,21 +8,21 @@ from .algorithms import levenshtein
 from .engine import EditEngine
 from .strategies import (
     STRATEGIES,
-    simple_replacer,
-    line_trimmed_replacer,
     block_anchor_replacer,
-    whitespace_normalized_replacer,
-    trimmed_boundary_replacer,
-    escape_normalized_replacer,
     context_aware_replacer,
+    escape_normalized_replacer,
     indentation_flexible_replacer,
+    line_trimmed_replacer,
     multi_occurrence_replacer,
+    simple_replacer,
+    trimmed_boundary_replacer,
+    whitespace_normalized_replacer,
 )
 
 __all__ = [
     # Main engine
     "EditEngine",
-    
+
     # Strategy list and individual strategies
     "STRATEGIES",
     "simple_replacer",
@@ -34,7 +34,7 @@ __all__ = [
     "context_aware_replacer",
     "indentation_flexible_replacer",
     "multi_occurrence_replacer",
-    
+
     # Algorithms
     "levenshtein",
 ]

@@ -4,8 +4,8 @@ Voice Service Base Classes and Models
 """
 
 from abc import ABC, abstractmethod
+from collections.abc import AsyncIterator
 from enum import Enum
-from typing import AsyncIterator, Optional
 
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
@@ -82,11 +82,11 @@ class STTResult(DynamicBaseModel):
 
 class BaseTTSProvider(ABC):
     """TTS 提供商基类"""
-    
+
     name: str = "base"
     supports_streaming: bool = False
     supports_speed_control: bool = False
-    
+
     @abstractmethod
     async def synthesize(self, options: TTSOptions) -> TTSSResult:
         """
@@ -99,7 +99,7 @@ class BaseTTSProvider(ABC):
             TTSSResult: 合成的音频数据
         """
         pass
-    
+
     @abstractmethod
     async def synthesize_stream(self, options: TTSOptions) -> AsyncIterator[bytes]:
         """
@@ -112,9 +112,9 @@ class BaseTTSProvider(ABC):
             bytes: 音频数据块
         """
         pass
-    
+
     @abstractmethod
-    def list_voices(self, locale: Optional[VoiceLocale] = None) -> list[Voice]:
+    def list_voices(self, locale: VoiceLocale | None = None) -> list[Voice]:
         """
         获取可用声音列表
         
@@ -125,7 +125,7 @@ class BaseTTSProvider(ABC):
             list[Voice]: 声音列表
         """
         pass
-    
+
     @abstractmethod
     def is_available(self) -> bool:
         """
@@ -135,7 +135,7 @@ class BaseTTSProvider(ABC):
             bool: 是否可用
         """
         pass
-    
+
     def get_default_voice(self, locale: VoiceLocale = VoiceLocale.ZH_CN) -> str:
         """
         获取默认声音 ID
@@ -154,11 +154,11 @@ class BaseTTSProvider(ABC):
 
 class BaseSTTProvider(ABC):
     """STT 提供商基类"""
-    
+
     name: str = "base"
     supports_streaming: bool = False
     supports_timestamps: bool = False
-    
+
     @abstractmethod
     async def transcribe(self, options: STTOptions) -> STTResult:
         """
@@ -171,7 +171,7 @@ class BaseSTTProvider(ABC):
             STTResult: 识别结果
         """
         pass
-    
+
     @abstractmethod
     async def transcribe_stream(self, options: STTOptions) -> AsyncIterator[STTResult]:
         """
@@ -184,9 +184,9 @@ class BaseSTTProvider(ABC):
             STTResult: 部分识别结果
         """
         pass
-    
+
     @abstractmethod
-    def list_models(self, language: Optional[VoiceLocale] = None) -> list[str]:
+    def list_models(self, language: VoiceLocale | None = None) -> list[str]:
         """
         获取可用模型列表
         
@@ -197,7 +197,7 @@ class BaseSTTProvider(ABC):
             list[str]: 模型名称列表
         """
         pass
-    
+
     @abstractmethod
     def is_available(self) -> bool:
         """

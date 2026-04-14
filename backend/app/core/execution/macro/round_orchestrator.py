@@ -8,11 +8,11 @@ Supports baseline, stress test, and chaos rounds.
 import copy
 import logging
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, Tuple, Type
+from typing import Any
 
 from pydantic import Field
 
-from app.core.execution.macro.verification_models import (
+from app.core.execution.macro.models import (
     RoundConfig,
     RoundReport,
 )
@@ -33,16 +33,16 @@ class InterferenceConfig(DynamicBaseModel):
     enabled: bool = False
     type: str = "none"  # none, delay, chaos, network_degradation
     intensity: float = 0.3  # 0.0 - 1.0
-    targets: List[str] = Field(default_factory=list)  # step types to target
-    custom_params: Dict[str, Any] = Field(default_factory=dict)
+    targets: list[str] = Field(default_factory=list)  # step types to target
+    custom_params: dict[str, Any] = Field(default_factory=dict)
 
 
 class RoundContext(DynamicBaseModel):
     """Context passed between rounds"""
     round_number: int
-    previous_reports: List[RoundReport]
-    shared_state: Dict[str, Any] = Field(default_factory=dict)
-    accumulated_anomalies: List[Dict[str, Any]] = Field(default_factory=list)
+    previous_reports: list[RoundReport]
+    shared_state: dict[str, Any] = Field(default_factory=dict)
+    accumulated_anomalies: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class InterferenceInjector(ABC):
@@ -54,17 +54,17 @@ class InterferenceInjector(ABC):
         pass
 
     @abstractmethod
-    def can_apply(self, step: Dict[str, Any], context: RoundContext) -> bool:
+    def can_apply(self, step: dict[str, Any], context: RoundContext) -> bool:
         """Check if interference can be applied to this step"""
         pass
 
     @abstractmethod
     def apply(
         self,
-        step: Dict[str, Any],
+        step: dict[str, Any],
         context: RoundContext,
         intensity: float
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Apply interference to a step
 
@@ -85,16 +85,16 @@ class DelayInjector(InterferenceInjector):
     def get_name(self) -> str:
         return "delay"
 
-    def can_apply(self, step: Dict[str, Any], context: RoundContext) -> bool:
+    def can_apply(self, step: dict[str, Any], context: RoundContext) -> bool:
         # Can apply to any action step
         return step.get("type") == "action"
 
     def apply(
         self,
-        step: Dict[str, Any],
+        step: dict[str, Any],
         context: RoundContext,
         intensity: float
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         modified = copy.deepcopy(step)
         payload = modified.get("payload", {})
 
@@ -126,17 +126,17 @@ class NetworkDegradationInjector(InterferenceInjector):
     def get_name(self) -> str:
         return "network_degradation"
 
-    def can_apply(self, step: Dict[str, Any], context: RoundContext) -> bool:
+    def can_apply(self, step: dict[str, Any], context: RoundContext) -> bool:
         # Apply to navigation and loading steps
         event_type = step.get("event_type", "")
         return event_type in ("goto", "navigate", "wait", "wait_for")
 
     def apply(
         self,
-        step: Dict[str, Any],
+        step: dict[str, Any],
         context: RoundContext,
         intensity: float
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         modified = copy.deepcopy(step)
         payload = modified.get("payload", {})
 
@@ -172,17 +172,17 @@ class ElementInstabilityInjector(InterferenceInjector):
     def get_name(self) -> str:
         return "element_instability"
 
-    def can_apply(self, step: Dict[str, Any], context: RoundContext) -> bool:
+    def can_apply(self, step: dict[str, Any], context: RoundContext) -> bool:
         # Apply to element interaction steps
         event_type = step.get("event_type", "")
         return event_type in ("click", "tap", "input", "type_text")
 
     def apply(
         self,
-        step: Dict[str, Any],
+        step: dict[str, Any],
         context: RoundContext,
         intensity: float
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         modified = copy.deepcopy(step)
         payload = modified.get("payload", {})
 
@@ -214,16 +214,16 @@ class PopupInterferenceInjector(InterferenceInjector):
     def get_name(self) -> str:
         return "popup_interference"
 
-    def can_apply(self, step: Dict[str, Any], context: RoundContext) -> bool:
+    def can_apply(self, step: dict[str, Any], context: RoundContext) -> bool:
         # Apply to some steps randomly (30% chance)
         return should_trigger(0.3)
 
     def apply(
         self,
-        step: Dict[str, Any],
+        step: dict[str, Any],
         context: RoundContext,
         intensity: float
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         modified = copy.deepcopy(step)
 
         # Mark step as potentially having popup interference
@@ -247,17 +247,17 @@ class CoordinateDriftInjector(InterferenceInjector):
     def get_name(self) -> str:
         return "coordinate_drift"
 
-    def can_apply(self, step: Dict[str, Any], context: RoundContext) -> bool:
+    def can_apply(self, step: dict[str, Any], context: RoundContext) -> bool:
         # Apply to coordinate-based steps
         payload = step.get("payload", {})
         return payload.get("x") is not None and payload.get("y") is not None
 
     def apply(
         self,
-        step: Dict[str, Any],
+        step: dict[str, Any],
         context: RoundContext,
         intensity: float
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         modified = copy.deepcopy(step)
         payload = modified.get("payload", {})
 
@@ -288,7 +288,7 @@ class CoordinateDriftInjector(InterferenceInjector):
 class InterferenceRegistry(ClassRegistry[InterferenceInjector]):
     """Registry of available interference injectors"""
 
-    _classes: Dict[str, Type[InterferenceInjector]] = {
+    _classes: dict[str, type[InterferenceInjector]] = {
         "delay": DelayInjector,
         "network_degradation": NetworkDegradationInjector,
         "element_instability": ElementInstabilityInjector,
@@ -297,12 +297,12 @@ class InterferenceRegistry(ClassRegistry[InterferenceInjector]):
     }
 
     @classmethod
-    def get_injector(cls, name: str) -> Optional[InterferenceInjector]:
+    def get_injector(cls, name: str) -> InterferenceInjector | None:
         """Get injector by name (instantiates the class)"""
         return cls.create(name)
 
     @classmethod
-    def list_injectors(cls) -> List[str]:
+    def list_injectors(cls) -> list[str]:
         """List available injector names"""
         return cls.list()
 
@@ -328,7 +328,7 @@ class RoundStrategy(ABC):
     def should_continue(
         self,
         current_round: int,
-        reports: List[RoundReport]
+        reports: list[RoundReport]
     ) -> bool:
         """Determine if verification should continue to next round"""
         pass
@@ -353,7 +353,7 @@ class BaselineStrategy(RoundStrategy):
     def should_continue(
         self,
         current_round: int,
-        reports: List[RoundReport]
+        reports: list[RoundReport]
     ) -> bool:
         # Always continue after baseline
         return True
@@ -387,7 +387,7 @@ class StressTestStrategy(RoundStrategy):
     def should_continue(
         self,
         current_round: int,
-        reports: List[RoundReport]
+        reports: list[RoundReport]
     ) -> bool:
         # Continue if previous rounds had acceptable success rate
         if not reports:
@@ -424,7 +424,7 @@ class ChaosStrategy(RoundStrategy):
     def should_continue(
         self,
         current_round: int,
-        reports: List[RoundReport]
+        reports: list[RoundReport]
     ) -> bool:
         # Always continue - chaos round is final test
         return True
@@ -456,7 +456,7 @@ class ProgressiveDifficultyStrategy(RoundStrategy):
     def should_continue(
         self,
         current_round: int,
-        reports: List[RoundReport]
+        reports: list[RoundReport]
     ) -> bool:
         # Continue if macro is adapting well
         if not reports:
@@ -478,7 +478,7 @@ class RoundOrchestrator:
 
     def __init__(
         self,
-        strategies: Optional[List[RoundStrategy]] = None,
+        strategies: list[RoundStrategy] | None = None,
         enable_interference: bool = True
     ):
         self.strategies = strategies or [
@@ -487,15 +487,15 @@ class RoundOrchestrator:
             ChaosStrategy(intensity=0.7)
         ]
         self.enable_interference = enable_interference
-        self.injectors: List[InterferenceInjector] = []
+        self.injectors: list[InterferenceInjector] = []
 
     def prepare_round(
         self,
         round_number: int,
         base_config: RoundConfig,
-        macro_script: List[Dict[str, Any]],
-        previous_reports: List[RoundReport]
-    ) -> Tuple[RoundConfig, List[Dict[str, Any]]]:
+        macro_script: list[dict[str, Any]],
+        previous_reports: list[RoundReport]
+    ) -> tuple[RoundConfig, list[dict[str, Any]]]:
         """
         Prepare a verification round
 
@@ -531,7 +531,7 @@ class RoundOrchestrator:
     def should_continue(
         self,
         current_round: int,
-        reports: List[RoundReport]
+        reports: list[RoundReport]
     ) -> bool:
         """Determine if verification should continue"""
         strategy = self._get_strategy(current_round)
@@ -551,11 +551,11 @@ class RoundOrchestrator:
 
     def _apply_interference(
         self,
-        macro_script: List[Dict[str, Any]],
-        interference_types: List[str],
+        macro_script: list[dict[str, Any]],
+        interference_types: list[str],
         intensity: float,
         context: RoundContext
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Apply interference to macro script"""
         modified = []
 
@@ -586,7 +586,7 @@ class RoundOrchestrator:
         self,
         max_rounds: int,
         base_config: RoundConfig
-    ) -> List[RoundConfig]:
+    ) -> list[RoundConfig]:
         """Generate a complete round plan"""
         plan = []
 
@@ -597,7 +597,7 @@ class RoundOrchestrator:
 
         return plan
 
-    def get_interference_summary(self, macro_script: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def get_interference_summary(self, macro_script: list[dict[str, Any]]) -> dict[str, Any]:
         """Get summary of interference applied to macro"""
         summary = {
             "total_steps": len(macro_script),

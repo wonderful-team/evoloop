@@ -11,8 +11,11 @@ restoring files to their state before Agent modification.
 import logging
 from pathlib import Path
 
-from app.core.rewind.events import FilesCleanupEvent, RewindRequestedEvent
-from app.core.rewind.events import RewindEventType
+from app.core.rewind.events import (
+    FilesCleanupEvent,
+    RewindEventType,
+    RewindRequestedEvent,
+)
 from sqlalchemy import delete, select
 
 from app.core.events.base import AsyncEventBus
@@ -57,7 +60,7 @@ class FileRewind:
         if not event.revert_files:
             logger.debug("[FileRewind] File revert disabled, skipping")
             return
-        
+
         try:
             # Query file operations for this thread
             file_ops = await self._find_file_operations(
@@ -65,7 +68,7 @@ class FileRewind:
                 target_message_id=event.target_message_id,
                 include_target=event.include_target
             )
-            
+
             if file_ops:
                 # Publish specific cleanup event
                 from app.core.events import system_bus
@@ -112,24 +115,24 @@ class FileRewind:
         async with session_scope() as session:
             # Build query to find FileOperations
             stmt = select(FileOperation).where(FileOperation.thread_id == thread_id)
-            
+
             if target_message_id:
                 # Filter by message ID range
 
                 target_id = int(target_message_id)
-                
+
                 if include_target:
                     # Include operations from target message and after
                     stmt = stmt.where(FileOperation.message_id >= target_id)
                 else:
                     # Only operations after target message
                     stmt = stmt.where(FileOperation.message_id > target_id)
-            
+
             stmt = stmt.order_by(FileOperation.created_at.desc())
-            
+
             result = await session.execute(stmt)
             ops = result.scalars().all()
-            
+
             # Convert to operation dicts
             file_operations = []
             for op in ops:
@@ -140,7 +143,7 @@ class FileRewind:
                     "operation": op.operation,  # ADD, EDIT, DELETE
                     "backup_content": op.original_content,
                 })
-            
+
             return file_operations
 
     async def _revert_files(self, file_operations: list[dict]) -> int:
@@ -154,20 +157,20 @@ class FileRewind:
             Number of files successfully reverted
         """
         count = 0
-        
+
         # Process in reverse chronological order (last-modified first)
         for op in sorted(file_operations, key=lambda x: x.get("created_at", ""), reverse=True):
             try:
                 path = Path(op["path"])
                 operation = op["operation"]
-                
+
                 if operation == "ADD":
                     # File was created -> delete it
                     if path.exists():
                         path.unlink()
                         logger.info(f"🔙 Undo ADD: Deleted {op['path']}")
                         count += 1
-                        
+
                 elif operation in ("EDIT", "DELETE"):
                     # File was modified/deleted -> restore original content
                     backup_content = op.get("backup_content")
@@ -178,10 +181,10 @@ class FileRewind:
                         count += 1
                     else:
                         logger.warning(f"⚠️ Cannot undo {operation} for {op['path']}: no backup")
-                        
+
             except Exception as e:
                 logger.error(f"❌ Undo failed for {op.get('path', 'unknown')}: {e}")
-        
+
         return count
 
     async def _cleanup_database_records(self, file_operations: list[dict]) -> int:
@@ -196,9 +199,9 @@ class FileRewind:
         """
         if not file_operations:
             return 0
-        
+
         operation_ids = [op["id"] for op in file_operations if "id" in op]
-        
+
         async with session_scope() as session:
             result = await session.execute(
                 delete(FileOperation).where(FileOperation.id.in_(operation_ids))
@@ -210,19 +213,19 @@ class FileRewind:
     async def cleanup(self, message_ids: list[str], **kwargs) -> int:
         """Direct cleanup entry point (non-event-driven usage)."""
         revert_files = kwargs.get("revert_files", True)
-        
+
         if not revert_files:
             return 0
-        
+
         # Convert message IDs to file operations
         async with session_scope() as session:
             stmt = select(FileOperation).where(FileOperation.message_id.in_(message_ids))
             result = await session.execute(stmt)
             ops = result.scalars().all()
-            
+
             if not ops:
                 return 0
-            
+
             # Convert to operation dicts
             file_operations = []
             for op in ops:
@@ -232,13 +235,13 @@ class FileRewind:
                     "operation": op.operation,
                     "backup_content": op.original_content,
                 })
-        
+
         # Perform restoration
         count = await self._revert_files(file_operations)
-        
+
         # Clean up database records
         await self._cleanup_database_records(file_operations)
-        
+
         return count
 
     def get_reverted_count(self) -> int:

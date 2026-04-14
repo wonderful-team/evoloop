@@ -47,8 +47,7 @@ def map_observed_ui_task(
     async def _execute():
         try:
             from app.core.vision.pipeline.manager import pipeline_manager
-            from app.core.vision.storage import screenshot_storage
-            
+
             # 1. Run perception pipeline
             elements, _ = await pipeline_manager.perceive(
                 screenshot_path=image_source,
@@ -136,7 +135,7 @@ def map_observed_ui_task(
             ))
 
             logger.info(f"[AtlasTask] Successfully mapped {len(atlas_elements)} elements for {final_bundle_id}")
-            
+
         except Exception as e:
             logger.error(f"[AtlasTask] Background mapping failed: {e}", exc_info=True)
 

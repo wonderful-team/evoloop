@@ -74,25 +74,25 @@ class AgentGraphConfig(DynamicBaseModel):
         """Ensure all nodes referenced in edges exist in the node list."""
         node_ids = {node.id for node in self.nodes}
         node_ids.add("END")
-        
+
         for edge in self.edges:
             if edge.from_node not in node_ids:
                 raise ValueError(f"Edge starts from unknown node '{edge.from_node}'")
-            
+
             if edge.to_node and edge.to_node not in node_ids:
                 raise ValueError(f"Edge to unknown node '{edge.to_node}'")
-                
+
             if edge.conditions:
                 for cond in edge.conditions:
                     if cond.to not in node_ids:
                         raise ValueError(f"Conditional edge branch lead to unknown node '{cond.to}'")
-            
+
             if edge.map:
                 for target_node in edge.map.values():
                     if target_node not in node_ids:
                         raise ValueError(f"Router map target '{target_node}' is an unknown node")
-            
+
             if edge.default and edge.default not in node_ids:
                 raise ValueError(f"Default edge target '{edge.default}' is an unknown node")
-        
+
         return self

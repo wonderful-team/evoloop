@@ -6,7 +6,7 @@ Event types and data structures for macro execution.
 """
 
 from enum import Enum
-from typing import Any, List, Optional
+from typing import Any
 
 from pydantic import Field
 
@@ -30,14 +30,14 @@ class MacroExecutionFailedEvent(MacroEvent):
     Event emitted when a deterministic macro execution fails.
     Used to trigger perceptual self-healing or reporting.
     """
-    skill_id: Optional[int] = None
-    skill_name: Optional[str] = None
+    skill_id: int | None = None
+    skill_name: str | None = None
     error_message: str = ""
-    fallback_context: Optional[dict] = None
+    fallback_context: dict | None = None
     thread_id: str = "default"
-    
+
     # Listeners can append to this to provide guidance back to the agent
-    suggestions: List[str] = Field(default_factory=list)
+    suggestions: list[str] = Field(default_factory=list)
 
     def model_post_init(self, __context: Any) -> None:
         self.event_type = MacroEventType.EXECUTION_FAILED

@@ -6,12 +6,17 @@ Encapsulates LLM-based decision making for the verification loop.
 import json
 import logging
 import re
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from langchain_core.messages import SystemMessage
 
-from app.core.execution.macro.verification_models import RedundancyCheckResult, RedundancyType, AIAnalysisResult, \
-    RoundReport, VerificationIssue
+from app.core.execution.macro.models import (
+    AIAnalysisResult,
+    RedundancyCheckResult,
+    RedundancyType,
+    RoundReport,
+    VerificationIssue,
+)
 from app.infrastructure.llm.vision import VisionLLMFactory
 from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.utils import render_template
@@ -24,8 +29,8 @@ class ActionDecision(DynamicBaseModel):
     """Decision made by the reasoning engine"""
     action: str  # 'execute', 'correct', 'skip', 'retry', 'abort'
     reasoning: str
-    suggested_step: Optional[Dict[str, Any]] = None
-    additional_steps: List[Dict[str, Any]] = []
+    suggested_step: dict[str, Any] | None = None
+    additional_steps: list[dict[str, Any]] = []
     confidence: float
 
 
@@ -45,9 +50,9 @@ class AgentReasoningEngine:
 
     async def decide_next_step(
         self,
-        current_step: Dict[str, Any],
-        ui_state: Dict[str, Any],
-        history: List[Dict[str, Any]] | None = None,
+        current_step: dict[str, Any],
+        ui_state: dict[str, Any],
+        history: list[dict[str, Any]] | None = None,
         is_recovery: bool = False,
         failure_reason: str = ""
     ) -> ActionDecision:
@@ -97,7 +102,7 @@ class AgentReasoningEngine:
             content_str = str(content)
             if isinstance(content, list):
                 content_str = "".join([c.get("text", "") if isinstance(c, dict) else str(c) for c in content])
-            
+
             result = self._parse_reasoning_response(content_str, current_step)
 
             # Log parsed result
@@ -118,10 +123,10 @@ class AgentReasoningEngine:
 
     async def verify_outcome(
         self,
-        step: Dict[str, Any],
-        pre_state: Dict[str, Any],
-        post_state: Dict[str, Any]
-    ) -> Tuple[bool, str]:
+        step: dict[str, Any],
+        pre_state: dict[str, Any],
+        post_state: dict[str, Any]
+    ) -> tuple[bool, str]:
         """
         Verify if the action had the intended effect visually.
         Returns: (is_successful, reasoning)
@@ -135,12 +140,12 @@ class AgentReasoningEngine:
 
         # Convert step to YAML for better readability
         step_yaml = safe_yaml_dumps([step]) if isinstance(step, dict) else safe_yaml_dumps(step)
-        
+
         prompt = self._render_template(
             "macro/verify_outcome.prompt.j2",
             step_yaml=step_yaml
         )
-        
+
         logger.info(f"[LLM:VERIFY:{step_number}] Sending verification request")
         logger.info(f"[LLM:VERIFY:{step_number}] Prompt:\n{prompt}")
 
@@ -177,7 +182,7 @@ class AgentReasoningEngine:
 
     async def is_failure_terminal(
         self,
-        step: Dict[str, Any],
+        step: dict[str, Any],
         error: str
     ) -> bool:
         """
@@ -187,7 +192,7 @@ class AgentReasoningEngine:
         step_number = step.get("step_number", "?")
         # Convert step to YAML for better readability
         step_yaml = safe_yaml_dumps([step]) if isinstance(step, dict) else safe_yaml_dumps(step)
-        
+
         prompt = self._render_template(
             "macro/is_failure_terminal.prompt.j2",
             step_yaml=step_yaml,
@@ -225,9 +230,9 @@ class AgentReasoningEngine:
 
     def _build_reasoning_prompt(
         self,
-        step: Dict[str, Any],
-        ui_state: Dict[str, Any],
-        history: List[Dict[str, Any]] | None = None,
+        step: dict[str, Any],
+        ui_state: dict[str, Any],
+        history: list[dict[str, Any]] | None = None,
         is_recovery: bool = False,
         failure_reason: str = ""
     ) -> str:
@@ -251,7 +256,7 @@ class AgentReasoningEngine:
             failure_reason=failure_reason
         )
 
-    def _parse_reasoning_response(self, content: str, original_step: Dict[str, Any]) -> ActionDecision:
+    def _parse_reasoning_response(self, content: str, original_step: dict[str, Any]) -> ActionDecision:
         """Parse LLM JSON response"""
         json_match = re.search(r'\{.*\}', content, re.DOTALL)
         if not json_match:
@@ -295,9 +300,9 @@ class AgentReasoningEngine:
 
     async def check_redundancy(
         self,
-        step: Dict[str, Any],
-        ui_state: Dict[str, Any],
-        history: List[Dict[str, Any]] | None = None
+        step: dict[str, Any],
+        ui_state: dict[str, Any],
+        history: list[dict[str, Any]] | None = None
     ) -> RedundancyCheckResult:
         """
         Check if a step is redundant based on visual state and history.
@@ -308,7 +313,7 @@ class AgentReasoningEngine:
 
         # Convert step to YAML for better readability
         step_yaml = safe_yaml_dumps([step]) if isinstance(step, dict) else safe_yaml_dumps(step)
-        
+
         prompt = self._render_template(
             "macro/check_redundancy.prompt.j2",
             step_yaml=step_yaml
@@ -356,8 +361,8 @@ class AgentReasoningEngine:
 
     async def analyze_results(
         self,
-        reports: List[RoundReport],
-        macro_script: List[Dict[str, Any]]
+        reports: list[RoundReport],
+        macro_script: list[dict[str, Any]]
     ) -> AIAnalysisResult:
         """
         Analyze all verification rounds and generate a qualitative report.

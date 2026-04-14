@@ -3,7 +3,10 @@ import logging
 from app.core.context.manager import EvoContext
 from app.core.context.plugins import ContextPlugin, plugin_registry
 from app.core.environment.boundaries import boundary_manager
-from app.core.environment.prompt import build_environment_summaries, AppEnvironmentPrompt
+from app.core.environment.prompt import (
+    AppEnvironmentPrompt,
+    build_environment_summaries,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -26,16 +29,16 @@ class EnvironmentContextPlugin(ContextPlugin):
 
             # 2. Hydrate Environment Summaries
             ctx.environment_summaries = build_environment_summaries(relevance="auto")
-            
+
             if not isinstance(ctx.spatial_awareness, dict):
                 ctx.spatial_awareness = {}
 
             # 2.5 Compute the final Environment Block (Autonomous Sensing Output)
             # This pre-rendered block is what the Engine will use.
             ctx.environment_block = AppEnvironmentPrompt.render_environment_block(skip_hydrate=True)
-            
+
             state = get_awakened_state()
-            
+
             # Reset metadata flags
             ctx.metadata["has_android"] = False
             ctx.metadata["has_macos"] = False
@@ -89,7 +92,7 @@ class EnvironmentContextPlugin(ContextPlugin):
                     # package_id -> display_name
                     layout_map = {}
                     seen_others = set()
-                    
+
                     for c in state.relevant_concepts:
                         name = c.name
                         android_prefixes = ("android_layout:", "android:", "adb:", "mobile:", "apk:")
@@ -107,7 +110,7 @@ class EnvironmentContextPlugin(ContextPlugin):
                                     pkg_id = match.group(1) if match else pkg
                                 else:
                                     pkg_id = pkg
-                                
+
                                 # Only keep the most descriptive one (heuristic: longest string)
                                 if pkg_id not in layout_map or len(pkg) > len(layout_map[pkg_id]):
                                     layout_map[pkg_id] = pkg

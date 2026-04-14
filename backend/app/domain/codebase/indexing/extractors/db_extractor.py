@@ -4,6 +4,7 @@ Database Extractor
 
 Extracts database schema definitions from code files.
 """
+import logging
 
 from pydantic import Field
 

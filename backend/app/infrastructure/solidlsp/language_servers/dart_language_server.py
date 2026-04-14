@@ -6,10 +6,9 @@ from typing import cast
 from app.infrastructure.solidlsp.ls import SolidLanguageServer
 from app.infrastructure.solidlsp.lsp_protocol_handler.server import ProcessLaunchInfo
 from app.infrastructure.solidlsp.settings import SolidLSPSettings
-
+from .common import RuntimeDependency, RuntimeDependencyCollection
 from ..ls_config import LanguageServerConfig
 from ..lsp_protocol_handler.lsp_types import InitializeParams
-from .common import RuntimeDependency, RuntimeDependencyCollection
 
 log = logging.getLogger(__name__)
 

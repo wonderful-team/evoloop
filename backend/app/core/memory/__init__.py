@@ -45,28 +45,34 @@ Architecture:
 
 # Backends
 from app.core.memory.backends.file_backend import FileMemoryStorage
+
 # New: Configuration and Dependency Injection
 from app.core.memory.config import MemoryConfig, default_memory_config
 from app.core.memory.container import MemoryContainer, get_container, reset_container
 from app.core.memory.daily_log import DailyLogWriter, LogConsolidator
+
 # Services
 from app.core.memory.extraction import (
-    MemoryExtractionService,
     MemoryConsolidationService,
+    MemoryExtractionService,
 )
-from app.core.memory.factory import MemoryFactory, CompleteMemorySystem
+from app.core.memory.factory import CompleteMemorySystem, MemoryFactory
+
 # Legacy models (for backward compatibility)
 from app.core.memory.interfaces.long_term import Concept, Episode, SearchResult
+
 # Maintenance
 from app.core.memory.maintenance import (
-    MemoryMaintenanceAgent,
     MaintenanceScheduler,
+    MemoryMaintenanceAgent,
+    get_maintenance_status,
     scheduled_memory_maintenance,
     trigger_maintenance,
-    get_maintenance_status,
 )
+
 # Main facade
 from app.core.memory.manager import MemoryManager
+
 # Data models
 from app.core.memory.models import (
     MemoryEntry,
@@ -76,28 +82,28 @@ from app.core.memory.models import (
     PrivacyLevel,
 )
 from app.core.memory.quality import (
+    CleanupRecommendation,
     MemoryQualityAnalyzer,
     QualityScores,
-    CleanupRecommendation,
 )
 from app.core.memory.retrieval import MemoryRetriever, get_relevant_memories
 from app.core.memory.state_tracking import (
     MemoryStateTracker,
-    memory_tracker,
-    mark_memories_surfaced,
-    get_surfaced_memory_ids,
     filter_unsurfaced_memories,
+    get_surfaced_memory_ids,
+    mark_memories_surfaced,
+    memory_tracker,
 )
 from app.core.memory.two_tier import (
-    TwoTierMemoryManager,
     MemorySection,
     SectionBudget,
+    TwoTierMemoryManager,
 )
 
 __all__ = [
     # Manager
     "MemoryManager",
-    
+
     # Configuration & Dependency Injection (NEW)
     "MemoryConfig",
     "default_memory_config",
@@ -106,29 +112,29 @@ __all__ = [
     "reset_container",
     "MemoryFactory",
     "CompleteMemorySystem",
-    
+
     # Models
     "MemoryEntry",
     "MemoryIndexEntry",
     "MemorySearchResult",
     "MemoryType",
     "PrivacyLevel",
-    
+
     # Legacy models
     "Concept",
     "Episode",
     "SearchResult",
-    
+
     # Backends
     "FileMemoryStorage",
-    
+
     # Services
     "MemoryExtractionService",
     "MemoryConsolidationService",
     "MemoryRetriever",
     "get_relevant_memories",
     "MemoryQualityAnalyzer",
-    
+
     # Types
     "QualityScores",
     "CleanupRecommendation",
@@ -142,7 +148,7 @@ __all__ = [
     "TwoTierMemoryManager",
     "MemorySection",
     "SectionBudget",
-    
+
     # Maintenance
     "MemoryMaintenanceAgent",
     "MaintenanceScheduler",

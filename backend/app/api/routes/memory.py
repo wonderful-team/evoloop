@@ -3,6 +3,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
+from app.api.responses import ListResponse, BaseAPIResponse
 from app.infrastructure.database.vector.lancedb_store import get_vector_store
 from app.infrastructure.embeddings.factory import EmbedderFactory
 from app.infrastructure.pydantic_base import DynamicBaseModel
@@ -66,9 +67,8 @@ class VectorSearchResult(DynamicBaseModel):
     score: float
 
 
-class VectorSearchResponse(ListResponse):
+class VectorSearchResponse(ListResponse[VectorSearchResult]):
     """Vector search response."""
-    items: list[VectorSearchResult]
     query: str
     search_type: str
 
@@ -80,9 +80,8 @@ class HybridResultItem(DynamicBaseModel):
     data: dict[str, Any]
 
 
-class HybridSearchResponse(ListResponse):
+class HybridSearchResponse(ListResponse[HybridResultItem]):
     """Hybrid search response."""
-    items: list[HybridResultItem]
     query: str
     search_type: str
     vector_results_count: int | None = None

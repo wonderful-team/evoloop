@@ -147,11 +147,11 @@ class AwakenedState(DynamicBaseModel):
             dict with keys: "android", "macos", "network"
         """
         now = time.time()
-        
+
         # Return cached value if still valid
         if (self._telemetry_cache is not None and now - self._telemetry_cache_time) < self._telemetry_cache_ttl:
             return self._telemetry_cache
-        
+
         # Compute fresh snapshot
         self._telemetry_cache = TelemetrySnapshot(
             android=[

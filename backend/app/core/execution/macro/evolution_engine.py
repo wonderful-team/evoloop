@@ -8,11 +8,11 @@ Generates robust macros with fallback mechanisms and error handling.
 import copy
 import logging
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Set, Tuple
+from typing import Any
 
 from pydantic import Field
 
-from app.core.execution.macro.verification_models import (
+from app.core.execution.macro.models import (
     AnomalyType,
     MacroEvolutionRecord,
     StepExecutionStatus,
@@ -33,33 +33,33 @@ class EvolutionRule(DynamicBaseModel):
 
 class EvolutionContext(DynamicBaseModel):
     """Context for macro evolution"""
-    original_macro: List[Dict[str, Any]]
-    step_results: List[StepResult]
-    evolution_records: List[MacroEvolutionRecord]
+    original_macro: list[dict[str, Any]]
+    step_results: list[StepResult]
+    evolution_records: list[MacroEvolutionRecord]
     target_platform: str = "web"
 
     # Track which steps have been modified
-    modified_steps: Set[int] = Field(default_factory=set)
+    modified_steps: set[int] = Field(default_factory=set)
 
     # Track added steps (insertions)
-    inserted_steps: Dict[int, List[Dict[str, Any]]] = Field(default_factory=dict)
+    inserted_steps: dict[int, list[dict[str, Any]]] = Field(default_factory=dict)
 
 
 class StepTransformer(ABC):
     """Abstract base for step transformations"""
 
     @abstractmethod
-    def can_transform(self, step: Dict[str, Any], record: MacroEvolutionRecord) -> bool:
+    def can_transform(self, step: dict[str, Any], record: MacroEvolutionRecord) -> bool:
         """Check if this transformer can handle the given step/record"""
         pass
 
     @abstractmethod
     def transform(
         self,
-        step: Dict[str, Any],
+        step: dict[str, Any],
         record: MacroEvolutionRecord,
         context: EvolutionContext
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Transform a single step into one or more enhanced steps
 
@@ -77,39 +77,39 @@ class AgenticTransformer(StepTransformer):
     in the MacroEvolutionRecord.
     """
 
-    def can_transform(self, step: Dict[str, Any], record: MacroEvolutionRecord) -> bool:
+    def can_transform(self, step: dict[str, Any], record: MacroEvolutionRecord) -> bool:
         # This transformer handles any record that has an evolved step or additional steps
         return record.evolved_step is not None or (record.additional_steps and len(record.additional_steps) > 0)
 
     def transform(
         self,
-        step: Dict[str, Any],
+        step: dict[str, Any],
         record: MacroEvolutionRecord,
         context: EvolutionContext
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Transform: Use the Agent's decided output directly.
         """
         evolved_steps = []
-        
+
         # 1. Add any additional steps the agent decided were necessary (e.g., recovery actions)
         if record.additional_steps:
             evolved_steps.extend(record.additional_steps)
-            
+
         # 2. Use the evolved version of the original step
         if record.evolved_step:
             evolved_steps.append(record.evolved_step)
         else:
             # Fallback to original if no evolved version provided
             evolved_steps.append(copy.deepcopy(step))
-            
+
         return evolved_steps
 
     def _extract_navigation(
         self,
         context: EvolutionContext,
-        target_step: Dict[str, Any]
-    ) -> List[Dict[str, Any]]:
+        target_step: dict[str, Any]
+    ) -> list[dict[str, Any]]:
         """Extract navigation steps to reach target step's context"""
         # Find goto/open_app step before target
         nav_steps = []
@@ -130,17 +130,17 @@ class MacroEvolutionEngine:
     """
 
     def __init__(self):
-        self.transformers: List[StepTransformer] = [
+        self.transformers: list[StepTransformer] = [
             AgenticTransformer(),
         ]
 
     def evolve(
         self,
-        original_macro: List[Dict[str, Any]],
-        evolution_records: List[MacroEvolutionRecord],
-        step_results: List[StepResult],
+        original_macro: list[dict[str, Any]],
+        evolution_records: list[MacroEvolutionRecord],
+        step_results: list[StepResult],
         target_platform: str = "web"
-    ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+    ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
         """
         Evolve macro based on verification results
 
@@ -235,10 +235,10 @@ class MacroEvolutionEngine:
 
     def _transform_step(
         self,
-        step: Dict[str, Any],
-        records: List[MacroEvolutionRecord],
+        step: dict[str, Any],
+        records: list[MacroEvolutionRecord],
         context: EvolutionContext
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Apply appropriate transformers to a step
 
         When multiple records exist for the same step, transformations are merged
@@ -250,7 +250,7 @@ class MacroEvolutionEngine:
         """
         evolved_steps = [copy.deepcopy(step)]
         step_number = step.get("step_number", 0)
-        all_additional_steps: List[Dict[str, Any]] = []
+        all_additional_steps: list[dict[str, Any]] = []
 
         for record in records:
             # Collect additional steps from this record (e.g., wait for popup to clear)
@@ -274,9 +274,7 @@ class MacroEvolutionEngine:
                 # No specific transformer for this record type
                 # Merge evolved_step properties instead of replacing entirely
                 if record.evolved_step:
-                    merged_step = self._merge_step_evolution(
-                        evolved_steps[0], record.evolved_step
-                    )
+                    merged_step = self._merge_step_evolution(evolved_steps[0], record.evolved_step)
                     evolved_steps = [merged_step]
                     context.modified_steps.add(step_number)
 
@@ -289,11 +287,7 @@ class MacroEvolutionEngine:
 
         return evolved_steps
 
-    def _merge_step_evolution(
-        self,
-        current_step: Dict[str, Any],
-        evolved_step: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    def _merge_step_evolution(self, current_step: dict[str, Any], evolved_step: dict[str, Any]) -> dict[str, Any]:
         """
         Merge evolved_step properties into current_step.
 
@@ -330,11 +324,11 @@ class MacroEvolutionEngine:
 
     def _evolve_loop_step(
         self,
-        step: Dict[str, Any],
+        step: dict[str, Any],
         step_number: int,
-        evolution_records: List[MacroEvolutionRecord],
+        evolution_records: list[MacroEvolutionRecord],
         context: EvolutionContext
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Evolve a loop step including its sub-steps.
 
@@ -378,7 +372,7 @@ class MacroEvolutionEngine:
         self,
         context: EvolutionContext,
         final_step_count: int
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Generate evolution metadata"""
         return {
             "original_step_count": len(context.original_macro),
@@ -390,7 +384,7 @@ class MacroEvolutionEngine:
             "fallback_mechanisms_added": len(context.modified_steps),
         }
 
-    def _count_transformations(self, context: EvolutionContext) -> Dict[str, int]:
+    def _count_transformations(self, context: EvolutionContext) -> dict[str, int]:
         """Count transformations by type"""
         counts = {}
         for record in context.evolution_records:
@@ -407,9 +401,9 @@ class MacroEvolutionEngine:
 
     def generate_fallback_chain(
         self,
-        step: Dict[str, Any],
+        step: dict[str, Any],
         max_fallbacks: int = 3
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Generate a fallback chain for a single step
 

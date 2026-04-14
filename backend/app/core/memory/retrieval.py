@@ -27,7 +27,7 @@ import logging
 import math
 import time
 from datetime import datetime
-from typing import List, Optional, Dict, Any, Set
+from typing import Any
 
 from pydantic import Field
 
@@ -41,10 +41,10 @@ logger = logging.getLogger(__name__)
 class RetrievalContext(DynamicBaseModel):
     """Context for memory retrieval."""
     query: str
-    recent_tools: List[str] = Field(default_factory=list)
-    already_surfaced: Set[str] = Field(default_factory=set)  # Memory IDs already shown to user
-    user_id: Optional[str] = None
-    project_id: Optional[int] = None
+    recent_tools: list[str] = Field(default_factory=list)
+    already_surfaced: set[str] = Field(default_factory=set)  # Memory IDs already shown to user
+    user_id: str | None = None
+    project_id: int | None = None
 
 
 class MemoryRetriever:
@@ -62,7 +62,7 @@ class MemoryRetriever:
         storage = FileMemoryStorage(str(config.memory_root))
         retriever = MemoryRetriever(storage=storage, config=config)
     """
-    
+
     def __init__(
         self,
         storage,
@@ -87,19 +87,19 @@ class MemoryRetriever:
         self.max_candidates = max_candidates
         self.max_results = max_results
         self.enable_llm_selection = enable_llm_selection
-        
+
         # Optimization: Skip Stage 2 if Stage 1 match is high-confidence
         self.selection_skip_threshold = kwargs.get("selection_skip_threshold", 5.0)
-        
+
         # Cache for LLM selection results (query_id -> selected_ids)
-        self._selection_cache: Dict[str, List[str]] = {}
-    
+        self._selection_cache: dict[str, list[str]] = {}
+
     async def find_relevant(
         self,
         query: str,
-        context: Optional[Dict[str, Any]] = None,
-        already_surfaced: Optional[Set[str]] = None,
-    ) -> List[MemoryEntry]:
+        context: dict[str, Any] | None = None,
+        already_surfaced: set[str] | None = None,
+    ) -> list[MemoryEntry]:
         """
         Find relevant memories using two-stage retrieval.
 
@@ -144,7 +144,7 @@ class MemoryRetriever:
         logger.info(f"[MemoryRetriever] 🔄 Filtering already_surfaced: {filtered_count} removed, {len(fresh_candidates)} remaining in {filter_elapsed:.1f}ms")
 
         if not fresh_candidates:
-            logger.warning(f"[MemoryRetriever] ❌ All candidates already surfaced")
+            logger.warning("[MemoryRetriever] ❌ All candidates already surfaced")
             return []
 
         # Optimization: Check if keyword match is high enough to skip Stage 2
@@ -153,7 +153,7 @@ class MemoryRetriever:
         scored_candidates = [(c, self._score_candidate(c, ctx)) for c in fresh_candidates]
         scored_candidates.sort(key=lambda x: x[1], reverse=True)
         max_score = scored_candidates[0][1] if scored_candidates else 0
-        
+
         if max_score >= self.selection_skip_threshold:
             selected = [c for c, s in scored_candidates[:self.max_results]]
             total_elapsed = (time.time() - total_start) * 1000
@@ -185,7 +185,7 @@ class MemoryRetriever:
             stage2_start = time.time()
             selected = await self._llm_select(fresh_candidates, ctx)
             stage2_elapsed = (time.time() - stage2_start) * 1000
-            
+
             # Save to cache
             self._selection_cache[cache_key] = [c.id for c in selected]
             logger.info(f"[MemoryRetriever] 🧠 Stage 2 (_llm_select): {len(selected)} selected in {stage2_elapsed:.1f}ms")
@@ -204,8 +204,8 @@ class MemoryRetriever:
         )
 
         return selected
-    
-    async def _get_candidates(self, ctx: RetrievalContext) -> List[MemoryEntry]:
+
+    async def _get_candidates(self, ctx: RetrievalContext) -> list[MemoryEntry]:
         """
         Stage 1: Get candidate memories using keyword search.
 
@@ -289,7 +289,7 @@ class MemoryRetriever:
         logger.debug(f"[_get_candidates] Completed: returning {len(result)}/{len(candidates)} candidates in {total_elapsed:.1f}ms")
 
         return result
-    
+
     def _score_candidate(
         self,
         entry: MemoryEntry,
@@ -305,17 +305,17 @@ class MemoryRetriever:
         """
         query = ctx.query.lower()
         query_words = set(query.split())
-        
+
         # Keyword relevance
         text = f"{entry.title} {entry.description} {entry.content}".lower()
-        keyword_score = sum(2 if word in entry.title.lower() else 1 
-                          for word in query_words 
+        keyword_score = sum(2 if word in entry.title.lower() else 1
+                          for word in query_words
                           if word in text)
-        
+
         # Freshness boost (exponential decay, 30-day half-life)
         age_days = (datetime.utcnow() - entry.updated_at).days
         freshness_boost = 1.5 * math.exp(-age_days / 30.0)
-        
+
         # Type priority
         type_multiplier = {
             MemoryType.USER: 1.3,
@@ -323,14 +323,14 @@ class MemoryRetriever:
             MemoryType.PROJECT: 1.0,
             MemoryType.REFERENCE: 0.9,
         }.get(entry.type, 1.0)
-        
+
         return (keyword_score + freshness_boost) * type_multiplier
-    
+
     async def _llm_select(
         self,
-        candidates: List[MemoryEntry],
+        candidates: list[MemoryEntry],
         ctx: RetrievalContext,
-    ) -> List[MemoryEntry]:
+    ) -> list[MemoryEntry]:
         """
         Stage 2: Use LLM to select most relevant memories.
 
@@ -361,7 +361,7 @@ class MemoryRetriever:
 
             # Call LLM using InternalLLMService (automatically disables callbacks)
             llm_start = time.time()
-            logger.info(f"[_llm_select] Calling InternalLLMService.invoke for memory_selection...")
+            logger.info("[_llm_select] Calling InternalLLMService.invoke for memory_selection...")
 
             response = await InternalLLMService.invoke(
                 messages=[
@@ -404,10 +404,10 @@ class MemoryRetriever:
             fallback_elapsed = (time.time() - fallback_start) * 1000
             logger.warning(f"[_llm_select] Fallback to keyword_rank took {fallback_elapsed:.1f}ms, returning {len(fallback_result)} entries")
             return fallback_result
-    
+
     def _build_selection_prompt(
         self,
-        candidates: List[MemoryEntry],
+        candidates: list[MemoryEntry],
         ctx: RetrievalContext,
     ) -> str:
         """Build the LLM selection prompt."""
@@ -467,12 +467,12 @@ If no memories are relevant, return: {{"selected_indices": []}}"""
         logger.info(f"[_build_selection_prompt] Completed: {result_chars} chars, {result_lines} lines, {len(filtered_candidates)} memories in {total_elapsed:.1f}ms")
 
         return result
-    
+
     def _filter_recent_tools(
         self,
-        candidates: List[MemoryEntry],
-        recent_tools: List[str],
-    ) -> List[MemoryEntry]:
+        candidates: list[MemoryEntry],
+        recent_tools: list[str],
+    ) -> list[MemoryEntry]:
         """
         Filter out memories about recently used tools.
         
@@ -481,36 +481,36 @@ If no memories are relevant, return: {{"selected_indices": []}}"""
         """
         if not recent_tools:
             return candidates
-        
+
         filtered = []
         tool_names = [t.lower() for t in recent_tools]
-        
+
         for mem in candidates:
             mem_text = f"{mem.title} {mem.description} {mem.content}".lower()
-            
+
             # Check if memory is about a recent tool
             is_about_recent_tool = any(
-                tool in mem_text 
+                tool in mem_text
                 for tool in tool_names
             )
-            
+
             # Check if it contains warnings/gotchas (still useful)
             has_warnings = any(
-                kw in mem_text 
+                kw in mem_text
                 for kw in ["warning", "caution", "gotcha", "important", "don't"]
             )
-            
+
             # Keep if not about recent tool, or if it has warnings
             if not is_about_recent_tool or has_warnings:
                 filtered.append(mem)
-        
+
         return filtered
-    
+
     def _parse_selection_response(
         self,
         response: str,
-        candidates: List[MemoryEntry],
-    ) -> List[str]:
+        candidates: list[MemoryEntry],
+    ) -> list[str]:
         """Parse LLM selection response."""
         import re
         start_time = time.time()
@@ -551,27 +551,27 @@ If no memories are relevant, return: {{"selected_indices": []}}"""
             fallback_ids = [c.id for c in candidates[:self.max_results]]
             logger.warning(f"[_parse_selection_response] Fallback: returning first {len(fallback_ids)} IDs")
             return fallback_ids
-    
+
     def _keyword_rank(
         self,
-        candidates: List[MemoryEntry],
+        candidates: list[MemoryEntry],
         ctx: RetrievalContext,
-    ) -> List[MemoryEntry]:
+    ) -> list[MemoryEntry]:
         """Fallback: Rank candidates by keyword relevance."""
         scored = [(c, self._score_candidate(c, ctx)) for c in candidates]
         scored.sort(key=lambda x: x[1], reverse=True)
         return [entry for entry, score in scored]
-    
+
     # ==========================================================================
     # Context Injection Methods (migrated from MemoryRetrievalService)
     # ==========================================================================
-    
+
     async def get_for_context_injection(
         self,
         query: str,
-        user_id: Optional[str] = None,
-        project_id: Optional[int] = None,
-    ) -> Dict[str, List[MemoryEntry]]:
+        user_id: str | None = None,
+        project_id: int | None = None,
+    ) -> dict[str, list[MemoryEntry]]:
         """
         Get memories organized for context injection.
         
@@ -585,14 +585,14 @@ If no memories are relevant, return: {{"selected_indices": []}}"""
         """
         # Get all memories
         all_memories = await self._storage.list_all()
-        
+
         # Load full entries
         entries = []
         for m in all_memories:
             entry = await self._storage.get(m.id)
             if entry:
                 entries.append(entry)
-        
+
         # Filter and organize
         result = {
             "user": [],
@@ -600,52 +600,52 @@ If no memories are relevant, return: {{"selected_indices": []}}"""
             "project": [],
             "reference": [],
         }
-        
+
         for entry in entries:
             # Privacy check
             if entry.privacy.value == "private" and entry.user_id != user_id:
                 continue
-            
+
             # Project check
             if entry.project_id is not None and entry.project_id != project_id:
                 continue
-            
+
             # Add to appropriate bucket
             key = entry.type.value
             if key in result:
                 result[key].append(entry)
-        
+
         # Sort each bucket by relevance to query (simple keyword match)
         for key in result:
             result[key] = self._sort_by_relevance(result[key], query)[:3]  # Top 3 per type
-        
+
         return result
-    
+
     def _sort_by_relevance(
         self,
-        entries: List[MemoryEntry],
+        entries: list[MemoryEntry],
         query: str,
-    ) -> List[MemoryEntry]:
+    ) -> list[MemoryEntry]:
         """Sort entries by relevance to query (with freshness boost)."""
         query_words = set(query.lower().split())
         now = datetime.utcnow()
-        
+
         def score(entry: MemoryEntry) -> float:
             # Base relevance score
             text = f"{entry.title} {entry.description} {entry.content}".lower()
             relevance = sum(1 for word in query_words if word in text)
-            
+
             # Freshness boost (exponential decay, 30-day half-life)
             age_days = (now - entry.updated_at).days
             freshness_boost = 2.0 * math.exp(-age_days / 30.0)
-            
+
             return relevance + freshness_boost
-        
+
         return sorted(entries, key=score, reverse=True)
-    
+
     async def format_for_prompt(
         self,
-        memories: Dict[str, List[MemoryEntry]],
+        memories: dict[str, list[MemoryEntry]],
     ) -> str:
         """
         Format memories for injection into system prompt.
@@ -668,21 +668,21 @@ If no memories are relevant, return: {{"selected_indices": []}}"""
 async def _get_global_memory_container() -> Any:
     """Get global memory container via MemoryLifespanManager (singleton)."""
     from app.core.memory.lifespan import MemoryLifespanManager
-    
+
     if not MemoryLifespanManager.is_initialized():
         await MemoryLifespanManager.ainitialize()
-    
+
     return MemoryLifespanManager.get_container()
 
 
 async def get_relevant_memories(
     query: str,
-    user_id: Optional[str] = None,
-    project_id: Optional[int] = None,
+    user_id: str | None = None,
+    project_id: int | None = None,
     max_results: int = 5,
-    already_surfaced: Optional[Set[str]] = None,
-    context: Optional[Dict[str, Any]] = None,
-) -> List[MemoryEntry]:
+    already_surfaced: set[str] | None = None,
+    context: dict[str, Any] | None = None,
+) -> list[MemoryEntry]:
     """
     Convenience function to get relevant memories using smart retrieval.
     
@@ -700,17 +700,17 @@ async def get_relevant_memories(
         List of relevant memory entries
     """
     container = await _get_global_memory_container()
-    
+
     retriever = MemoryRetriever(
         storage=container.storage,
         config=container.config,
         max_results=max_results,
     )
-    
+
     ctx = context or {}
     ctx.update({
         "user_id": user_id,
         "project_id": project_id,
     })
-    
+
     return await retriever.find_relevant(query, ctx, already_surfaced)

@@ -119,9 +119,10 @@ class MirrorSession:
 
     async def _persist_event_batch(self, events: list[AndroidTraceEvent]):
         """Persist a batch of events to database."""
+        import json
+
         from app.infrastructure.database.sql.database import session_scope
         from app.models import TraceEvent
-        import json
 
         if not events:
             return
@@ -226,17 +227,17 @@ class MirrorSession:
                     for line in self.process.stderr:
                         clean_line = line.strip()
                         logger.debug(f"[scrcpy {self.device_id}] {clean_line}")
-                        
+
                         # Look for recording start confirmation
                         if "Recording to" in clean_line and ".mp4" in clean_line:
                             exact_start = time.time()
                             self._video_start_time = exact_start
                             logger.info(f"[MirrorSession] scrcpy confirmed recording start at {exact_start}")
-                            
+
                             # If recorder is already running, update its sync clock
                             if self.event_recorder:
                                 self.event_recorder.set_video_start_time(exact_start)
-            
+
             threading.Thread(target=log_output, daemon=True).start()
 
             return True
@@ -284,7 +285,7 @@ class MirrorSession:
         """Get the current active app package on the device."""
         if self.event_recorder:
             return self.event_recorder.get_current_package(self.device_id)
-        
+
         # Fallback if recorder not initialized
         recorder = AndroidEventRecorder()
         return recorder.get_current_package(self.device_id)

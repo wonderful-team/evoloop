@@ -7,7 +7,7 @@ Learning Module Event Handlers
 import asyncio
 import logging
 
-from app.core.events import system_bus, SystemEventType
+from app.core.events import SystemEventType, system_bus
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +43,7 @@ async def on_application_started(event):
     2. 用户偏好设置缓存
     """
     logger.info("[Learning] Application started event received, warming caches...")
-    
+
     try:
         # 后台异步预热缓存（不阻塞启动）
         asyncio.create_task(_warm_skills_cache())
@@ -60,5 +60,5 @@ def register_learning_event_handlers():
     """
     # 订阅应用启动事件
     system_bus.subscribe(SystemEventType.APP_STARTED, on_application_started)
-    
+
     logger.info("[Learning] Event handlers registered")

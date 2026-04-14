@@ -8,20 +8,19 @@ STT Provider Factory
 """
 
 import logging
-from typing import Optional
 
 from app.core.voice.stt.base import BaseSTTProvider, STTOptions, STTResult, VoiceLocale
-from app.core.voice.stt.funasr import FunASRProvider, FunASRManager
+from app.core.voice.stt.funasr import FunASRManager, FunASRProvider
 
 logger = logging.getLogger(__name__)
 
 
 class STTFactory:
     """STT 提供商工厂"""
-    
-    _funasr_provider: Optional[FunASRProvider] = None
+
+    _funasr_provider: FunASRProvider | None = None
     _whisper_provider = None  # 延迟导入
-    
+
     @classmethod
     def get_provider(cls, prefer_local: bool = True) -> BaseSTTProvider:
         """
@@ -39,10 +38,10 @@ class STTFactory:
                 return cls.get_funasr_provider()
             except Exception as e:
                 logger.warning(f"FunASR not available: {e}, falling back to Whisper")
-        
+
         # 回退到 Whisper
         return cls.get_whisper_provider()
-    
+
     @classmethod
     def get_funasr_provider(cls, model_name: str = "paraformer-zh") -> FunASRProvider:
         """
@@ -58,7 +57,7 @@ class STTFactory:
             cls._funasr_provider = FunASRProvider(model_name)
             logger.info(f"FunASR provider initialized: {model_name}")
         return cls._funasr_provider
-    
+
     @classmethod
     def get_whisper_provider(cls):
         """
@@ -73,7 +72,7 @@ class STTFactory:
             cls._whisper_provider = WhisperProvider()
             logger.info("Whisper provider initialized")
         return cls._whisper_provider
-    
+
     @classmethod
     def list_available_providers(cls) -> list[dict]:
         """
@@ -83,7 +82,7 @@ class STTFactory:
             list[dict]: 提供商信息列表
         """
         providers = []
-        
+
         # 检查 FunASR
         try:
             funasr = FunASRProvider()
@@ -99,7 +98,7 @@ class STTFactory:
                 "available": False,
                 "description": f"不可用: {e}",
             })
-        
+
         # 检查 Whisper
         try:
             from app.core.voice.stt.whisper import WhisperProvider
@@ -116,9 +115,9 @@ class STTFactory:
                 "available": False,
                 "description": f"不可用: {e}",
             })
-        
+
         return providers
-    
+
     @classmethod
     def preload_funasr(cls, model_name: str = "paraformer-zh"):
         """预加载 FunASR 模型"""
@@ -126,7 +125,7 @@ class STTFactory:
             FunASRManager.preload_model(model_name)
         except Exception as e:
             logger.error(f"Failed to preload FunASR: {e}")
-    
+
     @classmethod
     def clear_cache(cls):
         """清除缓存"""
@@ -142,7 +141,7 @@ def get_stt_provider(prefer_local: bool = True) -> BaseSTTProvider:
     return STTFactory.get_provider(prefer_local)
 
 
-async def transcribe_audio(audio_data: bytes, language: Optional[str] = None, **kwargs) -> STTResult:
+async def transcribe_audio(audio_data: bytes, language: str | None = None, **kwargs) -> STTResult:
     """
     便捷函数：识别音频
     
@@ -156,7 +155,7 @@ async def transcribe_audio(audio_data: bytes, language: Optional[str] = None, **
     """
 
     provider = get_stt_provider()
-    
+
     # 转换语言代码
     locale = VoiceLocale.AUTO
     if language:
@@ -169,12 +168,12 @@ async def transcribe_audio(audio_data: bytes, language: Optional[str] = None, **
             "ko": VoiceLocale.KO_KR,
         }
         locale = lang_map.get(language, VoiceLocale.AUTO)
-    
+
     options = STTOptions(
         audio_data=audio_data,
         audio_format=kwargs.get("format", "webm"),
         language=locale,
         prompt=kwargs.get("prompt"),
     )
-    
+
     return await provider.transcribe(options)

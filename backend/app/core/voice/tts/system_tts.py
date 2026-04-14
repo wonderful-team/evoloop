@@ -13,9 +13,16 @@ import asyncio
 import logging
 import os
 import tempfile
-from typing import Optional, AsyncIterator
+from collections.abc import AsyncIterator
 
-from app.core.voice.tts.base import BaseTTSProvider, TTSOptions, TTSSResult, Voice, VoiceGender, VoiceLocale
+from app.core.voice.tts.base import (
+    BaseTTSProvider,
+    TTSOptions,
+    TTSSResult,
+    Voice,
+    VoiceGender,
+    VoiceLocale,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -58,24 +65,24 @@ class SystemTTSProvider(BaseTTSProvider):
     - 使用 macOS 自带语音
     - 支持多种语言
     """
-    
+
     name = "system-tts"
     supports_streaming = False
     supports_speed_control = True
-    
+
     def __init__(self):
         self._is_macos = self._check_macos()
-    
+
     def _check_macos(self) -> bool:
         """检查是否为 macOS 系统"""
         import platform
         return platform.system() == "Darwin"
-    
+
     def is_available(self) -> bool:
         """检查系统 TTS 是否可用"""
         if not self._is_macos:
             return False
-        
+
         # 检查 say 命令是否存在
         try:
             import subprocess
@@ -83,14 +90,14 @@ class SystemTTSProvider(BaseTTSProvider):
             return result.returncode == 0
         except:
             return False
-    
-    def list_voices(self, locale: Optional[VoiceLocale] = None) -> list[Voice]:
+
+    def list_voices(self, locale: VoiceLocale | None = None) -> list[Voice]:
         """获取可用声音列表"""
         voices = []
         for voice_id, info in MACOS_VOICES.items():
             if locale and info["locale"] != locale:
                 continue
-            
+
             voices.append(Voice(
                 id=voice_id,
                 name=info["name"],
@@ -102,9 +109,9 @@ class SystemTTSProvider(BaseTTSProvider):
                 is_streaming=False,
                 supports_speed=True
             ))
-        
+
         return voices
-    
+
     def get_default_voice(self, locale: VoiceLocale = VoiceLocale.ZH_CN) -> str:
         """获取默认声音 ID"""
         defaults = {
@@ -117,7 +124,7 @@ class SystemTTSProvider(BaseTTSProvider):
             VoiceLocale.KO_KR: "ko-KR-Yuna",
         }
         return defaults.get(locale, "zh-CN-Tingting")
-    
+
     async def synthesize(self, options: TTSOptions) -> TTSSResult:
         """
         合成语音
@@ -126,10 +133,11 @@ class SystemTTSProvider(BaseTTSProvider):
         """
         if not self.is_available():
             raise RuntimeError("System TTS not available. This provider only works on macOS.")
-        
-        from app.core.voice.utils import optimize_for_tts
+
         import subprocess
-        
+
+        from app.core.voice.utils import optimize_for_tts
+
         # 清理 Markdown 格式
         text = optimize_for_tts(options.text)
         if not text or not text.strip():
@@ -141,44 +149,44 @@ class SystemTTSProvider(BaseTTSProvider):
                 duration_ms=0,
                 char_count=0,
             )
-        
+
         # 获取声音 ID
         voice_id = options.voice_id
         if voice_id not in MACOS_VOICES:
             logger.warning(f"Unknown voice {voice_id}, using default")
             voice_id = self.get_default_voice(options.locale or VoiceLocale.ZH_CN)
-        
+
         macos_voice = MACOS_VOICES[voice_id]["voice_id"]
-        
+
         # 转换语速 (0.5 - 2.0) 到 macOS 速率 (0 - 100)
         # say 命令的 -r 参数是 words per minute, 默认约 180
         # 我们将 speed 映射到 100 - 300 wpm
         base_rate = 180
         rate = int(base_rate * options.speed)
         rate = max(100, min(300, rate))  # 限制在 100-300
-        
+
         # 创建临时文件
         with tempfile.NamedTemporaryFile(suffix='.aiff', delete=False) as temp_aiff:
             temp_aiff_path = temp_aiff.name
-        
+
         with tempfile.NamedTemporaryFile(suffix='.mp3', delete=False) as temp_mp3:
             temp_mp3_path = temp_mp3.name
-        
+
         try:
             # 使用 say 命令生成 AIFF 音频
             cmd = ['say', '-v', macos_voice, '-r', str(rate), '-o', temp_aiff_path, text]
-            
+
             # 在线程池中执行（避免阻塞）
             loop = asyncio.get_event_loop()
             await loop.run_in_executor(
                 None,
                 lambda: subprocess.run(cmd, check=True, capture_output=True)
             )
-            
+
             # 转换为 MP3（使用 afconvert 或 ffmpeg）
             # 使用 MPG3 格式生成真正的 MP3 文件
             convert_cmd = ['afconvert', '-f', 'MPG3', '-d', '.mp3', temp_aiff_path, temp_mp3_path]
-            
+
             try:
                 await loop.run_in_executor(
                     None,
@@ -195,20 +203,20 @@ class SystemTTSProvider(BaseTTSProvider):
                 except:
                     # 如果都失败，直接读取 AIFF 文件
                     temp_mp3_path = temp_aiff_path
-            
+
             # 读取音频数据
             with open(temp_mp3_path, 'rb') as f:
                 audio_data = f.read()
-            
+
             logger.info(f"System TTS synthesized: {len(audio_data)} bytes, voice={voice_id}, rate={rate}")
-            
+
             return TTSSResult(
                 audio_data=audio_data,
                 content_type="audio/mpeg",
                 duration_ms=None,  # macOS say 不返回时长
                 sample_rate=22050  # 系统语音默认采样率
             )
-            
+
         except subprocess.CalledProcessError as e:
             logger.error(f"System TTS synthesis failed: {e}")
             raise RuntimeError(f"TTS synthesis failed: {e}")
@@ -221,13 +229,13 @@ class SystemTTSProvider(BaseTTSProvider):
                     os.unlink(temp_mp3_path)
             except:
                 pass
-    
+
     async def synthesize_stream(self, options: TTSOptions) -> AsyncIterator[bytes]:
         """
         流式合成语音（模拟流式）
         """
         result = await self.synthesize(options)
-        
+
         # 分块返回，模拟流式
         chunk_size = 8192
         for i in range(0, len(result.audio_data), chunk_size):
