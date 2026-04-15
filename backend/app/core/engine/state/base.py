@@ -83,6 +83,31 @@ class AgentState(AgentStateBase):
                 return str(v)
         return v
 
+    @model_validator(mode="after")
+    def _validate_reducers(self):
+        """Ensure every field that may be updated by parallel branches has an Annotated reducer."""
+        allowed_plain = {
+            "thread_id", "project_id", "current_plan", "structured_plan",
+            "execution_artifact", "error", "user_preferences", "situation_analysis",
+            "action_plan", "skill_execution_attempted", "active_tool_profile",
+            "hydration_marker", "is_subtask", "session_goal",
+        }
+        missing = []
+        for field_name, field_info in self.model_fields.items():
+            if field_name in allowed_plain:
+                continue
+            if not field_info.metadata:
+                missing.append(field_name)
+
+        if missing:
+            raise ValueError(
+                f"AgentState fields must be Annotated with a LangGraph reducer to avoid InvalidUpdateError. "
+                f"Missing reducers on: {missing}. "
+                f"Wrap the type like `Annotated[T, reducer]`."
+            )
+
+        return self
+
 
 class StateUpdate(AgentStateBase):
     """Standardized state update returned by LangGraph nodes."""
