@@ -234,6 +234,14 @@ class LayeredAuditor:
                 last_content = str(msg.content)
                 break
 
+        # Fallback to last ToolMessage if no AIMessage with content (common in single-shot workers)
+        if not last_content:
+            from langchain_core.messages import ToolMessage
+            for msg in reversed(messages):
+                if isinstance(msg, ToolMessage) and msg.content:
+                    last_content = str(msg.content)
+                    break
+
         for msg in messages:
             if hasattr(msg, 'tool_calls') and msg.tool_calls:
                 for tc in msg.tool_calls:

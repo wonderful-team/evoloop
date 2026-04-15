@@ -35,7 +35,7 @@ class BaseExplorer(ABC):
                 items=items
             )
 
-            role_name = render_template("planning/expert_roles.prompt.j2", role="knowledge_triage", platform=platform).strip()
+            role_name = render_template("domain/planning/expert_roles.prompt.j2", role="knowledge_triage", platform=platform).strip()
 
             from app.core.llm import InternalLLMService
             response = await InternalLLMService.invoke(
