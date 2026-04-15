@@ -1,5 +1,6 @@
 """Blackboard state models and merge reducer."""
 import logging
+from enum import Enum
 from typing import Any
 
 from pydantic import Field, model_validator
@@ -85,20 +86,77 @@ class WorkflowStepResult(DynamicBaseModel):
     status: str | None = None
 
 
+class MergePolicy(str, Enum):
+    """Field-level merge policy for blackboard reducers."""
+
+    REPLACE = "replace"
+    APPEND = "append"
+    APPEND_UNIQUE = "append_unique"
+    MERGE_DICT = "merge_dict"
+    DEDUP_APPEND = "dedup_append"
+
+
 class BlackboardState(DynamicBaseModel):
-    ticket: ExecutionTicket | None = None
-    verification: BlackboardVerification | None = None
-    route_reason: str | None = None
-    metadata: BlackboardMetadata = Field(default_factory=BlackboardMetadata)
-    clipboard: list[ClipboardItem] = Field(default_factory=list)
-    visited_nodes: list[str] = Field(default_factory=list)
-    working_directory: str | None = None
-    spawn_plan: SpawnPlan | None = None
-    pending_aggregation: PendingAggregation | None = None
-    subtask_results: list[SubtaskResult] = Field(default_factory=list)
-    plan_approved: bool | None = False
-    worker_outcome: str | None = None
-    workflow_results: list[WorkflowStepResult] | None = None
+    ticket: ExecutionTicket | None = Field(
+        default=None, json_schema_extra={"merge_policy": MergePolicy.REPLACE}
+    )
+    verification: BlackboardVerification | None = Field(
+        default=None, json_schema_extra={"merge_policy": MergePolicy.REPLACE}
+    )
+    route_reason: str | None = Field(
+        default=None, json_schema_extra={"merge_policy": MergePolicy.REPLACE}
+    )
+    metadata: BlackboardMetadata = Field(
+        default_factory=BlackboardMetadata,
+        json_schema_extra={"merge_policy": MergePolicy.MERGE_DICT},
+    )
+    clipboard: list[ClipboardItem] = Field(
+        default_factory=list,
+        json_schema_extra={"merge_policy": MergePolicy.APPEND},
+    )
+    visited_nodes: list[str] = Field(
+        default_factory=list,
+        json_schema_extra={"merge_policy": MergePolicy.APPEND_UNIQUE},
+    )
+    working_directory: str | None = Field(
+        default=None, json_schema_extra={"merge_policy": MergePolicy.REPLACE}
+    )
+    spawn_plan: SpawnPlan | None = Field(
+        default=None, json_schema_extra={"merge_policy": MergePolicy.REPLACE}
+    )
+    pending_aggregation: PendingAggregation | None = Field(
+        default=None, json_schema_extra={"merge_policy": MergePolicy.REPLACE}
+    )
+    subtask_results: list[SubtaskResult] = Field(
+        default_factory=list,
+        json_schema_extra={
+            "merge_policy": MergePolicy.DEDUP_APPEND,
+            "dedup_key": "subtask_id",
+        },
+    )
+    plan_approved: bool | None = Field(
+        default=False, json_schema_extra={"merge_policy": MergePolicy.REPLACE}
+    )
+    worker_outcome: str | None = Field(
+        default=None, json_schema_extra={"merge_policy": MergePolicy.REPLACE}
+    )
+    workflow_results: list[WorkflowStepResult] | None = Field(
+        default=None, json_schema_extra={"merge_policy": MergePolicy.REPLACE}
+    )
+    summary: str | None = Field(
+        default=None, json_schema_extra={"merge_policy": MergePolicy.REPLACE}
+    )
+
+
+def _resolve_field_policy(field_name: str, field_info: Any) -> tuple[MergePolicy, str | None]:
+    """Read merge_policy (and optional dedup_key) from Field json_schema_extra."""
+    extra = field_info.json_schema_extra
+    policy = MergePolicy.REPLACE
+    dedup_key = None
+    if isinstance(extra, dict):
+        policy = extra.get("merge_policy", MergePolicy.REPLACE)
+        dedup_key = extra.get("dedup_key")
+    return policy, dedup_key
 
 
 def merge_blackboard(old: Any, new: Any) -> BlackboardState | None:
@@ -113,42 +171,61 @@ def merge_blackboard(old: Any, new: Any) -> BlackboardState | None:
 
     merged = old.model_copy(deep=True)
 
-    simple_fields = [
-        "ticket", "verification", "route_reason", "spawn_plan",
-        "pending_aggregation", "working_directory", "plan_approved", "worker_outcome",
-        "workflow_results"
-    ]
-    for key in simple_fields:
-        val = getattr(new, key, None)
-        if val is not None:
-            setattr(merged, key, val)
+    for field_name, field_info in BlackboardState.model_fields.items():
+        policy, dedup_key = _resolve_field_policy(field_name, field_info)
+        new_val = getattr(new, field_name, None)
 
-    if new.subtask_results is not None:
-        if not new.subtask_results:
-            merged.subtask_results = []
+        if new_val is None:
+            # OPTIMIZATION: Do not overwrite with None if the field was already set.
+            # This allows nodes to return StateUpdate objects with missing fields (defaulting to None)
+            # without wiping the global blackboard state.
+            continue
+
+        if policy == MergePolicy.REPLACE:
+            setattr(merged, field_name, new_val)
+        elif policy == MergePolicy.APPEND:
+            old_list = list(getattr(merged, field_name, None) or [])
+            setattr(merged, field_name, old_list + list(new_val))
+        elif policy == MergePolicy.APPEND_UNIQUE:
+            old_list = list(getattr(merged, field_name, None) or [])
+            existing = set(old_list)
+            merged_list = old_list + [item for item in new_val if item not in existing]
+            setattr(merged, field_name, merged_list)
+        elif policy == MergePolicy.MERGE_DICT:
+            old_meta = getattr(merged, field_name, None)
+            old_dict = old_meta.model_dump() if old_meta is not None else {}
+            new_dict = new_val.model_dump() if new_val is not None else {}
+            # Only overwrite with non-None new values to avoid wiping existing state
+            merged_dict = {**old_dict, **{k: v for k, v in new_dict.items() if v is not None}}
+            field_type = type(old_meta) if old_meta is not None else type(new_val)
+            setattr(merged, field_name, field_type.model_validate(merged_dict))
+        elif policy == MergePolicy.DEDUP_APPEND:
+            if not new_val:
+                setattr(merged, field_name, new_val)
+            else:
+                old_list = list(getattr(merged, field_name, None) or [])
+                seen = {
+                    getattr(r, dedup_key)
+                    for r in old_list
+                    if dedup_key and getattr(r, dedup_key, None) is not None
+                }
+                delta = []
+                for r in new_val:
+                    key = getattr(r, dedup_key, None) if dedup_key else None
+                    if not key or key not in seen:
+                        delta.append(r)
+                    else:
+                        logger.debug(
+                            f"[State] ℹ️ Subtask ID collision/sync for '{key}' - skipping duplicate."
+                        )
+                setattr(merged, field_name, old_list + delta)
         else:
-            old_results = list(merged.subtask_results or [])
-            seen_ids = {r.subtask_id for r in old_results if r.subtask_id}
-            delta = []
-            for r in new.subtask_results:
-                sid = r.subtask_id
-                if not sid or sid not in seen_ids:
-                    delta.append(r)
-                else:
-                    logger.debug(f"[State] ℹ️ Subtask ID collision/sync for '{sid}' - skipping duplicate.")
-            merged.subtask_results = old_results + delta
+            # Fallback for unknown policies
+            setattr(merged, field_name, new_val)
 
-    if new.metadata is not None:
-        old_meta = merged.metadata.model_dump() if merged.metadata else {}
-        new_meta = new.metadata.model_dump() if new.metadata else {}
-        merged.metadata = BlackboardMetadata.model_validate({**old_meta, **new_meta})
-
-    if new.visited_nodes is not None:
-        old_nodes = list(merged.visited_nodes or [])
-        combined = old_nodes + [n for n in new.visited_nodes if n not in old_nodes]
-        merged.visited_nodes = combined
-
-    if new.clipboard is not None:
-        merged.clipboard = list(merged.clipboard or []) + list(new.clipboard)
+    # DynamicBaseModel allows extra fields; preserve any extras coming from `new`
+    new_extras = getattr(new, "model_extra", None) or {}
+    for key, val in new_extras.items():
+        setattr(merged, key, val)
 
     return merged

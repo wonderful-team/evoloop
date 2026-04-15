@@ -28,7 +28,7 @@ class QueryRewriter:
 
         try:
             from app.utils import render_template
-            prompt_text = render_template("planning/query_rewrite.prompt.j2", query=query)
+            prompt_text = render_template("domain/planning/query_rewrite.prompt.j2", query=query)
 
             # Using InternalLLMService for query rewriting
             from app.core.llm import InternalLLMService

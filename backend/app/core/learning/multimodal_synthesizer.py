@@ -455,7 +455,7 @@ class MultimodalSkillSynthesizer:
             })
 
         return render_template(
-            "events/event_context.prompt.j2",
+            "common/events/event_context.prompt.j2",
             events=event_data,
             resolution=original_resolution
         )
@@ -573,7 +573,7 @@ class MultimodalSkillSynthesizer:
 
         try:
             from app.utils import render_template
-            frames_narrative = render_template("vision/multimodal_frames.prompt.j2", frames=frame_vars)
+            frames_narrative = render_template("core/vision/multimodal_frames.prompt.j2", frames=frame_vars)
             content.append({"type": "text", "text": frames_narrative})
         except Exception as e:
             logger.error(f"Failed to render Multimodal Frames template: {e}")

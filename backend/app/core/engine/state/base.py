@@ -1,9 +1,10 @@
 """Top-level AgentState and StateUpdate models."""
-from typing import Annotated, Any
+import operator
+from typing import Annotated, Any, get_args, get_origin
 
 from langchain_core.messages import BaseMessage
 from langgraph.graph.message import add_messages
-from pydantic import Field, field_validator
+from pydantic import ConfigDict, Field, field_validator, model_validator
 
 from app.core.engine.state.blackboard import (
     BlackboardState,
@@ -37,13 +38,22 @@ class AgentStateBase(DynamicBaseModel):
     # Hydration deduplication marker
     hydration_marker: str | None = None
 
+    # Session-level immutable goal (user's original request)
+    session_goal: str | None = None
+
 
 class AgentState(AgentStateBase):
     """Top-level Agent State for LangGraph."""
     messages: Annotated[list[BaseMessage], add_messages] = Field(default_factory=list)
-    is_retry: bool | None = None
-    iteration_count: int = 0
+    workspace_context: Annotated[WorkspaceContext | None, lambda a, b: b] = None
+    tool_history: Annotated[list[str], operator.concat] = Field(default_factory=list)
+    relevant_sops: Annotated[list[Any], operator.concat] = Field(default_factory=list)
+    thread_id: Annotated[str | None, lambda a, b: b if b is not None else a] = None
+    project_id: Annotated[int | None, lambda a, b: b if b is not None else a] = None
+    is_retry: Annotated[bool | None, lambda a, b: b if b is not None else a] = None
+    iteration_count: Annotated[int, lambda a, b: b] = 0
     next_node: Annotated[str | None, lambda a, b: b] = None
+    session_goal: Annotated[str | None, lambda a, b: b if b is not None else a] = None
     blackboard: Annotated[BlackboardState, merge_blackboard] = Field(default_factory=BlackboardState)
 
     @field_validator("blackboard", mode="before")

@@ -136,7 +136,7 @@ async def multiedit_file(
         # Early hash verification
         if expected_hash and stats.content_hash != expected_hash:
             return render_template(
-                "files/edit_result.prompt.j2",
+                "domain/tools/edit_result.prompt.j2",
                 success=False,
                 path=path,
                 message="File was modified by another process since last read.",
@@ -234,7 +234,7 @@ async def multiedit_file(
             # Add a note that type check is running in background
             template_context["diagnostics"] = [{"severity": "info", "message": "Type check running in background..."}]
 
-        return render_template("files/multiedit_success.prompt.j2", **template_context)
+        return render_template("domain/tools/multiedit_success.prompt.j2", **template_context)
 
     except Exception as e:
         return i18n.get("domain_tools.files.edit_error", error=str(e))

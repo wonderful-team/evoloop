@@ -658,7 +658,7 @@ If no memories are relevant, return: {{"selected_indices": []}}"""
             Formatted string for prompt
         """
         return render_template(
-            "memory/context_injection.prompt.j2",
+            "core/memory/context_injection.prompt.j2",
             user_memories=memories.get("user", []),
             feedback_memories=memories.get("feedback", []),
             project_memories=memories.get("project", []),

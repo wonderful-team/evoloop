@@ -57,8 +57,4 @@ class WikiBuilder:
         return self._render(template_vars)
 
     def _render(self, template_vars: dict) -> str:
-        try:
-            return render_template("wiki/wiki.prompt.j2", **template_vars)
-        except Exception as e:
-            logger.error(f"Error rendering Wiki template: {e}")
-            return f"Wiki template error: {e}"
+        return render_template("domain/wiki/wiki.prompt.j2", **template_vars)

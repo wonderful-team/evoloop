@@ -42,8 +42,4 @@ class VisionPromptBuilder:
         return self._render(template_vars)
 
     def _render(self, template_vars: dict) -> str:
-        try:
-            return render_template("vision/vision.prompt.j2", **template_vars)
-        except Exception as e:
-            logger.error(f"Error rendering Vision template: {e}")
-            return f"Error loading vision analysis prompt: {e}"
+        return render_template("core/vision/vision.prompt.j2", **template_vars)

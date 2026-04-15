@@ -111,7 +111,7 @@ class ReferenceService:
         # Render quotes using template
         if quotes_data:
             try:
-                quoted_block = render_template("project/project_management.prompt.j2", quotes=quotes_data)
+                quoted_block = render_template("domain/project/project_management.prompt.j2", quotes=quotes_data)
                 updated_message = f"{message_text}\n\n{quoted_block}"
             except Exception as e:
                 logger.error(f"Failed to render reference quotes: {e}")

@@ -48,7 +48,7 @@ class VerificationReporter:
                 evolved_macro_json = json.dumps(self.response.evolved_macro[:3], indent=2, ensure_ascii=False) + "..."
 
             return render_template(
-                "report/verification.md.j2",
+                "common/report/verification.md.j2",
                 timestamp=datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                 status_display=self._format_status(self.response.status),
                 execution_mode=self.response.execution_mode.value,
@@ -237,7 +237,7 @@ def generate_comparison_report(
     Shows improvements made through the evolution process.
     """
     try:
-        return render_template("report/comparison.md.j2", original=original_response, evolved=evolved_response)
+        return render_template("common/report/comparison.md.j2", original=original_response, evolved=evolved_response)
     except Exception as e:
         logger.error(f"Failed to render comparison report: {e}")
         return f"Comparison complete. Improvements: {len(evolved_response.evolution_records)}"

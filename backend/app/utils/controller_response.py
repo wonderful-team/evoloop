@@ -56,7 +56,7 @@ class ControllerResponse:
             Rendered response string
         """
         return render_template(
-            "report/response.prompt.j2",
+            "common/report/response.prompt.j2",
             success=success,
             message=message,
             details=details,
@@ -261,50 +261,50 @@ class PerceptionsFormatter:
     def wiki_pages(pages: list) -> str:
         """Format wiki pages list for display."""
         if not pages:
-            return render_template("vision/perceptions.prompt.j2", type="wiki_pages", items=[])
+            return render_template("core/vision/perceptions.prompt.j2", type="wiki_pages", items=[])
         items = [f"{p.title} (slug: {p.slug})" for p in pages]
-        return render_template("vision/perceptions.prompt.j2", type="wiki_pages", items=items)
+        return render_template("core/vision/perceptions.prompt.j2", type="wiki_pages", items=items)
 
     @staticmethod
     def links(links_raw: list) -> str:
         """Format web links for display."""
         if not links_raw:
-            return render_template("vision/perceptions.prompt.j2", type="links", items=[])
+            return render_template("core/vision/perceptions.prompt.j2", type="links", items=[])
         items = [f"[{i}] {lnk['text'][:60]} → {lnk['href']}" for i, lnk in enumerate(links_raw)]
-        return render_template("vision/perceptions.prompt.j2", type="links", items=items[:100])
+        return render_template("core/vision/perceptions.prompt.j2", type="links", items=items[:100])
 
     @staticmethod
     def android_devices(devices: list) -> str:
         """Format Android device list for display."""
         if not devices:
-            return render_template("vision/perceptions.prompt.j2", type="android_devices", items=[])
+            return render_template("core/vision/perceptions.prompt.j2", type="android_devices", items=[])
         items = [f"{d['serial']} ({d['status']}) {d['info']}" for d in devices]
-        return render_template("vision/perceptions.prompt.j2", type="android_devices", items=items)
+        return render_template("core/vision/perceptions.prompt.j2", type="android_devices", items=items)
 
     @staticmethod
     def cookies(cookies_list: list) -> str:
         """Format browser cookies for display."""
         if not cookies_list:
-            return render_template("vision/perceptions.prompt.j2", type="cookies", items=[])
+            return render_template("core/vision/perceptions.prompt.j2", type="cookies", items=[])
         lines = [f"[{i}] {c['name']}={c['value'][:40]} (domain: {c.get('domain', '')})" 
                  for i, c in enumerate(cookies_list)]
-        return render_template("vision/perceptions.prompt.j2", type="cookies", items=lines)
+        return render_template("core/vision/perceptions.prompt.j2", type="cookies", items=lines)
 
     @staticmethod
     def tools_used(tools_used: set | list) -> str:
         """Format tool usage summary for display."""
         if not tools_used:
-            return render_template("vision/perceptions.prompt.j2", type="tools_used", items=[])
-        return render_template("vision/perceptions.prompt.j2", type="tools_used", items=sorted(tools_used))
+            return render_template("core/vision/perceptions.prompt.j2", type="tools_used", items=[])
+        return render_template("core/vision/perceptions.prompt.j2", type="tools_used", items=sorted(tools_used))
 
     @staticmethod
     def ui_elements(elements: list, max_items: int = 50) -> str:
         """Format UI elements for display."""
         if not elements:
-            return render_template("vision/perceptions.prompt.j2", type="ui_elements", items=[])
+            return render_template("core/vision/perceptions.prompt.j2", type="ui_elements", items=[])
         items = [f"[{i}] {el.get('role', 'Unknown')}: {el.get('name', 'Unnamed')}" 
                  for i, el in enumerate(elements[:max_items])]
-        return render_template("vision/perceptions.prompt.j2", type="ui_elements", items=items)
+        return render_template("core/vision/perceptions.prompt.j2", type="ui_elements", items=items)
 
 
 class SystemToolsFormatter:
@@ -340,7 +340,7 @@ class SystemToolsFormatter:
                 "name": f"{getattr(cp, 'name', 'Unknown')}{auto_tag}",
                 "time": getattr(cp, 'created_at', None) and cp.created_at.strftime('%Y-%m-%d %H:%M') or ""
             })
-        return render_template("events/system_tools.prompt.j2", checkpoints=cp_data)
+        return render_template("common/events/system_tools.prompt.j2", checkpoints=cp_data)
 
     @staticmethod
     def autonomous_tasks(tasks: list) -> str:
@@ -354,7 +354,7 @@ class SystemToolsFormatter:
                 "name": getattr(t, 'intent_description', 'Unknown')[:50],
                 "time": f"Next: {getattr(t, 'next_run_at', 'Unknown')}"
             })
-        return render_template("events/system_tools.prompt.j2", checkpoints=cp_data)
+        return render_template("common/events/system_tools.prompt.j2", checkpoints=cp_data)
 
     @staticmethod
     def task_health(task) -> str:
@@ -366,18 +366,18 @@ class SystemToolsFormatter:
             "name": task.intent_description,
             "time": f"Last: {task.last_run_at} | Failure: {task.last_failure_reason or 'None'}"
         }]
-        return render_template("events/system_tools.prompt.j2", checkpoints=cp_data)
+        return render_template("common/events/system_tools.prompt.j2", checkpoints=cp_data)
 
     @staticmethod
     def signals(messages: list[str]) -> str:
         """Format signal messages for display."""
         signal_data = [{"message": m} for m in messages]
-        return render_template("events/system_tools.prompt.j2", signals=signal_data)
+        return render_template("common/events/system_tools.prompt.j2", signals=signal_data)
 
     @staticmethod
     def rollback_preview(checkpoint_id: int, checkpoint_name: str) -> str:
         """Format rollback preview for display."""
-        return render_template("events/system_tools.prompt.j2", 
+        return render_template("common/events/system_tools.prompt.j2", 
                                rollback_preview={"id": checkpoint_id, "name": checkpoint_name})
 
     @staticmethod
@@ -389,7 +389,7 @@ class SystemToolsFormatter:
             "name": checkpoint.name,
             "time": f"{total_size:,} bytes | {total_lines:,} lines"
         }]
-        return render_template("events/system_tools.prompt.j2", checkpoints=cp_data)
+        return render_template("common/events/system_tools.prompt.j2", checkpoints=cp_data)
 
     @staticmethod
     def app_rankings(records: list, platform: str) -> str:
@@ -403,7 +403,7 @@ class SystemToolsFormatter:
                 "status": f"Score {getattr(r, 'priority_score', 0):.2f}{status}",
                 "time": platform
             })
-        return render_template("events/system_tools.prompt.j2", checkpoints=cp_data)
+        return render_template("common/events/system_tools.prompt.j2", checkpoints=cp_data)
 
 
 class ProjectManagementFormatter:
@@ -439,7 +439,7 @@ class ProjectManagementFormatter:
                 checklist.append(f"[{status}] {item.get(name_key, 'Unknown')}")
             else:
                 checklist.append(str(item))
-        return render_template("project/project_management.prompt.j2", checklist=checklist)
+        return render_template("domain/project/project_management.prompt.j2", checklist=checklist)
 
     @staticmethod
     def episodes(episodes: list) -> str:
@@ -448,7 +448,7 @@ class ProjectManagementFormatter:
         for ep in episodes:
             status = "FAILED" if ep.get("error") else "SUCCESS"
             checklist.append(f"[{status}] {ep.get('goal', 'Unknown')}")
-        return render_template("project/project_management.prompt.j2", checklist=checklist)
+        return render_template("domain/project/project_management.prompt.j2", checklist=checklist)
 
     @staticmethod
     def architecture_summary(info: dict) -> str:
@@ -458,7 +458,7 @@ class ProjectManagementFormatter:
             checklist.append(f"Module {sub.get('name', 'Unknown')}: {sub.get('summary', '')[:100]}...")
         for dep in info.get("dependencies", []):
             checklist.append(f"Depends on {dep.get('target', 'Unknown')}")
-        return render_template("project/project_management.prompt.j2", checklist=checklist)
+        return render_template("domain/project/project_management.prompt.j2", checklist=checklist)
 
     @staticmethod
     def concepts(results: list) -> str:
@@ -471,7 +471,7 @@ class ProjectManagementFormatter:
                 basenames = [f.split("/")[-1] for f in r.files]
                 item += f" | Related: {', '.join(basenames)}"
             checklist.append(item)
-        return render_template("project/project_management.prompt.j2", checklist=checklist)
+        return render_template("domain/project/project_management.prompt.j2", checklist=checklist)
 
 
 class SkillResponse:
@@ -482,7 +482,7 @@ class SkillResponse:
         details = None
         if extracted_data:
             details = render_template(
-                "vision/perceptions.prompt.j2",
+                "core/vision/perceptions.prompt.j2",
                 extracted_data=extracted_data
             )
         
@@ -504,7 +504,7 @@ class SkillResponse:
             failed_step = fallback_context.get("failed_step", {})
             error_message = fallback_context.get("error_message", message)
             details = render_template(
-                "events/skill_error_details.prompt.j2",
+                "common/events/skill_error_details.prompt.j2",
                 failed_step=failed_step,
                 error_message=error_message,
                 suggestions=suggestions or []
@@ -552,7 +552,7 @@ class ContentFormatter:
             lang = ContentFormatter._detect_language(filename)
         
         return render_template(
-            "project/file_content.prompt.j2",
+            "domain/project/file_content.prompt.j2",
             filename=filename,
             content=content,
             lang=lang or "text",
@@ -579,7 +579,7 @@ class ContentFormatter:
     def spreadsheet(filename: str, sheets: list) -> str:
         """Format spreadsheet content with multiple sheets."""
         return render_template(
-            "project/spreadsheet_content.prompt.j2",
+            "domain/project/spreadsheet_content.prompt.j2",
             filename=filename,
             sheets=sheets
         )
@@ -596,7 +596,7 @@ class ContentFormatter:
                 "due_date": getattr(t, 'due_date', t.get('due_date', None) if isinstance(t, dict) else None)
             })
         return render_template(
-            "events/todo_list.prompt.j2",
+            "common/events/todo_list.prompt.j2",
             todos=todo_data,
             title=title
         )
@@ -605,7 +605,7 @@ class ContentFormatter:
     def web_search_results(query: str, results: list) -> str:
         """Format web search results."""
         return render_template(
-            "events/search_results.prompt.j2",
+            "common/events/search_results.prompt.j2",
             query=query,
             results=results,
             result_type="web"
@@ -622,7 +622,7 @@ class ContentFormatter:
             formatted_results.append({"role": role, "content": preview})
         
         return render_template(
-            "events/search_results.prompt.j2",
+            "common/events/search_results.prompt.j2",
             query=query,
             results=formatted_results,
             result_type="chat"

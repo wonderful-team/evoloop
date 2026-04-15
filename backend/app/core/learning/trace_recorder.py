@@ -308,7 +308,7 @@ async def sync_thread_to_graph(
             }
             action_data.append(action_info)
 
-        actions_text = render_template("events/action_summary.prompt.j2", actions=action_data)
+        actions_text = render_template("common/events/action_summary.prompt.j2", actions=action_data)
 
         # Improved result summary fallback
         has_real_result = result_summary and result_summary != "unknown"

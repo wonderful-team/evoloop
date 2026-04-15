@@ -150,7 +150,7 @@ class MemoryExtractionService:
         recent_messages = self._format_messages(messages[-20:])  # Last 20 messages
 
         return render_template(
-            "memory/extraction.prompt.j2",
+            "core/memory/extraction.prompt.j2",
             message_count=len(messages),
             recent_messages=recent_messages,
             existing_memories=existing_memories,
@@ -432,7 +432,7 @@ class MemoryConsolidationService:
         # Generate summary using template
         try:
             summary = render_template(
-                "memory/consolidation.prompt.j2",
+                "core/memory/consolidation.prompt.j2",
                 content=working_content,
             )
 

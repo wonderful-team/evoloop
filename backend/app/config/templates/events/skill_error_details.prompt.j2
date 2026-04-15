@@ -1,7 +1,0 @@
-{% from "fragments/common/error_details.j2" import skill_error %}
-{{ skill_error(
-   skill_name=skill_name|default(none),
-   step_description=failed_step.description or failed_step.event_type,
-   error_message=error_message,
-   suggestions=suggestions
-) }}

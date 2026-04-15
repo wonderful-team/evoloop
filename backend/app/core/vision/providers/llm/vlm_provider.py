@@ -10,9 +10,10 @@ from app.utils import render_template
 
 logger = logging.getLogger(__name__)
 
+
 def _get_vision_system_prompt() -> str:
     try:
-        return render_template("vision/vision_analysis.prompt.j2")
+        return render_template("core/vision/vision_analysis.prompt.j2")
     except Exception as e:
         logger.warning(f"Failed to load vision prompt template: {e}")
         return "Analyze the provided image(s) accurately."

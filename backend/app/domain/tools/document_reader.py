@@ -362,7 +362,7 @@ def _read_pdf(path: str, start: int | None, end: int | None) -> str:
             })
 
         return render_template(
-            "project/document_content.prompt.j2",
+            "domain/project/document_content.prompt.j2",
             type="document",
             filename=os.path.basename(path),
             metadata=reader.metadata,
@@ -379,7 +379,7 @@ def _read_pdf(path: str, start: int | None, end: int | None) -> str:
                 "content": reader.pages[i].extract_text()
             })
         return render_template(
-            "project/document_content.prompt.j2",
+            "domain/project/document_content.prompt.j2",
             type="document",
             filename=os.path.basename(path),
             metadata=reader.metadata,
@@ -407,7 +407,7 @@ def _read_excel(path: str) -> str:
             })
 
         return render_template(
-            "project/document_content.prompt.j2",
+            "domain/project/document_content.prompt.j2",
             type="spreadsheet",
             filename=os.path.basename(path),
             content_blocks=content_blocks

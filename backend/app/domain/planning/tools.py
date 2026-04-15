@@ -12,11 +12,12 @@ from .models import Plan, Step
 
 logger = logging.getLogger(__name__)
 
+
 def _render_analysis_prompt(plan: str, context: str, tree: str, user_lang: str) -> str:
     """Render the feasibility analysis prompt from Jinja2 template."""
     from app.utils import render_template
     return render_template(
-        "planning/feasibility_analysis.prompt.j2",
+        "domain/planning/feasibility_analysis.prompt.j2",
         plan=plan,
         context=context,
         tree=tree,

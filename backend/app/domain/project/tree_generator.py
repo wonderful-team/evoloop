@@ -100,11 +100,11 @@ class AnnotatedTreeGenerator:
         try:
             if style == "flat":
                 flat_paths = self._collect_flat_paths(root_node)
-                return render_template("codebase/codebase_tree.prompt.j2", style="flat", flat_paths=flat_paths)
+                return render_template("domain/codebase/codebase_tree.prompt.j2", style="flat", flat_paths=flat_paths)
 
             # Strategy: Adjust root_node's visibility and render
             # (Note: Original Level 1-4 logic simplified to just rendering the built structure)
-            return render_template("codebase/codebase_tree.prompt.j2", style="tree", root=root_node)
+            return render_template("domain/codebase/codebase_tree.prompt.j2", style="tree", root=root_node)
         except Exception as e:
             logger.error(f"Failed to render tree: {e}")
             return "Error rendering tree structure."

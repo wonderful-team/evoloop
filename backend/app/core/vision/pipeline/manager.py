@@ -155,7 +155,7 @@ class PipelineManager:
         element_data = [{"line": el.to_prompt_line()} for el in display_elements]
 
         return render_template(
-            "vision/elements_list.prompt.j2",
+            "core/vision/elements_list.prompt.j2",
             elements=element_data,
             has_more=len(elements) > max_elements,
             more_count=len(elements) - max_elements

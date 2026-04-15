@@ -155,7 +155,7 @@ class AtlasEngine:
 
             try:
                 return render_template(
-                    "memory/atlas_detail.prompt.j2",
+                    "core/memory/atlas_detail.prompt.j2",
                     window_title=detail.get('window_title', 'Unknown'),
                     state_id=state_id,
                     bundle_id=target_bundle,

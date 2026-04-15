@@ -39,7 +39,7 @@ class ProjectStandardsAnalyst:
                 pass
 
         prompt_text = render_template(
-            "codebase/code_audit.prompt.j2",
+            "domain/codebase/code_audit.prompt.j2",
             standards="General implicit standards extraction",
             files=files_info
         )

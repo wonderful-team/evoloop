@@ -35,6 +35,7 @@ class RoutingTarget(str, Enum):
     SUPERVISOR = "supervisor"
     AGGREGATOR = "aggregator"
     SPAWN_SUBTASKS = "spawn_subtasks"
+    END = "END"
 
 
 def route_supervisor(state: AgentState) -> str | list[Send]:
@@ -51,6 +52,18 @@ def route_supervisor(state: AgentState) -> str | list[Send]:
     if iteration_count >= settings.SUPERVISOR_AGENT_MAX_STEPS:
         logger.warning(f"[Router] Hard limit reached ({iteration_count}/{settings.SUPERVISOR_AGENT_MAX_STEPS}). Forcing termination.")
         return RoutingTarget.FINISH
+
+    # --- Phase 5: Routing Topology Whitelist ---
+    # Respect explicit next_node first (e.g., AGGREGATOR short-circuit from prepare_state)
+    # NOTE: SPAWN_SUBTASKS is intentionally excluded; it must fall through to the spawn_plan check.
+    terminal_nodes = (
+        RoutingTarget.CHAT,
+        RoutingTarget.FINISH,
+        RoutingTarget.SUPERVISOR,
+        RoutingTarget.AGGREGATOR,
+    )
+    if next_node in terminal_nodes:
+        return next_node
 
     # --- 🏅 Phase 4: Dynamic Subtask Spawning (Blackboard Driven) ---
     spawn_plan = blackboard.spawn_plan
@@ -106,7 +119,7 @@ def route_supervisor(state: AgentState) -> str | list[Send]:
 
             ticket = ExecutionTicket(
                 ticket_type="subtask",
-                topic=subtask["intent"],
+                topic=subtask.intent,
                 parent_task_id=parent_thread_id,
                 subtask_id=subtask_id,
                 agent_config=agent_config,
@@ -122,6 +135,7 @@ def route_supervisor(state: AgentState) -> str | list[Send]:
             )
 
             subtask_blackboard = blackboard.model_copy(deep=True)
+            subtask_blackboard.spawn_plan = None
             subtask_blackboard.ticket = ticket
             sends.append(Send(RoutingTarget.WORKER, {
                 "project_id": project_id,
@@ -138,33 +152,19 @@ def route_supervisor(state: AgentState) -> str | list[Send]:
 
         return sends
 
-    # --- Phase 5: Routing Topology Whitelist ---
-    # These nodes can be reached directly from Supervisor without an execution ticket wrapper
-    terminal_nodes = (
-        RoutingTarget.CHAT,
-        RoutingTarget.FINISH,
-        RoutingTarget.SUPERVISOR,
-        RoutingTarget.AGGREGATOR,
-        RoutingTarget.SPAWN_SUBTASKS
-    )
-    if next_node in terminal_nodes:
-        return next_node
-
     if next_node:
         logger.info(f"[Router] Remapping intelligent target '{next_node}' -> 'worker'")
 
         # Verify ticket exists in blackboard (set by SignalDispatcher) before routing to worker
         if blackboard.ticket:
-            return Send(RoutingTarget.WORKER, {
-                "project_id": (state.project_id or DEFAULT_PROJECT_ID),
-            })
+            return RoutingTarget.WORKER
 
         raise ValueError(
             f"Supervisor routing error: No execution ticket found for target '{next_node}'. "
             "Supervisor must call route_to() with a valid execution_ticket before routing to Worker."
         )
 
-    return "finish"
+    return RoutingTarget.FINISH
 
 
 def _safe_eval_expr(expr: str, context: dict) -> bool:

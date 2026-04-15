@@ -138,7 +138,7 @@ Alternatives:
 
     try:
         output_details = render_template(
-            "report/tool_outputs.prompt.j2",
+            "common/report/tool_outputs.prompt.j2",
             stdout=stdout,
             stderr=stderr,
             returncode=returncode

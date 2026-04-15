@@ -46,10 +46,10 @@ def render_template(template_name: str, **kwargs: Any) -> str:
 
     This is the primary method for rendering prompt templates used across
     the application. Template paths are specified relative to 
-    app/config/templates (e.g., "report/response.prompt.j2").
+    app/config/templates (e.g., "common/report/response.prompt.j2").
 
     Args:
-        template_name: Name/path of the template file (e.g., "report/response.prompt.j2")
+        template_name: Name/path of the template file (e.g., "common/report/response.prompt.j2")
         **kwargs: Template context variables
 
     Returns:
@@ -60,7 +60,7 @@ def render_template(template_name: str, **kwargs: Any) -> str:
         ImportError: If Jinja2 is not installed
 
     Example:
-        >>> render_template("report/response.prompt.j2", success=True, message="Done")
+        >>> render_template("common/report/response.prompt.j2", success=True, message="Done")
         '✅ Done'
     """
     env = _get_config_env()

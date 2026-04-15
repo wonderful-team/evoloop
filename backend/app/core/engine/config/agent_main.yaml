@@ -6,7 +6,7 @@ interrupt_before: []
 
 nodes:
   - id: "supervisor"
-    path: "app.core.engine.nodes.supervisor.supervisor_node"
+    path: "app.core.engine.nodes.supervisor.SupervisorNode"
     tools:
       - "route_to"
       # - "update_blackboard"
@@ -20,7 +20,7 @@ nodes:
       - "ask_human"
 
   - id: "worker"
-    path: "app.core.engine.nodes.worker.worker_node"
+    path: "app.core.engine.nodes.worker.WorkerNode"
     tools:
       # =====================================================================
       # 🏅 WORKER BASELINE CAPABILITY POOL (v5.0 Unified Architecture)
@@ -100,7 +100,7 @@ nodes:
       - "list_autonomous_tasks"
 
   - id: "finish"
-    path: "app.core.engine.nodes.finish.finish_node"
+    path: "app.core.engine.nodes.finish.FinishNode"
     tools:
       - "read_file"
       - "list_directory"
@@ -112,7 +112,7 @@ nodes:
       - "synthesize_skill"
 
   - id: "chat"
-    path: "app.core.engine.nodes.chat.chat_node"
+    path: "app.core.engine.nodes.chat.ChatNode"
     tools:
       # Chat Node: Lightweight memory tools only
       # NO file operations, browser, desktop, or command execution
@@ -121,7 +121,7 @@ nodes:
       - "search_history"   # Search current conversation history
 
   - id: "aggregator"
-    path: "app.core.engine.nodes.aggregator.aggregator_node"
+    path: "app.core.engine.nodes.aggregator.AggregatorNode"
 
 edges:
   # 1. Supervisor (Router)

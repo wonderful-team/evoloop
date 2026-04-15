@@ -437,7 +437,7 @@ class DesktopController:
                                 result_msg += f"\n\n> [!NOTE]\n> Screenshot region: {region}\n> OCR coordinates are converted to screen coordinates."
 
                             result_msg += "\n\n" + render_template(
-                                "vision/ocr_results.prompt.j2",
+                                "core/vision/ocr_results.prompt.j2",
                                 platform="macos",
                                 elements=elements_for_prompt,
                                 total_count=len(ocr_result.elements)
@@ -690,7 +690,7 @@ class DesktopController:
 
                     try:
                         return "\n\n" + render_template(
-                            "vision/ocr_results.prompt.j2",
+                            "core/vision/ocr_results.prompt.j2",
                             platform="macos",
                             elements=[{**el, "bounds": el.get("bounds", [])} for el in filtered_elements[:100]],
                             total_count=len(filtered_elements)

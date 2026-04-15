@@ -146,7 +146,7 @@ class DirectorySummarizer:
         from app.utils import render_template
         
         prompt_text = render_template(
-            "codebase/directory_summary.prompt.j2",
+            "domain/codebase/directory_summary.prompt.j2",
             directory_path=dir_path,
             child_summaries=child_summaries
         )

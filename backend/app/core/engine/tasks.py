@@ -502,7 +502,7 @@ def git_harvest_task(cwd: str, project_id: int):
 
             from app.utils import render_template
             prompt_text = render_template(
-                "tool/git_harvest.prompt.j2",
+                "core/engine/tasks/git_harvest.prompt.j2",
                 diff_content=diff_text,
                 user_language=user_lang
             )
@@ -653,7 +653,7 @@ def run_autonomous_task_execution(task_id: int, project_id: int | None = None):
                 # Instruction to the Agent (rendered from template)
                 from app.utils import render_template
                 prompt = render_template(
-                    "autonomous/autonomous_task.prompt.j2",
+                    "core/engine/tasks/autonomous_task.prompt.j2",
                     intent_description=task.intent_description,
                     skill_name=skill.name,
                     skill_id=skill.id,

@@ -1,9 +1,0 @@
-{% from "fragments/common/list_items.j2" import episode_item %}
-**Relevant Past Experiences:**
-{% for episode in episodes %}
-{% if episode.score >= 0.75 %}{{ episode_item(
-   status=episode.status,
-   goal=episode.goal,
-   error=episode.error,
-   plan=episode.plan
-) }}{% endif %}{% endfor %}

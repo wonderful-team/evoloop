@@ -311,7 +311,7 @@ Return empty array `[]` if nothing worth remembering."""
     def _build_extraction_prompt(self, messages: list[BaseMessage]) -> str:
         """Build the extraction prompt template."""
         return render_template(
-            "memory/auto_extraction.prompt.j2",
+            "core/memory/auto_extraction.prompt.j2",
             message_count=len(messages),
         )
 

@@ -36,14 +36,5 @@ class ChatNode(BaseAgentNode):
         """Chat node usually ends after one turn."""
         return StateUpdate(
             messages=engine_result.messages or [],
-            next_node=RoutingTarget.FINISH
+            next_node=RoutingTarget.END
         )
-
-
-# Singleton for graph registration
-chat_node_instance = ChatNode()
-
-
-async def chat_node(state: AgentState, config: RunnableConfig) -> StateUpdate:
-    """Function wrapper for LangGraph registration compatibility."""
-    return await chat_node_instance(state, config)

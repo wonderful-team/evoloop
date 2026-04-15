@@ -28,15 +28,15 @@ class LearningPromptBuilder:
 
     # Template name mapping for cleaner code
     TEMPLATES = {
-        "synthesis": "learning/skill_synthesis.prompt.j2",
-        "macro": "learning/smart_replay_macro.prompt.j2",
-        "phases": "learning/smart_replay_phases.prompt.j2",
-        "metadata": "learning/smart_replay_metadata.prompt.j2",
-        "multimodal_synthesis": "learning/multimodal_synthesis.prompt.j2",
-        "discovery": "learning/skill_discovery.prompt.j2",
-        "multimodal_context": "learning/multimodal_task_context.j2",
-        "synthesis_human": "learning/synthesis_human.prompt.j2",
-        "task_complexity": "learning/task_complexity_analysis.prompt.j2",
+        "synthesis": "core/learning/skill_synthesis.prompt.j2",
+        "macro": "core/learning/smart_replay_macro.prompt.j2",
+        "phases": "core/learning/smart_replay_phases.prompt.j2",
+        "metadata": "core/learning/smart_replay_metadata.prompt.j2",
+        "multimodal_synthesis": "core/learning/multimodal_synthesis.prompt.j2",
+        "discovery": "core/learning/skill_discovery.prompt.j2",
+        "multimodal_context": "core/learning/multimodal_task_context.j2",
+        "synthesis_human": "core/learning/synthesis_human.prompt.j2",
+        "task_complexity": "core/learning/task_complexity_analysis.prompt.j2",
     }
 
     def _get_actions(self) -> list[ActionRegistryItem]:

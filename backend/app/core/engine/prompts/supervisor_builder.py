@@ -77,16 +77,11 @@ class SupervisorPromptBuilder:
         }
 
         # 4. Render Template
-        try:
-            rendered = render_template("agents/supervisor.prompt.j2", **template_vars)
+        rendered = render_template("core/engine/supervisor.prompt.j2", **template_vars)
+        logger.info(f"[SupervisorPrompt] 📝 Static prompt length: {len(rendered)} chars")
+        return rendered
 
-            logger.info(f"[SupervisorPrompt] 📝 Static prompt length: {len(rendered)} chars")
-            return rendered
-        except Exception as e:
-            logger.error(f"Failed to render Supervisor template: {e}")
-            return f"TEMPLATE_ERROR: {str(e)}"
-
-    async def build_context_ticket(self, config: RunnableConfig) -> str:
+    async def build_context_ticket(self, config: RunnableConfig, session_goal: str | None = None) -> str:
         """Constructs the dynamic CONTEXT TICKET for injection as a User Message.
         
         This contains all per-turn state: Blackboard, Memory, Environment Block,
@@ -103,11 +98,11 @@ class SupervisorPromptBuilder:
         is_global_mode = self.project_id == 0 or self.project_id is None
 
         # Get telemetry if available (trimmed)
-        state = get_awakened_state()
+        awakened_state = get_awakened_state()
         telemetry_data = {}
         MAX_INSTALLED_APPS = 10
-        if state:
-            telemetry_data = state.get_telemetry_snapshot() or {}
+        if awakened_state:
+            telemetry_data = awakened_state.get_telemetry_snapshot() or {}
             if telemetry_data and "macos" in telemetry_data and "installed_apps" in telemetry_data["macos"]:
                 original = len(telemetry_data["macos"]["installed_apps"])
                 telemetry_data["macos"]["installed_apps"] = telemetry_data["macos"]["installed_apps"][:MAX_INSTALLED_APPS]
@@ -127,10 +122,8 @@ class SupervisorPromptBuilder:
 
         template_vars = {
             "iteration_count": self.iteration_count,
-            "project_id": self.project_id,
-            "cwd": actual_cwd,
-            "is_global_mode": is_global_mode,
             "environment_block": env_block,
+            "session_goal": session_goal,
             "memory": {
                 "episodic_raw": ctx.metadata.get("episodic_memory_raw", ""),
                 "core_raw": ctx.metadata.get("core_memory_raw", ""),
@@ -144,17 +137,8 @@ class SupervisorPromptBuilder:
             },
             "plan": active_plan_data,
             "plan_approved": blackboard.plan_approved,
-            "project_concepts": ctx.metadata.get("project_concepts", ""),
-            "active_skills": [
-                {"id": s.get("id"), "name": s.get("name"), "namespace": s.get("namespace", "default")}
-                for s in (ctx.metadata.get("active_skills") or [])
-            ],
         }
 
-        try:
-            rendered = render_template("fragments/supervisor_context_ticket.j2", **template_vars)
-            logger.info(f"[ContextTicket] 📋 Dynamic ticket length: {len(rendered)} chars")
-            return rendered
-        except Exception as e:
-            logger.error(f"Failed to render Context Ticket: {e}")
-            return f"[CONTEXT UPDATE — Turn {self.iteration_count}] (render error: {e})"
+        rendered = render_template("core/engine/fragments/supervisor_context_ticket.j2", **template_vars)
+        logger.info(f"[ContextTicket] 📋 Dynamic ticket length: {len(rendered)} chars")
+        return rendered

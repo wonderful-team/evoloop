@@ -142,7 +142,7 @@ class AgentReasoningEngine:
         step_yaml = safe_yaml_dumps([step]) if isinstance(step, dict) else safe_yaml_dumps(step)
 
         prompt = self._render_template(
-            "macro/verify_outcome.prompt.j2",
+            "core/execution/verify_outcome.prompt.j2",
             step_yaml=step_yaml
         )
 
@@ -194,7 +194,7 @@ class AgentReasoningEngine:
         step_yaml = safe_yaml_dumps([step]) if isinstance(step, dict) else safe_yaml_dumps(step)
 
         prompt = self._render_template(
-            "macro/is_failure_terminal.prompt.j2",
+            "core/execution/is_failure_terminal.prompt.j2",
             step_yaml=step_yaml,
             error=error
         )
@@ -246,7 +246,7 @@ class AgentReasoningEngine:
         step_yaml = safe_yaml_dumps([step]) if isinstance(step, dict) else safe_yaml_dumps(step)
 
         return self._render_template(
-            "macro/decide_next_step.prompt.j2",
+            "core/execution/decide_next_step.prompt.j2",
             mental_model=self.mental_model,
             step_yaml=step_yaml,
             platform=ui_state.get('platform'),
@@ -315,7 +315,7 @@ class AgentReasoningEngine:
         step_yaml = safe_yaml_dumps([step]) if isinstance(step, dict) else safe_yaml_dumps(step)
 
         prompt = self._render_template(
-            "macro/check_redundancy.prompt.j2",
+            "core/execution/check_redundancy.prompt.j2",
             step_yaml=step_yaml
         )
         logger.info(f"[LLM:REDUNDANCY:{step_number}] Checking redundancy")
@@ -386,7 +386,7 @@ class AgentReasoningEngine:
             })
 
         prompt = self._render_template(
-            "macro/analyze_results.prompt.j2",
+            "core/execution/analyze_results.prompt.j2",
             total_steps=len(macro_script),
             reports_json=json.dumps(condensed_reports, indent=2, ensure_ascii=False)
         )

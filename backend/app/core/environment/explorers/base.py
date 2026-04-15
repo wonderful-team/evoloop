@@ -29,7 +29,7 @@ class BaseExplorer(ABC):
 
         try:
             prompt = render_template(
-                "planning/explorer_triage.prompt.j2",
+                "domain/planning/explorer_triage.prompt.j2",
                 system_role=f"You are an expert at identifying high-value productivity/lifestyle {platform} apps from their names.",
                 platform=platform,
                 items=items

@@ -33,12 +33,8 @@ async def list_wiki_pages(
     if not pages:
         return f"No Wiki pages found for project {project_id}."
 
-    try:
-        pages_data = [{"path": p.slug, "content": f"(Title: {p.title})"} for p in pages]
-        return render_template("wiki/wiki_context.prompt.j2", files=pages_data)
-    except Exception as e:
-        logger.error(f"Failed to render wiki page list: {e}")
-        return "\n".join([f"- {p.title} (slug: {p.slug})" for p in pages])
+    pages_data = [{"path": p.slug, "content": f"(Title: {p.title})"} for p in pages]
+    return render_template("domain/wiki/wiki_context.prompt.j2", files=pages_data)
 
 
 @evoloop_tool

@@ -1,0 +1,5 @@
+**For `gui_extract` (Coordinate-based GUI extraction with OCR):**
+- `payload.relative_position`: {"x": 0.0-1.0, "y": 0.0-1.0} - Center point for nearby text search (if no region specified)
+- `payload.region`: {"x": 0.0-1.0, "y": 0.0-1.0, "width": 0.0-1.0, "height": 0.0-1.0} - Optional: Specific region for area-based OCR extraction
+- When `region` is provided, OCR will be performed ONLY on that region, which is more accurate for extracting structured data like prices, dates, or IDs
+- Use `region` when the user annotation indicates an area (width/height > 0.02), use `relative_position` only for single point clicks

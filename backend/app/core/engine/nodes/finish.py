@@ -12,6 +12,7 @@ from app.core.config import settings
 from app.core.context.manager import ContextManager
 from app.core.engine import get_default_engine
 from app.core.engine.prompts.finish import FinishPromptBuilder
+from app.core.engine.routers import RoutingTarget
 from app.core.engine.state import AgentState, StateUpdate, ExecutionTicket
 from app.core.engine.state.blackboard import AuditMeta, BlackboardState, VerificationStatus
 from app.core.monitoring.activity import activity_monitor
@@ -74,10 +75,10 @@ def _extract_final_summary(messages: list) -> str:
     return i18n.get("finish.session_concluded")
 
 
-async def _trigger_session_recording(ctx, config: RunnableConfig, summary: str, original_skill_id: int | None = None, execution_ticket: ExecutionTicket | None = None):
+async def _trigger_session_recording(ctx, config: RunnableConfig, summary: str, original_skill_id: int | None = None, execution_ticket: ExecutionTicket | None = None, thread_id: str | None = None):
     """Trigger async side-effects when session ends."""
     try:
-        thread_id = ctx.thread_id
+        thread_id = thread_id or ctx.thread_id or config.get("configurable", {}).get("thread_id")
         project_id = ctx.project_id or DEFAULT_PROJECT_ID
         if not thread_id:
             logger.warning("Finish: No thread_id in context, skipping episode recording.")
@@ -272,7 +273,7 @@ class LayeredAuditor:
 
         prompt = f"""Summarize this session in 2-3 sentences.
 
-Task: {ticket.topic if ticket else 'Unknown'}
+Task: {ticket.topic}
 Tools: {', '.join(set(tool_usage)) if tool_usage else 'None'}
 
 Result:
@@ -339,22 +340,29 @@ async def _comprehensive_audit(state: AgentState, config: RunnableConfig) -> Sta
         iteration_count=iteration_count,
         project_id=project_id,
         telemetry=telemetry_data,
-        blackboard=blackboard
+        blackboard=blackboard,
+        session_goal=state.session_goal,
     )
     system_prompt = builder.build()
+    audit_ticket = builder.build_audit_ticket()
     tools = await tool_manager.get_node_tools("finish", state)
 
     logger.info("[Finish] 🕵️ Starting Comprehensive Audit")
 
-    # Note: engine.run_node will handle smart_window_slice internally
-    # No need to pre-slice here, avoiding redundant operations
+    # Prepend audit ticket as HumanMessage so dynamic context is visible to LLM
+    messages = list(state.messages)
+    if audit_ticket:
+        from langchain_core.messages import HumanMessage
+        messages = [HumanMessage(content=audit_ticket, name="audit_ticket")] + messages
+
+    execution_state = state.model_copy(update={"messages": messages})
 
     # Get user selected model from config (if any)
     model = config.get("configurable", {}).get("model")
 
     engine = get_default_engine()
     result = await engine.run_node(
-        state=state,  # Pass original state, let AgentEngine handle slicing
+        state=execution_state,  # Pass state with audit ticket prepended
         config=config,
         system_prompt=system_prompt,
         tools=tools,
@@ -372,169 +380,179 @@ async def _comprehensive_audit(state: AgentState, config: RunnableConfig) -> Sta
     )
 
 
-async def finish_node(state: AgentState, config: RunnableConfig) -> StateUpdate:
-    """
-    Layered Finish Node with three-tier auditing.
-    """
-    start_time = time.time()
+class FinishNode:
+    async def __call__(self, state: AgentState, config: RunnableConfig) -> StateUpdate:
+            """
+            Layered Finish Node with three-tier auditing.
+            """
+            start_time = time.time()
 
-    ctx = ContextManager.current()
-    messages = list(state.messages)
-    blackboard = state.blackboard
+            ctx = ContextManager.current()
+            messages = list(state.messages)
+            blackboard = state.blackboard
 
-    is_shadow_mode = (blackboard.metadata.shadow_audit if blackboard and blackboard.metadata else False) or False
-
-    # 1. Get tool history from blackboard (stored by WorkerNode)
-    # tool_history is a dynamically-extended field on BlackboardMetadata
-    tool_history = getattr(blackboard.metadata, "tool_history", []) or []
-
-    if is_shadow_mode:
-        logger.info("[Finish] 👻 Shadow Mode")
-        summary = _extract_final_summary(messages)
-        audit_tier = "shadow"
-        audit_meta = AuditMeta(tier="shadow", duration_ms=10)
-    else:
-        # Layered auditing
-        auditor = _get_auditor()
-
-        # Classify tier
-        decision = auditor.classify_tier(tool_history, messages, blackboard, state)
-        audit_tier = decision.tier
-
-        logger.info(f"[Finish] Audit tier: {audit_tier.upper()} ({decision.reason})")
-
-        # Execute audit
-        if audit_tier == "minimal":
-            summary, audit_meta = await auditor.audit_minimal(messages, blackboard)
-
-        elif audit_tier == "standard":
-            summary, audit_meta = await auditor.audit_standard(messages, blackboard, config)
-
-        else:  # comprehensive
-            result = await _comprehensive_audit(state, config)
-            messages = result.messages or messages
-            blackboard = result.blackboard or blackboard
-            summary = _extract_final_summary(messages)
-            audit_meta = AuditMeta(tier="comprehensive", duration_ms=(time.time() - start_time) * 1000)
-
-    # Extract outcome
-    full_text = "".join([str(m.content) for m in messages if isinstance(m, AIMessage)])
-    outcome_match = re.search(r"<outcome>(.*?)</outcome>", full_text, re.IGNORECASE | re.DOTALL)
-    final_outcome = ""
-    if outcome_match:
-        final_outcome = outcome_match.group(1).strip()
-        blackboard.metadata.final_outcome = final_outcome
-        logger.info(f"[Finish] 🎯 Outcome: {final_outcome}")
-
-    # Apply summary (unless comprehensive already did)
-    if audit_tier != "comprehensive":
-        for m in reversed(messages):
-            if isinstance(m, AIMessage) and m.content:
-                m.content = summary
-                break
-
-    # Finalize
-    await activity_monitor.end_run(ctx.thread_id, status="done", final_outcome=final_outcome)
-
-    metadata = config.get("metadata", {})
-    original_skill_id = metadata.get("original_skill_id")
-    blackboard_ticket = state.blackboard.ticket
-    await _trigger_session_recording(ctx, config, summary, original_skill_id=original_skill_id, execution_ticket=blackboard_ticket)
-
-    # Trigger automatic memory extraction (fire and forget)
-    # This runs in background without blocking the response
-    try:
-        from app.core.memory.auto_extraction import trigger_auto_extraction
-        asyncio.create_task(
-            trigger_auto_extraction(
-                thread_id=ctx.thread_id,
-                messages=messages,
-                project_id=ctx.project_id,
-                user_id=ctx.user_id,
+            # Robust thread_id fallback for hooks and telemetry
+            effective_thread_id = (
+                ctx.thread_id
+                or state.thread_id
+                or config.get("configurable", {}).get("thread_id")
+                or "unknown"
             )
-        )
-        logger.debug(f"[Finish] Triggered auto-extraction for thread {ctx.thread_id}")
-    except Exception as e:
-        logger.warning(f"[Finish] Failed to trigger auto-extraction: {e}")
 
-    # Trigger SessionEnd hook for session recording and state persistence
-    try:
-        from app.core.engine.hooks import HookContext, HookEvent, hook_system
-        hook_ctx = HookContext(
-            thread_id=ctx.thread_id,
-            user_id=ctx.user_id,
-            project_id=ctx.project_id,
-            messages=messages,
-            blackboard=blackboard,
-            metadata={
-                "summary": summary,
-                "audit_tier": audit_tier,
-                "final_outcome": final_outcome,
-                "tool_count": len(tool_history),
-                "message_count": len(messages),
-            }
-        )
-        await hook_system.trigger(HookEvent.SESSION_END, hook_ctx)
-        logger.debug(f"[Finish] SessionEnd hook executed for thread {ctx.thread_id}")
-    except Exception as e:
-        logger.warning(f"[Finish] SessionEnd hook failed: {e}")
+            is_shadow_mode = (blackboard.metadata.shadow_audit if blackboard and blackboard.metadata else False) or False
 
-    # Cleanup pollution
-    messages_to_return = list(messages)
-    removed_ids = []
+            # 1. Get tool history from blackboard (stored by WorkerNode)
+            # tool_history is a dynamically-extended field on BlackboardMetadata
+            tool_history = getattr(blackboard.metadata, "tool_history", []) or []
 
-    for msg in list(state.messages):
-        if isinstance(msg, AIMessage) and msg.content:
-            content = str(msg.content)
-            if "<audit>" in content and "<report>" in content and hasattr(msg, 'id') and msg.id:
-                messages_to_return.append(RemoveMessage(id=msg.id))
-                removed_ids.append(msg.id[:8] + "...")
+            if is_shadow_mode:
+                logger.info("[Finish] 👻 Shadow Mode")
+                summary = _extract_final_summary(messages)
+                audit_tier = "shadow"
+                audit_meta = AuditMeta(tier="shadow", duration_ms=10)
+            else:
+                # Layered auditing
+                auditor = _get_auditor()
 
-    if removed_ids:
-        logger.info(f"[Finish] 🗑️ Removed {len(removed_ids)} previous auditor messages")
+                # Classify tier
+                decision = auditor.classify_tier(tool_history, messages, blackboard, state)
+                audit_tier = decision.tier
 
-    total_duration = (time.time() - start_time) * 1000
-    logger.info(f"[Finish] ✅ {audit_tier.upper()} audit complete: {total_duration:.0f}ms")
+                logger.info(f"[Finish] Audit tier: {audit_tier.upper()} ({decision.reason})")
 
-    # Persist audit metadata to blackboard for downstream observability
-    blackboard.metadata.audit_tier = audit_tier
-    blackboard.metadata.audit_meta = audit_meta
+                # Execute audit
+                if audit_tier == "minimal":
+                    summary, audit_meta = await auditor.audit_minimal(messages, blackboard)
 
-    # Trigger STOP hook for quality gates
-    # This can block completion if quality checks fail
-    try:
-        from app.core.engine.hooks import HookContext, HookEvent, hook_system
-        stop_ctx = HookContext(
-            thread_id=ctx.thread_id,
-            user_id=ctx.user_id,
-            project_id=ctx.project_id,
-            messages=messages,
-            blackboard=blackboard,
-            metadata={
-                "summary": summary,
-                "audit_tier": audit_tier,
-                "final_outcome": final_outcome,
-                "duration_ms": total_duration,
-            }
-        )
-        stop_result = await hook_system.trigger(HookEvent.STOP, stop_ctx, blocking=True)
-        if stop_result.block:
-            logger.warning(f"[Finish] 🚫 Stop hook blocked completion: {stop_result.message}")
-            # Add blocking message to output
-            block_msg = AIMessage(content=f"\n\n[Quality Gate Blocked] {stop_result.message}\nPlease address the issues before completing.")
-            messages_to_return.append(block_msg)
-            # Don't end the session, return to user for fixes
-            blackboard.metadata.blocked_by_hook = True
+                elif audit_tier == "standard":
+                    summary, audit_meta = await auditor.audit_standard(messages, blackboard, config)
+
+                else:  # comprehensive
+                    result = await _comprehensive_audit(state, config)
+                    messages = result.messages or messages
+                    blackboard = result.blackboard or blackboard
+                    summary = _extract_final_summary(messages)
+                    audit_meta = AuditMeta(tier="comprehensive", duration_ms=(time.time() - start_time) * 1000)
+
+            # Extract outcome
+            full_text = "".join([str(m.content) for m in messages if isinstance(m, AIMessage)])
+            outcome_match = re.search(r"<outcome>(.*?)</outcome>", full_text, re.IGNORECASE | re.DOTALL)
+            final_outcome = ""
+            if outcome_match:
+                final_outcome = outcome_match.group(1).strip()
+                blackboard.metadata.final_outcome = final_outcome
+                logger.info(f"[Finish] 🎯 Outcome: {final_outcome}")
+
+            # Apply summary (unless comprehensive already did)
+            if audit_tier != "comprehensive":
+                for m in reversed(messages):
+                    if isinstance(m, AIMessage) and m.content:
+                        m.content = summary
+                        break
+
+            # Finalize
+            await activity_monitor.end_run(effective_thread_id, status="done", final_outcome=final_outcome)
+
+            metadata = config.get("metadata", {})
+            original_skill_id = metadata.get("original_skill_id")
+            blackboard_ticket = state.blackboard.ticket
+            await _trigger_session_recording(ctx, config, summary, original_skill_id=original_skill_id, execution_ticket=blackboard_ticket, thread_id=effective_thread_id)
+
+            # Trigger automatic memory extraction (fire and forget)
+            # This runs in background without blocking the response
+            try:
+                from app.core.memory.auto_extraction import trigger_auto_extraction
+                asyncio.create_task(
+                    trigger_auto_extraction(
+                        thread_id=effective_thread_id,
+                        messages=messages,
+                        project_id=ctx.project_id,
+                        user_id=ctx.user_id,
+                    )
+                )
+                logger.debug(f"[Finish] Triggered auto-extraction for thread {effective_thread_id}")
+            except Exception as e:
+                logger.warning(f"[Finish] Failed to trigger auto-extraction: {e}")
+
+            # Trigger SessionEnd hook for session recording and state persistence
+            try:
+                from app.core.engine.hooks import HookContext, HookEvent, hook_system
+                hook_ctx = HookContext(
+                    thread_id=effective_thread_id,
+                    user_id=ctx.user_id,
+                    project_id=ctx.project_id,
+                    messages=messages,
+                    blackboard=blackboard,
+                    metadata={
+                        "summary": summary,
+                        "audit_tier": audit_tier,
+                        "final_outcome": final_outcome,
+                        "tool_count": len(tool_history),
+                        "message_count": len(messages),
+                    }
+                )
+                await hook_system.trigger(HookEvent.SESSION_END, hook_ctx)
+                logger.debug(f"[Finish] SessionEnd hook executed for thread {effective_thread_id}")
+            except Exception as e:
+                logger.warning(f"[Finish] SessionEnd hook failed: {e}")
+
+            # Cleanup pollution
+            messages_to_return = list(messages)
+            removed_ids = []
+
+            for msg in list(state.messages):
+                if isinstance(msg, AIMessage) and msg.content:
+                    content = str(msg.content)
+                    if "<audit>" in content and "<report>" in content and hasattr(msg, 'id') and msg.id:
+                        messages_to_return.append(RemoveMessage(id=msg.id))
+                        removed_ids.append(msg.id[:8] + "...")
+
+            if removed_ids:
+                logger.info(f"[Finish] 🗑️ Removed {len(removed_ids)} previous auditor messages")
+
+            total_duration = (time.time() - start_time) * 1000
+            logger.info(f"[Finish] ✅ {audit_tier.upper()} audit complete: {total_duration:.0f}ms")
+
+            # Persist audit metadata to blackboard for downstream observability
+            blackboard.metadata.audit_tier = audit_tier
+            blackboard.metadata.audit_meta = audit_meta
+            blackboard.summary = summary
+
+            # Trigger STOP hook for quality gates
+            # This can block completion if quality checks fail
+            try:
+                from app.core.engine.hooks import HookContext, HookEvent, hook_system
+                stop_ctx = HookContext(
+                    thread_id=effective_thread_id,
+                    user_id=ctx.user_id,
+                    project_id=ctx.project_id,
+                    messages=messages,
+                    blackboard=blackboard,
+                    metadata={
+                        "summary": summary,
+                        "audit_tier": audit_tier,
+                        "final_outcome": final_outcome,
+                        "duration_ms": total_duration,
+                    }
+                )
+                stop_result = await hook_system.trigger(HookEvent.STOP, stop_ctx, blocking=True)
+                if stop_result.block:
+                    logger.warning(f"[Finish] 🚫 Stop hook blocked completion: {stop_result.message}")
+                    # Add blocking message to output
+                    block_msg = AIMessage(content=f"\n\n[Quality Gate Blocked] {stop_result.message}\nPlease address the issues before completing.")
+                    messages_to_return.append(block_msg)
+                    # Don't end the session, return to user for fixes
+                    blackboard.metadata.blocked_by_hook = True
+                    return StateUpdate(
+                        messages=messages_to_return,
+                        next_node=RoutingTarget.SUPERVISOR,  # Return to supervisor for more work
+                        blackboard=blackboard,
+                    )
+            except Exception as e:
+                logger.warning(f"[Finish] Stop hook failed: {e}")
+
             return StateUpdate(
                 messages=messages_to_return,
-                next_node="supervisor",  # Return to supervisor for more work
+                next_node=RoutingTarget.END,
                 blackboard=blackboard,
             )
-    except Exception as e:
-        logger.warning(f"[Finish] Stop hook failed: {e}")
-
-    return StateUpdate(
-        messages=messages_to_return,
-        next_node="END",
-        blackboard=blackboard,
-    )

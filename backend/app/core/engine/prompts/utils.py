@@ -1,10 +1,26 @@
 import logging
 import os
+from typing import Any
+
+from pydantic import BaseModel
 
 from app.core.config import settings
 from app.infrastructure.config.service import SystemConfigService
 
 logger = logging.getLogger(__name__)
+
+
+def to_template_context(obj: Any) -> Any:
+    """Recursively convert Pydantic models to JSON-safe plain Python objects for Jinja2."""
+    if obj is None:
+        return None
+    if isinstance(obj, BaseModel):
+        return obj.model_dump(mode="json")
+    if isinstance(obj, list):
+        return [to_template_context(item) for item in obj]
+    if isinstance(obj, dict):
+        return {k: to_template_context(v) for k, v in obj.items()}
+    return obj
 
 
 def get_mapped_cwd(ctx_cwd: str) -> str:

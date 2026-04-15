@@ -1,4 +1,0 @@
-{% from "fragments/common/list_items.j2" import ui_element_item %}
-屏幕元素列表 (Screen Elements):
-{% for element in elements %}{{ ui_element_item(element.line) }}{% endfor %}
-{% if has_more %}... and {{ more_count }} more elements{% endif %}

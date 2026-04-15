@@ -319,7 +319,7 @@ async def apply_patch_file(
                 # Hash check for first operation only (optimization)
                 if i == 0 and expected_hash and stats.content_hash != expected_hash:
                     return render_template(
-                        "files/edit_result.prompt.j2",
+                        "domain/tools/edit_result.prompt.j2",
                         success=False,
                         path=op.path,
                         message="File was modified by another process since last read.",

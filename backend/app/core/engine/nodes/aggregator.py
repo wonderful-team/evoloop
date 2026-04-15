@@ -15,66 +15,78 @@ from app.core.engine.tools.orchestration import aggregate_results
 logger = logging.getLogger(__name__)
 
 
-async def aggregator_node(state: AgentState, config: RunnableConfig) -> StateUpdate:
-    """
-    Subtask Aggregator — Joins parallel results (Phase 4).
-    """
-    blackboard = state.blackboard
-    subtask_results = blackboard.subtask_results if blackboard else []
-    pending_agg = blackboard.pending_aggregation if blackboard else None
+class AggregatorNode:
+    """Subtask Aggregator — Joins parallel results."""
 
-    if not pending_agg:
-        logger.warning("[Aggregator] No pending aggregation found")
-        return StateUpdate(next_node=RoutingTarget.SUPERVISOR)
+    async def __call__(self, state: AgentState, config: RunnableConfig) -> StateUpdate:
+        blackboard = state.blackboard
+        subtask_results = blackboard.subtask_results if blackboard else []
+        pending_agg = blackboard.pending_aggregation if blackboard else None
 
-    strategy = pending_agg.strategy or "merge"
-    logger.info(f"[Aggregator] 🧩 Aggregating {len(subtask_results)} results with strategy '{strategy}'")
+        if not pending_agg:
+            logger.warning("[Aggregator] No pending aggregation found")
+            return StateUpdate(next_node=RoutingTarget.SUPERVISOR)
 
-    try:
-        # Call the aggregation tool
-        agg_result = await aggregate_results(
-            aggregation_strategy=strategy,
-            results=subtask_results,
-            original_task=pending_agg.parent_task or ""
-        )
+        strategy = pending_agg.strategy or "merge"
+        logger.info(f"[Aggregator] 🧩 Aggregating {len(subtask_results)} results with strategy '{strategy}'")
 
-        # 4. Success Signal
-        result_text = agg_result.aggregated if agg_result else "Aggregation failed"
+        result_text = ""
+        worker_outcome = "success"
+        is_error = False
 
-        # 5. Update Blackboard (Clear all orchestration state + Save result)
+        # Log pre-aggregation raw texts for auditing (no truncation applied)
+        for i, r in enumerate(subtask_results):
+            raw_text = str(getattr(r, "result", r))
+            sid = getattr(r, "subtask_id", i)
+            logger.info(f"[Aggregator] Pre-aggregate raw result [{i}] (subtask_id={sid}, length={len(raw_text)}):\n{raw_text}")
+
+        try:
+            # Normalize SubtaskResult objects to dicts for the tool schema
+            raw_results = [
+                r.model_dump() if hasattr(r, "model_dump") else r
+                for r in subtask_results
+            ]
+            # Call the aggregation tool via ainvoke (aggregate_results is a StructuredTool)
+            agg_result = await aggregate_results.ainvoke({
+                "aggregation_strategy": strategy,
+                "results": raw_results,
+                "original_task": pending_agg.parent_task or ""
+            })
+            result_text = agg_result.aggregated if agg_result else "Aggregation failed"
+            logger.info(f"[Aggregator] Post-aggregate result (length={len(result_text)}):\n{result_text}")
+        except Exception as e:
+            logger.error(f"[Aggregator] Aggregation failed: {e}")
+            result_text = f"Aggregation failed: {e}"
+            worker_outcome = "failed"
+            is_error = True
+
+        # Clear all orchestration state
         if blackboard:
             blackboard.subtask_results = []
             blackboard.pending_aggregation = None
             blackboard.spawn_plan = None
-            blackboard.worker_outcome = "success"
+            blackboard.worker_outcome = worker_outcome
             if not blackboard.metadata:
                 from app.core.engine.state.blackboard import BlackboardMetadata
                 blackboard.metadata = BlackboardMetadata()
             blackboard.metadata.last_aggregation_result = result_text
+            # Reset ticket so Supervisor does not treat itself as a subtask
+            blackboard.ticket = None
 
-        return StateUpdate(
-            messages=[AIMessage(content=f"Aggregation complete. Strategy: {strategy}. Total results: {len(subtask_results)}.")],
-            next_node=RoutingTarget.SUPERVISOR,
-            blackboard=blackboard
+        # Recover parent thread_id from ticket if available
+        parent_thread_id = None
+        if state.blackboard and state.blackboard.ticket:
+            parent_thread_id = state.blackboard.ticket.parent_task_id
+
+        msg = AIMessage(
+            content=f"Aggregation complete. Strategy: {strategy}. Total results: {len(subtask_results)}.",
+            metadata={"is_error": is_error, "error_type": "aggregation_failed"} if is_error else None,
         )
 
-    except Exception as e:
-        logger.error(f"[Aggregator] Aggregation failed: {e}")
-        # Ensure blackboard is returned even on error, potentially clearing pending state
-        if blackboard:
-            blackboard.subtask_results = []
-            blackboard.pending_aggregation = None
-            blackboard.spawn_plan = None
-            blackboard.worker_outcome = "failed"
-            if not blackboard.metadata:
-                from app.core.engine.state.blackboard import BlackboardMetadata
-                blackboard.metadata = BlackboardMetadata()
-            blackboard.metadata.last_aggregation_result = f"Aggregation failed: {e}"
         return StateUpdate(
-            messages=[AIMessage(
-                content=f"Aggregation failed: {e}",
-                metadata={"is_error": True, "error_type": "aggregation_failed"}
-            )],
+            messages=[msg],
             next_node=RoutingTarget.SUPERVISOR,
-            blackboard=blackboard
+            blackboard=blackboard,
+            is_subtask=False,
+            thread_id=parent_thread_id,
         )

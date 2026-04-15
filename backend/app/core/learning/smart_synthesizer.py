@@ -103,7 +103,7 @@ class SmartSynthesizer:
             node_id = f"step_{i}"
             nodes.append({
                 "id": node_id,
-                "path": "app.core.engine.nodes.worker.worker_node",
+                "path": "app.core.engine.nodes.worker.WorkerNode",
                 "config": {"intent": f"Perform {step.action} on {step.target}"},
                 "tools": ["mobile_control"]
             })

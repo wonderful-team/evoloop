@@ -260,7 +260,7 @@ async def handle_edit(request: EditFileRequest) -> str:
                 ),
                 "labels": i18n.get("domain_tools.files.edit_labels") or {}
             }
-            return render_template("files/edit_result.prompt.j2", **template_context)
+            return render_template("domain/tools/edit_result.prompt.j2", **template_context)
 
         # Main path: cascading fuzzy matching via EditEngine
         match_success, new_content, log = EditEngine.apply_replacement(
@@ -292,7 +292,7 @@ async def handle_edit(request: EditFileRequest) -> str:
                 "causes": [c.format(path=path) for c in (i18n.get("domain_tools.files.edit_causes") or [])],
                 "hints": [h.format(path=path) for h in (i18n.get("domain_tools.files.edit_hints") or [])]
             })
-            return render_template("files/edit_result.prompt.j2", **template_context)
+            return render_template("domain/tools/edit_result.prompt.j2", **template_context)
 
         # Write with verification (optimistic lock at write time)
         write_result = write_file_with_verification(
@@ -334,7 +334,7 @@ async def handle_edit(request: EditFileRequest) -> str:
             # Add a note that type check is running in background
             template_context["diagnostics"] = [{"severity": "info", "message": "Type check running in background..."}]
 
-        return render_template("files/edit_result.prompt.j2", **template_context)
+        return render_template("domain/tools/edit_result.prompt.j2", **template_context)
 
     except Exception as e:
         return i18n.get("domain_tools.files.edit_error", error=str(e))
@@ -346,14 +346,14 @@ def format_preview_result(result: EditPreviewResult, path: str, target: str, rep
 
     if not result.success:
         return render_template(
-            "files/edit_preview.prompt.j2",
+            "domain/tools/edit_preview.prompt.j2",
             success=False,
             message="Preview failed",
             details=result.message
         )
 
     return render_template(
-        "files/edit_preview.prompt.j2",
+        "domain/tools/edit_preview.prompt.j2",
         success=True,
         path=path,
         message=f"Edit Preview ({result.confidence.value.upper()})",

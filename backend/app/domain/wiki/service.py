@@ -128,7 +128,7 @@ class WikiService:
                 break
 
         return render_template(
-            "wiki/file_tree.prompt.j2",
+            "domain/wiki/file_tree.prompt.j2",
             lines=lines,
             truncated=truncated
         )
@@ -434,7 +434,7 @@ class WikiService:
                 # Or use the full file_tree generated earlier if it's deemed more useful
                 # For now, let's use the full file_tree
                 content_prompt = render_template(
-                    "wiki/wiki_context.prompt.j2",
+                    "domain/wiki/wiki_context.prompt.j2",
                     page_title=page_title,
                     files=files_data,
                     tree=file_tree # Using the full file_tree from earlier

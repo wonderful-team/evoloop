@@ -115,7 +115,7 @@ async def _prepare_and_dispatch(
     content_blocks = ref_context.content_blocks
 
     # --- 2. Build Goal for Activity Monitor ---
-    goal = message_content[:50] + "..." if len(message_content) > 50 else message_content
+    goal = message_content[:200] + "..." if len(message_content) > 200 else message_content
     if attachments:
         goal = f"[Image] {goal}"
     if goal_prefix:
@@ -208,6 +208,7 @@ async def _prepare_and_dispatch(
         "checkpoint_id": checkpoint_id,
         "is_retry": is_retry,
         "goal": goal,
+        "session_goal": message_content.strip(),  # Persistent session-level goal for agent state
         "model": model,  # Pass user selected model
     }
 

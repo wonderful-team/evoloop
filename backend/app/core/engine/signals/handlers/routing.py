@@ -86,7 +86,7 @@ def create_route_to_signal(args: dict) -> RouteToSignal:
             context_data = {}
             
     return RouteToSignal(
-        target=args.get("target", "finish"),
+        target=args.get("target", RoutingTarget.FINISH),
         reason=args.get("reason", ""),
         context=RoutingContext.model_validate(context_data) if context_data else RoutingContext(),
         authorized_tools=args.get("authorized_tools"),

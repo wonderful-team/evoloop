@@ -68,7 +68,7 @@ async def find_symbol(
     # Format based on source
     if source == "graph":
         summaries = [f"{r.get('full_name', name)} ({r.get('type', 'unknown')}) in {r.get('file_path', 'unknown')}" for r in results]
-        return render_template("codebase/codebase_indexing.prompt.j2", summaries=summaries)
+        return render_template("domain/codebase/codebase_indexing.prompt.j2", summaries=summaries)
     elif source == "grep":
         lines = [f"{r.get('file_path')}:{r.get('line')}: {r.get('content', '')}" for r in results]
         return f"Found '{name}' via text search:\n" + "\n".join(lines[:10])

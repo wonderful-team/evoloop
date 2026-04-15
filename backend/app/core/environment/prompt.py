@@ -54,7 +54,7 @@ class AppEnvironmentPrompt:
                 "ctx": ctx,  # Pass full context for working_directory access
             }
 
-            return render_template("agents/awakening.prompt.j2", **template_vars)
+            return render_template("core/engine/awakening.prompt.j2", **template_vars)
 
         except Exception as e:
             logger.error(f"Failed to render environment block: {e}")

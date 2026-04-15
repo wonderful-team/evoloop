@@ -201,7 +201,7 @@ def _compute_capability_boundaries(
     from app.utils import render_template
 
     result = render_template(
-        "environment/capability_boundaries.prompt.j2",
+        "core/environment/capability_boundaries.prompt.j2",
         has_android_devices=bool(android_devices),
         network_connected=network.internet_connected if network else False
     )

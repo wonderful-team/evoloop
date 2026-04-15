@@ -180,7 +180,7 @@ class BatchExecutor:
         ok = sum(1 for r in self.results if r["status"] == "success")
         fail = total - ok
         return render_template(
-            "report/batch_summary.prompt.j2",
+            "common/report/batch_summary.prompt.j2",
             results=self.results,
             total=total,
             ok=ok,

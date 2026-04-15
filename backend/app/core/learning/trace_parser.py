@@ -367,7 +367,7 @@ class TraceParser:
         try:
             from app.utils import render_template
             return render_template(
-                "events/trace_narrative.prompt.j2",
+                "common/events/trace_narrative.prompt.j2",
                 thread_id=sequence.thread_id,
                 task_name=sequence.task_name,
                 steps=sequence.steps,

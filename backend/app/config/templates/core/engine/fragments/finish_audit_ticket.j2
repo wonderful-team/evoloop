@@ -1,0 +1,59 @@
+[SESSION AUDIT TICKET — Turn {{ iteration_count }}]
+
+### Audit Context
+{{ audit_context }}
+
+{%- if session_goal %}
+### Session Goal
+{{ session_goal }}
+{%- endif %}
+
+{%- if blackboard.ticket %}
+### Execution Ticket
+- **Topic**: {{ blackboard.ticket.topic or 'N/A' }}
+{%- if blackboard.ticket.acceptance_criteria %}
+- **Acceptance Criteria**:
+  {% for c in blackboard.ticket.acceptance_criteria -%}
+  - {{ c }}
+  {% endfor %}
+{%- endif %}
+{%- endif %}
+
+{%- if blackboard.verification %}
+### Verification Status
+- **Status**: {{ blackboard.verification.status or 'unverified' }}
+{%- endif %}
+
+{%- if blackboard.subtask_results %}
+### Subtask Results
+{% for r in blackboard.subtask_results -%}
+- **{{ r.subtask_id or 'Subtask' }}**: {{ r.result or 'No result provided' }}
+{% endfor %}
+{%- endif %}
+
+{%- if plan %}
+### Strategic Plan
+{%- set plan_obj = plan %}
+- **Title**: {{ plan_obj.title or 'N/A' }}
+{%- if plan_obj.steps %}
+- **Steps**:
+  {% for s in plan_obj.steps -%}
+  {{ loop.index }}. {{ '[DONE]' if s.status == 'done' else '[TODO]' }} {{ s.title or s.action or 'Step ' ~ loop.index }}
+  {% endfor %}
+{%- endif %}
+{%- endif %}
+
+{%- if memory.episodic_raw or memory.core_raw %}
+### Memory References
+{%- if memory.episodic_raw %}
+- **Episodic**: {{ memory.episodic_raw }}
+{%- endif %}
+{%- if memory.core_raw %}
+- **Core**: {{ memory.core_raw }}
+{%- endif %}
+{%- endif %}
+
+{%- if telemetry %}
+### Environment Telemetry
+{{ telemetry }}
+{%- endif %}

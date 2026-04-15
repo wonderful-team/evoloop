@@ -112,7 +112,7 @@ async def write_wiki_page(
     """
     project_id = await _resolve_wiki_project_id()
     if project_id is None:
-        return render_template("report/response.prompt.j2", 
+        return render_template("common/report/response.prompt.j2", 
                               success=False, 
                               message="Wiki requires a project.", 
                               note="Global Mode")

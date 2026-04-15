@@ -58,7 +58,7 @@ async def _run_ocr(filepath: str) -> str:
         ocr_result = await vision_engine.process(VisionTask.OCR, filepath, enable_atlas_learning=False)
         if ocr_result.success and ocr_result.elements:
             return "\n\n" + render_template(
-                "vision/ocr_results.prompt.j2",
+                "core/vision/ocr_results.prompt.j2",
                 platform="browser",
                 elements=[el.to_dict() for el in ocr_result.elements],
                 total_count=len(ocr_result.elements)
@@ -569,7 +569,7 @@ class BrowserController:
                     )
                 elif storage_action == "set":
                     if storage_key is None or value is None:
-                        return render_template("report/response.prompt.j2", success=False, message="'storage_key' and 'value' are required for local_storage set.")
+                        return render_template("common/report/response.prompt.j2", success=False, message="'storage_key' and 'value' are required for local_storage set.")
                     await page.evaluate(f"() => localStorage.setItem({repr(storage_key)}, {repr(value)})")
                     return ControllerResponse.success(f"localStorage['{storage_key}'] set.")
                 elif storage_action == "clear":
@@ -618,7 +618,7 @@ class BrowserController:
                             "document.body.scrollHeight"
                         )
                         if curr_hash == last_hash:
-                            return render_template("report/response.prompt.j2", success=True, message="Page stable (DOM hash matched).")
+                            return render_template("common/report/response.prompt.j2", success=True, message="Page stable (DOM hash matched).")
                         last_hash = curr_hash
                         await asyncio.sleep(check_interval)
                     except Exception:

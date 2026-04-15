@@ -1,0 +1,7 @@
+{% if skills %}
+{% for skill in skills %}
+{% set is_primary = (loop.index0 == 0) %}
+{% include "core/engine/fragments/knowledge_block.j2" %}
+
+{% endfor %}
+{% endif %}

@@ -185,7 +185,7 @@ async def decompose_task(
     # 2. Call LLM
     from app.utils import render_template
     prompt = render_template(
-        "tool/orchestration_decompose.prompt.j2",
+        "core/engine/tools/orchestration_decompose.prompt.j2",
         task_description=task_description,
         context=f"Context: {context}\nMax Parallelism: {max_parallel}"
     )
@@ -295,7 +295,7 @@ async def aggregate_results(
     from app.core.llm import InternalLLMService
     from app.utils import render_template
     prompt = render_template(
-        "tool/orchestration_aggregate.prompt.j2",
+        "core/engine/tools/orchestration_aggregate.prompt.j2",
         original_task=original_task,
         aggregation_strategy=aggregation_strategy,
         results_json=json.dumps(results, ensure_ascii=False)

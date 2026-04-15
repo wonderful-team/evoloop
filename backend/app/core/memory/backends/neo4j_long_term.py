@@ -359,7 +359,7 @@ class Neo4jLongTermMemory(ILongTermMemory):
         if not episodes:
             return ""
 
-        return render_template("memory/episodes_summary.prompt.j2", episodes=episodes)
+        return render_template("core/memory/episodes_summary.prompt.j2", episodes=episodes)
 
     async def link_episode_to_concepts(
         self, episode_id: str, concept_names: list[str], project_id: int

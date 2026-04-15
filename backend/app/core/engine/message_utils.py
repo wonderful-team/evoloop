@@ -282,7 +282,7 @@ def apply_forgotten_status(messages: list[BaseMessage], tool_memory: ToolOutputM
                 # but replaces heavy content with lightweight summary
                 from app.utils.template import render_template
                 summary_content = render_template(
-                    "fragments/forgotten_summary.j2",
+                    "core/engine/fragments/forgotten_summary.j2",
                     tool_name=record.tool_name,
                     original_length=record.original_length,
                     reason=record.reason,

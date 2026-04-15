@@ -24,7 +24,7 @@ def render_analysis_prompt(
         Rendered prompt string
     """
     return render_template(
-        "requirements/analysis_prompt.j2",
+        "domain/project/analysis_prompt.j2",
         document_content=document_content,
         focus_areas=focus_areas,
         language=language
@@ -56,7 +56,7 @@ def render_breakdown_prompt(
         Rendered prompt string
     """
     return render_template(
-        "requirements/breakdown_prompt.j2",
+        "domain/project/breakdown_prompt.j2",
         title=title,
         summary=summary,
         functional_requirements=functional_requirements,

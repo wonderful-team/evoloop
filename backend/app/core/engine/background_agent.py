@@ -16,6 +16,7 @@ from app.core.callbacks.transparent import TransparentCallbackHandler
 from app.core.config import settings
 from app.core.context.manager import ContextManager, EvoContext
 from app.core.context.thread_store import thread_context_store
+from app.core.engine.state import BlackboardState
 from app.core.evocloud import evocloud_manager
 from app.core.evocloud.callback_handler import EvoCloudCallbackHandler
 from app.core.exceptions import AgentCancelledException, AgentHumanInterruptException
@@ -29,6 +30,8 @@ from app.models import Conversation, Message
 from app.utils.id import gen_uuid
 
 logger = logging.getLogger(__name__)
+
+MAX_GOAL_LENGTH = 500
 
 
 def _deserialize_messages(raw_messages: list[Any]) -> list[BaseMessage]:
@@ -210,6 +213,31 @@ async def run_agent_background(thread_id: str, inputs: dict[str, Any]):
             # [HITL Resume Logic]
             # Check if this is a resume request from Mobile/Background
             input_payload = inputs
+
+            # Ensure session_goal is present for all entry points (chat, retry, resume, webhook).
+            # Prefer the explicitly passed session_goal; fallback to the first human message.
+            if isinstance(input_payload, dict) and not input_payload.get("session_goal") and "messages" in input_payload:
+                first_human = next(
+                    (m for m in input_payload["messages"] if isinstance(m, HumanMessage)),
+                    None,
+                )
+                if first_human:
+                    raw_goal = first_human.content
+                    if isinstance(raw_goal, list):
+                        texts = [part.get("text", "") for part in raw_goal if isinstance(part, dict) and part.get("text")]
+                        raw_goal = " ".join(texts).strip()
+                    else:
+                        raw_goal = str(raw_goal).strip()
+                    if raw_goal:
+                        # Truncate session_goal to keep it as a concise "Mission Anchor".
+                        # This prevents massive logs/errors from bloating every turn and preserves token efficiency.
+                        distilled_goal = raw_goal[:MAX_GOAL_LENGTH]
+                        if len(raw_goal) > MAX_GOAL_LENGTH:
+                            distilled_goal += "... (Full context available in history)"
+                        
+                        input_payload["session_goal"] = distilled_goal
+                        logger.info(f"[BackgroundAgent] Derived session_goal from first human message: {distilled_goal[:80]}...")
+
             if "hitl_resume_response" in inputs:
                 user_response = inputs["hitl_resume_response"]
 

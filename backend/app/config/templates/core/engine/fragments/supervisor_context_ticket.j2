@@ -1,0 +1,72 @@
+[CONTEXT UPDATE — Turn {{ iteration_count }}]
+
+{% if session_goal %}
+## Session Goal
+{{ session_goal }}
+{% endif %}
+
+{% if blackboard.ticket -%}
+## Active Ticket: {{ blackboard.ticket.ticket_type|upper }}
+- **Goal**: {{ blackboard.ticket.topic or 'N/A' }}
+- **Focus**: {{ blackboard.ticket.focus_paths|join(', ') if blackboard.ticket.focus_paths else 'N/A' }}
+{%- if blackboard.ticket.acceptance_criteria %}
+- **Criteria**: {{ blackboard.ticket.acceptance_criteria|join(' | ') }}
+{%- endif %}
+{%- if blackboard.ticket.parameters %}
+{%- if blackboard.ticket.parameters.task_steps %}
+- **Steps**: {{ blackboard.ticket.parameters.task_steps|join(' → ') }}
+{%- endif %}
+{%- if blackboard.ticket.parameters.target_apps %}
+- **Target Apps**: {{ blackboard.ticket.parameters.target_apps|join(', ') }}
+{%- endif %}
+{%- endif %}
+{%- else %}
+## Blackboard: No active ticket
+{%- endif %}
+
+{%- if plan %}
+## Active Plan: {{ plan.title }} ({{ 'APPROVED' if plan_approved else 'PENDING' }})
+  {% for s in plan.steps -%}
+  {{ loop.index }}. {{ '[DONE]' if s.status == 'done' else '[TODO]' }} {{ s.title or s.action or 'Step ' ~ loop.index }}
+  {% endfor %}
+{%- endif %}
+
+{%- if blackboard.subtask_results %}
+## Subtask Results
+  {% for res in blackboard.subtask_results -%}
+  - {{ res.subtask_id }}: {{ (res.result[:300] + '…') if res.result|length > 300 else res.result }}
+  {% endfor %}
+{%- endif %}
+
+{%- if blackboard.verification %}
+## Verification: {{ blackboard.verification.status|upper }}
+{%- endif %}
+
+{%- if memory.episodic_raw or memory.core_raw %}
+## Retrieved Memory
+{%- if memory.episodic_raw %}
+### Episodic
+{{ memory.episodic_raw }}
+{%- endif %}
+{%- if memory.core_raw %}
+### Core Focus
+{{ memory.core_raw }}
+{%- endif %}
+{%- endif %}
+
+{%- if blackboard.metadata %}
+## Dynamic Metadata
+  {% for k, v in blackboard.metadata.items() -%}
+  - {{ k }}: {{ v }}
+  {% endfor %}
+{%- endif %}
+
+{%- if environment_block %}
+## Environment
+{{ environment_block }}
+{%- endif %}
+
+{%- if blackboard.visited_nodes %}
+## Node Traversal
+{{ blackboard.visited_nodes|join(' → ') }}
+{%- endif %}

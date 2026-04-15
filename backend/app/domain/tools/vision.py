@@ -44,7 +44,7 @@ async def analyze_image(
                 tree_label = "macOS Accessibility (AX) Tree"
 
             if ax_tree and "Error" not in ax_tree:
-                final_prompt = render_template("vision/vision_context.prompt.j2", tree_label=tree_label, ax_tree=ax_tree)
+                final_prompt = render_template("core/vision/vision_context.prompt.j2", tree_label=tree_label, ax_tree=ax_tree)
                 logger.info(f"[Vision] Injected {tree_label} into prompt via template.")
         except Exception as e:
             logger.warning(f"[Vision] Failed to inject AX Tree: {e}")

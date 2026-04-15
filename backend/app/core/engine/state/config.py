@@ -79,9 +79,9 @@ class ExecutionTicket(DynamicBaseModel):
     """Structured mission ticket for any Specialist Node."""
     ticket_type: str
     priority: str = "normal"
-    acceptance_criteria: list[str] = Field(default_factory=list)
+    acceptance_criteria: list[str] | None = Field(default_factory=list)
     focus_paths: list[str] | None = None
-    topic: str | None = None
+    topic: str
     parameters: TicketParameters | None = None
     macro_goal: str | None = None
     agent_config: AgentRuntimeConfig | None = None
@@ -101,6 +101,13 @@ class ExecutionTicket(DynamicBaseModel):
     reason: str | None = None
     complexity: str | None = None
     workflow_context: WorkflowContext | None = None
+
+    @field_validator("topic", mode="before")
+    @classmethod
+    def _topic_must_be_non_empty(cls, v):
+        if not isinstance(v, str) or not v.strip():
+            raise ValueError("ExecutionTicket.topic cannot be empty or missing. Check upstream caller (route_to, spawn_agents, etc.) to ensure a non-empty topic/intent/reason is provided.")
+        return v.strip()
 
     @field_validator("skill_id", mode="before")
     @classmethod

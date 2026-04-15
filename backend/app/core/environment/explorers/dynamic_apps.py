@@ -113,8 +113,8 @@ class DynamicAppTriage(BaseExplorer):
         from app.utils import render_template
 
         try:
-            prompt = render_template("planning/dynamic_app_triage.prompt.j2", app_ids=app_ids)
-            role_name = render_template("planning/expert_roles.prompt.j2", role="ui_dynamics").strip()
+            prompt = render_template("domain/planning/dynamic_app_triage.prompt.j2", app_ids=app_ids)
+            role_name = render_template("domain/planning/expert_roles.prompt.j2", role="ui_dynamics").strip()
 
             from app.core.llm import InternalLLMService
             response = await InternalLLMService.invoke(

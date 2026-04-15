@@ -5,7 +5,7 @@ import logging
 import os
 from typing import Any
 
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig
 from sqlalchemy import select
 
@@ -50,17 +50,24 @@ class WorkerNode(BaseAgentNode):
         state = await EvoContextMiddleware.hydrate(state, config)
 
         execution_ticket = state.blackboard.ticket
-        if not execution_ticket or not execution_ticket.agent_config:
-            logger.warning("[Worker] No AgentConfig found in ticket! Using default configuration.")
-            route_reason = state.blackboard.route_reason
-            execution_ticket = ExecutionTicket(
-                ticket_type="task",
-                topic=route_reason,
-                agent_config=AgentRuntimeConfig(
-                    role_name="Worker",
-                    system_instructions="Execute the following task steps accurately and provide the result.",
-                )
+        if not execution_ticket:
+            # Phase 5: Strict Integrity. We no longer guess the topic if the ticket is missing.
+            # This surfaces systemic routing/state loss issues immediately rather than deviating.
+            raise ValueError(
+                f"[Worker] Node reached without an active ExecutionTicket in blackboard. "
+                f"Thread: {state.thread_id or 'unknown'}. "
+                "Check upstream routing logic and middleware cleanup."
             )
+
+        if not execution_ticket.agent_config:
+            logger.warning("[Worker] Ticket lacks AgentConfig. Performing lightweight enrichment.")
+            # Recover or provide a generic config blueprint while PRESERVING the existing topic/intent
+            execution_ticket = execution_ticket.model_copy(update={
+                "agent_config": AgentRuntimeConfig(
+                    role_name="Worker",
+                    system_instructions="Execute the task steps accurately and provide results.",
+                )
+            })
             state.blackboard.ticket = execution_ticket
 
         return state
@@ -105,7 +112,8 @@ class WorkerNode(BaseAgentNode):
             environment_block=ctx.environment_block or "",
             cwd=actual_cwd,
             telemetry=telemetry,
-            plan=full_plan
+            plan=full_plan,
+            session_goal=state.session_goal,
         )
 
         return static_system_prompt, mission_msg
@@ -274,7 +282,7 @@ class WorkerNode(BaseAgentNode):
                 plan=full_plan
             )
             system_prompt = await prompt_builder.build(config)
-            mission_msg = prompt_builder.build_mission_message()
+            mission_msg = prompt_builder.build_mission_message(session_goal=state.session_goal)
 
             # 构建消息
             if is_first:
@@ -379,6 +387,14 @@ class WorkerNode(BaseAgentNode):
         content = get_message_text(last_msg) if isinstance(last_msg, AIMessage) else ""
         tool_history = engine_result.tool_history or []
         routing_target = engine_result.routing_target
+
+        # Single-shot subtasks may have empty AIMessage content after tool calls.
+        # Fallback to the last ToolMessage content so aggregation has usable data.
+        if not content and engine_result.messages:
+            for msg in reversed(engine_result.messages):
+                if isinstance(msg, ToolMessage):
+                    content = str(msg.content)
+                    break
 
         logger.info(f"[Worker][{role_name}] Loop finished. Content len: {len(content)}, Tools used: {len(tool_history)}, Target: {routing_target}")
 
@@ -534,7 +550,3 @@ class WorkerNode(BaseAgentNode):
                 results.append({"rel_path": path_item, "status": "error", "detail": str(e)})
 
         return results
-
-
-# Singleton
-worker_node = WorkerNode()

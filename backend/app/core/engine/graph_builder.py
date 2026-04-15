@@ -1,4 +1,5 @@
 import importlib
+import inspect
 import logging
 from typing import Any
 
@@ -18,7 +19,7 @@ class GraphBuilder:
     def _import_obj(self, path: str) -> Any:
         """
         Dynamically imports an object (class, function, variable) from a string path.
-        e.g. "app.core.engine.nodes.worker.worker_node"
+        e.g. "app.core.engine.nodes.worker.WorkerNode"
         """
         try:
             module_name, obj_name = path.rsplit(".", 1)
@@ -53,14 +54,21 @@ class GraphBuilder:
 
         # 3. Add Nodes
         for node in agent_config.nodes:
-            node_func = self._import_obj(node.path)
-            # [DIAGNOSTIC] Inspect node capability
-            has_call = callable(node_func)
-            logger.info(f"Adding Node: {node.id} | Implementation: {node.path} | Has __call__: {has_call}")
-            if has_call:
-                # If it's a class instance, print its MRO
-                cls_info = getattr(node_func, "__class__", "unknown")
-                logger.info(f"Node Instance Class: {cls_info}")
+            node_impl = self._import_obj(node.path)
+            if inspect.isclass(node_impl):
+                node_func = node_impl()
+                logger.info(
+                    f"Adding Node: {node.id} | Implementation: {node.path} | "
+                    f"Auto-instantiated class: {node_impl.__name__}"
+                )
+            elif callable(node_impl):
+                node_func = node_impl
+                logger.info(
+                    f"Adding Node: {node.id} | Implementation: {node.path} | "
+                    f"Callable: {getattr(node_func, '__name__', type(node_func).__name__)}"
+                )
+            else:
+                raise TypeError(f"Node {node.id} at {node.path} is not callable")
 
             workflow.add_node(node.id, node_func)
 

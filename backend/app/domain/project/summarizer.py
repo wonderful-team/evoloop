@@ -117,7 +117,7 @@ async def _summarize_project_logic(name: str, path: str):
         # 2. Call LLM
         from app.utils import render_template
         prompt_text = render_template(
-            "project/project_summary.prompt.j2",
+            "domain/project/project_summary.prompt.j2",
             project_name=name,
             files=files,
             readme_content=readme_content,

@@ -38,7 +38,7 @@ class SupervisorNode(BaseAgentNode):
         from app.core.engine.message_utils import prune_trailing_errors
         state.messages = prune_trailing_errors(list(state.messages))
 
-        # Clean stale routing and outcomes from previous turns
+        # Clean stale routing from previous turns
         state.next_node = None
         state.blackboard.worker_outcome = None
 
@@ -90,7 +90,7 @@ class SupervisorNode(BaseAgentNode):
         # Static Prompt (Cacheable)
         static_system_prompt = await prompt_builder.build(config)
         # Dynamic Ticket (Injected via HumanMessage in BaseAgentNode)
-        dynamic_context_ticket = await prompt_builder.build_context_ticket(config)
+        dynamic_context_ticket = await prompt_builder.build_context_ticket(config, session_goal=state.session_goal)
 
         return static_system_prompt, dynamic_context_ticket
 
@@ -180,12 +180,3 @@ class SupervisorNode(BaseAgentNode):
             blackboard=blackboard,
             structured_plan=state.structured_plan or state.current_plan,
         )
-
-
-# Create singleton instance for graph registration
-_supervisor_instance = SupervisorNode()
-
-
-async def supervisor_node(state: AgentState, config: RunnableConfig) -> StateUpdate:
-    """Supervisor node function wrapper for graph registration."""
-    return await _supervisor_instance(state, config)

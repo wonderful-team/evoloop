@@ -200,7 +200,7 @@ class MobileController:
                     # Combine wait note with caller-provided note
                     wait_note = f"Wait: {wait_after_ms}ms" if wait_after_ms > 0 else None
                     final_note = f"{note} ({wait_note})" if note and wait_note else (note or wait_note)
-                    return render_template("report/response.prompt.j2", success=success, message=msg, note=final_note)
+                    return render_template("common/report/response.prompt.j2", success=success, message=msg, note=final_note)
                 return str(msg)
 
             async def probe_hybrid(a11y_result=None) -> bool:
@@ -516,7 +516,7 @@ class MobileController:
                     # Prevent busy-waiting if element is found quickly
                     await asyncio.sleep(0.05)
 
-                return render_template("report/response.prompt.j2", success=False, message=f"Could not find element '{name}' on device.")
+                return render_template("common/report/response.prompt.j2", success=False, message=f"Could not find element '{name}' on device.")
 
             # ── Action dispatch ─────────────────────────────────────────────
 
@@ -562,7 +562,7 @@ class MobileController:
                         ocr_res = await vision_engine.process(VisionTask.OCR, filepath, on_android=True, device_id=device_id)
                         if ocr_res.success and ocr_res.elements:
                             result_msg += "\n\n" + render_template(
-                                "vision/ocr_results.prompt.j2",
+                                "core/vision/ocr_results.prompt.j2",
                                 platform="android",
                                 elements=[{"role": el.metadata.get("class", "Unknown"), "name": el.text, "bounds": f"({el.x}, {el.y})", "path": el.metadata.get("resource_id", "")} for el in ocr_res.elements],
                                 total_count=len(ocr_res.elements)

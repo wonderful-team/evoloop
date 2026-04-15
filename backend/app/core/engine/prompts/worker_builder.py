@@ -5,6 +5,7 @@ from app.core.context import ContextManager, plugin_registry
 from app.core.engine.state.blackboard import BlackboardState
 from app.core.engine.state.config import AgentRuntimeConfig, ExecutionTicket
 from app.utils import render_template
+from .utils import to_template_context, get_sandbox_mode, get_mapped_cwd
 
 logger = logging.getLogger(__name__)
 
@@ -39,15 +40,13 @@ class WorkerPromptBuilder:
         ctx = ContextManager.current()
         plugin_registry.hydrate_context(ctx)
 
-        knowledge_blocks = self._prepare_knowledge_blocks()
-
-        from .utils import get_sandbox_mode
         mode = get_sandbox_mode()
 
         # Static Sys Info (Project identity only)
         sys_info = {
             "is_global_mode": ctx.project_id == 0 or ctx.project_id is None,
             "project_concepts": ctx.metadata.get("project_concepts", ""),
+            "cwd": get_mapped_cwd(ctx.working_directory or ctx.metadata.get("cwd", "")),
         }
 
         # Protocol flags based on authorized tools (Static for the node)
@@ -80,24 +79,15 @@ class WorkerPromptBuilder:
             "sandbox_mode": mode,
             "role_name": self.agent_config.role_name if self.agent_config else "Specialist",
             "instructions": self.agent_config.system_instructions if self.agent_config else "Execute the assigned task accurately.",
-            "knowledge_blocks": knowledge_blocks,
             "has_android": ctx.metadata.get("has_android", False),
             "is_subtask": self.agent_config.is_subtask if self.agent_config else False,
-            "macro_goal": self.ticket.macro_goal if self.ticket else None,
-            "historical_context": self.ticket.historical_context if self.ticket else None,
-            "referenced_tech": self.ticket.referenced_tech if self.ticket else None,
             "has_desktop_tool": has_desktop_tool,
             "has_mobile_tool": has_mobile_tool,
             "has_browser_tool": has_browser_tool,
             "has_interactive_charts": has_interactive_charts,
         }
 
-        try:
-            return render_template("agents/worker.prompt.j2", **template_vars)
-        except Exception as e:
-            logger.error(f"Error rendering Worker template: {e}")
-            return str(self.agent_config.system_instructions if self.agent_config else "")
-
+        return render_template("core/engine/worker.prompt.j2", **to_template_context(template_vars))
 
     def build_mission_message(
         self,
@@ -107,6 +97,7 @@ class WorkerPromptBuilder:
         telemetry: dict = None,
         memory: dict = None,
         plan: Any = None,
+        session_goal: str | None = None,
     ) -> str:
         """Constructs the USER message (Mission Ticket) for the Worker.
         
@@ -116,11 +107,10 @@ class WorkerPromptBuilder:
         """
         ctx = ContextManager.current()
 
-        # Determine visualization needs dynamically for this turn
-        needs_visualization = any(kw in (self.ticket.topic or "").lower() or kw in (self.ticket.reason or "").lower() for kw in ["chart", "plot", "viz", "统计", "图表"])
+        topic = (self.ticket.topic if self.ticket else None) or session_goal
 
         template_vars = {
-            "topic": self.ticket.topic if self.ticket else "General Task",
+            "topic": topic,
             "acceptance_criteria": self.ticket.acceptance_criteria if self.ticket else [],
             "parameters": self.ticket.parameters if self.ticket else {},
             "is_subtask": self.agent_config.is_subtask if self.agent_config else False,
@@ -137,15 +127,9 @@ class WorkerPromptBuilder:
             "blackboard": self.blackboard,
             "clipboard": self.clipboard,
             "plan": plan or self.plan,
-            "needs_visualization": needs_visualization,
+            "macro_goal": session_goal,
         }
-        try:
-            # We'll use a new fragment for the enhanced mission ticket
-            return render_template("fragments/worker_mission_ticket.j2", **template_vars)
-        except Exception as e:
-            logger.error(f"Error rendering Worker Mission Ticket: {e}")
-            return f"Execute mission: {template_vars['topic']}"
-
+        return render_template("core/engine/fragments/worker_mission_ticket.j2", **to_template_context(template_vars))
 
     def _prepare_knowledge_blocks(self) -> list[str]:
         """
@@ -163,7 +147,7 @@ class WorkerPromptBuilder:
         try:
             # Render all blocks in a single template call for efficiency
             rendered = render_template(
-                "fragments/knowledge_blocks_wrapper.j2",
+                "core/engine/fragments/knowledge_blocks_wrapper.j2",
                 skills=self.skills,
                 is_subtask=self.agent_config.is_subtask if self.agent_config else False
             )
@@ -177,15 +161,12 @@ class WorkerPromptBuilder:
             # Fallback: render each skill individually
             blocks = []
             for i, skill in enumerate(self.skills):
-                try:
-                    block = render_template(
-                        "fragments/knowledge_block.j2",
-                        skill=skill,
-                        is_primary=(i == 0),
-                        is_subtask=self.agent_config.is_subtask if self.agent_config else False
-                    )
-                    blocks.append(block)
-                except Exception as inner_e:
-                    logger.error(f"Error rendering individual skill block: {inner_e}")
-                    blocks.append(f"SOP: {getattr(skill, 'name', 'Skill')}")
+                block = render_template(
+                    "core/engine/fragments/knowledge_block.j2",
+                    skill=skill,
+                    is_primary=(i == 0),
+                    is_subtask=self.agent_config.is_subtask if self.agent_config else False
+                )
+                blocks.append(block)
+
             return blocks

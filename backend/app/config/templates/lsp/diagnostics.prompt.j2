@@ -1,2 +1,0 @@
-{% from "fragments/common/list_items.j2" import lsp_diagnostic_item %}
-{% for d in diagnostics %}{{ lsp_diagnostic_item(d.line, d.severity, d.message, d.source) }}{% endfor %}

@@ -36,6 +36,8 @@ class BaseAgentNode(ABC):
         """The standard LangGraph node entry point."""
         try:
             state = ensure_state(state)
+            # Clear potential routing instructions from previous nodes to prevent accidental short-circuits
+            state.next_node = None
 
             # 1. State Preparation & Environment Hydration
             # Includes early-exit checks (e.g., Aggregator routing)

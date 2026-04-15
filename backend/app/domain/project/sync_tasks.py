@@ -178,7 +178,7 @@ def _format_task_description(task_data: dict) -> str:
     """Format task data into description for EvoCloud."""
     try:
         return render_template(
-            "project/project_management.prompt.j2",
+            "domain/project/project_management.prompt.j2",
             description=task_data.get("description", ""),
             references=task_data.get("requirement_refs", []),
             checklist=task_data.get("acceptance_criteria", [])

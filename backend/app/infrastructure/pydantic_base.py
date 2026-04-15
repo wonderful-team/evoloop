@@ -9,4 +9,4 @@ class DynamicBaseModel(BaseModel, LegacyDictMixin):
     Use this for dynamic schemas, state bags, and loose payloads.
     """
 
-    model_config = ConfigDict(extra="allow")
+    model_config = ConfigDict(extra="allow", arbitrary_types_allowed=True)

@@ -159,13 +159,13 @@ Relationships:
 
         from app.utils import render_template
         prompt_text = render_template(
-            "tool/cypher_generation.prompt.j2",
+            "domain/codebase/cypher_generation.prompt.j2",
             schema="{schema}", # Keep LangChain placeholders {schema} and {question} or pass data directly?
             question="{question}",
             project_id=project_id if project_id and project_id != 0 else None
         )
 
-        CYPHER_GENERATION_PROMPT = PromptTemplate(
+        cypher_prompt = PromptTemplate(
             input_variables=["schema", "question"],
             template=prompt_text
         )
@@ -174,7 +174,7 @@ Relationships:
             llm=llm,
             graph=self._graph,
             verbose=True,
-            cypher_prompt=CYPHER_GENERATION_PROMPT,
+            cypher_prompt=cypher_prompt,
             allow_dangerous_requests=True,
         )
 

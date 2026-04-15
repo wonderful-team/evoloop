@@ -97,7 +97,7 @@ async def search_codebase(
 
     try:
         return render_template(
-            "codebase/codebase_retrieval.prompt.j2",
+            "domain/codebase/codebase_retrieval.prompt.j2",
             graph_result=graph_data,
             rag_results=rag_results
         )

@@ -24,14 +24,11 @@ async def find_definition(symbol_name: str, file_pattern: str | None = None, con
     project_id = ctx.get("project_id", 1)
 
     # 1. Try Graph Search First (Precision)
-    try:
-        results = await graph_retrieval_service.find_symbol_definition(symbol_name, project_id)
-        if results:
-            summaries = [f"{r['full_name']} ({r['type']}) in {r['file_path']}" for r in results]
-            return render_template("codebase/codebase_indexing.prompt.j2", summaries=summaries)
-    except Exception:
-        # Log but continue to fallback
-        pass
+    results = await graph_retrieval_service.find_symbol_definition(symbol_name, project_id)
+    if results:
+        summaries = [f"{r['full_name']} ({r['type']}) in {r['file_path']}" for r in results]
+        return render_template("domain/codebase/codebase_indexing.prompt.j2", summaries=summaries)
+
 
     # 2. Fallback to Heuristic Search (Grep)
     # Useful if file is new/modified and not yet indexed
@@ -85,7 +82,7 @@ async def analyze_impact(symbol_name: str, config: RunnableConfig | None = None)
                 "target": usage["file_path"]
             })
         
-        return render_template("codebase/codebase_indexing.prompt.j2", relations=relations_data)
+        return render_template("domain/codebase/codebase_indexing.prompt.j2", relations=relations_data)
 
     except Exception as e:
         return f"Error searching graph: {e}"

@@ -160,6 +160,13 @@ class EvoContextMiddleware:
             )
             ContextManager.set(ctx)
             logger.info(f"[Middleware] 🧪 Context Initialized: project_id={project_id}")
+        elif not ctx.thread_id:
+            # Ensure thread_id is present for hooks even when ctx was pre-set externally
+            fallback_thread_id = state.thread_id or config.get("configurable", {}).get("thread_id")
+            if fallback_thread_id:
+                ctx = ctx.model_copy(update={"thread_id": fallback_thread_id})
+                ContextManager.set(ctx)
+                logger.debug(f"[Middleware] Thread ID backfilled from state/config: {fallback_thread_id}")
 
         # 1b. Trigger SessionStart Hook
         # This allows hooks to initialize state, load context, etc.
@@ -402,10 +409,20 @@ class EvoContextMiddleware:
         # 6. Metadata Reset (Industrial Hardening)
         is_retry = config.get("metadata", {}).get("is_retry", False)
 
-        if (state.is_retry or is_retry) and not state.is_subtask:
+        if (state.is_retry or is_retry) and state.iteration_count == 0 and not state.is_subtask:
             logger.info("[Middleware] 🔄 Retry detected: Performing deep blackboard cleanup.")
-            for key in ["ticket", "verification", "route_reason"]:
-                setattr(blackboard, key, None)
+            
+            # Preserve ticket if it's the initial human seed (role_name="User") 
+            # or if it was explicitly marked as 'intended' for this run.
+            current_ticket = getattr(blackboard, "ticket", None)
+            if current_ticket and current_ticket.agent_config and current_ticket.agent_config.role_name == "User":
+                logger.info("[Middleware] 🛡️ Preservation: Keeping initial seed ticket during retry.")
+                # We wipe reason/verification but keep the ticket intent
+            else:
+                blackboard.ticket = None
+
+            blackboard.verification = None
+            blackboard.route_reason = None
             if blackboard.metadata is not None:
                 blackboard.metadata.final_outcome = None
                 blackboard.metadata.shadow_audit = None
