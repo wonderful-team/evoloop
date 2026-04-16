@@ -25,6 +25,9 @@ class SystemEventType(str, Enum):
     # Published by Engine after context hydration. Subscribed by Domain experts to enrich/clean context.
     CONTEXT_POLISHING = "system.context_polishing"
 
+    # Engine Lifecycle
+    SESSION_COMPLETED = "system.session_completed"
+
 
 # Note: Module-specific event types are defined in their respective modules:
 # - AgentEventType -> app.core.engine.events

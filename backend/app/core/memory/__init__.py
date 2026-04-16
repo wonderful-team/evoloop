@@ -45,6 +45,7 @@ Architecture:
 
 # Backends
 from app.core.memory.backends.file_backend import FileMemoryStorage
+from . import events
 
 # New: Configuration and Dependency Injection
 from app.core.memory.config import MemoryConfig, default_memory_config
