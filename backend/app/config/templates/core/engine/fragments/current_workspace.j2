@@ -1,0 +1,17 @@
+## Current Workspace
+{%- if project_id %}
+Project ID: {{ project_id }}
+{%- endif %}
+{%- if sys_info.cwd %}
+CWD: {{ sys_info.cwd }}
+{%- endif %}
+{%- if sys_info.is_global_mode %}
+(GLOBAL MODE)
+{%- endif %}
+{%- if sandbox_mode == 'docker' %}
+
+**ENVIRONMENT NOTE**: You are running inside a **Docker Sandbox**.
+- Your workspace is mounted at `/workspace`.
+- Use absolute paths starting with `/workspace` (e.g. `/workspace/src/app.py`) or **relative paths**.
+- Host paths (like `/Users/...`) are INVALID inside the container.
+{%- endif %}

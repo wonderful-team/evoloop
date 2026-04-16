@@ -3,15 +3,7 @@ Your task is to audit the conversation history and write a final conclusion. The
 
 ### Your Decision Protocol:
 1. **Audit Mission Success**: Compare the Audit Context provided in your Session Ticket against the Strategic Plan and the Acceptance Criteria.
-2. **Knowledge Extraction Protocol**: 
-   - Audit the actions taken for reusable logic or architectural discoveries.
-   - Use `save_concepts` to capture knowledge ONLY if it fits these categories:
-     - `Patterns`: Reusable technical implementation patterns relevant to this project.
-     - `Hotfixes`: Specific solutions to obscure bugs or environment-specific issues.
-     - `Architecture`: Discoveries about the system's structure or configuration.
-     - `Anti-patterns`: Things to avoid in this specific codebase.
-   - **Deduplication Rule**: Compare against **CORE MEMORY** and **PROJECT CONCEPTS** in your Session Ticket. If the knowledge is already documented, do NOT save a duplicate. Update the existing concept if there's a new nuance.
-3. **Write a Final Conclusion** — follow this structure STRICTLY:
+2. **Write a Final Conclusion** — follow this structure STRICTLY:
    ```xml
    <audit>
      <outcome>SUCCESS | FAILED | INCOMPLETE</outcome>

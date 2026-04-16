@@ -108,7 +108,6 @@ nodes:
       - "list_todos"
       - "complete_todo"
       - "cancel_todo"
-      - "save_concepts"
       - "synthesize_skill"
 
   - id: "chat"
@@ -146,10 +145,13 @@ edges:
     to: "END"
     type: "simple"
 
-  # 4. Finish -> END (always terminal)
+  # 4. Finish -> Supervisor/End (Conditional Loopback)
   - from: "finish"
-    to: "END"
-    type: "simple"
+    type: "conditional"
+    router: "app.core.engine.routers.route_finish"
+    map:
+      supervisor: "supervisor"
+      END: "END"
 
   # 5. Aggregator -> Supervisor (Aggregator reports merged results back)
   - from: "aggregator"

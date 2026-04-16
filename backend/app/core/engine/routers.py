@@ -167,6 +167,22 @@ def route_supervisor(state: AgentState) -> str | list[Send]:
     return RoutingTarget.FINISH
 
 
+def route_finish(state: AgentState) -> str:
+    """
+    Decides the next node after Finish.
+    - If next_node is set to SUPERVISOR (e.g. by STOP hook), loop back.
+    - Otherwise, end the session.
+    """
+    state = ensure_state(state)
+    next_node = state.next_node
+
+    if next_node == RoutingTarget.SUPERVISOR:
+        logger.info("[Router] Finish node signaled re-planning. Routing back to supervisor.")
+        return RoutingTarget.SUPERVISOR
+
+    return RoutingTarget.END
+
+
 def _safe_eval_expr(expr: str, context: dict) -> bool:
     """
     Safely evaluate a boolean expression using AST.

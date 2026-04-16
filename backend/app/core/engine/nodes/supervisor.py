@@ -40,7 +40,6 @@ class SupervisorNode(BaseAgentNode):
 
         # Clean stale routing from previous turns
         state.next_node = None
-        state.blackboard.worker_outcome = None
 
         # Optional: Emit initial status
         await self._emit_status(config, i18n.get("supervisor.status_analyzing"))

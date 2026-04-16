@@ -1,0 +1,11 @@
+Summarize this session in 2-3 sentences.
+
+{%- if blackboard.ticket %}
+Task: {{ blackboard.ticket.topic or 'N/A' }}
+{%- endif %}
+Tools: {{ (tools | join(', ')) if tools else 'None' }}
+
+Result:
+{{ last_content | truncate(1500) }}
+
+Was the task completed? What were the key findings?

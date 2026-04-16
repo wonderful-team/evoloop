@@ -35,7 +35,7 @@ class MemoryMaintenanceAgent:
         self.log_file = Path(settings.BRAIN_MEMORY_ROOT) / ".maintenance"
 
         # Load prompt template from config/templates/memory/
-        template_path = Path(__file__).parent.parent.parent / "config" / "templates" / "memory" / "maintenance.j2"
+        template_path = Path(__file__).parent.parent.parent / "config" / "templates" / "core" / "memory" / "maintenance.j2"
         self.prompt_template = Template(template_path.read_text(encoding="utf-8"))
 
     async def run(self):

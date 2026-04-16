@@ -45,8 +45,6 @@ class FinishPromptBuilder:
         mode = get_sandbox_mode()
         project_concepts = ctx.metadata.get("project_concepts", "")
 
-        # Metadata Filtering (Pollution Control)
-        # We exclude large system-level objects and redundant keys that are handled explicitly below
         excluded_keys = {
             "active_skills", "project_concepts", "cwd", "episodic_memory_raw",
             "core_memory_raw", "sys_info", "is_global_mode", "has_macos", "has_android"
@@ -105,3 +103,13 @@ class FinishPromptBuilder:
         }
 
         return render_template("core/engine/fragments/finish_audit_ticket.j2", **template_vars)
+    def build_standard_prompt(self, last_content: str, tool_usage: list[str]) -> str:
+        """Builds the lightweight standard audit prompt."""
+        template_vars = {
+            "blackboard": {
+                "ticket": self.execution_ticket,
+            },
+            "tools": tool_usage,
+            "last_content": last_content,
+        }
+        return render_template("core/engine/standard_audit.prompt.j2", **template_vars)
