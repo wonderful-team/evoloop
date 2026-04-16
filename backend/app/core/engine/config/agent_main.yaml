@@ -93,7 +93,6 @@ nodes:
       # Control
       - "ask_confirm"
       - "ask_human"
-      - "use_mcp_server"
       - "wait_for"
       - "delegate_periodic_intent"
       - "inspect_task_health"

@@ -3,16 +3,17 @@ Event schemas for system-wide lifecycle events.
 """
 from typing import Any, List, Optional
 from langchain_core.messages import BaseMessage
-from pydantic import Field
+from pydantic import Field, BaseModel
 
 from app.core.events.base import BaseEvent, EventData
 from app.core.events.registry import SystemEventType
 
 
-class SessionCompletedData(EventData):
-    """Payload for the SESSION_COMPLETED event."""
+class SessionCompletedData(BaseModel):
+    """Payload data for SESSION_COMPLETED event."""
     thread_id: str
-    project_id: Optional[int] = None
+    run_id: str | None = None
+    project_id: int | None = None
     user_id: Optional[str] = None
     messages: List[BaseMessage] = Field(default_factory=list)
     blackboard_dict: dict = Field(default_factory=dict, description="Serialized blackboard state")

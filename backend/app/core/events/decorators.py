@@ -34,31 +34,24 @@ F = TypeVar("F", bound=Callable[..., Any])
 
 def event_subscribe(event_type: str | Any) -> Callable[[F], F]:
     """
-    Decorator to mark a method as an event handler.
-    
-    The method will be automatically registered to handle the specified event type.
-    
-    Args:
-        event_type: The event type to subscribe to (string or Enum)
-        
-    Returns:
-        The decorated function (unchanged)
-        
-    Example:
-        class MyHandler:
-            @event_subscribe(MyEventType.SOME_EVENT)
-            async def on_some_event(self, event):
-                print(f"Received: {event}")
+    Decorator to mark a method as an event handler for a specific type.
     """
     def decorator(func: F) -> F:
-        # Store event types on the function for later registration
         if not hasattr(func, "_event_types"):
             func._event_types = []
         func._event_types.append(event_type)
-
-        # Mark function as an event handler
         func._is_event_handler = True
+        return func
 
+    return decorator
+
+
+def event_subscribe_all() -> Callable[[F], F]:
+    """
+    Decorator to mark a method as a global event handler (subscriber to all events).
+    """
+    def decorator(func: F) -> F:
+        func._is_event_handler_all = True
         return func
 
     return decorator
@@ -67,12 +60,6 @@ def event_subscribe(event_type: str | Any) -> Callable[[F], F]:
 def register_instance_handlers(instance: Any, bus: Any = None) -> None:
     """
     Register all decorated handlers on an instance to the event bus.
-    
-    This should be called after creating an instance of a handler class.
-    
-    Args:
-        instance: The handler instance to register
-        bus: The event bus to subscribe to (defaults to system_bus)
     """
     if bus is None:
         bus = system_bus
@@ -82,48 +69,39 @@ def register_instance_handlers(instance: Any, bus: Any = None) -> None:
 
     # Get all methods that have event handlers
     for method_name in dir(instance_class):
-        method = getattr(instance_class, method_name, None)
-        if not callable(method) or not hasattr(method, "_is_event_handler"):
+        method = getattr(instance, method_name, None)
+        if not callable(method):
             continue
 
-        # Get event types for this method
-        event_types = getattr(method, "_event_types", [])
+        # 1. Specific Type Subscriptions
+        if hasattr(method, "_is_event_handler"):
+            event_types = getattr(method, "_event_types", [])
+            for event_type in event_types:
+                bus.subscribe(event_type, method)
+                registered_count += 1
+                logger.debug(f"[EventRegister] {instance_class.__name__}.{method_name} -> {event_type}")
 
-        # Create bound method for this instance
-        bound_method = getattr(instance, method_name)
-
-        # Subscribe to each event type
-        for event_type in event_types:
-            bus.subscribe(event_type, bound_method)
+        # 2. Global Subscriptions (Subscribe All)
+        if hasattr(method, "_is_event_handler_all"):
+            bus.subscribe_all(method)
             registered_count += 1
-            logger.debug(f"[EventRegister] {instance_class.__name__}.{method_name} -> {event_type}")
+            logger.debug(f"[EventRegister] {instance_class.__name__}.{method_name} -> [ALL EVENTS]")
 
     if registered_count > 0:
         logger.info(f"[EventRegister] {instance_class.__name__}: {registered_count} handlers registered")
 
 
-def event_register(bus: Any = None) -> Callable[[type], type]:
+def event_register(arg: Any = None) -> Any:
     """
-    Class decorator to automatically register all @event_subscribe decorated methods.
-    
-    When the class is instantiated, all methods decorated with @event_subscribe
-    will be automatically registered to the event bus.
-    
-    Args:
-        bus: The event bus to subscribe to (defaults to system_bus)
-        
-    Returns:
-        The decorated class
-        
-    Example:
-        @event_register()
-        class FileRewind:
-            @event_subscribe(RewindEventType.FILES_CLEANUP)
-            async def _handle_files_cleanup(self, event): ...
+    Class decorator to automatically register all decorated methods.
+    Supports both @event_register() and @event_register.
     """
-    if bus is None:
-        bus = system_bus
-
+    if isinstance(arg, type):
+        # Called as @event_register
+        return event_register_with_bus(system_bus)(arg)
+    
+    # Called as @event_register(bus=...) or @event_register()
+    bus = arg or system_bus
     return event_register_with_bus(bus)
 
 

@@ -15,7 +15,8 @@ from app.core.engine.prompts.finish import FinishPromptBuilder
 from app.core.engine.routers import RoutingTarget
 from app.core.engine.state import AgentState, StateUpdate, ExecutionTicket
 from app.core.engine.state.blackboard import AuditMeta, BlackboardState, VerificationStatus
-from app.core.monitoring.activity import activity_monitor
+from app.core.events import system_bus, SystemEventType
+from app.core.events.schema import SessionCompletedEvent, SessionCompletedData
 from app.core.tools.manager import tool_manager
 from app.i18n.service import i18n
 from app.utils.id import gen_uuid
@@ -73,61 +74,6 @@ def _extract_final_summary(messages: list) -> str:
 
             return content[:2000]
     return i18n.get("finish.session_concluded")
-
-
-async def _trigger_session_recording(ctx, config: RunnableConfig, summary: str, original_skill_id: int | None = None, execution_ticket: ExecutionTicket | None = None, thread_id: str | None = None):
-    """Trigger async side-effects when session ends."""
-    try:
-        thread_id = thread_id or ctx.thread_id or config.get("configurable", {}).get("thread_id")
-        project_id = ctx.project_id or DEFAULT_PROJECT_ID
-        if not thread_id:
-            logger.warning("Finish: No thread_id in context, skipping episode recording.")
-            return
-
-        message_id = config.get("configurable", {}).get("run_id") or gen_uuid()
-
-        from app.core.engine.tasks import (
-            reconcile_skill_macro_task,
-            record_episode_task,
-        )
-
-        # Determine a friendly goal for the Episode
-        episode_goal = "[Auto-recorded by Finish Node]"
-        if execution_ticket:
-            ticket_topic = execution_ticket.topic
-            ticket_reason = execution_ticket.reason if execution_ticket else None
-            if ticket_topic and len(ticket_topic) > 5:
-                episode_goal = ticket_topic
-            elif ticket_reason and len(ticket_reason) > 5:
-                episode_goal = ticket_reason
-
-        record_episode_task.delay(
-            thread_id=thread_id,
-            project_id=project_id,
-            goal=episode_goal,
-            result_summary=summary,
-            concept_names=[],
-            source_message_id=message_id,
-        )
-
-        if original_skill_id:
-            logger.info(f"Finish: 🔄 Triggering macro reconciliation for Skill {original_skill_id}")
-            reconcile_skill_macro_task.delay(
-                skill_id=original_skill_id,
-                thread_id=thread_id
-            )
-
-        logger.info(f"Finish: ✅ Session recording triggered for thread {thread_id}")
-
-        # Phase 2: Automatic State Pruning (Prevention of bloat)
-        try:
-            asyncio.create_task(auto_prune_on_completion(thread_id))
-        except Exception as e:
-            logger.debug(f"[Finish] Pruning background task failed to start: {e}")
-
-    except Exception as e:
-        logger.error(f"Finish: Failed to trigger session recording: {e}")
-
 
 # ===== Layered Auditor Classes =====
 
@@ -495,33 +441,38 @@ class FinishNode:
             except Exception as e:
                 logger.warning(f"[Finish] Stop hook failed: {e}")
 
-            # 3. Successful path -> Trigger SIDE EFFECTS
+            # 3. Successful path -> Trigger SIDE EFFECTS (Decoupled Events)
             logger.info(f"[Finish] ✅ {audit_tier.upper()} audit complete: {total_duration:.0f}ms. Finalizing session...")
 
-            # End observability run
-            await activity_monitor.end_run(effective_thread_id, status="done", final_outcome=final_outcome)
-
-            # Trigger session recording and memory extraction
+            # Model the event data for subscribers
             metadata = config.get("metadata", {})
-            original_skill_id = metadata.get("original_skill_id")
-            await _trigger_session_recording(ctx, config, summary, original_skill_id=original_skill_id, execution_ticket=blackboard.ticket, thread_id=effective_thread_id)
+            run_id = config.get("configurable", {}).get("run_id")
+            
+            event_data = SessionCompletedData(
+                thread_id=effective_thread_id,
+                run_id=run_id,
+                project_id=ctx.project_id,
+                user_id=ctx.user_id,
+                messages=messages,
+                blackboard_dict=blackboard.model_dump() if hasattr(blackboard, 'model_dump') else {},
+                summary=summary,
+                outcome=final_outcome,
+                audit_tier=audit_tier,
+                duration_ms=total_duration,
+                original_skill_id=metadata.get("original_skill_id"),
+                ticket_topic=blackboard.ticket.topic if blackboard.ticket else None,
+                ticket_reason=blackboard.ticket.reason if blackboard.ticket else None,
+            )
 
-            # Trigger automatic memory extraction (fire and forget)
+            # Publish the completion event to the global system bus
+            # This triggers monitoring, learning, memory extraction, and other decoupled side effects.
             try:
-                from app.core.memory.auto_extraction import trigger_auto_extraction
-                asyncio.create_task(
-                    trigger_auto_extraction(
-                        thread_id=effective_thread_id,
-                        messages=messages,
-                        project_id=ctx.project_id,
-                        user_id=ctx.user_id,
-                    )
-                )
-                logger.debug(f"[Finish] Triggered auto-extraction for thread {effective_thread_id}")
+                await system_bus.publish(SessionCompletedEvent(data=event_data))
+                logger.info(f"[Finish] 📡 SessionCompletedEvent published for thread {effective_thread_id}")
             except Exception as e:
-                logger.warning(f"[Finish] Failed to trigger auto-extraction: {e}")
+                logger.error(f"[Finish] Failed to publish SessionCompletedEvent: {e}")
 
-            # Trigger SessionEnd hook
+            # Trigger legacy HookEvent.SESSION_END if still needed for low-level engine hooks
             try:
                 from app.core.engine.hooks import HookContext, HookEvent, hook_system
                 hook_ctx = HookContext(
@@ -554,6 +505,12 @@ class FinishNode:
 
             if removed_ids:
                 logger.info(f"[Finish] 🗑️ Removed {len(removed_ids)} previous auditor messages")
+
+            # 4. Automatic State Pruning (Prevention of bloat)
+            try:
+                asyncio.create_task(auto_prune_on_completion(effective_thread_id))
+            except Exception as e:
+                logger.debug(f"[Finish] Pruning background task failed to start: {e}")
 
             return StateUpdate(
                 messages=messages_to_return,
