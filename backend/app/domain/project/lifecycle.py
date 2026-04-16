@@ -66,3 +66,30 @@ class ProjectLifecycleHandler:
             await project_polisher.handle_context_polishing(event)
         except Exception as e:
             logger.error(f"[Project] Context polishing failed: {e}")
+
+    @event_subscribe(SystemEventType.CONFIG_CHANGED)
+    async def on_config_changed(self, event):
+        """
+        Handle CONFIG_CHANGED: Respond to configuration updates.
+        """
+        key = event.data.get("key")
+        new_value = event.data.get("new_value")
+
+        if key == "WORKSPACE_ROOT":
+            if not new_value or not os.path.exists(new_value):
+                logger.warning(f"[Project] New WORKSPACE_ROOT '{new_value}' is invalid or does not exist.")
+                return
+
+            try:
+                from app.domain.project.sync_service import project_sync_service
+                logger.info(f"[Project] WORKSPACE_ROOT changed, reconciling projects in {new_value}...")
+                await project_sync_service.reconcile_projects(new_value)
+                
+                # Restart discovery manager for new path
+                from app.domain.project.discovery_manager import discovery_manager
+                discovery_manager.stop()
+                discovery_manager.start(new_value)
+                logger.info(f"[Project] Discovery manager restarted for {new_value}")
+                
+            except Exception as e:
+                logger.error(f"[Project] Failed to handle WORKSPACE_ROOT change: {e}")

@@ -5,6 +5,7 @@ from sqlmodel import Session, select
 
 from app.core.db import engine
 from app.models.system import SystemConfig
+from app.core.events import system_bus, SystemEventType, BaseEvent
 
 logger = logging.getLogger(__name__)
 _cache: dict[str, str] = {}
@@ -70,13 +71,30 @@ class SystemConfigService:
         config = SystemConfigService.set_value(key, value, description)
 
         # Trigger handlers if value actually changed
-        if old_value != value and key in _change_handlers:
-            logger.info(f"Config {key} changed: '{old_value}' -> '{value}', triggering handlers...")
-            for handler in _change_handlers[key]:
-                try:
-                    await handler(old_value, value)
-                except Exception as e:
-                    logger.error(f"Change handler failed for {key}: {e}")
+        if old_value != value:
+            # 1. Trigger legacy callback handlers
+            if key in _change_handlers:
+                logger.info(f"Config {key} changed: '{old_value}' -> '{value}', triggering legacy handlers...")
+                for handler in _change_handlers[key]:
+                    try:
+                        await handler(old_value, value)
+                    except Exception as e:
+                        logger.error(f"Change handler failed for {key}: {e}")
+            
+            # 2. Publish System Event (New Decoupled Approach)
+            try:
+                await system_bus.publish(BaseEvent(
+                    event_type=SystemEventType.CONFIG_CHANGED,
+                    source="SystemConfigService",
+                    data={
+                        "key": key,
+                        "old_value": old_value,
+                        "new_value": value
+                    }
+                ))
+                logger.info(f"Published CONFIG_CHANGED event for {key}")
+            except Exception as e:
+                logger.error(f"Failed to publish CONFIG_CHANGED event: {e}")
 
         return config
 

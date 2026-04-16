@@ -258,7 +258,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
                 limit: 50,
             })) as any
             
-            const rawMessages = response?.items || []
+            const rawMessages = response?.data || []
             
             // Format messages
             const formatted: Message[] = rawMessages
@@ -326,7 +326,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
                 beforeId: firstMessageId as any, // Cast to avoid type mismatch with generated client
             })) as any
             
-            const rawMessages = response?.items || []
+            const rawMessages = response?.data || []
             
             if (rawMessages.length === 0) {
                 set({ hasMoreHistory: false, isLoadingHistory: false })

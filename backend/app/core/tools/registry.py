@@ -204,10 +204,7 @@ def get_all_tools() -> list[BaseTool]:
     return list(get_tool_map().values())
 
 
-def get_tools_by_names(
-    tool_names: list[str],
-    source_role: str | None = None,
-) -> list[BaseTool]:
+def get_tools_by_names(tool_names: list[str], source_role: str | None = None) -> list[BaseTool]:
     """
     Hydrate a list of tool names into actual BaseTool objects.
     Uses AutoDiscoveryRegistry as lookup source. MCP tools are managed by ToolManager.

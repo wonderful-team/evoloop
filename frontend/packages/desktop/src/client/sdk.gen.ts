@@ -3,7 +3,7 @@
 import type { CancelablePromise } from './core/CancelablePromise';
 import { OpenAPI } from './core/OpenAPI';
 import { request as __request } from './core/request';
-import type { AccountLoginAccessTokenData, AccountLoginAccessTokenResponse, AccountRequestMobileCodeData, AccountRequestMobileCodeResponse, AccountLoginMobileData, AccountLoginMobileResponse, AccountGetWechatConfigResponse, AccountGenerateQrCodeResponse, AccountCheckWechatLoginStatusData, AccountCheckWechatLoginStatusResponse, AccountWechatDirectLoginData, AccountWechatDirectLoginResponse, AccountWechatCallbackData, AccountWechatCallbackResponse, AccountLogoutResponse, AgentChatEndpointData, AgentChatEndpointResponse, AgentStopChatData, AgentStopChatResponse, AgentRetryChatData, AgentRetryChatResponse, AgentResumeChatData, AgentResumeChatResponse, AgentCancelHitlRequestData, AgentCancelHitlRequestResponse, AgentWebhookEndpointData, AgentWebhookEndpointResponse, AudioListVoicesResponse, AudioTextToSpeechData, AudioTextToSpeechResponse, AudioTextToSpeechStreamData, AudioTextToSpeechStreamResponse, AudioGetTtsFileData, AudioGetTtsFileResponse, AudioListSttProvidersResponse, AudioTranscribeAudioData, AudioTranscribeAudioResponse, AudioTranscribeStreamData, AudioTranscribeStreamResponse, AuthGetCaptchaConfigResponse, AuthGetCaptchaData, AuthGetCaptchaResponse, AuthGetRegisterConfigResponse, AuthGetRegisterAgreementResponse, AuthSendSmsData, AuthSendSmsResponse, AuthRegisterMobileData, AuthRegisterMobileResponse, AuthRegisterUsernameData, AuthRegisterUsernameResponse, AuthLoginMobileData, AuthLoginMobileResponse, AuthCheckMobileData, AuthCheckMobileResponse, AuthResetPasswordData, AuthResetPasswordResponse, ConversationsListConversationsData, ConversationsListConversationsResponse, ConversationsGetConversationMessagesData, ConversationsGetConversationMessagesResponse, ConversationsSearchConversationsData, ConversationsSearchConversationsResponse, ConversationsRenameConversationData, ConversationsRenameConversationResponse, ConversationsDeleteConversationData, ConversationsDeleteConversationResponse, ConversationsGetThreadActivityData, ConversationsGetThreadActivityResponse, ConversationsRewindConversationData, ConversationsRewindConversationResponse, ConversationsGetThreadChangesetData, ConversationsGetThreadChangesetResponse, DevicesGetDevicesResponse, DevicesSendCommandData, DevicesSendCommandResponse, DevicesGetRecentLogsData, DevicesGetRecentLogsResponse, DevicesSearchLogsData, DevicesSearchLogsResponse, DevicesBindClientData, DevicesBindClientResponse, DevicesBindCurrentDeviceData, DevicesBindCurrentDeviceResponse, DevicesGetDebugStatusResponse, FilesListFilesData, FilesListFilesResponse, FilesCreateFileData, FilesCreateFileResponse, FilesGetFileContentData, FilesGetFileContentResponse, FilesGetRawFileData, FilesGetRawFileResponse, FilesOpenFileData, FilesOpenFileResponse, FilesUploadFileData, FilesUploadFileResponse, FilesSearchFilesData, FilesSearchFilesResponse, FilesSearchFilesByNameData, FilesSearchFilesByNameResponse, GhostTextSuggestInlineCompletionData, GhostTextSuggestInlineCompletionResponse, GhostTextPreviewEditGhostData, GhostTextPreviewEditGhostResponse, GhostTextListPatternsData, GhostTextListPatternsResponse, KnowledgeUploadDocumentData, KnowledgeUploadDocumentResponse, KnowledgeListDocumentsData, KnowledgeListDocumentsResponse, KnowledgeReadDocumentData, KnowledgeReadDocumentResponse, KnowledgeDeleteDocumentData, KnowledgeDeleteDocumentResponse, KnowledgeListProjectsResponse, KnowledgeCreateProjectData, KnowledgeCreateProjectResponse, KnowledgeListTagsData, KnowledgeListTagsResponse, KnowledgeSearchDocumentsData, KnowledgeSearchDocumentsResponse, KnowledgeBulkUploadData, KnowledgeBulkUploadResponse, KnowledgeImportZipData, KnowledgeImportZipResponse, KnowledgeValidateZipData, KnowledgeValidateZipResponse, KnowledgeFtsSearchData, KnowledgeFtsSearchResponse, KnowledgeFtsSuggestData, KnowledgeFtsSuggestResponse, KnowledgeAnalyzeDuplicatesData, KnowledgeAnalyzeDuplicatesResponse, KnowledgeMergeDocumentsData, KnowledgeMergeDocumentsResponse, KnowledgeGetPopularDocumentsData, KnowledgeGetPopularDocumentsResponse, KnowledgeGetUsageAnalyticsData, KnowledgeGetUsageAnalyticsResponse, KnowledgeGetRecommendationsData, KnowledgeGetRecommendationsResponse, KnowledgeGetDocumentStatsData, KnowledgeGetDocumentStatsResponse, LearningGetActionRegistryResponse, LearningListPendingRequestsData, LearningListPendingRequestsResponse, LearningGetRequestData, LearningGetRequestResponse, LearningRespondToRequestData, LearningRespondToRequestResponse, LearningCancelPendingRequestData, LearningCancelPendingRequestResponse, LearningCleanupRequestsData, LearningCleanupRequestsResponse, LearningStartRecordingData, LearningStartRecordingResponse, LearningStopRecordingData, LearningStopRecordingResponse, LearningListRecordingSessionsData, LearningListRecordingSessionsResponse, LearningSynthesizeSkillData, LearningSynthesizeSkillResponse, LearningImportSkillsData, LearningImportSkillsResponse, LearningListSkillsData, LearningListSkillsResponse, LearningGetSkillData, LearningGetSkillResponse, LearningDeleteSkillData, LearningDeleteSkillResponse, LearningUpdateSkillData, LearningUpdateSkillResponse, LearningExecuteSkillData, LearningExecuteSkillResponse, LearningListMirrorDevicesResponse, LearningStartMirrorSessionData, LearningStartMirrorSessionResponse, LearningStartMirrorRecordingData, LearningStartMirrorRecordingResponse, LearningStopMirrorSessionData, LearningStopMirrorSessionResponse, LearningGetDeviceResolutionData, LearningGetDeviceResolutionResponse, LearningPersistMirrorEventsData, LearningPersistMirrorEventsResponse, LearningPersistGlobalEventsData, LearningPersistGlobalEventsResponse, LearningPersistDomEventsData, LearningPersistDomEventsResponse, LearningUploadScreenshotData, LearningUploadScreenshotResponse, LearningValidateSkillData, LearningValidateSkillResponse, LearningSynthesizeFromRecordingData, LearningSynthesizeFromRecordingResponse, LearningPreviewRecordingDataData, LearningPreviewRecordingDataResponse, LearningListAnnotationsData, LearningListAnnotationsResponse, LearningCreateAndroidExtractPointData, LearningCreateAndroidExtractPointResponse, LearningListAndroidExtractPointsData, LearningListAndroidExtractPointsResponse, LearningStartSmartSynthesisData, LearningStartSmartSynthesisResponse, LearningGetSynthesisJobData, LearningGetSynthesisJobResponse, LearningListSessionSynthesisJobsData, LearningListSessionSynthesisJobsResponse, LearningCleanupRecordingSessionData, LearningCleanupRecordingSessionResponse, LearningConfirmLearnedSkillData, LearningConfirmLearnedSkillResponse, LearningCreateSkillFromYamlData, LearningCreateSkillFromYamlResponse, LearningValidateSkillYamlData, LearningValidateSkillYamlResponse, LearningGetSkillYamlData, LearningGetSkillYamlResponse, LearningUpdateSkillYamlData, LearningUpdateSkillYamlResponse, McpListMcpServersResponse, McpAddMcpServerData, McpAddMcpServerResponse, McpDeleteMcpServerData, McpDeleteMcpServerResponse, McpConnectMcpServerData, McpConnectMcpServerResponse, MemberReadUserMeResponse, MemberUpdateUserMeData, MemberUpdateUserMeResponse, MemberChangePasswordData, MemberChangePasswordResponse, MemberGetCancellationInfoResponse, MemberApplyCancellationResponse, MemberCancelCancellationResponse, MemberCheckBenefitsBatchData, MemberCheckBenefitsBatchResponse, MemberGetMemberBenefitsApiData, MemberGetMemberBenefitsApiResponse, MemberInvalidateMemberBenefitsCacheResponse, MemoryListConceptsData, MemoryListConceptsResponse, MemoryAddConceptData, MemoryAddConceptResponse, MemoryListConceptsWithCountsData, MemoryListConceptsWithCountsResponse, MemoryGetConceptData, MemoryGetConceptResponse, MemoryDeleteConceptData, MemoryDeleteConceptResponse, MemoryUpdateConceptData, MemoryUpdateConceptResponse, MemorySearchMemoryData, MemorySearchMemoryResponse, MemorySearchMemoryVectorData, MemorySearchMemoryVectorResponse, MemorySearchMemoryHybridData, MemorySearchMemoryHybridResponse, MemoryGetEpisodesByConceptData, MemoryGetEpisodesByConceptResponse, PlanningGetPlanData, PlanningGetPlanResponse, ProjectModulesGetBudgetListData, ProjectModulesGetBudgetListResponse, ProjectModulesGetBudgetOverviewData, ProjectModulesGetBudgetOverviewResponse, ProjectModulesGetTimesheetListData, ProjectModulesGetTimesheetListResponse, ProjectModulesQuickAddTimesheetData, ProjectModulesQuickAddTimesheetResponse, ProjectModulesGetProjectStatisticsData, ProjectModulesGetProjectStatisticsResponse, ProjectRequirementsUploadRequirementDocumentData, ProjectRequirementsUploadRequirementDocumentResponse, ProjectRequirementsListProjectRequirementsData, ProjectRequirementsListProjectRequirementsResponse, ProjectRequirementsGetRequirementDetailData, ProjectRequirementsGetRequirementDetailResponse, ProjectRequirementsDeleteRequirementDocumentData, ProjectRequirementsDeleteRequirementDocumentResponse, ProjectRequirementsGetAnalysisTasksData, ProjectRequirementsGetAnalysisTasksResponse, ProjectRequirementsGetAnalysisSyncProgressData, ProjectRequirementsGetAnalysisSyncProgressResponse, ProjectsGetProjectsData, ProjectsGetProjectsResponse, ProjectsCreateProjectData, ProjectsCreateProjectResponse, ProjectsGetCurrentProjectResponse, ProjectsGetProjectStatusData, ProjectsGetProjectStatusResponse, ProjectsDeleteProjectData, ProjectsDeleteProjectResponse, ProjectsRunIndexingEndpointData, ProjectsRunIndexingEndpointResponse, ProjectsGetDetectedProjectsResponse, ProjectsImportDetectedProjectData, ProjectsImportDetectedProjectResponse, ProjectsIgnoreDetectedProjectData, ProjectsIgnoreDetectedProjectResponse, ProjectsGetIgnoredProjectsResponse, ProjectsUnignoreProjectData, ProjectsUnignoreProjectResponse, ProjectsBatchImportProjectsData, ProjectsBatchImportProjectsResponse, ProjectsBatchIgnoreProjectsData, ProjectsBatchIgnoreProjectsResponse, ResourcesListResourcesData, ResourcesListResourcesResponse, ResourcesCreateResourceData, ResourcesCreateResourceResponse, ResourcesDeleteResourceData, ResourcesDeleteResourceResponse, StreamStreamChatData, StreamStreamChatResponse, SubscriptionGetSubscriptionPlansResponse, SubscriptionCalculateUpgradePriceData, SubscriptionCalculateUpgradePriceResponse, SubscriptionGetSubscriptionStatusResponse, SubscriptionGetSubscriptionDetailResponse, SubscriptionCreateSubscriptionOrderData, SubscriptionCreateSubscriptionOrderResponse, SubscriptionCancelSubscriptionData, SubscriptionCancelSubscriptionResponse, SubscriptionCheckSubscriptionOrderStatusData, SubscriptionCheckSubscriptionOrderStatusResponse, SubscriptionGetAiQuotaResponse, SubscriptionGetAllAiQuotasResponse, SubscriptionGetAiQuotaHistoryData, SubscriptionGetAiQuotaHistoryResponse, SubscriptionHandleBenefitsUpdateWebhookData, SubscriptionHandleBenefitsUpdateWebhookResponse, SubtasksCreateTaskWithSubtasksData, SubtasksCreateTaskWithSubtasksResponse, SubtasksGetTaskTreeData, SubtasksGetTaskTreeResponse, SubtasksUpdateTaskProgressData, SubtasksUpdateTaskProgressResponse, SubtasksGetNextExecutableTaskData, SubtasksGetNextExecutableTaskResponse, SubtasksFlattenTaskTreeData, SubtasksFlattenTaskTreeResponse, SubtasksListRootTasksData, SubtasksListRootTasksResponse, SymbolsSearchSymbolsData, SymbolsSearchSymbolsResponse, SymbolsGenerateSymbolWikiData, SymbolsGenerateSymbolWikiResponse, SystemGetSystemStatusResponse, SystemGetSystemConfigResponse, SystemUpdateSystemConfigData, SystemUpdateSystemConfigResponse, SystemHealthCheckResponse, SystemTestEmbeddingConnectionData, SystemTestEmbeddingConnectionResponse, SystemApplyEmbeddingConfigData, SystemApplyEmbeddingConfigResponse, SystemTestLlmConnectionData, SystemTestLlmConnectionResponse, SystemApplyLlmConfigData, SystemApplyLlmConfigResponse, SystemResetKnowledgeBaseResponse, SystemGetCloudStatusResponse, SystemGetLlmModelsData, SystemGetLlmModelsResponse, SystemGetEmbeddingModelsResponse, SystemGetProjectDiscoveryConfigResponse, SystemSetProjectDiscoveryConfigData, SystemSetProjectDiscoveryConfigResponse, TasksGetProjectTasksData, TasksGetProjectTasksResponse, TasksCreateTaskData, TasksCreateTaskResponse, TasksGetTaskDetailData, TasksGetTaskDetailResponse, TasksUpdateTaskData, TasksUpdateTaskResponse, TasksDeleteTaskData, TasksDeleteTaskResponse, TasksUpdateTaskStatusEndpointData, TasksUpdateTaskStatusEndpointResponse, TasksExecuteTaskData, TasksExecuteTaskResponse, TodosCreateTodoData, TodosCreateTodoResponse, TodosListTodosData, TodosListTodosResponse, TodosGetTodoData, TodosGetTodoResponse, TodosUpdateTodoData, TodosUpdateTodoResponse, TodosDeleteTodoData, TodosDeleteTodoResponse, ToolsListRuntimeToolsResponse, ToolsListAllToolsResponse, UtilsHealthCheckResponse, UtilsGetEvoloopStatusResponse, UtilsGetAiConfigResponse, WikiGetWikiPagesData, WikiGetWikiPagesResponse, WikiGenerateWikiData, WikiGenerateWikiResponse } from './types.gen';
+import type { AccountLoginAccessTokenData, AccountLoginAccessTokenResponse, AccountRequestMobileCodeData, AccountRequestMobileCodeResponse, AccountLoginMobileData, AccountLoginMobileResponse, AccountGetWechatConfigResponse, AccountGenerateQrCodeResponse, AccountCheckWechatLoginStatusData, AccountCheckWechatLoginStatusResponse, AccountWechatDirectLoginData, AccountWechatDirectLoginResponse, AccountWechatCallbackData, AccountWechatCallbackResponse, AccountLogoutResponse, AgentChatEndpointData, AgentChatEndpointResponse, AgentStopChatData, AgentStopChatResponse, AgentRetryChatData, AgentRetryChatResponse, AgentResumeChatData, AgentResumeChatResponse, AgentCancelHitlRequestData, AgentCancelHitlRequestResponse, AgentWebhookEndpointData, AgentWebhookEndpointResponse, AudioListVoicesResponse, AudioTextToSpeechData, AudioTextToSpeechResponse, AudioTextToSpeechStreamData, AudioTextToSpeechStreamResponse, AudioGetTtsFileData, AudioGetTtsFileResponse, AudioListSttProvidersResponse, AudioTranscribeAudioData, AudioTranscribeAudioResponse, AudioTranscribeStreamData, AudioTranscribeStreamResponse, AuthGetCaptchaConfigResponse, AuthGetCaptchaData, AuthGetCaptchaResponse, AuthGetRegisterConfigResponse, AuthGetRegisterAgreementResponse, AuthSendSmsData, AuthSendSmsResponse, AuthRegisterMobileData, AuthRegisterMobileResponse, AuthRegisterUsernameData, AuthRegisterUsernameResponse, AuthLoginMobileData, AuthLoginMobileResponse, AuthCheckMobileData, AuthCheckMobileResponse, AuthResetPasswordData, AuthResetPasswordResponse, ConversationsListConversationsData, ConversationsListConversationsResponse, ConversationsGetConversationMessagesData, ConversationsGetConversationMessagesResponse, ConversationsSearchConversationsData, ConversationsSearchConversationsResponse, ConversationsRenameConversationData, ConversationsRenameConversationResponse, ConversationsDeleteConversationData, ConversationsDeleteConversationResponse, ConversationsGetThreadActivityData, ConversationsGetThreadActivityResponse, ConversationsRewindConversationData, ConversationsRewindConversationResponse, ConversationsGetThreadChangesetData, ConversationsGetThreadChangesetResponse, DevicesGetDevicesResponse, DevicesSendCommandData, DevicesSendCommandResponse, DevicesGetRecentLogsData, DevicesGetRecentLogsResponse, DevicesSearchLogsData, DevicesSearchLogsResponse, DevicesBindClientData, DevicesBindClientResponse, DevicesBindCurrentDeviceData, DevicesBindCurrentDeviceResponse, DevicesGetDebugStatusResponse, FilesListFilesData, FilesListFilesResponse, FilesCreateFileData, FilesCreateFileResponse, FilesGetFileContentData, FilesGetFileContentResponse, FilesGetRawFileData, FilesGetRawFileResponse, FilesOpenFileData, FilesOpenFileResponse, FilesUploadFileData, FilesUploadFileResponse, FilesSearchFilesData, FilesSearchFilesResponse, FilesSearchFilesByNameData, FilesSearchFilesByNameResponse, GhostTextSuggestInlineCompletionData, GhostTextSuggestInlineCompletionResponse, GhostTextPreviewEditGhostData, GhostTextPreviewEditGhostResponse, GhostTextListPatternsData, GhostTextListPatternsResponse, KnowledgeUploadDocumentData, KnowledgeUploadDocumentResponse, KnowledgeListDocumentsData, KnowledgeListDocumentsResponse, KnowledgeReadDocumentData, KnowledgeReadDocumentResponse, KnowledgeDeleteDocumentData, KnowledgeDeleteDocumentResponse, KnowledgeListCollectionsResponse, KnowledgeCreateCollectionData, KnowledgeCreateCollectionResponse, KnowledgeListTagsData, KnowledgeListTagsResponse, KnowledgeSearchDocumentsData, KnowledgeSearchDocumentsResponse, KnowledgeBulkUploadData, KnowledgeBulkUploadResponse, KnowledgeImportZipData, KnowledgeImportZipResponse, KnowledgeValidateZipData, KnowledgeValidateZipResponse, KnowledgeFtsSearchData, KnowledgeFtsSearchResponse, KnowledgeFtsSuggestData, KnowledgeFtsSuggestResponse, KnowledgeAnalyzeDuplicatesData, KnowledgeAnalyzeDuplicatesResponse, KnowledgeMergeDocumentsData, KnowledgeMergeDocumentsResponse, KnowledgeGetPopularDocumentsData, KnowledgeGetPopularDocumentsResponse, KnowledgeGetUsageAnalyticsData, KnowledgeGetUsageAnalyticsResponse, KnowledgeGetRecommendationsData, KnowledgeGetRecommendationsResponse, KnowledgeGetDocumentStatsData, KnowledgeGetDocumentStatsResponse, KnowledgeRunMaintenanceData, KnowledgeRunMaintenanceResponse, KnowledgeAnalyzeMaintenanceDuplicatesData, KnowledgeAnalyzeMaintenanceDuplicatesResponse, KnowledgeMergeMaintenanceDocumentsData, KnowledgeMergeMaintenanceDocumentsResponse, KnowledgeCheckQualityData, KnowledgeCheckQualityResponse, KnowledgeListMaintenanceReportsData, KnowledgeListMaintenanceReportsResponse, LearningGetActionRegistryResponse, LearningListPendingRequestsData, LearningListPendingRequestsResponse, LearningGetRequestData, LearningGetRequestResponse, LearningRespondToRequestData, LearningRespondToRequestResponse, LearningCancelPendingRequestData, LearningCancelPendingRequestResponse, LearningCleanupRequestsData, LearningCleanupRequestsResponse, LearningStartRecordingData, LearningStartRecordingResponse, LearningStopRecordingData, LearningStopRecordingResponse, LearningListRecordingSessionsData, LearningListRecordingSessionsResponse, LearningSynthesizeSkillData, LearningSynthesizeSkillResponse, LearningImportSkillsData, LearningImportSkillsResponse, LearningListSkillsData, LearningListSkillsResponse, LearningGetSkillData, LearningGetSkillResponse, LearningDeleteSkillData, LearningDeleteSkillResponse, LearningUpdateSkillData, LearningUpdateSkillResponse, LearningExecuteSkillData, LearningExecuteSkillResponse, LearningListMirrorDevicesResponse, LearningStartMirrorSessionData, LearningStartMirrorSessionResponse, LearningStartMirrorRecordingData, LearningStartMirrorRecordingResponse, LearningStopMirrorSessionData, LearningStopMirrorSessionResponse, LearningGetDeviceResolutionData, LearningGetDeviceResolutionResponse, LearningPersistMirrorEventsData, LearningPersistMirrorEventsResponse, LearningPersistGlobalEventsData, LearningPersistGlobalEventsResponse, LearningPersistDomEventsData, LearningPersistDomEventsResponse, LearningUploadScreenshotData, LearningUploadScreenshotResponse, LearningValidateSkillData, LearningValidateSkillResponse, LearningSynthesizeFromRecordingData, LearningSynthesizeFromRecordingResponse, LearningPreviewRecordingDataData, LearningPreviewRecordingDataResponse, LearningListAnnotationsData, LearningListAnnotationsResponse, LearningCreateAndroidExtractPointData, LearningCreateAndroidExtractPointResponse, LearningListAndroidExtractPointsData, LearningListAndroidExtractPointsResponse, LearningStartSmartSynthesisData, LearningStartSmartSynthesisResponse, LearningGetSynthesisJobData, LearningGetSynthesisJobResponse, LearningListSessionSynthesisJobsData, LearningListSessionSynthesisJobsResponse, LearningCleanupRecordingSessionData, LearningCleanupRecordingSessionResponse, LearningConfirmLearnedSkillData, LearningConfirmLearnedSkillResponse, LearningCreateSkillFromYamlData, LearningCreateSkillFromYamlResponse, LearningValidateSkillYamlData, LearningValidateSkillYamlResponse, LearningGetSkillYamlData, LearningGetSkillYamlResponse, LearningUpdateSkillYamlData, LearningUpdateSkillYamlResponse, McpListMcpServersResponse, McpAddMcpServerData, McpAddMcpServerResponse, McpDeleteMcpServerData, McpDeleteMcpServerResponse, McpConnectMcpServerData, McpConnectMcpServerResponse, MemberReadUserMeResponse, MemberUpdateUserMeData, MemberUpdateUserMeResponse, MemberChangePasswordData, MemberChangePasswordResponse, MemberGetCancellationInfoResponse, MemberApplyCancellationResponse, MemberCancelCancellationResponse, MemberCheckBenefitsBatchData, MemberCheckBenefitsBatchResponse, MemberGetMemberBenefitsApiData, MemberGetMemberBenefitsApiResponse, MemberInvalidateMemberBenefitsCacheResponse, MemoryListConceptsData, MemoryListConceptsResponse, MemoryAddConceptData, MemoryAddConceptResponse, MemoryListConceptsWithCountsData, MemoryListConceptsWithCountsResponse, MemoryGetConceptData, MemoryGetConceptResponse, MemoryDeleteConceptData, MemoryDeleteConceptResponse, MemoryUpdateConceptData, MemoryUpdateConceptResponse, MemorySearchMemoryData, MemorySearchMemoryResponse, MemorySearchMemoryVectorData, MemorySearchMemoryVectorResponse, MemorySearchMemoryHybridData, MemorySearchMemoryHybridResponse, MemoryGetEpisodesByConceptData, MemoryGetEpisodesByConceptResponse, MemoryDeduplicateCheckpointsData, MemoryDeduplicateCheckpointsResponse, PlanningGetPlanData, PlanningGetPlanResponse, ProjectModulesGetBudgetListData, ProjectModulesGetBudgetListResponse, ProjectModulesGetBudgetOverviewData, ProjectModulesGetBudgetOverviewResponse, ProjectModulesGetTimesheetListData, ProjectModulesGetTimesheetListResponse, ProjectModulesQuickAddTimesheetData, ProjectModulesQuickAddTimesheetResponse, ProjectModulesGetProjectStatisticsData, ProjectModulesGetProjectStatisticsResponse, ProjectRequirementsUploadRequirementDocumentData, ProjectRequirementsUploadRequirementDocumentResponse, ProjectRequirementsListProjectRequirementsData, ProjectRequirementsListProjectRequirementsResponse, ProjectRequirementsGetRequirementDetailData, ProjectRequirementsGetRequirementDetailResponse, ProjectRequirementsDeleteRequirementDocumentData, ProjectRequirementsDeleteRequirementDocumentResponse, ProjectRequirementsGetAnalysisTasksData, ProjectRequirementsGetAnalysisTasksResponse, ProjectRequirementsGetAnalysisSyncProgressData, ProjectRequirementsGetAnalysisSyncProgressResponse, ProjectsGetProjectsData, ProjectsGetProjectsResponse, ProjectsCreateProjectData, ProjectsCreateProjectResponse, ProjectsGetCurrentProjectResponse, ProjectsGetProjectStatusData, ProjectsGetProjectStatusResponse, ProjectsDeleteProjectData, ProjectsDeleteProjectResponse, ProjectsRunIndexingEndpointData, ProjectsRunIndexingEndpointResponse, ProjectsGetDetectedProjectsResponse, ProjectsImportDetectedProjectData, ProjectsImportDetectedProjectResponse, ProjectsIgnoreDetectedProjectData, ProjectsIgnoreDetectedProjectResponse, ProjectsGetIgnoredProjectsResponse, ProjectsUnignoreProjectData, ProjectsUnignoreProjectResponse, ProjectsBatchImportProjectsData, ProjectsBatchImportProjectsResponse, ProjectsBatchIgnoreProjectsData, ProjectsBatchIgnoreProjectsResponse, ResourcesListResourcesData, ResourcesListResourcesResponse, ResourcesCreateResourceData, ResourcesCreateResourceResponse, ResourcesDeleteResourceData, ResourcesDeleteResourceResponse, StreamStreamChatData, StreamStreamChatResponse, SubscriptionGetSubscriptionPlansResponse, SubscriptionCalculateUpgradePriceData, SubscriptionCalculateUpgradePriceResponse, SubscriptionGetSubscriptionStatusResponse, SubscriptionGetSubscriptionDetailResponse, SubscriptionCreateSubscriptionOrderData, SubscriptionCreateSubscriptionOrderResponse, SubscriptionCancelSubscriptionData, SubscriptionCancelSubscriptionResponse, SubscriptionCheckSubscriptionOrderStatusData, SubscriptionCheckSubscriptionOrderStatusResponse, SubscriptionGetAiQuotaResponse, SubscriptionGetAllAiQuotasResponse, SubscriptionGetAiQuotaHistoryData, SubscriptionGetAiQuotaHistoryResponse, SubscriptionHandleBenefitsUpdateWebhookData, SubscriptionHandleBenefitsUpdateWebhookResponse, SubtasksCreateTaskWithSubtasksData, SubtasksCreateTaskWithSubtasksResponse, SubtasksGetTaskTreeData, SubtasksGetTaskTreeResponse, SubtasksUpdateTaskProgressData, SubtasksUpdateTaskProgressResponse, SubtasksGetNextExecutableTaskData, SubtasksGetNextExecutableTaskResponse, SubtasksFlattenTaskTreeData, SubtasksFlattenTaskTreeResponse, SubtasksListRootTasksData, SubtasksListRootTasksResponse, SymbolsSearchSymbolsData, SymbolsSearchSymbolsResponse, SymbolsGenerateSymbolWikiData, SymbolsGenerateSymbolWikiResponse, SystemGetSystemStatusResponse, SystemGetSystemConfigResponse, SystemUpdateSystemConfigData, SystemUpdateSystemConfigResponse, SystemHealthCheckResponse, SystemTestEmbeddingConnectionData, SystemTestEmbeddingConnectionResponse, SystemApplyEmbeddingConfigData, SystemApplyEmbeddingConfigResponse, SystemTestLlmConnectionData, SystemTestLlmConnectionResponse, SystemApplyLlmConfigData, SystemApplyLlmConfigResponse, SystemResetKnowledgeBaseResponse, SystemGetCloudStatusResponse, SystemGetLlmModelsData, SystemGetLlmModelsResponse, SystemGetEmbeddingModelsResponse, SystemGetProjectDiscoveryConfigResponse, SystemSetProjectDiscoveryConfigData, SystemSetProjectDiscoveryConfigResponse, TasksGetProjectTasksData, TasksGetProjectTasksResponse, TasksCreateTaskData, TasksCreateTaskResponse, TasksGetTaskDetailData, TasksGetTaskDetailResponse, TasksUpdateTaskData, TasksUpdateTaskResponse, TasksDeleteTaskData, TasksDeleteTaskResponse, TasksUpdateTaskStatusEndpointData, TasksUpdateTaskStatusEndpointResponse, TasksExecuteTaskData, TasksExecuteTaskResponse, TodosCreateTodoData, TodosCreateTodoResponse, TodosListTodosData, TodosListTodosResponse, TodosGetTodoData, TodosGetTodoResponse, TodosUpdateTodoData, TodosUpdateTodoResponse, TodosDeleteTodoData, TodosDeleteTodoResponse, ToolsListRuntimeToolsResponse, ToolsListAllToolsResponse, UtilsHealthCheckResponse, UtilsGetEvoloopStatusResponse, UtilsGetAiConfigResponse, WikiGetWikiPagesData, WikiGetWikiPagesResponse, WikiGenerateWikiData, WikiGenerateWikiResponse } from './types.gen';
 
 export class AccountService {
     /**
@@ -32,7 +32,7 @@ export class AccountService {
      * Request an SMS verification code via Member Center.
      * @param data The data for the request.
      * @param data.requestBody
-     * @returns unknown Successful Response
+     * @returns MobileCodeResponse Successful Response
      * @throws ApiError
      */
     public static requestMobileCode(data: AccountRequestMobileCodeData): CancelablePromise<AccountRequestMobileCodeResponse> {
@@ -70,7 +70,7 @@ export class AccountService {
     /**
      * Get Wechat Config
      * Get WeChat login configuration from Member Center.
-     * @returns unknown Successful Response
+     * @returns WeChatConfigResponse Successful Response
      * @throws ApiError
      */
     public static getWechatConfig(): CancelablePromise<AccountGetWechatConfigResponse> {
@@ -83,7 +83,7 @@ export class AccountService {
     /**
      * Generate Qr Code
      * Generate a QR code for WeChat login via Member Center.
-     * @returns unknown Successful Response
+     * @returns WeChatQRResponse Successful Response
      * @throws ApiError
      */
     public static generateQrCode(): CancelablePromise<AccountGenerateQrCodeResponse> {
@@ -98,7 +98,7 @@ export class AccountService {
      * Check the login status for a given QR code key via Member Center.
      * @param data The data for the request.
      * @param data.key The unique key from QR code generation
-     * @returns unknown Successful Response
+     * @returns WeChatStatusResponse Successful Response
      * @throws ApiError
      */
     public static checkWechatLoginStatus(data: AccountCheckWechatLoginStatusData): CancelablePromise<AccountCheckWechatLoginStatusResponse> {
@@ -163,7 +163,7 @@ export class AccountService {
     /**
      * Logout
      * Clear local session and cloud tokens.
-     * @returns unknown Successful Response
+     * @returns LogoutResponse Successful Response
      * @throws ApiError
      */
     public static logout(): CancelablePromise<AccountLogoutResponse> {
@@ -210,7 +210,7 @@ export class AgentService {
      * Stop the current generation for a thread.
      * @param data The data for the request.
      * @param data.requestBody
-     * @returns unknown Successful Response
+     * @returns StopChatResponse Successful Response
      * @throws ApiError
      */
     public static stopChat(data: AgentStopChatData): CancelablePromise<AgentStopChatResponse> {
@@ -327,7 +327,7 @@ export class AudioService {
      * 获取可用 TTS 声音列表
      *
      * 返回 Edge-TTS 支持的所有声音（中文、英文、日文、韩文等）
-     * @returns unknown Successful Response
+     * @returns VoiceListResponse Successful Response
      * @throws ApiError
      */
     public static listVoices(): CancelablePromise<AudioListVoicesResponse> {
@@ -432,7 +432,7 @@ export class AudioService {
      * 获取可用 STT 提供商列表
      *
      * 返回所有可用的语音识别提供商及其状态
-     * @returns unknown Successful Response
+     * @returns STTProvidersResponse Successful Response
      * @throws ApiError
      */
     public static listSttProviders(): CancelablePromise<AudioListSttProvidersResponse> {
@@ -501,7 +501,7 @@ export class AuthService {
     /**
      * Get Captcha Config
      * Get Captcha Configuration
-     * @returns unknown Successful Response
+     * @returns EvoCloudProxyResponse Successful Response
      * @throws ApiError
      */
     public static getCaptchaConfig(): CancelablePromise<AuthGetCaptchaConfigResponse> {
@@ -516,7 +516,7 @@ export class AuthService {
      * Get Captcha Image
      * @param data The data for the request.
      * @param data.captchaId
-     * @returns unknown Successful Response
+     * @returns EvoCloudProxyResponse Successful Response
      * @throws ApiError
      */
     public static getCaptcha(data: AuthGetCaptchaData): CancelablePromise<AuthGetCaptchaResponse> {
@@ -535,7 +535,7 @@ export class AuthService {
     /**
      * Get Register Config
      * Get Registration Config
-     * @returns unknown Successful Response
+     * @returns EvoCloudProxyResponse Successful Response
      * @throws ApiError
      */
     public static getRegisterConfig(): CancelablePromise<AuthGetRegisterConfigResponse> {
@@ -548,7 +548,7 @@ export class AuthService {
     /**
      * Get Register Agreement
      * Get Registration Agreement
-     * @returns unknown Successful Response
+     * @returns EvoCloudProxyResponse Successful Response
      * @throws ApiError
      */
     public static getRegisterAgreement(): CancelablePromise<AuthGetRegisterAgreementResponse> {
@@ -563,7 +563,7 @@ export class AuthService {
      * Send Mobile Verification Code
      * @param data The data for the request.
      * @param data.requestBody
-     * @returns unknown Successful Response
+     * @returns EvoCloudProxyResponse Successful Response
      * @throws ApiError
      */
     public static sendSms(data: AuthSendSmsData): CancelablePromise<AuthSendSmsResponse> {
@@ -583,7 +583,7 @@ export class AuthService {
      * Register with Mobile
      * @param data The data for the request.
      * @param data.requestBody
-     * @returns unknown Successful Response
+     * @returns EvoCloudProxyResponse Successful Response
      * @throws ApiError
      */
     public static registerMobile(data: AuthRegisterMobileData): CancelablePromise<AuthRegisterMobileResponse> {
@@ -603,7 +603,7 @@ export class AuthService {
      * Register with Username/Password
      * @param data The data for the request.
      * @param data.requestBody
-     * @returns unknown Successful Response
+     * @returns EvoCloudProxyResponse Successful Response
      * @throws ApiError
      */
     public static registerUsername(data: AuthRegisterUsernameData): CancelablePromise<AuthRegisterUsernameResponse> {
@@ -623,7 +623,7 @@ export class AuthService {
      * Login with Mobile Code
      * @param data The data for the request.
      * @param data.requestBody
-     * @returns unknown Successful Response
+     * @returns LoginResult Successful Response
      * @throws ApiError
      */
     public static loginMobile(data: AuthLoginMobileData): CancelablePromise<AuthLoginMobileResponse> {
@@ -643,7 +643,7 @@ export class AuthService {
      * Check if mobile is registered
      * @param data The data for the request.
      * @param data.requestBody
-     * @returns unknown Successful Response
+     * @returns EvoCloudProxyResponse Successful Response
      * @throws ApiError
      */
     public static checkMobile(data: AuthCheckMobileData): CancelablePromise<AuthCheckMobileResponse> {
@@ -663,7 +663,7 @@ export class AuthService {
      * Reset password with Mobile Code
      * @param data The data for the request.
      * @param data.requestBody
-     * @returns unknown Successful Response
+     * @returns EvoCloudProxyResponse Successful Response
      * @throws ApiError
      */
     public static resetPassword(data: AuthResetPasswordData): CancelablePromise<AuthResetPasswordResponse> {
@@ -755,7 +755,7 @@ export class ConversationsService {
      * @param data The data for the request.
      * @param data.q
      * @param data.projectId
-     * @returns SearchResult Successful Response
+     * @returns ConversationSearchResult Successful Response
      * @throws ApiError
      */
     public static searchConversations(data: ConversationsSearchConversationsData): CancelablePromise<ConversationsSearchConversationsResponse> {
@@ -987,7 +987,7 @@ export class DevicesService {
      * @param data The data for the request.
      * @param data.deviceId
      * @param data.requestBody
-     * @returns unknown Successful Response
+     * @returns BindResponse Successful Response
      * @throws ApiError
      */
     public static bindClient(data: DevicesBindClientData): CancelablePromise<DevicesBindClientResponse> {
@@ -1010,7 +1010,7 @@ export class DevicesService {
      * Bind a client_id (e.g. mobile) to THIS server device
      * @param data The data for the request.
      * @param data.requestBody
-     * @returns unknown Successful Response
+     * @returns BindResponse Successful Response
      * @throws ApiError
      */
     public static bindCurrentDevice(data: DevicesBindCurrentDeviceData): CancelablePromise<DevicesBindCurrentDeviceResponse> {
@@ -1028,7 +1028,7 @@ export class DevicesService {
     /**
      * Get Debug Status
      * Debug endpoint to check EvoCloud client state
-     * @returns unknown Successful Response
+     * @returns DebugStatusResponse Successful Response
      * @throws ApiError
      */
     public static getDebugStatus(): CancelablePromise<DevicesGetDebugStatusResponse> {
@@ -1196,7 +1196,7 @@ export class FilesService {
      * @param data The data for the request.
      * @param data.projectId
      * @param data.q
-     * @returns unknown Successful Response
+     * @returns FileSearchResult Successful Response
      * @throws ApiError
      */
     public static searchFiles(data: FilesSearchFilesData): CancelablePromise<FilesSearchFilesResponse> {
@@ -1222,7 +1222,7 @@ export class FilesService {
      * @param data The data for the request.
      * @param data.projectId
      * @param data.q
-     * @returns unknown Successful Response
+     * @returns FileNameSearchResult Successful Response
      * @throws ApiError
      */
     public static searchFilesByName(data: FilesSearchFilesByNameData): CancelablePromise<FilesSearchFilesByNameResponse> {
@@ -1309,7 +1309,7 @@ export class GhostTextService {
      * Useful for understanding what completions are available.
      * @param data The data for the request.
      * @param data.language Filter by language (py, ts, js, etc.)
-     * @returns unknown Successful Response
+     * @returns GhostPatternItem Successful Response
      * @throws ApiError
      */
     public static listPatterns(data: GhostTextListPatternsData = {}): CancelablePromise<GhostTextListPatternsResponse> {
@@ -1362,11 +1362,12 @@ export class KnowledgeService {
      * List documents in the knowledge base.
      *
      * Returns a paginated list of documents with metadata.
-     * Supports filtering by project and tags.
+     * Supports filtering by collection, tags, and workspace project.
      * @param data The data for the request.
-     * @param data.project Filter by project
+     * @param data.collection Filter by collection
      * @param data.pattern File pattern
      * @param data.tags Filter by tags (comma-separated)
+     * @param data.sourceProjectId Filter by workspace project ID
      * @param data.limit
      * @returns DocumentListResponse Successful Response
      * @throws ApiError
@@ -1376,9 +1377,10 @@ export class KnowledgeService {
             method: 'GET',
             url: '/api/v1/knowledge/documents',
             query: {
-                project: data.project,
+                collection: data.collection,
                 pattern: data.pattern,
                 tags: data.tags,
+                source_project_id: data.sourceProjectId,
                 limit: data.limit
             },
             errors: {
@@ -1422,7 +1424,7 @@ export class KnowledgeService {
      * Delete a document from the knowledge base.
      * @param data The data for the request.
      * @param data.path
-     * @returns unknown Successful Response
+     * @returns DocumentResponse Successful Response
      * @throws ApiError
      */
     public static deleteDocument(data: KnowledgeDeleteDocumentData): CancelablePromise<KnowledgeDeleteDocumentResponse> {
@@ -1439,30 +1441,30 @@ export class KnowledgeService {
     }
     
     /**
-     * List Projects
-     * List all knowledge base projects.
-     * @returns unknown Successful Response
+     * List Collections
+     * List all knowledge base collections.
+     * @returns CollectionResponse Successful Response
      * @throws ApiError
      */
-    public static listProjects(): CancelablePromise<KnowledgeListProjectsResponse> {
+    public static listCollections(): CancelablePromise<KnowledgeListCollectionsResponse> {
         return __request(OpenAPI, {
             method: 'GET',
-            url: '/api/v1/knowledge/projects'
+            url: '/api/v1/knowledge/collections'
         });
     }
     
     /**
-     * Create Project
-     * Create a new knowledge base project.
+     * Create Collection
+     * Create a new knowledge base collection.
      * @param data The data for the request.
      * @param data.name
-     * @returns unknown Successful Response
+     * @returns DocumentResponse Successful Response
      * @throws ApiError
      */
-    public static createProject(data: KnowledgeCreateProjectData): CancelablePromise<KnowledgeCreateProjectResponse> {
+    public static createCollection(data: KnowledgeCreateCollectionData): CancelablePromise<KnowledgeCreateCollectionResponse> {
         return __request(OpenAPI, {
             method: 'POST',
-            url: '/api/v1/knowledge/projects/{name}',
+            url: '/api/v1/knowledge/collections/{name}',
             path: {
                 name: data.name
             },
@@ -1478,9 +1480,9 @@ export class KnowledgeService {
      *
      * Returns tags with document counts for the tag cloud/filter UI.
      * @param data The data for the request.
-     * @param data.project Filter by project
+     * @param data.collection Filter by collection
      * @param data.limit
-     * @returns unknown Successful Response
+     * @returns TagResponse Successful Response
      * @throws ApiError
      */
     public static listTags(data: KnowledgeListTagsData = {}): CancelablePromise<KnowledgeListTagsResponse> {
@@ -1488,7 +1490,7 @@ export class KnowledgeService {
             method: 'GET',
             url: '/api/v1/knowledge/tags',
             query: {
-                project: data.project,
+                collection: data.collection,
                 limit: data.limit
             },
             errors: {
@@ -1504,9 +1506,9 @@ export class KnowledgeService {
      * Performs full-text search across all documents.
      * @param data The data for the request.
      * @param data.q Search query
-     * @param data.project Limit to project
+     * @param data.collection Limit to collection
      * @param data.contextLines
-     * @returns unknown Successful Response
+     * @returns DocumentSearchResponse Successful Response
      * @throws ApiError
      */
     public static searchDocuments(data: KnowledgeSearchDocumentsData): CancelablePromise<KnowledgeSearchDocumentsResponse> {
@@ -1515,7 +1517,7 @@ export class KnowledgeService {
             url: '/api/v1/knowledge/search',
             query: {
                 q: data.q,
-                project: data.project,
+                collection: data.collection,
                 context_lines: data.contextLines
             },
             errors: {
@@ -1532,7 +1534,7 @@ export class KnowledgeService {
      * Each file is processed independently.
      * @param data The data for the request.
      * @param data.formData
-     * @returns unknown Successful Response
+     * @returns BulkUploadResponse Successful Response
      * @throws ApiError
      */
     public static bulkUpload(data: KnowledgeBulkUploadData): CancelablePromise<KnowledgeBulkUploadResponse> {
@@ -1555,7 +1557,7 @@ export class KnowledgeService {
      * Directory structure can be preserved or flattened.
      * @param data The data for the request.
      * @param data.formData
-     * @returns unknown Successful Response
+     * @returns ZipImportResponse Successful Response
      * @throws ApiError
      */
     public static importZip(data: KnowledgeImportZipData): CancelablePromise<KnowledgeImportZipResponse> {
@@ -1603,11 +1605,12 @@ export class KnowledgeService {
      * - Prefix: "auth*"
      * @param data The data for the request.
      * @param data.q FTS5 search query
-     * @param data.project Filter by project
+     * @param data.collection Filter by collection
      * @param data.tags Filter by tags (comma-separated)
+     * @param data.sourceProjectId Filter by workspace project ID
      * @param data.limit
      * @param data.offset
-     * @returns unknown Successful Response
+     * @returns FTSSearchResponse Successful Response
      * @throws ApiError
      */
     public static ftsSearch(data: KnowledgeFtsSearchData): CancelablePromise<KnowledgeFtsSearchResponse> {
@@ -1616,8 +1619,9 @@ export class KnowledgeService {
             url: '/api/v1/knowledge/fts/search',
             query: {
                 q: data.q,
-                project: data.project,
+                collection: data.collection,
                 tags: data.tags,
+                source_project_id: data.sourceProjectId,
                 limit: data.limit,
                 offset: data.offset
             },
@@ -1632,9 +1636,9 @@ export class KnowledgeService {
      * Get search suggestions based on prefix.
      * @param data The data for the request.
      * @param data.prefix Search prefix
-     * @param data.project Filter by project
+     * @param data.collection Filter by collection
      * @param data.limit
-     * @returns unknown Successful Response
+     * @returns FTSSuggestResponse Successful Response
      * @throws ApiError
      */
     public static ftsSuggest(data: KnowledgeFtsSuggestData): CancelablePromise<KnowledgeFtsSuggestResponse> {
@@ -1643,7 +1647,7 @@ export class KnowledgeService {
             url: '/api/v1/knowledge/fts/suggest',
             query: {
                 prefix: data.prefix,
-                project: data.project,
+                collection: data.collection,
                 limit: data.limit
             },
             errors: {
@@ -1658,7 +1662,7 @@ export class KnowledgeService {
      *
      * Returns groups of similar documents and suggested merges.
      * @param data The data for the request.
-     * @param data.project Project to analyze
+     * @param data.collection Collection to analyze
      * @returns unknown Successful Response
      * @throws ApiError
      */
@@ -1667,7 +1671,7 @@ export class KnowledgeService {
             method: 'GET',
             url: '/api/v1/knowledge/analytics/duplicates',
             query: {
-                project: data.project
+                collection: data.collection
             },
             errors: {
                 422: 'Validation Error'
@@ -1705,7 +1709,7 @@ export class KnowledgeService {
      * Get Popular Documents
      * Get most cited/popular documents.
      * @param data The data for the request.
-     * @param data.project Filter by project
+     * @param data.collection Filter by collection
      * @param data.days
      * @param data.limit
      * @returns unknown Successful Response
@@ -1716,7 +1720,7 @@ export class KnowledgeService {
             method: 'GET',
             url: '/api/v1/knowledge/analytics/popular',
             query: {
-                project: data.project,
+                collection: data.collection,
                 days: data.days,
                 limit: data.limit
             },
@@ -1788,13 +1792,134 @@ export class KnowledgeService {
             }
         });
     }
+    
+    /**
+     * Run Maintenance
+     * Run knowledge base maintenance tasks.
+     *
+     * Levels:
+     * - light: Analysis only, no changes
+     * - medium: Merge duplicates, archive cold docs
+     * - deep: Full optimization including knowledge graph
+     * @param data The data for the request.
+     * @param data.collection Target collection
+     * @param data.dryRun Preview changes without applying
+     * @param data.level Maintenance level: light, medium, deep
+     * @returns unknown Successful Response
+     * @throws ApiError
+     */
+    public static runMaintenance(data: KnowledgeRunMaintenanceData = {}): CancelablePromise<KnowledgeRunMaintenanceResponse> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/knowledge/maintenance/run',
+            query: {
+                collection: data.collection,
+                dry_run: data.dryRun,
+                level: data.level
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Analyze Maintenance Duplicates
+     * Analyze and return duplicate document report.
+     * @param data The data for the request.
+     * @param data.collection Target collection
+     * @returns unknown Successful Response
+     * @throws ApiError
+     */
+    public static analyzeMaintenanceDuplicates(data: KnowledgeAnalyzeMaintenanceDuplicatesData = {}): CancelablePromise<KnowledgeAnalyzeMaintenanceDuplicatesResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/knowledge/maintenance/duplicates',
+            query: {
+                collection: data.collection
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Merge Maintenance Documents
+     * Merge multiple documents into one.
+     * @param data The data for the request.
+     * @param data.requestBody
+     * @param data.strategy Merge strategy: concatenate, deduplicate
+     * @param data.targetPath Target path for merged document
+     * @returns unknown Successful Response
+     * @throws ApiError
+     */
+    public static mergeMaintenanceDocuments(data: KnowledgeMergeMaintenanceDocumentsData): CancelablePromise<KnowledgeMergeMaintenanceDocumentsResponse> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/knowledge/maintenance/merge',
+            query: {
+                strategy: data.strategy,
+                target_path: data.targetPath
+            },
+            body: data.requestBody,
+            mediaType: 'application/json',
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Check Quality
+     * Check document quality and return report.
+     * @param data The data for the request.
+     * @param data.collection Target collection
+     * @param data.limit Maximum documents to check
+     * @returns unknown Successful Response
+     * @throws ApiError
+     */
+    public static checkQuality(data: KnowledgeCheckQualityData = {}): CancelablePromise<KnowledgeCheckQualityResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/knowledge/maintenance/quality',
+            query: {
+                collection: data.collection,
+                limit: data.limit
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * List Maintenance Reports
+     * List recent maintenance reports.
+     * @param data The data for the request.
+     * @param data.limit Number of recent reports
+     * @returns unknown Successful Response
+     * @throws ApiError
+     */
+    public static listMaintenanceReports(data: KnowledgeListMaintenanceReportsData = {}): CancelablePromise<KnowledgeListMaintenanceReportsResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/knowledge/maintenance/reports',
+            query: {
+                limit: data.limit
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
 }
 
 export class LearningService {
     /**
      * Get Action Registry
      * Export the centralized action registry for frontend sync.
-     * @returns unknown Successful Response
+     * @returns ActionDef Successful Response
      * @throws ApiError
      */
     public static getActionRegistry(): CancelablePromise<LearningGetActionRegistryResponse> {
@@ -1854,7 +1979,7 @@ export class LearningService {
      * @param data The data for the request.
      * @param data.requestId
      * @param data.requestBody
-     * @returns RespondResponse Successful Response
+     * @returns BaseAPIResponse Successful Response
      * @throws ApiError
      */
     public static respondToRequest(data: LearningRespondToRequestData): CancelablePromise<LearningRespondToRequestResponse> {
@@ -1878,7 +2003,7 @@ export class LearningService {
      * The agent will receive the default value if set.
      * @param data The data for the request.
      * @param data.requestId
-     * @returns RespondResponse Successful Response
+     * @returns BaseAPIResponse Successful Response
      * @throws ApiError
      */
     public static cancelPendingRequest(data: LearningCancelPendingRequestData): CancelablePromise<LearningCancelPendingRequestResponse> {
@@ -1899,7 +2024,7 @@ export class LearningService {
      * Clean up old completed/cancelled requests.
      * @param data The data for the request.
      * @param data.maxAgeHours
-     * @returns RespondResponse Successful Response
+     * @returns BaseAPIResponse Successful Response
      * @throws ApiError
      */
     public static cleanupRequests(data: LearningCleanupRequestsData = {}): CancelablePromise<LearningCleanupRequestsResponse> {
@@ -1962,7 +2087,7 @@ export class LearningService {
      * List active recording sessions.
      * @param data The data for the request.
      * @param data.threadId
-     * @returns unknown Successful Response
+     * @returns RecordingSessionsResponse Successful Response
      * @throws ApiError
      */
     public static listRecordingSessions(data: LearningListRecordingSessionsData = {}): CancelablePromise<LearningListRecordingSessionsResponse> {
@@ -1984,7 +2109,7 @@ export class LearningService {
      * Uses LLM to analyze the trace and generate a reusable skill.
      * @param data The data for the request.
      * @param data.requestBody
-     * @returns unknown Successful Response
+     * @returns SynthesizeSkillResponse Successful Response
      * @throws ApiError
      */
     public static synthesizeSkill(data: LearningSynthesizeSkillData): CancelablePromise<LearningSynthesizeSkillResponse> {
@@ -2004,7 +2129,7 @@ export class LearningService {
      * Bulk import skills from a local directory (containing SKILL.md folders).
      * @param data The data for the request.
      * @param data.requestBody
-     * @returns unknown Successful Response
+     * @returns ImportSkillsResponse Successful Response
      * @throws ApiError
      */
     public static importSkills(data: LearningImportSkillsData): CancelablePromise<LearningImportSkillsResponse> {
@@ -2049,7 +2174,7 @@ export class LearningService {
      * Get full details of a specific skill.
      * @param data The data for the request.
      * @param data.skillId
-     * @returns unknown Successful Response
+     * @returns SkillDetailResponse Successful Response
      * @throws ApiError
      */
     public static getSkill(data: LearningGetSkillData): CancelablePromise<LearningGetSkillResponse> {
@@ -2070,7 +2195,7 @@ export class LearningService {
      * Physically delete a skill and its resources.
      * @param data The data for the request.
      * @param data.skillId
-     * @returns unknown Successful Response
+     * @returns BaseAPIResponse Successful Response
      * @throws ApiError
      */
     public static deleteSkill(data: LearningDeleteSkillData): CancelablePromise<LearningDeleteSkillResponse> {
@@ -2092,7 +2217,7 @@ export class LearningService {
      * @param data The data for the request.
      * @param data.skillId
      * @param data.requestBody
-     * @returns unknown Successful Response
+     * @returns UpdateSkillResponse Successful Response
      * @throws ApiError
      */
     public static updateSkill(data: LearningUpdateSkillData): CancelablePromise<LearningUpdateSkillResponse> {
@@ -2117,7 +2242,7 @@ export class LearningService {
      * @param data The data for the request.
      * @param data.skillId
      * @param data.requestBody
-     * @returns unknown Successful Response
+     * @returns ExecuteSkillResponse Successful Response
      * @throws ApiError
      */
     public static executeSkill(data: LearningExecuteSkillData): CancelablePromise<LearningExecuteSkillResponse> {
@@ -2138,7 +2263,7 @@ export class LearningService {
     /**
      * List Mirror Devices
      * List connected Android devices for mirroring.
-     * @returns unknown Successful Response
+     * @returns MirrorDevicesResponse Successful Response
      * @throws ApiError
      */
     public static listMirrorDevices(): CancelablePromise<LearningListMirrorDevicesResponse> {
@@ -2153,7 +2278,7 @@ export class LearningService {
      * Start a scrcpy mirroring session.
      * @param data The data for the request.
      * @param data.requestBody
-     * @returns unknown Successful Response
+     * @returns MirrorSessionResponse Successful Response
      * @throws ApiError
      */
     public static startMirrorSession(data: LearningStartMirrorSessionData): CancelablePromise<LearningStartMirrorSessionResponse> {
@@ -2174,7 +2299,7 @@ export class LearningService {
      * Called when user clicks 'Start Recording' button.
      * @param data The data for the request.
      * @param data.requestBody
-     * @returns unknown Successful Response
+     * @returns MirrorRecordingResponse Successful Response
      * @throws ApiError
      */
     public static startMirrorRecording(data: LearningStartMirrorRecordingData): CancelablePromise<LearningStartMirrorRecordingResponse> {
@@ -2197,7 +2322,7 @@ export class LearningService {
      * so this endpoint no longer needs to persist events on stop.
      * @param data The data for the request.
      * @param data.requestBody
-     * @returns unknown Successful Response
+     * @returns StopMirrorResponse Successful Response
      * @throws ApiError
      */
     public static stopMirrorSession(data: LearningStopMirrorSessionData): CancelablePromise<LearningStopMirrorSessionResponse> {
@@ -2217,7 +2342,7 @@ export class LearningService {
      * Get Android device screen resolution via ADB.
      * @param data The data for the request.
      * @param data.deviceId
-     * @returns unknown Successful Response
+     * @returns DeviceResolutionResponse Successful Response
      * @throws ApiError
      */
     public static getDeviceResolution(data: LearningGetDeviceResolutionData): CancelablePromise<LearningGetDeviceResolutionResponse> {
@@ -2245,7 +2370,7 @@ export class LearningService {
      * Called when user confirms skill synthesis (recommended for data integrity).
      * @param data The data for the request.
      * @param data.requestBody
-     * @returns unknown Successful Response
+     * @returns MirrorPersistResponse Successful Response
      * @throws ApiError
      */
     public static persistMirrorEvents(data: LearningPersistMirrorEventsData): CancelablePromise<LearningPersistMirrorEventsResponse> {
@@ -2266,7 +2391,7 @@ export class LearningService {
      * Unified with mirror events - all events go to TraceEvent table.
      * @param data The data for the request.
      * @param data.requestBody
-     * @returns unknown Successful Response
+     * @returns MirrorPersistResponse Successful Response
      * @throws ApiError
      */
     public static persistGlobalEvents(data: LearningPersistGlobalEventsData): CancelablePromise<LearningPersistGlobalEventsResponse> {
@@ -2287,7 +2412,7 @@ export class LearningService {
      * Unified with mirror events - all events go to TraceEvent table.
      * @param data The data for the request.
      * @param data.requestBody
-     * @returns unknown Successful Response
+     * @returns MirrorPersistResponse Successful Response
      * @throws ApiError
      */
     public static persistDomEvents(data: LearningPersistDomEventsData): CancelablePromise<LearningPersistDomEventsResponse> {
@@ -2328,7 +2453,7 @@ export class LearningService {
      * Run the validator on a skill and return its health status.
      * @param data The data for the request.
      * @param data.skillId
-     * @returns unknown Successful Response
+     * @returns ValidateSkillResponse Successful Response
      * @throws ApiError
      */
     public static validateSkill(data: LearningValidateSkillData): CancelablePromise<LearningValidateSkillResponse> {
@@ -2387,7 +2512,7 @@ export class LearningService {
      * @param data The data for the request.
      * @param data.sessionId
      * @param data.videoPath
-     * @returns unknown Successful Response
+     * @returns PreviewRecordingDataResponse Successful Response
      * @throws ApiError
      */
     public static previewRecordingData(data: LearningPreviewRecordingDataData): CancelablePromise<LearningPreviewRecordingDataResponse> {
@@ -2556,7 +2681,7 @@ export class LearningService {
      * @param data The data for the request.
      * @param data.sessionId
      * @param data.videoPath
-     * @returns unknown Successful Response
+     * @returns CleanupRecordingResponse Successful Response
      * @throws ApiError
      */
     public static cleanupRecordingSession(data: LearningCleanupRecordingSessionData): CancelablePromise<LearningCleanupRecordingSessionResponse> {
@@ -2581,7 +2706,7 @@ export class LearningService {
      * 将状态从 pending_review 更新为 verified。
      * @param data The data for the request.
      * @param data.skillId
-     * @returns RespondResponse Successful Response
+     * @returns BaseAPIResponse Successful Response
      * @throws ApiError
      */
     public static confirmLearnedSkill(data: LearningConfirmLearnedSkillData): CancelablePromise<LearningConfirmLearnedSkillResponse> {
@@ -2615,7 +2740,7 @@ export class LearningService {
      * ```
      * @param data The data for the request.
      * @param data.requestBody
-     * @returns unknown Successful Response
+     * @returns CreateSkillFromYamlResponse Successful Response
      * @throws ApiError
      */
     public static createSkillFromYaml(data: LearningCreateSkillFromYamlData): CancelablePromise<LearningCreateSkillFromYamlResponse> {
@@ -2682,7 +2807,7 @@ export class LearningService {
      * @param data The data for the request.
      * @param data.skillId
      * @param data.requestBody
-     * @returns unknown Successful Response
+     * @returns UpdateSkillFromYamlResponse Successful Response
      * @throws ApiError
      */
     public static updateSkillYaml(data: LearningUpdateSkillYamlData): CancelablePromise<LearningUpdateSkillYamlResponse> {
@@ -2740,7 +2865,7 @@ export class McpService {
      * Remove an MCP server.
      * @param data The data for the request.
      * @param data.name
-     * @returns unknown Successful Response
+     * @returns McpOperationResponse Successful Response
      * @throws ApiError
      */
     public static deleteMcpServer(data: McpDeleteMcpServerData): CancelablePromise<McpDeleteMcpServerResponse> {
@@ -2761,7 +2886,7 @@ export class McpService {
      * Manually trigger a connection to an MCP server.
      * @param data The data for the request.
      * @param data.name
-     * @returns unknown Successful Response
+     * @returns McpConnectResponse Successful Response
      * @throws ApiError
      */
     public static connectMcpServer(data: McpConnectMcpServerData): CancelablePromise<McpConnectMcpServerResponse> {
@@ -2835,7 +2960,7 @@ export class MemberService {
     
     /**
      * Get Cancellation Info
-     * @returns unknown Successful Response
+     * @returns EvoCloudProxyResponse Successful Response
      * @throws ApiError
      */
     public static getCancellationInfo(): CancelablePromise<MemberGetCancellationInfoResponse> {
@@ -2847,7 +2972,7 @@ export class MemberService {
     
     /**
      * Apply Cancellation
-     * @returns unknown Successful Response
+     * @returns EvoCloudProxyResponse Successful Response
      * @throws ApiError
      */
     public static applyCancellation(): CancelablePromise<MemberApplyCancellationResponse> {
@@ -2859,7 +2984,7 @@ export class MemberService {
     
     /**
      * Cancel Cancellation
-     * @returns unknown Successful Response
+     * @returns EvoCloudProxyResponse Successful Response
      * @throws ApiError
      */
     public static cancelCancellation(): CancelablePromise<MemberCancelCancellationResponse> {
@@ -2899,7 +3024,7 @@ export class MemberService {
      * force_refresh: 是否强制刷新缓存
      * @param data The data for the request.
      * @param data.forceRefresh
-     * @returns unknown Successful Response
+     * @returns MemberBenefitsResponse Successful Response
      * @throws ApiError
      */
     public static getMemberBenefitsApi(data: MemberGetMemberBenefitsApiData = {}): CancelablePromise<MemberGetMemberBenefitsApiResponse> {
@@ -2918,7 +3043,7 @@ export class MemberService {
     /**
      * Invalidate Member Benefits Cache
      * 手动使权益缓存失效（用于调试或强制刷新）
-     * @returns unknown Successful Response
+     * @returns CacheInvalidateResponse Successful Response
      * @throws ApiError
      */
     public static invalidateMemberBenefitsCache(): CancelablePromise<MemberInvalidateMemberBenefitsCacheResponse> {
@@ -2957,7 +3082,7 @@ export class MemoryService {
      * @param data The data for the request.
      * @param data.projectId
      * @param data.requestBody
-     * @returns unknown Successful Response
+     * @returns ConceptOperationResponse Successful Response
      * @throws ApiError
      */
     public static addConcept(data: MemoryAddConceptData): CancelablePromise<MemoryAddConceptResponse> {
@@ -3029,7 +3154,7 @@ export class MemoryService {
      * @param data The data for the request.
      * @param data.conceptName
      * @param data.projectId
-     * @returns unknown Successful Response
+     * @returns ConceptOperationResponse Successful Response
      * @throws ApiError
      */
     public static deleteConcept(data: MemoryDeleteConceptData): CancelablePromise<MemoryDeleteConceptResponse> {
@@ -3055,7 +3180,7 @@ export class MemoryService {
      * @param data.conceptName
      * @param data.projectId
      * @param data.requestBody
-     * @returns unknown Successful Response
+     * @returns ConceptOperationResponse Successful Response
      * @throws ApiError
      */
     public static updateConcept(data: MemoryUpdateConceptData): CancelablePromise<MemoryUpdateConceptResponse> {
@@ -3156,7 +3281,7 @@ export class MemoryService {
      * @param data.projectId
      * @param data.topK
      * @param data.vectorWeight
-     * @returns unknown Successful Response
+     * @returns HybridSearchResponse Successful Response
      * @throws ApiError
      */
     public static searchMemoryHybrid(data: MemorySearchMemoryHybridData): CancelablePromise<MemorySearchMemoryHybridResponse> {
@@ -3199,6 +3324,36 @@ export class MemoryService {
             }
         });
     }
+    
+    /**
+     * Deduplicate Checkpoints
+     * Remove duplicate checkpoint memories.
+     *
+     * Duplicate checkpoints are those with the same thread_id and task_progress
+     * within a 5-minute window. Only the most recent is kept.
+     *
+     * Args:
+     * dry_run: If True, only report duplicates without deleting them
+     *
+     * Returns:
+     * Deduplication statistics
+     * @param data The data for the request.
+     * @param data.dryRun
+     * @returns unknown Successful Response
+     * @throws ApiError
+     */
+    public static deduplicateCheckpoints(data: MemoryDeduplicateCheckpointsData = {}): CancelablePromise<MemoryDeduplicateCheckpointsResponse> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/memory/maintenance/deduplicate-checkpoints',
+            query: {
+                dry_run: data.dryRun
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
 }
 
 export class PlanningService {
@@ -3208,7 +3363,7 @@ export class PlanningService {
      * Targeting persistent storage instead of transient AgentState.
      * @param data The data for the request.
      * @param data.threadId
-     * @returns unknown Successful Response
+     * @returns PlanResponse Successful Response
      * @throws ApiError
      */
     public static getPlan(data: PlanningGetPlanData): CancelablePromise<PlanningGetPlanResponse> {
@@ -3359,7 +3514,7 @@ export class ProjectRequirementsService {
      * @param data The data for the request.
      * @param data.projectId
      * @param data.formData
-     * @returns unknown Successful Response
+     * @returns RequirementUploadResponse Successful Response
      * @throws ApiError
      */
     public static uploadRequirementDocument(data: ProjectRequirementsUploadRequirementDocumentData): CancelablePromise<ProjectRequirementsUploadRequirementDocumentResponse> {
@@ -3382,7 +3537,7 @@ export class ProjectRequirementsService {
      * Get all requirement documents for a project.
      * @param data The data for the request.
      * @param data.projectId
-     * @returns unknown Successful Response
+     * @returns RequirementListResponse Successful Response
      * @throws ApiError
      */
     public static listProjectRequirements(data: ProjectRequirementsListProjectRequirementsData): CancelablePromise<ProjectRequirementsListProjectRequirementsResponse> {
@@ -3404,7 +3559,7 @@ export class ProjectRequirementsService {
      * @param data The data for the request.
      * @param data.projectId
      * @param data.docId
-     * @returns unknown Successful Response
+     * @returns RequirementDetailResponse Successful Response
      * @throws ApiError
      */
     public static getRequirementDetail(data: ProjectRequirementsGetRequirementDetailData): CancelablePromise<ProjectRequirementsGetRequirementDetailResponse> {
@@ -3427,7 +3582,7 @@ export class ProjectRequirementsService {
      * @param data The data for the request.
      * @param data.projectId
      * @param data.docId
-     * @returns unknown Successful Response
+     * @returns RequirementDeleteResponse Successful Response
      * @throws ApiError
      */
     public static deleteRequirementDocument(data: ProjectRequirementsDeleteRequirementDocumentData): CancelablePromise<ProjectRequirementsDeleteRequirementDocumentResponse> {
@@ -3453,7 +3608,7 @@ export class ProjectRequirementsService {
      * @param data.projectId
      * @param data.docId
      * @param data.analysisId
-     * @returns unknown Successful Response
+     * @returns RequirementTasksResponse Successful Response
      * @throws ApiError
      */
     public static getAnalysisTasks(data: ProjectRequirementsGetAnalysisTasksData): CancelablePromise<ProjectRequirementsGetAnalysisTasksResponse> {
@@ -3480,7 +3635,7 @@ export class ProjectRequirementsService {
      * @param data.projectId
      * @param data.docId
      * @param data.analysisId
-     * @returns unknown Successful Response
+     * @returns RequirementSyncProgressResponse Successful Response
      * @throws ApiError
      */
     public static getAnalysisSyncProgress(data: ProjectRequirementsGetAnalysisSyncProgressData): CancelablePromise<ProjectRequirementsGetAnalysisSyncProgressResponse> {
@@ -3563,7 +3718,7 @@ export class ProjectsService {
      * Get real-time status of system tasks (Indexing, Summarization) for a project.
      * @param data The data for the request.
      * @param data.projectId
-     * @returns unknown Successful Response
+     * @returns ProjectStatusResponse Successful Response
      * @throws ApiError
      */
     public static getProjectStatus(data: ProjectsGetProjectStatusData): CancelablePromise<ProjectsGetProjectStatusResponse> {
@@ -3584,7 +3739,7 @@ export class ProjectsService {
      * Delete a project (Unlink from Member Center).
      * @param data The data for the request.
      * @param data.projectId
-     * @returns unknown Successful Response
+     * @returns ProjectDeleteResponse Successful Response
      * @throws ApiError
      */
     public static deleteProject(data: ProjectsDeleteProjectData): CancelablePromise<ProjectsDeleteProjectResponse> {
@@ -3605,7 +3760,7 @@ export class ProjectsService {
      * Trigger full indexing for a project (Celery Dispatch).
      * @param data The data for the request.
      * @param data.requestBody
-     * @returns unknown Successful Response
+     * @returns IndexingRunResponse Successful Response
      * @throws ApiError
      */
     public static runIndexingEndpoint(data: ProjectsRunIndexingEndpointData): CancelablePromise<ProjectsRunIndexingEndpointResponse> {
@@ -3627,7 +3782,7 @@ export class ProjectsService {
      * Returns projects with sync_status="DETECTED" that need to be imported or ignored.
      *
      * Note: Returns empty list if project discovery is disabled via configuration.
-     * @returns unknown Successful Response
+     * @returns DetectedProjectsResponse Successful Response
      * @throws ApiError
      */
     public static getDetectedProjects(): CancelablePromise<ProjectsGetDetectedProjectsResponse> {
@@ -3647,7 +3802,7 @@ export class ProjectsService {
      * 3. Dispatch cloud sync task
      * @param data The data for the request.
      * @param data.repoId
-     * @returns unknown Successful Response
+     * @returns ImportProjectResponse Successful Response
      * @throws ApiError
      */
     public static importDetectedProject(data: ProjectsImportDetectedProjectData): CancelablePromise<ProjectsImportDetectedProjectResponse> {
@@ -3670,7 +3825,7 @@ export class ProjectsService {
      * Marks the project as IGNORED. Can be restored later.
      * @param data The data for the request.
      * @param data.repoId
-     * @returns unknown Successful Response
+     * @returns IgnoreProjectResponse Successful Response
      * @throws ApiError
      */
     public static ignoreDetectedProject(data: ProjectsIgnoreDetectedProjectData): CancelablePromise<ProjectsIgnoreDetectedProjectResponse> {
@@ -3691,7 +3846,7 @@ export class ProjectsService {
      * Get all ignored projects.
      *
      * These projects can be restored (un-ignored) later.
-     * @returns unknown Successful Response
+     * @returns DetectedProjectsResponse Successful Response
      * @throws ApiError
      */
     public static getIgnoredProjects(): CancelablePromise<ProjectsGetIgnoredProjectsResponse> {
@@ -3708,7 +3863,7 @@ export class ProjectsService {
      * Allows the project to be imported.
      * @param data The data for the request.
      * @param data.repoId
-     * @returns unknown Successful Response
+     * @returns UnignoreProjectResponse Successful Response
      * @throws ApiError
      */
     public static unignoreProject(data: ProjectsUnignoreProjectData): CancelablePromise<ProjectsUnignoreProjectResponse> {
@@ -3733,7 +3888,7 @@ export class ProjectsService {
      * 2. Return summary of successes and failures
      * @param data The data for the request.
      * @param data.requestBody
-     * @returns unknown Successful Response
+     * @returns BatchImportResponse Successful Response
      * @throws ApiError
      */
     public static batchImportProjects(data: ProjectsBatchImportProjectsData): CancelablePromise<ProjectsBatchImportProjectsResponse> {
@@ -3753,7 +3908,7 @@ export class ProjectsService {
      * Ignore multiple detected projects in batch.
      * @param data The data for the request.
      * @param data.requestBody
-     * @returns unknown Successful Response
+     * @returns BatchImportResponse Successful Response
      * @throws ApiError
      */
     public static batchIgnoreProjects(data: ProjectsBatchIgnoreProjectsData): CancelablePromise<ProjectsBatchIgnoreProjectsResponse> {
@@ -3821,7 +3976,7 @@ export class ResourcesService {
      * @param data The data for the request.
      * @param data.projectId
      * @param data.resourceId
-     * @returns unknown Successful Response
+     * @returns OperationResponse Successful Response
      * @throws ApiError
      */
     public static deleteResource(data: ResourcesDeleteResourceData): CancelablePromise<ResourcesDeleteResourceResponse> {
@@ -4102,7 +4257,7 @@ export class SubtasksService {
      * @param data The data for the request.
      * @param data.projectId
      * @param data.requestBody
-     * @returns unknown Successful Response
+     * @returns TaskCreateResponse Successful Response
      * @throws ApiError
      */
     public static createTaskWithSubtasks(data: SubtasksCreateTaskWithSubtasksData): CancelablePromise<SubtasksCreateTaskWithSubtasksResponse> {
@@ -4127,7 +4282,7 @@ export class SubtasksService {
      * @param data.projectId
      * @param data.taskId
      * @param data.maxDepth
-     * @returns unknown Successful Response
+     * @returns TaskTreeWrapperResponse Successful Response
      * @throws ApiError
      */
     public static getTaskTree(data: SubtasksGetTaskTreeData): CancelablePromise<SubtasksGetTaskTreeResponse> {
@@ -4157,7 +4312,7 @@ export class SubtasksService {
      * @param data.projectId
      * @param data.taskId
      * @param data.requestBody
-     * @returns unknown Successful Response
+     * @returns TaskProgressUpdateResponse Successful Response
      * @throws ApiError
      */
     public static updateTaskProgress(data: SubtasksUpdateTaskProgressData): CancelablePromise<SubtasksUpdateTaskProgressResponse> {
@@ -4182,7 +4337,7 @@ export class SubtasksService {
      * Returns first pending subtask in order.
      * @param data The data for the request.
      * @param data.projectId
-     * @returns unknown Successful Response
+     * @returns NextTaskResponse Successful Response
      * @throws ApiError
      */
     public static getNextExecutableTask(data: SubtasksGetNextExecutableTaskData): CancelablePromise<SubtasksGetNextExecutableTaskResponse> {
@@ -4205,7 +4360,7 @@ export class SubtasksService {
      * @param data The data for the request.
      * @param data.projectId
      * @param data.taskId
-     * @returns unknown Successful Response
+     * @returns TaskFlatResponse Successful Response
      * @throws ApiError
      */
     public static flattenTaskTree(data: SubtasksFlattenTaskTreeData): CancelablePromise<SubtasksFlattenTaskTreeResponse> {
@@ -4229,7 +4384,7 @@ export class SubtasksService {
      * @param data.projectId
      * @param data.status
      * @param data.limit
-     * @returns unknown Successful Response
+     * @returns TaskListResponse Successful Response
      * @throws ApiError
      */
     public static listRootTasks(data: SubtasksListRootTasksData): CancelablePromise<SubtasksListRootTasksResponse> {
@@ -4259,7 +4414,7 @@ export class SymbolsService {
      * @param data.q Search query for symbol name
      * @param data.type Filter by entity type (class, function)
      * @param data.limit
-     * @returns unknown Successful Response
+     * @returns SymbolResponse Successful Response
      * @throws ApiError
      */
     public static searchSymbols(data: SymbolsSearchSymbolsData): CancelablePromise<SymbolsSearchSymbolsResponse> {
@@ -4286,7 +4441,7 @@ export class SymbolsService {
      * @param data The data for the request.
      * @param data.symbolId
      * @param data.projectId
-     * @returns unknown Successful Response
+     * @returns SymbolWikiResponse Successful Response
      * @throws ApiError
      */
     public static generateSymbolWiki(data: SymbolsGenerateSymbolWikiData): CancelablePromise<SymbolsGenerateSymbolWikiResponse> {
@@ -4355,7 +4510,7 @@ export class SystemService {
     /**
      * Health Check
      * Simple health check for startup probing.
-     * @returns unknown Successful Response
+     * @returns HealthCheckResponse Successful Response
      * @throws ApiError
      */
     public static healthCheck(): CancelablePromise<SystemHealthCheckResponse> {
@@ -4370,7 +4525,7 @@ export class SystemService {
      * Validate connection to embedding provider.
      * @param data The data for the request.
      * @param data.requestBody
-     * @returns unknown Successful Response
+     * @returns EmbeddingTestResponse Successful Response
      * @throws ApiError
      */
     public static testEmbeddingConnection(data: SystemTestEmbeddingConnectionData): CancelablePromise<SystemTestEmbeddingConnectionResponse> {
@@ -4390,7 +4545,7 @@ export class SystemService {
      * Apply new embedding config. THIS IS DESTRUCTIVE (Resets Vector DB).
      * @param data The data for the request.
      * @param data.requestBody
-     * @returns unknown Successful Response
+     * @returns EmbeddingApplyResponse Successful Response
      * @throws ApiError
      */
     public static applyEmbeddingConfig(data: SystemApplyEmbeddingConfigData): CancelablePromise<SystemApplyEmbeddingConfigResponse> {
@@ -4410,7 +4565,7 @@ export class SystemService {
      * Validate connection to LLM provider.
      * @param data The data for the request.
      * @param data.requestBody
-     * @returns unknown Successful Response
+     * @returns LLMTestResponse Successful Response
      * @throws ApiError
      */
     public static testLlmConnection(data: SystemTestLlmConnectionData): CancelablePromise<SystemTestLlmConnectionResponse> {
@@ -4430,7 +4585,7 @@ export class SystemService {
      * Apply new LLM config.
      * @param data The data for the request.
      * @param data.requestBody
-     * @returns unknown Successful Response
+     * @returns LLMApplyResponse Successful Response
      * @throws ApiError
      */
     public static applyLlmConfig(data: SystemApplyLlmConfigData): CancelablePromise<SystemApplyLlmConfigResponse> {
@@ -4448,7 +4603,7 @@ export class SystemService {
     /**
      * Reset Knowledge Base
      * [DANGER] Wipe the entire Knowledge Base (Neo4j + Postgres Index).
-     * @returns unknown Successful Response
+     * @returns ResetKnowledgeResponse Successful Response
      * @throws ApiError
      */
     public static resetKnowledgeBase(): CancelablePromise<SystemResetKnowledgeBaseResponse> {
@@ -4461,7 +4616,7 @@ export class SystemService {
     /**
      * Get Cloud Status
      * Debug endpoint to check EvoCloud connection status.
-     * @returns unknown Successful Response
+     * @returns CloudStatusResponse Successful Response
      * @throws ApiError
      */
     public static getCloudStatus(): CancelablePromise<SystemGetCloudStatusResponse> {
@@ -4485,7 +4640,7 @@ export class SystemService {
      * 符合条件的模型列表
      * @param data The data for the request.
      * @param data.configType
-     * @returns unknown Successful Response
+     * @returns ModelsListResponse Successful Response
      * @throws ApiError
      */
     public static getLlmModels(data: SystemGetLlmModelsData = {}): CancelablePromise<SystemGetLlmModelsResponse> {
@@ -4504,7 +4659,7 @@ export class SystemService {
     /**
      * Get Embedding Models
      * 获取可用的 Embedding 模型列表（包含平台模型和自定义模型）
-     * @returns unknown Successful Response
+     * @returns ModelsListResponse Successful Response
      * @throws ApiError
      */
     public static getEmbeddingModels(): CancelablePromise<SystemGetEmbeddingModelsResponse> {
@@ -4538,7 +4693,7 @@ export class SystemService {
      * Note: 如果通过环境变量 DISABLED，此处设置将无效（环境变量优先级最高）
      * @param data The data for the request.
      * @param data.requestBody
-     * @returns unknown Successful Response
+     * @returns ProjectDiscoveryConfigUpdateResponse Successful Response
      * @throws ApiError
      */
     public static setProjectDiscoveryConfig(data: SystemSetProjectDiscoveryConfigData): CancelablePromise<SystemSetProjectDiscoveryConfigResponse> {
@@ -4848,7 +5003,7 @@ export class ToolsService {
     /**
      * List Runtime Tools
      * List all dynamically created runtime tools.
-     * @returns unknown Successful Response
+     * @returns ToolInfo Successful Response
      * @throws ApiError
      */
     public static listRuntimeTools(): CancelablePromise<ToolsListRuntimeToolsResponse> {
@@ -4861,7 +5016,7 @@ export class ToolsService {
     /**
      * List All Tools
      * List ALL available tools (Static + Runtime).
-     * @returns unknown Successful Response
+     * @returns ToolInfo Successful Response
      * @throws ApiError
      */
     public static listAllTools(): CancelablePromise<ToolsListAllToolsResponse> {
@@ -4887,7 +5042,7 @@ export class UtilsService {
     
     /**
      * Get Evoloop Status
-     * @returns unknown Successful Response
+     * @returns EvoloopStatusResponse Successful Response
      * @throws ApiError
      */
     public static getEvoloopStatus(): CancelablePromise<UtilsGetEvoloopStatusResponse> {
@@ -4938,7 +5093,7 @@ export class WikiService {
      * Trigger Wiki generation in background (Celery).
      * @param data The data for the request.
      * @param data.requestBody
-     * @returns unknown Successful Response
+     * @returns WikiGenerationResponse Successful Response
      * @throws ApiError
      */
     public static generateWiki(data: WikiGenerateWikiData): CancelablePromise<WikiGenerateWikiResponse> {

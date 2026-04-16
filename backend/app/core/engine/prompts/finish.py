@@ -72,8 +72,12 @@ class FinishPromptBuilder:
         ctx, actual_cwd, mode, project_concepts = self._prepare_common_context()
 
         plan_data = self.current_plan
-        if isinstance(plan_data, str):
-            plan_data = json.loads(plan_data)
+        if isinstance(plan_data, str) and plan_data.strip():
+            try:
+                plan_data = json.loads(plan_data)
+            except (json.JSONDecodeError, TypeError):
+                # Fallback to original string if not valid JSON
+                pass
 
         template_vars = {
             "iteration_count": self.iteration_count,

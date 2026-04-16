@@ -55,23 +55,23 @@ export function SkillLibraryView({ threadId, projectId, highlightSkillId, onClea
             })) as unknown as PaginatedSkillsResponse
 
             // Handle response format
-            if (result && Array.isArray(result.items)) {
+            if (result && Array.isArray(result.data)) {
                 return result;
             } else if (Array.isArray((result as any).skills)) {
                 // Fallback
                 return {
-                    items: (result as any).skills,
+                    data: (result as any).skills,
                     total: (result as any).skills.length,
                     page: 1,
                     page_size: pageSize,
                     total_pages: 1
                 } as PaginatedSkillsResponse
             }
-            return { items: [], total: 0, page: 1, page_size: pageSize, total_pages: 0 } as PaginatedSkillsResponse
+            return { data: [], total: 0, page: 1, page_size: pageSize, total_pages: 0 } as PaginatedSkillsResponse
         },
     })
 
-    const skills = data?.items || [];
+    const skills = data?.data || [];
     const totalSkills = data?.total || 0;
     const totalPages = data?.total_pages || 0;
 

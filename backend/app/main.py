@@ -29,7 +29,7 @@ from app.core.engine.graph_builder import GraphBuilder
 from app.core.globals import set_graph
 from app.core.persistence import set_checkpointer, set_db_pool
 from app.infrastructure.database.sql.database import Base, engine
-from app.initial_data import init as init_data, register_config_handlers
+from app.initial_data import init as init_data
 from sqlmodel import SQLModel
 
 logging.basicConfig(level=logging.INFO)
@@ -68,13 +68,6 @@ async def lifespan(app: FastAPI):
 
     # 1.5 Seed Initial Data (System Config)
     await asyncio.to_thread(init_data)
-
-    # 1.6 Register Config Change Handlers
-    try:
-        register_config_handlers()
-        logger.info("Configuration change handlers registered.")
-    except Exception as e:
-        logger.warning(f"Failed to register config handlers: {e}")
 
     # 2. Memory System Init
     try:

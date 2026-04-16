@@ -28,6 +28,9 @@ class SystemEventType(str, Enum):
     # Engine Lifecycle
     SESSION_COMPLETED = "system.session_completed"
 
+    # Configuration Handlers
+    CONFIG_CHANGED = "system.config_changed"
+
 
 # Note: Module-specific event types are defined in their respective modules:
 # - AgentEventType -> app.core.engine.events

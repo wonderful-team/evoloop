@@ -175,172 +175,161 @@ async def get_conversation_messages(
         MessageListResponse with items, has_more flag, and cursors
     """
     limit = min(max(limit, 1), 100)
-    
-    try:
-        async with get_db_session() as session:
-            # Step 1: Query visible messages only
-            # is_visible is determined by category, see MessageCategory.get_visible_categories()
-            visible_stmt = (
+
+    async with get_db_session() as session:
+        # Step 1: Query visible messages only
+        # is_visible is determined by category, see MessageCategory.get_visible_categories()
+        visible_stmt = (
+            select(Message)
+            .where(
+                Message.thread_id == thread_id,
+                Message.is_visible == True
+            )
+            .options(selectinload(Message.references))
+            .order_by(Message.id.desc())
+            .limit(limit + 1)  # Fetch one extra to check has_more
+        )
+
+        # Apply cursor pagination
+        if before_id is not None:
+            visible_stmt = visible_stmt.where(Message.id < before_id)
+
+        result = await session.execute(visible_stmt)
+        visible_messages = result.scalars().all()
+
+        # Check if there are more visible messages
+        has_more = len(visible_messages) > limit
+        if has_more:
+            visible_messages = visible_messages[:limit]
+
+        # Reverse to chronological order (oldest first)
+        visible_messages = list(reversed(visible_messages))
+
+        # Step 2: Collect all run_ids from visible messages
+        run_ids = {m.run_id for m in visible_messages if m.run_id}
+
+        # To prevent losing the active run if it only has intermediate messages so far
+        if before_id is None:
+            latest_msg_stmt = (
+                select(Message.run_id)
+                .where(Message.thread_id == thread_id, Message.run_id.is_not(None))
+                .order_by(Message.id.desc())
+                .limit(1)
+            )
+            latest_run_id = (await session.execute(latest_msg_stmt)).scalar_one_or_none()
+            if latest_run_id:
+                run_ids.add(latest_run_id)
+
+        # Step 3: Fetch all invisible messages associated with these runs
+        # These are internal messages (internal_tool_call, internal_system, internal_llm_json, error)
+        invisible_messages = []
+        if run_ids:
+            invisible_stmt = (
                 select(Message)
                 .where(
                     Message.thread_id == thread_id,
-                    Message.is_visible == True
+                    Message.is_visible == False,
+                    Message.run_id.in_(run_ids)
                 )
                 .options(selectinload(Message.references))
-                .order_by(Message.id.desc())
-                .limit(limit + 1)  # Fetch one extra to check has_more
+                .order_by(Message.id.asc())  # Chronological order
             )
-            
-            # Apply cursor pagination
-            if before_id is not None:
-                visible_stmt = visible_stmt.where(Message.id < before_id)
-            
-            result = await session.execute(visible_stmt)
-            visible_messages = result.scalars().all()
-            
-            # Check if there are more visible messages
-            has_more = len(visible_messages) > limit
-            if has_more:
-                visible_messages = visible_messages[:limit]
-            
-            # Reverse to chronological order (oldest first)
-            visible_messages = list(reversed(visible_messages))
-            
-            # Step 2: Collect all run_ids from visible messages
-            run_ids = {m.run_id for m in visible_messages if m.run_id}
+            invisible_result = await session.execute(invisible_stmt)
+            invisible_messages = invisible_result.scalars().all()
 
-            # To prevent losing the active run if it only has intermediate messages so far
-            if before_id is None:
-                latest_msg_stmt = (
-                    select(Message.run_id)
-                    .where(Message.thread_id == thread_id, Message.run_id.is_not(None))
-                    .order_by(Message.id.desc())
-                    .limit(1)
-                )
-                latest_run_id = (await session.execute(latest_msg_stmt)).scalar_one_or_none()
-                if latest_run_id:
-                    run_ids.add(latest_run_id)
-            
-            # Step 3: Fetch all invisible messages associated with these runs
-            # These are internal messages (internal_tool_call, internal_system, internal_llm_json, error)
-            invisible_messages = []
-            if run_ids:
-                invisible_stmt = (
-                    select(Message)
-                    .where(
-                        Message.thread_id == thread_id,
-                        Message.is_visible == False,
-                        Message.run_id.in_(run_ids)
+        # Step 4: Merge and sort all messages by id
+        all_messages = visible_messages + list(invisible_messages)
+        all_messages.sort(key=lambda m: m.id)
+
+        # Get total count on first load (when before_id is None)
+        total_count = None
+        if before_id is None:
+            count_stmt = select(Message.id).where(
+                Message.thread_id == thread_id,
+                Message.is_visible == True
+            )
+            count_result = await session.execute(count_stmt)
+            total_count = len(count_result.scalars().all())
+
+        # Pre-check file operations for undo optimization
+        file_ops_stmt = (
+            select(FileOperation.message_id)
+            .where(FileOperation.thread_id == thread_id)
+        )
+        file_ops_result = await session.execute(file_ops_stmt)
+        messages_with_files = set(file_ops_result.scalars().all())
+
+        # Query changeset count per message
+        changeset_count_stmt = (
+            select(FileOperation.message_id, func.count(FileOperation.id).label("count"))
+            .where(FileOperation.thread_id == thread_id)
+            .group_by(FileOperation.message_id)
+        )
+        changeset_count_result = await session.execute(changeset_count_stmt)
+        message_changeset_counts = {str(row.message_id): row.count for row in changeset_count_result.all()}
+
+        # Conversion: Message DB -> LangChain BaseMessage -> FoldedMessage
+        langchain_messages = []
+        for m in all_messages:
+            bm = to_base_message(m)
+            if bm:
+                langchain_messages.append(bm)
+
+        folded = fold_messages(langchain_messages)
+
+        # Map folded results back to API MessageItem with extra metadata
+        # We need to map by ID to keep the extra visibility/changeset data
+        # Note: LangChain objects used in fold_messages preserve the 'id' attribute
+        db_msg_map = {str(m.id): m for m in all_messages}
+        final_items = []
+
+        for f in folded:
+            db_m = db_msg_map.get(str(f.id))
+            if not db_m:
+                # Likely a system or generated message not in DB, keep as is
+                final_items.append(MessageItem(**f.model_dump()))
+                continue
+
+            # Parse References
+            refs = (
+                [
+                    ReferenceItem(
+                        id=ref.id,
+                        type=ref.type,
+                        target_id=ref.target_id,
+                        target_name=ref.target_name,
+                        metadata=ref.metadata,
                     )
-                    .options(selectinload(Message.references))
-                    .order_by(Message.id.asc())  # Chronological order
-                )
-                invisible_result = await session.execute(invisible_stmt)
-                invisible_messages = invisible_result.scalars().all()
-            
-            # Step 4: Merge and sort all messages by id
-            all_messages = visible_messages + list(invisible_messages)
-            all_messages.sort(key=lambda m: m.id)
-            
-            # Get total count on first load (when before_id is None)
-            total_count = None
-            if before_id is None:
-                count_stmt = select(Message.id).where(
-                    Message.thread_id == thread_id, 
-                    Message.is_visible == True
-                )
-                count_result = await session.execute(count_stmt)
-                total_count = len(count_result.scalars().all())
-
-            # Pre-check file operations for undo optimization
-            file_ops_stmt = (
-                select(FileOperation.message_id)
-                .where(FileOperation.thread_id == thread_id)
-            )
-            file_ops_result = await session.execute(file_ops_stmt)
-            messages_with_files = set(file_ops_result.scalars().all())
-
-            # Query changeset count per message
-            changeset_count_stmt = (
-                select(FileOperation.message_id, func.count(FileOperation.id).label("count"))
-                .where(FileOperation.thread_id == thread_id)
-                .group_by(FileOperation.message_id)
-            )
-            changeset_count_result = await session.execute(changeset_count_stmt)
-            message_changeset_counts = {str(row.message_id): row.count for row in changeset_count_result.all()}
-
-            # Conversion: Message DB -> LangChain BaseMessage -> FoldedMessage
-            langchain_messages = []
-            for m in all_messages:
-                bm = to_base_message(m)
-                if bm:
-                    langchain_messages.append(bm)
-            
-            folded = fold_messages(langchain_messages)
-
-            # Map folded results back to API MessageItem with extra metadata
-            # We need to map by ID to keep the extra visibility/changeset data
-            # Note: LangChain objects used in fold_messages preserve the 'id' attribute
-            db_msg_map = {str(m.id): m for m in all_messages}
-            final_items = []
-            
-            for f in folded:
-                db_m = db_msg_map.get(str(f.id))
-                if not db_m:
-                    # Likely a system or generated message not in DB, keep as is
-                    final_items.append(MessageItem(**f.model_dump()))
-                    continue
-
-                # Parse References
-                refs = (
-                    [
-                        ReferenceItem(
-                            id=ref.id,
-                            type=ref.type,
-                            target_id=ref.target_id,
-                            target_name=ref.target_name,
-                            metadata=ref.metadata,
-                        )
-                        for ref in db_m.references
-                    ]
-                    if db_m.references
-                    else []
-                )
-
-                item = MessageItem(
-                    **f.model_dump(),
-                    steps_snapshot=db_m.steps_snapshot,
-                    run_id=db_m.run_id,
-                    parent_id=db_m.parent_id,
-                    references=refs,
-                    has_file_operations=bool(
-                        str(db_m.id) in messages_with_files or 
-                        (db_m.run_id and db_m.run_id in messages_with_files)
-                    ),
-                    changeset_count=message_changeset_counts.get(str(db_m.id), 0),
-                )
-                final_items.append(item)
-
-            # Build response with cursors (based on visible messages only)
-            first_id = visible_messages[0].id if visible_messages else None
-            last_id = visible_messages[-1].id if visible_messages else None
-            
-            return MessageListResponse(
-                data=final_items,
-                has_more=has_more,
-                first_id=first_id,
-                last_id=last_id,
-                total_count=total_count,
+                    for ref in db_m.references
+                ]
+                if db_m.references
+                else []
             )
 
-    except Exception as e:
-        logger.error(f"Failed to fetch history for {thread_id}: {e}")
+            item = MessageItem(
+                **f.model_dump(),
+                steps_snapshot=db_m.steps_snapshot,
+                run_id=db_m.run_id,
+                parent_id=db_m.parent_id,
+                references=refs,
+                has_file_operations=bool(
+                    str(db_m.id) in messages_with_files or
+                    (db_m.run_id and db_m.run_id in messages_with_files)
+                ),
+                changeset_count=message_changeset_counts.get(str(db_m.id), 0),
+            )
+            final_items.append(item)
+
+        # Build response with cursors (based on visible messages only)
+        first_id = visible_messages[0].id if visible_messages else None
+        last_id = visible_messages[-1].id if visible_messages else None
+
         return MessageListResponse(
-            data=[],
-            has_more=False,
-            first_id=None,
-            last_id=None,
-            total_count=0,
+            data=final_items,
+            has_more=has_more,
+            first_id=first_id,
+            last_id=last_id,
+            total_count=total_count,
         )
 
 

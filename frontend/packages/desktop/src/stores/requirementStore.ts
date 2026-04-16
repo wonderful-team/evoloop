@@ -172,7 +172,7 @@ export const useRequirementStore = create<RequirementState>((set, get) => ({
     try {
       const resp: any = await ProjectRequirementsService.listProjectRequirements({ projectId })
 
-      const items = (resp.items || []).map((item: any) => ({
+      const items = (resp.data || []).map((item: any) => ({
         ...item,
         created_at: item.created_at ? new Date(item.created_at).getTime() : 0,
         updated_at: item.updated_at ? new Date(item.updated_at).getTime() : 0,

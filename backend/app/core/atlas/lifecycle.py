@@ -20,11 +20,13 @@ class AtlasLifecycleHandler:
         """
         Handle APP_STARTED: Synchronize Atlas YAML configuration.
         """
-        try:
-            from app.core.atlas.initial_data import init_atlas_config
-            
-            logger.info("[Atlas] 🗺️ Synchronizing Atlas configuration...")
-            await init_atlas_config()
-            logger.info("[Atlas] ✓ Configuration synchronized")
-        except Exception as e:
-            logger.error(f"[Atlas] Synchronization failed: {e}")
+        logger.info("[Atlas] 🗺️ Synchronizing Atlas configuration...")
+        await init_atlas_config()
+        logger.info("[Atlas] ✓ Configuration synchronized")
+
+
+async def init_atlas_config() -> None:
+    """Initialize Atlas configuration (Cache-based, no hardcoding)."""
+    logger.info("Initializing Atlas configuration...")
+    from app.core.atlas.config_manager import AtlasConfigManager
+    await AtlasConfigManager.initialize_defaults()

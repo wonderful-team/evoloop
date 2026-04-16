@@ -70,7 +70,7 @@ export const useProjectImportStore = create<ProjectImportState>((set, get) => ({
       // Use ProjectsService.getDetectedProjects() which uses generated SDK
       const res: any = await ProjectsService.getDetectedProjects()
 
-      const items = (res.items || []).map((item: any) => ({
+      const items = (res.data || []).map((item: any) => ({
         ...item,
         detected_at: item.detected_at ? new Date(item.detected_at).getTime() : 0,
       }))
@@ -101,7 +101,7 @@ export const useProjectImportStore = create<ProjectImportState>((set, get) => ({
     try {
       const res: any = await ProjectsService.getIgnoredProjects()
 
-      const items = (res.items || []).map((item: any) => ({
+      const items = (res.data || []).map((item: any) => ({
         ...item,
         detected_at: item.detected_at ? new Date(item.detected_at).getTime() : 0,
       }))
