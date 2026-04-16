@@ -282,16 +282,14 @@ class WorkerNode(BaseAgentNode):
                 plan=full_plan
             )
             system_prompt = await prompt_builder.build(config)
-            mission_msg = prompt_builder.build_mission_message(session_goal=state.session_goal)
 
-            # 构建消息
-            if is_first:
-                messages = [HumanMessage(content=mission_msg)]
-            else:
-                # 传递上一步的输出作为上下文
-                prev_output = results[-1].get("output", "") if results else ""
-                enhanced_mission = f"{mission_msg}\n\n[Previous Step Output]: {prev_output[:500]}"
-                messages = [HumanMessage(content=enhanced_mission)]
+            # 传递上一步的输出作为上下文（首步为空字符串）
+            prev_output = results[-1].get("output", "") if results else ""
+            mission_msg = prompt_builder.build_mission_message(
+                session_goal=state.session_goal,
+                previous_output=prev_output,
+            )
+            messages = [HumanMessage(content=mission_msg)]
 
             try:
                 # 执行当前步骤

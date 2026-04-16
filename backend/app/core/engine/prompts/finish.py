@@ -7,6 +7,7 @@ from app.core.engine.state.blackboard import BlackboardState, VerificationStatus
 from app.core.engine.state.config import ExecutionTicket
 from app.infrastructure.config.service import SystemConfigService
 from app.utils import ControllerResponse, render_template
+from .utils import get_mapped_cwd, get_sandbox_mode
 
 logger = logging.getLogger(__name__)
 
@@ -40,22 +41,15 @@ class FinishPromptBuilder:
     def _prepare_common_context(self) -> tuple:
         """Shared context preparation for both static prompt and dynamic audit ticket."""
         ctx = ContextManager.current()
-        from .utils import get_mapped_cwd, get_sandbox_mode
         actual_cwd = get_mapped_cwd(ctx.working_directory or ctx.metadata.get("cwd", ""))
         mode = get_sandbox_mode()
         project_concepts = ctx.metadata.get("project_concepts", "")
 
-        excluded_keys = {
-            "active_skills", "project_concepts", "cwd", "episodic_memory_raw",
-            "core_memory_raw", "sys_info", "is_global_mode", "has_macos", "has_android"
-        }
-        sanitized_metadata = {k: v for k, v in ctx.metadata.items() if k not in excluded_keys}
-
-        return ctx, actual_cwd, mode, project_concepts, sanitized_metadata
+        return ctx, actual_cwd, mode, project_concepts
 
     def build(self) -> str:
         """Builds the STATIC Reviewer system prompt."""
-        ctx, actual_cwd, mode, project_concepts, sanitized_metadata = self._prepare_common_context()
+        ctx, actual_cwd, mode, project_concepts = self._prepare_common_context()
 
         is_global_mode = self.project_id == 0 or self.project_id is None
         template_vars = {
@@ -75,14 +69,11 @@ class FinishPromptBuilder:
 
     def build_audit_ticket(self) -> str:
         """Builds the DYNAMIC audit ticket to be injected as a HumanMessage."""
-        ctx, actual_cwd, mode, project_concepts, sanitized_metadata = self._prepare_common_context()
+        ctx, actual_cwd, mode, project_concepts = self._prepare_common_context()
 
         plan_data = self.current_plan
         if isinstance(plan_data, str):
-            try:
-                plan_data = json.loads(plan_data)
-            except Exception:
-                pass
+            plan_data = json.loads(plan_data)
 
         template_vars = {
             "iteration_count": self.iteration_count,
@@ -91,7 +82,7 @@ class FinishPromptBuilder:
             "blackboard": {
                 "ticket": self.execution_ticket,
                 "verification": self.verification_status,
-                "metadata": sanitized_metadata,
+                "metadata": self.blackboard.metadata,
                 "subtask_results": self.blackboard.subtask_results if self.blackboard else [],
             },
             "memory": {
@@ -101,8 +92,8 @@ class FinishPromptBuilder:
             "audit_context": self.action_context,
             "telemetry": self.telemetry,
         }
-
         return render_template("core/engine/fragments/finish_audit_ticket.j2", **template_vars)
+
     def build_standard_prompt(self, last_content: str, tool_usage: list[str]) -> str:
         """Builds the lightweight standard audit prompt."""
         template_vars = {

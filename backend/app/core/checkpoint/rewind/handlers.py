@@ -65,29 +65,34 @@ class MessageRewind:
         2. Determines the range of messages to delete
         3. Publishes MESSAGES_CLEANUP event
         """
-        try:
-            # Find messages to delete
-            message_ids = await self._find_messages_to_delete(
-                thread_id=event.thread_id,
-                target_message_id=event.target_message_id,
-                include_target=event.include_target
+        # Find messages to delete
+        message_ids = await self._find_messages_to_delete(
+            thread_id=event.thread_id,
+            target_message_id=event.target_message_id,
+            include_target=event.include_target
+        )
+
+        if message_ids:
+            # Perform deletion directly to capture count for aggregation
+            count = await self._delete_messages(
+                message_ids=message_ids,
+                delete_references=True
             )
-
-            if message_ids:
-                # Publish specific cleanup event
-                from app.core.events import system_bus
-                await system_bus.publish(MessagesCleanupEvent(
-                    thread_id=event.thread_id,
-                    message_ids=message_ids,
-                    delete_references=True
-                ))
-                logger.info(f"[MessageRewind] Prepared {len(message_ids)} messages for deletion")
-            else:
-                logger.info(f"[MessageRewind] No messages to delete for thread {event.thread_id}")
-
-        except Exception as e:
-            logger.error(f"[MessageRewind] Failed to prepare message cleanup: {e}")
-            raise
+            self._deleted_count = count
+            
+            # Report back to the main event
+            event.results["messages"] = count
+            
+            # Still publish the internal event for other potential listeners
+            from app.core.events import system_bus
+            await system_bus.publish(MessagesCleanupEvent(
+                thread_id=event.thread_id,
+                message_ids=message_ids,
+                delete_references=True
+            ))
+            logger.info(f"[MessageRewind] Deleted {count} messages for thread {event.thread_id}")
+        else:
+            logger.info(f"[MessageRewind] No messages to delete for thread {event.thread_id}")
 
     @event_subscribe(RewindEventType.MESSAGES_CLEANUP)
     async def _handle_messages_cleanup(self, event: MessagesCleanupEvent) -> None:

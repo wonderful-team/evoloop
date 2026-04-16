@@ -268,10 +268,7 @@ class PerceptionsFormatter:
     @staticmethod
     def links(links_raw: list) -> str:
         """Format web links for display."""
-        if not links_raw:
-            return render_template("core/vision/perceptions.prompt.j2", type="links", items=[])
-        items = [f"[{i}] {lnk['text'][:60]} → {lnk['href']}" for i, lnk in enumerate(links_raw)]
-        return render_template("core/vision/perceptions.prompt.j2", type="links", items=items[:100])
+        return render_template("core/vision/perceptions.prompt.j2", type="links", items=links_raw)
 
     @staticmethod
     def android_devices(devices: list) -> str:
@@ -284,11 +281,7 @@ class PerceptionsFormatter:
     @staticmethod
     def cookies(cookies_list: list) -> str:
         """Format browser cookies for display."""
-        if not cookies_list:
-            return render_template("core/vision/perceptions.prompt.j2", type="cookies", items=[])
-        lines = [f"[{i}] {c['name']}={c['value'][:40]} (domain: {c.get('domain', '')})" 
-                 for i, c in enumerate(cookies_list)]
-        return render_template("core/vision/perceptions.prompt.j2", type="cookies", items=lines)
+        return render_template("core/vision/perceptions.prompt.j2", type="cookies", items=cookies_list)
 
     @staticmethod
     def tools_used(tools_used: set | list) -> str:
@@ -300,11 +293,7 @@ class PerceptionsFormatter:
     @staticmethod
     def ui_elements(elements: list, max_items: int = 50) -> str:
         """Format UI elements for display."""
-        if not elements:
-            return render_template("core/vision/perceptions.prompt.j2", type="ui_elements", items=[])
-        items = [f"[{i}] {el.get('role', 'Unknown')}: {el.get('name', 'Unnamed')}" 
-                 for i, el in enumerate(elements[:max_items])]
-        return render_template("core/vision/perceptions.prompt.j2", type="ui_elements", items=items)
+        return render_template("core/vision/perceptions.prompt.j2", type="ui_elements", items=elements, max_items=max_items)
 
 
 class SystemToolsFormatter:

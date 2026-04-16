@@ -117,15 +117,21 @@ class AsyncEventBus(Generic[E]):
             self._handlers[type_key].remove(handler)
             logger.debug(f"[{self._name}] Unsubscribed handler from {type_key}")
 
-    async def publish(self, event: E) -> None:
+    async def publish(
+        self, 
+        event: E, 
+        sequential: bool = False,
+        propagate_errors: bool = False
+    ) -> None:
         """
         Publish an event to all subscribed handlers.
         
-        Handlers are executed concurrently using asyncio.gather.
-        Errors in individual handlers don't affect others.
-        
         Args:
             event: The event instance to publish
+            sequential: If True, execute handlers one by one instead of concurrently.
+                       Necessary for SQLite to prevent database lock contention.
+            propagate_errors: If True, any handler exception will stop execution
+                             and be raised to the caller.
         """
         type_key = event.event_type.value if isinstance(event.event_type, Enum) else event.event_type
 
@@ -135,7 +141,7 @@ class AsyncEventBus(Generic[E]):
             logger.debug(f"[{self._name}] No handlers for event: {type_key}")
             return
 
-        logger.info(f"[{self._name}] 📡 Publishing event: {type_key}")
+        logger.info(f"[{self._name}] 📡 Publishing event: {type_key} (sequential={sequential}, propagate={propagate_errors})")
 
         async def safe_handle(handler: EventHandler) -> None:
             try:
@@ -143,7 +149,13 @@ class AsyncEventBus(Generic[E]):
             except Exception as e:
                 logger.error(f"[{self._name}] Handler failed for {type_key}: {e}")
 
-        await asyncio.gather(*[safe_handle(h) for h in handlers])
+        if sequential or propagate_errors:
+            # Execute one by one
+            for handler in handlers:
+                await safe_handle(handler)
+        else:
+            # Execute concurrently
+            await asyncio.gather(*[safe_handle(h) for h in handlers])
 
     def handler_count(self, event_type: str | Enum) -> int:
         """Get the number of handlers for an event type."""

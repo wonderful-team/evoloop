@@ -195,8 +195,8 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
                 sys.stdout.flush()
 
                 # --- 🏅 Token-level Technical Tag Filtering (Phase 5 UI Optimization) ---
-                # We want to hide <audit>...</audit> and <think>...</think> from the user stream.
-                # We also want to strip <report> and </report> tags but keep their content.
+                # We want to hide <evoloop_session_audit>...</evoloop_session_audit> and <think>...</think> from the user stream.
+                # We also want to strip <evoloop_final_report> and </evoloop_final_report> tags but keep their content.
 
                 if not hasattr(self, "_in_hidden_tag"):
                     self._in_hidden_tag = False
@@ -210,7 +210,7 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
 
                 # 1. Detect start of hidden tags
                 if not self._in_hidden_tag:
-                    for tag in ["<audit>", "<think>", "<thought>", "<outcome>", "<reason>", "<proof_points>"]:
+                    for tag in ["<evoloop_session_audit>", "<think>", "<thought>", "<evoloop_audit_outcome>", "<evoloop_audit_reason>", "<evoloop_audit_proof>"]:
                         if tag in self._tag_buffer:
                             self._in_hidden_tag = True
                             # The tokens that formed the tag shouldn't be published
@@ -219,7 +219,7 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
 
                 # 2. Detect end of hidden tags
                 if self._in_hidden_tag:
-                    for tag in ["</audit>", "</think>", "</thought>", "</outcome>", "</reason>", "</proof_points>"]:
+                    for tag in ["</evoloop_session_audit>", "</think>", "</thought>", "</evoloop_audit_outcome>", "</evoloop_audit_reason>", "</evoloop_audit_proof>"]:
                         if tag in self._tag_buffer:
                             self._in_hidden_tag = False
                             self._tag_buffer = "" # Clear buffer after finding end tag
@@ -229,12 +229,12 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
                     # but we don't ADD to the publish buffer.
                     return
 
-                # 3. Strip <report> and </report> tags (just markers, content is welcome)
+                # 3. Strip <evoloop_final_report> and </evoloop_final_report> tags (just markers, content is welcome)
                 content_to_stream = token
-                if "<report>" in content_to_stream:
-                    content_to_stream = content_to_stream.replace("<report>", "")
-                if "</report>" in content_to_stream:
-                    content_to_stream = content_to_stream.replace("</report>", "")
+                if "<evoloop_final_report>" in content_to_stream:
+                    content_to_stream = content_to_stream.replace("<evoloop_final_report>", "")
+                if "</evoloop_final_report>" in content_to_stream:
+                    content_to_stream = content_to_stream.replace("</evoloop_final_report>", "")
 
                 # BUFFERED PUBLISH Strategy
                 if not hasattr(self, "_publish_buffer"):

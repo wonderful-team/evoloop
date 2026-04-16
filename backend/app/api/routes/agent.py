@@ -425,6 +425,15 @@ async def retry_chat(
         # State reset is handled by StateRewind handler
         checkpoint_id = None
         
+        # Verify rewind success before proceeding with retry
+        if result.status != "success":
+            errors_str = "; ".join(result.errors)
+            error_msg = f"Rewind failed for retry: {errors_str}"
+            logger.error(f"[Retry] {error_msg}")
+            # Raise RewindError which is caught below to return 500
+            from app.core.checkpoint.rewind.exceptions import RewindError
+            raise RewindError(error_msg, thread_id=req.thread_id)
+
         logger.info(f"[Retry] Rewind completed: {result.removed_message_count} messages removed, "
                    f"{result.reverted_file_count} files reverted")
         

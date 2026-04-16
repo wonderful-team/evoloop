@@ -56,7 +56,7 @@ class MessageClassifier:
             
         分类逻辑（按优先级）：
         1. 如果 metadata 中标记为 internal → INTERNAL_LLM_JSON
-        2. 如果内容包含 <think> 或 <audit> → INTERNAL_REASONING
+        2. 如果内容包含 <think> 或 <evoloop_session_audit> → INTERNAL_REASONING
         3. 如果只调用 hidden 工具 → INTERNAL_TOOL_CALL
         4. 如果调用 visible 工具 → ASSISTANT_TOOL_CALL
         5. 如果是 JSON 格式且有内部特征 → INTERNAL_LLM_JSON
@@ -172,7 +172,7 @@ class MessageClassifier:
 
         patterns = [
             r"<think>.*?</think>",
-            r"<audit>.*?</audit>",
+            r"<evoloop_session_audit>.*?</evoloop_session_audit>",
         ]
 
         for pattern in patterns:

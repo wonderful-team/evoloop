@@ -63,11 +63,11 @@ def _extract_final_summary(messages: list) -> str:
         if isinstance(msg, AIMessage) and msg.content:
             content = str(msg.content)
 
-            report_match = re.search(r"<report>(.*?)</report>", content, flags=re.DOTALL | re.IGNORECASE)
+            report_match = re.search(r"<evoloop_final_report>(.*?)</evoloop_final_report>", content, flags=re.DOTALL | re.IGNORECASE)
             if report_match:
                 return report_match.group(1).strip()
 
-            content = re.sub(r"<(audit|outcome|reason|proof_points)>.*?</\1>", "", content, flags=re.DOTALL | re.IGNORECASE)
+            content = re.sub(r"<(session_audit|audit_outcome|audit_reason|audit_proof)>.*?</\1>", "", content, flags=re.DOTALL | re.IGNORECASE)
             content = re.sub(r"<[^>]+>", "", content)
             content = re.sub(r"^\s*[^:\n]{1,25}:\s*", "", content, flags=re.MULTILINE)
             content = content.replace("```", "").strip()
@@ -387,7 +387,7 @@ class FinishNode:
 
             # Extract outcome
             full_text = "".join([str(m.content) for m in messages if isinstance(m, AIMessage)])
-            outcome_match = re.search(r"<outcome>(.*?)</outcome>", full_text, re.IGNORECASE | re.DOTALL)
+            outcome_match = re.search(r"<evoloop_audit_outcome>(.*?)</evoloop_audit_outcome>", full_text, re.IGNORECASE | re.DOTALL)
             final_outcome = ""
             if outcome_match:
                 final_outcome = outcome_match.group(1).strip()
@@ -499,7 +499,7 @@ class FinishNode:
             for msg in list(state.messages):
                 if isinstance(msg, AIMessage) and msg.content:
                     content = str(msg.content)
-                    if "<audit>" in content and "<report>" in content and hasattr(msg, 'id') and msg.id:
+                    if "<evoloop_session_audit>" in content and "<evoloop_final_report>" in content and hasattr(msg, 'id') and msg.id:
                         messages_to_return.append(RemoveMessage(id=msg.id))
                         removed_ids.append(msg.id[:8] + "...")
 

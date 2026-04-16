@@ -80,29 +80,36 @@ class CheckpointRewind:
 
         Determines the checkpoint range to delete and publishes cleanup event.
         """
-        try:
-            # Find checkpoints to delete based on message range
-            checkpoint_info = await self._find_checkpoints_to_delete(
+        # Find checkpoints to delete based on message range
+        checkpoint_info = await self._find_checkpoints_to_delete(
+            thread_id=event.thread_id,
+            target_message_id=event.target_message_id,
+            include_target=event.include_target
+        )
+
+        if checkpoint_info:
+            checkpoint_ids, min_checkpoint_id = checkpoint_info
+            
+            # Perform deletion directly to capture count for aggregation
+            count = await self._delete_checkpoints(
                 thread_id=event.thread_id,
-                target_message_id=event.target_message_id,
-                include_target=event.include_target
+                checkpoint_ids=checkpoint_ids
             )
-
-            if checkpoint_info:
-                checkpoint_ids, min_checkpoint_id = checkpoint_info
-                from app.core.events import system_bus
-                await system_bus.publish(CheckpointCleanupEvent(
-                    thread_id=event.thread_id,
-                    checkpoint_ids=checkpoint_ids,
-                    min_checkpoint_id=min_checkpoint_id,
-                ))
-                logger.info(f"[CheckpointRewind] Prepared {len(checkpoint_ids)} checkpoints for cleanup")
-            else:
-                logger.debug(f"[CheckpointRewind] No checkpoints to delete for thread {event.thread_id}")
-
-        except Exception as e:
-            logger.error(f"[CheckpointRewind] Failed to prepare checkpoint cleanup: {e}")
-            # Don't raise - checkpoint cleanup is best-effort
+            
+            # Report back to the main event
+            event.results["checkpoints"] = count
+            
+            # Still publish specific cleanup event for other potential listeners
+            from app.core.events import system_bus
+            await system_bus.publish(CheckpointCleanupEvent(
+                thread_id=event.thread_id,
+                checkpoint_ids=checkpoint_ids,
+                min_checkpoint_id=min_checkpoint_id,
+                delete_data=True
+            ))
+            logger.info(f"[CheckpointRewind] Deleted {count} checkpoints for thread {event.thread_id}")
+        else:
+            logger.debug(f"[CheckpointRewind] No checkpoints found to delete for thread {event.thread_id}")
 
     @event_subscribe(RewindEventType.CHECKPOINT_CLEANUP)
     async def _handle_checkpoint_cleanup(self, event: CheckpointCleanupEvent) -> None:

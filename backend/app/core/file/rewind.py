@@ -61,24 +61,30 @@ class FileRewind:
             logger.debug("[FileRewind] File revert disabled, skipping")
             return
 
-        try:
-            # Query file operations for this thread
-            file_ops = await self._find_file_operations(
-                thread_id=event.thread_id,
-                target_message_id=event.target_message_id,
-                include_target=event.include_target
-            )
+        # Query file operations for this thread
+        file_ops = await self._find_file_operations(
+            thread_id=event.thread_id,
+            target_message_id=event.target_message_id,
+            include_target=event.include_target
+        )
 
-            if file_ops:
-                # Publish specific cleanup event
-                from app.core.events import system_bus
-                await system_bus.publish(FilesCleanupEvent(
-                    thread_id=event.thread_id,
-                    file_operations=file_ops
-                ))
-                logger.info(f"[FileRewind] Prepared {len(file_ops)} file operations for cleanup")
-        except Exception as e:
-            logger.error(f"[FileRewind] Failed to prepare file cleanup: {e}")
+        if file_ops:
+            # Perform restoration directly to capture count for aggregation
+            count = await self._revert_files(file_ops)
+            self._reverted_count = count
+            
+            # Report back to the main event
+            event.results["files"] = count
+            
+            # Still publish specific cleanup event for other potential listeners
+            from app.core.events import system_bus
+            await system_bus.publish(FilesCleanupEvent(
+                thread_id=event.thread_id,
+                file_operations=file_ops
+            ))
+            logger.info(f"[FileRewind] Reverted {count} files for thread {event.thread_id}")
+        else:
+            logger.info(f"[FileRewind] No file operations to revert for thread {event.thread_id}")
 
     @event_subscribe(RewindEventType.FILES_CLEANUP)
     async def _handle_files_cleanup(self, event: FilesCleanupEvent) -> None:

@@ -98,7 +98,7 @@ def extract_tag_content(text: str, tag: str) -> str | None:
         The extracted content, or None if tag not found
     
     Examples:
-        >>> extract_tag_content("<report>hello</report>", "report")
+        >>> extract_tag_content("<evoloop_final_report>hello</evoloop_final_report>", "evoloop_final_report")
         'hello'
         >>> extract_tag_content("<think>\\n  reasoning\\n</think>", "think")
         'reasoning'

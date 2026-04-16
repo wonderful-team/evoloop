@@ -62,16 +62,32 @@ class MemoryRewind:
             )
 
             if message_ids:
-                # Publish specific cleanup event
+                # Perform deletion directly to capture count for aggregation
+                count = await self._delete_memories(
+                    source_message_ids=message_ids,
+                    run_ids=[]
+                )
+                self._deleted_count = count
+
+                # Report back to the main event
+                event.results["memories"] = count
+
+                # Still publish specific cleanup event for other potential listeners
                 from app.core.events import system_bus
                 await system_bus.publish(MemoryCleanupEvent(
                     thread_id=event.thread_id,
                     source_message_ids=message_ids,
-                    run_ids=[]  # Run IDs would need to be extracted from messages
+                    run_ids=[]
                 ))
-                logger.info(f"[MemoryRewind] Prepared {len(message_ids)} messages for memory cleanup")
+                logger.info(f"[MemoryRewind] Deleted {count} memories for thread {event.thread_id}")
+            else:
+                logger.debug(f"[MemoryRewind] No memories found to delete for thread {event.thread_id}")
+
         except Exception as e:
-            logger.error(f"[MemoryRewind] Failed to prepare memory cleanup: {e}")
+            error_msg = f"Memory cleanup failed: {e}"
+            logger.error(f"[MemoryRewind] {error_msg}")
+            event.errors.append(error_msg)
+            event.success = False
 
     @event_subscribe(RewindEventType.MEMORY_CLEANUP)
     async def _handle_memory_cleanup(self, event: MemoryCleanupEvent) -> None:

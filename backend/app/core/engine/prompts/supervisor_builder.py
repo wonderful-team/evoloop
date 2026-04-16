@@ -14,7 +14,6 @@ from typing import Any
 from langchain_core.runnables import RunnableConfig
 
 from app.core.engine.state.blackboard import BlackboardState
-from app.core.environment import get_awakened_state
 from app.infrastructure.config.service import SystemConfigService
 from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.utils import render_template
@@ -90,24 +89,8 @@ class SupervisorPromptBuilder:
         """
         from app.core.context import ContextManager, plugin_registry
 
-        from .utils import get_mapped_cwd
-
         ctx = ContextManager.current()
         plugin_registry.hydrate_context(ctx)
-        actual_cwd = get_mapped_cwd(ctx.working_directory or ctx.metadata.get("cwd", ""))
-        is_global_mode = self.project_id == 0 or self.project_id is None
-
-        # Get telemetry if available (trimmed)
-        awakened_state = get_awakened_state()
-        telemetry_data = {}
-        MAX_INSTALLED_APPS = 10
-        if awakened_state:
-            telemetry_data = awakened_state.get_telemetry_snapshot() or {}
-            if telemetry_data and "macos" in telemetry_data and "installed_apps" in telemetry_data["macos"]:
-                original = len(telemetry_data["macos"]["installed_apps"])
-                telemetry_data["macos"]["installed_apps"] = telemetry_data["macos"]["installed_apps"][:MAX_INSTALLED_APPS]
-                if original > MAX_INSTALLED_APPS:
-                    logger.debug(f"[ContextTicket] Pruned macOS apps {original} → {MAX_INSTALLED_APPS}")
 
         blackboard = self.context.blackboard
         active_plan_data = self.context.structured_plan

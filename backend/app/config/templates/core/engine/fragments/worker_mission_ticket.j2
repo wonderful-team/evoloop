@@ -96,6 +96,11 @@ WARNING: No Standard Operating Procedure (SOP) is available for this mission.
 **ONLY proceed directly if the task is trivial (e.g., single file read, simple command).**
 {%- endif %}
 
+{%- if previous_output %}
+## Previous Step Output
+{{ previous_output | truncate(500) }}
+{%- endif %}
+
 {%- if macro_goal %}
 ## Global Mission Goal
 You are working on a sub-task part of a larger objective:

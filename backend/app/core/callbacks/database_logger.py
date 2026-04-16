@@ -10,6 +10,7 @@ DatabaseCallbackHandler - 数据库日志回调处理器（重构版）
 """
 
 import logging
+import re
 from typing import Any
 from uuid import UUID
 
@@ -177,26 +178,20 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
         return str(content)
 
     def _extract_thinking(self, content: str) -> str | None:
-        """提取思考内容（<think> 或 <audit> 标签）"""
+        """提取思考内容（<think> 或 <evoloop_session_audit> 标签）"""
         if not content:
             return None
-
-        import re
 
         thinking_parts = []
 
         # 提取 <think> 内容
-        think_match = re.search(
-            r"<think>(.*?)</think>",
-            content,
-            re.DOTALL | re.IGNORECASE
-        )
+        think_match = re.search(r"<think>(.*?)</think>", content, re.DOTALL | re.IGNORECASE)
         if think_match:
             thinking_parts.append(think_match.group(1).strip())
 
-        # 提取 <audit> 内容
+        # 提取 <evoloop_session_audit> 内容
         audit_match = re.search(
-            r"<audit>(.*?)</audit>",
+            r"<evoloop_session_audit>(.*?)</evoloop_session_audit>",
             content,
             re.DOTALL | re.IGNORECASE
         )
@@ -220,9 +215,9 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
             flags=re.DOTALL | re.IGNORECASE
         )
 
-        # 移除 <audit> 标签
+        # 移除 <evoloop_session_audit> 标签
         content = re.sub(
-            r"<audit>.*?</audit>",
+            r"<evoloop_session_audit>.*?</evoloop_session_audit>",
             "",
             content,
             flags=re.DOTALL | re.IGNORECASE

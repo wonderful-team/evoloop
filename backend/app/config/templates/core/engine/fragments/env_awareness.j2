@@ -4,7 +4,7 @@
 {% if environment.macos -%}
 - Host: {{ environment.macos.model }} ({{ environment.macos.cpu }}), macOS {{ environment.macos.os_version }}
 {%- if not is_subtask and environment.macos.top_apps %}
- Installed macOS Apps (Top): {{ environment.macos.top_apps | join(', ') }}
+ Installed macOS Apps (Top): {{ environment.macos.top_apps[:15] | join(', ') }}
 {%- endif %}
 {%- if not is_subtask %}
  **App Name Resolution**: When user mentions apps in Chinese, map to actual system names:
@@ -19,7 +19,7 @@
 {%- if environment.android_devices %}
 {%- for dev in environment.android_devices %}
 - Android Device {{ '✅' if dev.is_reachable else '⚠️' }} `{{ dev.device_id }}`: {{ dev.model }} (Android {{ dev.os_version }}), Battery: {{ dev.battery_percent }}%
-{%- if not is_subtask and dev.top_pkgs %} [Packages: {{ dev.top_pkgs | join(', ') }}{% if dev.more_count > 0 %}, and {{ dev.more_count }} more{% endif %}]{% endif %}
+{%- if not is_subtask and dev.top_pkgs %} [Packages: {{ dev.top_pkgs[:10] | join(', ') }}{% set more_count = [0, dev.top_pkgs | length - 10] | max %}{% if more_count > 0 %}, and {{ more_count }} more{% endif %}]{% endif %}
 {%- endfor %}
 {%- endif %}
 {%- if environment.network %}

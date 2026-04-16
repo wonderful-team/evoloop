@@ -57,6 +57,9 @@ class RewindRequestedEvent(RewindEvent):
     revert_files: bool = True             # Whether to revert file changes
     reset_state: bool = True              # Whether to reset LangGraph state
     reason: str = "user_request"          # Why the rewind was triggered
+    results: dict[str, int] = Field(default_factory=dict)  # To collect results from handlers
+    errors: list[str] = Field(default_factory=list)       # To collect errors from handlers
+    success: bool = True                  # Overall success status
 
     def model_post_init(self, __context: Any) -> None:
         self.event_type = RewindEventType.REWIND_REQUESTED
@@ -67,6 +70,9 @@ class RewindRequestedEvent(RewindEvent):
             "revert_files": self.revert_files,
             "reset_state": self.reset_state,
             "reason": self.reason,
+            "results": self.results,
+            "errors": self.errors,
+            "success": self.success,
         }
 
 

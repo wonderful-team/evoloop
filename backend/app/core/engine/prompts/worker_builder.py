@@ -98,6 +98,7 @@ class WorkerPromptBuilder:
         memory: dict = None,
         plan: Any = None,
         session_goal: str | None = None,
+        previous_output: str = "",
     ) -> str:
         """Constructs the USER message (Mission Ticket) for the Worker.
         
@@ -128,6 +129,7 @@ class WorkerPromptBuilder:
             "clipboard": self.clipboard,
             "plan": plan or self.plan,
             "macro_goal": session_goal,
+            "previous_output": previous_output,
         }
         return render_template("core/engine/fragments/worker_mission_ticket.j2", **to_template_context(template_vars))
 

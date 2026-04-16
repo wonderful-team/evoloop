@@ -70,35 +70,27 @@ class StateRewind:
         
         This discovers the appropriate checkpoint and rolls back state.
         """
-        if not event.reset_state:
-            logger.debug("[StateRewind] State reset disabled, skipping")
-            return
+        # Get the target human sequence
+        target_sequence = await self._get_target_human_sequence(
+            thread_id=event.thread_id,
+            target_message_id=event.target_message_id,
+            include_target=event.include_target
+        )
 
-        try:
-            # Get the target human sequence
-            target_sequence = await self._get_target_human_sequence(
-                thread_id=event.thread_id,
-                target_message_id=event.target_message_id,
-                include_target=event.include_target
-            )
+        # Perform checkpoint rollback
+        checkpoint_id = await self._rollback_to_checkpoint(
+            thread_id=event.thread_id,
+            target_human_sequence=target_sequence,
+            reset_state=event.reset_state
+        )
 
-            # Perform checkpoint rollback
-            checkpoint_id = await self._rollback_to_checkpoint(
-                thread_id=event.thread_id,
-                target_human_sequence=target_sequence,
-                reset_state=event.reset_state
-            )
+        self._last_checkpoint_id = checkpoint_id
 
-            self._last_checkpoint_id = checkpoint_id
-
-            if checkpoint_id:
-                logger.info(f"[StateRewind] Rolled back to checkpoint {checkpoint_id}")
-            else:
-                logger.warning("[StateRewind] No matching checkpoint found")
-
-        except Exception as e:
-            logger.error(f"[StateRewind] State rollback failed: {e}")
-            raise
+        if checkpoint_id:
+            event.results["checkpoint_id"] = checkpoint_id
+            logger.info(f"[StateRewind] Rolled back to checkpoint {checkpoint_id}")
+        else:
+            logger.warning("[StateRewind] No matching checkpoint found")
 
     @event_subscribe(RewindEventType.STATE_RESET)
     async def _handle_state_reset(self, event: StateResetEvent) -> None:

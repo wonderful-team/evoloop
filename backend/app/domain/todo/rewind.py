@@ -51,24 +51,30 @@ class TodoRewind:
         
         Extracts message IDs and publishes a TODO_CLEANUP event.
         """
-        try:
-            # Get message IDs to clean up
-            message_ids = await self._find_message_ids(
+        # Find message IDs to clean up
+        message_ids = await self._find_message_ids(
+            thread_id=event.thread_id,
+            target_message_id=event.target_message_id,
+            include_target=event.include_target
+        )
+        
+        if message_ids:
+            # Perform deletion directly to capture count for aggregation
+            count = await self._delete_todos(message_ids)
+            self._deleted_count = count
+
+            # Report back to the main event
+            event.results["todos"] = count
+
+            # Still publish specific cleanup event for other potential listeners
+            from app.core.events import system_bus
+            await system_bus.publish(TodoCleanupEvent(
                 thread_id=event.thread_id,
-                target_message_id=event.target_message_id,
-                include_target=event.include_target
-            )
-            
-            if message_ids:
-                # Publish specific cleanup event
-                from app.core.events import system_bus
-                await system_bus.publish(TodoCleanupEvent(
-                    thread_id=event.thread_id,
-                    source_message_ids=message_ids
-                ))
-                logger.info(f"[TodoRewind] Prepared {len(message_ids)} messages for todo cleanup")
-        except Exception as e:
-            logger.error(f"[TodoRewind] Failed to prepare todo cleanup: {e}")
+                source_message_ids=message_ids
+            ))
+            logger.info(f"[TodoRewind] Deleted {count} todo items for thread {event.thread_id}")
+        else:
+            logger.debug(f"[TodoRewind] No todo items found to delete for thread {event.thread_id}")
 
     @event_subscribe(RewindEventType.TODO_CLEANUP)
     async def _handle_todo_cleanup(self, event: TodoCleanupEvent) -> None:
@@ -113,7 +119,7 @@ class TodoRewind:
                     stmt = stmt.where(Message.id >= target_id)
                 else:
                     stmt = stmt.where(Message.id > target_id)
-            
+
             result = await session.execute(stmt)
             return [str(row[0]) for row in result.all()]
 

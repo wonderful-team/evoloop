@@ -2,10 +2,20 @@
 
 {% if type == "links" %}
 ### Found {{ items|length }} links
-{{ list.render_list(items) }}
+{% for lnk in items[:100] %}
+- [{{ loop.index0 }}] {{ lnk['text'][:60] }} → {{ lnk['href'] }}
+{% endfor %}
+{% if not items %}
+(None found)
+{% endif %}
 {% elif type == "cookies" %}
 ### Cookies ({{ items|length }})
-{{ list.render_list(items) }}
+{% for c in items %}
+- [{{ loop.index0 }}] {{ c['name'] }}={{ c['value'][:40] }} (domain: {{ c.get('domain', '') }})
+{% endfor %}
+{% if not items %}
+(None found)
+{% endif %}
 {% elif type == "devices" %}
 ### Connected Devices ({{ items|length }})
 {{ list.render_list(items) }}
@@ -15,4 +25,18 @@
 {% elif type == "tools_used" %}
 ### Tools Used ({{ items|length }})
 {{ list.render_list(items) }}
+{% elif type == "wiki_pages" %}
+### Wiki Pages ({{ items|length }})
+{{ list.render_list(items) }}
+{% elif type == "android_devices" %}
+### Android Devices ({{ items|length }})
+{{ list.render_list(items) }}
+{% elif type == "ui_elements" %}
+### UI Elements ({{ items[:max_items] | length }})
+{% for el in items[:max_items] %}
+- [{{ loop.index0 }}] {{ el.get('role', 'Unknown') }}: {{ el.get('name', 'Unnamed') }}
+{% endfor %}
+{% if not items %}
+(None found)
+{% endif %}
 {% endif %}

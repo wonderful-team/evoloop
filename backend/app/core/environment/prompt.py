@@ -94,9 +94,9 @@ def build_environment_summaries(relevance: str = "auto") -> dict:
             if relevance in ["macos", "both", "auto"]:
                 if state.macos.installed_apps:
                     if state.macos.app_usage_stats:
-                        macos_info["top_apps"] = [s.app_name for s in state.macos.app_usage_stats[:15]]
+                        macos_info["top_apps"] = [s.app_name for s in state.macos.app_usage_stats]
                     else:
-                        macos_info["top_apps"] = sorted(state.macos.installed_apps)[:15]
+                        macos_info["top_apps"] = sorted(state.macos.installed_apps)
             data["macos"] = macos_info
 
         # 2. Android Info
@@ -113,8 +113,8 @@ def build_environment_summaries(relevance: str = "auto") -> dict:
                         "more_count": 0
                     }
                     if dev.installed_packages:
-                        dev_data["top_pkgs"] = dev.installed_packages[:10]
-                        dev_data["more_count"] = max(0, len(dev.installed_packages) - 10)
+                        dev_data["top_pkgs"] = dev.installed_packages
+                        dev_data["more_count"] = len(dev.installed_packages)
                     data["android_devices"].append(dev_data)
 
         # 3. Network

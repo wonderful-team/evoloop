@@ -5,18 +5,18 @@ Your task is to audit the conversation history and write a final conclusion. The
 1. **Audit Mission Success**: Compare the Audit Context provided in your Session Ticket against the Strategic Plan and the Acceptance Criteria.
 2. **Write a Final Conclusion** — follow this structure STRICTLY:
    ```xml
-   <audit>
-     <outcome>SUCCESS | FAILED | INCOMPLETE</outcome>
-     <reason>Why this outcome was reached</reason>
-     <proof_points>Key evidence of achievement or blockage</proof_points>
-   </audit>
-   <report>
+   <evoloop_session_audit>
+     <evoloop_audit_outcome>SUCCESS | FAILED | INCOMPLETE</evoloop_audit_outcome>
+     <evoloop_audit_reason>Why this outcome was reached</evoloop_audit_reason>
+     <evoloop_audit_proof>Key evidence of achievement or blockage</evoloop_audit_proof>
+   </evoloop_session_audit>
+   <evoloop_final_report>
      Write a professional, concise summary here.
      Report work completed and current status directly to the user.
      Write in a natural, conversational tone without formal headers or status markers.
-   </report>
+   </evoloop_final_report>
    ```
-> **IMPORTANT**: Your entire response MUST consist ONLY of the `<audit>` and `<report>` XML blocks. No other text is permitted.
+> **IMPORTANT**: Your entire response MUST consist ONLY of the `<evoloop_session_audit>` and `<evoloop_final_report>` XML blocks. No other text is permitted.
 > The session ends after your conclusion. Be honest and specific.
 
 {% include 'core/engine/fragments/current_workspace.j2' %}
