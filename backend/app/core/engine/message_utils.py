@@ -410,7 +410,20 @@ def fold_messages(messages: list[BaseMessage]) -> list[FoldedMessage]:
                 
                 # Match with tool_call_id
                 tool_call = tool_call_ids.get(tool_msg.tool_call_id)
-                tool_name = tool_msg.name or (tool_call.get("name") if tool_call else "unknown")
+
+                # Robustly extract name and args from tool_call (could be dict or object)
+                if tool_call:
+                    if isinstance(tool_call, dict):
+                        tc_name = tool_call.get("name", "unknown")
+                        tc_args = tool_call.get("args", {})
+                    else:
+                        tc_name = getattr(tool_call, "name", "unknown")
+                        tc_args = getattr(tool_call, "args", {})
+                else:
+                    tc_name = "unknown"
+                    tc_args = {}
+
+                tool_name = tool_msg.name or tc_name
 
                 # Check if tool should be hidden in UI
                 metadata = get_tool_metadata(tool_name) or {}
@@ -422,7 +435,7 @@ def fold_messages(messages: list[BaseMessage]) -> list[FoldedMessage]:
                     id=f"step-{tool_msg.tool_call_id}",
                     tool=tool_name,
                     tool_name=get_tool_friendly_name(tool_name) or tool_name,
-                    input=tool_call['args'] if isinstance(tool_call, dict) else tool_call.args,
+                    input=tc_args,
                     output=get_message_text(tool_msg),
                     status="success",
                     tool_call_id=tool_msg.tool_call_id

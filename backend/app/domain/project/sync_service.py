@@ -118,17 +118,14 @@ class ProjectSyncService:
                     logger.info(f"[ProjectSync] Project '{repo_name}' created with status DETECTED (ID: {repo.id})")
 
                     # Publish NewProjectDetectedEvent for frontend notification
-                    try:
-                        from app.domain.project.events import NewProjectDetectedEvent
+                    from app.domain.project.events import NewProjectDetectedEvent
 
-                        await system_bus.publish(NewProjectDetectedEvent(
-                            repo_id=repo.id,
-                            path=path,
-                            name=repo_name,
-                            detected_at=repo.detected_at
-                        ))
-                    except Exception as e:
-                        logger.error(f"[ProjectSync] Failed to publish NewProjectDetectedEvent: {e}")
+                    await system_bus.publish(NewProjectDetectedEvent(
+                        repo_id=repo.id,
+                        path=path,
+                        name=repo_name,
+                        detected_at=repo.detected_at
+                    ))
 
         except Exception as e:
             logger.error(f"[ProjectSync] Failed to create repository record: {e}")
@@ -236,12 +233,9 @@ class ProjectSyncService:
             logger.error(f"[ProjectSync] Failed to publish ProjectCreatedEvent: {e}")
 
         # Dispatch cloud sync task
-        try:
-            from app.domain.project.sync_tasks import sync_project_to_cloud_task
-            sync_project_to_cloud_task.delay(repo.id)
-            logger.info(f"[ProjectSync] Cloud sync task queued for Repo ID {repo.id}")
-        except Exception as e:
-            logger.error(f"[ProjectSync] Failed to queue sync task: {e}")
+        from app.domain.project.sync_tasks import sync_project_to_cloud_task
+        sync_project_to_cloud_task.delay(repo.id)
+        logger.info(f"[ProjectSync] Cloud sync task queued for Repo ID {repo.id}")
 
         return repo
 
@@ -405,61 +399,57 @@ class ProjectSyncService:
         new_name = os.path.basename(dest_path)
         logger.info(f"[ProjectSync] Detected Move: {src_path} -> {dest_path}")
 
-        try:
-            # 1. Find Repo
-            repo = await self._indexing_service.get_repo_by_path(src_path)
-            if not repo:
-                logger.warning(f"[ProjectSync] Move source {src_path} not found. Treating as New Creation.")
-                await self.handle_project_created(dest_path)
-                return
+        # 1. Find Repo
+        repo = await self._indexing_service.get_repo_by_path(src_path)
+        if not repo:
+            logger.warning(f"[ProjectSync] Move source {src_path} not found. Treating as New Creation.")
+            await self.handle_project_created(dest_path)
+            return
 
-            # 2. If project is DETECTED or IGNORED, just update the path
-            if repo.sync_status in ["DETECTED", "IGNORED"]:
-                async with self._indexing_service.session_factory() as session:
-                    r = await session.get(Repository, repo.id)
-                    if r:
-                        r.local_path = dest_path
-                        r.name = new_name
-                        session.add(r)
-                        await session.commit()
-                logger.info(f"[ProjectSync] Updated path for {repo.sync_status} project: {dest_path}")
-                return
-
-            # 3. Stop Old Watch (for imported projects)
-            from app.domain.codebase.indexing.manager import indexing_manager
-            await indexing_manager.stop_watching(src_path)
-
-            # 4. Update Cloud (Best Effort)
-            if repo.project_id:
-                try:
-                    await evocloud_manager.api.update_project(
-                        project_id=repo.project_id,
-                        name=new_name,
-                        path=dest_path
-                    )
-                    logger.info("[ProjectSync] Cloud Project Updated.")
-                    # Invalidate cache to reflect updated project info
-                    evocloud_manager.invalidate_projects_cache()
-                except Exception as e:
-                    logger.error(f"[ProjectSync] Cloud Update Failed: {e}")
-
-            # 5. Update Local Record
+        # 2. If project is DETECTED or IGNORED, just update the path
+        if repo.sync_status in ["DETECTED", "IGNORED"]:
             async with self._indexing_service.session_factory() as session:
-                r = await session.get(type(repo), repo.id)
+                r = await session.get(Repository, repo.id)
                 if r:
                     r.local_path = dest_path
                     r.name = new_name
-                    # If it was disconnected, moving it might reconnect it?
-                    if r.sync_status == "DISCONNECTED":
-                        r.sync_status = "SYNCED"
                     session.add(r)
                     await session.commit()
+            logger.info(f"[ProjectSync] Updated path for {repo.sync_status} project: {dest_path}")
+            return
 
-            # 6. Start New Watch
-            await indexing_manager.start_watching(dest_path, repo.id)
+        # 3. Stop Old Watch (for imported projects)
+        from app.domain.codebase.indexing.manager import indexing_manager
+        await indexing_manager.stop_watching(src_path)
 
-        except Exception as e:
-            logger.error(f"[ProjectSync] Move handling failed: {e}")
+        # 4. Update Cloud (Best Effort)
+        if repo.project_id:
+            try:
+                await evocloud_manager.api.update_project(
+                    project_id=repo.project_id,
+                    name=new_name,
+                    path=dest_path
+                )
+                logger.info("[ProjectSync] Cloud Project Updated.")
+                # Invalidate cache to reflect updated project info
+                evocloud_manager.invalidate_projects_cache()
+            except Exception as e:
+                logger.error(f"[ProjectSync] Cloud Update Failed: {e}")
+
+        # 5. Update Local Record
+        async with self._indexing_service.session_factory() as session:
+            r = await session.get(type(repo), repo.id)
+            if r:
+                r.local_path = dest_path
+                r.name = new_name
+                # If it was disconnected, moving it might reconnect it?
+                if r.sync_status == "DISCONNECTED":
+                    r.sync_status = "SYNCED"
+                session.add(r)
+                await session.commit()
+
+        # 6. Start New Watch
+        await indexing_manager.start_watching(dest_path, repo.id)
 
     async def _resolve_existing_project_id(self, path: str) -> int | None:
         """Try to resolve Project ID from Context/Settings/Cache."""

@@ -418,6 +418,7 @@ def create_celery_app() -> TaskScheduler:
             "app.core.engine.tasks",
             "app.core.atlas.tasks",
             "app.core.vision.cleanup",
+            "app.core.memory.maintenance",
         ],
     )
 

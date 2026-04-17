@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 import os
 import re
@@ -13,7 +14,6 @@ from app.constants import DEFAULT_PROJECT_ID
 from app.core.config import settings
 from app.core.environment.events import UiTreeObservedEvent, event_bus
 from app.core.learning.trace_recorder import sync_thread_to_graph
-from app.core.memory.interfaces.long_term import Concept as MemConcept
 from app.infrastructure.database.sql.database import session_scope
 # Unified task queue (Huey in embedded mode, Celery in full mode)
 from app.infrastructure.queue.factory import shared_task
@@ -24,24 +24,19 @@ logger = logging.getLogger(__name__)
 
 async def _notify_file_operation(thread_id: str, message_id: str, file_path: str, operation: str):
     """Notify frontend of new file operation via SSE."""
-    try:
-        import json
+    from app.infrastructure.cache import cache
 
-        from app.infrastructure.cache import cache
+    event_data = {
+        "type": "file_operation",
+        "thread_id": thread_id,
+        "message_id": message_id,
+        "file_path": file_path,
+        "operation": operation,  # "ADD", "EDIT", "DELETE"
+        "timestamp": datetime.now().isoformat(),
+    }
 
-        event_data = {
-            "type": "file_operation",
-            "thread_id": thread_id,
-            "message_id": message_id,
-            "file_path": file_path,
-            "operation": operation,  # "ADD", "EDIT", "DELETE"
-            "timestamp": datetime.now().isoformat(),
-        }
-
-        await cache.publish(f"chat:{thread_id}:events", json.dumps(event_data))
-        logger.debug(f"[Celery] Published file operation event for {file_path}")
-    except Exception as e:
-        logger.warning(f"[Celery] Failed to publish file operation event: {e}")
+    await cache.publish(f"chat:{thread_id}:events", json.dumps(event_data))
+    logger.debug(f"[Celery] Published file operation event for {file_path}")
 
 
 @shared_task(name="engine_persist_file_operation")
@@ -55,23 +50,20 @@ def persist_file_operation_task(
 ):
     """Background task to persist file movement/edit diffs to the database."""
     async def _run():
-        try:
-            async with session_scope() as session:
-                op = FileOperation(
-                    thread_id=thread_id,
-                    message_id=message_id,
-                    file_path=file_path,
-                    operation=operation,
-                    diff_content=diff_content,
-                    original_content=original_content,
-                )
-                session.add(op)
-            logger.debug(f"[Celery] Persisted file operation for {file_path}")
+        async with session_scope() as session:
+            op = FileOperation(
+                thread_id=thread_id,
+                message_id=message_id,
+                file_path=file_path,
+                operation=operation,
+                diff_content=diff_content,
+                original_content=original_content,
+            )
+            session.add(op)
+        logger.debug(f"[Celery] Persisted file operation for {file_path}")
 
-            # Notify frontend via SSE
-            await _notify_file_operation(thread_id, message_id, file_path, operation)
-        except Exception as e:
-            logger.error(f"[Celery] Failed to persist file operation: {e}")
+        # Notify frontend via SSE
+        await _notify_file_operation(thread_id, message_id, file_path, operation)
 
     async def _run_with_flush():
         try:
@@ -132,42 +124,39 @@ def snapshot_steps_task(
     are incrementally attributed to the AI message active when they ran.
     """
     async def _run():
-        try:
-            from app.models import Message
-            async with session_scope() as session:
-                stmt = (
-                    select(Message)
-                    .where(Message.thread_id == thread_id)
-                    .where(Message.role == "ai")
-                )
-                if run_id:
-                    stmt = stmt.where(Message.run_id == run_id)
-                stmt = stmt.order_by(desc(Message.sequence_number)).limit(1)
+        from app.models import Message
+        async with session_scope() as session:
+            stmt = (
+                select(Message)
+                .where(Message.thread_id == thread_id)
+                .where(Message.role == "ai")
+            )
+            if run_id:
+                stmt = stmt.where(Message.run_id == run_id)
+            stmt = stmt.order_by(desc(Message.sequence_number)).limit(1)
 
-                result = await session.execute(stmt)
-                last_msg = result.scalar_one_or_none()
+            result = await session.execute(stmt)
+            last_msg = result.scalar_one_or_none()
 
-                if last_msg:
-                    serialized_steps = [
-                        {
-                            "id": t.get("id"),
-                            "name": t.get("name"),
-                            "status": t.get("status"),
-                            "type": t.get("type"),
-                            "parent_id": t.get("parent_id"),
-                            "time": t.get("time"),
-                            "details": t.get("details"),
-                        }
-                        for t in steps
-                    ]
+            if last_msg:
+                serialized_steps = [
+                    {
+                        "id": t.get("id"),
+                        "name": t.get("name"),
+                        "status": t.get("status"),
+                        "type": t.get("type"),
+                        "parent_id": t.get("parent_id"),
+                        "time": t.get("time"),
+                        "details": t.get("details"),
+                    }
+                    for t in steps
+                ]
 
-                    # Append to existing steps instead of overwriting
-                    existing_steps = last_msg.steps_snapshot or []
-                    last_msg.steps_snapshot = existing_steps + serialized_steps
+                # Append to existing steps instead of overwriting
+                existing_steps = last_msg.steps_snapshot or []
+                last_msg.steps_snapshot = existing_steps + serialized_steps
 
-            logger.debug(f"[Celery] Snapshotted {len(steps)} steps for thread {thread_id}")
-        except Exception as e:
-            logger.error(f"[Celery] Failed to snapshot steps: {e}")
+        logger.debug(f"[Celery] Snapshotted {len(steps)} steps for thread {thread_id}")
 
     async def _run_with_flush():
         try:
@@ -217,13 +206,16 @@ def harvest_concepts_task(concepts_data: list[dict], project_id: int):
                         description = summary
                         logger.debug(f"Dehydrated {name} into summary: {summary}")
 
-                mem_concept = MemConcept(name, description, project_id, [])
-                # Use singleton container to store concept
+                # Use unified MemoryManager interface
                 from app.core.memory.lifespan import MemoryLifespanManager
                 if not MemoryLifespanManager.is_initialized():
                     await MemoryLifespanManager.ainitialize()
                 container = MemoryLifespanManager.get_container()
-                await container.memory_manager.long_term.store_concept(mem_concept)
+                await container.memory_manager.store_concept(
+                    name=name,
+                    description=description,
+                    project_id=project_id,
+                )
                 logger.info(f"Harvested concept: {name}")
             except Exception as e:
                 logger.warning(f"Failed to store concept {name}: {e}")
@@ -524,9 +516,15 @@ def git_harvest_task(cwd: str, project_id: int):
                 if not MemoryLifespanManager.is_initialized():
                     await MemoryLifespanManager.ainitialize()
                 container = MemoryLifespanManager.get_container()
+                from app.core.memory.models import Concept as MemConcept
                 for concept in result.concepts:
-                    mem_concept = MemConcept(concept.name, concept.description, project_id, concept.related_files)
-                    await container.memory_manager.long_term.store_concept(mem_concept)
+                    mem_concept = MemConcept(
+                        name=concept.name,
+                        description=concept.description,
+                        project_id=project_id,
+                        related_files=concept.related_files
+                    )
+                    await container.memory_manager.store_concept(mem_concept)
                     logger.info(f"[Celery] Harvested concept: {concept.name}")
         except Exception as e:
             logger.error(f"[Celery] Harvest extraction failed: {e}")

@@ -6,39 +6,32 @@ Inspired by Claude Code's extractMemories.ts, this module implements:
 - Frequency control (throttling)
 - Mutual exclusion (skip if main agent already wrote memories)
 - Background execution (non-blocking)
-
-Usage:
-    from app.core.memory.config import MemoryConfig
-    from app.core.memory.manager import MemoryManager
-    
-    config = MemoryConfig.from_settings()
-    manager = MemoryManager()  # or use factory
-    extractor = AutoMemoryExtractor(
-        memory_manager=manager,
-        config=config,
-    )
-    
-    # At end of conversation
-    asyncio.create_task(
-        extractor.maybe_extract(
-            thread_id=thread_id,
-            messages=messages,
-            project_id=project_id,
-        )
-    )
 """
 
 import asyncio
+import itertools
+import json
 import logging
+import os
+import re
+import uuid
 from datetime import datetime
 
-from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
 
 from app.core.config import settings
 from app.core.memory.models import MemoryEntry, MemoryType, PrivacyLevel
-from app.utils.template import render_template
 
 logger = logging.getLogger(__name__)
+
+
+async def _get_todo_service(project_id: int | None = None):
+    """Get TodoService instance."""
+    from app.infrastructure.database.sql.database import get_async_session_context
+    from app.domain.todo.service import TodoService
+    
+    async with get_async_session_context() as session:
+        return TodoService(session)
 
 
 class AutoMemoryExtractor:
@@ -49,15 +42,12 @@ class AutoMemoryExtractor:
     valuable information without requiring the user to say "remember".
     
     Usage:
-        from app.core.memory.config import MemoryConfig
-        from app.core.memory.manager import MemoryManager
+        from app.core.memory.lifespan import MemoryLifespanManager
         
-        config = MemoryConfig.from_settings()
-        manager = MemoryManager()  # or use factory
-        extractor = AutoMemoryExtractor(
-            memory_manager=manager,
-            config=config,
-        )
+        extractor = MemoryLifespanManager.get_container().auto_extractor
+        
+        # At end of conversation
+        await extractor.maybe_extract(...)
     """
 
     def __init__(
@@ -108,6 +98,7 @@ class AutoMemoryExtractor:
         messages: list[BaseMessage],
         project_id: int | None = None,
         user_id: str | None = None,
+        summary: str | None = None,
     ) -> list[MemoryEntry] | None:
         """
         Conditionally trigger memory extraction.
@@ -120,6 +111,7 @@ class AutoMemoryExtractor:
             messages: List of conversation messages
             project_id: Associated project ID
             user_id: User ID
+            summary: Optional conversation summary
             
         Returns:
             List of extracted memories, or None if skipped
@@ -131,7 +123,7 @@ class AutoMemoryExtractor:
             return None
 
         async with lock:
-            return await self._extract_with_gates(thread_id, messages, project_id, user_id)
+            return await self._extract_with_gates(thread_id, messages, project_id, user_id, summary)
 
     async def _extract_with_gates(
         self,
@@ -139,6 +131,7 @@ class AutoMemoryExtractor:
         messages: list[BaseMessage],
         project_id: int | None,
         user_id: str | None,
+        summary: str | None,
     ) -> list[MemoryEntry] | None:
         """Run extraction with all gating logic."""
 
@@ -176,6 +169,7 @@ class AutoMemoryExtractor:
                 messages=messages,
                 project_id=project_id,
                 user_id=user_id,
+                summary=summary,
             )
 
             # Update cursor position
@@ -237,60 +231,46 @@ class AutoMemoryExtractor:
         self,
         thread_id: str,
         messages: list[BaseMessage],
-        project_id: int | None,
-        user_id: str | None,
+        project_id: int | None = None,
+        user_id: str | None = None,
+        summary: str | None = None,
     ) -> list[MemoryEntry]:
         """
-        Run the actual extraction using a forked agent.
-        
-        This uses a simplified agent that:
-        1. Analyzes the conversation
-        2. Extracts 0-3 memories worth keeping
-        3. Uses the `remember` tool to save them
+        Run extraction logic using a forked agent pattern.
         """
-        # Build extraction prompt
-        prompt = self._build_extraction_prompt(messages)
-
-        # Get existing memories to avoid duplicates
+        # Gather multi-source context
+        multi_source_context = await self._gather_multi_source_context(project_id)
+        
+        # Build extraction prompt using standardized builder
+        from app.core.memory.prompts import MemoryExtractionPromptBuilder
+        
+        # Extract metadata from multi-source context
+        readme_summary = multi_source_context.split("### README.md")[-1].split("###")[0].strip() if "### README.md" in multi_source_context else "None"
+        pending_todos = multi_source_context.split("### Pending TODOs")[-1].split("###")[0].strip() if "### Pending TODOs" in multi_source_context else "None"
         existing_memories = await self._get_existing_memory_manifest()
 
-        # Build the full prompt
-        full_prompt = f"""{prompt}
+        builder = MemoryExtractionPromptBuilder(
+            readme_summary=readme_summary,
+            pending_todos=pending_todos,
+            existing_memories=existing_memories,
+            multi_source_context=multi_source_context,
+            messages_text=self._format_messages(messages[-15:]),
+            summary=summary
+        )
 
-## Existing Memories (check to avoid duplicates)
-{existing_memories}
-
-## Conversation to Analyze
-{self._format_messages(messages[-15:])}  # Last 15 messages
-
-Extract 0-3 memories from this conversation and save them using the remember tool.
-Return your response as a JSON array of memories:
-```json
-[
-  {{
-    "content": "What to remember",
-    "context": "Why this matters (optional)",
-    "type": "user|feedback|project|reference"
-  }}
-]
-```
-
-Return empty array `[]` if nothing worth remembering."""
+        extraction_messages = await builder.build()
 
         # Call LLM for extraction using InternalLLMService
         try:
             from app.core.llm import InternalLLMService
             response = await InternalLLMService.invoke(
-                messages=[
-                    {"role": "system", "content": "You are a memory extraction assistant. Extract valuable information worth remembering from conversations."},
-                    {"role": "user", "content": full_prompt}
-                ],
+                messages=extraction_messages,
                 purpose="memory_extraction",
             )
 
             # Parse extracted memories
             content = response.content if hasattr(response, 'content') else str(response)
-            extracted = self._parse_extraction_response(content, project_id, user_id)
+            extracted = await self._parse_extraction_response(content, project_id, user_id)
 
             # Save extracted memories
             saved_count = 0
@@ -316,19 +296,24 @@ Return empty array `[]` if nothing worth remembering."""
         )
 
     def _format_messages(self, messages: list[BaseMessage]) -> str:
-        """Format messages for the extraction prompt."""
+        """Format messages for the extraction prompt with smart truncation."""
         lines = []
         for msg in messages:
+            role = "System"
             if isinstance(msg, HumanMessage):
                 role = "User"
             elif isinstance(msg, AIMessage):
                 role = "Assistant"
-            else:
-                role = "System"
+            elif isinstance(msg, ToolMessage):
+                role = f"Tool ({getattr(msg, 'name', 'output')})"
 
-            content = str(msg.content)[:500]  # Truncate long messages
-            if len(str(msg.content)) > 500:
-                content += "..."
+            content_raw = str(msg.content)
+            
+            # Smart Truncation: Head (300) + Tail (200) for very long messages
+            if len(content_raw) > 800:
+                content = content_raw[:400] + "\n... [TRUNCATED] ...\n" + content_raw[-300:]
+            else:
+                content = content_raw
 
             lines.append(f"{role}: {content}")
 
@@ -361,8 +346,6 @@ Return empty array `[]` if nothing worth remembering."""
         - Clear structure (bullet points, numbered lists)
         - Actionability (clear instructions vs vague statements)
         """
-        import re
-
         score = 0.5  # Base score
 
         # Length factor (ideal: 100-500 chars)
@@ -445,17 +428,13 @@ Return empty array `[]` if nothing worth remembering."""
             return content[:77].rsplit(' ', 1)[0] + "..."
         return content
 
-    def _parse_extraction_response(
+    async def _parse_extraction_response(
         self,
         response: str,
         project_id: int | None,
         user_id: str | None,
     ) -> list[MemoryEntry]:
         """Parse LLM extraction response into memory entries."""
-        import json
-        import re
-        import uuid
-
         entries = []
         seen_contents = set()  # For deduplication
 
@@ -481,12 +460,23 @@ Return empty array `[]` if nothing worth remembering."""
                 if not content:
                     continue
 
-                # Deduplication: skip if very similar content already seen
-                content_normalized = re.sub(r'\s+', ' ', content.lower())[:100]
-                if content_normalized in seen_contents:
-                    logger.debug(f"[AutoExtract] Skipping duplicate: {content[:40]}...")
+                # Global Deduplication: Content Fingerprinting (SHA-256)
+                content_hash = MemoryEntry.compute_content_hash(content)
+                
+                # Check if already seen in current session
+                if content_hash in seen_contents:
+                    logger.debug(f"[AutoExtract] Skipping duplicate in session: {content[:40]}...")
                     continue
-                seen_contents.add(content_normalized)
+                seen_contents.add(content_hash)
+
+                # Check if already exists globally (Cross-session pollution control)
+                try:
+                    existing = await self._memory_manager.find_by_hash(content_hash, project_id)
+                    if existing:
+                        logger.info(f"[AutoExtract] Skipping global duplicate: {content[:40]}... (Existing: {existing.id})")
+                        continue
+                except Exception as e:
+                    logger.warning(f"[AutoExtract] Failed global hash check: {e}")
 
                 # Determine memory type
                 type_str = item.get("type", "project").lower()
@@ -506,15 +496,29 @@ Return empty array `[]` if nothing worth remembering."""
                     logger.debug(f"[AutoExtract] Skipping low-confidence ({confidence:.2f}): {content[:40]}...")
                     continue
 
-                # Generate meaningful title
-                title = self._generate_title(content)
+                # Generate meaningful title or use provided one
+                title = item.get("title") or self._generate_title(content)
+
+                # Categorization (Tiering)
+                tier_str = item.get("tier", "operational").lower()
+                from app.core.memory.models import MemoryTier
+                try:
+                    tier = MemoryTier(tier_str)
+                except ValueError:
+                    tier = MemoryTier.OPERATIONAL
+                    
+                utility_score = float(item.get("utility_score", 0.0))
+                rationale = item.get("rationale", "")
 
                 entry = MemoryEntry(
                     id=f"auto_{mem_type.value}_{uuid.uuid4().hex[:8]}",
                     type=mem_type,
+                    tier=tier,
+                    utility_score=utility_score,
                     privacy=privacy,
                     title=title,
                     content=content,
+                    content_hash=content_hash,
                     description=content[:200],
                     project_id=project_id,
                     user_id=user_id,
@@ -523,8 +527,11 @@ Return empty array `[]` if nothing worth remembering."""
                     confidence=confidence,
                     extra={
                         "context": item.get("context", ""),
+                        "time_context": item.get("time_context", ""),
+                        "mapping_path": item.get("mapping_path", ""),
+                        "rationale": rationale,
                         "extracted_at": datetime.utcnow().isoformat(),
-                    } if item.get("context") else {"extracted_at": datetime.utcnow().isoformat()},
+                    },
                 )
 
                 entries.append(entry)
@@ -536,48 +543,58 @@ Return empty array `[]` if nothing worth remembering."""
 
         return entries
 
+    async def _gather_multi_source_context(self, project_id: int | None) -> str:
+        """Gather facts from README, Tree structure, and TODOs."""
+        if not project_id:
+            return "No project selected."
 
-async def _get_auto_extractor() -> AutoMemoryExtractor:
-    """Get auto-extractor from global MemoryLifespanManager (singleton)."""
-    from app.core.memory.lifespan import MemoryLifespanManager
+        context_parts = []
 
-    if not MemoryLifespanManager.is_initialized():
-        await MemoryLifespanManager.ainitialize()
+        # 1. Project Background (README & Structure)
+        try:
+            from app.domain.project.service import project_context_manager
+            # We assume project_id can be mapped to a path or we use current workspace
+            # For extraction, we use the active workspace path
+            project_path = getattr(settings, "WORKSPACE_ROOT", None)
+            if project_path:
+                readme = project_context_manager.extract_description_from_readme(project_path)
+                structure = await project_context_manager.get_project_structure(project_path)
 
-    return MemoryLifespanManager.get_container().auto_extractor
+                if readme:
+                    context_parts.append(f"### README.md\n{readme[:1000]}")
+                if structure:
+                    context_parts.append(f"### Project Structure\n{structure}")
+        except Exception as e:
+            logger.warning(f"[AutoExtract] Failed to gather project context: {e}")
 
+        # 2. Pending TODOs
+        try:
+            todo_service = await _get_todo_service()
+            todos = await todo_service.list_pending_by_project(project_id)
+            if todos:
+                todo_list = "\n".join([f"- [ ] {t.title} ({t.priority})" for t in todos[:20]])
+                context_parts.append(f"### Pending TODOs\n{todo_list}")
+        except Exception as e:
+            logger.warning(f"[AutoExtract] Failed to gather TODO context: {e}")
 
-async def _shutdown_auto_extractor():
-    """Shutdown the global auto-extractor (cleanup)."""
-    global _auto_extractor_container, _auto_extractor_instance
+        # 3. Project Norms (Scan for specific files in root)
+        try:
+            norms = []
+            project_path = getattr(settings, "WORKSPACE_ROOT", None)
+            if project_path:
+                for norm_file in [".cursorrules", "CONTRIBUTING.md", "styleguide.md"]:
+                    path = os.path.join(project_path, norm_file)
+                    if os.path.exists(path):
+                        with open(path, 'r') as f:
+                            content = f.read(500)
+                            norms.append(f"#### {norm_file}\n{content}...")
 
-    if _auto_extractor_container is not None:
-        await _auto_extractor_container.shutdown()
-        _auto_extractor_container = None
-        _auto_extractor_instance = None
+            if norms:
+                context_parts.append("### Project Norms & Guidelines\n" + "\n".join(norms))
+        except Exception as e:
+            logger.debug(f"[AutoExtract] Norms scan failed: {e}")
 
-
-class _LazyAutoExtractor:
-    """
-    Lazy wrapper for auto-extractor singleton.
-    
-    This allows importing auto_extractor without triggering
-    immediate initialization of the memory system.
-    """
-
-    async def _get_extractor(self) -> AutoMemoryExtractor:
-        """Internal async method to get initialized extractor."""
-        return await _get_auto_extractor()
-
-    async def maybe_extract(self, *args, **kwargs) -> list[MemoryEntry] | None:
-        """Delegate maybe_extract to actual extractor."""
-        extractor = await self._get_extractor()
-        return await extractor.maybe_extract(*args, **kwargs)
-
-
-# Global lazy auto-extractor instance for convenience imports
-# Usage: from app.core.memory.auto_extraction import auto_extractor
-auto_extractor = _LazyAutoExtractor()
+        return "\n\n".join(context_parts) if context_parts else "No multi-source facts available."
 
 
 async def trigger_auto_extraction(
@@ -588,34 +605,12 @@ async def trigger_auto_extraction(
 ) -> list[MemoryEntry] | None:
     """
     Convenience function to trigger auto-extraction.
-    
-    This is a fire-and-forget style function that can be called
-    from anywhere to trigger automatic memory extraction.
-    
-    Uses a singleton container that persists across calls for efficiency.
-    
-    Args:
-        thread_id: Conversation thread ID
-        messages: List of conversation messages
-        project_id: Associated project ID
-        user_id: User ID
-        
-    Returns:
-        List of extracted memories, or None if skipped/failed
-        
-    Example:
-        from app.core.memory.auto_extraction import trigger_auto_extraction
-        
-        asyncio.create_task(
-            trigger_auto_extraction(
-                thread_id=thread_id,
-                messages=messages,
-                project_id=project_id,
-                user_id=user_id,
-            )
-        )
     """
-    extractor = await _get_auto_extractor()
+    from app.core.memory.lifespan import MemoryLifespanManager
+    if not MemoryLifespanManager.is_initialized():
+        await MemoryLifespanManager.ainitialize()
+    
+    extractor = MemoryLifespanManager.get_container().auto_extractor
     return await extractor.maybe_extract(
         thread_id=thread_id,
         messages=messages,

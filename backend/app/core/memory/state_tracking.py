@@ -7,17 +7,6 @@ to avoid repetitive "Did you know..." moments.
 Tracking Strategies:
 1. Session-scoped: Memories shown in current session (cleared on new session)
 2. Request-scoped: Memories shown in current request (for multi-turn reasoning)
-
-Usage:
-    # In middleware (first load)
-    from app.core.memory.state_tracking import memory_tracker
-    
-    entries = await get_relevant_memories(...)
-    already_surfaced = memory_tracker.get_surfaced_ids(thread_id)
-    fresh_entries = [e for e in entries if e.id not in already_surfaced]
-    
-    # Mark as surfaced
-    memory_tracker.mark_surfaced(thread_id, [e.id for e in fresh_entries])
 """
 
 import logging

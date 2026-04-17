@@ -7,7 +7,7 @@ are interchangeable.
 """
 
 from abc import ABC, abstractmethod
-from typing import Optional
+from typing import Any, Optional
 
 from app.core.memory.models import (
     MemoryEntry,
@@ -71,6 +71,21 @@ to ensure they are interchangeable and can be used polymorphically.
         """
         pass
 
+    @abstractmethod
+    async def find_by_hash(self, content_hash: str, project_id: Optional[int] = None) -> Optional["MemoryEntry"]:
+        """
+        Find a memory entry by its content hash.
+        Used for global de-duplication across sessions.
+        
+        Args:
+            content_hash: SHA-256 fingerprint of the content
+            project_id: Optional project scope
+            
+        Returns:
+            Matching memory entry if found, None otherwise
+        """
+        pass
+
     async def get_multi(self, entry_ids: list[str]) -> dict[str, "MemoryEntry"]:
         """
         Retrieve multiple memory entries by IDs (batch operation).
@@ -115,6 +130,7 @@ to ensure they are interchangeable and can be used polymorphically.
         types: list["MemoryType"] | None = None,
         privacy: Optional["PrivacyLevel"] = None,
         project_id: int | None = None,
+        filters: dict[str, Any] | None = None,
         limit: int = 10,
     ) -> list["MemoryEntry"]:
         """
@@ -141,16 +157,20 @@ to ensure they are interchangeable and can be used polymorphically.
         self,
         type_filter: Optional["MemoryType"] = None,
         privacy_filter: Optional["PrivacyLevel"] = None,
+        project_id: Optional[int] = None,
+        limit: Optional[int] = None,
     ) -> list["MemorySearchResult"]:
         """
-        List all memory entries (lightweight, for indexing).
+        List memory entries (lightweight, for indexing and UI listing).
         
         Args:
             type_filter: Filter by type
             privacy_filter: Filter by privacy
+            project_id: Optional project filter
+            limit: Optional maximum number of results
             
         Returns:
-            List of memory search results (without full content)
+            List of memory search results
         """
         pass
 
@@ -207,6 +227,19 @@ to ensure they are interchangeable and can be used polymorphically.
         """
         return []
 
+    @abstractmethod
+    async def get_recent(self, count: int = 5) -> list["MemoryEntry"]:
+        """
+        Get most recently updated memory entries.
+        
+        Args:
+            count: Number of entries to return
+            
+        Returns:
+            List of memory entries
+        """
+        pass
+
     async def get_by_project(
         self,
         project_id: int,
@@ -215,25 +248,41 @@ to ensure they are interchangeable and can be used polymorphically.
         """
         Get all memories for a specific project.
         
-        Default implementation uses list_all + filter.
-        Backends may override for efficiency.
-        
-        Args:
-            project_id: Project ID
-            limit: Maximum entries to return
-            
-        Returns:
-            List of project memories
+        Default implementation uses list_all then filters.
+        Backends should override for more efficiency.
         """
-        all_memories = await self.list_all()
+        all_memories = await self.list_all(project_id=project_id, limit=limit)
         results = []
         for mem in all_memories:
-            if len(results) >= limit:
-                break
             entry = await self.get(mem.id)
-            if entry and entry.project_id == project_id:
+            if entry:
                 results.append(entry)
         return results
+
+    # ==========================================================================
+    # Relationship Operations (Optional)
+    # ==========================================================================
+
+    async def link_concept_to_episode(self, concept_name: str, episode_id: str) -> None:
+        """
+        Create a link between a concept and an episode.
+        """
+        pass
+
+    async def find_episodes_by_concept(self, concept_name: str, limit: int = 10) -> list[dict]:
+        """
+        Find all episodes linked to a specific concept.
+        """
+        return []
+
+    async def get_all_concept_counts(self) -> dict[str, int]:
+        """
+        Efficiently retrieve counts of linked episodes for all concepts.
+        
+        Returns:
+            Dict mapping concept_name -> episode_count
+        """
+        return {}
 
     # ==========================================================================
     # Lifecycle Methods

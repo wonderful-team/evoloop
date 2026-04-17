@@ -13,6 +13,7 @@ class ErrorClassification(BaseModel):
     message: str
     hint: str
     raw_error: str
+    is_terminal: bool = False
 
 
 class LLMErrorHandler:
@@ -35,6 +36,7 @@ class LLMErrorHandler:
         
         error_type = "llm_invocation_system"
         status_code = None
+        is_terminal = False
 
         # 1. Detection Logic
         
@@ -42,6 +44,7 @@ class LLMErrorHandler:
         if "not authenticated with evoloop" in error_str or "please login first" in error_str:
             error_type = "auth_expired"
             status_code = 401
+            is_terminal = True
         
         # [LLM Auth] API Key issues
         elif isinstance(e, openai.AuthenticationError) or (
@@ -49,11 +52,13 @@ class LLMErrorHandler:
         ):
             error_type = "llm_auth"
             status_code = 401
+            is_terminal = True
             
         # [Quota] Quota exhausted
         elif any(kw in error_str for kw in ("quota", "insufficient quota", "usage limit", "billing cycle", "credit", "balance", "insufficient_quota")):
             error_type = "quota_exhausted"
             status_code = 403
+            is_terminal = True
             
         # [Rate Limit] Rate limiting
         elif "rate limit" in error_str or "too many requests" in error_str or "429" in error_full:
@@ -73,10 +78,12 @@ class LLMErrorHandler:
         elif "model_not_found" in error_str or "not found" in error_str:
             error_type = "model_not_found"
             status_code = 404
+            is_terminal = True
 
         # [Config] General invalid config
         elif "invalid_config" in error_str or "configuration" in error_str:
             error_type = "invalid_config"
+            is_terminal = True
 
         # 2. Localized Content Retrieval
         # Use a unified core_engine namespace for all agent-related infrastructure errors
@@ -96,5 +103,6 @@ class LLMErrorHandler:
             title=title,
             message=message,
             hint=hint,
-            raw_error=error_full
+            raw_error=error_full,
+            is_terminal=is_terminal
         )

@@ -122,16 +122,13 @@ async def lifespan(app: FastAPI):
     # (EvoCloud bridge, Discovery, Indexing, MCP, Knowledge Base)
 
     # 11. Publish Application Started Event
-    try:
-        from app.core.events import system_bus, SystemEventType, BaseEvent
-        await system_bus.publish(BaseEvent(
-            event_type=SystemEventType.APP_STARTED,
-            source="main",
-            data={"startup_time": startup_time}
-        ))
-        logger.info("[Startup] APP_STARTED event published")
-    except Exception as e:
-        logger.error(f"[Startup] Failed to publish APP_STARTED event: {e}")
+    from app.core.events import system_bus, SystemEventType, BaseEvent
+    await system_bus.publish(BaseEvent(
+        event_type=SystemEventType.APP_STARTED,
+        source="main",
+        data={"startup_time": startup_time}
+    ))
+    logger.info("[Startup] APP_STARTED event published")
 
     yield
 

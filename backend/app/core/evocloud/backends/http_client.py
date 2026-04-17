@@ -449,13 +449,6 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
     async def send_heartbeat(self, device_id: int):
         await self.request("POST", f"/api/v1/devices/{device_id}/heartbeat")
 
-    async def bind_client_id(self, device_id: int, client_id: str):
-        await self.request(
-            "POST",
-            f"/api/v1/devices/{device_id}/bind",
-            data={"client_id": client_id},
-        )
-
     async def update_command_status(self, command_id, status, result=None):
         data = {"command_id": command_id, "status": status}
         if result:

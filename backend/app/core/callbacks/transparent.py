@@ -106,15 +106,12 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
         if not self.thread_id:
             return
 
-        try:
-            # Unified: Publish to events channel (same as TokenEvent)
-            # Frontend distinguishes by event structure (type field)
-            await self._cache.publish(
-                f"chat:{self.thread_id}:events",
-                event.to_json()
-            )
-        except Exception as e:
-            logger.debug(f"Failed to publish stream event: {e}")
+        # Unified: Publish to events channel (same as TokenEvent)
+        # Frontend distinguishes by event structure (type field)
+        await self._cache.publish(
+            f"chat:{self.thread_id}:events",
+            event.to_json()
+        )
 
     async def emit_thinking(self, message: str, detail: str | None = None):
         """Emit thinking/reasoning event."""

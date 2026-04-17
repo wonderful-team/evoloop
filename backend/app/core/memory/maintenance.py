@@ -17,7 +17,7 @@ from jinja2 import Template
 from app.core.config import settings
 from app.core.globals import get_graph
 from app.core.memory.lifespan import MemoryLifespanManager
-from app.infrastructure.queue.factory import periodic_task
+from app.infrastructure.queue.factory import periodic_task, shared_task
 
 logger = logging.getLogger(__name__)
 
@@ -44,45 +44,22 @@ class MemoryMaintenanceAgent:
         logger.info(f"[Maintenance] Starting: {self.thread_id}")
 
         try:
-            # Get graph and memory manager
-            graph = get_graph()
-
-            # Initialize memory container if needed
+            # Initialize memory container if needed (global singleton manager)
             if not MemoryLifespanManager.is_initialized():
                 await MemoryLifespanManager.ainitialize()
 
-            # Render prompt
-            system_prompt = self.prompt_template.render()
+            container = MemoryLifespanManager.get_container()
+            manager = container.memory_manager
 
-            # Build initial state
-            from langchain_core.messages import HumanMessage, SystemMessage
-
-            initial_state = {
-                "messages": [
-                    SystemMessage(content=system_prompt),
-                    HumanMessage(content="请开始整理记忆。"),
-                ]
-            }
-
-            # Run agent in isolated thread
-            config = {
-                "configurable": {
-                    "thread_id": self.thread_id,
-                    "maintenance_mode": True,
-                }
-            }
-
-            result = await graph.ainvoke(initial_state, config)
+            # Run unified maintenance (Pruning, Consolidation, MEMORY.md)
+            results = await manager.run_maintenance()
 
             # Log completion time
             self._log_time(start_time)
 
-            logger.info(f"[Maintenance] Completed: {self.thread_id}")
+            logger.info(f"[Maintenance] Completed: {self.thread_id} - Pruned {results.get('pruning_count')} items")
 
-            # Cleanup: remove all messages from this thread
-            await self._cleanup_thread()
-
-            return result
+            return results
 
         except Exception as e:
             logger.error(f"[Maintenance] Failed: {e}")
@@ -220,7 +197,7 @@ def scheduled_memory_maintenance():
     return asyncio.run(_run())
 
 
-# Convenience function for manual trigger
+# Convenience functions for manual trigger / CLI
 def trigger_maintenance():
     """Manually trigger maintenance (for CLI/admin use)."""
     async def _run():

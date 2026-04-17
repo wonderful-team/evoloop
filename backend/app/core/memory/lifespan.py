@@ -156,18 +156,6 @@ class MemoryLifespanManager:
         return cls._instance is not None and cls._instance._initialized
 
 
-# Convenience functions for direct import
-
-def get_memory_container() -> MemoryContainer:
-    """Get the global memory container."""
-    return MemoryLifespanManager.get_container()
-
-
-def get_memory_manager() -> MemoryManager:
-    """Get the global memory manager."""
-    return MemoryLifespanManager.get_manager()
-
-
 # FastAPI lifespan context manager
 
 @asynccontextmanager
@@ -194,23 +182,3 @@ async def memory_lifespan(app: FastAPI | None = None) -> AsyncGenerator[MemoryCo
         yield container
     finally:
         await MemoryLifespanManager.shutdown()
-
-
-# Legacy compatibility alias
-# This allows old code to work during migration
-async def get_container() -> MemoryContainer:
-    """
-    Legacy compatibility function.
-    
-    Returns the global container, initializing if necessary.
-    
-    Note: This is for backward compatibility. New code should use
-    MemoryLifespanManager.get_container() or get_memory_container().
-    """
-    if not MemoryLifespanManager.is_initialized():
-        logger.warning(
-            "[MemoryLifespan] Lazy initialization is deprecated. "
-            "Use MemoryLifespanManager.ainitialize() at app startup."
-        )
-        await MemoryLifespanManager.ainitialize()
-    return MemoryLifespanManager.get_container()

@@ -466,32 +466,8 @@ class FinishNode:
 
             # Publish the completion event to the global system bus
             # This triggers monitoring, learning, memory extraction, and other decoupled side effects.
-            try:
-                await system_bus.publish(SessionCompletedEvent(data=event_data))
-                logger.info(f"[Finish] 📡 SessionCompletedEvent published for thread {effective_thread_id}")
-            except Exception as e:
-                logger.error(f"[Finish] Failed to publish SessionCompletedEvent: {e}")
-
-            # Trigger legacy HookEvent.SESSION_END if still needed for low-level engine hooks
-            try:
-                from app.core.engine.hooks import HookContext, HookEvent, hook_system
-                hook_ctx = HookContext(
-                    thread_id=effective_thread_id,
-                    user_id=ctx.user_id,
-                    project_id=ctx.project_id,
-                    messages=messages,
-                    blackboard=blackboard,
-                    metadata={
-                        "summary": summary,
-                        "audit_tier": audit_tier,
-                        "final_outcome": final_outcome,
-                        "tool_count": len(tool_history),
-                        "message_count": len(messages),
-                    }
-                )
-                await hook_system.trigger(HookEvent.SESSION_END, hook_ctx)
-            except Exception as e:
-                logger.warning(f"[Finish] SessionEnd hook failed: {e}")
+            await system_bus.publish(SessionCompletedEvent(data=event_data))
+            logger.info(f"[Finish] 📡 SessionCompletedEvent published for thread {effective_thread_id}")
 
             # Cleanup pollution
             messages_to_return = list(messages)

@@ -261,23 +261,9 @@ async def chat_endpoint(
         except Exception as e:
             logger.warning(f"Failed to fetch skill {req.skill_id}: {e}")
 
-    # ==========================================================================
-    # OPTIMIZATION: Predictive Memory Loading
-    # Start background task to pre-load semantic search results from Neo4j.
-    # This runs in parallel with LangGraph initialization (~100ms), effectively
-    # hiding the ~800ms Neo4j query latency.
-    # ==========================================================================
-    from app.core.memory.predictive_loader import predictive_memory_load
-    
+
     run_id = f"run-{req.thread_id}-{int(time.time())}"
-    bg_tasks.add_task(
-        predictive_memory_load,
-        thread_id=req.thread_id,
-        project_id=req.project_id or DEFAULT_PROJECT_ID,
-        human_message=req.message,
-        run_id=run_id
-    )
-    logger.debug(f"[ChatEndpoint] Spawned predictive memory loading for thread {req.thread_id}")
+    logger.debug(f"[ChatEndpoint] Run initialized for thread {req.thread_id}")
 
     # Use Unified Dispatcher
     return await _prepare_and_dispatch(

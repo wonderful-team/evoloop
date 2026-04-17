@@ -62,9 +62,9 @@ class ProjectStandardsAnalyst:
                 await MemoryLifespanManager.ainitialize()
             container = MemoryLifespanManager.get_container()
             manager = container.memory_manager
-            from app.core.memory.interfaces.long_term import Concept
-            concept = Concept("Project Coding Standards", standards_report, project_id, sample_files)
-            await manager.long_term.store_concept(concept)
+            from app.core.memory.models import Concept
+            concept = Concept(name="Project Coding Standards", description=standards_report, project_id=project_id, related_files=sample_files)
+            await manager.store_concept(concept)
 
             # Also save as generic preference?
             # Ideally this feeds into the Coder's system prompt dynamically.

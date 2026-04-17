@@ -274,15 +274,12 @@ class FileWatcher:
         self._started = False
 
         # Publish stopped event
-        try:
-            if self._event_loop and self._event_loop.is_running():
-                event = FileWatcherEvent(
-                    event_type=FileSystemEventType.WATCHER_STOPPED,
-                    data={"path": self.path}
-                )
-                asyncio.create_task(system_bus.publish(event))
-        except Exception as e:
-            logger.error(f"Failed to publish watcher stopped event: {e}")
+        if self._event_loop and self._event_loop.is_running():
+            event = FileWatcherEvent(
+                event_type=FileSystemEventType.WATCHER_STOPPED,
+                data={"path": self.path}
+            )
+            asyncio.create_task(system_bus.publish(event))
 
         logger.info(f"Stopped file watcher: {self.path}")
 

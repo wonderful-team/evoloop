@@ -8,58 +8,18 @@ This module provides:
 - Long-term memory: Persistent knowledge (File or Neo4j)
 - Auto-extraction: Automatic memory creation from conversations
 - Smart retrieval: LLM-assisted relevance selection
-
-Usage (with dependency injection):
-    from app.core.memory import MemoryContainer, MemoryConfig
-    from app.core.memory.models import MemoryEntry, MemoryType
-    
-    async def main():
-        config = MemoryConfig.from_settings()
-        container = MemoryContainer(config)
-        await container.initialize()
-        
-        manager = container.memory_manager
-        
-        # Save a memory
-        entry = MemoryEntry(
-            id="mem_001",
-            type=MemoryType.PROJECT,
-            title="Architecture Decision",
-            content="We decided to use PostgreSQL...",
-        )
-        await manager.save_memory(entry)
-        
-        # Search memories
-        results = await manager.search_memories("database")
-        
-        # Extract from conversation
-        await manager.extract_memories(thread_id, messages)
-
-Architecture:
-    MemoryManager (unified facade)
-    ├── Short-term: SqlShortTermMemory (SQLite/PostgreSQL)
-    ├── Long-term: FileMemoryStorage | Neo4jMemoryStorage
-    ├── Extraction: MemoryExtractionService
-    └── Retrieval: MemoryRetriever
 """
 
 # Backends
 from app.core.memory.backends.file_backend import FileMemoryStorage
 
-# New: Configuration and Dependency Injection
+# Configuration and Dependency Injection
 from app.core.memory.config import MemoryConfig, default_memory_config
-from app.core.memory.container import MemoryContainer, get_container, reset_container
-from app.core.memory.daily_log import DailyLogWriter, LogConsolidator
+from app.core.memory.container import MemoryContainer
 
 # Services
-from app.core.memory.extraction import (
-    MemoryConsolidationService,
-    MemoryExtractionService,
-)
-from app.core.memory.factory import CompleteMemorySystem, MemoryFactory
-
-# Legacy models (for backward compatibility)
-from app.core.memory.interfaces.long_term import Concept, Episode, SearchResult
+from app.core.memory.auto_extraction import AutoMemoryExtractor
+from app.core.memory.pruning import MemoryPruningService
 
 # Maintenance
 from app.core.memory.maintenance import (
@@ -81,16 +41,10 @@ from app.core.memory.models import (
     MemoryType,
     PrivacyLevel,
 )
-from app.core.memory.predictive_loader import (
-    clear_predictive_memory,
-    get_predictive_memory,
-    predictive_memory_load,
-)
 from app.core.memory.quality import (
     CleanupRecommendation,
     MemoryQualityAnalyzer,
     QualityScores,
-    quality_analyzer,
 )
 from app.core.memory.retrieval import MemoryRetriever, get_relevant_memories
 from app.core.memory.state_tracking import (
@@ -110,14 +64,10 @@ __all__ = [
     # Manager
     "MemoryManager",
 
-    # Configuration & Dependency Injection (NEW)
+    # Configuration & Dependency Injection
     "MemoryConfig",
     "default_memory_config",
     "MemoryContainer",
-    "get_container",
-    "reset_container",
-    "MemoryFactory",
-    "CompleteMemorySystem",
 
     # Models
     "MemoryEntry",
@@ -126,21 +76,15 @@ __all__ = [
     "MemoryType",
     "PrivacyLevel",
 
-    # Legacy models
-    "Concept",
-    "Episode",
-    "SearchResult",
-
     # Backends
     "FileMemoryStorage",
 
     # Services
-    "MemoryExtractionService",
-    "MemoryConsolidationService",
+    "AutoMemoryExtractor",
+    "MemoryPruningService",
     "MemoryRetriever",
     "get_relevant_memories",
     "MemoryQualityAnalyzer",
-    "quality_analyzer",
 
     # Types
     "QualityScores",
@@ -150,8 +94,6 @@ __all__ = [
     "mark_memories_surfaced",
     "get_surfaced_memory_ids",
     "filter_unsurfaced_memories",
-    "DailyLogWriter",
-    "LogConsolidator",
     "TwoTierMemoryManager",
     "MemorySection",
     "SectionBudget",
@@ -162,9 +104,4 @@ __all__ = [
     "scheduled_memory_maintenance",
     "trigger_maintenance",
     "get_maintenance_status",
-
-    # Predictive loader
-    "predictive_memory_load",
-    "get_predictive_memory",
-    "clear_predictive_memory",
 ]

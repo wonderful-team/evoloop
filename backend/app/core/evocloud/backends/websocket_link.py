@@ -266,7 +266,7 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
                     logger.info(f"[EvoCloud] Got device_id from Gateway: {self._device_id}")
 
                 if client_id:
-                    await self._bind_client_id(client_id)
+                    self.client_id = client_id
 
             elif msg_type == "new_command":
                 cmd = data.get("data", {})
@@ -298,17 +298,6 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
 
         except Exception as e:
             logger.error(f"[EvoCloud] WS Handle Error: {e}")
-
-    async def _bind_client_id(self, client_id: str):
-        if not self._device_id:
-            logger.warning(f"[EvoCloud] Cannot bind client_id {client_id}: device_id not available yet")
-            return
-        try:
-            await self.api.bind_client_id(self._device_id, client_id)
-            self.client_id = client_id
-            logger.info(f"[EvoCloud] Bound Client ID: {client_id} to device {self._device_id}")
-        except Exception as e:
-            logger.error(f"[EvoCloud] Failed to bind client ID: {e}")
 
     async def _handle_query(self, data: dict):
         """处理来自 Gateway 的查询请求"""

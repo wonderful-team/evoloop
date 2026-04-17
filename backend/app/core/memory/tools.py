@@ -64,11 +64,7 @@ async def remember(content: str, context: str = "", is_user_preference: bool = F
         entry_id = f"mem_{uuid.uuid4().hex[:12]}"
 
         # Ensure IDs are types that MemoryEntry expects (support mocks in tests)
-        project_id = ctx.project_id if ctx else None
-        try:
-            p_id = int(project_id) if project_id is not None else None
-        except (ValueError, TypeError):
-            p_id = None
+        project_id = int(ctx.project_id) if ctx else None
 
         entry = MemoryEntry(
             id=entry_id,
@@ -78,7 +74,7 @@ async def remember(content: str, context: str = "", is_user_preference: bool = F
             content=full_content,
             description=content[:200],
             user_id=str(user_id) if user_id is not None else None,
-            project_id=p_id,
+            project_id=project_id,
             tags=["remembered"],
             source="agent_tool",
             source_message_id=None, # Ensure all fields are provided for dataclass
@@ -274,6 +270,29 @@ async def forget_tool_outputs(
 
         total_saved = sum(r["saved"] for r in results["forgotten"])
 
+        # Persist to blackboard so engine's apply_forgotten_status() can see it
+        try:
+            from app.core.memory.tool_output_memory import ToolOutputMemory
+            ctx = ContextManager.current()
+            if ctx and ctx.metadata.blackboard:
+                existing_data = ctx.metadata.blackboard.metadata.tool_memory or {}
+                memory = ToolOutputMemory.from_dict(existing_data)
+                for tc_id, record_data in forgotten_records.items():
+                    try:
+                        memory.mark_forgotten(
+                            tool_call_id=tc_id,
+                            tool_name=record_data["tool_name"],
+                            summary=record_data["summary"],
+                            original_length=record_data["original_length"],
+                            reason=record_data["reason"],
+                            step_index=record_data["step_index"],
+                        )
+                    except ValueError:
+                        pass  # Already forgotten
+                ctx.metadata.blackboard.metadata.tool_memory = memory.to_dict()
+        except Exception as e:
+            logger.warning(f"[ContextMgmt] Failed to persist tool_memory: {e}")
+
         return json.dumps({
             "status": "success",
             "message": f"Successfully forgot {len(results['forgotten'])} outputs, saved {total_saved} chars.",
@@ -315,6 +334,18 @@ async def recall_tool_output(
             if not msg or not msg.content:
                 return json.dumps({"status": "error", "message": "Content not found", "_signal": "recall_tool_output"})
 
+            # Remove from blackboard tool_memory so engine stops replacing with summary
+            try:
+                from app.core.memory.tool_output_memory import ToolOutputMemory
+                ctx = ContextManager.current()
+                if ctx and ctx.metadata.blackboard:
+                    existing_data = ctx.metadata.blackboard.metadata.tool_memory or {}
+                    memory = ToolOutputMemory.from_dict(existing_data)
+                    memory.remove_from_forgotten(tool_call_id)
+                    ctx.metadata.blackboard.metadata.tool_memory = memory.to_dict()
+            except Exception as e:
+                logger.warning(f"[ContextMgmt] Failed to update tool_memory on recall: {e}")
+
             return json.dumps({
                 "status": "success",
                 "message": f"Recalled content for {tool_call_id} (Length: {len(msg.content)})",
@@ -340,8 +371,8 @@ async def list_forgotten_outputs(
     if ctx is None:
         return "Error: No ContextManager available."
 
-    blackboard = ctx.metadata.get("blackboard")
-    bb_metadata = dict(blackboard.metadata) if blackboard and blackboard.metadata else {}
+    blackboard = ctx.metadata.blackboard
+    bb_metadata = blackboard.metadata.model_dump() if blackboard and blackboard.metadata else {}
     tool_memory_data = bb_metadata.get("tool_memory")
 
     if not tool_memory_data:
@@ -372,8 +403,10 @@ async def list_forgotten_outputs(
 
 def _generate_summary(tool_name: str, content: str, max_length: int = 200) -> str:
     """Internal helper to generate summaries for forgotten tool outputs."""
-    if not content: return f"[{tool_name}: empty]"
-    if len(content) <= max_length: return f"[{tool_name}: {content}]"
+    if not content:
+        return f"[{tool_name}: empty]"
+    if len(content) <= max_length:
+        return f"[{tool_name}: {content}]"
 
     if tool_name == "read_file":
         lines = content.split('\n')

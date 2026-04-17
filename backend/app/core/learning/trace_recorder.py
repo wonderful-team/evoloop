@@ -263,21 +263,11 @@ async def sync_thread_to_graph(
     """
     Syncs a completed thread's trace events into the long-term memory Episode graph.
 
-    Reads all TraceEvent rows for the given thread_id, builds an episode
-    summary, and records it via memory_manager.long_term.record_episode().
-    Called by the Celery task ``engine_record_episode`` in tasks.py.
-
-    Args:
-        thread_id: The thread whose trace events to sync.
-        project_id: Project context for the episode.
-        goal: The high-level goal the agent was trying to achieve.
-        result_summary: Optional short summary of the outcome.
-        concept_names: Optional list of concept names the agent referenced.
-        source_message_id: Optional originating message ID for traceability.
+    Reads TraceEvent rows to determine success, then records a concise episode 
+    via memory_manager.record_episode().
     """
     try:
         from sqlalchemy import select
-
         from app.models.learning import TraceEvent
 
         async with session_scope() as session:
@@ -289,42 +279,10 @@ async def sync_thread_to_graph(
             logger.info(f"No trace events for thread '{thread_id}'. Skipping.")
             return
 
-        # Build a compact action summary from the recorded events using template
-        from app.utils import render_template
-
-        action_data = []
-        for ev in events[:50]:  # cap at 50 events
-            try:
-                payload = ev.action_payload if isinstance(ev.action_payload, dict) else json.loads(ev.action_payload) if ev.action_payload else {}
-            except Exception:
-                payload = {}
-
-            action_info = {
-                "type": ev.action_type,
-                "name": payload.get('name', '?') if ev.action_type == "tool_call" else None,
-                "args": json.dumps(payload.get('args', {})) if ev.action_type == "tool_call" else None,
-                "output": payload.get("output") if ev.action_type == "tool_result" else None,
-                "content": payload.get("content") if ev.action_type == "llm_output" else None,
-            }
-            action_data.append(action_info)
-
-        actions_text = render_template("common/events/action_summary.prompt.j2", actions=action_data)
-
-        # Improved result summary fallback
+        # Improved result summary fallback (Outcome)
         has_real_result = result_summary and result_summary != "unknown"
         episode_result = result_summary if has_real_result else (
-            f"Finished session with {len(events)} steps for task: {goal}"
-        )
-
-        from app.core.memory.interfaces.long_term import Episode
-
-        episode = Episode(
-            goal=goal,
-            result=episode_result,
-            plan_summary=actions_text,
-            error_msg=None,
-            project_id=project_id,
-            source_message_id=source_message_id,
+            f"Finished session with {len(events)} steps."
         )
 
         from app.core.memory.lifespan import MemoryLifespanManager
@@ -332,17 +290,21 @@ async def sync_thread_to_graph(
             await MemoryLifespanManager.ainitialize()
         container = MemoryLifespanManager.get_container()
         manager = container.memory_manager
-        episode_id = await manager.long_term.record_episode(episode)
+        
+        from app.core.memory.models import Episode
+        
+        # Unified recording: Create Episode object first
+        episode_obj = Episode(
+            goal=goal,
+            result=episode_result,
+            project_id=project_id,
+            source_message_id=source_message_id,
+            plan_summary="", # Optional
+        )
+        
+        episode_id = await manager.record_episode(episode_obj)
 
-        # Link episode to concepts if provided
-        if episode_id and concept_names:
-            await manager.long_term.link_episode_to_concepts(
-                episode_id=episode_id,
-                concept_names=concept_names,
-                project_id=project_id,
-            )
-
-        logger.info(f"Episode recorded for thread '{thread_id}' ({len(events)} events, id={episode_id})")
+        logger.info(f"Episode recorded for thread '{thread_id}' (id={episode_id})")
 
     except Exception as e:
         logger.error(f"Failed to sync thread '{thread_id}': {e}")

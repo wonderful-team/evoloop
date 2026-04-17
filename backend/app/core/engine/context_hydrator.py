@@ -211,117 +211,41 @@ class EvoContextMiddleware:
                     last_human_msg = str(content) if content else ""
                 break
 
-        # 2. Memory Loading (Predictive Cache Strategy)
-        # Try pre-loaded cache first (populated by bg task), fallback to direct query
+        # 2. Memory Loading (Unified Strategy)
         memory_data = {}
         if last_human_msg and not state.is_subtask:
             memory_start = time.time()
             current_run_id = config.get("configurable", {}).get("run_id")
 
-            if settings.USE_NEO4J_MEMORY:
-                # Neo4j mode: Use predictive loader
-                from app.core.memory.predictive_loader import (
-                    clear_predictive_memory,
-                    get_predictive_memory,
-                )
+            try:
+                # Use unified MemoryManager from shared container
+                memory_manager = memory_container.memory_manager
+                
+                # 1. Fetch relevant concepts
+                concepts = await memory_manager.search_concepts(last_human_msg, project_id)
+                if concepts:
+                    memory_data['project_concepts'] = "\n".join([
+                        f"- **{c.name}**: {c.description}" for c in concepts[:3]
+                    ])
 
-                cached_memory = await get_predictive_memory(
-                    thread_id=thread_id,
-                    human_message=last_human_msg,
-                    project_id=project_id,
-                    run_id=current_run_id
-                )
+                # 2. Fetch relevant episodes
+                episodes = await memory_manager.search_episodes(last_human_msg, project_id, limit=3)
+                if episodes:
+                    # Filter out current run to avoid self-reference
+                    filtered = [e for e in episodes if e.get("id") != f"ep_{current_run_id}"]
+                    if filtered:
+                        # search_episodes returns list of dicts: {'id', 'goal', 'result', 'timestamp'}
+                        memory_data['episodes'] = "\n".join([
+                            f"- **Goal**: {e['goal']}\n  **Result**: {e['result']}" 
+                            for e in filtered[:2]
+                        ])
 
-                if cached_memory:
-                    memory_data['project_concepts'] = cached_memory.get('concepts')
-                    memory_data['episodes'] = cached_memory.get('episodes')
+                memory_elapsed = (time.time() - memory_start) * 1000
+                logger.info(f"[Middleware] ✓ Memory hydrated (Concepts: {len(concepts)}, Episodes: {len(episodes)}) in {memory_elapsed:.1f}ms")
+                
+            except Exception as e:
+                logger.warning(f"[Middleware] Failed to load memory context: {e}")
 
-                    memory_elapsed = (time.time() - memory_start) * 1000
-                    logger.info(f"[Middleware] ✓ Memory from predictive cache in {memory_elapsed:.1f}ms")
-                    await clear_predictive_memory(thread_id)
-                else:
-                    # Cache miss - fallback to direct query using shared container
-                    logger.debug("[Middleware] Predictive cache miss, falling back to Neo4j query")
-
-                    try:
-                        # Use shared memory container already initialized above
-                        memory_manager = memory_container.memory_manager
-                        concepts = await memory_manager.long_term.search_concepts(last_human_msg, project_id)
-                        if concepts:
-                            memory_data['project_concepts'] = "\n".join([
-                                f"- **{c.name}**: {c.description}" for c in concepts[:3]
-                            ])
-
-                        episodes = await memory_manager.long_term.find_episodes_by_concept(last_human_msg, project_id, limit=3)
-                        if episodes:
-                            filtered = [e for e in episodes if getattr(e, "source_message_id", None) != current_run_id]
-                            if filtered:
-                                memory_data['episodes'] = "\n".join([e.summary for e in filtered[:2]])
-
-                        memory_elapsed = (time.time() - memory_start) * 1000
-                        logger.info(f"[Middleware] ✓ Memory from Neo4j in {memory_elapsed:.1f}ms")
-                    except Exception as e:
-                        logger.warning(f"[Middleware] Failed to load Neo4j memory: {e}")
-            else:
-                # Embedded mode: Use smart retrieval with LLM selection
-                # OPTIMIZATION: Use shared container instead of creating new one via get_relevant_memories
-                from app.core.memory.retrieval import MemoryRetriever
-                from app.core.memory.state_tracking import memory_tracker
-
-                try:
-                    # Use shared memory container already initialized above
-                    # Get already-surfaced memories to avoid repetition
-                    already_surfaced = memory_tracker.get_surfaced_ids(thread_id)
-                    logger.debug(f"[Middleware] Memory retrieval: already_surfaced={len(already_surfaced)} IDs")
-
-                    # Create retriever with shared container's storage
-                    retriever_create_start = time.time()
-                    retriever = MemoryRetriever(
-                        storage=memory_container.storage,
-                        config=memory_container.config,
-                        max_results=5,
-                    )
-                    retriever_create_elapsed = (time.time() - retriever_create_start) * 1000
-                    logger.debug(f"[Middleware] MemoryRetriever created in {retriever_create_elapsed:.1f}ms")
-
-                    user_id = ctx.user_id
-                    logger.info(f"[Middleware] 🚀 Calling retriever.find_relevant with query length={len(last_human_msg)} chars")
-
-                    find_relevant_start = time.time()
-                    entries = await retriever.find_relevant(
-                        query=last_human_msg,
-                        context={
-                            "user_id": user_id,
-                            "project_id": project_id,
-                        },
-                        already_surfaced=already_surfaced,
-                    )
-                    find_relevant_elapsed = (time.time() - find_relevant_start) * 1000
-                    logger.info(f"[Middleware] ✓ retriever.find_relevant returned {len(entries)} entries in {find_relevant_elapsed:.1f}ms")
-
-                    if entries:
-                        # Format entries as project concepts
-                        format_start = time.time()
-                        formatted_entries = []
-                        for entry in entries:
-                            formatted_entries.append(
-                                f"[{entry.type.value.upper()}] {entry.title}\n"
-                                f"{entry.content[:300]}"
-                            )
-                        memory_data['project_concepts'] = "\n\n".join(formatted_entries)
-                        memory_data['embedded_memories'] = entries  # Store for later reference
-                        format_elapsed = (time.time() - format_start) * 1000
-
-                        # Mark as surfaced to avoid showing again in this session
-                        memory_tracker.mark_surfaced(thread_id, [e.id for e in entries])
-
-                        logger.debug(f"[Middleware] Memory formatting took {format_elapsed:.1f}ms")
-
-                    memory_elapsed = (time.time() - memory_start) * 1000
-                    logger.info(f"[Middleware] ✓ Memory from smart retrieval: {len(entries)} entries in {memory_elapsed:.1f}ms (find_relevant: {find_relevant_elapsed:.1f}ms)")
-                except Exception as e:
-                    memory_elapsed = (time.time() - memory_start) * 1000
-                    logger.error(f"[Middleware] Failed to load embedded memory after {memory_elapsed:.1f}ms: {e}", exc_info=True)
 
         # 2b. Load Tier 1 Hot Memory (Two-Tier Architecture)
         # This is always loaded from MEMORY.md - most important knowledge

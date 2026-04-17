@@ -38,26 +38,37 @@ async def replay_memory(project_id: int | None = None) -> MemoryContext:
     # Note: project_id can be 0 (global mode), skip in that case
     if project_id is not None and project_id != 0:
         try:
-            raw_experience = await manager.long_term.retrieve_experience(
-                goal="Recent tasks",
+            from app.core.memory.models import MemoryType
+            actual_memories = await manager.search_memories(
+                query="Recent episodes",
+                types=[MemoryType.EPISODE],
                 project_id=project_id,
-                top_k=5,
+                limit=5,
             )
-            episodes = _parse_episodes(raw_experience)
+            # Map MemoryEntry to EpisodeSummary directly
+            for mem in actual_memories:
+                date_str = mem.created_at.strftime("%Y-%m-%d") if hasattr(mem, "created_at") and mem.created_at else "Unknown"
+                goal_str = mem.title.replace("Episode: ", "").strip()
+                # Content format: "Goal: ...\nOutcome: ..."
+                result_str = mem.description.upper() if mem.description else "SUCCESS"
+                
+                episodes.append(EpisodeSummary(
+                    date=date_str,
+                    goal=goal_str,
+                    result=result_str,
+                ))
         except Exception as e:
             logger.warning(f"Failed to retrieve episodes: {e}")
 
     # 2. Retrieve project concepts from Semantic Memory
     try:
-        # 2a. Global concepts (e.g. environment facts)
-        global_concepts_text = await manager.long_term.get_project_concepts(0)
+        global_concepts_text = await manager.get_project_concepts(0)
         concepts.extend(_parse_concepts(global_concepts_text))
 
         # 2b. Project-specific concepts
         if project_id and project_id != 0:
-            project_concepts_text = await manager.long_term.get_project_concepts(project_id)
+            project_concepts_text = await manager.get_project_concepts(project_id)
             concepts.extend(_parse_concepts(project_concepts_text))
-
     except Exception as e:
         logger.warning(f"Failed to retrieve concepts: {e}")
 

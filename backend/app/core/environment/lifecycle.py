@@ -27,21 +27,18 @@ class EnvironmentLifecycleHandler:
         1. Trigger Agent Awakening (Environment Probe, Memory Replay, Pref Priming)
         2. Start Device Watcher for Android devices
         """
-        try:
-            from app.core.environment import awaken
-            from app.core.environment.controllers.device_watcher import device_watcher
-            
-            # 1. Awaken Agent
-            logger.info("[Environment] 🌅 Triggering Agent Awakening...")
-            await awaken()
-            logger.info("[Environment] ✓ Agent awakening process complete")
-            
-            # 2. Start Device Watcher
-            logger.info("[Environment] 🔍 Starting Device Watcher...")
-            device_watcher.start()
-            logger.info("[Environment] ✓ Device Watcher started")
-        except Exception as e:
-            logger.error(f"[Environment] Failed to complete awakening/watcher startup: {e}")
+        from app.core.environment import awaken
+        from app.core.environment.controllers.device_watcher import device_watcher
+
+        # 1. Awaken Agent
+        logger.info("[Environment] 🌅 Triggering Agent Awakening...")
+        await awaken()
+        logger.info("[Environment] ✓ Agent awakening process complete")
+
+        # 2. Start Device Watcher
+        logger.info("[Environment] 🔍 Starting Device Watcher...")
+        device_watcher.start()
+        logger.info("[Environment] ✓ Device Watcher started")
 
     @event_subscribe(SystemEventType.APP_STOPPING)
     async def on_application_stopping(self, event):

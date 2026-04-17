@@ -568,48 +568,6 @@ def _extract_decisions(messages: list[BaseMessage]) -> list[str]:
     return decisions[-5:]  # Last 5 decisions
 
 
-async def session_end_auto_extract(context: HookContext) -> HookResult:
-    """
-    Auto-extract learnings when session ends.
-    
-    This replaces manual "remember" calls with automatic extraction.
-    """
-    from app.core.memory.auto_extraction import AutoMemoryExtractor
-
-    try:
-        # Use DI if memory_manager provided, otherwise use global singleton
-        if context.memory_manager is not None and context.memory_config is not None:
-            extractor = AutoMemoryExtractor(
-                memory_manager=context.memory_manager,
-                config=context.memory_config,
-            )
-        else:
-            from app.core.memory.auto_extraction import auto_extractor
-            extractor = auto_extractor
-
-        if len(context.messages) >= 4:
-            # Trigger auto-extraction
-            extracted = await extractor.maybe_extract(
-                thread_id=context.thread_id,
-                messages=context.messages,
-                project_id=context.project_id,
-                user_id=context.user_id,
-            )
-
-            if extracted:
-                logger.info(f"[SessionEnd] Auto-extracted {len(extracted)} memories")
-                return HookResult(
-                    success=True,
-                    data={"extracted_count": len(extracted)},
-                )
-
-        return HookResult(success=True)
-
-    except Exception as e:
-        logger.error(f"[SessionEnd] Auto-extraction failed: {e}")
-        return HookResult(success=False, error=e)
-
-
 async def post_tool_use_logging(context: HookContext) -> HookResult:
     """Log tool usage for analytics and memory."""
     if not context.tool_name:
@@ -872,7 +830,6 @@ def setup_default_hooks():
     """Register default hook handlers."""
     # Session lifecycle
     hook_system.register(HookEvent.SESSION_START, session_start_handler, priority=10)
-    hook_system.register(HookEvent.SESSION_END, session_end_auto_extract, priority=100)
 
     # User interaction
     hook_system.register(HookEvent.USER_PROMPT_SUBMIT, user_prompt_submit_handler, priority=50)

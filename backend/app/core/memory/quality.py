@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 
 class QualityScores(DynamicBaseModel):
-    """Quality scores for a memory entry."""
+    """Heuristic quality scores for a memory entry (metadata-based)."""
     freshness: float  # 0-1, how recent
     usage: float  # 0-1, how often recalled
     specificity: float  # 0-1, how specific (vs vague)
@@ -103,8 +103,8 @@ class MemoryQualityAnalyzer:
         """
         freshness = self._score_freshness(entry)
         usage = await self._score_usage(entry)
-        specificity = self._score_specificity(entry)
-        actionability = self._score_actionability(entry)
+        specificity = self._score_heuristic_specificity(entry)
+        actionability = self._score_heuristic_actionability(entry)
 
         # Weighted overall score
         overall = (
@@ -143,7 +143,7 @@ class MemoryQualityAnalyzer:
         # Normalize: 0 accesses = 0, 10+ accesses = 1
         return min(1.0, access_count / 10.0)
 
-    def _score_specificity(self, entry: MemoryEntry) -> float:
+    def _score_heuristic_specificity(self, entry: MemoryEntry) -> float:
         """
         Score how specific the memory is (0-1).
         
@@ -175,7 +175,7 @@ class MemoryQualityAnalyzer:
 
         return max(0.0, min(1.0, specific_score - vague_penalty))
 
-    def _score_actionability(self, entry: MemoryEntry) -> float:
+    def _score_heuristic_actionability(self, entry: MemoryEntry) -> float:
         """
         Score how actionable the memory is (0-1).
         
@@ -215,17 +215,17 @@ class MemoryQualityAnalyzer:
         
         Returns memories that should be archived, updated, or deleted.
         """
-        # Get all memories
-        memories = await self._storage.list_all()
+        # Get all memories (lightweight summaries)
+        memories = await self._storage.list_all(project_id=project_id)
+
+        # Batch load full entries to avoid N+1 queries
+        ids = [m.id for m in memories]
+        entry_map = await self._storage.get_multi(ids)
 
         recommendations = []
 
-        for mem_summary in memories:
-            entry = await self._storage.get(mem_summary.id)
-            if not entry:
-                continue
-
-            # Filter by project
+        for mem_id, entry in entry_map.items():
+            # Filter by project (though already filtered in list_all, double check)
             if project_id is not None and entry.project_id != project_id:
                 continue
 
@@ -299,8 +299,6 @@ class MemoryQualityAnalyzer:
         """Record that a memory was accessed (for usage scoring)."""
         self._access_counts[entry_id] += 1
 
-
-# Global singleton instance for convenience
-# Note: storage is None by default; methods requiring storage will raise if called
-# without proper initialization. This is sufficient for global access patterns.
-quality_analyzer = MemoryQualityAnalyzer(storage=None)
+    def get_access_count(self, entry_id: str) -> int:
+        """Get the number of times a memory was accessed (public API)."""
+        return self._access_counts.get(entry_id, 0)

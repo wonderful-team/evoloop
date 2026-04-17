@@ -334,11 +334,8 @@ class HandlerRegistry(Generic[T]):
         results = []
         handlers = cls._handlers.get(key, [])
         for handler in handlers:
-            try:
-                result = handler(*args, **kwargs)
-                results.append(result)
-            except Exception as e:
-                logger.error(f"Handler failed for '{key}': {e}")
+            result = handler(*args, **kwargs)
+            results.append(result)
         return results
 
 

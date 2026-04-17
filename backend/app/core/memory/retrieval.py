@@ -237,7 +237,7 @@ class MemoryRetriever:
 
         # Load full entries and filter
         candidates = []
-        load_times = []
+        cache_misses = 0
         privacy_filtered = 0
         project_filtered = 0
         surfaced_skipped = 0
@@ -248,10 +248,12 @@ class MemoryRetriever:
                 surfaced_skipped += 1
                 continue
 
-            # Load full entry
-            load_start = time.time()
-            entry = await self._storage.get(mem_summary.id)
-            load_times.append((time.time() - load_start) * 1000)
+            # Use batch-loaded entry first
+            entry = entries_map.get(mem_summary.id)
+            if not entry:
+                # Fallback for cache miss (rare)
+                cache_misses += 1
+                entry = await self._storage.get(mem_summary.id)
 
             if not entry:
                 logger.debug(f"[_get_candidates] Failed to load entry: {mem_summary.id}")
@@ -269,10 +271,8 @@ class MemoryRetriever:
 
             candidates.append(entry)
 
-        if load_times:
-            avg_load_time = sum(load_times) / len(load_times)
-            max_load_time = max(load_times)
-            logger.debug(f"[_get_candidates] Entry loading stats: avg={avg_load_time:.2f}ms, max={max_load_time:.2f}ms, total={len(load_times)}")
+        if cache_misses:
+            logger.debug(f"[_get_candidates] Batch cache misses: {cache_misses}")
 
         logger.debug(f"[_get_candidates] Filtering stats: surfaced_skipped={surfaced_skipped}, privacy_filtered={privacy_filtered}, project_filtered={project_filtered}, final_candidates={len(candidates)}")
 
@@ -348,27 +348,36 @@ class MemoryRetriever:
         logger.info(f"[_llm_select] Starting LLM selection for {len(candidates)} candidates")
 
         try:
-            # Build selection prompt
-            prompt_build_start = time.time()
-            prompt = self._build_selection_prompt(candidates, ctx)
-            prompt_build_elapsed = (time.time() - prompt_build_start) * 1000
-            prompt_chars = len(prompt)
-            prompt_lines = prompt.count('\n')
-            logger.info(f"[_llm_select] Prompt built: {prompt_chars} chars, {prompt_lines} lines in {prompt_build_elapsed:.1f}ms")
+            # Build selection prompt using standardized builder
+            from app.core.memory.prompts import MemoryRetrievalPromptBuilder
 
-            # Log prompt preview for debugging
-            # logger.debug(f"[_llm_select] Prompt preview:\n{prompt[:500]}...")
-            logger.debug(f"[_llm_select] Prompt preview:\n{prompt}")
+            # Prepare candidates for template
+            candidates_for_llm = []
+            filtered_candidates = self._filter_recent_tools(candidates, ctx.recent_tools)
+            
+            for mem in filtered_candidates:
+                candidates_for_llm.append({
+                    "title": mem.title,
+                    "type": mem.type.value if hasattr(mem.type, 'value') else str(mem.type),
+                    "description": mem.description,
+                    "updated_at": mem.updated_at.isoformat() if mem.updated_at else "Unknown"
+                })
+
+            builder = MemoryRetrievalPromptBuilder(
+                query=ctx.query,
+                memories=candidates_for_llm,
+                recent_tools=ctx.recent_tools,
+                max_selections=self._config.max_selections if self._config else 5
+            )
+
+            selection_messages = await builder.build()
 
             # Call LLM using InternalLLMService (automatically disables callbacks)
             llm_start = time.time()
             logger.info("[_llm_select] Calling InternalLLMService.invoke for memory_selection...")
 
             response = await InternalLLMService.invoke(
-                messages=[
-                    {"role": "system", "content": "You are a memory relevance selector."},
-                    {"role": "user", "content": prompt},
-                ],
+                messages=selection_messages,
                 purpose="memory_selection",
                 temperature=0.3,
                 max_tokens=500,
@@ -405,69 +414,6 @@ class MemoryRetriever:
             fallback_elapsed = (time.time() - fallback_start) * 1000
             logger.warning(f"[_llm_select] Fallback to keyword_rank took {fallback_elapsed:.1f}ms, returning {len(fallback_result)} entries")
             return fallback_result
-
-    def _build_selection_prompt(
-        self,
-        candidates: list[MemoryEntry],
-        ctx: RetrievalContext,
-    ) -> str:
-        """Build the LLM selection prompt."""
-        start_time = time.time()
-        logger.debug(f"[_build_selection_prompt] Starting with {len(candidates)} candidates")
-
-        # Filter out recently used tools from candidates
-        filter_start = time.time()
-        filtered_candidates = self._filter_recent_tools(candidates, ctx.recent_tools)
-        filter_elapsed = (time.time() - filter_start) * 1000
-        filtered_count = len(candidates) - len(filtered_candidates)
-        logger.debug(f"[_build_selection_prompt] Filtered {filtered_count} recent tools in {filter_elapsed:.1f}ms, {len(filtered_candidates)} remaining")
-
-        # Build memory list
-        build_start = time.time()
-        memory_list = []
-        for i, mem in enumerate(filtered_candidates, 1):
-            memory_list.append(
-                f"{i}. [{mem.type.value}] {mem.title}\n"
-                f"   {mem.description[:100]}"
-            )
-        build_elapsed = (time.time() - build_start) * 1000
-        logger.debug(f"[_build_selection_prompt] Built memory list ({len(memory_list)} items) in {build_elapsed:.1f}ms")
-
-        recent_tools_section = ""
-        if ctx.recent_tools:
-            recent_tools_section = f"\nRecently used tools: {', '.join(ctx.recent_tools)}\nDo NOT select memories about these tools (already in use)."
-
-        result = f"""You are selecting memories that will be useful to process this query.
-
-Query: "{ctx.query}"
-
-Available memories:
-{chr(10).join(memory_list)}
-{recent_tools_section}
-
-Instructions:
-- Select up to {self.max_results} memories that are MOST relevant to the query
-- Focus on memories that provide actionable guidance
-- Skip memories that are only vaguely related
-- Prefer recent memories over old ones
-- Do not select memories about tools listed in "Recently used tools"
-
-Return your selection as JSON:
-```json
-{{
-  "selected_indices": [1, 3, 5],
-  "reasoning": "Brief explanation of why these were selected"
-}}
-```
-
-If no memories are relevant, return: {{"selected_indices": []}}"""
-
-        total_elapsed = (time.time() - start_time) * 1000
-        result_chars = len(result)
-        result_lines = result.count('\n')
-        logger.info(f"[_build_selection_prompt] Completed: {result_chars} chars, {result_lines} lines, {len(filtered_candidates)} memories in {total_elapsed:.1f}ms")
-
-        return result
 
     def _filter_recent_tools(
         self,
@@ -584,15 +530,13 @@ If no memories are relevant, return: {{"selected_indices": []}}"""
         Returns:
             Dictionary with keys: user, feedback, project, reference
         """
-        # Get all memories
-        all_memories = await self._storage.list_all()
+        # Get all memories (filter by project early)
+        all_memories = await self._storage.list_all(project_id=project_id)
 
-        # Load full entries
-        entries = []
-        for m in all_memories:
-            entry = await self._storage.get(m.id)
-            if entry:
-                entries.append(entry)
+        # Batch load full entries to avoid N+1
+        ids = [m.id for m in all_memories]
+        entry_map = await self._storage.get_multi(ids)
+        entries = list(entry_map.values())
 
         # Filter and organize
         result = {

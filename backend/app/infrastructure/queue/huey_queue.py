@@ -385,7 +385,7 @@ class HueyTaskScheduler(TaskScheduler, SyncTaskMixin):
             'app.domain.wiki.tasks',
             'app.domain.codebase.indexing.tasks',
             'app.domain.project.sync_tasks',
-            'app.tasks.memory_tasks',
+            'app.core.memory.maintenance',
             'app.core.evocloud.bridge.sync_tasks',
         ]
         

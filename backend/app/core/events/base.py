@@ -144,10 +144,7 @@ class AsyncEventBus(Generic[E]):
         logger.info(f"[{self._name}] 📡 Publishing event: {type_key} (sequential={sequential}, propagate={propagate_errors})")
 
         async def safe_handle(handler: EventHandler) -> None:
-            try:
-                await handler(event)
-            except Exception as e:
-                logger.error(f"[{self._name}] Handler failed for {type_key}: {e}")
+            await handler(event)
 
         if sequential or propagate_errors:
             # Execute one by one

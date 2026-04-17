@@ -7,6 +7,7 @@ from app.api.responses import ListResponse, BaseAPIResponse
 from app.infrastructure.database.vector.lancedb_store import get_vector_store
 from app.infrastructure.embeddings.factory import EmbedderFactory
 from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.core.memory.models import MemoryType
 
 logger = logging.getLogger(__name__)
 
@@ -97,11 +98,25 @@ class ConceptOperationResponse(BaseAPIResponse):
 @router.get("/concepts", response_model=list[ConceptResponse])
 async def list_concepts(project_id: int, manager=Depends(get_memory_manager)):
     """
-    Get all concepts for a project (legacy endpoint).
+    Get all concepts for a project.
     """
     try:
-        results = await manager.long_term.search_concepts_data("", project_id)
-        return results
+        # Use storage-level project filtering
+        results = await manager.list_memories(
+            type_filter=MemoryType.CONCEPT, 
+            project_id=project_id,
+            limit=100
+        )
+        # Get counts in batch
+        counts = await manager.get_concept_episode_counts_batch(project_id)
+        
+        return [
+            ConceptResponse(
+                name=m.title,
+                description=m.description,
+                episode_count=counts.get(m.title, 0)
+            ) for m in results
+        ]
     except Exception as e:
         logger.warning(f"Failed to list concepts: {e}")
         return []
@@ -115,8 +130,22 @@ async def list_concepts_with_counts(
     Get all concepts with episode counts.
     """
     try:
-        results = await manager.long_term.list_concepts(project_id, limit)
-        return results
+        # Use storage-level project filtering
+        results = await manager.list_memories(
+            type_filter=MemoryType.CONCEPT, 
+            project_id=project_id,
+            limit=limit
+        )
+        # Get counts in batch
+        counts = await manager.get_concept_episode_counts_batch(project_id)
+
+        return [
+            ConceptResponse(
+                name=m.title,
+                description=m.description,
+                episode_count=counts.get(m.title, 0)
+            ) for m in results
+        ]
     except Exception as e:
         logger.warning(f"Failed to list concepts: {e}")
         return []
@@ -130,29 +159,22 @@ async def get_concept(
     Get a single concept by name with its episode count.
     """
     try:
-        # We use search with the exact name to find the concept details
-        results = await manager.long_term.search_concepts_data(concept_name, project_id)
-        if not results:
-            raise HTTPException(status_code=404, detail="Concept not found")
+        # Construct ID
+        memory_id = f"concept_{concept_name}"
+        entry = await manager.get_memory(memory_id)
         
-        # Match exact name
-        exact_match = next((r for r in results if r["name"] == concept_name), None)
-        if not exact_match:
+        if not entry:
             raise HTTPException(status_code=404, detail="Concept not found")
 
         # Get episode count
-        episodes = await manager.long_term.find_episodes_by_concept(
-            concept_name, project_id, limit=1
+        episodes = await manager.find_episodes_by_concept(
+            concept_name, project_id, limit=99
         )
-        # Note: In a real scenario, we might need a dedicated count method 
-        # but for now we'll assume the result has the count or fetch it.
-        # Actually, list_concepts already has counts. 
-        # For simplicity in this mock/impl, we'll return the match.
         
         return ConceptResponse(
-            name=exact_match["name"],
-            description=exact_match.get("description"),
-            episode_count=len(episodes) # This is a placeholder since we don't have a count-only method
+            name=entry.title,
+            description=entry.content,
+            episode_count=len(episodes)
         )
     except HTTPException:
         raise
@@ -169,10 +191,12 @@ async def add_concept(
     Manually add a concept/memory.
     """
     try:
-        from app.core.memory.interfaces.long_term import Concept
-
-        concept = Concept(req.name, req.description, project_id, req.related_files)
-        await manager.long_term.store_concept(concept)
+        await manager.store_concept(
+            name=req.name,
+            description=req.description,
+            project_id=project_id,
+            related_files=req.related_files
+        )
         return ConceptOperationResponse(status="success", name=req.name)
     except Exception as e:
         logger.error(f"Failed to add concept: {e}")
@@ -188,34 +212,27 @@ async def search_memory(
 ):
     """
     Search memory concepts.
-    
-    Args:
-        q: Search query
-        project_id: Optional project filter
-        use_vector: If True, uses vector similarity search instead of text matching
     """
     if not q:
         return []
     
-    # If vector search is requested, try to use it
-    if use_vector:
-        try:
-            vector_results = await _perform_vector_search(q, project_id, top_k=10)
-            # Convert vector results to ConceptResponse format
-            return [
-                ConceptResponse(
-                    name=r["identifier"] or r["file_path"].split("/")[-1],
-                    description=r["content"][:200] + "..." if len(r["content"]) > 200 else r["content"]
-                )
-                for r in vector_results
-            ]
-        except Exception as e:
-            logger.warning(f"Vector search failed, falling back to text search: {e}")
-            # Fall through to text search
+    if not q:
+        return []
     
-    # Default text search
-    result = await manager.long_term.search_concepts_data(q, project_id)
-    return result
+    # Text search (unified)
+    results = await manager.search_memories(
+        query=q,
+        types=[MemoryType.CONCEPT],
+        project_id=project_id,
+        limit=10,
+    )
+    return [
+        ConceptResponse(
+            name=r.title,
+            description=r.description,
+            episode_count=0
+        ) for r in results
+    ]
 
 
 @router.get("/search/vector", response_model=VectorSearchResponse)
@@ -320,6 +337,7 @@ async def search_memory_hybrid(
     project_id: int | None = None,
     top_k: int = Query(10, ge=1, le=50),
     vector_weight: float = Query(0.7, ge=0, le=1),
+    manager=Depends(get_memory_manager)
 ):
     """
     Hybrid search combining vector similarity and text matching.
@@ -338,11 +356,15 @@ async def search_memory_hybrid(
         vector_results = await _perform_vector_search(q, project_id, top_k * 2)
         
         # Get text results from memory manager
-        from app.core.memory.lifespan import MemoryLifespanManager
-        if not MemoryLifespanManager.is_initialized():
-            await MemoryLifespanManager.ainitialize()
-        container = MemoryLifespanManager.get_container()
-        text_results = await container.memory_manager.long_term.search_concepts_data(q, project_id)
+        results = await manager.search_memories(
+            query=q,
+            types=[MemoryType.CONCEPT],
+            project_id=project_id,
+            limit=top_k,
+        )
+        text_results = [
+            {"name": r.title, "description": r.description} for r in results
+        ]
         
         # Combine and deduplicate results
         combined_results = []
@@ -385,12 +407,8 @@ async def search_memory_hybrid(
         
     except Exception as e:
         logger.error(f"Hybrid search failed: {e}")
-        # Fallback to text search
-        from app.core.memory.lifespan import MemoryLifespanManager
-        if not MemoryLifespanManager.is_initialized():
-            await MemoryLifespanManager.ainitialize()
-        container = MemoryLifespanManager.get_container()
-        text_results = await container.memory_manager.long_term.search_concepts_data(q, project_id)
+        # Fallback to text search via facade
+        text_results = await manager.search_concepts_data(q, project_id)
         return HybridSearchResponse(
             results=[HybridResultItem(type="text", score=1.0, data=r) for r in text_results],
             total=len(text_results),
@@ -431,8 +449,6 @@ async def update_concept(
     Update an existing concept's description or metadata.
     """
     try:
-        from app.core.memory.models import MemoryEntry, MemoryType, PrivacyLevel
-        
         memory_id = f"concept_{concept_name}"
         existing = await manager.get_memory(memory_id)
         if not existing:
@@ -444,8 +460,7 @@ async def update_concept(
             existing.description = req.description[:200]
         if req.related_files is not None:
             # Update tags by filtering out old file tags and adding new ones
-            # (Simplistic tag management for now)
-            other_tags = [t for t in existing.tags if t != "concept" and not t.startswith("file:")]
+            other_tags = [t for t in existing.tags if t != "concept" and not t.endswith(".py") and not t.endswith(".ts")]
             existing.tags = ["concept"] + other_tags + req.related_files
             
         await manager.save_memory(existing)
@@ -467,10 +482,19 @@ async def get_episodes_by_concept(
     if not concept:
         return []
     try:
-        results = await manager.long_term.find_episodes_by_concept(
+        results = await manager.find_episodes_by_concept(
             concept, project_id, limit
         )
-        return results
+        # results are already dicts matching EpisodeResponse mostly
+        return [
+            EpisodeResponse(
+                id=r['id'],
+                goal=r['goal'],
+                result=r['result'],
+                error=None,
+                timestamp=r['timestamp']
+            ) for r in results
+        ]
     except Exception as e:
         logger.error(f"Failed to find episodes by concept: {e}")
         return []

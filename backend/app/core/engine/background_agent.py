@@ -188,8 +188,8 @@ async def run_agent_background(thread_id: str, inputs: dict[str, Any]):
         container = MemoryLifespanManager.get_container()
         memory_manager = container.memory_manager
         user_prefs, concepts_text = await asyncio.gather(
-            memory_manager.preferences.get_merged_preferences("user_default"),
-            memory_manager.long_term.get_project_concepts(project_id)
+            memory_manager.get_merged_preferences("user_default", project_id=project_id),
+            memory_manager.get_project_concepts(project_id)
         )
         inputs["user_preferences"] = user_prefs
         inputs["project_concepts"] = concepts_text
@@ -299,21 +299,18 @@ async def run_agent_background(thread_id: str, inputs: dict[str, Any]):
             await activity_monitor.end_run(thread_id, "done")
 
             # Publish AgentRunCompletedEvent for automated learning
-            try:
-                from app.core.engine.events import AgentRunCompletedEvent
-                from app.core.events import system_bus
+            from app.core.engine.events import AgentRunCompletedEvent
+            from app.core.events import system_bus
 
-                # We use the thread_id as the primary key for the learning trigger
-                # goal can be reconstructed from the first message in the thread
-                await system_bus.publish(AgentRunCompletedEvent(
-                    thread_id=thread_id,
-                    project_id=project_id,
-                    goal="Autonomous Task Execution", # Simplified goal for event
-                    status="done"
-                ))
-                logger.info(f"[BackgroundAgent] 📡 Published AgentRunCompletedEvent for thread {thread_id}")
-            except Exception as e:
-                logger.warning(f"[BackgroundAgent] Failed to publish run completion event: {e}")
+            # We use the thread_id as the primary key for the learning trigger
+            # goal can be reconstructed from the first message in the thread
+            await system_bus.publish(AgentRunCompletedEvent(
+                thread_id=thread_id,
+                project_id=project_id,
+                goal="Autonomous Task Execution", # Simplified goal for event
+                status="done"
+            ))
+            logger.info(f"[BackgroundAgent] 📡 Published AgentRunCompletedEvent for thread {thread_id}")
 
             # Upload Log
             await _upload_final_log(graph_instance, config, thread_id, evoloop_command_id, project_id)

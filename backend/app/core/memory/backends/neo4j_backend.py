@@ -26,6 +26,7 @@ from app.core.memory.models import (
     MemorySearchResult,
     MemoryType,
     PrivacyLevel,
+    MemoryTier,
 )
 
 logger = logging.getLogger(__name__)
@@ -255,6 +256,23 @@ class Neo4jMemoryStorage(IMemoryStorage):
             node = record["m"]
             return self._node_to_entry(node)
 
+    async def find_by_hash(self, content_hash: str, project_id: int | None = None) -> MemoryEntry | None:
+        """Find a memory entry by its content hash to prevent duplication."""
+        if not self._driver:
+            raise StorageError("Neo4j not initialized.")
+
+        async with self._driver.session() as session:
+            query = "MATCH (m:Memory {content_hash: $hash}) "
+            if project_id is not None:
+                query += "WHERE m.project_id = $project_id "
+            query += "RETURN m LIMIT 1"
+
+            result = await session.run(query, hash=content_hash, project_id=project_id)
+            record = await result.single()
+            if record:
+                return self._node_to_entry(record["m"])
+            return None
+
     async def delete(self, entry_id: str) -> bool:
         """Delete a memory entry from Neo4j."""
         if not self._driver:
@@ -283,6 +301,7 @@ class Neo4jMemoryStorage(IMemoryStorage):
         types: list[MemoryType] | None = None,
         privacy: PrivacyLevel | None = None,
         project_id: int | None = None,
+        filters: dict[str, Any] | None = None,
         limit: int = 10,
     ) -> list[MemoryEntry]:
         """
@@ -297,12 +316,21 @@ class Neo4jMemoryStorage(IMemoryStorage):
         async with self._driver.session() as session:
             # Build query with filters
             where_clauses = []
-            params = {"query": query.lower(), "limit": limit}
+            params = {"limit": limit}
 
-            # Text search (case-insensitive)
-            where_clauses.append(
-                "(toLower(m.title) CONTAINS $query OR toLower(m.content) CONTAINS $query OR toLower(m.description) CONTAINS $query)"
-            )
+            # Text search (case-insensitive) - only if query is not empty
+            if query and query.strip():
+                params["query"] = query.lower()
+                where_clauses.append(
+                    "(toLower(m.title) CONTAINS $query OR toLower(m.content) CONTAINS $query OR toLower(m.description) CONTAINS $query)"
+                )
+
+            # Metadata filters
+            if filters:
+                for k, v in filters.items():
+                    param_name = f"filter_{k}"
+                    where_clauses.append(f"m.{k} = ${param_name}")
+                    params[param_name] = v
 
             # Type filter
             if types:
@@ -319,6 +347,13 @@ class Neo4jMemoryStorage(IMemoryStorage):
             if project_id is not None:
                 where_clauses.append("(m.project_id = $project_id OR m.project_id IS NULL)")
                 params["project_id"] = project_id
+
+            # Structured filters (metadata)
+            if filters:
+                for k, v in filters.items():
+                    param_name = f"filter_{k}"
+                    where_clauses.append(f"m.{k} = ${param_name}")
+                    params[param_name] = v
 
             where_clause = " AND ".join(where_clauses) if where_clauses else "TRUE"
 
@@ -345,8 +380,10 @@ class Neo4jMemoryStorage(IMemoryStorage):
         self,
         type_filter: MemoryType | None = None,
         privacy_filter: PrivacyLevel | None = None,
+        project_id: int | None = None,
+        limit: int | None = None,
     ) -> list[MemorySearchResult]:
-        """List all memories (lightweight)."""
+        """List memories (lightweight) with project and type filtering."""
         if not self._driver:
             raise StorageError("Neo4j not initialized. Call initialize() first.")
 
@@ -361,6 +398,10 @@ class Neo4jMemoryStorage(IMemoryStorage):
             if privacy_filter:
                 where_clauses.append("m.privacy = $privacy")
                 params["privacy"] = privacy_filter.value
+            
+            if project_id is not None:
+                where_clauses.append("m.project_id = $project_id")
+                params["project_id"] = project_id
 
             where_clause = " AND ".join(where_clauses) if where_clauses else "TRUE"
 
@@ -368,22 +409,33 @@ class Neo4jMemoryStorage(IMemoryStorage):
             MATCH (m:Memory)
             WHERE {where_clause}
             RETURN m.id as id, m.title as title, m.description as description,
-                   m.type as type, m.updated_at as updated_at
+                   m.type as type, m.tier as tier, m.utility_score as utility_score,
+                   m.confidence as confidence, m.updated_at as updated_at
             ORDER BY m.updated_at DESC
+            {f"LIMIT $limit" if limit else ""}
             """
+            if limit:
+                params["limit"] = limit
 
             result = await session.run(cypher, **params)
             records = await result.data()
 
             results = []
             for record in records:
+                # Parse updated_at carefully from ISO format (stored as string in Neo4j typically)
+                ts = record["updated_at"]
+                dt = datetime.fromisoformat(ts) if isinstance(ts, str) else datetime.utcnow()
+
                 results.append(
                     MemorySearchResult(
                         id=record["id"],
                         title=record["title"],
                         description=record.get("description", ""),
                         type=MemoryType(record["type"]),
-                        updated_at=datetime.fromisoformat(record["updated_at"]),
+                        tier=MemoryTier(record.get("tier", "operational")),
+                        utility_score=record.get("utility_score", 0.0),
+                        confidence=record.get("confidence", 1.0),
+                        updated_at=dt,
                     )
                 )
 
@@ -392,6 +444,24 @@ class Neo4jMemoryStorage(IMemoryStorage):
     # ==========================================================================
     # IMemoryStorage Advanced Operations
     # ==========================================================================
+
+    async def get_multi(self, entry_ids: list[str]) -> dict[str, MemoryEntry]:
+        """Batch retrieve memory entries from Neo4j (O(1) roundtrip)."""
+        if not self._driver or not entry_ids:
+            return {}
+
+        async with self._driver.session() as session:
+            result = await session.run(
+                "MATCH (m:Memory) WHERE m.id IN $ids RETURN m",
+                ids=entry_ids
+            )
+            records = await result.data()
+            entries = {}
+            for record in records:
+                entry = self._node_to_entry(record["m"])
+                if entry:
+                    entries[entry.id] = entry
+            return entries
 
     async def search_similar(
         self,
@@ -454,34 +524,132 @@ class Neo4jMemoryStorage(IMemoryStorage):
 
             return entries
 
-    async def get_by_project(
-        self,
-        project_id: int,
-        limit: int = 100,
-    ) -> list[MemoryEntry]:
-        """Get all memories for a specific project (optimized for Neo4j)."""
+    async def get_recent(self, count: int = 5) -> list[MemoryEntry]:
+        """Get most recently updated memories from Neo4j."""
         if not self._driver:
-            raise StorageError("Neo4j not initialized. Call initialize() first.")
+            raise StorageError("Neo4j not initialized.")
 
         async with self._driver.session() as session:
             result = await session.run(
                 """
                 MATCH (m:Memory)
-                WHERE m.project_id = $project_id OR m.project_id IS NULL
                 RETURN m
                 ORDER BY m.updated_at DESC
-                LIMIT $limit
+                LIMIT $count
                 """,
-                project_id=project_id,
-                limit=limit,
+                count=count,
             )
             records = await result.data()
+            return [self._node_to_entry(record["m"]) for record in records if record["m"]]
 
-            return [
-                self._node_to_entry(record["m"])
-                for record in records
-                if record["m"]
-            ]
+    async def record_episode(self, episode: Any) -> str:
+        """
+        Record an execution episode in the graph.
+        episode: Episode object (pydantic model).
+        """
+        if not self._driver:
+            raise StorageError("Neo4j not initialized.")
+
+        # Convert Episode to MemoryEntry for standard storage
+        entry_id = f"ep_{episode.source_message_id or datetime.utcnow().timestamp()}"
+        
+        async with self._driver.session() as session:
+            # 1. Create Episode Node (using regular Memory label for consistency)
+            query = """
+            MERGE (m:Memory {id: $id})
+            SET m.type = 'episode',
+                m.title = $title,
+                m.content = $content,
+                m.project_id = $project_id,
+                m.source_message_id = $source_message_id,
+                m.created_at = $created_at,
+                m.updated_at = $updated_at,
+                m.privacy = 'team'
+            RETURN m.id as entry_id
+            """
+            result = await session.run(
+                query,
+                id=entry_id,
+                title=f"Episode: {episode.goal[:50]}...",
+                content=f"Goal: {episode.goal}\nResult: {episode.result}",
+                project_id=episode.project_id,
+                source_message_id=episode.source_message_id,
+                created_at=datetime.utcnow().isoformat(),
+                updated_at=datetime.utcnow().isoformat(),
+            )
+            record = await result.single()
+            return record["entry_id"] if record else entry_id
+
+    async def link_concept_to_episode(self, concept_name: str, episode_id: str) -> None:
+        """Create a LINKED_TO relationship in Neo4j."""
+        if not self._driver:
+            return
+        
+        async with self._driver.session() as session:
+            query = """
+            MATCH (c:Memory {title: $concept_name})
+            MATCH (e:Memory {id: $episode_id})
+            MERGE (c)-[:LINKED_TO]->(e)
+            """
+            await session.run(query, concept_name=concept_name, episode_id=episode_id)
+            logger.info(f"[Neo4jStorage] Linked concept '{concept_name}' to episode {episode_id}")
+
+    async def get_recent(self, count: int = 5) -> list[MemoryEntry]:
+        """Get most recently updated memories from Neo4j."""
+        if not self._driver:
+            return []
+            
+        async with self._driver.session() as session:
+            query = """
+            MATCH (m:Memory)
+            RETURN m
+            ORDER BY m.updated_at DESC
+            LIMIT $limit
+            """
+            result = await session.run(query, limit=count)
+            records = await result.data()
+            
+            return [self._node_to_entry(r["m"]) for r in records if r["m"]]
+
+    async def find_episodes_by_concept(self, concept_name: str, limit: int = 10) -> list[dict]:
+        """Find episodes linked to a concept via relationships."""
+        if not self._driver:
+            return []
+            
+        async with self._driver.session() as session:
+            query = """
+            MATCH (c:Memory {title: $concept_name})-[:LINKED_TO]->(e:Memory)
+            RETURN e
+            ORDER BY e.updated_at DESC
+            LIMIT $limit
+            """
+            result = await session.run(query, concept_name=concept_name, limit=limit)
+            records = await result.data()
+            
+            results = []
+            for record in records:
+                node = record["e"]
+                results.append({
+                    "id": node["id"],
+                    "goal": node["title"],
+                    "result": node["content"],
+                    "timestamp": node["created_at"]
+                })
+            return results
+
+    async def get_all_concept_counts(self) -> dict[str, int]:
+        """Get counts of episodes linked to each concept using graph aggregation."""
+        if not self._driver:
+            return {}
+            
+        async with self._driver.session() as session:
+            query = """
+            MATCH (c:Memory {type: 'concept'})-[:LINKED_TO]->(e:Memory)
+            RETURN c.title as name, count(e) as count
+            """
+            result = await session.run(query)
+            records = await result.data()
+            return {r["name"]: r["count"] for r in records}
 
     # ==========================================================================
     # Helper Methods

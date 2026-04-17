@@ -1,3 +1,5 @@
+import hashlib
+import re
 import uuid
 from datetime import datetime
 from enum import Enum
@@ -15,6 +17,15 @@ class MemoryType(str, Enum):
     FEEDBACK = "feedback"
     PROJECT = "project"
     REFERENCE = "reference"
+    CONCEPT = "concept"
+    EPISODE = "episode"
+
+
+class MemoryTier(str, Enum):
+    """Quality-based tiering for memory management."""
+    STRATEGIC = "strategic"
+    OPERATIONAL = "operational"
+    TRANSIENT = "transient"
 
 
 class PrivacyLevel(str, Enum):
@@ -41,10 +52,11 @@ class MemoryEntry(DynamicBaseModel):
     type: MemoryType = MemoryType.PROJECT
     privacy: PrivacyLevel = PrivacyLevel.PRIVATE
 
-    # Content
+    # Content & Fingerprint
     title: str
     content: str
     description: str = ""
+    content_hash: str | None = None  # SHA-256 fingerprint for global de-dupe
 
     # Metadata
     project_id: int | None = None
@@ -58,6 +70,8 @@ class MemoryEntry(DynamicBaseModel):
 
     # Versioning
     version: int = 1
+    tier: MemoryTier = MemoryTier.OPERATIONAL
+    utility_score: float = Field(default=0.0, ge=0.0, le=1.0)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
@@ -73,6 +87,18 @@ class MemoryEntry(DynamicBaseModel):
                 data["privacy"] = PrivacyLevel.PRIVATE
         return data
 
+    @staticmethod
+    def compute_content_hash(content: str) -> str:
+        """
+        Compute a stable SHA-256 hash for memory content.
+        Normalizes whitespace and case to ensure consistent fingerprinting.
+        """
+        if not content:
+            return ""
+        # Normalize: lower case, strip, replace complex whitespace with single space
+        normalized = re.sub(r'\s+', ' ', content.strip().lower())
+        return hashlib.sha256(normalized.encode('utf-8')).hexdigest()
+
     def to_frontmatter(self) -> str:
         """Serialize to Markdown with YAML frontmatter."""
         # Clean strings for YAML
@@ -82,6 +108,8 @@ class MemoryEntry(DynamicBaseModel):
         frontmatter = {
             "id": self.id,
             "type": self.type.value,
+            "tier": self.tier.value,
+            "utility_score": self.utility_score,
             "privacy": self.privacy.value,
             "title": _clean(self.title),
             "description": _clean(self.description),
@@ -94,6 +122,7 @@ class MemoryEntry(DynamicBaseModel):
             "version": self.version,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
+            "content_hash": self.content_hash,
         }
         if self.extra:
             frontmatter["extra"] = self.extra.model_dump()
@@ -162,10 +191,13 @@ class MemoryEntry(DynamicBaseModel):
         return MemorySearchResult(
             id=self.id,
             type=self.type,
+            tier=self.tier,
+            utility_score=self.utility_score,
             title=self.title,
             description=self.description,
             created_at=self.created_at,
             updated_at=self.updated_at,
+            confidence=self.confidence,
         )
 
 
@@ -173,10 +205,13 @@ class MemorySearchResult(DynamicBaseModel):
     """Lightweight result for search operations (without full content)."""
     id: str
     type: MemoryType
+    tier: MemoryTier = MemoryTier.OPERATIONAL
+    utility_score: float = 0.0
     title: str
     description: str
     created_at: datetime
     updated_at: datetime
+    confidence: float = 1.0
 
     def to_dict(self) -> dict:
         """Legacy compatibility method."""
@@ -216,3 +251,28 @@ class CheckpointDedupResult(DynamicBaseModel):
     bytes_saved: int = 0
     elapsed_ms: int = 0
     error: str | None = None
+
+
+# ========================================================================
+# Long-Term (Graph) Models
+# ========================================================================
+
+class Concept(DynamicBaseModel):
+    """A semantic concept or knowledge entity extracted from the codebase or conversations."""
+    name: str = Field(description="Unique name of the concept, technology, or pattern")
+    description: str = Field(description="Detailed description of what it is and how it is used")
+    project_id: int | None = Field(default=0, description="Associated project ID (0 for global)")
+    related_files: list[str] = Field(default_factory=list, description="List of file paths related to this concept")
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class Episode(DynamicBaseModel):
+    """A recorded execution episode representing a past task attempt."""
+    id: str | None = None
+    goal: str = Field(description="What was the agent trying to achieve")
+    result: str = Field(description="The outcome of the attempt")
+    plan_summary: str | None = Field(default=None, description="Summary of the plan used")
+    error_msg: str | None = Field(default=None, description="Error message if failed")
+    project_id: int | None = Field(default=0)
+    source_message_id: str | None = Field(default=None)
+    timestamp: datetime = Field(default_factory=datetime.utcnow)

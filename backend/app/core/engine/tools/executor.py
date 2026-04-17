@@ -14,9 +14,9 @@ from pydantic import BaseModel
 
 from app.core.engine.hooks import HookContext, HookEvent, ToolResult, hook_system
 from app.core.engine.state import AgentState, RunnableConfigMetadata
-from app.core.memory.diff import diff_tracker
 from app.core.tools.executor import ToolExecutor as _ToolExecutor
 from app.infrastructure.queue.factory import get_scheduler
+from app.utils.diff import diff_tracker
 from app.utils.id import gen_uuid
 
 logger = logging.getLogger(__name__)

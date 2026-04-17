@@ -481,14 +481,11 @@ class BackgroundTaskManager:
         }
 
         # Publish to cache for SSE
-        try:
-            from app.infrastructure.cache import cache
-            await cache.publish(
-                f"task:{task.thread_id}:events",
-                json.dumps(event_data)
-            )
-        except Exception as e:
-            logger.debug(f"Failed to publish to cache: {e}")
+        from app.infrastructure.cache import cache
+        await cache.publish(
+            f"task:{task.thread_id}:events",
+            json.dumps(event_data)
+        )
 
         # Log to activity monitor
         try:

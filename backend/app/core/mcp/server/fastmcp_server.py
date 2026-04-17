@@ -228,8 +228,13 @@ async def remember_preference(key: str, value: str, description: str = "") -> st
             await MemoryLifespanManager.ainitialize()
         container = MemoryLifespanManager.get_container()
         manager = container.memory_manager
-        # Ensure schema
-        await manager.preferences.set_preference("user_default", key, value, description)
+        # Unified Facade API
+        await manager.save_preference(
+            user_id="user_default",
+            key=key,
+            value=value,
+            description=description
+        )
         return f"Stored preference: {key}={value}"
     except Exception as e:
         return f"Error: {e}"
@@ -244,15 +249,15 @@ async def remember_concept(name: str, description: str, related_files: list[str]
     if related_files is None:
         related_files = []
     try:
-        from app.core.memory.interfaces.long_term import Concept
+        from app.core.memory.models import Concept
         from app.core.memory.lifespan import MemoryLifespanManager
 
         if not MemoryLifespanManager.is_initialized():
             await MemoryLifespanManager.ainitialize()
         container = MemoryLifespanManager.get_container()
         manager = container.memory_manager
-        concept = Concept(name, description, 0, related_files)
-        await manager.long_term.store_concept(concept)
+        concept = Concept(name=name, description=description, project_id=0, related_files=related_files)
+        await manager.store_concept(concept)
         return f"Stored concept: {name}"
     except Exception as e:
         return f"Error: {e}"
@@ -270,8 +275,9 @@ async def query_memory(query: str) -> str:
             await MemoryLifespanManager.ainitialize()
         container = MemoryLifespanManager.get_container()
         manager = container.memory_manager
-        prefs = await manager.preferences.get_merged_preferences("user_default")
-        results = await manager.long_term.search_concepts(query, 0)
+        # Unified Facade API
+        prefs = await manager.get_merged_preferences("user_default")
+        results = await manager.search_concepts(query, 0)
         formatted_results = "\n".join([f"- **{r.name}**: {r.description}" for r in results]) if results else "No concepts found."
         return f"{prefs}\n\n**Relevant Concepts:**\n{formatted_results}"
     except Exception as e:

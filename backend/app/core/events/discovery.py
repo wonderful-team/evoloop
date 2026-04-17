@@ -93,10 +93,7 @@ def _find_handler_classes(module: ModuleType) -> list[type]:
     return classes
 
 
-def _scan_module_recursive(
-    module_name: str,
-    scanned: set[str] | None = None
-) -> list[type]:
+def _scan_module_recursive(module_name: str, scanned: set[str] | None = None) -> list[type]:
     """
     Recursively scan a module and its submodules for event handlers.
     
@@ -155,10 +152,7 @@ def _scan_module_recursive(
     return discovered_classes
 
 
-def auto_discover_handlers(
-    scan_roots: list[str] | None = None,
-    instantiate: bool = True
-) -> list[type]:
+def auto_discover_handlers(scan_roots: list[str] | None = None, instantiate: bool = True) -> list[type]:
     """
     Auto-discover and register event handlers from specified root packages.
     

@@ -117,7 +117,7 @@ async def ask_codebase(
             await MemoryLifespanManager.ainitialize()
         container = MemoryLifespanManager.get_container()
         manager = container.memory_manager
-        results = await manager.long_term.search_concepts_data(question, project_id)
+        results = await manager.search_concepts_data(question, project_id)
         
         if not results:
             # Fallback to code search

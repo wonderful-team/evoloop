@@ -173,9 +173,10 @@ class MemoryRewind:
             # Delete by source message ID
             for msg_id in source_message_ids:
                 try:
-                    # Search for memories with matching source_message_id
+                    # Use structured filters for precise metadata matching
                     results = await memory_manager.search_memories(
-                        query=f"source_message_id:{msg_id}",
+                        query="",
+                        filters={"source_message_id": msg_id},
                         limit=100
                     )
 

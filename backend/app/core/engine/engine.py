@@ -697,6 +697,11 @@ class AgentEngine:
         # Use the centralized classifier
         classification = LLMErrorHandler.classify_exception(e)
 
+        # Bubble up terminal errors to trigger specialized UI (quota/auth) in the background orchestrator
+        if classification.is_terminal:
+            logger.warning(f"[{name}] Terminal LLM error detected ({classification.error_type}). Bubbling up to orchestrator.")
+            raise e
+
         icon_failed = i18n.get("icons.failed") or "❌"
 
         # Construct a rich error message for the AI message content

@@ -76,25 +76,19 @@ class SystemConfigService:
             if key in _change_handlers:
                 logger.info(f"Config {key} changed: '{old_value}' -> '{value}', triggering legacy handlers...")
                 for handler in _change_handlers[key]:
-                    try:
-                        await handler(old_value, value)
-                    except Exception as e:
-                        logger.error(f"Change handler failed for {key}: {e}")
-            
+                    await handler(old_value, value)
+
             # 2. Publish System Event (New Decoupled Approach)
-            try:
-                await system_bus.publish(BaseEvent(
-                    event_type=SystemEventType.CONFIG_CHANGED,
-                    source="SystemConfigService",
-                    data={
-                        "key": key,
-                        "old_value": old_value,
-                        "new_value": value
-                    }
-                ))
-                logger.info(f"Published CONFIG_CHANGED event for {key}")
-            except Exception as e:
-                logger.error(f"Failed to publish CONFIG_CHANGED event: {e}")
+            await system_bus.publish(BaseEvent(
+                event_type=SystemEventType.CONFIG_CHANGED,
+                source="SystemConfigService",
+                data={
+                    "key": key,
+                    "old_value": old_value,
+                    "new_value": value
+                }
+            ))
+            logger.info(f"Published CONFIG_CHANGED event for {key}")
 
         return config
 

@@ -54,7 +54,7 @@ from pydantic import Field
 
 from app.core.config import settings
 from app.core.memory.backends.file_backend import FileMemoryStorage
-from app.core.memory.models import MemoryEntry, MemoryType
+from app.core.memory.models import MemoryEntry, MemoryType, MemoryTier, MemorySearchResult
 from app.core.memory.retrieval import MemoryRetriever
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
@@ -144,6 +144,7 @@ class TwoTierMemoryManager:
         storage,
         config=None,
         root_path: Path | None = None,
+        analyzer=None,
     ):
         """
         Initialize two-tier memory manager.
@@ -152,9 +153,11 @@ class TwoTierMemoryManager:
             storage: Storage backend (required)
             config: Memory configuration. Uses defaults if None.
             root_path: Root path for memory files (legacy, prefer config).
+            analyzer: Quality analyzer for scoring.
         """
         self._storage = storage
         self._config = config
+        self._analyzer = analyzer
 
         if config is not None:
             self.root = config.memory_root
@@ -313,7 +316,7 @@ class TwoTierMemoryManager:
 
         return stats
 
-    async def _collect_all_memories(self) -> list[MemoryEntry]:
+    async def _collect_all_memories(self) -> list[MemorySearchResult]:
         """Collect all memories from cold storage."""
         # Use storage directly
         entries = await self._storage.list_all(limit=1000)
@@ -322,8 +325,8 @@ class TwoTierMemoryManager:
 
     def _score_memories(
         self,
-        entries: list[MemoryEntry],
-    ) -> list[tuple[MemoryEntry, float]]:
+        entries: list[MemorySearchResult],
+    ) -> list[tuple[MemorySearchResult, float]]:
         """
         Score memories for ranking in MEMORY.md.
         
@@ -333,18 +336,27 @@ class TwoTierMemoryManager:
         scored = []
 
         for entry in entries:
-            # Confidence (stored in metadata or default 0.5)
-            confidence = getattr(entry, "confidence", 0.5)
+            # Confidence (now projected in search results)
+            confidence = entry.confidence
 
-            # Access count (from quality analyzer)
-            from app.core.memory.quality import quality_analyzer
-            access_count = quality_analyzer._access_counts.get(entry.id, 0)
+            # Access count (from quality analyzer if available)
+            access_count = 0
+            if self._analyzer:
+                # Use public API instead of private attribute access
+                access_count = self._analyzer.get_access_count(entry.id)
+            elif hasattr(self._storage, "_access_counts"):  # Fallback for simple systems
+                access_count = getattr(self._storage, "_access_counts", {}).get(entry.id, 0)
 
             # Freshness (exponential decay)
             age_days = (now - entry.updated_at).days
             freshness = self._calculate_freshness(entry.type, age_days)
 
-            score = confidence * (1 + access_count) * freshness
+            # Tier weight (Strategic = 2.0x boost)
+            tier_multiplier = 2.0 if entry.tier == MemoryTier.STRATEGIC else 1.0
+            utility_score = getattr(entry, "utility_score", 0.0)
+
+            # Combined score: utility and strategic tier are the primary drivers
+            score = (entry.utility_score or confidence) * (1 + access_count * 0.1) * freshness * tier_multiplier
             scored.append((entry, score))
 
         # Sort by score descending
@@ -374,7 +386,7 @@ class TwoTierMemoryManager:
 
     def _allocate_to_sections(
         self,
-        scored: list[tuple[MemoryEntry, float]],
+        scored: list[tuple[MemorySearchResult, float]],
     ) -> dict[str, dict[str, Any]]:
         """Allocate memories to sections based on type."""
         sections = {
@@ -400,6 +412,7 @@ class TwoTierMemoryManager:
                 "description": entry.description[:100],
                 "score": score,
                 "type": entry.type.value,
+                "tier": entry.tier.value if hasattr(entry, 'tier') else "operational"
             })
 
         return sections
@@ -609,35 +622,4 @@ Memories are automatically extracted from conversations and ranked by importance
 """
 
 
-# =============================================================================
-# Convenience Singleton and Functions
-# =============================================================================
 
-_two_tier_instance: TwoTierMemoryManager | None = None
-
-
-def _get_two_tier_manager() -> TwoTierMemoryManager:
-    """Lazy initialization of the default two-tier manager."""
-    global _two_tier_instance
-    if _two_tier_instance is None:
-        storage = FileMemoryStorage(str(settings.BRAIN_MEMORY_ROOT))
-        _two_tier_instance = TwoTierMemoryManager(storage=storage)
-    return _two_tier_instance
-
-
-two_tier_manager = _get_two_tier_manager()
-
-
-async def get_hot_memory() -> str:
-    """Get Tier 1 hot memory (MEMORY.md) using the default manager."""
-    return await _get_two_tier_manager().get_hot_memory()
-
-
-async def search_cold_memory(query: str, max_results: int = 5) -> list[MemoryEntry]:
-    """Search Tier 2 cold memory using the default manager."""
-    return await _get_two_tier_manager().search_cold_memory(query, max_results)
-
-
-async def regenerate_memory_md() -> None:
-    """Regenerate MEMORY.md using the default manager."""
-    await _get_two_tier_manager().regenerate_memory_md()

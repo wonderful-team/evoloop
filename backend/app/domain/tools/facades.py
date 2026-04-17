@@ -45,7 +45,7 @@ async def consult_architecture(path: str = ""):
         await MemoryLifespanManager.ainitialize()
     container = MemoryLifespanManager.get_container()
     manager = container.memory_manager
-    info = await manager.graph.get_directory_info(pid, path)
+    info = await manager.get_directory_info(pid, path)
 
     try:
         return ProjectManagementFormatter.architecture_summary(info)
