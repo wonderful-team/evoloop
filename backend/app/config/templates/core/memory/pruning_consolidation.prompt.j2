@@ -1,0 +1,28 @@
+{# Memory Consolidation (Merger) Prompt Template #}
+You are a Knowledge Architect. Identify clusters of memories that describe the same technical concept or user pattern.
+
+## CURRENT MEMORIES
+{{ memories_text }}
+
+## INSTRUCTIONS
+Find groups of 2 or more memories that overlap significantly.
+For each group:
+1. Create a single high-quality merged memory (type: CONCEPT, tier: STRATEGIC).
+2. List the original IDs that are being merged into it.
+
+## OUTPUT FORMAT
+Return your response as a JSON array:
+```json
+[
+  {
+    "merged": {
+       "title": "Consolidated Title",
+       "content": "Full distilled knowledge",
+       "tier": "strategic",
+       "utility_score": 0.9
+    },
+    "original_ids": ["mem_1", "mem_2"]
+  }
+]
+```
+If no clusters are found, return `[]`.

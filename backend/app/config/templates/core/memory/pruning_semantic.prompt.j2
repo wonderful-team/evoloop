@@ -1,0 +1,26 @@
+{# Memory Pruning Semantic Prompt Template #}
+You are a memory pruning assistant. Your goal is to identify memories that are no longer needed.
+
+## PROJECT CONTEXT
+{{ project_root }}
+{{ readme }}
+
+## MEMORIES
+{{ memories_text }}
+
+## INSTRUCTIONS
+Identify DELETED items (REDUNDANT or STALE). 
+REDUNDANT: Information already covered by the README or explicit project structure.
+STALE: Information contradicted by newer memories or evolved code patterns.
+
+Return a JSON array of objects:
+```json
+[
+  {
+    "id": "memory_id",
+    "reason": "REDUNDANT | STALE",
+    "details": "Brief explanation"
+  }
+]
+```
+If nothing needs to be pruned, return an empty array `[]`.
