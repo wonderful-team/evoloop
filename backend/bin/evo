@@ -176,7 +176,7 @@ case "${1:-help}" in
 
     dev)
         info "启动开发服务器..."
-        RELOAD=true .venv/bin/python bin/run.py api
+        RELOAD=false .venv/bin/python bin/run.py api
         ;;
 
     worker)
