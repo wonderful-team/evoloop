@@ -8,6 +8,7 @@ import time
 from datetime import datetime
 from typing import Any
 
+from pydantic import BaseModel, Field
 from sqlalchemy import desc, func, select, text
 
 from app.constants import DEFAULT_PROJECT_ID
@@ -18,6 +19,26 @@ from app.infrastructure.database.sql.database import session_scope
 # Unified task queue (Huey in embedded mode, Celery in full mode)
 from app.infrastructure.queue.factory import shared_task
 from app.models import FileOperation
+
+
+class PersistMessagePayload(BaseModel):
+    """Structured payload for message persistence tasks."""
+    thread_id: str
+    project_id: int
+    role: str
+    content: str
+    thinking: str | None = None
+    sequence_number: int = 0
+    run_id: str | None = None
+    status: str = "completed"
+    parent_id: str | None = None
+    tool_calls: list | None = None
+    references: list[dict] | None = None
+    action_type: str = "text"
+    category: str | None = None
+    is_visible: bool = True
+    tool_call_id: str | None = None
+    tool_name: str | None = None
 
 logger = logging.getLogger(__name__)
 
@@ -339,29 +360,14 @@ def prune_checkpoints_task(keep_days: int = 7):
 
 
 @shared_task(name="engine_persist_message")
-def persist_message_task(
-    thread_id: str,
-    project_id: int,
-    role: str,
-    content: str,
-    thinking: str | None = None,
-    sequence_number: int = 0,
-    run_id: str | None = None,
-    status: str = "completed",
-    parent_id: str | None = None,
-    tool_calls: list | None = None,
-    references: list[dict] | None = None,
-    action_type: str = "text",
-    category: str | None = None,
-    is_visible: bool = True,
-    tool_call_id: str | None = None,
-    tool_name: str | None = None,
-):
+def persist_message_task(**kwargs):
     """Background task to persist agent messages to the database.
-    
+
     Note: is_visible is now completely determined by category.
     No manual calculation based on role/content.
     """
+    payload = PersistMessagePayload(**kwargs)
+
     async def _run():
         from uuid import UUID
 
@@ -370,12 +376,12 @@ def persist_message_task(
 
         try:
             async with session_scope() as session:
-                target_parent_id = parent_id
+                target_parent_id = payload.parent_id
                 if not target_parent_id:
                     # Find last message in thread
                     stmt = (
                         select(Message.id)
-                        .where(Message.thread_id == thread_id)
+                        .where(Message.thread_id == payload.thread_id)
                         .order_by(desc(Message.sequence_number))
                         .limit(1)
                     )
@@ -383,37 +389,37 @@ def persist_message_task(
                     target_parent_id = res.scalar_one_or_none()
 
                 # is_visible can be overridden by parameter, otherwise determined by category
-                final_is_visible = is_visible
-                if category:
+                final_is_visible = payload.is_visible
+                if payload.category:
                     try:
-                        cat_enum = MessageCategory(category)
+                        cat_enum = MessageCategory(payload.category)
                         final_is_visible = cat_enum in MessageCategory.get_visible_categories()
                     except ValueError:
                         # Unknown category, use passed value or default to visible
                         pass
 
                 log = Message(
-                    thread_id=thread_id,
-                    project_id=project_id,
-                    role=role,
-                    content=content,
-                    thinking=thinking,
-                    sequence_number=sequence_number,
-                    run_id=run_id,
-                    status=status,
+                    thread_id=payload.thread_id,
+                    project_id=payload.project_id,
+                    role=payload.role,
+                    content=payload.content,
+                    thinking=payload.thinking,
+                    sequence_number=payload.sequence_number,
+                    run_id=payload.run_id,
+                    status=payload.status,
                     parent_id=target_parent_id,
-                    tool_calls=tool_calls,
-                    action_type=action_type,
+                    tool_calls=payload.tool_calls,
+                    action_type=payload.action_type,
                     is_visible=final_is_visible,
-                    category=category,
-                    tool_call_id=tool_call_id,
-                    tool_name=tool_name,
+                    category=payload.category,
+                    tool_call_id=payload.tool_call_id,
+                    tool_name=payload.tool_name,
                 )
                 session.add(log)
                 await session.flush()  # Get ID for references
 
-                if references:
-                    for ref in references:
+                if payload.references:
+                    for ref in payload.references:
                         mr = MessageReference(
                             id=str(UUID(int=hash(f"{log.id}-{ref['target_id']}-{time.time()}") & ((1 << 128) - 1))),
                             message_id=log.id,
@@ -423,7 +429,7 @@ def persist_message_task(
                         )
                         session.add(mr)
 
-            logger.debug(f"[Celery] Persisted message {sequence_number} with {len(references or [])} refs for thread {thread_id}")
+            logger.debug(f"[Celery] Persisted message {payload.sequence_number} with {len(payload.references or [])} refs for thread {payload.thread_id}")
         except Exception as e:
             error_msg = f"[Celery] Failed to persist message: {type(e).__name__}: {e}"
             logger.error(error_msg)
@@ -662,16 +668,16 @@ def run_autonomous_task_execution(task_id: int, project_id: int | None = None):
                     device_id=device_id
                 )
 
-                inputs = {
-                    "messages": [{"type": "human", "content": prompt}],
-                    "project_id": project_id or DEFAULT_PROJECT_ID,
-                    "task_title": f"Autonomous: {task.intent_description[:30]}...",
-                    "metadata": {
+                from app.core.engine.background_agent import BackgroundAgentInputs
+                inputs = BackgroundAgentInputs(
+                    messages=[{"type": "human", "content": prompt}],
+                    project_id=project_id or DEFAULT_PROJECT_ID,
+                    metadata={
                         "autonomous_task_id": task_id,
                         "source_skill_id": skill.id,
                         "device_id": device_id  # Inject device_id for tools to pick up
                     }
-                }
+                )
 
                 logger.info(f"[Celery] Starting autonomous agent for task {task_id} on {device_id} (Thread: {thread_id})")
 

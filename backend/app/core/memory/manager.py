@@ -31,7 +31,6 @@ from app.core.memory.models import (
     PrivacyLevel,
 )
 from app.core.memory.retrieval import MemoryRetriever
-from app.core.memory.pruning import MemoryPruningService
 
 logger = logging.getLogger(__name__)
 

@@ -101,7 +101,7 @@ class MessageHandler:
             thinking=thinking,
         )
 
-        logger.info(f"[UnifiedHandler] AI message classified as: {category.value}, persist={persist_data['should_persist']}")
+        logger.info(f"[UnifiedHandler] AI message classified as: {category.value}, persist={persist_data.should_persist}")
 
         stream_data = MessageStreamPolicy.apply_policy(
             category=category,
@@ -251,6 +251,73 @@ class MessageHandler:
         return MessageHandlerResult(
             category=category.value,
             persisted=True,
+            streamed=True,
+            message_id=message_id,
+        )
+
+    async def handle_error(self, error: Exception) -> MessageHandlerResult:
+        """
+        处理异常上报
+        
+        集中解析错误类型，决定是否入库，并立即推送到前端。
+        """
+        from app.core.engine.error_handler import LLMErrorHandler
+        from app.models.schemas.events import QuotaExhaustedEvent
+        from app.core.monitoring.activity import activity_monitor
+
+        # 1. 自动解析分类
+        classification = LLMErrorHandler.classify_exception(error)
+        
+        # 默认作为系统错误
+        category = MessageCategory.ERROR_SYSTEM
+        
+        # 特殊情况映射为业务错误（需要入库）
+        if classification.error_type in ["business_logic", "workflow_error"]:
+            category = MessageCategory.ERROR_BUSINESS
+
+        logger.warning(f"[UnifiedHandler] Handling error: {classification.error_type} (cat={category.value})")
+
+        # 2. 持久化（仅对 ERROR_BUSINESS）
+        message_id = None
+        if category == MessageCategory.ERROR_BUSINESS:
+            message_id = await self._persist_to_db(
+                role="ai",
+                content=f"**{classification.title}**\n\n{classification.message}\n\n*Hint: {classification.hint}*",
+                category=category.value,
+                is_visible=True
+            )
+
+        # 3. 流式推送
+        # 3.1 推送特定弹窗事件 (429 Quota)
+        if classification.error_type == "quota_exhausted":
+            try:
+                if activity_monitor and hasattr(activity_monitor, "client"):
+                    await activity_monitor.client.publish(
+                        f"chat:{self.thread_id}:events",
+                        QuotaExhaustedEvent(
+                            title=classification.title,
+                            message=classification.message,
+                            hint=classification.hint
+                        ).model_dump_json()
+                    )
+            except Exception as e:
+                logger.error(f"[UnifiedHandler] Failed to publish QuotaExhaustedEvent: {e}")
+
+        # 3.2 始终推送通用错误卡片 (SSE frontend_type="error")
+        await self._stream_to_frontend(
+            content=f"**{classification.title}**\n{classification.message}",
+            frontend_type="error",
+            category=category.value,
+            metadata={
+                "error_type": classification.error_type,
+                "hint": classification.hint,
+                "is_terminal": classification.is_terminal
+            }
+        )
+
+        return MessageHandlerResult(
+            category=category.value,
+            persisted=category == MessageCategory.ERROR_BUSINESS,
             streamed=True,
             message_id=message_id,
         )

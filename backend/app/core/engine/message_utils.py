@@ -22,11 +22,11 @@ from app.constants import (
     DEFAULT_WINDOW_SIZE,
     MAX_OUTPUT_LENGTH,
 )
-from app.core.memory.tool_output_memory import ToolOutputMemory
 from app.core.engine.state.history import FoldedMessage, ToolCall, ToolStep
+from app.core.memory.tool_output_memory import ToolOutputMemory
 from app.i18n.service import i18n
 from app.infrastructure.llm.model_profile import get_profile
-from app.utils import gen_uuid
+from app.utils import gen_uuid, render_template
 
 logger = logging.getLogger(__name__)
 
@@ -196,9 +196,11 @@ def repair_message_history(messages: list[BaseMessage]) -> list[BaseMessage]:
                 if isinstance(last, AIMessage) and getattr(last, 'tool_calls', None):
                     stage1.append(msg)
                     continue
-                # Merge content
+                # Merge content — create a NEW message object to avoid mutating
+                # the original, which may be a shared reference in LangGraph state.
                 new_content = f"{last.content}\n\n{msg.content}"
-                last.content = new_content
+                merged = last.model_copy(update={"content": new_content})
+                stage1[-1] = merged
                 continue
 
         stage1.append(msg)
@@ -281,7 +283,6 @@ def apply_forgotten_status(messages: list[BaseMessage], tool_memory: ToolOutputM
             if record:
                 # Create a summary message that maintains the tool structure
                 # but replaces heavy content with lightweight summary
-                from app.utils.template import render_template
                 summary_content = render_template(
                     "core/engine/fragments/forgotten_summary.j2",
                     tool_name=record.tool_name,
@@ -646,14 +647,22 @@ def _hierarchical_slice(
                 result = without_tools
             else:
                 # Second pass: keep topic marker + last N messages that fit
+                # Topic marker should ALWAYS be the first message (index 0)
                 preserved = [m for m in without_tools if (m.additional_kwargs or {}).get('is_topic_marker', False)]
+                
+                # Use a separate list for recent messages to ensure correct relative order
+                recent_to_keep = []
                 for m in reversed(without_tools):
-                    if m in preserved:
+                    if (m.additional_kwargs or {}).get('is_topic_marker', False):
                         continue
-                    test_chars = sum(len(get_message_text(x)) for x in preserved + [m])
+                    
+                    test_chars = sum(len(get_message_text(x)) for x in preserved + [m] + recent_to_keep)
                     if test_chars <= max_total_chars * 0.9:  # 10% buffer
-                        preserved.insert(0, m)
-                result = preserved
+                        recent_to_keep.insert(0, m)
+                    else:
+                        break
+                
+                result = preserved + recent_to_keep
         else:
             result = pruned
 

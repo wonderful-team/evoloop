@@ -5,8 +5,10 @@ and execution history (Episodes).
 """
 from abc import ABC, abstractmethod
 from typing import List, Optional, Dict, Any
-from app.core.memory.models import Concept, Episode
+
 from pydantic import Field
+
+from app.core.memory.models import Concept, Episode
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 

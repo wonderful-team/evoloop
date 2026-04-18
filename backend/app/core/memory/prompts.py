@@ -5,10 +5,9 @@ Standardizes LLM prompts for memory-related operations (Extraction, Pruning, Ret
 Separates static system instructions from dynamic context to support prompt caching.
 """
 import logging
-from typing import Any, List, Optional
+from typing import List, Optional
 
 from app.utils import render_template
-from app.core.memory.models import MemoryEntry
 
 logger = logging.getLogger(__name__)
 

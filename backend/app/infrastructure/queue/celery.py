@@ -18,50 +18,13 @@ import asyncio
 import functools
 import logging
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Optional
 
 from app.core.config import settings
 from app.infrastructure.queue.base import TaskScheduler, SyncTaskMixin
+from app.infrastructure.queue.registry import TASK_MODULE_MAP
 
 logger = logging.getLogger(__name__)
-
-
-# Task name to module mapping for dynamic loading
-TASK_MODULE_MAP = {
-    # Engine tasks
-    "engine_persist_file_operation": "app.core.engine.tasks",
-    "engine_upload_cloud_log": "app.core.engine.tasks",
-    "engine_snapshot_steps": "app.core.engine.tasks",
-    "engine_harvest_concepts": "app.core.engine.tasks",
-    "engine_record_episode": "app.core.engine.tasks",
-    "engine_prune_checkpoints": "app.core.engine.tasks",
-    "engine_persist_message": "app.core.engine.tasks",
-    "engine_cleanup_artifacts": "app.core.engine.tasks",
-    "engine_git_harvest": "app.core.engine.tasks",
-    "engine_reconcile_skill_macro": "app.core.engine.tasks",
-    "engine_scheduler_tick": "app.core.engine.tasks",
-    "run_autonomous_task_execution": "app.core.engine.tasks",
-    # Atlas tasks
-    "atlas_explore_app": "app.core.atlas.tasks",
-    "atlas_execute_exploration": "app.core.atlas.tasks",
-    # Vision tasks
-    "cleanup_screenshots": "app.core.vision.cleanup",
-    "cleanup_screen_recordings": "app.core.vision.cleanup",
-    # Indexing tasks
-    "index_repository": "app.domain.codebase.indexing.tasks",
-    "incremental_index": "app.domain.codebase.indexing.tasks",
-    # Project tasks
-    "summarize_project": "app.domain.project.summarizer",
-    "sync_project": "app.domain.project.sync_tasks",
-    # Wiki tasks
-    "sync_wiki_page": "app.domain.wiki.tasks",
-    "wiki_generate": "app.domain.wiki.tasks",
-    # EvoCloud sync tasks
-    "evocloud.sync_conversation": "app.core.evocloud.bridge.sync_tasks",
-    "evocloud.sync_messages": "app.core.evocloud.bridge.sync_tasks",
-    "evocloud.sync_full": "app.core.evocloud.bridge.sync_tasks",
-    "evocloud.sync_incremental": "app.core.evocloud.bridge.sync_tasks",
-}
 
 
 # Temporary registry for tasks registered before celery_app is created
@@ -294,17 +257,13 @@ def shared_task(func=None, *, name=None, bind=False, **options):
     def decorator(f):
         task_name = name or f.__module__ + "." + f.__name__
         task = LocalTask(f, name=task_name, bind=bind)
-        # Register with celery_app if it's already created, otherwise queue it
-        try:
-            if 'celery_app' in globals() and isinstance(celery_app, LocalCelery):
-                celery_app.tasks[task_name] = task
-                logger.debug(f"[shared_task] Registered: {task_name}")
-            else:
-                # Queue for later registration
-                _pending_shared_tasks.append((task_name, task))
-                logger.debug(f"[shared_task] Queued for registration: {task_name}")
-        except NameError:
-            # celery_app not defined yet, queue for later
+        # Register with the local celery app if it exists, otherwise queue it
+        global _celery_app
+        if _celery_app and isinstance(_celery_app, LocalCelery):
+            _celery_app.tasks[task_name] = task
+            logger.debug(f"[shared_task] Registered: {task_name}")
+        else:
+            # Queue for later registration
             _pending_shared_tasks.append((task_name, task))
             logger.debug(f"[shared_task] Queued for registration: {task_name}")
         return task
@@ -399,13 +358,11 @@ def create_celery_app() -> TaskScheduler:
         _register_local_tasks(app)
         return app
 
-    # Full mode: Real Celery with Redis
-    from celery import Celery as RealCelery
-
     # Ensure database directory exists for Celery beat schedule
     db_dir = Path.home() / ".evoloop" / "database"
     db_dir.mkdir(parents=True, exist_ok=True)
 
+    from celery import Celery as RealCelery
     app = RealCelery(
         "evoloop_worker",
         broker=settings.REDIS_URL or "redis://localhost:6379/0",
@@ -452,14 +409,12 @@ def create_celery_app() -> TaskScheduler:
 
 
 # Global Celery/LocalCelery instance
-# DEPRECATED: Use get_scheduler() from app.infrastructure.queue.factory instead
-try:
-    celery_app: TaskScheduler = create_celery_app()
-    """Global task scheduler instance (Celery or LocalCelery depending on EMBEDDED_MODE).
-    
-    DEPRECATED: Use get_scheduler() from app.infrastructure.queue.factory
-    """
-except Exception as e:
-    logger.error(f"[Celery] Failed to create default scheduler: {e}")
-    # Fallback to None, will be created by factory when needed
-    celery_app = None  # type: ignore
+_celery_app: Optional[TaskScheduler] = None
+
+
+def get_celery_app() -> TaskScheduler:
+    """Get or create global legacy celery instance."""
+    global _celery_app
+    if _celery_app is None:
+        _celery_app = create_celery_app()
+    return _celery_app

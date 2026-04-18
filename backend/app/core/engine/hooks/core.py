@@ -406,20 +406,6 @@ hook_system = HookSystem()
 # Pre-built Hook Handlers
 # =============================================================================
 
-async def session_start_handler(context: HookContext) -> HookResult:
-    """
-    Initialize session state when session starts.
-    
-    Loads hot memories and sets up initial context.
-    """
-    logger.info(f"[SessionStart] Initializing session {context.thread_id}")
-
-    return HookResult(
-        success=True,
-        data={"initialized": True, "thread_id": context.thread_id}
-    )
-
-
 async def pre_compact_save_state(context: HookContext) -> HookResult:
     """
     CRITICAL: Save state before context compression.
@@ -502,7 +488,7 @@ async def pre_compact_save_state(context: HookContext) -> HookResult:
         }
         logger.debug(f"[PreCompact] Checkpoint data: {len(context.messages)} messages, trigger={checkpoint['compact_trigger']}")
 
-        # Save to memory
+        # Save to memory (ensuring human-readable Unicode)
         save_start = datetime.utcnow()
         memory_entry = MemoryEntry(
             id=f"checkpoint_{context.thread_id}_{int(datetime.utcnow().timestamp())}",
@@ -510,7 +496,7 @@ async def pre_compact_save_state(context: HookContext) -> HookResult:
             privacy=PrivacyLevel.PRIVATE,
             title=f"Context Checkpoint - {checkpoint['task_progress'][:50]}...",
             description=f"Auto-saved before context compaction ({checkpoint['compact_trigger']})",
-            content=yaml.safe_dump(checkpoint),
+            content=yaml.safe_dump(checkpoint, allow_unicode=True, default_flow_style=False, sort_keys=False),
             user_id=context.user_id,
             project_id=context.project_id,
             tags=["checkpoint", "pre-compact"],
@@ -726,48 +712,6 @@ async def subagent_stop_handler(context: HookContext) -> HookResult:
     )
 
 
-async def task_created_handler(context: HookContext) -> HookResult:
-    """
-    Track task creation.
-    
-    Useful for:
-    - Task tracking
-    - Audit logging
-    - Project management integration
-    """
-    task_id = context.metadata.get("task_id", "")
-    task_name = context.metadata.get("task_name", "")
-    task_description = context.metadata.get("description", "")
-
-    logger.info(f"[TaskCreated] Task '{task_name}' ({task_id}) created")
-
-    return HookResult(
-        success=True,
-        data={"task_id": task_id, "tracked": True}
-    )
-
-
-async def task_completed_handler(context: HookContext) -> HookResult:
-    """
-    Track task completion.
-    
-    Useful for:
-    - Task archival
-    - Metrics collection
-    - Follow-up actions
-    """
-    task_id = context.metadata.get("task_id", "")
-    task_name = context.metadata.get("task_name", "")
-    final_status = context.metadata.get("status", "completed")
-
-    logger.info(f"[TaskCompleted] Task '{task_name}' ({task_id}) marked as {final_status}")
-
-    return HookResult(
-        success=True,
-        data={"task_id": task_id, "archived": True, "status": final_status}
-    )
-
-
 async def user_prompt_submit_handler(context: HookContext) -> HookResult:
     """
     Process user prompt before it's handled.
@@ -828,9 +772,6 @@ async def error_handler(context: HookContext) -> HookResult:
 
 def setup_default_hooks():
     """Register default hook handlers."""
-    # Session lifecycle
-    hook_system.register(HookEvent.SESSION_START, session_start_handler, priority=10)
-
     # User interaction
     hook_system.register(HookEvent.USER_PROMPT_SUBMIT, user_prompt_submit_handler, priority=50)
     hook_system.register(HookEvent.NOTIFICATION, notification_handler, priority=100)
@@ -845,10 +786,6 @@ def setup_default_hooks():
     # Agent/Subagent lifecycle
     hook_system.register(HookEvent.SUBAGENT_START, subagent_start_handler, priority=50)
     hook_system.register(HookEvent.SUBAGENT_STOP, subagent_stop_handler, priority=50)
-
-    # Task lifecycle
-    hook_system.register(HookEvent.TASK_CREATED, task_created_handler, priority=100)
-    hook_system.register(HookEvent.TASK_COMPLETED, task_completed_handler, priority=100)
 
     # Error handling
     hook_system.register(HookEvent.ERROR, error_handler, priority=10)

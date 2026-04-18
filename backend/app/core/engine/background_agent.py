@@ -4,19 +4,18 @@ import logging
 import time
 from typing import Any
 
-# from celery import shared_task # Removed Celery
 from langchain_core.messages import BaseMessage, HumanMessage, ToolMessage
 from langgraph.types import Command
+from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 
 # Callbacks
 from app.constants import DEFAULT_PROJECT_ID
-from app.core.callbacks.database_logger import DatabaseCallbackHandler
-from app.core.callbacks.transparent import TransparentCallbackHandler
 from app.core.config import settings
 from app.core.context.manager import ContextManager, EvoContext
 from app.core.context.thread_store import thread_context_store
-from app.core.engine.state import BlackboardState
+from app.core.engine.callbacks.database_logger import DatabaseCallbackHandler
+from app.core.engine.callbacks.transparent import TransparentCallbackHandler
 from app.core.evocloud import evocloud_manager
 from app.core.evocloud.callback_handler import EvoCloudCallbackHandler
 from app.core.exceptions import AgentCancelledException, AgentHumanInterruptException
@@ -32,6 +31,21 @@ from app.utils.id import gen_uuid
 logger = logging.getLogger(__name__)
 
 MAX_GOAL_LENGTH = 500
+
+
+class BackgroundAgentInputs(BaseModel):
+    """Structured inputs for background agent execution."""
+    messages: list[dict] = Field(default_factory=list)
+    project_id: int | None = None
+    model: str | None = None
+    goal: str = "处理用户请求"
+    command_id: str | None = None
+    checkpoint_id: str | None = None
+    is_retry: bool = False
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    iteration_count: int = 0
+    hitl_resume_response: str | None = None
+    session_goal: str | None = None
 
 
 def _deserialize_messages(raw_messages: list[Any]) -> list[BaseMessage]:
@@ -108,24 +122,27 @@ async def _ensure_conversation_in_db(thread_id: str, project_id: int, inputs: di
         logger.error(f"Failed to ensure conversation {thread_id}: {e}")
 
 
-async def run_agent_background(thread_id: str, inputs: dict[str, Any]):
+async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | dict[str, Any]):
     """
     Background Task Logic (FastAPI BackgroundTasks).
     Replaces Celery task. Runs in the main event loop, reusing global resources.
     """
+    if isinstance(inputs, dict):
+        inputs = BackgroundAgentInputs(**inputs)
+
     try:
         # 1. Deserialize
-        if "messages" in inputs:
-            inputs["messages"] = _deserialize_messages(inputs["messages"])
+        raw_messages = inputs.messages
+        if raw_messages:
+            raw_messages = _deserialize_messages(raw_messages)
 
-        inputs["iteration_count"] = inputs.get("iteration_count", 0)
         # Note: project_id can be 0 (global mode), so use get() without default
-        project_id = inputs.get("project_id")
+        project_id = inputs.project_id
         if project_id is None:
             project_id = DEFAULT_PROJECT_ID
 
         # 2. Context & DB Preparation (Parallelized)
-        evoloop_command_id = inputs.get("command_id")
+        evoloop_command_id = inputs.command_id
 
         # Fetch max sequence number
         start_seq = 0
@@ -138,8 +155,11 @@ async def run_agent_background(thread_id: str, inputs: dict[str, Any]):
             logger.warning(f"Failed to fetch max sequence number: {e}")
 
         # Run project setup, DB conversation check, and cache context load in parallel
+        # _ensure_conversation_in_db expects a dict-like inputs with messages
+        inputs_dict = inputs.model_dump()
+        inputs_dict["messages"] = raw_messages
         setup_results = await asyncio.gather(
-            _ensure_conversation_in_db(thread_id, project_id, inputs),
+            _ensure_conversation_in_db(thread_id, project_id, inputs_dict),
             ContextManager.load_from_redis(thread_id) # Phase 4 Parallel context load
         )
         loaded_ctx = setup_results[1]
@@ -154,16 +174,16 @@ async def run_agent_background(thread_id: str, inputs: dict[str, Any]):
                 "thread_id": thread_id,
                 "working_directory": working_dir,
                 "run_id": run_id, # Track the specific run attempt
-                "model": inputs.get("model"),  # User selected model (optional)
+                "model": inputs.model,  # User selected model (optional)
             },
             "metadata": {
                 "project_id": project_id,
-                "is_retry": inputs.get("is_retry", False),
-                **(inputs.get("metadata", {}))
+                "is_retry": inputs.is_retry,
+                **inputs.metadata
             }
         }
-        if inputs.get("checkpoint_id"):
-            config["configurable"]["checkpoint_id"] = inputs["checkpoint_id"]
+        if inputs.checkpoint_id:
+            config["configurable"]["checkpoint_id"] = inputs.checkpoint_id
 
         # Initialize Handlers
         callback = TransparentCallbackHandler(thread_id=thread_id)
@@ -174,9 +194,12 @@ async def run_agent_background(thread_id: str, inputs: dict[str, Any]):
             run_id=run_id,
         )
 
+        # Inject message_handler into config so nodes can report errors (e.g. QuotaExhaustedEvent)
+        config["configurable"]["message_handler"] = db_callback._handler
+
         # 5. Execution
         # Start run with appropriate goal
-        main_goal = inputs.get("goal", "处理用户请求")
+        main_goal = inputs.goal
         await activity_monitor.start_run(thread_id, main_goal)
         logger.info(f"[BackgroundAgent] Started run for thread {thread_id} with goal: {main_goal}")
 
@@ -191,8 +214,8 @@ async def run_agent_background(thread_id: str, inputs: dict[str, Any]):
             memory_manager.get_merged_preferences("user_default", project_id=project_id),
             memory_manager.get_project_concepts(project_id)
         )
-        inputs["user_preferences"] = user_prefs
-        inputs["project_concepts"] = concepts_text
+        inputs_dict["user_preferences"] = user_prefs
+        inputs_dict["project_concepts"] = concepts_text
 
         try:
             callbacks = [callback, db_callback]
@@ -212,13 +235,13 @@ async def run_agent_background(thread_id: str, inputs: dict[str, Any]):
 
             # [HITL Resume Logic]
             # Check if this is a resume request from Mobile/Background
-            input_payload = inputs
+            input_payload: Any = inputs_dict
 
             # Ensure session_goal is present for all entry points (chat, retry, resume, webhook).
             # Prefer the explicitly passed session_goal; fallback to the first human message.
-            if isinstance(input_payload, dict) and not input_payload.get("session_goal") and "messages" in input_payload:
+            if not inputs.session_goal and raw_messages:
                 first_human = next(
-                    (m for m in input_payload["messages"] if isinstance(m, HumanMessage)),
+                    (m for m in raw_messages if isinstance(m, HumanMessage)),
                     None,
                 )
                 if first_human:
@@ -234,12 +257,14 @@ async def run_agent_background(thread_id: str, inputs: dict[str, Any]):
                         distilled_goal = raw_goal[:MAX_GOAL_LENGTH]
                         if len(raw_goal) > MAX_GOAL_LENGTH:
                             distilled_goal += "... (Full context available in history)"
-                        
+
                         input_payload["session_goal"] = distilled_goal
                         logger.info(f"[BackgroundAgent] Derived session_goal from first human message: {distilled_goal[:80]}...")
+            elif inputs.session_goal:
+                input_payload["session_goal"] = inputs.session_goal
 
-            if "hitl_resume_response" in inputs:
-                user_response = inputs["hitl_resume_response"]
+            if inputs.hitl_resume_response is not None:
+                user_response = inputs.hitl_resume_response
 
                 # Check state to see if we need to satisfy a specific tool call
                 current_state = await graph_instance.aget_state(config)

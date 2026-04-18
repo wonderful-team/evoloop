@@ -4,6 +4,7 @@ Handles application-level startup and shutdown events for indexing.
 """
 import logging
 import os
+
 from app.core.events import SystemEventType
 from app.core.events.decorators import event_register, event_subscribe
 

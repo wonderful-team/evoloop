@@ -2,7 +2,7 @@ import logging
 from abc import ABC, abstractmethod
 from typing import Any
 
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import HumanMessage, AIMessage
 from langchain_core.runnables import RunnableConfig
 
 from app.core.engine import get_default_engine
@@ -92,7 +92,7 @@ class BaseAgentNode(ABC):
 
         except Exception as e:
             logger.error(f"[{self.node_name}] Execution failed: {e}")
-            return await self.handle_error(state, e)
+            return await self.handle_error(state, e, config=config)
 
     @abstractmethod
     async def prepare_state(self, state: AgentState, config: RunnableConfig) -> StateUpdate | None:
@@ -128,20 +128,53 @@ class BaseAgentNode(ABC):
             dispatch_result = await SignalDispatcher.dispatch(original_state, signal, config)
             return dispatch_result
 
-        # Provide a default fallback if the subclass doesn't implement advanced handling
+        # ONLY return new messages to avoid duplicating history in LangGraph state
+        # The engine_result.messages list contains [ticket, original_history..., new_ai_response]
+        new_messages = []
+        if engine_result.messages:
+            orig_len = len(original_state.messages)
+            # Find and skip the context_ticket we injected at the start
+            has_ticket = len(engine_result.messages) > orig_len and getattr(engine_result.messages[0], "name", None) == "context_ticket"
+            start_idx = orig_len + (1 if has_ticket else 0)
+            if len(engine_result.messages) > start_idx:
+                new_messages = engine_result.messages[start_idx:]
+
         return StateUpdate(
-            messages=engine_result.messages or [],
+            messages=new_messages,
             next_node=engine_result.routing_target or RoutingTarget.FINISH,
             blackboard=engine_result.blackboard or original_state.blackboard,
         )
 
-    async def handle_error(self, state: AgentState, error: Exception) -> StateUpdate:
+    async def handle_error(self, state: AgentState, error: Exception, config: RunnableConfig = None) -> StateUpdate:
         """Handle execution bubbling errors."""
-        state = ensure_state(state)
-        from langchain_core.messages import AIMessage
+        # 1. Report error to the unified message handler if available
+        if config:
+            handler = config.get("configurable", {}).get("message_handler")
+            if handler:
+                try:
+                    # Note: AgentEngine might have already reported this if it was an LLM error.
+                    # MessageHandler will handle deduplication using internal cache logic if implemented.
+                    await handler.handle_error(error)
+                except Exception as report_err:
+                    logger.error(f"[{self.node_name}] Failed to report error via handler: {report_err}")
+        
+        # 2. Determine if this is a terminal error that should trigger circuit breakers
+        from app.core.engine.error_handler import LLMErrorHandler
+        classification = LLMErrorHandler.classify_exception(error)
+
+        # Terminal errors must propagate to trigger proper end_run handling in background_agent.py
+        if classification.is_terminal:
+            logger.warning(f"[{self.node_name}] 🛑 Terminal error detected. Propagating to outer handler.")
+            raise error
+
+        # 3. Non-terminal error: return error message for retry
         error_msg = AIMessage(
             content=f"Node '{self.node_name}' failed: {error}",
-            metadata={"is_error": True, "error_type": "node_execution"}
+            metadata={
+                "is_error": True,
+                "error_type": classification.error_type or "node_execution",
+                "is_terminal": False
+            }
         )
         return StateUpdate(
             messages=[error_msg],

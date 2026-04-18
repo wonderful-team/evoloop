@@ -52,20 +52,20 @@ class LanceVectorStore:
         try:
             self.code_table = self.client.open_table("code_chunks")
             logger.debug("[LanceVectorStore] Opened existing code_chunks table")
-        except FileNotFoundError:
+        except Exception: # Handle multiple possible exception types (FileNotFoundError, ValueError)
             self.code_table = self._create_code_chunks_table()
             logger.info("[LanceVectorStore] Created code_chunks table")
 
         # Document chunks table
         try:
             self.doc_table = self.client.open_table("doc_chunks")
-        except FileNotFoundError:
+        except Exception:
             self.doc_table = self._create_doc_chunks_table()
 
         # Symbol index table
         try:
             self.symbol_table = self.client.open_table("symbol_index")
-        except FileNotFoundError:
+        except Exception:
             self.symbol_table = self._create_symbol_table()
 
     def _create_code_chunks_table(self):

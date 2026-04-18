@@ -10,17 +10,13 @@ This module provides:
 - Smart retrieval: LLM-assisted relevance selection
 """
 
+# Services
+from app.core.memory.auto_extraction import AutoMemoryExtractor
 # Backends
 from app.core.memory.backends.file_backend import FileMemoryStorage
-
 # Configuration and Dependency Injection
 from app.core.memory.config import MemoryConfig, default_memory_config
 from app.core.memory.container import MemoryContainer
-
-# Services
-from app.core.memory.auto_extraction import AutoMemoryExtractor
-from app.core.memory.pruning import MemoryPruningService
-
 # Maintenance
 from app.core.memory.maintenance import (
     MaintenanceScheduler,
@@ -29,10 +25,8 @@ from app.core.memory.maintenance import (
     scheduled_memory_maintenance,
     trigger_maintenance,
 )
-
 # Main facade
 from app.core.memory.manager import MemoryManager
-
 # Data models
 from app.core.memory.models import (
     MemoryEntry,
@@ -41,6 +35,7 @@ from app.core.memory.models import (
     MemoryType,
     PrivacyLevel,
 )
+from app.core.memory.pruning import MemoryPruningService
 from app.core.memory.quality import (
     CleanupRecommendation,
     MemoryQualityAnalyzer,

@@ -708,15 +708,16 @@ async def execute_macro_with_fallback(
         db.add(msg)
         await db.commit()
         
-    inputs = {
-        "messages": [{"type": "human", "content": fallback_msg}],
-        "project_id": project_id,
-        "metadata": {
+    from app.core.engine.background_agent import BackgroundAgentInputs
+    inputs = BackgroundAgentInputs(
+        messages=[{"type": "human", "content": fallback_msg}],
+        project_id=project_id,
+        metadata={
             "original_skill_id": skill.id,
             "is_fallback_recovery": True
         }
-    }
-    
+    )
+
     # Hand over execution to the main Agent Loop
     await run_agent_background(thread_id, inputs)
 

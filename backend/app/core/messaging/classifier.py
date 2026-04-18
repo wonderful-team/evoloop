@@ -67,6 +67,10 @@ class MessageClassifier:
             source = metadata.get("source", "")
             error_type = metadata.get("error_type", "")
 
+            # Terminal safety flag (highest priority)
+            if metadata.get("skip_persistence"):
+                return MessageCategory.ERROR_SYSTEM
+
             # 区分系统错误和业务错误
             if metadata.get("is_error"):
                 # 系统预定义的错误类型

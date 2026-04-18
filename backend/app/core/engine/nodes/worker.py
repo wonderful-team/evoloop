@@ -17,7 +17,6 @@ from app.core.engine.engine import EngineResult
 from app.core.engine.message_utils import get_message_text
 from app.core.engine.nodes.base import BaseAgentNode
 from app.core.engine.prompts import WorkerPromptBuilder
-from app.core.engine.engine import EngineResult
 from app.core.engine.routers import RoutingTarget
 from app.core.engine.state import AgentState, StateUpdate, ensure_state
 from app.core.engine.state.blackboard import SubtaskResult, VerificationStatus, WorkflowStepResult
@@ -357,7 +356,6 @@ class WorkerNode(BaseAgentNode):
         # 所有步骤完成
         # NOTE: Worker should NOT generate detailed summaries.
         # Return minimal content - Finish node will generate the comprehensive summary.
-        final_result = results[-1] if results else WorkflowStepResult(output="No output")
         brief_confirmation = f"Completed {len(skills)} step(s)."
 
         # Store workflow results in blackboard for downstream access
@@ -429,7 +427,6 @@ class WorkerNode(BaseAgentNode):
         # --- Subtask Result Collection ---
         if agent_config and agent_config.is_subtask:
             subtask_id = execution_ticket.subtask_id or "unknown"
-            parent_task_id = execution_ticket.parent_task_id or "unknown"
 
             subtask_result = SubtaskResult(
                 subtask_id=subtask_id,

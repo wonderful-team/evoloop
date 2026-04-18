@@ -15,9 +15,8 @@ from pathlib import Path
 from jinja2 import Template
 
 from app.core.config import settings
-from app.core.globals import get_graph
 from app.core.memory.lifespan import MemoryLifespanManager
-from app.infrastructure.queue.factory import periodic_task, shared_task
+from app.infrastructure.queue.factory import periodic_task
 
 logger = logging.getLogger(__name__)
 

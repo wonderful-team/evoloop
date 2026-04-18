@@ -110,6 +110,7 @@ class Settings(BaseSettings):
     def SQLALCHEMY_DATABASE_URI(self) -> str:
         if self.EMBEDDED_MODE or not self.POSTGRES_SERVER:
             return f"sqlite+aiosqlite:///{self.SQLITE_PATH}"
+
         return str(PostgresDsn.build(
             scheme="postgresql+psycopg",
             username=self.POSTGRES_USER or "",

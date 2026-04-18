@@ -3,6 +3,7 @@ Learning Module Lifecycle Handlers
 Handles application-level startup and session completion events for learning.
 """
 import logging
+
 from app.core.events import SystemEventType
 from app.core.events.decorators import event_register, event_subscribe
 from app.core.events.schema import SessionCompletedEvent

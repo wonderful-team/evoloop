@@ -14,8 +14,8 @@ from typing import Any
 
 from sqlmodel import Session
 
-from app.core.db import engine
 from app.infrastructure.cache import cache
+from app.infrastructure.database.resource_manager import db_resource_manager
 from app.models.system import SystemConfig
 
 logger = logging.getLogger(__name__)
@@ -76,7 +76,7 @@ class AtlasConfigManager:
             if persist:
                 # Also persist to database (using sync Session)
                 config_key = f"atlas:app_name:{app_name}"
-                with Session(engine) as session:
+                with Session(db_resource_manager.sync_engine) as session:
                     existing = session.get(SystemConfig, config_key)
                     if existing:
                         existing.value = bundle_id
@@ -101,7 +101,7 @@ class AtlasConfigManager:
 
             # Remove from database (using sync Session)
             config_key = f"atlas:app_name:{app_name}"
-            with Session(engine) as session:
+            with Session(db_resource_manager.sync_engine) as session:
                 existing = session.get(SystemConfig, config_key)
                 if existing:
                     session.delete(existing)

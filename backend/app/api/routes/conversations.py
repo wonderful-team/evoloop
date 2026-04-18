@@ -6,10 +6,9 @@ from sqlalchemy import delete, select, func
 from sqlalchemy.orm import selectinload
 
 from app.api.responses import BaseAPIResponse, ListResponse
-from app.core.messaging.category import MessageCategory
-from app.core.monitoring.activity import activity_monitor
-from app.core.engine.state.history import FoldedMessage, ToolStep
 from app.core.engine.message_utils import to_base_message, fold_messages
+from app.core.engine.state.history import FoldedMessage
+from app.core.monitoring.activity import activity_monitor
 from app.infrastructure.database.sql.database import get_db_session
 from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.models import Conversation, FileOperation, Message
@@ -407,11 +406,10 @@ async def get_thread_activity(thread_id: str):
 @router.delete("/{thread_id}")
 async def delete_conversation(thread_id: str):
     """Delete a conversation history and its checkpoints."""
-    from app.core.persistence import get_checkpointer
-
+    from app.infrastructure.database.resource_manager import db_resource_manager
     try:
         # 1. Delete Checkpoints via Checkpointer API (supports both Postgres and SQLite)
-        checkpointer = get_checkpointer()
+        checkpointer = db_resource_manager.checkpointer
         if checkpointer:
             try:
                 await checkpointer.adelete_thread(thread_id)
@@ -449,9 +447,9 @@ async def rewind_conversation(
     
     Uses the new event-driven RewindOrchestrator for distributed cleanup.
     """
-    from app.core.checkpoint.rewind import RewindOrchestrator
-    from app.core.checkpoint.rewind.models import RewindOperation as RewindReq
-    from app.core.checkpoint.rewind.exceptions import MessageNotFoundError, NoHumanMessageError
+    from app.core.engine.rewind import RewindOrchestrator
+    from app.core.engine.rewind.models import RewindOperation as RewindReq
+    from app.core.engine.rewind.exceptions import MessageNotFoundError, NoHumanMessageError
     from app.core.events import system_bus
 
     # Create orchestrator on-demand (stateless, lightweight)

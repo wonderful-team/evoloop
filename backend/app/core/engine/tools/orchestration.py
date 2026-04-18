@@ -49,31 +49,6 @@ class AggregateResult(DynamicBaseModel):
 @evoloop_tool(
     is_state_mutating=True,
     is_hidden=True,  # Internal state management, not user-facing
-    name_map={"zh": "更新黑板", "en": "Update Blackboard"}
-)
-def update_blackboard(key: str, value: Any, _config: RunnableConfig) -> ToolResult:
-    """
-    [DEPRECATED] Updates the agent's dynamic state center (blackboard).
-    
-    NOTE: In Phase 5+, you can update the blackboard more efficiently by 
-    simply including '[BLACKBOARD: key=value]' in your text response/thought.
-    This saves an LLM turn.
-
-    Args:
-        key: The variable name to set (e.g., "complexity", "status").
-        value: The value to assign (can be string, number, boolean, etc.).
-    """
-    return ToolResult(
-        status="success",
-        message=f"State field '{key}' updated successfully. (Note: Inferred update via '[BLACKBOARD: {key}={value}]' is preferred)",
-        _signal="update_blackboard",
-        data={"key": key, "value": value}
-    )
-
-
-@evoloop_tool(
-    is_state_mutating=True,
-    is_hidden=True,  # Internal state management, not user-facing
     name_map={"zh": "管理会话元数据", "en": "Manage Session Metadata"}
 )
 def manage_session_metadata(key: str, value: Any, _config: RunnableConfig) -> ToolResult:

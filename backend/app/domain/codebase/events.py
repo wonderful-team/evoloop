@@ -3,10 +3,11 @@ Codebase Domain Event Definitions and Domain Bus
 """
 import logging
 from enum import Enum
-from typing import Any, Dict, Optional
+from typing import Any, Dict
+
 from pydantic import Field
 
-from app.core.events.base import AsyncEventBus, BaseEvent
+from app.core.events.base import AsyncEventBus
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)

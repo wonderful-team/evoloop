@@ -4,7 +4,6 @@ Routers - Functional Architecture (v3.0)
 Simplified routing logic that supports the flattened graph topology.
 """
 import ast
-import copy
 import logging
 import operator
 from collections.abc import Callable
@@ -17,8 +16,6 @@ from app.core.config import settings
 from app.core.engine.schema import EdgeCondition
 from app.core.engine.state import AgentRuntimeConfig as AgentConfig, TicketParameters
 from app.core.engine.state import AgentState, ExecutionTicket, ensure_state
-from app.core.engine.state.blackboard import BlackboardState
-from app.core.engine.state.workspace import SubtaskContext
 
 logger = logging.getLogger(__name__)
 

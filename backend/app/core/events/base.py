@@ -19,7 +19,6 @@ from app.utils.async_utils import LoopBoundResource
 
 logger = logging.getLogger(__name__)
 
-
 # Type variable for event types
 E = TypeVar("E", bound="BaseEvent")
 
@@ -41,11 +40,6 @@ class BaseEvent(DynamicBaseModel):
     def type_name(self) -> str:
         """Human-readable event type name."""
         return self.event_type or self.__class__.__name__
-
-    def model_post_init(self, __context: Any) -> None:
-        """Ensure event_type is set if not provided."""
-        if not self.event_type:
-            self.event_type = self.__class__.__name__
 
 
 # Type alias for event handlers
@@ -118,8 +112,8 @@ class AsyncEventBus(Generic[E]):
             logger.debug(f"[{self._name}] Unsubscribed handler from {type_key}")
 
     async def publish(
-        self, 
-        event: E, 
+        self,
+        event: E,
         sequential: bool = False,
         propagate_errors: bool = False
     ) -> None:

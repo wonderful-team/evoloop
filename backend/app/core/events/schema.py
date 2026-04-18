@@ -2,10 +2,11 @@
 Event schemas for system-wide lifecycle events.
 """
 from typing import Any, List, Optional
+
 from langchain_core.messages import BaseMessage
 from pydantic import Field, BaseModel
 
-from app.core.events.base import BaseEvent, EventData
+from app.core.events.base import BaseEvent
 from app.core.events.registry import SystemEventType
 
 

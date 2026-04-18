@@ -15,13 +15,15 @@ import logging
 import time
 from typing import Any
 
+from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
+from sqlalchemy import select
 
 from app.constants import DEFAULT_PROJECT_ID
-from app.core.config import settings
 from app.core.context import ContextManager, EvoContext
 from app.core.context.cache import LayeredContextCache
 from app.core.engine.hooks import HookContext, HookEvent, hook_system
+from app.core.engine.message_utils import get_message_text
 from app.core.engine.state import AgentState
 from app.utils.id import gen_uuid
 
@@ -118,15 +120,38 @@ class EvoContextMiddleware:
         - Static layer (cacheable): Project concepts, skills, telemetry
         - Dynamic layer (always fresh): Blackboard, execution state, messages
         """
+        from app.core.engine.state import ensure_state
+        state = ensure_state(state)
         start_time = time.time()
+
+        # 0. Circuit Breaker: Check for terminal errors in history or context
+        # If the context has a terminal error recorded (side-channel)
+        # or the last AI message was a terminal error (429, Auth, etc.), stop immediately.
+        ctx = ContextManager.current()
+        request_id = ctx.request_id
+
+        terminal_source = None
+        if ctx.terminal_error:
+            terminal_source = f"context ({ctx.terminal_error})"
+        elif state.messages:
+            last_msg = state.messages[-1]
+            if isinstance(last_msg, AIMessage) and getattr(last_msg, "metadata", None):
+                if last_msg.metadata.get("is_terminal"):
+                    terminal_source = f"history ({last_msg.metadata.get('error_type', 'unknown')})"
+
+        if terminal_source:
+            logger.warning(f"[Middleware] 🚫 Circuit Breaker: Terminal error detected in {terminal_source}. Aborting execution.")
+            from app.core.exceptions import AgentTerminalException
+            raise AgentTerminalException(
+                message=f"Circuit Breaker triggered: {terminal_source}",
+                error_type=ctx.terminal_error or "terminal_error"
+            )
 
         # Get shared memory container (initialized once per process)
         memory_container = await EvoContextMiddleware._get_shared_memory_container()
 
         # OPTIMIZATION: Hydration Deduplication - Multiple layers
         # Layer 1: Check request-level tracking (for concurrent node execution)
-        ctx = ContextManager.current()
-        request_id = ctx.request_id
         if request_id != "global-fallback" and EvoContextMiddleware._is_recently_hydrated(request_id):
             # Still need to update dynamic layer, but skip static hydration
             blackboard = state.blackboard
@@ -357,8 +382,6 @@ class EvoContextMiddleware:
             # This prevents error message pollution that confuses the LLM
             messages = list(state.messages)
             if messages:
-                from langchain_core.messages import AIMessage
-
                 # Keep last 3 error messages at most, remove duplicates
                 error_messages = []
                 non_error_messages = []
@@ -387,8 +410,36 @@ class EvoContextMiddleware:
                     # Keep only last 3 errors
                     error_messages = error_messages[-3:]
 
-                # Reconstruct messages: non-error + limited errors
-                cleaned_messages = non_error_messages + error_messages
+                # --- DEDUPLICATE HUMAN MESSAGES ---
+                # Retry may leave behind duplicate/merged human messages from
+                # previous failed attempts (caused by repair_message_history).
+                # Keep only the last meaningful human message + any preceding
+                # context injection messages.
+                deduped_non_error = []
+                last_human_idx = -1
+                for idx, msg in enumerate(non_error_messages):
+                    if isinstance(msg, HumanMessage):
+                        last_human_idx = idx
+
+                if last_human_idx >= 0:
+                    segment = non_error_messages[:last_human_idx + 1]
+                    deduped_segment = []
+                    for msg in segment:
+                        if isinstance(msg, HumanMessage) and deduped_segment:
+                            prev = deduped_segment[-1]
+                            if isinstance(prev, HumanMessage):
+                                prev_text = get_message_text(prev)
+                                curr_text = get_message_text(msg)
+                                if prev_text and curr_text and (prev_text in curr_text or curr_text in prev_text):
+                                    deduped_segment[-1] = msg
+                                    continue
+                        deduped_segment.append(msg)
+                    deduped_non_error = deduped_segment
+                else:
+                    deduped_non_error = non_error_messages
+
+                # Reconstruct messages: deduped non-error + limited errors
+                cleaned_messages = deduped_non_error + error_messages
 
                 if len(cleaned_messages) < len(messages):
                     state.messages = cleaned_messages
@@ -396,8 +447,6 @@ class EvoContextMiddleware:
 
         else:
             if blackboard.metadata is not None:
-                if blackboard.metadata.final_outcome is not None or blackboard.metadata.shadow_audit is not None:
-                    logger.debug("[Middleware] Resetting terminal metadata 'final_outcome' and 'shadow_audit' for new run.")
                 blackboard.metadata.final_outcome = None
                 blackboard.metadata.shadow_audit = None
 
@@ -435,8 +484,6 @@ class SkillHydrator:
         Fetch a single skill by its ID.
         Used for direct skill lookup without search overhead.
         """
-        from sqlalchemy import select
-
         from app.infrastructure.database.sql.database import session_scope
         from app.models.learning import LearnedSkill
 
@@ -539,8 +586,6 @@ class ConversationContext:
         Returns:
             Formatted context string
         """
-        from langchain_core.messages import AIMessage, HumanMessage
-
         # Get recent human-ai exchanges
         recent_exchanges = []
         turns = 0

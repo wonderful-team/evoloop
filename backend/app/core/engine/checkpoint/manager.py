@@ -87,7 +87,7 @@ class CheckpointManager:
                 )
                 checkpoint_files.append(cp_file)
 
-            except Exception as e:
+            except OSError as e:
                 logger.warning(f"Failed to read file for checkpoint: {path} - {e}")
 
         if not checkpoint_files:
@@ -172,18 +172,18 @@ class CheckpointManager:
             path = cp_file.file_path
 
             try:
-                try:
-                    with open(path, encoding='utf-8') as f:
-                        current_content = f.read()
-                    current_hash = hashlib.sha256(current_content.encode('utf-8')).hexdigest()
+                with open(path, encoding='utf-8') as f:
+                    current_content = f.read()
+                current_hash = hashlib.sha256(current_content.encode('utf-8')).hexdigest()
 
-                    if current_hash == cp_file.content_hash:
-                        results.skipped.append(CheckpointRollbackSkipped(path=path, reason="unchanged"))
-                        continue
+                if current_hash == cp_file.content_hash:
+                    results.skipped.append(CheckpointRollbackSkipped(path=path, reason="unchanged"))
+                    continue
 
-                except FileNotFoundError:
-                    current_content = None
+            except FileNotFoundError:
+                current_content = None
 
+            try:
                 if not dry_run:
                     from app.utils.path import ensure_dir
                     ensure_dir(os.path.dirname(path))
@@ -199,7 +199,7 @@ class CheckpointManager:
                     lines=cp_file.line_count
                 ))
 
-            except Exception as e:
+            except OSError as e:
                 logger.error(f"Failed to restore file: {path} - {e}")
                 results.failed.append(CheckpointRollbackFileResult(path=path, error=str(e)))
 

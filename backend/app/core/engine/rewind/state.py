@@ -13,19 +13,18 @@ import logging
 import re
 from typing import TYPE_CHECKING
 
-from app.core.checkpoint.rewind.events import (
-    RewindEventType,
-    RewindRequestedEvent,
-    StateResetEvent,
-)
-from langchain_core.messages import AIMessage, HumanMessage, RemoveMessage, ToolMessage
+from langchain_core.messages import HumanMessage, RemoveMessage
+from sqlalchemy import select
 
+from app.core.engine.rewind.events import RewindEventType, RewindRequestedEvent
 from app.core.events.base import AsyncEventBus
 from app.core.events.decorators import event_register, event_subscribe
 from app.core.globals import get_graph
+from app.infrastructure.database.sql.database import session_scope
+from app.models import Message
 
 if TYPE_CHECKING:
-    from app.core.checkpoint.rewind.events import RewindRequestedEvent
+    from app.core.engine.rewind.events import RewindRequestedEvent
 
 logger = logging.getLogger(__name__)
 
@@ -68,20 +67,15 @@ class StateRewind:
         """
         Handle main rewind event - perform checkpoint rollback.
         
-        This discovers the appropriate checkpoint and rolls back state.
+        For retry operations, finds the oldest clean checkpoint and resets state.
+        For targeted rewind, rolls back to the checkpoint matching the target message.
         """
-        # Get the target human sequence
-        target_sequence = await self._get_target_human_sequence(
-            thread_id=event.thread_id,
-            target_message_id=event.target_message_id,
-            include_target=event.include_target
-        )
-
         # Perform checkpoint rollback
         checkpoint_id = await self._rollback_to_checkpoint(
             thread_id=event.thread_id,
-            target_human_sequence=target_sequence,
-            reset_state=event.reset_state
+            target_message_id=event.target_message_id,
+            reset_state=event.reset_state,
+            reason=event.reason
         )
 
         self._last_checkpoint_id = checkpoint_id
@@ -92,80 +86,24 @@ class StateRewind:
         else:
             logger.warning("[StateRewind] No matching checkpoint found")
 
-    @event_subscribe(RewindEventType.STATE_RESET)
-    async def _handle_state_reset(self, event: StateResetEvent) -> None:
-        """
-        Handle specific state reset event.
-        
-        This performs direct state reset operations.
-        """
-        try:
-            await self._reset_state(
-                thread_id=event.thread_id,
-                checkpoint_id=event.checkpoint_id,
-                reset_blackboard=event.reset_blackboard,
-                reset_iteration_count=event.reset_iteration_count
-            )
-            logger.info(f"[StateRewind] Reset state for thread {event.thread_id}")
-        except Exception as e:
-            logger.error(f"[StateRewind] State reset failed: {e}")
-            raise
-
-    async def _get_target_human_sequence(
+    async def _rollback_to_checkpoint(
         self,
         thread_id: str,
         target_message_id: str | None,
-        include_target: bool
-    ) -> list[str]:
+        reset_state: bool,
+        reason: str = "user_request"
+    ) -> str | None:
         """
-        Get the human message sequence up to the target.
+        Rollback LangGraph to the appropriate checkpoint.
+        
+        For retry: finds the oldest 'input' checkpoint and prunes all polluted messages.
+        For targeted rewind: attempts to find the checkpoint closest to the target message.
         
         Args:
             thread_id: The thread ID
             target_message_id: The target message (None = last human)
-            include_target: Whether to include the target
-            
-        Returns:
-            List of human message contents
-        """
-        from sqlalchemy import select
-
-        from app.infrastructure.database.sql.database import session_scope
-        from app.models import Message
-
-        async with session_scope() as session:
-            stmt = (
-                select(Message)
-                .where(Message.thread_id == thread_id)
-                .where(Message.role == "human")
-                .order_by(Message.id.asc())
-            )
-
-            if target_message_id:
-                target_id = int(target_message_id)
-                if include_target:
-                    stmt = stmt.where(Message.id <= target_id)
-                else:
-                    stmt = stmt.where(Message.id < target_id)
-
-            result = await session.execute(stmt)
-            messages = result.scalars().all()
-
-            return [self._extract_text(m.content) for m in messages]
-
-    async def _rollback_to_checkpoint(
-        self,
-        thread_id: str,
-        target_human_sequence: list[str],
-        reset_state: bool
-    ) -> str | None:
-        """
-        Rollback LangGraph to the checkpoint matching the target sequence.
-        
-        Args:
-            thread_id: The thread ID
-            target_human_sequence: List of human message contents
             reset_state: Whether to reset blackboard/iteration
+            reason: Why the rewind was triggered
             
         Returns:
             The checkpoint ID after rollback, or None if not found
@@ -177,13 +115,7 @@ class StateRewind:
 
         config = {"configurable": {"thread_id": thread_id}}
 
-        # Get target sequence text
-        target_seq_text = [self._extract_text(c) for c in target_human_sequence]
-        target_joined = "".join(target_seq_text).replace("\n", "").replace(" ", "")
-
-        logger.info(f"[StateRewind] Looking for checkpoint matching sequence: {target_joined[:100]}...")
-
-        # Search through checkpoint history
+        # Search through checkpoint history (newest first)
         historical_states = []
         try:
             async for state_snapshot in graph.aget_state_history(config):
@@ -192,59 +124,101 @@ class StateRewind:
             logger.warning(f"[StateRewind] Failed to get state history: {e}")
             return None
 
-        # Find matching sequence (search from newest to oldest)
+        if not historical_states:
+            logger.warning("[StateRewind] No checkpoint history found")
+            return None
+
         checkpoint_id = None
         base_state = None
         graph_updates = []
 
-        for state_snapshot in historical_states:
-            sn_msgs = state_snapshot.values.get("messages", []) if state_snapshot.values else []
-            sn_human_seq = [self._extract_text(m.content) for m in sn_msgs if isinstance(m, HumanMessage)]
-            sn_joined = "".join(sn_human_seq).replace("\n", "").replace(" ", "")
+        # ------------------------------------------------------------------
+        # Strategy 1: Retry mode — find the oldest clean input checkpoint
+        # ------------------------------------------------------------------
+        if reason == "retry" or reset_state:
+            # Search from oldest to newest for the first clean input checkpoint
+            for state_snapshot in reversed(historical_states):
+                sn_config = state_snapshot.config.get("configurable", {})
+                sn_metadata = getattr(state_snapshot, "metadata", {}) or {}
+                source = sn_metadata.get("source", "")
 
-            if sn_joined == target_joined:
-                checkpoint_id = state_snapshot.config["configurable"].get("checkpoint_id")
-                base_state = state_snapshot
-
-                logger.info(f"[StateRewind] Found matching checkpoint: {checkpoint_id}")
-
-                # Mark stale messages for removal
-                found_target_human = False
-                for m in sn_msgs:
-                    if isinstance(m, HumanMessage) and self._extract_text(m.content) == target_seq_text[-1]:
-                        found_target_human = True
-                        continue
-                    if found_target_human and isinstance(m, (AIMessage, ToolMessage)):
-                        graph_updates.append(RemoveMessage(id=m.id))
-
-                break
-
-        # Fallback: prefix matching for edited messages
-        if not checkpoint_id and len(target_seq_text) > 0:
-            logger.warning("[StateRewind] Full sequence match failed, trying prefix match...")
-            prefix_seq_text = target_seq_text[:-1]
-            prefix_joined = "".join(prefix_seq_text).replace("\n", "").replace(" ", "")
-
-            for state_snapshot in historical_states:
-                sn_msgs = state_snapshot.values.get("messages", []) if state_snapshot.values else []
-                sn_human_seq = [self._extract_text(m.content) for m in sn_msgs if isinstance(m, HumanMessage)]
-                sn_joined = "".join(sn_human_seq).replace("\n", "").replace(" ", "")
-
-                if sn_joined == prefix_joined:
-                    checkpoint_id = state_snapshot.config["configurable"].get("checkpoint_id")
+                # Prefer the oldest 'input' checkpoint (start of a user turn)
+                if source == "input":
+                    checkpoint_id = sn_config.get("checkpoint_id")
                     base_state = state_snapshot
-                    logger.info(f"[StateRewind] Found prefix match at checkpoint: {checkpoint_id}")
+                    logger.info(f"[StateRewind] Retry mode: Found oldest input checkpoint {checkpoint_id}")
                     break
 
-        # Update state if checkpoint found
+            # Fallback: if no input checkpoint, use the oldest checkpoint
+            if not checkpoint_id:
+                oldest = historical_states[-1]
+                checkpoint_id = oldest.config.get("configurable", {}).get("checkpoint_id")
+                base_state = oldest
+                logger.info(f"[StateRewind] Retry mode: No input checkpoint, using oldest {checkpoint_id}")
+
+            # Build RemoveMessage list for all stale messages after the anchor
+            if base_state and base_state.values:
+                sn_msgs = base_state.values.get("messages", [])
+                # In retry mode, keep only the first human message (user intent)
+                # and any context update message before it. Remove everything else.
+                kept_count = 0
+                for m in sn_msgs:
+                    if isinstance(m, HumanMessage) and kept_count == 0:
+                        kept_count += 1
+                        continue
+                    if kept_count == 0:
+                        continue
+                    # Everything after the first human message is stale
+                    graph_updates.append(RemoveMessage(id=m.id))
+
+                if graph_updates:
+                    logger.info(f"[StateRewind] Retry mode: Pruning {len(graph_updates)} stale messages from checkpoint")
+
+        # ------------------------------------------------------------------
+        # Strategy 2: Targeted rewind — find checkpoint matching target message
+        # ------------------------------------------------------------------
+        else:
+            # For targeted rewind, search newest first for a checkpoint whose
+            # message list contains the target message content.
+            target_sequence = await self._get_target_human_sequence(
+                thread_id=thread_id,
+                target_message_id=target_message_id,
+                include_target=False  # We want to keep the target
+            )
+
+            if target_sequence:
+                target_anchor = self._normalize_for_match(self._extract_text(target_sequence[-1]))
+
+                for state_snapshot in historical_states:
+                    sn_msgs = state_snapshot.values.get("messages", []) if state_snapshot.values else []
+
+                    # Find the anchor human message in this checkpoint
+                    found_anchor = False
+                    for m in sn_msgs:
+                        if isinstance(m, HumanMessage) and target_anchor:
+                            if self._normalize_for_match(self._extract_text(m.content)) == target_anchor:
+                                found_anchor = True
+                                continue
+                        if found_anchor:
+                            graph_updates.append(RemoveMessage(id=m.id))
+                    
+                    if found_anchor:
+                        checkpoint_id = state_snapshot.config.get("configurable", {}).get("checkpoint_id")
+                        base_state = state_snapshot
+                        logger.info(f"[StateRewind] Targeted rewind: Found checkpoint {checkpoint_id}")
+                        break
+
+        # ------------------------------------------------------------------
+        # Apply updates
+        # ------------------------------------------------------------------
         if checkpoint_id and base_state:
             updates = {}
             if graph_updates:
                 updates["messages"] = graph_updates
 
             if reset_state:
-                # Reset blackboard
-                new_bb = base_state.values.get("blackboard", {}).copy()
+                # Reset blackboard turn keys
+                new_bb = base_state.values.get("blackboard", {}).copy() if base_state.values else {}
                 turn_keys_to_reset = [
                     "ticket", "verification", "route_reason", "next_node",
                     "situation_analysis", "action_plan", "error", "spawn_plan",
@@ -276,21 +250,42 @@ class StateRewind:
 
         return checkpoint_id
 
-    async def _reset_state(
+    async def _get_target_human_sequence(
         self,
         thread_id: str,
-        checkpoint_id: str | None,
-        reset_blackboard: bool,
-        reset_iteration_count: bool
-    ) -> None:
+        target_message_id: str | None,
+        include_target: bool
+    ) -> list[str]:
         """
-        Reset specific state fields.
+        Get the human message sequence up to the target from the DB.
         
-        This is a more targeted state reset than full checkpoint rollback.
+        Args:
+            thread_id: The thread ID
+            target_message_id: The target message (None = last human)
+            include_target: Whether to include the target
+            
+        Returns:
+            List of human message contents
         """
-        # Implementation would be similar to _rollback_to_checkpoint
-        # but focused on resetting specific fields
-        logger.debug(f"[StateRewind] Reset state for thread {thread_id}")
+        async with session_scope() as session:
+            stmt = (
+                select(Message)
+                .where(Message.thread_id == thread_id)
+                .where(Message.role == "human")
+                .order_by(Message.id.asc())
+            )
+
+            if target_message_id:
+                target_id = int(target_message_id)
+                if include_target:
+                    stmt = stmt.where(Message.id <= target_id)
+                else:
+                    stmt = stmt.where(Message.id < target_id)
+
+            result = await session.execute(stmt)
+            messages = result.scalars().all()
+
+            return [self._extract_text(m.content) for m in messages]
 
     def _extract_text(self, content) -> str:
         """Extract text from various content formats."""
@@ -300,7 +295,18 @@ class StateRewind:
         if isinstance(content, (bytes, bytearray)):
             content = content.decode("utf-8")
 
-        # Handle Stringified JSON/Dict
+        # Recursive extraction for nested data structures
+        if isinstance(content, list):
+            return "".join([self._extract_text(item) for item in content])
+
+        if isinstance(content, dict):
+            # Try specific keys in order of likelihood
+            for key in ["text", "content", "reasoning", "thought"]:
+                if key in content:
+                    return self._extract_text(content[key])
+            # Fallback: join all string values
+            return "".join([str(v) for v in content.values() if isinstance(v, (str, list, dict))])
+
         if isinstance(content, str):
             content = content.strip()
             if (content.startswith("{") and content.endswith("}")) or \
@@ -309,31 +315,20 @@ class StateRewind:
                     parsed = json.loads(content)
                     return self._extract_text(parsed)
                 except:
-                    try:
-                        import ast
-                        parsed = ast.literal_eval(content)
-                        return self._extract_text(parsed)
-                    except:
-                        text_matches = re.findall(r'["\']text["\']:\s*["\'](.*?)["\']', content)
-                        if text_matches:
-                            return "".join(text_matches).strip()
+                    # If JSON parsing fails, use regex as a fallback to grab anything in 'text' fields
+                    text_matches = re.findall(r'["\']text["\']:\s*["\'](.*?)["\']', content)
+                    if text_matches:
+                        return "".join(text_matches).strip()
             return content
 
-        # Handle List
-        if isinstance(content, list):
-            texts = []
-            for item in content:
-                if isinstance(item, dict):
-                    texts.append(item.get("text", ""))
-                elif isinstance(item, str):
-                    texts.append(item)
-            return "".join(texts).strip()
-
-        # Handle Dict
-        if isinstance(content, dict):
-            return content.get("text", "") or content.get("content", "") or str(content)
-
-        return str(content).strip()
+    def _normalize_for_match(self, text: str) -> str:
+        """Final normalization for sequence comparison."""
+        if not text:
+            return ""
+        # Remove ALL whitespace, system tags, and common delimiters to get a pure 'fingerprint'
+        text = re.sub(r'\[CONTEXT UPDATE.*?\]', '', text) # Remove system injection noise
+        text = re.sub(r'[\s\n\r\t.,!?;:()\[\]{}"\']+', '', text)
+        return text.lower()
 
     def get_last_checkpoint_id(self) -> str | None:
         """Get the checkpoint ID from the last rollback operation."""

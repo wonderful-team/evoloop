@@ -5,8 +5,6 @@ from typing import Any
 
 from pydantic import Field
 
-from app.core.engine.state.blackboard import BlackboardState
-from app.core.engine.state.config import ExecutionTicket
 from app.core.exceptions import GlobalModeError
 from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.services.cache_services import ContextCacheService
@@ -21,8 +19,8 @@ class ContextMetadata(DynamicBaseModel):
     project_concepts: Any | None = None
     active_skills: Any | None = None
     environment_telemetry: Any | None = None
-    blackboard: BlackboardState | None = None
-    execution_ticket: ExecutionTicket | None = None
+    blackboard: Any | None = None
+    execution_ticket: Any | None = None
     iteration_count: int | None = None
     active_plan_context: str | None = None
     prompt: str | None = None
@@ -64,6 +62,7 @@ class EvoContext(DynamicBaseModel):
     memory_replay: list[str] | dict[str, Any] = Field(default_factory=list)
     identity_rules: list[str] = Field(default_factory=list)
     environment_block: str | None = None
+    terminal_error: str | None = None  # Side-channel marker for irrecoverable errors
 
     # Extra Metadata (Plugins, etc.)
     metadata: ContextMetadata = Field(default_factory=ContextMetadata)

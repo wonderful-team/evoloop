@@ -12,14 +12,14 @@ import asyncio
 import logging
 from typing import TYPE_CHECKING
 
-from app.core.checkpoint.rewind.events import (
+from app.core.engine.rewind.events import (
     RewindFailedEvent,
     RewindRequestedEvent,
 )
-from app.core.checkpoint.rewind.exceptions import (
+from app.core.engine.rewind.exceptions import (
     RewindError,
 )
-from app.core.checkpoint.rewind.models import RewindResult
+from app.core.engine.rewind.models import RewindResult
 from app.core.events import system_bus
 
 if TYPE_CHECKING:

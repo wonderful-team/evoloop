@@ -1,10 +1,10 @@
 """Top-level AgentState and StateUpdate models."""
 import operator
-from typing import Annotated, Any, get_args, get_origin
+from typing import Annotated, Any
 
 from langchain_core.messages import BaseMessage
 from langgraph.graph.message import add_messages
-from pydantic import ConfigDict, Field, field_validator, model_validator
+from pydantic import Field, field_validator, model_validator
 
 from app.core.engine.state.blackboard import (
     BlackboardState,

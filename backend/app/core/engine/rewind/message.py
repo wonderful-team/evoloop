@@ -13,23 +13,33 @@ All handlers are auto-registered via @event_register decorator.
 
 import logging
 
+from pydantic import Field, model_validator
 from sqlalchemy import delete, select, update
 
-from app.core.checkpoint.rewind.events import (
-    MessagesCleanupEvent,
-    RewindEventType,
-    RewindRequestedEvent,
-)
-from app.core.checkpoint.rewind.exceptions import (
-    MessageNotFoundError,
-    NoHumanMessageError,
-)
+from app.core.engine.rewind.events import RewindEvent, RewindEventType, RewindRequestedEvent
+from app.core.engine.rewind.exceptions import MessageNotFoundError, NoHumanMessageError
 from app.core.events.base import AsyncEventBus
 from app.core.events.decorators import event_register, event_subscribe
 from app.infrastructure.database.sql.database import session_scope
 from app.models import Message, MessageReference
 
 logger = logging.getLogger(__name__)
+
+
+class MessagesCleanupEvent(RewindEvent):
+    """Published to trigger message deletion."""
+    event_type: str = RewindEventType.MESSAGES_CLEANUP
+    message_ids: list[str] = Field(default_factory=list)
+    delete_references: bool = True
+
+    @model_validator(mode="after")
+    def _build_data(self):
+        self.data = {
+            "thread_id": self.thread_id,
+            "message_ids": self.message_ids,
+            "count": len(self.message_ids),
+        }
+        return self
 
 
 @event_register()
@@ -79,10 +89,10 @@ class MessageRewind:
                 delete_references=True
             )
             self._deleted_count = count
-            
+
             # Report back to the main event
             event.results["messages"] = count
-            
+
             # Still publish the internal event for other potential listeners
             from app.core.events import system_bus
             await system_bus.publish(MessagesCleanupEvent(
@@ -172,9 +182,6 @@ class MessageRewind:
                     )
 
                 min_id_to_delete = last_human.id
-
-            if min_id_to_delete is None:
-                return []
 
             # Query all messages to delete
             if include_target:

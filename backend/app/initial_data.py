@@ -1,24 +1,21 @@
-import asyncio
 import logging
-import os
-
-from sqlmodel import Session
 
 from app.core.config import settings
-from app.core.db import engine, init_db
 from app.infrastructure.config import SystemConfigService
-
+from app.infrastructure.database.resource_manager import db_resource_manager
 
 logger = logging.getLogger(__name__)
-
 
 def init() -> None:
     """
     Seed System Configuration from Environment/Settings.
     This ensures that on first run, the database is populated with valid defaults.
     """
-    with Session(engine) as session:
-        init_db(session)
+    from sqlmodel import Session
+    # Use sync engine from unified resource manager
+    with Session(db_resource_manager.sync_engine) as session:
+        # Seeding logic below uses SystemConfigiteService which internally uses session_scope/engine
+        pass
 
     # 1. WORKSPACE_ROOT
     if not SystemConfigService.get_value("WORKSPACE_ROOT"):

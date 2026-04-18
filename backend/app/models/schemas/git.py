@@ -2,8 +2,9 @@
 Git-related Pydantic models for knowledge extraction and harvesting.
 """
 from pydantic import Field
-from app.infrastructure.pydantic_base import DynamicBaseModel
+
 from app.core.memory.models import Concept
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 
 class GitConceptExtractionResult(DynamicBaseModel):

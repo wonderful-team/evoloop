@@ -23,7 +23,7 @@ from app.infrastructure.pydantic_base import DynamicBaseModel
 logger = logging.getLogger(__name__)
 
 # Default YAML config path
-_DEFAULT_CONFIG_PATH = Path(__file__).parent.parent / "engine" / "config" / "agent_main.yaml"
+DEFAULT_CONFIG_PATH = Path(__file__).parent.parent / "engine" / "config" / "agent_main.yaml"
 
 
 # --- Fallback Metadata for System/External Tools ---
@@ -233,7 +233,7 @@ def get_tools_by_names(tool_names: list[str], source_role: str | None = None) ->
 @lru_cache(maxsize=1)
 def _load_yaml_config(config_path: str | None = None) -> dict:
     """Load and cache the YAML config for tool-role mappings."""
-    path = Path(config_path) if config_path else _DEFAULT_CONFIG_PATH
+    path = Path(config_path) if config_path else DEFAULT_CONFIG_PATH
     try:
         with open(path) as f:
             return yaml.safe_load(f) or {}

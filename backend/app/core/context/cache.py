@@ -17,7 +17,7 @@ import time
 from pydantic import Field
 
 from app.core.engine.state import AgentState
-from app.core.engine.state.blackboard import BlackboardState, VerificationStatus
+from app.core.engine.state.blackboard import BlackboardState
 from app.core.engine.state.config import ExecutionTicket
 from app.infrastructure.pydantic_base import DynamicBaseModel
 

@@ -10,8 +10,8 @@ from typing import List, Optional
 
 from langchain_core.messages import BaseMessage, HumanMessage, ToolMessage
 
-from app.core.memory.models import MemoryEntry, MemoryType, PrivacyLevel
 from app.core.llm import InternalLLMService
+from app.core.memory.models import MemoryEntry, MemoryType
 from app.i18n.service import i18n
 
 logger = logging.getLogger(__name__)

@@ -10,7 +10,6 @@ import asyncio
 import hashlib
 import json
 import logging
-import os
 import re
 import time
 from typing import Any, Optional
@@ -35,11 +34,11 @@ from app.core.engine.message_utils import (
     smart_window_slice,
 )
 from app.core.engine.signals import AgentSignal
-from app.core.engine.state import AgentState, BlackboardState, BlackboardMetadata, ensure_state, RunnableConfigMetadata
+from app.core.engine.signals import signal_manager
+from app.core.engine.state import AgentState, BlackboardState, ensure_state, RunnableConfigMetadata
 from app.core.engine.state.history import ToolCall
 from app.core.engine.tools import AgentToolExecutor, ToolExecutionResult
 from app.core.memory.tool_output_memory import get_tool_memory_from_state
-from app.core.engine.signals import signal_manager
 from app.core.monitoring.activity import activity_monitor
 from app.core.monitoring.telemetry import agent_telemetry
 from app.infrastructure.config.service import SystemConfigService
@@ -151,10 +150,15 @@ class AgentEngine:
         try:
             # Check class name or specific adapter types
             class_name = llm.__class__.__name__
-            if "Anthropic" in class_name:
-                provider = "anthropic"
-            elif hasattr(llm, "lc_secrets") and "anthropic" in str(llm.lc_secrets).lower():
-                provider = "anthropic"
+            
+            # EXCEPTION: Kimi/Moonshot imitates Anthropic but should use standard OpenAI-style prompts
+            is_kimi = "Moonshot" in class_name or (model and "kimi" in model.lower())
+            
+            if not is_kimi:
+                if "Anthropic" in class_name:
+                    provider = "anthropic"
+                elif hasattr(llm, "lc_secrets") and "anthropic" in str(llm.lc_secrets).lower():
+                    provider = "anthropic"
         except Exception:
             pass
 
@@ -166,18 +170,22 @@ class AgentEngine:
             tool_map = {}
 
         # 2. Config & Context
-        config = self._setup_callbacks(config)
-
         # 2.1 Unified Hydration (Phase 1 Optimization)
-        from app.core.engine.state import ensure_state
         from app.core.engine.context_hydrator import EvoContextMiddleware
-        state = await EvoContextMiddleware.hydrate(state, config)
         state = ensure_state(state)
+        state = await EvoContextMiddleware.hydrate(state, config)
         logger.info(f"[{name}] 🧪 Context Hydrated via Middleware")
 
         # 3. Message Handling & Repair
-        raw_messages = list(list(state.messages))
+        raw_messages = list(state.messages)
         logger.info(f"[{name}] 📨 Raw messages: {len(raw_messages)} | Types: {[type(m).__name__ for m in raw_messages]}")
+
+        # --- Diagnostic Block ---
+        for i, m in enumerate(raw_messages):
+            content_preview = str(m.content)[:100].replace("\n", " ")
+            msg_meta = getattr(m, "metadata", {})
+            logger.info(f"[{name}] 🔍 MSG[{i}] Role: {type(m).__name__} | Content: {content_preview}... | Meta: {msg_meta}")
+        # --- End Diagnostic ---
 
         # 3.0 Context Pruning removed - Agent-controlled forgetting replaces it
 
@@ -250,10 +258,6 @@ class AgentEngine:
 
         return result
 
-    def _setup_callbacks(self, config: RunnableConfig) -> RunnableConfig:
-        """Inject TraceCallbackHandler for Imitation/Reinforcement Learning."""
-        return config
-
     async def _execute_react_loop(
         self,
         llm_with_tools,
@@ -321,7 +325,8 @@ class AgentEngine:
 
                 last_response = response
             except Exception as e:
-                return self._handle_llm_exception(e, name, state)
+                handler = config.get("configurable", {}).get("message_handler")
+                return await self._handle_llm_exception(e, name, state, handler=handler)
 
             # Inject run_id
             if config_meta.run_id:
@@ -357,8 +362,7 @@ class AgentEngine:
                 logger.info(f"[{name}] 🏁 Finished with text response (no tool calls).")
                 break
 
-            from app.core.callbacks.transparent import TransparentCallbackHandler
-            from app.core.tools.executor import ToolExecutor as _ToolExecutor
+            from app.core.engine.callbacks.transparent import TransparentCallbackHandler
 
             # Turn-level signal tracking
             pending_signal = None
@@ -536,7 +540,8 @@ class AgentEngine:
                 metadata={"is_single_shot": True}
             )
         except Exception as e:
-            return self._handle_llm_exception(e, name, state)
+            handler = config.get("configurable", {}).get("message_handler")
+            return await self._handle_llm_exception(e, name, state, handler=handler)
 
         # Inject run_id
         if config_meta.run_id:
@@ -565,7 +570,7 @@ class AgentEngine:
         evoloop_handler = None
         callbacks = config.get("callbacks", []) if config else []
         callback_list = callbacks if isinstance(callbacks, list) else getattr(callbacks, "handlers", [])
-        from app.core.callbacks.transparent import TransparentCallbackHandler
+        from app.core.engine.callbacks.transparent import TransparentCallbackHandler
         for cb in callback_list:
             if isinstance(cb, TransparentCallbackHandler):
                 evoloop_handler = cb
@@ -675,6 +680,9 @@ class AgentEngine:
         # Use nested list structure (Anthropic format) ONLY for pure anthropic providers.
         # For Kimi (routing via OpenAI gateway) or others, use standard string content.
         # Caching on OpenAI-compatible providers is usually achieved by keeping the prefix static.
+        
+        # NOTE: Moonshot/Kimi (kimi-*) imitates Anthropic API but may reject cache_control blocks 
+        # with 403 Forbidden if not explicitly supported on the specific endpoint (e.g. coding-v1).
         if provider == "anthropic":
             return [SystemMessage(content=[
                 {
@@ -687,7 +695,7 @@ class AgentEngine:
             # Standard string content for Moonshot/Kimi/DeepSeek/OpenAI
             return [SystemMessage(content=system_prompt)]
 
-    def _handle_llm_exception(self, e: Exception, name: str, state: AgentState) -> EngineResult:
+    async def _handle_llm_exception(self, e: Exception, name: str, state: AgentState, handler: Any = None) -> EngineResult:
         """Centralized handling for LLM invocation exceptions using LLMErrorHandler."""
         from app.core.engine.error_handler import LLMErrorHandler
         from app.i18n.service import i18n
@@ -697,8 +705,22 @@ class AgentEngine:
         # Use the centralized classifier
         classification = LLMErrorHandler.classify_exception(e)
 
-        # Bubble up terminal errors to trigger specialized UI (quota/auth) in the background orchestrator
+        # 1. Report error to the unified message handler for immediate UI feedback (SSE/Persistence)
+        if handler:
+            try:
+                await handler.handle_error(e)
+            except Exception as report_err:
+                logger.error(f"[{name}] Failed to report error via handler: {report_err}")
+
+        # 2. Bubble up terminal errors to trigger specialized UI (quota/auth) in the background orchestrator
         if classification.is_terminal:
+            # Set side-channel marker for circuit breaker
+            from app.core.context import ContextManager
+            ctx = ContextManager.current()
+            if ctx:
+                ctx.terminal_error = classification.error_type
+                logger.info(f"[{name}] 🚫 Terminal error '{classification.error_type}' recorded in context for circuit breaking.")
+
             logger.warning(f"[{name}] Terminal LLM error detected ({classification.error_type}). Bubbling up to orchestrator.")
             raise e
 
@@ -717,6 +739,7 @@ class AgentEngine:
                 content=user_friendly_msg,
                 metadata={
                     "is_error": True,
+                    "is_terminal": classification.is_terminal,
                     "error_type": classification.error_type,
                     "status_code": classification.status_code,
                     "raw_error": classification.raw_error

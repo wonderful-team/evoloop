@@ -9,23 +9,25 @@ from typing import Any
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from langchain_core.messages import HumanMessage, ToolMessage
 from sqlalchemy import func, select
+from sqlalchemy.orm import selectinload
 
 from app.api.deps import (
     CurrentUserOptional,
     verify_guest_access,
 )
 from app.api.responses import BaseAPIResponse
-from app.constants import DEFAULT_PROJECT_ID
 from app.core.context import thread_context_store
 from app.core.context.manager import ContextManager, EvoContext
 # --- Background Worker ---
 from app.core.engine.background_agent import run_agent_background
 from app.core.evocloud import evocloud_manager
 from app.core.exceptions import AgentHumanInterruptException
+from app.core.globals import get_graph
 from app.core.monitoring.activity import activity_monitor
 from app.domain.codebase.indexing.manager import indexing_manager
 from app.domain.codebase.indexing.service import IndexingService
 from app.domain.integration.adapters import EventAdapter
+from app.infrastructure.database.resource_manager import db_resource_manager
 from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.models import (
@@ -325,13 +327,12 @@ async def retry_chat(
     
     Uses the new event-driven RewindOrchestrator for distributed cleanup.
     """
-    from app.core.checkpoint.rewind import RewindOrchestrator
-    from app.core.checkpoint.rewind.exceptions import (
+    from app.core.engine.rewind import RewindOrchestrator
+    from app.core.engine.rewind.exceptions import (
         MessageNotFoundError,
         NoHumanMessageError,
         RewindError
     )
-    from sqlalchemy.orm import selectinload
 
     # =============================================================================
     # Phase 1: Rewind (Retry-Specific)
@@ -417,7 +418,7 @@ async def retry_chat(
             error_msg = f"Rewind failed for retry: {errors_str}"
             logger.error(f"[Retry] {error_msg}")
             # Raise RewindError which is caught below to return 500
-            from app.core.checkpoint.rewind.exceptions import RewindError
+            from app.core.engine.rewind.exceptions import RewindError
             raise RewindError(error_msg, thread_id=req.thread_id)
 
         logger.info(f"[Retry] Rewind completed: {result.removed_message_count} messages removed, "
@@ -469,11 +470,8 @@ async def resume_chat(req: ResumeRequest, bg_tasks: BackgroundTasks):
     Resume a paused/interrupted graph execution.
     Used after Human-in-the-Loop interrupts where user provides input.
     """
-    from app.core.globals import get_graph
-    from app.core.persistence import get_checkpointer
-
     graph = get_graph()
-    checkpointer = get_checkpointer()
+    checkpointer = db_resource_manager.checkpointer
 
     if not graph or not checkpointer:
         raise HTTPException(
@@ -582,7 +580,7 @@ async def resume_chat(req: ResumeRequest, bg_tasks: BackgroundTasks):
 
     # Resume in background
     async def _resume_graph():
-        from app.core.callbacks.transparent import TransparentCallbackHandler
+        from app.core.engine.callbacks.transparent import TransparentCallbackHandler
         from app.core.exceptions import AgentCancelledException
 
         callback = TransparentCallbackHandler(thread_id=req.thread_id)
@@ -625,15 +623,14 @@ async def cancel_hitl_request(req: CancelHITLRequest, bg_tasks: BackgroundTasks)
     Cancel a pending HITL (Human-in-the-Loop) request.
     This will dismiss the confirmation card and resume execution with a cancellation signal.
     """
-    from app.core.globals import get_graph
-    from app.core.persistence import get_checkpointer
+    from app.infrastructure.database.resource_manager import db_resource_manager
     from app.domain.tools.human_input import (
         cancel_request,
         get_pending_requests_for_thread,
     )
 
     graph = get_graph()
-    checkpointer = get_checkpointer()
+    checkpointer = db_resource_manager.checkpointer
 
     if not graph or not checkpointer:
         raise HTTPException(
@@ -663,7 +660,6 @@ async def cancel_hitl_request(req: CancelHITLRequest, bg_tasks: BackgroundTasks)
             raise HTTPException(
                 status_code=500, detail="Failed to cancel HITL request"
             )
-
 
     # Always clear the human request from activity monitor
     await activity_monitor.clear_human_request(req.thread_id)
@@ -719,7 +715,7 @@ async def cancel_hitl_request(req: CancelHITLRequest, bg_tasks: BackgroundTasks)
 
     # Resume in background with cancellation signal
     async def _cancel_and_resume():
-        from app.core.callbacks.transparent import TransparentCallbackHandler
+        from app.core.engine.callbacks.transparent import TransparentCallbackHandler
         from app.core.exceptions import AgentCancelledException
 
         callback = TransparentCallbackHandler(thread_id=req.thread_id)

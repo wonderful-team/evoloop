@@ -20,18 +20,16 @@ import asyncio
 import json
 import logging
 import time
-from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from app.core.config import settings
 from app.core.memory.interfaces.storage import IMemoryStorage, StorageHealthCheck
 from app.core.memory.models import (
     CheckpointDedupResult,
     MemoryEntry,
-    MemoryIndexEntry,
     MemorySearchResult,
     MemoryTier,
     MemoryType,
@@ -979,15 +977,64 @@ class FileMemoryStorage(IMemoryStorage):
         logger.warning("FileMemoryStorage flushed (all data cleared)")
 
     async def deduplicate_checkpoints(self, dry_run: bool = True) -> "CheckpointDedupResult":
-        """Remove duplicate checkpoint memories (not applicable in v2.0)."""
+        """
+        Remove duplicate checkpoint memories by keeping only the latest per thread.
+        """
         from app.core.memory.manager import CheckpointDedupResult
-        # In v2.0, checkpoints are stored in journal by date
-        # Duplicates are less likely, but we can scan journal files
+        
+        # 1. Collect all checkpoints
+        results = await self.list_all(type_filter=MemoryType.PROJECT)
+        checkpoints = [r for r in results if "checkpoint" in r.tags]
+        
+        if not checkpoints:
+            return CheckpointDedupResult(dry_run=dry_run, message="No checkpoints found")
+
+        # 2. Group by thread_id (extracting from tag or ID)
+        from collections import defaultdict
+        groups = defaultdict(list)
+        
+        for cp in checkpoints:
+            # Checkpoints follow pattern: checkpoint_{thread_id}_{timestamp}
+            parts = cp.id.split("_")
+            if len(parts) >= 3 and parts[0] == "checkpoint":
+                thread_id = parts[1]
+                groups[thread_id].append(cp)
+            else:
+                # Fallback to general grouping if ID pattern doesn't match
+                groups["general"].append(cp)
+
+        total_removed = 0
+        bytes_saved = 0
+        processed_groups = 0
+
+        # 3. Process groups: keep newest, remove others
+        for thread_id, group in groups.items():
+            if len(group) <= 1:
+                continue
+            
+            processed_groups += 1
+            # Sort newest first
+            group.sort(key=lambda x: x.updated_at or x.created_at, reverse=True)
+            
+            # Keep index 0, delete others
+            to_delete = group[1:]
+            for item in to_delete:
+                if not dry_run:
+                    success = await self.delete(item.id)
+                    if success:
+                        total_removed += 1
+                        # Estimate size if possible
+                        bytes_saved += 500 # Approx min size
+                else:
+                    total_removed += 1
+
         return CheckpointDedupResult(
             dry_run=dry_run,
-            message="Journal-based storage reduces duplication",
-            duplicates_found=0,
-            duplicates_removed=0,
+            total_checkpoints=len(checkpoints),
+            duplicate_groups=processed_groups,
+            duplicates_removed=total_removed,
+            bytes_saved=bytes_saved,
+            message="Successfully deduplicated thread snapshots"
         )
 
     async def find_by_source_message_ids(self, message_ids: list[str]) -> list[MemoryEntry]:

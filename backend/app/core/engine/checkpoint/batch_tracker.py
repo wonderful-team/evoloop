@@ -82,10 +82,10 @@ async def maybe_create_auto_checkpoint(
     Returns:
         (created: bool, message: str)
     """
-    from app.core.checkpoint.manager import checkpoint_manager
+    from app.core.engine.checkpoint.manager import checkpoint_manager
 
     # Register this file
-    pending_count = batch_tracker.register_pending(thread_id, file_path)
+    batch_tracker.register_pending(thread_id, file_path)
 
     # Check if threshold reached and we haven't created one yet
     if batch_tracker.should_create_checkpoint(thread_id):

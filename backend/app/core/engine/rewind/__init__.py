@@ -1,10 +1,24 @@
 """
-Engine Rewind Module
-====================
+Rewind Module
+=============
 
-Provides LangGraph state management for the rewind system.
+Core framework for conversation rewinding and retry operations.
+
+This module provides the orchestrator, event type constants, data models,
+and exceptions. Domain-specific cleanup event classes live in their
+respective handler modules (e.g. FilesCleanupEvent in app.core.file.rewind).
 """
+from app.core.engine.rewind.exceptions import PartialRewindError, RewindError
+from app.core.engine.rewind.models import RewindOperation as RewindRequest, RewindResult
+from app.core.engine.rewind.orchestrator import RewindOrchestrator
 
-from app.core.engine.rewind.state import StateRewind
-
-__all__ = ["StateRewind"]
+__all__ = [
+    # Main orchestrator
+    "RewindOrchestrator",
+    # Data models
+    "RewindRequest",
+    "RewindResult",
+    # Exceptions
+    "RewindError",
+    "PartialRewindError",
+]

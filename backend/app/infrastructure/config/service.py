@@ -3,9 +3,9 @@ from typing import Callable, Awaitable
 
 from sqlmodel import Session, select
 
-from app.core.db import engine
-from app.models.system import SystemConfig
 from app.core.events import system_bus, SystemEventType, BaseEvent
+from app.infrastructure.database.resource_manager import db_resource_manager
+from app.models.system import SystemConfig
 
 logger = logging.getLogger(__name__)
 _cache: dict[str, str] = {}
@@ -18,7 +18,11 @@ class SystemConfigService:
         if key in _cache:
             return _cache[key]
 
-        with Session(engine) as session:
+        # Safety: Check if database is initialized
+        if not db_resource_manager.sync_engine:
+            return default
+
+        with Session(db_resource_manager.sync_engine) as session:
             config = session.get(SystemConfig, key)
             if config:
                 val = config.value
@@ -28,7 +32,7 @@ class SystemConfigService:
 
     @staticmethod
     def set_value(key: str, value: str, description: str | None = None) -> SystemConfig:
-        with Session(engine) as session:
+        with Session(db_resource_manager.sync_engine) as session:
             config = session.get(SystemConfig, key)
             if not config:
                 config = SystemConfig(key=key, value=value, description=description)
@@ -94,7 +98,7 @@ class SystemConfigService:
 
     @staticmethod
     def get_all() -> list[SystemConfig]:
-        with Session(engine) as session:
+        with Session(db_resource_manager.sync_engine) as session:
             statement = select(SystemConfig)
             return session.exec(statement).all()
 

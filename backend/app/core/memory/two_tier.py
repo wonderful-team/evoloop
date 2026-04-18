@@ -53,7 +53,6 @@ from typing import Any
 from pydantic import Field
 
 from app.core.config import settings
-from app.core.memory.backends.file_backend import FileMemoryStorage
 from app.core.memory.models import MemoryEntry, MemoryType, MemoryTier, MemorySearchResult
 from app.core.memory.retrieval import MemoryRetriever
 from app.infrastructure.pydantic_base import DynamicBaseModel
@@ -401,11 +400,20 @@ class TwoTierMemoryManager:
             MemoryType.FEEDBACK: "gotchas",
         }
 
+        # Track seen titles to prevent duplicates in the map (even for different IDs)
+        seen_titles = set()
+
         for entry, score in scored:
+            # Simple title deduplication (Normalized)
+            # This prevents "Conclusion: A" and "Conclusion: A" from appearing twice
+            title_norm = entry.title.strip().lower()
+            if title_norm in seen_titles:
+                continue
+            
             # Determine section by type
             section_name = type_mapping.get(entry.type, "context")
 
-            # Add to section
+            # Add to section and mark as seen
             sections[section_name]["entries"].append({
                 "id": entry.id,
                 "title": entry.title,
@@ -414,6 +422,7 @@ class TwoTierMemoryManager:
                 "type": entry.type.value,
                 "tier": entry.tier.value if hasattr(entry, 'tier') else "operational"
             })
+            seen_titles.add(title_norm)
 
         return sections
 

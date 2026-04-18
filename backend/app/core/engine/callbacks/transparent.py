@@ -14,6 +14,7 @@ from typing import Any
 
 from langchain_core.callbacks import AsyncCallbackHandler
 from langchain_core.outputs import LLMResult
+from pydantic import Field
 
 from app.core.tools.registry import (
     get_tool_affected_paths,
@@ -39,18 +40,18 @@ class StreamEventType(Enum):
     COMPLETE = "complete"
 
 
+def _utc_now_iso() -> str:
+    from datetime import datetime
+    return datetime.utcnow().isoformat()
+
+
 class StreamEvent(DynamicBaseModel):
     """A structured streaming event for frontend consumption."""
     type: str
     message: str
     data: dict | None = None
     progress: int | None = None
-    timestamp: str | None = None
-
-    def model_post_init(self, __context):
-        if self.timestamp is None:
-            from datetime import datetime
-            self.timestamp = datetime.utcnow().isoformat()
+    timestamp: str = Field(default_factory=_utc_now_iso)
 
     def to_json(self) -> str:
         """Convert to JSON string for SSE."""
@@ -86,8 +87,6 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
         self.tool_task_id = None  # Legacy: single tool task (for sync compatibility)
         self._tool_task_ids: dict[str, int] = {}  # run_id -> task_id mapping for parallel tools
         self.active_llm_run_id = None
-        self._current_phase_task_id = None
-        self._active_nodes = {}
 
         # Stream tracking
         self._current_stream_buffer = ""
@@ -165,24 +164,21 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
             if self.llm_task_id and run_id == self.active_llm_run_id:
                 # Defensive: Handle structured tokens (Anthropic/Kimi sending dicts/lists)
                 if not isinstance(token, str):
-                    try:
-                        if isinstance(token, list):
-                            parts = []
-                            for t in token:
-                                if isinstance(t, dict):
-                                    if "partial_json" in t:
-                                        parts.append(t["partial_json"])
-                                    elif "text" in t:
-                                        parts.append(t["text"])
-                                else:
-                                    parts.append(str(t))
-                            token = "".join(parts)
-                        elif isinstance(token, dict):
-                            token = token.get("partial_json") or token.get("text") or ""
-                        else:
-                            token = str(token)
-                    except Exception:
-                        token = ""
+                    if isinstance(token, list):
+                        parts = []
+                        for t in token:
+                            if isinstance(t, dict):
+                                if "partial_json" in t:
+                                    parts.append(t["partial_json"])
+                                elif "text" in t:
+                                    parts.append(t["text"])
+                            else:
+                                parts.append(str(t))
+                        token = "".join(parts)
+                    elif isinstance(token, dict):
+                        token = token.get("partial_json") or token.get("text") or ""
+                    else:
+                        token = str(token)
 
                 self._current_stream_buffer += token
 
@@ -241,14 +237,17 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
 
                 # Flush on Newline OR > 50 chars
                 if "\n" in content_to_stream or len(self._publish_buffer) > 50:
-                    try:
-                        if hasattr(self.monitor, "client") and self.monitor.client:
+                    if hasattr(self.monitor, "client") and self.monitor.client:
+                        try:
                             await self.monitor.client.publish(
                                 f"chat:{self.thread_id}:events",
                                 TokenEvent(content=self._publish_buffer).json(),
                             )
-                        self._publish_buffer = ""
+                        except Exception:
+                            pass
+                    self._publish_buffer = ""
 
+                    try:
                         await self.monitor.update_step(
                             self.thread_id,
                             self.llm_task_id,
@@ -262,14 +261,14 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
         """Run when LLM ends running."""
         # FLUSH REMAINING BUFFER
         if hasattr(self, "_publish_buffer") and self._publish_buffer:
-            try:
-                if self.thread_id and self.monitor and hasattr(self.monitor, "client"):
+            if self.thread_id and self.monitor and hasattr(self.monitor, "client"):
+                try:
                     await self.monitor.client.publish(
                         f"chat:{self.thread_id}:events",
                         TokenEvent(content=self._publish_buffer).json(),
                     )
-            except Exception:
-                pass
+                except Exception:
+                    pass
             self._publish_buffer = ""
 
         run_id = kwargs.get("run_id")
@@ -283,10 +282,20 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
         logger.error(f"LLM Error in thread {self.thread_id}: {error}", exc_info=True)
 
         run_id = kwargs.get("run_id")
-        # Note: We no longer record "Thinking..." steps, so no update needed
         if run_id == self.active_llm_run_id:
             self.active_llm_run_id = None
             self._current_stream_buffer = ""
+
+        # Emit structured stream event so the UI (steps area) shows failure
+        try:
+            await self._publish_stream_event(StreamEvent(
+                type=StreamEventType.TOOL_ERROR.value,
+                message=str(error),
+                data={"source": "llm", "success": False}
+            ))
+            logger.info(f"[TransparentCallback] Published error event for thread {self.thread_id}")
+        except Exception as e:
+            logger.error(f"[TransparentCallback] Failed to publish error event for thread {self.thread_id}: {e}")
 
     async def on_tool_start(self, serialized: dict[str, Any], input_str: str, **kwargs: Any) -> None:
         """Run when tool starts running."""
@@ -303,16 +312,15 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
 
         # Parse input data first (fixes pre-existing use-before-assign bug)
         data = None
-        try:
-            if input_str.strip().startswith("{"):
-                data = json.loads(input_str)
-        except Exception:
-            pass
-        if data is None:
+        if input_str.strip().startswith("{"):
             try:
-                if input_str.strip().startswith("{"):
-                    data = ast.literal_eval(input_str)
-            except Exception:
+                data = json.loads(input_str)
+            except (json.JSONDecodeError, ValueError):
+                pass
+        if data is None and input_str.strip().startswith("{"):
+            try:
+                data = ast.literal_eval(input_str)
+            except (ValueError, SyntaxError):
                 pass
 
         summary_template = metadata.get("summary_template")
@@ -321,7 +329,7 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
             try:
                 args = data if isinstance(data, dict) else {}
                 friendly_name = i18n.get(summary_template, **args)
-            except Exception:
+            except (KeyError, TypeError):
                 pass
 
         # Always write to ActivityMonitor for full runtime observability.
@@ -363,22 +371,22 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
         # Handle special tool types (only applies to visible tools)
         if self.thread_id and not is_hidden:
             if tool_name == "task_boundary":
-                try:
-                    if isinstance(data, dict):
-                        mode = data.get("Mode")
-                        tname = data.get("TaskName")
-                        tstatus = data.get("TaskStatus")
-                        if mode and tname:
+                if isinstance(data, dict):
+                    mode = data.get("Mode")
+                    tname = data.get("TaskName")
+                    tstatus = data.get("TaskStatus")
+                    if mode and tname:
+                        try:
                             await self.monitor.update_agent_state(self.thread_id, mode, tname, tstatus)
-                except Exception:
-                    pass
+                        except Exception:
+                            pass
 
             if is_state_mutating_tool(tool_name):
-                try:
-                    if isinstance(data, dict):
-                        affected_paths = get_tool_affected_paths(tool_name, data)
-                        if affected_paths:
-                            fname = affected_paths[0]
+                if isinstance(data, dict):
+                    affected_paths = get_tool_affected_paths(tool_name, data)
+                    if affected_paths:
+                        fname = affected_paths[0]
+                        try:
                             await self.monitor.add_artifact(
                                 self.thread_id,
                                 fname.split("/")[-1],
@@ -386,15 +394,15 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
                                 "pending",
                                 fname,
                             )
-                except Exception:
-                    pass
+                        except Exception:
+                            pass
 
             if metadata.get("is_memory_tool"):
+                args = data if isinstance(data, dict) else {}
+                action = args.get("action", "")
+                key = args.get("key") or args.get("query") or args.get("name") or "Unknown"
+                memory_name = f"{action or tool_name}: {key[:30]}"
                 try:
-                    args = data if isinstance(data, dict) else {}
-                    action = args.get("action", "")
-                    key = args.get("key") or args.get("query") or args.get("name") or "Unknown"
-                    memory_name = f"{action or tool_name}: {key[:30]}"
                     await self.monitor.set_active_memory(self.thread_id, f"tool-{tool_name}", memory_name)
                 except Exception:
                     pass

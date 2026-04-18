@@ -13,19 +13,29 @@ cleanup of trace data during rewind operations.
 
 import logging
 
-from app.core.checkpoint.rewind.events import (
-    RewindEventType,
-    RewindRequestedEvent,
-    TraceCleanupEvent,
-)
+from pydantic import Field
 from sqlalchemy import delete, select
 
+from app.core.engine.rewind.events import RewindEvent, RewindEventType, RewindRequestedEvent
 from app.core.events.base import AsyncEventBus
 from app.core.events.decorators import event_register, event_subscribe
 from app.infrastructure.database.sql.database import session_scope
 
 logger = logging.getLogger(__name__)
 
+
+
+class TraceCleanupEvent(RewindEvent):
+    """Published to trigger trace event deletion."""
+    source_message_ids: list[str] = Field(default_factory=list)
+
+    def model_post_init(self, __context) -> None:
+        self.event_type = RewindEventType.TRACE_CLEANUP
+        self.data = {
+            "thread_id": self.thread_id,
+            "source_message_ids": self.source_message_ids,
+            "count": len(self.source_message_ids),
+        }
 
 @event_register()
 class TraceRewind:

@@ -2,8 +2,9 @@
 Memory Module Lifecycle Handlers
 Handles application-level shutdown and session completion events for memory.
 """
-import logging
 import asyncio
+import logging
+
 from app.core.events import SystemEventType
 from app.core.events.decorators import event_register, event_subscribe
 from app.core.events.schema import SessionCompletedEvent

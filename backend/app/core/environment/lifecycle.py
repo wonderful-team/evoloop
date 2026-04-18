@@ -3,6 +3,7 @@ Environment Module Lifecycle Handlers
 Handles application-level startup and shutdown events.
 """
 import logging
+
 from app.core.events import SystemEventType
 from app.core.events.decorators import event_register, event_subscribe
 

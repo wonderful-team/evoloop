@@ -66,6 +66,7 @@ class SubtaskResult(DynamicBaseModel):
 class AuditMeta(DynamicBaseModel):
     tier: str
     duration_ms: float | None = None
+    tools: list[str] | None = None
 
 
 class BlackboardMetadata(DynamicBaseModel):

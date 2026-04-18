@@ -1,5 +1,6 @@
 import logging
-from typing import Any, Optional
+from typing import Optional
+
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
@@ -32,16 +33,21 @@ class LLMErrorHandler:
 
         error_str = str(e).lower()
         error_full = str(e)
-        exc_name = type(e).__name__.lower()
-        
+
         error_type = "llm_invocation_system"
         status_code = None
         is_terminal = False
 
         # 1. Detection Logic
         
+        # [Circuit Breaker] Side-channel terminal error
+        from app.core.exceptions import AgentTerminalException
+        if isinstance(e, AgentTerminalException):
+            error_type = e.error_type
+            is_terminal = True
+        
         # [Platform Auth] EvoLoop platform auth errors
-        if "not authenticated with evoloop" in error_str or "please login first" in error_str:
+        elif "not authenticated with evoloop" in error_str or "please login first" in error_str:
             error_type = "auth_expired"
             status_code = 401
             is_terminal = True
@@ -83,6 +89,11 @@ class LLMErrorHandler:
         # [Config] General invalid config
         elif "invalid_config" in error_str or "configuration" in error_str:
             error_type = "invalid_config"
+            is_terminal = True
+
+        # [Control] Recursion / Loop detection
+        elif "recursion limit exceeded" in error_str or "stuck in a loop" in error_str:
+            error_type = "recursion_limit"
             is_terminal = True
 
         # 2. Localized Content Retrieval

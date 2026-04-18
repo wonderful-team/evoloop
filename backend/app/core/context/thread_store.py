@@ -35,26 +35,29 @@ class ThreadContextStore:
         self._thread_projects: dict[str, int] = {}
         # Mapping: thread_id -> temporary project_id (for Scheme C)
         self._thread_temp_projects: dict[str, int] = {}
+        # Legacy compatibility for plugins
+        self._default_root = None
 
-        # Default fallback directory (from Settings/DB)
-        # Handle case where database tables don't exist yet (first startup)
-        try:
-            db_root = SystemConfigService.get_value("WORKSPACE_ROOT")
-        except Exception as e:
-            logger.debug(f"Could not read WORKSPACE_ROOT from DB (tables may not exist yet): {e}")
-            db_root = None
+        logger.info("ThreadContextStore initialized.")
 
-        fallback_root = db_root if db_root else settings.WORKSPACE_ROOT
+    @property
+    def default_root(self) -> str:
+        """
+        Get the default root directory.
+        Lazily attempts to load from DB, falling back to settings or home dir.
+        """
+        # 1. 优先从数据库获取（通过 SystemConfigService）
+        # 如果数据库未就绪，SystemConfigService 会返回默认值（None）
+        db_root = SystemConfigService.get_value("WORKSPACE_ROOT")
+        if db_root:
+            return os.path.abspath(db_root)
 
-        if fallback_root:
-            self._default_root = os.path.abspath(fallback_root)
-        else:
-            # No workspace configured yet, use home dir as placeholder
-            # User will be prompted to configure WORKSPACE_ROOT during setup
-            self._default_root = os.path.expanduser("~")
-            logger.warning("WORKSPACE_ROOT not configured. Using home directory as placeholder.")
+        # 2. 备选方案：从 Settings 获取
+        if settings.WORKSPACE_ROOT:
+            return os.path.abspath(settings.WORKSPACE_ROOT)
 
-        logger.info(f"ThreadContextStore initialized. Default root: {self._default_root}")
+        # 3. 最终回退：用户主目录
+        return os.path.expanduser("~")
 
     def set_working_directory(self, thread_id: str, path: str):
         """Set the working directory for a specific thread."""
@@ -82,7 +85,7 @@ class ThreadContextStore:
         path = self._thread_contexts.get(thread_id)
         if path:
             return path
-        return self._default_root
+        return self.default_root
 
     def get_active_project(self, thread_id: str) -> int | None:
         """Get the active project ID for a specific thread."""

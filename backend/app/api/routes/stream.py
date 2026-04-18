@@ -11,8 +11,8 @@ from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 
 from app.api.deps import verify_guest_access
-from app.core.monitoring.activity import activity_monitor
 from app.core.engine.state.history import ToolStep
+from app.core.monitoring.activity import activity_monitor
 from app.infrastructure.cache import cache
 
 logger = logging.getLogger(__name__)

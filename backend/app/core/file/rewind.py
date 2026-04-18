@@ -11,13 +11,10 @@ restoring files to their state before Agent modification.
 import logging
 from pathlib import Path
 
-from app.core.checkpoint.rewind.events import (
-    FilesCleanupEvent,
-    RewindEventType,
-    RewindRequestedEvent,
-)
+from pydantic import Field
 from sqlalchemy import delete, select
 
+from app.core.engine.rewind.events import RewindEvent, RewindEventType, RewindRequestedEvent
 from app.core.events.base import AsyncEventBus
 from app.core.events.decorators import event_register, event_subscribe
 from app.infrastructure.database.sql.database import session_scope
@@ -25,6 +22,18 @@ from app.models.file_operation import FileOperation
 
 logger = logging.getLogger(__name__)
 
+
+
+class FilesCleanupEvent(RewindEvent):
+    """Published to trigger file restoration."""
+    file_operations: list[dict] = Field(default_factory=list)
+
+    def model_post_init(self, __context) -> None:
+        self.event_type = RewindEventType.FILES_CLEANUP
+        self.data = {
+            "thread_id": self.thread_id,
+            "operation_count": len(self.file_operations),
+        }
 
 @event_register()
 class FileRewind:

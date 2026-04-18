@@ -14,10 +14,7 @@ Features:
 
 import asyncio
 import logging
-from pathlib import Path
 from typing import Any, Callable, Optional
-
-from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -125,8 +122,9 @@ class HueyTaskScheduler(TaskScheduler, SyncTaskMixin):
 
     def _init_huey(self):
         """Initialize Huey with SQLite storage."""
-        # Use ~/.evoloop/task_queue.db for task storage
-        db_path = Path(settings.SQLITE_PATH).parent / "task_queue.db"
+        # Use managed path from DatabaseResourceManager
+        from app.infrastructure.database.resource_manager import db_resource_manager
+        db_path = db_resource_manager.task_queue_path
         db_path.parent.mkdir(parents=True, exist_ok=True)
         
         self._huey = SqliteHuey(
@@ -140,7 +138,7 @@ class HueyTaskScheduler(TaskScheduler, SyncTaskMixin):
             store_none=False,
         )
         
-        logger.info(f"[Huey] Initialized with SQLite at {db_path}")
+        logger.info(f"[Huey] Initialized with SQLite at {db_path} via ResourceManager")
 
     def task(
         self,
@@ -231,6 +229,9 @@ class HueyTaskScheduler(TaskScheduler, SyncTaskMixin):
             asyncio.set_event_loop(loop)
         
         try:
+            from app.infrastructure.database.resource_manager import db_resource_manager
+            loop.run_until_complete(db_resource_manager.initialize(create_tables=False, seed_data=False))
+            
             if bind:
                 result = loop.run_until_complete(func(None, *args, **kwargs))
             else:
@@ -300,7 +301,7 @@ class HueyTaskScheduler(TaskScheduler, SyncTaskMixin):
 
     def _load_task_module(self, task_name: str) -> bool:
         """Load task module dynamically."""
-        from app.infrastructure.queue.celery import TASK_MODULE_MAP
+        from app.infrastructure.queue.registry import TASK_MODULE_MAP
         
         if task_name in TASK_MODULE_MAP:
             module_path = TASK_MODULE_MAP[task_name]
@@ -364,7 +365,7 @@ class HueyTaskScheduler(TaskScheduler, SyncTaskMixin):
     
     def _preload_task_modules(self):
         """Pre-load all task modules to register tasks in worker process."""
-        from app.infrastructure.queue.celery import TASK_MODULE_MAP
+        from app.infrastructure.queue.registry import TASK_MODULE_MAP
         
         logger.info("[Huey] Pre-loading task modules...")
         loaded_count = 0

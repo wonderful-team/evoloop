@@ -12,8 +12,9 @@ With dependency injection (for testing):
     result = await engine.run_node(...)
 """
 
-from app.core.engine.engine import AgentEngine, EngineResult, get_default_engine, set_default_engine
-from app.core.engine.message_utils import repair_message_history
+# Use lazy imports to avoid triggering heavy module loads on
+# submodule imports (e.g., app.core.engine.rewind.events).
+# This is critical for test environments where heavy deps are mocked.
 
 __all__ = [
     "AgentEngine",
@@ -22,3 +23,19 @@ __all__ = [
     "set_default_engine",
     "repair_message_history",
 ]
+
+_import_map = {
+    "AgentEngine": ("app.core.engine.engine", "AgentEngine"),
+    "EngineResult": ("app.core.engine.engine", "EngineResult"),
+    "get_default_engine": ("app.core.engine.engine", "get_default_engine"),
+    "set_default_engine": ("app.core.engine.engine", "set_default_engine"),
+    "repair_message_history": ("app.core.engine.message_utils", "repair_message_history"),
+}
+
+
+def __getattr__(name: str):
+    if name in _import_map:
+        module_path, obj_name = _import_map[name]
+        module = __import__(module_path, fromlist=[obj_name])
+        return getattr(module, obj_name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

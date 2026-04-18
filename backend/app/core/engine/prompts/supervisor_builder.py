@@ -6,9 +6,6 @@ Allows for dynamic context injection and potential LLM-specific adaptations.
 """
 import json
 import logging
-
-from langchain_core.runnables import RunnableConfig
-
 from typing import Any
 
 from langchain_core.runnables import RunnableConfig
@@ -58,7 +55,6 @@ class SupervisorPromptBuilder:
         user_lang = SystemConfigService.get_language_preference()
         actual_cwd = get_mapped_cwd(ctx.working_directory or ctx.metadata.get("cwd", ""))
         mode = get_sandbox_mode()
-        project_concepts = ctx.metadata.get("project_concepts", "")
 
         # 2. Protocol & Sys Info Prep (STATIC parts only)
         is_global_mode = self.project_id == 0 or self.project_id is None
@@ -101,8 +97,6 @@ class SupervisorPromptBuilder:
                 active_plan_data = None
 
         env_block = ctx.environment_block or ""
-        topic = (blackboard.ticket.topic if blackboard and blackboard.ticket else "")
-
         template_vars = {
             "iteration_count": self.iteration_count,
             "environment_block": env_block,

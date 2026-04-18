@@ -9,7 +9,6 @@ Inspired by Claude Code's extractMemories.ts, this module implements:
 """
 
 import asyncio
-import itertools
 import json
 import logging
 import os
@@ -21,6 +20,7 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMe
 
 from app.core.config import settings
 from app.core.memory.models import MemoryEntry, MemoryType, PrivacyLevel
+from app.utils import render_template
 
 logger = logging.getLogger(__name__)
 

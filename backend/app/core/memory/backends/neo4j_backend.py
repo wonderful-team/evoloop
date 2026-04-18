@@ -29,8 +29,6 @@ from app.core.memory.models import (
     MemoryTier,
 )
 
-logger = logging.getLogger(__name__)
-
 # Optional Neo4j import
 try:
     from neo4j import AsyncGraphDatabase
@@ -39,7 +37,8 @@ try:
     HAS_NEO4J = True
 except ImportError:
     HAS_NEO4J = False
-    logger.warning("Neo4j driver not available. Neo4jMemoryStorage will not function.")
+
+logger = logging.getLogger(__name__)
 
 
 class Neo4jMemoryStorage(IMemoryStorage):
@@ -77,6 +76,7 @@ class Neo4jMemoryStorage(IMemoryStorage):
         self._driver = None
 
         if not HAS_NEO4J:
+            logger.warning("Neo4j driver not available. Neo4jMemoryStorage will not function.")
             raise StorageError(
                 "Neo4j driver not installed. "
                 "Install with: pip install neo4j"

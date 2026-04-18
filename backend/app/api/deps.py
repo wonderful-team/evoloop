@@ -7,9 +7,9 @@ from fastapi.security import OAuth2PasswordBearer
 from sqlmodel import Session
 
 from app.core.config import settings
-from app.core.db import engine
 from app.core.evocloud import evocloud_manager
 from app.core.identity import decode_local_jwt, identity_service
+from app.infrastructure.database.resource_manager import db_resource_manager
 from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.models import User
 from app.services.benefit_service import benefit_service
@@ -46,7 +46,7 @@ async def verify_device_token(authorization: str = Header(..., description="Bear
 
 
 def get_db() -> Generator[Session, None, None]:
-    with Session(engine) as session:
+    with Session(db_resource_manager.sync_engine) as session:
         yield session
 
 

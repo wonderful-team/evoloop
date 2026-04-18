@@ -1,11 +1,12 @@
 import logging
+
 from langchain_core.runnables import RunnableConfig
 
 from app.core.engine.routers import RoutingTarget
-from ..schema import SpawnSubtasksSignal, TerminateSignal
-from app.core.engine.state import AgentState, StateUpdate
-from app.core.engine.state.blackboard import BlackboardMetadata, BlackboardState, SpawnPlan
 from app.core.engine.signals.base import SignalHandler
+from app.core.engine.state import AgentState, StateUpdate
+from app.core.engine.state.blackboard import BlackboardMetadata
+from ..schema import SpawnSubtasksSignal, TerminateSignal
 
 logger = logging.getLogger(__name__)
 
@@ -53,17 +54,3 @@ class TerminateHandler(SignalHandler[TerminateSignal]):
             next_node=RoutingTarget.FINISH,
             blackboard=blackboard
         )
-
-
-def create_spawn_subtasks_signal_from_decompose(args: dict) -> SpawnSubtasksSignal:
-    """
-    Factory for SpawnSubtasksSignal from decompose_task tool output/arguments.
-    Note: decompose_task normally returns a spawn plan in its output.
-    This factory will be used for pre-execution interception if we move it there,
-    or after-execution processing.
-    """
-    # For now, we'll keep the logic of extracting from 'result' if handled after execution
-    # but the factory typically expects the arguments.
-    # If it's a pre-execution interception, we can't get the plan results yet.
-    # Therefore, we'll implement a combined signal extractor in SignalManager later.
-    return SpawnSubtasksSignal()

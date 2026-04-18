@@ -2,6 +2,8 @@
 Signals Package - Registry-based control flow management for EvoLoop Agents.
 """
 
+from .dispatcher import SignalDispatcher
+from .manager import signal_manager
 from .schema import (
     AgentSignal,
     RouteToSignal,
@@ -9,8 +11,6 @@ from .schema import (
     SpawnSubtasksSignal,
     TerminateSignal,
 )
-from .dispatcher import SignalDispatcher
-from .manager import signal_manager
 
 __all__ = [
     "AgentSignal",

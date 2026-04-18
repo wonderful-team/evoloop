@@ -7,19 +7,18 @@ from langchain_core.messages import AIMessage, RemoveMessage
 from langchain_core.runnables import RunnableConfig
 
 from app.constants import DEFAULT_PROJECT_ID
-from app.core.checkpoint.pruner import auto_prune_on_completion
 from app.core.config import settings
 from app.core.context.manager import ContextManager
 from app.core.engine import get_default_engine
+from app.core.engine.checkpoint.pruner import auto_prune_on_completion
 from app.core.engine.prompts.finish import FinishPromptBuilder
 from app.core.engine.routers import RoutingTarget
-from app.core.engine.state import AgentState, StateUpdate, ExecutionTicket
+from app.core.engine.state import AgentState, StateUpdate
 from app.core.engine.state.blackboard import AuditMeta, BlackboardState, VerificationStatus
-from app.core.events import system_bus, SystemEventType
+from app.core.events import system_bus
 from app.core.events.schema import SessionCompletedEvent, SessionCompletedData
 from app.core.tools.manager import tool_manager
 from app.i18n.service import i18n
-from app.utils.id import gen_uuid
 
 logger = logging.getLogger(__name__)
 
@@ -220,7 +219,6 @@ class LayeredAuditor:
                 break
 
         # Use FinishPromptBuilder for consistency
-        from app.core.engine.prompts.finish import FinishPromptBuilder
         builder = FinishPromptBuilder(
             current_plan=state.current_plan or "",
             execution_ticket=blackboard.ticket,
@@ -439,7 +437,7 @@ class FinishNode:
                         blackboard=blackboard,
                     )
             except Exception as e:
-                logger.warning(f"[Finish] Stop hook failed: {e}")
+                logger.exception(f"[Finish] Stop hook failed: {e}")
 
             # 3. Successful path -> Trigger SIDE EFFECTS (Decoupled Events)
             logger.info(f"[Finish] ✅ {audit_tier.upper()} audit complete: {total_duration:.0f}ms. Finalizing session...")
@@ -483,10 +481,7 @@ class FinishNode:
                 logger.info(f"[Finish] 🗑️ Removed {len(removed_ids)} previous auditor messages")
 
             # 4. Automatic State Pruning (Prevention of bloat)
-            try:
-                asyncio.create_task(auto_prune_on_completion(effective_thread_id))
-            except Exception as e:
-                logger.debug(f"[Finish] Pruning background task failed to start: {e}")
+            asyncio.create_task(auto_prune_on_completion(effective_thread_id))
 
             return StateUpdate(
                 messages=messages_to_return,

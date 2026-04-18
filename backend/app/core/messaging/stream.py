@@ -37,9 +37,9 @@ class MessageStreamPolicy:
         MessageCategory.INTERNAL_REASONING: (True, "thought"),  # 思考过程推送（可选显示）
         MessageCategory.INTERNAL_SYSTEM: (False, None),
         MessageCategory.INTERNAL_LLM_JSON: (False, None),
-        MessageCategory.ERROR_SYSTEM: (False, None),  # 系统错误不流式推送
-        MessageCategory.AUTH_EXPIRED: (False, None),  # EvoLoop认证过期不流式推送
-        MessageCategory.ERROR_BUSINESS: (False, None),  # 业务错误不流式推送
+        MessageCategory.ERROR_SYSTEM: (True, "error"),  # 系统错误流式推送
+        MessageCategory.AUTH_EXPIRED: (True, "auth_expired"),  # EvoLoop认证过期流式推送
+        MessageCategory.ERROR_BUSINESS: (True, "error"),  # 业务错误流式推送
     }
 
     @classmethod

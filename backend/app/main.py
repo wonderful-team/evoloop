@@ -1,36 +1,23 @@
-import asyncio
 import logging
 import os
 import time
 from contextlib import asynccontextmanager
-from typing import Any, cast
 
 import sentry_sdk
 from fastapi import FastAPI
 from fastapi.routing import APIRoute
 from fastapi.staticfiles import StaticFiles
-from sqlalchemy import text
 from starlette.middleware.cors import CORSMiddleware
 
 from app.api.main import api_router
 from app.core.config import settings
 from app.core.context.middleware import ContextMiddleware
 
-# Checkpointer imports - PostgreSQL for full mode, SQLite for embedded mode
-if settings.EMBEDDED_MODE:
-    from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver as Checkpointer
-else:
-    from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver as Checkpointer
-    from psycopg_pool import AsyncConnectionPool
-
 # EvoLoop Imports
 from app.core.context import thread_context_store
 from app.core.engine.graph_builder import GraphBuilder
 from app.core.globals import set_graph
-from app.core.persistence import set_checkpointer, set_db_pool
-from app.infrastructure.database.sql.database import Base, engine
-from app.initial_data import init as init_data
-from sqlmodel import SQLModel
+from app.infrastructure.database.resource_manager import db_resource_manager
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -48,26 +35,10 @@ async def lifespan(app: FastAPI):
     startup_time = time.time()
     logger.info("Initializing EvoLoop resources...")
 
-    # 1. DB Init
-    if settings.EMBEDDED_MODE:
-        logger.info("[lifespan] Embedded mode detected. Creating SQLite tables...")
-        from app import models  # noqa: F401
-        from app.domain.project.requirements import models as _req_models  # noqa: F401
-
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
-            await conn.run_sync(SQLModel.metadata.create_all)
-        logger.info("[lifespan] SQLite tables created successfully")
-    else:
-        logger.info("[lifespan] Full mode detected. Initializing PostgreSQL...")
-        async with engine.begin() as conn:
-            await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
-            await conn.run_sync(Base.metadata.create_all)
-            await conn.run_sync(SQLModel.metadata.create_all)
-        logger.info("[lifespan] PostgreSQL initialized")
-
-    # 1.5 Seed Initial Data (System Config)
-    await asyncio.to_thread(init_data)
+    # 1. Persistence & Database (Unified Resource Management)
+    # This single call handles: Engine Init, Table Creation, and Data Seeding.
+    await db_resource_manager.initialize(create_tables=True, seed_data=True)
+    checkpointer = db_resource_manager.checkpointer
 
     # 2. Memory System Init
     try:
@@ -86,26 +57,9 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Agent Awakening/Discovery failed (non-critical): {e}")
 
-    # 3. Persistence (Checkpointer)
-    db_uri = settings.CHECKPOINTER_DATABASE_URI
-    db_pool = None
-    _sqlite_conn = None
-
-    if settings.EMBEDDED_MODE:
-        import aiosqlite
-        sqlite_path = db_uri.replace("sqlite+aiosqlite:///", "").replace("sqlite://", "")
-        _sqlite_conn = await aiosqlite.connect(sqlite_path)
-        checkpointer = Checkpointer(conn=_sqlite_conn)
-        await checkpointer.setup()
-        logger.info("[lifespan] SQLite checkpointer initialized")
-    else:
-        db_pool = AsyncConnectionPool(conninfo=db_uri, max_size=20, kwargs={"autocommit": True}, open=False)
-        await db_pool.open()
-        checkpointer = Checkpointer(db_pool)
-        await checkpointer.setup()
-        set_db_pool(cast(Any, db_pool))
-
-    set_checkpointer(checkpointer)
+    # 3. Persistence & Database (Unified Resource Manager)
+    await db_resource_manager.initialize()
+    checkpointer = db_resource_manager.checkpointer
 
     # 4. Engine Graph (Dynamic Build)
     try:
@@ -149,12 +103,8 @@ async def lifespan(app: FastAPI):
         logger.error(f"[Shutdown] Failed to publish APP_STOPPING event: {e}")
     
     # 2. Cleanup Core Infrastructure (Infrastructure MUST be last)
-    # Close database connections (Checkpointer & Main DB)
-    if db_pool:
-        await db_pool.close()
-    if _sqlite_conn:
-        await _sqlite_conn.close()
-        logger.info("SQLite checkpointer connection closed")
+    await db_resource_manager.shutdown()
+    logger.info("Database resources closed")
 
     logger.info("EvoLoop shutdown complete.")
 

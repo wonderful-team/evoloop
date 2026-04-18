@@ -8,8 +8,6 @@ from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool as langchain_tool
 from pydantic import Field
 
-from app.core.config import settings
-from app.core.context.manager import ContextManager
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
@@ -45,6 +43,7 @@ def get_working_directory(config: RunnableConfig | None = None) -> str:
     3. os.getcwd()
     """
     # 1. Check ContextVar
+    from app.core.context.manager import ContextManager
     ctx = ContextManager.current()
     if ctx.working_directory:
         return ctx.working_directory
@@ -56,6 +55,7 @@ def get_working_directory(config: RunnableConfig | None = None) -> str:
             return wd
 
     # 3. Fallback to SystemConfig WORKSPACE_ROOT
+    from app.core.config import settings
     try:
         from app.infrastructure.config.service import SystemConfigService
         db_workspace_root = SystemConfigService.get_value("WORKSPACE_ROOT")
@@ -121,6 +121,7 @@ def evoloop_tool(
                 logger.info(f"🔧 Tool [{func.__name__}] Invoked - Args: {args_f}, Kwargs: {kwargs_f}")
 
                 # 权限检查
+                from app.core.context.manager import ContextManager
                 if config.required_benefit:
                     from app.api.deps import check_benefit, create_benefit_error_detail
                     from app.core.identity import identity_service

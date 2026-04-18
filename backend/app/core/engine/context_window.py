@@ -312,7 +312,6 @@ class ContextWindowManager:
 
         checkpoint_id = None
         if hook_result.success and hook_result.data:
-            checkpoint = hook_result.data.get("checkpoint", {})
             checkpoint_id = hook_result.data.get("checkpoint_id")
             skipped = hook_result.data.get("skipped", False)
             if skipped:

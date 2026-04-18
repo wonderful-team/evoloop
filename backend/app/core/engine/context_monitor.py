@@ -80,20 +80,6 @@ class ContextStats(DynamicBaseModel):
         """Check if context is critically full."""
         return self.usage_ratio >= CONTEXT_CRITICAL_THRESHOLD
 
-    def suggest_forgetting(self) -> list[str]:
-        """
-        Identify tool_call_ids that should be forgotten to free space.
-        Only considers tools older than FORGET_SAFETY_WINDOW.
-        """
-        if not self.is_near_limit():
-            return []
-
-        # Filter for candidates
-
-        # We need the full list from stats, which calculate() produces
-        # But stats only has last 5. We need to find them from the messages.
-        return [] # Logic moved to calculate or similar
-
 
 class ContextMonitor:
     """Monitors and reports context usage for Agent awareness."""

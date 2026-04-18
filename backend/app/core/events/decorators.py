@@ -6,7 +6,7 @@ Provides decorators for automatic event handler registration.
 
 Usage:
     from app.core.events.decorators import event_subscribe, event_register
-    from app.core.checkpoint.rewind.events import RewindEventType
+    from app.core.engine.rewind.events import RewindEventType
     
     @event_register()
     class FileRewind:

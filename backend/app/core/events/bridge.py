@@ -3,6 +3,7 @@ Event Bridge Handler
 """
 import json
 import logging
+
 from app.core.events.base import BaseEvent
 from app.core.events.decorators import event_register, event_subscribe_all
 

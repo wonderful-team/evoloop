@@ -24,10 +24,11 @@ async def handle_remote_command(command: RemoteCommand):
         if thread_id and response is not None:
             logger.info(f"[EvoLoop] Processing HITL Response for thread {thread_id}: {response}")
 
-            inputs = {
-                "hitl_resume_response": response,
-                "command_id": command.get("command_id")
-            }
+            from app.core.engine.background_agent import BackgroundAgentInputs
+            inputs = BackgroundAgentInputs(
+                hitl_resume_response=response,
+                command_id=command.get("command_id")
+            )
             asyncio.create_task(run_agent_background(thread_id, inputs))
         return
 
@@ -85,11 +86,12 @@ async def handle_remote_command(command: RemoteCommand):
         else:
             messages = [{"type": "human", "content": message}]
 
-        inputs = {
-            "messages": messages,
-            "project_id": project_id,
-            "command_id": command.get("command_id"),
-        }
+        from app.core.engine.background_agent import BackgroundAgentInputs
+        inputs = BackgroundAgentInputs(
+            messages=messages,
+            project_id=project_id,
+            command_id=command.get("command_id"),
+        )
 
         # Log User Message to Detailed Logs (For Tool/Thought View consistency)
         asyncio.create_task(

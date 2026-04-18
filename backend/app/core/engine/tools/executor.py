@@ -14,7 +14,6 @@ from pydantic import BaseModel
 
 from app.core.engine.hooks import HookContext, HookEvent, ToolResult, hook_system
 from app.core.engine.state import AgentState, RunnableConfigMetadata
-from app.core.tools.executor import ToolExecutor as _ToolExecutor
 from app.infrastructure.queue.factory import get_scheduler
 from app.utils.diff import diff_tracker
 from app.utils.id import gen_uuid
@@ -46,12 +45,13 @@ class AgentToolExecutor:
         enable_diff_tracking: bool = True,
     ):
         from app.core.engine.state import ensure_state
+        from app.core.tools.executor import ToolExecutor
         self.tool_map = tool_map
         self.state = ensure_state(state)
         self.config = config
         self.name = name
         self.enable_diff_tracking = enable_diff_tracking
-        self._tool_executor = _ToolExecutor()
+        self._tool_executor = ToolExecutor()
         self._history_lock = asyncio.Lock()  # Lock for thread-safe local_tool_history access
 
     async def execute_tool(

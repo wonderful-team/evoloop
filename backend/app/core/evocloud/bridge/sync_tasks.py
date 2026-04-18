@@ -172,6 +172,12 @@ async def full_sync_task(device_id: int, data: dict) -> dict:
             raise Exception(f"Full sync failed: {error_msg}")
 
     except Exception as e:
+        # Avoid noisy tracebacks for connectivity issues in restricted environments
+        err_str = str(e).lower()
+        if any(kw in err_str for kw in ("connect", "unreachable", "timeout", "socket", "network")):
+            logger.warning(f"[SyncTask] Cloud unreachable during full sync (device={device_id}). Skipping noisy retry.")
+            return {"code": -1, "message": "Cloud unreachable"}
+            
         logger.error(
             f"[SyncTask] Exception in full sync: "
             f"{type(e).__name__}: {e}"

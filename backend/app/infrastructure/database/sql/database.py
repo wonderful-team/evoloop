@@ -1,49 +1,63 @@
 import logging
 from contextlib import asynccontextmanager
 
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
-
-from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
 
-def create_db_engine():
-    """Create database engine based on configuration (SQLite or PostgreSQL)."""
-    db_uri = settings.SQLALCHEMY_DATABASE_URI
+from app.infrastructure.database.resource_manager import db_resource_manager
 
-    if settings.EMBEDDED_MODE or db_uri.startswith("sqlite"):
-        # SQLite configuration (embedded mode)
-        logger.info(f"[Database] Using SQLite at {settings.SQLITE_PATH}")
-        return create_async_engine(
-            db_uri,
-            echo=settings.DB_ECHO,
-            future=True,
-            # SQLite-specific: disable pool for single-file access
-            connect_args={"check_same_thread": False},
-        )
-    else:
-        # PostgreSQL configuration (full mode)
-        logger.info(f"[Database] Using PostgreSQL at {settings.POSTGRES_SERVER}")
-        return create_async_engine(
-            db_uri,
-            echo=settings.DB_ECHO,
-            future=True,
-            pool_size=50,  # Increased for concurrent indexing
-            max_overflow=100,  # Increased for burst capacity
-        )
+class DatabaseResourceProxy:
+    """
+    Proxy object that delegates all calls and attribute access to the actual 
+    database resource (engine or session factory) only when used.
+    
+    This solves the 'import-time capture of None' problem.
+    """
+    def __init__(self, resource_name: str):
+        self._resource_name = resource_name
+
+    def _get_resource(self):
+        if self._resource_name == "engine":
+            res = db_resource_manager.engine
+        elif self._resource_name == "AsyncSessionLocal":
+            res = db_resource_manager.session_factory
+        else:
+            raise AttributeError(f"Unknown resource name: {self._resource_name}")
+            
+        if res is None:
+            raise RuntimeError(
+                f"Database {self._resource_name} accessed before initialization. "
+                "Ensure await db_resource_manager.initialize() has completed."
+            )
+        return res
+
+    def __call__(self, *args, **kwargs):
+        # Delegate calling (e.g., AsyncSessionLocal())
+        return self._get_resource()(*args, **kwargs)
+
+    def __getattr__(self, name):
+        # Delegate attribute access (e.g., engine.connect())
+        return getattr(self._get_resource(), name)
+
+    def __repr__(self):
+        return f"<DatabaseResourceProxy for {self._resource_name}>"
 
 
-# Create Async Engine
-engine = create_db_engine()
+# --- Dynamic Module-Level Proxy (Python 3.7+) ---
+def __getattr__(name):
+    if name == "engine":
+        return DatabaseResourceProxy("engine")
+    if name == "AsyncSessionLocal":
+        return DatabaseResourceProxy("AsyncSessionLocal")
+    if name == "get_db_session":
+        return session_scope
+    raise AttributeError(f"module {__name__} has no attribute {name}")
 
-# Create Session Factory
-AsyncSessionLocal = async_sessionmaker(
-    bind=engine,
-    class_=AsyncSession,
-    expire_on_commit=False
-)
+
+# For backward compatibility
+get_engine = lambda: db_resource_manager.engine
 
 
 # Base Model
@@ -55,7 +69,7 @@ class Base(DeclarativeBase):
 
 # Dependency for FastAPI
 async def get_db():
-    async with AsyncSessionLocal() as session:
+    async with db_resource_manager.session_factory() as session:
         try:
             yield session
         except Exception as e:
@@ -71,7 +85,7 @@ async def session_scope():
     """
     Provide a transactional scope around a series of operations.
     """
-    async with AsyncSessionLocal() as session:
+    async with db_resource_manager.session_factory() as session:
         try:
             yield session
             await session.commit()
@@ -82,5 +96,4 @@ async def session_scope():
             await session.close()
 
 
-# Alias for compatibility
-get_db_session = session_scope
+# Aliases for compatibility handled by __getattr__

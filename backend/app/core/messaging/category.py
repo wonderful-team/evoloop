@@ -100,7 +100,9 @@ class MessageCategory(str, Enum):
             MessageCategory.ASSISTANT_TOOL_CALL,
             MessageCategory.TOOL_OUTPUT,
             MessageCategory.INTERNAL_REASONING,  # 思考过程实时推送
-            # ERROR_SYSTEM 和 ERROR_BUSINESS 不流式推送，通过 error 事件通知
+            MessageCategory.ERROR_SYSTEM,
+            MessageCategory.ERROR_BUSINESS,
+            MessageCategory.AUTH_EXPIRED,
         }
 
     @property

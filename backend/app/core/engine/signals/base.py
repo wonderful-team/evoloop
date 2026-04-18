@@ -1,9 +1,9 @@
 from abc import ABC, abstractmethod
-from typing import Any, TypeVar, Generic
+from typing import TypeVar, Generic
 
 from langchain_core.runnables import RunnableConfig
 
-from app.core.engine.signals import AgentSignal
+from app.core.engine.signals.schema import AgentSignal
 from app.core.engine.state import AgentState, StateUpdate
 
 S = TypeVar("S", bound=AgentSignal)

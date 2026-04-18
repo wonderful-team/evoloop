@@ -1,13 +1,12 @@
 import logging
 from typing import Any, Callable, Type, TypeVar, Optional
 
-from langchain_core.messages import AIMessage
 from langchain_core.runnables import RunnableConfig
 
 from app.core.engine.message_utils import ToolCall
+from app.core.engine.signals.base import SignalHandler
 from app.core.engine.signals.schema import AgentSignal
 from app.core.engine.state import AgentState, StateUpdate
-from app.core.engine.signals.base import SignalHandler
 
 logger = logging.getLogger(__name__)
 

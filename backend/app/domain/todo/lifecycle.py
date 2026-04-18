@@ -16,8 +16,8 @@ Implementation Strategy:
 """
 
 import logging
-import asyncio
 from typing import List
+
 from pydantic import BaseModel, Field
 
 from app.core.events import SystemEventType

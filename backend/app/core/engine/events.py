@@ -8,7 +8,7 @@ Event types and data classes for agent execution lifecycle.
 from enum import Enum
 from typing import Any
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from app.core.events.base import BaseEvent
 from app.infrastructure.pydantic_base import DynamicBaseModel
@@ -21,7 +21,7 @@ class AgentEventPayload(DynamicBaseModel):
 class AgentEventType(str, Enum):
     """
     Agent Execution event types.
-    
+
     Events related to agent runs and interactions.
     """
     RUN_STARTED = "agent.run_started"
@@ -39,17 +39,19 @@ class AgentEvent(BaseEvent):
 
 class AgentRunCompletedEvent(AgentEvent):
     """Event emitted when an agent run (thread) finishes successfully."""
+    event_type: str = AgentEventType.RUN_COMPLETED
     thread_id: str = ""
     project_id: int = 1
     goal: str = ""
     status: str = "done"
     payload: AgentEventPayload = Field(default_factory=AgentEventPayload)
 
-    def model_post_init(self, __context: Any) -> None:
-        self.event_type = AgentEventType.RUN_COMPLETED
+    @model_validator(mode="after")
+    def _build_data(self):
         self.data = {
             "thread_id": self.thread_id,
             "project_id": self.project_id,
             "goal": self.goal,
-            "status": self.status
+            "status": self.status,
         }
+        return self

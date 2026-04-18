@@ -135,7 +135,7 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
 
             if not tool_name:
                 # 回退逻辑
-                tool_name = getattr(self, '_current_tool_name', 'unknown_tool')
+                tool_name = 'unknown_tool'
                 tool_call_id = run_id_str # 假设 run_id 就是 tool_call_id（符合 Engine 行为）
 
             # 委托给统一处理器
@@ -201,8 +201,6 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
         if not content:
             return ""
 
-        import re
-
         # 移除 <think> 标签
         content = re.sub(
             r"<think>.*?</think>",
@@ -223,23 +221,6 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
         content = re.sub(r"<[^>]+>", "", content)
 
         return content.strip()
-
-    # ========== 不需要处理的方法 ==========
-
-    async def on_llm_new_token(self, token: str, **kwargs: Any) -> Any:
-        """流式 token，不需要处理"""
-        pass
-
-    async def on_chat_model_start(
-        self,
-        serialized: dict[str, Any],
-        messages: list[list[Any]],
-        *,
-        run_id: UUID,
-        **kwargs: Any,
-    ) -> Any:
-        """模型开始，不需要处理"""
-        pass
 
     async def on_tool_start(
         self,

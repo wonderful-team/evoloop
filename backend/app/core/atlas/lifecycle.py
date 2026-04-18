@@ -3,6 +3,7 @@ Atlas Module Lifecycle Handlers
 Handles global configuration synchronization on application start.
 """
 import logging
+
 from app.core.events import SystemEventType
 from app.core.events.decorators import event_register, event_subscribe
 

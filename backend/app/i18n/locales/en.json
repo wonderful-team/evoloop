@@ -333,9 +333,10 @@
         "model_not_found_title": "Model Not Found",
         "model_not_found_desc": "The configured AI model name was not found by the provider.",
         "model_not_found_hint": "Check the model name spelling in Settings or verify if the provider supports this model.",
-        "invalid_config_title": "Invalid Configuration",
-        "invalid_config_desc": "The AI model configuration parameters are incorrect.",
         "invalid_config_hint": "Please check your model settings.",
+        "recursion_limit_title": "Recursion Limit Exceeded",
+        "recursion_limit_desc": "The Agent has reached the maximum number of execution steps and might be stuck in a loop.",
+        "recursion_limit_hint": "Try breaking the task into smaller sub-tasks or check for circular dependencies in logic.",
         "technical_markers": [
             "SESSION COMPLETE",
             "MISSION END",

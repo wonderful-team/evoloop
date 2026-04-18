@@ -1,16 +1,16 @@
 import logging
+
 from langchain_core.runnables import RunnableConfig
 
 from app.core.engine.routers import RoutingTarget
-from ..schema import RouteToSignal, RoutingContext
+from app.core.engine.signals.base import SignalHandler
 from app.core.engine.state import AgentState, StateUpdate
-from app.core.engine.state.blackboard import BlackboardState
 from app.core.engine.state.config import (
     AgentRuntimeConfig,
     ExecutionTicket,
     TicketParameters,
 )
-from app.core.engine.signals.base import SignalHandler
+from ..schema import RouteToSignal, RoutingContext
 
 logger = logging.getLogger(__name__)
 

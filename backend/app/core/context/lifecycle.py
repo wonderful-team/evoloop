@@ -4,6 +4,7 @@ Handles application-level events for the context system.
 """
 import logging
 import os
+
 from app.core.events import SystemEventType
 from app.core.events.decorators import event_register, event_subscribe
 

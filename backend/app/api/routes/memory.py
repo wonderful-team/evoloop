@@ -4,10 +4,10 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.api.responses import ListResponse, BaseAPIResponse
+from app.core.memory.models import MemoryType
 from app.infrastructure.database.vector.lancedb_store import get_vector_store
 from app.infrastructure.embeddings.factory import EmbedderFactory
 from app.infrastructure.pydantic_base import DynamicBaseModel
-from app.core.memory.models import MemoryType
 
 logger = logging.getLogger(__name__)
 

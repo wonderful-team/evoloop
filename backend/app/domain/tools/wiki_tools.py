@@ -6,10 +6,10 @@ from langchain_core.tools import InjectedToolArg
 from sqlmodel import Session, select
 
 from app.core.context.manager import ContextManager
-from app.core.db import engine
 from app.core.monitoring.ui_actions import get_global_mode_message, require_project_for_tool
 from app.core.tools import evoloop_tool
 from app.domain.wiki.service import wiki_service
+from app.infrastructure.database.resource_manager import db_resource_manager
 from app.models.wiki import WikiPage
 from app.utils import ControllerResponse, PerceptionsFormatter, render_template
 
@@ -70,7 +70,7 @@ async def read_wiki_page(
     if project_id is None:
         return get_global_mode_message("wiki")
 
-    with Session(engine) as session:
+    with Session(db_resource_manager.sync_engine) as session:
         stmt = select(WikiPage).where(
             WikiPage.project_id == project_id,
             WikiPage.slug == slug
@@ -126,7 +126,7 @@ async def write_wiki_page(
     # 2. Find parent_id if parent_slug provided
     parent_id = None
     if parent_slug:
-        with Session(engine) as session:
+        with Session(db_resource_manager.sync_engine) as session:
             parent_stmt = select(WikiPage).where(
                 WikiPage.project_id == project_id,
                 WikiPage.slug == parent_slug
@@ -138,7 +138,7 @@ async def write_wiki_page(
                 return f"Error: Parent page with slug '{parent_slug}' not found."
 
     # 3. Create or Update
-    with Session(engine) as session:
+    with Session(db_resource_manager.sync_engine) as session:
         stmt = select(WikiPage).where(
             WikiPage.project_id == project_id,
             WikiPage.slug == slug

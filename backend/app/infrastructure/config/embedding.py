@@ -4,9 +4,9 @@ from sqlalchemy import text
 from sqlmodel import Session, select
 
 from app.core.config import settings
-from app.core.db import engine
 from app.infrastructure.config.service import SystemConfigService
 from app.infrastructure.database.graph.driver import get_graph_db
+from app.infrastructure.database.resource_manager import db_resource_manager
 from app.models import Repository
 
 logger = logging.getLogger(__name__)
@@ -82,7 +82,7 @@ class EmbeddingConfigService:
             SystemConfigService.set_value("EMBEDDING_API_KEY", api_key)
 
         # 3. SQL Data Reset (Global)
-        with Session(engine) as session:
+        with Session(db_resource_manager.sync_engine) as session:
             logger.warning("TRUNCATING code_chunks table...")
             session.exec(text("TRUNCATE TABLE code_chunks CASCADE"))
 
@@ -92,12 +92,6 @@ class EmbeddingConfigService:
             session.exec(text(f"ALTER TABLE code_chunks ALTER COLUMN embedding TYPE vector({new_dim}) USING embedding::vector({new_dim})"))
 
             session.commit()
-
-            # Recreate Index? pgvector index works on column.
-            # If we used ivfflat/hnsw with fixed dim, we might need to drop index.
-            # Assuming standard index creation handled by alembic or manual,
-            # for now we rely on the fact that the table is empty.
-            # Ideally: DROP INDEX IF EXISTS code_chunks_embedding_idx;
 
         # 4. Neo4j Reset & Migration
         driver = await get_graph_db()
@@ -123,9 +117,6 @@ class EmbeddingConfigService:
                 logger.error(f"Failed to recreate Neo4j index: {e}")
 
             # 4.3 Migrate Concepts (Background-ish)
-            # This might take time. Should be a background task?
-            # For now running inline or we delegate to background task in route.
-            # We will just define the logic here.
             await EmbeddingConfigService._migrate_neo4j_concepts(provider, base_url, model, api_key)
 
         # 5. Trigger Reindexing (Lazy / Active)
@@ -134,7 +125,7 @@ class EmbeddingConfigService:
             # We need a way to find the repo.
             # Repo is tied to project_id in SQL models.
             repo = None
-            with Session(engine) as session:
+            with Session(db_resource_manager.sync_engine) as session:
                 repo = session.exec(select(Repository).where(Repository.project_id == current_project_id)).first()
 
             if repo:
