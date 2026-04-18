@@ -32,39 +32,37 @@ export function ChangesetInlineHint({
       onClick={onClick}
       className={cn(
         "mt-2 inline-flex cursor-pointer items-center gap-2 rounded-lg",
-        "border px-3 py-2 text-sm transition-colors",
+        "border px-3 py-1.5 text-[11px] transition-all duration-200",
         isViewed
-          ? "border-muted bg-muted/30 text-muted-foreground hover:bg-muted/50"
-          : "border-amber-200 bg-amber-50 hover:bg-amber-100 dark:border-amber-900 dark:bg-amber-950/30 dark:hover:bg-amber-900/30",
+          ? "border-border/40 bg-muted/20 text-muted-foreground/60 hover:bg-muted/40"
+          : "border-primary/20 bg-primary/5 text-primary hover:bg-primary/10 shadow-sm",
         className
       )}
     >
       <FileDiff
         className={cn(
-          "h-4 w-4",
-          isViewed ? "text-muted-foreground" : "text-amber-600 dark:text-amber-400"
+          "h-3.5 w-3.5",
+          isViewed ? "opacity-30" : "opacity-70"
         )}
       />
       <span
         className={cn(
-          "font-medium",
-          isViewed
-            ? "text-muted-foreground"
-            : "text-amber-800 dark:text-amber-200"
+          "font-semibold uppercase tracking-tight",
+          isViewed ? "opacity-60" : "opacity-90"
         )}
       >
         {isViewed
-          ? t("chat.changeset.viewed", "已查看 {{count}} 个文件", { count: fileCount })
+          ? t("chat.changeset.viewed", "已巡检 {{count}} 个文件", { count: fileCount })
           : t("chat.changeset.newChanges", "本次修改了 {{count}} 个文件", { count: fileCount })}
       </span>
       {!isViewed && (
-        <>
-          <span className="text-amber-600 dark:text-amber-400">·</span>
-          <span className="text-amber-600 hover:underline dark:text-amber-400">
-            {t("chat.changeset.viewChanges", "查看变更")}
+        <span className="flex items-center gap-1 font-bold ml-1">
+          <span className="opacity-30">·</span>
+          <span className="hover:underline">
+            {t("chat.changeset.viewChanges", "点击审查")}
           </span>
-          <ChevronRight className="h-3 w-3 text-amber-500" />
-        </>
+          <ChevronRight className="h-3 w-3" />
+        </span>
       )}
     </div>
   )

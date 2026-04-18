@@ -28,13 +28,12 @@ import { useChatStore } from "@/stores/chatStore"
 import { useProjectStore } from "@/stores/projectStore"
 import { Button } from "@evoloop/shared/components/ui/button"
 import { HITLBanner } from "./HITLBanner"
+import { BreadcrumbStatus } from "./BreadcrumbStatus"
 import { QuotaExhaustedBanner } from "./QuotaExhaustedBanner"
-import { QuotaExhaustedCard } from "./QuotaExhaustedCard"
 import { ChatInputArea, type ChatInputAreaHandle } from "./ChatInputArea"
 import { MessageList } from "./MessageList"
 import { ChatSidebar, type Thread } from "./ChatSidebar"
 import { ContextPanel } from "./ContextPanel"
-import { BreadcrumbStatus } from "./BreadcrumbStatus"
 
 import { DiffDrawer } from "./DiffDrawer"
 import { RewindConfirmDialog } from "./RewindConfirmDialog"
@@ -409,7 +408,7 @@ export function ChatInterface() {
     // If user is not at the bottom (threshold 50px), mark as user scrolled
     const isAtBottom = scrollHeight - scrollTop - clientHeight < 100
     setIsUserScrolled(!isAtBottom)
-    
+
     // Trigger load more history when near top
     if (scrollTop < 100 && hasMoreHistory && !isLoadingHistory) {
       console.log('[ChatInterface] Near top, triggering loadMoreHistory')
@@ -586,13 +585,6 @@ export function ChatInterface() {
                   onQuote={(msg) => handleQuoteMessage(msg)}
                   onViewChangeset={handleViewChangeset}
                 />
-                {/* Quota Exhausted Card - Shows when quota is exhausted */}
-                {/* Wrapped in container to match HumanRequestCard width (same as PendingMessageItem structure) */}
-                <div className="group relative flex gap-3 items-start mb-6">
-                  <div className="relative flex-1 max-w-full min-w-0">
-                    <QuotaExhaustedCard />
-                  </div>
-                </div>
               </div>
             </div>
 

@@ -358,7 +358,7 @@ export const ChatInputArea = memo(
             </div>
           )}
 
-          <div className="bg-background rounded-2xl shadow-sm border border-input transition-all focus-within:ring-2 focus-within:ring-ring ring-offset-2 overflow-hidden relative z-50">
+          <div className="bg-background rounded-2xl border border-input focus-within:border-primary/50 transition-all focus-within:ring-4 focus-within:ring-primary/5 ring-offset-0 overflow-hidden relative z-50">
             {/* Top: Attachment Preview */}
             <AttachmentPreview
               attachments={attachments}

@@ -4,24 +4,10 @@ import { Badge } from "@evoloop/shared/components/ui/badge"
 import { Crown, AlertCircle } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
-// 权益数据类型（简单key-value）
-type Benefits = Record<string, number | boolean | string>
-
-interface Plan {
-  level_id: number
-  level_name: string
-  price: string
-  market_price: string
-  description?: string
-  privileges?: string[]
-  is_current?: boolean
-  benefits?: Benefits  // 来自后端的权益状态 (bits)
-  definitions?: Record<string, { name: string, desc: string, category: string }> // 来自后端的权益定义 (metadata)
-  sort?: number        // 等级排序字段，用于判断等级高低
-}
+import { SubscriptionPlan } from "@/types/subscription"
 
 interface PlanComparisonProps {
-  plans: Plan[]
+  plans: SubscriptionPlan[]
   currentLevelId?: number
   currentPlanPrice?: number
   onSelect: (levelId: number) => void

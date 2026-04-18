@@ -1152,24 +1152,27 @@ export type MemberBenefitsResponse = {
 };
 
 export type MessageItem = {
-    id: string;
+    id?: (string | null);
     role: string;
-    content: string;
-    thinking: (string | null);
-    created_at: (string | null);
+    content?: string;
+    thinking?: (string | null);
+    created_at?: (string | null);
+    steps?: Array<ToolStep>;
+    tool_calls?: (Array<{
+    [key: string]: unknown;
+}> | null);
+    metadata?: {
+        [key: string]: unknown;
+    };
     steps_snapshot?: (Array<{
     [key: string]: unknown;
 }> | null);
     run_id?: (string | null);
     parent_id?: (number | null);
     references?: Array<ReferenceItem>;
-    steps?: Array<ToolStep>;
     has_file_operations?: boolean;
     changeset_count?: number;
-    tool_calls?: (Array<{
-    [key: string]: unknown;
-}> | null);
-    [key: string]: unknown | string | ReferenceItem | ToolStep | boolean | number;
+    [key: string]: unknown | string | ToolStep | ReferenceItem | boolean | number;
 };
 
 /**
@@ -1322,11 +1325,11 @@ export type PersistMirrorEventsRequest = {
  * Nested plan data.
  */
 export type PlanDataResponse = {
-    id: number;
+    id: string;
     title: string;
     steps: Array<PlanStepResponse>;
-    current_step_id: (number | null);
-    [key: string]: unknown | number | string | PlanStepResponse;
+    current_step_id: (string | null);
+    [key: string]: unknown | string | PlanStepResponse;
 };
 
 /**
@@ -1336,7 +1339,7 @@ export type PlanResponse = {
     success?: boolean;
     message?: string;
     status: string;
-    plan: (PlanDataResponse | null);
+    plan?: (PlanDataResponse | null);
     generated_at?: (string | null);
     error?: (string | null);
     [key: string]: unknown | boolean | string;
@@ -1348,11 +1351,11 @@ export type PlanResponse = {
 export type PlanStepResponse = {
     success?: boolean;
     message?: string;
-    id: number;
+    id: string;
     title: string;
     status: string;
     result: (string | null);
-    [key: string]: unknown | boolean | string | number;
+    [key: string]: unknown | boolean | string;
 };
 
 export type PreviewEventsSummary = {
@@ -2233,16 +2236,21 @@ export type ToolInfo = {
     [key: string]: unknown | string;
 };
 
+/**
+ * Standard model for a single tool execution step within an AI message.
+ * Used for both persistent history and real-time streaming.
+ */
 export type ToolStep = {
     id: string;
     tool: string;
     tool_name?: (string | null);
-    input: ({
+    input?: ({
     [key: string]: unknown;
-} | string);
-    output: string;
+} | string | unknown);
+    output?: string;
     status?: string;
     duration?: (number | null);
+    tool_call_id?: (string | null);
     [key: string]: unknown | string;
 };
 

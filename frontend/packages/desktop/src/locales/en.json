@@ -1496,6 +1496,7 @@
       "gantt": "Gantt Chart",
       "timesheet": "Timesheet",
       "storage": "Storage Space",
+      "wiki_generation": "Wiki Generation",
       "sort": "Priority weight"
     },
     "plans": {

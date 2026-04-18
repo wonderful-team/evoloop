@@ -80,6 +80,10 @@
   /* 滚动条颜色 - 亮色模式 */
   --scrollbar-thumb: oklch(0.7 0 0 / 0.4);
   --scrollbar-thumb-hover: oklch(0.6 0 0 / 0.6);
+
+  /* Chat Refinement Tokens */
+  --chat-timeline-line: oklch(0.85 0 0 / 0.5);
+  --chat-action-stream-bg: oklch(0.97 0 0 / 0.8);
 }
 
 .dark {
@@ -118,6 +122,24 @@
   /* 滚动条颜色 - 暗色模式 */
   --scrollbar-thumb: oklch(0.6 0 0 / 0.4);
   --scrollbar-thumb-hover: oklch(0.7 0 0 / 0.6);
+
+  /* Chat Refinement Tokens */
+  --chat-timeline-line: oklch(0.4 0 0 / 0.5);
+  --chat-action-stream-bg: oklch(0.18 0 0 / 0.5);
+}
+
+@layer components {
+  .chat-timeline-container {
+    @apply relative flex gap-3;
+  }
+
+  .chat-timeline-line {
+    @apply absolute left-[15px] top-9 bottom-0 w-[2px] bg-[var(--chat-timeline-line)] pointer-events-none;
+  }
+
+  .chat-action-stream {
+    @apply rounded-xl bg-[var(--chat-action-stream-bg)] p-1.5 border border-border/10 mb-2 overflow-hidden;
+  }
 }
 
 @layer base {

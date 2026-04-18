@@ -74,7 +74,7 @@ export function MessageList({
         <div 
             className="min-h-0 min-w-0 relative" 
         >
-            <div className="space-y-2 px-4 sm:px-6 lg:px-8 pb-4 min-w-0">
+            <div className="space-y-6 px-4 sm:px-6 lg:px-8 pb-4 min-w-0">
                 
                 {/* Loading Indicator at Top */}
                 {isLoadingHistory && (

@@ -3775,7 +3775,14 @@ export const MemberBenefitsResponseSchema = {
 export const MessageItemSchema = {
     properties: {
         id: {
-            type: 'string',
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
             title: 'Id'
         },
         role: {
@@ -3784,7 +3791,8 @@ export const MessageItemSchema = {
         },
         content: {
             type: 'string',
-            title: 'Content'
+            title: 'Content',
+            default: ''
         },
         thinking: {
             anyOf: [
@@ -3803,10 +3811,41 @@ export const MessageItemSchema = {
                     type: 'string'
                 },
                 {
+                    type: 'string',
+                    format: 'date-time'
+                },
+                {
                     type: 'null'
                 }
             ],
             title: 'Created At'
+        },
+        steps: {
+            items: {
+                '$ref': '#/components/schemas/ToolStep'
+            },
+            type: 'array',
+            title: 'Steps'
+        },
+        tool_calls: {
+            anyOf: [
+                {
+                    items: {
+                        additionalProperties: true,
+                        type: 'object'
+                    },
+                    type: 'array'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Tool Calls'
+        },
+        metadata: {
+            additionalProperties: true,
+            type: 'object',
+            title: 'Metadata'
         },
         steps_snapshot: {
             anyOf: [
@@ -3853,14 +3892,6 @@ export const MessageItemSchema = {
             title: 'References',
             default: []
         },
-        steps: {
-            items: {
-                '$ref': '#/components/schemas/ToolStep'
-            },
-            type: 'array',
-            title: 'Steps',
-            default: []
-        },
         has_file_operations: {
             type: 'boolean',
             title: 'Has File Operations',
@@ -3870,26 +3901,11 @@ export const MessageItemSchema = {
             type: 'integer',
             title: 'Changeset Count',
             default: 0
-        },
-        tool_calls: {
-            anyOf: [
-                {
-                    items: {
-                        additionalProperties: true,
-                        type: 'object'
-                    },
-                    type: 'array'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Tool Calls'
         }
     },
     additionalProperties: true,
     type: 'object',
-    required: ['id', 'role', 'content', 'thinking', 'created_at'],
+    required: ['role'],
     title: 'MessageItem'
 } as const;
 
@@ -4370,7 +4386,7 @@ export const PersistMirrorEventsRequestSchema = {
 export const PlanDataResponseSchema = {
     properties: {
         id: {
-            type: 'integer',
+            type: 'string',
             title: 'Id'
         },
         title: {
@@ -4387,7 +4403,7 @@ export const PlanDataResponseSchema = {
         current_step_id: {
             anyOf: [
                 {
-                    type: 'integer'
+                    type: 'string'
                 },
                 {
                     type: 'null'
@@ -4454,7 +4470,7 @@ export const PlanResponseSchema = {
     },
     additionalProperties: true,
     type: 'object',
-    required: ['status', 'plan'],
+    required: ['status'],
     title: 'PlanResponse',
     description: 'Plan API response.'
 } as const;
@@ -4472,7 +4488,7 @@ export const PlanStepResponseSchema = {
             default: ''
         },
         id: {
-            type: 'integer',
+            type: 'string',
             title: 'Id'
         },
         title: {
@@ -7972,13 +7988,15 @@ export const ToolStepSchema = {
                 },
                 {
                     type: 'string'
-                }
+                },
+                {}
             ],
             title: 'Input'
         },
         output: {
             type: 'string',
-            title: 'Output'
+            title: 'Output',
+            default: ''
         },
         status: {
             type: 'string',
@@ -7995,12 +8013,25 @@ export const ToolStepSchema = {
                 }
             ],
             title: 'Duration'
+        },
+        tool_call_id: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Tool Call Id'
         }
     },
     additionalProperties: true,
     type: 'object',
-    required: ['id', 'tool', 'input', 'output'],
-    title: 'ToolStep'
+    required: ['id', 'tool'],
+    title: 'ToolStep',
+    description: `Standard model for a single tool execution step within an AI message.
+Used for both persistent history and real-time streaming.`
 } as const;
 
 export const TranscriptionResponseSchema = {

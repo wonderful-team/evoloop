@@ -8,6 +8,7 @@ import {
     Building, Table, FileType, Clipboard, ClipboardList
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
+import { useState } from "react"
 
 export interface AgentProcessStep {
     id: string | number
@@ -129,28 +130,21 @@ const TOOL_ICONS: Record<string, React.ReactNode> = {
 
 // Tool name to friendly display name mapping
 const TOOL_NAMES: Record<string, string> = {
-    // 文件操作
-    read_file: "查看文件",
+    read_file: "读取分析",
     write_file: "写入文件",
     edit_file: "编辑文件",
     apply_patch_file: "应用补丁",
     multiedit_file: "批量编辑",
-    list_directory: "列出目录",
-    list_files: "列出文件",
-    manage_directory: "管理目录",
-    search_files: "搜索文件",
-    grep_files: "搜索文件内容",
-    
-    // 代码执行
+    list_directory: "扫描目录",
+    list_files: "查找文件",
+    grep_files: "搜索代码",
     execute_command: "执行命令",
     query_command_status: "查询命令状态",
     cancel_command: "取消命令",
-    bash_command: "执行命令",
-    python_code: "执行代码",
+    bash_command: "运行命令",
+    python_code: "执行脚本",
     run_macro: "执行宏",
-    
-    // 网络/搜索
-    search_web: "搜索网页",
+    search_web: "检索网络",
     read_url_content: "读取网页",
     scrape_dynamic: "动态抓取",
     browser_control: "浏览器控制",
@@ -402,6 +396,21 @@ function groupSteps(steps: any[], t: any): StepGroup[] {
         
         // Handle both formats: AgentProcessStep (tool/tool_name) and StepItem (name)
         const displayName = step.tool_name || step.tool || step.name || ""
+        const toolType = step.tool || step.name?.replace("Using ", "") || "unknown"
+
+        // Filter out noisy internal steps that don't have user-facing value
+        // Match both raw names and localized Chinese descriptions from snapshots
+        const noisePatterns = [
+            "route_to", "list_directory", "list_files", "read_file", "inspect_task_health",
+            "正在列出", "正在读取", "扫描目录", "查找文件", "读取分析"
+        ]
+        
+        const isInternal = step.type === "internal" || toolType === "route_to" || displayName.includes("route_to")
+        const isNoise = noisePatterns.some(p => displayName.includes(p) || toolType.includes(p))
+
+        if (isInternal || isNoise) {
+            return
+        }
 
         if (parentId != null) {
             if (!childrenMap.has(parentId)) {
@@ -417,6 +426,28 @@ function groupSteps(steps: any[], t: any): StepGroup[] {
         }
     })
 
+    // Aggregation logic: group consecutive similar tool steps
+    const aggregateSteps = (rawSteps: any[]) => {
+        const result: any[] = []
+        rawSteps.forEach(step => {
+            const prev = result[result.length - 1]
+            const type = step.tool || step.name
+            
+            // Only aggregate certain boring tools
+            const canAggregate = ['read_file', 'list_files', 'list_directory'].includes(type)
+            const isFinished = (s: any) => s.status === 'done' || s.status === 'success'
+            
+            if (prev && canAggregate && (prev.tool || prev.name) === type && isFinished(prev) && isFinished(step)) {
+                if (!prev.items) prev.items = [prev]
+                prev.items.push(step)
+                prev.id = step.id // update to latest
+                return
+            }
+            result.push({ ...step })
+        })
+        return result
+    }
+
     headerMap.forEach((header, id) => {
         const children = childrenMap.get(id) || []
         const displayName = header.tool_name || header.tool || header.name || ""
@@ -425,7 +456,7 @@ function groupSteps(steps: any[], t: any): StepGroup[] {
             id: `g-${header.id}`,
             title: displayName.replace("► ", "").replace("Phase: ", ""),
             status: header.status,
-            steps: children,
+            steps: aggregateSteps(children),
             isImplicit: false
         })
     })
@@ -435,7 +466,7 @@ function groupSteps(steps: any[], t: any): StepGroup[] {
             id: "g-implicit",
             title: t("chat.steps.execution"),
             status: orphans.some(s => s.status === "running") ? "running" : "success",
-            steps: orphans,
+            steps: aggregateSteps(orphans),
             isImplicit: true
         })
     }
@@ -488,8 +519,35 @@ function StepRow({ step: rawStep }: { step: AgentProcessStep }) {
     const step = normalizeStep(rawStep)
 
     const icon = TOOL_ICONS[step.tool] || <Terminal className="h-3.5 w-3.5" />
+    
     // Priority: 1. Backend friendly name (tool_name_display) 2. Legacy tool_name 3. Frontend mapping 4. Raw tool name
-    let toolName = step.tool_name_display || step.tool_name || TOOL_NAMES[step.tool] || step.tool
+    let toolName = step.tool_name_display || step.tool_name || TOOL_NAMES[step.tool] || step.tool || t("chat.steps.unknown", "未知工具")
+
+    // Optimization: Fallback to raw tool ID if 'unknown' and we have a tool ID
+    if ((toolName === "unknown" || toolName === t("chat.steps.unknown")) && step.tool && step.tool !== "unknown") {
+        toolName = step.tool
+    }
+
+    // Handle nested translation keys if they leak from backend
+    if (typeof toolName === 'string' && toolName.includes("database_logger.")) {
+        toolName = t("chat.steps.executingCommand", "正在执行命令")
+    }
+    
+    // Aggregated row
+    if ((step as any).items) {
+        const count = (step as any).items.length
+        return (
+            <div className="group flex items-center gap-1.5 py-1 px-3 text-[10px] text-muted-foreground/60 transition-colors">
+                <div className="flex h-4 w-4 shrink-0 items-center justify-center opacity-40">
+                    <ClipboardList className="h-3 w-3" />
+                </div>
+                <div className="truncate">
+                    {t("chat.steps.batchAction", "批量执行")} {toolName} · {count} {t("chat.steps.actions", "个动作")}
+                </div>
+            </div>
+        )
+    }
+
     const inputInfo = formatToolInput(step.tool, step.input, t)
     const outputSummary = summarizeOutput(step.tool, step.output)
     
@@ -574,21 +632,42 @@ function ProcessGroup({ group }: { group: StepGroup }) {
 export function AgentProcess({ steps, header }: AgentProcessProps) {
     const { t } = useTranslation()
     const groups = groupSteps(steps || [], t)
-
+    const [isFullyExpanded, setIsFullyExpanded] = useState(false)
+    
     if (!steps || steps.length === 0) return null
 
+    // Logic: If historical (no header/streaming) and steps > 5, collapse
+    const MAX_VISIBLE_STEPS = 5
+    const isHistorical = !header
+    const shouldCollapse = isHistorical && steps.length > MAX_VISIBLE_STEPS && !isFullyExpanded
+    
+    const visibleGroups = shouldCollapse 
+        ? groups.slice(0, 1).map(g => ({...g, steps: g.steps.slice(0, MAX_VISIBLE_STEPS)}))
+        : groups
+
     return (
-        <div className="w-full min-w-0 border rounded bg-muted/20 overflow-hidden border-border/40">
+        <div className="w-full min-w-0 flex flex-col gap-0.5">
             {header && (
-                <div className="border-b border-border/30">
+                <div className="mb-1">
                     {header}
                 </div>
             )}
-            <div className="p-1 px-2 flex flex-col gap-0.5 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                {groups.map(group => (
+            <div className="flex flex-col gap-0.5 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                {visibleGroups.map(group => (
                     <ProcessGroup key={group.id} group={group} />
                 ))}
             </div>
+            {shouldCollapse && (
+                <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="h-6 text-[10px] text-muted-foreground/60 hover:text-primary w-fit mt-1 self-center"
+                    onClick={() => setIsFullyExpanded(true)}
+                >
+                    <PlusCircle className="h-3 w-3 mr-1" />
+                    {t("chat.steps.showMore", "查看更多执行步骤")} ({steps.length - MAX_VISIBLE_STEPS}+)
+                </Button>
+            )}
         </div>
     )
 }

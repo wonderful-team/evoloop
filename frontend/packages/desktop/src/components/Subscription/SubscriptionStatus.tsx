@@ -1,25 +1,19 @@
 import { Card, CardContent } from "@evoloop/shared/components/ui/card"
 import { Badge } from "@evoloop/shared/components/ui/badge"
 import { Button } from "@evoloop/shared/components/ui/button"
-import { Calendar, Crown, AlertTriangle } from "lucide-react"
+import { Progress } from "@evoloop/shared/components/ui/progress"
+import { Calendar, Crown, AlertTriangle, Zap } from "lucide-react"
 import { useTranslation } from "react-i18next"
-
-interface SubscriptionDetail {
-  level_id: number
-  level_name: string
-  expire_time: number
-  status: number
-  is_auto_renew: boolean
-  order_no?: string
-}
+import { SubscriptionDetail, AiQuota } from "@/types/subscription"
 
 interface SubscriptionStatusProps {
   detail?: SubscriptionDetail
+  quota?: AiQuota
   isLoading?: boolean
   onRenew?: () => void
 }
 
-export const SubscriptionStatus = ({ detail, isLoading, onRenew }: SubscriptionStatusProps) => {
+export const SubscriptionStatus = ({ detail, quota, isLoading, onRenew }: SubscriptionStatusProps) => {
   const { t } = useTranslation()
 
   if (isLoading) {
@@ -30,23 +24,64 @@ export const SubscriptionStatus = ({ detail, isLoading, onRenew }: SubscriptionS
     )
   }
 
+  const renderQuota = () => {
+    if (!quota) return null
+    const usagePercent = quota.is_unlimited ? 0 : (quota.used / quota.total) * 100
+    
+    return (
+      <div className="flex-1 flex flex-col gap-2 px-4 lg:px-12">
+        <div className="flex items-center justify-between mb-0.5">
+          <div className="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+            <Zap className="h-3.5 w-3.5 text-primary" />
+            <span>{t("subscription.quota.aiQuota")}</span>
+          </div>
+          <div className="text-[11px] font-bold">
+            {quota.is_unlimited ? (
+              <span className="text-primary text-sm">{t("subscription.quota.unlimited")}</span>
+            ) : (
+              <div className="flex items-baseline gap-1">
+                <span className="text-base font-black text-foreground">{quota.remaining}</span> 
+                <span className="text-muted-foreground font-normal text-[10px]">/ {quota.total}</span>
+              </div>
+            )}
+          </div>
+        </div>
+        {!quota.is_unlimited && (
+          <div className="space-y-1.5">
+            <Progress value={usagePercent} className="h-2 shadow-inner bg-muted/50" />
+            <div className="flex justify-between text-[10px] font-medium text-muted-foreground">
+              <span>{t("subscription.quota.usedPercent", { percent: Math.round(usagePercent) })}</span>
+              {usagePercent > 80 && (
+                <span className="text-destructive font-bold animate-pulse">{t("subscription.quota.lowBalance")}</span>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
+
   if (!detail || detail.level_id === 1) {
     return (
-      <Card className="border-border bg-card gap-2 py-2">
-        <CardContent className="py-4">
-          <div className="flex items-center gap-4">
-            <div className="p-2.5 rounded-lg bg-muted text-primary">
-              <Crown className="h-5 w-5" />
+      <Card className="border-border bg-card overflow-hidden">
+        <CardContent className="py-6 px-8">
+          <div className="flex flex-col lg:flex-row lg:items-center gap-8">
+            <div className="flex items-center gap-6 shrink-0">
+              <div className="p-3 rounded-xl bg-primary/5 text-primary ring-1 ring-primary/10">
+                <Crown className="h-6 w-6" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="font-bold text-base tracking-tight">{t("subscription.status.freeTitle")}</h3>
+                <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                  {t("subscription.status.freeDesc")}
+                </p>
+              </div>
+              <Button onClick={onRenew} size="sm" className="h-9 px-6 font-bold shadow-sm shadow-primary/10 transition-all hover:scale-[1.02] active:scale-95">
+                  {t("subscription.status.upgradeNow")}
+              </Button>
             </div>
-            <div className="flex-1 min-w-0">
-              <h3 className="font-medium text-sm">{t("subscription.status.freeTitle")}</h3>
-              <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                {t("subscription.status.freeDesc")}
-              </p>
-            </div>
-            <Button onClick={onRenew} size="sm" className="shrink-0">
-                {t("subscription.status.upgradeNow")}
-            </Button>
+            
+            {renderQuota()}
           </div>
         </CardContent>
       </Card>
@@ -56,43 +91,43 @@ export const SubscriptionStatus = ({ detail, isLoading, onRenew }: SubscriptionS
   const now = Date.now() / 1000
   const isExpired = detail.expire_time > 0 && detail.expire_time < now
   const daysUntilExpire = detail.expire_time > 0 ? Math.ceil((detail.expire_time - now) / 86400) : 0
-  const isExpiringSoon = !isExpired && daysUntilExpire <= 7 // 7天内过期视为即将过期
+  const isExpiringSoon = !isExpired && daysUntilExpire <= 7
   const expireDate = new Date(detail.expire_time * 1000).toLocaleDateString()
 
   return (
-    <Card className={`border-l-4 ${isExpired ? "border-l-destructive bg-destructive/5" : isExpiringSoon ? "border-l-amber-500 bg-amber-50/50" : "border-l-primary bg-primary/5"}`}>
-      <CardContent className="py-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <span className="font-semibold">{detail.level_name}</span>
+    <Card className={`border-l-4 overflow-hidden transition-all duration-300 ${isExpired ? "border-l-destructive bg-destructive/5" : isExpiringSoon ? "border-l-amber-500 bg-amber-50/50" : "border-l-primary bg-primary/5"}`}>
+      <CardContent className="py-7 px-10">
+        <div className="flex flex-col lg:flex-row lg:items-center gap-10">
+          {/* Left: Status Info */}
+          <div className="flex flex-col space-y-1.5 shrink-0 min-w-[180px]">
+            <div className="flex items-center gap-3">
+              <span className="text-xl font-black tracking-tighter text-foreground">{detail.level_name}</span>
               <Badge 
                 variant={isExpired ? "destructive" : isExpiringSoon ? "secondary" : "default"} 
-                className="text-xs px-1.5 py-0"
+                className="text-[10px] px-2 py-0 font-bold uppercase"
               >
                 {isExpired ? t("subscription.status.expired") : isExpiringSoon ? t("subscription.status.expiringSoon") : t("subscription.status.active")}
               </Badge>
             </div>
-            <div className="flex items-center gap-3 text-xs text-muted-foreground">
-              <span className="flex items-center gap-1">
-                <Calendar className="h-3 w-3" />
+            <div className="flex items-center gap-3 text-xs text-muted-foreground font-medium">
+              <span className="flex items-center gap-1.5">
+                <Calendar className="h-3.5 w-3.5" />
                 {isExpired ? t("subscription.status.expiredAt") : t("subscription.status.expireAt")}{expireDate}
                 {!isExpired && daysUntilExpire > 0 && (
-                  <span className={isExpiringSoon ? "text-amber-600 font-medium" : ""}>
+                  <span className={isExpiringSoon ? "text-amber-600 font-bold" : "text-primary/70 font-bold"}>
                     {t("subscription.status.daysRemaining", { days: daysUntilExpire })}
                   </span>
                 )}
               </span>
             </div>
-            {/* 续费提醒 */}
             {isExpired ? (
-              <div className="flex items-center gap-1.5 text-xs text-destructive mt-1">
-                <AlertTriangle className="h-3 w-3" />
+              <div className="flex items-center gap-1.5 text-xs text-destructive mt-1 font-bold">
+                <AlertTriangle className="h-3.5 w-3.5" />
                 <span>{t("subscription.notice.desc")}</span>
               </div>
             ) : isExpiringSoon && (
-              <div className="flex items-center gap-1.5 text-xs text-amber-600 mt-1">
-                <AlertTriangle className="h-3 w-3" />
+              <div className="flex items-center gap-1.5 text-xs text-amber-600 mt-1 font-bold">
+                <AlertTriangle className="h-3.5 w-3.5" />
                 <span>
                   {daysUntilExpire <= 3 
                     ? t("subscription.renew.urgent", { days: daysUntilExpire })
@@ -102,13 +137,25 @@ export const SubscriptionStatus = ({ detail, isLoading, onRenew }: SubscriptionS
               </div>
             )}
           </div>
-          <div className="flex items-center gap-2">
-             {!isExpired && onRenew && (
-                <Button size="sm" onClick={onRenew} variant={isExpiringSoon ? "default" : "secondary"}>
-                  {isExpiringSoon ? t("subscription.status.renewNow") : t("subscription.status.renew")}
-                </Button>
-             )}
-          </div>
+
+          {/* Middle: AI Quota (fills the gap) */}
+          {renderQuota()}
+
+          {/* Right: Action */}
+          {!isExpired && onRenew && (
+            <div className="shrink-0">
+              <Button 
+                size="sm" 
+                onClick={onRenew} 
+                variant={isExpiringSoon ? "default" : "secondary"} 
+                className={`h-10 px-6 font-black shadow-sm transition-all hover:scale-[1.02] active:scale-95 ${
+                  isExpiringSoon ? "bg-amber-500 hover:bg-amber-600 text-white" : ""
+                }`}
+              >
+                {isExpiringSoon ? t("subscription.status.renewNow") : t("subscription.status.renew")}
+              </Button>
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>

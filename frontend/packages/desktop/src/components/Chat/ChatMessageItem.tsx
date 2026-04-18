@@ -16,6 +16,7 @@ import {
 } from "lucide-react"
 import { ChangesetInlineHint } from "./ChangesetInlineHint"
 import { memo, useState } from "react"
+import { motion, AnimatePresence } from "framer-motion"
 import { useTranslation } from "react-i18next"
 import {
   Collapsible,
@@ -41,6 +42,7 @@ import { useShowThinking } from "../UserSettings/AppearanceSettings"
 import { TTSButton } from "./TTSButton"
 import { useAutoSpeak, useTTS } from "@/hooks/useTTS"
 import { useEffect } from "react"
+import { cn } from "@evoloop/shared/lib/utils"
 
 // Convert StepItem (from backend steps_snapshot) to AgentProcessStep format
 function convertStepsToAgentProcess(steps: Array<{
@@ -51,44 +53,67 @@ function convertStepsToAgentProcess(steps: Array<{
   time?: string
   details?: string
 }>): AgentProcessStep[] {
-  return steps.map((step) => {
-    const tool = step.name?.replace("Using ", "") || "unknown"
-    let input: any = null
-
-    // Try to extract input from details (for historical records)
-    if (step.details) {
-      try {
-        const detailsJson = JSON.parse(step.details)
-        // If details has input field, use it
-        if (detailsJson.input) {
-          input = detailsJson.input
-        }
-        // Otherwise, try to extract key fields as input
-        else if (detailsJson.query || detailsJson.url || detailsJson.path || detailsJson.command) {
-          input = {
-            query: detailsJson.query,
-            url: detailsJson.url,
-            path: detailsJson.path,
-            command: detailsJson.command,
-            target: detailsJson.target,
-          }
-        }
-      } catch {
-        // Not JSON, keep input as null
+  return steps
+    .filter((step) => {
+      const name = step.name || ""
+      const tool = name.replace("Using ", "")
+      
+      // Hide internal steps
+      if (step.type === "internal" || tool === "route_to" || name.includes("route_to")) return false
+      
+      // Define noise patterns (both English raw names and Localized Chinese strings)
+      const noisePatterns = [
+        "list_directory", "list_files", "read_file", "inspect_task_health",
+        "正在列出", "正在读取", "扫描目录", "查找文件", "读取分析"
+      ]
+      
+      const isNoise = noisePatterns.some(p => name.includes(p))
+      if (isNoise) return false
+      
+      return true
+    })
+    .map((step) => {
+      let name = step.name || ""
+      let tool = name.replace("Using ", "") || "unknown"
+      
+      // If tool is still unknown, try to infer it from the name (common in snapshots)
+      if (tool === "unknown" && name) {
+        if (name.includes("正在读取") || name.includes("read_file")) tool = "read_file"
+        else if (name.includes("正在列出") || name.includes("list_directory") || name.includes("list_files")) tool = "list_directory"
+        else if (name.includes("正在查找") || name.includes("search_files")) tool = "search_files"
       }
-    }
 
-    return {
-      id: step.id,
-      tool,
-      tool_name: step.name,
-      input,
-      output: step.details || "",
-      status: step.status as "success" | "failure" | "running" | "done" | "failed" | "cancelled",
-      duration: step.time ? parseFloat(step.time) * 1000 : undefined,
-      type: step.type as "node" | "tool" | "ai" | "skill" | undefined,
-    }
-  })
+      let input: any = null
+      if (step.details) {
+        try {
+          const detailsJson = JSON.parse(step.details)
+          if (detailsJson.input) {
+            input = detailsJson.input
+          } else if (detailsJson.query || detailsJson.url || detailsJson.path || detailsJson.command) {
+            input = {
+              query: detailsJson.query,
+              url: detailsJson.url,
+              path: detailsJson.path,
+              command: detailsJson.command,
+              target: detailsJson.target,
+            }
+          }
+        } catch (e) {
+          // If not JSON, it might be raw text output
+        }
+      }
+
+      return {
+        id: `snap-${step.id}`,
+        tool,
+        tool_name: step.name,
+        input,
+        output: step.details || "",
+        status: step.status as "success" | "failure" | "running" | "done" | "failed" | "cancelled",
+        duration: step.time ? parseFloat(step.time) * 1000 : undefined,
+        type: step.type as "node" | "tool" | "ai" | "skill" | undefined,
+      }
+    })
 }
 
 // Unified Tool Execution Section - combines real-time steps and historical snapshot
@@ -115,7 +140,7 @@ function ToolExecutionSection({ msg }: { msg: Message }) {
   const failedCount = displaySteps.filter((s) => s.status === "failed" || s.status === "failure").length
   const totalCount = displaySteps.length
 
-  // Determine icon and text based on status
+  if (totalCount === 0) return null
   let icon = <Terminal className="h-3.5 w-3.5" />
   let statusText = ""
 
@@ -155,11 +180,13 @@ function ToolExecutionSection({ msg }: { msg: Message }) {
           <Button
             variant="ghost"
             size="sm"
-            className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50 flex items-center gap-2 w-full justify-start"
+            className="h-9 px-3 text-[11px] text-muted-foreground/80 hover:text-foreground bg-muted/30 hover:bg-muted/50 flex items-center gap-2 w-full justify-start rounded-xl border border-border/5 transition-all duration-300 group"
           >
-            {icon}
-            <span className="font-medium">{statusText}</span>
-            <ChevronRight className="h-3.5 w-3.5 ml-auto" />
+            <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-background/50 group-hover:bg-background transition-colors">
+              {icon}
+            </div>
+            <span className="font-semibold tracking-tight">{statusText}</span>
+            <ChevronRight className={cn("h-3.5 w-3.5 ml-auto opacity-40 transition-transform duration-300", isOpen && "rotate-90")} />
           </Button>
         </CollapsibleTrigger>
       )}
@@ -270,11 +297,22 @@ const ChatMessageItem = memo(
     }
 
     return (
-      <div data-run-id={msg.run_id} className={`group relative flex gap-3 ${msg.role === "human" ? "justify-end" : "justify-start"} items-start ${isGrouped ? "mb-1" : "mb-1"}`}>
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+        data-run-id={msg.run_id}
+        className={`group relative flex gap-3 ${msg.role === "human" ? "justify-end" : "justify-start"} items-start ${isGrouped ? "mb-1" : "mb-2"} chat-timeline-container`}
+      >
+        {/* 含蓄的灰度连线 - 仅 AI 消息且非分组的第一条显示 */}
+        {msg.role === "ai" && showAvatar && (
+          <div className="chat-timeline-line" />
+        )}
+
         {msg.role === "ai" && (
-          <div className="shrink-0 w-8 flex flex-col items-center">
+          <div className="shrink-0 w-8 flex flex-col items-center relative z-10">
             {showAvatar ? (
-              <Avatar className="h-8 w-8 mt-1">
+              <Avatar className="h-8 w-8 mt-1 border-none bg-muted shadow-none">
                 <AvatarImage src="/bot-avatar.png" />
                 <AvatarFallback>
                   <Bot size={16} />
@@ -286,12 +324,61 @@ const ChatMessageItem = memo(
           </div>
         )}
 
-        <div className={`relative flex-1 w-0 max-w-full min-w-0`}>
-          <div className="flex flex-col gap-1 min-w-0">
+        <div className={`relative flex-1 w-0 max-w-[90%] sm:max-w-[85%] min-w-0 flex flex-col gap-1`}>
+          
+          {/* 1. Action Stream (Thinking + Steps) - AI ONLY, ABOVE Bubble */}
+          {msg.role === "ai" && (
+            <div className="chat-action-stream empty:hidden animate-in fade-in slide-in-from-top-1 duration-500">
+              {/* Reasoning/Thinking Block - Integrated, Always prominent if open */}
+              {showThinking && (() => {
+                let thinkingContent = msg.thinking
+                if (!thinkingContent && msg.content && msg.content.includes("<think>")) {
+                  const thinkMatch = msg.content.match(/<think>([\s\S]*?)<\/think>/)
+                  if (thinkMatch) {
+                    thinkingContent = thinkMatch[1]
+                  } else if (msg.content.includes("<think>")) {
+                    const parts = msg.content.split("<think>")
+                    if (parts.length > 1) thinkingContent = parts[1]
+                  }
+                }
 
-            {/* 1. Main Content - AI FIRST */}
+                if (!thinkingContent) return null
+
+                return (
+                  <Collapsible defaultOpen={true} className="w-full">
+                    <CollapsibleTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2 text-[11px] text-muted-foreground hover:text-foreground hover:bg-muted/50 flex items-center gap-2 w-full justify-start rounded-md"
+                      >
+                        <Brain className="h-3.5 w-3.5 text-primary/70" />
+                        <span className="font-semibold uppercase tracking-wider opacity-70">
+                          {t("chat.interface.thinkingProcess")}
+                        </span>
+                        <ChevronRight className="h-3.5 w-3.5 ml-auto opacity-40 group-data-[state=open]:rotate-90 transition-transform" />
+                      </Button>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="text-[11px] leading-relaxed text-muted-foreground/90 bg-primary/5 p-3 rounded-md border-l-2 border-primary/30 whitespace-pre-wrap break-all font-mono mt-1 mb-2">
+                      {thinkingContent}
+                    </CollapsibleContent>
+                  </Collapsible>
+                )
+              })()}
+
+              {/* Tool Execution Steps */}
+              <ToolExecutionSection msg={msg} />
+            </div>
+          )}
+
+          <div className="flex flex-col gap-1 min-w-0">
+            {/* 2. Main Response Bubble */}
             {msg.content && (
-              <div className={`rounded-lg px-4 py-3 text-sm leading-relaxed min-w-0 w-fit w-full overflow-hidden ${msg.role === "human" ? "bg-primary text-primary-foreground ml-auto" : "bg-muted text-foreground mr-auto"}`}>
+              <div className={`rounded-xl px-4 py-3 text-sm leading-relaxed min-w-0 w-fit max-w-full overflow-hidden border ${
+                msg.role === "human" 
+                  ? "bg-primary text-primary-foreground border-primary/20 ml-auto shadow-none" 
+                  : "bg-muted/50 text-foreground border-border/40 mr-auto shadow-none"
+              }`}>
 
                 {(() => {
                   // Artifact Detection
@@ -320,11 +407,11 @@ const ChatMessageItem = memo(
                         }
                       }
                     } catch (_e) {
-                      // Not JSON, fall through
+                      // Not JSON
                     }
                   }
 
-                  // Check for voice message attachments
+                  // Voice message
                   const voiceAttachment = msg.attachments?.find(att => att.type === 'audio')
                   if (voiceAttachment) {
                     return (
@@ -338,23 +425,21 @@ const ChatMessageItem = memo(
                     )
                   }
 
-                  // Strip <think> tags for display if they were extracted above
+                  // Strip <think> tags
                   let cleanContent = msg.content
                   if (!msg.thinking && msg.content.includes("<think>")) {
                     cleanContent = msg.content.replace(/<think>[\s\S]*?<\/think>/g, "").trim()
-                    // Also handle open tag case for streaming
                     if (cleanContent.includes("<think>")) {
                       cleanContent = cleanContent.split("<think>")[0].trim()
                     }
                   }
 
-                  // Standard Markdown Render
                   return <MessageContent content={cleanContent} isUser={msg.role === "human"} />
                 })()}
               </div>
             )}
 
-            {/* 2. Sources Footer */}
+            {/* 3. Sources Footer */}
             {msg.role === "ai" && msg.references && msg.references.length > 0 && (
               <SourcesFooter
                 references={msg.references.map(ref => ({
@@ -365,53 +450,7 @@ const ChatMessageItem = memo(
               />
             )}
 
-            {/* 3. Reasoning/Thinking Block - Collapsed by default */}
-            {showThinking && (() => {
-              // 1. Use persisted thinking if available
-              let thinkingContent = msg.thinking
-
-              // 2. Or fallback to parsing from content (for streaming)
-              if (!thinkingContent && msg.content && msg.content.includes("<think>")) {
-                const thinkMatch = msg.content.match(/<think>([\s\S]*?)<\/think>/)
-                if (thinkMatch) {
-                  thinkingContent = thinkMatch[1]
-                } else if (msg.content.includes("<think>")) {
-                  // Streaming incomplete tag? or open tag
-                  const parts = msg.content.split("<think>")
-                  if (parts.length > 1) {
-                    thinkingContent = parts[1] // Show incomplete thinking
-                  }
-                }
-              }
-
-              if (!thinkingContent) return null
-
-              return (
-                <Collapsible defaultOpen={false} className="w-full">
-                  <CollapsibleTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50 flex items-center gap-2 w-full justify-start"
-                    >
-                      <Brain className="h-3.5 w-3.5" />
-                      <span className="font-medium">
-                        {t("chat.interface.thinkingProcess")}
-                      </span>
-                      <ChevronRight className="h-3.5 w-3.5 ml-auto" />
-                    </Button>
-                  </CollapsibleTrigger>
-                  <CollapsibleContent className="text-xs text-muted-foreground bg-muted/30 p-2 rounded-md border-l-2 border-primary/20 whitespace-pre-wrap break-all font-mono min-w-0 max-w-full">
-                    {thinkingContent}
-                  </CollapsibleContent>
-                </Collapsible>
-              )
-            })()}
-
-            {/* 4. Tool Execution Steps - Unified Display */}
-            <ToolExecutionSection msg={msg} />
-
-            {/* 5. Changeset Inline Hint - For AI messages with file changes */}
+            {/* 4. Changeset Inline Hint */}
             {msg.role === "ai" && !!msg.changeset_count && msg.changeset_count > 0 && (
               <ChangesetInlineHint
                 fileCount={msg.changeset_count}
@@ -421,34 +460,34 @@ const ChatMessageItem = memo(
             )}
           </div>
 
-          {/* Message Actions - Bottom of bubble, keep left/right position */}
-          <div className={`absolute ${msg.role === "human" ? "left-0" : "right-0"} -bottom-3 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1`}>
-            {/* Exposed Copy Button - For all message types */}
+          {/* Message Actions - Flat Buttons */}
+          <div className={`absolute ${msg.role === "human" ? "right-full mr-2" : "left-full ml-2"} top-0 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col gap-1`}>
+            {/* Exposed Copy Button */}
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8 rounded-full bg-background border shadow-sm text-muted-foreground hover:text-foreground"
+              className="h-7 w-7 rounded-md bg-background border border-border/40 text-muted-foreground hover:text-foreground"
               onClick={() => navigator.clipboard.writeText(msg.content)}
               title={t("chat.interface.copy")}
             >
-              <Copy className="h-4 w-4" />
+              <Copy className="h-3.5 w-3.5" />
             </Button>
 
-            {/* TTS Button - For AI messages */}
+            {/* TTS Button */}
             {msg.role === "ai" && msg.content && (
-              <TTSButton text={msg.content} size="md" />
+              <TTSButton text={msg.content} size="sm" />
             )}
 
-            {/* Exposed Retry Button - Only for user messages */}
+            {/* Exposed Retry Button */}
             {onRetry && msg.role === "human" && (
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 rounded-full bg-background border shadow-sm text-muted-foreground hover:text-foreground"
+                className="h-7 w-7 rounded-md bg-background border border-border/40 text-muted-foreground hover:text-foreground"
                 onClick={() => onRetry(msg)}
                 title={t("chat.interface.retry")}
               >
-                <RotateCcw className="h-4 w-4" />
+                <RotateCcw className="h-3.5 w-3.5" />
               </Button>
             )}
 
@@ -457,32 +496,24 @@ const ChatMessageItem = memo(
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8 rounded-full bg-background border shadow-sm"
+                  className="h-7 w-7 rounded-md bg-background border border-border/40"
                 >
-                  <MoreHorizontal className="h-4 w-4" />
+                  <MoreHorizontal className="h-3.5 w-3.5" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent>
-                {msg.role === "ai" && (
-                  <>
-                    {onAddToMemory && (
-                      <DropdownMenuItem
-                        onClick={() => onAddToMemory(msg.content)}
-                      >
-                        <Brain className="mr-2 h-4 w-4" />{" "}
-                        {t("chat.interface.memorize")}
-                      </DropdownMenuItem>
-                    )}
-                  </>
+              <DropdownMenuContent align={msg.role === "human" ? "end" : "start"}>
+                {msg.role === "ai" && onAddToMemory && (
+                  <DropdownMenuItem onClick={() => onAddToMemory(msg.content)}>
+                    <Brain className="mr-2 h-4 w-4" />{" "}
+                    {t("chat.interface.memorize")}
+                  </DropdownMenuItem>
                 )}
-                {/* Rewind Action - Only for user messages */}
                 {onRewind && msg.role === "human" && (
                   <DropdownMenuItem onClick={() => onRewind(msg)}>
                     <Undo className="mr-2 h-4 w-4" />{" "}
                     {t("chat.interface.rewind")}
                   </DropdownMenuItem>
                 )}
-                {/* Quote Action */}
                 {onQuote && (
                   <DropdownMenuItem onClick={() => onQuote()}>
                     <Quote className="mr-2 h-4 w-4" />{" "}
@@ -497,9 +528,9 @@ const ChatMessageItem = memo(
         {msg.role === "human" && (
           <div className="shrink-0 w-8 flex flex-col items-center">
             {showAvatar ? (
-              <Avatar className="h-8 w-8 mt-1">
+              <Avatar className="h-8 w-8 mt-1 border-none bg-primary/10">
                 <AvatarFallback>
-                  <User size={16} />
+                  <User size={16} className="text-primary" />
                 </AvatarFallback>
               </Avatar>
             ) : (
@@ -510,14 +541,14 @@ const ChatMessageItem = memo(
 
         {/* Timestamp */}
         {msg.timestamp && (
-          <div className={`absolute -bottom-0 ${msg.role === "human" ? "right-0" : "left-0"} text-[10px] text-muted-foreground/60`}>
+          <div className={`absolute -bottom-4 ${msg.role === "human" ? "right-12" : "left-12"} text-[10px] text-muted-foreground/40 font-mono`}>
             {new Date(msg.timestamp).toLocaleTimeString([], {
               hour: "2-digit",
               minute: "2-digit",
             })}
           </div>
         )}
-      </div>
+      </motion.div>
     )
   },
   (prevProps, nextProps) => {

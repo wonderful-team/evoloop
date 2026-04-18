@@ -3057,7 +3057,7 @@ export class MemberService {
 export class MemoryService {
     /**
      * List Concepts
-     * Get all concepts for a project (legacy endpoint).
+     * Get all concepts for a project.
      * @param data The data for the request.
      * @param data.projectId
      * @returns ConceptResponse Successful Response
@@ -3204,11 +3204,6 @@ export class MemoryService {
     /**
      * Search Memory
      * Search memory concepts.
-     *
-     * Args:
-     * q: Search query
-     * project_id: Optional project filter
-     * use_vector: If True, uses vector similarity search instead of text matching
      * @param data The data for the request.
      * @param data.q
      * @param data.projectId

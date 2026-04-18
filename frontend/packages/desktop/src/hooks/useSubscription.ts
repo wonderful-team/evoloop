@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { SubscriptionService } from "@/client"
 import useCustomToast from "@evoloop/shared/hooks/useCustomToast"
 import { handleError } from "@/utils"
+import { SubscriptionDetail, SubscriptionPlan, AiQuota, OrderStatus } from "@/types/subscription"
 
 export const useSubscription = () => {
     const queryClient = useQueryClient()
@@ -51,10 +52,10 @@ export const useSubscription = () => {
     })
 
     // Query for checking order status (usually called manually or within a specific effect)
-    const checkOrderStatus = async (orderId: string) => {
+    const checkOrderStatus = async (orderId: string): Promise<OrderStatus | null> => {
         try {
             const res = await SubscriptionService.checkSubscriptionOrderStatus({ orderId })
-            return (res as any)?.data
+            return (res as any)?.data as OrderStatus
         } catch (e) {
             console.error("Failed to check order status", e)
             return null
@@ -63,9 +64,9 @@ export const useSubscription = () => {
 
     return {
         status: (status as any)?.data,
-        detail: (detail as any)?.data,
-        plans: (plans as any)?.data || [],
-        quota: (quota as any)?.data,
+        detail: (detail as any)?.data as SubscriptionDetail,
+        plans: ((plans as any)?.data || []) as SubscriptionPlan[],
+        quota: (quota as any)?.data as AiQuota,
         isLoading: isLoadingStatus || isLoadingPlans || isLoadingQuota || isLoadingDetail,
         refetchQuota,
         refetchDetail: () => queryClient.invalidateQueries({ queryKey: ["subscription", "detail"] }),
