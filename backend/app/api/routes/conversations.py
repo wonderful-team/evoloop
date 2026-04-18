@@ -308,7 +308,7 @@ async def get_conversation_messages(
 
             item = MessageItem(
                 **f.model_dump(),
-                steps_snapshot=db_m.steps_snapshot,
+                steps_snapshot=None, # Stripped to optimize payload size
                 run_id=db_m.run_id,
                 parent_id=db_m.parent_id,
                 references=refs,
@@ -318,6 +318,13 @@ async def get_conversation_messages(
                 ),
                 changeset_count=message_changeset_counts.get(str(db_m.id), 0),
             )
+            
+            # Optimization: Remove heavy tool calls and output details from history
+            item.tool_calls = None
+            if item.steps:
+                for step in item.steps:
+                    step.output = "" # Hide execution results in list view
+            
             final_items.append(item)
 
         # Build response with cursors (based on visible messages only)

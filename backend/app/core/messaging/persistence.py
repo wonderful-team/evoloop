@@ -21,6 +21,8 @@ class PersistencePolicyResult(DynamicBaseModel):
     thinking: str | None = None
     tool_calls: list | None = None
     category: str
+    tool_call_id: str | None = None
+    tool_name: str | None = None
 
 
 class MessagePersistencePolicy:
@@ -96,6 +98,8 @@ class MessagePersistencePolicy:
         content: str,
         tool_calls: list | None = None,
         thinking: str | None = None,
+        tool_call_id: str | None = None,
+        tool_name: str | None = None,
     ) -> PersistencePolicyResult:
         """
         应用持久化策略，返回处理后的数据
@@ -105,16 +109,11 @@ class MessagePersistencePolicy:
             content: 原始内容
             tool_calls: 工具调用列表
             thinking: 思考内容
+            tool_call_id: 工具调用 ID
+            tool_name: 工具名称
             
         Returns:
-            dict: 包含处理后数据的字典
-            {
-                "should_persist": bool,
-                "content": str | None,
-                "thinking": str | None,
-                "tool_calls": list | None,
-                "category": str,
-            }
+            PersistencePolicyResult: 处理后的数据
         """
         should_persist = cls.should_persist(category)
         storage_field = cls.get_storage_field(category)
@@ -126,6 +125,8 @@ class MessagePersistencePolicy:
             thinking=None,
             tool_calls=tool_calls if should_store_tools else None,
             category=category.value,
+            tool_call_id=tool_call_id,
+            tool_name=tool_name,
         )
 
         if not should_persist:
@@ -134,15 +135,14 @@ class MessagePersistencePolicy:
 
         # 根据存储字段映射内容
         if storage_field == "content":
-            result["content"] = content
+            result.content = content
             # 思考内容单独处理（如果有）
             if thinking:
-                result["thinking"] = thinking
+                result.thinking = thinking
         elif storage_field == "thinking":
             # 思考过程存入 thinking 字段
-            # content 字段可以为空或保留摘要
-            result["thinking"] = content
-            result["content"] = ""  # 或生成摘要
+            result.thinking = content
+            result.content = ""
 
         return result
 

@@ -51,6 +51,11 @@ class Message(Base):
 
     # Threading support for message branching
     parent_id: Mapped[int | None] = mapped_column(ForeignKey("messages.id"), nullable=True)
+    
+    # Tool execution attribution
+    tool_call_id: Mapped[str | None] = mapped_column(String(255), index=True)
+    tool_name: Mapped[str | None] = mapped_column(String(255)) # Tool name or user name
+    
     parent: Mapped[Optional["Message"]] = relationship("Message", remote_side="[Message.id]", backref="children")
 
     references: Mapped[list["MessageReference"]] = relationship(back_populates="message", cascade="all, delete-orphan")

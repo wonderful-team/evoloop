@@ -58,8 +58,7 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
         self._last_attributed_step_index: int = 0
 
         # 当前工具名称追踪（LangChain on_tool_end 不传递 name，需要在 on_tool_start 存储）
-        self._current_tool_name: str = "unknown_tool"
-        self._tool_name_by_run_id: dict[str, str] = {}
+        self._tool_info_by_run_id: dict[str, dict[str, str]] = {}
 
     async def on_llm_end(self, response: LLMResult, **kwargs: Any) -> Any:
         """
@@ -83,24 +82,21 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
                 content = ""
 
             # 提取工具调用
-            # 注意：不同 LLM provider 存储位置不同，有的直接在 tool_calls 属性，有的在 additional_kwargs
             tool_calls = None
             if hasattr(message, "tool_calls") and message.tool_calls:
                 tool_calls = message.tool_calls
             elif hasattr(message, "additional_kwargs") and message.additional_kwargs:
                 tool_calls = message.additional_kwargs.get("tool_calls")
 
-            # 提取元数据（可能包含 source 标记）
+            # 提取元数据
             metadata = getattr(message, "metadata", None)
 
-            # 提取思考内容（从额外的 kwargs 或 content 中）
+            # 提取思考内容
             thinking = self._extract_thinking(content)
             if thinking:
-                # 移除思考标签后的内容
                 content = self._remove_thinking_tags(content)
 
             # 委托给统一处理器
-            # 所有分类和策略决策都在 handler 内部完成
             result = await self._handler.handle_ai_message(
                 content=content,
                 tool_calls=tool_calls,
@@ -116,7 +112,6 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
             )
 
         except Exception as e:
-            # 只记录错误，不抛出，避免影响主流程
             logger.error(f"[DatabaseCallback] Failed to handle AI message: {e}")
 
     async def on_tool_end(
@@ -129,24 +124,25 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
     ) -> Any:
         """
         工具执行结束时调用
-        
-        处理工具输出：
-        1. 获取工具名称（从 on_tool_start 存储的映射中）
-        2. 委托给 MessageHandler
         """
         try:
             run_id_str = str(run_id)
 
-            # 从存储的映射中获取工具名称（支持并行工具）
-            tool_name = self._tool_name_by_run_id.pop(run_id_str, None)
+            # 从存储的映射中获取工具信息
+            tool_info = self._tool_info_by_run_id.pop(run_id_str, {})
+            tool_name = tool_info.get("name")
+            tool_call_id = tool_info.get("tool_call_id")
+
             if not tool_name:
-                # 回退到当前工具名称（单工具场景）
+                # 回退逻辑
                 tool_name = getattr(self, '_current_tool_name', 'unknown_tool')
+                tool_call_id = run_id_str # 假设 run_id 就是 tool_call_id（符合 Engine 行为）
 
             # 委托给统一处理器
             result = await self._handler.handle_tool_output(
                 tool_name=tool_name,
                 output=output,
+                tool_call_id=tool_call_id,
             )
 
             logger.debug(
@@ -255,21 +251,21 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
     ) -> Any:
         """
         工具执行开始时调用
-        
-        记录工具名称用于后续 on_tool_end 使用
-        （LangChain 的 on_tool_end 不传递 name 参数）
         """
         try:
             # 提取工具名称
             tool_name = serialized.get("name") if serialized else "unknown_tool"
             run_id_str = str(run_id)
+            tool_call_id = kwargs.get("tool_call_id") or run_id_str
 
-            # 存储工具名称（支持并行工具）
-            self._tool_name_by_run_id[run_id_str] = tool_name
+            # 存储工具详情（支持并行工具）
+            self._tool_info_by_run_id[run_id_str] = {
+                "name": tool_name,
+                "tool_call_id": tool_call_id
+            }
             self._current_tool_name = tool_name
 
-            logger.debug(f"[DatabaseCallback] Tool started: {tool_name} (run_id={run_id_str})")
-
+            logger.debug(f"[DatabaseCallback] Tool started: {tool_name} (tool_call_id={tool_call_id})")
         except Exception as e:
             logger.debug(f"[DatabaseCallback] Failed to track tool start: {e}")
 

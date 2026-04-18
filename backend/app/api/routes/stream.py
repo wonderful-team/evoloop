@@ -140,7 +140,7 @@ async def stream_chat(thread_id: str):
                                     tool_name_display = msg_data.get('tool_name_display')
                                     
                                     step = ToolStep(
-                                        id=msg_data.get('id') or f"step-{asyncio.get_event_loop().time()}",
+                                        id=msg_data.get('id') or asyncio.get_event_loop().time(),
                                         tool=tool_name,
                                         tool_name=tool_name_display,
                                         input=tool_input,

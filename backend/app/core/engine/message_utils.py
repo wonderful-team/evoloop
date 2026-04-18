@@ -26,6 +26,7 @@ from app.core.memory.tool_output_memory import ToolOutputMemory
 from app.core.engine.state.history import FoldedMessage, ToolCall, ToolStep
 from app.i18n.service import i18n
 from app.infrastructure.llm.model_profile import get_profile
+from app.utils import gen_uuid
 
 logger = logging.getLogger(__name__)
 
@@ -353,12 +354,12 @@ def to_base_message(msg: Any) -> BaseMessage | None:
             additional_kwargs=kwargs
         )
     elif role == "tool":
-        # For database records, name might be stored in 'name' or derived from tool_calls
+        # For database records, name might be stored in 'tool_name' or derived from tool_calls
         return ToolMessage(
             content=content,
             id=msg_id,
             tool_call_id=getattr(msg, "tool_call_id", ""),
-            name=getattr(msg, "name", None),
+            name=getattr(msg, "tool_name", None),
             additional_kwargs=kwargs
         )
     elif role == "system":
@@ -400,19 +401,26 @@ def fold_messages(messages: list[BaseMessage]) -> list[FoldedMessage]:
 
             # Look ahead for ToolMessages matching our tool_calls
             j = i + 1
-            tool_call_ids = {
-                (tc['id'] if isinstance(tc, dict) else tc.id): tc 
-                for tc in tool_calls
-            }
+            # Current turn tool calls mapping
+            current_turn_tool_calls = []
+            for tc in tool_calls:
+                tc_id = (tc['id'] if isinstance(tc, dict) else tc.id)
+                tc_name = (tc.get('name') if isinstance(tc, dict) else getattr(tc, 'name', ''))
+                current_turn_tool_calls.append({'id': tc_id, 'name': tc_name, 'raw': tc, 'matched': False})
 
             while j < len(messages) and isinstance(messages[j], ToolMessage):
                 tool_msg = messages[j]
                 
-                # Match with tool_call_id
-                tool_call = tool_call_ids.get(tool_msg.tool_call_id)
+                # 1. Exact match by tool_call_id
+                matched_tc = next((tc for tc in current_turn_tool_calls if tc['id'] == tool_msg.tool_call_id), None)
 
-                # Robustly extract name and args from tool_call (could be dict or object)
-                if tool_call:
+                # 2. Fallback match by name (for legacy/missing IDs)
+                if not matched_tc and (not tool_msg.tool_call_id or tool_msg.tool_call_id.startswith('msg-')):
+                    matched_tc = next((tc for tc in current_turn_tool_calls if not tc['matched'] and tc['name'] == tool_msg.name), None)
+
+                if matched_tc:
+                    matched_tc['matched'] = True
+                    tool_call = matched_tc['raw']
                     if isinstance(tool_call, dict):
                         tc_name = tool_call.get("name", "unknown")
                         tc_args = tool_call.get("args", {})
@@ -420,7 +428,7 @@ def fold_messages(messages: list[BaseMessage]) -> list[FoldedMessage]:
                         tc_name = getattr(tool_call, "name", "unknown")
                         tc_args = getattr(tool_call, "args", {})
                 else:
-                    tc_name = "unknown"
+                    tc_name = tool_msg.name or "unknown"
                     tc_args = {}
 
                 tool_name = tool_msg.name or tc_name
@@ -432,7 +440,7 @@ def fold_messages(messages: list[BaseMessage]) -> list[FoldedMessage]:
                     continue
 
                 steps.append(ToolStep(
-                    id=f"step-{tool_msg.tool_call_id}",
+                    id=tool_msg.tool_call_id or gen_uuid(),
                     tool=tool_name,
                     tool_name=get_tool_friendly_name(tool_name) or tool_name,
                     input=tc_args,

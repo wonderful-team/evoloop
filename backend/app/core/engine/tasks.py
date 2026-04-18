@@ -354,6 +354,8 @@ def persist_message_task(
     action_type: str = "text",
     category: str | None = None,
     is_visible: bool = True,
+    tool_call_id: str | None = None,
+    tool_name: str | None = None,
 ):
     """Background task to persist agent messages to the database.
     
@@ -404,6 +406,8 @@ def persist_message_task(
                     action_type=action_type,
                     is_visible=final_is_visible,
                     category=category,
+                    tool_call_id=tool_call_id,
+                    tool_name=tool_name,
                 )
                 session.add(log)
                 await session.flush()  # Get ID for references

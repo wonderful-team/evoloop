@@ -153,6 +153,7 @@ class MessageHandler:
         self,
         tool_name: str,
         output: Any,
+        tool_call_id: str | None = None,
         run_id: str | None = None,
     ) -> MessageHandlerResult:
         """
@@ -161,6 +162,7 @@ class MessageHandler:
         Args:
             tool_name: 工具名称
             output: 工具输出内容
+            tool_call_id: 工具调用 ID
             run_id: 运行 ID
             
         Returns:
@@ -175,9 +177,11 @@ class MessageHandler:
         persist_data = MessagePersistencePolicy.apply_policy(
             category=category,
             content=content,
+            tool_call_id=tool_call_id,
+            tool_name=tool_name,
         )
 
-        logger.info(f"[UnifiedHandler] Tool {tool_name} output classified as: {category.value}, persist={persist_data['should_persist']}")
+        logger.info(f"[UnifiedHandler] Tool {tool_name} output classified as: {category.value}, persist={persist_data.should_persist}")
 
         stream_data = MessageStreamPolicy.apply_policy(
             category=category,
@@ -193,6 +197,8 @@ class MessageHandler:
                 category=category.value,
                 action_type="tool_output",
                 is_visible=category.is_visible_to_user,
+                tool_call_id=persist_data.tool_call_id,
+                tool_name=persist_data.tool_name,
             )
 
         # 4. 流式推送
@@ -288,6 +294,8 @@ class MessageHandler:
         category: str = "",
         action_type: str = "text",
         is_visible: bool = True,
+        tool_call_id: str | None = None,
+        tool_name: str | None = None,
     ) -> str | None:
         """
         持久化消息到数据库
@@ -318,6 +326,8 @@ class MessageHandler:
                     "sequence_number": self._sequence_counter,
                     "run_id": self.run_id,
                     "is_visible": is_visible,
+                    "tool_call_id": tool_call_id,
+                    "tool_name": tool_name,
                 }
             )
 
