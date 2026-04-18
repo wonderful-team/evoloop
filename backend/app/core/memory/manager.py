@@ -383,13 +383,16 @@ class MemoryManager:
     # ========================================================================
 
     async def save_memory(self, entry: MemoryEntry) -> None:
-        """
-        Save a memory entry to long-term storage.
-        
-        Args:
-            entry: Memory entry to save
-        """
+        """Save a memory entry."""
         await self._storage.save(entry)
+
+    async def delete_memory(self, entry_id: str) -> bool:
+        """Permanently delete a memory entry by ID."""
+        return await self._storage.delete(entry_id)
+
+    async def delete(self, entry_id: str) -> bool:
+        """Alias for delete_memory for tool/manager consistency."""
+        return await self._storage.delete(entry_id)
 
     async def get_memory(self, entry_id: str) -> MemoryEntry | None:
         """

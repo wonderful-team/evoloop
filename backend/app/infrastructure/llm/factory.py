@@ -99,7 +99,6 @@ class LLMFactory:
         if model_name and model_name.startswith("custom-"):
             return await LLMFactory._create_custom_llm(model_name, temperature, **kwargs)
 
-        # Platform Mode: Always use OpenAI format to Gateway
         return await LLMFactory._create_platform_llm(model_name, temperature, **kwargs)
 
     @staticmethod
@@ -109,52 +108,24 @@ class LLMFactory:
         Gateway handles protocol translation based on provider_type.
         """
         from app.core.evocloud import evocloud_manager
-        from app.infrastructure.config.service import SystemConfigService
-        
+
         token = evocloud_manager.get_token()
         if not token:
             raise ValueError("Not authenticated with EvoLoop platform. Please login first.")
-        
+
         gateway_url = evocloud_manager.api.root_url if evocloud_manager.api else ""
         if not gateway_url:
             raise ValueError("EvoLoop Gateway URL not configured")
-        
-        # If no model_name provided, get from system config or auto-select first available
-        if not model_name:
-            model_name = SystemConfigService.get_value("LLM_MODEL")
-            
-            # Auto-select first available platform model if not configured
-            if not model_name:
-                # Use evocloud API directly to avoid circular import
-                try:
-                    resp = await evocloud_manager.api.get_llm_models()
-                    if resp.get("code", -1) == 0:
-                        models_data = resp.get("data", {}).get("models", [])
-                        for m in models_data:
-                            if m.get("config_type") == "evoloop" and m.get("model_type") == "llm":
-                                model_name = m.get("model_id")
-                                logger.info(f"[LLMFactory] Auto-selected first available model: {model_name}")
-                                break
-                except Exception as e:
-                    logger.warning(f"[LLMFactory] Failed to fetch platform models: {e}")
-                
-                if not model_name:
-                    raise ValueError(
-                        "No LLM model available. Please configure a model in Settings > LLM Model."
-                    )
-            else:
-                logger.info(f"[LLMFactory] Using configured model: {model_name}")
-        
+
         # Backend always sends OpenAI format to Gateway
         # Gateway handles protocol translation (OpenAI ↔ Anthropic)
         # streaming 参数可从 kwargs 传入，默认为 False
-        streaming = kwargs.get("streaming", False)
         return AdaptiveChatOpenAI(
             api_key=token,
             base_url=f"{gateway_url}/gateway/v1",
             model=model_name,
             temperature=temperature,
-            streaming=streaming,
+            streaming=kwargs.get("streaming", False),
             http_async_client=_HTTP_CLIENT_POOL.get(),
         )
 

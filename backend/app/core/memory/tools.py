@@ -87,8 +87,8 @@ async def remember(content: str, context: str = "", is_user_preference: bool = F
         manager = container.memory_manager
         await manager.save_memory(entry)
 
-        logger.info(f"[MemoryTool] Remembered: {title[:40]}...")
-        return f"Remembered: {title}"
+        logger.info(f"[MemoryTool] Remembered: {title[:40]}... (ID: {entry_id})")
+        return f"Remembered: {title} (ID: {entry_id})"
 
     except Exception as e:
         logger.error(f"[MemoryTool] Failed to remember: {e}")
@@ -138,7 +138,7 @@ async def recall(query: str, limit: int = 5) -> str:
         # Format results
         lines = [f"Recalled {len(entries)} memories:\n"]
         for i, entry in enumerate(entries, 1):
-            lines.append(f"{i}. [{entry.type.value.upper()}] {entry.title}")
+            lines.append(f"{i}. [{entry.type.value.upper()}] {entry.title} (ID: {entry.id})")
             lines.append(f"   {entry.content[:300]}")
             lines.append("")
 
@@ -147,6 +147,40 @@ async def recall(query: str, limit: int = 5) -> str:
     except Exception as e:
         logger.error(f"[MemoryTool] Recall failed: {e}")
         return f"Failed to recall: {str(e)}"
+
+
+@evoloop_tool(
+    is_state_mutating=True,
+    name_map={"zh": "删除记忆", "en": "Forget Memory"}
+)
+async def forget_memory(memory_id: str) -> str:
+    """
+    Delete a specific long-term memory by its ID.
+    
+    Use when:
+    - User says "Forget about X" or "Delete that memory about Y"
+    - You realize a previously stored piece of information is now completely wrong or irrelevant.
+    
+    Args:
+        memory_id: The unique ID of the memory to delete (must be obtained via recall first).
+    """
+    try:
+        from app.core.memory.lifespan import MemoryLifespanManager
+        if not MemoryLifespanManager.is_initialized():
+            await MemoryLifespanManager.ainitialize()
+        container = MemoryLifespanManager.get_container()
+        manager = container.memory_manager
+        
+        success = await manager.delete(memory_id)
+        if success:
+            logger.info(f"[MemoryTool] Forgotten memory: {memory_id}")
+            return f"Memory '{memory_id}' has been permanently forgotten."
+        else:
+            return f"Could not find memory with ID '{memory_id}' to delete."
+            
+    except Exception as e:
+        logger.error(f"[MemoryTool] Failed to forget memory: {e}")
+        return f"Error deleting memory: {str(e)}"
 
 
 # ========================================================================

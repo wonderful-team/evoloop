@@ -233,7 +233,6 @@ async def chat_endpoint(
     """
     Unified entry point for User Chat (Local Background Task).
     """
-    # Initialize Context for Request
     ctx = EvoContext(
         request_id=f"req-{req.thread_id}-{int(time.time())}",
         thread_id=req.thread_id,
@@ -263,8 +262,6 @@ async def chat_endpoint(
         except Exception as e:
             logger.warning(f"Failed to fetch skill {req.skill_id}: {e}")
 
-
-    run_id = f"run-{req.thread_id}-{int(time.time())}"
     logger.debug(f"[ChatEndpoint] Run initialized for thread {req.thread_id}")
 
     # Use Unified Dispatcher

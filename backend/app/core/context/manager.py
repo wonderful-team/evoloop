@@ -210,6 +210,8 @@ class ContextManager:
             data = ctx.to_dict()
             hset_data = {}
             for k, v in data.items():
+                if k == "terminal_error":
+                    continue  # Don't persist transient error markers
                 if isinstance(v, (list, dict)):
                     hset_data[k] = json.dumps(v)
                 elif v is None:

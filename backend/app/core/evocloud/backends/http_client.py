@@ -139,18 +139,16 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
 
         try:
             resp = await client.request(method, url, params=params, json=data, headers=req_headers)
-
             if resp.status_code >= 400:
                 logger.error(f"API Error {resp.status_code}: {resp.text[:200]}")
 
             try:
-                res_json = resp.json()
-                return res_json
+                return resp.json()
             except json.JSONDecodeError:
                 return {"code": -1, "message": f"Invalid JSON: {resp.text[:100]}"}
 
         except httpx.RequestError as e:
-            logger.error(f"Request connection error: {e}")
+            logger.error(f"Request connection error to {url}: {e}")
             return {"code": -1, "message": str(e)}
         except Exception as e:
             logger.error(f"Request failed: {e}")

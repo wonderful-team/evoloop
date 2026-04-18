@@ -82,17 +82,12 @@ def evoloop_tool(
     is_hidden: bool = False,  # Hide from user UI (internal control tools)
     name_map: dict[str, str] | None = None,  # {"zh": "中文名", "en": "English Name"}
     handle_tool_error: bool = True,  # Allow override for HITL tools
-    required_benefit: str | None = None,  # 所需权益，如 "desktop_control"
+    required_benefit: str | None = None,  # 权益编码，如 "desktop_control"
     **kwargs,
 ):
     """
     Decorator that applies standard EvoLoop tool behaviors.
     Can be used as @evoloop_tool or @evoloop_tool(name="...", is_pollable=True, ...).
-
-    Args:
-        config: Structured tool configuration. If provided, other metadata kwargs are ignored.
-        required_benefit: 权益编码，如 "desktop_control", "mobile_control", "browser_control"
-                          如果用户没有该权益，工具执行将被拒绝
     """
     import inspect
 
@@ -117,9 +112,6 @@ def evoloop_tool(
 
             @functools.wraps(func)
             async def wrapper(*args_f, **kwargs_f):
-                # Debug: Log raw inputs
-                logger.info(f"🔧 Tool [{func.__name__}] Invoked - Args: {args_f}, Kwargs: {kwargs_f}")
-
                 # 权限检查
                 from app.core.context.manager import ContextManager
                 if config.required_benefit:
@@ -159,15 +151,11 @@ def evoloop_tool(
                 try:
                     return await func(*args_f, **kwargs_f)
                 except Exception as e:
-                    # Log error
                     return f"Error: {str(e)}"
         else:
 
             @functools.wraps(func)
             def wrapper(*args_f, **kwargs_f):
-                # Debug: Log raw inputs
-                logger.info(f"🔧 Tool [{func.__name__}] Invoked - Args: {args_f}, Kwargs: {kwargs_f}")
-
                 # 同步函数的权限检查（少见）
                 if config.required_benefit:
                     return f"Error: {func.__name__} requires benefit {config.required_benefit} but sync tools don't support permission checks"

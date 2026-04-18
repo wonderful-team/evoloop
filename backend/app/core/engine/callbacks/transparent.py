@@ -150,10 +150,8 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
         if self.thread_id and self.monitor:
             await self.monitor.check_cancellation(self.thread_id)
 
-            # Deduplicate nested LLM calls
             if self.active_llm_run_id is None:
                 self.active_llm_run_id = kwargs.get("run_id")
-                # Removed: self.llm_task_id = await self.monitor.add_step(self.thread_id, "Thinking...", "ai")
 
     async def on_llm_new_token(self, token: str, **kwargs: Any) -> None:
         """Run on new LLM token."""
@@ -181,15 +179,6 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
                         token = str(token)
 
                 self._current_stream_buffer += token
-
-                # --- NEW: Real-time Terminal Print for Debugging ---
-                import sys
-                sys.stdout.write(token)
-                sys.stdout.flush()
-
-                # --- 🏅 Token-level Technical Tag Filtering (Phase 5 UI Optimization) ---
-                # We want to hide <evoloop_session_audit>...</evoloop_session_audit> and <think>...</think> from the user stream.
-                # We also want to strip <evoloop_final_report> and </evoloop_final_report> tags but keep their content.
 
                 if not hasattr(self, "_in_hidden_tag"):
                     self._in_hidden_tag = False
@@ -245,6 +234,7 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
                             )
                         except Exception:
                             pass
+
                     self._publish_buffer = ""
 
                     try:
@@ -286,7 +276,6 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
             self.active_llm_run_id = None
             self._current_stream_buffer = ""
 
-        # Emit structured stream event so the UI (steps area) shows failure
         try:
             await self._publish_stream_event(StreamEvent(
                 type=StreamEventType.TOOL_ERROR.value,

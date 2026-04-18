@@ -72,6 +72,7 @@ export function ChatInterface() {
   const stopAgent = useChatStore((s) => s.stopAgent)
   const _truncateMessages = useChatStore((s) => s._truncateMessages)
   const markAllChangesAsViewed = useChatStore((s) => s.markAllChangesAsViewed)
+  const selectedModel = useChatStore((s) => s.selectedModel)
 
   // We maintain 'showContextPanel' locally as it involves UI preference
   // Global mode: hidden by default; Project mode: show by default
@@ -336,7 +337,8 @@ export function ChatInterface() {
           message: "", // Backend finds the target user message
           project_id: projectId,
           revert_files: revertFiles,
-          message_id: messageId ? parseInt(messageId) : undefined
+          message_id: messageId ? parseInt(messageId) : undefined,
+          model: selectedModel,
         }
       } as any)
     },

@@ -6,7 +6,7 @@ Conversation Sync Tasks - Huey-based background sync for EvoCloud.
 - 进程重启后恢复
 - 批量处理优化
 """
-
+import asyncio
 import logging
 
 from app.core.evocloud.schemas import SyncConversation
@@ -147,29 +147,103 @@ async def full_sync_task(device_id: int, data: dict) -> dict:
     messages = data.get("messages", [])
 
     try:
+        # Step 1: Sync all conversations metadata with 'seed' messages
+        # We include the latest message for each conversation to ensure the session is properly initialized
+        seed_messages = []
+        seed_message_ids = set()
+        
+        # Group messages by thread to find the "seed" (latest message)
+        conv_to_messages = {}
+        for msg in messages:
+            tid = msg.get("thread_id")
+            if tid not in conv_to_messages:
+                conv_to_messages[tid] = []
+            conv_to_messages[tid].append(msg)
+            
+        for conv in conversations:
+            cid = conv.get("id")
+            thread_msgs = conv_to_messages.get(cid, [])
+            if thread_msgs:
+                # Use the latest message as a seed
+                seed = thread_msgs[-1]
+                seed_messages.append(seed)
+                seed_message_ids.add(seed.get("id"))
+
         result = await api.sync_full_conversations(device_id, {
             "conversations": conversations,
-            "messages": messages,
+            "messages": seed_messages,
         })
 
-        if result.get("code") == 0:
-            sync_result = result.get("data", {})
-            logger.info(
-                f"[SyncTask] Full sync completed: "
-                f"{sync_result.get('conversations', 0)} conversations, "
-                f"{sync_result.get('messages', 0)} messages "
-                f"device={device_id}"
-            )
-            return result
-        else:
+        if result.get("code") != 0:
             error_msg = result.get("message", "Unknown error")
-            logger.error(
-                f"[SyncTask] Full sync failed: "
-                f"code={result.get('code')} message={error_msg}"
-            )
+            logger.error(f"[SyncTask] Metadata sync failed: code={result.get('code')} message={error_msg}")
             if result.get("code") in (-1001, -1002, -1003):
                 return result
-            raise Exception(f"Full sync failed: {error_msg}")
+            raise Exception(f"Metadata sync failed: {error_msg}")
+
+        # REQUIRED: Wait for backend to commit the session creation
+        # Some backends have slight consistency delays
+        logger.info("[SyncTask] Step 1 finished. Waiting 2s for backend consistency...")
+        await asyncio.sleep(2.0)
+
+        # Step 2: Sync remaining messages in batches
+        # CRITICAL: Only sync messages for conversations that actually exist in Step 1
+        valid_conv_ids = {c.get("id") for c in conversations}
+        orphaned_thread_ids = set()
+        
+        filtered_messages = []
+        for m in messages:
+            tid = m.get("thread_id")
+            if tid in valid_conv_ids:
+                if m.get("id") not in seed_message_ids:
+                    filtered_messages.append(m)
+            else:
+                orphaned_thread_ids.add(tid)
+
+        if orphaned_thread_ids:
+            logger.warning(f"[SyncTask] Skipping {len(messages) - len(filtered_messages) - len(seed_messages)} orphaned messages belonging to non-existent sessions: {list(orphaned_thread_ids)}")
+
+        if not filtered_messages:
+            logger.info("[SyncTask] No additional messages to sync (after filtering orphans). Full sync completed.")
+            return result
+
+        # Group filtered messages by thread_id
+        groups: dict[str, list[dict]] = {}
+        for msg in filtered_messages:
+            tid = msg.get("thread_id")
+            if tid not in groups:
+                groups[tid] = []
+            groups[tid].append(msg)
+
+        total_synced = len(seed_messages)
+        batch_size = 100
+        
+        for thread_id, thread_messages in groups.items():
+            logger.info(f"[SyncTask] Step 2: Syncing {len(thread_messages)} additional messages for thread {thread_id}")
+            
+            for i in range(0, len(thread_messages), batch_size):
+                chunk = thread_messages[i:i + batch_size]
+                chunk_index = (i // batch_size) + 1
+                total_chunks = (len(thread_messages) + batch_size - 1) // batch_size
+                
+                logger.debug(f"[SyncTask]   -> Sending batch {chunk_index}/{total_chunks} ({len(chunk)} messages)")
+                
+                chunk_result = await api.sync_messages(device_id, thread_id, chunk)
+                
+                if chunk_result.get("code") != 0:
+                    error_msg = chunk_result.get("message", "Unknown error")
+                    # If it still fails with "not found", it might be a real permission issue
+                    logger.error(f"[SyncTask] Error syncing message batch for thread {thread_id}: {error_msg}")
+                    raise Exception(f"Message batch sync failed: {error_msg}")
+                
+                total_synced += len(chunk)
+
+        logger.info(
+            f"[SyncTask] Full sync completed successfully: "
+            f"{len(conversations)} conversations, "
+            f"{total_synced} messages (including seeds)."
+        )
+        return {"code": 0, "data": {"conversations": len(conversations), "messages": total_synced}}
 
     except Exception as e:
         # Avoid noisy tracebacks for connectivity issues in restricted environments
@@ -178,10 +252,7 @@ async def full_sync_task(device_id: int, data: dict) -> dict:
             logger.warning(f"[SyncTask] Cloud unreachable during full sync (device={device_id}). Skipping noisy retry.")
             return {"code": -1, "message": "Cloud unreachable"}
             
-        logger.error(
-            f"[SyncTask] Exception in full sync: "
-            f"{type(e).__name__}: {e}"
-        )
+        logger.error(f"[SyncTask] Exception in full sync: {type(e).__name__}: {e}")
         raise
 
 
