@@ -146,7 +146,6 @@ class MessageCategory(str, Enum):
         return {
             cls.INTERNAL_TOOL_CALL,
             cls.INTERNAL_SYSTEM,
-            cls.INTERNAL_LLM_JSON,
             cls.ERROR_SYSTEM,  # 系统错误不入消息列表
             cls.ERROR_BUSINESS,  # 业务错误不入消息列表（但入库供Agent学习）
         }
@@ -169,6 +168,5 @@ class MessageCategory(str, Enum):
         return {
             cls.INTERNAL_TOOL_CALL,
             cls.INTERNAL_SYSTEM,
-            cls.INTERNAL_LLM_JSON,
             cls.ERROR_SYSTEM,  # 系统错误不入库
         }

@@ -88,12 +88,12 @@ dependencies = [
     "langgraph-checkpoint-postgres>=3.0.4",
     "pgvector>=0.3.6",
     "aiofiles>=25.1.0",
+    "psycopg[binary]>=3.1.13,<4.0.0",
 ]
 
 [project.optional-dependencies]
 # Full mode with all external services
 full = [
-    "psycopg[binary]>=3.1.13,<4.0.0",
     "asyncpg>=0.29.0",
     "pgvector>=0.3.6",
     "neo4j>=5.20.0",

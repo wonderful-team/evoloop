@@ -160,24 +160,28 @@ def snapshot_steps_task(
             last_msg = result.scalar_one_or_none()
 
             if last_msg:
-                serialized_steps = [
-                    {
-                        "id": t.get("id"),
-                        "name": t.get("name"),
-                        "status": t.get("status"),
-                        "type": t.get("type"),
-                        "parent_id": t.get("parent_id"),
-                        "time": t.get("time"),
-                        "details": t.get("details"),
+                # Use standard ToolStep serialization logic
+                serialized_steps = []
+                for t in steps:
+                    # Map incoming step data to ToolStep schema
+                    # Note: we use 'details' as 'output' if provided
+                    step_data = {
+                        "id": str(t.get("id", gen_uuid())),
+                        "tool": t.get("tool") or t.get("name", "unknown"),
+                        "tool_name": t.get("tool_name") or t.get("name"),
+                        "input": t.get("input") or {},
+                        "output": str(t.get("details") or t.get("output") or ""),
+                        "status": t.get("status", "success"),
+                        "duration": t.get("duration"),
+                        "tool_call_id": t.get("tool_call_id"),
                     }
-                    for t in steps
-                ]
+                    serialized_steps.append(step_data)
 
                 # Append to existing steps instead of overwriting
                 existing_steps = last_msg.steps_snapshot or []
                 last_msg.steps_snapshot = existing_steps + serialized_steps
 
-        logger.debug(f"[Celery] Snapshotted {len(steps)} steps for thread {thread_id}")
+        logger.info(f"[Celery] Snapshotted {len(steps)} steps for AI message in thread {thread_id}")
 
     async def _run_with_flush():
         try:

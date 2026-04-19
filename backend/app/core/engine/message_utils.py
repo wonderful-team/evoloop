@@ -343,6 +343,8 @@ def to_base_message(msg: Any) -> BaseMessage | None:
         kwargs["created_at"] = created_at
     if thinking:
         kwargs["thinking"] = thinking
+    if getattr(msg, "steps_snapshot", None):
+        kwargs["steps_snapshot"] = msg.steps_snapshot
 
     if role == "human":
         return HumanMessage(content=content, id=msg_id, additional_kwargs=kwargs)
@@ -373,8 +375,8 @@ def fold_messages(messages: list[BaseMessage]) -> list[FoldedMessage]:
     """
     Fold flat message list into nested format with embedded steps.
     
-    This eliminates the need for frontend to perform message folding.
-    Tool execution results are nested within their parent AI message as 'steps'.
+    This version uses MessageFolder for unified logic and supports
+    the steps_snapshot fast-path optimization.
     
     Args:
         messages: Flat list of messages (AIMessage, ToolMessage, HumanMessage)
@@ -382,127 +384,8 @@ def fold_messages(messages: list[BaseMessage]) -> list[FoldedMessage]:
     Returns:
         Folded list of FoldedMessage objects
     """
-    from app.core.tools.registry import get_tool_metadata, get_tool_friendly_name
-
-    result: list[FoldedMessage] = []
-    i = 0
-
-    while i < len(messages):
-        msg = messages[i]
-        # Robustly get ID and timestamp, checking both attributes and additional_kwargs
-        msg_id = getattr(msg, "id", None) or msg.additional_kwargs.get("id") or f"msg-{i}"
-        created_at = getattr(msg, "created_at", None) or msg.additional_kwargs.get("created_at")
-        if isinstance(created_at, datetime):
-            created_at = created_at.isoformat()
-
-        if isinstance(msg, AIMessage):
-            # Collect tool execution results for this AI message
-            steps = []
-            tool_calls = getattr(msg, "tool_calls", []) or []
-
-            # Look ahead for ToolMessages matching our tool_calls
-            j = i + 1
-            # Current turn tool calls mapping
-            current_turn_tool_calls = []
-            for tc in tool_calls:
-                tc_id = (tc['id'] if isinstance(tc, dict) else tc.id)
-                tc_name = (tc.get('name') if isinstance(tc, dict) else getattr(tc, 'name', ''))
-                current_turn_tool_calls.append({'id': tc_id, 'name': tc_name, 'raw': tc, 'matched': False})
-
-            while j < len(messages) and isinstance(messages[j], ToolMessage):
-                tool_msg = messages[j]
-                
-                # 1. Exact match by tool_call_id
-                matched_tc = next((tc for tc in current_turn_tool_calls if tc['id'] == tool_msg.tool_call_id), None)
-
-                # 2. Fallback match by name (for legacy/missing IDs)
-                if not matched_tc and (not tool_msg.tool_call_id or tool_msg.tool_call_id.startswith('msg-')):
-                    matched_tc = next((tc for tc in current_turn_tool_calls if not tc['matched'] and tc['name'] == tool_msg.name), None)
-
-                if matched_tc:
-                    matched_tc['matched'] = True
-                    tool_call = matched_tc['raw']
-                    if isinstance(tool_call, dict):
-                        tc_name = tool_call.get("name", "unknown")
-                        tc_args = tool_call.get("args", {})
-                    else:
-                        tc_name = getattr(tool_call, "name", "unknown")
-                        tc_args = getattr(tool_call, "args", {})
-                else:
-                    tc_name = tool_msg.name or "unknown"
-                    tc_args = {}
-
-                tool_name = tool_msg.name or tc_name
-
-                # Check if tool should be hidden in UI
-                metadata = get_tool_metadata(tool_name) or {}
-                if metadata.get("is_hidden", False):
-                    j += 1
-                    continue
-
-                steps.append(ToolStep(
-                    id=tool_msg.tool_call_id or gen_uuid(),
-                    tool=tool_name,
-                    tool_name=get_tool_friendly_name(tool_name) or tool_name,
-                    input=tc_args,
-                    output=get_message_text(tool_msg),
-                    status="success",
-                    tool_call_id=tool_msg.tool_call_id
-                ))
-                j += 1
-
-            result.append(FoldedMessage(
-                id=msg_id,
-                role="ai",
-                content=get_message_text(msg),
-                thinking=getattr(msg, "thinking", None) or msg.additional_kwargs.get("thinking"),
-                tool_calls=[(tc.model_dump() if hasattr(tc, 'model_dump') else tc) for tc in tool_calls] if tool_calls else None,
-                steps=steps,
-                created_at=created_at
-            ))
-
-            i = j  # Skip processed ToolMessages
-
-        elif isinstance(msg, ToolMessage):
-            # Orphan ToolMessage
-            tool_name = msg.name or "unknown"
-            
-            # Still filter hidden tools if orphan
-            metadata = get_tool_metadata(tool_name) or {}
-            if not metadata.get("is_hidden", False):
-                result.append(FoldedMessage(
-                    id=f"orphan-{msg.tool_call_id}",
-                    role="tool",
-                    content=get_message_text(msg),
-                    metadata={
-                        "tool": tool_name,
-                        "tool_call_id": msg.tool_call_id,
-                        "orphan": True
-                    }
-                ))
-            i += 1
-
-        elif isinstance(msg, HumanMessage):
-            result.append(FoldedMessage(
-                id=msg_id,
-                role="human",
-                content=get_message_text(msg),
-                created_at=created_at
-            ))
-            i += 1
-
-        elif isinstance(msg, SystemMessage):
-            result.append(FoldedMessage(
-                id=f"system-{i}",
-                role="system",
-                content=get_message_text(msg)
-            ))
-            i += 1
-
-        else:
-            i += 1
-
-    return result
+    from app.core.engine.folder import MessageFolder
+    return MessageFolder.fold(messages)
 
 
 # ============================================================================

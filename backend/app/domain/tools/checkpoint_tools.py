@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 
 @evoloop_tool(
     is_state_mutating=True,
+    is_hidden=True,
     summary_template="database_logger.tool_summary.create_checkpoint",
     name_map={"zh": "创建检查点", "en": "Create Checkpoint"}
 )
@@ -96,6 +97,7 @@ async def create_checkpoint(
 
 @evoloop_tool(
     is_pollable=True,
+    is_hidden=True,
     summary_template="database_logger.tool_summary.list_checkpoints",
     name_map={"zh": "列出检查点", "en": "List Checkpoints"}
 )
@@ -143,6 +145,7 @@ async def list_checkpoints(
 
 @evoloop_tool(
     is_state_mutating=True,
+    is_hidden=True,
     summary_template="database_logger.tool_summary.rollback_checkpoint",
     name_map={"zh": "回滚检查点", "en": "Rollback Checkpoint"}
 )
@@ -196,6 +199,7 @@ async def rollback_checkpoint(
 
 @evoloop_tool(
     is_state_mutating=True,
+    is_hidden=True,
     summary_template="database_logger.tool_summary.delete_checkpoint",
     name_map={"zh": "删除检查点", "en": "Delete Checkpoint"}
 )

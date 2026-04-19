@@ -9,6 +9,7 @@ logger = logging.getLogger(__name__)
 @evoloop_tool(
     is_pollable=True,
     is_state_mutating=True,
+    is_hidden=True,
     name_map={"zh": "等待", "en": "Wait For"}
 )
 async def wait_for(seconds: float) -> str:

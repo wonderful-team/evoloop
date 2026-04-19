@@ -110,49 +110,32 @@ async def stream_chat(thread_id: str):
                             # Server-side Tool Message Folding
                             if msg_role == 'tool' or msg_type == 'tool':
                                 if last_ai_message:
-                                    existing_steps = last_ai_message.get('steps', [])
-                                    step_index = len(existing_steps)
-                                    tool_calls = last_ai_message.get('tool_calls', [])
+                                    tool_id = msg_data.get('tool_call_id')
+                                    tool_name = msg_data.get('tool_name') or 'unknown'
+                                    tool_name_display = msg_data.get('tool_name_display') or tool_name
                                     
-                                    # Priority 1: Use tool_name from message data (set by MessageHandler)
-                                    tool_name = msg_data.get('tool_name')
-                                    tool_input = {}
+                                    # Find matching tool call in the parent AI message
+                                    tool_calls = last_ai_message.get('tool_calls', []) or []
+                                    matched_call = next((tc for tc in tool_calls if tc.get('id') == tool_id), None)
                                     
-                                    # Priority 2: Get input from tool_calls if available
-                                    if tool_calls and step_index < len(tool_calls):
-                                        call = tool_calls[step_index]
-                                        tool_input = call.get('args', {})
-                                        # Only fallback tool_name if not provided by MessageHandler
-                                        if not tool_name:
-                                            tool_name = call.get('name', 'Tool')
-                                    
-                                    # Priority 3: Last resort fallback
-                                    if not tool_name:
-                                        tool_name = 'Unknown Tool'
-                                    
-                                    # Skip hidden/internal tools
-                                    from app.core.tools.registry import get_tool_metadata
-                                    metadata = get_tool_metadata(tool_name) or {}
-                                    if metadata.get("is_hidden", False):
-                                        continue
-                                    
-                                    # Get friendly display name if available
-                                    tool_name_display = msg_data.get('tool_name_display')
+                                    tool_input = matched_call.get('args', {}) if matched_call else {}
                                     
                                     step = ToolStep(
-                                        id=msg_data.get('id') or asyncio.get_event_loop().time(),
+                                        id=msg_data.get('id') or f"step-{asyncio.get_event_loop().time()}",
                                         tool=tool_name,
                                         tool_name=tool_name_display,
                                         input=tool_input,
                                         output=msg_data.get('content', ''),
                                         status='success',
-                                        duration=0,
-                                        tool_call_id=msg_data.get('tool_call_id'),
+                                        tool_call_id=tool_id,
                                     )
                                     
                                     if 'steps' not in last_ai_message:
                                         last_ai_message['steps'] = []
-                                    last_ai_message['steps'].append(step.model_dump())
+                                    
+                                    # Avoid duplicate steps if event is re-sent
+                                    if not any(s.get('tool_call_id') == tool_id for s in last_ai_message['steps']):
+                                        last_ai_message['steps'].append(step.model_dump())
                                     
                                     yield f"event: message\ndata: {json.dumps(last_ai_message)}\n\n"
                                 else:

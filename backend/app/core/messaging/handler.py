@@ -201,6 +201,28 @@ class MessageHandler:
                 tool_name=persist_data.tool_name,
             )
 
+            # [Optimization] Also update the steps_snapshot of the parent AI message
+            # This implements the "Cache-on-Save" pattern for fast historical loading
+            try:
+                from app.infrastructure.queue.factory import get_scheduler
+                get_scheduler().send_task(
+                    "engine_snapshot_steps",
+                    kwargs={
+                        "thread_id": self.thread_id,
+                        "project_id": self.project_id,
+                        "run_id": run_id,
+                        "steps": [{
+                            "tool": tool_name,
+                            "input": {},  # Input was already recorded in AIMessage
+                            "details": content,
+                            "status": "success",
+                            "tool_call_id": tool_call_id,
+                        }]
+                    }
+                )
+            except Exception as e:
+                logger.warning(f"[UnifiedHandler] Failed to trigger incremental snapshot: {e}")
+
         # 4. 流式推送
         if stream_data.should_stream:
             await self._stream_to_frontend(
@@ -208,6 +230,7 @@ class MessageHandler:
                 frontend_type=stream_data.frontend_type,
                 category=category.value,
                 tool_name=tool_name,
+                tool_call_id=tool_call_id,
             )
 
         return MessageHandlerResult(
@@ -412,6 +435,7 @@ class MessageHandler:
         category: str,
         metadata: dict | None = None,
         tool_name: str | None = None,
+        tool_call_id: str | None = None,
         tool_calls: list | None = None,
     ):
         """
@@ -442,6 +466,8 @@ class MessageHandler:
             if tool_name:
                 # 传递原始工具名
                 msg_data["tool_name"] = tool_name
+                # 传递工具调用 ID 以实现实时折叠一致性
+                msg_data["tool_call_id"] = tool_call_id
                 # 同时传递友好显示名称（如果可用）
                 friendly_name = get_tool_friendly_name(tool_name, lang="zh")
                 if friendly_name:

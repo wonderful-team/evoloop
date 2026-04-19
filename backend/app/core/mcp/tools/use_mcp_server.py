@@ -16,6 +16,7 @@ class UseMcpServerSchema(BaseModel):
     "use_mcp_server",
     args_schema=UseMcpServerSchema,
     is_state_mutating=True,
+    is_hidden=True,
     summary_template="database_logger.tool_summary.use_mcp",
     name_map={"zh": "使用MCP服务器", "en": "Use MCP Server"}
 )

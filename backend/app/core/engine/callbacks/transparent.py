@@ -297,7 +297,6 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
 
         # Get tool metadata
         metadata = get_tool_metadata(tool_name) or {}
-        is_hidden = metadata.get("is_hidden", False)
 
         # Parse input data first (fixes pre-existing use-before-assign bug)
         data = None
@@ -325,14 +324,14 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
         # Hidden tools (e.g. route_to) use step_type="internal" so the system
         # can track them, but the UI layer can choose to filter them out.
         run_id = str(kwargs.get("run_id", "default"))
-        step_type = "internal" if is_hidden else "tool"
+        step_type = "tool"
         if self.thread_id and self.monitor:
             task_id = await self.monitor.add_step(self.thread_id, friendly_name, step_type, input_data=data)
             self.tool_task_id = task_id  # Legacy compatibility
             self._tool_task_ids[run_id] = task_id  # Track parallel tools by run_id
 
         # Extract path info (only for visible tools that may affect files)
-        if data and isinstance(data, dict) and not is_hidden:
+        if data and isinstance(data, dict):
             affected_paths = get_tool_affected_paths(tool_name, data)
             if affected_paths:
                 self.current_tool_path = affected_paths[0]
@@ -347,18 +346,17 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
                 path=self.current_tool_path
             )
 
-        # Emit structured stream event only for visible tools
-        if not is_hidden:
-            await self._publish_stream_event(StreamEvent(
-                type=StreamEventType.TOOL_START.value,
-                message=friendly_name,
-                data={"tool": tool_name, "params": data}
-            ))
+        # Emit structured stream event for all tools
+        await self._publish_stream_event(StreamEvent(
+            type=StreamEventType.TOOL_START.value,
+            message=friendly_name,
+            data={"tool": tool_name, "params": data}
+        ))
 
-        logger.info(f"[Tool Start] {tool_name} (hidden={is_hidden})")
+        logger.info(f"[Tool Start] {tool_name}")
 
         # Handle special tool types (only applies to visible tools)
-        if self.thread_id and not is_hidden:
+        if self.thread_id:
             if tool_name == "task_boundary":
                 if isinstance(data, dict):
                     mode = data.get("Mode")
@@ -400,14 +398,13 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
         """Run when tool ends running."""
         tool_name = self.current_tool_name
         metadata = get_tool_metadata(tool_name) or {}
-        is_hidden = metadata.get("is_hidden", False)
 
         # Get the correct task_id for this tool run (support parallel tools)
         run_id = str(kwargs.get("run_id", "default"))
         task_id = self._tool_task_ids.pop(run_id, None)
 
         if self.thread_id and task_id:
-            await self.monitor.update_step(self.thread_id, task_id, "done")
+            await self.monitor.update_step(self.thread_id, task_id, "done", details=log_output_str)
             # Clear legacy single tool tracking if it matches
             if self.tool_task_id == task_id:
                 self.tool_task_id = None
@@ -430,10 +427,9 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
 
         log_output_str = str(log_output) if not isinstance(log_output, str) else log_output
 
-        logger.info(f"[Tool End] {tool_name} (hidden={is_hidden})")
+        logger.info(f"[Tool End] {tool_name}")
 
-        # Emit structured stream event only for visible tools
-        if tool_name and not is_hidden:
+        if tool_name:
             await self._publish_stream_event(StreamEvent(
                 type=StreamEventType.TOOL_COMPLETE.value,
                 message=log_output_str[:200],
@@ -443,9 +439,6 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
     async def on_tool_error(self, error: BaseException, **kwargs: Any) -> None:
         """Run when tool errors."""
         tool_name = self.current_tool_name
-        metadata = get_tool_metadata(tool_name) or {}
-        is_hidden = metadata.get("is_hidden", False)
-
         logger.error(f"Tool Error in thread {self.thread_id}: {error}")
 
         # Get the correct task_id for this tool run (support parallel tools)
@@ -463,9 +456,7 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
             if self.tool_task_id == task_id:
                 self.tool_task_id = None
 
-        # Emit structured stream event only for visible tools
-        tool_name = getattr(self, 'current_tool_name', None)
-        if tool_name and not is_hidden:
+        if tool_name:
             await self._publish_stream_event(StreamEvent(
                 type=StreamEventType.TOOL_ERROR.value,
                 message=str(error)[:200],

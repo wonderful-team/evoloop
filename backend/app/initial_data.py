@@ -6,6 +6,7 @@ from app.infrastructure.database.resource_manager import db_resource_manager
 
 logger = logging.getLogger(__name__)
 
+
 def init() -> None:
     """
     Seed System Configuration from Environment/Settings.

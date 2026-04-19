@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 @evoloop_tool(
+    is_hidden=True,
     name_map={"zh": "委托周期性意图", "en": "Delegate Periodic Intent"}
 )
 async def delegate_periodic_intent(

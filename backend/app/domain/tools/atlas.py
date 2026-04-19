@@ -8,6 +8,7 @@ logger = logging.getLogger(__name__)
 
 @evoloop_tool(
     is_pollable=True,
+    is_hidden=True,
     name_map={"zh": "查询应用图谱", "en": "Query App Atlas"}
 )
 async def query_app_atlas(bundle_ids: str | list[str]) -> str:
@@ -32,6 +33,7 @@ async def query_app_atlas(bundle_ids: str | list[str]) -> str:
 
 @evoloop_tool(
     is_pollable=True,
+    is_hidden=True,
     name_map={"zh": "列出应用图谱", "en": "List App Atlas"}
 )
 async def list_app_atlas() -> str:

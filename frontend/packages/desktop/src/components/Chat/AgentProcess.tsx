@@ -54,7 +54,6 @@ const TOOL_ICONS: Record<string, React.ReactNode> = {
 
     // 代码执行
     execute_command: <Terminal className="h-3.5 w-3.5" />,
-    query_command_status: <Activity className="h-3.5 w-3.5" />,
     cancel_command: <XCircle className="h-3.5 w-3.5" />,
     bash_command: <Terminal className="h-3.5 w-3.5" />,
     python_code: <Code className="h-3.5 w-3.5" />,
@@ -77,22 +76,11 @@ const TOOL_ICONS: Record<string, React.ReactNode> = {
     remember: <Brain className="h-3.5 w-3.5" />,
     recall: <Brain className="h-3.5 w-3.5" />,
     search_history: <History className="h-3.5 w-3.5" />,
-    save_concepts: <Lightbulb className="h-3.5 w-3.5" />,
-    auto_harvest_knowledge: <Sprout className="h-3.5 w-3.5" />,
 
     // 项目/任务
-    create_hierarchical_task: <ListTodo className="h-3.5 w-3.5" />,
-    get_task_tree: <GitBranch className="h-3.5 w-3.5" />,
-    update_task_progress: <TrendingUp className="h-3.5 w-3.5" />,
-    get_next_executable_task: <PlayCircle className="h-3.5 w-3.5" />,
     list_project_tasks: <List className="h-3.5 w-3.5" />,
     create_project_task: <PlusCircle className="h-3.5 w-3.5" />,
 
-    // 检查点
-    create_checkpoint: <Bookmark className="h-3.5 w-3.5" />,
-    list_checkpoints: <Bookmark className="h-3.5 w-3.5" />,
-    rollback_checkpoint: <RotateCcw className="h-3.5 w-3.5" />,
-    delete_checkpoint: <Trash className="h-3.5 w-3.5" />,
 
     // Wiki
     list_wiki_pages: <BookOpen className="h-3.5 w-3.5" />,
@@ -103,29 +91,19 @@ const TOOL_ICONS: Record<string, React.ReactNode> = {
     search_skills: <Wand2 className="h-3.5 w-3.5" />,
     learn_skill_from_trace: <GraduationCap className="h-3.5 w-3.5" />,
     reconcile_skill: <RefreshCw className="h-3.5 w-3.5" />,
-    search_native_tools: <Search className="h-3.5 w-3.5" />,
 
     // 其他
     analyze_image: <Image className="h-3.5 w-3.5" />,
-    use_mcp_server: <Server className="h-3.5 w-3.5" />,
     ask_human: <UserCircle className="h-3.5 w-3.5" />,
     ask_confirm: <HelpCircle className="h-3.5 w-3.5" />,
-    wait_for: <Clock className="h-3.5 w-3.5" />,
-    route_to: <ExternalLink className="h-3.5 w-3.5" />,
     memory: <Database className="h-3.5 w-3.5" />,
     task_boundary: <Wrench className="h-3.5 w-3.5" />,
-    delegate_periodic_intent: <Calendar className="h-3.5 w-3.5" />,
-    inspect_task_health: <Activity className="h-3.5 w-3.5" />,
-    list_autonomous_tasks: <List className="h-3.5 w-3.5" />,
-    query_app_atlas: <MapIcon className="h-3.5 w-3.5" />,
-    list_app_atlas: <MapIcon className="h-3.5 w-3.5" />,
     get_app_usage_ranker: <BarChart className="h-3.5 w-3.5" />,
     consult_architecture: <Building className="h-3.5 w-3.5" />,
     query_excel: <Table className="h-3.5 w-3.5" />,
     document_reader: <FileType className="h-3.5 w-3.5" />,
     stash_to_clipboard: <Clipboard className="h-3.5 w-3.5" />,
     retrieve_from_clipboard: <ClipboardList className="h-3.5 w-3.5" />,
-    create_python_tool: <Code className="h-3.5 w-3.5" />,
 }
 
 // Tool name to friendly display name mapping
@@ -139,7 +117,6 @@ const TOOL_NAMES: Record<string, string> = {
     list_files: "查找文件",
     grep_files: "搜索代码",
     execute_command: "执行命令",
-    query_command_status: "查询命令状态",
     cancel_command: "取消命令",
     bash_command: "运行命令",
     python_code: "执行脚本",
@@ -160,22 +137,11 @@ const TOOL_NAMES: Record<string, string> = {
     remember: "记住",
     recall: "回忆",
     search_history: "搜索历史",
-    save_concepts: "保存概念",
-    auto_harvest_knowledge: "自动收获知识",
 
     // 项目/任务
-    create_hierarchical_task: "创建层级任务",
-    get_task_tree: "获取任务树",
-    update_task_progress: "更新任务进度",
-    get_next_executable_task: "获取待执行任务",
     list_project_tasks: "列出项目任务",
     create_project_task: "创建项目任务",
 
-    // 检查点
-    create_checkpoint: "创建检查点",
-    list_checkpoints: "列出检查点",
-    rollback_checkpoint: "回滚检查点",
-    delete_checkpoint: "删除检查点",
 
     // Wiki
     list_wiki_pages: "列出Wiki页面",
@@ -186,29 +152,19 @@ const TOOL_NAMES: Record<string, string> = {
     search_skills: "搜索技能",
     learn_skill_from_trace: "从轨迹学习",
     reconcile_skill: "调和技能",
-    search_native_tools: "搜索原生工具",
 
     // 其他
     analyze_image: "分析图像",
-    use_mcp_server: "使用MCP服务器",
     ask_human: "询问用户",
     ask_confirm: "确认操作",
-    wait_for: "等待",
-    route_to: "路由请求",
     memory: "记忆操作",
     task_boundary: "任务边界",
-    delegate_periodic_intent: "委托周期性意图",
-    inspect_task_health: "检查任务健康",
-    list_autonomous_tasks: "列出自主任务",
-    query_app_atlas: "查询应用图谱",
-    list_app_atlas: "列出应用图谱",
     get_app_usage_ranker: "获取应用使用排名",
     consult_architecture: "架构咨询",
     query_excel: "查询Excel",
     document_reader: "读取文档",
     stash_to_clipboard: "暂存到剪贴板",
     retrieve_from_clipboard: "从剪贴板检索",
-    create_python_tool: "创建Python工具",
 }
 
 // Safe JSON parse helper
@@ -259,9 +215,6 @@ function formatToolInput(tool: string, input: any, t: any): { label: string; val
                 const firstLine = data.code.split('\n')[0].trim()
                 return { label: "python", value: firstLine + (data.code.includes('\n') ? '...' : '') }
             }
-            break
-        case 'route_to':
-            if (data.target) return { label: t("chat.process.target", "目标"), value: data.target }
             break
         case 'memory':
             const action = data.action || 'get'
