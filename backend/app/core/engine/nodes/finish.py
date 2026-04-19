@@ -483,6 +483,8 @@ class FinishNode:
             # 4. Automatic State Pruning (Prevention of bloat)
             asyncio.create_task(auto_prune_on_completion(effective_thread_id))
 
+            # [MSG-TRACE] FinishNode return
+            logger.info(f"[MSG-TRACE][finish] RETURN messages_to_return: {len(messages_to_return)} msgs | types={[type(m).__name__ for m in messages_to_return]} | remove_msgs={len([m for m in messages_to_return if isinstance(m, RemoveMessage)])}")
             return StateUpdate(
                 messages=messages_to_return,
                 next_node=RoutingTarget.END,

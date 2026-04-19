@@ -1,0 +1,10 @@
+{% if readme_summary %}### README.md
+{{ readme_summary }}{% endif %}
+{% if project_structure %}
+### Project Structure
+{{ project_structure }}{% endif %}
+{% if norms %}
+### Project Norms & Guidelines
+{% for norm in norms %}
+#### {{ norm.file }}
+{{ norm.content }}...{% endfor %}{% endif %}

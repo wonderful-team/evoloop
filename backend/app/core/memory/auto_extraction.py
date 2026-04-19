@@ -25,15 +25,6 @@ from app.utils import render_template
 logger = logging.getLogger(__name__)
 
 
-async def _get_todo_service(project_id: int | None = None):
-    """Get TodoService instance."""
-    from app.infrastructure.database.sql.database import get_async_session_context
-    from app.domain.todo.service import TodoService
-    
-    async with get_async_session_context() as session:
-        return TodoService(session)
-
-
 class AutoMemoryExtractor:
     """
     Automatic memory extraction using forked agent pattern.
@@ -160,7 +151,6 @@ class AutoMemoryExtractor:
             logger.debug("[AutoExtract] Skip: auto-extraction disabled")
             return None
 
-        # Run extraction
         logger.info(f"[AutoExtract] Starting extraction for thread {thread_id}")
 
         try:
@@ -544,57 +534,25 @@ class AutoMemoryExtractor:
         return entries
 
     async def _gather_multi_source_context(self, project_id: int | None) -> str:
-        """Gather facts from README, Tree structure, and TODOs."""
+        """Gather facts from README, Tree structure, and TODOs via event-driven providers."""
         if not project_id:
             return "No project selected."
 
-        context_parts = []
+        from app.core.events import system_bus
+        from app.core.memory.events import MemoryContextGatherEvent, MemoryContextGatherData
 
-        # 1. Project Background (README & Structure)
+        event = MemoryContextGatherEvent(
+            project_id=project_id,
+            data=MemoryContextGatherData(project_id=project_id),
+        )
+
         try:
-            from app.domain.project.service import project_context_manager
-            # We assume project_id can be mapped to a path or we use current workspace
-            # For extraction, we use the active workspace path
-            project_path = getattr(settings, "WORKSPACE_ROOT", None)
-            if project_path:
-                readme = project_context_manager.extract_description_from_readme(project_path)
-                structure = await project_context_manager.get_project_structure(project_path)
-
-                if readme:
-                    context_parts.append(f"### README.md\n{readme[:1000]}")
-                if structure:
-                    context_parts.append(f"### Project Structure\n{structure}")
+            # Publish and await domain handlers to fill data fields
+            await system_bus.publish(event, sequential=True)
         except Exception as e:
-            logger.warning(f"[AutoExtract] Failed to gather project context: {e}")
+            logger.warning(f"[AutoExtract] Context gather event failed: {e}")
 
-        # 2. Pending TODOs
-        try:
-            todo_service = await _get_todo_service()
-            todos = await todo_service.list_pending_by_project(project_id)
-            if todos:
-                todo_list = "\n".join([f"- [ ] {t.title} ({t.priority})" for t in todos[:20]])
-                context_parts.append(f"### Pending TODOs\n{todo_list}")
-        except Exception as e:
-            logger.warning(f"[AutoExtract] Failed to gather TODO context: {e}")
-
-        # 3. Project Norms (Scan for specific files in root)
-        try:
-            norms = []
-            project_path = getattr(settings, "WORKSPACE_ROOT", None)
-            if project_path:
-                for norm_file in [".cursorrules", "CONTRIBUTING.md", "styleguide.md"]:
-                    path = os.path.join(project_path, norm_file)
-                    if os.path.exists(path):
-                        with open(path, 'r') as f:
-                            content = f.read(500)
-                            norms.append(f"#### {norm_file}\n{content}...")
-
-            if norms:
-                context_parts.append("### Project Norms & Guidelines\n" + "\n".join(norms))
-        except Exception as e:
-            logger.debug(f"[AutoExtract] Norms scan failed: {e}")
-
-        return "\n\n".join(context_parts) if context_parts else "No multi-source facts available."
+        return event.data.to_context_string()
 
 
 async def trigger_auto_extraction(

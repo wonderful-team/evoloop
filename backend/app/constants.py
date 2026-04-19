@@ -172,6 +172,13 @@ ALLOWED_DOC_EXTENSIONS = [
     ".xml", ".rst", ".toml", ".ini", ".log",
 ]
 
+# Project norm/guideline files scanned for memory context extraction
+PROJECT_NORM_FILES = [
+    ".cursorrules",
+    "CONTRIBUTING.md",
+    "styleguide.md",
+]
+
 # Mapping file extension to document type
 FILE_EXTENSION_TO_TYPE = {
     # Text files

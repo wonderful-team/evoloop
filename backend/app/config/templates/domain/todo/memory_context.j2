@@ -1,0 +1,2 @@
+{% if todos %}### Pending TODOs
+{% for todo in todos %}- [ ] {{ todo.title }} ({{ todo.priority }}){% endfor %}{% endif %}

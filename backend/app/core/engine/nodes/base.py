@@ -39,10 +39,17 @@ class BaseAgentNode(ABC):
             # Clear potential routing instructions from previous nodes to prevent accidental short-circuits
             state.next_node = None
 
+            # [MSG-TRACE] ENTER: Log state.messages as received from LangGraph
+            _msgs = state.messages or []
+            logger.info(f"[MSG-TRACE][{self.node_name}] ENTER state.messages: {len(_msgs)} msgs | types={[type(m).__name__ for m in _msgs]} | ids={[getattr(m,'id','N/A')[:8] if getattr(m,'id',None) else 'N/A' for m in _msgs]} | contents={[str(getattr(m,'content',''))[:60] for m in _msgs]}")
+
             # 1. State Preparation & Environment Hydration
             # Includes early-exit checks (e.g., Aggregator routing)
             state_update = await self.prepare_state(state, config)
             if state_update and state_update.next_node:
+                # [MSG-TRACE] SHORT-CIRCUIT
+                _out_msgs = getattr(state_update, 'messages', None) or []
+                logger.info(f"[MSG-TRACE][{self.node_name}] SHORT-CIRCUIT StateUpdate.messages: {len(_out_msgs)} msgs | types={[type(m).__name__ for m in _out_msgs]}")
                 return state_update
 
             # 2. Build Prompts (Enforcing Static/Dynamic Split)
@@ -58,6 +65,10 @@ class BaseAgentNode(ABC):
                 messages = [ticket_msg] + messages
 
             execution_state = state.model_copy(update={"messages": messages})
+
+            # [MSG-TRACE] EXECUTION: Log execution_state.messages after ticket injection
+            _exec_msgs = execution_state.messages or []
+            logger.info(f"[MSG-TRACE][{self.node_name}] EXECUTION execution_state.messages: {len(_exec_msgs)} msgs | types={[type(m).__name__ for m in _exec_msgs]} | ids={[getattr(m,'id','N/A')[:8] if getattr(m,'id',None) else 'N/A' for m in _exec_msgs]} | contents={[str(getattr(m,'content',''))[:60] for m in _exec_msgs]}")
 
             # 3. Engine Execution
             model = config.get("configurable", {}).get("model")
@@ -88,7 +99,11 @@ class BaseAgentNode(ABC):
             )
 
             # 4. Handle Outcome & Signal Dispatching
-            return await self.handle_outcome(state, engine_result, config)
+            outcome = await self.handle_outcome(state, engine_result, config)
+            # [MSG-TRACE] EXIT: Log returned StateUpdate.messages
+            _out_msgs = getattr(outcome, 'messages', None) or []
+            logger.info(f"[MSG-TRACE][{self.node_name}] EXIT StateUpdate.messages: {len(_out_msgs)} msgs | types={[type(m).__name__ for m in _out_msgs]} | ids={[getattr(m,'id','N/A')[:8] if getattr(m,'id',None) else 'N/A' for m in _out_msgs]} | contents={[str(getattr(m,'content',''))[:60] for m in _out_msgs]} | next_node={getattr(outcome,'next_node','N/A')}")
+            return outcome
 
         except Exception as e:
             logger.error(f"[{self.node_name}] Execution failed: {e}")
@@ -123,13 +138,19 @@ class BaseAgentNode(ABC):
         Subclasses should typically call `super().handle_outcome(...)` first.
         """
         signal = engine_result.signal
+        _in_msgs = engine_result.messages or []
+        logger.info(f"[MSG-TRACE][base] handle_outcome ENTER: engine_result.messages={len(_in_msgs)} msgs | original_state.messages={len(original_state.messages)} msgs | signal={type(signal).__name__ if signal else 'None'}")
+
         if signal:
             from app.core.engine.signals import SignalDispatcher
             dispatch_result = await SignalDispatcher.dispatch(original_state, signal, config)
+            _out_msgs = getattr(dispatch_result, 'messages', None) or []
+            logger.info(f"[MSG-TRACE][base] handle_outcome SIGNAL_PATH: return {len(_out_msgs)} msgs | next_node={getattr(dispatch_result,'next_node','N/A')}")
             return dispatch_result
 
         # ONLY return new messages to avoid duplicating history in LangGraph state
         # The engine_result.messages list contains [ticket, original_history..., new_ai_response]
+        # NOTE: This comment is INCORRECT. engine_result.messages only contains NEW messages produced in this loop.
         new_messages = []
         if engine_result.messages:
             orig_len = len(original_state.messages)
@@ -138,7 +159,10 @@ class BaseAgentNode(ABC):
             start_idx = orig_len + (1 if has_ticket else 0)
             if len(engine_result.messages) > start_idx:
                 new_messages = engine_result.messages[start_idx:]
+            # [MSG-TRACE] Filter logic debug
+            logger.info(f"[MSG-TRACE][base] handle_outcome FILTER: orig_len={orig_len}, engine_result.messages_len={len(engine_result.messages)}, has_ticket={has_ticket}, start_idx={start_idx}, new_messages_len={len(new_messages)}")
 
+        logger.info(f"[MSG-TRACE][base] handle_outcome RETURN: {len(new_messages)} msgs | types={[type(m).__name__ for m in new_messages]}")
         return StateUpdate(
             messages=new_messages,
             next_node=engine_result.routing_target or RoutingTarget.FINISH,

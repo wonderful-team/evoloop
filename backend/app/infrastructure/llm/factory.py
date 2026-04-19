@@ -119,7 +119,6 @@ class LLMFactory:
 
         # Backend always sends OpenAI format to Gateway
         # Gateway handles protocol translation (OpenAI ↔ Anthropic)
-        # streaming 参数可从 kwargs 传入，默认为 False
         return AdaptiveChatOpenAI(
             api_key=token,
             base_url=f"{gateway_url}/gateway/v1",

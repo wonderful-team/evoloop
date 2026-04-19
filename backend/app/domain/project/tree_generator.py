@@ -149,9 +149,9 @@ class AnnotatedTreeGenerator:
         if self._is_path_ignored(self.root_path, ignored_paths):
             logger.warning(f"[TreeGenerator] Root path is inside ignored project: {self.root_path}")
             # Return empty tree
-            return TreeNode(os.path.basename(self.root_path), "dir")
+            return TreeNode(name=os.path.basename(self.root_path), type="dir")
 
-        root_node = TreeNode(os.path.basename(self.root_path), "dir")
+        root_node = TreeNode(name=os.path.basename(self.root_path), type="dir")
 
         # Map: abs_path -> TreeNode (for efficient retrieval during reconstruction)
         nodes_map = {self.root_path: root_node}
@@ -190,7 +190,7 @@ class AnnotatedTreeGenerator:
                 else:
                     # Create new node
                     node_type = "file" if is_last_part else "dir"
-                    new_node = TreeNode(part, node_type)
+                    new_node = TreeNode(name=part, type=node_type)
                     current_node.add_child(new_node)
                     nodes_map[current_abs] = new_node
                     current_node = new_node
@@ -240,7 +240,7 @@ class AnnotatedTreeGenerator:
             if chunk.chunk_type == "class":
                 # Simplified: use last part of identifier as name
                 name = chunk.identifier.split(".")[-1]
-                c_node = TreeNode(name, "class")
+                c_node = TreeNode(name=name, type="class")
                 classes[chunk.identifier] = c_node
                 file_node.add_child(c_node)
             elif chunk.chunk_type == "function":
@@ -253,7 +253,7 @@ class AnnotatedTreeGenerator:
                 else:
                     # Top level function
                     name = chunk.identifier.split(".")[-1]
-                    f_node = TreeNode(name, "function")
+                    f_node = TreeNode(name=name, type="function")
                     functions.append(f_node)
 
         # 2. Distribute Methods (Chunk type might be 'function' or specific 'method' depending on indexer)
@@ -271,7 +271,7 @@ class AnnotatedTreeGenerator:
                         method_name = parts[-1]
 
                         if parent_id in classes:
-                            m_node = TreeNode(method_name, "method")
+                            m_node = TreeNode(name=method_name, type="method")
                             classes[parent_id].add_child(m_node)
                             continue
 

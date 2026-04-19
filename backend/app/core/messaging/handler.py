@@ -369,8 +369,8 @@ class MessageHandler:
         
         使用 Celery 后台任务，避免阻塞主流程
         """
-        if not content and not thinking:
-            logger.warning(f"[UnifiedHandler] Skipping persist for {role}: no content or thinking")
+        if not content and not thinking and not tool_calls:
+            logger.warning(f"[UnifiedHandler] Skipping persist for {role}: no content, thinking, or tool_calls")
             return None
 
         try:

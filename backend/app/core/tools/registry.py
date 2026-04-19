@@ -17,7 +17,6 @@ import yaml
 from langchain_core.tools import BaseTool
 from pydantic import Field
 
-from app.core.tools.runtime_registry import get_runtime_tools
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
@@ -79,20 +78,21 @@ class AutoDiscoveryRegistry:
     """
 
     def __init__(self):
-        self._tools: list[BaseTool] = []
+        self._tools: dict[str, BaseTool] = {}
+        self._runtime_tools: dict[str, BaseTool] = {}
         self._scanned_packages = set()
 
     def register(self, tool: BaseTool):
-        """
-        Manually register a tool.
-        """
-        if tool not in self._tools:
-            self._tools.append(tool)
-            logger.debug(f"Manually registered tool: {tool.name}")
+        """Manually register a static tool."""
+        self._tools[tool.name] = tool
+        logger.debug(f"Manually registered tool: {tool.name}")
+        _invalidate_caches()
 
-            # Invalidate global cache
-            global _cached_tool_map
-            _cached_tool_map = None
+    def register_runtime(self, tool: BaseTool):
+        """Register a dynamically created runtime tool (overrides static by name)."""
+        self._runtime_tools[tool.name] = tool
+        logger.debug(f"Registered runtime tool: {tool.name}")
+        _invalidate_caches()
 
     def scan(self, package_name: str):
         """
@@ -133,27 +133,26 @@ class AutoDiscoveryRegistry:
                 try:
                     wrapped_func = getattr(obj, "func", None) or getattr(obj, "coroutine", None)
                     if wrapped_func and getattr(wrapped_func, "is_evoloop_active", False):
-                        if obj not in self._tools:
-                            self._tools.append(obj)
-                            logger.debug(f"Registered tool: {obj.name} from {module.__name__}")
-
-                            # Invalidate global cache
-                            global _cached_tool_map
-                            _cached_tool_map = None
+                        self._tools[obj.name] = obj
+                        logger.debug(f"Registered tool: {obj.name} from {module.__name__}")
+                        _invalidate_caches()
                 except Exception as e:
                     logger.warning(f"Failed to inspect tool {name} in {module.__name__}: {e}")
 
     def get_all_tools(self) -> list[BaseTool]:
-        """Return all registered tools."""
-        _ensure_scanned()
-        return list(self._tools)
+        """Return all statically registered tools."""
+        return list(self._tools.values())
 
+    def get_runtime_tools(self) -> list[BaseTool]:
+        """Return all dynamically registered runtime tools."""
+        return list(self._runtime_tools.values())
 
-# --- Initialization ---
+    def get_tool_map(self) -> dict[str, BaseTool]:
+        """Return a merged mapping of static + runtime tools (runtime overrides static)."""
+        return {**self._tools, **self._runtime_tools}
+
 
 REGISTRY = AutoDiscoveryRegistry()
-
-
 _registry_scanned = False
 
 
@@ -178,11 +177,19 @@ _cached_tool_map: dict[str, BaseTool] | None = None
 _cached_node_tools: dict[str, list[BaseTool]] = {}  # Cache for role-level hydration
 
 
-def clear_registry_cache():
-    """Clear all internal caches (e.g. after dynamic skill import)."""
+def _invalidate_caches() -> None:
+    """Invalidate all tool lookup caches."""
     global _cached_tool_map
     _cached_tool_map = None
     _cached_node_tools.clear()
+
+
+def clear_registry_cache():
+    """Clear all internal caches and reset scan state (e.g. after dynamic skill import)."""
+    global _registry_scanned
+    _registry_scanned = False
+    REGISTRY._scanned_packages.clear()
+    _invalidate_caches()
     _load_yaml_config.cache_clear()
 
 
@@ -191,8 +198,7 @@ def get_tool_map() -> dict[str, BaseTool]:
     global _cached_tool_map
     if _cached_tool_map is None:
         _ensure_scanned()
-        all_available = REGISTRY.get_all_tools() + get_runtime_tools()
-        _cached_tool_map = {t.name: t for t in all_available if t.name}
+        _cached_tool_map = REGISTRY.get_tool_map()
     return _cached_tool_map
 
 
@@ -252,8 +258,9 @@ def _report_missing_tools(node_role: str, missing_tools: list[str]):
         f"These tools are declared in YAML but not found in Registry or MCP."
     )
 
-    loop = asyncio.get_running_loop()
-    if not loop.is_running():
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
         return  # No running loop, skip async logging
 
     # We have a running loop, safe to create and schedule the coroutine

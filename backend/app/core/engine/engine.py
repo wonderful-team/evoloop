@@ -123,6 +123,9 @@ class AgentEngine:
         # 2. Config & Context
         from app.core.engine.context_hydrator import EvoContextMiddleware
         state = ensure_state(state)
+        # [MSG-TRACE] ENGINE ENTER
+        _in_msgs = state.messages or []
+        logger.info(f"[MSG-TRACE][{name}] ENGINE_ENTER state.messages: {len(_in_msgs)} msgs | types={[type(m).__name__ for m in _in_msgs]} | ids={[getattr(m,'id','N/A')[:8] if getattr(m,'id',None) else 'N/A' for m in _in_msgs]} | contents={[str(getattr(m,'content',''))[:60] for m in _in_msgs]}")
         state = await EvoContextMiddleware.hydrate(state, config)
         logger.info(f"[{name}] 🧪 Context Hydrated via Middleware")
 
@@ -130,6 +133,8 @@ class AgentEngine:
         repaired_messages = await self._prepare_message_pipeline(
             state, config_meta, model, node_source, name
         )
+        # [MSG-TRACE] ENGINE PIPELINE
+        logger.info(f"[MSG-TRACE][{name}] ENGINE_PIPELINE repaired_messages: {len(repaired_messages)} msgs | types={[type(m).__name__ for m in repaired_messages]} | ids={[getattr(m,'id','N/A')[:8] if getattr(m,'id',None) else 'N/A' for m in repaired_messages]} | contents={[str(getattr(m,'content',''))[:60] for m in repaired_messages]}")
 
         # 4. Execution Mode Selection
         if is_subtask:
@@ -162,6 +167,9 @@ class AgentEngine:
             )
 
         self._apply_node_source_marker(result.messages, node_source)
+        # [MSG-TRACE] ENGINE EXIT
+        _res_msgs = result.messages or []
+        logger.info(f"[MSG-TRACE][{name}] ENGINE_EXIT result.messages: {len(_res_msgs)} msgs | types={[type(m).__name__ for m in _res_msgs]} | ids={[getattr(m,'id','N/A')[:8] if getattr(m,'id',None) else 'N/A' for m in _res_msgs]} | contents={[str(getattr(m,'content',''))[:60] for m in _res_msgs]} | signal={type(result.signal).__name__ if result.signal else 'None'}")
         return result
 
     def _get_evoloop_handler(self, config: RunnableConfig) -> "TransparentCallbackHandler | None":
@@ -349,9 +357,8 @@ class AgentEngine:
         logger.info(f"[{name}] 📨 Raw messages: {len(raw_messages)} | Types: {[type(m).__name__ for m in raw_messages]}")
 
         for i, m in enumerate(raw_messages):
-            content_preview = str(m.content)[:100].replace("\n", " ")
             msg_meta = getattr(m, "metadata", {})
-            logger.info(f"[{name}] 🔍 MSG[{i}] Role: {type(m).__name__} | Content: {content_preview}... | Meta: {msg_meta}")
+            logger.info(f"[{name}] 🔍 MSG[{i}] Role: {type(m).__name__} | Content: {m.content}... | Meta: {msg_meta}")
 
         tool_memory = get_tool_memory_from_state(state)
         messages_with_forgetting = apply_forgotten_status(raw_messages, tool_memory)
@@ -473,6 +480,8 @@ class AgentEngine:
                 await activity_monitor.check_cancellation(config_meta.thread_id)
 
             logger.info(f"--- {name} Loop Step {i+1} ---")
+            # [MSG-TRACE] LOOP START
+            logger.info(f"[MSG-TRACE][{name}] LOOP_STEP_{i+1} loop_messages: {len(loop_messages)} msgs | types={[type(m).__name__ for m in loop_messages]} | ids={[getattr(m,'id','N/A')[:8] if getattr(m,'id',None) else 'N/A' for m in loop_messages]}")
 
             try:
                 response = await self._invoke_llm(
@@ -496,6 +505,8 @@ class AgentEngine:
 
             loop_messages.append(response)
             new_messages.append(response)
+            # [MSG-TRACE] AFTER LLM RESPONSE
+            logger.info(f"[MSG-TRACE][{name}] LOOP_STEP_{i+1} new_messages after LLM: {len(new_messages)} msgs | types={[type(m).__name__ for m in new_messages]} | ids={[getattr(m,'id','N/A')[:8] if getattr(m,'id',None) else 'N/A' for m in new_messages]} | contents={[str(getattr(m,'content',''))[:60] for m in new_messages]}")
 
             if not response.tool_calls:
                 logger.info(f"[{name}] 🏁 Finished with text response (no tool calls).")
@@ -521,9 +532,13 @@ class AgentEngine:
                     existing_signal=pending_signal,
                 )
                 new_messages.extend(tool_msgs)
+                # [MSG-TRACE] AFTER TOOL EXECUTION
+                logger.info(f"[MSG-TRACE][{name}] LOOP_STEP_{i+1} new_messages after tools: {len(new_messages)} msgs | types={[type(m).__name__ for m in new_messages]} | ids={[getattr(m,'id','N/A')[:8] if getattr(m,'id',None) else 'N/A' for m in new_messages]} | contents={[str(getattr(m,'content',''))[:60] for m in new_messages]}")
 
             # 4. Dispatch Signal if present after tool execution
             if pending_signal:
+                # [MSG-TRACE] SIGNAL RETURN
+                logger.info(f"[MSG-TRACE][{name}] LOOP_STEP_{i+1} SIGNAL_RETURN new_messages: {len(new_messages)} msgs | types={[type(m).__name__ for m in new_messages]} | signal={type(pending_signal).__name__}")
                 return EngineResult(
                     messages=new_messages,
                     signal=pending_signal,
@@ -542,6 +557,8 @@ class AgentEngine:
             new_messages.append(truncation_msg)
             is_truncated = True
 
+        # [MSG-TRACE] LOOP END
+        logger.info(f"[MSG-TRACE][{name}] LOOP_END new_messages: {len(new_messages)} msgs | types={[type(m).__name__ for m in new_messages]} | ids={[getattr(m,'id','N/A')[:8] if getattr(m,'id',None) else 'N/A' for m in new_messages]} | contents={[str(getattr(m,'content',''))[:60] for m in new_messages]}")
         return EngineResult(
             messages=new_messages,
             tool_history=local_tool_history,

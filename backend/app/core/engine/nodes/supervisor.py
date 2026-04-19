@@ -102,12 +102,16 @@ class SupervisorNode(BaseAgentNode):
         # 1. Base Signal/Dispatcher Handling
         signal = engine_result.signal
         new_iter_count = (original_state.iteration_count or 0) + 1
+        _in_msgs = engine_result.messages or []
+        logger.info(f"[MSG-TRACE][supervisor] handle_outcome engine_result.messages: {len(_in_msgs)} msgs | types={[type(m).__name__ for m in _in_msgs]} | ids={[getattr(m,'id','N/A')[:8] if getattr(m,'id',None) else 'N/A' for m in _in_msgs]} | signal={type(signal).__name__ if signal else 'None'}")
 
         if signal:
             from app.core.engine.signals import SignalDispatcher
             dispatch_result = await SignalDispatcher.dispatch(original_state, signal, config)
             if isinstance(dispatch_result, StateUpdate):
                 dispatch_result.iteration_count = new_iter_count
+            _out_msgs = getattr(dispatch_result, 'messages', None) or []
+            logger.info(f"[MSG-TRACE][supervisor] handle_outcome SIGNAL_PATH return: {len(_out_msgs)} msgs | types={[type(m).__name__ for m in _out_msgs]} | next_node={getattr(dispatch_result,'next_node','N/A')}")
             return dispatch_result
 
         # 2. Protocol Violation Check (Supervisor MUST route or be an error)
@@ -120,6 +124,7 @@ class SupervisorNode(BaseAgentNode):
             if hasattr(msg, "metadata")
         )
         if has_error_msg:
+            logger.info(f"[MSG-TRACE][supervisor] handle_outcome ERROR_PATH return: {len(new_messages)} msgs | types={[type(m).__name__ for m in new_messages]}")
             return StateUpdate(
                 messages=new_messages,
                 next_node=RoutingTarget.FINISH,
@@ -134,6 +139,7 @@ class SupervisorNode(BaseAgentNode):
 
         if ai_content:
             logger.warning("[Supervisor] ⚠️ Protocol violation: No route_to but returned content. Falling back to 'chat'.")
+            logger.info(f"[MSG-TRACE][supervisor] handle_outcome PROTOCOL_VIOLATION return: 0 msgs | next_node=chat")
             return StateUpdate(
                 next_node=RoutingTarget.CHAT,
                 blackboard=blackboard,
@@ -141,6 +147,7 @@ class SupervisorNode(BaseAgentNode):
             )
 
         logger.error("[Supervisor] 🛑 Stop: No routing signal and no content.")
+        logger.info(f"[MSG-TRACE][supervisor] handle_outcome EMPTY return: 0 msgs | next_node=finish")
         return StateUpdate(
             next_node=RoutingTarget.FINISH,
             blackboard=blackboard,

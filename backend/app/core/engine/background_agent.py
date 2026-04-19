@@ -293,10 +293,31 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
                     # Fallback or standard resume
                     input_payload = Command(resume=user_response)
 
+            # [MSG-TRACE] INPUT to graph
+            if isinstance(input_payload, dict):
+                _input_msgs = input_payload.get("messages", [])
+                logger.info(f"[MSG-TRACE][background] GRAPH_INPUT messages: {len(_input_msgs)} msgs | types={[type(m).__name__ for m in _input_msgs]} | ids={[getattr(m,'id','N/A')[:8] if getattr(m,'id',None) else 'N/A' for m in _input_msgs]} | contents={[str(getattr(m,'content',''))[:60] for m in _input_msgs]}")
+            elif isinstance(input_payload, Command):
+                _resume = getattr(input_payload, 'resume', None)
+                logger.info(f"[MSG-TRACE][background] GRAPH_INPUT Command: resume_type={type(_resume).__name__} | resume_content={str(_resume)[:80] if _resume else 'None'}")
+            else:
+                logger.info(f"[MSG-TRACE][background] GRAPH_INPUT unknown type: {type(input_payload).__name__}")
+
             # Run Graph
             async for _event in graph_instance.astream(input_payload, config=config):
                 await activity_monitor.check_cancellation(thread_id)
                 pass
+
+            # [MSG-TRACE] OUTPUT from checkpoint
+            try:
+                final_checkpoint_state = await graph_instance.aget_state(config)
+                if final_checkpoint_state and final_checkpoint_state.values:
+                    _final_msgs = final_checkpoint_state.values.get("messages", [])
+                    logger.info(f"[MSG-TRACE][background] GRAPH_OUTPUT checkpoint.messages: {len(_final_msgs)} msgs | types={[type(m).__name__ for m in _final_msgs]} | ids={[getattr(m,'id','N/A')[:8] if getattr(m,'id',None) else 'N/A' for m in _final_msgs]} | contents={[str(getattr(m,'content',''))[:60] for m in _final_msgs]}")
+                else:
+                    logger.info("[MSG-TRACE][background] GRAPH_OUTPUT checkpoint: no values")
+            except Exception as e:
+                logger.warning(f"[MSG-TRACE][background] Failed to read final checkpoint: {e}")
 
             # Phase 4 Autonomy: Persist the subconscious Context Pool to cache before exiting/suspending
             await ContextManager.save_to_redis(thread_id)

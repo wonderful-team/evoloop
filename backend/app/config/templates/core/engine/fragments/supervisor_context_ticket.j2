@@ -65,8 +65,3 @@
 ## Environment
 {{ environment_block }}
 {%- endif %}
-
-{%- if blackboard.visited_nodes %}
-## Node Traversal
-{{ blackboard.visited_nodes|join(' → ') }}
-{%- endif %}

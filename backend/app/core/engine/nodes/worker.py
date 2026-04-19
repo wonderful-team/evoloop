@@ -124,17 +124,26 @@ class WorkerNode(BaseAgentNode):
     async def handle_outcome(self, original_state: AgentState, engine_result: "EngineResult", config: RunnableConfig) -> StateUpdate:
         """Post-processing and signal dispatching."""
         original_state = ensure_state(original_state)
+        _in_msgs = engine_result.messages or []
+        logger.info(f"[MSG-TRACE][worker] handle_outcome ENTER: engine_result.messages={len(_in_msgs)} msgs | types={[type(m).__name__ for m in _in_msgs]} | signal={type(engine_result.signal).__name__ if engine_result.signal else 'None'}")
+
         # 1. Base Signal Handling
         signal = engine_result.signal
         if signal:
             from app.core.engine.signals import SignalDispatcher
-            return await SignalDispatcher.dispatch(original_state, signal, config)
+            dispatch_result = await SignalDispatcher.dispatch(original_state, signal, config)
+            _out_msgs = getattr(dispatch_result, 'messages', None) or []
+            logger.info(f"[MSG-TRACE][worker] handle_outcome SIGNAL_PATH: return {len(_out_msgs)} msgs | next_node={getattr(dispatch_result,'next_node','N/A')}")
+            return dispatch_result
 
         # 2. Worker Post-processing (Outcome determination, Blackboard updates, etc.)
         execution_ticket = original_state.blackboard.ticket
         role_name = execution_ticket.agent_config.role_name if execution_ticket and execution_ticket.agent_config else "Worker"
 
-        return self._post_process_result(original_state, engine_result, execution_ticket, role_name)
+        result = self._post_process_result(original_state, engine_result, execution_ticket, role_name)
+        _out_msgs = getattr(result, 'messages', None) or []
+        logger.info(f"[MSG-TRACE][worker] handle_outcome RETURN: {len(_out_msgs)} msgs | types={[type(m).__name__ for m in _out_msgs]} | next_node={getattr(result,'next_node','N/A')}")
+        return result
 
     async def __call__(self, state: AgentState, config: RunnableConfig) -> StateUpdate:
         """Override to handle sequential multi-skill logic."""
@@ -488,12 +497,14 @@ class WorkerNode(BaseAgentNode):
         blackboard.ticket = updated_execution_ticket
         blackboard.verification = verification_summary
 
-        return StateUpdate(
+        result = StateUpdate(
             messages=[AIMessage(content=worker_content)],
             next_node=routing_target or RoutingTarget.FINISH,
             blackboard=blackboard,
             workspace_context=workspace_context,
         )
+        logger.info(f"[MSG-TRACE][worker] _post_process_result RETURN: 1 msg | type=AIMessage | content_len={len(worker_content)} | next_node={result.next_node}")
+        return result
 
     async def _hydrate_focus_files(self, ticket: ExecutionTicket, ctx) -> list[dict]:
         """
