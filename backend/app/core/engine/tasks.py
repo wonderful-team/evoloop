@@ -20,6 +20,7 @@ from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.queue.factory import shared_task
 from app.models import FileOperation
 from app.utils import gen_uuid
+from app.core.context.manager import ContextManager, EvoContext
 
 
 class PersistMessagePayload(BaseModel):
@@ -265,6 +266,7 @@ def record_episode_task(
     concept_names: list[str] | None = None,
     source_message_id: str | None = None,
     auto_synthesize: bool = False,
+    model: str | None = None,
 ):
     """
     Background task to sync thread trace to Neo4j Episode graph.
@@ -273,6 +275,9 @@ def record_episode_task(
     logger.info(f"[Celery] Recording episode for thread {thread_id} (Source: {source_message_id}, AutoSynth: {auto_synthesize})...")
 
     async def _run():
+        ctx = EvoContext(thread_id=thread_id, project_id=project_id, active_model=model)
+        token = ContextManager.set(ctx)
+
         try:
             await sync_thread_to_graph(
                 thread_id=thread_id,
@@ -305,8 +310,8 @@ def record_episode_task(
                 else:
                     logger.info(f"[Celery] ⏩ Skill synthesis skipped (insufficient events: {event_count})")
 
-        except Exception as e:
-            logger.error(f"[Celery] Failed to record episode/synthesize: {e}", exc_info=True)
+        finally:
+            ContextManager.reset(token)
 
     async def _run_with_flush():
         try:
@@ -480,11 +485,14 @@ def cleanup_artifacts_task(max_age_days: int = 3):
 
 
 @shared_task(name="engine_git_harvest")
-def git_harvest_task(cwd: str, project_id: int):
+def git_harvest_task(cwd: str, project_id: int, model: str | None = None):
     """
     Background task to extract knowledge concepts from git diff.
     """
     async def _run():
+        ctx = EvoContext(project_id=project_id, active_model=model)
+        token = ContextManager.set(ctx)
+
         import subprocess
 
         from app.infrastructure.config.service import SystemConfigService
@@ -543,6 +551,8 @@ def git_harvest_task(cwd: str, project_id: int):
                     logger.info(f"[Celery] Harvested concept: {concept.name}")
         except Exception as e:
             logger.error(f"[Celery] Harvest extraction failed: {e}")
+        finally:
+            ContextManager.reset(token)
 
     async def _run_with_flush():
         try:
@@ -555,7 +565,7 @@ def git_harvest_task(cwd: str, project_id: int):
 
 
 @shared_task(name="engine_reconcile_skill_macro")
-def reconcile_skill_macro_task(skill_id: int, thread_id: str):
+def reconcile_skill_macro_task(skill_id: int, thread_id: str, model: str | None = None):
     """
     Background task to reconcile a broken skill macro with a successful agentic recovery trace.
     This effectively "heals" the macro in the database for future deterministic runs.
@@ -563,6 +573,10 @@ def reconcile_skill_macro_task(skill_id: int, thread_id: str):
     async def _run():
         from app.core.learning.skill_synthesizer import WorkflowSynthesizer
         from app.models.learning import LearnedSkill
+
+        # Initialize background context
+        ctx = EvoContext(thread_id=thread_id, active_model=model)
+        token = ContextManager.set(ctx)
 
         try:
             logger.info(f"[Celery] Reconciling Skill {skill_id} from thread {thread_id}...")
@@ -593,6 +607,8 @@ def reconcile_skill_macro_task(skill_id: int, thread_id: str):
 
         except Exception as e:
             logger.error(f"[Celery] Macro reconciliation failed: {e}")
+        finally:
+            ContextManager.reset(token)
 
     async def _run_with_flush():
         try:

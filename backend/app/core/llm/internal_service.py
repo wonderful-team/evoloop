@@ -79,6 +79,10 @@ class InternalLLMService:
         """
         from app.infrastructure.llm.factory import get_default_llm
 
+        if not model:
+            from app.core.context.manager import ContextManager
+            model = ContextManager.current().active_model
+
         # 获取 LLM 实例
         llm = await get_default_llm(
             temperature=temperature,
@@ -122,41 +126,22 @@ class InternalLLMService:
         purpose: str,
         temperature: float = 0.3,
         max_tokens: int = 500,
+        model: str | None = None,
         **kwargs
     ) -> T:
         """
         使用结构化输出模式调用 LLM
-        
-        Args:
-            messages: 消息列表
-            output_schema: Pydantic 模型类，定义输出结构
-            purpose: 调用用途
-            temperature: 温度参数
-            max_tokens: 最大 token 数
-            **kwargs: 其他参数
-            
-        Returns:
-            解析后的 Pydantic 模型实例
-            
-        使用示例：
-            class MemorySelection(BaseModel):
-                selected_indices: list[int]
-                reasoning: str
-            
-            result = await InternalLLMService.invoke_structured(
-                messages=[...],
-                output_schema=MemorySelection,
-                purpose="memory_selection",
-            )
-            
-            indices = result.selected_indices
-            reasoning = result.reasoning
         """
         from app.infrastructure.llm.factory import get_default_llm
+
+        if not model:
+            from app.core.context.manager import ContextManager
+            model = ContextManager.current().active_model
 
         llm = await get_default_llm(
             temperature=temperature,
             max_tokens=max_tokens,
+            model=model,
         )
 
         # 绑定结构化输出
@@ -190,45 +175,6 @@ class InternalLLMService:
                 f"[InternalLLM] Structured failed for '{purpose}': {e}"
             )
             raise
-
-    @staticmethod
-    async def invoke_with_fallback(
-        messages: list[dict],
-        purpose: str,
-        temperature: float = 0.3,
-        max_tokens: int = 500,
-        fallback_value: Any | None = None,
-        **kwargs
-    ) -> Any:
-        """
-        带降级处理的 LLM 调用
-        
-        如果 LLM 调用失败，返回 fallback_value 而不是抛出异常
-        
-        Args:
-            messages: 消息列表
-            purpose: 调用用途
-            temperature: 温度参数
-            max_tokens: 最大 token 数
-            fallback_value: 失败时的返回值
-            **kwargs: 其他参数
-            
-        Returns:
-            LLM 响应或 fallback_value
-        """
-        try:
-            return await InternalLLMService.invoke(
-                messages=messages,
-                purpose=purpose,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                **kwargs
-            )
-        except Exception as e:
-            logger.warning(
-                f"[InternalLLM] Using fallback for '{purpose}' due to: {e}"
-            )
-            return fallback_value
 
     @staticmethod
     def validate_purpose(purpose: str) -> bool:

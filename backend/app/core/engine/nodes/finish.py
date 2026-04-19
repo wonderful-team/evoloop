@@ -233,15 +233,11 @@ class LayeredAuditor:
 
         try:
             from app.core.llm import InternalLLMService
-            # Get user selected model from config (if any)
-            model = config.get("configurable", {}).get("model")
-
             response = await InternalLLMService.invoke(
                 messages=[{"role": "system", "content": prompt}],
                 purpose="audit_summary",
                 temperature=0.1,
                 max_tokens=500,
-                model=model,
             )
             summary = str(response.content).strip() if hasattr(response, 'content') else str(response).strip()
             if len(summary) < 20:

@@ -31,16 +31,32 @@ class MemoryLifecycleHandler:
         logger.info(f"[Memory] 🧠 Session completed for thread {data.thread_id}. Triggering auto-extraction...")
 
         try:
+            from app.core.context.manager import ContextManager, EvoContext
             from app.core.memory.auto_extraction import trigger_auto_extraction
-            # Fire and forget auto-extraction in a background task
-            asyncio.create_task(
-                trigger_auto_extraction(
-                    thread_id=data.thread_id,
-                    messages=data.messages,
-                    project_id=data.project_id,
-                    user_id=data.user_id,
-                )
+
+            # Create a dedicated context for the background extraction task
+            ctx = EvoContext(
+                thread_id=data.thread_id,
+                project_id=data.project_id,
+                user_id=data.user_id,
+                active_model=data.model
             )
+
+            async def _run_extraction_background():
+                # Set context for this specific coroutine
+                token = ContextManager.set(ctx)
+                try:
+                    await trigger_auto_extraction(
+                        thread_id=data.thread_id,
+                        messages=data.messages,
+                        project_id=data.project_id,
+                        user_id=data.user_id
+                    )
+                finally:
+                    ContextManager.reset(token)
+
+            # Fire and forget auto-extraction in a background task
+            asyncio.create_task(_run_extraction_background())
             logger.debug(f"[Memory] ✓ Auto-extraction background task started for {data.thread_id}")
         except Exception as e:
             logger.error(f"[Memory] Failed to trigger auto-extraction: {e}")

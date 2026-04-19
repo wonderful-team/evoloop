@@ -114,7 +114,9 @@ class AutoMemoryExtractor:
             return None
 
         async with lock:
-            return await self._extract_with_gates(thread_id, messages, project_id, user_id, summary)
+            return await self._extract_with_gates(
+                thread_id, messages, project_id, user_id, summary
+            )
 
     async def _extract_with_gates(
         self,

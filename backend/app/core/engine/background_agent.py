@@ -62,7 +62,13 @@ def _deserialize_messages(raw_messages: list[Any]) -> list[BaseMessage]:
     return deserialized
 
 
-async def _setup_project_context(thread_id: str, project_id: int | None, command_id: int | None = None, loaded_ctx: EvoContext | None = None):
+async def _setup_project_context(
+    thread_id: str,
+    project_id: int | None,
+    command_id: int | None = None,
+    loaded_ctx: EvoContext | None = None,
+    model: str | None = None
+):
     """Initialize working directory and context vars."""
     # Phase 2 Decoupling: Use API module directly
     # Note: project_id can be 0 (global mode) or None, both should skip project setup
@@ -83,6 +89,7 @@ async def _setup_project_context(thread_id: str, project_id: int | None, command
             thread_id=thread_id,
             project_id=project_id,
             working_directory=working_dir,
+            active_model=model,
             command_id=command_id
         )
         ContextManager.set(ctx)
@@ -91,6 +98,7 @@ async def _setup_project_context(thread_id: str, project_id: int | None, command
         ctx.request_id = f"bg-{thread_id}-{int(time.time())}"
         ctx.working_directory = working_dir
         ctx.command_id = command_id
+        ctx.active_model = model or ctx.active_model
         ContextManager.set(ctx)
 
     return working_dir
@@ -165,7 +173,13 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
         loaded_ctx = setup_results[1]
 
         # Project setup (needs result of thread_context_store and potentially loaded_ctx)
-        working_dir = await _setup_project_context(thread_id, project_id, evoloop_command_id, loaded_ctx=loaded_ctx)
+        working_dir = await _setup_project_context(
+            thread_id,
+            project_id,
+            evoloop_command_id,
+            loaded_ctx=loaded_ctx,
+            model=inputs.model
+        )
 
         # 3. Config Construction
         run_id = f"run-{gen_uuid()[:8]}"

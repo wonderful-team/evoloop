@@ -63,6 +63,7 @@ class EvoContext(DynamicBaseModel):
     identity_rules: list[str] = Field(default_factory=list)
     environment_block: str | None = None
     terminal_error: str | None = None  # Side-channel marker for irrecoverable errors
+    active_model: str | None = None  # Current model name (propagated from frontend)
 
     # Extra Metadata (Plugins, etc.)
     metadata: ContextMetadata = Field(default_factory=ContextMetadata)

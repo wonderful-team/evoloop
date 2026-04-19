@@ -24,6 +24,7 @@ class SessionCompletedData(BaseModel):
     duration_ms: float = 0.0
     
     # Extra context for learning and domain modules
+    model: str | None = None
     original_skill_id: Optional[Any] = None
     ticket_topic: Optional[str] = None
     ticket_reason: Optional[str] = None

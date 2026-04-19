@@ -72,7 +72,8 @@ class LearningLifecycleHandler:
                 goal=data.ticket_topic or "[Auto-recorded]",
                 result_summary=data.summary,
                 concept_names=[],
-                source_message_id=data.run_id or data.thread_id, 
+                source_message_id=data.run_id or data.thread_id,
+                model=data.model,
             )
             
             # Reconcile Skill
@@ -80,7 +81,8 @@ class LearningLifecycleHandler:
                 logger.info(f"[Learning] 🔄 Triggering macro reconciliation for Skill {data.original_skill_id}")
                 reconcile_skill_macro_task.delay(
                     skill_id=data.original_skill_id,
-                    thread_id=data.thread_id
+                    thread_id=data.thread_id,
+                    model=data.model,
                 )
         except Exception as e:
             logger.error(f"[Learning] Failed to trigger learning tasks: {e}")

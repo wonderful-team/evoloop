@@ -237,7 +237,8 @@ async def chat_endpoint(
         request_id=f"req-{req.thread_id}-{int(time.time())}",
         thread_id=req.thread_id,
         project_id=req.project_id,
-        command_id=req.command_id
+        command_id=req.command_id,
+        active_model=req.model
     )
     ContextManager.set(ctx)
 
@@ -436,7 +437,11 @@ async def retry_chat(
     # Phase 2: Unified Dispatch (Shared with Chat)
     # =============================================================================
     # Setup Context
-    ctx = EvoContext(thread_id=req.thread_id, project_id=req.project_id)
+    ctx = EvoContext(
+        thread_id=req.thread_id,
+        project_id=req.project_id,
+        active_model=req.model
+    )
     ContextManager.set(ctx)
 
     # Use unified dispatcher
