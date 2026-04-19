@@ -27,6 +27,29 @@ class ToolStep(DynamicBaseModel):
     duration: float | None = None
     tool_call_id: str | None = None
 
+    @classmethod
+    def model_validate(cls, obj: Any, **kwargs):
+        """Normalize legacy snapshot formats before validation.
+        
+        Old format (written before schema stabilization):
+          {'id': 1, 'name': 'Using ...', 'details': None, ...}
+        Current format:
+          {'id': 'uuid', 'tool': 'tool_name', 'output': '...', ...}
+        """
+        if isinstance(obj, dict):
+            data = dict(obj)
+            # Coerce int id → str
+            if "id" in data and not isinstance(data["id"], str):
+                data["id"] = str(data["id"])
+            # Map legacy 'name' → 'tool' if 'tool' is absent
+            if "tool" not in data and "name" in data:
+                data["tool"] = data["name"]
+            # Map legacy 'details' → 'output' if 'output' is absent
+            if "output" not in data and "details" in data:
+                data["output"] = str(data["details"] or "")
+            return super().model_validate(data, **kwargs)
+        return super().model_validate(obj, **kwargs)
+
 
 class FoldedMessage(DynamicBaseModel):
     """

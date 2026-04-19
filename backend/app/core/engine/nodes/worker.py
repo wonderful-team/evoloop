@@ -44,10 +44,13 @@ class WorkerNode(BaseAgentNode):
         super().__init__(node_name="Worker", max_steps=settings.WORKER_AGENT_MAX_STEPS)
 
     async def prepare_state(self, state: AgentState, config: RunnableConfig) -> StateUpdate | None:
-        """Hydration and validation logic."""
-        from app.core.engine.context_hydrator import EvoContextMiddleware
-        state = await EvoContextMiddleware.hydrate(state, config)
-
+        """Validation and ticket checks.
+        
+        Hydration is handled by Engine.run_node() for the standard ReAct path,
+        and explicitly in _execute_sequential_workflow() for the multi-skill path.
+        Keeping hydration here would cause a double-call (mitigated by hydration_marker,
+        but removing it eliminates the maintenance risk entirely).
+        """
         execution_ticket = state.blackboard.ticket
         if not execution_ticket:
             # Phase 5: Strict Integrity. We no longer guess the topic if the ticket is missing.
@@ -244,7 +247,12 @@ class WorkerNode(BaseAgentNode):
         顺序执行多个技能，上一步输出作为下一步输入
         """
         from app.core.context import ContextManager
+        from app.core.engine.context_hydrator import EvoContextMiddleware
         from app.core.engine.prompts import WorkerPromptBuilder
+
+        # Sequential workflow bypasses BaseAgentNode.__call__ and Engine.run_node hydration.
+        # We must perform hydration explicitly here as the single authoritative entry point.
+        state = await EvoContextMiddleware.hydrate(state, config)
 
         results = []
         blackboard = state.blackboard
@@ -297,7 +305,20 @@ class WorkerNode(BaseAgentNode):
                 session_goal=state.session_goal,
                 previous_output=prev_output,
             )
-            messages = [HumanMessage(content=mission_msg)]
+
+            # Inject up to 10 turns of conversation history so each step has
+            # the full dialogue context rather than starting from a blank slate.
+            from app.core.engine.context_hydrator import ConversationContext
+            mini_history = ConversationContext.extract_relevant_history(
+                list(state.messages), current_topic=skill.name, max_turns=10
+            )
+            if mini_history:
+                messages = [
+                    HumanMessage(content=f"[Conversation History]\n{mini_history}"),
+                    HumanMessage(content=mission_msg),
+                ]
+            else:
+                messages = [HumanMessage(content=mission_msg)]
 
             try:
                 # 执行当前步骤

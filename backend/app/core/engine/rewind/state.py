@@ -133,80 +133,70 @@ class StateRewind:
         graph_updates = []
 
         # ------------------------------------------------------------------
-        # Strategy 1: Retry mode — find the oldest clean input checkpoint
+        # Unified strategy: Find checkpoint containing target message,
+        # remove target and all messages after it, keep everything before.
         # ------------------------------------------------------------------
-        if reason == "retry" or reset_state:
-            # Search from oldest to newest for the first clean input checkpoint
-            for state_snapshot in reversed(historical_states):
-                sn_config = state_snapshot.config.get("configurable", {})
-                sn_metadata = getattr(state_snapshot, "metadata", {}) or {}
-                source = sn_metadata.get("source", "")
+        # Get target message content (last human = target if no ID provided)
+        target_sequence = await self._get_target_human_sequence(
+            thread_id=thread_id,
+            target_message_id=target_message_id,
+            include_target=True  # Include target so we can find it in checkpoints
+        )
 
-                # Prefer the oldest 'input' checkpoint (start of a user turn)
-                if source == "input":
-                    checkpoint_id = sn_config.get("checkpoint_id")
-                    base_state = state_snapshot
-                    logger.info(f"[StateRewind] Retry mode: Found oldest input checkpoint {checkpoint_id}")
-                    break
+        if not target_sequence:
+            logger.warning("[StateRewind] No target sequence found")
+            return None
 
-            # Fallback: if no input checkpoint, use the oldest checkpoint
-            if not checkpoint_id:
-                oldest = historical_states[-1]
-                checkpoint_id = oldest.config.get("configurable", {}).get("checkpoint_id")
-                base_state = oldest
-                logger.info(f"[StateRewind] Retry mode: No input checkpoint, using oldest {checkpoint_id}")
+        target_anchor = self._normalize_for_match(self._extract_text(target_sequence[-1]))
 
-            # Build RemoveMessage list for all stale messages after the anchor
-            if base_state and base_state.values:
-                sn_msgs = base_state.values.get("messages", [])
-                # In retry mode, keep only the first human message (user intent)
-                # and any context update message before it. Remove everything else.
-                kept_count = 0
-                for m in sn_msgs:
-                    if isinstance(m, HumanMessage) and kept_count == 0:
-                        kept_count += 1
+        # Search newest first for a checkpoint containing the target message
+        found_target = False
+        for state_snapshot in historical_states:
+            sn_msgs = state_snapshot.values.get("messages", []) if state_snapshot.values else []
+
+            for m in sn_msgs:
+                if isinstance(m, HumanMessage) and target_anchor:
+                    msg_text = self._normalize_for_match(self._extract_text(m.content))
+                    if msg_text == target_anchor:
+                        found_target = True
+                        # Remove target itself — it will be re-sent as fresh input
+                        graph_updates.append(RemoveMessage(id=m.id))
                         continue
-                    if kept_count == 0:
-                        continue
-                    # Everything after the first human message is stale
+
+                if found_target:
+                    # Remove all messages after target (both AI and human)
                     graph_updates.append(RemoveMessage(id=m.id))
 
-                if graph_updates:
-                    logger.info(f"[StateRewind] Retry mode: Pruning {len(graph_updates)} stale messages from checkpoint")
+            if found_target:
+                checkpoint_id = state_snapshot.config.get("configurable", {}).get("checkpoint_id")
+                base_state = state_snapshot
+                logger.info(
+                    f"[StateRewind] Found checkpoint {checkpoint_id} with target, "
+                    f"removing {len(graph_updates)} messages (target + after)"
+                )
+                break
 
-        # ------------------------------------------------------------------
-        # Strategy 2: Targeted rewind — find checkpoint matching target message
-        # ------------------------------------------------------------------
-        else:
-            # For targeted rewind, search newest first for a checkpoint whose
-            # message list contains the target message content.
-            target_sequence = await self._get_target_human_sequence(
-                thread_id=thread_id,
-                target_message_id=target_message_id,
-                include_target=False  # We want to keep the target
+        if not found_target:
+            # Fallback: target not in any checkpoint, use latest and remove last human onward
+            latest = historical_states[0]
+            checkpoint_id = latest.config.get("configurable", {}).get("checkpoint_id")
+            base_state = latest
+            sn_msgs = base_state.values.get("messages", []) if base_state.values else []
+
+            # Find last human message index, remove from there onward
+            last_human_idx = -1
+            for i, m in enumerate(sn_msgs):
+                if isinstance(m, HumanMessage):
+                    last_human_idx = i
+
+            if last_human_idx >= 0:
+                for m in sn_msgs[last_human_idx:]:
+                    graph_updates.append(RemoveMessage(id=m.id))
+
+            logger.warning(
+                f"[StateRewind] Target not found in checkpoints, using latest {checkpoint_id}. "
+                f"Removing {len(graph_updates)} messages from last human onward."
             )
-
-            if target_sequence:
-                target_anchor = self._normalize_for_match(self._extract_text(target_sequence[-1]))
-
-                for state_snapshot in historical_states:
-                    sn_msgs = state_snapshot.values.get("messages", []) if state_snapshot.values else []
-
-                    # Find the anchor human message in this checkpoint
-                    found_anchor = False
-                    for m in sn_msgs:
-                        if isinstance(m, HumanMessage) and target_anchor:
-                            if self._normalize_for_match(self._extract_text(m.content)) == target_anchor:
-                                found_anchor = True
-                                continue
-                        if found_anchor:
-                            graph_updates.append(RemoveMessage(id=m.id))
-                    
-                    if found_anchor:
-                        checkpoint_id = state_snapshot.config.get("configurable", {}).get("checkpoint_id")
-                        base_state = state_snapshot
-                        logger.info(f"[StateRewind] Targeted rewind: Found checkpoint {checkpoint_id}")
-                        break
 
         # ------------------------------------------------------------------
         # Apply updates

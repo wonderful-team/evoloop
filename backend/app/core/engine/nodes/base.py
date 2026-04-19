@@ -54,21 +54,32 @@ class BaseAgentNode(ABC):
 
             # 2. Build Prompts (Enforcing Static/Dynamic Split)
             # static_prompt: Huge instructions + tools -> goes to generic SystemMessage
-            # dynamic_ticket: Small turn-based telemetry -> prepended as HumanMessage
+            # dynamic_ticket: Small turn-based telemetry -> injected as HumanMessage
             static_system_prompt, dynamic_ticket_text = await self.build_prompt_pair(state, config)
             tools = await self.get_tools(state)
 
-            # Prepend Context Ticket if provided
-            messages = list(list(state.messages))
+            # Insert Context Ticket just before the LAST HumanMessage so that
+            # the historical message prefix remains stable for Prompt Cache.
+            # Previous behaviour (prepend to index 0) caused cache miss every turn.
+            messages = list(state.messages)
             if dynamic_ticket_text:
                 ticket_msg = HumanMessage(content=dynamic_ticket_text, name="context_ticket")
-                messages = [ticket_msg] + messages
+                last_human_idx = -1
+                for idx in range(len(messages) - 1, -1, -1):
+                    if isinstance(messages[idx], HumanMessage):
+                        last_human_idx = idx
+                        break
+                if last_human_idx >= 0:
+                    messages.insert(last_human_idx, ticket_msg)
+                else:
+                    # No human message found – append ticket at the end
+                    messages.append(ticket_msg)
 
             execution_state = state.model_copy(update={"messages": messages})
 
             # [MSG-TRACE] EXECUTION: Log execution_state.messages after ticket injection
             _exec_msgs = execution_state.messages or []
-            logger.info(f"[MSG-TRACE][{self.node_name}] EXECUTION execution_state.messages: {len(_exec_msgs)} msgs | types={[type(m).__name__ for m in _exec_msgs]} | ids={[getattr(m,'id','N/A')[:8] if getattr(m,'id',None) else 'N/A' for m in _exec_msgs]} | contents={[str(getattr(m,'content',''))[:60] for m in _exec_msgs]}")
+            logger.info(f"[MSG-TRACE][{self.node_name}] EXECUTION execution_state.messages: {len(_exec_msgs)} msgs | types={[type(m).__name__ for m in _exec_msgs]} | ids={[getattr(m,'id','N/A')[:8] if getattr(m,'id',None) else 'N/A' for m in _exec_msgs]} | ticket_at={next((i for i,m in enumerate(_exec_msgs) if getattr(m,'name',None)=='context_ticket'),'N/A')}")
 
             # 3. Engine Execution
             model = config.get("configurable", {}).get("model")
@@ -148,20 +159,14 @@ class BaseAgentNode(ABC):
             logger.info(f"[MSG-TRACE][base] handle_outcome SIGNAL_PATH: return {len(_out_msgs)} msgs | next_node={getattr(dispatch_result,'next_node','N/A')}")
             return dispatch_result
 
-        # ONLY return new messages to avoid duplicating history in LangGraph state
-        # The engine_result.messages list contains [ticket, original_history..., new_ai_response]
-        # NOTE: This comment is INCORRECT. engine_result.messages only contains NEW messages produced in this loop.
-        new_messages = []
-        if engine_result.messages:
-            orig_len = len(original_state.messages)
-            # Find and skip the context_ticket we injected at the start
-            has_ticket = len(engine_result.messages) > orig_len and getattr(engine_result.messages[0], "name", None) == "context_ticket"
-            start_idx = orig_len + (1 if has_ticket else 0)
-            if len(engine_result.messages) > start_idx:
-                new_messages = engine_result.messages[start_idx:]
-            # [MSG-TRACE] Filter logic debug
-            logger.info(f"[MSG-TRACE][base] handle_outcome FILTER: orig_len={orig_len}, engine_result.messages_len={len(engine_result.messages)}, has_ticket={has_ticket}, start_idx={start_idx}, new_messages_len={len(new_messages)}")
-
+        # Engine Contract: engine_result.messages contains ONLY new messages produced
+        # in this ReAct loop (AIMessage + ToolMessage sequences). It does NOT contain
+        # historical messages. The context_ticket we injected is also not included
+        # in Engine output, but we defensively filter it just in case.
+        new_messages = [
+            m for m in (engine_result.messages or [])
+            if getattr(m, "name", None) != "context_ticket"
+        ]
         logger.info(f"[MSG-TRACE][base] handle_outcome RETURN: {len(new_messages)} msgs | types={[type(m).__name__ for m in new_messages]}")
         return StateUpdate(
             messages=new_messages,

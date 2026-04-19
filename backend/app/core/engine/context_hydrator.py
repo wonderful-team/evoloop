@@ -415,19 +415,24 @@ class EvoContextMiddleware:
                 # previous failed attempts (caused by repair_message_history).
                 # Keep only the last meaningful human message + any preceding
                 # context injection messages.
-                deduped_non_error = []
+                # NOTE: Messages with name="context_ticket" must be preserved —
+                # they are injected by BaseAgentNode and should not be deduped.
                 last_human_idx = -1
                 for idx, msg in enumerate(non_error_messages):
-                    if isinstance(msg, HumanMessage):
+                    if isinstance(msg, HumanMessage) and getattr(msg, "name", None) != "context_ticket":
                         last_human_idx = idx
 
                 if last_human_idx >= 0:
                     segment = non_error_messages[:last_human_idx + 1]
                     deduped_segment = []
                     for msg in segment:
+                        # Skip dedup logic for context_ticket messages
+                        if isinstance(msg, HumanMessage) and getattr(msg, "name", None) == "context_ticket":
+                            deduped_segment.append(msg)
+                            continue
                         if isinstance(msg, HumanMessage) and deduped_segment:
                             prev = deduped_segment[-1]
-                            if isinstance(prev, HumanMessage):
+                            if isinstance(prev, HumanMessage) and getattr(prev, "name", None) != "context_ticket":
                                 prev_text = get_message_text(prev)
                                 curr_text = get_message_text(msg)
                                 if prev_text and curr_text and (prev_text in curr_text or curr_text in prev_text):

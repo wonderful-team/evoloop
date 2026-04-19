@@ -196,6 +196,11 @@ def repair_message_history(messages: list[BaseMessage]) -> list[BaseMessage]:
                 if isinstance(last, AIMessage) and getattr(last, 'tool_calls', None):
                     stage1.append(msg)
                     continue
+                # Skip merge if either message is a context_ticket (injected synthetic message)
+                if (getattr(last, 'name', None) == 'context_ticket' or
+                        getattr(msg, 'name', None) == 'context_ticket'):
+                    stage1.append(msg)
+                    continue
                 # Merge content — create a NEW message object to avoid mutating
                 # the original, which may be a shared reference in LangGraph state.
                 new_content = f"{last.content}\n\n{msg.content}"

@@ -233,11 +233,15 @@ class LayeredAuditor:
 
         try:
             from app.core.llm import InternalLLMService
+            # Get user selected model from config (if any)
+            model = config.get("configurable", {}).get("model")
+
             response = await InternalLLMService.invoke(
                 messages=[{"role": "system", "content": prompt}],
                 purpose="audit_summary",
                 temperature=0.1,
                 max_tokens=500,
+                model=model,
             )
             summary = str(response.content).strip() if hasattr(response, 'content') else str(response).strip()
             if len(summary) < 20:
@@ -467,18 +471,22 @@ class FinishNode:
             await system_bus.publish(SessionCompletedEvent(data=event_data))
             logger.info(f"[Finish] 📡 SessionCompletedEvent published for thread {effective_thread_id}")
 
-            # Cleanup pollution
+            # Cleanup pollution: remove or clear previous audit messages
             messages_to_return = list(messages)
-            removed_ids = []
+            cleared_count = 0
             for msg in list(state.messages):
                 if isinstance(msg, AIMessage) and msg.content:
                     content = str(msg.content)
-                    if "<evoloop_session_audit>" in content and "<evoloop_final_report>" in content and hasattr(msg, 'id') and msg.id:
-                        messages_to_return.append(RemoveMessage(id=msg.id))
-                        removed_ids.append(msg.id[:8] + "...")
-
-            if removed_ids:
-                logger.info(f"[Finish] 🗑️ Removed {len(removed_ids)} previous auditor messages")
+                    if "<evoloop_session_audit>" in content and "<evoloop_final_report>" in content:
+                        msg_id = getattr(msg, 'id', None)
+                        if msg_id:
+                            messages_to_return.append(RemoveMessage(id=msg_id))
+                        else:
+                            # Fallback: no id available — clear content in-place to avoid
+                            # leaving audit XML payload in the conversation history.
+                            msg.content = ""
+                            cleared_count += 1
+                            logger.warning("[Finish] ⚠️ Audit message has no id, content cleared in-place")
 
             # 4. Automatic State Pruning (Prevention of bloat)
             asyncio.create_task(auto_prune_on_completion(effective_thread_id))

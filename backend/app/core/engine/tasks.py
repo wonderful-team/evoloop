@@ -19,6 +19,7 @@ from app.infrastructure.database.sql.database import session_scope
 # Unified task queue (Huey in embedded mode, Celery in full mode)
 from app.infrastructure.queue.factory import shared_task
 from app.models import FileOperation
+from app.utils import gen_uuid
 
 
 class PersistMessagePayload(BaseModel):

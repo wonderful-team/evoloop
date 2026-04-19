@@ -539,6 +539,7 @@ class AgentEngine:
             if pending_signal:
                 # [MSG-TRACE] SIGNAL RETURN
                 logger.info(f"[MSG-TRACE][{name}] LOOP_STEP_{i+1} SIGNAL_RETURN new_messages: {len(new_messages)} msgs | types={[type(m).__name__ for m in new_messages]} | signal={type(pending_signal).__name__}")
+                # Engine Contract: new_messages contains ONLY messages produced in this loop.
                 return EngineResult(
                     messages=new_messages,
                     signal=pending_signal,
@@ -559,6 +560,9 @@ class AgentEngine:
 
         # [MSG-TRACE] LOOP END
         logger.info(f"[MSG-TRACE][{name}] LOOP_END new_messages: {len(new_messages)} msgs | types={[type(m).__name__ for m in new_messages]} | ids={[getattr(m,'id','N/A')[:8] if getattr(m,'id',None) else 'N/A' for m in new_messages]} | contents={[str(getattr(m,'content',''))[:60] for m in new_messages]}")
+        # Engine Contract: new_messages contains ONLY messages produced in this loop.
+        # It does NOT include the input history messages or the injected context_ticket.
+        # Callers (BaseAgentNode.handle_outcome) rely on this guarantee.
         return EngineResult(
             messages=new_messages,
             tool_history=local_tool_history,

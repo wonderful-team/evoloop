@@ -97,18 +97,24 @@ class MessageFolder:
             # --- 快速路径：检查是否有预存的快照 ---
             steps_snapshot = msg.additional_kwargs.get("steps_snapshot")
             if isinstance(msg, AIMessage) and steps_snapshot:
-                # 如果有快照，直接使用，不再扫描后续消息
-                result.append(FoldedMessage(
-                    id=msg_id,
-                    role="ai",
-                    content=cls.get_message_text(msg),
-                    thinking=getattr(msg, "thinking", None) or msg.additional_kwargs.get("thinking"),
-                    tool_calls=[(tc.model_dump() if hasattr(tc, 'model_dump') else tc) for tc in (msg.tool_calls or [])],
-                    steps=[ToolStep.model_validate(s) for s in steps_snapshot],
-                    created_at=created_at
-                ))
-                i += 1
-                continue
+                # 如果有快照，尝试直接使用。
+                # 对旧格式数据做容错：如果 schema 不兼容则回退到标准扫描路径。
+                try:
+                    validated_steps = [ToolStep.model_validate(s) for s in steps_snapshot]
+                    result.append(FoldedMessage(
+                        id=msg_id,
+                        role="ai",
+                        content=cls.get_message_text(msg),
+                        thinking=getattr(msg, "thinking", None) or msg.additional_kwargs.get("thinking"),
+                        tool_calls=[(tc.model_dump() if hasattr(tc, 'model_dump') else tc) for tc in (msg.tool_calls or [])],
+                        steps=validated_steps,
+                        created_at=created_at
+                    ))
+                    i += 1
+                    continue
+                except Exception as e:
+                    # Legacy data with incompatible schema — fall through to standard path
+                    logger.warning(f"[MessageFolder] steps_snapshot validation failed, falling back to scan: {e}")
 
             # --- 标准路径：动态扫描与匹配 ---
             if isinstance(msg, AIMessage):
