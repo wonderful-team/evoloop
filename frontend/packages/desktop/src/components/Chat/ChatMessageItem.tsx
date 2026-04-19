@@ -16,7 +16,7 @@ import {
 } from "lucide-react"
 import { ChangesetInlineHint } from "./ChangesetInlineHint"
 import { memo, useState } from "react"
-import { motion, AnimatePresence } from "framer-motion"
+import { motion } from "framer-motion"
 import { useTranslation } from "react-i18next"
 import {
   Collapsible,
@@ -54,28 +54,10 @@ function convertStepsToAgentProcess(steps: Array<{
   details?: string
 }>): AgentProcessStep[] {
   return steps
-    .filter((step) => {
-      const name = step.name || ""
-      const tool = name.replace("Using ", "")
-      
-      // Hide internal steps
-      if (step.type === "internal" || tool === "route_to" || name.includes("route_to")) return false
-      
-      // Define noise patterns (both English raw names and Localized Chinese strings)
-      const noisePatterns = [
-        "list_directory", "list_files", "read_file", "inspect_task_health",
-        "正在列出", "正在读取", "扫描目录", "查找文件", "读取分析"
-      ]
-      
-      const isNoise = noisePatterns.some(p => name.includes(p))
-      if (isNoise) return false
-      
-      return true
-    })
     .map((step) => {
       let name = step.name || ""
       let tool = name.replace("Using ", "") || "unknown"
-      
+
       // If tool is still unknown, try to infer it from the name (common in snapshots)
       if (tool === "unknown" && name) {
         if (name.includes("正在读取") || name.includes("read_file")) tool = "read_file"
@@ -325,7 +307,7 @@ const ChatMessageItem = memo(
         )}
 
         <div className={`relative flex-1 w-0 max-w-[90%] sm:max-w-[85%] min-w-0 flex flex-col gap-1`}>
-          
+
           {/* 1. Action Stream (Thinking + Steps) - AI ONLY, ABOVE Bubble */}
           {msg.role === "ai" && (
             <div className="chat-action-stream empty:hidden animate-in fade-in slide-in-from-top-1 duration-500">
@@ -374,11 +356,10 @@ const ChatMessageItem = memo(
           <div className="flex flex-col gap-1 min-w-0">
             {/* 2. Main Response Bubble */}
             {msg.content && (
-              <div className={`rounded-xl px-4 py-3 text-sm leading-relaxed min-w-0 w-fit max-w-full overflow-hidden border ${
-                msg.role === "human" 
-                  ? "bg-primary text-primary-foreground border-primary/20 ml-auto shadow-none" 
+              <div className={`rounded-xl px-4 py-3 text-sm leading-relaxed min-w-0 w-fit max-w-full overflow-hidden border ${msg.role === "human"
+                  ? "bg-primary text-primary-foreground border-primary/20 ml-auto shadow-none"
                   : "bg-muted/50 text-foreground border-border/40 mr-auto shadow-none"
-              }`}>
+                }`}>
 
                 {(() => {
                   // Artifact Detection

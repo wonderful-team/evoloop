@@ -51,7 +51,7 @@ const TOOL_ICONS: Record<string, React.ReactNode> = {
     manage_directory: <FolderCog className="h-3.5 w-3.5" />,
     search_files: <Search className="h-3.5 w-3.5" />,
     grep_files: <Search className="h-3.5 w-3.5" />,
-    
+
     // 代码执行
     execute_command: <Terminal className="h-3.5 w-3.5" />,
     query_command_status: <Activity className="h-3.5 w-3.5" />,
@@ -59,27 +59,27 @@ const TOOL_ICONS: Record<string, React.ReactNode> = {
     bash_command: <Terminal className="h-3.5 w-3.5" />,
     python_code: <Code className="h-3.5 w-3.5" />,
     run_macro: <Play className="h-3.5 w-3.5" />,
-    
+
     // 网络/搜索
     search_web: <Search className="h-3.5 w-3.5" />,
     read_url_content: <Globe className="h-3.5 w-3.5" />,
     scrape_dynamic: <Globe className="h-3.5 w-3.5" />,
     browser_control: <Chrome className="h-3.5 w-3.5" />,
-    
+
     // 设备控制
     desktop_control: <Monitor className="h-3.5 w-3.5" />,
     mobile_control: <Smartphone className="h-3.5 w-3.5" />,
     find_element: <Locate className="h-3.5 w-3.5" />,
     verify_ui_state: <CheckCircle className="h-3.5 w-3.5" />,
     quick_check_screen: <Eye className="h-3.5 w-3.5" />,
-    
+
     // 知识/记忆
     remember: <Brain className="h-3.5 w-3.5" />,
     recall: <Brain className="h-3.5 w-3.5" />,
     search_history: <History className="h-3.5 w-3.5" />,
     save_concepts: <Lightbulb className="h-3.5 w-3.5" />,
     auto_harvest_knowledge: <Sprout className="h-3.5 w-3.5" />,
-    
+
     // 项目/任务
     create_hierarchical_task: <ListTodo className="h-3.5 w-3.5" />,
     get_task_tree: <GitBranch className="h-3.5 w-3.5" />,
@@ -87,24 +87,24 @@ const TOOL_ICONS: Record<string, React.ReactNode> = {
     get_next_executable_task: <PlayCircle className="h-3.5 w-3.5" />,
     list_project_tasks: <List className="h-3.5 w-3.5" />,
     create_project_task: <PlusCircle className="h-3.5 w-3.5" />,
-    
+
     // 检查点
     create_checkpoint: <Bookmark className="h-3.5 w-3.5" />,
     list_checkpoints: <Bookmark className="h-3.5 w-3.5" />,
     rollback_checkpoint: <RotateCcw className="h-3.5 w-3.5" />,
     delete_checkpoint: <Trash className="h-3.5 w-3.5" />,
-    
+
     // Wiki
     list_wiki_pages: <BookOpen className="h-3.5 w-3.5" />,
     read_wiki_page: <BookOpen className="h-3.5 w-3.5" />,
     write_wiki_page: <PenTool className="h-3.5 w-3.5" />,
-    
+
     // 学习/技能
     search_skills: <Wand2 className="h-3.5 w-3.5" />,
     learn_skill_from_trace: <GraduationCap className="h-3.5 w-3.5" />,
     reconcile_skill: <RefreshCw className="h-3.5 w-3.5" />,
     search_native_tools: <Search className="h-3.5 w-3.5" />,
-    
+
     // 其他
     analyze_image: <Image className="h-3.5 w-3.5" />,
     use_mcp_server: <Server className="h-3.5 w-3.5" />,
@@ -148,21 +148,21 @@ const TOOL_NAMES: Record<string, string> = {
     read_url_content: "读取网页",
     scrape_dynamic: "动态抓取",
     browser_control: "浏览器控制",
-    
+
     // 设备控制
     desktop_control: "桌面控制",
     mobile_control: "移动设备控制",
     find_element: "查找元素",
     verify_ui_state: "验证UI状态",
     quick_check_screen: "快速检查屏幕",
-    
+
     // 知识/记忆
     remember: "记住",
     recall: "回忆",
     search_history: "搜索历史",
     save_concepts: "保存概念",
     auto_harvest_knowledge: "自动收获知识",
-    
+
     // 项目/任务
     create_hierarchical_task: "创建层级任务",
     get_task_tree: "获取任务树",
@@ -170,24 +170,24 @@ const TOOL_NAMES: Record<string, string> = {
     get_next_executable_task: "获取待执行任务",
     list_project_tasks: "列出项目任务",
     create_project_task: "创建项目任务",
-    
+
     // 检查点
     create_checkpoint: "创建检查点",
     list_checkpoints: "列出检查点",
     rollback_checkpoint: "回滚检查点",
     delete_checkpoint: "删除检查点",
-    
+
     // Wiki
     list_wiki_pages: "列出Wiki页面",
     read_wiki_page: "读取Wiki页面",
     write_wiki_page: "写入Wiki页面",
-    
+
     // 学习/技能
     search_skills: "搜索技能",
     learn_skill_from_trace: "从轨迹学习",
     reconcile_skill: "调和技能",
     search_native_tools: "搜索原生工具",
-    
+
     // 其他
     analyze_image: "分析图像",
     use_mcp_server: "使用MCP服务器",
@@ -316,7 +316,7 @@ function summarizeOutput(tool: string, output: string): { title: string; subtitl
     // Handle error
     if (parsed.type === 'error') {
         const errorMsg = typeof parsed.data === 'string' ? parsed.data : JSON.stringify(parsed.data)
-        return { 
+        return {
             title: errorMsg.length > MAX_LENGTH ? errorMsg.slice(0, MAX_LENGTH) + "..." : errorMsg,
             hasMore: errorMsg.length > MAX_LENGTH
         }
@@ -326,7 +326,7 @@ function summarizeOutput(tool: string, output: string): { title: string; subtitl
     if (parsed.type === 'list' && Array.isArray(parsed.data)) {
         const count = parsed.data.length
         if (count === 0) return { title: "无结果", hasMore: false }
-        
+
         // Try to get first item description
         const firstItem = parsed.data[0]
         if (typeof firstItem === 'string') {
@@ -342,7 +342,7 @@ function summarizeOutput(tool: string, output: string): { title: string; subtitl
     // Handle JSON object
     if (parsed.type === 'json' && typeof parsed.data === 'object') {
         const data = parsed.data
-        
+
         // Search results
         if (tool === 'search_web' || tool === 'read_url_content') {
             if (data.title) return { title: data.title, subtitle: data.url || data.description, hasMore: true }
@@ -376,8 +376,8 @@ function summarizeOutput(tool: string, output: string): { title: string; subtitl
 
     // Plain text
     const firstLine = output.split('\n')[0].trim()
-    return { 
-        title: firstLine.slice(0, MAX_LENGTH), 
+    return {
+        title: firstLine.slice(0, MAX_LENGTH),
         hasMore: output.length > firstLine.length || output.split('\n').length > 1
     }
 }
@@ -393,24 +393,9 @@ function groupSteps(steps: any[], t: any): StepGroup[] {
     steps.forEach(step => {
         const parentId = step.parent_id
         const stepId = step.id
-        
+
         // Handle both formats: AgentProcessStep (tool/tool_name) and StepItem (name)
         const displayName = step.tool_name || step.tool || step.name || ""
-        const toolType = step.tool || step.name?.replace("Using ", "") || "unknown"
-
-        // Filter out noisy internal steps that don't have user-facing value
-        // Match both raw names and localized Chinese descriptions from snapshots
-        const noisePatterns = [
-            "route_to", "list_directory", "list_files", "read_file", "inspect_task_health",
-            "正在列出", "正在读取", "扫描目录", "查找文件", "读取分析"
-        ]
-        
-        const isInternal = step.type === "internal" || toolType === "route_to" || displayName.includes("route_to")
-        const isNoise = noisePatterns.some(p => displayName.includes(p) || toolType.includes(p))
-
-        if (isInternal || isNoise) {
-            return
-        }
 
         if (parentId != null) {
             if (!childrenMap.has(parentId)) {
@@ -426,28 +411,6 @@ function groupSteps(steps: any[], t: any): StepGroup[] {
         }
     })
 
-    // Aggregation logic: group consecutive similar tool steps
-    const aggregateSteps = (rawSteps: any[]) => {
-        const result: any[] = []
-        rawSteps.forEach(step => {
-            const prev = result[result.length - 1]
-            const type = step.tool || step.name
-            
-            // Only aggregate certain boring tools
-            const canAggregate = ['read_file', 'list_files', 'list_directory'].includes(type)
-            const isFinished = (s: any) => s.status === 'done' || s.status === 'success'
-            
-            if (prev && canAggregate && (prev.tool || prev.name) === type && isFinished(prev) && isFinished(step)) {
-                if (!prev.items) prev.items = [prev]
-                prev.items.push(step)
-                prev.id = step.id // update to latest
-                return
-            }
-            result.push({ ...step })
-        })
-        return result
-    }
-
     headerMap.forEach((header, id) => {
         const children = childrenMap.get(id) || []
         const displayName = header.tool_name || header.tool || header.name || ""
@@ -456,7 +419,7 @@ function groupSteps(steps: any[], t: any): StepGroup[] {
             id: `g-${header.id}`,
             title: displayName.replace("► ", "").replace("Phase: ", ""),
             status: header.status,
-            steps: aggregateSteps(children),
+            steps: children,
             isImplicit: false
         })
     })
@@ -466,7 +429,7 @@ function groupSteps(steps: any[], t: any): StepGroup[] {
             id: "g-implicit",
             title: t("chat.steps.execution"),
             status: orphans.some(s => s.status === "running") ? "running" : "success",
-            steps: aggregateSteps(orphans),
+            steps: orphans,
             isImplicit: true
         })
     }
@@ -496,7 +459,7 @@ function normalizeStep(step: any): AgentProcessStep {
             duration = parsed < 1000 ? parsed * 1000 : parsed // Convert seconds to ms if small
         }
     }
-    
+
     return {
         id: step.id,
         tool,
@@ -514,12 +477,12 @@ function normalizeStep(step: any): AgentProcessStep {
 // Compact Step component
 function StepRow({ step: rawStep }: { step: AgentProcessStep }) {
     const { t } = useTranslation()
-    
+
     // Normalize step to handle both formats
     const step = normalizeStep(rawStep)
 
     const icon = TOOL_ICONS[step.tool] || <Terminal className="h-3.5 w-3.5" />
-    
+
     // Priority: 1. Backend friendly name (tool_name_display) 2. Legacy tool_name 3. Frontend mapping 4. Raw tool name
     let toolName = step.tool_name_display || step.tool_name || TOOL_NAMES[step.tool] || step.tool || t("chat.steps.unknown", "未知工具")
 
@@ -532,25 +495,10 @@ function StepRow({ step: rawStep }: { step: AgentProcessStep }) {
     if (typeof toolName === 'string' && toolName.includes("database_logger.")) {
         toolName = t("chat.steps.executingCommand", "正在执行命令")
     }
-    
-    // Aggregated row
-    if ((step as any).items) {
-        const count = (step as any).items.length
-        return (
-            <div className="group flex items-center gap-1.5 py-1 px-3 text-[10px] text-muted-foreground/60 transition-colors">
-                <div className="flex h-4 w-4 shrink-0 items-center justify-center opacity-40">
-                    <ClipboardList className="h-3 w-3" />
-                </div>
-                <div className="truncate">
-                    {t("chat.steps.batchAction", "批量执行")} {toolName} · {count} {t("chat.steps.actions", "个动作")}
-                </div>
-            </div>
-        )
-    }
 
     const inputInfo = formatToolInput(step.tool, step.input, t)
     const outputSummary = summarizeOutput(step.tool, step.output)
-    
+
     // For read_file tool, append the file path to the tool name
     if (step.tool === 'read_file' && inputInfo?.value) {
         toolName = `${toolName}: ${inputInfo.value}`
@@ -633,16 +581,16 @@ export function AgentProcess({ steps, header }: AgentProcessProps) {
     const { t } = useTranslation()
     const groups = groupSteps(steps || [], t)
     const [isFullyExpanded, setIsFullyExpanded] = useState(false)
-    
+
     if (!steps || steps.length === 0) return null
 
     // Logic: If historical (no header/streaming) and steps > 5, collapse
     const MAX_VISIBLE_STEPS = 5
     const isHistorical = !header
     const shouldCollapse = isHistorical && steps.length > MAX_VISIBLE_STEPS && !isFullyExpanded
-    
-    const visibleGroups = shouldCollapse 
-        ? groups.slice(0, 1).map(g => ({...g, steps: g.steps.slice(0, MAX_VISIBLE_STEPS)}))
+
+    const visibleGroups = shouldCollapse
+        ? groups.slice(0, 1).map(g => ({ ...g, steps: g.steps.slice(0, MAX_VISIBLE_STEPS) }))
         : groups
 
     return (
@@ -658,9 +606,9 @@ export function AgentProcess({ steps, header }: AgentProcessProps) {
                 ))}
             </div>
             {shouldCollapse && (
-                <Button 
-                    variant="ghost" 
-                    size="sm" 
+                <Button
+                    variant="ghost"
+                    size="sm"
                     className="h-6 text-[10px] text-muted-foreground/60 hover:text-primary w-fit mt-1 self-center"
                     onClick={() => setIsFullyExpanded(true)}
                 >
