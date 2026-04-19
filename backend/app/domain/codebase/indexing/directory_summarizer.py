@@ -11,7 +11,7 @@ class DirectorySummarizer:
     Creates `Directory` nodes in Neo4j that aggregate `File` and child `Directory` summaries.
     """
 
-    async def summarize_directory(self, project_id: int, dir_path: str, recursive: bool = True):
+    async def summarize_directory(self, project_id: int, dir_path: str, recursive: bool = True, model: str | None = None):
         """
         Summarize a directory.
         1. Find all Files in this directory (direct children).
@@ -83,7 +83,7 @@ class DirectorySummarizer:
         if recursive:
             for subdir in direct_subdirs:
                 # Recurse
-                sub_summary = await self.summarize_directory(project_id, subdir, recursive=True)
+                sub_summary = await self.summarize_directory(project_id, subdir, recursive=True, model=model)
                 child_summaries.append({"type": "directory", "name": subdir, "summary": sub_summary})
 
         # 3. Process Files
@@ -108,7 +108,7 @@ class DirectorySummarizer:
             return "Empty Directory"
 
         # 4. Generate Summary
-        summary_text = await self.generate_summary(dir_path, child_summaries)
+        summary_text = await self.generate_summary(dir_path, child_summaries, model=model)
 
         # 5. Store in Neo4j
         async with driver.session() as session:
@@ -142,7 +142,7 @@ class DirectorySummarizer:
         logger.info(f"Summarized Directory: {dir_path}")
         return summary_text
 
-    async def generate_summary(self, dir_path: str, child_summaries: list[str]) -> str:
+    async def generate_summary(self, dir_path: str, child_summaries: list[dict], model: str | None = None) -> str:
         from app.utils import render_template
         
         prompt_text = render_template(
@@ -156,6 +156,7 @@ class DirectorySummarizer:
             response = await InternalLLMService.invoke(
                 messages=[{"role": "user", "content": prompt_text}],
                 purpose="skill_synthesis",
+                model=model,
             )
             return response.content if hasattr(response, 'content') else str(response)
         except Exception as e:

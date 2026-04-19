@@ -56,16 +56,28 @@ class TodoLifecycleHandler:
         data = event.data
         logger.info(f"[Todo] 📝 Session completed for {data.thread_id}. Checking for pending actions...")
 
-        # TODO: Implement harvesting logic
-        # 1. Check feature flags / settings for auto-todo-extraction
-        # 2. Prepare the harvesting prompt using 'core/todo/extraction.prompt.j2'
-        # 3. Call InternalLLMService.invoke_structured with TodoHarvestingResult schema
-        # 4. Filter results based on confidence/relevance
-        # 5. Iteratively call TodoService.create for each valid extraction
-        
-        # NOTE: This should run in a background task to avoid blocking the engine
-        # asyncio.create_task(self._harvest_todos(data))
-        pass
+        # Initialize background context for extraction
+        from app.core.context.manager import ContextManager, EvoContext
+        ctx = EvoContext(
+            thread_id=data.thread_id,
+            project_id=data.project_id,
+            active_model=data.model
+        )
+        token = ContextManager.set(ctx)
+
+        try:
+            # TODO: Implement harvesting logic
+            # 1. Check feature flags / settings for auto-todo-extraction
+            # 2. Prepare the harvesting prompt using 'core/todo/extraction.prompt.j2'
+            # 3. Call InternalLLMService.invoke_structured with TodoHarvestingResult schema
+            # 4. Filter results based on confidence/relevance
+            # 5. Iteratively call TodoService.create for each valid extraction
+            
+            # NOTE: This should run in a background task to avoid blocking the engine
+            # asyncio.create_task(self._harvest_todos(data))
+            pass
+        finally:
+            ContextManager.reset(token)
 
     async def _harvest_todos(self, data):
         """Internal background method for deep analysis and storage."""

@@ -61,17 +61,29 @@ class KnowledgeLifecycleHandler:
         data = event.data
         logger.info(f"[Knowledge] 📚 Session completed for {data.thread_id}. Auditing for knowledge artifacts...")
 
-        # TODO: Implement harvesting logic
-        # 1. Check if history contains meaningful generated content (e.g., more than 500 chars change)
-        # 2. Prepare analysis prompt using 'core/knowledge/extraction.prompt.j2'
-        # 3. Call InternalLLMService.invoke_structured with KnowledgeHarvestingResult
-        # 4. For each high-confidence candidate:
-        #    a. Create a MarkdownDocument with appropriate metadata
-        #    b. Call KnowledgeStoreService.save_document
-        
-        # NOTE: This runs in background to prevent stalling the engine response
-        # asyncio.create_task(self._process_harvesting(data))
-        pass
+        # Initialize background context for auditing
+        from app.core.context.manager import ContextManager, EvoContext
+        ctx = EvoContext(
+            thread_id=data.thread_id,
+            project_id=data.project_id,
+            active_model=data.model
+        )
+        token = ContextManager.set(ctx)
+
+        try:
+            # TODO: Implement harvesting logic
+            # 1. Check if history contains meaningful generated content (e.g., more than 500 chars change)
+            # 2. Prepare analysis prompt using 'core/knowledge/extraction.prompt.j2'
+            # 3. Call InternalLLMService.invoke_structured with KnowledgeHarvestingResult
+            # 4. For each high-confidence candidate:
+            #    a. Create a MarkdownDocument with appropriate metadata
+            #    b. Call KnowledgeStoreService.save_document
+            
+            # NOTE: This runs in background to prevent stalling the engine response
+            # asyncio.create_task(self._process_harvesting(data))
+            pass
+        finally:
+            ContextManager.reset(token)
 
     async def _process_harvesting(self, data):
         """Background process for deep knowledge extraction and ingestion."""

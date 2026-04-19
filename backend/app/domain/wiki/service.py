@@ -139,6 +139,7 @@ class WikiService:
         page_title: str,
         page_content: str,
         project_id: int,
+        model: str | None = None,
     ) -> list[str]:
         if not getattr(settings, 'WIKI_EXTRACT_CONCEPTS', True):
             return []
@@ -158,6 +159,7 @@ class WikiService:
                 response = await InternalLLMService.invoke(
                     messages=[{"role": "user", "content": extraction_prompt}],
                     purpose="memory_extraction",
+                    model=model,
                 )
                 json_match = re.search(r'\{.*\}', response.content, re.DOTALL)
                 if json_match:
@@ -231,7 +233,7 @@ class WikiService:
             logger.warning(f"Structure validation failed: {e}")
             return WikiStructure.model_validate(structure_data)
 
-    async def generate_wiki(self, project_id: int, topic: str, force_regenerate: bool = False):
+    async def generate_wiki(self, project_id: int, topic: str, force_regenerate: bool = False, model: str | None = None):
         logger.info(f"Starting Wiki Generation for project {project_id}")
         project_data = await evocloud_manager.get_project_by_id(project_id)
         if not project_data or not project_data.get('path'):
@@ -277,7 +279,7 @@ class WikiService:
         pages_to_generate = validated_structure.pages
         saved_pages = []
 
-        async def process_page_recursive(plan: WikiPagePlan, parent_id=None, order=0):
+        async def process_page_recursive(plan: WikiPagePlan, parent_id=None, order=0, model=None):
             page_title = plan.title or "Untitled"
             page_slug = plan.id or f"page-{order}"
             if not force_regenerate:
@@ -292,7 +294,7 @@ class WikiService:
                             session.commit()
                         saved_pages.append(existing_page)
                         for i, child_plan in enumerate(plan.children):
-                            await process_page_recursive(child_plan, parent_id=existing_page.id, order=i)
+                            await process_page_recursive(child_plan, parent_id=existing_page.id, order=i, model=model)
                         return
 
             files_to_read_content = {}
@@ -311,6 +313,7 @@ class WikiService:
                 content_response = await InternalLLMService.invoke(
                     messages=[{"role": "user", "content": content_prompt}],
                     purpose="skill_synthesis",
+                    model=model,
                 )
                 page_content = content_response.content
             except Exception as e:
@@ -333,13 +336,13 @@ class WikiService:
                 saved_pages.append(db_page)
 
             if page_content:
-                await self._extract_and_store_concepts(page_title=page_title, page_content=page_content, project_id=project_id)
+                await self._extract_and_store_concepts(page_title=page_title, page_content=page_content, project_id=project_id, model=model)
 
             for i, child_plan in enumerate(plan.children):
-                await process_page_recursive(child_plan, parent_id=db_page.id, order=i)
+                await process_page_recursive(child_plan, parent_id=db_page.id, order=i, model=model)
 
         for i, page_plan in enumerate(pages_to_generate):
-            await process_page_recursive(page_plan, parent_id=None, order=i)
+            await process_page_recursive(page_plan, parent_id=None, order=i, model=model)
         return saved_pages
 
 

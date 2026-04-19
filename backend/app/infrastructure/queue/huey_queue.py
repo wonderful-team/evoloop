@@ -244,6 +244,13 @@ class HueyTaskScheduler(TaskScheduler, SyncTaskMixin):
             logger.error(f"[Huey] Full traceback:\n{traceback.format_exc()}")
             # Re-raise to let Huey handle retries
             raise
+        finally:
+            # Clean up resources in this loop
+            try:
+                from app.utils.async_utils import flush_loop_bound_resources
+                loop.run_until_complete(flush_loop_bound_resources())
+            except Exception as e:
+                logger.warning(f"[Huey] Failed to flush resources in task {func.__name__}: {e}")
 
     def _create_result(self, huey_task: Task) -> HueyTaskResult:
         """Create a result wrapper for a Huey task."""
