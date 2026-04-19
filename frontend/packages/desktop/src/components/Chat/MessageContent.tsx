@@ -264,12 +264,12 @@ export function MessageContent({ content, isUser }: { content: string; isUser?: 
                 </div>
               ),
               th: ({ children }) => (
-                <th className="bg-muted px-4 py-2 font-medium border-b">
+                <th className="bg-muted px-4 py-2 font-medium border-b border-r last:border-r-0">
                   {children}
                 </th>
               ),
               td: ({ children }) => (
-                <td className="px-4 py-2 border-b last:border-0">{children}</td>
+                <td className="px-4 py-2 border-b border-r last:border-r-0">{children}</td>
               ),
               img: ({ src, alt }) => (
                 <img
