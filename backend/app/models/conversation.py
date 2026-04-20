@@ -58,6 +58,11 @@ class Message(Base):
     
     parent: Mapped[Optional["Message"]] = relationship("Message", remote_side="[Message.id]", backref="children")
 
+    # Cloud Sync State
+    # values: 'pending', 'synced', 'failed'
+    sync_status: Mapped[str] = mapped_column(String(20), default="pending", server_default="pending", index=True)
+    last_synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
     references: Mapped[list["MessageReference"]] = relationship(back_populates="message", cascade="all, delete-orphan")
 
     conversation: Mapped["Conversation"] = relationship(
@@ -98,6 +103,11 @@ class Conversation(Base):
     title: Mapped[str | None] = mapped_column(String(255))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+    # Cloud Sync State
+    # values: 'pending', 'synced', 'failed'
+    sync_status: Mapped[str] = mapped_column(String(20), default="pending", server_default="pending", index=True)
+    last_synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     messages: Mapped[list["Message"]] = relationship(
         back_populates="conversation",

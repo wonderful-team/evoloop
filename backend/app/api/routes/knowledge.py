@@ -15,7 +15,7 @@ from app.domain.knowledge.services.citations import get_citation_tracker
 from app.domain.knowledge.services.deduplication import DeduplicationService
 from app.domain.knowledge.services.pipeline import IngestionPipeline
 from app.domain.knowledge.services.search import get_fts_service
-from app.domain.knowledge.services.store import KnowledgeStoreService
+from app.domain.knowledge.services.store import DocumentListItem, KnowledgeStoreService
 from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.models.schemas.base import SearchResponse
 
@@ -35,9 +35,9 @@ class DocumentResponse(BaseAPIResponse):
     document: Optional[dict] = None
 
 
-class DocumentListResponse(ListResponse[dict]):
+class DocumentListResponse(ListResponse[DocumentListItem]):
     """Response for listing documents."""
-    documents: list[dict]
+    documents: list[DocumentListItem]
     collections: list[str]
 
 
@@ -80,9 +80,16 @@ class TagResponse(BaseAPIResponse):
     total: int
 
 
+class DocumentSearchItem(DynamicBaseModel):
+    """Single document search result."""
+    path: str
+    match_count: int
+    matches: list[dict[str, Any]]
+
+
 class DocumentSearchResponse(SearchResponse):
     """Response for document search."""
-    results: list[dict[str, Any]]
+    results: list[DocumentSearchItem]
 
 
 class BulkUploadResponse(BaseAPIResponse):
@@ -186,7 +193,7 @@ async def list_documents(
             tag_list = [t.strip() for t in tags.split(",") if t.strip()]
             documents = [
                 doc for doc in documents
-                if any(tag in doc.get("tags", []) for tag in tag_list)
+                if any(tag in doc.tags for tag in tag_list)
             ]
         
         collections = store.list_collections()
@@ -295,24 +302,12 @@ async def list_tags(
     Returns tags with document counts for the tag cloud/filter UI.
     """
     try:
-        # Get all documents
-        documents = store.list_documents(collection)
-        
-        # Collect tags with counts
-        tag_counts = {}
-        for doc in documents:
-            for tag in doc.get("tags", []):
-                tag_counts[tag] = tag_counts.get(tag, 0) + 1
-        
-        # Sort by count (descending) and limit
-        sorted_tags = sorted(tag_counts.items(), key=lambda x: x[1], reverse=True)[:limit]
+        fts = get_fts_service()
+        tags, total = await fts.list_tags(collection=collection, limit=limit)
         
         return TagResponse(
-            tags=[
-                TagItem(name=tag, count=count)
-                for tag, count in sorted_tags
-            ],
-            total=len(tag_counts)
+            tags=[TagItem(name=t["name"], count=t["count"]) for t in tags],
+            total=total
         )
     
     except Exception as e:

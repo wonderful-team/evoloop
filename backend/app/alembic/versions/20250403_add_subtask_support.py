@@ -12,7 +12,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = '20250403_add_subtask_support'
-down_revision: Union[str, None] = '20250328_add_meta_data_to_message_references'
+down_revision: Union[str, None] = '20250328_add_meta_data'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

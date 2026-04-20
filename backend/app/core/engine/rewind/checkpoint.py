@@ -176,7 +176,12 @@ class CheckpointRewind:
                     meta = row[1]
                     if isinstance(meta, str):
                         meta = json.loads(meta)
+                    elif isinstance(meta, bytes):
+                        meta = json.loads(meta.decode('utf-8'))
                     elif meta is None:
+                        meta = {}
+                    # Defensive: if meta is still not a dict, coerce to empty
+                    if not isinstance(meta, dict):
                         meta = {}
                     checkpoint_info.append({
                         "id": cp_id,

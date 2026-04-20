@@ -223,15 +223,15 @@ class ConversationSyncManager:
             from app.core.evocloud.bridge.sync_tasks import full_sync_task
 
             async with get_db_session() as db:
-                # 获取所有会话
+                # 获取未同步的会话
                 conversations_result = await db.execute(
-                    select(ConversationModel)
+                    select(ConversationModel).where(ConversationModel.sync_status != 'synced')
                 )
                 conversations = conversations_result.scalars().all()
 
-                # 获取所有消息
+                # 获取未同步的消息
                 messages_result = await db.execute(
-                    select(MessageModel)
+                    select(MessageModel).where(MessageModel.sync_status != 'synced')
                 )
                 messages = messages_result.scalars().all()
 
@@ -264,9 +264,9 @@ class ConversationSyncManager:
             from app.core.evocloud.bridge.sync_tasks import incremental_sync_task
 
             async with get_db_session() as db:
-                # 获取所有会话ID
+                # 获取未同步的会话ID
                 result = await db.execute(
-                    select(ConversationModel.id)
+                    select(ConversationModel.id).where(ConversationModel.sync_status != 'synced')
                 )
                 conversation_ids = [str(r[0]) for r in result.all()]
 
@@ -353,6 +353,23 @@ class ConversationSyncManager:
 
     async def on_new_message(self, message: MessageModel):
         """新消息回调 - 实时同步（缓冲）"""
+        # Mark message as pending if not set
+        if message.sync_status != "pending":
+            # We should ideally do this in DB, but MessageModel object passed here
+            # might be updated by caller.
+            pass
+
+        # When a new message is added, the conversation status should return to 'pending'
+        # so it can be picked up by incremental sync if real-time sync fails.
+        async with get_db_session() as db:
+            from sqlalchemy import update
+            await db.execute(
+                update(ConversationModel)
+                .where(ConversationModel.id == message.thread_id)
+                .values(sync_status="pending")
+            )
+            await db.commit()
+
         await self._add_to_buffer(message)
 
     async def on_conversation_updated(self, conversation: ConversationModel):

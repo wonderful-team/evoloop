@@ -74,6 +74,10 @@ nodes:
       - "list_app_atlas"
       - "search_native_tools"
       - "save_concepts"
+      # Wiki (Project documentation authoring)
+      - "write_wiki_page"
+      - "list_wiki_pages"
+      - "read_wiki_page"
       # Knowledge Base (Document reference and search)
       - "kb_read"
       - "kb_search"

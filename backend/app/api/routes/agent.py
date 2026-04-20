@@ -78,6 +78,31 @@ class CancelHITLRequest(ScopedRequest):
     reason: str | None = None  # Optional reason for cancellation
 
 
+class StopChatResponse(BaseAPIResponse):
+    """Response for stopping a chat."""
+    status: str
+    thread_id: str
+
+
+class ResumeChatResponse(BaseAPIResponse):
+    """Response for resuming a chat."""
+    status: str
+    thread_id: str
+
+
+class CancelHITLResponse(BaseAPIResponse):
+    """Response for cancelling a HITL request."""
+    status: str
+    thread_id: str
+    request_id: str | None
+
+
+class WebhookResponse(BaseAPIResponse):
+    """Response for webhook endpoint."""
+    status: str
+    thread_id: str
+
+
 # =============================================================================
 # Unified Dispatch Helpers
 # =============================================================================
@@ -225,11 +250,7 @@ async def _prepare_and_dispatch(
 
 
 @router.post("/chat", dependencies=[Depends(verify_guest_access)])
-async def chat_endpoint(
-    req: ChatRequest,
-    bg_tasks: BackgroundTasks,
-    _current_user: CurrentUserOptional,
-):
+async def chat_endpoint(req: ChatRequest, bg_tasks: BackgroundTasks, _current_user: CurrentUserOptional):
     """
     Unified entry point for User Chat (Local Background Task).
     """
@@ -279,31 +300,6 @@ async def chat_endpoint(
     )
 
 
-class StopChatResponse(BaseAPIResponse):
-    """Response for stopping a chat."""
-    status: str
-    thread_id: str
-
-
-class ResumeChatResponse(BaseAPIResponse):
-    """Response for resuming a chat."""
-    status: str
-    thread_id: str
-
-
-class CancelHITLResponse(BaseAPIResponse):
-    """Response for cancelling a HITL request."""
-    status: str
-    thread_id: str
-    request_id: str | None
-
-
-class WebhookResponse(BaseAPIResponse):
-    """Response for webhook endpoint."""
-    status: str
-    thread_id: str
-
-
 @router.post("/chat/stop", response_model=StopChatResponse)
 async def stop_chat(req: ChatRequest):
     """
@@ -326,11 +322,7 @@ async def retry_chat(
     Uses the new event-driven RewindOrchestrator for distributed cleanup.
     """
     from app.core.engine.rewind import RewindOrchestrator
-    from app.core.engine.rewind.exceptions import (
-        MessageNotFoundError,
-        NoHumanMessageError,
-        RewindError
-    )
+    from app.core.engine.rewind.exceptions import MessageNotFoundError, NoHumanMessageError, RewindError
 
     # =============================================================================
     # Phase 1: Rewind (Retry-Specific)
@@ -476,9 +468,7 @@ async def resume_chat(req: ResumeRequest, bg_tasks: BackgroundTasks):
     checkpointer = db_resource_manager.checkpointer
 
     if not graph or not checkpointer:
-        raise HTTPException(
-            status_code=500, detail="Graph or Checkpointer not initialized"
-        )
+        raise HTTPException(status_code=500, detail="Graph or Checkpointer not initialized")
 
     # Config for resuming from checkpoint
     config = {
@@ -592,10 +582,7 @@ async def resume_chat(req: ResumeRequest, bg_tasks: BackgroundTasks):
             await activity_monitor.clear_human_request(req.thread_id)
             await activity_monitor.start_run(req.thread_id, "Resuming...")
 
-            resume_config = {
-                **config,
-                "callbacks": [callback]
-            }
+            resume_config = {**config, "callbacks": [callback]}
 
             # Resume execution
             async for _event in graph.astream(inputs, config=resume_config):
@@ -626,10 +613,7 @@ async def cancel_hitl_request(req: CancelHITLRequest, bg_tasks: BackgroundTasks)
     This will dismiss the confirmation card and resume execution with a cancellation signal.
     """
     from app.infrastructure.database.resource_manager import db_resource_manager
-    from app.domain.tools.human_input import (
-        cancel_request,
-        get_pending_requests_for_thread,
-    )
+    from app.domain.tools.human_input import cancel_request, get_pending_requests_for_thread
 
     graph = get_graph()
     checkpointer = db_resource_manager.checkpointer
@@ -725,10 +709,7 @@ async def cancel_hitl_request(req: CancelHITLRequest, bg_tasks: BackgroundTasks)
         try:
             await activity_monitor.start_run(req.thread_id, "Resuming after cancellation...")
 
-            resume_config = {
-                **config,
-                "callbacks": [callback]
-            }
+            resume_config = {**config, "callbacks": [callback]}
 
             # Resume execution with cancellation signal
             async for _event in graph.astream(inputs, config=resume_config):

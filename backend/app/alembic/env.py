@@ -33,7 +33,14 @@ target_metadata = [SQLModel.metadata, Base.metadata]
 
 
 def get_url():
-    return str(settings.SQLALCHEMY_DATABASE_URI)
+    url = str(settings.SQLALCHEMY_DATABASE_URI)
+    # Alembic runs in a synchronous context, so we need to use a synchronous driver.
+    # Replace async drivers with their sync counterparts.
+    if "sqlite+aiosqlite" in url:
+        url = url.replace("sqlite+aiosqlite", "sqlite")
+    if "postgresql+psycopg" in url:
+        url = url.replace("postgresql+psycopg", "postgresql")
+    return url
 
 
 def run_migrations_offline():

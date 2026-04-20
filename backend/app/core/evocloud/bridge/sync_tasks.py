@@ -8,9 +8,13 @@ Conversation Sync Tasks - Huey-based background sync for EvoCloud.
 """
 import asyncio
 import logging
+from datetime import datetime, timezone
+from sqlalchemy import update
 
 from app.core.evocloud.schemas import SyncConversation
 from app.infrastructure.queue.factory import shared_task
+from app.infrastructure.database.sql.database import get_db_session
+from app.models import Conversation as ConversationModel, Message as MessageModel
 
 logger = logging.getLogger(__name__)
 
@@ -42,10 +46,15 @@ async def sync_conversation_task(device_id: int, conversation: dict) -> dict:
         result = await api.sync_conversation(device_id, conversation)
 
         if result.get("code") == 0:
-            logger.info(
-                f"[SyncTask] Conversation synced: {conversation.get('id')} "
-                f"device={device_id}"
-            )
+            logger.info(f"[SyncTask] Conversation synced: {conversation.get('id')} device={device_id}")
+            # Update local sync status
+            async with get_db_session() as db:
+                await db.execute(
+                    update(ConversationModel)
+                    .where(ConversationModel.id == conversation.get('id'))
+                    .values(sync_status="synced", last_synced_at=datetime.now(timezone.utc))
+                )
+                await db.commit()
             return result
         else:
             error_msg = result.get("message", "Unknown error")
@@ -103,6 +112,16 @@ async def sync_messages_task(
                 f"[SyncTask] Messages synced: {len(messages)} messages "
                 f"thread={thread_id} device={device_id}"
             )
+            # Update local sync status for messages
+            msg_ids = [m.get("id") for m in messages if m.get("id")]
+            if msg_ids:
+                async with get_db_session() as db:
+                    await db.execute(
+                        update(MessageModel)
+                        .where(MessageModel.id.in_(msg_ids))
+                        .values(sync_status="synced", last_synced_at=datetime.now(timezone.utc))
+                    )
+                    await db.commit()
             return result
         else:
             error_msg = result.get("message", "Unknown error")
@@ -243,6 +262,26 @@ async def full_sync_task(device_id: int, data: dict) -> dict:
             f"{len(conversations)} conversations, "
             f"{total_synced} messages (including seeds)."
         )
+        
+        # Update sync status for everything
+        async with get_db_session() as db:
+            conv_ids = [c.get("id") for c in conversations if c.get("id")]
+            if conv_ids:
+                await db.execute(
+                    update(ConversationModel)
+                    .where(ConversationModel.id.in_(conv_ids))
+                    .values(sync_status="synced", last_synced_at=datetime.now(timezone.utc))
+                )
+            
+            msg_ids = [m.get("id") for m in messages if m.get("id")]
+            if msg_ids:
+                await db.execute(
+                    update(MessageModel)
+                    .where(MessageModel.id.in_(msg_ids))
+                    .values(sync_status="synced", last_synced_at=datetime.now(timezone.utc))
+                )
+            await db.commit()
+
         return {"code": 0, "data": {"conversations": len(conversations), "messages": total_synced}}
 
     except Exception as e:
@@ -304,6 +343,48 @@ async def incremental_sync_task(device_id: int, conversation_ids: list[str]) -> 
                         api_result = await api.sync_conversation(device_id, conv_data.model_dump())
                         if api_result.get("code") == 0:
                             results["synced"] += 1
+                            # Update local sync status
+                            await db.execute(
+                                update(ConversationModel)
+                                .where(ConversationModel.id == conv_id)
+                                .values(sync_status="synced", last_synced_at=datetime.now(timezone.utc))
+                            )
+                            
+                            # Also check for unsynced messages in this conversation
+                            msg_result = await db.execute(
+                                select(MessageModel).where(
+                                    MessageModel.thread_id == conv_id,
+                                    MessageModel.sync_status != "synced"
+                                )
+                            )
+                            unsynced_msgs = msg_result.scalars().all()
+                            if unsynced_msgs:
+                                logger.info(f"[SyncTask] Found {len(unsynced_msgs)} unsynced messages in thread {conv_id}")
+                                # In direct sync, we can use the manager's format helper if available, 
+                                # but here we'll do it manually or assume the task has access to formatters.
+                                # Since we are in the task, we'll manually format to keep it independent.
+                                from app.core.evocloud.schemas import SyncMessage
+                                formatted_msgs = []
+                                for m in unsynced_msgs:
+                                    # Manually construct SyncMessage to avoid circular imports or dependency on manager
+                                    sm = SyncMessage(
+                                        id=m.id, thread_id=m.thread_id, project_id=m.project_id or 0,
+                                        role=m.role, content=m.content, thinking=m.thinking,
+                                        created_at=int(m.created_at.timestamp()) if m.created_at else 0,
+                                        sequence_number=m.sequence_number or 0, category=m.category or ""
+                                    )
+                                    formatted_msgs.append(sm.model_dump())
+                                
+                                msg_api_result = await api.sync_messages(device_id, str(conv_id), formatted_msgs)
+                                if msg_api_result.get("code") == 0:
+                                    await db.execute(
+                                        update(MessageModel)
+                                        .where(MessageModel.id.in_([m.id for m in unsynced_msgs]))
+                                        .values(sync_status="synced", last_synced_at=datetime.now(timezone.utc))
+                                    )
+                                    logger.info(f"[SyncTask] Synced {len(unsynced_msgs)} backlogged messages for {conv_id}")
+                            
+                            await db.commit()
                         else:
                             results["failed"] += 1
                             logger.warning(

@@ -33,7 +33,7 @@ async def handle_remote_command(command: RemoteCommand):
         return
 
     # Support both nested 'content' (legacy/cloud) and flat 'message' (mobile/local) structures
-    content_obj = command.get("content", {})
+    content_obj = command.get("content") or {}
     params_obj = content_obj.get("params", {})
 
     message = (
