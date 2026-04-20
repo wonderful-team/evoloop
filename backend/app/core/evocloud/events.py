@@ -7,6 +7,11 @@ import logging
 from app.core.events import SystemEventType
 from app.core.events.decorators import event_register, event_subscribe
 from app.core.evocloud.manager import evocloud_manager
+from app.core.evocloud.bridge.handlers import (
+    handle_remote_command,
+    handle_project_switch_event,
+)
+from app.core.evocloud.bridge.query_handler import handle_query_request
 
 logger = logging.getLogger(__name__)
 
@@ -75,7 +80,13 @@ class EvoCloudLifecycleHandler:
         logger.info("[EvoCloud] Application started, initializing...")
         try:
             if evocloud_manager.api and evocloud_manager.api.get_token():
-                logger.info("[EvoCloud] Found persisted token, starting services...")
+                logger.info("[EvoCloud] Found persisted token, registering handlers and starting services...")
+                
+                # Register Bridge Handlers
+                evocloud_manager.set_command_handler(handle_remote_command)
+                evocloud_manager.set_event_handler(handle_project_switch_event)
+                evocloud_manager.set_query_handler(handle_query_request)
+                
                 await evocloud_manager.start()
                 await self._sync_cloud_project()
                 asyncio.create_task(self._warm_evocloud_cache())
