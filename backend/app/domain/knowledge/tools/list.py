@@ -61,19 +61,19 @@ async def kb_list(
         if path:
             documents = [
                 d for d in documents
-                if path in d.get('path', '')
+                if path in d.path
             ]
         
         if pattern:
             documents = [
                 d for d in documents
-                if pattern.lower() in d.get('path', '').lower()
-                or pattern.lower() in d.get('title', '').lower()
+                if pattern.lower() in d.path.lower()
+                or pattern.lower() in d.title.lower()
             ]
         
-        # Sort by updated_at (most recent first)
+        # Sort by modified_at (most recent first)
         documents.sort(
-            key=lambda d: d.get('updated_at', ''),
+            key=lambda d: d.modified_at,
             reverse=True
         )
         
