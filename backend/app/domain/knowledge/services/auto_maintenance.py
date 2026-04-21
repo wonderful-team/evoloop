@@ -18,9 +18,9 @@ Knowledge Base Auto-Maintenance Service - 知识库自动整理系统
     # 定期自动整理（由调度器调用）
     await service.run_scheduled_maintenance()
 """
-
+import json
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from pydantic import BaseModel, Field
@@ -69,8 +69,9 @@ class OptimizationSuggestion(DynamicBaseModel):
 
 class MaintenanceReport(DynamicBaseModel):
     """知识库整理报告"""
-    timestamp: datetime = Field(default_factory=datetime.now)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     duration_seconds: float = 0.0
+    level: str = "medium"
     tasks_completed: list[str] = Field(default_factory=list)
     tasks_failed: list[str] = Field(default_factory=list)
 
@@ -225,7 +226,7 @@ class UsageAnalyzer:
             ))
 
         # 建议3：检查孤立的热门文档
-        hot_paths = {d["path"] for d in patterns["hot_docs"]}
+        hot_paths = {d.path for d in patterns.hot_docs}
         # 如果热门文档之间没有关联，建议建立链接
 
         return suggestions
@@ -248,7 +249,7 @@ class QualityChecker:
 
         try:
             result = self.store.read_document(path)
-            content = result.get("content", "")
+            content = result.content
 
             # 检查1：内容长度
             if len(content) < self.MIN_CONTENT_LENGTH:
@@ -272,19 +273,15 @@ class QualityChecker:
                 if duplicate_ratio > self.MAX_DUPLICATE_RATIO:
                     issues.append(f"重复内容过多 ({duplicate_ratio:.0%})")
 
-            # 检查5：链接有效性（简化检查）
+            # 检查5：链接有效性（批量读取避免 N+1）
             import re
             links = re.findall(r'\[([^\]]+)\]\(([^)]+)\)', content)
             broken_links = []
-            for text, link in links:
-                if link.startswith("http"):
-                    # 暂不检查外部链接
-                    pass
-                elif not link.startswith("#"):
-                    # 检查内部链接
-                    try:
-                        self.store.read_document(link)
-                    except:
+            internal_links = [link for _, link in links if not link.startswith("http") and not link.startswith("#")]
+            if internal_links:
+                link_results = self.store.read_documents_batch(internal_links)
+                for link in internal_links:
+                    if link not in link_results:
                         broken_links.append(link)
 
             if broken_links:
@@ -367,7 +364,8 @@ class AutoMaintenanceService:
     async def run_maintenance(
         self,
         collection: Optional[str] = None,
-        dry_run: bool = True
+        dry_run: bool = True,
+        level: str = "medium"
     ) -> MaintenanceReport:
         """
         执行完整的维护任务
@@ -376,12 +374,13 @@ class AutoMaintenanceService:
             collection: 指定集合，None=所有
             dry_run: 如果为 True，只报告不执行修改
         """
-        start_time = datetime.now()
+        start_time = datetime.now(timezone.utc)
         report = MaintenanceReport(
             timestamp=start_time,
             duration_seconds=0,
             tasks_completed=[],
             tasks_failed=[],
+            level=level,
         )
 
         logger.info(f"🔧 开始知识库自动整理 {'[模拟模式]' if dry_run else ''}")
@@ -435,11 +434,33 @@ class AutoMaintenanceService:
             report.tasks_failed.append(f"index_optimization: {e}")
 
         # 计算耗时
-        report.duration_seconds = (datetime.now() - start_time).total_seconds()
+        report.duration_seconds = (datetime.now(timezone.utc) - start_time).total_seconds()
 
         logger.info(f"✅ 知识库整理完成，耗时 {report.duration_seconds:.1f}s")
         logger.info(f"   完成任务: {len(report.tasks_completed)}")
         logger.info(f"   失败任务: {len(report.tasks_failed)}")
+
+        # Persist report to SQLite (T-1.4)
+        try:
+            from app.domain.knowledge.services.search import get_fts_service
+            fts = get_fts_service()
+            with fts.pool.acquire() as conn:
+                conn.execute(
+                    """INSERT INTO maintenance_reports
+                       (timestamp, level, dry_run, duration_seconds, summary_json, report_json)
+                       VALUES (?, ?, ?, ?, ?, ?)""",
+                    (
+                        report.timestamp.isoformat(),
+                        level,
+                        dry_run,
+                        report.duration_seconds,
+                        json.dumps(report.to_dict(), ensure_ascii=False)[:4000],
+                        json.dumps(report.to_dict(), ensure_ascii=False)
+                    )
+                )
+                conn.commit()
+        except Exception as e:
+            logger.warning(f"Failed to persist maintenance report to SQLite: {e}")
 
         return report
 
@@ -497,20 +518,26 @@ class AutoMaintenanceService:
 
         if not dry_run:
             # 标记低质量文档（移动到低质量集合）
-            for q in low_quality[:10]:  # 限制处理数量
+            # Batch read to avoid N+1 file I/O
+            low_paths = [q.path for q in low_quality[:10]]
+            low_batch = self.store.read_documents_batch(low_paths)
+
+            for q in low_quality[:10]:
+                result = low_batch.get(q.path)
+                if not result:
+                    continue
+
                 try:
-                    # 读取文档
-                    result = self.store.read_document(q.path)
                     content = result.content
 
                     # 添加质量标记
                     from app.domain.knowledge.models import MarkdownDocument
                     doc = MarkdownDocument(
                         content=content,
-                        source=result.get("source", "unknown"),
+                        source=result.frontmatter.get("source", "unknown"),
                         mime_type="text/markdown",
                         metadata={
-                            **result.get("metadata", {}),
+                            **result.frontmatter,
                             "quality_score": q.score,
                             "quality_issues": q.issues,
                             "quality_checked_at": datetime.now().isoformat(),
@@ -538,8 +565,8 @@ class AutoMaintenanceService:
 
         patterns = await self.usage_analyzer.analyze_usage_patterns(days=30)
 
-        report.hot_docs_found = len(patterns.get("hot_docs", []))
-        report.cold_docs_found = len(patterns.get("cold_docs", []))
+        report.hot_docs_found = len(patterns.hot_docs)
+        report.cold_docs_found = len(patterns.cold_docs)
 
         # 生成优化建议
         suggestions = await self.usage_analyzer.suggest_optimizations()
@@ -565,26 +592,32 @@ class AutoMaintenanceService:
             days=self.config.cold_doc_days
         )
 
-        cold_docs = patterns.get("cold_docs", [])
+        cold_docs = patterns.cold_docs
 
         if not dry_run and cold_docs:
-            for doc_info in cold_docs[:20]:  # 限制处理数量
+            # Batch read to avoid N+1 file I/O
+            cold_paths = [d.path for d in cold_docs[:20]]
+            cold_batch = self.store.read_documents_batch(cold_paths)
+
+            for doc_info in cold_docs[:20]:
+                path = doc_info.path
+                result = cold_batch.get(path)
+                if not result:
+                    continue
+
                 try:
-                    path = doc_info.path
-                    # 移动到归档集合
-                    result = self.store.read_document(path)
                     content = result.content
 
                     from app.domain.knowledge.models import MarkdownDocument
                     doc = MarkdownDocument(
                         content=content,
-                        source=result.get("source", "unknown"),
+                        source=result.frontmatter.get("source", "unknown"),
                         mime_type="text/markdown",
                         metadata={
-                            **result.get("metadata", {}),
+                            **result.frontmatter,
                             "archived_at": datetime.now().isoformat(),
                             "archive_reason": "cold_content",
-                            "last_citations": doc_info.get("citations", 0),
+                            "last_citations": doc_info.citations,
                         }
                     )
 
@@ -622,13 +655,17 @@ class AutoMaintenanceService:
         try:
             fts = await self._get_fts()
 
-            # 重新索引所有文档
+            # 重新索引所有文档（batch read to avoid N+1）
             documents = self.store.list_documents(collection)
             reindexed = 0
 
+            batch = self.store.read_documents_batch([doc.path for doc in documents])
             for doc in documents:
+                result = batch.get(doc.path)
+                if not result:
+                    continue
+
                 try:
-                    result = self.store.read_document(doc.path)
                     content = result.content
 
                     await fts.index_document(

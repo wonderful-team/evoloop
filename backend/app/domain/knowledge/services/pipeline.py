@@ -2,8 +2,9 @@
 Ingestion pipeline for processing document uploads.
 """
 
+import asyncio
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import BinaryIO, Optional
 
 from app.domain.knowledge.extractors import ExtractorRegistry
@@ -39,7 +40,7 @@ class IngestionPipeline:
                 file=f,
                 filename="document.pdf",
                 mime_type="application/pdf",
-                project="my-project"
+                collection="my-collection"
             )
     """
     
@@ -64,9 +65,10 @@ class IngestionPipeline:
         file: BinaryIO,
         filename: str,
         mime_type: Optional[str] = None,
-        project: str = "default",
+        collection: str = "default",
         custom_metadata: Optional[dict] = None,
-        index_for_search: bool = True
+        index_for_search: bool = True,
+        index_for_vector_search: bool = True,
     ) -> "IngestionResult":
         """
         Process a file through the ingestion pipeline.
@@ -75,9 +77,10 @@ class IngestionPipeline:
             file: Binary file-like object
             filename: Original filename
             mime_type: MIME type (auto-detected if None)
-            project: Target project name
+            collection: Target collection name
             custom_metadata: Additional metadata to store
             index_for_search: Whether to index for full-text search
+            index_for_vector_search: Whether to index for semantic vector search (T-3.1)
         
         Returns:
             IngestionResult with status and document info
@@ -85,7 +88,8 @@ class IngestionPipeline:
         Raises:
             ExtractionError: If extraction fails
         """
-        start_time = datetime.utcnow()
+        start_time = datetime.now(timezone.utc)
+        saved_path = None
         
         try:
             # Step 1: Detect MIME type if not provided
@@ -117,7 +121,7 @@ class IngestionPipeline:
                 )
             
             # Step 4: Build metadata
-            extraction_duration = (datetime.utcnow() - start_time).total_seconds() * 1000
+            extraction_duration = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
             
             metadata = DocumentMetadata(
                 source_file=filename,
@@ -136,13 +140,24 @@ class IngestionPipeline:
                 **(custom_metadata or {})
             )
             
-            # Step 5: Save to store
-            save_result = self.store.save_document(
+            # Step 5: Save to store (run sync I/O in thread pool)
+            save_result = await asyncio.to_thread(
+                self.store.save_document,
                 document=document,
                 metadata=metadata,
-                project=project
+                collection=collection
             )
-            saved_path = save_result["path"] if isinstance(save_result, dict) else save_result
+            # Handle both dict and DocumentSaveResult
+            if hasattr(save_result, "path"):
+                saved_path = save_result.path
+                save_title = getattr(save_result, "title", filename)
+                save_size = getattr(save_result, "size", None)
+                save_word_count = getattr(save_result, "word_count", None)
+            else:
+                saved_path = save_result["path"] if isinstance(save_result, dict) else save_result
+                save_title = save_result.get("title", filename) if isinstance(save_result, dict) else filename
+                save_size = save_result.get("size") if isinstance(save_result, dict) else None
+                save_word_count = save_result.get("word_count") if isinstance(save_result, dict) else None
             
             # Step 6: Auto-tagging
             auto_tags = []
@@ -150,7 +165,7 @@ class IngestionPipeline:
                 try:
                     tagger = get_auto_tagger()
                     tagging_result = await tagger.tag_document(
-                        title=save_result.get("title", filename) if isinstance(save_result, dict) else filename,
+                        title=save_title,
                         content=document.content[:5000],  # First 5K chars for tagging
                         existing_tags=custom_metadata.get("tags") if custom_metadata else None
                     )
@@ -162,7 +177,7 @@ class IngestionPipeline:
             # Merge auto-tags with provided tags
             all_tags = list(set((custom_metadata.get("tags", []) if custom_metadata else []) + auto_tags))
             
-            # Step 7: Index for search (async)
+            # Step 7: Index for FTS search (async)
             if index_for_search:
                 try:
                     fts = get_fts_service()
@@ -170,17 +185,33 @@ class IngestionPipeline:
                         IndexDocumentRequest(
                             doc_id=saved_path,
                             path=saved_path,
-                            title=save_result.title if hasattr(save_result, "title") else filename,
+                            title=save_title,
                             content=document.content,
-                            collection=project or "default",
+                            collection=collection or "default",
                             tags=all_tags,
-                            file_size=save_result.size if hasattr(save_result, "size") else None,
-                            word_count=save_result.word_count if hasattr(save_result, "word_count") else None,
+                            file_size=save_size,
+                            word_count=save_word_count,
                         )
                     )
-                    logger.debug(f"Indexed {filename} for search")
+                    logger.debug(f"Indexed {filename} for FTS search")
                 except Exception as e:
-                    logger.warning(f"Failed to index {filename} for search: {e}")
+                    logger.warning(f"Failed to index {filename} for FTS search: {e}")
+
+            # Step 8: Index for vector semantic search (T-3.1)
+            if index_for_vector_search:
+                try:
+                    from app.domain.knowledge.services.vector_search import get_kb_vector_service
+                    vector_service = get_kb_vector_service()
+                    await vector_service.index_document(
+                        doc_id=saved_path,
+                        title=save_title,
+                        content=document.content,
+                        collection=collection or "default",
+                        tags=all_tags,
+                    )
+                    logger.debug(f"Indexed {filename} for vector search")
+                except Exception as e:
+                    logger.warning(f"Failed to index {filename} for vector search: {e}")
             
             logger.info(f"Successfully ingested {filename} to {saved_path}")
             
@@ -198,6 +229,24 @@ class IngestionPipeline:
             raise
         except Exception as e:
             logger.error(f"Ingestion failed for {filename}: {e}", exc_info=True)
+            # Cleanup partial state
+            if saved_path:
+                try:
+                    await asyncio.to_thread(self.store.delete_document, saved_path)
+                    logger.debug(f"Cleaned up partial document: {saved_path}")
+                except Exception as cleanup_err:
+                    logger.warning(f"Failed to cleanup partial document: {cleanup_err}")
+                try:
+                    fts = get_fts_service()
+                    await fts.remove_document(saved_path)
+                except Exception:
+                    pass
+                try:
+                    from app.domain.knowledge.services.vector_search import get_kb_vector_service
+                    vector_service = get_kb_vector_service()
+                    await vector_service.delete_document(saved_path)
+                except Exception:
+                    pass
             return IngestionResult(
                 success=False,
                 error=f"Ingestion failed: {str(e)}",
@@ -208,7 +257,7 @@ class IngestionPipeline:
     async def process_upload(
         self,
         upload_file,  # FastAPI UploadFile
-        project: str = "default",
+        collection: str = "default",
         doc_type: str = "doc",
         extract_metadata: bool = True,
         custom_metadata: Optional[dict] = None
@@ -218,7 +267,7 @@ class IngestionPipeline:
         
         Args:
             upload_file: FastAPI UploadFile object
-            project: Target project
+            collection: Target collection
             doc_type: Document type (doc, code, guide, etc.)
             extract_metadata: Whether to extract metadata
             custom_metadata: Additional metadata
@@ -240,7 +289,7 @@ class IngestionPipeline:
             file=upload_file.file,
             filename=upload_file.filename,
             mime_type=mime_type,
-            project=project,
+            collection=collection,
             custom_metadata=meta
         )
         
@@ -249,14 +298,14 @@ class IngestionPipeline:
     async def batch_process(
         self,
         files: list[tuple[BinaryIO, str, Optional[str]]],
-        project: str = "default"
+        collection: str = "default"
     ) -> list["IngestionResult"]:
         """
         Process multiple files in batch.
         
         Args:
             files: List of (file, filename, mime_type) tuples
-            project: Target project
+            collection: Target collection
         
         Returns:
             List of IngestionResults
@@ -264,7 +313,7 @@ class IngestionPipeline:
 
         results = []
         for file, filename, mime_type in files:
-            result = await self.process(file, filename, mime_type, project)
+            result = await self.process(file, filename, mime_type, collection)
             results.append(result)
         
         return results

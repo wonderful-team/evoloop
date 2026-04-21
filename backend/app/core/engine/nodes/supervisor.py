@@ -7,7 +7,8 @@ from langchain_core.runnables import RunnableConfig
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.config import settings
 from app.core.engine.engine import EngineResult
-from app.core.engine.message_utils import get_last_human_message
+from app.core.engine.message.utils import get_last_human_message
+from app.core.engine.nodes.utils import log_msg_trace
 from app.core.engine.nodes.base import BaseAgentNode
 from app.core.engine.prompts import SupervisorContext, SupervisorPromptBuilder
 from app.core.engine.routers import RoutingTarget
@@ -35,11 +36,12 @@ class SupervisorNode(BaseAgentNode):
     async def prepare_state(self, state: AgentState, config: RunnableConfig) -> StateUpdate | None:
         """Pre-computation: Check for subtask completion and worker outcome."""
         # 0. History Cleanup (Prevent retry loops on internal errors)
-        from app.core.engine.message_utils import prune_trailing_errors
+        from app.core.engine.message.utils import prune_trailing_errors
         state.messages = prune_trailing_errors(list(state.messages))
 
-        # Clean stale routing from previous turns
-        state.next_node = None
+        # Consume stale routing from previous turns
+        from app.core.engine.state.lifecycle import StateLifecycleManager
+        StateLifecycleManager.consume_next_node(state)
 
         # Optional: Emit initial status
         await self._emit_status(config, i18n.get("supervisor.status_analyzing"))
@@ -56,10 +58,8 @@ class SupervisorNode(BaseAgentNode):
                 return StateUpdate(next_node=RoutingTarget.AGGREGATOR)
 
         # 2. Check Worker/Aggregator Outcome
-        worker_outcome = blackboard.worker_outcome
+        worker_outcome = StateLifecycleManager.consume_worker_outcome(state)
         if worker_outcome:
-            # Consume the signal
-            blackboard.worker_outcome = None
             if worker_outcome == "success":
                 logger.info("[Supervisor] ✅ Task complete. Routing to FINISH.")
                 return StateUpdate(
@@ -97,24 +97,27 @@ class SupervisorNode(BaseAgentNode):
         """Load core routing tools."""
         return await tool_manager.get_node_tools("supervisor", state)
 
-    async def handle_outcome(self, original_state: AgentState, engine_result: "EngineResult", config: RunnableConfig) -> StateUpdate:
-        """Signal handling and protocol verification."""
-        # 1. Base Signal/Dispatcher Handling
-        signal = engine_result.signal
+    async def _customize_dispatch_result(
+        self,
+        dispatch_result: StateUpdate,
+        original_state: AgentState,
+        engine_result: EngineResult,
+        config: RunnableConfig,
+    ) -> StateUpdate:
+        """Inject iteration_count into signal dispatch results."""
         new_iter_count = (original_state.iteration_count or 0) + 1
-        _in_msgs = engine_result.messages or []
-        logger.info(f"[MSG-TRACE][supervisor] handle_outcome engine_result.messages: {len(_in_msgs)} msgs | types={[type(m).__name__ for m in _in_msgs]} | ids={[getattr(m,'id','N/A')[:8] if getattr(m,'id',None) else 'N/A' for m in _in_msgs]} | signal={type(signal).__name__ if signal else 'None'}")
+        if isinstance(dispatch_result, StateUpdate):
+            dispatch_result.iteration_count = new_iter_count
+        return dispatch_result
 
-        if signal:
-            from app.core.engine.signals import SignalDispatcher
-            dispatch_result = await SignalDispatcher.dispatch(original_state, signal, config)
-            if isinstance(dispatch_result, StateUpdate):
-                dispatch_result.iteration_count = new_iter_count
-            _out_msgs = getattr(dispatch_result, 'messages', None) or []
-            logger.info(f"[MSG-TRACE][supervisor] handle_outcome SIGNAL_PATH return: {len(_out_msgs)} msgs | types={[type(m).__name__ for m in _out_msgs]} | next_node={getattr(dispatch_result,'next_node','N/A')}")
-            return dispatch_result
-
-        # 2. Protocol Violation Check (Supervisor MUST route or be an error)
+    async def _build_fallback_outcome(
+        self,
+        original_state: AgentState,
+        engine_result: EngineResult,
+        config: RunnableConfig,
+    ) -> StateUpdate:
+        """Supervisor-specific protocol checks when no signal is present."""
+        new_iter_count = (original_state.iteration_count or 0) + 1
         new_messages = engine_result.messages or []
         blackboard = engine_result.blackboard or original_state.blackboard
 
@@ -124,7 +127,7 @@ class SupervisorNode(BaseAgentNode):
             if hasattr(msg, "metadata")
         )
         if has_error_msg:
-            logger.info(f"[MSG-TRACE][supervisor] handle_outcome ERROR_PATH return: {len(new_messages)} msgs | types={[type(m).__name__ for m in new_messages]}")
+            log_msg_trace(self.node_name, "handle_outcome ERROR_PATH", new_messages)
             return StateUpdate(
                 messages=new_messages,
                 next_node=RoutingTarget.FINISH,
@@ -139,7 +142,7 @@ class SupervisorNode(BaseAgentNode):
 
         if ai_content:
             logger.warning("[Supervisor] ⚠️ Protocol violation: No route_to but returned content. Falling back to 'chat'.")
-            logger.info(f"[MSG-TRACE][supervisor] handle_outcome PROTOCOL_VIOLATION return: 0 msgs | next_node=chat")
+            log_msg_trace(self.node_name, "handle_outcome PROTOCOL_VIOLATION", next_node="chat")
             return StateUpdate(
                 next_node=RoutingTarget.CHAT,
                 blackboard=blackboard,
@@ -147,7 +150,7 @@ class SupervisorNode(BaseAgentNode):
             )
 
         logger.error("[Supervisor] 🛑 Stop: No routing signal and no content.")
-        logger.info(f"[MSG-TRACE][supervisor] handle_outcome EMPTY return: 0 msgs | next_node=finish")
+        log_msg_trace(self.node_name, "handle_outcome EMPTY", next_node="finish")
         return StateUpdate(
             next_node=RoutingTarget.FINISH,
             blackboard=blackboard,
@@ -172,8 +175,8 @@ class SupervisorNode(BaseAgentNode):
         self, state: AgentState, config: RunnableConfig, messages: list, project_id: int
     ) -> "SupervisorContext":
         """Simplified context builder for LLM planning (Phase 1)."""
-        # 1. Get Core Routing Tools
-        core_tools = await tool_manager.get_node_tools("supervisor", state)
+        # 1. Get Core Routing Tools — re-use get_tools() result to avoid double-loading
+        core_tools = await self.get_tools(state)
         last_msg = get_last_human_message(messages)
 
         # Get blackboard from state for prompt builder

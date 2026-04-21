@@ -192,7 +192,7 @@ class ContextManager:
         )
 
     @staticmethod
-    async def save_to_redis(thread_id: str) -> None:
+    async def save(thread_id: str) -> None:
         """
         Persist the current context to cache using the thread_id.
         Uses HSET for individual fields to allow for partial updates and prevent 
@@ -229,7 +229,7 @@ class ContextManager:
             logging.getLogger(__name__).warning(f"Failed to save context to cache (HSET): {e}")
 
     @staticmethod
-    async def load_from_redis(thread_id: str) -> EvoContext | None:
+    async def load(thread_id: str) -> EvoContext | None:
         """
         Load context from cache using the thread_id and set it as current.
         Supports Hash mapping (HGETALL).

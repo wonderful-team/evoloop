@@ -105,6 +105,11 @@ class Settings(BaseSettings):
         default_factory=lambda: os.path.expanduser("~/.evoloop/lancedb"),
     )
 
+    # Knowledge Base Storage
+    KNOWLEDGE_BASE_PATH: Annotated[str, BeforeValidator(expand_path)] = Field(
+        default_factory=lambda: os.path.expanduser("~/.evoloop/knowledge"),
+    )
+
     @computed_field  # type: ignore[prop-decorator]
     @property
     def SQLALCHEMY_DATABASE_URI(self) -> str:

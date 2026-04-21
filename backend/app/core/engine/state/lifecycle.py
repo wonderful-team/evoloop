@@ -1,0 +1,87 @@
+"""
+StateLifecycleManager - Declarative state lifecycle management.
+
+Provides centralized helpers for nodes to consume and clear blackboard fields
+after use, preventing stale state from leaking across turns.
+"""
+
+import logging
+from typing import Any
+
+from app.core.engine.state import AgentState
+from app.core.engine.state.blackboard import BlackboardState
+
+logger = logging.getLogger(__name__)
+
+
+class StateLifecycleManager:
+    """
+    Declarative lifecycle helpers for AgentState transitions.
+
+    Nodes call consume_* helpers after reading a field to ensure it is cleared
+    and cannot cause accidental routing loops on retry.
+    """
+
+    @staticmethod
+    def consume_worker_outcome(state: AgentState) -> str | None:
+        """
+        Consume and clear blackboard.worker_outcome.
+
+        Returns the outcome value (e.g., 'success', 'failed') or None.
+        """
+        blackboard = state.blackboard
+        if not blackboard:
+            return None
+        outcome = blackboard.worker_outcome
+        if outcome is not None:
+            blackboard.worker_outcome = None
+            logger.debug(f"[Lifecycle] Consumed worker_outcome='{outcome}'")
+        return outcome
+
+    @staticmethod
+    def consume_next_node(state: AgentState) -> str | None:
+        """Consume and clear state.next_node."""
+        target = state.next_node
+        if target is not None:
+            state.next_node = None
+            logger.debug(f"[Lifecycle] Consumed next_node='{target}'")
+        return target
+
+    @staticmethod
+    def clear_aggregation_state(state: AgentState) -> None:
+        """Clear all orchestration-related blackboard fields after aggregation."""
+        blackboard = state.blackboard
+        if not blackboard:
+            return
+        cleared = []
+        for field in ("pending_aggregation", "subtask_results", "spawn_plan"):
+            if hasattr(blackboard, field) and getattr(blackboard, field) is not None:
+                setattr(blackboard, field, None)
+                cleared.append(field)
+        if cleared:
+            logger.debug(f"[Lifecycle] Cleared aggregation state: {cleared}")
+
+    @staticmethod
+    def clear_workflow_state(state: AgentState) -> None:
+        """Clear sequential workflow state from blackboard."""
+        blackboard = state.blackboard
+        if not blackboard:
+            return
+        cleared = []
+        for field in ("workflow_plan", "workflow_step_index", "workflow_results"):
+            if hasattr(blackboard, field) and getattr(blackboard, field) is not None:
+                setattr(blackboard, field, None)
+                cleared.append(field)
+        if cleared:
+            logger.debug(f"[Lifecycle] Cleared workflow state: {cleared}")
+
+    @staticmethod
+    def reset_terminal_metadata(state: AgentState) -> None:
+        """Reset terminal metadata fields that should not persist across runs."""
+        blackboard = state.blackboard
+        if not blackboard or not blackboard.metadata:
+            return
+        for field in ("final_outcome", "shadow_audit"):
+            if hasattr(blackboard.metadata, field) and getattr(blackboard.metadata, field) is not None:
+                setattr(blackboard.metadata, field, None)
+                logger.debug(f"[Lifecycle] Reset metadata.{field}")

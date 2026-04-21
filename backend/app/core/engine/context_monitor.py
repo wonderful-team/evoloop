@@ -18,7 +18,7 @@ from app.constants import (
     CONTEXT_WARNING_THRESHOLD,
     DEFAULT_CONTEXT_LIMIT,
 )
-from app.core.engine.message_utils import get_message_text
+from app.core.engine.message.utils import get_message_text
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)

@@ -411,25 +411,33 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
     async def get_devices(self, token: str | None = None) -> dict:
         return await self.request("GET", "/api/v1/devices", token=token)
 
-    async def send_command_to_device(self, device_id: int, cmd_data: dict, token: str | None = None) -> dict:
-        data = {"device_id": device_id, **cmd_data}
+    async def send_command_to_device(self, device_key: str, cmd_data: dict, token: str | None = None) -> dict:
+        data = {"device_key": device_key, **cmd_data}
         return await self.request("POST", "/api/v1/command/execute", data=data, token=token)
 
-    async def get_device_logs(self, device_id: int, limit=20, project_id=None, token: str | None = None) -> dict:
-        params = {"device_id": device_id, "limit": limit}
+    async def get_device_logs(self, device_key: str, limit=20, project_id=None, token: str | None = None) -> dict:
+        params = {"device_key": device_key, "limit": limit}
         if project_id:
             params["project_id"] = project_id
         return await self.request("GET", "/evolooplink/api/log/recent", params=params, token=token)
 
-    async def search_device_logs(self, device_id: int, query: str, limit=20, project_id=None, token: str | None = None) -> dict:
-        params = {"device_id": device_id, "query": query, "limit": limit}
+    async def search_device_logs(self, device_key: str, query: str, limit=20, project_id=None, token: str | None = None) -> dict:
+        params = {"device_key": device_key, "query": query, "limit": limit}
         if project_id:
             params["project_id"] = project_id
         return await self.request("GET", "/evolooplink/api/log/search", params=params, token=token)
 
+    async def bind_client_id(self, device_key: str, client_id: str) -> dict:
+        """Bind a mobile client_id to a device."""
+        return await self.request(
+            "POST",
+            "/api/v1/devices/bind",
+            data={"device_key": device_key, "client_id": client_id},
+        )
+
     async def register_device(self, key: str, name: str, os_info: str) -> dict:
         """Register device via Gateway.
-        
+
         Note: In the new architecture, device registration is handled via WebSocket
         handshake. This HTTP endpoint is kept for backward compatibility.
         """
@@ -444,8 +452,8 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
             },
         )
 
-    async def send_heartbeat(self, device_id: int):
-        await self.request("POST", f"/api/v1/devices/{device_id}/heartbeat")
+    async def send_heartbeat(self, device_key: str):
+        await self.request("POST", f"/api/v1/devices/{device_key}/heartbeat")
 
     async def update_command_status(self, command_id, status, result=None):
         data = {"command_id": command_id, "status": status}
@@ -538,7 +546,7 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
     async def get_llm_models(self) -> dict:
         """
         从 EvoLoop Gateway 获取 LLM 和 Embedding 模型列表
-        
+
         Returns:
             {"code": 0, "data": {"models": [...]}, "message": "..."}
         """
@@ -546,7 +554,7 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
 
     # ==================== Log APIs ====================
 
-    async def upload_log(self, device_id, thread_id, log_type, content, name=None, command_id=None, project_id=None):
+    async def upload_log(self, device_key, thread_id, log_type, content, name=None, command_id=None, project_id=None):
         content_str = json_utils.dumps(content) if isinstance(content, dict | list) else str(content)
 
         # MySQL TEXT limit is 65535 bytes. Truncate aggressively to 60,000 bytes.
@@ -555,7 +563,7 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
             content_str = encoded_content[:60000].decode('utf-8', errors='ignore') + "\n...[TRUNCATED BY EVOLOOP DUE TO CLOUD SIZE LIMITS]"
 
         data = {
-            "device_id": device_id,
+            "device_key": device_key,
             "thread_id": thread_id,
             "type": log_type,
             "name": name,
@@ -607,26 +615,25 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
         if not logs_buffer:
             return
 
-        # Group by device_id to ensure safe batching
+        # Group by device_key to ensure safe batching
         batches = {}
         for log in logs_buffer:
-            did = log.get("device_id")
-            if did not in batches:
-                batches[did] = []
-            batches[did].append(log)
+            dk = log.get("device_key")
+            if dk not in batches:
+                batches[dk] = []
+            batches[dk].append(log)
 
         # Send batches
-        for did, batch in batches.items():
+        for dk, batch in batches.items():
             try:
                 # Use batchUpload endpoint
-                # Log.php expects device_id at top level for permission check
-                # We put it in BOTH body and query params to ensure BaseApi validation passes
+                # Log.php now expects device_key
                 payload = {
-                     "device_id": did,
+                     "device_key": dk,
                      "logs": batch
                 }
 
-                query_params = {"device_id": did}
+                query_params = {"device_key": dk}
 
                 # Also pass project_id if consistent
                 if batch and batch[0].get("project_id"):
@@ -642,30 +649,30 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
                 )
 
                 if res.get("code", -1) < 0:
-                    logger.warning(f"[EvoCloud] Batch upload failed for device {did}: {res.get('message')}")
+                    logger.warning(f"[EvoCloud] Batch upload failed for device {dk}: {res.get('message')}")
             except Exception as e:
-                logger.error(f"[EvoCloud] Error in batch log upload for device {did}: {e}")
+                logger.error(f"[EvoCloud] Error in batch log upload for device {dk}: {e}")
 
     # ==================== Conversation Sync APIs (MC Storage) ====================
 
-    async def sync_conversation(self, device_id: int, conversation: dict) -> dict:
+    async def sync_conversation(self, device_key: str, conversation: dict) -> dict:
         """
         同步单个会话到 MC (Member Center)
-        
+
         Args:
-            device_id: 设备ID
+            device_key: 设备标识
             conversation: 会话数据
                 - id: 会话ID
                 - project_id: 项目ID
                 - title: 标题
                 - created_at: 创建时间戳
                 - updated_at: 更新时间戳
-        
+
         Returns:
             {"code": 0, "data": {"conversation_id": "xxx"}}
         """
         data = {
-            "device_id": device_id,
+            "device_key": device_key,
             "conversation": conversation,
         }
 
@@ -675,20 +682,20 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
             data=data
         )
 
-    async def sync_messages(self, device_id: int, thread_id: str, messages: list[dict]) -> dict:
+    async def sync_messages(self, device_key: str, thread_id: str, messages: list[dict]) -> dict:
         """
         批量同步消息到 MC
-        
+
         Args:
-            device_id: 设备ID
+            device_key: 设备标识
             thread_id: 会话ID
             messages: 消息数组
-        
+
         Returns:
             {"code": 0, "data": {"inserted_count": 10}}
         """
         data = {
-            "device_id": device_id,
+            "device_key": device_key,
             "thread_id": thread_id,
             "messages": messages,
         }
@@ -699,23 +706,23 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
             data=data
         )
 
-    async def sync_full_conversations(self, device_id: int, data: dict) -> dict:
+    async def sync_full_conversations(self, device_key: str, data: dict) -> dict:
         """
         全量同步会话和消息 (首次同步或重建)
-        
+
         Args:
-            device_id: 设备ID
+            device_key: 设备标识
             data: 包含 conversations 和 messages 的字典
                 {
                     "conversations": [...],
                     "messages": [...]
                 }
-        
+
         Returns:
             {"code": 0, "data": {"conversations": 5, "messages": 100}}
         """
         payload = {
-            "device_id": device_id,
+            "device_key": device_key,
             "data": data,
         }
 
@@ -725,14 +732,14 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
             data=payload
         )
 
-    async def check_sync_status(self, device_id: int, conversation_ids: list[str]) -> dict:
+    async def check_sync_status(self, device_key: str, conversation_ids: list[str]) -> dict:
         """
         检查会话同步状态
-        
+
         Args:
-            device_id: 设备ID
+            device_key: 设备标识
             conversation_ids: 会话ID列表
-        
+
         Returns:
             {
                 "code": 0,
@@ -747,18 +754,18 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
         return await self.request(
             "GET",
             "/evolooplink/api/sync/status",
-            params={"device_id": device_id, "conversation_ids": conversation_ids}
+            params={"device_key": device_key, "conversation_ids": conversation_ids}
         )
 
     async def get_conversations(self, project_id: int = 0, page: int = 1, page_size: int = 20) -> dict:
         """
         获取我的会话列表 (Mobile 也会用此方法)
-        
+
         Args:
             project_id: 项目ID筛选
             page: 页码
             page_size: 每页数量
-        
+
         Returns:
             {"code": 0, "data": {"list": [...], "total": 100}}
         """
@@ -783,12 +790,12 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
     ) -> dict:
         """
         获取会话消息历史
-        
+
         Args:
             conversation_id: 会话ID
             limit: 数量限制
             before_message_id: 分页用
-        
+
         Returns:
             {"code": 0, "data": {"conversation": {...}, "messages": [...]}}
         """

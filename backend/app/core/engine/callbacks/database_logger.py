@@ -17,7 +17,7 @@ from uuid import UUID
 from langchain_core.callbacks import AsyncCallbackHandler
 from langchain_core.outputs import LLMResult
 
-from app.core.messaging import MessageHandler
+from app.core.engine.message import MessageHandler
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +32,7 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
     3. 委托给 MessageHandler 处理
     
     注意：此处理器不再包含复杂的过滤逻辑！
-    所有分类和策略决策都委托给 messaging 模块。
+    所有分类和策略决策都委托给 message 模块。
     """
 
     def __init__(

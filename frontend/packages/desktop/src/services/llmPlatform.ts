@@ -8,6 +8,7 @@
  */
 
 import { toast } from "sonner"
+import i18n from "@evoloop/shared/i18n"
 import { SystemService } from "@/client"
 
 export interface LLMModel {
@@ -79,7 +80,7 @@ class LLMPlatformService {
         return []
       } catch (error) {
         console.error("[LLMPlatform] Failed to fetch models:", error)
-        toast.error("获取模型列表失败")
+        toast.error(i18n.t("chat.modelSelector.fetchFailed", "Failed to fetch model list"))
         return []
       } finally {
         // 清除请求锁

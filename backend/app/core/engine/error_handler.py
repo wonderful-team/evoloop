@@ -101,7 +101,7 @@ class LLMErrorHandler:
         prefix = "core_engine"
         
         title = i18n.get(f"{prefix}.{error_type}_title") or i18n.get(f"{prefix}.system_error_title") or "Error"
-        message = i18n.get(f"{prefix}.{error_type}_desc") or i18n.get(f"{prefix}.execution_failed") or str(e)
+        message = i18n.get(f"{prefix}.{error_type}_desc", error=error_full) or i18n.get(f"{prefix}.execution_failed") or str(e)
         hint = i18n.get(f"{prefix}.{error_type}_hint") or i18n.get(f"{prefix}.retry_prompt") or "Please try again later."
         
         # Special case for llm_auth to use solution key if available

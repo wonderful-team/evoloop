@@ -1,16 +1,12 @@
-import { useState, useRef, useCallback } from "react"
-import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { Upload, File, X, Loader2, FileArchive, Files } from "lucide-react"
-import { useTranslation } from "react-i18next"
-import { toast } from "sonner"
+import { Badge } from "@evoloop/shared/components/ui/badge"
+import { Button } from "@evoloop/shared/components/ui/button"
 import {
   Dialog,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from "@evoloop/shared/components/ui/dialog"
-import { Button } from "@evoloop/shared/components/ui/button"
 import { Label } from "@evoloop/shared/components/ui/label"
 import {
   Select,
@@ -19,9 +15,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@evoloop/shared/components/ui/select"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@evoloop/shared/components/ui/tabs"
-import { Badge } from "@evoloop/shared/components/ui/badge"
-import { KnowledgeService, type ZipValidationResult } from "@/services/knowledgeService"
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@evoloop/shared/components/ui/tabs"
+import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { File, FileArchive, Files, Loader2, Upload, X } from "lucide-react"
+import { useCallback, useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
+import { toast } from "sonner"
+import {
+  KnowledgeBaseAPI,
+  type ZipValidationResult,
+} from "@/services/knowledgeService"
 
 interface DocumentUploadDialogProps {
   open: boolean
@@ -30,13 +38,13 @@ interface DocumentUploadDialogProps {
 }
 
 const DOC_TYPES = [
-  { value: "doc", label: "文档" },
-  { value: "code", label: "代码" },
-  { value: "guide", label: "指南" },
-  { value: "api", label: "API文档" },
-  { value: "design", label: "设计文档" },
-  { value: "architecture", label: "架构文档" },
-  { value: "requirement", label: "需求文档" },
+  { value: "doc", label: "Document" },
+  { value: "code", label: "Code" },
+  { value: "guide", label: "Guide" },
+  { value: "api", label: "API Documentation" },
+  { value: "design", label: "Design Document" },
+  { value: "architecture", label: "Architecture Document" },
+  { value: "requirement", label: "Requirement Document" },
 ]
 
 export function DocumentUploadDialog({
@@ -53,23 +61,34 @@ export function DocumentUploadDialog({
   const [collection, setCollection] = useState("default")
   const [docType, setDocType] = useState("doc")
   const [isDragging, setIsDragging] = useState(false)
-  const [zipValidation, setZipValidation] = useState<ZipValidationResult | null>(null)
+  const [zipValidation, setZipValidation] =
+    useState<ZipValidationResult | null>(null)
 
   // Single/Bulk upload mutation
   const uploadMutation = useMutation({
     mutationFn: async () => {
       if (selectedFiles.length === 0) throw new Error("No files selected")
-      
-      if (selectedFiles.length === 1 && !selectedFiles[0].name.endsWith('.zip')) {
+
+      if (
+        selectedFiles.length === 1 &&
+        !selectedFiles[0].name.endsWith(".zip")
+      ) {
         // Single file
-        return KnowledgeService.uploadDocument(selectedFiles[0], collection, docType)
-      } else if (selectedFiles.length === 1 && selectedFiles[0].name.endsWith('.zip')) {
-        // ZIP import
-        return KnowledgeService.importZip(selectedFiles[0], collection, true)
-      } else {
-        // Bulk upload
-        return KnowledgeService.bulkUpload(selectedFiles, collection, docType)
+        return KnowledgeBaseAPI.uploadDocument(
+          selectedFiles[0],
+          collection,
+          docType,
+        )
       }
+      if (
+        selectedFiles.length === 1 &&
+        selectedFiles[0].name.endsWith(".zip")
+      ) {
+        // ZIP import
+        return KnowledgeBaseAPI.importZip(selectedFiles[0], collection, true)
+      }
+      // Bulk upload
+      return KnowledgeBaseAPI.bulkUpload(selectedFiles, collection, docType)
     },
     onSuccess: (result) => {
       if (result.success) {
@@ -79,7 +98,7 @@ export function DocumentUploadDialog({
         resetForm()
         onOpenChange(false)
       } else {
-        toast.error((result as any).error || t("knowledge.uploadError"))
+        toast.error(result.message || t("knowledge.uploadError"))
       }
     },
     onError: () => {
@@ -101,9 +120,9 @@ export function DocumentUploadDialog({
     if (e.target.files) {
       const files = Array.from(e.target.files)
       setSelectedFiles(files)
-      
+
       // Validate ZIP if single file
-      if (files.length === 1 && files[0].name.endsWith('.zip')) {
+      if (files.length === 1 && files[0].name.endsWith(".zip")) {
         validateZip(files[0])
       }
     }
@@ -111,10 +130,13 @@ export function DocumentUploadDialog({
 
   const validateZip = async (file: File) => {
     try {
-      const validation = await KnowledgeService.validateZip(file)
+      const validation = await KnowledgeBaseAPI.validateZip(file)
       setZipValidation(validation)
-    } catch (e) {
-      setZipValidation({ valid: false, error: "Validation failed" } as ZipValidationResult)
+    } catch (_e) {
+      setZipValidation({
+        valid: false,
+        error: "Validation failed",
+      } as ZipValidationResult)
     }
   }
 
@@ -124,8 +146,8 @@ export function DocumentUploadDialog({
     if (e.dataTransfer.files) {
       const files = Array.from(e.dataTransfer.files)
       setSelectedFiles(files)
-      
-      if (files.length === 1 && files[0].name.endsWith('.zip')) {
+
+      if (files.length === 1 && files[0].name.endsWith(".zip")) {
         validateZip(files[0])
       }
     }
@@ -149,7 +171,7 @@ export function DocumentUploadDialog({
   }
 
   const removeFile = (index: number) => {
-    setSelectedFiles(prev => prev.filter((_, i) => i !== index))
+    setSelectedFiles((prev) => prev.filter((_, i) => i !== index))
     setZipValidation(null)
   }
 
@@ -159,7 +181,7 @@ export function DocumentUploadDialog({
     return `${(bytes / 1024 / 1024).toFixed(1)} MB`
   }
 
-  const hasZipFile = selectedFiles.some(f => f.name.endsWith('.zip'))
+  const hasZipFile = selectedFiles.some((f) => f.name.endsWith(".zip"))
   const isBulkUpload = selectedFiles.length > 1
 
   return (
@@ -183,10 +205,21 @@ export function DocumentUploadDialog({
 
           <TabsContent value="single" className="space-y-4 py-4">
             {/* Single file upload */}
+            {/* biome-ignore lint/a11y/useSemanticElements: Drop zone uses div for drag-and-drop file handling */}
             <div
+              role="button"
+              tabIndex={0}
               onClick={() => fileInputRef.current?.click()}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault()
+                  fileInputRef.current?.click()
+                }
+              }}
               className={`cursor-pointer rounded-lg border-2 border-dashed p-6 text-center transition-colors ${
-                isDragging ? "border-primary bg-primary/5" : "border-muted-foreground/25 hover:border-muted-foreground/50"
+                isDragging
+                  ? "border-primary bg-primary/5"
+                  : "border-muted-foreground/25 hover:border-muted-foreground/50"
               }`}
               onDrop={handleDrop}
               onDragOver={handleDragOver}
@@ -198,7 +231,7 @@ export function DocumentUploadDialog({
                 onChange={handleFileSelect}
                 className="hidden"
               />
-              
+
               {selectedFiles.length > 0 ? (
                 <div className="flex items-center justify-center gap-2">
                   <File className="h-5 w-5 text-primary" />
@@ -206,14 +239,23 @@ export function DocumentUploadDialog({
                   <span className="text-sm text-muted-foreground">
                     ({formatFileSize(selectedFiles[0].size)})
                   </span>
-                  <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); clearFiles() }}>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      clearFiles()
+                    }}
+                  >
                     <X className="h-4 w-4" />
                   </Button>
                 </div>
               ) : (
                 <>
                   <Upload className="mx-auto mb-2 h-8 w-8 text-muted-foreground" />
-                  <p className="text-sm font-medium">{t("knowledge.dropFile")}</p>
+                  <p className="text-sm font-medium">
+                    {t("knowledge.dropFile")}
+                  </p>
                 </>
               )}
             </div>
@@ -221,10 +263,21 @@ export function DocumentUploadDialog({
 
           <TabsContent value="bulk" className="space-y-4 py-4">
             {/* Bulk/ZIP upload */}
+            {/* biome-ignore lint/a11y/useSemanticElements: Drop zone uses div for drag-and-drop file handling */}
             <div
+              role="button"
+              tabIndex={0}
               onClick={() => fileInputRef.current?.click()}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault()
+                  fileInputRef.current?.click()
+                }
+              }}
               className={`cursor-pointer rounded-lg border-2 border-dashed p-6 text-center transition-colors ${
-                isDragging ? "border-primary bg-primary/5" : "border-muted-foreground/25 hover:border-muted-foreground/50"
+                isDragging
+                  ? "border-primary bg-primary/5"
+                  : "border-muted-foreground/25 hover:border-muted-foreground/50"
               }`}
               onDrop={handleDrop}
               onDragOver={handleDragOver}
@@ -238,17 +291,33 @@ export function DocumentUploadDialog({
                 onChange={handleFileSelect}
                 className="hidden"
               />
-              
+
               {selectedFiles.length > 0 ? (
                 <div className="text-left space-y-2 max-h-40 overflow-auto">
                   {selectedFiles.map((file, i) => (
-                    <div key={i} className="flex items-center justify-between bg-muted p-2 rounded">
+                    <div
+                      key={i}
+                      className="flex items-center justify-between bg-muted p-2 rounded"
+                    >
                       <div className="flex items-center gap-2">
-                        {file.name.endsWith('.zip') ? <FileArchive className="h-4 w-4 text-orange-500" /> : <File className="h-4 w-4 text-primary" />}
+                        {file.name.endsWith(".zip") ? (
+                          <FileArchive className="h-4 w-4 text-orange-500" />
+                        ) : (
+                          <File className="h-4 w-4 text-primary" />
+                        )}
                         <span className="text-sm font-medium">{file.name}</span>
-                        <span className="text-xs text-muted-foreground">({formatFileSize(file.size)})</span>
+                        <span className="text-xs text-muted-foreground">
+                          ({formatFileSize(file.size)})
+                        </span>
                       </div>
-                      <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); removeFile(i) }}>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          removeFile(i)
+                        }}
+                      >
                         <X className="h-3 w-3" />
                       </Button>
                     </div>
@@ -257,20 +326,36 @@ export function DocumentUploadDialog({
               ) : (
                 <>
                   <Files className="mx-auto mb-2 h-8 w-8 text-muted-foreground" />
-                  <p className="text-sm font-medium">{t("knowledge.dropMultiple")}</p>
-                  <p className="text-xs text-muted-foreground mt-1">支持批量上传或ZIP导入</p>
+                  <p className="text-sm font-medium">
+                    {t("knowledge.dropMultiple")}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {t("knowledge.bulkUploadHint")}
+                  </p>
                 </>
               )}
             </div>
 
             {/* ZIP validation result */}
             {zipValidation && (
-              <div className={`p-3 rounded text-sm ${zipValidation.valid ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
+              <div
+                className={`p-3 rounded text-sm ${zipValidation.valid ? "bg-green-50 border border-green-200" : "bg-red-50 border border-red-200"}`}
+              >
                 {zipValidation.valid ? (
                   <div className="space-y-1">
-                    <p className="font-medium text-green-700">✓ ZIP 有效</p>
-                    <p className="text-green-600">包含 {zipValidation.processable_files} 个可处理文件</p>
-                    <p className="text-green-600">总大小: {formatFileSize(zipValidation.total_size_bytes)}</p>
+                    <p className="font-medium text-green-700">
+                      ✓ {t("knowledge.zipValid")}
+                    </p>
+                    <p className="text-green-600">
+                      {t("knowledge.zipFilesCount", {
+                        count: zipValidation.processable_files,
+                      })}
+                    </p>
+                    <p className="text-green-600">
+                      {t("knowledge.zipTotalSize", {
+                        size: formatFileSize(zipValidation.total_size_bytes),
+                      })}
+                    </p>
                   </div>
                 ) : (
                   <p className="text-red-700">✗ {zipValidation.error}</p>
@@ -290,9 +375,13 @@ export function DocumentUploadDialog({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="default">default</SelectItem>
-                {collections?.filter(p => p !== "default").map((p) => (
-                  <SelectItem key={p} value={p}>{p}</SelectItem>
-                ))}
+                {collections
+                  ?.filter((p) => p !== "default")
+                  .map((p) => (
+                    <SelectItem key={p} value={p}>
+                      {p}
+                    </SelectItem>
+                  ))}
               </SelectContent>
             </Select>
           </div>
@@ -319,8 +408,12 @@ export function DocumentUploadDialog({
         {/* File count badge */}
         {selectedFiles.length > 1 && (
           <div className="flex items-center gap-2">
-            <Badge variant="secondary">{selectedFiles.length} 个文件</Badge>
-            {hasZipFile && <Badge variant="outline">ZIP 导入</Badge>}
+            <Badge variant="secondary">
+              {t("knowledge.filesCount", { count: selectedFiles.length })}
+            </Badge>
+            {hasZipFile && (
+              <Badge variant="outline">{t("knowledge.zipImport")}</Badge>
+            )}
           </div>
         )}
 
@@ -332,7 +425,9 @@ export function DocumentUploadDialog({
             onClick={() => uploadMutation.mutate()}
             disabled={selectedFiles.length === 0 || uploadMutation.isPending}
           >
-            {uploadMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {uploadMutation.isPending && (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            )}
             {isBulkUpload ? t("knowledge.uploadBulk") : t("knowledge.upload")}
           </Button>
         </DialogFooter>

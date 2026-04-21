@@ -5,10 +5,6 @@ This module implements the Pre-Supervisor optimization strategy:
 1. Predictive Memory Loading: Semantic search results are pre-loaded in background
    during LangGraph initialization, reducing ~800ms Neo4j query to ~1ms Redis read.
 2. Layered Caching: Static data (skills, telemetry) cached vs Dynamic data (blackboard) fresh.
-
-Also includes:
-- SkillHydrator: Middleware for skill/SOP discovery and hydration
-- ConversationContext: Helper for multi-turn conversation context extraction
 """
 
 import logging
@@ -17,13 +13,12 @@ from typing import Any
 
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
-from sqlalchemy import select
 
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.context import ContextManager, EvoContext
 from app.core.context.cache import LayeredContextCache
 from app.core.engine.hooks import HookContext, HookEvent, hook_system
-from app.core.engine.message_utils import get_message_text
+from app.core.engine.message.utils import get_message_text
 from app.core.engine.state import AgentState
 from app.utils.id import gen_uuid
 
@@ -176,15 +171,29 @@ class EvoContextMiddleware:
                 or config.get("configurable", {}).get("working_directory")
             )
             thread_id = state.thread_id or config.get("configurable", {}).get("thread_id")
+            active_model = config.get("configurable", {}).get("model")
+            
+            # Preserve active_model from existing context if config doesn't provide one
+            # This prevents subtasks or re-hydration from wiping the model set at dispatch
+            if not active_model:
+                existing_ctx = ContextManager.current()
+                if existing_ctx and existing_ctx.active_model:
+                    active_model = existing_ctx.active_model
+                    logger.debug(f"[Middleware] Preserved active_model from existing context: {active_model}")
+                else:
+                    from app.core.config import settings
+                    active_model = settings.OPENAI_MODEL_NAME
+                    logger.warning(f"[Middleware] No model in config or context, falling back to default: {active_model}")
 
             ctx = EvoContext(
                 project_id=project_id,
                 working_directory=working_directory,
                 thread_id=thread_id,
+                active_model=active_model,
                 request_id=f"run-{gen_uuid()[:8]}"
             )
             ContextManager.set(ctx)
-            logger.info(f"[Middleware] 🧪 Context Initialized: project_id={project_id}")
+            logger.info(f"[Middleware] 🧪 Context Initialized: project_id={project_id}, model={active_model}")
         elif not ctx.thread_id:
             # Ensure thread_id is present for hooks even when ctx was pre-set externally
             fallback_thread_id = state.thread_id or config.get("configurable", {}).get("thread_id")
@@ -303,8 +312,7 @@ class EvoContextMiddleware:
             env_state = get_awakened_state()
             if env_state:
                 data['telemetry'] = {
-                    "android": [{"id": d.device_id, "reachable": d.is_reachable}
-                               for d in env_state.android_devices],
+                    "android": [{"id": d.device_id, "reachable": d.is_reachable} for d in env_state.android_devices],
                     "macos": bool(env_state.macos),
                     "network": env_state.network.internet_connected if env_state.network else False
                 }
@@ -473,171 +481,6 @@ class EvoContextMiddleware:
         return state
 
 
-# ==============================================================================
-# Skill Hydration
-# ==============================================================================
-
-class SkillHydrator:
-    """
-    Middleware to handle skill/SOP discovery and hydration for agent nodes.
-    Unifies 'Eager' (JIT injection) and 'Lazy' (Tool-based) patterns.
-    """
-
-    @staticmethod
-    async def get_skill_by_id(skill_id: int) -> Any | None:
-        """
-        Fetch a single skill by its ID.
-        Used for direct skill lookup without search overhead.
-        """
-        from app.infrastructure.database.sql.database import session_scope
-        from app.models.learning import LearnedSkill
-
-        if not skill_id:
-            return None
-
-        try:
-            async with session_scope() as session:
-                stmt = select(LearnedSkill).where(
-                    LearnedSkill.id == skill_id,
-                    LearnedSkill.is_active == True
-                )
-                result = await session.execute(stmt)
-                return result.scalar_one_or_none()
-        except Exception as e:
-            logger.error(f"[Hydrator] Failed to fetch skill {skill_id}: {e}")
-            return None
-
-    @staticmethod
-    async def hydrate(
-        state: AgentState,
-        topic: str,
-        namespace_context: str | None = None,
-        mode: str = "eager"  # "eager" or "lazy"
-    ) -> list[Any]:
-        """
-        Fetch relevant skills based on the topic and mode.
-        If eager, returns full LearnedSkill objects.
-        If lazy, returns a lightweight list of dicts (name, description) for an index.
-        """
-        from app.core.learning.discovery import skill_discovery
-
-        if mode == "lazy":
-            logger.info(f"[Hydrator] Lazy mode for topic: {topic}. Fetching namespace index.")
-            return await skill_discovery.get_namespace_index(namespace_context)
-
-        # Eager mode: Fetch and return full SOP instructions
-        execution_ticket = state.blackboard.ticket
-        # skill_id takes priority from the ticket if present, otherwise fallback to topic
-        query = execution_ticket.skill_id if execution_ticket else topic
-
-        logger.info(f"[Hydrator] Eagerly hydrating skills for query: {query}")
-        match, relevant, reasoning = await skill_discovery.exact_search(
-            query=query,
-            namespace_context=namespace_context
-        )
-
-        # exact_search handles both numeric ID, exact name, and namespace/ prefix
-        return relevant
-
-    @staticmethod
-    async def get_node_skills(state: AgentState, node_name: str) -> list[Any]:
-        """
-        Helper to get skills tailored for a specific node type.
-        """
-        execution_ticket = state.blackboard.ticket
-        topic = execution_ticket.topic or "" if execution_ticket else ""
-        namespace_context = execution_ticket.namespace_context if execution_ticket else None
-
-        # In Unified Graph (v5), we default to 'eager' hydration for standard Workers.
-        # But for sub-tasks, we skip eager hydration to prevent cognitive overload
-        # unless a specific skill_hint is provided.
-        agent_config = execution_ticket.agent_config if execution_ticket else None
-        if state.is_subtask and not (agent_config and agent_config.skill_hint):
-            logger.info(f"[Hydrator] Skipping eager hydration for subtask: {topic}")
-            return []
-
-        # Future optimization: allow Supervisor to specify 'lazy' via Ticket parameters.
-        parameters = execution_ticket.parameters if execution_ticket else None
-        is_lazy = parameters.lazy_hydration if parameters else False
-        mode = "lazy" if is_lazy else "eager"
-
-        return await SkillHydrator.hydrate(state, topic, namespace_context=namespace_context, mode=mode)
-
-
-# ==============================================================================
-# Conversation Context
-# ==============================================================================
-
-class ConversationContext:
-    """
-    Manages conversation context for multi-turn dialogue support.
-    Extracts and formats relevant history for Worker prompts.
-    """
-
-    @staticmethod
-    def extract_relevant_history(
-        messages: list,
-        current_topic: str,
-        max_turns: int = 5
-    ) -> str:
-        """
-        Extract relevant conversation history for context.
-
-        Args:
-            messages: Full message history
-            current_topic: Current task topic for relevance filtering
-            max_turns: Maximum number of recent turns to include
-
-        Returns:
-            Formatted context string
-        """
-        # Get recent human-ai exchanges
-        recent_exchanges = []
-        turns = 0
-
-        for msg in reversed(messages):
-            if turns >= max_turns:
-                break
-
-            if isinstance(msg, HumanMessage):
-                content = str(msg.content)[:200]  # Truncate long messages
-                recent_exchanges.insert(0, f"User: {content}")
-                turns += 1
-            elif isinstance(msg, AIMessage) and msg.content:
-                content = str(msg.content)[:200]
-                recent_exchanges.insert(0, f"Assistant: {content}")
-
-        if not recent_exchanges:
-            return ""
-
-        return "\n".join(recent_exchanges)
-
-    @staticmethod
-    def build_context_aware_mission(
-        mission_msg: str,
-        conversation_history: str,
-        referenced_files: list[str] | None = None
-    ) -> str:
-        """
-        Build mission message with conversation context.
-
-        Args:
-            mission_msg: Base mission message
-            conversation_history: Formatted conversation history
-            referenced_files: Files mentioned in previous turns
-
-        Returns:
-            Enhanced mission message with context
-        """
-        parts = [mission_msg]
-
-        if conversation_history:
-            parts.append("\n\n### Conversation Context\n")
-            parts.append("Previous exchanges for reference:")
-            parts.append(conversation_history)
-
-        if referenced_files:
-            parts.append("\n### Referenced Files\n")
-            parts.append("Files mentioned in conversation: " + ", ".join(referenced_files))
-
-        return "\n".join(parts)
+# Backward-compatible re-exports
+from app.core.engine.conversation_context import ConversationContext  # noqa: E402,F401
+from app.core.engine.skill_hydrator import SkillHydrator  # noqa: E402,F401

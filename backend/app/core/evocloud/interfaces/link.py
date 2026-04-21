@@ -30,8 +30,8 @@ class DeviceLinkProtocol(ABC):
 
     @property
     @abstractmethod
-    def device_id(self) -> int | None:
-        """Get the registered device ID."""
+    def device_key(self) -> str:
+        """Get the registered device key."""
         pass
 
     # --- Callbacks ---

@@ -4,6 +4,7 @@ import logging
 import os
 import platform
 import ssl
+from collections import deque
 from collections.abc import Callable
 from typing import Any
 
@@ -40,12 +41,8 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
 
         # Device Identity
         self.device_name = self.config.device_name or f"{platform.node()}"
-        self.device_key = self._get_or_create_device_key()
 
         # State
-        # State
-        self._device_id: int | None = None
-        self._device_id_event = asyncio.Event()  # 通知 device_id 可用
         self.client_id: str | None = None
 
         # Connection
@@ -59,22 +56,12 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
         self._query_handler: Callable[[str, str, dict[str, Any]], Any] | None = None
 
         # Idempotency & Concurrency
-        self._processed_commands: set[int] = set()
+        self._processed_commands: deque[str | int] = deque(maxlen=500)
         self._command_semaphore = asyncio.Semaphore(5)
 
     @property
-    def device_id(self) -> int | None:
-        return self._device_id
-
-    async def wait_for_device_id(self, timeout: float = 10.0) -> int | None:
-        """等待 WebSocket 握手完成并返回 device_id"""
-        if self._device_id:
-            return self._device_id
-        try:
-            await asyncio.wait_for(self._device_id_event.wait(), timeout=timeout)
-            return self._device_id
-        except asyncio.TimeoutError:
-            return None
+    def device_key(self) -> str:
+        return self._get_or_create_device_key()
 
     def _get_or_create_device_key(self) -> str:
         # 1. Try secure storage first
@@ -112,12 +99,21 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
     def set_event_handler(self, handler: Callable):
         self._event_handler = handler
 
+    async def bind_client_id(self, client_id: str):
+        """Bind a mobile client to this device via HTTP API."""
+        if self.device_key is not None:
+            await self.api.bind_client_id(self.device_key, client_id)
+        else:
+            logger.warning("[EvoCloud] Cannot bind client: device_key not available")
+
     def set_query_handler(self, handler: Callable):
         """设置查询处理器 (query_type, thread_id, params) -> result"""
         self._query_handler = handler
 
     def is_connected(self) -> bool:
-        return self._running and (self.ws is not None)
+        if not self._running or self.ws is None:
+            return False
+        return self.ws.state == websockets.State.OPEN
 
     async def send_message(self, message: dict | str):
         """Send message to Cloud via WebSocket."""
@@ -134,7 +130,7 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
 
     async def start(self):
         """Start the WebSocket connection and Heartbeat Loops.
-        
+
         Note: Device registration is now done via WebSocket handshake.
         HTTP registration is removed in favor of pure WebSocket architecture.
         """
@@ -146,10 +142,6 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
             return
 
         self._running = True
-
-        # device_id will be set when receiving 'init' message from Gateway
-        # containing the device_id assigned by MC
-        self._device_id = None
 
         logger.info(f"[EvoCloud] Starting Device Link (device_key={self.device_key})...")
         asyncio.create_task(self._heartbeat_loop())
@@ -168,25 +160,16 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
             finally:
                 self.ws = None
 
-    async def _register_device(self) -> bool:
-        """Deprecated: Device registration is now done via WebSocket handshake.
-        
-        Kept for backward compatibility but does nothing.
-        """
-        logger.debug("[EvoCloud] HTTP registration skipped (WebSocket architecture)")
-        self._device_id = self.device_key
-        return True
-
     async def _heartbeat_loop(self):
         """Send WebSocket ping messages to keep connection alive.
-        
+
         Replaces HTTP heartbeat with WebSocket ping/pong.
         """
         while self._running:
             if self.ws and self.is_connected():
                 try:
                     # Send ping via WebSocket
-                    ping_msg = WebSocketPing(timestamp=int(asyncio.get_event_loop().time()))
+                    ping_msg = WebSocketPing(timestamp=int(asyncio.get_running_loop().time()))
                     await self.ws.send(json.dumps(ping_msg.model_dump()))
                     logger.debug("[EvoCloud] WebSocket ping sent")
                 except Exception as e:
@@ -218,13 +201,11 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
                     logger.info("[EvoCloud] WS Connected. Sending handshake...")
 
                     # New Go Gateway Handshake
-                    handshake = WebSocketHandshake(
-                        payload={
-                            "device_type": "agent",
-                            "device_key": self.device_key,
-                            "token": self.api.get_token()
-                        }
-                    )
+                    handshake = WebSocketHandshake(payload={
+                        "device_type": "agent",
+                        "device_key": self.device_key,
+                        "token": self.api.get_token()
+                    })
                     await ws.send(json.dumps(handshake.model_dump()))
 
                     retry_count = 0  # Reset on success
@@ -236,6 +217,8 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
                     logger.error("[EvoCloud] SSL verification is already disabled, but error persists")
                 else:
                     logger.info("[EvoCloud] Tip: Set EVOCLOUD_SSL_VERIFY=false to disable SSL verification (development only)")
+            except asyncio.CancelledError:
+                raise  # Let cancellation propagate cleanly
             except Exception as e:
                 logger.warning(f"[EvoCloud] WS Connection Error: {e}")
             finally:
@@ -257,44 +240,39 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
             if msg_type == "init":
                 init_data = data.get("data", {})
                 client_id = init_data.get("client_id")
-                device_id = init_data.get("device_id")
-
-                # Set device_id from Gateway (assigned by MC)
-                if device_id:
-                    self._device_id = int(device_id)
-                    self._device_id_event.set()  # 通知等待者
-                    logger.info(f"[EvoCloud] Got device_id from Gateway: {self._device_id}")
 
                 if client_id:
                     self.client_id = client_id
 
             elif msg_type == "new_command":
                 cmd = data.get("data", {})
+                if not self._command_handler:
+                    return
+
                 cmd_id = cmd.get("command_id")
                 if cmd_id and cmd_id in self._processed_commands:
                     logger.debug(f"[EvoCloud] Skipping duplicate command: {cmd_id}")
                     return
                 if cmd_id:
-                    self._processed_commands.add(cmd_id)
-                    # Limit cache size
-                    if len(self._processed_commands) > 500:
-                        # Convert to list to remove oldest, or just clear if too big
-                        # Simple approach: clear half to avoid frequent re-alloc
-                        self._processed_commands = set(list(self._processed_commands)[250:])
+                    self._processed_commands.append(cmd_id)
 
-                if self._command_handler:
-                    asyncio.create_task(self._execute_command_wrapper(cmd))
+                asyncio.create_task(self._execute_command_wrapper(cmd))
 
             elif msg_type == "project_switch":
                 if self._event_handler:
                     event_data = ProjectSwitchEvent.model_validate(data.get("data", {}))
                     if asyncio.iscoroutinefunction(self._event_handler):
-                        asyncio.create_task(self._event_handler(msg_type, event_data))
+                        asyncio.create_task(self._safe_event_handler(msg_type, event_data))
                     else:
-                        self._event_handler(msg_type, event_data)
+                        try:
+                            self._event_handler(msg_type, event_data)
+                        except Exception as e:
+                            logger.error(f"[EvoCloud] Project switch handler error: {e}")
 
             elif msg_type == "query":
                 await self._handle_query(data)
+            else:
+                logger.warning(f"[EvoCloud] Unhandled WS message type: {msg_type}")
 
         except Exception as e:
             logger.error(f"[EvoCloud] WS Handle Error: {e}")
@@ -334,7 +312,15 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
                 "data": result,
             },
         )
-        await self.send(response.model_dump())
+        await self.send_message(response.model_dump())
+
+    async def _safe_event_handler(self, event_type: str, event_data: ProjectSwitchEvent):
+        """Wrap event handler with error logging for asyncio.create_task safety."""
+        try:
+            if self._event_handler:
+                await self._event_handler(event_type, event_data)
+        except Exception as e:
+            logger.error(f"[EvoCloud] Project switch handler error: {e}")
 
     async def _execute_command_wrapper(self, cmd_data: dict):
         cmd_id = cmd_data.get("command_id")

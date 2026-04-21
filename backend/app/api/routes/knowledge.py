@@ -3,8 +3,9 @@ Knowledge Base API Routes.
 
 Handles document upload, retrieval, and management for the Agent knowledge base.
 """
-
+import json
 import logging
+from pathlib import Path
 from typing import Optional, Any
 
 from fastapi import APIRouter, Body, File, Form, HTTPException, Query, UploadFile
@@ -109,7 +110,7 @@ class FTSSearchResult(DynamicBaseModel):
     collection: str | None
     title: str
     snippet: str
-    highlights: list[str]
+    highlights: str
     score: float
 
 
@@ -148,7 +149,7 @@ async def upload_document(
     """
     try:
         result = await pipeline.process_upload(
-            file=file,
+            upload_file=file,
             collection=collection,
             doc_type=doc_type,
             extract_metadata=extract_metadata
@@ -161,7 +162,7 @@ async def upload_document(
             success=True,
             message=f"Document uploaded successfully",
             path=result.path,
-            document=result.metadata
+            document=result.metadata.model_dump(mode="json") if result.metadata else None
         )
     
     except HTTPException:
@@ -177,7 +178,8 @@ async def list_documents(
     pattern: str = Query("*.md", description="File pattern"),
     tags: Optional[str] = Query(None, description="Filter by tags (comma-separated)"),
     source_project_id: Optional[int] = Query(None, description="Filter by workspace project ID"),
-    limit: int = Query(50, ge=1, le=200)
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
 ):
     """
     List documents in the knowledge base.
@@ -186,21 +188,21 @@ async def list_documents(
     Supports filtering by collection, tags, and workspace project.
     """
     try:
-        documents = store.list_documents(collection, pattern, source_project_id)
-        
-        # Filter by tags if specified
+        documents = store.list_documents(collection, pattern, source_project_id, limit=limit, offset=offset)
+
+        # Filter by tags if specified (applied post-query for now)
         if tags:
             tag_list = [t.strip() for t in tags.split(",") if t.strip()]
             documents = [
                 doc for doc in documents
                 if any(tag in doc.tags for tag in tag_list)
             ]
-        
+
         collections = store.list_collections()
-        
+
         return DocumentListResponse(
             total=len(documents),
-            documents=documents[:limit],
+            documents=documents,
             collections=collections
         )
     
@@ -253,6 +255,20 @@ async def delete_document(path: str):
         if not deleted:
             raise HTTPException(status_code=404, detail=f"Document not found: {path}")
         
+        # Clean up FTS and vector indexes
+        try:
+            fts = get_fts_service()
+            await fts.remove_document(path)
+        except Exception as e:
+            logger.warning(f"Failed to remove document from FTS index: {e}")
+        
+        try:
+            from app.domain.knowledge.services.vector_search import get_kb_vector_service
+            vector_service = get_kb_vector_service()
+            await vector_service.delete_document(path)
+        except Exception as e:
+            logger.warning(f"Failed to remove document from vector index: {e}")
+        
         return DocumentResponse(success=True, message=f"Document deleted: {path}")
     
     except HTTPException:
@@ -283,7 +299,7 @@ async def list_collections():
 async def create_collection(name: str):
     """Create a new knowledge base collection."""
     try:
-        store.create_collection(name)
+        store.create_collections(name)
         return DocumentResponse(success=True, message=f"Collection created: {name}")
     
     except Exception as e:
@@ -755,42 +771,69 @@ async def check_quality(
 async def list_maintenance_reports(
     limit: int = Query(10, description="Number of recent reports")
 ):
-    """List recent maintenance reports."""
+    """List recent maintenance reports from SQLite."""
     try:
-        import json
-        from pathlib import Path
-
-        reports_dir = Path.home() / ".evoloop" / "knowledge" / "reports"
-
-        if not reports_dir.exists():
-            return {"reports": []}
-
-        # Get all report files sorted by modification time
-        report_files = sorted(
-            reports_dir.glob("maintenance_*.json"),
-            key=lambda p: p.stat().st_mtime,
-            reverse=True
-        )[:limit]
+        from app.domain.knowledge.services.search import get_fts_service
 
         reports = []
-        for filepath in report_files:
-            try:
-                with open(filepath, "r", encoding="utf-8") as f:
-                    data = json.load(f)
+
+        # Try SQLite first (T-1.4)
+        try:
+            fts = get_fts_service()
+            with fts.pool.acquire() as conn:
+                rows = conn.execute(
+                    """SELECT id, timestamp, level, dry_run, duration_seconds, summary_json
+                       FROM maintenance_reports
+                       ORDER BY timestamp DESC LIMIT ?""",
+                    (limit,)
+                ).fetchall()
+
+                for row in rows:
+                    summary = {}
+                    try:
+                        summary = json.loads(row["summary_json"] or "{}")
+                    except Exception:
+                        pass
+
                     reports.append({
-                        "filename": filepath.name,
-                        "timestamp": data.get("timestamp"),
-                        "duration_seconds": data.get("duration_seconds"),
-                        "tasks_completed": data.get("tasks_completed", []),
-                        "duplicates": data.get("duplicates", {}),
-                        "summary": {
-                            "duplicates_found": data.get("duplicates", {}).get("found", 0),
-                            "low_quality_found": data.get("low_quality", {}).get("found", 0),
-                            "cold_docs_found": data.get("cold_content", {}).get("found", 0),
-                        }
+                        "id": row["id"],
+                        "timestamp": row["timestamp"],
+                        "level": row["level"],
+                        "dry_run": bool(row["dry_run"]),
+                        "duration_seconds": row["duration_seconds"],
+                        "summary": summary,
                     })
-            except Exception as e:
-                logger.warning(f"Failed to read report {filepath}: {e}")
+        except Exception as e:
+            logger.warning(f"Failed to read reports from SQLite: {e}")
+
+        # Fallback to JSON files if SQLite is empty
+        if not reports:
+            reports_dir = Path.home() / ".evoloop" / "knowledge" / "reports"
+            if reports_dir.exists():
+                report_files = sorted(
+                    reports_dir.glob("maintenance_*.json"),
+                    key=lambda p: p.stat().st_mtime,
+                    reverse=True
+                )[:limit]
+
+                for filepath in report_files:
+                    try:
+                        with open(filepath, "r", encoding="utf-8") as f:
+                            data = json.load(f)
+                            reports.append({
+                                "filename": filepath.name,
+                                "timestamp": data.get("timestamp"),
+                                "duration_seconds": data.get("duration_seconds"),
+                                "tasks_completed": data.get("tasks_completed", []),
+                                "duplicates": data.get("duplicates", {}),
+                                "summary": {
+                                    "duplicates_found": data.get("duplicates", {}).get("found", 0),
+                                    "low_quality_found": data.get("low_quality", {}).get("found", 0),
+                                    "cold_docs_found": data.get("cold_content", {}).get("found", 0),
+                                }
+                            })
+                    except Exception as e:
+                        logger.warning(f"Failed to read report {filepath}: {e}")
 
         return {"reports": reports}
 

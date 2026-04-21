@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState, useCallback, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { Pin, Check, X, Crosshair } from "lucide-react";
 import { emit, listen, UnlistenFn } from "@tauri-apps/api/event";
 import { getCurrentWindow, LogicalSize, LogicalPosition } from "@tauri-apps/api/window";
@@ -28,6 +29,7 @@ interface WindowBounds {
 }
 
 function AndroidMarkerOverlay() {
+    const { t } = useTranslation();
     const [isExtractMode, setIsExtractMode] = useState(false);
     const [isSelecting, setIsSelecting] = useState(false);
     const [extractRegions, setExtractRegions] = useState<ExtractRegion[]>([]);
@@ -270,7 +272,7 @@ function AndroidMarkerOverlay() {
 
         if (!deviceId) {
             console.error("[AndroidMarkerOverlay] No device ID available");
-            alert("无法获取设备信息，请重新开始录制");
+            alert(t("overlay.errorDeviceInfo", "Unable to get device info, please restart recording"));
             return;
         }
 
@@ -299,7 +301,7 @@ function AndroidMarkerOverlay() {
             setIsExtractMode(true);
         } catch (e) {
             console.error("[AndroidMarkerOverlay] Failed to expand window:", e);
-            alert("无法检测到镜像窗口，或权限不足。请确保 scrcpy 窗口已打开并重启应用。");
+            alert(t("overlay.errorMirrorWindow", "Unable to detect mirror window or insufficient permissions. Please ensure the scrcpy window is open and restart the app."));
         }
     }, [isExtractMode]);
 
@@ -427,9 +429,9 @@ function AndroidMarkerOverlay() {
                         className="absolute left-1/2 -translate-x-1/2 flex items-center gap-3 bg-slate-900/90 backdrop-blur-xl border border-purple-500/30 px-6 py-3 rounded-2xl shadow-2xl z-50 text-white"
                     >
                         <Crosshair className="w-5 h-5 text-purple-400" />
-                        <span className="text-sm font-semibold tracking-wide">拖拽选择区域</span>
+                        <span className="text-sm font-semibold tracking-wide">{t("overlay.dragToSelect", "Drag to select region")}</span>
                         <div className="h-4 w-[1px] bg-white/20 mx-1" />
-                        <span className="text-xs text-white/60 font-mono bg-white/10 px-2 py-0.5 rounded">ESC 取消</span>
+                        <span className="text-xs text-white/60 font-mono bg-white/10 px-2 py-0.5 rounded">{t("overlay.escToCancel", "ESC Cancel")}</span>
                     </motion.div>
 
                     {/* Selection preview - Much more visible */}
@@ -482,7 +484,7 @@ function AndroidMarkerOverlay() {
                                 </div>
                                 <div>
                                     <div className="text-xs text-white/50 uppercase tracking-widest font-bold">Android</div>
-                                    <div className="text-xl font-bold">{extractRegions.length} 个区域</div>
+                                    <div className="text-xl font-bold">{t("overlay.regionsCount", { count: extractRegions.length, defaultValue: `${extractRegions.length} regions` })}</div>
                                 </div>
                             </div>
                         </motion.div>
@@ -490,7 +492,7 @@ function AndroidMarkerOverlay() {
 
                     {/* Help text at bottom */}
                     <div className="absolute bottom-8 left-1/2 -translate-x-1/2 text-white/60 text-sm font-medium bg-black/40 backdrop-blur-sm px-4 py-2 rounded-full">
-                        按住鼠标拖拽选择区域，松开完成标记
+                        {t("overlay.hint", "Drag the mouse to select the area, release it to complete the marking")}
                     </div>
                 </motion.div>
             ) : (

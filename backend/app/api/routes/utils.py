@@ -13,7 +13,7 @@ async def health_check() -> bool:
 
 class EvoloopStatusResponse(BaseAPIResponse):
     connected: bool
-    device_id: str | None = None
+    device_key: str | None = None
     device_name: str
 
 
@@ -21,12 +21,12 @@ class EvoloopStatusResponse(BaseAPIResponse):
 async def get_evoloop_status() -> EvoloopStatusResponse:
     # Construct status from manager properties
     is_connected = evocloud_manager.link.is_connected() if evocloud_manager.link else False
-    device_id = evocloud_manager.device_id
+    device_key = evocloud_manager.link.device_key if evocloud_manager.link else None
     device_name = evocloud_manager.link.device_name if evocloud_manager.link else "Unknown"
 
     return EvoloopStatusResponse(
         connected=is_connected,
-        device_id=device_id,
+        device_key=device_key,
         device_name=device_name,
     )
 

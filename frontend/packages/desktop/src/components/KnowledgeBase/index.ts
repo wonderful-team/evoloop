@@ -1,17 +1,16 @@
-export { KnowledgeBasePage } from "./KnowledgeBasePage"
 export { DocumentList } from "./DocumentList"
-export { DocumentViewer } from "./DocumentViewer"
 export { DocumentUploadDialog } from "./DocumentUploadDialog"
+export { DocumentViewer } from "./DocumentViewer"
+export { KnowledgeBasePage } from "./KnowledgeBasePage"
 export { PopularDocuments } from "./PopularDocuments"
 export type {
-  DocumentInfo,
   DocumentContent,
-  UploadResult,
+  DocumentInfo,
   DocumentListResponse,
-  FTSSearchResult,
-  SearchSuggestion,
-  BulkUploadResult,
   DocumentStats,
+  FTSSearchResult,
   PopularDocument,
-  UsageAnalytics
+  SearchSuggestion,
+  UploadResult,
+  UsageAnalytics,
 } from "./types"

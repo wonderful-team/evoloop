@@ -99,6 +99,7 @@ class KnowledgeStoreService:
         (self.base_path / "raw").mkdir(parents=True, exist_ok=True)
         (self.base_path / "meta").mkdir(parents=True, exist_ok=True)
         (self.base_path / "temp").mkdir(parents=True, exist_ok=True)
+        (self.base_path / "versions").mkdir(parents=True, exist_ok=True)
     
     # ==========================================================================
     # Document Operations
@@ -136,18 +137,22 @@ class KnowledgeStoreService:
         # Full paths
         raw_path = self.base_path / "raw" / collection / path
         meta_path = self.base_path / "meta" / collection / f"{path}.json"
-        
+
         # Create directories
         raw_path.parent.mkdir(parents=True, exist_ok=True)
         meta_path.parent.mkdir(parents=True, exist_ok=True)
-        
+
+        # T-3.2: Backup existing version before overwrite
+        if raw_path.exists():
+            self._backup_version(raw_path, collection, path)
+
         # Save document with frontmatter
         content_with_frontmatter = document.to_frontmatter()
         write_file_contents(content_with_frontmatter, str(raw_path))
         
         # Save metadata
         if metadata:
-            meta_dict = metadata.to_dict()
+            meta_dict = metadata.model_dump(mode="json")
         else:
             meta_dict = {
                 "source_file": document.source,
@@ -177,6 +182,25 @@ class KnowledgeStoreService:
             source_project_id=source_project_id,
         )
     
+    def read_documents_batch(
+        self,
+        paths: list[str],
+        offset: int = 0,
+        limit: Optional[int] = None
+    ) -> dict[str, DocumentReadResult]:
+        """Batch read multiple documents to reduce file open/close overhead.
+
+        Returns a dict mapping path -> DocumentReadResult for successfully
+        read documents. Failed reads are logged and skipped.
+        """
+        results: dict[str, DocumentReadResult] = {}
+        for path in paths:
+            try:
+                results[path] = self.read_document(path, offset=offset, limit=limit)
+            except Exception as e:
+                logger.warning(f"Batch read failed for {path}: {e}")
+        return results
+
     def read_document(
         self,
         path: str,
@@ -260,12 +284,39 @@ class KnowledgeStoreService:
     # ==========================================================================
     # Listing and Search
     # ==========================================================================
+
+    def get_tags_batch(self, doc_ids: list[str]) -> dict[str, list[str]]:
+        """Batch load tags from SQLite for multiple documents in a single query."""
+        if not doc_ids:
+            return {}
+        
+        tags_map: dict[str, list[str]] = {}
+        try:
+            db_path = self.base_path / "search.db"
+            if not db_path.exists():
+                return tags_map
+            
+            import sqlite3
+            placeholders = ",".join(["?"] * len(doc_ids))
+            with sqlite3.connect(str(db_path)) as conn:
+                conn.row_factory = sqlite3.Row
+                for row in conn.execute(
+                    f"SELECT doc_id, tag FROM doc_tags WHERE doc_id IN ({placeholders})",
+                    doc_ids
+                ):
+                    tags_map.setdefault(row["doc_id"], []).append(row["tag"])
+        except Exception as e:
+            logger.warning(f"Failed to batch load tags: {e}")
+        
+        return tags_map
     
     def list_documents(
         self,
         collection: Optional[str] = None,
         pattern: str = "*.md",
-        source_project_id: Optional[int] = None
+        source_project_id: Optional[int] = None,
+        limit: Optional[int] = None,
+        offset: int = 0,
     ) -> list[DocumentListItem]:
         """
         List documents in the knowledge base.
@@ -287,25 +338,8 @@ class KnowledgeStoreService:
             return []
         
         documents = []
-        doc_tags_map = {}  # Cache tags from SQLite
         
-        # Load tags from SQLite
-        try:
-            db_path = self.base_path / "search.db"
-            if db_path.exists():
-                import sqlite3
-                conn = sqlite3.connect(str(db_path))
-                conn.row_factory = sqlite3.Row
-                cursor = conn.execute("SELECT doc_id, tag FROM doc_tags")
-                for row in cursor:
-                    doc_id = row["doc_id"]
-                    if doc_id not in doc_tags_map:
-                        doc_tags_map[doc_id] = []
-                    doc_tags_map[doc_id].append(row["tag"])
-                conn.close()
-        except Exception as e:
-            logger.warning(f"Failed to load tags from SQLite: {e}")
-        
+        # First pass: collect all documents and doc_ids
         for file_path in search_path.rglob(pattern):
             if not file_path.is_file():
                 continue
@@ -323,7 +357,7 @@ class KnowledgeStoreService:
                     size_bytes=stats.st_size,
                     modified_at=datetime.fromtimestamp(stats.st_mtime).isoformat(),
                     has_metadata=meta_path.exists(),
-                    tags=doc_tags_map.get(doc_id, []),
+                    tags=[],  # Will be filled after batch load
                     title=file_path.stem,
                 )
 
@@ -349,8 +383,21 @@ class KnowledgeStoreService:
             except Exception as e:
                 logger.warning(f"Failed to stat {file_path}: {e}")
         
+        # Batch load tags from SQLite (single query instead of N+1)
+        if documents:
+            doc_tags_map = self.get_tags_batch([d.path for d in documents])
+            for doc in documents:
+                doc.tags = doc_tags_map.get(doc.path, [])
+        
         # Sort by modified time (newest first)
-        documents.sort(key=lambda x: x["modified_at"], reverse=True)
+        documents.sort(key=lambda x: x.modified_at, reverse=True)
+
+        # Apply pagination
+        if offset:
+            documents = documents[offset:]
+        if limit is not None:
+            documents = documents[:limit]
+
         return documents
     
     def search_documents(
@@ -489,24 +536,132 @@ class KnowledgeStoreService:
         
         return f"{name}.md"
     
+    def _backup_version(self, raw_path: Path, collection: str, path: str) -> None:
+        """Backup current document version before overwrite (T-3.2).
+
+        Retains only the last 10 versions to prevent unbounded growth.
+        """
+        try:
+            version_dir = self.base_path / "versions" / collection / path
+            version_dir.mkdir(parents=True, exist_ok=True)
+            # Use millisecond-precision timestamp to avoid collisions during rapid ops
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
+            backup_path = version_dir / f"{timestamp}.md"
+            shutil.copy2(raw_path, backup_path)
+            logger.debug(f"Backed up version: {backup_path}")
+
+            # Retention: keep only last 10 versions
+            MAX_VERSIONS = 10
+            versions = sorted(version_dir.glob("*.md"), key=lambda p: p.name)
+            if len(versions) > MAX_VERSIONS:
+                for old in versions[:-MAX_VERSIONS]:
+                    old.unlink()
+                    logger.debug(f"Removed old version: {old}")
+        except Exception as e:
+            logger.warning(f"Failed to backup version for {path}: {e}")
+
+    def get_document_versions(self, doc_path: str) -> list[dict]:
+        """List version history for a document (T-3.2).
+
+        Args:
+            doc_path: Relative path (e.g. "collection/doc.md")
+
+        Returns:
+            List of version dicts with timestamp and path
+        """
+        version_dir = self.base_path / "versions" / doc_path
+        if not version_dir.exists():
+            return []
+
+        versions = []
+        for vfile in sorted(version_dir.glob("*.md"), reverse=True):
+            timestamp_str = vfile.stem
+            try:
+                # Parse millisecond-precision timestamp
+                if "_" in timestamp_str and len(timestamp_str.split("_")[-1]) == 3:
+                    ts = datetime.strptime(timestamp_str, "%Y%m%d_%H%M%S_%f")
+                else:
+                    ts = datetime.strptime(timestamp_str, "%Y%m%d_%H%M%S")
+                versions.append({
+                    "timestamp": timestamp_str,
+                    "iso_time": ts.isoformat(),
+                    "path": str(vfile),
+                    "size_bytes": vfile.stat().st_size,
+                })
+            except ValueError:
+                continue
+        return versions
+
+    def restore_document_version(self, doc_path: str, timestamp: str) -> bool:
+        """Restore a document to a previous version (T-3.2).
+
+        Args:
+            doc_path: Relative path (e.g. "collection/doc.md")
+            timestamp: Version timestamp string (e.g. "20240420_123456")
+
+        Returns:
+            True if restored successfully
+        """
+        version_file = self.base_path / "versions" / doc_path / f"{timestamp}.md"
+        target_path = self.base_path / "raw" / doc_path
+
+        if not version_file.exists():
+            logger.warning(f"Version not found: {version_file}")
+            return False
+
+        try:
+            # Backup current before restoring
+            if target_path.exists():
+                self._backup_version(target_path, *doc_path.split("/", 1))
+            target_path.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(version_file, target_path)
+            logger.info(f"Restored {doc_path} to version {timestamp}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to restore version: {e}")
+            return False
+
     def get_stats(self) -> dict:
         """Get storage statistics."""
         stats = {
             "total_documents": 0,
             "total_size_bytes": 0,
-            "collections": {}
+            "collections": {},
+            "total_versions": 0,
         }
-        
-        for collection in self.list_projects():
+
+        for collection in self.list_collections():
             project_path = self.base_path / "raw" / collection
             project_docs = list(project_path.rglob("*.md"))
             project_size = sum(f.stat().st_size for f in project_docs)
-            
+
             stats["collections"][collection] = {
                 "documents": len(project_docs),
                 "size_bytes": project_size
             }
             stats["total_documents"] += len(project_docs)
             stats["total_size_bytes"] += project_size
-        
+
+        # Count versions
+        version_root = self.base_path / "versions"
+        if version_root.exists():
+            stats["total_versions"] = sum(1 for _ in version_root.rglob("*.md"))
+
         return stats
+
+
+# Singleton instance
+_store_service: Optional[KnowledgeStoreService] = None
+
+
+def get_store_service() -> KnowledgeStoreService:
+    """Get or create store service singleton with config support."""
+    global _store_service
+    if _store_service is None:
+        try:
+            from app.core.config import settings
+            base_path = settings.KNOWLEDGE_BASE_PATH
+        except Exception:
+            base_path = None
+        _store_service = KnowledgeStoreService(base_path=base_path)
+    return _store_service

@@ -83,6 +83,13 @@ class InternalLLMService:
             from app.core.context.manager import ContextManager
             model = ContextManager.current().active_model
 
+        if not model:
+            raise ValueError(
+                "[InternalLLMService] No model specified. "
+                "Either pass 'model' argument or ensure EvoContext.active_model is set. "
+                f"purpose={purpose}"
+            )
+
         # 获取 LLM 实例
         llm = await get_default_llm(
             temperature=temperature,
@@ -137,6 +144,13 @@ class InternalLLMService:
         if not model:
             from app.core.context.manager import ContextManager
             model = ContextManager.current().active_model
+
+        if not model:
+            raise ValueError(
+                "[InternalLLMService] No model specified. "
+                "Either pass 'model' argument or ensure EvoContext.active_model is set. "
+                f"purpose={purpose}"
+            )
 
         llm = await get_default_llm(
             temperature=temperature,

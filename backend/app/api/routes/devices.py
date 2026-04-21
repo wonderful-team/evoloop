@@ -105,58 +105,58 @@ async def get_devices(token: TokenDep):
     return devices
 
 
-@router.post("/{device_id}/command", dependencies=[Depends(require_benefit("mobile_control"))])
-async def send_command(device_id: int, req: SendCommandRequest, token: TokenDep):
+@router.post("/{device_key}/command", dependencies=[Depends(require_benefit("mobile_control"))])
+async def send_command(device_key: str, req: SendCommandRequest, token: TokenDep):
     """Send remote command"""
-    res = await evocloud_manager.api.send_command_to_device(device_id, req.model_dump())
+    res = await evocloud_manager.api.send_command_to_device(device_key, req.model_dump())
     if res.get("code") != 0:
         raise HTTPException(500, res.get("message"))
     return res.get("data")
 
 
-@router.get("/{device_id}/logs")
+@router.get("/{device_key}/logs")
 async def get_recent_logs(
-    device_id: int,
+    device_key: int,
     limit: int = 20,
     project_id: int | None = None,
     token: TokenDep = None,
 ):
     """Get recent logs from device"""
-    res = await evocloud_manager.api.get_device_logs(device_id, limit, project_id)
+    res = await evocloud_manager.api.get_device_logs(device_key, limit, project_id)
     if res.get("code") != 0:
         raise HTTPException(500, res.get("message"))
     return res.get("data", [])
 
 
-@router.get("/{device_id}/logs/search")
+@router.get("/{device_key}/logs/search")
 async def search_logs(
-    device_id: int,
+    device_key: str,
     query: str,
     limit: int = 20,
     project_id: int | None = None,
     token: TokenDep = None,
 ):
     """Search logs"""
-    res = await evocloud_manager.api.search_device_logs(device_id, query, limit, project_id)
+    res = await evocloud_manager.api.search_device_logs(device_key, query, limit, project_id)
     if res.get("code") != 0:
         raise HTTPException(500, res.get("message"))
     return res.get("data", [])
 
 
-@router.post("/{device_id}/bind", response_model=BindResponse)
-async def bind_client(device_id: int, req: BindClientRequest, _token: TokenDep):
+@router.post("/{device_key}/bind", response_model=BindResponse)
+async def bind_client(device_key: str, req: BindClientRequest, _token: TokenDep):
     """Bind mobile client to device"""
     # This notifies the cloud that a mobile client is interested in this device
     # Or specifically, it binds the client_id to the device in EvoCloud.
-    res = await evocloud_manager.api.bind_client_id(device_id, req.client_id)
+    res = await evocloud_manager.api.bind_client_id(device_key, req.client_id)
     return BindResponse(status="success", data=res)
 
 
 @router.post("/bind", response_model=BindResponse)
 async def bind_current_device(req: BindClientRequest, _token: TokenDep):
     """Bind a client_id (e.g. mobile) to THIS server device"""
-    if evocloud_manager.device_id:
-        await evocloud_manager.link._bind_client_id(req.client_id)
+    if evocloud_manager.link.device_key:
+        await evocloud_manager.link.bind_client_id(req.client_id)
         return BindResponse(status="success")
     return BindResponse(status="error", message="Device not registered on cloud")
 
@@ -167,7 +167,7 @@ async def get_debug_status(_token: TokenDep):
     return DebugStatusResponse(
         is_logged_in=bool(evocloud_manager.get_token()),
         token_prefix=(evocloud_manager.get_token()[:10] + "...") if evocloud_manager.get_token() else None,
-        device_id=evocloud_manager.device_id,
+        device_key=evocloud_manager.link.device_key if evocloud_manager.device_id else None,
         device_name=evocloud_manager.link.device_name if evocloud_manager.link else "Unknown",
         is_connected=evocloud_manager.link.is_connected() if evocloud_manager.link else False,
         api_url=evocloud_manager.api.base_url if evocloud_manager.api else "Unknown",

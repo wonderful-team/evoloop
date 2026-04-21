@@ -1,6 +1,6 @@
 /**
  * Knowledge Base Service - 知识库文档管理 (Phase 2)
- * 
+ *
  * 功能:
  * - 列出文档和项目
  * - 获取文档内容
@@ -10,53 +10,28 @@
  * - 引用统计和分析
  */
 
-import { OpenAPI } from "@/client"
-import type { DocumentContent, CollectionsStats, DocumentListResponse } from "@/components/KnowledgeBase/types"
+import { KnowledgeService as KnowledgeServiceSDK } from "@/client/sdk.gen"
+import type {
+  BulkUploadResponse,
+  DocumentContentResponse,
+  DocumentResponse,
+  FTSSearchResponse,
+  TagResponse,
+  ZipImportResponse,
+} from "@/client/types.gen"
+import type {
+  CollectionsStats,
+  DocumentListResponse,
+  ZipValidationResult,
+} from "@/components/KnowledgeBase/types"
 
-// Types for new features
-export interface FTSSearchResult {
-  doc_id: string
-  path: string
-  collection: string
-  title: string
-  snippet: string
-  highlights: string
-  score: number
-}
-
-export interface FTSSearchResponse {
-  query: string
-  total: number
-  results: FTSSearchResult[]
-  facets: {
-    collections: Record<string, number>
-    tags: Record<string, number>
-  }
-}
+export type { FTSSearchResult } from "@/client/types.gen"
+export type { ZipValidationResult } from "@/components/KnowledgeBase/types"
 
 export interface SearchSuggestion {
   text: string
   path?: string
   type: "title" | "tag"
-}
-
-export interface BulkUploadResult {
-  success: boolean
-  message: string
-  total_files: number
-  successful: number
-  failed: number
-  imported_paths: string[]
-}
-
-export interface ZipValidationResult {
-  valid: boolean
-  total_files: number
-  processable_files: number
-  total_size_bytes: number
-  compressed_size_bytes: number
-  sample_files: string[]
-  error?: string
 }
 
 export interface DocumentStats {
@@ -86,117 +61,104 @@ export interface UsageAnalytics {
   most_cited: string[]
 }
 
-export class KnowledgeService {
+// biome-ignore lint/complexity/noStaticOnlyClass: Organizes KB API calls as a namespace
+export class KnowledgeBaseAPI {
   // ============ Basic CRUD ============
 
-  static async listDocuments(collection?: string, sourceProjectId?: number): Promise<DocumentListResponse> {
-    const url = new URL(`${OpenAPI.BASE}/api/v1/knowledge/documents`)
-    if (collection) {
-      url.searchParams.set("collection", collection)
-    }
-    if (sourceProjectId) {
-      url.searchParams.set("source_project_id", sourceProjectId.toString())
-    }
-    const response = await fetch(url.toString())
-    return response.json()
+  static async listDocuments(
+    collection?: string,
+    sourceProjectId?: number,
+  ): Promise<DocumentListResponse> {
+    const data = await KnowledgeServiceSDK.listDocuments({
+      collection: collection ?? null,
+      sourceProjectId,
+    })
+    return data
   }
 
   static async getDocument(
     path: string,
     offset: number = 0,
-    limit: number = 100
-  ): Promise<DocumentContent> {
-    const url = new URL(`${OpenAPI.BASE}/api/v1/knowledge/documents/${encodeURIComponent(path)}`)
-    url.searchParams.set("offset", offset.toString())
-    url.searchParams.set("limit", limit.toString())
-    const response = await fetch(url.toString())
-    return response.json()
+    limit: number = 100,
+  ): Promise<DocumentContentResponse> {
+    const data = await KnowledgeServiceSDK.readDocument({
+      path,
+      offset,
+      limit,
+    })
+    return data
   }
 
   static async uploadDocument(
     file: File,
     collection: string = "default",
-    docType: string = "doc"
-  ): Promise<{ success: boolean; path?: string; error?: string }> {
-    const formData = new FormData()
-    formData.append("file", file)
-    formData.append("collection", collection)
-    formData.append("doc_type", docType)
-
-    const response = await fetch(`${OpenAPI.BASE}/api/v1/knowledge/upload`, {
-      method: "POST",
-      body: formData,
+    docType: string = "doc",
+  ): Promise<DocumentResponse> {
+    const data = await KnowledgeServiceSDK.uploadDocument({
+      formData: {
+        file,
+        collection,
+        doc_type: docType,
+      },
     })
-    return response.json()
+    return data
   }
 
-  static async deleteDocument(path: string): Promise<{ success: boolean; message: string }> {
-    const response = await fetch(`${OpenAPI.BASE}/api/v1/knowledge/documents/${encodeURIComponent(path)}`, {
-      method: "DELETE",
-    })
-    return response.json()
+  static async deleteDocument(path: string): Promise<DocumentResponse> {
+    const data = await KnowledgeServiceSDK.deleteDocument({ path })
+    return data
   }
 
   // ============ Projects ============
 
   static async getCollections(): Promise<CollectionsStats> {
-    const response = await fetch(`${OpenAPI.BASE}/api/v1/knowledge/collections`)
-    return response.json()
+    const data = await KnowledgeServiceSDK.listCollections()
+    return data as unknown as CollectionsStats
   }
 
-  static async createProject(name: string): Promise<{ success: boolean; message: string }> {
-    return this.createCollection(name)
+  static async createProject(name: string): Promise<DocumentResponse> {
+    return KnowledgeBaseAPI.createCollection(name)
   }
 
-  static async createCollection(name: string): Promise<{ success: boolean; message: string }> {
-    const response = await fetch(`${OpenAPI.BASE}/api/v1/knowledge/collections/${encodeURIComponent(name)}`, {
-      method: "POST",
-    })
-    return response.json()
+  static async createCollection(name: string): Promise<DocumentResponse> {
+    const data = await KnowledgeServiceSDK.createCollection({ name })
+    return data
   }
 
   // ============ Tags ============
 
-  static async listTags(collection?: string): Promise<{ tags: { name: string; count: number }[]; total: number }> {
-    const url = new URL(`${OpenAPI.BASE}/api/v1/knowledge/tags`)
-    if (collection) {
-      url.searchParams.set("collection", collection)
-    }
-    const response = await fetch(url.toString())
-    return response.json()
+  static async listTags(collection?: string): Promise<TagResponse> {
+    const data = await KnowledgeServiceSDK.listTags({
+      collection: collection ?? null,
+    })
+    return data
   }
 
   // ============ FTS Search ============
 
   static async ftsSearch(
     query: string,
-    options?: { collection?: string; tags?: string[] }
+    options?: { collection?: string; tags?: string[] },
   ): Promise<FTSSearchResponse> {
-    const url = new URL(`${OpenAPI.BASE}/api/v1/knowledge/fts/search`)
-    url.searchParams.set("q", query)
-    if (options?.collection) {
-      url.searchParams.set("collection", options.collection)
-    }
-    if (options?.tags && options.tags.length > 0) {
-      options.tags.forEach((tag) => url.searchParams.append("tags", tag))
-    }
-    const response = await fetch(url.toString())
-    return response.json()
+    const data = await KnowledgeServiceSDK.ftsSearch({
+      q: query,
+      collection: options?.collection ?? null,
+      tags: options?.tags?.join(",") ?? null,
+    })
+    return data
   }
 
   // ============ Popular Documents ============
 
-  static async getPopularDocuments(options?: { days?: number; limit?: number }): Promise<PopularDocument[]> {
-    const url = new URL(`${OpenAPI.BASE}/api/v1/knowledge/analytics/popular`)
-    if (options?.limit) {
-      url.searchParams.set("limit", options.limit.toString())
-    }
-    if (options?.days) {
-      url.searchParams.set("days", options.days.toString())
-    }
-    const response = await fetch(url.toString())
-    const data = await response.json()
-    return data.documents || []
+  static async getPopularDocuments(options?: {
+    days?: number
+    limit?: number
+  }): Promise<PopularDocument[]> {
+    const data = await KnowledgeServiceSDK.getPopularDocuments({
+      days: options?.days,
+      limit: options?.limit,
+    })
+    return (data as { documents?: PopularDocument[] }).documents || []
   }
 
   // ============ Bulk Upload ============
@@ -204,18 +166,16 @@ export class KnowledgeService {
   static async bulkUpload(
     files: File[],
     collection: string = "default",
-    docType: string = "doc"
-  ): Promise<BulkUploadResult> {
-    const formData = new FormData()
-    files.forEach((file) => formData.append("files", file))
-    formData.append("collection", collection)
-    formData.append("doc_type", docType)
-
-    const response = await fetch(`${OpenAPI.BASE}/api/v1/knowledge/bulk-upload`, {
-      method: "POST",
-      body: formData,
+    docType: string = "doc",
+  ): Promise<BulkUploadResponse> {
+    const data = await KnowledgeServiceSDK.bulkUpload({
+      formData: {
+        files,
+        collection,
+        doc_type: docType,
+      },
     })
-    return response.json()
+    return data
   }
 
   // ============ ZIP Import ============
@@ -223,48 +183,52 @@ export class KnowledgeService {
   static async importZip(
     file: File,
     collection: string = "default",
-    preserveStructure: boolean = true
-  ): Promise<BulkUploadResult> {
-    const formData = new FormData()
-    formData.append("file", file)
-    formData.append("collection", collection)
-    formData.append("preserve_structure", preserveStructure.toString())
-
-    const response = await fetch(`${OpenAPI.BASE}/api/v1/knowledge/import-zip`, {
-      method: "POST",
-      body: formData,
+    preserveStructure: boolean = true,
+  ): Promise<ZipImportResponse> {
+    const data = await KnowledgeServiceSDK.importZip({
+      formData: {
+        file,
+        collection,
+        preserve_structure: preserveStructure,
+      },
     })
-    return response.json()
+    return data
   }
 
   // ============ ZIP Validation ============
 
   static async validateZip(file: File): Promise<ZipValidationResult> {
-    const formData = new FormData()
-    formData.append("file", file)
-
-    const response = await fetch(`${OpenAPI.BASE}/api/v1/knowledge/validate-zip`, {
-      method: "POST",
-      body: formData,
+    const data = await KnowledgeServiceSDK.validateZip({
+      formData: { file },
     })
-    return response.json()
+    return data as unknown as ZipValidationResult
   }
 
   // ============ Document Stats ============
 
   static async getDocumentStats(path: string): Promise<DocumentStats> {
-    const response = await fetch(`${OpenAPI.BASE}/api/v1/knowledge/${encodeURIComponent(path)}/stats`)
-    return response.json()
+    const data = await KnowledgeServiceSDK.getDocumentStats({ path })
+    return data as unknown as DocumentStats
   }
 
   // ============ Recommendations ============
 
   static async getRecommendations(path: string): Promise<{
-    recommendations: { path: string; reason: string; collection?: string; relevance?: number }[]
+    recommendations: {
+      path: string
+      reason: string
+      collection?: string
+      relevance?: number
+    }[]
   }> {
-    const url = new URL(`${OpenAPI.BASE}/api/v1/knowledge/recommendations`)
-    url.searchParams.set("path", path)
-    const response = await fetch(url.toString())
-    return response.json()
+    const data = await KnowledgeServiceSDK.getRecommendations({ path })
+    return data as unknown as {
+      recommendations: {
+        path: string
+        reason: string
+        collection?: string
+        relevance?: number
+      }[]
+    }
   }
 }

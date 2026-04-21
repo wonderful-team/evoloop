@@ -1,3 +1,4 @@
+import i18n from "@evoloop/shared/i18n"
 import { ask, message } from '@tauri-apps/plugin-dialog'
 
 /**
@@ -56,23 +57,15 @@ export async function showPermissionGuide(): Promise<void> {
   let instructions = ''
   
   if (isMac) {
-    instructions = `请在系统设置中允许麦克风访问：
-
-1. 打开 系统设置 > 隐私与安全性 > 麦克风
-2. 找到并勾选 "EvoLoop" 应用
-3. 重启应用后重试`
+    instructions = i18n.t('permissions.microphone.macInstructions')
   } else if (isWindows) {
-    instructions = `请在 Windows 设置中允许麦克风访问：
-
-1. 打开 设置 > 隐私 > 麦克风
-2. 允许应用访问麦克风
-3. 在应用列表中找到并允许 "EvoLoop"`
+    instructions = i18n.t('permissions.microphone.winInstructions')
   } else {
-    instructions = `请在系统设置中允许应用访问麦克风。`
+    instructions = i18n.t('permissions.microphone.genericInstructions')
   }
 
   await message(instructions, {
-    title: '需要麦克风权限',
+    title: i18n.t('permissions.microphone.title'),
     kind: 'info'
   })
 }
@@ -98,8 +91,11 @@ export async function ensureMicrophonePermission(): Promise<boolean> {
   
   // 被拒绝，显示引导
   const shouldShowGuide = await ask(
-    '麦克风权限被拒绝。是否查看如何开启权限？',
-    { title: '需要麦克风权限', kind: 'warning' }
+    i18n.t('permissions.microphone.denyPrompt'),
+    { 
+      title: i18n.t('permissions.microphone.title'),
+      kind: 'warning' 
+    }
   )
   
   if (shouldShowGuide) {

@@ -90,6 +90,8 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
 
         # Stream tracking
         self._current_stream_buffer = ""
+        from app.core.engine.callbacks.token_filter import TokenFilter
+        self._token_filter = TokenFilter()
 
     # ==============================================================================
     # Structured Stream Event Methods
@@ -180,62 +182,21 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
 
                 self._current_stream_buffer += token
 
-                if not hasattr(self, "_in_hidden_tag"):
-                    self._in_hidden_tag = False
-                if not hasattr(self, "_tag_buffer"):
-                    self._tag_buffer = ""
-
-                # Update tag buffer to detect tag boundaries
-                self._tag_buffer += token
-                if len(self._tag_buffer) > 100: # Safety cap
-                    self._tag_buffer = self._tag_buffer[-100:]
-
-                # 1. Detect start of hidden tags
-                if not self._in_hidden_tag:
-                    for tag in ["<evoloop_session_audit>", "<think>", "<thought>", "<evoloop_audit_outcome>", "<evoloop_audit_reason>", "<evoloop_audit_proof>"]:
-                        if tag in self._tag_buffer:
-                            self._in_hidden_tag = True
-                            # The tokens that formed the tag shouldn't be published
-                            # (Note: simpler to just stop publishing from this point)
-                            break
-
-                # 2. Detect end of hidden tags
-                if self._in_hidden_tag:
-                    for tag in ["</evoloop_session_audit>", "</think>", "</thought>", "</evoloop_audit_outcome>", "</evoloop_audit_reason>", "</evoloop_audit_proof>"]:
-                        if tag in self._tag_buffer:
-                            self._in_hidden_tag = False
-                            self._tag_buffer = "" # Clear buffer after finding end tag
-                            break
-
-                    # While in hidden tag, we still update the step (for full history)
-                    # but we don't ADD to the publish buffer.
+                filtered = self._token_filter.process(token)
+                if filtered is None:
+                    # Inside hidden tag — update step but don't publish
                     return
 
-                # 3. Strip <evoloop_final_report> and </evoloop_final_report> tags (just markers, content is welcome)
-                content_to_stream = token
-                if "<evoloop_final_report>" in content_to_stream:
-                    content_to_stream = content_to_stream.replace("<evoloop_final_report>", "")
-                if "</evoloop_final_report>" in content_to_stream:
-                    content_to_stream = content_to_stream.replace("</evoloop_final_report>", "")
-
-                # BUFFERED PUBLISH Strategy
-                if not hasattr(self, "_publish_buffer"):
-                    self._publish_buffer = ""
-
-                self._publish_buffer += content_to_stream
-
-                # Flush on Newline OR > 50 chars
-                if "\n" in content_to_stream or len(self._publish_buffer) > 50:
+                if self._token_filter.should_flush():
+                    buf = self._token_filter.flush()
                     if hasattr(self.monitor, "client") and self.monitor.client:
                         try:
                             await self.monitor.client.publish(
                                 f"chat:{self.thread_id}:events",
-                                TokenEvent(content=self._publish_buffer).json(),
+                                TokenEvent(content=buf).json(),
                             )
                         except Exception:
                             pass
-
-                    self._publish_buffer = ""
 
                     try:
                         await self.monitor.update_step(
@@ -250,22 +211,22 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
     async def on_llm_end(self, response: LLMResult, **kwargs: Any) -> None:
         """Run when LLM ends running."""
         # FLUSH REMAINING BUFFER
-        if hasattr(self, "_publish_buffer") and self._publish_buffer:
-            if self.thread_id and self.monitor and hasattr(self.monitor, "client"):
-                try:
-                    await self.monitor.client.publish(
-                        f"chat:{self.thread_id}:events",
-                        TokenEvent(content=self._publish_buffer).json(),
-                    )
-                except Exception:
-                    pass
-            self._publish_buffer = ""
+        buf = self._token_filter.flush()
+        if buf and self.thread_id and self.monitor and hasattr(self.monitor, "client"):
+            try:
+                await self.monitor.client.publish(
+                    f"chat:{self.thread_id}:events",
+                    TokenEvent(content=buf).json(),
+                )
+            except Exception:
+                pass
 
         run_id = kwargs.get("run_id")
         # Note: We no longer record "Thinking..." steps, so no update needed
         if run_id == self.active_llm_run_id:
             self.active_llm_run_id = None
             self._current_stream_buffer = ""
+            self._token_filter.reset()
 
     async def on_llm_error(self, error: BaseException, **kwargs: Any) -> None:
         """Run when LLM errors."""
@@ -275,6 +236,7 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
         if run_id == self.active_llm_run_id:
             self.active_llm_run_id = None
             self._current_stream_buffer = ""
+            self._token_filter.reset()
 
         try:
             await self._publish_stream_event(StreamEvent(
@@ -403,12 +365,6 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
         run_id = str(kwargs.get("run_id", "default"))
         task_id = self._tool_task_ids.pop(run_id, None)
 
-        if self.thread_id and task_id:
-            await self.monitor.update_step(self.thread_id, task_id, "done", details=log_output_str)
-            # Clear legacy single tool tracking if it matches
-            if self.tool_task_id == task_id:
-                self.tool_task_id = None
-
         # Get tool state from shared store
         tool_state = None
         if self.thread_id:
@@ -426,6 +382,12 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
             duration = None
 
         log_output_str = str(log_output) if not isinstance(log_output, str) else log_output
+
+        if self.thread_id and task_id:
+            await self.monitor.update_step(self.thread_id, task_id, "done", details=log_output_str)
+            # Clear legacy single tool tracking if it matches
+            if self.tool_task_id == task_id:
+                self.tool_task_id = None
 
         logger.info(f"[Tool End] {tool_name}")
 

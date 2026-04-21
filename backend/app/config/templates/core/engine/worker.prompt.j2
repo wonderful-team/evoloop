@@ -1,6 +1,13 @@
 ## Your Role: {{ role_name }}
 {{ instructions }}
 
+{% if not sys_info.is_global_mode and sys_info.project_profile %}
+## Project Context
+The following PROJECT.md describes the current project. Use this context to understand the project's structure, conventions, and setup.
+
+{{ sys_info.project_profile }}
+{% endif %}
+
 ### System Safety Rules
 - **CRITICAL Rules (Never Violate):**
   - NEVER delete .git directories or any version control metadata

@@ -3,7 +3,7 @@ import logging
 from sqlalchemy import or_, select
 
 from app.core.context.manager import EvoContext
-from app.core.context.plugins import ContextPlugin
+from app.core.context.plugins import ContextPlugin, plugin_registry
 from app.infrastructure.database.sql.database import session_scope
 from app.models.todo import TodoItem, TodoPriority, TodoStatus
 
@@ -72,3 +72,5 @@ class ProjectContextPlugin(ContextPlugin):
 
         except Exception as e:
             logger.error(f"[ProjectContextPlugin] Failed to fetch context from DB: {e}")
+
+

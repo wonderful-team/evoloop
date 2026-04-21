@@ -62,6 +62,12 @@ class LanceVectorStore:
         except Exception:
             self.doc_table = self._create_doc_chunks_table()
 
+        # Knowledge base chunks table (T-3.1)
+        try:
+            self.kb_table = self.client.open_table("kb_chunks")
+        except Exception:
+            self.kb_table = self._create_kb_chunks_table()
+
         # Symbol index table
         try:
             self.symbol_table = self.client.open_table("symbol_index")
@@ -82,7 +88,7 @@ class LanceVectorStore:
             pa.field("end_line", pa.int32()),
             pa.field("language", pa.string()),
             pa.field("checksum", pa.string()),     # content hash for dedup
-            pa.field("created_at", pa.timestamp("ms")),
+            pa.field("created_at", pa.timestamp("us")),
         ])
         return self.client.create_table("code_chunks", schema=schema)
 
@@ -99,6 +105,22 @@ class LanceVectorStore:
             pa.field("created_at", pa.timestamp("ms")),
         ])
         return self.client.create_table("doc_chunks", schema=schema)
+
+    def _create_kb_chunks_table(self):
+        """Create knowledge base chunks table with collection support (T-3.1)."""
+        schema = pa.schema([
+            pa.field("id", pa.string()),
+            pa.field("vector", pa.list_(pa.float32(), settings.EMBEDDING_DIMENSIONS)),
+            pa.field("content", pa.string()),
+            pa.field("source_type", pa.string()),
+            pa.field("source_id", pa.string()),
+            pa.field("title", pa.string()),
+            pa.field("chunk_index", pa.int32()),
+            pa.field("collection", pa.string()),
+            pa.field("tags", pa.string()),
+            pa.field("created_at", pa.timestamp("ms")),
+        ])
+        return self.client.create_table("kb_chunks", schema=schema)
 
     def _create_symbol_table(self):
         """Create symbol index table for fast symbol lookup."""
@@ -271,12 +293,90 @@ class LanceVectorStore:
         logger.warning(f"[LanceVectorStore] Delete not implemented, filtering repo {repository_id}")
         return 0
 
+    def upsert_kb_chunks(self, records: list[dict[str, Any]]) -> int:
+        """Upsert knowledge base chunk records (T-3.1).
+
+        Deletes existing chunks for affected doc_ids then inserts fresh records
+        to avoid LanceDB merge_insert compatibility issues.
+        """
+        if not records:
+            return 0
+
+        from datetime import datetime
+
+        # Delete existing chunks for these doc_ids first
+        doc_ids = {r["source_id"] for r in records}
+        for doc_id in doc_ids:
+            try:
+                # Use parameterized-style filtering to avoid injection
+                import lancedb
+                self.kb_table.delete(f"source_id = '" + doc_id.replace("'", "''") + "'")
+            except Exception:
+                pass
+
+        # Ensure datetime precision matches schema (ms, no microseconds)
+        now = datetime.utcnow().replace(microsecond=0)
+        table_data = pa.table({
+            "id": [r["id"] for r in records],
+            "vector": [r["vector"] for r in records],
+            "content": [r["content"] for r in records],
+            "source_type": [r.get("source_type", "kb") for r in records],
+            "source_id": [r["source_id"] for r in records],
+            "title": [r.get("title", "") for r in records],
+            "chunk_index": [r.get("chunk_index", 0) for r in records],
+            "collection": [r.get("collection", "default") for r in records],
+            "tags": [r.get("tags", "") for r in records],
+            "created_at": [r.get("created_at", now).replace(microsecond=0) for r in records],
+        })
+
+        self.kb_table.add(table_data)
+        logger.debug(f"[LanceVectorStore] Upserted {len(records)} KB chunks")
+        return len(records)
+
+    def search_kb(
+        self,
+        query_vector: list[float],
+        top_k: int = 10,
+        collection: str | None = None
+    ) -> list[dict[str, Any]]:
+        """Semantic search over knowledge base chunks (T-3.1)."""
+        query = self.kb_table.search(query_vector)
+
+        if collection:
+            # Sanitize collection to prevent filter injection
+            safe_collection = collection.replace("'", "''").replace("\"", "\"\"")
+            query = query.where(f"collection = '{safe_collection}'")
+
+        results = query.limit(top_k).to_list()
+
+        return [
+            {
+                "id": r["id"],
+                "content": r["content"],
+                "doc_id": r["source_id"],
+                "title": r["title"],
+                "collection": r["collection"],
+                "score": 1.0 - r["_distance"],
+            }
+            for r in results
+        ]
+
+    def delete_kb_by_doc(self, doc_id: str) -> int:
+        """Delete all chunks for a given document (T-3.1)."""
+        try:
+            self.kb_table.delete(f"source_id = '{doc_id}'")
+            return 1
+        except Exception as e:
+            logger.warning(f"[LanceVectorStore] KB delete failed: {e}")
+            return 0
+
     def get_stats(self) -> dict[str, Any]:
         """Get storage statistics."""
         return {
             "db_path": str(self.db_path),
             "code_chunks": self.code_table.count_rows(),
             "doc_chunks": self.doc_table.count_rows(),
+            "kb_chunks": self.kb_table.count_rows(),
             "symbols": self.symbol_table.count_rows(),
             "embedding_dim": settings.EMBEDDING_DIMENSIONS,
         }

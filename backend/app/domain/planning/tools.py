@@ -242,7 +242,9 @@ async def analyze_feasibility(proposed_plan: str, config: RunnableConfig) -> str
         tree = await generator.generate()
 
         # LLM Analysis
-        llm = await get_default_llm()
+        from app.core.context.manager import ContextManager
+        model = ContextManager.current().active_model
+        llm = await get_default_llm(model=model)
         user_lang = SystemConfigService.get_language_preference()
 
         prompt_text = _render_analysis_prompt(

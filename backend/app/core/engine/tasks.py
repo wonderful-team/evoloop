@@ -8,7 +8,7 @@ import time
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from sqlalchemy import desc, func, select, text
 
 from app.constants import DEFAULT_PROJECT_ID
@@ -100,7 +100,7 @@ def persist_file_operation_task(
 
 @shared_task(name="engine_upload_cloud_log")
 def upload_cloud_log_task(
-    device_id: int,
+    device_key: int,
     thread_id: str,
     log_type: str,
     content: Any,
@@ -116,7 +116,7 @@ def upload_cloud_log_task(
                 evocloud_manager.initialize()
 
             await evocloud_manager.api.upload_log(
-                device_id, thread_id, log_type, content,
+                device_key, thread_id, log_type, content,
                 name=name, command_id=command_id, project_id=project_id
             )
             logger.debug(f"[Celery] Uploaded cloud log: {log_type}")
@@ -339,7 +339,7 @@ async def persist_message_task(**kwargs):
 
     from uuid import UUID
 
-    from app.core.messaging.category import MessageCategory
+    from app.core.engine.message.category import MessageCategory
     from app.models import Message, MessageReference
 
     try:

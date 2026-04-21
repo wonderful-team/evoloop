@@ -15,11 +15,10 @@ import logging
 
 from pydantic import Field, model_validator
 
-from app.core.config import settings
+from app.core.engine.rewind.checkpoint_repository import CheckpointRepository
 from app.core.engine.rewind.events import RewindEvent, RewindEventType, RewindRequestedEvent
 from app.core.events.base import AsyncEventBus
 from app.core.events.decorators import event_register, event_subscribe
-from app.infrastructure.database.resource_manager import db_resource_manager
 
 logger = logging.getLogger(__name__)
 
@@ -142,90 +141,52 @@ class CheckpointRewind:
         For retry operations, deletes ALL checkpoints to ensure a clean slate.
         For targeted rewind, finds the checkpoint matching the target message.
         """
-        async with db_resource_manager.get_raw_connection() as conn:
-            try:
-                # 1. Fetch checkpoints ordered by step (time), not checkpoint_id
-                #    UUIDv7 is time-sortable, but json_extract(metadata, '$.step') is explicit.
-                if settings.EMBEDDED_MODE:
-                    query = (
-                        f"SELECT checkpoint_id, metadata FROM checkpoints "
-                        f"WHERE thread_id = {db_resource_manager.placeholder} "
-                        f"ORDER BY CAST(json_extract(metadata, '$.step') AS INTEGER) DESC"
-                    )
-                    async with conn.execute(query, (thread_id,)) as cur:
-                        rows = await cur.fetchall()
-                else:
-                    query = (
-                        f"SELECT checkpoint_id, metadata FROM checkpoints "
-                        f"WHERE thread_id = {db_resource_manager.placeholder} "
-                        f"ORDER BY (metadata->>'step')::int DESC"
-                    )
-                    async with conn.cursor() as cur:
-                        await cur.execute(query, (thread_id,))
-                        rows = await cur.fetchall()
-
-                if not rows:
-                    return None
-
-                import json
-                all_ids = [row[0] for row in rows]
-                # Build a list of (checkpoint_id, step, source, run_id)
-                checkpoint_info = []
-                for row in rows:
-                    cp_id = row[0]
-                    meta = row[1]
-                    if isinstance(meta, str):
-                        meta = json.loads(meta)
-                    elif isinstance(meta, bytes):
-                        meta = json.loads(meta.decode('utf-8'))
-                    elif meta is None:
-                        meta = {}
-                    # Defensive: if meta is still not a dict, coerce to empty
-                    if not isinstance(meta, dict):
-                        meta = {}
-                    checkpoint_info.append({
-                        "id": cp_id,
-                        "step": meta.get("step", 0),
-                        "source": meta.get("source", ""),
-                        "run_id": meta.get("run_id", ""),
-                    })
-
-                # Retry mode: aggressively delete everything for a clean restart
-                if reason == "retry" or not target_message_id:
-                    if len(all_ids) <= 1:
-                        return None
-                    # Keep the oldest checkpoint (first in the list = smallest step)
-                    # and delete everything else.
-                    # Order was DESC, so reverse to get oldest first
-                    oldest_id = checkpoint_info[-1]["id"]
-                    ids_to_delete = [c["id"] for c in checkpoint_info[:-1]]
-                    return (ids_to_delete, oldest_id) if ids_to_delete else None
-
-                # Targeted rewind mode
-                target_checkpoint = None
-                # Checkpoints don't store message IDs. We can only match by
-                # checkpoint_id containing the message id (unlikely for UUIDs)
-                # or fall back to the most recent checkpoint.
-                for c in checkpoint_info:
-                    if target_message_id in c["id"] or c["id"] in target_message_id:
-                        target_checkpoint = c["id"]
-                        break
-
-                if not target_checkpoint:
-                    # Fallback: use the most recent checkpoint
-                    target_checkpoint = checkpoint_info[0]["id"]
-
-                try:
-                    target_idx = all_ids.index(target_checkpoint)
-                    ids_to_delete = all_ids[:target_idx + 1] if include_target else all_ids[:target_idx]
-                except ValueError:
-                    ids_to_delete = []
-
-                return (ids_to_delete, target_checkpoint) if ids_to_delete else None
-
-            except Exception as e:
-                logger.warning(f"[CheckpointRewind] Failed to find checkpoints: {e}")
+        try:
+            rows = await CheckpointRepository.find_checkpoints_ordered_by_step(thread_id)
+            if not rows:
                 return None
+
+            all_ids = [row[0] for row in rows]
+            checkpoint_info = []
+            for row in rows:
+                cp_id = row[0]
+                meta = CheckpointRepository.parse_metadata(row[1])
+                checkpoint_info.append({
+                    "id": cp_id,
+                    "step": meta.get("step", 0),
+                    "source": meta.get("source", ""),
+                    "run_id": meta.get("run_id", ""),
+                })
+
+            # Retry mode: aggressively delete everything for a clean restart
+            if reason == "retry" or not target_message_id:
+                if len(all_ids) <= 1:
+                    return None
+                oldest_id = checkpoint_info[-1]["id"]
+                ids_to_delete = [c["id"] for c in checkpoint_info[:-1]]
+                return (ids_to_delete, oldest_id) if ids_to_delete else None
+
+            # Targeted rewind mode
+            target_checkpoint = None
+            for c in checkpoint_info:
+                if target_message_id in c["id"] or c["id"] in target_message_id:
+                    target_checkpoint = c["id"]
+                    break
+
+            if not target_checkpoint:
+                target_checkpoint = checkpoint_info[0]["id"]
+
+            try:
+                target_idx = all_ids.index(target_checkpoint)
+                ids_to_delete = all_ids[:target_idx + 1] if include_target else all_ids[:target_idx]
+            except ValueError:
+                ids_to_delete = []
+
+            return (ids_to_delete, target_checkpoint) if ids_to_delete else None
+
+        except Exception as e:
+            logger.warning(f"[CheckpointRewind] Failed to find checkpoints: {e}")
+            return None
 
     async def _delete_checkpoints(
             self,
@@ -237,63 +198,16 @@ class CheckpointRewind:
         if not checkpoint_ids and not min_checkpoint_id:
             return 0
 
-        from app.core.config import settings
-        async with db_resource_manager.get_raw_connection() as conn:
-            try:
-                writes_table = db_resource_manager.writes_table
-                placeholder = db_resource_manager.placeholder
-
-                deleted_checkpoints = 0
-                deleted_writes = 0
-
-                # 1. Disable constraints
-                if settings.EMBEDDED_MODE:
-                    await conn.execute("PRAGMA foreign_keys = OFF")
-
-                # 2. Perform deletion
-                if checkpoint_ids:
-                    placeholders = ",".join(placeholder for _ in checkpoint_ids)
-                    params = [thread_id] + checkpoint_ids
-
-                    # Delete writes
-                    delete_writes_sql = f"DELETE FROM {writes_table} WHERE thread_id = {placeholder} AND checkpoint_id IN ({placeholders})"
-                    # Delete checkpoints
-                    delete_cp_sql = f"DELETE FROM checkpoints WHERE thread_id = {placeholder} AND checkpoint_id IN ({placeholders})"
-
-                    if not settings.EMBEDDED_MODE:
-                        async with conn.cursor() as cur:
-                            await cur.execute(delete_writes_sql, params)
-                            deleted_writes = cur.rowcount
-                            await cur.execute(delete_cp_sql, params)
-                            deleted_checkpoints = cur.rowcount
-                    else:
-                        async with conn.execute(delete_writes_sql, params) as res:
-                            deleted_writes = res.rowcount
-                        async with conn.execute(delete_cp_sql, params) as res:
-                            deleted_checkpoints = res.rowcount
-
-                # 3. Cleanup Blobs (best effort)
-                try:
-                    blob_query = "DELETE FROM checkpoint_blobs"
-                    if settings.EMBEDDED_MODE:
-                        await conn.execute(blob_query)
-                    else:
-                        async with conn.cursor() as cur:
-                            await cur.execute(blob_query)
-                except Exception:
-                    pass
-
-                # 4. Finalize
-                if settings.EMBEDDED_MODE:
-                    await conn.execute("PRAGMA foreign_keys = ON")
-                    await conn.commit()
-
-                logger.info(f"[CheckpointRewind] Deleted {deleted_checkpoints} checkpoints and {deleted_writes} writes")
-                return deleted_checkpoints
-
-            except Exception as e:
-                logger.error(f"[CheckpointRewind] Failed to delete checkpoints: {e}")
-                return 0
+        try:
+            deleted_checkpoints, deleted_writes = await CheckpointRepository.delete_checkpoints_and_writes(
+                thread_id, checkpoint_ids
+            )
+            self._deleted_writes = deleted_writes
+            logger.info(f"[CheckpointRewind] Deleted {deleted_checkpoints} checkpoints and {deleted_writes} writes")
+            return deleted_checkpoints
+        except Exception as e:
+            logger.error(f"[CheckpointRewind] Failed to delete checkpoints: {e}")
+            return 0
 
     async def cleanup(
             self,

@@ -31,10 +31,9 @@ class ConversationSyncManager:
     - 自动重试机制（指数退避）
     """
 
-    def __init__(self, api_client, device_key: str, device_id: int = 0):
+    def __init__(self, api_client, device_key: str):
         self.api = api_client
         self.device_key = device_key
-        self.device_id = device_id
         self._running = False
         self._sync_task: asyncio.Task | None = None
         self._last_sync_time: datetime | None = None
@@ -57,9 +56,6 @@ class ConversationSyncManager:
         self._running = True
         logger.info(f"[ConversationSync] Started for device {self.device_key}")
 
-        # 确保 device_id 有效
-        await self._ensure_device_id()
-
         # 启动后台同步任务
         self._sync_task = asyncio.create_task(self._sync_loop())
 
@@ -67,41 +63,8 @@ class ConversationSyncManager:
         asyncio.create_task(self._buffer_flush_loop())
 
         # 提交全量同步任务（不阻塞启动）
-        if self.device_id > 0:
+        if self.device_key:
             await self._schedule_full_sync()
-
-    async def _ensure_device_id(self):
-        """确保 device_id 有效，如果为0则尝试从MC或manager获取"""
-        # First try to get from manager (if already fetched by manager)
-        if self.device_id <= 0:
-            try:
-                from app.core.evocloud import evocloud_manager
-                manager_device_id = evocloud_manager.device_id
-                if manager_device_id:
-                    self.device_id = manager_device_id
-                    logger.info(f"[ConversationSync] Got device_id from manager: {self.device_id}")
-            except Exception:
-                pass
-
-        # If still not available, fetch from MC directly
-        if self.device_id > 0:
-            return
-
-        try:
-            # 从MC获取设备列表，找到匹配的device_key
-            result = await self.api.get_devices()
-            if result.get("code") == 0:
-                devices = result.get("data", {}).get("list", [])
-                for device in devices:
-                    if device.get("device_key") == self.device_key:
-                        self.device_id = device.get("device_id", 0)
-                        logger.info(f"[ConversationSync] Got device_id from MC: {self.device_id}")
-                        break
-
-            if self.device_id == 0:
-                logger.warning(f"[ConversationSync] Could not find device_id for key {self.device_key}, sync will be skipped")
-        except Exception as e:
-            logger.error(f"[ConversationSync] Failed to get device_id: {e}")
 
     async def stop(self):
         """停止同步管理器"""
@@ -173,7 +136,7 @@ class ConversationSyncManager:
     async def _flush_buffer(self):
         """刷新缓冲，提交到 Huey"""
         async with self._buffer_lock:
-            if not self._msg_buffer or self.device_id <= 0:
+            if not self._msg_buffer or not self.device_key:
                 return
 
             batch = self._msg_buffer
@@ -199,7 +162,7 @@ class ConversationSyncManager:
 
                 # 提交到 Huey（立即返回，不阻塞）
                 result = sync_messages_task.delay(
-                    self.device_id,
+                    self.device_key,
                     thread_id,
                     msg_data
                 )
@@ -215,8 +178,8 @@ class ConversationSyncManager:
 
     async def _schedule_full_sync(self):
         """调度全量同步任务（通过 Huey）"""
-        if self.device_id <= 0:
-            logger.debug("[ConversationSync] Skip full sync: no device_id")
+        if not self.device_key:
+            logger.debug("[ConversationSync] Skip full sync: no device_key")
             return
 
         try:
@@ -240,7 +203,7 @@ class ConversationSyncManager:
                 msg_data = [self._format_message(m).model_dump() for m in messages]
 
                 # 提交到 Huey
-                result = full_sync_task.delay(self.device_id, {
+                result = full_sync_task.delay(self.device_key, {
                     "conversations": conv_data,
                     "messages": msg_data,
                 })
@@ -256,8 +219,8 @@ class ConversationSyncManager:
 
     async def _schedule_incremental_sync(self):
         """调度增量同步任务（通过 Huey）"""
-        if self.device_id <= 0:
-            logger.debug("[ConversationSync] Skip incremental sync: no device_id")
+        if not self.device_key:
+            logger.debug("[ConversationSync] Skip incremental sync: no device_key")
             return
 
         try:
@@ -277,7 +240,7 @@ class ConversationSyncManager:
                 batch_size = 100
                 for i in range(0, len(conversation_ids), batch_size):
                     batch = conversation_ids[i:i + batch_size]
-                    result = incremental_sync_task.delay(self.device_id, batch)
+                    result = incremental_sync_task.delay(self.device_key, batch)
                     logger.debug(
                         f"[ConversationSync] Incremental sync batch scheduled: "
                         f"{len(batch)} conversations, task_id={result.id}"
@@ -313,8 +276,8 @@ class ConversationSyncManager:
         同步单个会话（公共API）
         直接提交到 Huey，不缓冲
         """
-        if self.device_id <= 0:
-            logger.debug("[ConversationSync] Skip sync_conversation: no device_id")
+        if not self.device_key:
+            logger.debug("[ConversationSync] Skip sync_conversation: no device_key")
             return
 
         # 防止重复提交
@@ -327,7 +290,7 @@ class ConversationSyncManager:
             from app.core.evocloud.bridge.sync_tasks import sync_conversation_task
 
             conv_data = self._format_conversation(conversation).model_dump()
-            result = sync_conversation_task.delay(self.device_id, conv_data)
+            result = sync_conversation_task.delay(self.device_key, conv_data)
 
             logger.debug(
                 f"[ConversationSync] Conversation sync queued: {conv_id} "
@@ -345,7 +308,7 @@ class ConversationSyncManager:
         批量同步消息（公共API）
         添加到缓冲，定期批量提交
         """
-        if not messages or self.device_id <= 0:
+        if not messages or not self.device_key:
             return
 
         for msg in messages:
@@ -420,19 +383,19 @@ class ConversationSyncManager:
 _conversation_sync_manager: ConversationSyncManager | None = None
 
 
-def get_conversation_sync_manager(api_client, device_key: str, device_id: int = 0) -> ConversationSyncManager:
+def get_conversation_sync_manager(api_client, device_key: str) -> ConversationSyncManager:
     """获取或创建同步管理器"""
     global _conversation_sync_manager
 
     if _conversation_sync_manager is None:
-        _conversation_sync_manager = ConversationSyncManager(api_client, device_key, device_id)
+        _conversation_sync_manager = ConversationSyncManager(api_client, device_key)
 
     return _conversation_sync_manager
 
 
-async def start_conversation_sync(api_client, device_key: str, device_id: int = 0):
+async def start_conversation_sync(api_client, device_key: str):
     """启动对话历史同步"""
-    manager = get_conversation_sync_manager(api_client, device_key, device_id)
+    manager = get_conversation_sync_manager(api_client, device_key)
     await manager.start()
     return manager
 

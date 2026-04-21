@@ -229,7 +229,7 @@ class StateRewind:
                 })
 
             try:
-                updated_config = await graph.aupdate_state(base_state.config, updates)
+                updated_config = await graph.aupdate_state(base_state.config, updates, as_node="__start__")
                 if updated_config and "configurable" in updated_config:
                     new_checkpoint_id = updated_config["configurable"].get("checkpoint_id")
                     if new_checkpoint_id:

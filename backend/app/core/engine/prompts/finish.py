@@ -48,23 +48,30 @@ class FinishPromptBuilder:
 
     def build(self) -> str:
         """Builds the STATIC Reviewer system prompt."""
-        ctx, actual_cwd, mode, project_concepts = self._prepare_common_context()
+        try:
+            ctx, actual_cwd, mode, project_concepts = self._prepare_common_context()
 
-        is_global_mode = self.project_id == 0 or self.project_id is None
-        template_vars = {
-            "user_lang": SystemConfigService.get_language_preference(),
-            "project_id": self.project_id,
-            "iteration_count": self.iteration_count,
-            "sandbox_mode": mode,
-            "sys_info": {
-                "cwd": actual_cwd,
-                "project_concepts": project_concepts,
-                "is_global_mode": is_global_mode,
-            },
-            "audit_context": self.action_context
-        }
+            is_global_mode = self.project_id == 0 or self.project_id is None
+            template_vars = {
+                "user_lang": SystemConfigService.get_language_preference(),
+                "project_id": self.project_id,
+                "iteration_count": self.iteration_count,
+                "sandbox_mode": mode,
+                "sys_info": {
+                    "cwd": actual_cwd,
+                    "project_concepts": project_concepts,
+                    "is_global_mode": is_global_mode,
+                },
+                "audit_context": self.action_context
+            }
 
-        return render_template("core/engine/finish.prompt.j2", **template_vars)
+            return render_template("core/engine/finish.prompt.j2", **template_vars)
+        except Exception as e:
+            logger.error(f"[FinishPromptBuilder] Template render failed: {e}")
+            return (
+                "You are the Session Reviewer. Please review the session and provide "
+                "a concise summary of what was accomplished."
+            )
 
     def build_audit_ticket(self) -> str:
         """Builds the DYNAMIC audit ticket to be injected as a HumanMessage."""

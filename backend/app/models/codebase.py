@@ -144,6 +144,6 @@ class CodeChunk(Base):
 
     # Vector Embedding
     # Using configured dimension (default 1536 for OpenAI)
-    embedding: Mapped[list[float] | None] = mapped_column(Vector(EMBEDDING_DIM))
+    embedding: Mapped[Vector] = mapped_column(Vector(EMBEDDING_DIM))
 
     source_file: Mapped["SourceFile"] = relationship(back_populates="chunks")

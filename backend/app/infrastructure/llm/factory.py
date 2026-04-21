@@ -117,6 +117,18 @@ class LLMFactory:
         if not gateway_url:
             raise ValueError("EvoLoop Gateway URL not configured")
 
+        # Fallback: if no model specified, try ContextManager
+        if not model_name:
+            from app.core.context.manager import ContextManager
+            ctx = ContextManager.current()
+            model_name = ctx.active_model if ctx else None
+
+        if not model_name:
+            raise ValueError(
+                "No LLM model specified. Set config['configurable']['model'] "
+                "or ContextManager.active_model before running the agent."
+            )
+
         # Backend always sends OpenAI format to Gateway
         # Gateway handles protocol translation (OpenAI ↔ Anthropic)
         return AdaptiveChatOpenAI(

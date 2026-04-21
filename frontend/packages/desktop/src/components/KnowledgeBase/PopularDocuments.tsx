@@ -1,8 +1,9 @@
-import { useQuery } from "@tanstack/react-query"
-import { TrendingUp, FileText, Eye } from "lucide-react"
-import { KnowledgeService } from "@/services/knowledgeService"
-import { Skeleton } from "@evoloop/shared/components/ui/skeleton"
 import { Badge } from "@evoloop/shared/components/ui/badge"
+import { Skeleton } from "@evoloop/shared/components/ui/skeleton"
+import { useQuery } from "@tanstack/react-query"
+import { Eye, FileText, TrendingUp } from "lucide-react"
+import { useTranslation } from "react-i18next"
+import { KnowledgeBaseAPI } from "@/services/knowledgeService"
 import type { DocumentInfo } from "./types"
 
 interface PopularDocumentsProps {
@@ -10,9 +11,11 @@ interface PopularDocumentsProps {
 }
 
 export function PopularDocuments({ onSelect }: PopularDocumentsProps) {
+  const { t } = useTranslation()
   const { data, isLoading } = useQuery({
     queryKey: ["knowledge-popular"],
-    queryFn: () => KnowledgeService.getPopularDocuments({ days: 30, limit: 20 }),
+    queryFn: () =>
+      KnowledgeBaseAPI.getPopularDocuments({ days: 30, limit: 20 }),
   })
 
   if (isLoading) {
@@ -29,8 +32,8 @@ export function PopularDocuments({ onSelect }: PopularDocumentsProps) {
     return (
       <div className="flex h-64 flex-col items-center justify-center text-muted-foreground">
         <TrendingUp className="mb-4 h-12 w-12 opacity-20" />
-        <p>暂无热门文档</p>
-        <p className="text-sm">使用知识库后，这里会显示最常用的文档</p>
+        <p>{t("knowledge.noPopularDocs")}</p>
+        <p className="text-sm">{t("knowledge.noPopularDocsHint")}</p>
       </div>
     )
   }
@@ -38,19 +41,22 @@ export function PopularDocuments({ onSelect }: PopularDocumentsProps) {
   return (
     <div className="space-y-2">
       <p className="text-sm text-muted-foreground mb-4">
-        基于引用次数排序 (最近 30 天)
+        {t("knowledge.popularRankingInfo")}
       </p>
-      
+
       {data.map((doc, index) => (
         <button
+          type="button"
           key={doc.path}
-          onClick={() => onSelect({
-            path: doc.path,
-            title: doc.path.split("/").pop(),
-            size_bytes: 0,
-            modified_at: doc.last_accessed || new Date().toISOString(),
-            has_metadata: true,
-          })}
+          onClick={() =>
+            onSelect({
+              path: doc.path,
+              title: doc.path.split("/").pop(),
+              size_bytes: 0,
+              modified_at: doc.last_accessed || new Date().toISOString(),
+              has_metadata: true,
+            })
+          }
           className="w-full flex items-center justify-between rounded-lg border p-3 text-left transition-colors hover:bg-muted/50"
         >
           <div className="flex items-center gap-3">
@@ -63,7 +69,7 @@ export function PopularDocuments({ onSelect }: PopularDocumentsProps) {
               <p className="text-xs text-muted-foreground">{doc.path}</p>
             </div>
           </div>
-          
+
           <div className="flex items-center gap-2">
             <Badge variant="secondary" className="flex items-center gap-1">
               <Eye className="h-3 w-3" />

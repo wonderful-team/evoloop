@@ -11,7 +11,7 @@ ALGORITHM = "HS256"
 class JwtPayload(DynamicBaseModel):
     sub: str | None = None
     user_id: str | None = None
-    device_id: str | None = None
+    device_key: str | None = None
     exp: datetime | None = None
 
 

@@ -65,11 +65,10 @@ class AdaptiveChatOpenAI(ChatOpenAI):
                 # Detect Context Window or common Resource errors
                 # These are the errors where 'shrinking' the output might help.
                 is_context_error = any(kw in error_str for kw in [
-                    "context_length_exceeded", 
-                    "maximum context length", 
-                    "prompt is too long", 
+                    "context_length_exceeded",
+                    "maximum context length",
+                    "prompt is too long",
                     "string too long",
-                    "rate limit",
                     "too many tokens"
                 ])
 

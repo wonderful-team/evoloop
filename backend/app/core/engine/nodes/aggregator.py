@@ -4,10 +4,13 @@ Subtask Aggregation Node - Phase 1
 Collects and aggregates results from parallel subtask executions.
 """
 import logging
+from typing import Any
 
 from langchain_core.messages import AIMessage
 from langchain_core.runnables import RunnableConfig
 
+from app.core.engine.nodes.utils import log_msg_trace
+from app.core.engine.nodes.base import BaseNode
 from app.core.engine.routers import RoutingTarget
 from app.core.engine.state import AgentState, StateUpdate
 from app.core.engine.tools.orchestration import aggregate_results
@@ -15,8 +18,11 @@ from app.core.engine.tools.orchestration import aggregate_results
 logger = logging.getLogger(__name__)
 
 
-class AggregatorNode:
+class AggregatorNode(BaseNode):
     """Subtask Aggregator — Joins parallel results."""
+
+    def __init__(self):
+        super().__init__(node_name="Aggregator")
 
     async def __call__(self, state: AgentState, config: RunnableConfig) -> StateUpdate:
         blackboard = state.blackboard
@@ -60,11 +66,10 @@ class AggregatorNode:
             worker_outcome = "failed"
             is_error = True
 
-        # Clear all orchestration state
+        # Centralized lifecycle cleanup for aggregation state
+        from app.core.engine.state.lifecycle import StateLifecycleManager
+        StateLifecycleManager.clear_aggregation_state(state)
         if blackboard:
-            blackboard.subtask_results = []
-            blackboard.pending_aggregation = None
-            blackboard.spawn_plan = None
             blackboard.worker_outcome = worker_outcome
             if not blackboard.metadata:
                 from app.core.engine.state.blackboard import BlackboardMetadata
@@ -78,9 +83,10 @@ class AggregatorNode:
             metadata={"is_error": is_error, "error_type": "aggregation_failed"} if is_error else None,
         )
 
-        return StateUpdate(
+        result = StateUpdate(
             messages=[msg],
             next_node=RoutingTarget.SUPERVISOR,
             blackboard=blackboard,
-            is_subtask=False,
         )
+        log_msg_trace(self.node_name, "RETURN", result.messages, next_node=result.next_node)
+        return result

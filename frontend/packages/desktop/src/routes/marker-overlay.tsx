@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState, useCallback, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { Pin, Check, X, MousePointer2, Crosshair } from "lucide-react";
 import { emit, listen, UnlistenFn } from "@tauri-apps/api/event";
 import { getCurrentWindow, LogicalSize, LogicalPosition } from "@tauri-apps/api/window";
@@ -20,6 +21,7 @@ interface ExtractRegion {
 }
 
 function MarkerOverlay() {
+    const { t } = useTranslation();
     const [isExtractMode, setIsExtractMode] = useState(false);
     const [isSelecting, setIsSelecting] = useState(false);
     const [extractRegions, setExtractRegions] = useState<ExtractRegion[]>([]);
@@ -350,9 +352,9 @@ function MarkerOverlay() {
                         className="absolute left-1/2 -translate-x-1/2 flex items-center gap-3 bg-slate-900/90 backdrop-blur-xl border border-blue-500/30 px-6 py-3 rounded-2xl shadow-2xl z-50 text-white"
                     >
                         <Crosshair className="w-5 h-5 text-blue-400" />
-                        <span className="text-sm font-semibold tracking-wide">拖拽选择区域</span>
+                        <span className="text-sm font-semibold tracking-wide">{t("overlay.dragToSelect", "Drag to select region")}</span>
                         <div className="h-4 w-[1px] bg-white/20 mx-1" />
-                        <span className="text-xs text-white/60 font-mono bg-white/10 px-2 py-0.5 rounded">ESC 取消</span>
+                        <span className="text-xs text-white/60 font-mono bg-white/10 px-2 py-0.5 rounded">{t("overlay.escToCancel", "ESC Cancel")}</span>
                     </motion.div>
 
                     {/* Selection preview - Much more visible */}
@@ -404,8 +406,8 @@ function MarkerOverlay() {
                                     <Check className="h-5 w-5 text-green-400" />
                                 </div>
                                 <div>
-                                    <div className="text-xs text-white/50 uppercase tracking-widest font-bold">已标记</div>
-                                    <div className="text-xl font-bold">{extractRegions.length} 个区域</div>
+                                    <div className="text-xs text-white/50 uppercase tracking-widest font-bold">{t("overlay.marked", "Marked")}</div>
+                                    <div className="text-xl font-bold">{t("overlay.regionsCount", { count: extractRegions.length, defaultValue: `${extractRegions.length} regions` })}</div>
                                 </div>
                             </div>
                         </motion.div>
@@ -413,7 +415,7 @@ function MarkerOverlay() {
 
                     {/* Help text at bottom */}
                     <div className="absolute bottom-8 left-1/2 -translate-x-1/2 text-white/60 text-sm font-medium bg-black/40 backdrop-blur-sm px-4 py-2 rounded-full">
-                        按住鼠标拖拽选择区域，松开完成标记
+                        {t("overlay.hint", "Drag the mouse to select the area, release it to complete the marking")}
                     </div>
                 </motion.div>
             ) : (

@@ -96,3 +96,7 @@ class AgentGraphConfig(DynamicBaseModel):
                 raise ValueError(f"Default edge target '{edge.default}' is an unknown node")
 
         return self
+
+
+# Backward-compatible alias used by legacy tests
+AgentConfig = AgentGraphConfig

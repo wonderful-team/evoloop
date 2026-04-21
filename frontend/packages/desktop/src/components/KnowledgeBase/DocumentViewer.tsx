@@ -1,12 +1,19 @@
-import { useState } from "react"
-import { useQuery } from "@tanstack/react-query"
-import { X, ChevronLeft, ChevronRight, FileText, TrendingUp, Link2 } from "lucide-react"
-import { useTranslation } from "react-i18next"
+import { Badge } from "@evoloop/shared/components/ui/badge"
 import { Button } from "@evoloop/shared/components/ui/button"
 import { ScrollArea } from "@evoloop/shared/components/ui/scroll-area"
 import { Skeleton } from "@evoloop/shared/components/ui/skeleton"
-import { Badge } from "@evoloop/shared/components/ui/badge"
-import { KnowledgeService } from "@/services/knowledgeService"
+import { useQuery } from "@tanstack/react-query"
+import {
+  ChevronLeft,
+  ChevronRight,
+  FileText,
+  Link2,
+  TrendingUp,
+  X,
+} from "lucide-react"
+import { useState } from "react"
+import { useTranslation } from "react-i18next"
+import { KnowledgeBaseAPI } from "@/services/knowledgeService"
 import type { DocumentInfo } from "./types"
 
 interface DocumentViewerProps {
@@ -17,27 +24,31 @@ interface DocumentViewerProps {
 
 const LINES_PER_PAGE = 100
 
-export function DocumentViewer({ document, onClose, onSelect }: DocumentViewerProps) {
+export function DocumentViewer({
+  document,
+  onClose,
+  onSelect,
+}: DocumentViewerProps) {
   const { t } = useTranslation()
   const [offset, setOffset] = useState(0)
 
   const { data, isLoading } = useQuery({
     queryKey: ["knowledge-document", document.path, offset],
     queryFn: () =>
-      KnowledgeService.getDocument(document.path, offset, LINES_PER_PAGE),
+      KnowledgeBaseAPI.getDocument(document.path, offset, LINES_PER_PAGE),
   })
 
   // Fetch document stats
   const { data: stats } = useQuery({
     queryKey: ["knowledge-document-stats", document.path],
-    queryFn: () => KnowledgeService.getDocumentStats(document.path),
+    queryFn: () => KnowledgeBaseAPI.getDocumentStats(document.path),
     enabled: !!document.path,
   })
 
   // Fetch recommendations
   const { data: recommendations } = useQuery({
     queryKey: ["knowledge-recommendations", document.path],
-    queryFn: () => KnowledgeService.getRecommendations(document.path),
+    queryFn: () => KnowledgeBaseAPI.getRecommendations(document.path),
     enabled: !!document.path,
   })
 
@@ -84,13 +95,23 @@ export function DocumentViewer({ document, onClose, onSelect }: DocumentViewerPr
           <div className="flex items-center gap-3 text-xs text-muted-foreground">
             <span className="flex items-center gap-1">
               <TrendingUp className="h-3 w-3" />
-              {t("knowledge.status.citations", { count: stats.total_citations })}
+              {t("knowledge.status.citations", {
+                count: stats.total_citations,
+              })}
             </span>
             {stats.unique_sessions > 0 && (
-              <span>{t("knowledge.status.sessions", { count: stats.unique_sessions })}</span>
+              <span>
+                {t("knowledge.status.sessions", {
+                  count: stats.unique_sessions,
+                })}
+              </span>
             )}
             {stats.last_accessed && (
-              <span>{t("knowledge.status.lastAccessed", { date: new Date(stats.last_accessed).toLocaleDateString() })}</span>
+              <span>
+                {t("knowledge.status.lastAccessed", {
+                  date: new Date(stats.last_accessed).toLocaleDateString(),
+                })}
+              </span>
             )}
           </div>
         </div>
@@ -122,6 +143,7 @@ export function DocumentViewer({ document, onClose, onSelect }: DocumentViewerPr
             <div className="space-y-1">
               {recommendations.recommendations.map((rec) => (
                 <button
+                  type="button"
                   key={rec.path}
                   className="w-full text-left text-sm p-2 rounded hover:bg-muted flex items-center justify-between"
                   onClick={() => {

@@ -9,7 +9,7 @@ import logging
 import os
 import tempfile
 import zipfile
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import BinaryIO, Optional
 
@@ -121,23 +121,64 @@ class BulkImportService:
         Returns:
             BulkImportResult with statistics
         """
-        start_time = datetime.utcnow()
+        start_time = datetime.now(timezone.utc)
         result = BulkImportResult()
         
         try:
-            # Read ZIP contents
-            zip_bytes = file.read()
-            zip_stream = io.BytesIO(zip_bytes)
+            # Stream ZIP contents to avoid memory overflow for large archives
+            MAX_MEMORY_SIZE = 100 * 1024 * 1024  # 100MB threshold
+            
+            if hasattr(file, 'seek'):
+                file.seek(0, 2)
+                size = file.tell()
+                file.seek(0)
+            else:
+                size = None
+            
+            if size and size > MAX_MEMORY_SIZE:
+                # Large ZIP: write to temp file first
+                import shutil
+                tmp = tempfile.NamedTemporaryFile(delete=False, suffix='.zip')
+                shutil.copyfileobj(file, tmp)
+                tmp.close()
+                zip_stream = tmp.name
+                use_temp = True
+            else:
+                # Small ZIP: keep in memory
+                zip_bytes = file.read()
+                zip_stream = io.BytesIO(zip_bytes)
+                use_temp = False
             
             with zipfile.ZipFile(zip_stream, 'r') as zf:
+                # ZIP bomb protection
+                MAX_TOTAL_SIZE = 500 * 1024 * 1024  # 500MB total extracted
+                MAX_FILE_COUNT = 1000
+                MAX_FILE_SIZE = 50 * 1024 * 1024    # 50MB per file
+                MAX_COMPRESSION_RATIO = 100
+
                 # Filter valid files
                 files_to_process = []
+                total_compressed = 0
+                total_uncompressed = 0
                 for info in zf.infolist():
                     if self._should_process_file(info.filename):
                         files_to_process.append(info)
-                
+                        total_compressed += info.compress_size
+                        total_uncompressed += info.file_size
+
+                # Validate limits
+                if len(files_to_process) > MAX_FILE_COUNT:
+                    result.error = f"Too many files: {len(files_to_process)} (max {MAX_FILE_COUNT})"
+                    return result
+                if total_uncompressed > MAX_TOTAL_SIZE:
+                    result.error = f"Extracted size too large: {total_uncompressed / 1024 / 1024:.1f}MB (max {MAX_TOTAL_SIZE / 1024 / 1024}MB)"
+                    return result
+                if total_compressed > 0 and total_uncompressed / total_compressed > MAX_COMPRESSION_RATIO:
+                    result.error = f"Suspicious compression ratio: {total_uncompressed / total_compressed:.0f}x (max {MAX_COMPRESSION_RATIO}x)"
+                    return result
+
                 result.total_files = len(files_to_process)
-                
+
                 # Process each file
                 for info in files_to_process:
                     try:
@@ -203,8 +244,15 @@ class BulkImportService:
             result.errors.append(BulkImportError(file="archive", error="Invalid ZIP file"))
         except Exception as e:
             result.errors.append(BulkImportError(file="archive", error=str(e)))
+        finally:
+            # Clean up temp ZIP file if created
+            if 'use_temp' in locals() and use_temp and 'zip_stream' in locals() and isinstance(zip_stream, str):
+                try:
+                    os.unlink(zip_stream)
+                except Exception:
+                    pass
         
-        result.duration_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
+        result.duration_ms = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
         return result
     
     async def import_files(
@@ -259,7 +307,7 @@ class BulkImportService:
                 result.failed += 1
                 result.errors.append(BulkImportError(file=filename, error=str(e)))
         
-        result.duration_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
+        result.duration_ms = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
         return result
     
     async def import_directory(
@@ -324,7 +372,7 @@ class BulkImportService:
                 result.failed += 1
                 result.errors.append(BulkImportError(file=str(file_path), error=str(e)))
         
-        result.duration_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
+        result.duration_ms = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
         return result
     
     def _should_process_file(self, filename: str) -> bool:

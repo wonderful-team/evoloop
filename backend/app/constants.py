@@ -177,6 +177,7 @@ PROJECT_NORM_FILES = [
     ".cursorrules",
     "CONTRIBUTING.md",
     "styleguide.md",
+    "PROJECT.md",
 ]
 
 # Mapping file extension to document type

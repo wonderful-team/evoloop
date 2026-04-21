@@ -128,53 +128,8 @@ class EvoCloudManager:
         if self.link:
             await self.link.start()
 
-        # Wait for device_id from WebSocket handshake (with timeout)
-        if self.link:
-            logger.info("[EvoCloud] Waiting for device_id from WebSocket...")
-            device_id = await self.link.wait_for_device_id(timeout=10.0)
-            if device_id:
-                logger.info(f"[EvoCloud] Received device_id from WebSocket: {device_id}")
-            else:
-                logger.warning("[EvoCloud] Timeout waiting for device_id from WebSocket, will try HTTP fallback")
-
-        # Ensure device_id is available (fetch from MC if not provided by Gateway)
-        await self._ensure_device_id()
-
         # Start conversation sync to MC
         await self._start_conversation_sync()
-
-    async def _ensure_device_id(self):
-        """Ensure device_id is available from MC."""
-        if self.link and self.link.device_id:
-            return
-
-        try:
-            # Fetch from MC using device_key
-            device_key = self.link.device_key if self.link else None
-            if not device_key:
-                logger.warning("[EvoCloud] Cannot get device_id: no device_key available")
-                return
-
-            result = await self.api.get_devices()
-            if result.get("code") == 0:
-                devices = result.get("data", {}).get("list", [])
-                found = False
-                for device in devices:
-                    if device.get("device_key") == device_key:
-                        device_id = device.get("device_id")
-                        if device_id and self.link:
-                            # Set device_id in link
-                            self.link._device_id = int(device_id)
-                            self.link._device_id_event.set()  # 通知等待者
-                            logger.info(f"[EvoCloud] Got device_id from MC: {device_id}")
-                            found = True
-                        break
-                if not found:
-                    logger.warning(f"[EvoCloud] Device with key {device_key} not found in MC")
-            else:
-                logger.warning(f"[EvoCloud] Failed to get devices from MC: {result.get('message')}")
-        except Exception as e:
-            logger.warning(f"[EvoCloud] Error getting device_id from MC: {e}")
 
     async def stop(self) -> None:
         """Stop background services across all tracked loops."""
@@ -191,20 +146,16 @@ class EvoCloudManager:
         global _conversation_sync_manager
 
         try:
-            from app.core.evocloud.bridge.conversation_sync import (
-                ConversationSyncManager,
-            )
+            from app.core.evocloud.bridge.conversation_sync import ConversationSyncManager
 
             if _conversation_sync_manager is None:
                 # Get device_key from link (it's generated in WebSocketLink)
                 device_key = self.link.device_key if self.link else ""
-                device_id = self.device_id or 0
                 _conversation_sync_manager = ConversationSyncManager(
                     api_client=self.api,
                     device_key=device_key,
-                    device_id=device_id
                 )
-                logger.info(f"[EvoCloud] ConversationSyncManager created with device_id={device_id}")
+                logger.info(f"[EvoCloud] ConversationSyncManager created with device_key={device_key}")
 
             await _conversation_sync_manager.start()
             logger.info("[EvoCloud] Conversation sync started")
@@ -249,7 +200,7 @@ class EvoCloudManager:
         self._projects_cache_time = 0.0
         logger.debug("[EvoCloud] Projects cache invalidated")
 
-    async def _fallback_upload_log(self, device_id: int, thread_id: str, log_type: str,
+    async def _fallback_upload_log(self, device_key: str, thread_id: str, log_type: str,
                                    content: Any, name: str | None, command_id: int | None,
                                    project_id: int | None):
         """
@@ -257,7 +208,7 @@ class EvoCloudManager:
         Runs as fire-and-forget task to not block main flow.
         """
         try:
-            await self.api.upload_log(device_id, thread_id, log_type, content,
+            await self.api.upload_log(device_key, thread_id, log_type, content,
                                       name=name, command_id=command_id, project_id=project_id)
             logger.info(f"[EvoCloud] Fallback upload succeeded for {log_type}")
         except Exception as fallback_ex:
@@ -325,16 +276,20 @@ class EvoCloudManager:
             self.initialize()
         return self._link_pool.get()
 
-    @property
-    def device_id(self) -> int | None:
-        """Get device_id from WebSocket link (assigned by MC via Gateway)."""
-        if self.link:
-            return self.link.device_id
-        return None
-
     # Chat Sync (Agent.py support)
-    async def upload_log(self, thread_id: str, log_type: str, content: Any, name: str | None = None, device_id: int | None = None, command_id=None, project_id=None, persistent: bool = True):
-        if not self.api: return
+    async def upload_log(
+        self,
+        thread_id: str,
+        log_type: str,
+        content: Any,
+        name: str | None = None,
+        device_key: str | None = None,
+        command_id=None,
+        project_id=None,
+        persistent: bool = True
+    ):
+        if not self.api:
+            return
 
         # Auto-fill from context if missing
         if not project_id or not command_id:
@@ -342,10 +297,10 @@ class EvoCloudManager:
             project_id = project_id or ctx.project_id
             command_id = command_id or ctx.command_id
 
-        # Auto-fill device_id if not provided
-        target_device_id = device_id or self.device_id
-        if not target_device_id:
-            logger.debug("Skipping upload_log: No device_id available")
+        # Auto-fill device_key if not provided
+        target_device_key = device_key or (self.link.device_key if self.link.device_key else None)
+        if not target_device_key:
+            logger.debug("Skipping upload_log: No device_key available")
             return
 
         # Try WebSocket Streaming First (Real-time)
@@ -372,18 +327,15 @@ class EvoCloudManager:
         if persistent:
             try:
                 from app.infrastructure.queue.factory import get_scheduler
-                get_scheduler().send_task(
-                    "engine_upload_cloud_log",
-                    kwargs={
-                        "device_id": target_device_id,
-                        "thread_id": thread_id,
-                        "log_type": log_type,
-                        "content": content,
-                        "name": name,
-                        "command_id": command_id,
-                        "project_id": project_id
-                    }
-                )
+                get_scheduler().send_task("engine_upload_cloud_log", kwargs={
+                    "device_key": target_device_key,
+                    "thread_id": thread_id,
+                    "log_type": log_type,
+                    "content": content,
+                    "name": name,
+                    "command_id": command_id,
+                    "project_id": project_id
+                })
                 logger.debug(f"Dispatched cloud log persistence for {log_type} to Celery")
             except Exception as ex:
                 logger.warning(f"Failed to dispatch cloud log to Celery: {ex}. Falling back to async background upload.")
@@ -391,7 +343,7 @@ class EvoCloudManager:
                 # This ensures API responsiveness even if EvoCloud API is slow/down
                 asyncio.create_task(
                     self._fallback_upload_log(
-                        target_device_id, thread_id, log_type, content,
+                        target_device_key, thread_id, log_type, content,
                         name, command_id, project_id
                     )
                 )
@@ -440,10 +392,6 @@ class EvoCloudManager:
             if p.get("id") == project_id:
                 return p
         return None
-
-    @property
-    def device_id(self) -> int | None:
-        return self.link.device_id if self.link else None
 
 
 # Global Instance

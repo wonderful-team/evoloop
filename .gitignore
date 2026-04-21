@@ -13,3 +13,7 @@ node_modules/
 /frontend/.tanstack/
 /frontend/src-tauri/binaries/
 /frontend/src-tauri/.evoloop/
+/.playwright-mcp/
+/.github/
+/.claude/
+/.solidlsp/

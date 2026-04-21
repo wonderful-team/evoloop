@@ -1,9 +1,11 @@
 import logging
+import os
 from typing import Any
 
 from app.core.context import ContextManager, plugin_registry
 from app.core.engine.state.blackboard import BlackboardState
 from app.core.engine.state.config import AgentRuntimeConfig, ExecutionTicket
+from app.utils import file as file_utils
 from app.utils import render_template
 from .utils import to_template_context, get_sandbox_mode, get_mapped_cwd
 
@@ -42,10 +44,24 @@ class WorkerPromptBuilder:
 
         mode = get_sandbox_mode()
 
+        # Read PROJECT.md if exists (static for the session)
+        project_profile = ""
+        if ctx.working_directory:
+            profile_path = os.path.join(ctx.working_directory, "PROJECT.md")
+            if os.path.isfile(profile_path):
+                try:
+                    content = file_utils.read_file(profile_path)
+                    if len(content) > 4000:
+                        content = content[:4000] + "\n\n... [PROJECT.md truncated for brevity]"
+                    project_profile = content
+                except Exception:
+                    pass
+
         # Static Sys Info (Project identity only)
         sys_info = {
             "is_global_mode": ctx.project_id == 0 or ctx.project_id is None,
             "project_concepts": ctx.metadata.get("project_concepts", ""),
+            "project_profile": project_profile,
             "cwd": get_mapped_cwd(ctx.working_directory or ctx.metadata.get("cwd", "")),
         }
 

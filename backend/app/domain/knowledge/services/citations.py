@@ -11,7 +11,7 @@ Tracks which documents are referenced by the Agent and provides:
 import json
 import logging
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
 
@@ -82,70 +82,66 @@ class CitationTracker:
         popular = await tracker.get_most_cited(limit=10)
     """
     
-    def __init__(self, db_path: Optional[Path] = None):
-        if db_path:
-            self.db_path = Path(db_path)
+    def __init__(self, db_path: Optional[Path] = None, pool=None):
+        if pool is not None:
+            self.pool = pool
+            self.db_path = pool.db_path
         else:
-            self.db_path = Path.home() / ".evoloop" / "knowledge" / "citations.db"
-        
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        self._connection: Optional[sqlite3.Connection] = None
-    
-    def _get_connection(self) -> sqlite3.Connection:
-        """Get or create database connection."""
-        if self._connection is None:
-            self._connection = sqlite3.connect(self.db_path, check_same_thread=False)
-            self._connection.row_factory = sqlite3.Row
-        return self._connection
+            if db_path:
+                self.db_path = Path(db_path)
+            else:
+                self.db_path = Path.home() / ".evoloop" / "knowledge" / "citations.db"
+            self.db_path.parent.mkdir(parents=True, exist_ok=True)
+            from app.domain.knowledge.services.connection_pool import KnowledgeConnectionPool
+            self.pool = KnowledgeConnectionPool(self.db_path)
     
     async def initialize(self) -> None:
         """Initialize citation tables."""
-        conn = self._get_connection()
-        
-        # Citation events
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS citations (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                doc_id TEXT NOT NULL,
-                doc_path TEXT NOT NULL,
-                tool_used TEXT NOT NULL,
-                session_id TEXT,
-                agent_message TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-        
-        # Document statistics (materialized view for performance)
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS doc_stats (
-                doc_id TEXT PRIMARY KEY,
-                doc_path TEXT NOT NULL,
-                total_citations INTEGER DEFAULT 0,
-                unique_sessions INTEGER DEFAULT 0,
-                last_accessed TIMESTAMP,
-                tools_used TEXT,  -- JSON dict
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-        
-        # Session-document pairs for finding related docs
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS session_docs (
-                session_id TEXT,
-                doc_id TEXT,
-                accessed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                PRIMARY KEY (session_id, doc_id)
-            )
-        """)
-        
-        # Indexes
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_citations_doc ON citations(doc_id)")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_citations_session ON citations(session_id)")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_citations_time ON citations(created_at)")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_session_docs_session ON session_docs(session_id)")
-        
-        conn.commit()
-        logger.info(f"Citation tracker initialized at {self.db_path}")
+        with self.pool.acquire() as conn:
+            # Citation events
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS citations (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    doc_id TEXT NOT NULL,
+                    doc_path TEXT NOT NULL,
+                    tool_used TEXT NOT NULL,
+                    session_id TEXT,
+                    agent_message TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            
+            # Document statistics (materialized view for performance)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS doc_stats (
+                    doc_id TEXT PRIMARY KEY,
+                    doc_path TEXT NOT NULL,
+                    total_citations INTEGER DEFAULT 0,
+                    unique_sessions INTEGER DEFAULT 0,
+                    last_accessed TIMESTAMP,
+                    tools_used TEXT,  -- JSON dict
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            
+            # Session-document pairs for finding related docs
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS session_docs (
+                    session_id TEXT,
+                    doc_id TEXT,
+                    accessed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY (session_id, doc_id)
+                )
+            """)
+            
+            # Indexes
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_citations_doc ON citations(doc_id)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_citations_session ON citations(session_id)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_citations_time ON citations(created_at)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_session_docs_session ON session_docs(session_id)")
+            
+            conn.commit()
+            logger.info(f"Citation tracker initialized at {self.db_path}")
     
     async def record_citation(
         self,
@@ -166,35 +162,34 @@ class CitationTracker:
         Returns:
             True if recorded successfully
         """
-        conn = self._get_connection()
         doc_id = doc_path  # Use path as ID
         
         try:
-            # Record citation event
-            conn.execute(
-                """INSERT INTO citations 
-                   (doc_id, doc_path, tool_used, session_id, agent_message)
-                   VALUES (?, ?, ?, ?, ?)""",
-                (doc_id, doc_path, tool_used, session_id, agent_message[:500] if agent_message else None)
-            )
-            
-            # Update session-docs mapping
-            if session_id:
+            with self.pool.acquire() as conn:
+                # Record citation event
                 conn.execute(
-                    """INSERT OR REPLACE INTO session_docs (session_id, doc_id)
-                       VALUES (?, ?)""",
-                    (session_id, doc_id)
+                    """INSERT INTO citations 
+                       (doc_id, doc_path, tool_used, session_id, agent_message)
+                       VALUES (?, ?, ?, ?, ?)""",
+                    (doc_id, doc_path, tool_used, session_id, agent_message[:500] if agent_message else None)
                 )
-            
-            # Update document stats
-            self._update_doc_stats(conn, doc_id, doc_path, tool_used)
-            
-            conn.commit()
-            return True
+                
+                # Update session-docs mapping
+                if session_id:
+                    conn.execute(
+                        """INSERT OR REPLACE INTO session_docs (session_id, doc_id)
+                           VALUES (?, ?)""",
+                        (session_id, doc_id)
+                    )
+                
+                # Update document stats
+                self._update_doc_stats(conn, doc_id, doc_path, tool_used)
+                
+                conn.commit()
+                return True
         
         except Exception as e:
             logger.error(f"Failed to record citation: {e}")
-            conn.rollback()
             return False
     
     def _update_doc_stats(
@@ -249,59 +244,57 @@ class CitationTracker:
     
     async def get_document_stats(self, doc_path: str) -> Optional[DocumentStats]:
         """Get citation statistics for a specific document."""
-        conn = self._get_connection()
-        
-        row = conn.execute(
-            "SELECT * FROM doc_stats WHERE doc_id = ?",
-            (doc_path,)
-        ).fetchone()
-        
-        if not row:
-            return None
-        
-        # Get related documents (often cited together)
-        related = await self._get_related_docs(doc_path)
-        
-        return DocumentStats(
-            doc_id=row["doc_id"],
-            doc_path=row["doc_path"],
-            total_citations=row["total_citations"],
-            unique_sessions=row["unique_sessions"],
-            last_accessed=row["last_accessed"],
-            tools_used=json.loads(row["tools_used"] or "{}"),
-            related_docs=related
-        )
+        with self.pool.acquire() as conn:
+            row = conn.execute(
+                "SELECT * FROM doc_stats WHERE doc_id = ?",
+                (doc_path,)
+            ).fetchone()
+            
+            if not row:
+                return None
+            
+            # Get related documents (often cited together)
+            related = await self._get_related_docs(doc_path)
+            
+            return DocumentStats(
+                doc_id=row["doc_id"],
+                doc_path=row["doc_path"],
+                total_citations=row["total_citations"],
+                unique_sessions=row["unique_sessions"],
+                last_accessed=row["last_accessed"],
+                tools_used=json.loads(row["tools_used"] or "{}"),
+                related_docs=related
+            )
     
     async def _get_related_docs(self, doc_path: str, limit: int = 5) -> list[str]:
         """Find documents often cited in same session."""
-        conn = self._get_connection()
-        
-        # Find sessions that accessed this doc
-        sessions = conn.execute(
-            "SELECT DISTINCT session_id FROM session_docs WHERE doc_id = ?",
-            (doc_path,)
-        ).fetchall()
-        
-        if not sessions:
-            return []
-        
-        session_ids = [s["session_id"] for s in sessions if s["session_id"]]
-        if not session_ids:
-            return []
-        
-        # Find other docs in same sessions
-        placeholders = ",".join(["?"] * len(session_ids))
-        rows = conn.execute(f"""
-            SELECT doc_id, COUNT(*) as co_count
-            FROM session_docs
-            WHERE session_id IN ({placeholders})
-              AND doc_id != ?
-            GROUP BY doc_id
-            ORDER BY co_count DESC
-            LIMIT ?
-        """, (*session_ids, doc_path, limit)).fetchall()
-        
-        return [row["doc_id"] for row in rows]
+        with self.pool.acquire() as conn:
+            # Find sessions that accessed this doc
+            sessions = conn.execute(
+                "SELECT DISTINCT session_id FROM session_docs WHERE doc_id = ?",
+                (doc_path,)
+            ).fetchall()
+            
+            if not sessions:
+                return []
+            
+            session_ids = [s["session_id"] for s in sessions if s["session_id"]]
+            if not session_ids:
+                return []
+            
+            # Find other docs in same sessions
+            placeholders = ",".join(["?"] * len(session_ids))
+            rows = conn.execute(f"""
+                SELECT doc_id, COUNT(*) as co_count
+                FROM session_docs
+                WHERE session_id IN ({placeholders})
+                  AND doc_id != ?
+                GROUP BY doc_id
+                ORDER BY co_count DESC
+                LIMIT ?
+            """, (*session_ids, doc_path, limit)).fetchall()
+            
+            return [row["doc_id"] for row in rows]
     
     async def get_most_cited(
         self,
@@ -317,96 +310,94 @@ class CitationTracker:
             limit: Number of results
             since: Only count citations since this date
         """
-        conn = self._get_connection()
-        
-        if since:
-            # Query from citations table for time-filtered results
-            sql = """
-                SELECT 
-                    doc_id,
-                    doc_path,
-                    COUNT(*) as total_citations,
-                    COUNT(DISTINCT session_id) as unique_sessions,
-                    MAX(created_at) as last_accessed
-                FROM citations
-                WHERE created_at >= ?
-            """
-            params = [since.isoformat()]
+        with self.pool.acquire() as conn:
+            if since:
+                # Query from citations table for time-filtered results
+                sql = """
+                    SELECT 
+                        doc_id,
+                        doc_path,
+                        COUNT(*) as total_citations,
+                        COUNT(DISTINCT session_id) as unique_sessions,
+                        MAX(created_at) as last_accessed
+                    FROM citations
+                    WHERE created_at >= ?
+                """
+                params = [since.isoformat()]
+                
+                if collection:
+                    sql += " AND doc_path LIKE ?"
+                    params.append(f"{collection}/%")
+                
+                sql += " GROUP BY doc_id ORDER BY total_citations DESC LIMIT ?"
+                params.append(limit)
+                
+                rows = conn.execute(sql, params).fetchall()
+            else:
+                # Use materialized stats for better performance
+                sql = "SELECT * FROM doc_stats"
+                params = []
+                
+                if collection:
+                    sql += " WHERE doc_path LIKE ?"
+                    params.append(f"{collection}/%")
+                
+                sql += " ORDER BY total_citations DESC LIMIT ?"
+                params.append(limit)
+                
+                rows = conn.execute(sql, params).fetchall()
             
-            if collection:
-                sql += " AND doc_path LIKE ?"
-                params.append(f"{collection}/%")
+            results = []
+            for row in rows:
+                tools = json.loads(row["tools_used"]) if "tools_used" in row.keys() else {}
+                results.append(DocumentStats(
+                    doc_id=row["doc_id"],
+                    doc_path=row["doc_path"],
+                    total_citations=row["total_citations"],
+                    unique_sessions=row["unique_sessions"] if "unique_sessions" in row.keys() else 0,
+                    last_accessed=row["last_accessed"] if "last_accessed" in row.keys() else None,
+                    tools_used=tools,
+                    related_docs=[]
+                ))
             
-            sql += " GROUP BY doc_id ORDER BY total_citations DESC LIMIT ?"
-            params.append(limit)
-            
-            rows = conn.execute(sql, params).fetchall()
-        else:
-            # Use materialized stats for better performance
-            sql = "SELECT * FROM doc_stats"
-            params = []
-            
-            if collection:
-                sql += " WHERE doc_path LIKE ?"
-                params.append(f"{collection}/%")
-            
-            sql += " ORDER BY total_citations DESC LIMIT ?"
-            params.append(limit)
-            
-            rows = conn.execute(sql, params).fetchall()
-        
-        results = []
-        for row in rows:
-            tools = json.loads(row["tools_used"]) if "tools_used" in row.keys() else {}
-            results.append(DocumentStats(
-                doc_id=row["doc_id"],
-                doc_path=row["doc_path"],
-                total_citations=row["total_citations"],
-                unique_sessions=row["unique_sessions"] if "unique_sessions" in row.keys() else 0,
-                last_accessed=row["last_accessed"] if "last_accessed" in row.keys() else None,
-                tools_used=tools,
-                related_docs=[]
-            ))
-        
-        return results
+            return results
     
     async def get_usage_analytics(
         self,
         days: int = 30
     ) -> UsageAnalytics:
         """Get overall usage analytics."""
-        conn = self._get_connection()
+        since = datetime.now() - timedelta(days=days)
 
-        since = datetime.now().replace(day=datetime.now().day - days)
+        with self.pool.acquire() as conn:
+            # Total citations in period
+            row = conn.execute(
+                "SELECT COUNT(*) as count FROM citations WHERE created_at >= ?",
+                (since.isoformat(),)
+            ).fetchone()
+            total_citations = row["count"]
 
-        # Total citations in period
-        row = conn.execute(
-            "SELECT COUNT(*) as count FROM citations WHERE created_at >= ?",
-            (since.isoformat(),)
-        ).fetchone()
-        total_citations = row["count"]
+            # Citations by tool
+            tool_stats: dict[str, int] = {}
+            for row in conn.execute(
+                """SELECT tool_used, COUNT(*) as count
+                   FROM citations
+                   WHERE created_at >= ?
+                   GROUP BY tool_used""",
+                (since.isoformat(),)
+            ):
+                tool_stats[row["tool_used"]] = row["count"]
 
-        # Citations by tool
-        tool_stats: dict[str, int] = {}
-        for row in conn.execute(
-            """SELECT tool_used, COUNT(*) as count
-               FROM citations
-               WHERE created_at >= ?
-               GROUP BY tool_used""",
-            (since.isoformat(),)
-        ):
-            tool_stats[row["tool_used"]] = row["count"]
+            # Active documents
+            row = conn.execute(
+                "SELECT COUNT(DISTINCT doc_id) as count FROM citations WHERE created_at >= ?",
+                (since.isoformat(),)
+            ).fetchone()
+            active_docs = row["count"]
 
-        # Active documents
-        row = conn.execute(
-            "SELECT COUNT(DISTINCT doc_id) as count FROM citations WHERE created_at >= ?",
-            (since.isoformat(),)
-        ).fetchone()
-        active_docs = row["count"]
-
-        # Popular tags (requires joining with FTS)
-        # This is a placeholder - would need FTS integration
-        popular_tags: list[str] = []
+            # Popular tags (requires joining with FTS)
+            # This is a placeholder - would need FTS integration
+            popular_tags: list[str] = []
 
         return UsageAnalytics(
             period_days=days,
@@ -452,19 +443,18 @@ class CitationTracker:
         return recommendations[:limit]
     
     def close(self) -> None:
-        """Close database connection."""
-        if self._connection:
-            self._connection.close()
-            self._connection = None
+        """Close database connection pool."""
+        if hasattr(self, 'pool'):
+            self.pool.close_all()
 
 
 # Singleton instance
 _tracker: Optional[CitationTracker] = None
 
 
-def get_citation_tracker() -> CitationTracker:
+def get_citation_tracker(db_path: Optional[Path] = None) -> CitationTracker:
     """Get or create citation tracker singleton."""
     global _tracker
     if _tracker is None:
-        _tracker = CitationTracker()
+        _tracker = CitationTracker(db_path=db_path)
     return _tracker

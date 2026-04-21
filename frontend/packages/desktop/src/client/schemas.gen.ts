@@ -1727,6 +1727,50 @@ export const DeviceResolutionResponseSchema = {
     title: 'DeviceResolutionResponse'
 } as const;
 
+export const DiscoverRequestSchema = {
+    properties: {
+        record_secrets: {
+            type: 'boolean',
+            title: 'Record Secrets',
+            default: false
+        }
+    },
+    additionalProperties: true,
+    type: 'object',
+    title: 'DiscoverRequest'
+} as const;
+
+export const DiscoverResponseSchema = {
+    properties: {
+        success: {
+            type: 'boolean',
+            title: 'Success',
+            default: true
+        },
+        message: {
+            type: 'string',
+            title: 'Message',
+            default: ''
+        },
+        status: {
+            type: 'string',
+            title: 'Status'
+        },
+        project_id: {
+            type: 'integer',
+            title: 'Project Id'
+        },
+        thread_id: {
+            type: 'string',
+            title: 'Thread Id'
+        }
+    },
+    additionalProperties: true,
+    type: 'object',
+    required: ['status', 'project_id', 'thread_id'],
+    title: 'DiscoverResponse'
+} as const;
+
 export const DocumentContentResponseSchema = {
     properties: {
         success: {
@@ -1774,6 +1818,65 @@ export const DocumentContentResponseSchema = {
     description: 'Response for reading document content.'
 } as const;
 
+export const DocumentListItemSchema = {
+    properties: {
+        path: {
+            type: 'string',
+            title: 'Path'
+        },
+        size_bytes: {
+            type: 'integer',
+            title: 'Size Bytes'
+        },
+        modified_at: {
+            type: 'string',
+            title: 'Modified At'
+        },
+        has_metadata: {
+            type: 'boolean',
+            title: 'Has Metadata'
+        },
+        tags: {
+            items: {
+                type: 'string'
+            },
+            type: 'array',
+            title: 'Tags'
+        },
+        title: {
+            type: 'string',
+            title: 'Title'
+        },
+        source: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Source'
+        },
+        source_project_id: {
+            anyOf: [
+                {
+                    type: 'integer'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Source Project Id'
+        }
+    },
+    additionalProperties: true,
+    type: 'object',
+    required: ['path', 'size_bytes', 'modified_at', 'has_metadata', 'tags', 'title'],
+    title: 'DocumentListItem',
+    description: 'Item in a document list from the knowledge base.'
+} as const;
+
 export const DocumentListResponseSchema = {
     properties: {
         success: {
@@ -1788,8 +1891,7 @@ export const DocumentListResponseSchema = {
         },
         data: {
             items: {
-                additionalProperties: true,
-                type: 'object'
+                '$ref': '#/components/schemas/DocumentListItem'
             },
             type: 'array',
             title: 'Data'
@@ -1811,8 +1913,7 @@ export const DocumentListResponseSchema = {
         },
         documents: {
             items: {
-                additionalProperties: true,
-                type: 'object'
+                '$ref': '#/components/schemas/DocumentListItem'
             },
             type: 'array',
             title: 'Documents'
@@ -1959,6 +2060,32 @@ export const DocumentResponseSchema = {
     description: 'Response for document operations.'
 } as const;
 
+export const DocumentSearchItemSchema = {
+    properties: {
+        path: {
+            type: 'string',
+            title: 'Path'
+        },
+        match_count: {
+            type: 'integer',
+            title: 'Match Count'
+        },
+        matches: {
+            items: {
+                additionalProperties: true,
+                type: 'object'
+            },
+            type: 'array',
+            title: 'Matches'
+        }
+    },
+    additionalProperties: true,
+    type: 'object',
+    required: ['path', 'match_count', 'matches'],
+    title: 'DocumentSearchItem',
+    description: 'Single document search result.'
+} as const;
+
 export const DocumentSearchResponseSchema = {
     properties: {
         query: {
@@ -1967,8 +2094,7 @@ export const DocumentSearchResponseSchema = {
         },
         results: {
             items: {
-                additionalProperties: true,
-                type: 'object'
+                '$ref': '#/components/schemas/DocumentSearchItem'
             },
             type: 'array',
             title: 'Results'
@@ -2101,127 +2227,6 @@ export const DomEventsRequestSchema = {
     required: ['thread_id', 'session_id', 'events'],
     title: 'DomEventsRequest',
     description: '请求模型：接收 DOM 事件'
-} as const;
-
-export const EditPreviewSchema = {
-    properties: {
-        original_text: {
-            type: 'string',
-            title: 'Original Text',
-            description: 'The original text before edit'
-        },
-        suggested_text: {
-            type: 'string',
-            title: 'Suggested Text',
-            description: 'The suggested text after edit'
-        },
-        description: {
-            type: 'string',
-            title: 'Description',
-            description: 'Description of the change'
-        },
-        line_start: {
-            type: 'integer',
-            minimum: 1,
-            title: 'Line Start',
-            description: 'Starting line of the edit'
-        },
-        line_end: {
-            type: 'integer',
-            minimum: 1,
-            title: 'Line End',
-            description: 'Ending line of the edit'
-        }
-    },
-    additionalProperties: true,
-    type: 'object',
-    required: ['original_text', 'suggested_text', 'description', 'line_start', 'line_end'],
-    title: 'EditPreview',
-    description: 'An edit preview showing original and suggested text.'
-} as const;
-
-export const EditPreviewRequestSchema = {
-    properties: {
-        project_id: {
-            anyOf: [
-                {
-                    type: 'integer'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Project Id',
-            description: 'Project ID for context'
-        },
-        thread_id: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Thread Id'
-        },
-        file_path: {
-            type: 'string',
-            title: 'File Path',
-            description: 'Path to the file'
-        },
-        edit_description: {
-            type: 'string',
-            title: 'Edit Description',
-            description: 'Natural language description of the edit'
-        },
-        cursor_line: {
-            type: 'integer',
-            minimum: 1,
-            title: 'Cursor Line',
-            description: 'Current line number'
-        },
-        cursor_column: {
-            type: 'integer',
-            minimum: 0,
-            title: 'Cursor Column',
-            description: 'Current column position'
-        }
-    },
-    type: 'object',
-    required: ['file_path', 'edit_description', 'cursor_line', 'cursor_column'],
-    title: 'EditPreviewRequest',
-    description: 'Request for edit preview as ghost text.'
-} as const;
-
-export const EditPreviewResponseSchema = {
-    properties: {
-        success: {
-            type: 'boolean',
-            title: 'Success',
-            default: true
-        },
-        message: {
-            type: 'string',
-            title: 'Message',
-            default: ''
-        },
-        preview: {
-            anyOf: [
-                {
-                    '$ref': '#/components/schemas/EditPreview'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            description: 'Edit preview data'
-        }
-    },
-    additionalProperties: true,
-    type: 'object',
-    title: 'EditPreviewResponse',
-    description: 'Response for edit preview request.'
 } as const;
 
 export const EmbeddingApplyResponseSchema = {
@@ -2606,10 +2611,7 @@ export const FTSSearchResultSchema = {
             title: 'Snippet'
         },
         highlights: {
-            items: {
-                type: 'string'
-            },
-            type: 'array',
+            type: 'string',
             title: 'Highlights'
         },
         score: {
@@ -2745,98 +2747,6 @@ export const FileSearchResultSchema = {
     required: ['file', 'line', 'content'],
     title: 'FileSearchResult',
     description: 'Single file content search result.'
-} as const;
-
-export const GhostPatternItemSchema = {
-    properties: {
-        pattern: {
-            type: 'string',
-            title: 'Pattern'
-        },
-        suggestion: {
-            type: 'string',
-            title: 'Suggestion'
-        },
-        language: {
-            type: 'string',
-            title: 'Language'
-        },
-        description: {
-            type: 'string',
-            title: 'Description'
-        },
-        confidence: {
-            type: 'number',
-            title: 'Confidence'
-        }
-    },
-    additionalProperties: true,
-    type: 'object',
-    required: ['pattern', 'suggestion', 'language', 'description', 'confidence'],
-    title: 'GhostPatternItem',
-    description: 'Single ghost text pattern item.'
-} as const;
-
-export const GhostSuggestionSchema = {
-    properties: {
-        text: {
-            type: 'string',
-            title: 'Text',
-            description: 'The suggested text to insert'
-        },
-        trigger_position: {
-            type: 'integer',
-            title: 'Trigger Position',
-            description: 'Position where the suggestion was triggered'
-        },
-        confidence: {
-            type: 'number',
-            maximum: 1,
-            minimum: 0,
-            title: 'Confidence',
-            description: 'Confidence score (0-1)'
-        },
-        source: {
-            type: 'string',
-            title: 'Source',
-            description: 'Source: pattern, llm, context'
-        },
-        type: {
-            type: 'string',
-            title: 'Type',
-            description: 'Suggestion type: completion, edit_preview, snippet',
-            default: 'completion'
-        },
-        description: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Description',
-            description: 'Tooltip description'
-        },
-        display_text: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Display Text',
-            description: 'Formatted display text'
-        }
-    },
-    additionalProperties: true,
-    type: 'object',
-    required: ['text', 'trigger_position', 'confidence', 'source'],
-    title: 'GhostSuggestion',
-    description: 'A ghost text suggestion for inline display.'
 } as const;
 
 export const GlobalEventDataSchema = {
@@ -3327,113 +3237,6 @@ export const IndexingRunResponseSchema = {
     required: ['status', 'project_id'],
     title: 'IndexingRunResponse',
     description: 'Indexing dispatch response.'
-} as const;
-
-export const InlineCompletionRequestSchema = {
-    properties: {
-        project_id: {
-            anyOf: [
-                {
-                    type: 'integer'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Project Id',
-            description: 'Project ID for context-aware suggestions'
-        },
-        thread_id: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Thread Id'
-        },
-        file_path: {
-            type: 'string',
-            title: 'File Path',
-            description: 'Path to the file being edited'
-        },
-        cursor_line: {
-            type: 'integer',
-            minimum: 1,
-            title: 'Cursor Line',
-            description: 'Current line number (1-indexed)'
-        },
-        cursor_column: {
-            type: 'integer',
-            minimum: 0,
-            title: 'Cursor Column',
-            description: 'Current column position (0-indexed)'
-        },
-        current_line_text: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Current Line Text',
-            description: 'Text of current line up to cursor'
-        },
-        context_lines: {
-            type: 'integer',
-            maximum: 50,
-            minimum: 0,
-            title: 'Context Lines',
-            description: 'Number of context lines to include',
-            default: 10
-        }
-    },
-    type: 'object',
-    required: ['file_path', 'cursor_line', 'cursor_column'],
-    title: 'InlineCompletionRequest',
-    description: 'Request for inline code completion.'
-} as const;
-
-export const InlineCompletionResponseSchema = {
-    properties: {
-        success: {
-            type: 'boolean',
-            title: 'Success',
-            default: true
-        },
-        message: {
-            type: 'string',
-            title: 'Message',
-            default: ''
-        },
-        suggestion: {
-            anyOf: [
-                {
-                    '$ref': '#/components/schemas/GhostSuggestion'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            description: 'Primary suggestion'
-        },
-        alternative_suggestions: {
-            items: {
-                '$ref': '#/components/schemas/GhostSuggestion'
-            },
-            type: 'array',
-            title: 'Alternative Suggestions',
-            description: 'Alternative suggestions'
-        }
-    },
-    additionalProperties: true,
-    type: 'object',
-    title: 'InlineCompletionResponse',
-    description: 'Response for inline completion request.'
 } as const;
 
 export const LLMApplyResponseSchema = {
@@ -4615,6 +4418,40 @@ export const PreviewVideoInfoSchema = {
     type: 'object',
     required: ['path', 'duration', 'resolution', 'fps'],
     title: 'PreviewVideoInfo'
+} as const;
+
+export const ProfileContentResponseSchema = {
+    properties: {
+        success: {
+            type: 'boolean',
+            title: 'Success',
+            default: true
+        },
+        message: {
+            type: 'string',
+            title: 'Message',
+            default: ''
+        },
+        content: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Content'
+        },
+        exists: {
+            type: 'boolean',
+            title: 'Exists',
+            default: false
+        }
+    },
+    additionalProperties: true,
+    type: 'object',
+    title: 'ProfileContentResponse'
 } as const;
 
 export const ProjectDeleteResponseSchema = {

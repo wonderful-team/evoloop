@@ -43,16 +43,6 @@ class CommandData(BaseModel):
     project_id: int | None = None
 
 
-class DeviceStatus(DynamicBaseModel):
-    """Current status of the device connection."""
-
-    is_logged_in: bool
-    member_id: int | None = None
-    device_connected: bool
-    device_id: int | None = None
-    device_name: str | None = None
-
-
 class SyncConversation(DynamicBaseModel):
     id: str
     project_id: int = 0

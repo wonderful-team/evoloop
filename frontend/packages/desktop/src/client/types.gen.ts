@@ -501,6 +501,20 @@ export type DeviceResolutionResponse = {
     [key: string]: unknown | boolean | string | number;
 };
 
+export type DiscoverRequest = {
+    record_secrets?: boolean;
+    [key: string]: unknown | boolean;
+};
+
+export type DiscoverResponse = {
+    success?: boolean;
+    message?: string;
+    status: string;
+    project_id: number;
+    thread_id: string;
+    [key: string]: unknown | boolean | string | number;
+};
+
 /**
  * Response for reading document content.
  */
@@ -518,22 +532,33 @@ export type DocumentContentResponse = {
 };
 
 /**
+ * Item in a document list from the knowledge base.
+ */
+export type DocumentListItem = {
+    path: string;
+    size_bytes: number;
+    modified_at: string;
+    has_metadata: boolean;
+    tags: Array<(string)>;
+    title: string;
+    source?: (string | null);
+    source_project_id?: (number | null);
+    [key: string]: unknown | string | number | boolean;
+};
+
+/**
  * Response for listing documents.
  */
 export type DocumentListResponse = {
     success?: boolean;
     message?: string;
-    data?: Array<{
-        [key: string]: unknown;
-    }>;
+    data?: Array<DocumentListItem>;
     total?: number;
     page?: number;
     page_size?: number;
-    documents: Array<{
-        [key: string]: unknown;
-    }>;
+    documents: Array<DocumentListItem>;
     collections: Array<(string)>;
-    [key: string]: unknown | boolean | string | number;
+    [key: string]: unknown | boolean | string | DocumentListItem | number;
 };
 
 /**
@@ -565,13 +590,23 @@ export type DocumentResponse = {
 };
 
 /**
+ * Single document search result.
+ */
+export type DocumentSearchItem = {
+    path: string;
+    match_count: number;
+    matches: Array<{
+        [key: string]: unknown;
+    }>;
+    [key: string]: unknown | string | number;
+};
+
+/**
  * Response for document search.
  */
 export type DocumentSearchResponse = {
     query: string;
-    results: Array<{
-        [key: string]: unknown;
-    }>;
+    results: Array<DocumentSearchItem>;
     total: number;
 };
 
@@ -599,73 +634,6 @@ export type DomEventsRequest = {
     thread_id: string;
     session_id: string;
     events: Array<DomEventData>;
-};
-
-/**
- * An edit preview showing original and suggested text.
- */
-export type EditPreview = {
-    /**
-     * The original text before edit
-     */
-    original_text: string;
-    /**
-     * The suggested text after edit
-     */
-    suggested_text: string;
-    /**
-     * Description of the change
-     */
-    description: string;
-    /**
-     * Starting line of the edit
-     */
-    line_start: number;
-    /**
-     * Ending line of the edit
-     */
-    line_end: number;
-    [key: string]: unknown | string | number;
-};
-
-/**
- * Request for edit preview as ghost text.
- */
-export type EditPreviewRequest = {
-    /**
-     * Project ID for context
-     */
-    project_id?: (number | null);
-    thread_id?: (string | null);
-    /**
-     * Path to the file
-     */
-    file_path: string;
-    /**
-     * Natural language description of the edit
-     */
-    edit_description: string;
-    /**
-     * Current line number
-     */
-    cursor_line: number;
-    /**
-     * Current column position
-     */
-    cursor_column: number;
-};
-
-/**
- * Response for edit preview request.
- */
-export type EditPreviewResponse = {
-    success?: boolean;
-    message?: string;
-    /**
-     * Edit preview data
-     */
-    preview?: (EditPreview | null);
-    [key: string]: unknown | boolean | string;
 };
 
 export type EmbeddingApplyResponse = {
@@ -801,7 +769,7 @@ export type FTSSearchResult = {
     collection: (string | null);
     title: string;
     snippet: string;
-    highlights: Array<(string)>;
+    highlights: string;
     score: number;
     [key: string]: unknown | string | number;
 };
@@ -814,53 +782,6 @@ export type FTSSuggestResponse = {
     message?: string;
     suggestions: Array<(string)>;
     [key: string]: unknown | boolean | string;
-};
-
-/**
- * Single ghost text pattern item.
- */
-export type GhostPatternItem = {
-    pattern: string;
-    suggestion: string;
-    language: string;
-    description: string;
-    confidence: number;
-    [key: string]: unknown | string | number;
-};
-
-/**
- * A ghost text suggestion for inline display.
- */
-export type GhostSuggestion = {
-    /**
-     * The suggested text to insert
-     */
-    text: string;
-    /**
-     * Position where the suggestion was triggered
-     */
-    trigger_position: number;
-    /**
-     * Confidence score (0-1)
-     */
-    confidence: number;
-    /**
-     * Source: pattern, llm, context
-     */
-    source: string;
-    /**
-     * Suggestion type: completion, edit_preview, snippet
-     */
-    type?: string;
-    /**
-     * Tooltip description
-     */
-    description?: (string | null);
-    /**
-     * Formatted display text
-     */
-    display_text?: (string | null);
-    [key: string]: unknown | string | number;
 };
 
 /**
@@ -994,54 +915,6 @@ export type IndexingRunResponse = {
     status: string;
     project_id: number;
     [key: string]: unknown | boolean | string | number;
-};
-
-/**
- * Request for inline code completion.
- */
-export type InlineCompletionRequest = {
-    /**
-     * Project ID for context-aware suggestions
-     */
-    project_id?: (number | null);
-    thread_id?: (string | null);
-    /**
-     * Path to the file being edited
-     */
-    file_path: string;
-    /**
-     * Current line number (1-indexed)
-     */
-    cursor_line: number;
-    /**
-     * Current column position (0-indexed)
-     */
-    cursor_column: number;
-    /**
-     * Text of current line up to cursor
-     */
-    current_line_text?: (string | null);
-    /**
-     * Number of context lines to include
-     */
-    context_lines?: number;
-};
-
-/**
- * Response for inline completion request.
- */
-export type InlineCompletionResponse = {
-    success?: boolean;
-    message?: string;
-    /**
-     * Primary suggestion
-     */
-    suggestion?: (GhostSuggestion | null);
-    /**
-     * Alternative suggestions
-     */
-    alternative_suggestions?: Array<GhostSuggestion>;
-    [key: string]: unknown | boolean | string | GhostSuggestion;
 };
 
 export type LLMApplyResponse = {
@@ -1386,6 +1259,14 @@ export type PreviewVideoInfo = {
     duration: number;
     resolution: string;
     fps: number;
+};
+
+export type ProfileContentResponse = {
+    success?: boolean;
+    message?: string;
+    content?: (string | null);
+    exists?: boolean;
+    [key: string]: unknown | boolean | string;
 };
 
 /**
@@ -2872,27 +2753,6 @@ export type FilesSearchFilesByNameData = {
 
 export type FilesSearchFilesByNameResponse = (Array<FileNameSearchResult>);
 
-export type GhostTextSuggestInlineCompletionData = {
-    requestBody: InlineCompletionRequest;
-};
-
-export type GhostTextSuggestInlineCompletionResponse = (InlineCompletionResponse);
-
-export type GhostTextPreviewEditGhostData = {
-    requestBody: EditPreviewRequest;
-};
-
-export type GhostTextPreviewEditGhostResponse = (EditPreviewResponse);
-
-export type GhostTextListPatternsData = {
-    /**
-     * Filter by language (py, ts, js, etc.)
-     */
-    language?: (string | null);
-};
-
-export type GhostTextListPatternsResponse = (Array<GhostPatternItem>);
-
 export type KnowledgeUploadDocumentData = {
     formData: Body_knowledge_upload_document;
 };
@@ -2905,6 +2765,7 @@ export type KnowledgeListDocumentsData = {
      */
     collection?: (string | null);
     limit?: number;
+    offset?: number;
     /**
      * File pattern
      */
@@ -3561,6 +3422,19 @@ export type ProjectModulesGetProjectStatisticsData = {
 };
 
 export type ProjectModulesGetProjectStatisticsResponse = (unknown);
+
+export type ProjectProfilesDiscoverProfileData = {
+    projectId: number;
+    requestBody: DiscoverRequest;
+};
+
+export type ProjectProfilesDiscoverProfileResponse = (DiscoverResponse);
+
+export type ProjectProfilesGetProfileData = {
+    projectId: number;
+};
+
+export type ProjectProfilesGetProfileResponse = (ProfileContentResponse);
 
 export type ProjectRequirementsUploadRequirementDocumentData = {
     formData: Body_project_requirements_upload_requirement_document;

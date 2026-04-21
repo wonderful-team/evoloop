@@ -167,13 +167,10 @@ class HueyTaskScheduler(TaskScheduler, SyncTaskMixin):
         def decorator(f: Callable) -> Callable:
             task_name = name or f"{f.__module__}.{f.__name__}"
             
-            # Wrap with Huey decorator FIRST
-            @self._huey.task(
-                name=task_name,
-                retries=retries,
-                retry_delay=retry_delay,
-            )
-            def huey_wrapper(*args, **kwargs):
+            # Define wrapper with correct module/name BEFORE Huey registration.
+            # Huey's Registry uses func.__module__ to build the task registry key,
+            # so we must set it before @self._huey.task() reads it.
+            def _huey_wrapper(*args, **kwargs):
                 # Handle async functions
                 if asyncio.iscoroutinefunction(f):
                     return self._run_async_task(f, bind, *args, **kwargs)
@@ -182,6 +179,17 @@ class HueyTaskScheduler(TaskScheduler, SyncTaskMixin):
                     if bind:
                         return f(None, *args, **kwargs)
                     return f(*args, **kwargs)
+            
+            _huey_wrapper.__name__ = f.__name__
+            _huey_wrapper.__module__ = f.__module__
+            _huey_wrapper.__doc__ = f.__doc__
+            
+            # Register with Huey — now __module__ is correct
+            huey_wrapper = self._huey.task(
+                name=task_name,
+                retries=retries,
+                retry_delay=retry_delay,
+            )(_huey_wrapper)
             
             # Store task info with the Huey-wrapped function
             # This is crucial for send_task to find the registered task
@@ -230,6 +238,8 @@ class HueyTaskScheduler(TaskScheduler, SyncTaskMixin):
         
         try:
             from app.infrastructure.database.resource_manager import db_resource_manager
+            # db_resource_manager.initialize() now auto-rebinds its lock to the current event loop,
+            # so it is safe to call from Huey worker threads.
             loop.run_until_complete(db_resource_manager.initialize(create_tables=False, seed_data=False))
             
             if bind:

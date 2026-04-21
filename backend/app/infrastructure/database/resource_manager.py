@@ -11,6 +11,7 @@ Handles Table Creation and Initial Data Seeding.
 
 import asyncio
 import logging
+import threading
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, AsyncGenerator
@@ -34,7 +35,10 @@ class DatabaseResourceManager:
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             cls._instance._initialized = False
-            cls._instance._init_lock = asyncio.Lock()  # Prevent concurrent initialization races
+            # Use threading.Lock instead of asyncio.Lock to avoid
+            # "bound to a different event loop" errors when Huey worker
+            # threads call initialize() concurrently with the main loop.
+            cls._instance._init_lock = threading.Lock()
             cls._instance._engine = None  # Async Engine
             cls._instance._sync_engine = None  # Sync Engine
             cls._instance._session_factory = None
@@ -73,7 +77,7 @@ class DatabaseResourceManager:
 
     async def initialize(self, create_tables: bool = True, seed_data: bool = True):
         """Initialize all database resources (SQL, Checkpointer, Vector)."""
-        async with self._init_lock:
+        with self._init_lock:
             if self._initialized:
                 return
 
@@ -150,9 +154,14 @@ class DatabaseResourceManager:
             sqlite_path = db_uri_raw.replace("sqlite+aiosqlite:///", "").replace("sqlite://", "")
 
             self._sqlite_conn = await aiosqlite.connect(sqlite_path)
+            # SQLite concurrency tuning: WAL mode allows readers during writes;
+            # busy_timeout prevents "database is locked" under concurrent writes.
+            await self._sqlite_conn.execute("PRAGMA journal_mode=WAL")
+            await self._sqlite_conn.execute("PRAGMA busy_timeout=30000")
+            await self._sqlite_conn.commit()
             self._checkpointer = AsyncSqliteSaver(conn=self._sqlite_conn)
             await self._checkpointer.setup()
-            logger.info("[ResourceManager] SQLite checkpointer initialized")
+            logger.info("[ResourceManager] SQLite checkpointer initialized (WAL mode, busy_timeout=30s)")
         else:
             from psycopg_pool import AsyncConnectionPool
             from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
@@ -211,6 +220,7 @@ class DatabaseResourceManager:
             db_uri_raw = settings.CHECKPOINTER_DATABASE_URI
             sqlite_path = db_uri_raw.replace("sqlite+aiosqlite:///", "").replace("sqlite://", "")
             async with aiosqlite.connect(sqlite_path) as conn:
+                await conn.execute("PRAGMA busy_timeout=30000")
                 yield conn
         else:
             if not self._db_pool:

@@ -423,7 +423,7 @@ export function MultimodalSynthesizeDialog({
                                     <div className="flex items-center justify-between">
                                         <label className="text-xs font-medium flex items-center gap-1.5">
                                             <ImageIcon className="h-3.5 w-3.5" />
-                                            {t("learning.regionAnnotations", "区域截图")}
+                                            {t("learning.regionAnnotations", "Region Annotations")}
                                         </label>
                                         {annotations.length > 0 && (
                                             <Badge variant="secondary" className="text-[10px]">
@@ -441,10 +441,10 @@ export function MultimodalSynthesizeDialog({
                                             <div className="flex flex-col items-center justify-center h-full text-muted-foreground p-4">
                                                 <Crosshair className="h-8 w-8 mb-2 opacity-30" />
                                                 <p className="text-xs text-center">
-                                                    {t("learning.noAnnotations", "未标记区域")}
+                                                    {t("learning.noAnnotations", "No marked regions")}
                                                 </p>
                                                 <p className="text-[10px] text-center mt-1 opacity-60">
-                                                    {t("learning.noAnnotationsDesc", "录制时使用悬浮球标记关键区域")}
+                                                    {t("learning.noAnnotationsDesc", "Use floating ball to mark key regions while recording")}
                                                 </p>
                                             </div>
                                         ) : (

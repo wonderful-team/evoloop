@@ -5,6 +5,7 @@
  */
 
 import { MemberService } from "@/client"
+import i18n from "@evoloop/shared/i18n"
 import type { FeatureCode } from "@/hooks/useFeatureAccess"
 
 // 权益缓存
@@ -29,11 +30,11 @@ export async function getMemberBenefits(forceRefresh = false): Promise<BenefitsC
   if (!forceRefresh && benefitsCache && Date.now() - cacheTimestamp < CACHE_TTL) {
     return benefitsCache
   }
-  
+
   const res = await MemberService.getMemberBenefitsApi({ forceRefresh })
   benefitsCache = (res as any).data as BenefitsCache
   cacheTimestamp = Date.now()
-  
+
   return benefitsCache
 }
 
@@ -46,7 +47,7 @@ export async function checkBenefitsBatch(
   const res = await MemberService.checkBenefitsBatch({
     benefit_codes: features,
   })
-  
+
   return (res.data?.results || {}) as Record<FeatureCode, boolean>
 }
 
@@ -72,7 +73,7 @@ export async function hasBenefit(feature: FeatureCode): Promise<boolean> {
 export async function hasAnyBenefit(features: FeatureCode[]): Promise<boolean> {
   const data = await getMemberBenefits()
   if (data.is_expired) return false
-  
+
   return features.some(f => data.benefits?.[f] === true)
 }
 
@@ -82,7 +83,7 @@ export async function hasAnyBenefit(features: FeatureCode[]): Promise<boolean> {
 export async function hasAllBenefits(features: FeatureCode[]): Promise<boolean> {
   const data = await getMemberBenefits()
   if (data.is_expired) return false
-  
+
   return features.every(f => data.benefits?.[f] === true)
 }
 
@@ -96,10 +97,10 @@ export async function getSubscriptionStatus(): Promise<{
   expireTime?: number
 }> {
   const data = await getMemberBenefits()
-  
+
   return {
     isActive: !data.is_expired,
-    levelName: data.level_name || "免费用户",
+    levelName: data.level_name || i18n.t("subscription.plans.free", "Free Plan"),
     remainingDays: data.remaining_days || 0,
     expireTime: data.expire_time,
   }

@@ -22,7 +22,7 @@ class SupervisorContext(DynamicBaseModel):
     """Formalized context structure for Supervisor decision making."""
     tools: list[Any]
     iteration_count: int
-    last_human_msg: str
+    last_human_msg: str | None
     blackboard: BlackboardState
     structured_plan: str | dict | None = None
 

@@ -56,7 +56,7 @@ class ResetKnowledgeResponse(BaseAPIResponse):
 
 class CloudStatusResponse(BaseAPIResponse):
     is_logged_in: bool
-    device_id: str | None = None
+    device_key: str | None = None
     is_linked: bool
     device_name: str
     api_url: str
@@ -217,7 +217,7 @@ async def get_cloud_status() -> CloudStatusResponse:
 
     return CloudStatusResponse(
         is_logged_in=bool(evocloud_manager.get_token()),
-        device_id=evocloud_manager.device_id,
+        device_key=evocloud_manager.link.device_key if evocloud_manager.link else None,
         is_linked=evocloud_manager.link.is_connected() if evocloud_manager.link else False,
         device_name=evocloud_manager.link.device_name if evocloud_manager.link else "Unknown",
         api_url=evocloud_manager.api.base_url if evocloud_manager.api else "Unknown",

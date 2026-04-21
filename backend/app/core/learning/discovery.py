@@ -342,7 +342,9 @@ class SkillDiscovery:
         system_prompt = prompt_builder.build_discovery_prompt(prompt_vars)
 
         try:
-            llm = await get_default_llm(temperature=0.0)
+            from app.core.context.manager import ContextManager
+            model = ContextManager.current().active_model
+            llm = await get_default_llm(temperature=0.0, model=model)
             messages = [
                 SystemMessage(content=system_prompt)
             ]

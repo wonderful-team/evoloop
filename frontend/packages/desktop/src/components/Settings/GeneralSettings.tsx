@@ -65,7 +65,7 @@ export default function GeneralSettings() {
         const [configResponse, discoveryResponse] = await Promise.all([
           SystemService.getSystemConfig(),
           SystemService.getProjectDiscoveryConfig(),
-        ])
+        ]) as [any, { enabled?: boolean }]
         
         const configMap: Record<string, string> = {}
         if (Array.isArray(configResponse)) {

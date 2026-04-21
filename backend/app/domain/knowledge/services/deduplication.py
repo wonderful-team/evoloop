@@ -7,6 +7,7 @@ Identifies similar documents and provides options to:
 - Suggest canonical versions
 """
 
+import asyncio
 import hashlib
 import logging
 from difflib import SequenceMatcher
@@ -18,6 +19,67 @@ from app.domain.knowledge.services.store import KnowledgeStoreService
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
+
+
+class MinHash:
+    """Locality-sensitive hashing for Jaccard similarity approximation (T-2.3)."""
+
+    def __init__(self, num_perm: int = 128, shingle_size: int = 3):
+        self.num_perm = num_perm
+        self.shingle_size = shingle_size
+        # Deterministic seeds for reproducible signatures across runs
+        self._seeds = [
+            hashlib.sha256(f"minhash_seed_{i}".encode()).hexdigest()[:16]
+            for i in range(num_perm)
+        ]
+
+    def _shingles(self, text: str) -> set[str]:
+        words = text.lower().split()
+        if len(words) < self.shingle_size:
+            return {" ".join(words)} if words else set()
+        return {
+            " ".join(words[i : i + self.shingle_size])
+            for i in range(len(words) - self.shingle_size + 1)
+        }
+
+    def signature(self, text: str) -> list[int]:
+        shingles = self._shingles(text)
+        if not shingles:
+            return [0] * self.num_perm
+        return [
+            min(
+                int(hashlib.md5(f"{s}:{seed}".encode()).hexdigest(), 16)
+                for s in shingles
+            )
+            for seed in self._seeds
+        ]
+
+
+class LSH:
+    """Locality Sensitive Hashing buckets for candidate pair generation (T-2.3)."""
+
+    def __init__(self, num_perm: int = 128, num_bands: int = 16):
+        self.num_bands = num_bands
+        self.rows_per_band = num_perm // num_bands
+        self.buckets: list[dict[tuple[int, ...], list[str]]] = [
+            {} for _ in range(num_bands)
+        ]
+
+    def add(self, doc_id: str, signature: list[int]) -> None:
+        for band_idx in range(self.num_bands):
+            start = band_idx * self.rows_per_band
+            band_key = tuple(signature[start : start + self.rows_per_band])
+            self.buckets[band_idx].setdefault(band_key, []).append(doc_id)
+
+    def candidate_pairs(self) -> set[tuple[str, str]]:
+        pairs: set[tuple[str, str]] = set()
+        for bucket in self.buckets:
+            for doc_ids in bucket.values():
+                if len(doc_ids) > 1:
+                    for i in range(len(doc_ids)):
+                        for j in range(i + 1, len(doc_ids)):
+                            pairs.add(tuple(sorted((doc_ids[i], doc_ids[j]))))
+        return pairs
 
 
 class DuplicateResult(DynamicBaseModel):
@@ -154,52 +216,57 @@ class DeduplicationService:
         
         # Get all documents in scope
         documents = self.store.list_documents(project)
-        
+
+        # Batch read to avoid N+1 file I/O
+        batch = self.store.read_documents_batch([doc.path for doc in documents])
+
         for doc in documents:
-            try:
-                # Read document content
-                result = self.store.read_document(doc.path)
-                doc_content = result.content
-                doc_title = doc.title
+            result = batch.get(doc.path)
+            if not result:
+                continue
 
-                # Check exact match
-                doc_hash = self._compute_content_hash(doc_content)
-                if doc_hash == content_hash:
-                    similar.append(DuplicateResult(
-                        doc_id=doc.path,
-                        path=doc.path,
-                        similarity=1.0,
-                        match_type="exact",
-                        suggested_action="delete"
-                    ))
-                    continue
+            doc_content = result.content
+            doc_title = doc.title
 
-                # Check content similarity
-                content_sim = self._similarity_score(content, doc_content)
-                if content_sim >= threshold:
-                    similar.append(DuplicateResult(
-                        doc_id=doc.path,
-                        path=doc.path,
-                        similarity=content_sim,
-                        match_type="content",
-                        suggested_action="merge" if content_sim > 0.9 else "review"
-                    ))
-                    continue
+            # Check exact match
+            doc_hash = self._compute_content_hash(doc_content)
+            if doc_hash == content_hash:
+                similar.append(DuplicateResult(
+                    doc_id=doc.path,
+                    path=doc.path,
+                    similarity=1.0,
+                    match_type="exact",
+                    suggested_action="delete"
+                ))
+                continue
 
-                # Check title similarity
-                title_sim = self._similarity_score(title.lower(), doc_title.lower())
-                if title_sim >= 0.9:
-                    similar.append(DuplicateResult(
-                        doc_id=doc.path,
-                        path=doc.path,
-                        similarity=title_sim,
-                        match_type="title",
-                        suggested_action="review"
-                    ))
+            # Check content similarity (offload to thread pool to avoid blocking)
+            content_sim = await asyncio.to_thread(
+                self._similarity_score, content, doc_content
+            )
+            if content_sim >= threshold:
+                similar.append(DuplicateResult(
+                    doc_id=doc.path,
+                    path=doc.path,
+                    similarity=content_sim,
+                    match_type="content",
+                    suggested_action="merge" if content_sim > 0.9 else "review"
+                ))
+                continue
 
-            except Exception as e:
-                logger.warning(f"Failed to compare with {doc.path}: {e}")
-        
+            # Check title similarity (offload to thread pool)
+            title_sim = await asyncio.to_thread(
+                self._similarity_score, title.lower(), doc_title.lower()
+            )
+            if title_sim >= 0.9:
+                similar.append(DuplicateResult(
+                    doc_id=doc.path,
+                    path=doc.path,
+                    similarity=title_sim,
+                    match_type="title",
+                    suggested_action="review"
+                ))
+
         # Sort by similarity descending
         similar.sort(key=lambda x: x.similarity, reverse=True)
         return similar
@@ -218,19 +285,19 @@ class DeduplicationService:
             DeduplicationReport with findings
         """
         documents = self.store.list_documents(project)
-        
-        # Compute hashes for all documents
+
+        # Compute hashes for all documents (batch read to avoid N+1)
         doc_hashes = {}
         doc_contents = {}
-        
+
+        batch = self.store.read_documents_batch([doc.path for doc in documents])
         for doc in documents:
-            try:
-                result = self.store.read_document(doc.path)
-                content = result.content
-                doc_contents[doc.path] = content
-                doc_hashes[doc.path] = self._compute_content_hash(content)
-            except Exception as e:
-                logger.warning(f"Failed to read {doc.path}: {e}")
+            result = batch.get(doc.path)
+            if not result:
+                continue
+            content = result.content
+            doc_contents[doc.path] = content
+            doc_hashes[doc.path] = self._compute_content_hash(content)
         
         # Find exact duplicates
         hash_to_docs = {}
@@ -246,31 +313,11 @@ class DeduplicationService:
                 for i in range(len(paths) - 1):
                     exact_duplicates.append((paths[i], paths[i + 1]))
         
-        # Find similar documents (groups)
+        # Find similar documents using MinHash LSH (T-2.3)
         similar_groups = []
-        processed = set()
-        
-        for path1 in doc_contents:
-            if path1 in processed:
-                continue
-            
-            group = [path1]
-            content1 = doc_contents[path1]
-            
-            for path2 in doc_contents:
-                if path2 == path1 or path2 in processed:
-                    continue
-                
-                content2 = doc_contents[path2]
-                sim = self._similarity_score(content1, content2)
-                
-                if sim >= 0.8:  # High similarity threshold
-                    group.append(path2)
-            
-            if len(group) > 1:
-                similar_groups.append(group)
-                processed.update(group)
-        
+        if len(doc_contents) > 1:
+            similar_groups = await self._find_similar_lsh(doc_contents)
+
         # Generate merge suggestions
         potential_merges = []
         for group in similar_groups[:5]:
@@ -293,17 +340,17 @@ class DeduplicationService:
         """Suggest a title for merged document."""
         # Use common prefix or first document's title
         titles = []
+        batch = self.store.read_documents_batch(paths)
         for path in paths:
-            try:
-                result = self.store.read_document(path)
-                # Extract title from content (first h1)
-                content = result.content
-                if content.startswith("# "):
-                    title = content[2:content.find('\n')]
-                    titles.append(title)
-            except:
-                pass
-        
+            result = batch.get(path)
+            if not result:
+                continue
+            # Extract title from content (first h1)
+            content = result.content
+            if content.startswith("# "):
+                title = content[2:content.find('\n')]
+                titles.append(title)
+
         if titles:
             # Find common prefix
             prefix = titles[0]
@@ -316,6 +363,63 @@ class DeduplicationService:
         
         return "Merged Document"
     
+    async def _find_similar_lsh(
+        self, doc_contents: dict[str, str], threshold: float = 0.8
+    ) -> list[list[str]]:
+        """Find similar document groups using MinHash + LSH (T-2.3).
+
+        Reduces O(n²) pairwise comparisons to O(n) signature generation
+        plus verification of a small candidate set.
+        """
+
+        def _build_lsh() -> LSH:
+            minhash = MinHash(num_perm=128, shingle_size=3)
+            lsh = LSH(num_perm=128, num_bands=16)
+            for path, content in doc_contents.items():
+                sig = minhash.signature(content)
+                lsh.add(path, sig)
+            return lsh
+
+        lsh = await asyncio.to_thread(_build_lsh)
+        candidate_pairs = await asyncio.to_thread(lsh.candidate_pairs)
+
+        # Verify candidates with SequenceMatcher (run in thread pool)
+        verified_pairs: list[tuple[float, str, str]] = []
+        for path1, path2 in candidate_pairs:
+            sim = await asyncio.to_thread(
+                self._similarity_score, doc_contents[path1], doc_contents[path2]
+            )
+            if sim >= threshold:
+                verified_pairs.append((sim, path1, path2))
+
+        # Group verified pairs into connected components
+        verified_pairs.sort(key=lambda x: x[0], reverse=True)
+        processed: set[str] = set()
+        groups: list[list[str]] = []
+
+        for sim, path1, path2 in verified_pairs:
+            if path1 in processed or path2 in processed:
+                continue
+
+            group: set[str] = {path1, path2}
+            # Grow group by adding connected unprocessed documents
+            changed = True
+            while changed:
+                changed = False
+                for _, p1, p2 in verified_pairs:
+                    if p1 in group and p2 not in processed and p2 not in group:
+                        group.add(p2)
+                        changed = True
+                    elif p2 in group and p1 not in processed and p1 not in group:
+                        group.add(p1)
+                        changed = True
+
+            if len(group) > 1:
+                groups.append(list(group))
+                processed.update(group)
+
+        return groups
+
     async def merge_documents(
         self,
         source_paths: list[str],
@@ -337,11 +441,13 @@ class DeduplicationService:
             return MergeResult(success=False, error="Need at least 2 documents to merge")
 
         try:
-            # Read all documents
+            # Read all documents (batch to avoid N+1)
             contents = []
+            batch = self.store.read_documents_batch(source_paths)
             for path in source_paths:
-                result = self.store.read_document(path)
-                contents.append(result.content)
+                result = batch.get(path)
+                if result:
+                    contents.append(result.content)
             
             if strategy == "concatenate":
                 merged_content = "\n\n---\n\n".join(contents)

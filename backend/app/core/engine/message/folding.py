@@ -1,0 +1,78 @@
+"""
+Message folding utilities — convert between flat and nested message formats.
+"""
+
+from typing import Any
+
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
+
+from app.core.engine.state.history import FoldedMessage
+
+
+def to_base_message(msg: Any) -> BaseMessage | None:
+    """
+    Convert a database Message record or similar object to a LangChain BaseMessage.
+    
+    Args:
+        msg: Object with role, content, and optionally tool_calls / tool_call_id
+        
+    Returns:
+        A LangChain message object or None if role is unknown
+    """
+    role = getattr(msg, "role", None)
+    content = getattr(msg, "content", "")
+    
+    # Preserve key metadata that fold_messages and other utilities need
+    msg_id = str(getattr(msg, "id", "")) or None
+    created_at = getattr(msg, "created_at", None)
+    thinking = getattr(msg, "thinking", None)
+    
+    # LangChain messages use additional_kwargs for extra metadata
+    kwargs = {"id": msg_id}
+    if created_at:
+        kwargs["created_at"] = created_at
+    if thinking:
+        kwargs["thinking"] = thinking
+    if getattr(msg, "steps_snapshot", None):
+        kwargs["steps_snapshot"] = msg.steps_snapshot
+
+    if role == "human":
+        return HumanMessage(content=content, id=msg_id, additional_kwargs=kwargs)
+    elif role == "ai":
+        tool_calls = getattr(msg, "tool_calls", [])
+        return AIMessage(
+            content=content, 
+            id=msg_id,
+            tool_calls=tool_calls if isinstance(tool_calls, list) else [],
+            additional_kwargs=kwargs
+        )
+    elif role == "tool":
+        # For database records, name might be stored in 'tool_name' or derived from tool_calls
+        return ToolMessage(
+            content=content,
+            id=msg_id,
+            tool_call_id=getattr(msg, "tool_call_id", ""),
+            name=getattr(msg, "tool_name", None),
+            additional_kwargs=kwargs
+        )
+    elif role == "system":
+        return SystemMessage(content=content, id=msg_id, additional_kwargs=kwargs)
+    
+    return None
+
+
+def fold_messages(messages: list[BaseMessage]) -> list[FoldedMessage]:
+    """
+    Fold flat message list into nested format with embedded steps.
+    
+    This version uses MessageFolder for unified logic and supports
+    the steps_snapshot fast-path optimization.
+    
+    Args:
+        messages: Flat list of messages (AIMessage, ToolMessage, HumanMessage)
+        
+    Returns:
+        Folded list of FoldedMessage objects
+    """
+    from app.core.engine.message.folder import MessageFolder
+    return MessageFolder.fold(messages)

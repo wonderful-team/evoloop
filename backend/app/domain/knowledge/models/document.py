@@ -2,7 +2,7 @@
 Core document models for knowledge extraction.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Optional, List, Dict
 
 from pydantic import Field
@@ -111,9 +111,9 @@ class MarkdownDocument(DynamicBaseModel):
             try:
                 extracted_at = datetime.fromisoformat(extracted_at_str)
             except (ValueError, TypeError):
-                extracted_at = datetime.utcnow()
+                extracted_at = datetime.now(timezone.utc)
         else:
-            extracted_at = datetime.utcnow()
+            extracted_at = datetime.now(timezone.utc)
             
         return cls(
             content=content,

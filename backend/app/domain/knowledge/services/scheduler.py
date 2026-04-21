@@ -300,9 +300,9 @@ async def run_manual_maintenance(
 
     if level == "light":
         # 轻度检查只运行分析任务
-        report = await service.run_maintenance(collection=collection, dry_run=True)
+        report = await service.run_maintenance(collection=collection, dry_run=True, level=level)
     else:
         # 中度/深度都运行完整维护
-        report = await service.run_maintenance(collection=collection, dry_run=dry_run)
+        report = await service.run_maintenance(collection=collection, dry_run=dry_run, level=level)
 
     return report.to_dict()

@@ -1,21 +1,33 @@
+import { Badge } from "@evoloop/shared/components/ui/badge"
+import { Button } from "@evoloop/shared/components/ui/button"
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@evoloop/shared/components/ui/card"
 import { Link, useParams } from "@tanstack/react-router"
 import {
   Activity,
   CheckCircle2,
   CheckSquare,
   Clock,
+  FileText,
   ListTodo,
   RefreshCw,
+  Search,
   Users,
 } from "lucide-react"
 import type React from "react"
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { ProjectModulesService, TasksService } from "@/client/sdk.gen"
-import { Badge } from "@evoloop/shared/components/ui/badge"
-import { Button } from "@evoloop/shared/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@evoloop/shared/components/ui/card"
+import {
+  ProjectModulesService,
+  ProjectProfilesService,
+  TasksService,
+} from "@/client/sdk.gen"
 import { useProjectStore } from "@/stores/projectStore"
+import { DiscoverDialog } from "./DiscoverDialog"
 
 // import { Avatar, AvatarFallback, AvatarImage } from "@evoloop/shared/components/ui/avatar"
 
@@ -43,6 +55,8 @@ export const ProjectOverview: React.FC = () => {
   // const [members, setMembers] = useState<ProjectMember[]>([])
   const [recentTasks, setRecentTasks] = useState<RecentTask[]>([])
   const [loading, setLoading] = useState(true)
+  const [discoverOpen, setDiscoverOpen] = useState(false)
+  const [hasProfile, setHasProfile] = useState(false)
 
   useEffect(() => {
     const loadData = async () => {
@@ -69,6 +83,12 @@ export const ProjectOverview: React.FC = () => {
         if (tasksData.code === 0) {
           setRecentTasks(tasksData.data.list || [])
         }
+
+        // Check if profile exists
+        const profileData = await ProjectProfilesService.getProfile({
+          projectId: parseInt(projectId, 10),
+        })
+        setHasProfile(profileData.exists === true)
 
         // Fetch Project Detail for members (using ProjectModulesService or ProjectsService?)
         // Assuming we can get members from project detail or stats
@@ -102,18 +122,20 @@ export const ProjectOverview: React.FC = () => {
               variant="secondary"
               className="bg-blue-100 text-blue-700 gap-1"
             >
-              <RefreshCw className="h-3.5 w-3.5 animate-spin" /> {t("projects.status.indexing")}
+              <RefreshCw className="h-3.5 w-3.5 animate-spin" />{" "}
+              {t("projects.status.indexing")}
             </Badge>
           )}
           {(currentProject?.summarization_status === "running" ||
             currentProject?.summarization_status === "summarizing") && (
-              <Badge
-                variant="secondary"
-                className="bg-purple-100 text-purple-700 gap-1"
-              >
-                <ListTodo className="h-3.5 w-3.5 animate-pulse" /> {t("projects.status.analyzing")}
-              </Badge>
-            )}
+            <Badge
+              variant="secondary"
+              className="bg-purple-100 text-purple-700 gap-1"
+            >
+              <ListTodo className="h-3.5 w-3.5 animate-pulse" />{" "}
+              {t("projects.status.analyzing")}
+            </Badge>
+          )}
         </div>
       </div>
 
@@ -173,9 +195,7 @@ export const ProjectOverview: React.FC = () => {
         {/* Recent Activity */}
         <Card className="col-span-4">
           <CardHeader>
-            <CardTitle>
-              {t("projects.overview.recentActivity")}
-            </CardTitle>
+            <CardTitle>{t("projects.overview.recentActivity")}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
@@ -218,11 +238,33 @@ export const ProjectOverview: React.FC = () => {
         {/* Quick Actions / Members */}
         <Card className="col-span-3">
           <CardHeader>
-            <CardTitle>
-              {t("projects.overview.quickActions")}
-            </CardTitle>
+            <CardTitle>{t("projects.overview.quickActions")}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
+            <Button
+              variant="outline"
+              className="w-full justify-start"
+              onClick={() => setDiscoverOpen(true)}
+            >
+              {hasProfile ? (
+                <RefreshCw className="mr-2 h-4 w-4" />
+              ) : (
+                <Search className="mr-2 h-4 w-4" />
+              )}
+              {hasProfile
+                ? t("projects.profile.rediscover")
+                : t("projects.profile.discover")}
+            </Button>
+            <Link
+              to="/projects/$projectId/profile"
+              params={{ projectId: projectId! }}
+              className="block"
+            >
+              <Button variant="outline" className="w-full justify-start">
+                <FileText className="mr-2 h-4 w-4" />
+                {t("projects.tabs.profile")}
+              </Button>
+            </Link>
             <Link
               to="/projects/$projectId/tasks"
               params={{ projectId: projectId! }}
@@ -255,6 +297,13 @@ export const ProjectOverview: React.FC = () => {
             </Link>
           </CardContent>
         </Card>
+
+        <DiscoverDialog
+          projectId={parseInt(projectId || "0", 10)}
+          open={discoverOpen}
+          onOpenChange={setDiscoverOpen}
+          onDiscovered={() => setHasProfile(true)}
+        />
       </div>
     </div>
   )

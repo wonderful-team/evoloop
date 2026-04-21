@@ -1,12 +1,26 @@
-import { useState, useCallback } from "react"
-import { useQuery } from "@tanstack/react-query"
-import { BookOpen, Upload, Folder, Search, FileText, TrendingUp, Hash, X } from "lucide-react"
-import { useTranslation } from "react-i18next"
+import { Badge } from "@evoloop/shared/components/ui/badge"
 import { Button } from "@evoloop/shared/components/ui/button"
 import { Input } from "@evoloop/shared/components/ui/input"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@evoloop/shared/components/ui/tabs"
-import { Badge } from "@evoloop/shared/components/ui/badge"
-import { KnowledgeService } from "@/services/knowledgeService"
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@evoloop/shared/components/ui/tabs"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
+import {
+  BookOpen,
+  FileText,
+  Folder,
+  Hash,
+  Search,
+  TrendingUp,
+  Upload,
+  X,
+} from "lucide-react"
+import { useCallback, useState } from "react"
+import { useTranslation } from "react-i18next"
+import { KnowledgeBaseAPI } from "@/services/knowledgeService"
 import { DocumentList } from "./DocumentList"
 import { DocumentUploadDialog } from "./DocumentUploadDialog"
 import { DocumentViewer } from "./DocumentViewer"
@@ -16,39 +30,51 @@ import type { DocumentInfo } from "./types"
 export function KnowledgeBasePage() {
   const { t } = useTranslation()
   const [searchQuery, setSearchQuery] = useState("")
-  const [selectedCollection, setSelectedCollection] = useState<string | null>(null)
+  const [selectedCollection, setSelectedCollection] = useState<string | null>(
+    null,
+  )
   const [selectedTags, setSelectedTags] = useState<string[]>([])
-  const [selectedDocument, setSelectedDocument] = useState<DocumentInfo | null>(null)
+  const [selectedDocument, setSelectedDocument] = useState<DocumentInfo | null>(
+    null,
+  )
   const [isUploadOpen, setIsUploadOpen] = useState(false)
   const [activeTab, setActiveTab] = useState("all")
+  const queryClient = useQueryClient()
   const [newCollectionName, setNewCollectionName] = useState("")
   const [isCreatingCollection, setIsCreatingCollection] = useState(false)
 
   // Fetch collections and documents
   const { data: collectionsData } = useQuery({
     queryKey: ["knowledge-collections"],
-    queryFn: () => KnowledgeService.getCollections(),
+    queryFn: () => KnowledgeBaseAPI.getCollections(),
   })
 
   // Fetch tags
   const { data: tagsData, isLoading: isLoadingTags } = useQuery({
     queryKey: ["knowledge-tags", selectedCollection],
-    queryFn: () => KnowledgeService.listTags(selectedCollection || undefined),
+    queryFn: () => KnowledgeBaseAPI.listTags(selectedCollection || undefined),
   })
 
   // Fetch documents with tag filter
   const { data: documentsData, isLoading: isLoadingDocs } = useQuery({
     queryKey: ["knowledge-documents", selectedCollection],
-    queryFn: () => KnowledgeService.listDocuments(selectedCollection || undefined),
+    queryFn: () =>
+      KnowledgeBaseAPI.listDocuments(selectedCollection || undefined),
   })
 
   // FTS Search
   const { data: searchResults, isLoading: isSearching } = useQuery({
-    queryKey: ["knowledge-fts-search", searchQuery, selectedCollection, selectedTags],
-    queryFn: () => KnowledgeService.ftsSearch(searchQuery, { 
-      collection: selectedCollection || undefined,
-      tags: selectedTags.length > 0 ? selectedTags : undefined
-    }),
+    queryKey: [
+      "knowledge-fts-search",
+      searchQuery,
+      selectedCollection,
+      selectedTags,
+    ],
+    queryFn: () =>
+      KnowledgeBaseAPI.ftsSearch(searchQuery, {
+        collection: selectedCollection || undefined,
+        tags: selectedTags.length > 0 ? selectedTags : undefined,
+      }),
     enabled: searchQuery.length > 0,
   })
 
@@ -59,10 +85,8 @@ export function KnowledgeBasePage() {
 
   // Toggle tag selection
   const toggleTag = useCallback((tag: string) => {
-    setSelectedTags(prev => 
-      prev.includes(tag) 
-        ? prev.filter(t => t !== tag)
-        : [...prev, tag]
+    setSelectedTags((prev) =>
+      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag],
     )
   }, [])
 
@@ -74,27 +98,33 @@ export function KnowledgeBasePage() {
   }, [])
 
   // Transform search results to DocumentInfo format
-  const searchDocuments: DocumentInfo[] = searchResults?.results.map(r => ({
-    path: r.path,
-    title: r.title,
-    size_bytes: 0,
-    modified_at: new Date().toISOString(),
-    has_metadata: true,
-    collection: r.collection,
-  })) || []
+  const searchDocuments: DocumentInfo[] =
+    searchResults?.results.map((r) => ({
+      path: r.path,
+      title: r.title,
+      size_bytes: 0,
+      modified_at: new Date().toISOString(),
+      has_metadata: true,
+      collection: r.collection ?? undefined,
+    })) || []
 
   // Filter documents by search if no FTS results
-  const filteredDocuments = searchQuery && !searchResults
-    ? documents.filter(d => 
-        d.path.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        d.title?.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    : documents
+  const filteredDocuments =
+    searchQuery && !searchResults
+      ? documents.filter(
+          (d) =>
+            d.path.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            d.title?.toLowerCase().includes(searchQuery.toLowerCase()),
+        )
+      : documents
 
   const displayDocuments = searchResults ? searchDocuments : filteredDocuments
 
   // Check if any filter is active
-  const hasActiveFilters = selectedCollection !== null || selectedTags.length > 0 || searchQuery.length > 0
+  const hasActiveFilters =
+    selectedCollection !== null ||
+    selectedTags.length > 0 ||
+    searchQuery.length > 0
 
   return (
     <div className="flex h-full flex-col">
@@ -119,8 +149,11 @@ export function KnowledgeBasePage() {
               onChange={(e) => setSearchQuery(e.target.value)}
             />
             {searchResults && (
-              <Badge variant="secondary" className="absolute right-2 top-1/2 -translate-y-1/2">
-                {searchResults.total} 结果
+              <Badge
+                variant="secondary"
+                className="absolute right-2 top-1/2 -translate-y-1/2"
+              >
+                {searchResults.total} {t("knowledge.results")}
               </Badge>
             )}
           </div>
@@ -137,7 +170,8 @@ export function KnowledgeBasePage() {
           <div className="flex items-center gap-2">
             <FileText className="h-4 w-4 text-muted-foreground" />
             <span className="text-sm">
-              <strong>{stats.total_documents}</strong> {t("knowledge.documents")}
+              <strong>{stats.total_documents}</strong>{" "}
+              {t("knowledge.documents")}
             </span>
           </div>
           <div className="flex items-center gap-2">
@@ -154,7 +188,8 @@ export function KnowledgeBasePage() {
           </div>
           <div className="flex items-center gap-2">
             <span className="text-sm text-muted-foreground">
-              {t("knowledge.totalSize")}: {(stats.total_size_bytes / 1024 / 1024).toFixed(2)} MB
+              {t("knowledge.totalSize")}:{" "}
+              {(stats.total_size_bytes / 1024 / 1024).toFixed(2)} MB
             </span>
           </div>
         </div>
@@ -163,21 +198,31 @@ export function KnowledgeBasePage() {
       {/* Active Filters Bar */}
       {hasActiveFilters && (
         <div className="flex items-center gap-2 border-b bg-muted/30 px-6 py-2">
-          <span className="text-sm text-muted-foreground">{t("knowledge.filters")}:</span>
+          <span className="text-sm text-muted-foreground">
+            {t("knowledge.filters")}:
+          </span>
           {selectedCollection && (
             <Badge variant="secondary" className="gap-1">
               <Folder className="h-3 w-3" />
               {selectedCollection}
-              <button onClick={() => setSelectedCollection(null)} className="ml-1 hover:text-destructive">
+              <button
+                type="button"
+                onClick={() => setSelectedCollection(null)}
+                className="ml-1 hover:text-destructive"
+              >
                 <X className="h-3 w-3" />
               </button>
             </Badge>
           )}
-          {selectedTags.map(tag => (
+          {selectedTags.map((tag) => (
             <Badge key={tag} variant="secondary" className="gap-1">
               <Hash className="h-3 w-3" />
               {tag}
-              <button onClick={() => toggleTag(tag)} className="ml-1 hover:text-destructive">
+              <button
+                type="button"
+                onClick={() => toggleTag(tag)}
+                className="ml-1 hover:text-destructive"
+              >
                 <X className="h-3 w-3" />
               </button>
             </Badge>
@@ -186,12 +231,21 @@ export function KnowledgeBasePage() {
             <Badge variant="secondary" className="gap-1">
               <Search className="h-3 w-3" />
               {searchQuery}
-              <button onClick={() => setSearchQuery("")} className="ml-1 hover:text-destructive">
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                className="ml-1 hover:text-destructive"
+              >
                 <X className="h-3 w-3" />
               </button>
             </Badge>
           )}
-          <Button variant="ghost" size="sm" onClick={clearFilters} className="h-6 text-xs">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={clearFilters}
+            className="h-6 text-xs"
+          >
             {t("knowledge.clearFilters")}
           </Button>
         </div>
@@ -207,19 +261,25 @@ export function KnowledgeBasePage() {
               {t("knowledge.collections")}
             </h3>
             <button
+              type="button"
               onClick={() => setSelectedCollection(null)}
               className={`w-full rounded-md px-3 py-2 text-left text-sm transition-colors ${
-                selectedCollection === null ? "bg-primary text-primary-foreground" : "hover:bg-muted"
+                selectedCollection === null
+                  ? "bg-primary text-primary-foreground"
+                  : "hover:bg-muted"
               }`}
             >
               {t("knowledge.allProjects")}
             </button>
             {collections.map((collection) => (
               <button
+                type="button"
                 key={collection}
                 onClick={() => setSelectedCollection(collection)}
                 className={`mt-1 w-full rounded-md px-3 py-2 text-left text-sm transition-colors ${
-                  selectedCollection === collection ? "bg-primary text-primary-foreground" : "hover:bg-muted"
+                  selectedCollection === collection
+                    ? "bg-primary text-primary-foreground"
+                    : "hover:bg-muted"
                 }`}
               >
                 {collection}
@@ -231,15 +291,22 @@ export function KnowledgeBasePage() {
                 <Input
                   value={newCollectionName}
                   onChange={(e) => setNewCollectionName(e.target.value)}
-                  placeholder="New collection name"
+                  placeholder={t("knowledge.newCollectionPlaceholder")}
                   className="h-8 text-sm"
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && newCollectionName.trim()) {
-                      KnowledgeService.createCollection(newCollectionName.trim()).then(() => {
-                        setNewCollectionName("");
-                        setIsCreatingCollection(false);
-                        window.location.reload();
-                      });
+                      KnowledgeBaseAPI.createCollection(
+                        newCollectionName.trim(),
+                      ).then(() => {
+                        setNewCollectionName("")
+                        setIsCreatingCollection(false)
+                        queryClient.invalidateQueries({
+                          queryKey: ["knowledge-collections"],
+                        })
+                        queryClient.invalidateQueries({
+                          queryKey: ["knowledge-documents"],
+                        })
+                      })
                     }
                   }}
                 />
@@ -248,11 +315,18 @@ export function KnowledgeBasePage() {
                   className="h-8 px-2"
                   onClick={() => {
                     if (newCollectionName.trim()) {
-                      KnowledgeService.createCollection(newCollectionName.trim()).then(() => {
-                        setNewCollectionName("");
-                        setIsCreatingCollection(false);
-                        window.location.reload();
-                      });
+                      KnowledgeBaseAPI.createCollection(
+                        newCollectionName.trim(),
+                      ).then(() => {
+                        setNewCollectionName("")
+                        setIsCreatingCollection(false)
+                        queryClient.invalidateQueries({
+                          queryKey: ["knowledge-collections"],
+                        })
+                        queryClient.invalidateQueries({
+                          queryKey: ["knowledge-documents"],
+                        })
+                      })
                     }
                   }}
                 >
@@ -266,7 +340,7 @@ export function KnowledgeBasePage() {
                 className="mt-2 w-full justify-start text-muted-foreground"
                 onClick={() => setIsCreatingCollection(true)}
               >
-                + Create Collection
+                {t("knowledge.createCollection")}
               </Button>
             )}
           </div>
@@ -277,13 +351,18 @@ export function KnowledgeBasePage() {
               {t("knowledge.tags")}
             </h3>
             {isLoadingTags ? (
-              <div className="text-sm text-muted-foreground">{t("common.loading")}</div>
+              <div className="text-sm text-muted-foreground">
+                {t("common.loading")}
+              </div>
             ) : tags.length === 0 ? (
-              <div className="text-sm text-muted-foreground">{t("knowledge.noTags")}</div>
+              <div className="text-sm text-muted-foreground">
+                {t("knowledge.noTags")}
+              </div>
             ) : (
               <div className="flex flex-wrap gap-1">
                 {tags.map(({ name, count }) => (
                   <button
+                    type="button"
                     key={name}
                     onClick={() => toggleTag(name)}
                     className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs transition-colors ${

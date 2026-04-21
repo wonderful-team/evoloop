@@ -112,6 +112,12 @@ function ProjectLayout() {
       icon: BookOpen,
       path: "/knowledge",
     },
+    {
+      id: "profile",
+      label: t("projects.tabs.profile"),
+      icon: FileText,
+      path: "/profile",
+    },
     // { id: 'reports', label: t('projects.tabs.reports'), icon: PieChart, path: '/reports' },
   ]
 

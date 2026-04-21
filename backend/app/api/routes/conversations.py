@@ -6,7 +6,7 @@ from sqlalchemy import delete, select, func
 from sqlalchemy.orm import selectinload
 
 from app.api.responses import BaseAPIResponse, ListResponse
-from app.core.engine.message_utils import to_base_message, fold_messages
+from app.core.engine.message.utils import to_base_message, fold_messages
 from app.core.engine.state.history import FoldedMessage
 from app.core.monitoring.activity import activity_monitor
 from app.infrastructure.database.sql.database import get_db_session

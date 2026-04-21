@@ -24,12 +24,12 @@ logger = logging.getLogger(__name__)
     retries=3,
     retry_delay=10,
 )
-async def sync_conversation_task(device_id: int, conversation: dict) -> dict:
+async def sync_conversation_task(device_key: str, conversation: dict) -> dict:
     """
     同步单个会话到 Member Center。
 
     Args:
-        device_id: 设备ID
+        device_key: 设备标识
         conversation: 会话数据字典
 
     Returns:
@@ -43,10 +43,10 @@ async def sync_conversation_task(device_id: int, conversation: dict) -> dict:
     api = evocloud_manager.api
 
     try:
-        result = await api.sync_conversation(device_id, conversation)
+        result = await api.sync_conversation(device_key, conversation)
 
         if result.get("code") == 0:
-            logger.info(f"[SyncTask] Conversation synced: {conversation.get('id')} device={device_id}")
+            logger.info(f"[SyncTask] Conversation synced: {conversation.get('id')} device={device_key}")
             # Update local sync status
             async with get_db_session() as db:
                 await db.execute(
@@ -82,7 +82,7 @@ async def sync_conversation_task(device_id: int, conversation: dict) -> dict:
     retry_delay=5,
 )
 async def sync_messages_task(
-    device_id: int,
+    device_key: str,
     thread_id: str,
     messages: list[dict]
 ) -> dict:
@@ -90,7 +90,7 @@ async def sync_messages_task(
     批量同步消息到 Member Center。
 
     Args:
-        device_id: 设备ID
+        device_key: 设备标识
         thread_id: 会话线程ID
         messages: 消息数据列表
 
@@ -105,12 +105,12 @@ async def sync_messages_task(
     api = evocloud_manager.api
 
     try:
-        result = await api.sync_messages(device_id, thread_id, messages)
+        result = await api.sync_messages(device_key, thread_id, messages)
 
         if result.get("code") == 0:
             logger.info(
                 f"[SyncTask] Messages synced: {len(messages)} messages "
-                f"thread={thread_id} device={device_id}"
+                f"thread={thread_id} device={device_key}"
             )
             # Update local sync status for messages
             msg_ids = [m.get("id") for m in messages if m.get("id")]
@@ -147,12 +147,12 @@ async def sync_messages_task(
     retries=2,
     retry_delay=30,
 )
-async def full_sync_task(device_id: int, data: dict) -> dict:
+async def full_sync_task(device_key: str, data: dict) -> dict:
     """
     全量同步会话和消息。
 
     Args:
-        device_id: 设备ID
+        device_key: 设备标识
         data: 包含 conversations 和 messages 的字典
 
     Returns:
@@ -188,7 +188,7 @@ async def full_sync_task(device_id: int, data: dict) -> dict:
                 seed_messages.append(seed)
                 seed_message_ids.add(seed.get("id"))
 
-        result = await api.sync_full_conversations(device_id, {
+        result = await api.sync_full_conversations(device_key, {
             "conversations": conversations,
             "messages": seed_messages,
         })
@@ -247,7 +247,7 @@ async def full_sync_task(device_id: int, data: dict) -> dict:
                 
                 logger.debug(f"[SyncTask]   -> Sending batch {chunk_index}/{total_chunks} ({len(chunk)} messages)")
                 
-                chunk_result = await api.sync_messages(device_id, thread_id, chunk)
+                chunk_result = await api.sync_messages(device_key, thread_id, chunk)
                 
                 if chunk_result.get("code") != 0:
                     error_msg = chunk_result.get("message", "Unknown error")
@@ -288,7 +288,7 @@ async def full_sync_task(device_id: int, data: dict) -> dict:
         # Avoid noisy tracebacks for connectivity issues in restricted environments
         err_str = str(e).lower()
         if any(kw in err_str for kw in ("connect", "unreachable", "timeout", "socket", "network")):
-            logger.warning(f"[SyncTask] Cloud unreachable during full sync (device={device_id}). Skipping noisy retry.")
+            logger.warning(f"[SyncTask] Cloud unreachable during full sync (device={device_key}). Skipping noisy retry.")
             return {"code": -1, "message": "Cloud unreachable"}
             
         logger.error(f"[SyncTask] Exception in full sync: {type(e).__name__}: {e}")
@@ -300,12 +300,12 @@ async def full_sync_task(device_id: int, data: dict) -> dict:
     retries=2,
     retry_delay=10,
 )
-async def incremental_sync_task(device_id: int, conversation_ids: list[str]) -> dict:
+async def incremental_sync_task(device_key: str, conversation_ids: list[str]) -> dict:
     """
     增量同步指定会话。
 
     Args:
-        device_id: 设备ID
+        device_key: 设备标识
         conversation_ids: 需要同步的会话ID列表
 
     Returns:
@@ -340,7 +340,7 @@ async def incremental_sync_task(device_id: int, conversation_ids: list[str]) -> 
                             updated_at=int(conv.updated_at.timestamp()) if conv.updated_at else 0,
                         )
 
-                        api_result = await api.sync_conversation(device_id, conv_data.model_dump())
+                        api_result = await api.sync_conversation(device_key, conv_data.model_dump())
                         if api_result.get("code") == 0:
                             results["synced"] += 1
                             # Update local sync status
@@ -375,7 +375,7 @@ async def incremental_sync_task(device_id: int, conversation_ids: list[str]) -> 
                                     )
                                     formatted_msgs.append(sm.model_dump())
                                 
-                                msg_api_result = await api.sync_messages(device_id, str(conv_id), formatted_msgs)
+                                msg_api_result = await api.sync_messages(device_key, str(conv_id), formatted_msgs)
                                 if msg_api_result.get("code") == 0:
                                     await db.execute(
                                         update(MessageModel)

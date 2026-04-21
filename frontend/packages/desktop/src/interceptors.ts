@@ -1,26 +1,14 @@
 import { toast } from 'sonner'
 import { OpenAPI } from '@/client/core/OpenAPI.ts'
 import type { AxiosResponse, AxiosError } from 'axios'
+import i18n from '@evoloop/shared/i18n'
 
-// 权益名称映射
-const BENEFIT_NAMES: Record<string, string> = {
-  browser_control: '浏览器控制',
-  desktop_control: '桌面控制',
-  mobile_control: '手机控制',
-  voice: '语音交互',
-  skill_learning: '技能学习',
-  wiki_generation: 'Wiki生成',
-  knowledge_base: '知识库',
-  gantt: '甘特图',
-  timesheet: '工时表',
-}
-
-// 订阅方案映射
-const PLAN_NAMES: Record<string, string> = {
-  '创作者版': '创作者版',
-  '极客版': '极客版',
-  '专家版': '专家版',
-  '企业版': '企业版',
+// 订阅方案映射到 i18n key
+const PLAN_KEY_MAP: Record<string, string> = {
+  '创作者版': 'creator',
+  '极客版': 'geek',
+  '专家版': 'expert',
+  '企业版': 'enterprise',
 }
 
 /**
@@ -48,8 +36,8 @@ export function initApiInterceptors() {
  */
 function checkIsBenefitError(data: any): boolean {
   return data?.detail?.code === 'BENEFIT_REQUIRED' ||
-         data?.code === 'BENEFIT_REQUIRED' ||
-         data?.code === 'SUBSCRIPTION_REQUIRED'
+    data?.code === 'BENEFIT_REQUIRED' ||
+    data?.code === 'SUBSCRIPTION_REQUIRED'
 }
 
 /**
@@ -58,30 +46,39 @@ function checkIsBenefitError(data: any): boolean {
  */
 function handleBenefitError(data: any): boolean {
   const isBenefitError = checkIsBenefitError(data)
-  
+
   if (!isBenefitError) {
     // 处理其他403错误
     if (data?.detail?.message || data?.message) {
-      toast.error('权限不足', {
+      toast.error(i18n.t('subscription.errors.insufficientPermission'), {
         description: data.detail?.message || data.message,
         duration: 3000,
       })
     }
     return false
   }
-  
+
   // 提取错误信息
   const info = extractBenefitInfo(data)
-  const benefitName = info.featureName || BENEFIT_NAMES[info.feature || ''] || info.feature || '此功能'
-  const planName = PLAN_NAMES[info.requiredPlan || ''] || info.requiredPlan || '更高等级'
-  
+
+  // 转换 benefit name
+  const benefitName = i18n.t(`subscription.benefits.${info.feature}`, {
+    defaultValue: info.featureName || info.feature || i18n.t('subscription.errors.featureFallback', '此功能')
+  })
+
+  // 转换 plan name
+  const planKey = PLAN_KEY_MAP[info.requiredPlan || ''] || info.requiredPlan
+  const planName = i18n.t(`subscription.plans.${planKey}`, {
+    defaultValue: info.requiredPlan || i18n.t('subscription.plans.higher', '更高等级')
+  })
+
   // 显示升级提示（只在这里显示一次）
   toast.error(
-    `需要${planName}订阅`,
+    i18n.t('subscription.errors.benefitRequired', { plan: planName, defaultValue: `需要${planName}订阅` }),
     {
-      description: `「${benefitName}」功能需要升级订阅才能使用`,
+      description: i18n.t('subscription.errors.benefitDescription', { feature: benefitName, defaultValue: `「${benefitName}」功能需要升级订阅才能使用` }),
       action: {
-        label: '立即升级',
+        label: i18n.t('subscription.errors.upgradeAction', '立即升级'),
         onClick: () => {
           window.location.hash = '#/subscription'
         }
@@ -89,7 +86,7 @@ function handleBenefitError(data: any): boolean {
       duration: 5000,
     }
   )
-  
+
   return true
 }
 
@@ -102,13 +99,13 @@ function extractBenefitInfo(data: any): BenefitErrorInfo {
     return {
       code: 'BENEFIT_REQUIRED',
       feature: data.detail.feature,
-      featureName: data.detail.feature_name || BENEFIT_NAMES[data.detail.feature],
+      featureName: data.detail.feature_name,
       requiredPlan: data.detail.required_plan,
       message: data.detail.message,
       upgradeUrl: data.detail.upgrade_url,
     }
   }
-  
+
   // 工具层格式
   if (data?.code === 'BENEFIT_REQUIRED') {
     return {
@@ -120,18 +117,17 @@ function extractBenefitInfo(data: any): BenefitErrorInfo {
       upgradeUrl: data.upgrade_url,
     }
   }
-  
+
   // 旧版格式
   if (data?.code === 'SUBSCRIPTION_REQUIRED') {
     return {
       code: 'SUBSCRIPTION_REQUIRED',
       feature: data.feature || data.detail?.feature,
-      featureName: BENEFIT_NAMES[data.feature || data.detail?.feature],
       requiredPlan: data.required_plan || data.detail?.required_plan,
       message: data.message || data.detail?.message,
     }
   }
-  
+
   return { code: 'UNKNOWN' }
 }
 
@@ -148,7 +144,7 @@ interface BenefitErrorInfo {
 // 自定义权益错误类
 export class BenefitRequiredError extends Error {
   public info: BenefitErrorInfo
-  
+
   constructor(info: BenefitErrorInfo) {
     super(info.message || '需要订阅才能使用此功能')
     this.name = 'BenefitRequiredError'
@@ -164,8 +160,8 @@ export function isBenefitRequiredError(error: unknown): boolean {
     return true
   }
   if (error instanceof Error) {
-    return error.message === 'BENEFIT_REQUIRED' || 
-           error.name === 'BenefitRequiredError'
+    return error.message === 'BENEFIT_REQUIRED' ||
+      error.name === 'BenefitRequiredError'
   }
   return false
 }
@@ -188,17 +184,17 @@ export function getBenefitErrorInfo(error: unknown): BenefitErrorInfo | null {
 export function handleApiError(error: unknown): boolean {
   if (typeof error === 'object' && error !== null) {
     const axiosError = error as AxiosError
-    
+
     if (axiosError.response?.status === 403) {
       return checkIsBenefitError(axiosError.response.data)
     }
-    
+
     const apiError = error as any
     if (apiError.status === 403 || apiError.result?.status === 403) {
       const data = apiError.result?.body || apiError.body
       return checkIsBenefitError(data)
     }
   }
-  
+
   return false
 }

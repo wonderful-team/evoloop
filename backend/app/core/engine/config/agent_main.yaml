@@ -125,6 +125,9 @@ nodes:
   - id: "aggregator"
     path: "app.core.engine.nodes.aggregator.AggregatorNode"
 
+  - id: "sequential_workflow"
+    path: "app.core.engine.nodes.sequential_workflow.SequentialWorkflowNode"
+
 edges:
   # 1. Supervisor (Router)
   - from: "supervisor"
@@ -136,19 +139,38 @@ edges:
       finish: "finish"
       worker: "worker"
       aggregator: "aggregator"
-      spawn_subtasks: "worker"  # Dynamic subtasks map to worker (handled by Send)
+      sequential_workflow: "sequential_workflow"
+      # NOTE: route_supervisor may also return list[Send] for dynamic subtask
+      # spawning.  This is handled directly by LangGraph (not via this map).
+      # See app.core.engine.routers._build_subtask_sends for details.
 
-  # 2. Worker -> Supervisor (Worker reports back to Supervisor for next decision)
+  # 2. Worker -> Supervisor/SequentialWorkflow (Conditional)
   - from: "worker"
-    to: "supervisor"
-    type: "simple"
+    type: "conditional"
+    router: "app.core.engine.routers.route_by_next_node"
+    map:
+      supervisor: "supervisor"
+      sequential_workflow: "sequential_workflow"
+      finish: "finish"
 
-  # 3. Chat -> End
+  # 3. SequentialWorkflow -> SequentialWorkflow/Finish/Supervisor (Conditional)
+  - from: "sequential_workflow"
+    type: "conditional"
+    router: "app.core.engine.routers.route_by_next_node"
+    map:
+      sequential_workflow: "sequential_workflow"
+      finish: "finish"
+      supervisor: "supervisor"
+
+  # 4. Chat -> Finish/End (Conditional — ensures audit lifecycle runs for chat too)
   - from: "chat"
-    to: "END"
-    type: "simple"
+    type: "conditional"
+    router: "app.core.engine.routers.route_by_next_node"
+    map:
+      finish: "finish"
+      END: "END"
 
-  # 4. Finish -> Supervisor/End (Conditional Loopback)
+  # 5. Finish -> Supervisor/End (Conditional Loopback)
   - from: "finish"
     type: "conditional"
     router: "app.core.engine.routers.route_finish"
@@ -156,7 +178,7 @@ edges:
       supervisor: "supervisor"
       END: "END"
 
-  # 5. Aggregator -> Supervisor (Aggregator reports merged results back)
+  # 6. Aggregator -> Supervisor (Aggregator reports merged results back)
   - from: "aggregator"
     to: "supervisor"
     type: "simple"

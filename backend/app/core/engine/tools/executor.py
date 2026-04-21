@@ -235,6 +235,41 @@ class AgentToolExecutor:
             except Exception as e:
                 logger.error(f"Failed to process diff for {path}: {e}")
 
+    async def execute_batch(
+        self,
+        tool_calls: list[dict],
+        local_tool_history: list[str],
+        parallel: bool = False,
+    ) -> list[ToolMessage]:
+        """
+        Execute a batch of tool calls.
+
+        Args:
+            tool_calls: List of tool call dicts with keys name, args, id
+            local_tool_history: Shared history list for repetition detection
+            parallel: Whether to execute in parallel
+
+        Returns:
+            List of ToolMessage results
+        """
+        async def _run_one(tc: dict) -> ToolMessage:
+            result = await self.execute_tool(
+                tool_name=tc["name"],
+                tool_args=tc["args"],
+                tool_id=tc["id"],
+                local_tool_history=local_tool_history,
+            )
+            return result.message
+
+        if parallel:
+            results = await asyncio.gather(*[_run_one(tc) for tc in tool_calls])
+            return list(results)
+        else:
+            results = []
+            for tc in tool_calls:
+                results.append(await _run_one(tc))
+            return results
+
     def _create_tool_message(
         self,
         content: str,

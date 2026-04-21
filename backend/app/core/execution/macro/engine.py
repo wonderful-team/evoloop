@@ -304,8 +304,6 @@ class MacroEngine:
                 if bundle_id:
                     dynamic_apps = await DynamicAppTriage.get_dynamic_apps(platform="android")
                     is_dynamic = bundle_id in dynamic_apps
-                    if is_dynamic:
-                        logger.info(f"[{thread_id}] LOOP running on DYNAMIC app: {bundle_id}. Enabling autonomous scrolling.")
             except Exception as e:
                 logger.warning(f"Failed to detect dynamic status: {e}")
 
@@ -346,9 +344,7 @@ class MacroEngine:
                         await asyncio.sleep(sleep_time)
                         retry_count += 1
                     elif "ERR_ELEMENT_NOT_FOUND" in msg and current_scroll_attempt < scroll_attempts:
-                        from app.core.environment.controllers.mobile_controller import (
-                            MobileController,
-                        )
+                        from app.core.environment.controllers.mobile_controller import MobileController
 
                         # Phase 3: Autonomous Scrolling for Dynamic Apps
                         logger.info(f"[{thread_id}] Element not found in dynamic app. Attempting autonomous scroll...")
@@ -469,9 +465,7 @@ class MacroEngine:
 
                 # Scroll to next screen
                 try:
-                    from app.core.environment.controllers.mobile_controller import (
-                        MobileController,
-                    )
+                    from app.core.environment.controllers.mobile_controller import MobileController
 
                     # Map swipe_distance to a ratio for the 'scroll' action
                     # Standard height is ~2400. 1200 is 0.5
@@ -531,9 +525,7 @@ class MacroEngine:
                 logger.info(f"[{thread_id}] Processing item {i+1}/{len(pending_items)}: {item['signature'][:50]}")
 
                 try:
-                    from app.core.environment.controllers.mobile_controller import (
-                        MobileController,
-                    )
+                    from app.core.environment.controllers.mobile_controller import MobileController
 
                     # Tap to open detail
                     tap_x = item.get("tap_x", 540)
@@ -587,9 +579,7 @@ class MacroEngine:
                         success_count += 1
 
                     # Go back to list
-                    from app.core.environment.controllers.mobile_controller import (
-                        MobileController,
-                    )
+                    from app.core.environment.controllers.mobile_controller import MobileController
 
                     await MobileController.execute(
                         action="press_key",
@@ -720,15 +710,9 @@ class MacroEngine:
 
     @classmethod
     async def _evaluate_condition(cls, cond_type: str, selector: str, source: str) -> bool:
-        from app.core.environment.controllers.browser_controller import (
-            BrowserController,
-        )
-        from app.core.environment.controllers.desktop_controller import (
-            DesktopController,
-        )
-        from app.core.environment.controllers.mobile_controller import (
-            MobileController,
-        )
+        from app.core.environment.controllers.browser_controller import BrowserController
+        from app.core.environment.controllers.desktop_controller import DesktopController
+        from app.core.environment.controllers.mobile_controller import MobileController
 
         if cond_type == "element_exists":
             if source == MacroSource.DOM:
@@ -772,15 +756,9 @@ class MacroEngine:
 
     @classmethod
     async def _handle_extraction(cls, thread_id: str, step: MacroStep, selector: str, payload: dict, params: dict, extracted_data: dict):
-        from app.core.environment.controllers.browser_controller import (
-            BrowserController,
-        )
-        from app.core.environment.controllers.desktop_controller import (
-            DesktopController,
-        )
-        from app.core.environment.controllers.mobile_controller import (
-            MobileController,
-        )
+        from app.core.environment.controllers.browser_controller import BrowserController
+        from app.core.environment.controllers.desktop_controller import DesktopController
+        from app.core.environment.controllers.mobile_controller import MobileController
 
         key = cls._inject_params(step.key, params) or "data"
         extract_type = step.extract_type or step.event_type
@@ -838,12 +816,8 @@ class MacroEngine:
     @classmethod
     async def _handle_gui_extract(cls, thread_id: str, step: MacroStep, selector: str, payload: dict, params: dict, extracted_data: dict):
         """Handle Coordinate-based GUI extraction (OCR)."""
-        from app.core.environment.controllers.desktop_controller import (
-            DesktopController,
-        )
-        from app.core.environment.controllers.mobile_controller import (
-            MobileController,
-        )
+        from app.core.environment.controllers.desktop_controller import DesktopController
+        from app.core.environment.controllers.mobile_controller import MobileController
 
         key = cls._inject_params(step.key, params) or "extracted_text"
         pos = payload.get("relative_position") or {"x": payload.get("x", 0.5), "y": payload.get("y", 0.5)}
@@ -890,9 +864,7 @@ class MacroEngine:
         try:
             from PIL import Image
 
-            from app.core.vision.providers.native.android_a11y import (
-                android_a11y_provider,
-            )
+            from app.core.vision.providers.native.android_a11y import android_a11y_provider
             from app.core.vision.types import VisionTask
 
             def _norm(t): return re.sub(r'\s+', '', t).lower() if t else ""
@@ -1407,7 +1379,8 @@ class MacroEngine:
 
     @classmethod
     def _inject_payload_params(cls, payload: Any, params: dict | None) -> Any:
-        if not params: return payload
+        if not params:
+            return payload
         if isinstance(payload, str):
             return cls._inject_params(payload, params)
         elif isinstance(payload, dict):
