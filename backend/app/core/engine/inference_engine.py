@@ -31,6 +31,8 @@ from app.infrastructure.llm.factory import LLMFactory
 
 logger = logging.getLogger(__name__)
 
+from app.core.engine.context_trimmer import ContextTrimmer, TrimTrigger  # noqa: E402
+
 
 # Backward-compatible re-export
 from app.core.engine.llm_error_classifier import InferenceError, classify_llm_error  # noqa: E402,F401
@@ -39,8 +41,9 @@ from app.core.engine.llm_error_classifier import InferenceError, classify_llm_er
 class InferenceEngine:
     """Instance-based inference engine for LLM ReAct loops."""
 
-    def __init__(self, llm_factory: Any | None = None):
+    def __init__(self, llm_factory: Any | None = None, context_trimmer: ContextTrimmer | None = None):
         self._llm_factory = llm_factory or LLMFactory
+        self._context_trimmer = context_trimmer or ContextTrimmer()
 
     async def create_llm(self, model: str | None, temperature: float):
         """Initialize LLM and detect provider."""
@@ -88,6 +91,7 @@ class InferenceEngine:
         tool_executor: Any | None = None,
         interceptors: dict[str, Callable] | None = None,
         on_thinking: Callable | None = None,
+        model: str | None = None,
     ) -> dict:
         """
         Core ReAct loop.
@@ -119,11 +123,28 @@ class InferenceEngine:
             if thread_id:
                 await activity_monitor.check_cancellation(thread_id)
 
+            # Token-driven trim inside the ReAct loop.
+            # loop_messages grows every turn; re-apply window+repair so the LLM
+            # is never drowned by its own history.
+            if model:
+                trim_result = self._context_trimmer.trim(
+                    messages=loop_messages,
+                    model=model,
+                    node_source=name.lower(),
+                    stages={"window", "repair"},
+                )
+                if trim_result.trigger != TrimTrigger.NONE:
+                    loop_messages = trim_result.messages
+                    logger.info(
+                        f"[{name}] ✂️ Loop trim: {trim_result.before_count} -> {trim_result.after_count} msgs, "
+                        f"{trim_result.before_tokens} -> {trim_result.after_tokens} tokens"
+                    )
+
             # Log context window size before each LLM call
             msg_count = len(loop_messages)
-            char_count = sum(len(str(m.content)) for m in loop_messages)
-            logger.info(f"--- {name} Loop Step {i+1}/{max_steps} | Context: {msg_count} msgs, ~{char_count} chars ---")
-
+            from app.core.engine.context_trimmer import count_total_tokens
+            token_count = count_total_tokens(loop_messages)
+            logger.info(f"--- {name} Loop Step {i+1}/{max_steps} | Context: {msg_count} msgs, ~{token_count} tokens ---")
 
             try:
                 start_perf = time.perf_counter()
@@ -201,33 +222,6 @@ class InferenceEngine:
                     logger.info(f"[{name}] Result ({tool_msg.name}): {str(tool_msg.content)[:300]}...")
                     loop_messages.append(tool_msg)
                     new_messages.append(tool_msg)
-
-            # --- Safety Guard: Context window blow-up ---
-            # MessageProcessor trims once at run_node entry, but loop_messages
-            # grows every turn inside run_react_loop. Cap it early to prevent
-            # the LLM from being drowned by its own history.
-            if len(loop_messages) > 80:
-                logger.warning(
-                    f"[{name}] 🛑 Context window blow-up detected: {len(loop_messages)} messages. "
-                    "Forcing truncation to prevent runaway execution."
-                )
-                truncation_msg = AIMessage(
-                    content=(
-                        f"[TRUNCATION] Context window exceeded safety limit "
-                        f"({len(loop_messages)} messages). "
-                        f"The task may be incomplete or stuck in a loop. "
-                        f"Supervisor review and replanning is required."
-                    ),
-                    metadata={"is_truncated": True, "reason": "context_overflow", "requires_replan": True}
-                )
-                new_messages.append(truncation_msg)
-                return {
-                    "messages": new_messages,
-                    "tool_history": local_tool_history,
-                    "last_response": last_response,
-                    "is_truncated": True,
-                    "signal": None,
-                }
 
             if pending_signal is not None:
                 return {

@@ -34,10 +34,6 @@ class AdaptiveChatOpenAI(ChatOpenAI):
         Override _agenerate to implement the adaptive retry loop.
         Note: We override _agenerate because it's the core method called by ainvoke/invoke.
         """
-        # --- 0. Pre-processing: Repair history for compatibility ---
-        from app.core.engine import repair_message_history
-        messages = repair_message_history(messages)
-
         # --- 1. Initial Configuration ---
         # Ensure we have a starting point for current tokens and temperature
         current_max_tokens = self.max_tokens or self.retry_max_tokens_base

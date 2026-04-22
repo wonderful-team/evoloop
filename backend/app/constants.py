@@ -7,56 +7,9 @@ from enum import Enum
 
 # ====================== Engine Constants ======================
 DEFAULT_PROJECT_ID = 1
-DEFAULT_HISTORY_RETAIN_COUNT = 5  # Number of messages to retain during compression
-MAX_CONTEXT_CHARS = 80000  # Max total characters in message history (~40k tokens)
-MAX_OUTPUT_LENGTH = 60000  # Max characters for tool output before truncation
-
-# ====================== Context Window Configuration ======================
-# Unified context management constants
-# IMPORTANT: These have been unified to use DEFAULT_CONTEXT_LIMIT as the single source of truth
-
-# Token to character ratio (approximate: 4 chars ≈ 1 token for English/Chinese mix)
-CONTEXT_TOKEN_TO_CHAR_RATIO = 4
-
-# Context window limits in characters (based on model context window)
-CONTEXT_LIMITS = {
-    "128k": 128000 * CONTEXT_TOKEN_TO_CHAR_RATIO,   # 512k chars
-    "256k": 256000 * CONTEXT_TOKEN_TO_CHAR_RATIO,   # 1M chars
-}
-DEFAULT_CONTEXT_LIMIT = CONTEXT_LIMITS["256k"]  # Default to 128k context (~512k chars)
-
-# Default window size (number of recent messages to keep)
-# This is now calculated dynamically based on context usage, but kept as fallback
-DEFAULT_WINDOW_SIZE = 20  # Increased from 10 to match larger context
 
 # Forgetting safety window - can only forget tool outputs older than N steps
 FORGET_SAFETY_WINDOW = 5
-
-# Context usage thresholds for warnings
-CONTEXT_WARNING_THRESHOLD = 0.8   # 80% - warning
-CONTEXT_CRITICAL_THRESHOLD = 0.95  # 95% - critical, force compression
-
-# Node-specific window sizes for multi-turn conversation support
-# Higher values for nodes that need more context
-NODE_WINDOW_SIZES = {
-    "supervisor": 8,       # Routing decisions need less history to be fast
-    "worker": 10,          # Execution focused
-    "finish": 30,          # Summary generation needs full history
-    "chat": 20,            # Conversation needs more turns
-    "aggregator": 10,      # Result aggregation
-    "default": 10,
-}
-
-# Hierarchical slicing configuration for context optimization
-# Controls three-layer retention: full -> summary -> topic marker
-DEFAULT_WINDOW_CONFIG = {
-    "supervisor": {"full_keep": 8, "summary_keep": 12},  # Focused routing context
-    "worker": {"full_keep": 12, "summary_keep": 16},     # Focus on recent
-    "finish": {"full_keep": 25, "summary_keep": 35},     # Maximum history
-    "chat": {"full_keep": 20, "summary_keep": 20},       # Balanced
-    "aggregator": {"full_keep": 12, "summary_keep": 16},
-    "default": {"full_keep": 12, "summary_keep": 16},
-}
 
 
 # ====================== Document Type Enum ======================

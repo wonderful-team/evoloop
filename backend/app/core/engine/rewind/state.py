@@ -133,57 +133,17 @@ class StateRewind:
         graph_updates = []
 
         # ------------------------------------------------------------------
-        # Unified strategy: Find checkpoint containing target message,
-        # remove target and all messages after it, keep everything before.
+        # Retry fast-path: for retry operations we always want the latest
+        # checkpoint and remove the last human onward.  Content-based matching
+        # between DB (plain text) and checkpoints (list/dict multimodal
+        # format) is unreliable, so we skip it for retries.
         # ------------------------------------------------------------------
-        # Get target message content (last human = target if no ID provided)
-        target_sequence = await self._get_target_human_sequence(
-            thread_id=thread_id,
-            target_message_id=target_message_id,
-            include_target=True  # Include target so we can find it in checkpoints
-        )
-
-        if not target_sequence:
-            logger.warning("[StateRewind] No target sequence found")
-            return None
-
-        target_anchor = self._normalize_for_match(self._extract_text(target_sequence[-1]))
-
-        # Search newest first for a checkpoint containing the target message
-        found_target = False
-        for state_snapshot in historical_states:
-            sn_msgs = state_snapshot.values.get("messages", []) if state_snapshot.values else []
-
-            for m in sn_msgs:
-                if isinstance(m, HumanMessage) and target_anchor:
-                    msg_text = self._normalize_for_match(self._extract_text(m.content))
-                    if msg_text == target_anchor:
-                        found_target = True
-                        # Remove target itself — it will be re-sent as fresh input
-                        graph_updates.append(RemoveMessage(id=m.id))
-                        continue
-
-                if found_target:
-                    # Remove all messages after target (both AI and human)
-                    graph_updates.append(RemoveMessage(id=m.id))
-
-            if found_target:
-                checkpoint_id = state_snapshot.config.get("configurable", {}).get("checkpoint_id")
-                base_state = state_snapshot
-                logger.info(
-                    f"[StateRewind] Found checkpoint {checkpoint_id} with target, "
-                    f"removing {len(graph_updates)} messages (target + after)"
-                )
-                break
-
-        if not found_target:
-            # Fallback: target not in any checkpoint, use latest and remove last human onward
+        if reason == "retry":
             latest = historical_states[0]
             checkpoint_id = latest.config.get("configurable", {}).get("checkpoint_id")
             base_state = latest
             sn_msgs = base_state.values.get("messages", []) if base_state.values else []
 
-            # Find last human message index, remove from there onward
             last_human_idx = -1
             for i, m in enumerate(sn_msgs):
                 if isinstance(m, HumanMessage):
@@ -193,10 +153,70 @@ class StateRewind:
                 for m in sn_msgs[last_human_idx:]:
                     graph_updates.append(RemoveMessage(id=m.id))
 
-            logger.warning(
-                f"[StateRewind] Target not found in checkpoints, using latest {checkpoint_id}. "
+            logger.info(
+                f"[StateRewind] Retry mode: using latest checkpoint {checkpoint_id}. "
                 f"Removing {len(graph_updates)} messages from last human onward."
             )
+        else:
+            # ------------------------------------------------------------------
+            # Unified strategy: Find checkpoint containing target message,
+            # remove target and all messages after it, keep everything before.
+            # ------------------------------------------------------------------
+            target_sequence = await self._get_target_human_sequence(
+                thread_id=thread_id,
+                target_message_id=target_message_id,
+                include_target=True
+            )
+
+            if not target_sequence:
+                logger.warning("[StateRewind] No target sequence found")
+                return None
+
+            target_anchor = self._normalize_for_match(self._extract_text(target_sequence[-1]))
+
+            found_target = False
+            for state_snapshot in historical_states:
+                sn_msgs = state_snapshot.values.get("messages", []) if state_snapshot.values else []
+
+                for m in sn_msgs:
+                    if isinstance(m, HumanMessage) and target_anchor:
+                        msg_text = self._normalize_for_match(self._extract_text(m.content))
+                        if msg_text == target_anchor:
+                            found_target = True
+                            graph_updates.append(RemoveMessage(id=m.id))
+                            continue
+
+                    if found_target:
+                        graph_updates.append(RemoveMessage(id=m.id))
+
+                if found_target:
+                    checkpoint_id = state_snapshot.config.get("configurable", {}).get("checkpoint_id")
+                    base_state = state_snapshot
+                    logger.info(
+                        f"[StateRewind] Found checkpoint {checkpoint_id} with target, "
+                        f"removing {len(graph_updates)} messages (target + after)"
+                    )
+                    break
+
+            if not found_target:
+                latest = historical_states[0]
+                checkpoint_id = latest.config.get("configurable", {}).get("checkpoint_id")
+                base_state = latest
+                sn_msgs = base_state.values.get("messages", []) if base_state.values else []
+
+                last_human_idx = -1
+                for i, m in enumerate(sn_msgs):
+                    if isinstance(m, HumanMessage):
+                        last_human_idx = i
+
+                if last_human_idx >= 0:
+                    for m in sn_msgs[last_human_idx:]:
+                        graph_updates.append(RemoveMessage(id=m.id))
+
+                logger.info(
+                    f"[StateRewind] Target not found in checkpoints, using latest {checkpoint_id}. "
+                    f"Removing {len(graph_updates)} messages from last human onward."
+                )
 
         # ------------------------------------------------------------------
         # Apply updates

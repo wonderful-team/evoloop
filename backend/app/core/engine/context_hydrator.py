@@ -368,8 +368,12 @@ class EvoContextMiddleware:
 
         if (state.is_retry or is_retry) and state.iteration_count == 0 and not state.is_subtask:
             logger.info("[Middleware] 🔄 Retry detected: Performing deep blackboard cleanup.")
-            
-            # Preserve ticket if it's the initial human seed (role_name="User") 
+
+            # Ensure state.is_retry is set so ContextTrimmer will apply retry cleanup
+            if not state.is_retry:
+                state.is_retry = True
+
+            # Preserve ticket if it's the initial human seed (role_name="User")
             # or if it was explicitly marked as 'intended' for this run.
             current_ticket = getattr(blackboard, "ticket", None)
             if current_ticket and current_ticket.agent_config and current_ticket.agent_config.role_name == "User":
@@ -386,77 +390,9 @@ class EvoContextMiddleware:
             # Also invalidate static cache on retry
             LayeredContextCache.invalidate_static(session_id)
 
-            # CRITICAL: Clean up accumulated error messages from previous failed attempts
-            # This prevents error message pollution that confuses the LLM
-            messages = list(state.messages)
-            if messages:
-                # Keep last 3 error messages at most, remove duplicates
-                error_messages = []
-                non_error_messages = []
-
-                for msg in messages:
-                    is_error = False
-                    if isinstance(msg, AIMessage):
-                        # Check for error marker in metadata
-                        if getattr(msg, "metadata", None) and msg.metadata.get("is_error"):
-                            is_error = True
-                        # Check for error content pattern
-                        elif isinstance(msg.content, str) and msg.content.startswith("Error:"):
-                            is_error = True
-
-                    if is_error:
-                        error_messages.append(msg)
-                    else:
-                        non_error_messages.append(msg)
-
-                # Keep only last 3 unique error messages to preserve some context
-                # while preventing pollution
-                if len(error_messages) > 3:
-                    # Log cleanup action
-                    removed_count = len(error_messages) - 3
-                    logger.info(f"[Middleware] 🧹 Cleanup: Removing {removed_count} accumulated error messages (keeping last 3)")
-                    # Keep only last 3 errors
-                    error_messages = error_messages[-3:]
-
-                # --- DEDUPLICATE HUMAN MESSAGES ---
-                # Retry may leave behind duplicate/merged human messages from
-                # previous failed attempts (caused by repair_message_history).
-                # Keep only the last meaningful human message + any preceding
-                # context injection messages.
-                # NOTE: Messages with name="context_ticket" must be preserved —
-                # they are injected by BaseAgentNode and should not be deduped.
-                last_human_idx = -1
-                for idx, msg in enumerate(non_error_messages):
-                    if isinstance(msg, HumanMessage) and getattr(msg, "name", None) != "context_ticket":
-                        last_human_idx = idx
-
-                if last_human_idx >= 0:
-                    segment = non_error_messages[:last_human_idx + 1]
-                    deduped_segment = []
-                    for msg in segment:
-                        # Skip dedup logic for context_ticket messages
-                        if isinstance(msg, HumanMessage) and getattr(msg, "name", None) == "context_ticket":
-                            deduped_segment.append(msg)
-                            continue
-                        if isinstance(msg, HumanMessage) and deduped_segment:
-                            prev = deduped_segment[-1]
-                            if isinstance(prev, HumanMessage) and getattr(prev, "name", None) != "context_ticket":
-                                prev_text = get_message_text(prev)
-                                curr_text = get_message_text(msg)
-                                if prev_text and curr_text and (prev_text in curr_text or curr_text in prev_text):
-                                    deduped_segment[-1] = msg
-                                    continue
-                        deduped_segment.append(msg)
-                    deduped_non_error = deduped_segment
-                else:
-                    deduped_non_error = non_error_messages
-
-                # Reconstruct messages: deduped non-error + limited errors
-                cleaned_messages = deduped_non_error + error_messages
-
-                if len(cleaned_messages) < len(messages):
-                    state.messages = cleaned_messages
-                    logger.info(f"[Middleware] ✓ Message cleanup: {len(messages)} -> {len(cleaned_messages)} messages")
+            # NOTE: Message cleanup (error dedup, human dedup) is now handled
+            # by ContextTrimmer.trim(is_retry=True) in engine.run_node().
+            # EvoContextMiddleware only handles blackboard-level cleanup.
 
         else:
             if blackboard.metadata is not None:

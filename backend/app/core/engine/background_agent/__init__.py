@@ -106,6 +106,10 @@ async def _ensure_conversation_in_db(thread_id: str, project_id: int, inputs: di
     try:
         async with session_scope() as session:
             conversation = await session.get(Conversation, thread_id)
+            logger.info(
+                f"[BGAgent][DIAG] session.get(Conversation, {thread_id!r}) returned: "
+                f"{conversation!r} (type={type(conversation).__name__})"
+            )
             if not conversation:
                 conversation_title = "New Conversation"
                 if inputs.get("task_title"):
@@ -123,8 +127,21 @@ async def _ensure_conversation_in_db(thread_id: str, project_id: int, inputs: di
                     title=conversation_title
                 )
                 session.add(conversation)
+                logger.info(
+                    f"[BGAgent][DIAG] Adding new Conversation: id={thread_id!r}, "
+                    f"project_id={project_id}, title={conversation_title!r}"
+                )
+            else:
+                logger.info(
+                    f"[BGAgent][DIAG] Found existing Conversation: id={conversation.id!r}, "
+                    f"project_id={conversation.project_id}"
+                )
     except Exception as e:
-        logger.error(f"Failed to ensure conversation {thread_id}: {e}")
+        logger.error(
+            f"[BGAgent][DIAG] Failed to ensure conversation {thread_id!r}: "
+            f"{type(e).__name__}: {e}",
+            exc_info=True,
+        )
 
 
 async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | dict[str, Any]):

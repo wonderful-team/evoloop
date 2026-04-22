@@ -231,6 +231,10 @@ async def execute_task(task_id: int, bg_tasks: BackgroundTasks, authorization: s
         async with session_scope() as session:
             # Upsert Conversation
             conversation = await session.get(Conversation, thread_id)
+            logger.info(
+                f"[Tasks][DIAG] session.get(Conversation, {thread_id!r}) returned: "
+                f"{conversation!r} (type={type(conversation).__name__})"
+            )
             if not conversation:
                 conversation = Conversation(
                     id=thread_id,
@@ -238,8 +242,16 @@ async def execute_task(task_id: int, bg_tasks: BackgroundTasks, authorization: s
                     title=task.get("task_title"),
                 )
                 session.add(conversation)
+                logger.info(
+                    f"[Tasks][DIAG] Adding new Conversation: id={thread_id!r}, "
+                    f"project_id={task.get('project_id', 1)}, title={task.get('task_title')!r}"
+                )
             else:
                 conversation.updated_at = datetime.now(timezone.utc)
+                logger.info(
+                    f"[Tasks][DIAG] Found existing Conversation: id={conversation.id!r}, "
+                    f"project_id={conversation.project_id}, updated_at will be refreshed"
+                )
 
             # Log User Message (The constructed prompt)
             user_msg = Message(
@@ -253,7 +265,11 @@ async def execute_task(task_id: int, bg_tasks: BackgroundTasks, authorization: s
             await session.flush()  # Ensure it lands
             logger.info(f"Persisted task trigger message for thread {thread_id}")
     except Exception as e:
-        logger.error(f"Failed to persist task message {thread_id}: {e}")
+        logger.error(
+            f"[Tasks][DIAG] Failed to persist task message for thread {thread_id!r}: "
+            f"{type(e).__name__}: {e}",
+            exc_info=True,
+        )
     # --------------------------------------
 
     bg_tasks.add_task(run_agent_background, thread_id, inputs)

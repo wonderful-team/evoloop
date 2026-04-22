@@ -3,7 +3,7 @@ AgentEngine - Instance-based execution engine for EvoLoop Agents.
 
 This module provides the main AgentEngine class as a thin facade that
 orchestrates:
-- MessageProcessor (context hydration, windowing, repair)
+- ContextTrimmer (unified token-driven message trimming)
 - InferenceEngine (LLM ReAct / single-shot loops)
 - SignalRegistry (plugin-based signal interception)
 - BlackboardParser (structured blackboard updates from LLM output)
@@ -20,7 +20,8 @@ from pydantic import Field
 
 from app.core.engine.blackboard_parser import BlackboardParser
 from app.core.engine.inference_engine import InferenceEngine, InferenceError
-from app.core.engine.message_processor import MessageProcessor
+from app.core.engine.context_trimmer import ContextTrimmer
+from app.core.memory.tool_output_memory import get_tool_memory_from_state
 from app.core.engine.signals import AgentSignal
 from app.core.engine.signals.registry import get_default_registry
 from app.core.engine.state import AgentState, BlackboardState
@@ -64,7 +65,7 @@ class AgentEngine:
         tool_executor_class: type = AgentToolExecutor,
         enable_diff_tracking: bool = True,
         inference_engine: InferenceEngine | None = None,
-        message_processor: MessageProcessor | None = None,
+        context_trimmer: ContextTrimmer | None = None,
         signal_registry=None,
     ):
         """
@@ -76,15 +77,18 @@ class AgentEngine:
             tool_executor_class: Tool executor class (defaults to AgentToolExecutor)
             enable_diff_tracking: Whether to enable diff tracking for file operations
             inference_engine: Optional custom InferenceEngine
-            message_processor: Optional custom MessageProcessor
+            context_trimmer: Optional custom ContextTrimmer
             signal_registry: Optional custom SignalRegistry
         """
         self._llm_factory = llm_factory or LLMFactory
         self._config_service = config_service
         self._tool_executor_class = tool_executor_class
         self._enable_diff_tracking = enable_diff_tracking
-        self._inference_engine = inference_engine or InferenceEngine(llm_factory=self._llm_factory)
-        self._message_processor = message_processor or MessageProcessor()
+        self._context_trimmer = context_trimmer or ContextTrimmer()
+        self._inference_engine = inference_engine or InferenceEngine(
+            llm_factory=self._llm_factory,
+            context_trimmer=self._context_trimmer,
+        )
         self._signal_registry = signal_registry or get_default_registry()
 
     async def run_node(
@@ -120,13 +124,15 @@ class AgentEngine:
         llm_with_tools, tool_map = self._inference_engine.bind_tools(llm, tools)
 
         # 2. Message Preparation (forgotten, windowing, repair)
-        repaired_messages = await self._message_processor.process(
+        tool_memory = get_tool_memory_from_state(state)
+        trim_result = self._context_trimmer.trim(
             messages=state.messages,
-            state=state,
-            config=config,
-            node_source=node_source or name.lower(),
             model=model,
+            node_source=node_source or name.lower(),
+            tool_memory=tool_memory,
+            is_retry=getattr(state, "is_retry", False),
         )
+        repaired_messages = trim_result.messages
 
         # 3. Build tool executor wrapper for InferenceEngine
         tool_executor = _ToolExecutorAdapter(
@@ -165,6 +171,7 @@ class AgentEngine:
                     max_steps=max_steps,
                     tool_executor=tool_executor,
                     interceptors=interceptors,
+                    model=model,
                 )
         except InferenceError as ie:
             return EngineResult(

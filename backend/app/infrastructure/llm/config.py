@@ -26,7 +26,6 @@ class LLMConfigService:
                     streaming=False,
                     # Auto-detect fixes based on URL similar to factory.py
                     fix_tool_args_list="bigmodel.cn" in (base_url or ""),
-                    repair_history=True
                 )
             else:
                 # We assume OpenAI compatible for now (provider check can expand later)

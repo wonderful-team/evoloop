@@ -35,9 +35,9 @@ class SupervisorNode(BaseAgentNode):
 
     async def prepare_state(self, state: AgentState, config: RunnableConfig) -> StateUpdate | None:
         """Pre-computation: Check for subtask completion and worker outcome."""
-        # 0. History Cleanup (Prevent retry loops on internal errors)
-        from app.core.engine.message.utils import prune_trailing_errors
-        state.messages = prune_trailing_errors(list(state.messages))
+        # NOTE: Message cleanup (including trailing error pruning) is now handled
+        # uniformly by ContextTrimmer in engine.run_node(). SupervisorNode should
+        # not perform ad-hoc message manipulation here.
 
         # Consume stale routing from previous turns
         from app.core.engine.state.lifecycle import StateLifecycleManager
@@ -118,7 +118,10 @@ class SupervisorNode(BaseAgentNode):
     ) -> StateUpdate:
         """Supervisor-specific protocol checks when no signal is present."""
         new_iter_count = (original_state.iteration_count or 0) + 1
-        new_messages = engine_result.messages or []
+        new_messages = [
+            m for m in (engine_result.messages or [])
+            if getattr(m, "name", None) != "context_ticket"
+        ]
         blackboard = engine_result.blackboard or original_state.blackboard
 
         # Check for infrastructure errors

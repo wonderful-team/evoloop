@@ -17,7 +17,6 @@ from typing import Any
 
 import markdownify
 
-from app.constants import MAX_OUTPUT_LENGTH
 from app.core.atlas import atlas_engine, get_bundle_id
 from app.core.config import settings
 from app.core.context.manager import ContextManager
@@ -41,6 +40,8 @@ from app.utils import (
 )
 
 logger = logging.getLogger(__name__)
+
+MAX_OUTPUT_LENGTH = 60000  # Max characters for tool output before truncation
 
 
 class ElementResolutionResult(DynamicBaseModel):

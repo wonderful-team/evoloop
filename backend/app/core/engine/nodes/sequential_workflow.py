@@ -32,6 +32,15 @@ class SequentialWorkflowNode(BaseAgentNode):
     """
     Executes a sequential multi-skill workflow one step per graph invocation.
 
+    Design note on message history:
+    Each step receives ONLY a single HumanMessage (mission_msg) containing
+    the previous step's output summary. The full ReAct history (tool calls,
+    reasoning, intermediate results) from engine.run_node() is NOT appended
+    to the main message history. Only a placeholder "Step N complete." is
+    returned. This is intentional to prevent multi-step workflows from
+    exploding the context window. Full details are preserved in
+    blackboard.workflow_results.
+
     State persistence:
     - blackboard.workflow_plan: list of skill IDs/names
     - blackboard.workflow_step_index: current step (0-based)

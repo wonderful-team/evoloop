@@ -67,6 +67,32 @@ class FinishNode(BaseNode):
         messages = list(state.messages)
         blackboard = state.blackboard
 
+        # Light-weight context trimming before finish processing.
+        # FinishNode does not go through engine.run_node(), so it does not
+        # benefit from the standard ContextTrimmer at the entry point.
+        # In extremely long sessions, operating on the full un-trimmed history
+        # can cause memory spikes and context overflow. We apply a soft trim
+        # here (windowing only, no structural repair) to keep the message list
+        # bounded while preserving enough history for summary generation.
+        if messages:
+            from app.core.engine.context_trimmer import ContextTrimmer
+            model = ctx.active_model or config.get("configurable", {}).get("model") or "gpt-4o"
+            trimmer = ContextTrimmer()
+            trim_result = trimmer.trim(
+                messages=messages,
+                model=model,
+                node_source="finish",
+                stages={"window"},  # Only windowing; preserve message structure
+            )
+            from app.core.engine.context_trimmer import TrimTrigger
+            if trim_result.trigger != TrimTrigger.NONE:
+                logger.info(
+                    f"[Finish] Soft trim before audit: {trim_result.before_count} -> "
+                    f"{trim_result.after_count} msgs, {trim_result.before_tokens} -> "
+                    f"{trim_result.after_tokens} tokens"
+                )
+            messages = trim_result.messages
+
         effective_thread_id = (
             ctx.thread_id
             or state.thread_id

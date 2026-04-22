@@ -21,7 +21,7 @@ __all__ = [
     "EngineResult",
     "get_default_engine",
     "set_default_engine",
-    "repair_message_history",
+    "ContextTrimmer",
 ]
 
 _import_map = {
@@ -29,7 +29,7 @@ _import_map = {
     "EngineResult": ("app.core.engine.engine", "EngineResult"),
     "get_default_engine": ("app.core.engine.engine", "get_default_engine"),
     "set_default_engine": ("app.core.engine.engine", "set_default_engine"),
-    "repair_message_history": ("app.core.engine.message.repair", "repair_message_history"),
+    "ContextTrimmer": ("app.core.engine.context_trimmer", "ContextTrimmer"),
 }
 
 

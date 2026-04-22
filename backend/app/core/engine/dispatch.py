@@ -128,6 +128,10 @@ async def dispatch_agent_run(
         async with session_scope() as session:
             # Upsert Conversation
             conversation = await session.get(Conversation, thread_id)
+            logger.info(
+                f"[Dispatch][DIAG] session.get(Conversation, {thread_id!r}) returned: "
+                f"{conversation!r} (type={type(conversation).__name__})"
+            )
             if not conversation:
                 conversation = Conversation(
                     id=thread_id,
@@ -135,8 +139,16 @@ async def dispatch_agent_run(
                     title=message_content[:50],
                 )
                 session.add(conversation)
+                logger.info(
+                    f"[Dispatch][DIAG] Adding new Conversation: id={thread_id!r}, "
+                    f"project_id={project_id}, title={message_content[:50]!r}"
+                )
             else:
                 conversation.updated_at = datetime.now(timezone.utc)
+                logger.info(
+                    f"[Dispatch][DIAG] Found existing Conversation: id={conversation.id!r}, "
+                    f"project_id={conversation.project_id}, updated_at will be refreshed"
+                )
 
             if not skip_message_persistence:
                 # New message: persist to DB
@@ -199,7 +211,11 @@ async def dispatch_agent_run(
             logger.warning(f"[Dispatch] Failed to sync to EvoCloud: {sync_e}")
 
     except Exception as e:
-        logger.error(f"[Dispatch] Failed to persist: {e}")
+        logger.error(
+            f"[Dispatch][DIAG] Failed to persist for thread_id={thread_id!r}: "
+            f"{type(e).__name__}: {e}",
+            exc_info=True,
+        )
         return DispatchResult(
             status="failed",
             thread_id=thread_id,

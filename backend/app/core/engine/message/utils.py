@@ -9,47 +9,9 @@ compatibility. New code should import directly from the specialized modules.
 
 import logging
 
-from app.constants import MAX_OUTPUT_LENGTH
 from app.infrastructure.llm.model_profile import get_profile
 
 logger = logging.getLogger(__name__)
-
-
-def _get_truncate_limit(model: str | None = None) -> int:
-    """Get truncate limit from ModelProfile, falling back to MAX_OUTPUT_LENGTH."""
-    try:
-        profile = get_profile(model) if model else None
-        if profile:
-            return profile.truncate_limit_chars
-    except ImportError:
-        pass
-    return MAX_OUTPUT_LENGTH
-
-
-def truncate_message_content(
-    content: str,
-    limit: int | None = None,
-    model: str | None = None,
-) -> str:
-    """
-    Truncate content if it exceeds the limit, adding a metadata footer.
-    
-    Args:
-        content: The content string to truncate.
-        limit: Explicit character limit. If None, derived from ModelProfile or MAX_OUTPUT_LENGTH.
-        model: Model name for profile-aware limit derivation.
-    """
-    effective_limit = limit or _get_truncate_limit(model)
-
-    # Use the utility function with custom footer format
-    if not content or len(content) <= effective_limit:
-        return content
-
-    chars = len(content)
-    lines = content.count("\n")
-    truncated = content[:effective_limit]
-    footer = f"\n...\n[Output truncated: {lines} lines / {chars} chars total. Use specific read/search tools for more.]"
-    return truncated + footer
 
 
 def get_message_text(message) -> str:
@@ -91,8 +53,5 @@ def get_last_human_message(messages: list) -> str | None:
     return None
 
 
-# Backward-compatible re-exports from specialized modules
-from app.core.engine.message.forgetting import apply_forgotten_status  # noqa: E402,F401
+# Internal-only re-exports (do not import these from outside ContextTrimmer)
 from app.core.engine.message.folding import fold_messages, to_base_message  # noqa: E402,F401
-from app.core.engine.message.repair import prune_trailing_errors, repair_message_history  # noqa: E402,F401
-from app.core.engine.message.window import smart_window_slice  # noqa: E402,F401
