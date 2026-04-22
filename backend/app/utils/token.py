@@ -4,6 +4,8 @@ Token counting utilities for accurate context management.
 Provides model-aware token counting to replace heuristic (chars // 4) estimation.
 Uses tiktoken for OpenAI-compatible models and falls back to character estimation
 for unsupported models.
+
+All token counting in the system should import from this module.
 """
 
 import logging
@@ -36,7 +38,8 @@ _MODEL_ENCODING_MAP: dict[str, str] = {
 }
 
 # Fallback ratio: 1 token ≈ N characters (varies by language)
-_FALLBACK_CHARS_PER_TOKEN = 3.5  # Slightly more conservative than //4 for CJK
+# Unified to 4 across the entire system for consistency with ContextTrimmer budgets.
+_FALLBACK_CHARS_PER_TOKEN = 4
 
 
 @lru_cache(maxsize=8)
@@ -57,7 +60,7 @@ def get_encoding_for_model(model: str) -> str | None:
     """
     Map a model name to its tiktoken encoding.
     Supports fuzzy matching for model variants (e.g. "gpt-4o-2024-05-13" -> "o200k_base").
-    
+
     Returns None if no mapping found.
     """
     # Exact match
@@ -73,16 +76,20 @@ def get_encoding_for_model(model: str) -> str | None:
     return None
 
 
-def count_tokens(text: str, model: str = "gpt-4o") -> int:
+# ---------------------------------------------------------------------------
+# Precise counting (use when model is known)
+# ---------------------------------------------------------------------------
+
+def count_tokens(text: str, model: str) -> int:
     """
     Count tokens in a text string.
-    
+
     Uses tiktoken for supported models, falls back to character estimation.
-    
+
     Args:
         text: The text to count tokens for.
         model: The model name to use for encoding selection.
-    
+
     Returns:
         Estimated token count.
     """
@@ -100,7 +107,7 @@ def count_tokens(text: str, model: str = "gpt-4o") -> int:
 
 
 def _message_to_text(msg: BaseMessage) -> str:
-    """Extract text content from a message for token counting."""
+    """Extract text content from a message for precise token counting."""
     content = msg.content
     if isinstance(content, str):
         text = content
@@ -121,17 +128,17 @@ def _message_to_text(msg: BaseMessage) -> str:
     return text
 
 
-def count_messages_tokens(messages: list[BaseMessage], model: str = "gpt-4o") -> int:
+def count_messages_tokens(messages: list[BaseMessage], model: str) -> int:
     """
     Count total tokens across a list of messages.
-    
+
     Includes a per-message overhead (~4 tokens for role/separators)
     matching OpenAI's token counting methodology.
-    
+
     Args:
         messages: List of LangChain messages.
         model: The model name for encoding selection.
-    
+
     Returns:
         Total estimated token count.
     """
@@ -149,3 +156,25 @@ def count_messages_tokens(messages: list[BaseMessage], model: str = "gpt-4o") ->
     total += 3
 
     return total
+
+
+# ---------------------------------------------------------------------------
+# Fast estimation (use when model is unknown or for high-frequency calls)
+# ---------------------------------------------------------------------------
+
+def estimate_tokens(text: str) -> int:
+    """
+    Fast token estimation without model info.
+
+    Uses chars // 4 heuristic. Guaranteed to return >= 1 for non-empty text.
+    This is the unified estimation used by ContextTrimmer and context_monitor.
+
+    Args:
+        text: The text to estimate tokens for.
+
+    Returns:
+        Estimated token count (0 for empty, >= 1 otherwise).
+    """
+    if not text:
+        return 0
+    return max(1, len(text) // _FALLBACK_CHARS_PER_TOKEN)

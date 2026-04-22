@@ -8,11 +8,8 @@ import re
 from datetime import datetime
 from typing import List, Optional
 
-from langchain_core.messages import BaseMessage, HumanMessage, ToolMessage
-
 from app.core.llm import InternalLLMService
 from app.core.memory.models import MemoryEntry, MemoryType
-from app.i18n.service import i18n
 
 logger = logging.getLogger(__name__)
 
@@ -235,96 +232,3 @@ class MemoryConsolidator:
 
     def _format_memories(self, memories: List[MemoryEntry]) -> str:
         return "\n".join([f"ID: {m.id} | Title: {m.title} | Content: {m.content[:200]}" for m in memories])
-
-
-class ContextPruningStrategy:
-    """
-    Implements 'Smart Pruning' for conversation context (short-term).
-    
-    - Dynamically determines pruning threshold based on the current model's context window.
-    - Uses precise token counting when available, falls back to character estimation.
-    - Preserves recent context (last N turns).
-    - Prunes old tool outputs first (they can be re-fetched).
-    """
-
-    # Keep last 2 user/assistant turns intact regardless of token count
-    MIN_TURNS_TO_KEEP = 2
-
-    @staticmethod
-    def prune_messages(
-        messages: list[BaseMessage],
-        model: str | None = None,
-    ) -> list[BaseMessage]:
-        """
-        Prunes old tool messages if context is too large.
-        """
-        if not messages:
-            return messages
-
-        # --- Dynamic threshold from ModelProfile ---
-        try:
-            from app.infrastructure.llm.model_profile import get_current_profile
-            from app.utils.token import count_messages_tokens
-
-            profile = get_current_profile(model) if model else None
-            if profile:
-                total_tokens = count_messages_tokens(messages, model or "gpt-4o")
-                threshold = profile.prune_threshold_tokens
-
-                if total_tokens < threshold:
-                    return messages
-
-                logger.info(
-                    f"Pruning triggered: {total_tokens} tokens > threshold {threshold} "
-                    f"(model={profile.name}, context={profile.max_context_tokens})"
-                )
-            else:
-                total_chars = sum(len(str(m.content)) for m in messages)
-                if total_chars < 30000:
-                    return messages
-        except (ImportError, Exception):
-            total_chars = sum(len(str(m.content)) for m in messages)
-            if total_chars < 30000:
-                return messages
-
-        # Identify protected range (last N turns)
-        turns = 0
-        protected_index = 0
-
-        for i in range(len(messages) - 1, -1, -1):
-            msg = messages[i]
-            if isinstance(msg, HumanMessage):
-                turns += 1
-            if turns >= ContextPruningStrategy.MIN_TURNS_TO_KEEP:
-                protected_index = i
-                break
-
-        # Pruning Pass: Only prune messages BEFORE the protected index
-        pruned_messages = []
-        for i, msg in enumerate(messages):
-            if i < protected_index and isinstance(msg, ToolMessage):
-                if str(msg.content) == "[Pruned Tool Output]":
-                    pruned_messages.append(msg)
-                    continue
-
-                # Prune it!
-                pruned_msg = ToolMessage(
-                    content=i18n.get("memory.pruned_output"),
-                    tool_call_id=msg.tool_call_id,
-                    name=msg.name,
-                    additional_kwargs={"original_length": len(str(msg.content))},
-                )
-                pruned_messages.append(pruned_msg)
-            else:
-                pruned_messages.append(msg)
-
-        return pruned_messages
-
-    @staticmethod
-    def get_token_usage(messages: list[BaseMessage], model: str | None = None) -> int:
-        """Get token usage for messages."""
-        try:
-            from app.utils.token import count_messages_tokens
-            return count_messages_tokens(messages, model or "gpt-4o")
-        except (ImportError, Exception):
-            return sum(len(str(m.content)) for m in messages) // 4

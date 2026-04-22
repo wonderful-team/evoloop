@@ -223,7 +223,6 @@ class EvoContextMiddleware:
 
         project_id = ctx.project_id or DEFAULT_PROJECT_ID
         session_id = config.get("configurable", {}).get("run_id", ctx.request_id)
-        thread_id = ctx.thread_id
 
         # Extract last human message for memory operations
         last_human_msg = ""
@@ -389,11 +388,6 @@ class EvoContextMiddleware:
                 blackboard.metadata.shadow_audit = None
             # Also invalidate static cache on retry
             LayeredContextCache.invalidate_static(session_id)
-
-            # NOTE: Message cleanup (error dedup, human dedup) is now handled
-            # by ContextTrimmer.trim(is_retry=True) in engine.run_node().
-            # EvoContextMiddleware only handles blackboard-level cleanup.
-
         else:
             if blackboard.metadata is not None:
                 blackboard.metadata.final_outcome = None

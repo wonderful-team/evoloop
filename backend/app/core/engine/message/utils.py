@@ -9,7 +9,9 @@ compatibility. New code should import directly from the specialized modules.
 
 import logging
 
-from app.infrastructure.llm.model_profile import get_profile
+from langchain_core.messages import AIMessage, BaseMessage
+
+from app.utils.token import estimate_tokens
 
 logger = logging.getLogger(__name__)
 
@@ -20,8 +22,6 @@ def get_message_text(message) -> str:
     - Normal string content
     - List of blocks (Multimodal/Anthropic)
     """
-    from langchain_core.messages import BaseMessage
-
     if isinstance(message, str):
         return message
 
@@ -53,5 +53,26 @@ def get_last_human_message(messages: list) -> str | None:
     return None
 
 
-# Internal-only re-exports (do not import these from outside ContextTrimmer)
-from app.core.engine.message.folding import fold_messages, to_base_message  # noqa: E402,F401
+def estimate_message_tokens(msg: BaseMessage) -> int:
+    """
+    Estimate token count for a single message including structural overhead.
+
+    Uses the unified chars // 4 heuristic from app.utils.token.estimate_tokens.
+
+    Args:
+        msg: A LangChain message.
+
+    Returns:
+        Estimated token count.
+    """
+    text = get_message_text(msg)
+    base = estimate_tokens(text)
+    overhead = 4  # role, name, etc.
+    if isinstance(msg, AIMessage) and getattr(msg, "tool_calls", None):
+        overhead += 8  # tool_calls have extra overhead
+    return base + overhead
+
+
+def count_total_tokens(messages: list[BaseMessage]) -> int:
+    """Sum estimated tokens for all messages (fast path, no model required)."""
+    return sum(estimate_message_tokens(m) for m in messages)

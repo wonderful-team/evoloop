@@ -142,7 +142,7 @@ class InferenceEngine:
 
             # Log context window size before each LLM call
             msg_count = len(loop_messages)
-            from app.core.engine.context_trimmer import count_total_tokens
+            from app.core.engine.message.utils import count_total_tokens
             token_count = count_total_tokens(loop_messages)
             logger.info(f"--- {name} Loop Step {i+1}/{max_steps} | Context: {msg_count} msgs, ~{token_count} tokens ---")
 

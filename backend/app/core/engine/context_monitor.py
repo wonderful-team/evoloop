@@ -15,8 +15,7 @@ from langchain_core.messages import (
 )
 from pydantic import Field
 
-from app.core.engine.context_trimmer import estimate_message_tokens
-from app.core.engine.message.utils import get_message_text
+from app.core.engine.message.utils import estimate_message_tokens
 from app.infrastructure.llm.model_profile import get_profile
 from app.infrastructure.pydantic_base import DynamicBaseModel
 

@@ -24,11 +24,9 @@ from app.core.engine.state.history import ToolCall
 from app.core.memory.tool_output_memory import ToolOutputMemory
 from app.i18n.service import i18n
 from app.infrastructure.llm.model_profile import get_profile
+from app.core.engine.message.utils import count_total_tokens, estimate_message_tokens
 
 logger = logging.getLogger(__name__)
-
-# Token estimation: approximate ratio for mixed CJK/Latin content
-TOKEN_CHAR_RATIO = 4
 
 # Node budget ratios: fraction of model context window allocated per node type
 NODE_BUDGET_RATIOS: dict[str, float] = {
@@ -71,28 +69,6 @@ class TrimResult:
     after_count: int
     removed_count: int
     stage_log: list[dict] = field(default_factory=list)
-
-
-def estimate_tokens(text: str) -> int:
-    """Estimate token count from text."""
-    if not text:
-        return 0
-    return max(1, len(text) // TOKEN_CHAR_RATIO)
-
-
-def estimate_message_tokens(msg: BaseMessage) -> int:
-    """Estimate token count for a single message including structural overhead."""
-    text = get_message_text(msg)
-    base = estimate_tokens(text)
-    overhead = 4  # role, name, etc.
-    if isinstance(msg, AIMessage) and getattr(msg, "tool_calls", None):
-        overhead += 8  # tool_calls have extra overhead
-    return base + overhead
-
-
-def count_total_tokens(messages: list[BaseMessage]) -> int:
-    """Sum estimated tokens for all messages."""
-    return sum(estimate_message_tokens(m) for m in messages)
 
 
 def _compute_budget(model: str, node_source: str) -> tuple[int, int]:
@@ -532,7 +508,7 @@ class ContextTrimmer:
 
         profile = get_profile(model)
         limit_tokens = profile.truncate_limit_tokens
-        limit_chars = limit_tokens * TOKEN_CHAR_RATIO
+        limit_chars = limit_tokens * 4  # chars per token fallback ratio
 
         if len(content) <= limit_chars:
             return content
