@@ -170,11 +170,6 @@ class Settings(BaseSettings):
     # - auto: Auto-detect based on EMBEDDED_MODE (huey for embedded, celery otherwise)
     TASK_QUEUE_BACKEND: Literal["celery", "huey", "local", "auto"] = "auto"
 
-    # LLM Providers
-    OPENAI_API_KEY: str = "sk-dummy-key-for-local-dev"
-    OPENAI_BASE_URL: str = "http://localhost:1234/v1"
-    OPENAI_MODEL_NAME: str = "gpt-4o"
-
     # Voice/TTS Configuration
     TTS_PROVIDER: str = "auto"  # auto | system-tts | edge-tts
     TTS_DEFAULT_VOICE: str = "zh-CN-Tingting"  # macOS 系统语音: 婷婷
@@ -190,9 +185,6 @@ class Settings(BaseSettings):
     )  # Directory for storing AI models (FunASR, embeddings, etc.)
 
     # Embedding Configuration
-    EMBEDDING_PROVIDER: Literal["openai", "ollama", "dashscope", "huggingface", "local"] = "openai"
-    EMBEDDING_BASE_URL: str | None = None  # Optional override
-    EMBEDDING_MODEL_NAME: str = "text-embedding-3-small"  # Qwen / Aliyun Compatible
     EMBEDDING_DIMENSIONS: int = 768  # Nomic / Local Default
 
     # Wiki Generation
@@ -212,7 +204,6 @@ class Settings(BaseSettings):
     # Higher values = more context for LLM but higher token cost
     MAX_KEYFRAMES: int = 50
 
-    ANTHROPIC_API_KEY: str | None = None
     GOOGLE_API_KEY: str | None = None
     BRAVE_API_KEY: str | None = None
 
@@ -244,10 +235,6 @@ class Settings(BaseSettings):
         path = os.path.join(self.APP_DATA_DIR, "skills")
         os.makedirs(path, exist_ok=True)
         return path
-
-    # Drivers: 'mock', 'local_ssm', 'remote_api'
-    SSM_MODEL_NAME: str = "local-model"  # Default for LM Studio/Ollama
-    SSM_API_BASE: str = "http://localhost:1234/v1"  # For LM Studio / LocalAI
 
     REFLECTIVE_DRIVER_TYPE: str = "active"
 

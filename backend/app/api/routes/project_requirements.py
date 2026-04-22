@@ -213,15 +213,12 @@ async def upload_requirement_document(
         # 4. Start Agent background task
         thread_id = f"proj-{project_id}-req-{file_id}"
 
-        background_tasks.add_task(
-            run_agent_background,
+        # 4. Trigger Unified Dispatcher
+        from app.core.engine.dispatch import dispatch_agent_run
+
+        result = await dispatch_agent_run(
             thread_id=thread_id,
-            inputs={
-                "project_id": project_id,
-                "messages": [
-                    {
-                        "type": "human",
-                        "content": f"""请分析我刚上传的需求文档。
+            message_content=f"""请分析我刚上传的需求文档。
 
 文档ID: {file_id}
 文件名: {file.filename}
@@ -234,10 +231,14 @@ async def upload_requirement_document(
 4. 任务将自动同步到 EvoCloud
 
 如果我对分析结果不满意，请根据我的反馈重新分析。""",
-                    }
-                ],
-            },
+            project_id=project_id,
+            goal_prefix="[Requirement Analysis] ",
         )
+
+        if result.status == "failed":
+            raise HTTPException(status_code=500, detail=result.error)
+
+        background_tasks.add_task(run_agent_background, thread_id, result.inputs)
 
         return RequirementUploadResponse(
             document_id=file_id,

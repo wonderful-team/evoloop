@@ -30,6 +30,15 @@ async def handle_remote_command(command: RemoteCommand):
         if thread_id and response is not None:
             logger.info(f"[EvoLoop] Processing HITL Response for thread {thread_id}")
 
+            # Persist the response message so it appears in history
+            from app.core.engine.dispatch import persist_user_message
+            await persist_user_message(
+                thread_id=thread_id,
+                content=str(response),
+                project_id=command.get("project_id"),
+                command_id=command.get("command_id"),
+            )
+
             from app.core.engine.background_agent import BackgroundAgentInputs
             inputs = BackgroundAgentInputs(
                 hitl_resume_response=response,

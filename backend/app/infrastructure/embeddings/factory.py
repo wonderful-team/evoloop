@@ -15,31 +15,45 @@ class EmbedderFactory:
         """
         Factory to create the configured Embedder.
         Priority:
-        1. Explicit model_name (if provided and starts with custom-)
+        1. Explicit model_name (if provided)
         2. System Config (DB)
         3. Environment Variables (Settings)
         
         Args:
             model_name: Optional model identifier. Supports custom-embedding-{provider}-{model} format.
         """
-        # 🔍 Auto-detect custom embedding model by ID prefix
-        if model_name and model_name.startswith("custom-embedding-"):
-            # Parse custom-embedding-{provider}-{model}
-            parts = model_name.split("-", 3)
-            if len(parts) >= 4:
-                provider = parts[2]
-                actual_model = parts[3]
-                logger.debug(f"[EmbeddingFactory] Detected custom embedding: provider={provider}, model={actual_model}")
+        # 0. Resolution: if not provided, fetch from DB
+        if not model_name:
+            try:
+                model_name = SystemConfigService.get_value("EMBEDDING_MODEL")
+            except Exception:
+                pass
+
+        # 1. 🔍 Auto-detect custom embedding model by ID prefix
+        if model_name and (model_name.startswith("custom-embedding-") or model_name.startswith("custom-")):
+            # Standard IDs are custom-embedding-{provider}-{model}
+            # Compatible with LLM style custom-{provider}-{model}
+            prefix = "custom-embedding-" if model_name.startswith("custom-embedding-") else "custom-"
+            parts = model_name[len(prefix):].split("-", 1)
+            
+            if len(parts) >= 2:
+                provider = parts[0]
+                actual_model = parts[1]
+                logger.debug(f"[EmbeddingFactory] Resolved custom embedding: provider={provider}, model={actual_model} (ID: {model_name})")
 
                 # Get custom embedding config from SystemConfig
                 base_url = SystemConfigService.get_value("EMBEDDING_BASE_URL")
                 api_key = SystemConfigService.get_value("EMBEDDING_API_KEY")
                 dim_val = SystemConfigService.get_value("EMBEDDING_DIMENSIONS")
-                dimensions = int(dim_val) if dim_val else settings.EMBEDDING_DIMENSIONS
+                
+                if not api_key:
+                    raise ValueError(f"Custom embedding '{actual_model}' requires EMBEDDING_API_KEY in configuration")
 
+                dimensions = int(dim_val) if dim_val else 1536 # Default to safe standard dimension if missing
+                
                 return GenericOpenAIEmbedder(
-                    api_key=api_key or settings.EMBEDDING_API_KEY,
-                    base_url=base_url or settings.OPENAI_BASE_URL,
+                    api_key=api_key,
+                    base_url=base_url,
                     model=actual_model,
                     dimensions=dimensions
                 )
@@ -52,34 +66,18 @@ class EmbedderFactory:
             provider = None
 
         if not provider:
-            # Fallback to config.py defaults
-            # We map default settings to a "provider" logic
-            # Assuming settings defaults to "openai" or "generic" depending on base_url
-            dimensions = settings.EMBEDDING_DIMENSIONS
-            if "localhost" in settings.OPENAI_BASE_URL and "v1" in settings.OPENAI_BASE_URL:
-                # Likely LMStudio/Local, but using OpenAI protocol
-                model_name = settings.EMBEDDING_MODEL_NAME
-                base_url = settings.OPENAI_BASE_URL
-                api_key = settings.OPENAI_API_KEY
-                return GenericOpenAIEmbedder(
-                    api_key=api_key,
-                    base_url=base_url,
-                    model=model_name,
-                    dimensions=dimensions,
-                )
-            else:
-                # Default OpenAI
-                return GenericOpenAIEmbedder(
-                    api_key=settings.OPENAI_API_KEY,
-                    base_url=settings.OPENAI_BASE_URL,
-                    model=settings.EMBEDDING_MODEL_NAME,
-                    dimensions=dimensions,
-                )
+            # No explicit provider configured and no DB config.
+            # Low priority warning instead of error to allow OpenAPI export and setup
+            warning_msg = "Embedding provider not configured. Some features may be disabled until configured via System Settings."
+            logger.warning(warning_msg)
+            # Return None or a dummy to allow startup
+            return None # type: ignore
 
         # 2. DB Config Exists
         if provider == "openai" or provider == "generic" or provider == "local":
             base_url = SystemConfigService.get_value("EMBEDDING_BASE_URL")
-            model = SystemConfigService.get_value("EMBEDDING_MODEL")
+            # 优先从 CUSTOM_EMBEDDING_MODEL 获取，避免 ID 冲突
+            model = SystemConfigService.get_value("CUSTOM_EMBEDDING_MODEL") or SystemConfigService.get_value("EMBEDDING_MODEL")
             api_key = SystemConfigService.get_value("EMBEDDING_API_KEY")
             # Robust integer parsing
             dim_val = SystemConfigService.get_value("EMBEDDING_DIMENSIONS")

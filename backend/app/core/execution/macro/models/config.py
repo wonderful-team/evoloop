@@ -26,7 +26,7 @@ class RoundConfig(DynamicBaseModel):
 
 class VerificationAgentConfig(DynamicBaseModel):
     """Agent 行为配置"""
-    llm_model: str = "gpt-4o"
+    llm_model: str | None = None  # Must be provided explicitly
     max_retries_per_step: int = 3
     allow_strategy_adaptation: bool = True
     conservative_mode: bool = True  # Default to True to stop on failure

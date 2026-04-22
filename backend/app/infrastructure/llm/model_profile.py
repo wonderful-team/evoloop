@@ -227,7 +227,7 @@ def get_profile(model_name: str) -> ModelProfile:
     Supports fuzzy matching for versioned model names.
     
     Args:
-        model_name: The model identifier (e.g. "gpt-4o-2024-05-13")
+        model_name: The model identifier (e.g. "gpt-4o-2024-05-13" or "custom-openai-gpt-4o")
     
     Returns:
         The matching ModelProfile, or a conservative default.
@@ -235,17 +235,24 @@ def get_profile(model_name: str) -> ModelProfile:
     if not model_name:
         return _DEFAULT_PROFILE
 
+    # Strip custom prefix if present: custom-{provider}-{actual_model}
+    effective_name = model_name
+    if model_name.startswith("custom-"):
+        parts = model_name.split("-", 2)
+        if len(parts) >= 3:
+            effective_name = parts[2]
+
     # Exact match
-    if model_name in _BUILTIN_PROFILES:
-        return _BUILTIN_PROFILES[model_name]
+    if effective_name in _BUILTIN_PROFILES:
+        return _BUILTIN_PROFILES[effective_name]
 
     # Fuzzy match: try prefix matching
-    model_lower = model_name.lower()
+    model_lower = effective_name.lower()
     for known_name, profile in _BUILTIN_PROFILES.items():
         if model_lower.startswith(known_name):
             return profile
 
-    logger.info(f"No model profile found for '{model_name}', using conservative defaults.")
+    logger.info(f"No model profile found for '{effective_name}' (from '{model_name}'), using conservative defaults.")
     return _DEFAULT_PROFILE
 
 
@@ -261,11 +268,5 @@ def get_current_profile() -> ModelProfile:
             return get_profile(db_model)
     except Exception as e:
         logger.debug(f"Could not read model from SystemConfig: {e}")
-
-    try:
-        from app.core.config import settings
-        return get_profile(settings.OPENAI_MODEL_NAME)
-    except Exception:
-        pass
 
     return _DEFAULT_PROFILE

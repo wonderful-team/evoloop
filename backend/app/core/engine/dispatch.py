@@ -60,6 +60,7 @@ async def dispatch_agent_run(
     goal_prefix: str = "",
     skip_message_persistence: bool = False,
     context: EvoContext | None = None,
+    metadata: dict[str, Any] | None = None,
 ) -> DispatchResult:
     """
     Unified dispatch preparation for an Agent run.
@@ -67,8 +68,7 @@ async def dispatch_agent_run(
     This function performs all *synchronous* preparation work.
     It does **not** start the background task — callers must do that themselves.
 
-    Model fallback: if ``model`` is None/empty, falls back to
-    ``settings.OPENAI_MODEL_NAME``.
+    Model must be explicitly provided or available in EvoContext.
     """
     # ------------------------------------------------------------------
     # 0. Ensure execution context
@@ -76,21 +76,51 @@ async def dispatch_agent_run(
     # ------------------------------------------------------------------
     # 0. Resolve model (before creating context)
     # ------------------------------------------------------------------
-    effective_model = model or settings.OPENAI_MODEL_NAME
-    if not model:
-        logger.info(f"[Dispatch] No model specified, using default: {effective_model}")
+    active_model = model
+    if not active_model:
+        existing_ctx = ContextManager.current()
+        if existing_ctx and existing_ctx.active_model:
+            active_model = existing_ctx.active_model
+            logger.info(f"[Dispatch] No model specified, using context model: {active_model}")
+        else:
+            raise ValueError(
+                "No model specified and no active_model found in EvoContext. "
+                "Please provide a model explicitly or ensure EvoContext.active_model is set."
+            )
+
+    # ------------------------------------------------------------------
+    # 1. Resolve Environment (Project Path)
+    # ------------------------------------------------------------------
+    working_directory = None
+    if project_id and project_id != 0:
+        try:
+            project = await evocloud_manager.get_project_by_id(project_id)
+            if project and project.get("path"):
+                working_directory = project["path"]
+                logger.info(f"[Dispatch] Resolved project {project_id} path: {working_directory}")
+        except Exception as e:
+            logger.warning(f"[Dispatch] Failed to resolve project path for {project_id}: {e}")
+
+    # If not resolved via project, fall back to thread context store (for global mode or manual overrides)
+    if not working_directory:
+        from app.core.context.thread_store import thread_context_store
+        working_directory = thread_context_store.get_working_directory(thread_id)
 
     if context is None:
         context = EvoContext(
             thread_id=thread_id,
             project_id=project_id,
             command_id=command_id,
-            active_model=effective_model,
+            active_model=active_model,
+            working_directory=working_directory,
         )
     else:
-        # Ensure active_model is synchronized
-        if context.active_model != effective_model:
-            context = context.model_copy(update={"active_model": effective_model})
+        # Ensure active_model and working_directory are synchronized
+        update_data = {"active_model": active_model}
+        if working_directory:
+            update_data["working_directory"] = working_directory
+        context = context.model_copy(update=update_data)
+    
     ContextManager.set(context)
 
     # ------------------------------------------------------------------
@@ -229,11 +259,14 @@ async def dispatch_agent_run(
     inputs = {
         "messages": messages,
         "project_id": project_id,
+        "command_id": str(command_id) if command_id else None,
         "checkpoint_id": checkpoint_id,
         "is_retry": is_retry,
         "goal": goal,
         "session_goal": message_content.strip(),
-        "model": effective_model,
+        "model": active_model,
+        "working_directory": working_directory,
+        "metadata": metadata or {},
     }
 
     return DispatchResult(
@@ -310,7 +343,3 @@ async def persist_user_message(
     except Exception as e:
         logger.error(f"[Dispatch] Failed to persist user message: {e}")
         return None
-
-
-# Backward-compatible re-export
-from app.core.engine.graph_runner import resume_graph_background  # noqa: E402,F401

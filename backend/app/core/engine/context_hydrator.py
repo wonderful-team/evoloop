@@ -171,19 +171,12 @@ class EvoContextMiddleware:
                 or config.get("configurable", {}).get("working_directory")
             )
             thread_id = state.thread_id or config.get("configurable", {}).get("thread_id")
-            active_model = config.get("configurable", {}).get("model")
-            
-            # Preserve active_model from existing context if config doesn't provide one
-            # This prevents subtasks or re-hydration from wiping the model set at dispatch
+            active_model = ctx.active_model or config.get("configurable", {}).get("model")
             if not active_model:
-                existing_ctx = ContextManager.current()
-                if existing_ctx and existing_ctx.active_model:
-                    active_model = existing_ctx.active_model
-                    logger.debug(f"[Middleware] Preserved active_model from existing context: {active_model}")
-                else:
-                    from app.core.config import settings
-                    active_model = settings.OPENAI_MODEL_NAME
-                    logger.warning(f"[Middleware] No model in config or context, falling back to default: {active_model}")
+                raise ValueError(
+                    "[Middleware] No model in config or context. "
+                    "Please ensure model is passed in config or EvoContext.active_model is set."
+                )
 
             ctx = EvoContext(
                 project_id=project_id,

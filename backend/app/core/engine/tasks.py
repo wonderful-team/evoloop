@@ -607,10 +607,13 @@ async def run_autonomous_task_execution(task_id: int, project_id: int | None = N
                 device_id=device_id
             )
 
-            from app.core.engine.background_agent import BackgroundAgentInputs
-            inputs = BackgroundAgentInputs(
-                messages=[{"type": "human", "content": prompt}],
+            # 2. Trigger Unified Dispatcher
+            from app.core.engine.dispatch import dispatch_agent_run
+            result = await dispatch_agent_run(
+                thread_id=thread_id,
+                message_content=prompt,
                 project_id=project_id or DEFAULT_PROJECT_ID,
+                goal_prefix="[Autonomous Task] ",
                 metadata={
                     "autonomous_task_id": task_id,
                     "source_skill_id": skill.id,
@@ -618,12 +621,16 @@ async def run_autonomous_task_execution(task_id: int, project_id: int | None = N
                 }
             )
 
+            if result.status == "failed":
+                logger.error(f"[Celery] Dispatch failed for task {task_id}: {result.error}")
+                return
+
             logger.info(f"[Celery] Starting autonomous agent for task {task_id} on {device_id} (Thread: {thread_id})")
 
             # Update task status: successful start
             task.consecutive_failures = 0
 
-            await run_agent_background(thread_id, inputs)
+            await run_agent_background(thread_id, result.inputs)
 
     except Exception as e:
         logger.error(f"[Celery] Autonomous task execution failed for {task_id}: {e}")

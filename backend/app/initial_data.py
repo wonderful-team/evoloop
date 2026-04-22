@@ -46,32 +46,7 @@ def init() -> None:
 
     # 4. Embedding Configuration
     if not SystemConfigService.get_value("EMBEDDING_PROVIDER"):
-        logger.info("Seeding Embedding Configuration from settings...")
-        SystemConfigService.set_value(
-            "EMBEDDING_PROVIDER",
-            settings.EMBEDDING_PROVIDER,
-            "Embedding Provider (openai, ollama, dashscope, huggingface, local)"
-        )
-        SystemConfigService.set_value(
-            "EMBEDDING_BASE_URL",
-            settings.EMBEDDING_BASE_URL or settings.OPENAI_BASE_URL,
-            "Embedding Base URL"
-        )
-        SystemConfigService.set_value(
-            "EMBEDDING_MODEL",
-            settings.EMBEDDING_MODEL_NAME,
-            "Embedding Model Name"
-        )
-        SystemConfigService.set_value(
-            "EMBEDDING_API_KEY",
-            settings.OPENAI_API_KEY,
-            "Embedding API Key"
-        )
-        SystemConfigService.set_value(
-            "EMBEDDING_DIMENSIONS",
-            str(settings.EMBEDDING_DIMENSIONS),
-            "Embedding Dimensions"
-        )
+        logger.info("EMBEDDING_PROVIDER not configured. Skipping automatic seeding — user must configure embedding explicitly.")
 
     # 5. Intent Classifier Configuration
     if not SystemConfigService.get_value("INTENT_MIN_CONFIDENCE"):
@@ -85,27 +60,11 @@ def init() -> None:
 def _seed_llm_config(SystemConfigService):
     """Seed LLM and Vision configuration from settings if not already set."""
     if not SystemConfigService.get_value("LLM_PROVIDER"):
-        logger.info("Seeding LLM Configuration from settings...")
+        logger.info("LLM_PROVIDER not configured. Skipping automatic seeding — user must configure LLM explicitly.")
 
-        provider = "openai"  # default
-        if settings.ANTHROPIC_API_KEY:
-            provider = "anthropic"
-        elif settings.OPENAI_API_KEY and "localhost" in settings.OPENAI_BASE_URL:
-            provider = "ollama"
-
-        SystemConfigService.set_value("LLM_PROVIDER", provider, "LLM Provider (openai, anthropic, ollama)")
-        SystemConfigService.set_value("LLM_BASE_URL", settings.OPENAI_BASE_URL, "LLM API Base URL")
-        SystemConfigService.set_value("LLM_MODEL", settings.OPENAI_MODEL_NAME, "LLM Model Name")
-        SystemConfigService.set_value("LLM_API_KEY", settings.OPENAI_API_KEY, "LLM API Key")
-        
-        # Config type: "platform" (use Gateway) or "custom" (use own key)
-        SystemConfigService.set_value("LLM_CONFIG_TYPE", "custom", "LLM Config Type (platform, custom)")
-
-    # Seed Vision Model (if not set)
+    # Vision Model is no longer auto-seeded from a hardcoded default.
     if not SystemConfigService.get_value("VISION_MODEL"):
-        vision_model = getattr(settings, 'VISION_MODEL', settings.OPENAI_MODEL_NAME)
-        logger.info(f"Seeding VISION_MODEL from settings: {vision_model}")
-        SystemConfigService.set_value("VISION_MODEL", vision_model, "Vision Model Name (Multimodal)")
+        logger.info("VISION_MODEL not configured. Skipping automatic seeding.")
 
 
 def main() -> None:

@@ -76,7 +76,9 @@ class FinishNode(BaseNode):
         # bounded while preserving enough history for summary generation.
         if messages:
             from app.core.engine.context_trimmer import ContextTrimmer
-            model = ctx.active_model or config.get("configurable", {}).get("model") or "gpt-4o"
+            model = ctx.active_model or config.get("configurable", {}).get("model")
+            if not model:
+                raise ValueError("[FinishNode] No model available in EvoContext or config. Please ensure active_model is set.")
             trimmer = ContextTrimmer()
             trim_result = trimmer.trim(
                 messages=messages,

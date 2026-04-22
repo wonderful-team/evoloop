@@ -91,7 +91,6 @@ class InferenceEngine:
         tool_executor: Any | None = None,
         interceptors: dict[str, Callable] | None = None,
         on_thinking: Callable | None = None,
-        model: str | None = None,
     ) -> dict:
         """
         Core ReAct loop.
@@ -126,10 +125,12 @@ class InferenceEngine:
             # Token-driven trim inside the ReAct loop.
             # loop_messages grows every turn; re-apply window+repair so the LLM
             # is never drowned by its own history.
-            if model:
+            from app.core.context.manager import ContextManager
+            active_model = ContextManager.current().active_model
+            if active_model:
                 trim_result = self._context_trimmer.trim(
                     messages=loop_messages,
-                    model=model,
+                    model=active_model,
                     node_source=name.lower(),
                     stages={"window", "repair"},
                 )
@@ -282,7 +283,8 @@ class InferenceEngine:
 
             logger.warning(f"[{name}] PROMPT CACHE DIAGNOSTIC: SystemPromptHash={sys_hash} | Latency={latency:.2f}s")
 
-            self._record_telemetry(
+            from app.core.engine.telemetry_recorder import record_inference_telemetry
+            record_inference_telemetry(
                 name=f"{name}_subtask", turn_id=0, system_prompt=system_prompt,
                 history_messages=history_messages, loop_messages=loop_messages,
                 response=response, latency=latency, metadata={"is_single_shot": True}
@@ -320,5 +322,3 @@ class InferenceEngine:
             "last_response": response,
             "is_truncated": False,
         }
-
-

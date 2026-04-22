@@ -20,6 +20,7 @@ from app.core.context.manager import ContextManager, EvoContext
 # --- Background Worker ---
 from app.core.engine.background_agent import run_agent_background
 from app.core.engine.dispatch import dispatch_agent_run
+from app.core.engine.graph_runner import resume_graph_background
 from app.core.evocloud import evocloud_manager
 from app.core.globals import get_graph
 from app.core.monitoring.activity import activity_monitor
@@ -408,7 +409,6 @@ async def resume_chat(req: ResumeRequest, bg_tasks: BackgroundTasks):
             inputs = {"messages": [tool_msg]}
 
     # Resume in background (unified resumption loop)
-    from app.core.engine.dispatch import resume_graph_background
     bg_tasks.add_task(
         resume_graph_background,
         req.thread_id,
@@ -499,7 +499,6 @@ async def cancel_hitl_request(req: CancelHITLRequest, bg_tasks: BackgroundTasks)
         inputs = {"messages": [HumanMessage(content=f"Request cancelled: {cancel_reason}")]}
 
     # Resume in background with cancellation signal (unified resumption loop)
-    from app.core.engine.dispatch import resume_graph_background
     bg_tasks.add_task(
         resume_graph_background,
         req.thread_id,
@@ -550,16 +549,17 @@ async def webhook_endpoint(req: WebhookRequest, bg_tasks: BackgroundTasks):
             await indexing_manager.start_watching(new_path, repo.id)
             return WebhookResponse(status="switched", thread_id=tid)
 
-    # Serialization for Webhook messages
-    serialized_msgs = []
-    for m in messages:
-        if isinstance(m, HumanMessage):
-            serialized_msgs.append({"type": "human", "content": m.content})
-        else:
-            serialized_msgs.append({"type": "human", "content": str(m.content)})
+    # Use Unified Dispatcher
+    result = await dispatch_agent_run(
+        thread_id=tid,
+        message_content=messages[0].content if messages else "No content",
+        project_id=1,  # Default project
+        goal_prefix=f"[{req.source.capitalize()} Event] ",
+    )
 
-    inputs = {"messages": serialized_msgs}
+    if result.status == "failed":
+        raise HTTPException(status_code=500, detail=result.error)
 
-    bg_tasks.add_task(run_agent_background, tid, inputs)
+    bg_tasks.add_task(run_agent_background, tid, result.inputs)
 
     return WebhookResponse(status="accepted", thread_id=tid)

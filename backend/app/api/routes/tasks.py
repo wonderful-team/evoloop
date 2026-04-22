@@ -207,72 +207,18 @@ async def execute_task(task_id: int, bg_tasks: BackgroundTasks, authorization: s
     # Use task ID in thread ID to allow resuming/tracking specific to this task
     thread_id = f"task-{task_id}-{int(time.time())}"
 
-    # 4. Trigger Local Background Task
-    from app.core.engine.background_agent import run_agent_background
+    # 4. Trigger Unified Dispatcher
+    result = await dispatch_agent_run(
+        thread_id=thread_id,
+        message_content=prompt,
+        project_id=task.get("project_id", 1),
+        goal_prefix="[Task Execution] ",
+    )
 
-    # Construct Inputs (Serialized)
-    # prompt is string.
-    messages = [{"type": "human", "content": prompt}]
+    if result.status == "failed":
+        raise HTTPException(status_code=500, detail=result.error)
 
-    inputs = {
-        "messages": messages,
-        "project_id": task.get("project_id", 1),
-        "task_title": task.get("task_title"),
-    }
-
-    # --- PERSIST AUTOMATED USER MESSAGE ---
-    # We must manually save the prompt as a user message so it appears in history.
-    from datetime import datetime, timezone
-
-    from app.infrastructure.database.sql.database import session_scope
-    from app.models import Conversation, Message
-
-    try:
-        async with session_scope() as session:
-            # Upsert Conversation
-            conversation = await session.get(Conversation, thread_id)
-            logger.info(
-                f"[Tasks][DIAG] session.get(Conversation, {thread_id!r}) returned: "
-                f"{conversation!r} (type={type(conversation).__name__})"
-            )
-            if not conversation:
-                conversation = Conversation(
-                    id=thread_id,
-                    project_id=task.get("project_id", 1),
-                    title=task.get("task_title"),
-                )
-                session.add(conversation)
-                logger.info(
-                    f"[Tasks][DIAG] Adding new Conversation: id={thread_id!r}, "
-                    f"project_id={task.get('project_id', 1)}, title={task.get('task_title')!r}"
-                )
-            else:
-                conversation.updated_at = datetime.now(timezone.utc)
-                logger.info(
-                    f"[Tasks][DIAG] Found existing Conversation: id={conversation.id!r}, "
-                    f"project_id={conversation.project_id}, updated_at will be refreshed"
-                )
-
-            # Log User Message (The constructed prompt)
-            user_msg = Message(
-                thread_id=thread_id,
-                project_id=task.get("project_id", 1),
-                role="human",
-                content=prompt,
-                thinking=None,
-            )
-            session.add(user_msg)
-            await session.flush()  # Ensure it lands
-            logger.info(f"Persisted task trigger message for thread {thread_id}")
-    except Exception as e:
-        logger.error(
-            f"[Tasks][DIAG] Failed to persist task message for thread {thread_id!r}: "
-            f"{type(e).__name__}: {e}",
-            exc_info=True,
-        )
-    # --------------------------------------
-
-    bg_tasks.add_task(run_agent_background, thread_id, inputs)
+    bg_tasks.add_task(run_agent_background, thread_id, result.inputs)
 
     return TaskExecutionResponse(
         status="queued",

@@ -19,6 +19,7 @@ from sqlalchemy import or_, func, select
 from app.api.deps import require_benefit
 from app.api.responses import BaseAPIResponse
 from app.core.engine.background_agent import run_agent_background
+from app.core.engine.dispatch import dispatch_agent_run
 from app.core.environment.capabilities.registry import ActionRegistry, ActionDef
 from app.core.environment.controllers.mirror_session import mirror_manager
 from app.core.execution.macro.service import MacroService
@@ -696,30 +697,21 @@ async def execute_macro_with_fallback(
         f"2. Call `route_to('worker', ...)` with an appropriate role (e.g., 'Automation Specialist') to heal the process and complete the user's original request."
     )
     
-    # Persist as 'human' to force Agent supervisor to treat it as a task
-    async with session_scope() as db:
-        msg = Message(
-            thread_id=thread_id,
-            project_id=project_id,
-            role="human",
-            content=fallback_msg,
-            sequence_number=999999,
-        )
-        db.add(msg)
-        await db.commit()
-        
-    from app.core.engine.background_agent import BackgroundAgentInputs
-    inputs = BackgroundAgentInputs(
-        messages=[{"type": "human", "content": fallback_msg}],
+    from app.core.engine.dispatch import dispatch_agent_run
+    result = await dispatch_agent_run(
+        thread_id=thread_id,
+        message_content=fallback_msg,
         project_id=project_id,
-        metadata={
-            "original_skill_id": skill.id,
-            "is_fallback_recovery": True
-        }
+        goal_prefix="[Self-Healing] ",
+        context=EvoContext(thread_id=thread_id, project_id=project_id, active_model=skill.active_model if hasattr(skill, 'active_model') else None)
     )
 
+    if result.status == "failed":
+        logger.error(f"[MacroFallback] Dispatch failed: {result.error}")
+        return
+
     # Hand over execution to the main Agent Loop
-    await run_agent_background(thread_id, inputs)
+    await run_agent_background(thread_id, result.inputs)
 
 
 @router.post("/skills/{skill_id}/execute", response_model=ExecuteSkillResponse)
@@ -748,28 +740,8 @@ async def execute_skill(
             f"Please refer to the 'EXPERT GUIDANCE (SKILLS)' section in your system instructions for the '{skill_name}' and use your tools to complete it."
         )
 
-        # 3. Persist Message to History
-        # Ensure conversation exists
-        conversation = await db.get(Conversation, body.thread_id)
-        if not conversation:
-            # Create if missing (though usually should exist for a thread)
-            conversation = Conversation(
-                id=body.thread_id,
-                project_id=body.project_id,
-                title=f"Execute {skill_name}",
-            )
-            db.add(conversation)
-
-        # Add User Message
-        user_msg = Message(
-            thread_id=body.thread_id,
-            project_id=body.project_id,
-            role="human",
-            content=directive,
-            sequence_number=999999,  # Temporary lazy sequence, effectively "next"
-        )
-        db.add(user_msg)
-        await db.commit()
+    # 3. Mode Selection (Persistence handled by dispatcher in Step 4)
+    pass
 
     # 4. Trigger the desired execution mode
     # Use provided execution_mode from request, fallback to skill's execution_mode
@@ -796,12 +768,18 @@ async def execute_skill(
         )
         return ExecuteSkillResponse(success=True, message=f"Deterministic Macro execution queued for '{skill_name}'", execution_mode=execution_mode)
     else:
-        # Fallback to Agentic mode
-        inputs = {
-            "messages": [{"type": "human", "content": directive}],
-            "project_id": body.project_id,
-        }
-        bg_tasks.add_task(run_agent_background, body.thread_id, inputs)
+        # Fallback to Agentic mode via Unified Dispatcher
+        result = await dispatch_agent_run(
+            thread_id=body.thread_id,
+            message_content=directive,
+            project_id=body.project_id or 1,
+            goal_prefix=f"[Skill: {skill_name}] ",
+        )
+
+        if result.status == "failed":
+            raise HTTPException(status_code=500, detail=result.error)
+
+        bg_tasks.add_task(run_agent_background, body.thread_id, result.inputs)
     
         return ExecuteSkillResponse(success=True, message=f"Agentic execution queued for '{skill_name}'", execution_mode=execution_mode)
 

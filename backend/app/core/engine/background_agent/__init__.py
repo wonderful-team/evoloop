@@ -43,6 +43,7 @@ class BackgroundAgentInputs(BaseModel):
     iteration_count: int = 0
     hitl_resume_response: str | None = None
     session_goal: str | None = None
+    working_directory: str | None = None
 
 
 def _deserialize_messages(raw_messages: list[Any]) -> list[BaseMessage]:
@@ -64,18 +65,23 @@ async def _setup_project_context(
     project_id: int | None,
     command_id: int | None = None,
     loaded_ctx: EvoContext | None = None,
-    model: str | None = None
+    model: str | None = None,
+    pre_resolved_dir: str | None = None
 ):
     """Initialize working directory and context vars."""
-    # Phase 2 Decoupling: Use API module directly
-    # Note: project_id can be 0 (global mode) or None, both should skip project setup
-    if project_id is not None and project_id != 0:
-        from app.core.evocloud import evocloud_manager
-        project = await evocloud_manager.get_project_by_id(project_id)
-        if project and project.get("path"):
-            thread_context_store.set_working_directory(thread_id, project["path"])
+    if pre_resolved_dir:
+        working_dir = pre_resolved_dir
+        # Sync to thread store for consistency across system
+        thread_context_store.set_working_directory(thread_id, working_dir)
+    else:
+        # Phase 2 Decoupling: Use API module directly
+        # Note: project_id can be 0 (global mode) or None, both should skip project setup
+        if project_id is not None and project_id != 0:
+            project = await evocloud_manager.get_project_by_id(project_id)
+            if project and project.get("path"):
+                thread_context_store.set_working_directory(thread_id, project["path"])
 
-    working_dir = thread_context_store.get_working_directory(thread_id)
+        working_dir = thread_context_store.get_working_directory(thread_id)
 
     # Phase 4 Autonomy: Use pre-loaded context from parallel gather
     ctx = loaded_ctx
@@ -101,56 +107,22 @@ async def _setup_project_context(
     return working_dir
 
 
-async def _ensure_conversation_in_db(thread_id: str, project_id: int, inputs: dict[str, Any]):
-    """Create conversation record if missing."""
-    try:
-        async with session_scope() as session:
-            conversation = await session.get(Conversation, thread_id)
-            logger.info(
-                f"[BGAgent][DIAG] session.get(Conversation, {thread_id!r}) returned: "
-                f"{conversation!r} (type={type(conversation).__name__})"
-            )
-            if not conversation:
-                conversation_title = "New Conversation"
-                if inputs.get("task_title"):
-                    conversation_title = inputs["task_title"]
-                elif inputs.get("messages") and inputs["messages"]:
-                    try:
-                        first_msg = inputs["messages"][0]
-                        conversation_title = first_msg.content[:50]
-                    except Exception:
-                        pass
-
-                conversation = Conversation(
-                    id=thread_id,
-                    project_id=project_id,
-                    title=conversation_title
-                )
-                session.add(conversation)
-                logger.info(
-                    f"[BGAgent][DIAG] Adding new Conversation: id={thread_id!r}, "
-                    f"project_id={project_id}, title={conversation_title!r}"
-                )
-            else:
-                logger.info(
-                    f"[BGAgent][DIAG] Found existing Conversation: id={conversation.id!r}, "
-                    f"project_id={conversation.project_id}"
-                )
-    except Exception as e:
-        logger.error(
-            f"[BGAgent][DIAG] Failed to ensure conversation {thread_id!r}: "
-            f"{type(e).__name__}: {e}",
-            exc_info=True,
-        )
-
-
 async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | dict[str, Any]):
     """
     Background Task Logic (FastAPI BackgroundTasks).
     Replaces Celery task. Runs in the main event loop, reusing global resources.
+
+    NOTE: Avoid calling this directly for new user-triggered turns. 
+    Use `app.core.engine.dispatch.dispatch_agent_run` to ensure 
+    DB persistence, context setup, and cloud sync are handled.
     """
     if isinstance(inputs, dict):
         inputs = BackgroundAgentInputs(**inputs)
+
+    # Note: project_id can be 0 (global mode), so use get() without default
+    project_id = inputs.project_id
+    if project_id is None:
+        project_id = DEFAULT_PROJECT_ID
 
     try:
         # 1. Deserialize
@@ -158,12 +130,7 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
         if raw_messages:
             raw_messages = _deserialize_messages(raw_messages)
 
-        # Note: project_id can be 0 (global mode), so use get() without default
-        project_id = inputs.project_id
-        if project_id is None:
-            project_id = DEFAULT_PROJECT_ID
-
-        # 2. Context & DB Preparation (Parallelized)
+        # 2. Context & DB Preparation
         evoloop_command_id = inputs.command_id
 
         # Fetch max sequence number
@@ -176,15 +143,8 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
         except Exception as e:
             logger.warning(f"Failed to fetch max sequence number: {e}")
 
-        # Run project setup, DB conversation check, and cache context load in parallel
-        # _ensure_conversation_in_db expects a dict-like inputs with messages
-        inputs_dict = inputs.model_dump()
-        inputs_dict["messages"] = raw_messages
-        setup_results = await asyncio.gather(
-            _ensure_conversation_in_db(thread_id, project_id, inputs_dict),
-            ContextManager.load(thread_id) # Phase 4 Parallel context load
-        )
-        loaded_ctx = setup_results[1]
+        # Parallel context load
+        loaded_ctx = await ContextManager.load(thread_id)
 
         # Project setup (needs result of thread_context_store and potentially loaded_ctx)
         working_dir = await _setup_project_context(
@@ -192,7 +152,8 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
             project_id,
             evoloop_command_id,
             loaded_ctx=loaded_ctx,
-            model=inputs.model
+            model=inputs.model,
+            pre_resolved_dir=inputs.working_directory
         )
 
         # 3. Config Construction
@@ -224,6 +185,9 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
 
         # Inject message_handler into config so nodes can report errors (e.g. QuotaExhaustedEvent)
         config["configurable"]["message_handler"] = db_callback._handler
+
+        # 4. Prepare Workflow Inputs
+        inputs_dict = inputs.model_dump()
 
         # 5. Execution
         # Start run with appropriate goal
@@ -281,7 +245,6 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
                         raw_goal = str(raw_goal).strip()
                     if raw_goal:
                         # Truncate session_goal to keep it as a concise "Mission Anchor".
-                        # This prevents massive logs/errors from bloating every turn and preserves token efficiency.
                         distilled_goal = raw_goal[:MAX_GOAL_LENGTH]
                         if len(raw_goal) > MAX_GOAL_LENGTH:
                             distilled_goal += "... (Full context available in history)"
@@ -322,7 +285,6 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
                     log_msg_trace("background", "GRAPH_OUTPUT", _final_msgs)
 
                     # Detect LLM errors that were swallowed as AIMessage(metadata={"is_error": True})
-                    # These bypass handle_task_exception because the graph completed "successfully".
                     from langchain_core.messages import AIMessage
                     error_msgs = [
                         msg for msg in _final_msgs
@@ -342,7 +304,7 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
                             thread_id, project_id, error_content, action_type="warning"
                         )
 
-                        # Publish event to Redis so frontend shows a toast/alert immediately
+                        # Publish event to Redis
                         from app.infrastructure.cache import cache
                         await cache.publish(
                             f"chat:{thread_id}:events",
@@ -362,22 +324,13 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
             await ContextManager.save(thread_id)
 
             # Snapshot & Finish - Save remaining steps to the final message
-            # Note: Most steps have already been attributed to intermediate messages
-            # via _attribute_pending_steps_to_previous_message. Only the steps
-            # since the last AI message need to be saved here.
             activity_data = await activity_monitor.get_activity(thread_id)
             steps_snapshot = activity_data.get("steps", [])
             if steps_snapshot:
-                # Get the remaining steps that haven't been attributed yet
                 remaining_steps = steps_snapshot[db_callback._last_attributed_step_index:]
                 if remaining_steps:
                     await db_callback.snapshot_steps_to_last_message(remaining_steps)
 
-            # [PERFORMANCE FIX] Optimized delay for message persistence:
-            # - EMBEDDED_MODE: snapshot_steps_to_last_message already awaits task completion (result.get())
-            #   so no additional delay needed
-            # - Non-embedded: Celery tasks are fire-and-forget, need minimal buffer for DB consistency
-            # Reduced from 1.0s to 0.2s based on actual profiling (Celery task completion <100ms typical)
             if not settings.EMBEDDED_MODE:
                 await asyncio.sleep(0.2)
 
@@ -387,8 +340,6 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
             from app.core.engine.events import AgentRunCompletedEvent
             from app.core.events import system_bus
 
-            # We use the thread_id as the primary key for the learning trigger
-            # goal can be reconstructed from the first message in the thread
             await system_bus.publish(AgentRunCompletedEvent(
                 thread_id=thread_id,
                 project_id=project_id,
@@ -405,13 +356,9 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
             await activity_monitor.end_run(thread_id, "cancelled")
 
         except AgentHumanInterruptException:
-            # HITL interrupt is expected - the tool already created the request
-            # and set the run status to 'interrupted'. We just let the run end gracefully.
             logger.info(f"[BackgroundAgent] Task {thread_id} interrupted for human input. Run status: interrupted")
-            # No need to call end_run - the tool already set status via activity_monitor.set_human_request
 
         except Exception as e:
-            # Catch recursion limit errors or other graph execution failures
             err_msg = str(e)
             if "recursion limit" in err_msg.lower():
                 logger.error(f"Thread {thread_id} hit recursion limit: {e}")
@@ -423,7 +370,6 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
                 await handle_task_exception(thread_id, project_id, e)
 
     except Exception as e:
-        # Preparation failures (DB, Context, etc.)
         logger.error(f"Fatal error during agent preparation for {thread_id}: {e}", exc_info=True)
         await activity_monitor.end_run(thread_id, "failed")
         from app.core.engine.background_agent.errors import persist_system_error

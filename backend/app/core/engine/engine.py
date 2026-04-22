@@ -111,19 +111,22 @@ class AgentEngine:
         Args:
             is_subtask: If True, uses single-shot execution (no ReAct loop).
         """
-        # 1. Initialize LLM
-        if not model:
-            model = config.get("configurable", {}).get("model")
+        # 1. Resolve model (trust context resolved at node/dispatch level)
         if not model:
             from app.core.context.manager import ContextManager
             model = ContextManager.current().active_model
+
+        if not model:
+            raise ValueError(f"[{name}] No active model found in context for node execution.")
+
+        # 2. Initialize LLM
         llm, provider = await self._inference_engine.create_llm(
             model=model,
             temperature=temperature,
         )
         llm_with_tools, tool_map = self._inference_engine.bind_tools(llm, tools)
 
-        # 2. Message Preparation (forgotten, windowing, repair)
+        # 3. Message Preparation (forgotten, windowing, repair)
         tool_memory = get_tool_memory_from_state(state)
         trim_result = self._context_trimmer.trim(
             messages=state.messages,
@@ -134,7 +137,7 @@ class AgentEngine:
         )
         repaired_messages = trim_result.messages
 
-        # 3. Build tool executor wrapper for InferenceEngine
+        # 4. Build tool executor wrapper for InferenceEngine
         tool_executor = _ToolExecutorAdapter(
             tool_executor_class=self._tool_executor_class,
             tool_map=tool_map,
@@ -145,10 +148,10 @@ class AgentEngine:
             parallel=parallel_tools,
         )
 
-        # 4. Build interceptors from SignalRegistry
+        # 5. Build interceptors from SignalRegistry
         interceptors = self._signal_registry.build_interceptors()
 
-        # 5. Run inference
+        # 6. Run inference
         try:
             if is_subtask:
                 inference_result = await self._inference_engine.run_single_shot(
@@ -171,7 +174,6 @@ class AgentEngine:
                     max_steps=max_steps,
                     tool_executor=tool_executor,
                     interceptors=interceptors,
-                    model=model,
                 )
         except InferenceError as ie:
             return EngineResult(
@@ -188,7 +190,7 @@ class AgentEngine:
                 blackboard=state.blackboard,
             )
 
-        # 6. Parse blackboard updates from thinking content
+        # 7. Parse blackboard updates from thinking content
         last_response = inference_result.get("last_response")
         blackboard = state.blackboard
         if last_response and last_response.content:
@@ -198,7 +200,7 @@ class AgentEngine:
                 name=name,
             )
 
-        # 7. Determine structured outcome
+        # 8. Determine structured outcome
         outcome_status = "success"
         if inference_result.get("is_truncated"):
             outcome_status = "truncated"
@@ -210,7 +212,7 @@ class AgentEngine:
 
         outcome = NodeOutcome(status=outcome_status)
 
-        # 8. Build EngineResult
+        # 9. Build EngineResult
         # Extract routing_target from last_response metadata if signal is not present
         routing_target = None
         if not inference_result.get("signal") and last_response and hasattr(last_response, "metadata"):

@@ -145,9 +145,10 @@ class FunASRProvider(BaseSTTProvider):
     supports_timestamps = True
 
     def __init__(self, model_name: str | None = None):
-        from app.core.config import settings
-        self.model_name = model_name or settings.FUNASR_MODEL
-        self.device = settings.FUNASR_DEVICE
+        from app.infrastructure.config import SystemConfigService
+        # Primary: Database config, Secondary: settings (env var)
+        self.model_name = model_name or SystemConfigService.get_value("FUNASR_MODEL") or settings.FUNASR_MODEL
+        self.device = SystemConfigService.get_value("FUNASR_DEVICE") or settings.FUNASR_DEVICE
         self._model = None
         self._funasr_available = self._check_dependencies()
 

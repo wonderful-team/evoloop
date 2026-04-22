@@ -175,11 +175,12 @@ async def get_available_llm_models(config_type: str = None) -> List[Dict[str, An
     # 2. 获取 Custom 模型（用户自己配置的）
     custom_provider = SystemConfigService.get_value("LLM_PROVIDER")
     custom_provider_type = SystemConfigService.get_value("LLM_PROVIDER_TYPE", "openai")
-    custom_model = SystemConfigService.get_value("LLM_MODEL")
+    # 优先从 CUSTOM_LLM_MODEL 获取，如果没有则回退回 LLM_MODEL (兼容旧版本)
+    custom_model = SystemConfigService.get_value("CUSTOM_LLM_MODEL") or SystemConfigService.get_value("LLM_MODEL")
     custom_base_url = SystemConfigService.get_value("LLM_BASE_URL")
     custom_api_key = SystemConfigService.get_value("LLM_API_KEY")
     
-    if custom_provider and custom_model and custom_api_key:
+    if custom_provider and custom_model and custom_api_key and not custom_model.startswith("custom-"):
         # 构建 custom 模型 ID
         custom_id = f"custom-{custom_provider}-{custom_model}"
         
@@ -239,10 +240,11 @@ async def get_available_embedding_models() -> List[Dict[str, Any]]:
     
     # 2. 获取 Custom Embedding 模型（用户自己配置的）
     embedding_provider = SystemConfigService.get_value("EMBEDDING_PROVIDER")
-    embedding_model = SystemConfigService.get_value("EMBEDDING_MODEL")
+    # 优先从 CUSTOM_EMBEDDING_MODEL 获取，如果没有则回退回 EMBEDDING_MODEL (兼容旧版本)
+    embedding_model = SystemConfigService.get_value("CUSTOM_EMBEDDING_MODEL") or SystemConfigService.get_value("EMBEDDING_MODEL")
     embedding_api_key = SystemConfigService.get_value("EMBEDDING_API_KEY")
     
-    if embedding_provider and embedding_model and embedding_api_key:
+    if embedding_provider and embedding_model and embedding_api_key and not embedding_model.startswith("embedding-"):
         # 根据 provider 推断 dimensions
         dimensions_map = {
             "openai": 1536,

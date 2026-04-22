@@ -115,6 +115,7 @@ class EmbeddingConfigRequest(ScopedRequest):
     dimensions: int | None = None  # Embedding dimensions
     api_key: str | None = None
     project_id: int | None = None  # For triggering reindex
+    default_model_id: str | None = Field(None, description="Selected Default Embedding Model ID")
 
 
 @router.post("/embedding/test", dependencies=[Depends(get_current_user)])
@@ -144,6 +145,17 @@ async def apply_embedding_config(req: EmbeddingConfigRequest) -> EmbeddingApplyR
         dimensions=req.dimensions,
         current_project_id=req.project_id,
     )
+    
+    # Save Custom Model Name (always save the model name provided in the config card)
+    SystemConfigService.set_value("CUSTOM_EMBEDDING_MODEL", req.model)
+    
+    # Save Default Model ID for Embedding
+    default_id = req.default_model_id or req.model
+    if not default_id.startswith("embedding-"):
+        # Auto-prefix platform models if needed, but usually frontend sends the ID
+        pass
+    
+    SystemConfigService.set_value("EMBEDDING_MODEL", default_id)
     return EmbeddingApplyResponse(
         status="applied",
         message="Embedding model switched. Re-indexing triggered.",
@@ -158,6 +170,7 @@ class LLMConfigRequest(DynamicBaseModel):
     model: str = Field(..., description="Model Name")
     vision_model: str | None = Field(None, description="Vision Model Name (e.g. gpt-4o)")
     api_key: str | None = None
+    default_model_id: str | None = Field(None, description="Selected Default Model ID")
 
 
 @router.post("/llm/test", dependencies=[Depends(get_current_user)])
@@ -179,16 +192,22 @@ async def apply_llm_config(req: LLMConfigRequest) -> LLMApplyResponse:
     """
     Apply new LLM config.
     """
-    # Save provider_type for Custom mode
+    # Save provider details (used for Custom mode)
     SystemConfigService.set_value("LLM_PROVIDER", req.provider)
     SystemConfigService.set_value("LLM_PROVIDER_TYPE", req.provider_type)
     SystemConfigService.set_value("LLM_BASE_URL", req.base_url)
-    SystemConfigService.set_value("LLM_MODEL", req.model)
+    
+    # Save the Default Model ID
+    default_id = req.default_model_id or req.model
+    SystemConfigService.set_value("LLM_MODEL", default_id)
 
     if req.vision_model:
         SystemConfigService.set_value("VISION_MODEL", req.vision_model)
     if req.api_key:
         SystemConfigService.set_value("LLM_API_KEY", req.api_key)
+    
+    # Save Custom Model Name (always save the model name provided in the config card)
+    SystemConfigService.set_value("CUSTOM_LLM_MODEL", req.model)
 
     # Clear LLM Factory cache
     from app.infrastructure.llm.factory import LLMFactory
