@@ -19,23 +19,14 @@ import logging
 import time
 from typing import Any, Callable
 
-from langchain_core.messages import (
-    AIMessage,
-    BaseMessage,
-    SystemMessage,
-    ToolMessage,
-)
+from langchain_core.messages import AIMessage, BaseMessage, SystemMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig
 
 from app.infrastructure.llm.factory import LLMFactory
+from app.core.engine.context_trimmer import ContextTrimmer, TrimTrigger
+from app.core.engine.error_handler import LLMErrorHandler
 
 logger = logging.getLogger(__name__)
-
-from app.core.engine.context_trimmer import ContextTrimmer, TrimTrigger  # noqa: E402
-
-
-# Backward-compatible re-export
-from app.core.engine.llm_error_classifier import InferenceError, classify_llm_error  # noqa: E402,F401
 
 
 class InferenceEngine:
@@ -91,14 +82,10 @@ class InferenceEngine:
         tool_executor: Any | None = None,
         interceptors: dict[str, Callable] | None = None,
         on_thinking: Callable | None = None,
+        model: str | None = None,
     ) -> dict:
         """
         Core ReAct loop.
-
-        Args:
-            interceptors: Mapping of tool_name -> async callable(tool_call, config).
-                          If callable returns a non-None signal, the loop aborts and returns it.
-            on_thinking: Optional callback(thinking_content) for parsed thinking blocks.
 
         Returns:
             dict with keys: messages, tool_history, last_response, is_truncated, signal
@@ -117,6 +104,8 @@ class InferenceEngine:
         local_tool_history = []
         last_response = None
 
+        logger.info(f"[{name}] ▶️ run_react_loop START | model={model} | max_steps={max_steps} | msg_count={len(messages)} | tool_executor={'YES' if tool_executor else 'NO'}")
+
         for i in range(max_steps):
             thread_id = config.get("configurable", {}).get("thread_id")
             if thread_id:
@@ -125,12 +114,10 @@ class InferenceEngine:
             # Token-driven trim inside the ReAct loop.
             # loop_messages grows every turn; re-apply window+repair so the LLM
             # is never drowned by its own history.
-            from app.core.context.manager import ContextManager
-            active_model = ContextManager.current().active_model
-            if active_model:
+            if model:
                 trim_result = self._context_trimmer.trim(
                     messages=loop_messages,
-                    model=active_model,
+                    model=model,
                     node_source=name.lower(),
                     stages={"window", "repair"},
                 )
@@ -160,8 +147,7 @@ class InferenceEngine:
                 )
                 last_response = response
             except Exception as e:
-                from app.core.engine.llm_error_classifier import classify_llm_error
-                raise classify_llm_error(e)
+                LLMErrorHandler.raise_inference_error(e)
 
             # Inject run_id
             run_id = config.get("configurable", {}).get("run_id")
@@ -197,6 +183,8 @@ class InferenceEngine:
                 logger.info(f"[{name}] Finished with text response (no tool calls).")
                 break
 
+            logger.info(f"[{name}] 🔧 tool_calls detected: {len(response.tool_calls)} calls")
+
             # Process tool calls
             pending_signal = None
             remaining_tool_calls = []
@@ -216,13 +204,20 @@ class InferenceEngine:
                 remaining_tool_calls.append(tc)
 
             if remaining_tool_calls and tool_executor is not None:
+                logger.info(f"[{name}] 🛠️ Executing {len(remaining_tool_calls)} tool calls via tool_executor")
                 tool_results = await tool_executor.execute_batch(
                     remaining_tool_calls, local_tool_history
                 )
+                logger.info(f"[{name}] 📦 tool_results returned: {len(tool_results)} items, types={[type(m).__name__ for m in tool_results]}")
                 for tool_msg in tool_results:
                     logger.info(f"[{name}] Result ({tool_msg.name}): {str(tool_msg.content)[:300]}...")
                     loop_messages.append(tool_msg)
                     new_messages.append(tool_msg)
+            else:
+                if remaining_tool_calls:
+                    logger.warning(f"[{name}] ⚠️ tool_executor is None! Cannot execute {len(remaining_tool_calls)} tool calls.")
+                else:
+                    logger.info(f"[{name}] ℹ️ No remaining tool_calls after interception.")
 
             if pending_signal is not None:
                 return {
@@ -247,6 +242,11 @@ class InferenceEngine:
             new_messages.append(truncation_msg)
             is_truncated = True
 
+        logger.info(
+            f"[{name}] ⏹️ run_react_loop END | new_messages={len(new_messages)} | "
+            f"types={[type(m).__name__ for m in new_messages]} | "
+            f"truncated={is_truncated}"
+        )
         return {
             "messages": new_messages,
             "tool_history": local_tool_history,
@@ -290,8 +290,7 @@ class InferenceEngine:
                 response=response, latency=latency, metadata={"is_single_shot": True}
             )
         except Exception as e:
-            from app.core.engine.llm_error_classifier import classify_llm_error
-            raise classify_llm_error(e)
+            LLMErrorHandler.raise_inference_error(e)
 
         # Inject run_id
         run_id = config.get("configurable", {}).get("run_id")

@@ -99,6 +99,15 @@ class RewindOrchestrator:
         )
 
         try:
+            # Phase 0: Pre-compute affected message IDs.
+            # This prevents race conditions where MessageRewind deletes rows
+            # before TodoRewind/TraceRewind/FileRewind can query them.
+            affected_ids = await self._compute_affected_message_ids(
+                thread_id=thread_id,
+                target_message_id=target_message_id,
+                include_target=include_target
+            )
+
             # Phase 1: Publish main rewind event
             # Handlers will subscribe to this and perform their cleanup
             rewind_event = RewindRequestedEvent(
@@ -107,7 +116,8 @@ class RewindOrchestrator:
                 include_target=include_target,
                 revert_files=revert_files,
                 reset_state=reset_state,
-                reason=reason
+                reason=reason,
+                affected_message_ids=affected_ids
             )
 
             # Sequential=True is CRITICAL for SQLite to prevent 'Database is locked' errors
@@ -152,3 +162,52 @@ class RewindOrchestrator:
                 message=f"Rewind operation failed: {e}",
                 thread_id=thread_id
             ) from e
+
+    async def _compute_affected_message_ids(
+        self,
+        thread_id: str,
+        target_message_id: str | None,
+        include_target: bool
+    ) -> list[str]:
+        """
+        Pre-compute the list of message IDs that will be affected by this rewind.
+        This is done before publishing the rewind event so that all handlers
+        can work from the same snapshot, avoiding race conditions where one
+        handler deletes rows before another handler can query them.
+        """
+        from sqlalchemy import select
+        from app.infrastructure.database.sql.database import session_scope
+        from app.models import Message
+
+        async with session_scope() as session:
+            stmt = select(Message.id).where(Message.thread_id == thread_id)
+
+            if target_message_id:
+                try:
+                    target_id = int(target_message_id)
+                    if include_target:
+                        stmt = stmt.where(Message.id >= target_id)
+                    else:
+                        stmt = stmt.where(Message.id > target_id)
+                except (ValueError, TypeError):
+                    logger.warning(
+                        f"[RewindOrchestrator] Invalid target_message_id: {target_message_id}"
+                    )
+                    return []
+            else:
+                # No target specified – find last human message and use it as anchor
+                sub = (
+                    select(Message.id)
+                    .where(Message.thread_id == thread_id, Message.role == "human")
+                    .order_by(Message.id.desc())
+                    .limit(1)
+                )
+                result = await session.execute(sub)
+                last_human = result.scalar_one_or_none()
+                if last_human is not None:
+                    stmt = stmt.where(Message.id >= last_human)
+                else:
+                    return []
+
+            result = await session.execute(stmt)
+            return [str(row[0]) for row in result.all()]

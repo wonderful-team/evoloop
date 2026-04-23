@@ -255,9 +255,12 @@ class AutoMemoryExtractor:
         # Call LLM for extraction using InternalLLMService
         try:
             from app.core.llm import InternalLLMService
+            from app.infrastructure.config.service import SystemConfigService
+            model_name = SystemConfigService.get_value("LLM_MODEL")
             response = await InternalLLMService.invoke(
                 messages=extraction_messages,
                 purpose="memory_extraction",
+                model_name=model_name,
             )
 
             # Parse extracted memories

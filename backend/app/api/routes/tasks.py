@@ -12,8 +12,11 @@ from fastapi import APIRouter, BackgroundTasks, Header, HTTPException
 from app.api.deps import TokenDep, TokenDepOptional
 from app.api.responses import BaseAPIResponse
 from app.core.evocloud import evocloud_manager
+from app.core.engine.background_agent import run_agent_background
+from app.core.engine.dispatch import dispatch_agent_run
 from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.models.schemas.base import ScopedRequest
+from app.utils import render_template
 
 logger = logging.getLogger(__name__)
 
@@ -191,10 +194,8 @@ async def execute_task(task_id: int, bg_tasks: BackgroundTasks, authorization: s
 
     # 2. Construct Prompt
     # Format the task information into a clear instruction for the agent
-    from app.i18n.service import i18n
-
-    prompt = i18n.get(
-        "tasks.execution_instruction",
+    prompt = render_template(
+        "core/engine/tasks/execution_instruction.prompt.j2",
         title=task.get("task_title"),
         desc=task.get("task_desc"),
         key_modules=task.get("key_modules_list", []),
@@ -213,6 +214,7 @@ async def execute_task(task_id: int, bg_tasks: BackgroundTasks, authorization: s
         message_content=prompt,
         project_id=task.get("project_id", 1),
         goal_prefix="[Task Execution] ",
+        metadata={"task_id": task_id},
     )
 
     if result.status == "failed":

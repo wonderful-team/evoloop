@@ -90,11 +90,13 @@ class ResumeRequest(ScopedRequest):
     thread_id: str
     user_input: str | None = None  # Optional user response for HITL
     command_id: int | None = None  # Explicit command_id for resumption trace
+    model: str | None = None  # User selected model (optional)
 
 
 class CancelHITLRequest(ScopedRequest):
     thread_id: str
     reason: str | None = None  # Optional reason for cancellation
+    model: str | None = None  # User selected model (optional)
 
 
 class StopChatResponse(BaseAPIResponse):
@@ -360,7 +362,8 @@ async def resume_chat(req: ResumeRequest, bg_tasks: BackgroundTasks):
     # Config for resuming from checkpoint
     config = {
         "configurable": {
-            "thread_id": req.thread_id
+            "thread_id": req.thread_id,
+            "model": req.model,
         }
     }
 
@@ -477,7 +480,8 @@ async def cancel_hitl_request(req: CancelHITLRequest, bg_tasks: BackgroundTasks)
     # Config for resuming from checkpoint
     config = {
         "configurable": {
-            "thread_id": req.thread_id
+            "thread_id": req.thread_id,
+            "model": req.model,
         }
     }
 

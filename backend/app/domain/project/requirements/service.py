@@ -41,12 +41,15 @@ async def breakdown_requirements_to_tasks(
 
     # Call LLM using InternalLLMService
     from app.core.llm import InternalLLMService
+    from app.infrastructure.config.service import SystemConfigService
+    model_name = SystemConfigService.get_value("LLM_MODEL")
     response = await InternalLLMService.invoke(
         messages=[
             {"role": "system", "content": prompt},
             {"role": "user", "content": "请将需求拆解为任务，以JSON格式输出。"}
         ],
         purpose="task_decomposition",
+        model_name=model_name,
     )
 
     # Parse result

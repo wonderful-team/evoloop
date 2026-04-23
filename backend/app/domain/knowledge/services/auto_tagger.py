@@ -133,10 +133,13 @@ Respond in this exact JSON format:
 
         try:
             from app.core.llm import InternalLLMService
+            from app.infrastructure.config.service import SystemConfigService
+            model_name = SystemConfigService.get_value("LLM_MODEL")
             response = await InternalLLMService.invoke(
                 messages=[{"role": "user", "content": prompt}],
                 purpose="memory_extraction",
                 temperature=0.3,
+                model_name=model_name,
             )
             response_text = response.content if hasattr(response, 'content') else str(response)
             

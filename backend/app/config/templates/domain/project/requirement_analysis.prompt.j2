@@ -1,0 +1,15 @@
+请分析我刚上传的需求文档。
+
+**文档信息**:
+- **文档ID**: {{ document_id }}
+- **文件名**: {{ file_name }}
+- **项目ID**: {{ project_id }}
+
+**执行流程**:
+1. 调用 `analyze_project_requirement_document` 工具分析文档（document_id="{{ document_id }}"）
+2. 使用 `request_approval` 工具向我展示分析结果并请求确认。
+3. 在我确认后，调用 `confirm_project_requirement_analysis` 完成确认和自动任务拆解。
+4. 任务将自动同步到 EvoCloud。
+
+**备注**:
+- 如果我对分析结果不满意，请根据我的后续反馈进行调整或重新分析。

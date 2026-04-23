@@ -16,7 +16,7 @@ from app.core.engine.background_agent import run_agent_background
 from app.core.engine.dispatch import dispatch_agent_run
 from app.core.evocloud import evocloud_manager
 from app.infrastructure.pydantic_base import DynamicBaseModel
-from app.utils import file as file_utils
+from app.utils import file as file_utils, render_template
 
 logger = logging.getLogger(__name__)
 
@@ -80,66 +80,6 @@ async def _resolve_project_path(project_id: int) -> str:
     return ""
 
 
-def _build_discovery_message(path: str, record_secrets: bool) -> str:
-    """Build the mission message for the Agent to explore and document the project."""
-    return f"""Please explore and initialize this project at `{path}`.
-
-Your tasks:
-1. **Explore** the project structure using `list_directory` and `read_file`
-2. **Identify** the project type, tech stack, and dependencies
-3. **Set up** the development environment by running appropriate install commands via `execute_command` (e.g. npm install, pip install, poetry install, docker-compose up -d, etc.)
-4. **Generate** a PROJECT.md file at the project root using `write_file` with the following sections:
-
-```markdown
-# Project Name
-
-## Overview
-Brief project description (2-3 sentences).
-
-## Technology Stack
-- Languages:
-- Frameworks:
-- Runtime:
-- Package Manager:
-
-## Project Structure
-Key directories and their purposes.
-
-## Development Setup
-### Prerequisites
-### Installation
-### Running Locally
-
-## Conventions & Guidelines
-- Coding style
-- Naming conventions
-- Branch strategy
-- Commit message format
-
-## Infrastructure Dependencies
-- Services required (DB, Redis, Message Queue, etc.)
-- Port assignments
-- Docker Compose services (if applicable)
-
-## Environment Variables
-{'List of required env vars with their actual values (user opted to record secrets).' if record_secrets else 'List of required env vars (names and descriptions only — no values).'}
-
-## Testing
-How to run tests.
-
-## Build & Deploy
-- Build commands
-- Deployment process
-```
-
-Rules:
-- {'Include actual secret values from .env files because the user opted to record secrets.' if record_secrets else 'NEVER include secret values. Only list variable names.'}
-- Be specific about commands: exact npm/poetry/docker commands where known.
-- Focus on agent-relevant info: what does the AI need to know to edit/build/run this project?
-- Write in the same language as the project's README (default to English).
-"""
-
-
 # ------------------------------------------------------------------
 # Endpoints
 # ------------------------------------------------------------------
@@ -164,7 +104,11 @@ async def discover_profile(
         raise HTTPException(400, f"Project path does not exist: {path}")
 
     thread_id = f"discovery-{project_id}-{int(time.time())}"
-    message = _build_discovery_message(path, req.record_secrets)
+    message = render_template(
+        "domain/project/project_discovery.prompt.j2",
+        path=path,
+        record_secrets=req.record_secrets,
+    )
 
     result = await dispatch_agent_run(
         thread_id=thread_id,

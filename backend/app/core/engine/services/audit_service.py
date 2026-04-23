@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING
 
 from langchain_core.messages import AIMessage
 
-from app.core.context import ContextManager
+from app.constants import DEFAULT_PROJECT_ID
 
 if TYPE_CHECKING:
     from langchain_core.runnables import RunnableConfig
@@ -256,7 +256,6 @@ class LayeredAuditor:
 
         # Lazy import to avoid circular deps and heavy init at import time
         from app.core.engine.prompts import FinishPromptBuilder
-        from app.core.config import settings
 
         builder = FinishPromptBuilder(
             current_plan=state.current_plan or "",
@@ -264,7 +263,7 @@ class LayeredAuditor:
             verification_status=blackboard.verification,
             action_context=_extract_tool_usage(messages),
             iteration_count=state.iteration_count or 0,
-            project_id=state.project_id or settings.DEFAULT_PROJECT_ID,
+            project_id=state.project_id or DEFAULT_PROJECT_ID,
             blackboard=blackboard,
             session_goal=state.session_goal,
         )
@@ -272,11 +271,14 @@ class LayeredAuditor:
 
         try:
             from app.core.llm import InternalLLMService
+            from app.infrastructure.config.service import SystemConfigService
+            model_name = SystemConfigService.get_value("LLM_MODEL")
             response = await InternalLLMService.invoke(
                 messages=[{"role": "system", "content": prompt}],
                 purpose="audit_summary",
                 temperature=0.1,
                 max_tokens=500,
+                model_name=model_name,
             )
             summary = str(response.content).strip() if hasattr(response, "content") else str(response).strip()
             if len(summary) < 20:
@@ -310,7 +312,7 @@ class LayeredAuditor:
         verification_status = blackboard.verification or VerificationStatus(status="unverified")
         action_context = _extract_tool_usage(messages)
         iteration_count = state.iteration_count or 0
-        project_id = ctx.project_id or state.project_id or settings.DEFAULT_PROJECT_ID
+        project_id = ctx.project_id or state.project_id or DEFAULT_PROJECT_ID
 
         # Lazy import to avoid circular deps
         from app.core.environment import get_awakened_state
@@ -344,6 +346,13 @@ class LayeredAuditor:
 
         execution_state = state.model_copy(update={"messages": messages})
         model = config.get("configurable", {}).get("model")
+        if not model:
+            from app.core.context.manager import ContextManager
+            ctx = ContextManager.current()
+            model = getattr(ctx, "active_model", None)
+        if not model:
+            from app.infrastructure.config.service import SystemConfigService
+            model = SystemConfigService.get_value("LLM_MODEL")
 
         from app.core.engine.engine import get_default_engine
         engine = get_default_engine()

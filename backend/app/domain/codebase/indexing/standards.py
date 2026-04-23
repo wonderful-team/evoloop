@@ -34,7 +34,7 @@ class ProjectStandardsAnalyst:
             try:
                 content, _ = read_file_content(fpath)
                 if content:
-                    files_info.append({"path": os.path.basename(fpath), "content": content[:2000]})
+                    files_info.append({"path": os.path.basename(fpath), "content": content})
             except Exception:
                 pass
 
@@ -46,10 +46,13 @@ class ProjectStandardsAnalyst:
 
         try:
             from app.core.llm import InternalLLMService
+            from app.infrastructure.config.service import SystemConfigService
+            model_name = SystemConfigService.get_value("LLM_MODEL")
             response = await InternalLLMService.invoke(
                 messages=[{"role": "user", "content": prompt_text}],
                 purpose="audit_summary",
                 temperature=0.1,
+                model_name=model_name,
             )
             standards_report = response.content if hasattr(response, 'content') else str(response)
 

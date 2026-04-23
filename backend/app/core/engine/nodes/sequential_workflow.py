@@ -119,21 +119,28 @@ class SequentialWorkflowNode(BaseAgentNode):
 
         # Execute single step
         worker_state = state.model_copy(update={"messages": messages})
-        model = config.get("configurable", {}).get("model")
         engine = get_default_engine()
 
         try:
             is_subtask = resolve_is_subtask(state)
+            model = config.get("configurable", {}).get("model")
+            if not model:
+                from app.core.context.manager import ContextManager
+                ctx = ContextManager.current()
+                model = getattr(ctx, "active_model", None)
+            if not model:
+                from app.infrastructure.config.service import SystemConfigService
+                model = SystemConfigService.get_value("LLM_MODEL")
             engine_result = await engine.run_node(
                 state=worker_state,
                 config=config,
                 system_prompt=system_prompt,
                 tools=await self.get_tools(state),
-                model=model,
                 name=f"Worker-{role_name}-Step{step_index + 1}",
                 max_steps=1 if is_subtask else settings.WORKER_AGENT_MAX_STEPS,
                 is_subtask=is_subtask,
                 node_source="sequential_workflow",
+                model=model,
             )
         except Exception as e:
             logger.error(f"[SequentialWorkflow] Step {step_index + 1} failed: {e}")

@@ -49,8 +49,6 @@ class ModelProfile(DynamicBaseModel):
         return self.truncate_limit_tokens * 4
 
 
-# --- Built-in Profiles ---
-
 _BUILTIN_PROFILES: dict[str, ModelProfile] = {
     # OpenAI
     "gpt-4o": ModelProfile(

@@ -19,7 +19,8 @@ from langchain_core.runnables import RunnableConfig
 from pydantic import Field
 
 from app.core.engine.blackboard_parser import BlackboardParser
-from app.core.engine.inference_engine import InferenceEngine, InferenceError
+from app.core.exceptions import InferenceError
+from app.core.engine.inference_engine import InferenceEngine
 from app.core.engine.context_trimmer import ContextTrimmer
 from app.core.memory.tool_output_memory import get_tool_memory_from_state
 from app.core.engine.signals import AgentSignal
@@ -28,7 +29,6 @@ from app.core.engine.state import AgentState, BlackboardState
 from app.core.engine.tools.executor import AgentToolExecutor
 from app.infrastructure.llm.factory import LLMFactory
 from app.infrastructure.pydantic_base import DynamicBaseModel
-from app.utils.id import gen_uuid
 
 logger = logging.getLogger(__name__)
 
@@ -97,27 +97,21 @@ class AgentEngine:
         config: RunnableConfig,
         system_prompt: str,
         tools: list[Any],
-        model: str = None,
         max_steps: int = 5,
         temperature: float = 0.7,
         name: str = "Agent",
         is_subtask: bool = False,
         node_source: str = None,
         parallel_tools: bool = False,
+        model: str | None = None,
     ) -> EngineResult:
-        """
-        Executes the standard Agent ReAct loop.
-
-        Args:
-            is_subtask: If True, uses single-shot execution (no ReAct loop).
-        """
-        # 1. Resolve model (trust context resolved at node/dispatch level)
+        """Executes the standard Agent ReAct loop."""
+        # 1. Resolve model (must be explicitly provided)
         if not model:
-            from app.core.context.manager import ContextManager
-            model = ContextManager.current().active_model
-
-        if not model:
-            raise ValueError(f"[{name}] No active model found in context for node execution.")
+            raise ValueError(
+                f"[{name}] No model provided for node execution. "
+                "Please pass 'model' explicitly to engine.run_node()."
+            )
 
         # 2. Initialize LLM
         llm, provider = await self._inference_engine.create_llm(
@@ -174,6 +168,7 @@ class AgentEngine:
                     max_steps=max_steps,
                     tool_executor=tool_executor,
                     interceptors=interceptors,
+                    model=model,
                 )
         except InferenceError as ie:
             return EngineResult(

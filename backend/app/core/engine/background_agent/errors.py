@@ -5,6 +5,8 @@ Background agent error handling utilities.
 import json
 import logging
 
+from sqlalchemy import select, func
+
 from app.core.engine.message.category import MessageCategory
 from app.core.engine.message.classifier import MessageClassifier
 from app.core.monitoring.activity import activity_monitor
@@ -132,7 +134,6 @@ async def persist_system_error(thread_id: str, project_id: int, error_details: s
     try:
         async with session_scope() as session:
             # Get next sequence
-            from sqlalchemy import func, select
             stmt = select(func.max(Message.sequence_number)).where(Message.thread_id == thread_id)
             max_seq = (await session.execute(stmt)).scalar() or 0
 

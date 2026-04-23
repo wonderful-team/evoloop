@@ -154,12 +154,14 @@ class DatabaseResourceManager:
             sqlite_path = db_uri_raw.replace("sqlite+aiosqlite:///", "").replace("sqlite://", "")
 
             self._sqlite_conn = await aiosqlite.connect(sqlite_path)
-            # SQLite concurrency tuning: WAL mode allows readers during writes;
-            # busy_timeout prevents "database is locked" under concurrent writes.
-            await self._sqlite_conn.execute("PRAGMA journal_mode=WAL")
+            # FIX: Use DELETE journal mode instead of WAL to prevent checkpoint loss.
+            # WAL mode can cause intermittent write failures under certain conditions,
+            # leading to missing checkpoints while messages continue to be saved.
+            await self._sqlite_conn.execute("PRAGMA journal_mode=DELETE")
             await self._sqlite_conn.execute("PRAGMA busy_timeout=30000")
             await self._sqlite_conn.commit()
-            self._checkpointer = AsyncSqliteSaver(conn=self._sqlite_conn)
+            from app.infrastructure.database.checkpoint_saver import FixedAsyncSqliteSaver
+            self._checkpointer = FixedAsyncSqliteSaver(conn=self._sqlite_conn)
             await self._checkpointer.setup()
             logger.info("[ResourceManager] SQLite checkpointer initialized (WAL mode, busy_timeout=30s)")
         else:

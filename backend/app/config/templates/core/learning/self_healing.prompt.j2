@@ -1,0 +1,10 @@
+SYSTEM ALERT: The deterministic macro for '{{ skill_name }}' failed.
+
+As Supervisor, you must now ANALYZE the failure context and DELEGATE a fix to a specialized Worker.
+
+**Failure Context**:
+{{ failure_context | tojson(indent=2) }}
+
+**Your Goal**:
+1. Check the failed step and reason.
+2. Call `route_to('worker', ...)` with an appropriate role (e.g., 'Automation Specialist') to heal the process and complete the user's original request.

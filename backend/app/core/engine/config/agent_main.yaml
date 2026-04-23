@@ -11,13 +11,12 @@ nodes:
       - "route_to"
       # - "update_blackboard"
       - "manage_session_metadata"
-      - "spawn_agents"
       - "decompose_task"
-      - "aggregate_results"
       - "search_skills"
       - "create_plan"
       - "ask_confirm"
       - "ask_human"
+      # - "delegate_periodic_intent"  # Removed: worker should not create persistent background tasks
 
   - id: "worker"
     path: "app.core.engine.nodes.worker.WorkerNode"
@@ -30,9 +29,6 @@ nodes:
       # based on the current mission and environment telemetry.
       # =====================================================================
       # Orchestration & State (Unified Engine Controls)
-      # - "update_blackboard"
-      - "manage_session_metadata"
-      - "spawn_agents"
       # Desktop & Mobile Automation
       - "desktop_control"
       - "mobile_control"
@@ -43,7 +39,6 @@ nodes:
       - "read_file"
       - "write_file"
       - "edit_file"
-      - "multiedit_file"
       - "apply_patch_file"
       - "list_directory"
       - "manage_directory"
@@ -87,7 +82,6 @@ nodes:
       # Planning & Audit
       - "create_plan"
       - "update_step_status"
-      - "analyze_feasibility"
       - "consult_architecture"
       # Planning & Todo (Individual tools replacing manage_todo facade)
       - "create_todo"
@@ -98,7 +92,6 @@ nodes:
       - "ask_confirm"
       - "ask_human"
       - "wait_for"
-      - "delegate_periodic_intent"
       - "inspect_task_health"
       - "list_autonomous_tasks"
 

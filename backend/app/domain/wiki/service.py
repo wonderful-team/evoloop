@@ -149,17 +149,20 @@ class WikiService:
             extraction_prompt = builder.build_concept_extraction_prompt(page_title, page_content)
 
             from app.core.llm import InternalLLMService
+            from app.infrastructure.config.service import SystemConfigService
+            model_name = SystemConfigService.get_value("LLM_MODEL")
             try:
                 result = await InternalLLMService.invoke_structured(
                     messages=[{"role": "user", "content": extraction_prompt}],
                     purpose="memory_extraction",
                     output_schema=ConceptExtractionResult,
+                    model_name=model_name,
                 )
             except Exception:
                 response = await InternalLLMService.invoke(
                     messages=[{"role": "user", "content": extraction_prompt}],
                     purpose="memory_extraction",
-                    model=model,
+                    model_name=model or model_name,
                 )
                 json_match = re.search(r'\{.*\}', response.content, re.DOTALL)
                 if json_match:
@@ -200,9 +203,12 @@ class WikiService:
                 project_context,
             )
             from app.core.llm import InternalLLMService
+            from app.infrastructure.config.service import SystemConfigService
+            model_name = SystemConfigService.get_value("LLM_MODEL")
             response = await InternalLLMService.invoke(
                 messages=[{"role": "user", "content": validation_prompt}],
                 purpose="task_analysis",
+                model_name=model_name,
             )
             json_match = re.search(r'\{.*\}', response.content, re.DOTALL)
             if not json_match:
@@ -255,9 +261,12 @@ class WikiService:
 
         try:
             from app.core.llm import InternalLLMService
+            from app.infrastructure.config.service import SystemConfigService
+            model_name = SystemConfigService.get_value("LLM_MODEL")
             structure_response = await InternalLLMService.invoke(
                 messages=[{"role": "user", "content": structure_prompt}],
                 purpose="task_analysis",
+                model_name=model_name,
             )
             json_match = re.search(r'\{.*\}', structure_response.content, re.DOTALL)
             if json_match:
@@ -310,10 +319,12 @@ class WikiService:
 
             try:
                 from app.core.llm import InternalLLMService
+                from app.infrastructure.config.service import SystemConfigService
+                model_name = SystemConfigService.get_value("LLM_MODEL")
                 content_response = await InternalLLMService.invoke(
                     messages=[{"role": "user", "content": content_prompt}],
                     purpose="skill_synthesis",
-                    model=model,
+                    model_name=model or model_name,
                 )
                 page_content = content_response.content
             except Exception as e:

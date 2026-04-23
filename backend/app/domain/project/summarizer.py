@@ -125,10 +125,13 @@ async def _summarize_project_logic(name: str, path: str):
         )
 
         from app.core.llm import InternalLLMService
+        from app.infrastructure.config.service import SystemConfigService
+        model_name = SystemConfigService.get_value("LLM_MODEL")
         response = await InternalLLMService.invoke(
             messages=[{"role": "user", "content": prompt_text}],
             purpose="skill_synthesis",
             temperature=0.3,
+            model_name=model_name,
         )
 
         parser = JsonOutputParser()

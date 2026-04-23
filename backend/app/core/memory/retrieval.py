@@ -376,11 +376,14 @@ class MemoryRetriever:
             llm_start = time.time()
             logger.info("[_llm_select] Calling InternalLLMService.invoke for memory_selection...")
 
+            from app.infrastructure.config.service import SystemConfigService
+            model_name = SystemConfigService.get_value("LLM_MODEL")
             response = await InternalLLMService.invoke(
                 messages=selection_messages,
                 purpose="memory_selection",
                 temperature=0.3,
                 max_tokens=500,
+                model_name=model_name,
             )
 
             llm_elapsed = (time.time() - llm_start) * 1000

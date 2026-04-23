@@ -1,4 +1,3 @@
-import asyncio
 import difflib
 import logging
 import os
@@ -21,9 +20,6 @@ from .utils import resolve_and_validate_path
 
 logger = logging.getLogger(__name__)
 
-# Keep references to background tasks to prevent GC
-_background_tasks: set[asyncio.Task] = set()
-
 
 class MatchConfidence(Enum):
     """Confidence level for text matching."""
@@ -31,6 +27,13 @@ class MatchConfidence(Enum):
     MEDIUM = "medium"  # Fuzzy match successful
     LOW = "low"  # Multiple candidates or partial match
     NONE = "none"  # No match found
+
+
+class FileEditOperation(BaseModel):
+    """Single edit operation within a multi-edit request."""
+    target: str
+    replacement: str
+    allow_multiple: bool = False
 
 
 class EditFileRequest(BaseModel):
@@ -42,6 +45,7 @@ class EditFileRequest(BaseModel):
     expected_hash: str | None = None
     verify_types: bool = True
     config: RunnableConfig | None = None
+    edits: list[FileEditOperation] | None = None
 
 
 class EditPreviewResult(BaseModel):
@@ -212,6 +216,122 @@ async def preview_edit_internal(
     )
 
 
+async def handle_multi_edit(path: str, edits: list[FileEditOperation], expected_hash: str | None, verify_types: bool, config: RunnableConfig | None) -> str:
+    """
+    Perform multiple edits to a single file atomically.
+    Phase 1: Validate all edits in memory (dry run).
+    Phase 2: Atomic write.
+    """
+    from app.utils import render_template
+    from app.domain.codebase.exploration.engine import get_exploration_engine
+
+    try:
+        target_path = await resolve_and_validate_path(path, config)
+    except ValueError as e:
+        return str(e)
+
+    if not os.path.exists(target_path):
+        return i18n.get("domain_tools.files.edit_not_found", path=path)
+
+    try:
+        # Read current content and hash
+        file_content, _, stats = safe_read_with_hash(target_path)
+
+        # Early hash verification
+        if expected_hash and stats.content_hash != expected_hash:
+            return render_template(
+                "domain/tools/edit_result.prompt.j2",
+                success=False,
+                path=path,
+                message="File was modified by another process since last read.",
+                details=(
+                    f"Current hash: {stats.content_hash[:8]}...\n"
+                    f"Expected: {expected_hash[:8]}...\n"
+                    f"Please re-read the file and try again."
+                ),
+                labels=i18n.get("domain_tools.files.edit_labels") or {}
+            )
+
+        # Phase 1: Validate all edits in memory (dry run)
+        current_content = file_content
+        validated_edits = []
+
+        for i, edit in enumerate(edits):
+            if isinstance(edit, dict):
+                edit = FileEditOperation.model_validate(edit)
+
+            target = edit.target
+            replacement = edit.replacement
+            allow_multiple = edit.allow_multiple
+
+            # Safety check: target length
+            if len(target.strip()) < 3:
+                return f"Edit #{i+1}: Target block too short (must be > 2 characters). Provide more context."
+
+            # Try to apply this edit to current content
+            success, new_content, log = EditEngine.apply_replacement(
+                current_content,
+                target,
+                replacement,
+                replace_all=allow_multiple
+            )
+
+            if not success:
+                return (
+                    f"Edit #{i+1} failed validation. No changes applied to file.\n"
+                    f"   Target: {target[:50]}{'...' if len(target) > 50 else ''}\n"
+                    f"   Error: {log}\n"
+                    f"   (Previous {i} edits would have succeeded, but were not applied due to atomicity)"
+                )
+
+            validated_edits.append({
+                "index": i + 1,
+                "strategy": log.split(":")[-1].strip() if ":" in log else "unknown"
+            })
+            current_content = new_content
+
+        # Phase 2: Atomic write
+        write_result = write_file_with_verification(
+            current_content,
+            target_path,
+            expected_hash=expected_hash
+        )
+
+        if not write_result["success"]:
+            return f"All {len(edits)} edits validated but write failed: {write_result.get('message')}"
+
+        # Build success response
+        template_context = {
+            "success": True,
+            "path": path,
+            "edit_count": len(edits),
+            "new_hash": write_result.get("new_hash", "")[:8] if write_result.get("new_hash") else None,
+            "diagnostics": None,
+            "labels": i18n.get("domain_tools.files.edit_labels") or {}
+        }
+
+        # Optional Semantic Validation (synchronous await for Agent feedback loop)
+        if verify_types:
+            diagnostics = None
+            try:
+                engine = get_exploration_engine()
+                repo_path = get_working_directory(config)
+                diagnostics = await engine.check_types(target_path, repo_path)
+                if diagnostics:
+                    logger.info(f"[Type Check] {path} ({len(edits)} edits): {len(diagnostics)} diagnostic(s)")
+                    for d in diagnostics[:3]:
+                        logger.info(f"  - {d.get('severity', 'info')}: {d.get('message', '')[:50]}")
+            except Exception as e:
+                logger.debug(f"[Type Check] Failed: {e}")
+
+            template_context["diagnostics"] = diagnostics
+
+        return render_template("domain/tools/multi_edit_success.prompt.j2", **template_context)
+
+    except Exception as e:
+        return i18n.get("domain_tools.files.edit_error", error=str(e))
+
+
 async def handle_edit(request: EditFileRequest) -> str:
     """
     Edit file with cascading fuzzy matching and optional hash verification.
@@ -309,30 +429,21 @@ async def handle_edit(request: EditFileRequest) -> str:
             "log": log
         })
 
-        # Optional Semantic Validation (async)
+        # Optional Semantic Validation (synchronous await for Agent feedback loop)
         if verify_types:
-            async def _async_type_check():
-                try:
-                    engine = get_exploration_engine()
-                    repo_path = get_working_directory(config)
-                    diagnostics = await engine.check_types(target_path, repo_path)
-                    if diagnostics:
-                        import logging
-                        logger = logging.getLogger(__name__)
-                        logger.info(f"[Async Type Check] {path}: {len(diagnostics)} diagnostic(s) found")
-                        for d in diagnostics[:3]:
-                            logger.info(f"  - {d.get('severity', 'info')}: {d.get('message', '')[:50]}")
-                except Exception as e:
-                    import logging
-                    logging.getLogger(__name__).debug(f"[Async Type Check] Failed: {e}")
+            diagnostics = None
+            try:
+                engine = get_exploration_engine()
+                repo_path = get_working_directory(config)
+                diagnostics = await engine.check_types(target_path, repo_path)
+                if diagnostics:
+                    logger.info(f"[Type Check] {path}: {len(diagnostics)} diagnostic(s) found")
+                    for d in diagnostics[:3]:
+                        logger.info(f"  - {d.get('severity', 'info')}: {d.get('message', '')[:50]}")
+            except Exception as e:
+                logger.debug(f"[Type Check] Failed: {e}")
 
-            # Fire and forget - keep reference to prevent GC
-            task = asyncio.create_task(_async_type_check())
-            _background_tasks.add(task)
-            task.add_done_callback(_background_tasks.discard)
-
-            # Add a note that type check is running in background
-            template_context["diagnostics"] = [{"severity": "info", "message": "Type check running in background..."}]
+            template_context["diagnostics"] = diagnostics
 
         return render_template("domain/tools/edit_result.prompt.j2", **template_context)
 
@@ -377,6 +488,7 @@ async def edit_file(
     path: str | None = None,
     target: str | None = None,
     replacement: str | None = None,
+    edits: list[dict] | None = None,
     allow_multiple: bool = False,
     expected_hash: str | None = None,
     dry_run: bool = False,
@@ -385,6 +497,9 @@ async def edit_file(
 ) -> str:
     """
     Performs string replacements in files with automatic cascading fuzzy matching.
+
+    Supports both single-edit mode (target + replacement) and multi-edit mode (edits).
+    When `edits` is provided, all edits are applied atomically to the same file.
 
     Usage:
     - You MUST use read_file at least once in the conversation before editing.
@@ -396,35 +511,84 @@ async def edit_file(
 
     When to use:
     - Use this for single, isolated changes to one part of a file.
-    - For multiple changes to the same file, use multiedit_file instead.
+    - For multiple changes to the same file, pass the `edits` parameter.
     - For complex multi-block structural changes, use apply_patch_file instead.
     - Do NOT use this tool for auto-generated content (like running formatters); use Bash or Write instead.
 
     Args:
         path: Target file path. **REQUIRED**
-        target: The text to find. Include surrounding lines for uniqueness. **REQUIRED**
-        replacement: The new content. **REQUIRED**
-        allow_multiple: Replace ALL occurrences of the matched text.
+        target: The text to find. Include surrounding lines for uniqueness.
+                Required for single-edit mode; ignored when `edits` is provided.
+        replacement: The new content.
+                     Required for single-edit mode; ignored when `edits` is provided.
+        edits: List of edit operations for multi-edit mode. Each dict must contain:
+               - target: str
+               - replacement: str
+               - allow_multiple: bool (optional, default False)
+               When provided, `target` and `replacement` are ignored.
+        allow_multiple: Replace ALL occurrences of the matched text (single-edit mode only).
         expected_hash: Optional content hash for concurrent modification detection.
                       Get this from read_file output to ensure you're editing the latest version.
         dry_run: If True, preview the change without actually modifying the file.
                  Only use this for uncertain complex edits; simple edits should be applied directly.
+                 Only supported for single-edit mode.
         verify_types: If True (default), perform a semantic type check after the edit.
                       Requires an active LSP for the language.
 
     Examples:
-        # Simple edit (default path)
+        # Single edit
         edit_file(path="src/main.py", target="def old():", replacement="def new():")
-        
+
+        # Multi-edit (atomic)
+        edit_file(
+            path="src/main.py",
+            edits=[
+                {"target": "def foo():", "replacement": "def bar():"},
+                {"target": "x = 1", "replacement": "x = 2"}
+            ]
+        )
+
         # Preview only for uncertain changes
         edit_file(path="src/main.py", target="old()", replacement="new()", dry_run=True)
     """
-    # HYPER-ROBUST VALIDATION
+    # Multi-edit mode
+    if edits:
+        if not path:
+            return (
+                "SYSTEM ERROR: You called 'edit_file' with EMPTY path. "
+                "You MUST provide 'path'.\n"
+                "CORRECT USAGE: edit_file(path='...', edits=[...])"
+            )
+        if not isinstance(edits, list) or len(edits) == 0:
+            return (
+                "SYSTEM ERROR: You called 'edit_file' with INVALID edits. "
+                "You MUST provide a non-empty list of edits.\n"
+                "CORRECT USAGE: edit_file(path='...', edits=[{'target': '...', 'replacement': '...'}])"
+            )
+        # Convert dicts to FileEditOperation models
+        edit_models = []
+        for i, e in enumerate(edits):
+            if isinstance(e, dict):
+                edit_models.append(FileEditOperation.model_validate(e))
+            elif isinstance(e, FileEditOperation):
+                edit_models.append(e)
+            else:
+                return f"Edit #{i+1} is not a valid edit operation. Each edit must be a dict or FileEditOperation."
+        return await handle_multi_edit(
+            path=path,
+            edits=edit_models,
+            expected_hash=expected_hash,
+            verify_types=verify_types,
+            config=config,
+        )
+
+    # Single-edit mode
     if not path or target is None or replacement is None:
         return (
             "SYSTEM ERROR: You called 'edit_file' with EMPTY arguments. "
-            "You MUST provide 'path', 'target', and 'replacement'.\n"
+            "You MUST provide 'path', 'target', and 'replacement', or 'edits'.\n"
             "CORRECT USAGE: edit_file(path='...', target='...', replacement='...')\n"
+            "         OR: edit_file(path='...', edits=[...])\n"
             "ACTION: Retry the tool call immediately with correct arguments."
         )
 

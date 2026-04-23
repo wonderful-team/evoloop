@@ -130,15 +130,18 @@ class MemoryPruningService:
         pruning_messages = await builder.build()
 
         try:
+            from app.infrastructure.config.service import SystemConfigService
+            model_name = SystemConfigService.get_value("LLM_MODEL")
             response = await InternalLLMService.invoke(
                 messages=pruning_messages,
                 purpose="memory_pruning",
+                model_name=model_name,
             )
             
-            import json, re
             content = response.content if hasattr(response, 'content') else str(response)
             match = re.search(r'\[.*\]', content, re.DOTALL)
-            if not match: return []
+            if not match:
+                return []
                 
             deletions = json.loads(match.group(0))
             logs = []
@@ -183,9 +186,12 @@ class MemoryConsolidator:
         consolidation_messages = await builder.build()
 
         try:
+            from app.infrastructure.config.service import SystemConfigService
+            model_name = SystemConfigService.get_value("LLM_MODEL")
             response = await InternalLLMService.invoke(
                 messages=consolidation_messages,
-                purpose="memory_consolidation"
+                purpose="memory_consolidation",
+                model_name=model_name,
             )
             content = response.content if hasattr(response, 'content') else str(response)
             match = re.search(r'\[.*\]', content, re.DOTALL)

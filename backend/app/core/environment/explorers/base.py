@@ -38,12 +38,15 @@ class BaseExplorer(ABC):
             role_name = render_template("domain/planning/expert_roles.prompt.j2", role="knowledge_triage", platform=platform).strip()
 
             from app.core.llm import InternalLLMService
+            from app.infrastructure.config.service import SystemConfigService
+            model_name = SystemConfigService.get_value("LLM_MODEL")
             response = await InternalLLMService.invoke(
                 messages=[
                     {"role": "system", "content": role_name},
                     {"role": "user", "content": prompt}
                 ],
                 purpose="environment_triage",
+                model_name=model_name,
             )
 
             content = response.content.strip() if hasattr(response, 'content') else str(response).strip()

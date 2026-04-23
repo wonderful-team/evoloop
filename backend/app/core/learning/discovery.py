@@ -296,10 +296,13 @@ class SkillDiscovery:
 
         try:
             from app.core.llm import InternalLLMService
+            from app.infrastructure.config.service import SystemConfigService
+            model_name = SystemConfigService.get_value("LLM_MODEL")
             response = await InternalLLMService.invoke(
                 messages=[{"role": "user", "content": prompt}],
                 purpose="task_analysis",
                 temperature=0.0,
+                model_name=model_name,
             )
 
             content = response.content.strip() if hasattr(response, 'content') else str(response).strip()
@@ -342,9 +345,11 @@ class SkillDiscovery:
         system_prompt = prompt_builder.build_discovery_prompt(prompt_vars)
 
         try:
-            from app.core.context.manager import ContextManager
-            model = ContextManager.current().active_model
-            llm = await get_default_llm(temperature=0.0, model=model)
+            from app.infrastructure.config.service import SystemConfigService
+            model_name = SystemConfigService.get_value("LLM_MODEL")
+            if not model_name:
+                raise ValueError("LLM_MODEL not configured in SystemConfigService")
+            llm = await get_default_llm(temperature=0.0, model_name=model_name)
             messages = [
                 SystemMessage(content=system_prompt)
             ]

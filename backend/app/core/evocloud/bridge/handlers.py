@@ -40,9 +40,19 @@ async def handle_remote_command(command: RemoteCommand):
             )
 
             from app.core.engine.background_agent import BackgroundAgentInputs
+            from app.core.context.manager import ContextManager
+
+            # Resolve model: prefer existing session model, fallback to system default
+            loaded_ctx = await ContextManager.load(thread_id)
+            model = loaded_ctx.active_model if loaded_ctx else None
+            if not model:
+                from app.infrastructure.config.service import SystemConfigService
+                model = SystemConfigService.get_value("LLM_MODEL")
+
             inputs = BackgroundAgentInputs(
                 hitl_resume_response=response,
-                command_id=command.get("command_id")
+                command_id=command.get("command_id"),
+                model=model,
             )
             asyncio.create_task(run_agent_background(thread_id, inputs))
         return

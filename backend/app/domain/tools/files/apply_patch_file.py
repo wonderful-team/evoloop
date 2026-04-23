@@ -4,7 +4,6 @@ Apply patch tool for complex structural changes within a single file.
 This tool uses a custom patch language for atomic, multi-hunk edits.
 Prefer this tool for complex structural changes (multiple related blocks, renames, moves).
 """
-import asyncio
 import logging
 import os
 from typing import List, Annotated
@@ -21,9 +20,6 @@ from app.i18n.service import i18n
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
-
-# Keep references to background tasks to prevent GC
-_background_tasks: set[asyncio.Task] = set()
 
 
 class PatchHunk(DynamicBaseModel):
@@ -262,7 +258,7 @@ async def apply_patch_file(
     When to use:
     - Use this for complex multi-block changes within a single file
     - Use this when you need atomic guarantees (all-or-nothing)
-    - For simple single-block changes, use edit_file or multiedit_file instead
+    - For simple single-block changes, use edit_file instead (pass `edits` for multi-block)
     - For creating new files, use write_file instead
 
     Args:
@@ -292,6 +288,8 @@ async def apply_patch_file(
 
     # Phase 1: Validate and collect all operations
     validated_operations = []
+    file_content_cache: dict[str, str] = {}  # Cache for cumulative edits across operations
+    file_hash_cache: dict[str, str] = {}     # Cache for original hashes
     
     for i, op in enumerate(operations):
         try:
@@ -307,17 +305,27 @@ async def apply_patch_file(
                 if not os.path.exists(target_path):
                     return f"Operation #{i+1}: File not found: {op.path}"
                 validated_operations.append(('delete', target_path, None, op.path))
+                # Clear cache for deleted file
+                file_content_cache.pop(target_path, None)
+                file_hash_cache.pop(target_path, None)
                 
             elif op.operation == 'update':
                 target_path = await resolve_and_validate_path(op.path, config)
                 if not os.path.exists(target_path):
                     return f"Operation #{i+1}: File not found: {op.path}"
                 
-                # Read current content
-                file_content, _, stats = safe_read_with_hash(target_path)
+                # Use cached content if this file was already processed in an earlier operation
+                if target_path in file_content_cache:
+                    file_content = file_content_cache[target_path]
+                    # Read stats from disk for hash check (content hash will be stale, skip it)
+                    _, _, stats = safe_read_with_hash(target_path)
+                else:
+                    # Read current content fresh from disk
+                    file_content, _, stats = safe_read_with_hash(target_path)
+                    file_hash_cache[target_path] = stats.content_hash
                 
-                # Hash check for first operation only (optimization)
-                if i == 0 and expected_hash and stats.content_hash != expected_hash:
+                # Hash check for the first time this file is touched
+                if expected_hash and target_path not in file_content_cache and stats.content_hash != expected_hash:
                     return render_template(
                         "domain/tools/edit_result.prompt.j2",
                         success=False,
@@ -335,6 +343,10 @@ async def apply_patch_file(
                     # Rename operation
                     new_path = await resolve_and_validate_path(op.move_to, config)
                     validated_operations.append(('rename', target_path, new_path, op.path))
+                    # Transfer cache to new path
+                    if target_path in file_content_cache:
+                        file_content_cache[new_path] = file_content_cache.pop(target_path)
+                        file_hash_cache[new_path] = file_hash_cache.pop(target_path, "")
                 else:
                     # Update with hunks
                     current_content = file_content
@@ -370,6 +382,8 @@ async def apply_patch_file(
                         
                         current_content = new_content
                     
+                    # Cache the modified content for subsequent operations on the same file
+                    file_content_cache[target_path] = current_content
                     validated_operations.append(('update', target_path, current_content, op.path))
                     
         except ValueError as e:
@@ -463,40 +477,43 @@ async def apply_patch_file(
             error_msg += f"\nRollback errors occurred: {', '.join(rollback_errors)}"
         return error_msg
 
-    # Async type checking for all updated files
+    # Synchronous type checking for all updated files (Agent feedback loop)
+    all_diagnostics = []
     if verify_types and updated_files_for_type_check:
-        async def _async_type_check_files(files_to_check):
-            try:
-                engine = get_exploration_engine()
-                repo_path = get_working_directory(config)
-                
-                for original_path, target_path in files_to_check:
-                    try:
-                        diagnostics = await engine.check_types(target_path, repo_path)
-                        if diagnostics:
-                            import logging
-                            logger = logging.getLogger(__name__)
-                            logger.info(f"[Async Type Check] {original_path}: {len(diagnostics)} diagnostic(s)")
-                            for d in diagnostics[:3]:
-                                logger.info(f"  - {d.get('severity', 'info')}: {d.get('message', '')[:50]}")
-                    except Exception as e:
-                        import logging
-                        logging.getLogger(__name__).debug(f"[Async Type Check] {original_path} failed: {e}")
-            except Exception as e:
-                import logging
-                logging.getLogger(__name__).debug(f"[Async Type Check] Failed: {e}")
-        
-        # Fire and forget - keep reference to prevent GC
-        task = asyncio.create_task(_async_type_check_files(updated_files_for_type_check))
-        _background_tasks.add(task)
-        task.add_done_callback(_background_tasks.discard)
+        try:
+            engine = get_exploration_engine()
+            repo_path = get_working_directory(config)
+
+            for original_path, target_path in updated_files_for_type_check:
+                try:
+                    diagnostics = await engine.check_types(target_path, repo_path)
+                    if diagnostics:
+                        logger.info(f"[Type Check] {original_path}: {len(diagnostics)} diagnostic(s)")
+                        for d in diagnostics[:3]:
+                            logger.info(f"  - {d.get('severity', 'info')}: {d.get('message', '')[:50]}")
+                        for d in diagnostics:
+                            d["file"] = original_path
+                            all_diagnostics.append(d)
+                except Exception as e:
+                    logger.debug(f"[Type Check] {original_path} failed: {e}")
+        except Exception as e:
+            logger.debug(f"[Type Check] Failed: {e}")
 
     # Build success response
     result_summary = "\n".join([f"  - {r}" for r in results])
-    
+
     response = f"Successfully applied patch with {len(results)} operation(s):\n{result_summary}"
-    
-    if verify_types and updated_files_for_type_check:
-        response += "\n\nNote: Type check running in background for updated files..."
-    
+
+    if all_diagnostics:
+        response += "\n\n⚠️ Type check results for updated files:\n"
+        for d in all_diagnostics[:5]:
+            severity = d.get("severity", "info")
+            line = d.get("line", "?")
+            msg = d.get("message", "")
+            file = d.get("file", "")
+            prefix = "❌ Error" if severity == "error" else "⚠️ Warning" if severity == "warning" else "ℹ️ Info"
+            response += f"   {prefix}: {file}:{line} — {msg}\n"
+        if len(all_diagnostics) > 5:
+            response += f"   ... and {len(all_diagnostics) - 5} more diagnostic(s)\n"
+
     return response

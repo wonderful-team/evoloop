@@ -126,6 +126,13 @@ class AgentToolExecutor:
                     logger.warning(f"[{self.name}] ⚠️ REPETITION DETECTED: Agent is repeating tool call: {tool_sig}")
                 local_tool_history.append(tool_sig)
 
+            # Capture snapshots BEFORE tool execution (for diff tracking)
+            if self.enable_diff_tracking:
+                from app.core.tools.registry import get_tool_affected_paths
+                snapshot_paths = get_tool_affected_paths(tool_name, tool_args)
+                for path in snapshot_paths:
+                    diff_tracker.capture_snapshot(path, thread_id)
+
             # Execute Tool
             content = await self._tool_executor.execute(tool, tool_args, config=self.config)
 
@@ -205,11 +212,7 @@ class AgentToolExecutor:
 
         snapshot_paths = get_tool_affected_paths(tool_name, tool_args)
 
-        # Capture Snapshots
-        for path in snapshot_paths:
-            diff_tracker.capture_snapshot(path, thread_id)
-
-        # Compute and persist diffs
+        # Compute and persist diffs (snapshots were captured before tool execution)
         for path in snapshot_paths:
             try:
                 operation, diff, original_content = diff_tracker.compute_diff(path, thread_id)

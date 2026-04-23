@@ -11,6 +11,9 @@ DEFAULT_PROJECT_ID = 1
 # Forgetting safety window - can only forget tool outputs older than N steps
 FORGET_SAFETY_WINDOW = 5
 
+# Default max context tokens fallback (200K) for unknown/unconfigured models
+DEFAULT_MAX_CONTEXT_TOKENS = 200_000
+
 
 # ====================== Document Type Enum ======================
 class DocumentType(Enum):

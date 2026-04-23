@@ -3,8 +3,8 @@ Subtask Aggregation Node - Phase 1
 
 Collects and aggregates results from parallel subtask executions.
 """
+import json
 import logging
-from typing import Any
 
 from langchain_core.messages import AIMessage
 from langchain_core.runnables import RunnableConfig
@@ -12,8 +12,8 @@ from langchain_core.runnables import RunnableConfig
 from app.core.engine.nodes.utils import log_msg_trace
 from app.core.engine.nodes.base import BaseNode
 from app.core.engine.routers import RoutingTarget
+from app.core.engine.schema import AggregateResult
 from app.core.engine.state import AgentState, StateUpdate
-from app.core.engine.tools.orchestration import aggregate_results
 
 logger = logging.getLogger(__name__)
 
@@ -52,12 +52,12 @@ class AggregatorNode(BaseNode):
                 r.model_dump() if hasattr(r, "model_dump") else r
                 for r in subtask_results
             ]
-            # Call the aggregation tool via ainvoke (aggregate_results is a StructuredTool)
-            agg_result = await aggregate_results.ainvoke({
-                "aggregation_strategy": strategy,
-                "results": raw_results,
-                "original_task": pending_agg.parent_task or ""
-            })
+            # Call the aggregation function directly (not an Agent tool)
+            agg_result = await self.aggregate_results(
+                aggregation_strategy=strategy,
+                results=raw_results,
+                original_task=pending_agg.parent_task or ""
+            )
             result_text = agg_result.aggregated if agg_result else "Aggregation failed"
             logger.info(f"[Aggregator] Post-aggregate result (length={len(result_text)}):\n{result_text}")
         except Exception as e:
@@ -90,3 +90,40 @@ class AggregatorNode(BaseNode):
         )
         log_msg_trace(self.node_name, "RETURN", result.messages, next_node=result.next_node)
         return result
+
+    async def aggregate_results(
+        aggregation_strategy: str,
+        results: list[dict],
+        original_task: str = ""
+    ) -> AggregateResult:
+        """
+        Aggregates outcomes from multiple parallel sub-tasks using the specified strategy.
+        """
+        if not results:
+            return AggregateResult(status="success", aggregated="N/A")
+
+        if aggregation_strategy == "concatenate":
+            return AggregateResult(
+                status="success",
+                aggregated="\n\n---\n\n".join([str(r.get("result", r)) for r in results])
+            )
+
+        from app.core.llm import InternalLLMService
+        from app.infrastructure.config.service import SystemConfigService
+        from app.utils import render_template
+        model_name = SystemConfigService.get_value("LLM_MODEL")
+        prompt = render_template(
+            "core/engine/tools/orchestration_aggregate.prompt.j2",
+            original_task=original_task,
+            aggregation_strategy=aggregation_strategy,
+            results_json=json.dumps(results, ensure_ascii=False)
+        )
+
+        response = await InternalLLMService.invoke(
+            messages=[{"role": "user", "content": prompt}],
+            purpose="result_aggregation",
+            temperature=0.3,
+            model_name=model_name,
+        )
+        content = response.content if hasattr(response, 'content') else str(response)
+        return AggregateResult(status="success", aggregated=content)

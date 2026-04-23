@@ -158,13 +158,14 @@ class CheckpointRewind:
                     "run_id": meta.get("run_id", ""),
                 })
 
-            # Retry mode: aggressively delete everything for a clean restart
+            # Retry mode: keep the latest checkpoint (needed for StateRewind rollback),
+            # delete all older checkpoints to ensure a clean restart.
             if reason == "retry" or not target_message_id:
                 if len(all_ids) <= 1:
                     return None
-                oldest_id = checkpoint_info[-1]["id"]
-                ids_to_delete = [c["id"] for c in checkpoint_info[:-1]]
-                return (ids_to_delete, oldest_id) if ids_to_delete else None
+                latest_id = checkpoint_info[0]["id"]
+                ids_to_delete = [c["id"] for c in checkpoint_info[1:]]
+                return (ids_to_delete, latest_id) if ids_to_delete else None
 
             # Targeted rewind mode
             target_checkpoint = None

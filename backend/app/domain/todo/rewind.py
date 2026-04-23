@@ -62,24 +62,20 @@ class TodoRewind:
         """
         Handle main rewind event - prepare todo cleanup.
         
-        Extracts message IDs and publishes a TODO_CLEANUP event.
+        Uses event.affected_message_ids (pre-computed by RewindOrchestrator)
+        to avoid race conditions with other handlers querying the messages table.
         """
-        # Find message IDs to clean up
-        message_ids = await self._find_message_ids(
+        message_ids = event.affected_message_ids or await self._find_message_ids(
             thread_id=event.thread_id,
             target_message_id=event.target_message_id,
             include_target=event.include_target
         )
         
         if message_ids:
-            # Perform deletion directly to capture count for aggregation
             count = await self._delete_todos(message_ids)
             self._deleted_count = count
-
-            # Report back to the main event
             event.results["todos"] = count
 
-            # Still publish specific cleanup event for other potential listeners
             from app.core.events import system_bus
             await system_bus.publish(TodoCleanupEvent(
                 thread_id=event.thread_id,

@@ -18,12 +18,11 @@ from app.api.responses import BaseAPIResponse, ListResponse
 from app.core.config import settings
 from app.core.engine.background_agent import run_agent_background
 from app.core.file.document_reader import document_reader_service
-from app.domain.project.requirements import (
-    ProjectRequirementDocument,
-)
+from app.domain.project.requirements import ProjectRequirementDocument
 from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.utils.id import gen_uuid
+from app.utils import render_template
 
 logger = logging.getLogger(__name__)
 
@@ -218,19 +217,12 @@ async def upload_requirement_document(
 
         result = await dispatch_agent_run(
             thread_id=thread_id,
-            message_content=f"""请分析我刚上传的需求文档。
-
-文档ID: {file_id}
-文件名: {file.filename}
-项目ID: {project_id}
-
-请按以下流程执行：
-1. 调用 analyze_project_requirement_document 工具分析文档（document_id="{file_id}"）
-2. 使用 request_approval 工具向我展示分析结果并请求确认
-3. 我确认后，调用 confirm_project_requirement_analysis 完成确认和自动任务拆解
-4. 任务将自动同步到 EvoCloud
-
-如果我对分析结果不满意，请根据我的反馈重新分析。""",
+            message_content=render_template(
+                "domain/project/requirement_analysis.prompt.j2",
+                document_id=file_id,
+                file_name=file.filename,
+                project_id=project_id,
+            ),
             project_id=project_id,
             goal_prefix="[Requirement Analysis] ",
         )

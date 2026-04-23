@@ -96,7 +96,7 @@ def write_file_with_verification(
                 )
 
         # Use core write operation
-        result = write_file(content, file_path)
+        result = write_file(file_path, content)
 
         if result.success:
             return FileWriteResult(

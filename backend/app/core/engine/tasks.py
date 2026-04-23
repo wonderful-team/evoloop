@@ -16,11 +16,12 @@ from app.core.config import settings
 from app.core.environment.events import UiTreeObservedEvent, event_bus
 from app.core.learning.trace_recorder import sync_thread_to_graph
 from app.infrastructure.database.sql.database import session_scope
-# Unified task queue (Huey in embedded mode, Celery in full mode)
 from app.infrastructure.queue.factory import shared_task
 from app.models import FileOperation
 from app.utils import gen_uuid
 from app.core.context.manager import ContextManager, EvoContext
+
+logger = logging.getLogger(__name__)
 
 
 class PersistMessagePayload(BaseModel):
@@ -33,7 +34,7 @@ class PersistMessagePayload(BaseModel):
     sequence_number: int = 0
     run_id: str | None = None
     status: str = "completed"
-    parent_id: str | None = None
+    parent_id: int | None = None
     tool_calls: list | None = None
     references: list[dict] | None = None
     action_type: str = "text"
@@ -41,8 +42,6 @@ class PersistMessagePayload(BaseModel):
     is_visible: bool = True
     tool_call_id: str | None = None
     tool_name: str | None = None
-
-logger = logging.getLogger(__name__)
 
 
 async def _notify_file_operation(thread_id: str, message_id: str, file_path: str, operation: str):
@@ -63,7 +62,7 @@ async def _notify_file_operation(thread_id: str, message_id: str, file_path: str
 
 
 @shared_task(name="engine_persist_file_operation")
-def persist_file_operation_task(
+async def persist_file_operation_task(
     thread_id: str,
     message_id: str,
     file_path: str,
@@ -72,34 +71,24 @@ def persist_file_operation_task(
     original_content: str | None = None
 ):
     """Background task to persist file movement/edit diffs to the database."""
-    async def _run():
-        async with session_scope() as session:
-            op = FileOperation(
-                thread_id=thread_id,
-                message_id=message_id,
-                file_path=file_path,
-                operation=operation,
-                diff_content=diff_content,
-                original_content=original_content,
-            )
-            session.add(op)
-        logger.debug(f"[Celery] Persisted file operation for {file_path}")
+    async with session_scope() as session:
+        op = FileOperation(
+            thread_id=thread_id,
+            message_id=message_id,
+            file_path=file_path,
+            operation=operation,
+            diff_content=diff_content,
+            original_content=original_content,
+        )
+        session.add(op)
+    logger.debug(f"[Celery] Persisted file operation for {file_path}")
 
-        # Notify frontend via SSE
-        await _notify_file_operation(thread_id, message_id, file_path, operation)
-
-    async def _run_with_flush():
-        try:
-            await _run()
-        finally:
-            from app.utils.async_utils import flush_loop_bound_resources
-            await flush_loop_bound_resources()
-
-    asyncio.run(_run_with_flush())
+    # Notify frontend via SSE
+    await _notify_file_operation(thread_id, message_id, file_path, operation)
 
 
 @shared_task(name="engine_upload_cloud_log")
-def upload_cloud_log_task(
+async def upload_cloud_log_task(
     device_key: int,
     thread_id: str,
     log_type: str,
@@ -109,28 +98,18 @@ def upload_cloud_log_task(
     project_id: int | None = None
 ):
     """Background task to upload logs to EvoCloud for persistence."""
-    async def _run():
-        try:
-            from app.core.evocloud import evocloud_manager
-            if not evocloud_manager._initialized:
-                evocloud_manager.initialize()
+    try:
+        from app.core.evocloud import evocloud_manager
+        if not evocloud_manager._initialized:
+            evocloud_manager.initialize()
 
-            await evocloud_manager.api.upload_log(
-                device_key, thread_id, log_type, content,
-                name=name, command_id=command_id, project_id=project_id
-            )
-            logger.debug(f"[Celery] Uploaded cloud log: {log_type}")
-        except Exception as e:
-            logger.error(f"[Celery] Cloud log upload failed: {e}")
-
-    async def _run_with_flush():
-        try:
-            await _run()
-        finally:
-            from app.utils.async_utils import flush_loop_bound_resources
-            await flush_loop_bound_resources()
-
-    asyncio.run(_run_with_flush())
+        await evocloud_manager.api.upload_log(
+            device_key, thread_id, log_type, content,
+            name=name, command_id=command_id, project_id=project_id
+        )
+        logger.debug(f"[Celery] Uploaded cloud log: {log_type}")
+    except Exception as e:
+        logger.error(f"[Celery] Cloud log upload failed: {e}")
 
 
 @shared_task(name="engine_snapshot_steps")
@@ -472,6 +451,8 @@ async def git_harvest_task(cwd: str, project_id: int, model: str | None = None):
 
         # Use InternalLLMService for structured extraction
         from app.core.llm import InternalLLMService
+        from app.infrastructure.config.service import SystemConfigService
+        model_name = SystemConfigService.get_value("LLM_MODEL")
         result = await InternalLLMService.invoke_structured(
             messages=[
                 {"role": "system", "content": prompt_text}
@@ -479,6 +460,7 @@ async def git_harvest_task(cwd: str, project_id: int, model: str | None = None):
             purpose="memory_extraction",
             output_schema=GitConceptExtractionResult,
             temperature=0.0,
+            model_name=model_name,
         )
 
         if isinstance(result, GitConceptExtractionResult) and result.concepts:

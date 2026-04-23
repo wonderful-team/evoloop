@@ -100,6 +100,7 @@ from app.models import (
     TraceEvent,
 )
 from app.utils.yaml import macro_from_yaml, YAMLError, validate_macro_yaml
+from app.utils import render_template
 
 logger = logging.getLogger(__name__)
 
@@ -688,13 +689,10 @@ async def execute_macro_with_fallback(
     logger.warning(f"[{thread_id}] Macro failed, triggering Agentic Fallback...")
     fallback_ctx = result.get("fallback_context", {})
     
-    fallback_msg = (
-        f"SYSTEM ALERT: The deterministic macro for '{skill.name}' failed.\n"
-        f"As Supervisor, you must now ANALYZE the failure context and DELEGATE a fix to a specialized Worker.\n\n"
-        f"Failure Context:\n{json.dumps(fallback_ctx, indent=2, ensure_ascii=False)}\n\n"
-        f"Your Goal:\n"
-        f"1. Check the failed step and reason.\n"
-        f"2. Call `route_to('worker', ...)` with an appropriate role (e.g., 'Automation Specialist') to heal the process and complete the user's original request."
+    fallback_msg = render_template(
+        "core/learning/self_healing.prompt.j2",
+        skill_name=skill.name,
+        failure_context=fallback_ctx,
     )
     
     from app.core.engine.dispatch import dispatch_agent_run
@@ -703,7 +701,7 @@ async def execute_macro_with_fallback(
         message_content=fallback_msg,
         project_id=project_id,
         goal_prefix="[Self-Healing] ",
-        context=EvoContext(thread_id=thread_id, project_id=project_id, active_model=skill.active_model if hasattr(skill, 'active_model') else None)
+        model=skill.active_model if hasattr(skill, 'active_model') else None,
     )
 
     if result.status == "failed":
@@ -734,10 +732,10 @@ async def execute_skill(
         # the agent will automatically see the 'Expert Guide' in its system prompt.
         skill_name = skill.name
         params_str = json.dumps(body.params.model_dump(), indent=2)
-        directive = (
-            f"User Instruction: I need you to perform the task '{skill_name}' using your expertise.\n"
-            f"Parameters: {params_str}\n\n"
-            f"Please refer to the 'EXPERT GUIDANCE (SKILLS)' section in your system instructions for the '{skill_name}' and use your tools to complete it."
+        directive = render_template(
+            "core/learning/skill_directive.prompt.j2",
+            skill_name=skill_name,
+            parameters=body.params.model_dump(),
         )
 
     # 3. Mode Selection (Persistence handled by dispatcher in Step 4)

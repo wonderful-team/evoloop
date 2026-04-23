@@ -44,3 +44,18 @@ class AgentTerminalException(Exception):
     def __init__(self, message: str, error_type: str = "terminal_error"):
         self.error_type = error_type
         super().__init__(message)
+
+
+class InferenceError(Exception):
+    """
+    Raised when LLM inference fails with a classified error.
+    Used by InferenceEngine to signal specific failure types (auth, quota, rate limit)
+    to the calling node.
+    """
+
+    def __init__(self, error_type: str, status_code: int | None, user_friendly_msg: str, raw_error: str):
+        self.error_type = error_type
+        self.status_code = status_code
+        self.user_friendly_msg = user_friendly_msg
+        self.raw_error = raw_error
+        super().__init__(raw_error)

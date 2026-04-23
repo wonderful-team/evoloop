@@ -78,14 +78,14 @@ async def dispatch_agent_run(
     # ------------------------------------------------------------------
     active_model = model
     if not active_model:
-        existing_ctx = ContextManager.current()
-        if existing_ctx and existing_ctx.active_model:
-            active_model = existing_ctx.active_model
-            logger.info(f"[Dispatch] No model specified, using context model: {active_model}")
+        from app.infrastructure.config.service import SystemConfigService
+        active_model = SystemConfigService.get_value("LLM_MODEL")
+        if active_model:
+            logger.info(f"[Dispatch] No model specified, using default model: {active_model}")
         else:
             raise ValueError(
-                "No model specified and no active_model found in EvoContext. "
-                "Please provide a model explicitly or ensure EvoContext.active_model is set."
+                "No model specified and no LLM_MODEL configured in SystemConfigService. "
+                "Please provide a model explicitly or configure LLM in system settings."
             )
 
     # ------------------------------------------------------------------
@@ -199,10 +199,7 @@ async def dispatch_agent_run(
                 await session.flush()
                 persisted_msg_id = user_msg.id
 
-                logger.info(
-                    f"[Dispatch] Persisted user message for {thread_id} "
-                    f"(seq={user_msg.sequence_number})"
-                )
+                logger.info(f"[Dispatch] Persisted user message for {thread_id} (seq={user_msg.sequence_number})")
 
                 # Persist references
                 if attachments:
@@ -222,9 +219,7 @@ async def dispatch_agent_run(
                         )
                         session.add(ref)
 
-                    logger.info(
-                        f"[Dispatch] Persisted {len(attachments)} references for msg {user_msg.id}"
-                    )
+                    logger.info(f"[Dispatch] Persisted {len(attachments)} references for msg {user_msg.id}")
             else:
                 logger.info("[Dispatch] Skipped persistence for retry")
 

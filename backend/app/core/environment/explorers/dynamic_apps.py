@@ -117,6 +117,8 @@ class DynamicAppTriage(BaseExplorer):
             role_name = render_template("domain/planning/expert_roles.prompt.j2", role="ui_dynamics").strip()
 
             from app.core.llm import InternalLLMService
+            from app.infrastructure.config.service import SystemConfigService
+            model_name = SystemConfigService.get_value("LLM_MODEL")
             response = await InternalLLMService.invoke(
                 messages=[
                     {"role": "system", "content": role_name},
@@ -124,6 +126,7 @@ class DynamicAppTriage(BaseExplorer):
                 ],
                 purpose="environment_exploration",
                 temperature=0,
+                model_name=model_name,
             )
 
             content = response.content.strip() if hasattr(response, 'content') else str(response).strip()

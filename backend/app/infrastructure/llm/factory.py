@@ -93,8 +93,15 @@ class LLMFactory:
         - Platform Mode: Backend → Gateway (OpenAI format) → Gateway handles protocol translation
         - Custom Mode: Backend → Direct connection (Backend handles protocol selection)
         """
+        # Defensive fallback for legacy 'model' parameter
+        if model_name is None and "model" in kwargs:
+            model_name = kwargs.pop("model")
+            
         logger.debug(f"[LLMFactory] Creating LLM with model_name={model_name}")
         
+        if not model_name:
+            raise ValueError("[LLMFactory] model_name must be specified.")
+
         # 2. Detect Mode and Instantiate
         if model_name.startswith("custom-"):
             return await LLMFactory._create_custom_llm(model_name, temperature, **kwargs)
@@ -222,10 +229,11 @@ class LLMFactory:
 
 
 # Global instance for easy import if needed, or prefer using Factory.create()
-def get_default_llm(temperature: float = 0.3, **kwargs):
+def get_default_llm(model_name: str | None = None, temperature: float = 0.3, **kwargs):
     """Get default LLM (async wrapper for backward compatibility).
     
     Args:
+        model_name: Model name
         temperature: Sampling temperature
         **kwargs: Additional arguments passed to LLMFactory.create_llm (e.g., max_tokens)
     """
@@ -234,9 +242,9 @@ def get_default_llm(temperature: float = 0.3, **kwargs):
         loop = asyncio.get_event_loop()
         if loop.is_running():
             # If in async context, use create_task
-            return asyncio.create_task(LLMFactory.create_llm(temperature=temperature, **kwargs))
+            return asyncio.create_task(LLMFactory.create_llm(model_name=model_name, temperature=temperature, **kwargs))
         else:
-            return loop.run_until_complete(LLMFactory.create_llm(temperature=temperature, **kwargs))
+            return loop.run_until_complete(LLMFactory.create_llm(model_name=model_name, temperature=temperature, **kwargs))
     except RuntimeError:
         # No event loop, create new one
-        return asyncio.run(LLMFactory.create_llm(temperature=temperature, **kwargs))
+        return asyncio.run(LLMFactory.create_llm(model_name=model_name, temperature=temperature, **kwargs))

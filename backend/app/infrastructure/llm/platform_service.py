@@ -32,6 +32,13 @@ class PlatformModel(DynamicBaseModel):
     quota_required: bool = True
 
 
+def _get_custom_model_context_window(model_name: str) -> int:
+    """Get context window for a custom model using the model profile registry."""
+    from app.infrastructure.llm.model_profile import get_profile
+    profile = get_profile(model_name)
+    return profile.max_context_tokens
+
+
 class LLMPlatformService:
     """
     从 EvoLoop Gateway 获取 LLM 模型配置 (带本地缓存)
@@ -202,7 +209,7 @@ async def get_available_llm_models(config_type: str = None) -> List[Dict[str, An
             "supports_streaming": True,
             "supports_vision": custom_provider_type in ["openai", "anthropic"],
             "supports_functions": custom_provider_type in ["openai", "anthropic"],
-            "context_window": 128000 if "gpt-4" in custom_model else 8192,
+            "context_window": _get_custom_model_context_window(custom_model),
         })
     
     return result

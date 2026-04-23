@@ -1,12 +1,14 @@
 """
 Message folding utilities — convert between flat and nested message formats.
 """
-
+import logging
 from typing import Any
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
 
 from app.core.engine.state.history import FoldedMessage
+
+logger = logging.getLogger(__name__)
 
 
 def to_base_message(msg: Any) -> BaseMessage | None:
@@ -20,13 +22,14 @@ def to_base_message(msg: Any) -> BaseMessage | None:
         A LangChain message object or None if role is unknown
     """
     role = getattr(msg, "role", None)
-    content = getattr(msg, "content", "")
-    
+    # Defensive: content may be None in DB; LangChain v2 rejects None content
+    content = getattr(msg, "content", "") or ""
+
     # Preserve key metadata that fold_messages and other utilities need
     msg_id = str(getattr(msg, "id", "")) or None
     created_at = getattr(msg, "created_at", None)
     thinking = getattr(msg, "thinking", None)
-    
+
     # LangChain messages use additional_kwargs for extra metadata
     kwargs = {"id": msg_id}
     if created_at:
@@ -36,28 +39,32 @@ def to_base_message(msg: Any) -> BaseMessage | None:
     if getattr(msg, "steps_snapshot", None):
         kwargs["steps_snapshot"] = msg.steps_snapshot
 
-    if role == "human":
-        return HumanMessage(content=content, id=msg_id, additional_kwargs=kwargs)
-    elif role == "ai":
-        tool_calls = getattr(msg, "tool_calls", [])
-        return AIMessage(
-            content=content, 
-            id=msg_id,
-            tool_calls=tool_calls if isinstance(tool_calls, list) else [],
-            additional_kwargs=kwargs
-        )
-    elif role == "tool":
-        # For database records, name might be stored in 'tool_name' or derived from tool_calls
-        return ToolMessage(
-            content=content,
-            id=msg_id,
-            tool_call_id=getattr(msg, "tool_call_id", ""),
-            name=getattr(msg, "tool_name", None),
-            additional_kwargs=kwargs
-        )
-    elif role == "system":
-        return SystemMessage(content=content, id=msg_id, additional_kwargs=kwargs)
-    
+    try:
+        if role == "human":
+            return HumanMessage(content=content, id=msg_id, additional_kwargs=kwargs)
+        elif role == "ai":
+            tool_calls = getattr(msg, "tool_calls", []) or []
+            return AIMessage(
+                content=content, 
+                id=msg_id,
+                tool_calls=tool_calls if isinstance(tool_calls, list) else [],
+                additional_kwargs=kwargs
+            )
+        elif role == "tool":
+            # For database records, name might be stored in 'tool_name' or derived from tool_calls
+            return ToolMessage(
+                content=content,
+                id=msg_id,
+                tool_call_id=getattr(msg, "tool_call_id", "") or "",
+                name=getattr(msg, "tool_name", None),
+                additional_kwargs=kwargs
+            )
+        elif role == "system":
+            return SystemMessage(content=content, id=msg_id, additional_kwargs=kwargs)
+    except Exception as e:
+        logger.warning(f"[to_base_message] Failed to convert msg id={msg_id} role={role}: {e}")
+        return None
+
     return None
 
 

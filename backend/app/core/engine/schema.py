@@ -1,8 +1,13 @@
-from typing import Literal
+from typing import Literal, Any
 
 from pydantic import Field, model_validator
 
 from app.infrastructure.pydantic_base import DynamicBaseModel
+
+
+class AggregateResult(DynamicBaseModel):
+    status: str
+    aggregated: Any
 
 
 class NodeParameters(DynamicBaseModel):

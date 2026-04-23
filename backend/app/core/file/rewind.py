@@ -63,29 +63,37 @@ class FileRewind:
         """
         Handle main rewind event - prepare file operations list.
         
-        This is called when a rewind is requested. We query FileOperations
-        and publish a FILES_CLEANUP event with the operations to revert.
+        Uses event.affected_message_ids when available to avoid querying
+        the messages table after another handler has already deleted rows.
+        After reverting physical files, also cleans up the DB records.
         """
         if not event.revert_files:
             logger.debug("[FileRewind] File revert disabled, skipping")
             return
 
         # Query file operations for this thread
-        file_ops = await self._find_file_operations(
-            thread_id=event.thread_id,
-            target_message_id=event.target_message_id,
-            include_target=event.include_target
-        )
+        if event.affected_message_ids:
+            file_ops = await self._find_file_operations_by_message_ids(
+                thread_id=event.thread_id,
+                message_ids=event.affected_message_ids
+            )
+        else:
+            file_ops = await self._find_file_operations(
+                thread_id=event.thread_id,
+                target_message_id=event.target_message_id,
+                include_target=event.include_target
+            )
 
         if file_ops:
-            # Perform restoration directly to capture count for aggregation
+            # Perform restoration
             count = await self._revert_files(file_ops)
             self._reverted_count = count
-            
-            # Report back to the main event
             event.results["files"] = count
-            
-            # Still publish specific cleanup event for other potential listeners
+
+            # Clean up database records for the reverted operations
+            db_count = await self._cleanup_database_records(file_ops)
+            logger.info(f"[FileRewind] Cleaned up {db_count} file_operation records")
+
             from app.core.events import system_bus
             await system_bus.publish(FilesCleanupEvent(
                 thread_id=event.thread_id,
@@ -159,6 +167,43 @@ class FileRewind:
                     "backup_content": op.original_content,
                 })
 
+            return file_operations
+
+    async def _find_file_operations_by_message_ids(
+        self,
+        thread_id: str,
+        message_ids: list[str]
+    ) -> list[dict]:
+        """
+        Find file operations linked to the given message IDs.
+        Used when RewindOrchestrator has pre-computed the affected messages.
+        """
+        if not message_ids:
+            return []
+
+        int_ids = [int(mid) for mid in message_ids if mid.isdigit()]
+        if not int_ids:
+            return []
+
+        async with session_scope() as session:
+            stmt = (
+                select(FileOperation)
+                .where(FileOperation.thread_id == thread_id)
+                .where(FileOperation.message_id.in_(int_ids))
+                .order_by(FileOperation.created_at.desc())
+            )
+            result = await session.execute(stmt)
+            ops = result.scalars().all()
+
+            file_operations = []
+            for op in ops:
+                file_operations.append({
+                    "id": op.id,
+                    "message_id": op.message_id,
+                    "path": op.file_path,
+                    "operation": op.operation,
+                    "backup_content": op.original_content,
+                })
             return file_operations
 
     async def _revert_files(self, file_operations: list[dict]) -> int:

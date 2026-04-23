@@ -141,31 +141,51 @@ class BaseAgentNode(BaseNode, ABC):
             log_msg_trace(self.node_name, "EXECUTION", execution_state.messages, ticket_at=ticket_at)
 
             # 3. Engine Execution
-            model = config.get("configurable", {}).get("model")
-            if not model:
-                from app.core.context.manager import ContextManager
-                model = ContextManager.current().active_model
             engine = get_default_engine()
 
             is_subtask = resolve_is_subtask(state)
+            model = config.get("configurable", {}).get("model")
+            if not model:
+                from app.core.context.manager import ContextManager
+                ctx = ContextManager.current()
+                model = getattr(ctx, "active_model", None)
+            if not model:
+                from app.infrastructure.config.service import SystemConfigService
+                model = SystemConfigService.get_value("LLM_MODEL")
+
+            logger.info(
+                f"[{self.node_name}] 🚀 Engine.run_node | model={model} | is_subtask={is_subtask} | "
+                f"max_steps={1 if is_subtask else self.max_steps}"
+            )
 
             engine_result = await engine.run_node(
                 state=execution_state,
                 config=config,
                 system_prompt=static_system_prompt,
                 tools=tools,
-                model=model,
                 max_steps=1 if is_subtask else self.max_steps,
                 name=self.node_name,
                 temperature=self.temperature,
                 node_source=self.node_name.lower(),
                 is_subtask=is_subtask,
+                model=model,
+            )
+
+            logger.info(
+                f"[{self.node_name}] 📥 EngineResult received | messages={len(engine_result.messages or [])} | "
+                f"types={[type(m).__name__ for m in (engine_result.messages or [])]} | "
+                f"signal={type(engine_result.signal).__name__ if engine_result.signal else 'None'}"
             )
 
             # 4. Handle Outcome & Signal Dispatching
             outcome = await self.handle_outcome(state, engine_result, config)
             # [MSG-TRACE] EXIT
             log_msg_trace(self.node_name, "EXIT", getattr(outcome, 'messages', None), next_node=getattr(outcome, 'next_node', 'N/A'))
+            logger.info(
+                f"[{self.node_name}] 📤 Outcome RETURN | messages={len(getattr(outcome, 'messages', []) or [])} | "
+                f"types={[type(m).__name__ for m in (getattr(outcome, 'messages', []) or [])]} | "
+                f"next_node={getattr(outcome, 'next_node', 'N/A')}"
+            )
             return outcome
 
         except Exception as e:
@@ -260,6 +280,12 @@ class BaseAgentNode(BaseNode, ABC):
             m for m in (engine_result.messages or [])
             if getattr(m, "name", None) != "context_ticket"
         ]
+        logger.info(
+            f"[{self.node_name}] _build_fallback_outcome | "
+            f"engine_result.messages={len(engine_result.messages or [])} | "
+            f"after_filter={len(new_messages)} | "
+            f"types={[type(m).__name__ for m in new_messages]}"
+        )
         return StateUpdate(
             messages=new_messages,
             next_node=engine_result.routing_target or RoutingTarget.FINISH,

@@ -153,10 +153,12 @@ class DirectorySummarizer:
 
         try:
             from app.core.llm import InternalLLMService
+            from app.infrastructure.config.service import SystemConfigService
+            model_name = SystemConfigService.get_value("LLM_MODEL")
             response = await InternalLLMService.invoke(
                 messages=[{"role": "user", "content": prompt_text}],
                 purpose="skill_synthesis",
-                model=model,
+                model_name=model or model_name,
             )
             return response.content if hasattr(response, 'content') else str(response)
         except Exception as e:

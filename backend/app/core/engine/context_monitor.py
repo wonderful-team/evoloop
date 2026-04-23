@@ -15,6 +15,7 @@ from langchain_core.messages import (
 )
 from pydantic import Field
 
+from app.constants import DEFAULT_MAX_CONTEXT_TOKENS
 from app.core.engine.message.utils import estimate_message_tokens
 from app.infrastructure.llm.model_profile import get_profile
 from app.infrastructure.pydantic_base import DynamicBaseModel
@@ -87,28 +88,22 @@ class ContextMonitor:
     """Monitors and reports context usage for Agent awareness (token-based)."""
 
     @staticmethod
-    def calculate(
-        messages: list[BaseMessage],
-        max_tokens: int | None = None,
-        model: str | None = None,
-    ) -> ContextStats:
+    def calculate(messages: list[BaseMessage], model: str | None = None) -> ContextStats:
         """
         Calculate context statistics from message list (token-based).
 
         Args:
             messages: Current message history
-            max_tokens: Maximum context size in tokens. If None, derived from model profile.
-            model: Model name for profile-aware limit derivation.
+            model: Explicit model name. If not provided, uses a safe default.
 
         Returns:
             ContextStats with token-based usage information
         """
-        if max_tokens is None:
-            if model:
-                profile = get_profile(model)
-                max_tokens = profile.max_context_tokens
-            else:
-                max_tokens = 128000  # conservative default
+        if not model:
+            max_tokens = DEFAULT_MAX_CONTEXT_TOKENS
+        else:
+            profile = get_profile(model)
+            max_tokens = profile.max_context_tokens
 
         total_tokens = 0
         tool_tokens = 0
@@ -150,7 +145,7 @@ class ContextMonitor:
     def inject_into_prompt(
         system_prompt: str,
         messages: list[BaseMessage],
-        max_tokens: int | None = None,
+        model: str | None = None,
     ) -> str:
         """
         Inject context stats into system prompt.
@@ -158,12 +153,12 @@ class ContextMonitor:
         Args:
             system_prompt: Original system prompt
             messages: Current message history
-            max_tokens: Maximum context size in tokens
+            model: Explicit model name
 
         Returns:
             System prompt with context monitor section appended
         """
-        stats = ContextMonitor.calculate(messages, max_tokens)
+        stats = ContextMonitor.calculate(messages, model=model)
         stats_section = stats.to_prompt()
 
         # Insert before any closing sections if present
@@ -171,17 +166,18 @@ class ContextMonitor:
         return f"{system_prompt}\n\n{stats_section}"
 
 
-def get_context_status_for_agent(
-    messages: list[BaseMessage],
-    max_tokens: int | None = None,
-) -> dict:
+def get_context_status_for_agent(messages: list[BaseMessage], model: str | None = None) -> dict:
     """
     Get context status as a dict for programmatic use.
+
+    Args:
+        messages: Current message history
+        model: Explicit model name
 
     Returns:
         Dict with token-based status information suitable for tool use
     """
-    stats = ContextMonitor.calculate(messages, max_tokens)
+    stats = ContextMonitor.calculate(messages, model=model)
 
     return {
         "total_tokens": stats.total_tokens,

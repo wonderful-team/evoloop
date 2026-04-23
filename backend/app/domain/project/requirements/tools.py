@@ -66,12 +66,15 @@ async def analyze_project_requirement_document(
         )
 
         from app.core.llm import InternalLLMService
+        from app.infrastructure.config.service import SystemConfigService
+        model_name = SystemConfigService.get_value("LLM_MODEL")
         response = await InternalLLMService.invoke(
             messages=[
                 {"role": "system", "content": prompt},
                 {"role": "user", "content": "请分析上述需求文档，以JSON格式输出结构化分析结果。"}
             ],
             purpose="task_analysis",
+            model_name=model_name,
         )
 
         # Parse and save

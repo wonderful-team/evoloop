@@ -70,30 +70,24 @@ class MessageRewind:
         """
         Handle main rewind event - determine message range and trigger cleanup.
         
-        This is the primary entry point for message cleanup. It:
-        1. Finds the target message (or last human message)
-        2. Determines the range of messages to delete
-        3. Publishes MESSAGES_CLEANUP event
+        Uses event.affected_message_ids (pre-computed by RewindOrchestrator)
+        to avoid race conditions with other handlers querying the messages table.
         """
-        # Find messages to delete
-        message_ids = await self._find_messages_to_delete(
+        # Use pre-computed message IDs if available, otherwise fall back to query
+        message_ids = event.affected_message_ids or await self._find_messages_to_delete(
             thread_id=event.thread_id,
             target_message_id=event.target_message_id,
             include_target=event.include_target
         )
 
         if message_ids:
-            # Perform deletion directly to capture count for aggregation
             count = await self._delete_messages(
                 message_ids=message_ids,
                 delete_references=True
             )
             self._deleted_count = count
-
-            # Report back to the main event
             event.results["messages"] = count
 
-            # Still publish the internal event for other potential listeners
             from app.core.events import system_bus
             await system_bus.publish(MessagesCleanupEvent(
                 thread_id=event.thread_id,
@@ -135,28 +129,15 @@ class MessageRewind:
             thread_id: The thread ID
             target_message_id: The message to rewind to (None = last human message)
             include_target: Whether to include the target message in deletion
-            
-        Returns:
-            List of message IDs as strings
-            
-        Raises:
-            MessageNotFoundError: If target message doesn't exist
-            NoHumanMessageError: If no human message found and no target specified
         """
         async with session_scope() as session:
-            min_id_to_delete = None
-
             if target_message_id:
-                # Use specified target message
                 try:
                     msg_id_int = int(target_message_id)
                     target_msg = await session.get(Message, msg_id_int)
 
                     if not target_msg:
-                        raise MessageNotFoundError(
-                            f"Target message {target_message_id} not found",
-                            thread_id=thread_id
-                        )
+                        raise MessageNotFoundError(f"Target message {target_message_id} not found", thread_id=thread_id)
 
                     min_id_to_delete = target_msg.id
 
@@ -166,7 +147,7 @@ class MessageRewind:
             else:
                 # Find last human message
                 stmt = (
-                    select(Message)
+                    select(Message.id)
                     .where(Message.thread_id == thread_id)
                     .where(Message.role == "human")
                     .order_by(Message.id.desc())
@@ -174,12 +155,8 @@ class MessageRewind:
                 )
                 result = await session.execute(stmt)
                 last_human = result.scalar_one_or_none()
-
                 if not last_human:
-                    raise NoHumanMessageError(
-                        "No human message found to rewind to",
-                        thread_id=thread_id
-                    )
+                    raise NoHumanMessageError("No human message found to rewind to", thread_id=thread_id)
 
                 min_id_to_delete = last_human.id
 

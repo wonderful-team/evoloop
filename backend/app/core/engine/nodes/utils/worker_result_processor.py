@@ -147,8 +147,24 @@ def process_worker_result(
     blackboard.ticket = updated_execution_ticket
     blackboard.verification = verification_summary
 
+    # Preserve ALL original messages (including ToolMessages) so that
+    # retry/resume can reconstruct the full conversation history from
+    # checkpoints.  The summarised content is injected as the *last*
+    # AIMessage so the Supervisor still sees a concise worker output.
+    preserved_messages = list(engine_result.messages or [])
+    if preserved_messages and isinstance(preserved_messages[-1], AIMessage):
+        # Overwrite the last AIMessage with the summarised content
+        preserved_messages[-1] = AIMessage(
+            content=worker_content,
+            id=preserved_messages[-1].id,
+            metadata=getattr(preserved_messages[-1], "metadata", None),
+        )
+    else:
+        # Append a new summary AIMessage when there is no trailing AI msg
+        preserved_messages.append(AIMessage(content=worker_content))
+
     result = StateUpdate(
-        messages=[AIMessage(content=worker_content)],
+        messages=preserved_messages,
         next_node=routing_target or RoutingTarget.SUPERVISOR,
         blackboard=blackboard,
         workspace_context=workspace_context,

@@ -6,18 +6,9 @@ New code should import directly from the sub-modules.
 """
 
 # Schemas
-from app.core.engine.tools.orchestration.schemas import (  # noqa: F401
-    AggregateResult,
-    DecomposeTaskResult,
-    SpawnAgentsResult,
-    ToolResult,
-)
+from app.core.engine.tools.orchestration.schemas import AggregateResult, DecomposeTaskResult, ToolResult  # noqa: F401
 
 # Tools
-from app.core.engine.tools.orchestration.parallelism import (  # noqa: F401
-    aggregate_results,
-    spawn_agents,
-)
 from app.core.engine.tools.orchestration.planning import decompose_task  # noqa: F401
 from app.core.engine.tools.orchestration.routing import route_to  # noqa: F401
 from app.core.engine.tools.orchestration.state_tools import manage_session_metadata  # noqa: F401

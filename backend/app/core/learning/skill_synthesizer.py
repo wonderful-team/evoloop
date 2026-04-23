@@ -224,12 +224,15 @@ class WorkflowSynthesizer:
 
         # Use InternalLLMService to prevent internal synthesis from being logged to chat
         from app.core.llm import InternalLLMService
+        from app.infrastructure.config.service import SystemConfigService
+        model_name = SystemConfigService.get_value("LLM_MODEL")
         response = await InternalLLMService.invoke(
             messages=[
                 {"role": "system", "content": prompt},
                 {"role": "user", "content": prompt_builder.build_synthesis_human_prompt()},
             ],
             purpose="skill_synthesis",
+            model_name=model_name,
         )
         content = response.content if hasattr(response, 'content') else str(response)
 

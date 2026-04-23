@@ -1,0 +1,22 @@
+### Task Execution Objective
+**Objective**: Implement the following task.
+
+**Title**: {{ title }}
+**Description**: {{ desc | default('No description provided.') }}
+
+**Context & Constraints**:
+{% if key_modules -%}
+- **Key Modules**: {{ key_modules | join(', ') if key_modules is iterable and key_modules is not string else key_modules }}
+{% endif -%}
+{% if tech_challenges -%}
+- **Technical Challenges**: {{ tech_challenges | join(', ') if tech_challenges is iterable and tech_challenges is not string else tech_challenges }}
+{% endif -%}
+{% if deliverables -%}
+- **Deliverables**: {{ deliverables | join(', ') if deliverables is iterable and deliverables is not string else deliverables }}
+{% endif -%}
+- **Implementation Complexity**: {{ complexity | default('Unknown') }}
+
+### Instructions
+1. Analyze the requirements thoroughly.
+2. Develop a comprehensive implementation plan.
+3. Execute the changes adhering to project architecture and coding standards.

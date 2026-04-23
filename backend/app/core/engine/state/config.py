@@ -106,7 +106,7 @@ class ExecutionTicket(DynamicBaseModel):
     @classmethod
     def _topic_must_be_non_empty(cls, v):
         if not isinstance(v, str) or not v.strip():
-            raise ValueError("ExecutionTicket.topic cannot be empty or missing. Check upstream caller (route_to, spawn_agents, etc.) to ensure a non-empty topic/intent/reason is provided.")
+            raise ValueError("ExecutionTicket.topic cannot be empty or missing. Check upstream caller (route_to, decompose_task, etc.) to ensure a non-empty topic/intent/reason is provided.")
         return v.strip()
 
     @field_validator("skill_id", mode="before")

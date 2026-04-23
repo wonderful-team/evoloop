@@ -167,7 +167,7 @@ async def get_debug_status(_token: TokenDep):
     return DebugStatusResponse(
         is_logged_in=bool(evocloud_manager.get_token()),
         token_prefix=(evocloud_manager.get_token()[:10] + "...") if evocloud_manager.get_token() else None,
-        device_key=evocloud_manager.link.device_key if evocloud_manager.device_id else None,
+        device_key=evocloud_manager.link.device_key if evocloud_manager.link else None,
         device_name=evocloud_manager.link.device_name if evocloud_manager.link else "Unknown",
         is_connected=evocloud_manager.link.is_connected() if evocloud_manager.link else False,
         api_url=evocloud_manager.api.base_url if evocloud_manager.api else "Unknown",

@@ -122,8 +122,8 @@ class DecomposeTaskInterceptor(ToolCallInterceptor):
         # Need to locate the tool instance
         # Since we are in the interceptor, the tool_map is not directly available.
         # The decompose_task tool is a global tool; we can look it up.
-        from app.core.tools.registry import get_tool
-        tool = get_tool("decompose_task")
+        from app.core.tools.registry import get_tool_map
+        tool = get_tool_map().get("decompose_task")
         if not tool:
             logger.warning("[SignalRegistry] decompose_task tool not found in registry")
             await SignalEmitter.emit_tool_end("decompose_task", "Tool not found", tc_id, config)

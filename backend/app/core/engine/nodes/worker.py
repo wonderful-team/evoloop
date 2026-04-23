@@ -80,7 +80,7 @@ class WorkerNode(BaseAgentNode):
 
         # 2. Dynamic Mission (Turn-based context)
         all_messages = list(state.messages)
-        model = ContextManager.current().active_model
+        model = config.get("configurable", {}).get("model")
         context_stats = ContextMonitor.calculate(all_messages, model=model).to_prompt()
 
         from app.core.engine.prompts.utils import get_mapped_cwd

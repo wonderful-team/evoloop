@@ -60,6 +60,10 @@ class RewindRequestedEvent(RewindEvent):
     results: dict[str, int] = Field(default_factory=dict)
     errors: list[str] = Field(default_factory=list)
     success: bool = True
+    # Pre-computed message IDs affected by this rewind.
+    # Populated by RewindOrchestrator so handlers do not race
+    # against each other querying the messages table.
+    affected_message_ids: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _build_data(self):

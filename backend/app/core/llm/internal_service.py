@@ -16,7 +16,10 @@ InternalLLMService - 内部 LLM 调用服务
 
 使用示例：
     from app.core.llm import InternalLLMService
-    
+    from app.infrastructure.config.service import SystemConfigService
+
+    model_name = SystemConfigService.get_value("LLM_MODEL")
+
     response = await InternalLLMService.invoke(
         messages=[
             {"role": "system", "content": "You are a memory selector."},
@@ -25,8 +28,9 @@ InternalLLMService - 内部 LLM 调用服务
         purpose="memory_selection",  # 用于调试和追踪
         temperature=0.3,
         max_tokens=500,
+        model_name=model_name,  # 必须显式传入，禁止隐式 fallback
     )
-    
+
     content = response.content if hasattr(response, 'content') else str(response)
 """
 
@@ -54,7 +58,7 @@ class InternalLLMService:
         purpose: str,
         temperature: float = 0.3,
         max_tokens: int = 500,
-        model: str | None = None,
+        model_name: str | None = None,
         **kwargs
     ) -> Any:
         """
@@ -66,7 +70,7 @@ class InternalLLMService:
                     用于调试、追踪和日志记录
             temperature: 温度参数
             max_tokens: 最大 token 数
-            model: 指定模型（可选，默认使用系统配置）
+            model_name: 指定模型（可选，默认使用系统配置）
             **kwargs: 其他参数传递给 LLM
             
         Returns:
@@ -79,14 +83,10 @@ class InternalLLMService:
         """
         from app.infrastructure.llm.factory import get_default_llm
 
-        if not model:
-            from app.core.context.manager import ContextManager
-            model = ContextManager.current().active_model
-
-        if not model:
+        if not model_name:
             raise ValueError(
                 "[InternalLLMService] No model specified. "
-                "Either pass 'model' argument or ensure EvoContext.active_model is set. "
+                "Please pass 'model_name' argument explicitly. "
                 f"purpose={purpose}"
             )
 
@@ -94,7 +94,7 @@ class InternalLLMService:
         llm = await get_default_llm(
             temperature=temperature,
             max_tokens=max_tokens,
-            model=model,
+            model_name=model_name,
         )
 
         # 关键：禁用所有回调，防止消息泄露
@@ -133,7 +133,7 @@ class InternalLLMService:
         purpose: str,
         temperature: float = 0.3,
         max_tokens: int = 500,
-        model: str | None = None,
+        model_name: str | None = None,
         **kwargs
     ) -> T:
         """
@@ -141,21 +141,17 @@ class InternalLLMService:
         """
         from app.infrastructure.llm.factory import get_default_llm
 
-        if not model:
-            from app.core.context.manager import ContextManager
-            model = ContextManager.current().active_model
-
-        if not model:
+        if not model_name:
             raise ValueError(
                 "[InternalLLMService] No model specified. "
-                "Either pass 'model' argument or ensure EvoContext.active_model is set. "
+                "Please pass 'model_name' argument explicitly. "
                 f"purpose={purpose}"
             )
 
         llm = await get_default_llm(
             temperature=temperature,
             max_tokens=max_tokens,
-            model=model,
+            model_name=model_name,
         )
 
         # 绑定结构化输出
