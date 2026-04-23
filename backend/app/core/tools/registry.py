@@ -9,6 +9,7 @@ import importlib
 import inspect
 import logging
 import pkgutil
+import threading
 from datetime import datetime, timezone
 from functools import lru_cache
 from pathlib import Path
@@ -110,6 +111,7 @@ class AutoDiscoveryRegistry:
             return
 
         self._scanned_packages.add(package_name)
+        logger.info(f"[Registry] Scanning package: {package_name}")
 
         # Walk through all modules in the package
         if hasattr(package, "__path__"):
@@ -118,8 +120,8 @@ class AutoDiscoveryRegistry:
                     module = importlib.import_module(name)
                     self._register_tools_from_module(module)
                 except Exception as e:
-                    # Log but don't crash on individual module import failures
-                    logger.debug(f"Skipping module {name} during scan: {e}")
+                    # WARNING level so failures are visible in production
+                    logger.warning(f"[Registry] Skipping module {name} during scan: {e}")
         else:
             # It's a single module
             self._register_tools_from_module(package)
@@ -127,17 +129,22 @@ class AutoDiscoveryRegistry:
     def _register_tools_from_module(self, module):
         """
         Inspect a module for @evoloop_tool decorated functions.
+        Batch cache invalidation to avoid repeated cache thrashing.
         """
+        new_tools: list[str] = []
         for name, obj in inspect.getmembers(module):
             if isinstance(obj, BaseTool):
                 try:
                     wrapped_func = getattr(obj, "func", None) or getattr(obj, "coroutine", None)
                     if wrapped_func and getattr(wrapped_func, "is_evoloop_active", False):
-                        self._tools[obj.name] = obj
-                        logger.debug(f"Registered tool: {obj.name} from {module.__name__}")
-                        _invalidate_caches()
+                        if obj.name not in self._tools:
+                            self._tools[obj.name] = obj
+                            new_tools.append(obj.name)
+                            logger.debug(f"Registered tool: {obj.name} from {module.__name__}")
                 except Exception as e:
                     logger.warning(f"Failed to inspect tool {name} in {module.__name__}: {e}")
+        if new_tools:
+            _invalidate_caches()
 
     def get_all_tools(self) -> list[BaseTool]:
         """Return all statically registered tools."""
@@ -154,13 +161,43 @@ class AutoDiscoveryRegistry:
 
 REGISTRY = AutoDiscoveryRegistry()
 _registry_scanned = False
+_scan_lock = threading.Lock()
+
+
+# Critical tools that MUST be present after scanning
+_CRITICAL_TOOLS = ["route_to", "manage_session_metadata", "decompose_task"]
+
+
+def _validate_critical_tools():
+    """Validate that critical tools are registered after scanning. Retry if missing."""
+    tool_map = REGISTRY.get_tool_map()
+    missing = [t for t in _CRITICAL_TOOLS if t not in tool_map]
+    if missing:
+        logger.error(f"[Registry] Critical tools missing after scan: {missing}. Retrying engine.tools scan.")
+        REGISTRY._scanned_packages.discard("app.core.engine.tools")
+        REGISTRY.scan("app.core.engine.tools")
+
+        # Final check
+        tool_map = REGISTRY.get_tool_map()
+        still_missing = [t for t in _CRITICAL_TOOLS if t not in tool_map]
+        if still_missing:
+            logger.error(f"[Registry] CRITICAL: Tools still missing after retry: {still_missing}")
 
 
 def _ensure_scanned():
-    """Ensure the registry has scanned all packages."""
+    """Ensure the registry has scanned all packages. Thread-safe with double-checked locking."""
     global _registry_scanned
-    if not _registry_scanned:
+    if _registry_scanned:
+        return
+
+    with _scan_lock:
+        # Double-check after acquiring lock
+        if _registry_scanned:
+            return
+
         _registry_scanned = True
+        logger.info("[Registry] Starting tool discovery scan...")
+
         # Scan all domain-specific application logic for @evoloop_tool
         REGISTRY.scan("app.domain")
 
@@ -169,6 +206,12 @@ def _ensure_scanned():
 
         # Scan Core Memory Tools
         REGISTRY.scan("app.core.memory.tools")
+
+        # Validate critical tools are present; retry if necessary
+        _validate_critical_tools()
+
+        total = len(REGISTRY.get_tool_map())
+        logger.info(f"[Registry] Tool discovery complete. {total} tools registered.")
 
 
 # --- Core Registry Accessors ---
@@ -299,9 +342,14 @@ def get_node_tools(node_role: str, config_path: str | None = None) -> list[BaseT
 
     hydrated = get_tools_by_names(tool_names, source_role=node_role)
 
-    # Cache if using default config
-    if not config_path:
+    # Only cache when all declared tools were found (avoid polluting cache with incomplete results)
+    if not config_path and len(hydrated) == len(tool_names):
         _cached_node_tools[node_role] = hydrated
+    elif not config_path:
+        logger.warning(
+            f"[Registry] Not caching {node_role} tools: "
+            f"expected {len(tool_names)}, got {len(hydrated)}"
+        )
 
     return hydrated
 

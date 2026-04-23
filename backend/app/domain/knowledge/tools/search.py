@@ -71,10 +71,6 @@ async def kb_search(
     """
 
     try:
-        # Get current project from config if not explicitly provided
-        thread_config = config.get("configurable", {}) if config else {}
-        current_project_id = source_project_id or thread_config.get("project_id", 0)
-
         # T-3.3: Route to appropriate search mode
         if search_mode == "semantic":
             return await _semantic_search(pattern, collection, max_results)

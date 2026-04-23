@@ -19,6 +19,7 @@ from app.models import (
     Repository,
     SourceFile,
 )
+from app.utils.file import get_file_ext
 
 logger = logging.getLogger(__name__)
 
@@ -135,6 +136,30 @@ class IndexingService:
                 await self.sql_persister.clear_old_data(source_file, session)
                 name_to_id = await self.sql_persister.persist(indexed, source_file, session)
                 await session.commit()
+
+                # 3.5 Persist vectors to unified vector store
+                from app.infrastructure.database.vector import get_vector_store
+
+                vector_store = get_vector_store()
+                chunks_for_vec = []
+                for doc in indexed.documents:
+                    chunks_for_vec.append(
+                        {
+                            "content": doc.content,
+                            "file_path": prepared.rel_path,
+                            "repository_id": str(repo_id),
+                            "chunk_type": doc.metadata.get("type", "unknown"),
+                            "identifier": doc.metadata.get("name", "unknown"),
+                            "start_line": doc.metadata.get("start_line", 0),
+                            "end_line": doc.metadata.get("end_line", 0),
+                            "language": get_file_ext(prepared.file_path),
+                        }
+                    )
+                # Run synchronous vector store I/O in a thread to avoid blocking
+                # the event loop (especially for PgVectorStore network calls).
+                await asyncio.to_thread(
+                    vector_store.upsert_code_chunks, chunks_for_vec, indexed.embeddings
+                )
 
                 # 4. Sync Graph (only if Neo4j is enabled)
                 if Neo4jManager.is_enabled():

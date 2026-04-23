@@ -3,11 +3,12 @@ Codebase Event Handlers
 =======================
 
 Event-driven handlers for codebase/indexing operations.
-These handlers receive events from the file watcher and perform indexing operations.
+These handlers receive events from the file watcher and dispatch indexing
+operations to the background task queue (Huey/Celery).
 
 Usage:
     Handlers are auto-registered via @event_register decorator.
-    They subscribe to IndexingEventType events and call IndexingService.
+    They subscribe to IndexingEventType events and enqueue tasks.
 """
 
 import logging
@@ -19,58 +20,70 @@ from app.domain.codebase.events import (
     FileRemovedEvent,
     IndexingEventType,
 )
-from app.domain.codebase.indexing.service import IndexingService
+from app.infrastructure.queue.factory import get_scheduler
 
 logger = logging.getLogger(__name__)
+
+_scheduler = get_scheduler()
 
 
 @event_register()
 class FileIndexingHandler:
     """
     Handles file indexing events from the file watcher.
-    
-    This handler receives file change events and delegates to IndexingService
-    to perform the actual indexing operations.
-    """
 
-    def __init__(self):
-        self._service = IndexingService()
+    Instead of executing indexing inline (which blocks the main process),
+    we dispatch lightweight background tasks to the task queue.
+    """
 
     @event_subscribe(IndexingEventType.FILE_MODIFIED)
     async def on_file_modified(self, event: FileModifiedEvent) -> None:
-        """
-        Handle file modification event.
-        
-        Called when a file is created or modified in a watched directory.
-        """
+        """Enqueue a background task to index the modified file."""
         try:
-            logger.info(f"[FileIndexingHandler] Indexing modified file: {event.file_path}")
-            await self._service.index_file(event.file_path, event.repo_id)
+            logger.info(
+                f"[FileIndexingHandler] Enqueuing index task for: {event.file_path}"
+            )
+            _scheduler.send_task(
+                "codebase_index_file",
+                kwargs={"file_path": event.file_path, "repo_id": event.repo_id},
+            )
         except Exception as e:
-            logger.error(f"[FileIndexingHandler] Failed to index file {event.file_path}: {e}")
+            logger.error(
+                f"[FileIndexingHandler] Failed to enqueue index task for {event.file_path}: {e}"
+            )
 
     @event_subscribe(IndexingEventType.FILE_REMOVED)
     async def on_file_removed(self, event: FileRemovedEvent) -> None:
-        """
-        Handle file removal event.
-        
-        Called when a file is deleted from a watched directory.
-        """
+        """Enqueue a background task to remove the file from the index."""
         try:
-            logger.info(f"[FileIndexingHandler] Removing file from index: {event.file_path}")
-            await self._service.remove_file(event.file_path, event.repo_id)
+            logger.info(
+                f"[FileIndexingHandler] Enqueuing remove task for: {event.file_path}"
+            )
+            _scheduler.send_task(
+                "codebase_remove_file",
+                kwargs={"file_path": event.file_path, "repo_id": event.repo_id},
+            )
         except Exception as e:
-            logger.error(f"[FileIndexingHandler] Failed to remove file {event.file_path}: {e}")
+            logger.error(
+                f"[FileIndexingHandler] Failed to enqueue remove task for {event.file_path}: {e}"
+            )
 
     @event_subscribe(IndexingEventType.FILE_MOVED)
     async def on_file_moved(self, event: FileMovedEvent) -> None:
-        """
-        Handle file move/rename event.
-        
-        Called when a file is moved or renamed in a watched directory.
-        """
+        """Enqueue a background task to move/rename the file in the index."""
         try:
-            logger.info(f"[FileIndexingHandler] Moving file in index: {event.src_path} -> {event.dest_path}")
-            await self._service.move_file(event.src_path, event.dest_path, event.repo_id)
+            logger.info(
+                f"[FileIndexingHandler] Enqueuing move task: {event.src_path} -> {event.dest_path}"
+            )
+            _scheduler.send_task(
+                "codebase_move_file",
+                kwargs={
+                    "src_path": event.src_path,
+                    "dest_path": event.dest_path,
+                    "repo_id": event.repo_id,
+                },
+            )
         except Exception as e:
-            logger.error(f"[FileIndexingHandler] Failed to move file {event.src_path}: {e}")
+            logger.error(
+                f"[FileIndexingHandler] Failed to enqueue move task for {event.src_path}: {e}"
+            )

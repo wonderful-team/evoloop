@@ -1,26 +1,16 @@
 import logging
 from datetime import datetime
 
-# Unified task queue (Huey in embedded mode, Celery in full mode)
-from app.infrastructure.queue.factory import get_scheduler
-from app.utils import render_template
-
-# Get scheduler instance
-_task_scheduler = get_scheduler()
-
-# Create task decorator
-def _task(name, **kwargs):
-    def decorator(f):
-        return _task_scheduler.task(f, name=name, **kwargs)
-    return decorator
 from app.core.evocloud import evocloud_manager
+from app.infrastructure.queue.factory import shared_task
+from app.utils import render_template
 from app.domain.codebase.indexing.service import IndexingService
 from app.utils.async_utils import flush_loop_bound_resources
 
 logger = logging.getLogger(__name__)
 
 
-@_task(
+@shared_task(
     name="sync_project_to_cloud",
     bind=True,
     autoretry_for=(Exception,),
@@ -84,7 +74,7 @@ def sync_project_to_cloud_task(_self, repo_id: int):
     asyncio.run(_run_with_flush())
 
 
-@_task(
+@shared_task(
     name="sync_tasks_to_evocloud",
     bind=True,
     autoretry_for=(Exception,),

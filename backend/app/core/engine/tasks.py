@@ -1,4 +1,3 @@
-import asyncio
 import json
 import logging
 import os
@@ -166,7 +165,8 @@ async def snapshot_steps_task(
 @shared_task(name="engine_harvest_concepts")
 async def harvest_concepts_task(concepts_data: list[dict], project_id: int):
     """
-    Background task to store harvested concepts in Neo4j with structural layout optimization.
+    Background task to store harvested concepts into the memory system.
+    In full mode this goes to Neo4j; in embedded mode it goes to the file backend.
     concepts_data: List of dicts with 'name' and 'description'.
     """
     if not concepts_data:
@@ -227,7 +227,7 @@ async def record_episode_task(
     model: str | None = None,
 ):
     """
-    Background task to sync thread trace to Neo4j Episode graph.
+    Background task to sync thread trace to the episode graph (memory system).
     If auto_synthesize is True, it also triggers the WorkflowSynthesizer.
     """
     logger.info(f"[Celery] Recording episode for thread {thread_id} (Source: {source_message_id}, AutoSynth: {auto_synthesize})...")
@@ -319,7 +319,7 @@ async def persist_message_task(**kwargs):
     from uuid import UUID
 
     from app.core.engine.message.category import MessageCategory
-    from app.models import Message, MessageReference
+    from app.models import Conversation, Message, MessageReference
 
     try:
         async with session_scope() as session:
@@ -375,6 +375,14 @@ async def persist_message_task(**kwargs):
                         target_name=ref["target_name"],
                     )
                     session.add(mr)
+
+            # Mark conversation as pending so incremental sync picks it up
+            conversation = await session.get(Conversation, payload.thread_id)
+            if conversation and conversation.sync_status == "synced":
+                conversation.sync_status = "pending"
+                logger.debug(
+                    f"[Celery] Marked conversation {payload.thread_id} as pending for sync"
+                )
 
         logger.debug(f"[Celery] Persisted message {payload.sequence_number} with {len(payload.references or [])} refs for thread {payload.thread_id}")
     except Exception as e:

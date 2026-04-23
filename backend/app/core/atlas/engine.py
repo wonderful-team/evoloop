@@ -5,6 +5,7 @@ from app.core.atlas.adapters.neo4j_store import Neo4jAtlasStore
 from app.core.atlas.models import AtlasApp, AtlasElement, AtlasState
 from app.core.atlas.ports.store import IAtlasStore
 from app.core.atlas.strategy import AppStrategy, AtlasStrategyStore, InteractionStrategy
+from app.core.config import settings
 from app.core.environment.explorers.dynamic_apps import DynamicAppTriage
 from app.utils import render_template
 from app.utils.hash import compute_state_id
@@ -17,9 +18,17 @@ class AtlasEngine:
     Core Cognitive Engine for Spatial Memory (App Atlas).
     Handles data accumulation (ingestion from EventBus), graph persistence, 
     and retrieval for Agent Tools.
+
+    NOTE: In embedded mode, Atlas persistence is not available (no JSON backend
+    implemented yet). All store operations become no-ops.
     """
 
     def __init__(self, store: IAtlasStore = None):
+        if settings.EMBEDDED_MODE and store is None:
+            logger.warning(
+                "[AtlasEngine] Embedded mode: Atlas persistence is disabled "
+                "(no file-based AtlasStore implemented)."
+            )
         self.store = store or Neo4jAtlasStore()
 
     async def on_ui_tree_observed(self, event: Any) -> None:

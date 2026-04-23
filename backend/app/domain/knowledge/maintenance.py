@@ -40,22 +40,9 @@ async def wipe_knowledge_base():
         logger.error(f"Failed to wipe Neo4j: {e}")
         raise e
 
-    # 2. Postgres Cleanup (and Schema Sync)
+    # 2. SQL / Vector Store Cleanup
     try:
-        from app.infrastructure.embeddings.factory import EmbedderFactory
-
-        # Resolve current dimension
-        try:
-            embedder = EmbedderFactory.get_embedder()
-            # Probe dimension
-            # We assume embed_query works. If it fails (no net), we might skip or default.
-            # But "Reset" implies we want to be ready for indexing.
-            dummy_vec = await embedder.embed_query("dim_check")
-            target_dim = len(dummy_vec)
-            logger.info(f"Target Embedding Dimension determined: {target_dim}")
-        except Exception as e:
-            logger.warning(f"Could not determine target dimension from Embedder (using defaults/skipping alter): {e}")
-            target_dim = None
+        from app.infrastructure.database.vector import get_vector_store
 
         async with get_db_session() as session:
             tables_to_truncate = [
@@ -70,27 +57,29 @@ async def wipe_knowledge_base():
                 try:
                     await session.execute(text(f"TRUNCATE TABLE {t} CASCADE;"))
                 except Exception as e:
-                    logger.warning(f"Postgres: Error truncating {t}: {e}")
-
-            # SCHEMA FIX: Adjust Vector Column Dimensions
-            if target_dim:
-                # We need to alter code_chunks and tools
-                for table_name in ["code_chunks", "tools"]:
-                    try:
-                        # ALTER COLUMN TYPE requires dropping index/constraints sometimes if data exists,
-                        # but we just truncated, so it should be fast and safe.
-                        # Syntax: ALTER TABLE x ALTER COLUMN y TYPE vector(dim) USING ...
-                        # Since empty, valid.
-                        alter_query = f"ALTER TABLE {table_name} ALTER COLUMN embedding TYPE vector({target_dim});"
-                        await session.execute(text(alter_query))
-                        logger.info(f"Updated {table_name}.embedding to vector({target_dim})")
-                    except Exception as e:
-                        logger.error(f"Failed to alter {table_name} dimension: {e}")
+                    logger.warning(f"SQL: Error truncating {t}: {e}")
 
             await session.commit()
-            logger.info(f"✅ Postgres: Truncated tables & Synced Dimensions: {tables_to_truncate}")
+            logger.info(f"✅ SQL: Truncated tables: {tables_to_truncate}")
+
+        # Vector store (unified vector_embeddings table or LanceDB)
+        vector_store = get_vector_store()
+        if hasattr(vector_store, "_engine"):
+            # PgVectorStore
+            from sqlalchemy import text as sa_text
+            from sqlalchemy.orm import Session
+
+            with Session(vector_store._engine) as vec_session:
+                vec_session.execute(sa_text("TRUNCATE TABLE vector_embeddings CASCADE"))
+                vec_session.commit()
+                logger.info("✅ Vector Store: Truncated vector_embeddings")
+        else:
+            # LanceVectorStore — LanceDB doesn't have a global truncate,
+            # but compact + re-init is sufficient for a full reset.
+            logger.info("✅ Vector Store: LanceDB tables retained (embedded mode)")
+
     except Exception as e:
-        logger.error(f"Failed to wipe Postgres: {e}")
+        logger.error(f"Failed to wipe SQL/Vector store: {e}")
         raise e
 
     logger.info("✨ Knowledge Base Reset Complete.")

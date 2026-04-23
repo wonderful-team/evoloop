@@ -1,9 +1,11 @@
+import asyncio
 from typing import Any, Literal
 
 from sqlalchemy import select
 
 from app.domain.codebase.retrieval.rewriter import query_rewriter
 from app.infrastructure.database.sql.database import AsyncSessionLocal
+from app.infrastructure.database.vector import get_vector_store
 from app.infrastructure.embeddings.factory import EmbedderFactory
 from app.models import CodeChunk, Repository, SourceFile
 
@@ -50,43 +52,26 @@ class HybridSearcher:
         self, query: str, project_id: int, limit: int
     ) -> list[dict]:
         query_embedding = await self.embedder.embed_query(query)
+        vector_store = get_vector_store()
+        candidates = await asyncio.to_thread(
+            vector_store.search_code,
+            query_vector=query_embedding,
+            top_k=limit * 2,
+        )
 
-        async with self.session_factory() as session:
-            # CodeChunk.embedding.l2_distance(query_embedding)
-            distance_col = CodeChunk.embedding.l2_distance(query_embedding).label(
-                "distance"
-            )
-
-            stmt = (
-                select(CodeChunk, SourceFile, distance_col)
-                .join(SourceFile)
-                .join(Repository, SourceFile.repository_id == Repository.id)
-            )
-
-            # Note: project_id can be 0 (global mode), skip filter in that case
-            if project_id is not None and project_id != 0:
-                stmt = stmt.where(Repository.project_id == project_id)
-
-            stmt = stmt.order_by(distance_col).limit(limit)
-
-            rows = (await session.execute(stmt)).all()
-
-            results = []
-            for chunk, file, dist in rows:
-                results.append(
-                    {
-                        "id": chunk.id,
-                        "file_path": file.path,
-                        "identifier": chunk.identifier,
-                        "content": chunk.content,
-                        "chunk_type": chunk.chunk_type,
-                        "score": 1
-                        / (
-                            1 + dist
-                        ),  # Normalize distance to similarity-ish? RRF handles rank.
-                    }
+        # If project filtering is needed, filter by repository ownership
+        if project_id is not None and project_id != 0:
+            async with self.session_factory() as session:
+                repo_ids = await session.scalars(
+                    select(Repository.id).where(Repository.project_id == project_id)
                 )
-            return results
+                allowed_repo_ids = {str(r) for r in repo_ids.all()}
+                candidates = [
+                    c for c in candidates
+                    if c.get("repository_id") in allowed_repo_ids
+                ]
+
+        return candidates[:limit]
 
     async def _keyword_search(
         self,

@@ -32,10 +32,14 @@ class BenefitService:
             self._cache.clear()
         self._definitions.clear()
 
-    async def get_member_entitlements(self, member_id: int, token: str = None) -> dict[str, Any]:
+    async def get_member_entitlements(self, member_id: int, token: str = None, force_refresh: bool = False) -> dict[str, Any]:
         """
         Fetch full entitlement set for a member from Member Center.
         """
+        # 0. Force refresh: invalidate cache first
+        if force_refresh:
+            self.invalidate_cache(member_id)
+
         # 1. Check local cache
         if member_id in self._cache:
             data, ts = self._cache[member_id]

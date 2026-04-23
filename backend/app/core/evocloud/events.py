@@ -6,6 +6,7 @@ import logging
 
 from app.core.events import SystemEventType
 from app.core.events.decorators import event_register, event_subscribe
+from app.core.engine.events import AgentEventType
 from app.core.evocloud.manager import evocloud_manager
 from app.core.evocloud.bridge.handlers import (
     handle_remote_command,
@@ -106,3 +107,37 @@ class EvoCloudLifecycleHandler:
             logger.info("[EvoCloud] Services stopped successfully")
         except Exception as e:
             logger.error(f"[EvoCloud] Error during shutdown: {e}")
+
+
+@event_register()
+class EvoCloudSyncHandler:
+    """
+    Handles real-time conversation sync triggers.
+
+    Subscribes to agent run completion events and immediately
+    triggers incremental sync to push new messages to Member Center.
+    """
+
+    @event_subscribe(AgentEventType.RUN_COMPLETED)
+    async def on_agent_run_completed(self, event):
+        """
+        Triggered when an agent run finishes.
+        Immediately schedules an incremental sync so messages
+        don't wait for the next 5-minute polling cycle.
+        """
+        from app.core.evocloud.bridge.conversation_sync import (
+            _conversation_sync_manager,
+        )
+
+        if _conversation_sync_manager is None:
+            logger.debug("[EvoCloudSync] No sync manager active, skipping")
+            return
+
+        try:
+            await _conversation_sync_manager._schedule_incremental_sync()
+            logger.info(
+                f"[EvoCloudSync] Incremental sync triggered by run completion "
+                f"for thread {getattr(event, 'thread_id', 'unknown')}"
+            )
+        except Exception as e:
+            logger.warning(f"[EvoCloudSync] Failed to trigger incremental sync: {e}")

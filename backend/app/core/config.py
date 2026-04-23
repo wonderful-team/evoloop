@@ -92,6 +92,26 @@ class Settings(BaseSettings):
     POSTGRES_DB: str = ""
     DB_ECHO: bool = False  # Added for EvoLoop compatibility
 
+    # --- Vector Database Configuration (PostgreSQL + pgvector, separate instance) ---
+    # Defaults to the same server as the main database, but with a different DB name.
+    VECTOR_POSTGRES_SERVER: str | None = None
+    VECTOR_POSTGRES_PORT: int = 5432
+    VECTOR_POSTGRES_USER: str | None = None
+    VECTOR_POSTGRES_PASSWORD: str = ""
+    VECTOR_POSTGRES_DB: str = "evoloop_vector"
+
+    # --- Search Backend Configuration ---
+    # "auto": EMBEDDED_MODE=True → sqlite_fts, False → meilisearch
+    # "sqlite_fts": Force SQLite FTS5 (local file)
+    # "meilisearch": Force Meilisearch (external service)
+    SEARCH_ENGINE: Literal["auto", "sqlite_fts", "meilisearch"] = "auto"
+    SEARCH_DB_PATH: Annotated[str, BeforeValidator(expand_path)] = Field(
+        default_factory=lambda: os.path.expanduser("~/.evoloop/knowledge/search.db")
+    )
+    # Meilisearch settings (used when SEARCH_ENGINE=meilisearch)
+    MEILISEARCH_URL: str = "http://localhost:7700"
+    MEILISEARCH_API_KEY: str = ""
+
     # SQLite (for embedded mode)
     # Allow override via env var for dev/prod isolation
     SQLITE_PATH: Annotated[str, BeforeValidator(expand_path)] = Field(
@@ -161,7 +181,6 @@ class Settings(BaseSettings):
 
     # Cache backend (Redis in production, FileCache in embedded mode)
     REDIS_URL: str | None = "redis://localhost:6379/0"
-    USE_REDIS: bool = True  # Set to False to disable Redis
 
     # Task Queue Backend (celery | huey | local | auto)
     # - celery: Full Celery with Redis (requires Redis, not available in embedded mode)
@@ -215,7 +234,6 @@ class Settings(BaseSettings):
 
     # --- Cognitive Brain Configuration ---
     # Memory Architecture Toggle (Phase 4 Autonomy)
-    USE_NEO4J_MEMORY: bool = False  # Toggle between Neo4j graph memory and legacy flat-file brain
 
     # File System
     # Brain Memory now stored in ~/.evoloop/memory/ for consistency with other app data
@@ -432,9 +450,21 @@ class Settings(BaseSettings):
 
     @computed_field  # type: ignore[prop-decorator]
     @property
-    def CHECKPOINTER_DATABASE_URI(self) -> str:
-        # Use same database as main app
-        return self.SQLALCHEMY_DATABASE_URI
+    def VECTOR_DATABASE_URI(self) -> str | None:
+        """URI for the dedicated vector database (pgvector). None in embedded mode."""
+        if self.EMBEDDED_MODE:
+            return None
+        server = self.VECTOR_POSTGRES_SERVER or self.POSTGRES_SERVER
+        if not server:
+            return None
+        return str(PostgresDsn.build(
+            scheme="postgresql+psycopg",
+            username=self.VECTOR_POSTGRES_USER or self.POSTGRES_USER or "",
+            password=self.VECTOR_POSTGRES_PASSWORD or self.POSTGRES_PASSWORD,
+            host=server,
+            port=self.VECTOR_POSTGRES_PORT or self.POSTGRES_PORT,
+            path=self.VECTOR_POSTGRES_DB,
+        ))
 
     def _check_default_secret(self, var_name: str, value: str | None) -> None:
         if value == "changethis":
@@ -461,7 +491,6 @@ class Settings(BaseSettings):
         """Auto-disable external services when EMBEDDED_MODE is enabled."""
         if self.EMBEDDED_MODE:
             self.USE_NEO4J = False
-            self.USE_REDIS = False
             self.NEO4J_URI = None
             self.REDIS_URL = None
         return self

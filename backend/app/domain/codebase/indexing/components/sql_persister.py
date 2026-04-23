@@ -60,8 +60,8 @@ class SQLPersister:
         Returns:
             Mapping of entity full_name to entity ID for relation linking.
         """
-        # Insert chunks
-        for doc, vector in zip(indexed.documents, indexed.embeddings, strict=False):
+        # Insert chunks (business data only — embeddings go to vector store)
+        for doc in indexed.documents:
             chunk = CodeChunk(
                 source_file_id=source_file.id,
                 chunk_type=doc.metadata.get("type", "unknown"),
@@ -69,7 +69,6 @@ class SQLPersister:
                 start_line=doc.metadata.get("start_line", 0),
                 end_line=doc.metadata.get("end_line", 0),
                 content=doc.content,
-                embedding=vector,
             )
             session.add(chunk)
 

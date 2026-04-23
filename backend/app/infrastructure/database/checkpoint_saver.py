@@ -6,7 +6,6 @@ at connection time (e.g. DELETE mode), preventing conflicts when
 switching from WAL to DELETE on an existing database.
 """
 
-import aiosqlite
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 
 

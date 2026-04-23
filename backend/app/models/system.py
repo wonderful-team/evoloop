@@ -1,16 +1,11 @@
 from datetime import datetime
 
-from pgvector.sqlalchemy import Vector
 from sqlalchemy import DateTime, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlmodel import Field, SQLModel
 
-# Get embedding dimension from settings (Single Source of Truth)
-from app.core.config import settings
 from app.infrastructure.database.sql.database import Base
 from app.utils.time import utcnow
-
-EMBEDDING_DIM = settings.EMBEDDING_DIMENSIONS
 
 
 class SystemConfig(SQLModel, table=True):
@@ -55,9 +50,6 @@ class Tool(Base):
 
     # Optional metadata
     category: Mapped[str | None] = mapped_column(String(100), index=True)
-
-    # Vector Embedding
-    embedding: Mapped[list[float] | None] = mapped_column(Vector(EMBEDDING_DIM))
 
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 

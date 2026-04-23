@@ -1,4 +1,5 @@
 import asyncio
+import os
 from typing import Annotated, Optional
 
 from langchain_core.runnables import RunnableConfig
@@ -16,23 +17,13 @@ def _has_ripgrep() -> bool:
     return shutil.which("rg") is not None
 
 
-async def search_files_internal(
+async def _search_by_content(
     pattern: str,
-    path: str = ".",
-    scope: Optional[str] = None,
-    case_insensitive: bool = False,
-    config: RunnableConfig | None = None,
+    target_path: str,
+    scope: Optional[str],
+    case_insensitive: bool,
 ) -> str:
-    """
-    Internal function to search for text patterns in files.
-    Uses ripgrep (rg) if available, fallback to grep.
-    """
-    try:
-        target_path = await resolve_and_validate_path(path, config)
-    except ValueError as e:
-        return str(e)
-
-    # Use ripgrep if available, fallback to grep
+    """Search file contents using ripgrep or grep."""
     if _has_ripgrep():
         cmd = ["rg", "-n", "--json"]
         if case_insensitive:
@@ -44,7 +35,7 @@ async def search_files_internal(
         cmd.append(pattern)
         cmd.append(target_path)
     else:
-        cmd = ["grep", "-r", "-n"]
+        cmd = ["grep", "-E", "-r", "-n"]
         if case_insensitive:
             cmd.append("-i")
         if scope:
@@ -56,7 +47,6 @@ async def search_files_internal(
 
     res = await asyncio.to_thread(run_command, cmd)
     if not res.success:
-        # grep returns 1 if no lines found
         if res.returncode == 1:
             return "No matches found."
         return f"Error running search: {res.stderr}"
@@ -82,6 +72,132 @@ Example:
     return res.stdout
 
 
+async def _search_by_name(
+    pattern: str,
+    target_path: str,
+    scope: Optional[str],
+    case_insensitive: bool,
+    max_files: int = 20,
+) -> str:
+    """
+    Search files by name and return their raw content.
+
+    Uses ripgrep --files or find to list candidate files, then filters by both
+    name pattern and scope using Python (ensuring AND semantics).
+    """
+    import fnmatch
+
+    MAX_LINES_PER_FILE = 50
+
+    # Step 1: List all files under target_path
+    if _has_ripgrep():
+        # rg --files lists all files, respecting exclusions
+        exclude_args = []
+        for exclude_dir in DEFAULT_EXCLUDED_DIRS:
+            exclude_args.extend(["-g", f"!{exclude_dir}"])
+        cmd = ["rg", "--files"]
+        cmd.extend(exclude_args)
+        cmd.append(target_path)
+    else:
+        # Fallback: use find to list all files
+        cmd = ["find", target_path, "-type", "f"]
+
+    res = await asyncio.to_thread(run_command, cmd)
+    if not res.success or not res.stdout.strip():
+        return "No files found matching the name pattern."
+
+    all_files = [line.strip() for line in res.stdout.strip().split('\n') if line.strip()]
+
+    # Step 2: Filter by name pattern AND scope (AND semantics)
+    name_check = pattern.lower() if case_insensitive else pattern
+    scope_check = scope.lower() if case_insensitive and scope else scope
+
+    matched_files = []
+    for filepath in all_files:
+        basename = os.path.basename(filepath)
+        basename_check = basename.lower() if case_insensitive else basename
+
+        # Check name pattern
+        if name_check not in basename_check:
+            continue
+
+        # Check scope (glob pattern like "*.py")
+        if scope_check and not fnmatch.fnmatch(basename_check, scope_check):
+            continue
+
+        matched_files.append(filepath)
+
+    if not matched_files:
+        return "No files found matching the name pattern."
+
+    # Step 3: Read content of each matched file
+    outputs = []
+    total_files = len(matched_files)
+    files_to_show = matched_files[:max_files]
+
+    for filepath in files_to_show:
+        if not os.path.isfile(filepath):
+            continue
+        try:
+            with open(filepath, 'r', encoding='utf-8', errors='replace') as f:
+                lines = f.readlines()
+        except Exception as e:
+            outputs.append(f"=== File: {filepath} ===\n[Error reading file: {e}]\n")
+            continue
+
+        # Truncate if too long
+        truncated = False
+        total_lines = len(lines)
+        if len(lines) > MAX_LINES_PER_FILE:
+            lines = lines[:MAX_LINES_PER_FILE]
+            truncated = True
+
+        # Format with line numbers
+        numbered = []
+        for i, line in enumerate(lines, 1):
+            numbered.append(f"{i:4d}: {line.rstrip()}")
+
+        content = '\n'.join(numbered)
+        if truncated:
+            content += f"\n... ({MAX_LINES_PER_FILE} lines shown, {total_lines} total)"
+
+        outputs.append(f"=== File: {filepath} ===\n{content}\n")
+
+    header = f"Found {total_files} file(s) matching name pattern '{pattern}'"
+    if scope:
+        header += f" with scope '{scope}'"
+    header += ":\n"
+    if total_files > max_files:
+        header += f"(Showing first {max_files} files; {total_files - max_files} more not displayed)\n"
+    header += "\n"
+
+    return header + '\n'.join(outputs)
+
+
+async def search_files_internal(
+    pattern: str,
+    path: str = ".",
+    scope: Optional[str] = None,
+    case_insensitive: bool = False,
+    search_in_name: bool = False,
+    max_files: int = 20,
+    config: RunnableConfig | None = None,
+) -> str:
+    """
+    Internal function to search for text patterns in files or by file names.
+    Uses ripgrep (rg) if available, fallback to grep/find.
+    """
+    try:
+        target_path = await resolve_and_validate_path(path, config)
+    except ValueError as e:
+        return str(e)
+
+    if search_in_name:
+        return await _search_by_name(pattern, target_path, scope, case_insensitive, max_files)
+    else:
+        return await _search_by_content(pattern, target_path, scope, case_insensitive)
+
+
 @evoloop_tool(
     is_pollable=True,
     affected_path_keys=["path"],
@@ -94,33 +210,48 @@ async def search_files(
     path: str = ".",
     scope: Optional[str] = None,
     case_insensitive: bool = False,
+    search_in_name: bool = False,
+    max_files: int = 20,
     config: Annotated[RunnableConfig, InjectedToolArg] = None,
 ) -> str:
     """
-    Search for text patterns in files using ripgrep (rg) or grep.
-    Supports regex patterns, file filtering, and case-insensitive search.
+    Search for text patterns in files or by file names using ripgrep (rg) or grep/find.
+    Supports regex patterns, file filtering, case-insensitive search, and name-based search.
 
-    Output Limit: Maximum 100 matches per call.
-    If you hit this limit, refine your search pattern or narrow the scope.
+    Output Limit (content search): Maximum 100 matches per call.
+    Output Limit (name search): Maximum `max_files` files shown (default 20), 50 lines per file.
+    If you hit these limits, refine your search pattern or narrow the scope.
 
     Useful for finding all occurrences of a function, class, variable, TODO, etc.
+    When search_in_name=True, returns the raw content of matched files.
 
     Args:
-        pattern: The search pattern. **REQUIRED** (supports regex)
+        pattern: The search pattern. **REQUIRED** (supports regex for content, glob-like for name)
         path: Directory or file path to search in (default: current directory).
         scope: Optional file pattern to limit search (e.g., "*.py", "src/services/*").
         case_insensitive: If True, performs case-insensitive search.
+        search_in_name: If True, searches for files whose names match the pattern
+                        and returns their raw content instead of searching file contents.
+        max_files: Maximum number of files to display when search_in_name=True (default 20).
 
     Examples:
+        # Search file contents
         search_files(pattern="def main", path="src/")
         search_files(pattern="TODO", case_insensitive=True)
         search_files(pattern="UserService", scope="*.ts")
         search_files(pattern="class.*Service", scope="backend/*.py")
+
+        # Search by file name and return raw content
+        search_files(pattern="user", path="src/", search_in_name=True)
+        search_files(pattern="config", scope="*.py", search_in_name=True)
+        search_files(pattern="test_", case_insensitive=True, search_in_name=True)
     """
     return await search_files_internal(
         pattern=pattern,
         path=path,
         scope=scope,
         case_insensitive=case_insensitive,
-        config=config
+        search_in_name=search_in_name,
+        max_files=max_files,
+        config=config,
     )

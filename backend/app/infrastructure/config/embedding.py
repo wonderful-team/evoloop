@@ -81,17 +81,25 @@ class EmbeddingConfigService:
         if api_key:
             SystemConfigService.set_value("EMBEDDING_API_KEY", api_key)
 
-        # 3. SQL Data Reset (Global)
-        with Session(db_resource_manager.sync_engine) as session:
-            logger.warning("TRUNCATING code_chunks table...")
-            session.exec(text("TRUNCATE TABLE code_chunks CASCADE"))
+        # 3. Vector Data Reset (Global)
+        # All embeddings now live in the unified vector_embeddings table.
+        from app.infrastructure.database.vector import get_vector_store
 
-            # CRITICAL: Update column type to match new dimension
-            # Postgres pgvector requires explicit cast or truncation (we truncated).
-            logger.warning(f"ALTERING code_chunks embedding to VECTOR({new_dim})...")
-            session.exec(text(f"ALTER TABLE code_chunks ALTER COLUMN embedding TYPE vector({new_dim}) USING embedding::vector({new_dim})"))
+        vector_store = get_vector_store()
+        if hasattr(vector_store, "_engine"):
+            # PgVectorStore — truncate the unified vector table
+            from sqlalchemy import text
 
-            session.commit()
+            with Session(vector_store._engine) as session:
+                logger.warning("TRUNCATING vector_embeddings table...")
+                session.exec(text("TRUNCATE TABLE vector_embeddings CASCADE"))
+                session.commit()
+        else:
+            # LanceVectorStore — embedded mode, re-create tables
+            logger.warning("Re-initializing LanceDB vector store...")
+            # LanceDB does not support ALTERing vector dimensions easily;
+            # compact + re-create is the safest path.
+            vector_store.compact()
 
         # 4. Neo4j Reset & Migration
         driver = await get_graph_db()

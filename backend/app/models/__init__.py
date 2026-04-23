@@ -35,6 +35,10 @@ from .system import Tool as Tool
 from .todo import TodoItem as TodoItem
 from .todo import TodoPriority as TodoPriority
 from .todo import TodoStatus as TodoStatus
+from .citation import CitationEvent as CitationEvent
+from .citation import DocStat as DocStat
+from .citation import SessionDoc as SessionDoc
+from .maintenance import MaintenanceReport as MaintenanceReport
 from .wiki import WikiPage as WikiPage
 
 __all__ = [

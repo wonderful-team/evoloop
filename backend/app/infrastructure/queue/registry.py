@@ -29,6 +29,9 @@ TASK_MODULE_MAP = {
     # Indexing tasks
     "index_repository": "app.domain.codebase.indexing.tasks",
     "incremental_index": "app.domain.codebase.indexing.tasks",
+    "codebase_index_file": "app.domain.codebase.indexing.tasks",
+    "codebase_remove_file": "app.domain.codebase.indexing.tasks",
+    "codebase_move_file": "app.domain.codebase.indexing.tasks",
     # Project tasks
     "summarize_project": "app.domain.project.summarizer",
     "sync_project": "app.domain.project.sync_tasks",

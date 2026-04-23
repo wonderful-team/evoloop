@@ -1,16 +1,11 @@
 from datetime import datetime
 from typing import Optional
 
-from pgvector.sqlalchemy import Vector
 from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-# Get embedding dimension from settings (Single Source of Truth)
-from app.core.config import settings
 from app.infrastructure.database.sql.database import Base
 from app.utils.time import utcnow
-
-EMBEDDING_DIM = settings.EMBEDDING_DIMENSIONS
 
 
 class Repository(Base):
@@ -141,9 +136,5 @@ class CodeChunk(Base):
     start_line: Mapped[int] = mapped_column(Integer)
     end_line: Mapped[int] = mapped_column(Integer)
     content: Mapped[str] = mapped_column(Text)
-
-    # Vector Embedding
-    # Using configured dimension (default 1536 for OpenAI)
-    embedding: Mapped[Vector] = mapped_column(Vector(EMBEDDING_DIM))
 
     source_file: Mapped["SourceFile"] = relationship(back_populates="chunks")

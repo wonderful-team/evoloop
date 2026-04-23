@@ -225,9 +225,7 @@ class UsageAnalyzer:
                 priority="medium",
             ))
 
-        # 建议3：检查孤立的热门文档
-        hot_paths = {d.path for d in patterns.hot_docs}
-        # 如果热门文档之间没有关联，建议建立链接
+        # 建议3：检查孤立的热门文档（TODO: 如果热门文档之间没有关联，建议建立链接）
 
         return suggestions
 
@@ -440,27 +438,27 @@ class AutoMaintenanceService:
         logger.info(f"   完成任务: {len(report.tasks_completed)}")
         logger.info(f"   失败任务: {len(report.tasks_failed)}")
 
-        # Persist report to SQLite (T-1.4)
+        # Persist report to main database (T-1.4)
         try:
-            from app.domain.knowledge.services.search import get_fts_service
-            fts = get_fts_service()
-            with fts.pool.acquire() as conn:
-                conn.execute(
-                    """INSERT INTO maintenance_reports
-                       (timestamp, level, dry_run, duration_seconds, summary_json, report_json)
-                       VALUES (?, ?, ?, ?, ?, ?)""",
-                    (
-                        report.timestamp.isoformat(),
-                        level,
-                        dry_run,
-                        report.duration_seconds,
-                        json.dumps(report.to_dict(), ensure_ascii=False)[:4000],
-                        json.dumps(report.to_dict(), ensure_ascii=False)
+            from app.infrastructure.database.resource_manager import db_resource_manager
+            from app.models.maintenance import MaintenanceReport as MaintenanceReportModel
+            from sqlalchemy.orm import Session
+
+            full_json = json.dumps(report.to_dict(), ensure_ascii=False)
+            with Session(db_resource_manager.sync_engine) as session:
+                session.add(
+                    MaintenanceReportModel(
+                        timestamp=report.timestamp,
+                        level=level,
+                        dry_run=dry_run,
+                        duration_seconds=report.duration_seconds,
+                        summary_json=full_json[:4000],
+                        report_json=full_json,
                     )
                 )
-                conn.commit()
+                session.commit()
         except Exception as e:
-            logger.warning(f"Failed to persist maintenance report to SQLite: {e}")
+            logger.warning(f"Failed to persist maintenance report to DB: {e}")
 
         return report
 

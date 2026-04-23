@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from typing import Any
 
@@ -5,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.api.responses import ListResponse, BaseAPIResponse
 from app.core.memory.models import MemoryType
-from app.infrastructure.database.vector.lancedb_store import get_vector_store
+from app.infrastructure.database.vector import get_vector_store
 from app.infrastructure.embeddings.factory import EmbedderFactory
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
@@ -321,8 +322,9 @@ async def _perform_vector_search(
     if not repo_filter and project_id:
         repo_filter = str(project_id)
     
-    # Search in code chunks
-    results = vector_store.search_code(
+    # Search in code chunks (run sync I/O in thread to avoid blocking)
+    results = await asyncio.to_thread(
+        vector_store.search_code,
         query_vector=query_embedding,
         top_k=top_k,
         repository_id=repo_filter

@@ -4,18 +4,8 @@ import os
 
 from langchain_core.output_parsers import JsonOutputParser
 
-# Unified task queue (Huey in embedded mode, Celery in full mode)
-from app.infrastructure.queue.factory import get_scheduler
-
-# Get scheduler instance
-_task_scheduler = get_scheduler()
-
-# Create task decorator
-def _task(name, **kwargs):
-    def decorator(f):
-        return _task_scheduler.task(f, name=name, **kwargs)
-    return decorator
 from app.core.evocloud import evocloud_manager
+from app.infrastructure.queue.factory import get_scheduler, shared_task
 from app.core.monitoring.activity import activity_monitor
 from app.domain.codebase.filter import FileFilter
 from app.domain.project.service import project_context_manager
@@ -194,7 +184,7 @@ async def _summarize_project_logic(name: str, path: str):
 
 
 # --- Celery Task ---
-@_task(name="summarize_project")
+@shared_task(name="summarize_project")
 def summarize_project_task(name: str, path: str):
     """
     Celery task wrapper for project summarization.
@@ -238,7 +228,7 @@ class ProjectSummarizer:
             return
 
         # Dispatch to Celery
-        _task_scheduler.send_task("summarize_project", args=(name, path))
+        get_scheduler().send_task("summarize_project", args=(name, path))
         self._processed.add(path)  # Optimistically mark as processed
         logger.debug(f"[ProjectSummarizer] Dispatched {name} to Celery queue")
 

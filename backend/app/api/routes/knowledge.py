@@ -771,40 +771,41 @@ async def check_quality(
 async def list_maintenance_reports(
     limit: int = Query(10, description="Number of recent reports")
 ):
-    """List recent maintenance reports from SQLite."""
+    """List recent maintenance reports from database."""
     try:
-        from app.domain.knowledge.services.search import get_fts_service
-
         reports = []
 
-        # Try SQLite first (T-1.4)
+        # Try database first (T-1.4)
         try:
-            fts = get_fts_service()
-            with fts.pool.acquire() as conn:
-                rows = conn.execute(
-                    """SELECT id, timestamp, level, dry_run, duration_seconds, summary_json
-                       FROM maintenance_reports
-                       ORDER BY timestamp DESC LIMIT ?""",
-                    (limit,)
-                ).fetchall()
+            from app.infrastructure.database.resource_manager import db_resource_manager
+            from app.models.maintenance import MaintenanceReport
+            from sqlalchemy import desc, select
+
+            async with db_resource_manager.session_factory() as session:
+                result = await session.execute(
+                    select(MaintenanceReport)
+                    .order_by(desc(MaintenanceReport.timestamp))
+                    .limit(limit)
+                )
+                rows = result.scalars().all()
 
                 for row in rows:
                     summary = {}
                     try:
-                        summary = json.loads(row["summary_json"] or "{}")
+                        summary = json.loads(row.summary_json or "{}")
                     except Exception:
                         pass
 
                     reports.append({
-                        "id": row["id"],
-                        "timestamp": row["timestamp"],
-                        "level": row["level"],
-                        "dry_run": bool(row["dry_run"]),
-                        "duration_seconds": row["duration_seconds"],
+                        "id": row.id,
+                        "timestamp": row.timestamp.isoformat() if row.timestamp else None,
+                        "level": row.level,
+                        "dry_run": bool(row.dry_run),
+                        "duration_seconds": row.duration_seconds,
                         "summary": summary,
                     })
         except Exception as e:
-            logger.warning(f"Failed to read reports from SQLite: {e}")
+            logger.warning(f"Failed to read reports from DB: {e}")
 
         # Fallback to JSON files if SQLite is empty
         if not reports:

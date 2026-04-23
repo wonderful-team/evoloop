@@ -9,137 +9,14 @@ Conversation Sync Tasks - Huey-based background sync for EvoCloud.
 import asyncio
 import logging
 from datetime import datetime, timezone
-from sqlalchemy import update
+from sqlalchemy import select, update
 
-from app.core.evocloud.schemas import SyncConversation
+from app.core.evocloud.schemas import SyncConversation, SyncMessage
 from app.infrastructure.queue.factory import shared_task
 from app.infrastructure.database.sql.database import get_db_session
 from app.models import Conversation as ConversationModel, Message as MessageModel
 
 logger = logging.getLogger(__name__)
-
-
-@shared_task(
-    name="evocloud.sync_conversation",
-    retries=3,
-    retry_delay=10,
-)
-async def sync_conversation_task(device_key: str, conversation: dict) -> dict:
-    """
-    同步单个会话到 Member Center。
-
-    Args:
-        device_key: 设备标识
-        conversation: 会话数据字典
-
-    Returns:
-        API 响应结果
-
-    Raises:
-        Exception: 同步失败时会触发重试
-    """
-    from app.core.evocloud import evocloud_manager
-
-    api = evocloud_manager.api
-
-    try:
-        result = await api.sync_conversation(device_key, conversation)
-
-        if result.get("code") == 0:
-            logger.info(f"[SyncTask] Conversation synced: {conversation.get('id')} device={device_key}")
-            # Update local sync status
-            async with get_db_session() as db:
-                await db.execute(
-                    update(ConversationModel)
-                    .where(ConversationModel.id == conversation.get('id'))
-                    .values(sync_status="synced", last_synced_at=datetime.now(timezone.utc))
-                )
-                await db.commit()
-            return result
-        else:
-            error_msg = result.get("message", "Unknown error")
-            logger.error(
-                f"[SyncTask] Failed to sync conversation {conversation.get('id')}: "
-                f"code={result.get('code')} message={error_msg}"
-            )
-            # 业务错误，不重试（通过检查 code 判断）
-            if result.get("code") in (-1001, -1002, -1003):  # 认证/权限错误
-                logger.warning("[SyncTask] Auth error, skipping retry")
-                return result
-            raise Exception(f"Sync failed: {error_msg}")
-
-    except Exception as e:
-        logger.error(
-            f"[SyncTask] Exception syncing conversation {conversation.get('id')}: "
-            f"{type(e).__name__}: {e}"
-        )
-        raise
-
-
-@shared_task(
-    name="evocloud.sync_messages",
-    retries=3,
-    retry_delay=5,
-)
-async def sync_messages_task(
-    device_key: str,
-    thread_id: str,
-    messages: list[dict]
-) -> dict:
-    """
-    批量同步消息到 Member Center。
-
-    Args:
-        device_key: 设备标识
-        thread_id: 会话线程ID
-        messages: 消息数据列表
-
-    Returns:
-        API 响应结果
-    """
-    from app.core.evocloud import evocloud_manager
-
-    if not messages:
-        return {"code": 0, "data": {"inserted_count": 0}}
-
-    api = evocloud_manager.api
-
-    try:
-        result = await api.sync_messages(device_key, thread_id, messages)
-
-        if result.get("code") == 0:
-            logger.info(
-                f"[SyncTask] Messages synced: {len(messages)} messages "
-                f"thread={thread_id} device={device_key}"
-            )
-            # Update local sync status for messages
-            msg_ids = [m.get("id") for m in messages if m.get("id")]
-            if msg_ids:
-                async with get_db_session() as db:
-                    await db.execute(
-                        update(MessageModel)
-                        .where(MessageModel.id.in_(msg_ids))
-                        .values(sync_status="synced", last_synced_at=datetime.now(timezone.utc))
-                    )
-                    await db.commit()
-            return result
-        else:
-            error_msg = result.get("message", "Unknown error")
-            logger.error(
-                f"[SyncTask] Failed to sync messages for thread {thread_id}: "
-                f"code={result.get('code')} message={error_msg}"
-            )
-            # 认证错误不重试
-            if result.get("code") in (-1001, -1002, -1003):
-                return result
-            raise Exception(f"Sync failed: {error_msg}")
-
-    except Exception as e:
-        logger.error(
-            f"[SyncTask] Exception syncing messages for thread {thread_id}: "
-            f"{type(e).__name__}: {e}"
-        )
-        raise
 
 
 @shared_task(
@@ -167,23 +44,20 @@ async def full_sync_task(device_key: str, data: dict) -> dict:
 
     try:
         # Step 1: Sync all conversations metadata with 'seed' messages
-        # We include the latest message for each conversation to ensure the session is properly initialized
         seed_messages = []
         seed_message_ids = set()
-        
-        # Group messages by thread to find the "seed" (latest message)
+
         conv_to_messages = {}
         for msg in messages:
             tid = msg.get("thread_id")
             if tid not in conv_to_messages:
                 conv_to_messages[tid] = []
             conv_to_messages[tid].append(msg)
-            
+
         for conv in conversations:
             cid = conv.get("id")
             thread_msgs = conv_to_messages.get(cid, [])
             if thread_msgs:
-                # Use the latest message as a seed
                 seed = thread_msgs[-1]
                 seed_messages.append(seed)
                 seed_message_ids.add(seed.get("id"))
@@ -200,16 +74,14 @@ async def full_sync_task(device_key: str, data: dict) -> dict:
                 return result
             raise Exception(f"Metadata sync failed: {error_msg}")
 
-        # REQUIRED: Wait for backend to commit the session creation
-        # Some backends have slight consistency delays
+        # Wait for backend to commit the session creation
         logger.info("[SyncTask] Step 1 finished. Waiting 2s for backend consistency...")
         await asyncio.sleep(2.0)
 
         # Step 2: Sync remaining messages in batches
-        # CRITICAL: Only sync messages for conversations that actually exist in Step 1
         valid_conv_ids = {c.get("id") for c in conversations}
         orphaned_thread_ids = set()
-        
+
         filtered_messages = []
         for m in messages:
             tid = m.get("thread_id")
@@ -220,13 +92,15 @@ async def full_sync_task(device_key: str, data: dict) -> dict:
                 orphaned_thread_ids.add(tid)
 
         if orphaned_thread_ids:
-            logger.warning(f"[SyncTask] Skipping {len(messages) - len(filtered_messages) - len(seed_messages)} orphaned messages belonging to non-existent sessions: {list(orphaned_thread_ids)}")
+            logger.warning(
+                f"[SyncTask] Skipping {len(messages) - len(filtered_messages) - len(seed_messages)} "
+                f"orphaned messages belonging to non-existent sessions: {list(orphaned_thread_ids)}"
+            )
 
         if not filtered_messages:
             logger.info("[SyncTask] No additional messages to sync (after filtering orphans). Full sync completed.")
             return result
 
-        # Group filtered messages by thread_id
         groups: dict[str, list[dict]] = {}
         for msg in filtered_messages:
             tid = msg.get("thread_id")
@@ -236,33 +110,31 @@ async def full_sync_task(device_key: str, data: dict) -> dict:
 
         total_synced = len(seed_messages)
         batch_size = 100
-        
+
         for thread_id, thread_messages in groups.items():
             logger.info(f"[SyncTask] Step 2: Syncing {len(thread_messages)} additional messages for thread {thread_id}")
-            
+
             for i in range(0, len(thread_messages), batch_size):
                 chunk = thread_messages[i:i + batch_size]
                 chunk_index = (i // batch_size) + 1
                 total_chunks = (len(thread_messages) + batch_size - 1) // batch_size
-                
+
                 logger.debug(f"[SyncTask]   -> Sending batch {chunk_index}/{total_chunks} ({len(chunk)} messages)")
-                
+
                 chunk_result = await api.sync_messages(device_key, thread_id, chunk)
-                
+
                 if chunk_result.get("code") != 0:
                     error_msg = chunk_result.get("message", "Unknown error")
-                    # If it still fails with "not found", it might be a real permission issue
                     logger.error(f"[SyncTask] Error syncing message batch for thread {thread_id}: {error_msg}")
                     raise Exception(f"Message batch sync failed: {error_msg}")
-                
+
                 total_synced += len(chunk)
 
         logger.info(
             f"[SyncTask] Full sync completed successfully: "
-            f"{len(conversations)} conversations, "
-            f"{total_synced} messages (including seeds)."
+            f"{len(conversations)} conversations, {total_synced} messages (including seeds)."
         )
-        
+
         # Update sync status for everything
         async with get_db_session() as db:
             conv_ids = [c.get("id") for c in conversations if c.get("id")]
@@ -272,7 +144,7 @@ async def full_sync_task(device_key: str, data: dict) -> dict:
                     .where(ConversationModel.id.in_(conv_ids))
                     .values(sync_status="synced", last_synced_at=datetime.now(timezone.utc))
                 )
-            
+
             msg_ids = [m.get("id") for m in messages if m.get("id")]
             if msg_ids:
                 await db.execute(
@@ -285,12 +157,11 @@ async def full_sync_task(device_key: str, data: dict) -> dict:
         return {"code": 0, "data": {"conversations": len(conversations), "messages": total_synced}}
 
     except Exception as e:
-        # Avoid noisy tracebacks for connectivity issues in restricted environments
         err_str = str(e).lower()
         if any(kw in err_str for kw in ("connect", "unreachable", "timeout", "socket", "network")):
             logger.warning(f"[SyncTask] Cloud unreachable during full sync (device={device_key}). Skipping noisy retry.")
             return {"code": -1, "message": "Cloud unreachable"}
-            
+
         logger.error(f"[SyncTask] Exception in full sync: {type(e).__name__}: {e}")
         raise
 
@@ -311,11 +182,7 @@ async def incremental_sync_task(device_key: str, conversation_ids: list[str]) ->
     Returns:
         API 响应结果
     """
-    from sqlalchemy import select
-
     from app.core.evocloud import evocloud_manager
-    from app.infrastructure.database.sql.database import get_db_session
-    from app.models import Conversation as ConversationModel
 
     api = evocloud_manager.api
     results = {"synced": 0, "failed": 0}
@@ -349,7 +216,7 @@ async def incremental_sync_task(device_key: str, conversation_ids: list[str]) ->
                                 .where(ConversationModel.id == conv_id)
                                 .values(sync_status="synced", last_synced_at=datetime.now(timezone.utc))
                             )
-                            
+
                             # Also check for unsynced messages in this conversation
                             msg_result = await db.execute(
                                 select(MessageModel).where(
@@ -360,13 +227,8 @@ async def incremental_sync_task(device_key: str, conversation_ids: list[str]) ->
                             unsynced_msgs = msg_result.scalars().all()
                             if unsynced_msgs:
                                 logger.info(f"[SyncTask] Found {len(unsynced_msgs)} unsynced messages in thread {conv_id}")
-                                # In direct sync, we can use the manager's format helper if available, 
-                                # but here we'll do it manually or assume the task has access to formatters.
-                                # Since we are in the task, we'll manually format to keep it independent.
-                                from app.core.evocloud.schemas import SyncMessage
                                 formatted_msgs = []
                                 for m in unsynced_msgs:
-                                    # Manually construct SyncMessage to avoid circular imports or dependency on manager
                                     sm = SyncMessage(
                                         id=m.id, thread_id=m.thread_id, project_id=m.project_id or 0,
                                         role=m.role, content=m.content, thinking=m.thinking,
@@ -374,7 +236,7 @@ async def incremental_sync_task(device_key: str, conversation_ids: list[str]) ->
                                         sequence_number=m.sequence_number or 0, category=m.category or ""
                                     )
                                     formatted_msgs.append(sm.model_dump())
-                                
+
                                 msg_api_result = await api.sync_messages(device_key, str(conv_id), formatted_msgs)
                                 if msg_api_result.get("code") == 0:
                                     await db.execute(
@@ -383,7 +245,7 @@ async def incremental_sync_task(device_key: str, conversation_ids: list[str]) ->
                                         .values(sync_status="synced", last_synced_at=datetime.now(timezone.utc))
                                     )
                                     logger.info(f"[SyncTask] Synced {len(unsynced_msgs)} backlogged messages for {conv_id}")
-                            
+
                             await db.commit()
                         else:
                             results["failed"] += 1

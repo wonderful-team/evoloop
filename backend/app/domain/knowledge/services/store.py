@@ -286,28 +286,37 @@ class KnowledgeStoreService:
     # ==========================================================================
 
     def get_tags_batch(self, doc_ids: list[str]) -> dict[str, list[str]]:
-        """Batch load tags from SQLite for multiple documents in a single query."""
+        """Batch load tags from SQLite for multiple documents in a single query.
+
+        Only applicable in EMBEDDED_MODE where search.db (SQLite FTS5) exists.
+        In production mode tags are managed by Meilisearch.
+        """
         if not doc_ids:
             return {}
-        
+
+        from app.core.config import settings
+        if not settings.EMBEDDED_MODE:
+            return {}
+
         tags_map: dict[str, list[str]] = {}
         try:
             db_path = self.base_path / "search.db"
             if not db_path.exists():
                 return tags_map
-            
+
             import sqlite3
+
             placeholders = ",".join(["?"] * len(doc_ids))
             with sqlite3.connect(str(db_path)) as conn:
                 conn.row_factory = sqlite3.Row
                 for row in conn.execute(
                     f"SELECT doc_id, tag FROM doc_tags WHERE doc_id IN ({placeholders})",
-                    doc_ids
+                    doc_ids,
                 ):
                     tags_map.setdefault(row["doc_id"], []).append(row["tag"])
         except Exception as e:
             logger.warning(f"Failed to batch load tags: {e}")
-        
+
         return tags_map
     
     def list_documents(

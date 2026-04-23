@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING
 from langchain_core.messages import AIMessage
 
 from app.constants import DEFAULT_PROJECT_ID
+from app.core.context.manager import ContextManager
 
 if TYPE_CHECKING:
     from langchain_core.runnables import RunnableConfig

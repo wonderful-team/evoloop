@@ -24,7 +24,25 @@ from app.infrastructure.database.sql.database import Base # noqa
 from app import models # noqa
 from app.domain.project.requirements import models as requirement_models # noqa
 
-target_metadata = [SQLModel.metadata, Base.metadata]
+# ---------------------------------------------------------------------------
+# Dual-database migration support (main db + vector db)
+# Usage:
+#   alembic upgrade head               # migrate main database
+#   alembic -x database=vector upgrade head   # migrate vector database
+# ---------------------------------------------------------------------------
+
+cmd_opts = context.get_x_argument(as_dictionary=True)
+_database_target = cmd_opts.get("database", "main")
+
+if _database_target == "vector":
+    # Vector-database migrations target the pgvector schema only.
+    try:
+        from app.infrastructure.database.vector.pgvector_store import VectorBase
+        target_metadata = [VectorBase.metadata]
+    except ImportError:
+        target_metadata = None
+else:
+    target_metadata = [SQLModel.metadata, Base.metadata]
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
@@ -33,12 +51,21 @@ target_metadata = [SQLModel.metadata, Base.metadata]
 
 
 def get_url():
-    url = str(settings.SQLALCHEMY_DATABASE_URI)
+    if _database_target == "vector":
+        url = settings.VECTOR_DATABASE_URI
+        if not url:
+            raise RuntimeError(
+                "VECTOR_DATABASE_URI is not configured. "
+                "Set VECTOR_POSTGRES_* or run with database=main."
+            )
+    else:
+        url = str(settings.SQLALCHEMY_DATABASE_URI)
+
     # Alembic runs in a synchronous context, so we need to use a synchronous driver.
     # Replace async drivers with their sync counterparts.
-    if "sqlite+aiosqlite" in url:
+    if url and "sqlite+aiosqlite" in url:
         url = url.replace("sqlite+aiosqlite", "sqlite")
-    if "postgresql+psycopg" in url:
+    if url and "postgresql+psycopg" in url:
         url = url.replace("postgresql+psycopg", "postgresql")
     return url
 

@@ -66,6 +66,10 @@ class DatabaseResourceManager:
         return self._checkpointer
 
     @property
+    def vector_store(self):
+        return self._vector_store
+
+    @property
     def writes_table(self) -> str:
         """Get the localized table name for checkpoint writes."""
         return "writes" if settings.EMBEDDED_MODE else "checkpoint_writes"
@@ -120,7 +124,7 @@ class DatabaseResourceManager:
             await self._init_checkpointer()
 
             # 4. Vector Store Initialization
-            from app.infrastructure.database.vector.lancedb_store import get_vector_store
+            from app.infrastructure.database.vector import get_vector_store
             self._vector_store = get_vector_store()
 
             # 5. Seed Initial Data
@@ -148,9 +152,9 @@ class DatabaseResourceManager:
         """Initialize the appropriate LangGraph checkpointer."""
         if settings.EMBEDDED_MODE:
             import aiosqlite
-            from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
+            # AsyncSqliteSaver is imported inside FixedAsyncSqliteSaver's module
 
-            db_uri_raw = settings.CHECKPOINTER_DATABASE_URI
+            db_uri_raw = settings.SQLALCHEMY_DATABASE_URI
             sqlite_path = db_uri_raw.replace("sqlite+aiosqlite:///", "").replace("sqlite://", "")
 
             self._sqlite_conn = await aiosqlite.connect(sqlite_path)
@@ -169,7 +173,7 @@ class DatabaseResourceManager:
             from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 
             self._db_pool = AsyncConnectionPool(
-                conninfo=settings.CHECKPOINTER_DATABASE_URI,
+                conninfo=str(settings.SQLALCHEMY_DATABASE_URI).replace("+psycopg", ""),
                 max_size=20,
                 kwargs={"autocommit": True},
                 open=False
@@ -193,6 +197,11 @@ class DatabaseResourceManager:
     async def shutdown(self):
         """Close all connections and pools."""
         logger.info("🔌 Shutting down Database Resources")
+
+        # Close vector store
+        if self._vector_store and hasattr(self._vector_store, "close"):
+            self._vector_store.close()
+            logger.info("[ResourceManager] Vector store closed")
 
         if self._engine:
             await self._engine.dispose()
@@ -219,7 +228,7 @@ class DatabaseResourceManager:
         """Provides a raw database connection suitable for non-ORM SQL tasks."""
         if settings.EMBEDDED_MODE:
             import aiosqlite
-            db_uri_raw = settings.CHECKPOINTER_DATABASE_URI
+            db_uri_raw = settings.SQLALCHEMY_DATABASE_URI
             sqlite_path = db_uri_raw.replace("sqlite+aiosqlite:///", "").replace("sqlite://", "")
             async with aiosqlite.connect(sqlite_path) as conn:
                 await conn.execute("PRAGMA busy_timeout=30000")

@@ -5,12 +5,12 @@ Integrates LanceDB vector storage with document chunking and embeddings
 for semantic search over knowledge base documents.
 """
 
+import asyncio
 import logging
 from datetime import datetime
 from typing import Optional
 
-from app.core.config import settings
-from app.infrastructure.database.vector.lancedb_store import LanceVectorStore, get_vector_store
+from app.infrastructure.database.vector import BaseVectorStore, get_vector_store
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +32,7 @@ class KBVectorSearchService:
         results = await service.search("authentication methods", collection="myapp", top_k=5)
     """
 
-    def __init__(self, vector_store: Optional[LanceVectorStore] = None):
+    def __init__(self, vector_store: Optional[BaseVectorStore] = None):
         self.vector_store = vector_store or get_vector_store()
         self._embedder = None
 
@@ -122,7 +122,7 @@ class KBVectorSearchService:
                     "created_at": datetime.utcnow(),
                 })
 
-            self.vector_store.upsert_kb_chunks(records)
+            await asyncio.to_thread(self.vector_store.upsert_kb_chunks, records)
             return len(records)
 
         except Exception as e:
@@ -149,7 +149,8 @@ class KBVectorSearchService:
         try:
             embedder = await self._get_embedder()
             query_vector = await embedder.embed_query(query)
-            return self.vector_store.search_kb(
+            return await asyncio.to_thread(
+                self.vector_store.search_kb,
                 query_vector=query_vector,
                 top_k=top_k,
                 collection=collection,
@@ -167,7 +168,7 @@ class KBVectorSearchService:
 _kb_vector_service: Optional[KBVectorSearchService] = None
 
 
-def get_kb_vector_service(vector_store: Optional[LanceVectorStore] = None) -> KBVectorSearchService:
+def get_kb_vector_service(vector_store: Optional[BaseVectorStore] = None) -> KBVectorSearchService:
     """Get or create KB vector search service singleton."""
     global _kb_vector_service
     if _kb_vector_service is None:

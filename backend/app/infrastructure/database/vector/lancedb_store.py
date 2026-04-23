@@ -11,10 +11,11 @@ import lancedb
 import pyarrow as pa
 
 from app.core.config import settings
+from app.infrastructure.database.vector.base import BaseVectorStore
 from app.logging import logger
 
 
-class LanceVectorStore:
+class LanceVectorStore(BaseVectorStore):
     """
     LanceDB-based vector storage for local client mode.
 
@@ -146,12 +147,7 @@ class LanceVectorStore:
         """
         Upsert code chunks with embeddings.
 
-        Args:
-            chunks: List of chunk metadata dicts
-            embeddings: List of embedding vectors
-
-        Returns:
-            Number of chunks inserted
+        Uses delete-then-add to avoid LanceDB merge_insert concurrency issues.
         """
         if len(chunks) != len(embeddings):
             raise ValueError("chunks and embeddings must have same length")
@@ -161,7 +157,17 @@ class LanceVectorStore:
 
         from datetime import datetime
 
-        # Generate IDs from content hash
+        # 1. Delete existing chunks for affected file_paths first
+        #    (avoids LanceDB merge_insert concurrency bugs)
+        file_paths = {c["file_path"] for c in chunks}
+        for fp in file_paths:
+            try:
+                safe_fp = fp.replace("'", "''")
+                self.code_table.delete(f"file_path = '{safe_fp}'")
+            except Exception:
+                pass
+
+        # 2. Generate IDs from content hash
         ids = [
             hashlib.md5(f"{c['file_path']}:{c['start_line']}:{c['content'][:100]}".encode()).hexdigest()
             for c in chunks
@@ -182,12 +188,7 @@ class LanceVectorStore:
             "created_at": [datetime.utcnow() for _ in chunks],
         })
 
-        # Merge insert: update if exists, insert if new
-        self.code_table.merge_insert("id") \
-            .when_matched_update_all() \
-            .when_not_matched_insert_all() \
-            .execute(table_data)
-
+        self.code_table.add(table_data)
         logger.debug(f"[LanceVectorStore] Upserted {len(chunks)} code chunks")
         return len(chunks)
 
@@ -287,11 +288,13 @@ class LanceVectorStore:
 
     def delete_by_repository(self, repository_id: str) -> int:
         """Delete all chunks for a repository."""
-        # LanceDB doesn't support delete yet in some versions
-        # Workaround: mark as deleted or filter in queries
-        # For now, return 0 and filter in queries
-        logger.warning(f"[LanceVectorStore] Delete not implemented, filtering repo {repository_id}")
-        return 0
+        try:
+            self.code_table.delete(f"repository_id = '{repository_id.replace(chr(39), chr(39)+chr(39))}'")
+            logger.info(f"[LanceVectorStore] Deleted chunks for repo {repository_id}")
+            return 1
+        except Exception as e:
+            logger.warning(f"[LanceVectorStore] Failed to delete repo {repository_id}: {e}")
+            return 0
 
     def upsert_kb_chunks(self, records: list[dict[str, Any]]) -> int:
         """Upsert knowledge base chunk records (T-3.1).
@@ -309,7 +312,6 @@ class LanceVectorStore:
         for doc_id in doc_ids:
             try:
                 # Use parameterized-style filtering to avoid injection
-                import lancedb
                 self.kb_table.delete(f"source_id = '" + doc_id.replace("'", "''") + "'")
             except Exception:
                 pass
@@ -389,13 +391,6 @@ class LanceVectorStore:
         logger.info("[LanceVectorStore] Database compacted")
 
 
-# Global instance for easy access
-vector_store: LanceVectorStore | None = None
-
-
-def get_vector_store() -> LanceVectorStore:
-    """Get or create global vector store instance."""
-    global vector_store
-    if vector_store is None:
-        vector_store = LanceVectorStore()
-    return vector_store
+# Deprecated: use app.infrastructure.database.vector.get_vector_store() instead.
+# Kept for backward compatibility during transition.
+# TODO: Remove after all call sites migrate to the unified factory.

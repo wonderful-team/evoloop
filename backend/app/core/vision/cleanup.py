@@ -168,37 +168,26 @@ def get_storage_report() -> StorageReport:
     )
 
 
-# Celery task wrapper
 try:
-    # Unified task queue (Huey in embedded mode, Celery in full mode)
-    from app.infrastructure.queue.factory import get_scheduler
+    from app.infrastructure.queue.factory import shared_task
 
-    # Get scheduler instance
-    _task_scheduler = get_scheduler()
-
-    # Create task decorator
-    def _task(name, **kwargs):
-        def decorator(f):
-            return _task_scheduler.task(f, name=name, **kwargs)
-        return decorator
-
-    @_task(name="app.core.vision.cleanup_screenshots")
+    @shared_task(name="app.core.vision.cleanup_screenshots")
     def cleanup_screenshots_task(dry_run: bool = False) -> ScreenshotCleanupResult:
-        """Celery task for periodic screenshot cleanup."""
+        """Background task for periodic screenshot cleanup."""
         return cleanup_screenshots(dry_run=dry_run)
 
-    @_task(name="app.core.vision.cleanup_screen_recordings")
+    @shared_task(name="app.core.vision.cleanup_screen_recordings")
     def cleanup_screen_recordings_task(dry_run: bool = False) -> RecordingCleanupResult:
-        """Celery task for periodic screen recording cleanup."""
+        """Background task for periodic screen recording cleanup."""
         return cleanup_screen_recordings(dry_run=dry_run)
 
-    @_task(name="app.core.vision.cleanup_all_storage")
+    @shared_task(name="app.core.vision.cleanup_all_storage")
     def cleanup_all_storage_task(dry_run: bool = False) -> CombinedCleanupResult:
-        """Celery task for periodic cleanup of all storage."""
+        """Background task for periodic cleanup of all storage."""
         return cleanup_all(dry_run=dry_run)
 
 except ImportError:
-    logger.debug("[StorageCleanup] Celery not available, task not registered")
+    logger.debug("[StorageCleanup] Task scheduler not available, tasks not registered")
     cleanup_screenshots_task = None
     cleanup_screen_recordings_task = None
     cleanup_all_storage_task = None
