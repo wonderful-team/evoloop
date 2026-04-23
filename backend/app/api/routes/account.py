@@ -71,7 +71,7 @@ async def _member_center_request(method: str, endpoint: str, **kwargs) -> EvoClo
 async def login_access_token(form_data: Annotated[OAuth2PasswordRequestForm, Depends()]):
     """
     Passthrough login to Member Center using username and password.
-    Returns a thin local token based on the Cloud member_id.
+    Returns the access token directly.
     """
     result = await evocloud_manager.api.login(form_data.username, form_data.password)
 
@@ -81,14 +81,15 @@ async def login_access_token(form_data: Annotated[OAuth2PasswordRequestForm, Dep
             detail=result.get("message", "Incorrect username or password"),
         )
 
+    token = result.get("token")
     member_id = result.get("member_id")
-    if not member_id:
-        raise HTTPException(status_code=500, detail="Cloud session missing member_id")
+    if not token:
+        raise HTTPException(status_code=500, detail="Session missing token")
 
-    # Generate local session containing only identity
-    local_token = await identity_service.create_local_token_from_id(member_id, form_data.username)
+    # Save access token and member_id to local store
+    await identity_service.login_with_cloud_result(result)
     
-    return Token(access_token=local_token, token_type="bearer")
+    return Token(access_token=token, token_type="bearer")
 
 
 # --- Mobile Login (New Routines) ---
@@ -135,14 +136,14 @@ async def login_mobile(req: MobileLoginRequest):
             detail=result.get("message", "Login failed"),
         )
         
-    member_id = result.get("member_id")
-    if not member_id:
-        raise HTTPException(status_code=500, detail="Cloud session missing member_id")
+    token = result.get("token")
+    if not token:
+        raise HTTPException(status_code=500, detail="Session missing token")
 
-    # Generate local session
-    local_token = await identity_service.create_local_token_from_id(member_id, req.mobile)
+    # Save access token to local store
+    await identity_service.login_with_cloud_result(result)
     
-    return Token(access_token=local_token, token_type="bearer")
+    return Token(access_token=token, token_type="bearer")
 
 
 # --- WeChat Authentication (Proxied) ---
@@ -238,7 +239,7 @@ async def wechat_direct_login(
     key: Annotated[str, Query(description="The unique key from QR code generation")],
 ):
     """
-    Exchanges the Member Center token for a local JWT after successful WeChat scan.
+    Returns the cloud access token directly after successful WeChat scan.
     """
     try:
         result = await _member_center_request(
@@ -260,13 +261,15 @@ async def wechat_direct_login(
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Login not completed")
 
         member_id = data.get("member_id") or data.get("id")
-        username = data.get("username", "wechat_user")
-
         if not member_id:
             raise HTTPException(status_code=500, detail="Cloud session missing member_id")
 
-        local_token = await identity_service.create_local_token_from_id(member_id, username)
-        return Token(access_token=local_token, token_type="bearer")
+        # Save access token to local store
+        from app.models.schemas.auth import LoginResult
+        await identity_service.login_with_cloud_result(
+            LoginResult(success=True, token=member_center_token, member_id=int(member_id), data=data)
+        )
+        return Token(access_token=member_center_token, token_type="bearer")
 
     except HTTPException:
         raise
@@ -304,7 +307,7 @@ async def wechat_callback(
 @router.post("/logout")
 async def logout() -> LogoutResponse:
     """
-    Clear local session and cloud tokens.
+    Clear local session and access tokens.
     """
     identity_service.logout()
     return LogoutResponse(code=0, message="Logged out successfully")

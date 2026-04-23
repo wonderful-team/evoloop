@@ -201,11 +201,15 @@ async def check_benefits_batch(req: BatchCheckRequest, token: TokenDep):
     
     性能优化：只查询一次API，同时检查多个权益
     """
+    member_id = await identity_service.get_member_id(token)
+    if not member_id:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid session")
+
     # 批量检查权益
-    results = await benefit_service.check_multiple_benefits(req.benefit_codes, token)
+    results = await benefit_service.check_multiple_benefits(req.benefit_codes, member_id)
     
     # 获取额外信息
-    benefits_data = await benefit_service.get_member_entitlements(identity_service.get_member_id(token), token)
+    benefits_data = await benefit_service.get_member_entitlements(member_id)
     
     return BatchCheckResponse(
         results=results,
@@ -215,10 +219,7 @@ async def check_benefits_batch(req: BatchCheckRequest, token: TokenDep):
 
 
 @router.get("/benefits")
-async def get_member_benefits_api(
-    force_refresh: bool = False,
-    token: TokenDep = None
-) -> MemberBenefitsResponse:
+async def get_member_benefits_api(force_refresh: bool = False, token: TokenDep = None) -> MemberBenefitsResponse:
     """
     获取会员完整权益信息
     
@@ -226,8 +227,7 @@ async def get_member_benefits_api(
         force_refresh: 是否强制刷新缓存
     """
     data = await benefit_service.get_member_entitlements(
-        identity_service.get_member_id(token), 
-        token=token,
+        await identity_service.get_member_id(token),
         force_refresh=force_refresh
     )
     return MemberBenefitsResponse(code=0, data=data)
@@ -238,5 +238,5 @@ async def invalidate_member_benefits_cache(token: TokenDep) -> CacheInvalidateRe
     """
     手动使权益缓存失效（用于调试或强制刷新）
     """
-    benefit_service.invalidate_cache(identity_service.get_member_id(token))
+    benefit_service.invalidate_cache(await identity_service.get_member_id(token))
     return CacheInvalidateResponse(code=0, message="缓存已清除")

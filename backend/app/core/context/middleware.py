@@ -5,7 +5,7 @@ from starlette.requests import Request
 
 from app.core.context.manager import ContextManager, EvoContext
 from app.core.context.plugins import plugin_registry
-from app.core.identity import decode_local_jwt
+from app.core.identity import identity_service
 from app.utils.id import gen_uuid
 
 
@@ -31,10 +31,9 @@ class ContextMiddleware(BaseHTTPMiddleware):
         if auth_header and auth_header.startswith("Bearer "):
             token = auth_header.split(" ")[1]
             try:
-                # Try local decode first (fast)
-                payload = decode_local_jwt(token)
-                if payload:
-                    user_id = payload.get("member_id") or payload.get("sub")
+                member_id = await identity_service.resolve_member_id_from_token(token)
+                if member_id:
+                    user_id = member_id
             except Exception:
                 pass
 

@@ -119,15 +119,22 @@ def evoloop_tool(
                     from app.core.identity import identity_service
 
                     try:
-                        token = identity_service.get_cloud_token()
-                        if not token:
+                        from app.services.benefit_service import benefit_service
+
+                        member_id = identity_service.get_member_id()
+                        if not member_id:
+                            # Fallback: try resolving from stored access token
+                            access_token = identity_service.get_access_token()
+                            if access_token:
+                                member_id = await identity_service.resolve_member_id_from_token(access_token)
+                        if not member_id:
                             return json.dumps({
                                 "error": "Authentication required",
                                 "code": "AUTH_REQUIRED",
                                 "message": f"请先登录后再使用 {func.__name__} 功能"
                             }, ensure_ascii=False)
 
-                        has_access = await check_benefit(config.required_benefit, token)
+                        has_access = await benefit_service.has_benefit(member_id, config.required_benefit)
                         if not has_access:
                             # 使用统一的错误格式，与API层保持一致
                             error_detail = create_benefit_error_detail(config.required_benefit)

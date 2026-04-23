@@ -6,6 +6,7 @@ from typing import Any
 
 import httpx
 
+from app.core.config import settings
 from app.core.evocloud.interfaces.client import EvoCloudClientProtocol
 from app.core.evocloud.routes import RouteTarget, get_endpoint_route
 from app.core.evocloud.schemas import EvoCloudConfig
@@ -69,24 +70,15 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
 
     def set_token(self, token: str | None) -> None:
         if token:
-            identity_service.store.save_cloud_token(token)
+            identity_service.store.save_access_token(token)
         else:
-            identity_service.store.delete_cloud_token()
+            identity_service.store.delete_access_token()
 
     def get_token(self) -> str | None:
-        return identity_service.get_cloud_token()
+        return identity_service.get_access_token()
 
     def get_member_id(self) -> int | None:
         return identity_service.get_member_id()
-
-    def _load_token(self):
-        # Deprecated: Now handled by IdentityService/IdentityStore
-        pass
-
-    def _save_token(self, token: str, member_id: int):
-        # Deprecated: Use IdentityService.login_with_cloud_result or IdentityStore directly
-        identity_service.store.save_cloud_token(token)
-        identity_service.store.save_member_id(member_id)
 
     def logout(self):
         identity_service.logout()
@@ -162,7 +154,6 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
             data = res.get("data", {})
             token = data.get("token")
             if token:
-                self.set_token(token)
                 # Member Center doesn't return member_id in login response
                 # Fetch it from /api/member/info
                 try:
@@ -194,7 +185,7 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
             "name": name,
             "description": description,
             "path": path,
-            "source": "EvoLoop",
+            "source": settings.SERVICE_NAME,
         }
         return await self.request("POST", "/projectmanage/api/projectOpen/createProject", data=payload)
 
@@ -344,7 +335,6 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
             data = res.get("data", {})
             token = data.get("token")
             if token:
-                self.set_token(token)
                 # Member Center doesn't return member_id in login response
                 # Fetch it from /api/member/info
                 try:

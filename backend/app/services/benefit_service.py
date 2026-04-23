@@ -105,6 +105,24 @@ class BenefitService:
 
         return False
 
+    async def check_multiple_benefits(self, benefit_codes: list[str], member_id: int) -> dict[str, bool]:
+        """
+        Check multiple benefits in one go.
+        Fetches all entitlements once and checks each code.
+        """
+        try:
+            data = await self.get_member_entitlements(member_id)
+            benefits = data.get("benefits", {})
+
+            result = {}
+            for code in benefit_codes:
+                val = benefits.get(code, False)
+                result[code] = val if isinstance(val, bool) else (val > 0 if isinstance(val, int | float) else False)
+            return result
+        except Exception as e:
+            logger.error(f"Batch benefit check failed: {e}")
+            return {code: False for code in benefit_codes}
+
 
 # Global instance
 benefit_service = BenefitService()

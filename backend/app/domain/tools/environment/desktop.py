@@ -11,69 +11,46 @@ from typing import Literal
 
 from app.core.environment.controllers.desktop_controller import DesktopController
 from app.core.tools import evoloop_tool
-from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
-
-
-class DesktopControlRequest(DynamicBaseModel):
-    """Structured request for desktop automation actions."""
-
-    action: Literal["screenshot", "click", "double_click", "type_text", "key_press", "open_app", "applescript", "get_info", "list_apps", "batch", "get_active_app", "scroll", "drag_drop", "dump_ui", "gui_extract"] = "screenshot"
-    x: int | None = None
-    y: int | None = None
-    element_name: str | None = None
-    target: str | None = None  # Alias for element_name (cross-tool consistency)
-    element_role: str | None = None
-    text: str | None = None
-    key: str | None = None
-    app_name: str | None = None
-    script: str | None = None
-    region: str | None = None
-    force_keystroke: bool = False
-    ocr: bool = False
-    actions: list[dict] | None = None
-    continue_on_error: bool = True
-    delay_ms: int = 300
-    # Scroll params
-    direction: Literal["up", "down", "left", "right"] | None = None
-    amount: int = 300
-    # Drag drop params
-    x2: int | None = None
-    y2: int | None = None
-    source_element: str | None = None
-    target_element: str | None = None
-    duration_ms: int = 500
-    # Dump UI params
-    role_filter: str | None = None
-    name_filter: str | None = None
-    max_depth: int = 10
-
-
-class VerifyUiStateRequest(DynamicBaseModel):
-    """Structured request for desktop UI state verification."""
-
-    expected_element: str | None = None
-    expected_role: str | None = None
-    expected_text: str | None = None
-    timeout_seconds: int = 5
-
-
-class QuickCheckScreenRequest(DynamicBaseModel):
-    """Structured request for quick screen state checks."""
-
-    check_type: Literal["has_text", "has_element", "is_loaded"] = "is_loaded"
-    target: str | None = None
-    timeout_seconds: int = 5
 
 
 @evoloop_tool(
     is_pollable=True,
     name_map={"zh": "桌面控制", "en": "Desktop Control"},
     required_benefit="desktop_control",
-    args_schema=DesktopControlRequest,
 )
-async def desktop_control(request: DesktopControlRequest) -> str:
+async def desktop_control(
+    action: Literal["screenshot", "click", "double_click", "type_text", "key_press", "open_app", "applescript", "get_info", "list_apps", "batch", "get_active_app", "scroll", "drag_drop", "dump_ui", "gui_extract"] = "screenshot",
+    x: int | None = None,
+    y: int | None = None,
+    element_name: str | None = None,
+    target: str | None = None,  # Alias for element_name (cross-tool consistency)
+    element_role: str | None = None,
+    text: str | None = None,
+    key: str | None = None,
+    app_name: str | None = None,
+    script: str | None = None,
+    region: str | None = None,
+    force_keystroke: bool = False,
+    ocr: bool = False,
+    actions: list[dict] | None = None,
+    continue_on_error: bool = True,
+    delay_ms: int = 300,
+    # Scroll params
+    direction: Literal["up", "down", "left", "right"] | None = None,
+    amount: int = 300,
+    # Drag drop params
+    x2: int | None = None,
+    y2: int | None = None,
+    source_element: str | None = None,
+    target_element: str | None = None,
+    duration_ms: int = 500,
+    # Dump UI params
+    role_filter: str | None = None,
+    name_filter: str | None = None,
+    max_depth: int = 10,
+) -> str:
     """
     Control the MacOS desktop - SPEED OPTIMIZED
 
@@ -203,15 +180,22 @@ async def desktop_control(request: DesktopControlRequest) -> str:
         name_filter: For dump_ui, filter elements by name (partial match).
         max_depth: For dump_ui, maximum depth to traverse (default 10).
     """
-    return await DesktopController.execute(**request.model_dump())
+    # Parameter alias: target -> element_name (cross-tool consistency)
+    if target and not element_name:
+        element_name = target
+    return await DesktopController.execute(**locals())
 
 
 @evoloop_tool(
     is_pollable=True,
     name_map={"zh": "验证UI状态", "en": "Verify UI State"},
-    args_schema=VerifyUiStateRequest,
 )
-async def verify_ui_state(request: VerifyUiStateRequest) -> str:
+async def verify_ui_state(
+    expected_element: str | None = None,
+    expected_role: str | None = None,
+    expected_text: str | None = None,
+    timeout_seconds: int = 5,
+) -> str:
     """
     Verify if a specific UI element or text is present on the screen using AX Tree.
     Use this after 'click' or 'type_text' to ensure the UI responded as expected.
@@ -222,15 +206,18 @@ async def verify_ui_state(request: VerifyUiStateRequest) -> str:
         expected_text: Optional text that should be present anywhere in the tree.
         timeout_seconds: (Not currently implemented for polling, but performs one immediate check).
     """
-    return await DesktopController.verify_ui_state(**request.model_dump())
+    return await DesktopController.verify_ui_state(**locals())
 
 
 @evoloop_tool(
     is_pollable=True,
     name_map={"zh": "快速检查屏幕", "en": "Quick Check Screen"},
-    args_schema=QuickCheckScreenRequest,
 )
-async def quick_check_screen(request: QuickCheckScreenRequest) -> str:
+async def quick_check_screen(
+    check_type: Literal["has_text", "has_element", "is_loaded"] = "is_loaded",
+    target: str | None = None,
+    timeout_seconds: int = 5,
+) -> str:
     """
     Fast screen state check using AX Tree (no LLM, ~500ms vs ~12s for analyze_image).
 
@@ -250,4 +237,4 @@ async def quick_check_screen(request: QuickCheckScreenRequest) -> str:
     Returns:
         Quick check result (much faster than analyze_image)
     """
-    return await DesktopController.quick_check_screen(**request.model_dump())
+    return await DesktopController.quick_check_screen(**locals())

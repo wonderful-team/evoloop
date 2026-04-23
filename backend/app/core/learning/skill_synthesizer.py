@@ -14,6 +14,7 @@ import yaml
 from pydantic import Field
 from sqlalchemy import select
 
+from app.core.config import settings
 from app.core.execution.macro.verification_service import SynthesisVerificationResult
 from app.core.learning.prompts import prompt_builder
 from app.core.learning.schemas import SkillParameter
@@ -42,7 +43,6 @@ ALLOWED_UI_ACTIONS = {
     # System
     "screenshot", "dump", "dump_ui"
 }
-
 
 
 class SynthesizedSkill(DynamicBaseModel):
@@ -276,7 +276,7 @@ class WorkflowSynthesizer:
             if source_type in ("mobile", "desktop") and current_package not in ("global_observation", "mobile_interaction", "unknown"):
                 if last_package and current_package != last_package:
                     # Generic prefix logic (e.g. android, com.android.launcher are ignored)
-                    system_apps = ("com.android.launcher", "com.android.systemui", "android", "scrcpy", "EvoLoop", "com.android.settings")
+                    system_apps = (settings.SERVICE_NAME, "com.android.launcher", "com.android.systemui", "android", "scrcpy", "com.android.settings")
 
                     # IGNORE system noise during transitions
                     # Note: We keep "com.android.settings" in case the user actually wants to automate settings,

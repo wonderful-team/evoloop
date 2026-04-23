@@ -3,6 +3,8 @@ import logging
 import os
 from pathlib import Path
 
+from app.core.config import settings
+
 logger = logging.getLogger(__name__)
 
 # Lazy import keyring to allow environment variable configuration
@@ -86,41 +88,39 @@ class IdentityStore:
     Stores sensitive tokens and keys.
     """
 
-    SERVICE_NAME = "EvoLoop"
-
     @classmethod
-    def save_cloud_token(cls, token: str) -> bool:
+    def save_access_token(cls, token: str) -> bool:
         if _is_embedded_mode():
-            return _file_storage_set("cloud_token", token)
+            return _file_storage_set("access_token", token)
         try:
-            _get_keyring().set_password(cls.SERVICE_NAME, "cloud_token", token)
+            _get_keyring().set_password(settings.SERVICE_NAME, "access_token", token)
             return True
         except Exception as e:
-            logger.error(f"Failed to save cloud token to keychain: {e}")
+            logger.error(f"Failed to save access token to keychain: {e}")
             return False
 
     @classmethod
-    def get_cloud_token(cls) -> str | None:
+    def get_access_token(cls) -> str | None:
         if _is_embedded_mode():
-            return _file_storage_get("cloud_token")
+            return _file_storage_get("access_token")
         try:
-            return _get_keyring().get_password(cls.SERVICE_NAME, "cloud_token")
+            return _get_keyring().get_password(settings.SERVICE_NAME, "access_token")
         except Exception as e:
-            logger.error(f"Failed to get cloud token from keychain: {e}")
+            logger.error(f"Failed to get access token from keychain: {e}")
             return None
 
     @classmethod
-    def delete_cloud_token(cls) -> bool:
+    def delete_access_token(cls) -> bool:
         if _is_embedded_mode():
-            return _file_storage_delete("cloud_token")
+            return _file_storage_delete("access_token")
         try:
             kr = _get_keyring()
-            kr.delete_password(cls.SERVICE_NAME, "cloud_token")
+            kr.delete_password(settings.SERVICE_NAME, "access_token")
             return True
         except Exception as e:
             if "PasswordDeleteError" in type(e).__name__ or "not found" in str(e).lower():
                 return True  # Already deleted
-            logger.error(f"Failed to delete cloud token from keychain: {e}")
+            logger.error(f"Failed to delete access token from keychain: {e}")
             return False
 
     @classmethod
@@ -128,7 +128,7 @@ class IdentityStore:
         if _is_embedded_mode():
             return _file_storage_set("device_key", key)
         try:
-            _get_keyring().set_password(cls.SERVICE_NAME, "device_key", key)
+            _get_keyring().set_password(settings.SERVICE_NAME, "device_key", key)
             return True
         except Exception as e:
             logger.error(f"Failed to save device key to keychain: {e}")
@@ -139,7 +139,7 @@ class IdentityStore:
         if _is_embedded_mode():
             return _file_storage_get("device_key")
         try:
-            return _get_keyring().get_password(cls.SERVICE_NAME, "device_key")
+            return _get_keyring().get_password(settings.SERVICE_NAME, "device_key")
         except Exception as e:
             logger.error(f"Failed to get device key from keychain: {e}")
             return None
@@ -149,7 +149,7 @@ class IdentityStore:
         if _is_embedded_mode():
             return _file_storage_set("member_id", str(member_id))
         try:
-            _get_keyring().set_password(cls.SERVICE_NAME, "member_id", str(member_id))
+            _get_keyring().set_password(settings.SERVICE_NAME, "member_id", str(member_id))
             return True
         except Exception as e:
             logger.error(f"Failed to save member_id to keychain: {e}")
@@ -161,7 +161,7 @@ class IdentityStore:
             val = _file_storage_get("member_id")
             return int(val) if val else None
         try:
-            val = _get_keyring().get_password(cls.SERVICE_NAME, "member_id")
+            val = _get_keyring().get_password(settings.SERVICE_NAME, "member_id")
             return int(val) if val else None
         except Exception as e:
             logger.error(f"Failed to get member_id from keychain: {e}")

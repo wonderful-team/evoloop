@@ -81,7 +81,7 @@ class Settings(BaseSettings):
             ])
         return origins
 
-    PROJECT_NAME: str = "EvoLoop"
+    SERVICE_NAME: str = "EvoLoop"
     SENTRY_DSN: HttpUrl | None = None
 
     # --- Database Configuration (Postgres or SQLite) ---
@@ -157,7 +157,7 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def _set_default_emails_from(self) -> Self:
         if not self.EMAILS_FROM_NAME:
-            self.EMAILS_FROM_NAME = self.PROJECT_NAME
+            self.EMAILS_FROM_NAME = self.SERVICE_NAME
         return self
 
     EMAIL_RESET_TOKEN_EXPIRE_HOURS: int = 48

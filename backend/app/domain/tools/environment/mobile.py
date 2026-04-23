@@ -10,48 +10,42 @@ from typing import Literal
 
 from app.core.environment.controllers.mobile_controller import MobileController
 from app.core.tools import evoloop_tool
-from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
-
-
-class MobileControlRequest(DynamicBaseModel):
-    """Structured request for Android mobile device automation actions."""
-
-    action: Literal["screenshot", "tap", "click", "long_press", "swipe", "scroll", "input_text", "press_key", "dump_ui", "list_devices", "get_info", "list_apps", "open_app", "push", "pull", "intent_flow", "read_sms", "gui_extract"] = "screenshot"
-    x: int | None = None
-    y: int | None = None
-    x2: int | None = None
-    y2: int | None = None
-    element_name: str | None = None
-    target: str | None = None  # Alias for element_name (cross-tool consistency)
-    element_role: str | None = None
-    text: str | None = None
-    keycode: int | str | None = None
-    device_id: str | None = None
-    local_path: str | None = None
-    remote_path: str | None = None
-    duration_ms: int = 300
-    wait_after_ms: int = 0
-    ocr: bool = False
-    timeout: float = 8.0
-    intents: list[dict] | None = None
-    # Scroll params
-    direction: Literal["up", "down", "left", "right"] | None = None
-    scroll_amount: Literal["small", "medium", "large", "full"] = "medium"
-    # SMS specific params
-    after_timestamp: int | None = None
-    # Vision params
-    region: str | None = None
 
 
 @evoloop_tool(
     is_pollable=True,
     name_map={"zh": "移动设备控制", "en": "Mobile Control"},
     required_benefit="mobile_control",
-    args_schema=MobileControlRequest,
 )
-async def mobile_control(request: MobileControlRequest) -> str:
+async def mobile_control(
+    action: Literal["screenshot", "tap", "click", "long_press", "swipe", "scroll", "input_text", "press_key", "dump_ui", "list_devices", "get_info", "list_apps", "open_app", "push", "pull", "intent_flow", "read_sms", "gui_extract"] = "screenshot",
+    x: int | None = None,
+    y: int | None = None,
+    x2: int | None = None,
+    y2: int | None = None,
+    element_name: str | None = None,
+    target: str | None = None,  # Alias for element_name (cross-tool consistency)
+    element_role: str | None = None,
+    text: str | None = None,
+    keycode: int | str | None = None,
+    device_id: str | None = None,
+    local_path: str | None = None,
+    remote_path: str | None = None,
+    duration_ms: int = 300,
+    wait_after_ms: int = 0,
+    ocr: bool = False,
+    timeout: float = 8.0,
+    intents: list[dict] | None = None,
+    # Scroll params
+    direction: Literal["up", "down", "left", "right"] | None = None,
+    scroll_amount: Literal["small", "medium", "large", "full"] = "medium",
+    # SMS specific params
+    after_timestamp: int | None = None,
+    # Vision params
+    region: str | None = None,
+) -> str:
     """
     Control an Android device via ADB with Local Reactive Loop (Reactor) support.
 
@@ -93,4 +87,7 @@ async def mobile_control(request: MobileControlRequest) -> str:
         after_timestamp: For "read_sms" action only. Unix timestamp in milliseconds. Only return SMS messages with date > this value. Use to filter out old messages and listen only for new ones sent after a specific point in time.
         region: Optional crop region for screenshots in "x,y,w,h" format (logical points). Used for targeted OCR or verification.
     """
-    return await MobileController.execute(**request.model_dump())
+    # Parameter alias: target -> element_name (cross-tool consistency)
+    if target and not element_name:
+        element_name = target
+    return await MobileController.execute(**locals())

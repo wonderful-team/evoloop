@@ -8,7 +8,7 @@ from sqlmodel import Session
 
 from app.core.config import settings
 from app.core.evocloud import evocloud_manager
-from app.core.identity import decode_local_jwt, identity_service
+from app.core.identity import identity_service
 from app.infrastructure.database.resource_manager import db_resource_manager
 from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.models import User
@@ -62,35 +62,22 @@ TokenDepOptional = Annotated[str | None, Depends(oauth2_scheme_optional)]
 
 async def get_current_user(token: TokenDep) -> User:
     """
-    Identify the current user from the local session token.
-    Rely on the member_id in the token for data isolation.
+    Identify the current user from the access token.
+    Validates against Member Center with local caching.
     """
     try:
-        # 1. Decode Local JWT
-        payload = decode_local_jwt(token)
-        if not payload:
+        member_id = await identity_service.resolve_member_id_from_token(token)
+        if member_id is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid or expired local session",
+                detail="Invalid or expired session",
             )
 
-        member_id = payload.get("member_id")
-        if member_id is None:
-             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid session payload")
-
-        # Create a thin User object for local execution context
-        # We only need the ID for database partitioning/file isolation
-        user = User(
-            id=member_id,
-            username=payload.get("username"), # Optional, if present in token
-            is_active=True
-        )
-
-        return user
+        return User(id=member_id, is_active=True)
     except HTTPException as e:
         raise e
     except Exception as e:
-        logger.error(f"Thin auth error: {str(e)}", exc_info=True)
+        logger.error(f"Auth error: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authentication failed",
@@ -122,12 +109,11 @@ async def check_benefit(benefit_code: str, token: TokenDep) -> bool:
     Delegates to BenefitService which fetches data from Member Center.
     """
     try:
-        payload = decode_local_jwt(token)
-        member_id = payload.get("member_id")
+        member_id = await identity_service.resolve_member_id_from_token(token)
         if not member_id:
             return False
-            
-        return await benefit_service.has_benefit(member_id, benefit_code, token)
+
+        return await benefit_service.has_benefit(member_id, benefit_code)
     except Exception as e:
         logger.error(f"Benefit check failed [{benefit_code}]: {e}")
         return False
@@ -137,14 +123,13 @@ async def check_multiple_benefits(benefit_codes: list[str], token: TokenDep) -> 
     """
     Check multiple benefits in one go (Thin Proxy).
     """
-    payload = decode_local_jwt(token)
-    member_id = payload.get("member_id")
+    member_id = await identity_service.resolve_member_id_from_token(token)
     if not member_id:
         return {code: False for code in benefit_codes}
         
     try:
         # For simplicity, we can fetch all entitlements once
-        data = await benefit_service.get_member_entitlements(member_id, token)
+        data = await benefit_service.get_member_entitlements(member_id)
         benefits = data.get("benefits", {})
         
         result = {}
@@ -211,7 +196,7 @@ def require_benefit(benefit_code: str):
             # 获取当前用户等级（如果可能）
             current_level = None
             try:
-                member_id = identity_service.get_member_id(token)
+                member_id = await identity_service.get_member_id(token)
                 benefits_data = await benefit_service.get_member_entitlements(member_id, token)
                 current_level = benefits_data.get("level_name")
             except:
@@ -245,20 +230,9 @@ async def verify_guest_access(
     # 0. Backfill User from Query Token if Header Auth missing
     if not current_user and token:
         try:
-            # A. Try Local JWT first (Unified Flow)
-            payload = decode_local_jwt(token)
-            if payload:
-                member_id = payload.get("member_id")
-                if member_id is not None:
-                    # It's a valid local session - Success
-                    return
-
-            # B. Fallback to Cloud fetch for direct cloud token usage (Legacy/SSE compat)
-            result = await evocloud_manager.api.get_user_info(token)
-            if result.get("code") == 0:
-                user_data = result.get("data", {})
-                if user_data:
-                    return
+            member_id = await identity_service.resolve_member_id_from_token(token)
+            if member_id is not None:
+                return
         except Exception as e:
             logger.debug(f"Query token validation failed: {e}")
             pass

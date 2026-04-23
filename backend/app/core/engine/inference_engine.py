@@ -205,9 +205,7 @@ class InferenceEngine:
 
             if remaining_tool_calls and tool_executor is not None:
                 logger.info(f"[{name}] 🛠️ Executing {len(remaining_tool_calls)} tool calls via tool_executor")
-                tool_results = await tool_executor.execute_batch(
-                    remaining_tool_calls, local_tool_history
-                )
+                tool_results = await tool_executor.execute_batch(remaining_tool_calls, local_tool_history)
                 logger.info(f"[{name}] 📦 tool_results returned: {len(tool_results)} items, types={[type(m).__name__ for m in tool_results]}")
                 for tool_msg in tool_results:
                     logger.info(f"[{name}] Result ({tool_msg.name}): {str(tool_msg.content)[:300]}...")
