@@ -4,7 +4,7 @@ EvoLoop 系统清理脚本
 ====================
 
 EvoLoop 后端综合清理工具，可清理以下内容：
-- Keychain 登录凭据（cloud_token, device_key, member_id）
+- Keychain 登录凭据（access_token, device_key, member_id）
 - Redis 缓存（上下文、意图缓存、动态应用跟踪）
 - Neo4j 图数据库（文件、目录、代码实体、概念、代码块、执行记录、偏好设置、用户节点）
 - PostgreSQL 表（文件索引、向量存储、技能、跟踪记录、消息、任务）
@@ -1019,7 +1019,7 @@ class CleanupManager:
     def cleanup_keychain(self) -> bool:
         """
         清理 macOS Keychain / 系统密钥库中存储的凭据。
-        包括：cloud_token, device_key, member_id
+        包括：access_token, device_key, member_id
         """
         print("\n🔑 KEYCHAIN 凭据清理")
         print("-" * 40)
@@ -1028,7 +1028,7 @@ class CleanupManager:
             import keyring
 
             service = "EvoLoop"
-            accounts = ["cloud_token", "device_key", "member_id"]
+            accounts = ["access_token", "device_key", "member_id"]
             deleted = []
             errors = []
 
@@ -1515,7 +1515,7 @@ async def main():
         "--brain", action="store_true", help="清理大脑记忆文件"
     )
     parser.add_argument(
-        "--keychain", action="store_true", help="清理 Keychain 中存储的登录凭据 (cloud_token, device_key, member_id)"
+        "--keychain", action="store_true", help="清理 Keychain 中存储的登录凭据 (access_token, device_key, member_id)"
     )
     parser.add_argument(
         "--todos", action="store_true", help="清理待办事项表"
@@ -1556,7 +1556,7 @@ async def main():
     if args.all and not args.dry_run:
         print("⚠️  警告：您即将删除所有 EvoLoop 数据！")
         print("这将包括：")
-        print("  - Keychain 登录凭据 (cloud_token, device_key, member_id)")
+        print("  - Keychain 登录凭据 (access_token, device_key, member_id)")
         print("  - Redis 缓存")
         print("  - Neo4j 文件索引和记忆（概念、执行记录等）")
         print("  - PostgreSQL 技能、索引、消息、任务")
