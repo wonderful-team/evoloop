@@ -42,7 +42,7 @@ export function LLMConfigStep() {
   // Fetch preset models from backend
   const { data: presetModelsData, isLoading: isLoadingModels } = useQuery({
     queryKey: ["llmPresetModels"],
-    queryFn: () => SystemService.getAvailableLlmModels(),
+    queryFn: () => SystemService.getLlmModels(),
   })
 
   const presetModels: PresetModel[] = (presetModelsData as any)?.models || []
@@ -66,17 +66,26 @@ export function LLMConfigStep() {
     setCanProceed(data.llmTested && testResult?.success === true)
   }, [data.llmTested, testResult, setCanProceed])
 
+  // Sync defaultModelId for custom mode when fields change
+  useEffect(() => {
+    if (selectedModelId === "custom") {
+      const newCustomId = `custom-${data.llmProvider}-${data.llmModel}`
+      if (data.defaultModelId !== newCustomId && data.llmProvider && data.llmModel) {
+        setData({ defaultModelId: newCustomId })
+      }
+    }
+  }, [data.llmProvider, data.llmModel, data.defaultModelId, setData])
+
   const selectedModelId = data.selectedModelId || ""
   const isCustom = selectedModelId === "custom"
 
   const handleModelSelect = (value: string) => {
     setTestResult(null)
-    setData({ selectedModelId: value, llmTested: false })
-
+    
     if (value === "custom") {
-      // Clear for custom input
       setData({
         selectedModelId: "custom",
+        defaultModelId: "", // Will be set on test success or next
         llmProvider: "openai",
         llmBaseUrl: "",
         llmModel: "",
@@ -91,6 +100,7 @@ export function LLMConfigStep() {
     if (preset) {
       setData({
         selectedModelId: value,
+        defaultModelId: value,
         llmProvider: preset.provider,
         llmBaseUrl: preset.base_url,
         llmModel: preset.model,
@@ -117,7 +127,16 @@ export function LLMConfigStep() {
           success: true,
           msg: t("wizard.llm.testSuccess"),
         })
-        setData({ llmTested: true })
+        
+        let finalDefaultId = data.selectedModelId
+        if (data.selectedModelId === "custom") {
+          finalDefaultId = `custom-${data.llmProvider}-${data.llmModel}`
+        }
+
+        setData({ 
+          llmTested: true,
+          defaultModelId: finalDefaultId 
+        })
       } else {
         setTestResult({
           success: false,

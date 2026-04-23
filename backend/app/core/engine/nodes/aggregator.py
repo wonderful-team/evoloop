@@ -92,6 +92,7 @@ class AggregatorNode(BaseNode):
         return result
 
     async def aggregate_results(
+        self,
         aggregation_strategy: str,
         results: list[dict],
         original_task: str = ""

@@ -1,8 +1,6 @@
 // 会话管理状态 Store
 
 import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Conversation, ConversationHistoryResponse } from '@/types/conversation';
 import { ChatMessage } from '@/types/conversation';
 import * as conversationApi from '@/services/api/conversations';
@@ -44,8 +42,7 @@ interface ConversationState {
 }
 
 export const useConversationStore = create<ConversationState>()(
-  persist(
-    (set, get) => ({
+  (set, get) => ({
       conversations: [],
       currentConversationId: null,
       isLoadingConversations: false,
@@ -232,13 +229,6 @@ export const useConversationStore = create<ConversationState>()(
       addToMemory: async (projectId, request) => {
         return await conversationApi.addToMemory(projectId, request);
       },
-    }),
-    {
-      name: 'conversation-storage',
-      storage: createJSONStorage(() => AsyncStorage),
-      partialize: (state) => ({
-        currentConversationId: state.currentConversationId,
-      }),
-    }
+    })
   )
 );

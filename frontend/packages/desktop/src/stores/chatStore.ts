@@ -86,7 +86,7 @@ interface ChatState {
     // --- Actions ---
 
     // storage/network actions
-    setThread: (threadId: string, projectId: number) => Promise<void>
+    setThread: (threadId: string | null, projectId: number) => Promise<void>
     fetchHistory: (threadId: string) => Promise<void>
     loadMoreHistory: () => Promise<void> // Infinite scroll: load older messages
     sendMessage: (content: string, attachments?: any[]) => Promise<void>
@@ -120,7 +120,7 @@ interface ChatState {
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
-    threadId: localStorage.getItem("evoloop_current_thread_id"),
+    threadId: null,
     projectId: null,
     messages: [],
 
@@ -166,13 +166,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     setThread: async (threadId, projectId) => {
         const currentThreadId = get().threadId
-
-        // 0. Persist Thread ID
-        if (threadId) {
-            localStorage.setItem("evoloop_current_thread_id", threadId)
-        } else {
-            localStorage.removeItem("evoloop_current_thread_id")
-        }
 
         // 1. Switch Thread Metadata
         set({
@@ -230,23 +223,25 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
         connection.connect(threadId)
 
-        // 3. Fetch History (Optimistic replacement inside fetchHistory)
-        await get().fetchHistory(threadId)
+        // 3. Fetch History & Activity only when we have a real threadId
+        if (threadId) {
+            await get().fetchHistory(threadId)
 
-        // 4. Fetch Initial Activity (to catch up if already running)
-        try {
-            const activity = (await ConversationsService.getThreadActivity({
-                threadId,
-            })) as any
-            if (activity) {
-                get()._setActivitySnapshot(activity)
-                // Check for pending request in snapshot too (for page reload scenario)
-                if (activity.human_request) {
-                    get()._setHumanRequest(activity.human_request)
+            // 4. Fetch Initial Activity (to catch up if already running)
+            try {
+                const activity = (await ConversationsService.getThreadActivity({
+                    threadId,
+                })) as any
+                if (activity) {
+                    get()._setActivitySnapshot(activity)
+                    // Check for pending request in snapshot too (for page reload scenario)
+                    if (activity.human_request) {
+                        get()._setHumanRequest(activity.human_request)
+                    }
                 }
+            } catch (_e) {
+                // ignore
             }
-        } catch (_e) {
-            // ignore
         }
     },
 
@@ -379,7 +374,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
     sendMessage: async (content, attachments: any[] = []) => {
         const { threadId, projectId, selectedModel } = get()
         // Allow projectId to be 0 (global mode), but not null/undefined
-        if (!threadId || projectId === null || projectId === undefined || (!content.trim() && attachments.length === 0)) return
+        // threadId can be null for new conversations; backend will generate it
+        if (projectId === null || projectId === undefined || (!content.trim() && attachments.length === 0)) return
 
         // 1. Optimistic Update
         const tempId = Date.now()
@@ -405,12 +401,18 @@ export const useChatStore = create<ChatState>((set, get) => ({
             const res = await AgentService.chatEndpoint({
                 requestBody: {
                     message: content, // Send raw text (backend handles merging)
-                    thread_id: threadId,
+                    thread_id: threadId || undefined,
                     project_id: projectId,
                     attachments: attachments, // Pass structured attachments
                     model: selectedModel, // Pass user selected model
                 },
             }) as any
+
+            // If backend generated a new thread_id, switch to it without clearing messages
+            if (res && res.thread_id && !threadId) {
+                set({ threadId: res.thread_id })
+                ChatConnection.getInstance().connect(res.thread_id)
+            }
 
             if (res && res.message_id) {
                 set((state) => ({
@@ -447,12 +449,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
     },
 
     resumeAgent: async (userInput?: string) => {
-        const { threadId } = get()
+        const { threadId, selectedModel } = get()
         if (!threadId) return
 
         try {
             await AgentService.resumeChat({
-                requestBody: { thread_id: threadId, user_input: userInput },
+                requestBody: { thread_id: threadId, user_input: userInput, model: selectedModel },
             })
             toast.info(i18n.t("chat.status.resuming"))
             set({ status: "running", humanRequest: null }) // Optimistic clear
@@ -462,7 +464,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     },
 
     cancelHumanRequest: async (reason?: string) => {
-        const { threadId } = get()
+        const { threadId, selectedModel } = get()
         if (!threadId) return
 
         // Save previous state for rollback
@@ -474,7 +476,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
         try {
             await AgentService.cancelHitlRequest({
-                requestBody: { thread_id: threadId, reason: reason || i18n.t("chat.status.userCancelled") },
+                requestBody: { thread_id: threadId, reason: reason || i18n.t("chat.status.userCancelled"), model: selectedModel },
             })
             toast.info(i18n.t("chat.status.cancelling"))
             

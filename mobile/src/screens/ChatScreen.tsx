@@ -81,21 +81,8 @@ export default function ChatScreen() {
   // 设备-对话映射缓存
   const [deviceConversationMap, setDeviceConversationMap] = useState<Record<string, string>>({});
 
-  // 加载设备-对话映射
-  useEffect(() => {
-    AsyncStorage.getItem('device_conversation_map').then((map) => {
-      if (map) {
-        try {
-          setDeviceConversationMap(JSON.parse(map));
-        } catch (e) {
-          console.error('[ChatScreen] Failed to parse device_conversation_map:', e);
-        }
-      }
-    });
-  }, []);
-
-  // 保存设备-对话映射
-  const saveDeviceConversation = useCallback(async (deviceKey: string, conversationId: string | null) => {
+  // 保存设备-对话映射（仅内存，不持久化）
+  const saveDeviceConversation = useCallback((deviceKey: string, conversationId: string | null) => {
     const map = { ...deviceConversationMap };
     if (conversationId) {
       map[deviceKey] = conversationId;
@@ -103,7 +90,6 @@ export default function ChatScreen() {
       delete map[deviceKey];
     }
     setDeviceConversationMap(map);
-    await AsyncStorage.setItem('device_conversation_map', JSON.stringify(map));
   }, [deviceConversationMap]);
 
   // 设备变化时：恢复该设备的最近对话，没有则显示 Welcome

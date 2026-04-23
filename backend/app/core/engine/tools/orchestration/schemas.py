@@ -20,8 +20,3 @@ class DecomposeTaskResult(DynamicBaseModel):
     error: str | None = None
     routing_target: str | None = None
     spawn_plan: SpawnPlan | None = None
-
-
-class AggregateResult(DynamicBaseModel):
-    status: str
-    aggregated: Any

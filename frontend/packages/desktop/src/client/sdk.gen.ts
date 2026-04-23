@@ -905,7 +905,7 @@ export class DevicesService {
      * Send Command
      * Send remote command
      * @param data The data for the request.
-     * @param data.deviceId
+     * @param data.deviceKey
      * @param data.requestBody
      * @returns unknown Successful Response
      * @throws ApiError
@@ -913,9 +913,9 @@ export class DevicesService {
     public static sendCommand(data: DevicesSendCommandData): CancelablePromise<DevicesSendCommandResponse> {
         return __request(OpenAPI, {
             method: 'POST',
-            url: '/api/v1/devices/{device_id}/command',
+            url: '/api/v1/devices/{device_key}/command',
             path: {
-                device_id: data.deviceId
+                device_key: data.deviceKey
             },
             body: data.requestBody,
             mediaType: 'application/json',
@@ -929,7 +929,7 @@ export class DevicesService {
      * Get Recent Logs
      * Get recent logs from device
      * @param data The data for the request.
-     * @param data.deviceId
+     * @param data.deviceKey
      * @param data.limit
      * @param data.projectId
      * @returns unknown Successful Response
@@ -938,9 +938,9 @@ export class DevicesService {
     public static getRecentLogs(data: DevicesGetRecentLogsData): CancelablePromise<DevicesGetRecentLogsResponse> {
         return __request(OpenAPI, {
             method: 'GET',
-            url: '/api/v1/devices/{device_id}/logs',
+            url: '/api/v1/devices/{device_key}/logs',
             path: {
-                device_id: data.deviceId
+                device_key: data.deviceKey
             },
             query: {
                 limit: data.limit,
@@ -956,7 +956,7 @@ export class DevicesService {
      * Search Logs
      * Search logs
      * @param data The data for the request.
-     * @param data.deviceId
+     * @param data.deviceKey
      * @param data.query
      * @param data.limit
      * @param data.projectId
@@ -966,9 +966,9 @@ export class DevicesService {
     public static searchLogs(data: DevicesSearchLogsData): CancelablePromise<DevicesSearchLogsResponse> {
         return __request(OpenAPI, {
             method: 'GET',
-            url: '/api/v1/devices/{device_id}/logs/search',
+            url: '/api/v1/devices/{device_key}/logs/search',
             path: {
-                device_id: data.deviceId
+                device_key: data.deviceKey
             },
             query: {
                 query: data.query,
@@ -985,7 +985,7 @@ export class DevicesService {
      * Bind Client
      * Bind mobile client to device
      * @param data The data for the request.
-     * @param data.deviceId
+     * @param data.deviceKey
      * @param data.requestBody
      * @returns BindResponse Successful Response
      * @throws ApiError
@@ -993,9 +993,9 @@ export class DevicesService {
     public static bindClient(data: DevicesBindClientData): CancelablePromise<DevicesBindClientResponse> {
         return __request(OpenAPI, {
             method: 'POST',
-            url: '/api/v1/devices/{device_id}/bind',
+            url: '/api/v1/devices/{device_key}/bind',
             path: {
-                device_id: data.deviceId
+                device_key: data.deviceKey
             },
             body: data.requestBody,
             mediaType: 'application/json',

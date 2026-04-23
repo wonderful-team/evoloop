@@ -8,6 +8,7 @@ import AppearanceSettings from "@/components/UserSettings/AppearanceSettings"
 import ChangePassword from "@/components/UserSettings/ChangePassword"
 import DeleteAccount from "@/components/UserSettings/DeleteAccount"
 import UserInformation from "@/components/UserSettings/UserInformation"
+import { VoiceControlSettings } from "@/components/Settings/VoiceControlSettings"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@evoloop/shared/components/ui/tabs"
 import useAuth from "@/hooks/useAuth"
 
@@ -23,6 +24,11 @@ const TabsConfig = () => {
       value: "models",
       title: t("settings.tabs.models"),
       component: ModelSettings,
+    },
+    {
+      value: "voice",
+      title: t("settings.tabs.voice"),
+      component: VoiceControlSettings,
     },
     {
       value: "my-profile",

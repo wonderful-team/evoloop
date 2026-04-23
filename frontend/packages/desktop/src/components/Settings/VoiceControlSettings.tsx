@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { Mic, Keyboard, Power, AlertCircle, MousePointerClick } from 'lucide-react'
+import { Mic, Keyboard, Power, AlertCircle, MousePointerClick, Cpu, Zap, Save } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@evoloop/shared/components/ui/card'
 import { Label } from '@evoloop/shared/components/ui/label'
 import { Button } from '@evoloop/shared/components/ui/button'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@evoloop/shared/components/ui/select'
 import { cn } from '@evoloop/shared/lib/utils'
 import { useWakeWord, useWakeWordSettings } from '@/hooks/useWakeWord'
 import { useTauriVoiceShortcut, useTauriVoiceShortcutSettings } from '@/hooks/useTauriVoiceShortcut'
@@ -34,6 +35,28 @@ export function VoiceControlSettings() {
   const [tempWakeWord, setTempWakeWord] = useState(wakeWord)
   const [isSupported, setIsSupported] = useState(true)
   const [isTauri, setIsTauri] = useState(false)
+  const [sttModel, setSttModel] = useState('paraformer-zh')
+  const [sttDevice, setSttDevice] = useState('cpu')
+  const [sttLoading, setSttLoading] = useState(false)
+
+  // Fetch STT config from backend
+  useEffect(() => {
+    const fetchSTTConfig = async () => {
+      try {
+        const { SystemService } = await import('@/client')
+        const config: any = await SystemService.getSystemConfig()
+        if (Array.isArray(config)) {
+          const model = config.find((item: any) => item.key === 'FUNASR_MODEL')
+          const device = config.find((item: any) => item.key === 'FUNASR_DEVICE')
+          if (model) setSttModel(model.value)
+          if (device) setSttDevice(device.value)
+        }
+      } catch (error) {
+        console.error('Failed to fetch STT config:', error)
+      }
+    }
+    fetchSTTConfig()
+  }, [])
 
   // Check browser and Tauri support
   useEffect(() => {
@@ -89,6 +112,26 @@ export function VoiceControlSettings() {
     }
   }, [isTauri, shortcutKey, triggerMode, doubleClickInterval, shortcutDuration, shortcutEnabled])
 
+  const handleSaveSttConfig = async () => {
+    setSttLoading(true)
+    try {
+      const { SystemService } = await import('@/client')
+      await Promise.all([
+        SystemService.updateSystemConfig({
+          requestBody: { key: 'FUNASR_MODEL', value: sttModel }
+        }),
+        SystemService.updateSystemConfig({
+          requestBody: { key: 'FUNASR_DEVICE', value: sttDevice }
+        })
+      ])
+      toast.success(t('settings.voice.sttConfigSaved'))
+    } catch (error) {
+      toast.error(t('settings.voice.sttConfigError'))
+    } finally {
+      setSttLoading(false)
+    }
+  }
+
   const handleSaveWakeWord = () => {
     updateWakeWord(tempWakeWord)
     toast.success(t('settings.voice.wakeWordSaved'))
@@ -108,6 +151,74 @@ export function VoiceControlSettings() {
 
   return (
     <div className="space-y-6">
+      {/* STT Engine Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Cpu className="h-5 w-5 text-primary" />
+            {t('settings.voice.sttTitle')}
+          </CardTitle>
+          <CardDescription>
+            {t('settings.voice.sttDesc')}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="grid gap-6 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="stt-model" className="text-sm font-medium">
+                {t('settings.voice.sttModel')}
+              </Label>
+              <Select value={sttModel} onValueChange={setSttModel}>
+                <SelectTrigger id="stt-model">
+                  <SelectValue placeholder={t('settings.voice.selectSttModel')} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="paraformer-zh">paraformer-zh (Standard)</SelectItem>
+                  <SelectItem value="paraformer-zh-plus">paraformer-zh-plus (Enhanced)</SelectItem>
+                  <SelectItem value="paraformer-zh-streaming">paraformer-zh-streaming (Streaming)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="stt-device" className="text-sm font-medium">
+                {t('settings.voice.sttDevice')}
+              </Label>
+              <Select value={sttDevice} onValueChange={setSttDevice}>
+                <SelectTrigger id="stt-device">
+                  <SelectValue placeholder={t('settings.voice.selectSttDevice')} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="cpu">
+                    <div className="flex items-center gap-2">
+                      <Cpu className="h-4 w-4" />
+                      <span>CPU</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="cuda">
+                    <div className="flex items-center gap-2">
+                      <Zap className="h-4 w-4 text-amber-500" />
+                      <span>CUDA (NVIDIA GPU)</span>
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="flex justify-end pt-2">
+            <Button 
+              onClick={handleSaveSttConfig} 
+              disabled={sttLoading}
+              className="gap-2"
+            >
+              <Save className="h-4 w-4" />
+              {t('common.save')}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Wake Word Section */}
       <Card>
         <CardHeader>

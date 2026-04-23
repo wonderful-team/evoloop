@@ -902,6 +902,17 @@ export const CancelHITLRequestSchema = {
                 }
             ],
             title: 'Reason'
+        },
+        model: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Model'
         }
     },
     type: 'object',
@@ -1081,7 +1092,7 @@ export const ChatRequestSchema = {
         }
     },
     type: 'object',
-    required: ['thread_id', 'message'],
+    required: ['message'],
     title: 'ChatRequest'
 } as const;
 
@@ -1138,7 +1149,7 @@ export const CloudStatusResponseSchema = {
             type: 'boolean',
             title: 'Is Logged In'
         },
-        device_id: {
+        device_key: {
             anyOf: [
                 {
                     type: 'string'
@@ -1147,7 +1158,7 @@ export const CloudStatusResponseSchema = {
                     type: 'null'
                 }
             ],
-            title: 'Device Id'
+            title: 'Device Key'
         },
         is_linked: {
             type: 'boolean',
@@ -2312,6 +2323,18 @@ export const EmbeddingConfigRequestSchema = {
                 }
             ],
             title: 'Api Key'
+        },
+        default_model_id: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Default Model Id',
+            description: 'Selected Default Embedding Model ID'
         }
     },
     type: 'object',
@@ -2469,7 +2492,7 @@ export const EvoloopStatusResponseSchema = {
             type: 'boolean',
             title: 'Connected'
         },
-        device_id: {
+        device_key: {
             anyOf: [
                 {
                     type: 'string'
@@ -2478,7 +2501,7 @@ export const EvoloopStatusResponseSchema = {
                     type: 'null'
                 }
             ],
-            title: 'Device Id'
+            title: 'Device Key'
         },
         device_name: {
             type: 'string',
@@ -3307,6 +3330,18 @@ export const LLMConfigRequestSchema = {
                 }
             ],
             title: 'Api Key'
+        },
+        default_model_id: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Default Model Id',
+            description: 'Selected Default Model ID'
         }
     },
     additionalProperties: true,
@@ -5557,6 +5592,17 @@ export const ResumeRequestSchema = {
                 }
             ],
             title: 'Command Id'
+        },
+        model: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Model'
         }
     },
     type: 'object',

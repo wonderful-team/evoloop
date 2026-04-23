@@ -33,7 +33,13 @@ export class ChatConnection {
         this.callbacks = callbacks;
     }
 
-    public async connect(threadId: string) {
+    public async connect(threadId: string | null) {
+        // Clean up existing if no threadId
+        if (!threadId) {
+            this.disconnect();
+            return;
+        }
+
         // If already connected to same thread, do nothing
         if (this.eventSource && this.currentThreadId === threadId && this.eventSource.readyState !== EventSource.CLOSED) {
             console.log("[ChatConnection] Already connected to thread", threadId);

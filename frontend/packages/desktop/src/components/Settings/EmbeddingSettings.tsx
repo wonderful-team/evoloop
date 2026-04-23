@@ -1,12 +1,21 @@
-import { useQuery } from "@tanstack/react-query"
-import { AlertTriangle, CheckCircle2, Eye, EyeOff, Loader2, XCircle } from "lucide-react"
 import { useEffect, useState } from "react"
-import { useForm } from "react-hook-form"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
+import { 
+  Database,
+  Globe, 
+  Shield, 
+  Loader2, 
+  CheckCircle2, 
+  XCircle, 
+  Eye, 
+  EyeOff,
+  Save,
+  Layers,
+  Network
+} from "lucide-react"
 
-import { SystemService, type SystemConfig } from "@/client"
-import { Alert, AlertDescription, AlertTitle } from "@evoloop/shared/components/ui/alert"
+import { SystemService } from "@/client"
 import { Button } from "@evoloop/shared/components/ui/button"
 import {
   Card,
@@ -15,23 +24,19 @@ import {
   CardHeader,
   CardTitle,
 } from "@evoloop/shared/components/ui/card"
-import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@evoloop/shared/components/ui/form"
+import { Label } from "@evoloop/shared/components/ui/label"
 import { Input } from "@evoloop/shared/components/ui/input"
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from "@evoloop/shared/components/ui/select"
+import { Badge } from "@evoloop/shared/components/ui/badge"
 
 // Preset embedding model type from backend
 interface PresetEmbeddingModel {
@@ -55,125 +60,62 @@ export function EmbeddingSettings() {
     msg: string
   } | null>(null)
 
-  // Fetch preset models from backend
-  const { data: presetModelsData, isLoading: isLoadingModels } = useQuery({
-    queryKey: ["embeddingPresetModels"],
-    queryFn: () => SystemService.getAvailableEmbeddingModels(),
-  })
+  const [presetModels, setPresetModels] = useState<PresetEmbeddingModel[]>([])
+  const [isLoadingModels, setIsLoadingModels] = useState(true)
 
-  const presetModels: PresetEmbeddingModel[] = (presetModelsData as any)?.models || []
+  // Form states
+  const [defaultModelId, setDefaultModelId] = useState("")
+  const [provider, setProvider] = useState("openai")
+  const [baseUrl, setBaseUrl] = useState("")
+  const [model, setModel] = useState("")
+  const [dimensions, setDimensions] = useState("768")
+  const [apiKey, setApiKey] = useState("")
 
-  // Unified form
-  const form = useForm({
-    defaultValues: {
-      selectedModel: "",
-      provider: "openai",
-      base_url: "",
-      model: "",
-      dimensions: "768",
-      api_key: "",
-    },
-  })
-
-  const selectedModelId = form.watch("selectedModel")
-  const isCustom = selectedModelId === "custom"
-
-  // Load initial config
+  // Load models and config
   useEffect(() => {
-    const fetchConfig = async () => {
+    const init = async () => {
       try {
-        const response = await SystemService.getSystemConfig()
+        setIsLoadingModels(true)
+        const [modelsRes, configRes] = await Promise.all([
+          SystemService.getEmbeddingModels(),
+          SystemService.getSystemConfig()
+        ])
+
+        setPresetModels((modelsRes as any)?.models || [])
+
         const configMap: Record<string, string> = {}
-        if (Array.isArray(response)) {
-          ;(response as unknown as SystemConfig[]).forEach((item) => {
+        if (Array.isArray(configRes)) {
+          configRes.forEach((item: any) => {
             configMap[item.key] = item.value
           })
         }
 
-        const currentProvider = configMap.EMBEDDING_PROVIDER || ""
-        const currentModel = configMap.EMBEDDING_MODEL || ""
-        const currentBaseUrl = configMap.EMBEDDING_BASE_URL || ""
-        const currentDimensions = configMap.EMBEDDING_DIMENSIONS || "768"
-        const currentApiKey = configMap.EMBEDDING_API_KEY || ""
-
-        // Try to find matching preset model
-        const matchingPreset = presetModels.find(
-          (m) =>
-            m.provider === currentProvider &&
-            m.model === currentModel &&
-            m.base_url === currentBaseUrl
-        )
-
-        if (matchingPreset) {
-          form.reset({
-            selectedModel: matchingPreset.id,
-            provider: matchingPreset.provider,
-            base_url: currentBaseUrl,
-            model: currentModel,
-            dimensions: currentDimensions,
-            api_key: currentApiKey,
-          })
-        } else if (currentModel) {
-          // Custom config
-          form.reset({
-            selectedModel: "custom",
-            provider: currentProvider || "openai",
-            base_url: currentBaseUrl,
-            model: currentModel,
-            dimensions: currentDimensions,
-            api_key: currentApiKey,
-          })
-        }
+        setDefaultModelId(configMap.EMBEDDING_MODEL || "")
+        setProvider(configMap.EMBEDDING_PROVIDER || "openai")
+        setBaseUrl(configMap.EMBEDDING_BASE_URL || "")
+        setModel(configMap.CUSTOM_EMBEDDING_MODEL || "")
+        setDimensions(configMap.EMBEDDING_DIMENSIONS || "768")
+        setApiKey(configMap.EMBEDDING_API_KEY || "")
       } catch (error) {
-        console.error("Failed to load embedding config", error)
+        toast.error(t("settings.embedding.loadError"))
+      } finally {
+        setIsLoadingModels(false)
       }
     }
-    if (presetModels.length > 0) {
-      fetchConfig()
-    }
-  }, [presetModels.length, form])
+    init()
+  }, [t])
 
-  // Handle model selection
-  const handleModelSelect = (value: string) => {
-    setTestResult(null)
-    form.setValue("selectedModel", value)
-
-    if (value === "custom") {
-      // Clear custom fields for user to fill
-      form.setValue("provider", "openai")
-      form.setValue("base_url", "")
-      form.setValue("model", "")
-      form.setValue("dimensions", "768")
-      return
-    }
-
-    // Apply preset model config
-    const preset = presetModels.find((m) => m.id === value)
-    if (preset) {
-      form.setValue("provider", preset.provider)
-      form.setValue("base_url", preset.base_url)
-      form.setValue("model", preset.model)
-      form.setValue("dimensions", String(preset.dimensions))
-    }
-  }
-
-  const onTestConnection = async () => {
-    const values = form.getValues()
+  const handleTestConnection = async () => {
     setTesting(true)
     setTestResult(null)
-
-    const preset = presetModels.find((m) => m.id === values.selectedModel)
-    const actualProvider = preset ? preset.provider : values.provider
-    const actualBaseUrl = preset ? preset.base_url : values.base_url
-    const actualModel = preset ? preset.model : values.model
 
     try {
       const res: any = await SystemService.testEmbeddingConnection({
         requestBody: {
-          provider: actualProvider,
-          base_url: actualBaseUrl,
-          model: actualModel,
-          api_key: values.api_key,
+          provider,
+          base_url: baseUrl,
+          model,
+          api_key: apiKey,
         },
       })
       if (res.success) {
@@ -183,9 +125,7 @@ export function EmbeddingSettings() {
             dim: res.dimensions,
           }),
         })
-        toast.success(
-          t("settings.embedding.success_connected", { dim: res.dimensions }),
-        )
+        toast.success(t("settings.embedding.success_connected", { dim: res.dimensions }))
       } else {
         setTestResult({
           success: false,
@@ -194,40 +134,28 @@ export function EmbeddingSettings() {
         toast.error(t("settings.embedding.error_connection"))
       }
     } catch (error) {
-      setTestResult({
-        success: false,
-        msg: t("settings.embedding.error_connection"),
-      })
-      toast.error(
-        `${t("settings.embedding.error_connection")}: ${(error as any).message}`,
-      )
+      setTestResult({ success: false, msg: (error as any).message })
+      toast.error(`${t("settings.embedding.error_connection")}: ${(error as any).message}`)
     } finally {
       setTesting(false)
     }
   }
 
-  const onSubmit = async () => {
+  const handleSave = async () => {
     if (!confirm(t("settings.embedding.confirm_switch"))) {
       return
     }
 
-    const values = form.getValues()
     setLoading(true)
-
-    const preset = presetModels.find((m) => m.id === values.selectedModel)
-    const actualProvider = preset ? preset.provider : values.provider
-    const actualBaseUrl = preset ? preset.base_url : values.base_url
-    const actualModel = preset ? preset.model : values.model
-
     try {
       await SystemService.applyEmbeddingConfig({
         requestBody: {
-          provider: actualProvider,
-          base_url: actualBaseUrl,
-          model: actualModel,
-          dimensions: parseInt(values.dimensions || "768", 10),
-          api_key: values.api_key,
-          project_id: undefined,
+          provider,
+          base_url: baseUrl,
+          model,
+          dimensions: parseInt(dimensions || "768", 10),
+          api_key: apiKey,
+          default_model_id: defaultModelId,
         },
       })
       toast.success(t("settings.embedding.success_updated"))
@@ -239,212 +167,180 @@ export function EmbeddingSettings() {
     }
   }
 
-  const selectedPreset = presetModels.find((m) => m.id === selectedModelId)
-
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{t("settings.embedding.title")}</CardTitle>
-        <CardDescription>{t("settings.embedding.description")}</CardDescription>
-        <Alert variant="destructive" className="mt-4">
-          <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>{t("settings.embedding.warning")}</AlertTitle>
-          <AlertDescription>{t("settings.embedding.warning_desc")}</AlertDescription>
-        </Alert>
-      </CardHeader>
-      <CardContent>
-        <Form {...form}>
-          <form className="space-y-4">
-            {/* Model Selection */}
-            <FormField
-              control={form.control}
-              name="selectedModel"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t("settings.embedding.select_model")}</FormLabel>
-                  <Select
-                    value={field.value}
-                    onValueChange={handleModelSelect}
-                    disabled={isLoadingModels}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue
-                          placeholder={
-                            isLoadingModels
-                              ? t("common.loading")
-                              : t("settings.embedding.select_model_placeholder")
-                          }
-                        />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {presetModels.map((model) => (
-                        <SelectItem key={model.id} value={model.id}>
-                          <div className="flex flex-col">
-                            <span>{model.name}</span>
-                            {model.description && (
-                              <span className="text-xs text-muted-foreground">
-                                {model.description}
-                              </span>
-                            )}
-                          </div>
-                        </SelectItem>
-                      ))}
-                      <SelectItem value="custom">
-                        <span className="font-medium">{t("settings.llm.custom")}</span>
+    <div className="space-y-6">
+      {/* Default Model Card */}
+      <Card className="overflow-hidden border-primary/10 shadow-lg">
+        <CardHeader className="bg-muted/30 pb-4">
+          <div className="flex items-center gap-3">
+            <div className="rounded-lg bg-blue-500/10 p-2 text-blue-600">
+              <Database className="h-5 w-5" />
+            </div>
+            <div>
+              <CardTitle className="text-xl">{t("settings.embedding.default_model")}</CardTitle>
+              <CardDescription>{t("settings.embedding.default_model_desc")}</CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="pt-6 space-y-4">
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">{t("settings.embedding.select_default_placeholder")}</Label>
+            <Select value={defaultModelId} onValueChange={setDefaultModelId}>
+              <SelectTrigger className="w-full h-12">
+                <SelectValue placeholder={t("settings.embedding.select_model_placeholder")} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectLabel className="flex items-center gap-2">
+                    <Globe className="h-3.5 w-3.5" />
+                    {t("chat.modelSelector.platformModels")}
+                  </SelectLabel>
+                  {presetModels
+                    .filter((m) => m.type === "platform")
+                    .map((m) => (
+                      <SelectItem key={m.id} value={m.id}>
+                        <div className="flex items-center gap-2">
+                          <span>{m.name}</span>
+                          <Badge variant="secondary" className="text-[10px] h-4">Platform</Badge>
+                        </div>
                       </SelectItem>
-                    </SelectContent>
-                  </Select>
-                  {!isCustom && selectedPreset?.description && (
-                    <FormDescription>{selectedPreset.description}</FormDescription>
-                  )}
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            {/* Custom Configuration Fields - Only show when custom is selected */}
-            {isCustom && (
-              <div className="space-y-3">
-                <div className="grid grid-cols-3 gap-3">
-                  <FormField
-                    control={form.control}
-                    name="provider"
-                    render={({ field }) => (
-                      <FormItem className="space-y-1">
-                        <FormLabel className="text-xs">{t("settings.modelFields.provider")}</FormLabel>
-                        <FormControl>
-                          <Input placeholder="openai" {...field} className="h-8" />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="base_url"
-                    render={({ field }) => (
-                      <FormItem className="space-y-1">
-                        <FormLabel className="text-xs">{t("settings.modelFields.baseUrl")}</FormLabel>
-                        <FormControl>
-                          <Input placeholder="https://api.openai.com/v1" {...field} className="h-8" />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="dimensions"
-                    render={({ field }) => (
-                      <FormItem className="space-y-1">
-                        <FormLabel className="text-xs">{t("settings.modelFields.dimensions")}</FormLabel>
-                        <FormControl>
-                          <Input type="number" placeholder="768" {...field} className="h-8" />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                <FormField
-                  control={form.control}
-                  name="model"
-                  render={({ field }) => (
-                    <FormItem className="space-y-1">
-                      <FormLabel className="text-xs">{t("settings.modelFields.modelName")}</FormLabel>
-                      <FormControl>
-                        <Input placeholder="text-embedding-3-small" {...field} className="h-8" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-            )}
-
-            {/* API Key */}
-            {selectedModelId && (
-              <FormField
-                control={form.control}
-                name="api_key"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t("settings.modelFields.apiKey")}</FormLabel>
-                    <div className="relative">
-                      <FormControl>
-                        <Input
-                          type={showApiKey ? "text" : "password"}
-                          placeholder="sk-..."
-                          {...field}
-                        />
-                      </FormControl>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="absolute right-0 top-0 h-9 w-9 text-muted-foreground hover:bg-transparent"
-                        onClick={() => setShowApiKey(!showApiKey)}
-                      >
-                        {showApiKey ? (
-                          <EyeOff className="h-4 w-4" />
-                        ) : (
-                          <Eye className="h-4 w-4" />
-                        )}
-                      </Button>
+                    ))}
+                </SelectGroup>
+                <SelectSeparator />
+                <SelectGroup>
+                  <SelectLabel className="flex items-center gap-2">
+                    <Layers className="h-3.5 w-3.5" />
+                    {t("chat.modelSelector.customModels")}
+                  </SelectLabel>
+                  <SelectItem value={`custom-${provider}-${model}`}>
+                    <div className="flex items-center gap-2">
+                      <span>{model || t("settings.llm.custom")}</span>
+                      <Badge variant="outline" className="text-[10px] h-4 border-blue-500/50 text-blue-600">Custom</Badge>
                     </div>
-                    <FormDescription>
-                      {t("settings.modelFields.apiKeyDesc")}
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
+                  </SelectItem>
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Provider Config Card */}
+      <Card className="border-primary/10 shadow-lg">
+        <CardHeader className="bg-muted/30 pb-4">
+          <div className="flex items-center gap-3">
+            <div className="rounded-lg bg-indigo-500/10 p-2 text-indigo-600">
+              <Network className="h-5 w-5" />
+            </div>
+            <div>
+              <CardTitle className="text-xl">{t("settings.llm.configure_provider")}</CardTitle>
+              <CardDescription>{t("settings.llm.configure_provider_desc")}</CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="pt-6 space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">{t("settings.modelFields.provider")}</Label>
+              <Input 
+                placeholder="openai" 
+                value={provider || ""} 
+                onChange={(e) => setProvider(e.target.value)}
+                className="h-10 focus:ring-indigo-500/20"
               />
-            )}
+            </div>
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">{t("settings.modelFields.dimensions")}</Label>
+              <Input 
+                type="number"
+                placeholder="1536" 
+                value={dimensions || ""} 
+                onChange={(e) => setDimensions(e.target.value)}
+                className="h-10"
+              />
+            </div>
+            <div className="space-y-2 md:col-span-2">
+              <Label className="text-sm font-medium">{t("settings.modelFields.baseUrl")}</Label>
+              <Input 
+                placeholder="https://api.openai.com/v1" 
+                value={baseUrl || ""} 
+                onChange={(e) => setBaseUrl(e.target.value)}
+                className="h-10"
+              />
+            </div>
+            <div className="space-y-2 md:col-span-2">
+              <Label className="text-sm font-medium">{t("settings.modelFields.modelName")}</Label>
+              <Input 
+                placeholder="text-embedding-3-small" 
+                value={model || ""} 
+                onChange={(e) => setModel(e.target.value)}
+                className="h-10"
+              />
+            </div>
+          </div>
 
-            {/* Action Buttons */}
-            {selectedModelId && (
-              <div className="flex items-center gap-4 pt-2">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={onTestConnection}
-                  disabled={testing || loading || !selectedModelId}
-                >
-                  {testing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  {t("settings.embedding.test_connection")}
-                </Button>
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">{t("settings.modelFields.apiKey")}</Label>
+            <div className="relative">
+              <Input
+                type={showApiKey ? "text" : "password"}
+                placeholder="sk-..."
+                value={apiKey || ""}
+                onChange={(e) => setApiKey(e.target.value)}
+                className="pr-10 h-10"
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                onClick={() => setShowApiKey(!showApiKey)}
+              >
+                {showApiKey ? <EyeOff className="h-4 w-4 text-muted-foreground" /> : <Eye className="h-4 w-4 text-muted-foreground" />}
+              </Button>
+            </div>
+          </div>
 
-                <Button
-                  type="button"
-                  onClick={onSubmit}
-                  disabled={loading || testing || !selectedModelId}
-                  className="bg-red-600 hover:bg-red-700 text-white"
-                >
-                  {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  {t("settings.embedding.apply_btn")}
-                </Button>
-              </div>
-            )}
+          <div className="flex flex-col gap-4">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleTestConnection}
+              disabled={testing}
+              className="w-full hover:bg-indigo-500/5 hover:text-indigo-600 transition-colors"
+            >
+              {testing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Shield className="mr-2 h-4 w-4 text-indigo-500" />}
+              {t("settings.embedding.test_connection")}
+            </Button>
 
-            {/* Test Result */}
             {testResult && (
               <div
-                className={`flex items-center gap-2 text-sm ${testResult.success ? "text-green-600" : "text-red-600"}`}
+                className={`flex items-start gap-2 p-4 rounded-lg border text-sm animate-in fade-in slide-in-from-top-2 ${
+                  testResult.success 
+                    ? "bg-green-50 text-green-700 border-green-200 dark:bg-green-900/10 dark:text-green-400 dark:border-green-900/30" 
+                    : "bg-red-50 text-red-700 border-red-200 dark:bg-red-900/10 dark:text-red-400 dark:border-red-900/30"
+                }`}
               >
-                {testResult.success ? (
-                  <CheckCircle2 className="h-4 w-4" />
-                ) : (
-                  <XCircle className="h-4 w-4" />
-                )}
-                {testResult.msg}
+                {testResult.success ? <CheckCircle2 className="h-4 w-4 mt-0.5" /> : <XCircle className="h-4 w-4 mt-0.5" />}
+                <span className="flex-1 leading-relaxed">{testResult.msg}</span>
               </div>
             )}
-          </form>
-        </Form>
-      </CardContent>
-    </Card>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Save Button */}
+      <div className="flex justify-end pt-4">
+        <Button 
+          onClick={handleSave} 
+          disabled={loading} 
+          size="lg" 
+          className="px-8 shadow-md hover:shadow-lg transition-all gap-2"
+        >
+          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+          {t("settings.embedding.apply_btn")}
+        </Button>
+      </div>
+    </div>
   )
 }

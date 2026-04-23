@@ -116,7 +116,7 @@ export function ChatInterface() {
     // Get initial thread ID from URL if present, or create new
     const params = new URLSearchParams(window.location.search)
     const tid = params.get("thread_id")
-    const initId = tid && tid.trim() !== "" ? tid : crypto.randomUUID()
+    const initId = tid && tid.trim() !== "" ? tid : null
 
     // Check for message intent
     const pendingMessage = params.get("message")
@@ -223,9 +223,8 @@ export function ChatInterface() {
   // --- Handlers ---
 
   const handleNewChat = useCallback(() => {
-    const newId = crypto.randomUUID()
     if (projectId !== undefined) {
-      setThread(newId, projectId)
+      setThread(null, projectId)
     }
   }, [projectId, setThread])
 

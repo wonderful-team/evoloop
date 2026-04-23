@@ -274,6 +274,7 @@ export type CancelHITLRequest = {
     project_id?: (number | null);
     thread_id: string;
     reason?: (string | null);
+    model?: (string | null);
 };
 
 export type ChangePasswordRequest = {
@@ -303,7 +304,7 @@ export type ChangesetNode = {
 
 export type ChatRequest = {
     project_id?: (number | null);
-    thread_id: string;
+    thread_id?: string;
     message: string;
     model?: (string | null);
     command_id?: (number | null);
@@ -334,7 +335,7 @@ export type CloudStatusResponse = {
     success?: boolean;
     message?: string;
     is_logged_in: boolean;
-    device_id?: (string | null);
+    device_key?: (string | null);
     is_linked: boolean;
     device_name: string;
     api_url: string;
@@ -660,6 +661,10 @@ export type EmbeddingConfigRequest = {
     model: string;
     dimensions?: (number | null);
     api_key?: (string | null);
+    /**
+     * Selected Default Embedding Model ID
+     */
+    default_model_id?: (string | null);
 };
 
 export type EmbeddingTestResponse = {
@@ -695,7 +700,7 @@ export type EvoloopStatusResponse = {
     success?: boolean;
     message?: string;
     connected: boolean;
-    device_id?: (string | null);
+    device_key?: (string | null);
     device_name: string;
     [key: string]: unknown | boolean | string;
 };
@@ -946,6 +951,10 @@ export type LLMConfigRequest = {
      */
     vision_model?: (string | null);
     api_key?: (string | null);
+    /**
+     * Selected Default Model ID
+     */
+    default_model_id?: (string | null);
     [key: string]: unknown | string;
 };
 
@@ -1584,6 +1593,7 @@ export type ResumeRequest = {
     thread_id: string;
     user_input?: (string | null);
     command_id?: (number | null);
+    model?: (string | null);
 };
 
 export type RewindRequest = {
@@ -2659,14 +2669,14 @@ export type ConversationsGetThreadChangesetResponse = (Array<ChangesetNode>);
 export type DevicesGetDevicesResponse = (unknown);
 
 export type DevicesSendCommandData = {
-    deviceId: number;
+    deviceKey: string;
     requestBody: SendCommandRequest;
 };
 
 export type DevicesSendCommandResponse = (unknown);
 
 export type DevicesGetRecentLogsData = {
-    deviceId: number;
+    deviceKey: number;
     limit?: number;
     projectId?: (number | null);
 };
@@ -2674,7 +2684,7 @@ export type DevicesGetRecentLogsData = {
 export type DevicesGetRecentLogsResponse = (unknown);
 
 export type DevicesSearchLogsData = {
-    deviceId: number;
+    deviceKey: string;
     limit?: number;
     projectId?: (number | null);
     query: string;
@@ -2683,7 +2693,7 @@ export type DevicesSearchLogsData = {
 export type DevicesSearchLogsResponse = (unknown);
 
 export type DevicesBindClientData = {
-    deviceId: number;
+    deviceKey: string;
     requestBody: BindClientRequest;
 };
 

@@ -117,6 +117,7 @@ export function SetupWizard({ open, onOpenChange }: SetupWizardProps) {
                         model: data.llmModel,
                         vision_model: data.llmVisionModel || data.llmModel,
                         api_key: data.llmApiKey,
+                        default_model_id: data.defaultModelId,
                     },
                 })
 
