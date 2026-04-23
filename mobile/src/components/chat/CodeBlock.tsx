@@ -1,0 +1,269 @@
+// 代码块组件 - 支持语法高亮和复制
+
+import React, { useState, useCallback } from 'react';
+import { View, StyleSheet, TouchableOpacity } from 'react-native';
+import { Text, IconButton, Menu } from 'react-native-paper';
+import SyntaxHighlighter from 'react-native-syntax-highlighter';
+import { useTheme } from '@/theme';
+import Clipboard from '@react-native-clipboard/clipboard';
+
+interface CodeBlockProps {
+  code: string;
+  language?: string;
+  showLineNumbers?: boolean;
+}
+
+// 语言映射
+const languageMap: Record<string, string> = {
+  js: 'javascript',
+  jsx: 'javascript',
+  ts: 'typescript',
+  tsx: 'typescript',
+  py: 'python',
+  rb: 'ruby',
+  go: 'go',
+  rs: 'rust',
+  java: 'java',
+  kt: 'kotlin',
+  swift: 'swift',
+  cpp: 'cpp',
+  c: 'c',
+  cs: 'csharp',
+  php: 'php',
+  sh: 'bash',
+  bash: 'bash',
+  zsh: 'bash',
+  sql: 'sql',
+  json: 'json',
+  xml: 'xml',
+  html: 'html',
+  css: 'css',
+  scss: 'scss',
+  sass: 'scss',
+  less: 'less',
+  md: 'markdown',
+  yml: 'yaml',
+  yaml: 'yaml',
+  dockerfile: 'dockerfile',
+  docker: 'dockerfile',
+  graphql: 'graphql',
+  gql: 'graphql',
+  vue: 'html',
+  svelte: 'html',
+  angular: 'typescript',
+};
+
+export function CodeBlock({ code, language = 'text', showLineNumbers = false }: CodeBlockProps) {
+  const { colors, isDark } = useTheme();
+  const [copied, setCopied] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const [menuVisible, setMenuVisible] = useState(false);
+  
+  // 标准化语言名称
+  const normalizedLang = languageMap[language.toLowerCase()] || language.toLowerCase();
+  
+  // 判断是否展开（代码超过10行时）
+  const lineCount = code.split('\n').length;
+  const shouldCollapse = lineCount > 10 && !expanded;
+  const displayCode = shouldCollapse 
+    ? code.split('\n').slice(0, 10).join('\n') + '\n...'
+    : code;
+
+  const handleCopy = useCallback(async () => {
+    await Clipboard.setStringAsync(code);
+    setCopied(true);
+    setMenuVisible(false);
+    setTimeout(() => setCopied(false), 2000);
+  }, [code]);
+
+  const handleCopyWithoutFormat = useCallback(async () => {
+    // 移除代码中的格式，只保留纯文本
+    const plainText = code
+      .replace(/```[\w]*\n?/g, '')
+      .replace(/```/g, '')
+      .trim();
+    await Clipboard.setStringAsync(plainText);
+    setCopied(true);
+    setMenuVisible(false);
+    setTimeout(() => setCopied(false), 2000);
+  }, [code]);
+
+  const handleShare = useCallback(() => {
+    // 可以集成分享功能
+    setMenuVisible(false);
+  }, []);
+
+  return (
+    <View style={[styles.container, { backgroundColor: colors.surfaceVariant }]}>
+      {/* 头部：语言标识和操作按钮 */}
+      <View style={[styles.header, { borderBottomColor: colors.outline + '30' }]}>
+        <View style={styles.headerLeft}>
+          <Text style={[styles.language, { color: colors.primary }]}>
+            {language.toUpperCase() || 'TEXT'}
+          </Text>
+          {lineCount > 10 && (
+            <Text style={[styles.lineCount, { color: colors.onSurfaceVariant }]}>
+              {lineCount} 行
+            </Text>
+          )}
+        </View>
+        
+        <View style={styles.headerRight}>
+          {copied ? (
+            <Text style={[styles.copiedText, { color: colors.primary }]}>已复制</Text>
+          ) : (
+            <Menu
+              visible={menuVisible}
+              onDismiss={() => setMenuVisible(false)}
+              anchor={
+                <IconButton
+                  icon="dots-vertical"
+                  size={18}
+                  iconColor={colors.onSurfaceVariant}
+                  onPress={() => setMenuVisible(true)}
+                />
+              }
+            >
+              <Menu.Item
+                onPress={handleCopy}
+                title="复制代码"
+                leadingIcon="content-copy"
+              />
+              <Menu.Item
+                onPress={handleCopyWithoutFormat}
+                title="复制纯文本"
+                leadingIcon="format-clear"
+              />
+              <Menu.Item
+                onPress={handleShare}
+                title="分享"
+                leadingIcon="share-variant"
+              />
+            </Menu>
+          )}
+          <IconButton
+            icon={copied ? 'check' : 'content-copy'}
+            size={18}
+            iconColor={copied ? colors.primary : colors.onSurfaceVariant}
+            onPress={handleCopy}
+          />
+        </View>
+      </View>
+
+      {/* 代码内容 */}
+      <View style={styles.codeWrapper}>
+        <SyntaxHighlighter
+          language={normalizedLang}
+          style={isDark ? 'atomOneDark' : 'github'}
+          highlighter="prism"
+          customStyle={{
+            backgroundColor: 'transparent',
+            padding: 0,
+            margin: 0,
+          }}
+          codeTagProps={{
+            style: {
+              fontFamily: 'monospace',
+              fontSize: 13,
+              lineHeight: 20,
+            },
+          }}
+        >
+          {displayCode}
+        </SyntaxHighlighter>
+      </View>
+
+      {/* 展开/收起按钮 */}
+      {lineCount > 10 && (
+        <TouchableOpacity
+          style={[styles.expandButton, { borderTopColor: colors.outline + '30' }]}
+          onPress={() => setExpanded(!expanded)}
+        >
+          <Text style={[styles.expandText, { color: colors.primary }]}>
+            {expanded ? '收起' : `展开全部 ${lineCount} 行`}
+          </Text>
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+}
+
+// 行内代码组件
+interface InlineCodeProps {
+  code: string;
+  isUser?: boolean;
+}
+
+export function InlineCode({ code, isUser }: InlineCodeProps) {
+  const { colors } = useTheme();
+  
+  return (
+    <Text
+      style={[
+        styles.inlineCode,
+        {
+          backgroundColor: isUser ? 'rgba(0,0,0,0.1)' : colors.surfaceVariant,
+          color: isUser ? colors.onPrimaryContainer : colors.onSurface,
+        },
+      ]}
+    >
+      {code}
+    </Text>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    borderRadius: 12,
+    marginVertical: 8,
+    overflow: 'hidden',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  language: {
+    fontSize: 11,
+    fontWeight: '600',
+    fontFamily: 'monospace',
+  },
+  lineCount: {
+    fontSize: 11,
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  copiedText: {
+    fontSize: 12,
+    marginRight: 8,
+  },
+  codeWrapper: {
+    padding: 12,
+  },
+  expandButton: {
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderTopWidth: 1,
+  },
+  expandText: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  inlineCode: {
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 4,
+    fontFamily: 'monospace',
+    fontSize: 13,
+  },
+});

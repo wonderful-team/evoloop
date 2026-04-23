@@ -1,0 +1,118 @@
+// 设备 API
+
+import { api } from './client';
+import { MEMBER_API } from '@/constants/api';
+import {
+  ApiResponse,
+  Device,
+  DeviceBindingRequest,
+  DeviceCommandRequest,
+} from '@/types';
+
+// 后端设备数据接口
+interface BackendDevice {
+  device_key: string;
+  device_name: string;
+  device_type?: string;
+  os_info?: string;
+  status: number | string;
+  client_id?: string;
+  last_heartbeat?: number;
+  create_time?: number;
+}
+
+// 将后端设备数据映射为前端 Device 类型
+const mapBackendDevice = (backendDevice: BackendDevice): Device => {
+  // 处理状态：后端是 0/1，前端是 'online'/'offline'/'busy'
+  let status: Device['status'] = 'offline';
+  const rawStatus = backendDevice.status;
+  if (rawStatus === 1 || rawStatus === '1' || rawStatus === 'online') {
+    status = 'online';
+  } else if (rawStatus === 'busy') {
+    status = 'busy';
+  }
+
+  return {
+    deviceKey: String(backendDevice.device_key),
+    name: backendDevice.device_name || '未命名设备',
+    status,
+    type: backendDevice.device_type || 'desktop',
+    lastSeen: backendDevice.last_heartbeat ? String(backendDevice.last_heartbeat) : undefined,
+  };
+};
+
+// 处理 API 响应（可能是包装对象或直接的数组）
+const extractDevices = (response: any): Device[] => {
+  console.log('[deviceApi] Processing response type:', typeof response, Array.isArray(response) ? 'array' : 'object');
+
+  if (!response) {
+    return [];
+  }
+
+  // 如果是数组，直接映射
+  if (Array.isArray(response)) {
+    console.log('[deviceApi] Response is array, mapping', response.length, 'devices');
+    const mapped = (response as BackendDevice[]).map(mapBackendDevice);
+    console.log('[deviceApi] First mapped device:', mapped[0]);
+    return mapped;
+  }
+
+  // 如果是包装对象 { code, data, message }
+  if (typeof response === 'object' && 'data' in response) {
+    const data = response.data;
+    if (Array.isArray(data)) {
+      console.log('[deviceApi] Response is wrapper, mapping', data.length, 'devices');
+      const mapped = data.map(mapBackendDevice);
+      console.log('[deviceApi] First mapped device:', mapped[0]);
+      return mapped;
+    }
+  }
+
+  console.warn('[deviceApi] Unexpected response structure:', response);
+  return [];
+};
+
+export const deviceApi = {
+  // 获取设备列表 (从 evolooplink 插件)
+  getDevices: async (): Promise<Device[]> => {
+    const response = await api.get<BackendDevice[] | ApiResponse<BackendDevice[]>>(
+      MEMBER_API.DEVICES
+    );
+    return extractDevices(response);
+  },
+
+  // 绑定设备 (扫码绑定)
+  bindDevice: async (data: DeviceBindingRequest): Promise<Device> => {
+    const response = await api.post<ApiResponse<BackendDevice>>(
+      MEMBER_API.DEVICE_BIND,
+      data
+    );
+    return mapBackendDevice(response.data);
+  },
+
+  // 获取设备详情
+  getDeviceDetail: async (deviceKey: string): Promise<Device> => {
+    const response = await api.get<ApiResponse<BackendDevice>>(
+      MEMBER_API.DEVICE_DETAIL(deviceKey)
+    );
+    return mapBackendDevice(response.data);
+  },
+
+  // 设置默认设备
+  setDefaultDevice: async (deviceKey: string): Promise<void> => {
+    await api.post(MEMBER_API.DEVICE_DEFAULT(deviceKey));
+  },
+
+  // 发送设备指令 (通过 Gateway 执行)
+  sendCommand: async (data: DeviceCommandRequest): Promise<any> => {
+    const response = await api.post<ApiResponse<any>>(
+      MEMBER_API.COMMAND_EXECUTE,
+      {
+        device_key: data.deviceKey,
+        command_type: data.command.type,
+        content: data.command.params,
+      }
+    );
+    return response.data;
+  },
+};

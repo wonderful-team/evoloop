@@ -1,0 +1,436 @@
+{
+  "onboarding": {
+    "slide2": {
+      "subtitle": "EvoLoop has two sides.\nTry <bold>swiping left/right</bold>?\nSeamlessly switch between Cloud AI and Device Management.",
+      "title": "Dual Worlds",
+      "device": "Local",
+      "cloud": "Cloud"
+    },
+    "skip": "Skip",
+    "start": "Start",
+    "slide3": {
+      "title": "Connect Your Workstation",
+      "online": "Online",
+      "subtitle": "Install the client on your PC to unlock remote control capabilities.\nExecute commands, manage files remotely, all in control."
+    },
+    "slide4": {
+      "subtitle": "Click icons near the input box to experience more capabilities.\nNow, start your EvoLoop journey!",
+      "vision": "Visual Analysis",
+      "voice": "Voice Input",
+      "title": "Efficiency Tips"
+    },
+    "slide1": {
+      "subtitle": "Your Sovereign Universal AI Agent. Whether writing code, answering questions, or brainstorming, start here anytime.",
+      "title": "EvoLoop AI"
+    },
+    "next": "Next"
+  },
+  "help": {
+    "faq": {
+      "a3": "Yes. Click the microphone icon to the left of the chat input box to start speaking. Supports Chinese and English commands.",
+      "q2": "Difference between Cloud and Local Mode?",
+      "a1": "Download and install the EvoLoop client on your Mac/Windows PC and log in with the same account. Once connected, it will automatically appear in the 'Devices' list.",
+      "a2": "<bold>Cloud Mode</bold>: Interact with AI running on servers, independent of your computer.<br /><bold>Local Mode</bold>: AI operates directly on your computer. Can read local files, run terminal commands.",
+      "title": "FAQ",
+      "q1": "How to connect my computer?",
+      "q3": "Is Voice Input supported?"
+    },
+    "capabilities": {
+      "cloud": {
+        "desc": "Q&A, Coding, Creative",
+        "title": "Cloud Agent"
+      },
+      "title": "Core Capabilities",
+      "device": {
+        "title": "Device Control",
+        "desc": "Remote Commands, File Access"
+      }
+    },
+    "tips": {
+      "slash": {
+        "title": "Slash Commands",
+        "desc": "Type <code>/</code> to bring up the command menu for quick model switching or tools (e.g. /search, /draw)."
+      },
+      "gesture": {
+        "title": "Global Gestures",
+        "desc": "Swipe left/right on any screen to quickly switch between Cloud / Local."
+      },
+      "title": "Pro Tips"
+    },
+    "title": "User Manual",
+    "intro": {
+      "desc": "EvoLoop is your Sovereign Universal AI Agent. Simply swipe left or right to seamlessly switch between <bold>Cloud AI</bold> and <bold>Local Device</bold>.",
+      "title": "Quick Start"
+    },
+    "replayParams": "Replay Onboarding"
+  },
+  "chat": {
+    "messageList": {
+      "initializing": "Initializing...",
+      "offline": "Device Offline",
+      "offlineDesc": "The remote device is currently not connected.",
+      "imageViewer": "Image Viewer",
+      "clickToOpen": "Click to open",
+      "copy": "Copy"
+    },
+    "header": {
+      "deviceFallback": "Device #{{id}}",
+      "clear": "Clear",
+      "search": "Search Logs"
+    },
+    "local": {
+      "sessions": "Local Sessions",
+      "connectingServer": "Connecting to Server...",
+      "agentOnline": "Agent Online",
+      "agentOffline": "Agent Offline",
+      "deliveryFailed": "Failed to deliver message: ",
+      "connecting": "Connecting...",
+      "sendFailed": "Failed to send command: ",
+      "backToLive": "Back to Live"
+    },
+    "input": {
+      "uploadFailed": "Upload failed",
+      "waitUpload": "Please wait for files to upload",
+      "noProject": "Please select a project first",
+      "placeholder": {
+        "offline": "Device is offline",
+        "connecting": "Connecting to server...",
+        "listening": "Listening...",
+        "default": "Message..."
+      }
+    },
+    "limitReachedDescription": "You have reached your daily free message limit. Please upgrade to continue.",
+    "limitReached": "Daily Limit Reached",
+    "interface": {
+      "copy": "Copy",
+      "quote": "Quote",
+      "copied": "Copied to clipboard",
+      "welcome": "How can I help you?",
+      "startPrompt": "I'm ready to manage your device or answer questions."
+    },
+    "context": {
+      "starter": {
+        "analyzeLabel": "Analyze",
+        "analyzeDesc": "Codebase architecture",
+        "analyze": "Analyze current codebase structure",
+        "planLabel": "Plan",
+        "planDesc": "Draft roadmap",
+        "plan": "Create a new implementation plan",
+        "tasksLabel": "Tasks",
+        "tasksDesc": "Pending items",
+        "tasks": "What tasks are currently pending?",
+        "helpLabel": "Help",
+        "helpDesc": "Get guidance",
+        "help": "Help me understand this project"
+      }
+    },
+    "toolGroup": {
+      "title": "Executed {{count}} tools"
+    },
+    "quota": {
+      "title": "Quota Exhausted",
+      "banner": {
+        "title": "Quota Exhausted",
+        "message": "Please add more quota to continue"
+      },
+      "card": {
+        "title": "Quota Exhausted",
+        "message": "Your LLM quota has been exhausted.",
+        "hint": "Please contact administrator to add more quota.",
+        "info": "After adding quota, you can:",
+        "option1": "Click \"Continue\" below",
+        "option2": "Or simply send a new message",
+        "checkQuota": "Check Quota",
+        "continue": "Continue"
+      },
+      "continuePrompt": "Continue"
+    }
+  },
+  "conversation": {
+    "new": "New",
+    "list": "Conversations",
+    "empty": "No conversations",
+    "deleteConfirm": "Are you sure you want to delete this conversation?",
+    "untitled": "Untitled"
+  },
+  "auth": {
+    "errors": {
+      "loadConfigFailed": "Failed to load configuration",
+      "captchaRequired": "Captcha required",
+      "passwordTooShort": "Password too short",
+      "invalidMobile": "Invalid mobile number",
+      "resetFailed": "Reset failed",
+      "loginFailed": "Login failed",
+      "mustAgree": "Must agree to terms",
+      "registerFailed": "Registration failed",
+      "sendCodeFirst": "Please send code first",
+      "codeRequired": "Code is required",
+      "errorSendingCode": "Error sending code",
+      "passwordMismatch": "Passwords do not match"
+    },
+    "login": {
+      "captchaNote": "Note: Captcha for password login not fully integrated yet.",
+      "title": "EvoLoop AI",
+      "getCode": "Get Code",
+      "mobilePlaceholder": "Mobile Number",
+      "subtitle": "Mobile Access",
+      "smsCodePlaceholder": "SMS Code",
+      "tabAccount": "Account",
+      "usernamePlaceholder": "Username",
+      "captchaPlaceholder": "Captcha",
+      "tabMobile": "Mobile",
+      "submit": "Login",
+      "signUp": "Sign Up"
+    },
+    "forgotPassword": {
+      "next": "Next",
+      "back": "Back",
+      "mobilePlaceholder": "Mobile Number",
+      "resendIn": "Resend in",
+      "submit": "Reset Password",
+      "restart": "Restart",
+      "step2": "Set new password",
+      "sentTo": "Sent to",
+      "step1": "Enter verification code",
+      "title": "Forgot Password",
+      "step0": "Verify your mobile number",
+      "resend": "Resend Code"
+    },
+    "success": {
+      "login": "Login successful",
+      "reset": "Password reset successful!",
+      "codeSent": "Code sent!"
+    },
+    "register": {
+      "title": "Sign Up",
+      "tabAccount": "Username",
+      "tabMobile": "Mobile",
+      "passwordPlaceholder": "Password (Min 6 chars)",
+      "agreementsTitle": "Agreements",
+      "agree": "I agree to the",
+      "mobilePlaceholder": "Mobile Number",
+      "policy": "Service & Privacy Policy",
+      "usernamePlaceholder": "Username (Alphanumeric)",
+      "getCode": "Get Code"
+    }
+  },
+  "search": {
+    "deviceLabel": "Device #{{id}}",
+    "clear": "Clear",
+    "projectLabel": "Project #{{id}}",
+    "allDevices": "Searching all devices",
+    "recent": "Recent Searches",
+    "allProjects": "All projects",
+    "noResults": "No results found.",
+    "failedPrefix": "Search failed: ",
+    "logLabel": "Log #{{id}}",
+    "placeholder": "Search logs...",
+    "cancel": "Cancel",
+    "searching": "Searching..."
+  },
+  "tabs": {
+    "me": "Me",
+    "local": "Local",
+    "home": "Home",
+    "cloud": "Cloud",
+    "projects": "Projects",
+    "devices": "Devices"
+  },
+  "profile": {
+    "manual": "User Manual & Help",
+    "validUntil": "Valid until: ",
+    "balance": "Balance",
+    "english": "English",
+    "autoRenewalOff": "Auto-renewal: Off",
+    "upgradeNow": "Upgrade Now",
+    "chinese": "Chinese",
+    "deleteAccount": "Delete Account",
+    "logout": "Logout",
+    "processing": "Processing...",
+    "upgradeHint": "Upgrade to unlock full potential.",
+    "points": "Points",
+    "guestTitle": "Guest Access",
+    "withdrawDeletion": "Withdraw Deletion Request",
+    "freePlan": "Free Plan",
+    "confirmDelete": "Are you sure you want to delete your account? This action cannot be undone immediately.",
+    "contactSupport": "Contact Support",
+    "manageSubscription": "Manage Subscription",
+    "guestDesc": "Log in to view your profile",
+    "currentPlan": "Current Plan",
+    "language": "Language",
+    "pro": "PRO",
+    "confirmWithdraw": "Withdraw account deletion request?",
+    "selectLanguage": "Select Language",
+    "deleteAccountWarning": "After deleting your account, all your data will be permanently removed. Are you sure you want to continue?",
+    "deleteAccountSuccess": "Account deletion request submitted",
+    "deleteAccountFailed": "Failed to delete account, please try again later",
+    "settings": "Settings",
+    "memberCenter": "Member Center",
+    "logoutConfirm": "Are you sure you want to logout?",
+    "user": "User",
+    "changeAvatar": "Change Avatar",
+    "takePhoto": "Take Photo",
+    "chooseFromAlbum": "Choose from Album",
+    "avatarUpdated": "Avatar Updated",
+    "avatarUpdateFailed": "Failed to update avatar, please try again",
+    "avatarImageError": "Unable to get image data"
+  },
+  "projects": {
+    "guestTitle": "Login to View Projects",
+    "id": "ID: ",
+    "guestDesc": "Manage your cloud projects and sync them across devices.",
+    "failedToLoad": "Failed to load projects",
+    "noProjects": "No projects",
+    "title": "Projects"
+  },
+  "projectSwitcher": {
+    "noDesc": "No description",
+    "switching": "Switching to {{name}}...",
+    "searchPlaceholder": "Search project...",
+    "select": "Select Project",
+    "switched": "Switched to {{name}}",
+    "title": "Select Project",
+    "noProjects": "No projects found",
+    "switchFailed": "Failed to switch project"
+  },
+  "devices": {
+    "guestDesc": "Access your remote devices and control them from anywhere.",
+    "connectFirst": "Connect your first device",
+    "offline": "Offline",
+    "copyLink": "Copy Download Link",
+    "online": "Online",
+    "linkCopied": "Download link copied",
+    "unknownOS": "Unknown OS",
+    "title": "Devices",
+    "active": "Active",
+    "connectDesc": "To activate EvoLoop remote control capabilities, you need to install the client on your computer.",
+    "step3": "Log in with current account",
+    "errorLoading": "Error loading devices: ",
+    "guestTitle": "Login to View Devices",
+    "step2": "Download and install Windows/Mac client",
+    "loading": "Loading...",
+    "step1": "Visit <1>develop-assistant.cn</1> on your computer",
+    "statusFormat": "{{online}} Online / {{total}} Total"
+  },
+  "index": {
+    "placeholder": "Ask anything or command...",
+    "subtitle": "Your Intelligent Mobile Agent"
+  },
+  "hitl": {
+    "responseSent": "Response sent",
+    "sendFailed": "Failed to send response: ",
+    "waiting": "Agent is waiting for your input...",
+    "titleText": "Your Input Required",
+    "titleChoice": "Please Make a Choice",
+    "titleConfirm": "Please Confirm Action",
+    "titleApproval": "Approval Required",
+    "riskLow": "Low Risk",
+    "riskMedium": "Medium Risk",
+    "riskHigh": "High Risk",
+    "riskCritical": "Critical",
+    "submit": "Submit",
+    "approve": "Approve",
+    "reject": "Reject",
+    "skip": "Skip",
+    "cancelled": "Input cancelled",
+    "timeout": "Input request timed out"
+  },
+  "chat_request": {
+    "title": "Input Required",
+    "placeholder": "Enter your response..."
+  },
+  "cloudChat": {
+    "placeholder": "Ask Cloud AI...",
+    "title": "Cloud Agent",
+    "loadingHistory": "Loading history...",
+    "sendFailed": "Failed to send: ",
+    "historyFailed": "Failed to load history",
+    "typing": "AI is typing..."
+  },
+  "toast": {
+    "bindFailed": "Failed to bind to server notifications"
+  },
+  "voice": {
+    "title": "Voice Assistant",
+    "status": {
+      "idle": "Tap to start",
+      "connecting": "Connecting...",
+      "listening": "Listening...",
+      "recognizing": "Recognizing...",
+      "thinking": "Thinking...",
+      "speaking": "Speaking..."
+    },
+    "command": {
+      "title": "Confirm Command",
+      "confirm": "Confirm",
+      "cancel": "Cancel",
+      "pending": "Pending",
+      "device": "Device",
+      "action": "Action"
+    },
+    "input": {
+      "placeholder": "Type a message...",
+      "voiceMode": "Hold to speak",
+      "textMode": "Keyboard"
+    },
+    "empty": "Start voice conversation or type a message",
+    "permission": {
+      "title": "Microphone Permission Required",
+      "message": "Please allow EvoLoop to access your microphone for voice features",
+      "settings": "Go to Settings"
+    }
+  },
+  "settings": {
+    "title": "Settings",
+    "voice": {
+      "title": "Voice Settings",
+      "autoStart": "Auto Start Voice",
+      "continuousListening": "Continuous Conversation",
+      "wakeWord": "Wake Word",
+      "vadThreshold": "Sensitivity",
+      "silenceTimeout": "Silence Timeout",
+      "language": "Recognition Language"
+    },
+    "account": {
+      "title": "Account & Security",
+      "changePassword": "Change Password",
+      "bindPhone": "Bind Phone",
+      "deleteAccount": "Delete Account"
+    },
+    "about": {
+      "title": "About",
+      "version": "Version",
+      "privacyPolicy": "Privacy Policy",
+      "termsOfService": "Terms of Service"
+    }
+  },
+  "common": {
+    "back": "Back",
+    "routeNotFound": "Page Not Found",
+    "locale": "en-US",
+    "submit": "Submit",
+    "reject": "Reject",
+    "no": "No",
+    "approve": "Approve",
+    "yes": "Yes",
+    "loading": "Loading...",
+    "success": "Success",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "error": {
+      "title": "Error",
+      "unknown": "Unknown error",
+      "microphoneAccess": "Cannot access microphone",
+      "sessionStartFailed": "Failed to start session"
+    },
+    "alt": {
+      "captcha": "Captcha",
+      "avatar": "Avatar",
+      "preview": "Preview",
+      "fullView": "Full view"
+    },
+    "tool": {
+      "defaultName": "Tool"
+    }
+  }
+}

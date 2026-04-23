@@ -1,0 +1,64 @@
+allprojects {
+    buildscript {
+        repositories {
+            all { ArtifactRepository repo ->
+                if (repo instanceof MavenArtifactRepository) {
+                    def url = repo.url.toString()
+                    if (url.contains('google.com') || url.contains('maven.google.com')) {
+                        repo.url = 'http://maven.aliyun.com/repository/google'
+                        repo.allowInsecureProtocol = true
+                    } else if (url.contains('maven.org') || url.contains('repo.maven.apache.org')) {
+                        repo.url = 'http://maven.aliyun.com/repository/public'
+                        repo.allowInsecureProtocol = true
+                    } else if (url.contains('plugins.gradle.org')) {
+                        repo.url = 'https://maven.aliyun.com/repository/gradle-plugin'
+                    }
+                }
+            }
+            maven { url 'http://maven.aliyun.com/repository/google'; allowInsecureProtocol = true }
+            maven { url 'http://maven.aliyun.com/repository/public'; allowInsecureProtocol = true }
+            maven { url 'https://maven.aliyun.com/repository/gradle-plugin' }
+        }
+    }
+    repositories {
+        all { ArtifactRepository repo ->
+            if (repo instanceof MavenArtifactRepository) {
+                def url = repo.url.toString()
+                if (url.contains('google.com') || url.contains('maven.google.com')) {
+                    repo.url = 'http://maven.aliyun.com/repository/google'
+                    repo.allowInsecureProtocol = true
+                } else if (url.contains('maven.org') || url.contains('repo.maven.apache.org')) {
+                    repo.url = 'http://maven.aliyun.com/repository/public'
+                    repo.allowInsecureProtocol = true
+                } else if (url.contains('plugins.gradle.org')) {
+                    repo.url = 'https://maven.aliyun.com/repository/gradle-plugin'
+                }
+            }
+        }
+        maven { url 'http://maven.aliyun.com/repository/google'; allowInsecureProtocol = true }
+        maven { url 'http://maven.aliyun.com/repository/public'; allowInsecureProtocol = true }
+        maven { url 'https://maven.aliyun.com/repository/gradle-plugin' }
+    }
+}
+
+settingsEvaluated { settings ->
+    settings.pluginManagement.repositories {
+        all { ArtifactRepository repo ->
+            if (repo instanceof MavenArtifactRepository) {
+                def url = repo.url.toString()
+                if (url.contains('google.com') || url.contains('maven.google.com')) {
+                    repo.url = 'http://maven.aliyun.com/repository/google'
+                    repo.allowInsecureProtocol = true
+                } else if (url.contains('maven.org') || url.contains('repo.maven.apache.org')) {
+                    repo.url = 'http://maven.aliyun.com/repository/public'
+                    repo.allowInsecureProtocol = true
+                } else if (url.contains('plugins.gradle.org')) {
+                    repo.url = 'https://maven.aliyun.com/repository/gradle-plugin'
+                }
+            }
+        }
+        maven { url 'http://maven.aliyun.com/repository/google'; allowInsecureProtocol = true }
+        maven { url 'http://maven.aliyun.com/repository/public'; allowInsecureProtocol = true }
+        maven { url 'https://maven.aliyun.com/repository/gradle-plugin' }
+    }
+}
