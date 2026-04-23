@@ -124,13 +124,6 @@ class SequentialWorkflowNode(BaseAgentNode):
         try:
             is_subtask = resolve_is_subtask(state)
             model = config.get("configurable", {}).get("model")
-            if not model:
-                from app.core.context.manager import ContextManager
-                ctx = ContextManager.current()
-                model = getattr(ctx, "active_model", None)
-            if not model:
-                from app.infrastructure.config.service import SystemConfigService
-                model = SystemConfigService.get_value("LLM_MODEL")
             engine_result = await engine.run_node(
                 state=worker_state,
                 config=config,

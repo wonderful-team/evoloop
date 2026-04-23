@@ -145,13 +145,6 @@ class BaseAgentNode(BaseNode, ABC):
 
             is_subtask = resolve_is_subtask(state)
             model = config.get("configurable", {}).get("model")
-            if not model:
-                from app.core.context.manager import ContextManager
-                ctx = ContextManager.current()
-                model = getattr(ctx, "active_model", None)
-            if not model:
-                from app.infrastructure.config.service import SystemConfigService
-                model = SystemConfigService.get_value("LLM_MODEL")
 
             logger.info(
                 f"[{self.node_name}] 🚀 Engine.run_node | model={model} | is_subtask={is_subtask} | "

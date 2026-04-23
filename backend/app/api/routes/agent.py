@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import time
+import uuid
 from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
@@ -33,6 +34,7 @@ from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.models import Message
 from app.models.learning import LearnedSkill
 from app.models.schemas.base import ScopedRequest
+from app.utils.id import gen_uuid
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +65,7 @@ async def _get_pending_tool_call(graph, config: dict) -> dict | None:
 
 
 class ChatRequest(ScopedRequest):
-    thread_id: str
+    thread_id: str | None = None
     message: str
     project_id: int | None = 1
     model: str | None = None  # User selected model (optional)
@@ -134,6 +136,9 @@ async def chat_endpoint(req: ChatRequest, bg_tasks: BackgroundTasks, _current_us
     """
     Unified entry point for User Chat (Local Background Task).
     """
+    if not req.thread_id:
+        req.thread_id = str(uuid.uuid4())
+
     ctx = EvoContext(
         request_id=f"req-{req.thread_id}-{int(time.time())}",
         thread_id=req.thread_id,
@@ -189,6 +194,8 @@ async def stop_chat(req: ChatRequest):
     """
     Stop the current generation for a thread.
     """
+    if not req.thread_id:
+        raise HTTPException(status_code=400, detail="thread_id is required")
     await activity_monitor.stop_run(req.thread_id)
     return StopChatResponse(status="stopping", thread_id=req.thread_id)
 
@@ -201,6 +208,8 @@ async def retry_chat(req: ChatRequest, bg_tasks: BackgroundTasks, _request: Requ
 
     Uses the new event-driven RewindOrchestrator for distributed cleanup.
     """
+    if not req.thread_id:
+        raise HTTPException(status_code=400, detail="thread_id is required")
     from app.core.engine.rewind import RewindOrchestrator
     from app.core.engine.rewind.exceptions import MessageNotFoundError, NoHumanMessageError, RewindError
 
@@ -364,6 +373,7 @@ async def resume_chat(req: ResumeRequest, bg_tasks: BackgroundTasks):
         "configurable": {
             "thread_id": req.thread_id,
             "model": req.model,
+            "run_id": f"run-resume-{gen_uuid()[:8]}",
         }
     }
 
@@ -482,6 +492,7 @@ async def cancel_hitl_request(req: CancelHITLRequest, bg_tasks: BackgroundTasks)
         "configurable": {
             "thread_id": req.thread_id,
             "model": req.model,
+            "run_id": f"run-cancel-{gen_uuid()[:8]}",
         }
     }
 

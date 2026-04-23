@@ -346,13 +346,6 @@ class LayeredAuditor:
 
         execution_state = state.model_copy(update={"messages": messages})
         model = config.get("configurable", {}).get("model")
-        if not model:
-            from app.core.context.manager import ContextManager
-            ctx = ContextManager.current()
-            model = getattr(ctx, "active_model", None)
-        if not model:
-            from app.infrastructure.config.service import SystemConfigService
-            model = SystemConfigService.get_value("LLM_MODEL")
 
         from app.core.engine.engine import get_default_engine
         engine = get_default_engine()

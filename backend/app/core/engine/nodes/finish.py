@@ -78,13 +78,6 @@ class FinishNode(BaseNode):
             from app.core.engine.context_trimmer import ContextTrimmer
             model = config.get("configurable", {}).get("model")
             if not model:
-                # Fallback: try current context or system default
-                ctx = ContextManager.current()
-                model = getattr(ctx, "active_model", None)
-            if not model:
-                from app.infrastructure.config.service import SystemConfigService
-                model = SystemConfigService.get_value("LLM_MODEL")
-            if not model:
                 raise ValueError(
                     "[FinishNode] No model provided in config. "
                     "Please ensure model is passed via config['configurable']['model']."
