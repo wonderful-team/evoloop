@@ -1,0 +1,185 @@
+"""
+验证 AsyncSqliteSaver 在 DELETE 模式下的 checkpoint 累积。
+使用真实的 SQLite 文件，模拟 4 轮对话。
+"""
+
+import asyncio
+import os
+import tempfile
+
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
+
+from app.core.context.manager import ContextManager, EvoContext
+from app.core.engine.engine import AgentEngine, EngineResult, set_default_engine
+from app.core.engine.graph_builder import GraphBuilder
+from app.core.engine.routers import RoutingTarget
+from app.core.engine.signals.schema import RouteToSignal, RoutingContext
+from app.core.engine.state import AgentState
+from app.core.globals import set_graph
+
+# Skip DB-dependent hydration
+from app.core.engine.context_hydrator import EvoContextMiddleware
+_orig_hydrate = EvoContextMiddleware.hydrate
+async def _mock_hydrate(state, config):
+    return state
+EvoContextMiddleware.hydrate = _mock_hydrate
+
+from app.core.engine.skill_hydrator import SkillHydrator
+from app.core.engine.nodes.utils.skill_resolver import SkillResolver
+
+_orig_get_node_skills = SkillHydrator.get_node_skills
+async def _mock_get_node_skills(state, node_name):
+    return []
+SkillHydrator.get_node_skills = _mock_get_node_skills
+
+_orig_inject_fallback = SkillResolver.inject_fallback_sops
+async def _mock_inject_fallback(sops, config):
+    return sops
+SkillResolver.inject_fallback_sops = _mock_inject_fallback
+
+
+class MockAgentEngine(AgentEngine):
+    def __init__(self):
+        super().__init__()
+        self.counters = {"supervisor": 0, "worker": 0, "chat": 0, "finish": 0}
+
+    async def run_node(self, state, config, system_prompt, tools, max_steps=5, temperature=0.7, name="Agent", is_subtask=False, node_source=None, parallel_tools=False, model=None) -> EngineResult:
+        key = name.lower()
+        self.counters[key] = self.counters.get(key, 0) + 1
+        c = self.counters[key]
+
+        if name == "Supervisor":
+            if c == 1:
+                return EngineResult(signal=RouteToSignal(target="chat", context=RoutingContext(topic="intro")))
+            if c == 2:
+                return EngineResult(signal=RouteToSignal(target="chat", context=RoutingContext(topic="capabilities")))
+            if c == 3:
+                return EngineResult(signal=RouteToSignal(target="worker", context=RoutingContext(topic="project")))
+            if c == 4:
+                return EngineResult(routing_target="finish")
+            if c == 5:
+                return EngineResult(signal=RouteToSignal(target="worker", context=RoutingContext(topic="PTE")))
+            if c == 6:
+                return EngineResult(routing_target="finish")
+
+        if name == "Chat":
+            if c == 1:
+                return EngineResult(messages=[AIMessage(content="我是 AI 助手")])
+            if c == 2:
+                return EngineResult(messages=[AIMessage(content="我可以写代码、回答问题")])
+
+        if name == "Worker":
+            if c == 1:
+                return EngineResult(
+                    messages=[
+                        AIMessage(content="", tool_calls=[{"name": "list_directory", "args": {}, "id": "call_1"}]),
+                        ToolMessage(content="software-ecommerce/\n├── addon/\n├── app/", name="list_directory", tool_call_id="call_1"),
+                        AIMessage(content="这是一个复合型项目，包含商城和插件系统。"),
+                    ]
+                )
+            if c == 2:
+                return EngineResult(
+                    messages=[
+                        AIMessage(content="", tool_calls=[{"name": "search_web", "args": {"query": "PTE"}, "id": "call_2"}]),
+                        ToolMessage(content="PTE=Pearson Test of English", name="search_web", tool_call_id="call_2"),
+                        AIMessage(content="PTE 是 Pearson Test of English 的缩写。"),
+                    ]
+                )
+
+        if name == "Finish":
+            return EngineResult(messages=[AIMessage(content="")])
+
+        return EngineResult(messages=[AIMessage(content="默认回复")])
+
+
+async def main():
+    import aiosqlite
+
+    fd, sqlite_path = tempfile.mkstemp(suffix=".db")
+    os.close(fd)
+
+    config_path = os.path.join(os.path.dirname(__file__), "..", "app", "core", "engine", "config", "agent_main.yaml")
+    config_path = os.path.abspath(config_path)
+    thread_id = "sqlite-test-thread"
+    base_config = {"configurable": {"thread_id": thread_id, "model": "kimi-k2-thinking-turbo"}}
+
+    # 1. Init DB with DELETE mode (matching resource_manager.py fix)
+    conn = await aiosqlite.connect(sqlite_path)
+    await conn.execute("PRAGMA journal_mode=DELETE")
+    await conn.execute("PRAGMA busy_timeout=30000")
+    await conn.commit()
+
+    saver = AsyncSqliteSaver(conn=conn)
+    await saver.setup()
+    # Override WAL mode set by setup()
+    await conn.execute("PRAGMA journal_mode=DELETE")
+    await conn.commit()
+
+    # 2. Build graph
+    graph = GraphBuilder().build(config_path, checkpointer=saver)
+    set_graph(graph, config_path=config_path, checkpointer=saver)
+
+    mock_engine = MockAgentEngine()
+    set_default_engine(mock_engine)
+
+    ctx = EvoContext(thread_id=thread_id, project_id=1, active_model="kimi-k2-thinking-turbo")
+    ContextManager.set(ctx)
+
+    rounds = ["你是谁", "你能干什么", "当前是什么样的项目？", "PTE 是什么"]
+
+    print("=" * 70)
+    print("TEST: AsyncSqliteSaver with DELETE mode - 4 rounds")
+    print("=" * 70)
+
+    for i, msg in enumerate(rounds):
+        print(f"\n  Round {i+1}: '{msg}'")
+        await graph.ainvoke(
+            AgentState(messages=[HumanMessage(content=msg)]),
+            config=base_config,
+        )
+
+        cp = await saver.aget_tuple(base_config)
+        if cp and cp.checkpoint:
+            msgs = cp.checkpoint.get("channel_values", {}).get("messages", [])
+            human_count = sum(1 for m in msgs if getattr(m, 'type', None) == 'human')
+            print(f"    -> Latest checkpoint: {len(msgs)} msgs, {human_count} humans")
+
+    # 3. Verify
+    print("\n" + "=" * 70)
+    print("VERIFICATION")
+    print("=" * 70)
+
+    total_cp = 0
+    async for _ in saver.alist(base_config):
+        total_cp += 1
+
+    cp = await saver.aget_tuple(base_config)
+    final_msgs = []
+    if cp and cp.checkpoint:
+        final_msgs = cp.checkpoint.get("channel_values", {}).get("messages", [])
+
+    await conn.close()
+
+    print(f"\n  Total checkpoints: {total_cp}")
+    print(f"  Final messages: {len(final_msgs)}")
+    for i, m in enumerate(final_msgs):
+        content = str(getattr(m, 'content', ''))[:50]
+        print(f"    [{i}] {type(m).__name__}: {content}")
+
+    human_msgs = [m.content for m in final_msgs if getattr(m, 'type', None) == 'human']
+    expected = ["你是谁", "你能干什么", "当前是什么样的项目？", "PTE 是什么"]
+
+    print(f"\n  HumanMessages: {human_msgs}")
+
+    if human_msgs == expected and total_cp >= 15:
+        print(f"\n  ✅ SUCCESS: All rounds preserved, {total_cp} checkpoints")
+    else:
+        print(f"\n  ❌ FAILED: Expected {expected}, got {human_msgs}")
+        print(f"            Expected >=15 checkpoints, got {total_cp}")
+
+    os.unlink(sqlite_path)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())

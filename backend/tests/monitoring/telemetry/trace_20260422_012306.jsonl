@@ -1,0 +1,1 @@
+{"timestamp":"2026-04-22T01:23:36.498939","node_name":"Supervisor","turn_id":0,"latency_ms":2973.45,"prompt":{"system_len":1753,"history_len":2671,"total_len":6177},"usage":{"prompt_tokens":null,"completion_tokens":null,"total_tokens":4096},"response":{"content_len":369,"is_tool_call":false,"tool_names":[]},"metadata":{"max_steps":30}}
