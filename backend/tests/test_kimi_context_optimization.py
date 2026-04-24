@@ -14,7 +14,7 @@ Token 获取方式:
     默认账号: preterchan / hellomylife
 
 Environment Variables:
-    GATEWAY_URL: EvoLoop Gateway URL (default: https://evoloop.develop-assistant.cn)
+    GATEWAY_URL: EvoLoop Gateway URL (default: http://127.0.0.1)
     EVOLOOP_USERNAME: EvoLoop 用户名 (default: preterchan)
     EVOLOOP_PASSWORD: EvoLoop 密码 (default: hellomylife)
     TEST_MODEL: Model to test (default: kimi-k2-thinking-turbo)
@@ -113,7 +113,7 @@ class KimiContextTester:
     """Test Kimi API via Gateway with various context sizes"""
     
     def __init__(self, token: str, gateway_url: str | None = None):
-        self.gateway_url = gateway_url or os.getenv("GATEWAY_URL", "https://evoloop.develop-assistant.cn")
+        self.gateway_url = gateway_url or os.getenv("GATEWAY_URL") or os.getenv("EVOCLOUD_API_URL", "http://127.0.0.1")
         self.token = token
         self.model = os.getenv("TEST_MODEL", "kimi-k2-thinking-turbo")
         

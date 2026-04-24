@@ -13,7 +13,6 @@
 | `bash` | `execute_command` | ✅ 已更新 |
 | `grep_files` | `search_code` | ✅ 已更新 |
 | `list_files` | `list_directory` | ✅ 已更新 |
-| `file_system` | `manage_directory` | ✅ 已更新 |
 | `request_approval` | `ask_confirm` | ✅ 已更新 |
 | `request_human_input` | `ask_human` | ✅ 已更新 |
 
@@ -26,9 +25,6 @@
 | `find_symbol` | 查找符号定义 | "查找 UserService 的定义" |
 | `search_code` | 搜索代码模式 | "搜索所有调用 process_data 的地方" |
 | `ask_codebase` | 语义化问答 | "解释这个仓库的架构" |
-| `analyze_impact` | 变更影响分析 | "分析修改这个类的影响" |
-| `check_types` | 类型检查 | "检查这个文件的类型错误" |
-| `inspect_symbol` | 符号详情 | "查看这个函数的实现" |
 
 ### 1.3 manage_memory 拆分
 **新工具**: `search_history`, `save_preference`, `add_concept`, `save_concepts`, `find_related_episodes`
@@ -44,8 +40,6 @@
 - ✅ 符号查找测试
 - ✅ 代码搜索测试
 - ✅ 语义查询测试
-- ✅ 影响分析测试
-- ✅ 类型检查测试
 
 ### 2.2 edit_validation (4 个场景)
 - ✅ 预览编辑测试 (dry_run)
@@ -61,9 +55,6 @@
 ### 2.4 task_management (4 个场景)
 - ✅ 创建待办测试
 - ✅ 列表达成测试
-
-### 2.5 checkpoint (4 个场景)
-- ✅ 检查点 CRUD 测试
 
 ---
 
@@ -131,7 +122,6 @@ python test_with_scenarios.py --start 100
 | complex_task | 4 | 1.9% |
 | edit_validation | 4 | 1.9% |
 | task_management | 4 | 1.9% |
-| checkpoint | 4 | 1.9% |
 | **总计** | **212** | **100%** |
 
 ---
@@ -147,7 +137,6 @@ python tests/monitoring/test_with_scenarios.py --category code_exploration
 python tests/monitoring/test_with_scenarios.py --category edit_validation
 python tests/monitoring/test_with_scenarios.py --category memory_knowledge
 python tests/monitoring/test_with_scenarios.py --category task_management
-python tests/monitoring/test_with_scenarios.py --category checkpoint
 
 # 快速验证 (每类限制5个)
 python tests/monitoring/test_with_scenarios.py --max 5

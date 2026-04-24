@@ -7,8 +7,8 @@ import pytest
 import os
 
 
-# Ensure embedded mode
-os.environ['EVOLOOP_EMBEDDED_MODE'] = 'true'
+# Ensure embedded mode (SQLite + LanceDB + LocalCelery, no external dependencies)
+os.environ['EMBEDDED_MODE'] = 'true'
 
 
 class TestWikiAgentConfig:

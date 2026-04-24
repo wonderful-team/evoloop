@@ -85,7 +85,7 @@ async def run_test():
     try:
         import httpx
         wh_res = httpx.post(
-            "https://evoloop.develop-assistant.cn/gateway/webhook/recharge", 
+            os.getenv("EVOCLOUD_API_URL", "http://127.0.0.1") + "/gateway/webhook/recharge", 
             content=payload_bytes, 
             headers={
                 "X-Webhook-Secret": signature, 

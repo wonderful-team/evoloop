@@ -11,7 +11,6 @@
 | `explore_codebase` | - | ⚠️ 移除 | 功能被新工具替代 |
 | `grep_files` | `search_code` | ✅ 重命名 | 功能增强 |
 | `list_files` | `list_directory` | ✅ 重命名 | 名称更准确 |
-| `file_system` | `manage_directory` | ✅ 重命名 | 专注目录管理 |
 | `preview_edit` | - | ⚠️ 移除 | 整合为 `edit_file(dry_run=True)` |
 | `manage_memory` | - | ⚠️ 移除 | 拆分为具体工具 |
 | `manage_todo` | - | ⚠️ 移除 | 拆分为 `create_todo` / `list_todos` |
@@ -29,12 +28,9 @@ consult_lsp(action="find_definition", file_path="src/main.py", line=10, characte
 consult_lsp(action="hover", file_path="src/main.py", line=10, character=5)
 
 # 新方式
-check_types(file_path="src/main.py")
 find_symbol(name="UserService")
-inspect_symbol(name="process_data")
 search_code(pattern="def process_")
 ask_codebase(question="How does authentication work?")
-analyze_impact(symbol="UserService")
 ```
 
 ### 2. 文件操作工具
@@ -56,7 +52,6 @@ search_code(pattern="axios", scope="*.ts")
 
 # 目录操作
 list_directory(path="src/")
-manage_directory(path="temp/", action="create")
 ```
 
 ### 3. 知识管理工具（替代 manage_memory）
@@ -94,9 +89,6 @@ list_todos(status="pending")
    - 测试 `find_symbol`: 查找符号定义
    - 测试 `search_code`: 搜索代码模式
    - 测试 `ask_codebase`: 语义查询
-   - 测试 `analyze_impact`: 影响分析
-   - 测试 `check_types`: 类型检查
-   - 测试 `inspect_symbol`: 查看符号详情
 
 2. **edit_validation (4 个场景)**
    - 测试编辑后自动类型检查
@@ -107,15 +99,11 @@ list_todos(status="pending")
 4. **task_management (4 个场景)**
    - 测试新的任务管理工具
 
-5. **checkpoint (4 个场景)**
-   - 测试检查点管理工具
-
 ### 场景示例映射
 
 | 原场景描述 | 新场景描述 | 预期工具 |
 |-----------|-----------|---------|
 | "搜索项目中所有用到 axios 的地方" | 相同 | `search_code` |
-| "检查这个文件的语法错误" | 相同 | `check_types` |
 | "跳转到这个函数的定义" | "查找 UserService 的定义" | `find_symbol` |
 | "保存我偏好使用 React" | 相同 | `save_preference` |
 | "创建一个任务完成用户模块" | 相同 | `create_todo` |

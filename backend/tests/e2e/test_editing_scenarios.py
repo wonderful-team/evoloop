@@ -14,8 +14,7 @@ from app.domain.tools.files.edit_file import edit_file
 from app.domain.tools.files.read_file import read_file
 
 try:
-    from app.domain.tools.files.multiedit_file import multiedit_file
-    MULTIEDIT_AVAILABLE = True
+        MULTIEDIT_AVAILABLE = True
 except ImportError:
     MULTIEDIT_AVAILABLE = False
 
@@ -94,8 +93,6 @@ if __name__ == "__main__":
 
         with open(app_py) as f:
             assert "def bar():" in f.read()
-
-    @pytest.mark.skipif(not MULTIEDIT_AVAILABLE, reason="multiedit_file not yet implemented")
     @pytest.mark.asyncio
     async def test_e2e_02_multiple_edits_same_file(self, app_py):
         """Change foo() and baz() to uppercase names."""
@@ -106,7 +103,7 @@ if __name__ == "__main__":
             {"target": "def foo():", "replacement": "def FOO():"},
             {"target": "def baz():", "replacement": "def BAZ():"},
         ]
-        result = await multiedit_file(path=app_py, edits=edits)
+        result = await edit_file(path=app_py, edits=edits)
         assert "success" in result.lower() or "✅" in result
 
         with open(app_py) as f:
@@ -219,8 +216,6 @@ if __name__ == "__main__":
 
             with open(config) as f:
                 assert '"debug": false' in f.read()
-
-    @pytest.mark.skipif(not MULTIEDIT_AVAILABLE, reason="multiedit_file not yet implemented")
     @pytest.mark.asyncio
     async def test_e2e_09_import_and_usage(self, app_py):
         """Add import and usage in one multiedit."""
@@ -228,7 +223,7 @@ if __name__ == "__main__":
             {"target": "import os", "replacement": "import os\nimport json"},
             {"target": '    config = Config()\n    if config.validate():', "replacement": '    config = Config()\n    data = json.dumps({"ok": True})\n    if config.validate():'},
         ]
-        result = await multiedit_file(path=app_py, edits=edits)
+        result = await edit_file(path=app_py, edits=edits)
         assert "success" in result.lower() or "✅" in result
 
         with open(app_py) as f:

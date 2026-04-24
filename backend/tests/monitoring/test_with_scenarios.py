@@ -21,11 +21,10 @@
 - edge_case (8): 特殊字符/边界情况
 
 新工具场景 (5 种):
-- code_exploration (23): 代码探索（find_symbol/search_code/ask_codebase/analyze_impact/check_types/inspect_symbol）
+- code_exploration (15): 代码探索（find_symbol/search_code/ask_codebase）
 - edit_validation (4): 编辑验证（edit_file + verify_types）
 - memory_knowledge (5): 内存/知识管理
 - task_management (4): 任务管理
-- checkpoint (4): 检查点管理
 
 特殊场景:
     - 超长对话: 电商系统构建（55轮对话，测试长期上下文保持）

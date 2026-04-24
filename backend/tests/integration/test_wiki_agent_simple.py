@@ -8,8 +8,8 @@ import os
 from unittest.mock import MagicMock, AsyncMock, patch
 
 
-# Ensure embedded mode
-os.environ['EVOLOOP_EMBEDDED_MODE'] = 'true'
+# Ensure embedded mode (SQLite + LanceDB + LocalCelery, no external dependencies)
+os.environ['EMBEDDED_MODE'] = 'true'
 
 
 class TestWikiAgentWorkflowSimple:

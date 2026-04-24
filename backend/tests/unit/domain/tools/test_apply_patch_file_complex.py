@@ -342,7 +342,7 @@ class TestAgentWorkflowSimulation:
     @pytest.mark.asyncio
     async def test_agent_read_analyze_multiedit_workflow(self):
         """
-        Simulate Agent: Read file -> Analyze -> Use multiedit_file.
+        Simulate Agent: Read file -> Analyze -> Use edit_file(edits=...).
         
         This is the recommended workflow for multiple edits.
         """
@@ -363,10 +363,9 @@ class TestAgentWorkflowSimulation:
             read_result = await read_file.ainvoke({"path": service_file})
             assert "class UserService" in read_result
             
-            # Step 2: Agent analyzes and decides to use multiedit_file
+            # Step 2: Agent analyzes and decides to use edit_file(edits=...)
             # for multiple TODO completions
-            from app.domain.tools.files.multiedit_file import multiedit_file
-            
+                        
             edits = [
                 {
                     "target": "    def create_user(self, name):\n        # TODO: validate",
@@ -378,7 +377,7 @@ class TestAgentWorkflowSimulation:
                 }
             ]
             
-            result = await multiedit_file.ainvoke({
+            result = await edit_file.ainvoke({
                 "path": service_file,
                 "edits": edits
             })

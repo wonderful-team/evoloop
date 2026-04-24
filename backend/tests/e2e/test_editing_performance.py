@@ -14,8 +14,7 @@ from app.domain.tools.files.edit_file import handle_edit
 
 
 try:
-    from app.domain.tools.files.multiedit_file import multiedit_file
-    MULTIEDIT_AVAILABLE = True
+        MULTIEDIT_AVAILABLE = True
 except ImportError:
     MULTIEDIT_AVAILABLE = False
 
@@ -111,8 +110,6 @@ class TestEditingPerformance:
         # After upgrade (fuzzy by default), exact matches should still hit simple_replacer first
         # and succeed in 1 call. Before upgrade, it would be 2 (exact verification + fallback).
         assert call_count[0] == 1, f"Expected 1 engine call, got {call_count[0]}"
-
-    @pytest.mark.skipif(not MULTIEDIT_AVAILABLE, reason="multiedit_file not yet implemented")
     @pytest.mark.asyncio
     async def test_multiedit_round_trip_reduction(self, sample_file):
         """Multiedit should reduce 3 separate edits to 1 tool call."""
@@ -126,7 +123,7 @@ class TestEditingPerformance:
         ]
 
         start = time.perf_counter()
-        result = await multiedit_file(path=sample_file, edits=edits)
+        result = await edit_file(path=sample_file, edits=edits)
         elapsed_ms = (time.perf_counter() - start) * 1000
 
         assert "success" in result.lower() or "✅" in result

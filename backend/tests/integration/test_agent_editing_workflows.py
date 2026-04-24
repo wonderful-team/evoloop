@@ -4,7 +4,7 @@ Integration tests simulating complete Agent workflows.
 These tests simulate how an Agent actually uses the tools:
   1. read_file() - understand current state
   2. analyze - decide which tool to use
-  3. edit_file/multiedit_file/apply_patch_file - make changes
+  3. edit_file/apply_patch_file - make changes
   4. read_file() - verify changes
 
 Tests cover:
@@ -24,7 +24,6 @@ from typing import List, Dict
 from app.domain.tools.files.read_file import read_file
 from app.domain.tools.files.edit_file import edit_file
 from app.domain.tools.files.write_file import write_file
-from app.domain.tools.files.multiedit_file import multiedit_file
 from app.domain.tools.files.apply_patch_file import apply_patch_file
 
 
@@ -126,7 +125,7 @@ class UserService:
         """
         Agent workflow for adding logging:
         1. Read file to understand structure
-        2. Decide multiedit_file is best (multiple method changes)
+        2. Decide edit_file(edits=...) is best (multiple method changes)
         3. Add logger init and logging to all methods
         4. Verify changes
         """
@@ -134,12 +133,12 @@ class UserService:
         content = await read_file.ainvoke({"path": user_service})
         assert "class UserService" in content
         
-        # Step 2: Agent decides to use multiedit_file because:
+        # Step 2: Agent decides to use edit_file(edits=...) because:
         # - Multiple edits needed (logger + 4 methods)
         # - All in same file
         # - Atomic operation preferred
         
-        # Step 3: multiedit
+        # Step 3: multi-edit via edit_file
         edits = [
             {
                 "target": "    def __init__(self, db):\n        self.db = db",
@@ -163,7 +162,7 @@ class UserService:
             }
         ]
         
-        result = await multiedit_file.ainvoke({
+        result = await edit_file.ainvoke({
             "path": user_service,
             "edits": edits
         })
@@ -233,7 +232,7 @@ class DataProcessor:
         })
         assert "success" in add_helper.lower()
         
-        # Step 3b: Replace process_users with multiedit
+        # Step 3b: Replace process_users with edit_file(edits=...)
         edits = [
             {
                 "target": '''    def process_users(self, users):
@@ -271,7 +270,7 @@ class DataProcessor:
             }
         ]
         
-        result = await multiedit_file.ainvoke({
+        result = await edit_file.ainvoke({
             "path": data_processor,
             "edits": edits
         })
@@ -503,20 +502,20 @@ class TestAgentToolSelectionIntelligence:
 
     @pytest.mark.asyncio
     async def test_agent_chooses_multiedit_for_multiple_same_file(self):
-        """Agent should use multiedit_file for multiple changes in same file."""
+        """Agent should use edit_file(edits=...) for multiple changes in same file."""
         with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
             f.write('def a():\n    return 1\n\ndef b():\n    return 2\n\ndef c():\n    return 3\n')
             path = f.name
         
         try:
-            # Multiple changes in same file -> multiedit_file
+            # Multiple changes in same file -> edit_file(edits=...)
             edits = [
                 {"target": "    return 1", "replacement": "    return 10"},
                 {"target": "    return 2", "replacement": "    return 20"},
                 {"target": "    return 3", "replacement": "    return 30"}
             ]
             
-            result = await multiedit_file.ainvoke({
+            result = await edit_file.ainvoke({
                 "path": path,
                 "edits": edits
             })

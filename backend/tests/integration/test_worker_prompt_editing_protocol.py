@@ -53,7 +53,7 @@ class TestWorkerPromptEditingProtocol:
         assert "File Editing Protocol" in prompt, "coding_worker should have editing protocol"
         # After upgrade, should mention fuzzy matching and tool selection
         assert "cascading fuzzy matching" in prompt.lower(), "Should mention fuzzy matching"
-        assert "multiedit" in prompt.lower(), "Should reference multiedit"
+        assert "edits" in prompt.lower(), "Should reference edits parameter"
         assert "apply_patch" in prompt.lower(), "Should reference apply_patch"
 
     def test_android_worker_no_editing_protocol(self, android_worker_config, sample_blackboard):
@@ -78,15 +78,15 @@ class TestWorkerPromptEditingProtocol:
         assert "read_file" in doc.lower(), "Should instruct to read first"
         assert "cascading fuzzy matching" in doc.lower(), "Should mention fuzzy matching"
 
-    def test_multiedit_file_description_has_preference(self):
-        """Verify multiedit_file description contains preference guidance."""
-        from app.domain.tools.files.multiedit_file import multiedit_file
+    def test_edit_file_description_has_multiedit_mode(self):
+        """Verify edit_file description contains multi-edit guidance."""
+        from app.domain.tools.files.edit_file import edit_file
         # Get the description from the StructuredTool
-        if hasattr(multiedit_file, 'description'):
-            doc = multiedit_file.description or ""
+        if hasattr(edit_file, 'description'):
+            doc = edit_file.description or ""
         else:
-            doc = multiedit_file.__doc__ or ""
+            doc = edit_file.__doc__ or ""
         
         # Check for key phrases
-        assert "PREFERRED" in doc or "multiedit" in doc.lower(), "Should guide LLM to prefer multiedit"
-        assert "edit_file" in doc.lower(), "Should reference edit_file for comparison"
+        assert "edits" in doc.lower(), "Should guide LLM to use edits parameter for multi-edit"
+        assert "atomic" in doc.lower(), "Should mention atomicity for multi-edit mode"

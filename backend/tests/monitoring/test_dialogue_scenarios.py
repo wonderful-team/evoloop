@@ -3,12 +3,11 @@
 用于测试 EvoLoop 聊天系统的各种场景
 
 工具名称映射（新系统）:
-- 文件操作: read_file, write_file, edit_file, search_code, list_directory, manage_directory
-- 代码探索: find_symbol, search_code, ask_codebase, analyze_impact, check_types, inspect_symbol
+- 文件操作: read_file, write_file, edit_file, search_code, list_directory, apply_patch_file
+- 代码探索: find_symbol, search_code, ask_codebase
 - 执行命令: execute_command (原 bash)
 - 内存/知识: search_history, save_preference, add_concept, save_concepts
 - 任务管理: create_todo, list_todos
-- 检查点: create_checkpoint, list_checkpoints, rollback_checkpoint
 - 人机交互: ask_confirm, ask_human
 
 使用方法:
@@ -303,23 +302,6 @@ CODE_EXPLORATION_SCENARIOS = [
     {"cn": "用户模块是怎么设计的", "en": "How is the user module designed", "tool_hint": "ask_codebase"},
     {"cn": "解释一下订单处理的流程", "en": "Explain the order processing workflow", "tool_hint": "ask_codebase"},
     
-    # analyze_impact - 影响分析
-    {"cn": "修改 User 类会影响哪些地方", "en": "What would be affected by modifying the User class", "tool_hint": "analyze_impact"},
-    {"cn": "删除 process_order 函数有什么影响", "en": "What is the impact of deleting process_order function", "tool_hint": "analyze_impact"},
-    {"cn": "重命名 AuthService 需要改哪些文件", "en": "Which files need to be changed to rename AuthService", "tool_hint": "analyze_impact"},
-    {"cn": "分析修改数据库字段的影响范围", "en": "Analyze impact of changing database fields", "tool_hint": "analyze_impact"},
-    
-    # check_types - 类型检查
-    {"cn": "检查 src/main.py 的类型错误", "en": "Check type errors in src/main.py", "tool_hint": "check_types"},
-    {"cn": "这个文件有类型问题吗", "en": "Are there type issues in this file", "tool_hint": "check_types"},
-    {"cn": "帮我看看这段代码的类型检查", "en": "Help me check types for this code", "tool_hint": "check_types"},
-    {"cn": "TypeScript 类型报错，帮我检查", "en": "TypeScript type error, help me check", "tool_hint": "check_types"},
-    
-    # inspect_symbol - 查看符号详情
-    {"cn": "查看 UserService 的详细信息", "en": "Show detailed info of UserService", "tool_hint": "inspect_symbol"},
-    {"cn": "process_data 函数的参数是什么", "en": "What are the parameters of process_data function", "tool_hint": "inspect_symbol"},
-    {"cn": "这个类有哪些方法", "en": "What methods does this class have", "tool_hint": "inspect_symbol"},
-    {"cn": "查看函数的签名和文档", "en": "View function signature and documentation", "tool_hint": "inspect_symbol"},
 ]
 
 # ==================== 16. 编辑验证类（verify_types）====================
@@ -328,7 +310,7 @@ EDIT_VALIDATION_SCENARIOS = [
     {"cn": "修改这个函数并检查类型", "en": "Modify this function and check types", "tool_hint": "edit_file+verify_types"},
     {"cn": "重构这段代码，确保没有类型错误", "en": "Refactor this code ensuring no type errors", "tool_hint": "edit_file+verify_types"},
     {"cn": "把 var 改成 const，检查是否影响其他代码", "en": "Change var to const, check if it affects other code", "tool_hint": "edit_file+verify_types"},
-    {"cn": "重命名这个函数并验证", "en": "Rename this function and verify", "tool_hint": "edit_file+find_symbol+analyze_impact"},
+    {"cn": "重命名这个函数并验证", "en": "Rename this function and verify", "tool_hint": "edit_file+find_symbol"},
 ]
 
 # ==================== 17. 内存/知识管理类（新工具）====================
@@ -348,15 +330,6 @@ TASK_MANAGEMENT_SCENARIOS = [
     {"cn": "列出所有待办事项", "en": "List all todos", "tool_hint": "list_todos"},
     {"cn": "我有哪些任务还没完成", "en": "What tasks do I have pending", "tool_hint": "list_todos"},
     {"cn": "添加一个待办：修复登录 Bug", "en": "Add a todo: fix login bug", "tool_hint": "create_todo"},
-]
-
-# ==================== 19. 检查点管理类 ====================
-
-CHECKPOINT_SCENARIOS = [
-    {"cn": "创建代码检查点", "en": "Create a code checkpoint", "tool_hint": "create_checkpoint"},
-    {"cn": "查看所有检查点", "en": "List all checkpoints", "tool_hint": "list_checkpoints"},
-    {"cn": "回滚到上一个检查点", "en": "Rollback to previous checkpoint", "tool_hint": "rollback_checkpoint"},
-    {"cn": "删除不需要的检查点", "en": "Delete unnecessary checkpoints", "tool_hint": "delete_checkpoint"},
 ]
 
 # 所有场景汇总
@@ -379,7 +352,6 @@ ALL_SCENARIOS = {
     "edit_validation": EDIT_VALIDATION_SCENARIOS,          # 新增：编辑验证
     "memory_knowledge": MEMORY_KNOWLEDGE_SCENARIOS,        # 新增：内存/知识
     "task_management": TASK_MANAGEMENT_SCENARIOS,          # 新增：任务管理
-    "checkpoint": CHECKPOINT_SCENARIOS,                    # 新增：检查点
 }
 
 # 统计信息
@@ -423,12 +395,11 @@ def print_tool_mapping():
     print("=" * 70)
     
     tool_categories = {
-        "文件操作": ["read_file", "write_file", "edit_file", "search_code", "list_directory", "manage_directory"],
-        "代码探索": ["find_symbol", "search_code", "ask_codebase", "analyze_impact", "check_types", "inspect_symbol"],
+        "文件操作": ["read_file", "write_file", "edit_file", "search_code", "list_directory", "apply_patch_file"],
+        "代码探索": ["find_symbol", "search_code", "ask_codebase"],
         "执行命令": ["execute_command"],
         "知识管理": ["search_history", "save_preference", "add_concept", "save_concepts", "find_related_episodes"],
         "任务管理": ["create_todo", "list_todos"],
-        "检查点": ["create_checkpoint", "list_checkpoints", "rollback_checkpoint", "delete_checkpoint"],
         "人机交互": ["ask_confirm", "ask_human"],
         "其他": ["use_mcp_server", "wait_for", "search_skills", "run_macro", "search_web", "create_plan"],
     }
@@ -453,7 +424,7 @@ if __name__ == "__main__":
     ]
     advanced_categories = [
         "code_exploration", "edit_validation", "memory_knowledge", 
-        "task_management", "checkpoint"
+        "task_management"
     ]
     edge_categories = [
         "ambiguous", "complex_task", "dangerous_operation", 

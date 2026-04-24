@@ -12,11 +12,6 @@ from app.domain.tools.files.edit_file import edit_file
 from app.domain.tools.files.read_file import read_file
 from app.core.tools import get_working_directory
 
-try:
-    from app.domain.tools.files.multiedit_file import multiedit_file
-    MULTIEDIT_AVAILABLE = True
-except ImportError:
-    MULTIEDIT_AVAILABLE = False
 
 
 class TestEditToolchain:
@@ -60,7 +55,7 @@ class TestEditToolchain:
             {"target": "    return 1", "replacement": "    return 10"},
             {"target": "    return 2", "replacement": "    return 20"},
         ]
-        result = await multiedit_file.ainvoke({"path": sample_file, "edits": edits})
+        result = await edit_file.ainvoke({"path": sample_file, "edits": edits})
         assert "success" in result.lower() or "✅" in result
 
         with open(sample_file) as f:
@@ -88,7 +83,7 @@ class TestEditToolchain:
 
     @pytest.mark.asyncio
     async def test_multiedit_then_single_type_check(self, sample_file):
-        """Verify multiedit_file triggers only one type check for 5 edits."""
+        """Verify edit_file(edits=...) triggers only one type check for 5 edits."""
         from unittest.mock import patch
         from app.domain.codebase.exploration.engine import get_exploration_engine
 
@@ -102,7 +97,6 @@ class TestEditToolchain:
 
         engine = get_exploration_engine()
         with patch.object(engine, 'check_types', wraps=engine.check_types) as mock_check:
-            await multiedit_file.ainvoke({"path": sample_file, "edits": edits, "verify_types": True})
-            # After upgrade, this should be called exactly once
-            # Before upgrade (if using edit_file 5 times), it would be 5
+            await edit_file.ainvoke({"path": sample_file, "edits": edits, "verify_types": True})
+            # edit_file with edits triggers only one type check for all edits
             print(f"\ncheck_types called {mock_check.call_count} times")

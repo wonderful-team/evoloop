@@ -65,7 +65,7 @@ class TestLLMToolSelectionBaseline:
             # Post-upgrade: File Editing Protocol emphasizes fuzzy matching and tool selection
             assert "File Editing Protocol" in prompt, "Should have File Editing Protocol"
             assert "cascading fuzzy matching" in prompt.lower(), "Protocol should mention cascading fuzzy matching"
-            assert "multiedit_file" in prompt.lower(), "Protocol should mention multiedit_file"
+            assert "edit_file" in prompt.lower(), "Protocol should mention edit_file edits parameter"
             assert "apply_patch_file" in prompt.lower(), "Protocol should mention apply_patch_file"
         else:
             pytest.skip("Prompt build returned non-string")
