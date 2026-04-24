@@ -9,7 +9,7 @@ try {
   console.warn('react-native-wechat-lib 未安装或不可用');
 }
 
-import { WECHAT_CONFIG } from '@/constants/config';
+import { WECHAT_CONFIG, UNIVERSAL_LINK_URL } from '@/constants/config';
 
 // 检查 WeChat 模块是否可用
 const isWeChatAvailable = (): boolean => {
@@ -54,10 +54,7 @@ export class WechatPay {
     }
 
     try {
-      const result = await WeChat.registerApp(
-        WECHAT_CONFIG.appId,
-        'https://evoloop.develop-assistant.cn/universal-link'
-      );
+      const result = await WeChat.registerApp(WECHAT_CONFIG.appId, UNIVERSAL_LINK_URL);
       this.isRegistered = result;
       return result;
     } catch (error) {

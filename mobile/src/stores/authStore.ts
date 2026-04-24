@@ -4,6 +4,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { UserInfo } from '@/types';
+import { api } from '@/services/api/client';
 
 // AsyncStorage 适配器 for Zustand
 const asyncStorageAdapter = {
@@ -160,30 +161,13 @@ export const initAuthStore = async () => {
     // 如果有 token，验证其有效性
     if (token) {
       try {
-        const { API_CONFIG } = await import('@/constants/config');
         console.log('[Auth] Validating token...');
-        // 参考原 mobile 项目，token 作为 query parameter 发送
-        const response = await fetch(`${API_CONFIG.baseURL}/member/api/member/info?token=${encodeURIComponent(token)}`, {
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        });
-        console.log('[Auth] Token validation response:', response.status);
-
-        if (response.ok) {
-          // Token 有效，自动登录
-          console.log('[Auth] Token valid, auto login');
-          useAuthStore.setState({ isLoggedIn: true });
-          finalIsLoggedIn = true;
-        } else {
-          // Token 无效，清除登录状态
-          console.log('[Auth] Token invalid, clearing auth state');
-          useAuthStore.setState({ token: null, userInfo: null, isLoggedIn: false });
-          await AsyncStorage.removeItem('token');
-          await AsyncStorage.removeItem('userInfo');
-        }
+        await api.get('/member/api/member/info');
+        console.log('[Auth] Token valid, auto login');
+        useAuthStore.setState({ isLoggedIn: true });
+        finalIsLoggedIn = true;
       } catch (verifyError) {
-        console.log('[Auth] Token validation failed:', verifyError);
+        console.log('[Auth] Token invalid or validation failed:', verifyError);
         useAuthStore.setState({ token: null, userInfo: null, isLoggedIn: false });
         await AsyncStorage.removeItem('token');
         await AsyncStorage.removeItem('userInfo');

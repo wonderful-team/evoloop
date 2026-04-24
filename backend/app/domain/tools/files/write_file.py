@@ -5,6 +5,7 @@ This module provides the tool interface for writing files.
 All heavy lifting is done by app.core.file module.
 """
 
+import os
 from typing import Annotated
 
 from langchain_core.runnables import RunnableConfig
@@ -31,6 +32,14 @@ async def handle_write(
 
     try:
         target_path = await resolve_and_validate_path(path, config)
+
+        # Check overwrite constraint using RESOLVED path (not raw path)
+        # This fixes the bug where os.path.exists(path) checked CWD instead of WORKSPACE_ROOT
+        if action == "create" and os.path.exists(target_path):
+            return (
+                f"Error: File '{path}' already exists. "
+                "Use overwrite=True to replace it, or choose a different path."
+            )
 
         # Use core.file for the actual write operation
         result = core_write_file(target_path, content)
@@ -64,29 +73,21 @@ async def write_file(
 
     Args:
         path: Target file path. **REQUIRED**
-        content: Content to write. **REQUIRED**
+        content: The actual file content to write. **REQUIRED**
+                 Must contain ONLY the real file text. Do NOT include metadata
+                 headers (e.g. [File: ... | Lines ... | Hash: ...]) from
+                 read_file output.
         overwrite: If True, replaces existing file. If False, fails if file exists.
 
     Example:
         write_file(path="src/main.py", content="print('hello')", overwrite=False)
     """
-    # HYPER-ROBUST VALIDATION
-    # Zhipu model occasionally sends empty args internally.
-    # We catch this and return a prompt-injection style error to force correction.
     if not path or content is None:
         return (
             "SYSTEM ERROR: You called 'write_file' with EMPTY arguments. "
             "You MUST provide 'path' AND 'content'.\n"
             "CORRECT USAGE: write_file(path='path/to/file.ext', content='file content', overwrite=True)\n"
             "ACTION: Retry the tool call immediately with correct arguments."
-        )
-
-    # Check overwrite constraint
-    import os
-    if not overwrite and os.path.exists(path):
-        return (
-            f"Error: File '{path}' already exists. "
-            "Use overwrite=True to replace it, or choose a different path."
         )
 
     # Note: handle_write needs standard args. We rely on global config resolution.

@@ -2,19 +2,13 @@ import os
 
 from mcp.server.fastmcp import FastMCP
 
-# Import tools via MCP
-from app.domain.codebase.exploration import (
-    analyze_impact,
-    ask_codebase,
-    find_symbol,
-)
+from app.domain.codebase.exploration import ask_codebase, find_symbol
 from app.domain.codebase.indexing.tools import index_path
 from app.domain.codebase.retrieval.tools import search_codebase
 from app.domain.tools.execution import execute_command
 from app.domain.tools.files import (
     edit_file,
     list_directory,
-    manage_directory,
     read_file,
     write_file,
 )
@@ -89,19 +83,6 @@ async def list_directory_ops(path: str, depth: int = 3, tree: bool = True) -> st
 
 
 @mcp.tool()
-async def manage_directory_ops(action: str, path: str, destination: str = None) -> str:
-    """Directory operations: mkdir, delete, move."""
-    try:
-        return await manage_directory.ainvoke({
-            "action": action,
-            "path": path,
-            "destination": destination
-        })
-    except Exception as e:
-        return f"Error: {e}"
-
-
-@mcp.tool()
 async def find_symbol_ops(name: str, file_pattern: str = None) -> str:
     """Find definition of a class or function in the codebase."""
     try:
@@ -130,15 +111,6 @@ async def ask_codebase_ops(question: str) -> str:
     """Ask a natural language question about the codebase."""
     try:
         return _truncate(await ask_codebase.ainvoke({"question": question}))
-    except Exception as e:
-        return f"Error: {e}"
-
-
-@mcp.tool()
-async def analyze_impact_ops(symbol: str) -> str:
-    """Analyze the impact of changing a symbol (find usages/dependants)."""
-    try:
-        return _truncate(await analyze_impact.ainvoke({"symbol": symbol}))
     except Exception as e:
         return f"Error: {e}"
 

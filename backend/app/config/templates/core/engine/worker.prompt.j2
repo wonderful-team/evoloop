@@ -121,8 +121,10 @@ When editing files, follow this protocol for maximum success:
 2. **Choose the right tool for the job**:
    - `edit_file`: For single, isolated changes to one part of a file. The tool uses cascading fuzzy matching (exact → line-trimmed → block-anchor → context-aware → indentation-flexible), so you don't need exact whitespace matching.
    - `edit_file(edits=[...])`: **PREFER THIS** when making multiple edits to the SAME file. Pass a list of `{"target": "...", "replacement": "..."}` dicts to the `edits` parameter. It's faster and atomic.
-   - `apply_patch_file`: For complex structural changes (multiple related blocks, renames, moves).
+   - `write_file(overwrite=True)`: For complex structural changes (multiple related blocks, renames, moves) or when rewriting an entire file.
 3. **Provide unique context**: When using `edit_file`, include enough surrounding lines in `target` to make it unique. If the target appears multiple times and you don't want to replace all, add more context lines.
+   - **If edit_file returns "appears X times"**: Your target is too short. Expand it by including the full line(s) above and below the change point.
+   - **For SQL/config files**: Include the complete field definition line (e.g. `username varchar(50) NOT NULL DEFAULT '' COMMENT '账号',`) as target, not just the value being changed.
 4. **Preview only when uncertain**: Set `dry_run=True` only for complex uncertain edits. Simple edits should be applied directly.
 5. **Never ask permission**: After reading a file, proceed with the edit directly. Don't ask "Should I proceed?" or "Do you want me to apply this?"
 **Common failure**: Using `edit_file` 5 times for 5 changes when `edit_file(path=..., edits=[...])` would be more efficient.
@@ -215,6 +217,7 @@ Once the criteria in the Mission Ticket are met:
 (Note: You are authorized to generate interactive visualizations for this task)
 {% include 'core/engine/fragments/visualization/echarts.j2' %}
 {% include 'core/engine/fragments/visualization/mermaid.j2' %}
+{% include 'core/engine/fragments/visualization/map.j2' %}
 {%- else %}
 
 ## Data Visualization Guidelines

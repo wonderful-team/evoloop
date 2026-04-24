@@ -4,7 +4,6 @@
 // - 控制类 (切换项目): Mobile → Gateway → Desktop
 
 import { api } from './client';
-import { GATEWAY_API, MEMBER_API } from '@/constants/api';
 import {
   ApiResponse,
   Project,
@@ -24,7 +23,7 @@ export const projectApi = {
   // 获取项目列表 (MC 存储)
   getProjects: async (): Promise<Project[]> => {
     const response = await api.get<ApiResponse<Project[]>>(
-      MEMBER_API.PROJECTS
+      `/member/projectmanage/api/projects`
     );
     return response.data;
   },
@@ -34,7 +33,7 @@ export const projectApi = {
     data: ProjectSwitchRequest
   ): Promise<ProjectSwitchResponse> => {
     const response = await api.post<ApiResponse<ProjectSwitchResponse>>(
-      GATEWAY_API.COMMAND_EXECUTE,
+      `/gateway/api/v1/command/send`,
       {
         device_key: data.deviceKey,
         command_type: 'project_switch',
@@ -47,7 +46,7 @@ export const projectApi = {
   // 获取项目详情 (MC 存储)
   getProjectDetail: async (id: number): Promise<Project> => {
     const response = await api.get<ApiResponse<Project>>(
-      MEMBER_API.PROJECT_DETAIL(id)
+      `/member/projectmanage/api/projects/${id}`
     );
     return response.data;
   },
@@ -55,7 +54,7 @@ export const projectApi = {
   // 获取项目文件列表
   getProjectFiles: async (projectId: number, path: string = ''): Promise<ProjectFile[]> => {
     const response = await api.get<ApiResponse<ProjectFile[]>>(
-      `${MEMBER_API.PROJECT_DETAIL(projectId)}/files`,
+      `/member/projectmanage/api/projects/${projectId}/files`,
       { params: { path } }
     );
     return response.data || [];

@@ -12,7 +12,7 @@ export default defineConfig({
       "@evoloop/shared": path.resolve(__dirname, "./packages/shared/src"),
     },
   },
-  envDir: "../",
+  envDir: "./",
   plugins: [
     tanstackRouter({
       target: "react",
@@ -33,7 +33,7 @@ export default defineConfig({
   },
   // Tauri expects a fixed port, fail if that port is not available
   server: {
-    port: 5173,
+    port: Number(process.env.FRONTEND_PORT) || 5173,
     strictPort: true,
     host: true,
   },

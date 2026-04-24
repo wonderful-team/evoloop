@@ -508,22 +508,29 @@ async def edit_file(
       Provide enough surrounding context in `target` to ensure uniqueness.
     - If `target` is found multiple times and you don't want to replace all, provide a larger unique block.
     - The edit will FAIL if no matching strategy can locate the target text.
+    - If the edit fails with "appears X times", your target is not unique enough.
+      Expand it by including more surrounding lines (e.g. the full field definition
+      for SQL, or the full function signature for code).
+    - The `target` and `replacement` (and edits[*].target/replacement) must be actual
+      file content ONLY. Do NOT include metadata headers (e.g. [File: ... | Hash: ...])
+      from read_file output.
 
     When to use:
     - Use this for single, isolated changes to one part of a file.
     - For multiple changes to the same file, pass the `edits` parameter.
-    - For complex multi-block structural changes, use apply_patch_file instead.
+    - For multiple changes to the same file, pass the `edits` parameter.
     - Do NOT use this tool for auto-generated content (like running formatters); use Bash or Write instead.
 
     Args:
         path: Target file path. **REQUIRED**
-        target: The text to find. Include surrounding lines for uniqueness.
+        target: The text to find in the file. Include surrounding lines for uniqueness.
+                Must be actual file content only; do NOT include metadata headers.
                 Required for single-edit mode; ignored when `edits` is provided.
-        replacement: The new content.
+        replacement: The new content. Must be actual file text only.
                      Required for single-edit mode; ignored when `edits` is provided.
         edits: List of edit operations for multi-edit mode. Each dict must contain:
-               - target: str
-               - replacement: str
+               - target: str (actual file text only, no metadata headers)
+               - replacement: str (actual file text only, no metadata headers)
                - allow_multiple: bool (optional, default False)
                When provided, `target` and `replacement` are ignored.
         allow_multiple: Replace ALL occurrences of the matched text (single-edit mode only).

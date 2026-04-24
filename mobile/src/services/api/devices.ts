@@ -1,7 +1,6 @@
 // 设备 API
 
 import { api } from './client';
-import { MEMBER_API } from '@/constants/api';
 import {
   ApiResponse,
   Device,
@@ -76,7 +75,7 @@ export const deviceApi = {
   // 获取设备列表 (从 evolooplink 插件)
   getDevices: async (): Promise<Device[]> => {
     const response = await api.get<BackendDevice[] | ApiResponse<BackendDevice[]>>(
-      MEMBER_API.DEVICES
+      `/member/evolooplink/api/device/list`
     );
     return extractDevices(response);
   },
@@ -84,7 +83,7 @@ export const deviceApi = {
   // 绑定设备 (扫码绑定)
   bindDevice: async (data: DeviceBindingRequest): Promise<Device> => {
     const response = await api.post<ApiResponse<BackendDevice>>(
-      MEMBER_API.DEVICE_BIND,
+      `/member/evolooplink/api/device/bind`,
       data
     );
     return mapBackendDevice(response.data);
@@ -93,20 +92,20 @@ export const deviceApi = {
   // 获取设备详情
   getDeviceDetail: async (deviceKey: string): Promise<Device> => {
     const response = await api.get<ApiResponse<BackendDevice>>(
-      MEMBER_API.DEVICE_DETAIL(deviceKey)
+      `/member/evolooplink/api/device/detail?device_key=${deviceKey}`
     );
     return mapBackendDevice(response.data);
   },
 
   // 设置默认设备
   setDefaultDevice: async (deviceKey: string): Promise<void> => {
-    await api.post(MEMBER_API.DEVICE_DEFAULT(deviceKey));
+    await api.post(`/member/evolooplink/api/device/default?device_key=${deviceKey}`);
   },
 
   // 发送设备指令 (通过 Gateway 执行)
   sendCommand: async (data: DeviceCommandRequest): Promise<any> => {
     const response = await api.post<ApiResponse<any>>(
-      MEMBER_API.COMMAND_EXECUTE,
+      `/member/evolooplink/api/command/send`,
       {
         device_key: data.deviceKey,
         command_type: data.command.type,

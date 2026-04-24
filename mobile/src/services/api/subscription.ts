@@ -2,7 +2,6 @@
 // 链路: Mobile → member-center/backend (PHP)
 
 import { api } from './client';
-import { MEMBER_API } from '@/constants/api';
 
 // PHP 后端标准响应格式
 interface PHPResponse<T> {
@@ -28,7 +27,7 @@ export async function getSubscriptionStatus(): Promise<{
   level_id: number;
   status: string;
 }> {
-  const response = await api.get<PHPResponse<any>>(MEMBER_API.SUBSCRIPTION_STATUS);
+  const response = await api.get<PHPResponse<any>>(`/member/subscription/api/subscription/status`);
   return extractData(response) || response;
 }
 
@@ -49,7 +48,7 @@ export async function getSubscriptionDetail(): Promise<{
     [key: string]: any;
   };
 }> {
-  const response = await api.get<PHPResponse<any>>(MEMBER_API.SUBSCRIPTION_DETAIL);
+  const response = await api.get<PHPResponse<any>>(`/member/subscription/api/subscription/getDetail`);
   return extractData(response) || response;
 }
 
@@ -74,7 +73,7 @@ export async function getSubscriptionPlans(): Promise<Array<{
     sort: number;
   };
 }>> {
-  const response = await api.get<PHPResponse<any[]>>(MEMBER_API.SUBSCRIPTION_PLANS);
+  const response = await api.get<PHPResponse<any[]>>(`/member/subscription/api/subscription/plans`);
   return extractData(response) || response || [];
 }
 
@@ -100,7 +99,7 @@ export async function getMemberBenefits(forceRefresh = false): Promise<{
   };
 }> {
   const params = forceRefresh ? { force_refresh: true } : {};
-  const response = await api.get<PHPResponse<any>>(MEMBER_API.SUBSCRIPTION_BENEFITS, { params });
+  const response = await api.get<PHPResponse<any>>(`/member/subscription/api/subscription/benefits`, { params });
   return extractData(response) || response;
 }
 
@@ -114,7 +113,7 @@ export async function checkBenefit(benefitCode: string): Promise<{
   benefit_code: string;
   expire_time: number;
 }> {
-  const response = await api.post<PHPResponse<any>>(MEMBER_API.SUBSCRIPTION_CHECK_BENEFIT, {
+  const response = await api.post<PHPResponse<any>>(`/member/subscription/api/subscription/checkBenefit`, {
     code: benefitCode,
   });
   return extractData(response) || response;
@@ -128,7 +127,7 @@ export async function checkPermission(feature: string): Promise<{
   has_permission: boolean;
   required_level: string;
 }> {
-  const response = await api.post<PHPResponse<any>>(MEMBER_API.SUBSCRIPTION_CHECK_PERMISSION, {
+  const response = await api.post<PHPResponse<any>>(`/member/subscription/api/subscription/checkPermission`, {
     feature,
   });
   return extractData(response) || response;
@@ -144,7 +143,7 @@ export async function calculateUpgradePrice(targetLevelId: number): Promise<{
   refund_amount: string;
   net_amount: string;
 }> {
-  const response = await api.post<PHPResponse<any>>(MEMBER_API.CALCULATE_UPGRADE, {
+  const response = await api.post<PHPResponse<any>>(`/member/subscription/api/plan/calculateUpgradePrice`, {
     target_level_id: targetLevelId,
   });
   return extractData(response) || response;
@@ -183,7 +182,7 @@ export async function createOrder(data: {
   // 微信支付 APP 支付参数
   pay_data: WechatPayParams;
 }> {
-  const response = await api.post<PHPResponse<any>>(MEMBER_API.CREATE_ORDER, {
+  const response = await api.post<PHPResponse<any>>(`/member/subscription/api/order/create`, {
     ...data,
     pay_type: 'wechatpay',
   });
@@ -200,7 +199,7 @@ export async function checkOrderStatus(orderId: string): Promise<{
   pay_time: number;
   order_status: number;
 }> {
-  const response = await api.get<PHPResponse<any>>(MEMBER_API.ORDER_STATUS, {
+  const response = await api.get<PHPResponse<any>>(`/member/subscription/api/order/checkStatus`, {
     params: { order_id: orderId },
   });
   return extractData(response) || response;
@@ -214,7 +213,7 @@ export async function cancelSubscription(
   cancelType: 'expire' | 'now',
   reason?: string
 ): Promise<{ message: string }> {
-  const response = await api.post<PHPResponse<any>>(MEMBER_API.CANCEL_SUBSCRIPTION, {
+  const response = await api.post<PHPResponse<any>>(`/member/subscription/api/subscription/cancel`, {
     cancel_type: cancelType,
     reason,
   });
@@ -231,7 +230,7 @@ export async function getAIQuota(): Promise<{
   remaining: number;
   is_unlimited: boolean;
 }> {
-  const response = await api.get<PHPResponse<any>>(MEMBER_API.AI_QUOTA);
+  const response = await api.get<PHPResponse<any>>(`/member/subscription/api/aiQuota/getQuota`);
   return extractData(response) || response;
 }
 

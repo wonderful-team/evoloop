@@ -126,7 +126,7 @@ Use `read_file(path='{path}', start_line=N, end_line=M)` to read specific line r
             end = min(start + lines_read - 1, result.metadata.total_lines)
 
             meta_str = f"""
-[File: {path} | Lines {start}-{end} of {result.metadata.total_lines} | Hash: {result.metadata.content_hash}...]
+[File: {path} | Lines {start}-{end} of {result.metadata.total_lines} | Hash: {result.metadata.content_hash}]
 """
             if end < result.metadata.total_lines:
                 meta_str += f"[Use start_line={end + 1} to read more]\n"
@@ -162,6 +162,12 @@ async def read_file(
 
     Output Limit: Maximum 1000 lines per call.
     For larger ranges, make multiple calls with specific line ranges.
+
+    Important: When include_metadata=True (default), the output starts with a header like:
+      [File: path | Lines X-Y of Z | Hash: abc123]
+    This header is for display and tracking ONLY. The actual file content begins
+    on the line immediately after this header. Do NOT treat the header as part
+    of the file when passing content to write_file or edit_file.
 
     Args:
         path: Absolute or relative path to the file. **REQUIRED**

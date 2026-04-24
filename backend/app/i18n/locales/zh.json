@@ -149,7 +149,6 @@
             "run_macro": "正在执行宏：{skill_name}",
             "manage_git": "Git 操作：{action}",
             "manage_memory": "记忆管理：{action}",
-            "consult_architecture": "查看架构：{path}",
             "use_mcp": "启用 MCP 服务：{server_name}",
             "default": "正在运行 {tool}"
         },

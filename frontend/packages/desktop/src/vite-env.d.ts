@@ -10,6 +10,11 @@ interface ImportMetaEnv {
    * @default "false"
    */
   readonly VITE_STARTUP_DEBUG_MODE?: string
+  /**
+   * 高德地图 JS API Key
+   * 申请地址: https://console.amap.com/
+   */
+  readonly VITE_AMAP_KEY?: string
 }
 
 interface ImportMeta {

@@ -130,11 +130,11 @@ class CheckpointRewind:
             # Don't raise - checkpoint cleanup is best-effort
 
     async def _find_checkpoints_to_delete(
-            self,
-            thread_id: str,
-            target_message_id: str | None,
-            include_target: bool,
-            reason: str = "user_request"
+        self,
+        thread_id: str,
+        target_message_id: str | None,
+        include_target: bool,
+        reason: str = "user_request"
     ) -> tuple[list[str], str | None] | None:
         """Find checkpoint IDs to delete based on message range.
 
@@ -190,10 +190,10 @@ class CheckpointRewind:
             return None
 
     async def _delete_checkpoints(
-            self,
-            thread_id: str,
-            checkpoint_ids: list[str],
-            min_checkpoint_id: str | None = None,
+        self,
+        thread_id: str,
+        checkpoint_ids: list[str],
+        min_checkpoint_id: str | None = None,
     ) -> int:
         """Delete checkpoints and associated writes from the active database."""
         if not checkpoint_ids and not min_checkpoint_id:
@@ -211,10 +211,10 @@ class CheckpointRewind:
             return 0
 
     async def cleanup(
-            self,
-            thread_id: str,
-            checkpoint_ids: list[str] | None = None,
-            min_checkpoint_id: str | None = None,
+        self,
+        thread_id: str,
+        checkpoint_ids: list[str] | None = None,
+        min_checkpoint_id: str | None = None,
     ) -> int:
         """Direct cleanup entry point (non-event-driven usage)."""
         return await self._delete_checkpoints(

@@ -1,8 +1,6 @@
 // 认证 API
 
-import axios from 'axios';
-import { api, API_CONFIG } from './client';
-import { MEMBER_API } from '@/constants/api';
+import { api, apiRaw } from './client';
 import {
   ApiResponse,
   LoginResponse,
@@ -19,7 +17,7 @@ export const authApi = {
   // 获取注册配置
   getRegisterConfig: async (): Promise<RegisterConfig> => {
     const response = await api.get<ApiResponse<RegisterConfig>>(
-      MEMBER_API.REGISTER_CONFIG
+      `/member/api/register/config`
     );
     return response.data;
   },
@@ -27,20 +25,17 @@ export const authApi = {
   // 获取验证码配置
   getCaptchaConfig: async (): Promise<CaptchaConfig> => {
     const response = await api.get<ApiResponse<CaptchaConfig>>(
-      MEMBER_API.CAPTCHA_CONFIG
+      `/member/api/config/getCaptchaConfig`
     );
     return response.data;
   },
 
   // 获取图形验证码（直接 axios 调用，处理 blob 响应）
   getCaptcha: async (captchaId?: string): Promise<CaptchaResponse> => {
-    const response = await axios.get(
-      `${API_CONFIG.baseURL}${MEMBER_API.CAPTCHA_IMAGE}`,
-      {
-        params: { captcha_id: captchaId },
-        responseType: 'arraybuffer',
-      }
-    );
+    const response = await apiRaw.get('/member/api/captcha/captcha', {
+      params: { captcha_id: captchaId },
+      responseType: 'arraybuffer',
+    });
 
     // 从响应头获取 captcha_id
     const captchaIdFromHeader = response.headers['x-captcha-id'] || response.headers['X-Captcha-Id'];
@@ -66,7 +61,7 @@ export const authApi = {
     captchaId?: string
   ): Promise<MobileCodeResponse> => {
     const response = await api.post<ApiResponse<MobileCodeResponse>>(
-      MEMBER_API.SEND_MOBILE_CODE,
+      `/member/api/login/mobileCode`,
       {
         mobile,
         captcha_code: captchaCode,
@@ -79,7 +74,7 @@ export const authApi = {
   // 手机号登录
   loginWithMobile: async (data: MobileLoginRequest): Promise<LoginResponse> => {
     const response = await api.post<ApiResponse<LoginResponse>>(
-      MEMBER_API.LOGIN_MOBILE,
+      `/member/api/login/mobile`,
       data
     );
     return response.data;
@@ -88,7 +83,7 @@ export const authApi = {
   // 账号密码登录
   loginWithAccount: async (data: AccountLoginRequest): Promise<LoginResponse> => {
     const response = await api.post<ApiResponse<LoginResponse>>(
-      MEMBER_API.LOGIN_ACCOUNT,
+      `/member/api/login/login`,
       data
     );
     return response.data;
@@ -97,7 +92,7 @@ export const authApi = {
   // 获取用户信息
   getMemberInfo: async (): Promise<UserInfo> => {
     const response = await api.get<ApiResponse<UserInfo>>(
-      MEMBER_API.MEMBER_INFO
+      `/member/api/member/info`
     );
     return response.data;
   },
@@ -116,7 +111,7 @@ export const authApi = {
     nickname?: string;
     headimg?: string;
   }): Promise<void> => {
-    await api.post(MEMBER_API.REGISTER_MOBILE, data);
+    await api.post(`/member/api/register/mobile`, data);
   },
 
   // 用户名注册
@@ -129,7 +124,7 @@ export const authApi = {
     nickname?: string;
     headimg?: string;
   }): Promise<void> => {
-    await api.post(MEMBER_API.REGISTER_USERNAME, data);
+    await api.post(`/member/api/register/username`, data);
   },
 
   // 发送注册验证码
@@ -139,7 +134,7 @@ export const authApi = {
     captchaId?: string
   ): Promise<MobileCodeResponse> => {
     const response = await api.post<ApiResponse<MobileCodeResponse>>(
-      MEMBER_API.REGISTER_MOBILE_CODE,
+      `/member/api/register/mobileCode`,
       {
         mobile,
         captcha_code: captchaCode,
@@ -158,7 +153,7 @@ export const authApi = {
     captchaId: string
   ): Promise<MobileCodeResponse> => {
     const response = await api.post<ApiResponse<MobileCodeResponse>>(
-      MEMBER_API.FIND_PASSWORD_MOBILE_CODE,
+      `/member/api/findpassword/mobilecode`,
       {
         mobile,
         captcha_code: captchaCode,
@@ -175,7 +170,7 @@ export const authApi = {
     code: string;
     password: string;
   }): Promise<void> => {
-    await api.post(MEMBER_API.FIND_PASSWORD_MOBILE, data);
+    await api.post(`/member/api/findpassword/mobile`, data);
   },
 
   // ========== 修改密码 ==========
@@ -187,7 +182,7 @@ export const authApi = {
     code?: string;
     key?: string;
   }): Promise<void> => {
-    await api.post(MEMBER_API.MODIFY_PASSWORD, data);
+    await api.post(`/member/api/member/modifypassword`, data);
   },
 
   // ========== 绑定手机号 ==========
@@ -199,7 +194,7 @@ export const authApi = {
     captchaId?: string
   ): Promise<MobileCodeResponse> => {
     const response = await api.post<ApiResponse<MobileCodeResponse>>(
-      MEMBER_API.BIND_MOBILE_CODE,
+      `/member/api/member/bindmobliecode`,
       {
         mobile,
         captcha_code: captchaCode,
@@ -217,14 +212,14 @@ export const authApi = {
     code: string;
     key: string;
   }): Promise<void> => {
-    await api.post(MEMBER_API.MODIFY_MOBILE, data);
+    await api.post(`/member/api/member/modifymobile`, data);
   },
 
   // ========== 注销账号 ==========
 
   // 注销账号
   deleteAccount: async (): Promise<void> => {
-    await api.post(MEMBER_API.DELETE_ACCOUNT);
+    await api.post(`/member/api/member/delete`);
   },
 
   // ========== 头像 ==========
@@ -232,7 +227,7 @@ export const authApi = {
   // 上传头像（Base64）
   uploadHeadimgBase64: async (base64Image: string): Promise<{ pic_path: string }> => {
     const response = await api.post<ApiResponse<{ pic_path: string }>>(
-      MEMBER_API.UPLOAD_HEADIMG_BASE64,
+      `/member/api/upload/headimgBase64`,
       {
         app_type: 'app',
         app_type_name: 'app',
@@ -244,6 +239,6 @@ export const authApi = {
 
   // 修改头像
   modifyHeadimg: async (headimg: string): Promise<void> => {
-    await api.post(MEMBER_API.MODIFY_HEADIMG, { headimg });
+    await api.post(`/member/api/member/modifyheadimg`, { headimg });
   },
 };

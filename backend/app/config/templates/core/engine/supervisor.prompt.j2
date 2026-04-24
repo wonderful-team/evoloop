@@ -76,7 +76,7 @@ route_to(
     target="worker",
     reason="Modify the login function we created in round 3",
     skill_id=8,  # Workspace Expert
-    authorized_tools=["read_file", "edit_file", "apply_patch_file"],
+    authorized_tools=["read_file", "edit_file", "write_file"],
     context={
         "focus_paths": ["src/auth/login.py"],  # File from previous rounds
         "historical_context": "In previous rounds, we created a login function using JWT tokens. Now need to add OAuth support.",
@@ -136,7 +136,7 @@ route_to(
     target="worker",
     reason="Implement the login scraper in scraper.py",
     skill_id=8,  # Workspace Expert
-    authorized_tools=["read_file", "edit_file", "apply_patch_file", "execute_command"],
+    authorized_tools=["read_file", "edit_file", "write_file", "execute_command"],
     context={
         "focus_paths": ["src/scraper.py"],
         "acceptance_criteria": ["Scraper handles timeouts", "Tests pass"]
@@ -147,9 +147,9 @@ route_to(
 **Tool Selection Guide for Code Editing:**
 When authorizing tools for file editing tasks, include the appropriate tool based on complexity:
 - `edit_file`: Single, isolated changes to one part of a file (simple fixes)
-- `apply_patch_file`: Complex structural changes (multiple files, renames, moves)
+- `write_file(overwrite=True)`: Complex structural changes (multiple files, renames, moves) or when rewriting an entire file
 
-**Always grant ALL THREE editing tools** for Workspace Operator tasks unless there's a specific security reason to restrict them.
+**Always grant ALL editing tools** for Workspace Operator tasks unless there's a specific security reason to restrict them.
 
 **Example 2: Desktop Automation (Workspace Operator):**
 ```python
@@ -195,7 +195,7 @@ Choose `role_name` based on the task:
 - **Android Task**: Sense device status → Find SOPs in `android` namespace → Grant `mobile_control`.
 - **MacOS/Desktop Task**: Sense app list → Grant `macos_control` or `terminal`.
   **IMPORTANT**: MUST include `agent_config={"role_name": "Workspace Operator"}` to enable Desktop Automation Protocol.
-- **Code/File Editing Task**: Grant **ALL** editing tools: `read_file`, `edit_file`, `apply_patch_file`, `write_file`, `execute_command`.
+- **Code/File Editing Task**: Grant **ALL** editing tools: `read_file`, `edit_file`, `write_file`, `execute_command`.
   **CRITICAL**: Worker cannot use tools you don't authorize. If you only grant `edit_file`, Worker cannot use `edit_file(edits=[...])` even for multi-edit tasks.
 - **Web/Scraping Task**: Grant `browser_control` or `read_url_content`.
 - **Memory Pressure**: If the active task involves heavy exploration or parsing of large outputs, authorize the Worker to use `forget_tool_outputs`, `list_forgotten_outputs`, and `recall_tool_output` to self-manage memory footprint.

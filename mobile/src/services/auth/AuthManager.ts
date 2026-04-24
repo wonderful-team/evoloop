@@ -2,7 +2,6 @@
 
 import { api } from '@/services/api/client';
 import { authApi } from '@/services/api/auth';
-import { MEMBER_API } from '@/constants/api';
 import {
   ApiResponse,
   LoginResponse,
@@ -36,18 +35,14 @@ export class AuthManager {
 
   // 获取注册/登录配置
   static async getRegisterConfig(): Promise<RegisterConfig> {
-    const response = await api.get<ApiResponse<RegisterConfig>>(
-      MEMBER_API.REGISTER_CONFIG
-    );
+    const response = await api.get<ApiResponse<RegisterConfig>>(`/member/api/register/config`);
     return unwrapResponse<RegisterConfig>(response);
   }
 
   // 获取验证码配置
   static async getCaptchaConfig(): Promise<CaptchaConfig> {
     try {
-      const response = await api.get<ApiResponse<CaptchaConfig>>(
-        MEMBER_API.CAPTCHA_CONFIG
-      );
+      const response = await api.get<ApiResponse<CaptchaConfig>>(`/member/api/config/getCaptchaConfig`);
       console.log('Captcha config response:', response);
       return unwrapResponse<CaptchaConfig>(response);
     } catch (error: any) {
@@ -90,7 +85,7 @@ export class AuthManager {
     }
     
     const response = await api.post<ApiResponse<MobileCodeResponse>>(
-      MEMBER_API.SEND_MOBILE_CODE,
+      `/member/api/login/mobileCode`,
       body
     );
     return unwrapResponse<MobileCodeResponse>(response);
@@ -103,7 +98,7 @@ export class AuthManager {
     code: string
   ): Promise<LoginResponse> {
     const response = await api.post<ApiResponse<LoginResponse>>(
-      MEMBER_API.LOGIN_MOBILE,
+      `/member/api/login/mobile`,
       {
         mobile,
         key,
@@ -133,7 +128,7 @@ export class AuthManager {
       body.captcha_code = captchaCode;
     }
     const response = await api.post<ApiResponse<LoginResponse>>(
-      MEMBER_API.LOGIN_ACCOUNT,
+      `/member/api/login/login`,
       body
     );
     return unwrapResponse<LoginResponse>(response);
@@ -144,7 +139,7 @@ export class AuthManager {
   // 微信授权登录
   static async loginWithWechat(authData: WechatAuthData): Promise<LoginResponse> {
     const response = await api.post<ApiResponse<LoginResponse>>(
-      MEMBER_API.LOGIN_WECHAT,
+      `/member/api/login/auth`,
       authData
     );
     return unwrapResponse<LoginResponse>(response);
@@ -156,7 +151,7 @@ export class AuthManager {
     appType: 'ios' | 'android' = 'ios'
   ): Promise<LoginResponse> {
     const response = await api.post<ApiResponse<LoginResponse>>(
-      MEMBER_API.LOGIN_AUTH,
+      `/member/api/login/auth`,
       {
         code,
         app_type: appType,
@@ -187,7 +182,7 @@ export class AuthManager {
       body.captcha_code = captchaCode;
     }
     const response = await api.post<ApiResponse<LoginResponse>>(
-      MEMBER_API.LOGIN_WECHAT_MOBILE,
+      `/member/tripartite/mobile`,
       body
     );
     return unwrapResponse<LoginResponse>(response);
@@ -211,7 +206,7 @@ export class AuthManager {
     }
 
     const response = await api.post<ApiResponse<MobileCodeResponse>>(
-      MEMBER_API.TRIPARTITE_MOBILE_CODE,
+      `/member/tripartite/mobileCode`,
       body
     );
     return unwrapResponse<MobileCodeResponse>(response);
@@ -222,7 +217,7 @@ export class AuthManager {
   // 获取用户信息
   static async getMemberInfo(): Promise<UserInfo> {
     const response = await api.get<ApiResponse<UserInfo>>(
-      MEMBER_API.MEMBER_INFO
+      `/member/api/member/info`
     );
     return unwrapResponse<UserInfo>(response);
   }

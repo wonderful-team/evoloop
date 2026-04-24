@@ -39,22 +39,12 @@ nodes:
       - "read_file"
       - "write_file"
       - "edit_file"
-      - "apply_patch_file"
       - "list_directory"
-      - "manage_directory"
       - "search_files"
       - "execute_command"
       # Code Exploration (Unified Layer - replaces consult_lsp, explore_codebase)
       - "find_symbol"
       - "ask_codebase"
-      - "analyze_impact"
-      - "check_types"
-      - "inspect_symbol"
-      # Checkpoints
-      - "create_checkpoint"
-      - "list_checkpoints"
-      - "rollback_checkpoint"
-      - "delete_checkpoint"
       # Context Management (Agent-controlled forgetting for long tasks)
       - "forget_tool_outputs"
       - "recall_tool_output"
@@ -82,7 +72,6 @@ nodes:
       # Planning & Audit
       - "create_plan"
       - "update_step_status"
-      - "consult_architecture"
       # Planning & Todo (Individual tools replacing manage_todo facade)
       - "create_todo"
       - "list_todos"

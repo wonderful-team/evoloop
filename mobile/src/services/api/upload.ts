@@ -1,7 +1,6 @@
 // 文件上传服务
 
 import { api } from './client';
-import { MEMBER_API } from '@/constants/api';
 
 export interface UploadResponse {
   pic_path: string;
@@ -40,7 +39,7 @@ export async function uploadChatImage(uri: string): Promise<ChatAttachment> {
   } as any);
 
   const response = await api.post<any>(
-    MEMBER_API.UPLOAD_CHAT_IMAGE,
+    `/member/api/upload/chatimg`,
     formData,
     {
       headers: {
@@ -90,7 +89,7 @@ export async function uploadChatFile(uri: string, name: string): Promise<ChatAtt
   } as any);
 
   const response = await api.post<any>(
-    MEMBER_API.UPLOAD_CHAT_FILE,
+    `/member/api/upload/chatfile`,
     formData,
     {
       headers: {

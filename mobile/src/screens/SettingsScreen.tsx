@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '@/stores/authStore';
 import { useTheme } from '@/theme';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { BASE_URL } from '@/constants/config';
 
 export default function SettingsScreen() {
   const { t } = useTranslation();
@@ -19,11 +20,11 @@ export default function SettingsScreen() {
   };
 
   const openPrivacyPolicy = () => {
-    Linking.openURL('https://evoloop.develop-assistant.cn/privacy');
+    Linking.openURL(`${BASE_URL}/member/agreement/privacy`);
   };
 
   const openTermsOfService = () => {
-    Linking.openURL('https://evoloop.develop-assistant.cn/terms');
+    Linking.openURL(`${BASE_URL}/member/agreement/terms`);
   };
 
   return (

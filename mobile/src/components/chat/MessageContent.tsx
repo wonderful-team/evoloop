@@ -18,6 +18,9 @@ import { CodeBlock } from './CodeBlock';
 import { MarkdownTable } from './MarkdownTable';
 import { AutoLinkPreview } from './LinkPreview';
 import { MermaidChart, extractMermaidBlocks } from './MermaidChart';
+import { EChartsChart } from './EChartsChart';
+import { MapChart } from './MapChart';
+import { extractArtifactBlocks } from './artifactUtils';
 
 // 图片查看器
 interface ImageViewerProps {
@@ -235,98 +238,114 @@ export function MessageContent({ content, isUser = false }: MessageContentProps)
         // 渲染 Markdown 文本
         if (!part.trim()) return null;
 
-        // 提取 Mermaid 图表
-        const mermaidParts = extractMermaidBlocks(part);
+        // 先提取 Artifact（如 ECharts 图表）
+        const artifactParts = extractArtifactBlocks(part);
 
         return (
           <View key={index}>
-            {mermaidParts.map((mermaidPart, mIndex) => {
-              if (mermaidPart.type === 'mermaid') {
-                return <MermaidChart key={mIndex} chart={mermaidPart.content} />;
+            {artifactParts.map((aPart, aIndex) => {
+              if (aPart.type === 'echarts') {
+                return <EChartsChart key={aIndex} data={aPart.data} />;
+              }
+              if (aPart.type === 'map') {
+                return <MapChart key={aIndex} data={aPart.data} />;
               }
 
-              // 检查是否包含表格
-              const tableData = parseMarkdownTable(mermaidPart.content);
-              if (tableData && tableData.header.length > 0) {
-                return (
-                  <MarkdownTable
-                    key={mIndex}
-                    header={tableData.header}
-                    rows={tableData.rows}
-                  />
-                );
-              }
+              // 对文本部分继续提取 Mermaid 图表
+              const mermaidParts = extractMermaidBlocks(aPart.content!);
 
-              // 检查是否包含代码块
-              if (mermaidPart.content.includes('```')) {
-                return renderContentWithCodeBlocks(mermaidPart.content, isUser, colors);
-              }
-
-              // 普通 Markdown 渲染
               return (
-                <Markdown
-                  key={mIndex}
-                  style={{
-                    body: {
-                      color: isUser ? colors.onPrimaryContainer : colors.onSurface,
-                      fontSize: 15,
-                      lineHeight: 22,
-                    },
-                    paragraph: {
-                      marginVertical: 4,
-                    },
-                    code_inline: {
-                      backgroundColor: isUser ? 'rgba(0,0,0,0.1)' : colors.surfaceVariant,
-                      paddingHorizontal: 4,
-                      paddingVertical: 2,
-                      borderRadius: 4,
-                      fontFamily: 'monospace',
-                      fontSize: 13,
-                    },
-                    link: {
-                      color: colors.primary,
-                      textDecorationLine: 'underline',
-                    },
-                    list_item: {
-                      marginVertical: 2,
-                    },
-                    bullet_list: {
-                      marginVertical: 4,
-                    },
-                    ordered_list: {
-                      marginVertical: 4,
-                    },
-                    blockquote: {
-                      borderLeftWidth: 4,
-                      borderLeftColor: colors.primary,
-                      paddingLeft: 12,
-                      marginVertical: 8,
-                      fontStyle: 'italic',
-                    },
-                    hr: {
-                      backgroundColor: colors.outline,
-                      height: 1,
-                      marginVertical: 12,
-                    },
-                    strong: {
-                      fontWeight: 'bold',
-                    },
-                    em: {
-                      fontStyle: 'italic',
-                    },
-                  }}
-                  rules={{
-                    // 禁用表格规则，使用自定义表格组件
-                    table: () => null,
-                  }}
-                >
-                  {mermaidPart.content}
-                </Markdown>
+                <View key={aIndex}>
+                  {mermaidParts.map((mermaidPart, mIndex) => {
+                    if (mermaidPart.type === 'mermaid') {
+                      return <MermaidChart key={mIndex} chart={mermaidPart.content} />;
+                    }
+
+                    // 检查是否包含表格
+                    const tableData = parseMarkdownTable(mermaidPart.content);
+                    if (tableData && tableData.header.length > 0) {
+                      return (
+                        <MarkdownTable
+                          key={mIndex}
+                          header={tableData.header}
+                          rows={tableData.rows}
+                        />
+                      );
+                    }
+
+                    // 检查是否包含代码块
+                    if (mermaidPart.content.includes('```')) {
+                      return renderContentWithCodeBlocks(mermaidPart.content, isUser, colors);
+                    }
+
+                    // 普通 Markdown 渲染
+                    return (
+                      <Markdown
+                        key={mIndex}
+                        style={{
+                          body: {
+                            color: isUser ? colors.onPrimaryContainer : colors.onSurface,
+                            fontSize: 15,
+                            lineHeight: 22,
+                          },
+                          paragraph: {
+                            marginVertical: 4,
+                          },
+                          code_inline: {
+                            backgroundColor: isUser ? 'rgba(0,0,0,0.1)' : colors.surfaceVariant,
+                            paddingHorizontal: 4,
+                            paddingVertical: 2,
+                            borderRadius: 4,
+                            fontFamily: 'monospace',
+                            fontSize: 13,
+                          },
+                          link: {
+                            color: colors.primary,
+                            textDecorationLine: 'underline',
+                          },
+                          list_item: {
+                            marginVertical: 2,
+                          },
+                          bullet_list: {
+                            marginVertical: 4,
+                          },
+                          ordered_list: {
+                            marginVertical: 4,
+                          },
+                          blockquote: {
+                            borderLeftWidth: 4,
+                            borderLeftColor: colors.primary,
+                            paddingLeft: 12,
+                            marginVertical: 8,
+                            fontStyle: 'italic',
+                          },
+                          hr: {
+                            backgroundColor: colors.outline,
+                            height: 1,
+                            marginVertical: 12,
+                          },
+                          strong: {
+                            fontWeight: 'bold',
+                          },
+                          em: {
+                            fontStyle: 'italic',
+                          },
+                        }}
+                        rules={{
+                          // 禁用表格规则，使用自定义表格组件
+                          table: () => null,
+                        }}
+                      >
+                        {mermaidPart.content}
+                      </Markdown>
+                    );
+                  })}
+
+                  {/* 链接预览 */}
+                  <AutoLinkPreview text={aPart.content!} />
+                </View>
               );
             })}
-
-            {/* 链接预览 */}
-            <AutoLinkPreview text={part} />
           </View>
         );
       })}

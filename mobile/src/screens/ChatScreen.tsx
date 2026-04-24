@@ -46,6 +46,8 @@ import type { ChatAttachment } from '@/services/api/upload';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Video from 'react-native-video';
 import { generateUUID } from '@/utils/uuid';
+import { getGatewayClient } from '@/services/gateway/GatewayClient';
+import { GatewayMessageType } from '@/services/gateway/types';
 
 // 游客默认项目
 const GUEST_PROJECTS: Project[] = [
@@ -135,6 +137,7 @@ export default function ChatScreen() {
     setCurrentConversation,
     createConversation,
     addMessage,
+    loadMessages,
     rewindConversation,
     retryConversation,
     addToMemory,
@@ -239,6 +242,42 @@ export default function ChatScreen() {
 
   // 从 deviceStore 获取当前选中的设备
   const { currentDevice: selectedDevice } = useDeviceStore();
+
+  // ========== Gateway WebSocket 连接（接收 Desktop Agent 回复通知） ==========
+  useEffect(() => {
+    if (!isLoggedIn) return;
+
+    const client = getGatewayClient();
+
+    const handleNewMessages = (message: any) => {
+      console.log('[ChatScreen] Gateway new_messages:', message);
+      // Go Gateway sendResponse 把 payload 包装在 data 字段中
+      const payload = message.data;
+      const threadId = payload?.data?.thread_id;
+      if (threadId && threadId === currentConversationId) {
+        loadMessages(threadId, true);
+        showSnackbar('收到新消息');
+      }
+    };
+
+    const handleLogStreaming = (message: any) => {
+      console.log('[ChatScreen] Gateway log_streaming:', message);
+      // 可选：在 UI 上显示 AI 思考/工具执行进度
+    };
+
+    client.on(GatewayMessageType.NEW_MESSAGES || 'new_messages', handleNewMessages);
+    client.on('log_streaming', handleLogStreaming);
+
+    client.connect().catch((err: any) => {
+      console.log('[ChatScreen] Gateway connect error:', err);
+    });
+
+    return () => {
+      client.off(GatewayMessageType.NEW_MESSAGES || 'new_messages', handleNewMessages);
+      client.off('log_streaming', handleLogStreaming);
+      client.disconnect();
+    };
+  }, [isLoggedIn, currentConversationId, loadMessages]);
 
   // 自动朗读 AI 回复
   useEffect(() => {

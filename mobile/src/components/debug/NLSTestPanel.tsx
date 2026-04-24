@@ -12,6 +12,7 @@ import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { useTheme } from '@/theme';
 import { useNLS } from '@/hooks/useNLS';
 import { nlsTokenManager } from '@/services/nls';
+import {GATEWAY_BASE_URL, NLS_CONFIG} from "@/constants/config";
 
 interface LogEntry {
   id: string;
@@ -201,9 +202,9 @@ export function NLSTestPanel() {
         />
         <Card.Content>
           <Text variant="bodySmall" style={{ color: colors.onSurfaceVariant }}>
-            AppKey: {process.env.EXPO_PUBLIC_NLS_APP_KEY ? '✅ 已配置' : '❌ 未配置'}
+            AppKey: {NLS_CONFIG.appKey ? '✅ 已配置' : '❌ 未配置'}
             {'\n'}
-            Gateway: {process.env.EXPO_PUBLIC_GATEWAY_URL || '使用默认地址'}
+            Gateway: {GATEWAY_BASE_URL || '使用默认地址'}
             {'\n'}
             开发模式: {__DEV__ ? '是' : '否'}
           </Text>

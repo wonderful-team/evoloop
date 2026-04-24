@@ -149,13 +149,11 @@ class TraceParser:
         "edit_file": ActionCategory.EDIT,
         "search_files": ActionCategory.QUERY,
         "list_directory": ActionCategory.QUERY,
-        "manage_directory": ActionCategory.EDIT,
         "search_codebase": ActionCategory.QUERY,
         "search_web": ActionCategory.QUERY,
         "execute_command": ActionCategory.COMMAND,
         "git_operations": ActionCategory.COMMAND,
         "navigate_directory": ActionCategory.NAVIGATION,
-        # Phase: Platform Control Integration
         "mobile_control": ActionCategory.SYSTEM_INTERACTION,
         "desktop_control": ActionCategory.SYSTEM_INTERACTION,
     }

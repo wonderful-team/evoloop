@@ -22,7 +22,7 @@ def run_api():
     import uvicorn
 
     host = os.getenv("HOST", "0.0.0.0")
-    port = int(os.getenv("PORT", "20160"))
+    port = int(os.getenv("PORT", "8123"))
     workers = int(os.getenv("WORKERS", "1"))
     reload = os.getenv("RELOAD", "false").lower() == "true"
 
@@ -91,7 +91,7 @@ Examples:
 
 Environment Variables:
   HOST                  API host (default: 0.0.0.0)
-  PORT                  API port (default: 8000)
+  PORT                  API port (default: 8123)
   WORKERS               Number of API workers (default: 1)
   RELOAD                Enable auto-reload (default: false)
   TASK_QUEUE_BACKEND    Task queue backend (huey/celery/local/auto)

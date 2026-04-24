@@ -4,6 +4,7 @@ import React from 'react';
 import { View, StyleSheet, Linking } from 'react-native';
 import { Text, Checkbox } from 'react-native-paper';
 import { useTheme } from '@/theme';
+import { BASE_URL } from '@/constants/config';
 
 interface UserAgreementProps {
   /** 是否已同意 */
@@ -25,8 +26,8 @@ interface UserAgreementProps {
 export function UserAgreement({
   agreed,
   onToggle,
-  termsUrl = 'https://evoloop.develop-assistant.cn/agreement/terms',
-  privacyUrl = 'https://evoloop.develop-assistant.cn/agreement/privacy',
+  termsUrl = `${BASE_URL}/member/agreement/terms`,
+  privacyUrl = `${BASE_URL}/member/agreement/privacy`,
   style,
 }: UserAgreementProps) {
   const { colors } = useTheme();
@@ -63,8 +64,8 @@ export function UserAgreement({
  * 用户协议提示文本（用于弹窗等场景）
  */
 export function UserAgreementText({
-  termsUrl = 'https://evoloop.develop-assistant.cn/agreement/terms',
-  privacyUrl = 'https://evoloop.develop-assistant.cn/agreement/privacy',
+  termsUrl = `${BASE_URL}/member/agreement/terms`,
+  privacyUrl = `${BASE_URL}/member/agreement/privacy`,
 }: Omit<UserAgreementProps, 'agreed' | 'onToggle' | 'style'>) {
   const { colors } = useTheme();
 

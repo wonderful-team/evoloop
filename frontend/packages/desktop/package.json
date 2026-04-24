@@ -11,6 +11,8 @@
     },
     "dependencies": {
         "@evoloop/shared": "workspace:*",
+        "echarts": "^6.0.0",
+        "echarts-for-react": "^3.0.6",
         "mermaid": "^11.12.2",
         "monaco-editor": "^0.55.1",
         "rehype-raw": "^7.0.0"

@@ -2,7 +2,6 @@
 // 从 Gateway 获取临时 Token 和 AppKey
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { GATEWAY_API } from '@/constants/api';
 import { api } from '../api/client';
 
 interface TokenResponse {
@@ -25,7 +24,7 @@ class NLSTokenManager {
     try {
       console.log('[NLS] 从 Gateway 获取 Token...');
 
-      const response = await api.get<TokenResponse>(GATEWAY_API.NLS_TOKEN);
+      const response = await api.get<TokenResponse>(`/gateway/api/v1/nls/token`);
 
       if (response.token) {
         this.token = response.token;

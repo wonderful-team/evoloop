@@ -28,12 +28,12 @@ import { router } from '@/utils/navigation';
 import { maskMobile, formatDate } from '@/utils/format';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { useSubscription } from '@/hooks/useSubscription';
-import { AuthManager } from '@/services/auth/AuthManager';
 import { useAuth } from '@/hooks/useAuth';
 import { Linking } from 'react-native';
 import ImagePicker from 'react-native-image-crop-picker';
 import { authApi } from '@/services/api/auth';
 import { useLoading } from '@/hooks/useLoading';
+import { BASE_URL } from '@/constants/config';
 
 // 自定义图标渲染组件 - 使用 MaterialIcons
 function ListIcon({ icon, color }: { icon: string; color?: string }) {
@@ -348,8 +348,7 @@ function UserProfile() {
   }, [deleteAccount, t]);
 
   const openMemberCenter = useCallback(async () => {
-    const url = process.env.EXPO_PUBLIC_BASE_URL || 'https://evoloop.develop-assistant.cn';
-    await Linking.openURL(`${url}/member`);
+    await Linking.openURL(`${BASE_URL}/member`);
   }, []);
 
   // 头像上传

@@ -2,7 +2,6 @@
 // 架构：Mobile → MC (Member Center 存储)
 
 import { api } from './client';
-import { MEMBER_API } from '@/constants/api';
 import {
   Artifact,
   ArtifactListResponse,
@@ -25,7 +24,7 @@ export async function getConversationArtifacts(
   if (type) params.append('type', type);
   
   const response = await api.get(
-    `${MEMBER_API.CONVERSATION_DETAIL(conversationId)}/artifacts?${params.toString()}`
+    `/member/evolooplink/api/conversation/detail?conversation_id=${conversationId}/artifacts?${params.toString()}`
   );
   return response.data;
 }
@@ -35,7 +34,7 @@ export async function getConversationArtifacts(
  * GET /member/api/artifacts/:id
  */
 export async function getArtifact(artifactId: string): Promise<Artifact> {
-  const response = await api.get(MEMBER_API.ARTIFACT_DETAIL(artifactId));
+  const response = await api.get(`/member/api/artifacts/${artifactId}`);
   return response.data;
 }
 
@@ -46,7 +45,7 @@ export async function getArtifact(artifactId: string): Promise<Artifact> {
 export async function getTestReportArtifact(
   artifactId: string
 ): Promise<TestReportArtifact> {
-  const response = await api.get(`${MEMBER_API.ARTIFACT_DETAIL(artifactId)}/test-report`);
+  const response = await api.get(`/member/api/artifacts/${artifactId}/test-report`);
   return response.data;
 }
 
@@ -57,7 +56,7 @@ export async function getTestReportArtifact(
 export async function getCodeFileArtifact(
   artifactId: string
 ): Promise<CodeFileArtifact> {
-  const response = await api.get(`${MEMBER_API.ARTIFACT_DETAIL(artifactId)}/code-file`);
+  const response = await api.get(`/member/api/artifacts/${artifactId}/code-file`);
   return response.data;
 }
 
@@ -69,7 +68,7 @@ export async function getRequirementAnalysisArtifact(
   artifactId: string
 ): Promise<RequirementAnalysisArtifact> {
   const response = await api.get(
-    `${MEMBER_API.ARTIFACT_DETAIL(artifactId)}/requirement-analysis`
+    `/member/api/artifacts/${artifactId}/requirement-analysis`
   );
   return response.data;
 }
@@ -81,7 +80,7 @@ export async function getRequirementAnalysisArtifact(
 export async function getDiffArtifact(
   artifactId: string
 ): Promise<DiffArtifact> {
-  const response = await api.get(`${MEMBER_API.ARTIFACT_DETAIL(artifactId)}/diff`);
+  const response = await api.get(`/member/api/artifacts/${artifactId}/diff`);
   return response.data;
 }
 
@@ -92,7 +91,7 @@ export async function getDiffArtifact(
 export async function getArtifactDownloadUrl(
   artifactId: string
 ): Promise<ArtifactDownloadResponse> {
-  const response = await api.get(`${MEMBER_API.ARTIFACT_DETAIL(artifactId)}/download`);
+  const response = await api.get(`/member/api/artifacts/${artifactId}/download`);
   return response.data;
 }
 
@@ -101,7 +100,7 @@ export async function getArtifactDownloadUrl(
  * GET /member/api/artifacts/:id/content
  */
 export async function downloadArtifact(artifactId: string): Promise<Blob> {
-  const response = await api.get(`${MEMBER_API.ARTIFACT_DETAIL(artifactId)}/content`, {
+  const response = await api.get(`/member/api/artifacts/${artifactId}/content`, {
     responseType: 'blob',
   });
   return response.data;
@@ -112,7 +111,7 @@ export async function downloadArtifact(artifactId: string): Promise<Blob> {
  * DELETE /member/api/artifacts/:id
  */
 export async function deleteArtifact(artifactId: string): Promise<void> {
-  await api.delete(MEMBER_API.ARTIFACT_DETAIL(artifactId));
+  await api.delete(`/member/api/artifacts/${artifactId}`);
 }
 
 /**
@@ -133,7 +132,7 @@ export async function getProjectArtifacts(
   if (options?.pageSize) params.append('page_size', options.pageSize.toString());
   
   const response = await api.get(
-    `${MEMBER_API.PROJECT_DETAIL(projectId)}/artifacts?${params.toString()}`
+    `/member/api/projects/${projectId}/artifacts?${params.toString()}`
   );
   return response.data;
 }

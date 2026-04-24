@@ -79,7 +79,7 @@
       "identifier": "http:default",
       "allow": [
         {
-          "url": "https://api.evoloop.cn/**"
+          "url": "http://127.0.0.1:20160/**"
         },
         {
           "url": "http://localhost:20160/**"

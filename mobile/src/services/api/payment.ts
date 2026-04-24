@@ -1,7 +1,6 @@
 // 支付 API
 
 import { api } from './client';
-import { MEMBER_API } from '@/constants/api';
 import {
   ApiResponse,
   PayRequest,
@@ -12,7 +11,7 @@ import {
 export const paymentApi = {
   // 获取支付信息
   getPayInfo: async (outTradeNo: string): Promise<any> => {
-    const response = await api.get<ApiResponse<any>>(MEMBER_API.PAY_INFO, {
+    const response = await api.get<ApiResponse<any>>(`/member/api/payment/info`, {
       params: { out_trade_no: outTradeNo },
     });
     return response.data;
@@ -21,7 +20,7 @@ export const paymentApi = {
   // 发起支付
   initiatePay: async (data: PayRequest): Promise<WechatPayParams> => {
     const response = await api.post<ApiResponse<WechatPayParams>>(
-      MEMBER_API.PAY,
+      `/member/api/payment`,
       data
     );
     return response.data;
@@ -30,7 +29,7 @@ export const paymentApi = {
   // 查询支付状态
   getPayStatus: async (outTradeNo: string): Promise<PayStatus> => {
     const response = await api.get<ApiResponse<PayStatus>>(
-      MEMBER_API.PAY_STATUS,
+      `/member/api/payment/status`,
       {
         params: { out_trade_no: outTradeNo },
       }

@@ -5,6 +5,9 @@ export { CodeBlock, InlineCode } from './CodeBlock';
 export { MarkdownTable } from './MarkdownTable';
 export { LinkPreview, AutoLinkPreview } from './LinkPreview';
 export { MermaidChart, extractMermaidBlocks } from './MermaidChart';
+export { EChartsChart } from './EChartsChart';
+export { MapChart } from './MapChart';
+export { extractArtifactBlocks } from './artifactUtils';
 export { MessageActions, MessageActionBar } from './MessageActions';
 
 // 新增组件

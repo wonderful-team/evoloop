@@ -2,9 +2,9 @@
 // 支持双链路：链路一（Desktop）和链路二（直连 LLM）
 
 import { useCallback, useRef, useState } from 'react';
-import { GATEWAY_API } from '@/constants/api';
 import { useAuthStore } from '@/stores/authStore';
 import { useConversationStore } from '@/stores/conversationStore';
+import { api } from '@/services/api/client';
 import { HumanRequest } from '@/types/hitl';
 import { generateUUID } from '@/utils/uuid';
 
@@ -128,8 +128,7 @@ export function useDeviceControl(options: UseDeviceControlOptions = {}): UseDevi
       throw new Error('未登录或未选择设备');
     }
 
-    const url = `https://evoloop.develop-assistant.cn${GATEWAY_API.COMMAND_EXECUTE}`;
-    console.log('[DeviceControl] 链路一（Desktop）POST to:', url, 'deviceKey:', options.deviceKey);
+    console.log('[DeviceControl] 链路一（Desktop）POST to: /gateway/api/v1/command/send, deviceKey:', options.deviceKey);
 
     // 构建消息内容
     const messageContent: Record<string, any> = {
@@ -156,29 +155,20 @@ export function useDeviceControl(options: UseDeviceControlOptions = {}): UseDevi
         break;
     }
 
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        device_key: options.deviceKey,
-        command_type: 'chat',
-        thread_id: options.conversationId,
-        content: messageContent,
-      }),
-      signal: abortControllerRef.current?.signal,
-    });
+    const data = await api.post('/gateway/api/v1/command/send', {
+      device_key: options.deviceKey,
+      command_type: 'chat',
+      thread_id: options.conversationId,
+      content: messageContent,
+    }, { signal: abortControllerRef.current?.signal });
 
-    const data = await response.json();
     console.log('[DeviceControl] 链路一响应:', data);
 
-    if (!response.ok || data.code !== 0) {
+    if (data.code !== 0) {
       const rawMsg = data.message || '发送失败';
 
-      // 检测配额耗尽错误 (429 + quota exhausted)
-      if (response.status === 429 || data.code === 429 || /quota/i.test(rawMsg)) {
+      // 检测配额耗尽错误
+      if (data.code === 429 || /quota/i.test(rawMsg)) {
         setQuotaExhaustedInfo({
           title: '配额已耗尽',
           message: rawMsg,
@@ -190,7 +180,7 @@ export function useDeviceControl(options: UseDeviceControlOptions = {}): UseDevi
       }
 
       // 其他错误翻译为友好提示
-      const friendlyMsg = getFriendlyErrorMessage(response.status, rawMsg);
+      const friendlyMsg = getFriendlyErrorMessage(data.code || 500, rawMsg);
       throw new Error(friendlyMsg);
     }
 
@@ -214,8 +204,7 @@ export function useDeviceControl(options: UseDeviceControlOptions = {}): UseDevi
       throw new Error('未登录');
     }
 
-    const url = 'https://evoloop.develop-assistant.cn/gateway/v1/chat/completions';
-    console.log('[DeviceControl] 链路二（直连 LLM）POST to:', url);
+    console.log('[DeviceControl] 链路二（直连 LLM）POST to: /gateway/v1/chat/completions');
 
     // 构建用户消息内容
     let userContent = '';
@@ -244,44 +233,22 @@ export function useDeviceControl(options: UseDeviceControlOptions = {}): UseDevi
       .map(m => ({ role: m.role, content: m.content }));
     contextMessages.push({ role: 'user', content: userContent });
 
-    const response = await fetch(url, {
-      method: 'POST',
+    const data = await api.post('/gateway/v1/chat/completions', {
+      model: '', // 空字符串，让 Gateway 使用配置的默认模型
+      messages: contextMessages,
+      stream: false,
+      temperature: 0.7,
+    }, {
+      signal: abortControllerRef.current?.signal,
       headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
         'X-Thread-ID': options?.conversationId || '',
         'X-Device-Key': options?.deviceKey || '0',
       },
-      body: JSON.stringify({
-        model: '', // 空字符串，让 Gateway 使用配置的默认模型
-        messages: contextMessages,
-        stream: false,
-        temperature: 0.7,
-      }),
-      signal: abortControllerRef.current?.signal,
     });
-
-    // 先读取原始文本，便于调试
-    const responseText = await response.text();
-    console.log('[DeviceControl] 链路二原始响应:', response.status, responseText.substring(0, 500));
-
-    // 检查是否为空响应
-    if (!responseText || responseText.trim() === '') {
-      throw new Error('Gateway 返回空响应');
-    }
-
-    // 尝试解析 JSON
-    let data;
-    try {
-      data = JSON.parse(responseText);
-    } catch (parseError) {
-      console.error('[DeviceControl] JSON 解析失败，原始响应:', responseText.substring(0, 1000));
-      throw new Error(`Gateway 返回非 JSON 响应: ${responseText.substring(0, 200)}`);
-    }
 
     console.log('[DeviceControl] 链路二响应:', data);
 
-    if (!response.ok) {
+    if (data.error) {
       const errorCode = data.error?.code || '';
       const rawMsg = data.error?.message || data.message || '发送失败';
 
@@ -297,8 +264,8 @@ export function useDeviceControl(options: UseDeviceControlOptions = {}): UseDevi
         throw quotaError;
       }
 
-      // 限流 / 引擎过载 (429/503)
-      if (response.status === 429 || response.status === 503) {
+      // 限流 / 引擎过载
+      if (data.error?.status === 429 || data.error?.status === 503) {
         const isRateLimit =
           /rate_limit|too many requests|overloaded|引擎繁忙/i.test(rawMsg);
         const friendlyMsg = isRateLimit ? '服务繁忙，请稍后再试' : rawMsg;
@@ -306,7 +273,7 @@ export function useDeviceControl(options: UseDeviceControlOptions = {}): UseDevi
       }
 
       // 其他 HTTP 错误生成友好提示
-      const friendlyMsg = getFriendlyErrorMessage(response.status, rawMsg);
+      const friendlyMsg = getFriendlyErrorMessage(data.error?.status || 500, rawMsg);
       throw new Error(friendlyMsg);
     }
 
@@ -380,18 +347,10 @@ export function useDeviceControl(options: UseDeviceControlOptions = {}): UseDevi
     if (!pendingCommand || !token) return;
 
     try {
-      const url = `https://evoloop.develop-assistant.cn${GATEWAY_API.HITL_CONFIRM}`;
-      await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          device_key: pendingCommand.deviceKey,
-          request_id: pendingCommand.id,
-          response: confirmed ? 'confirm' : 'cancel',
-        }),
+      await api.post('/gateway/api/v1/hitl/confirm', {
+        device_key: pendingCommand.deviceKey,
+        request_id: pendingCommand.id,
+        response: confirmed ? 'confirm' : 'cancel',
       });
 
       setPendingCommand(null);
@@ -406,17 +365,9 @@ export function useDeviceControl(options: UseDeviceControlOptions = {}): UseDevi
     if (!hitlRequest || !token) return;
 
     try {
-      const url = `https://evoloop.develop-assistant.cn${GATEWAY_API.HITL_TEXT}`;
-      await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          request_id: hitlRequest.id,
-          text: value,
-        }),
+      await api.post('/gateway/api/v1/hitl/text', {
+        request_id: hitlRequest.id,
+        text: value,
       });
 
       setHitlRequest(null);
@@ -431,18 +382,10 @@ export function useDeviceControl(options: UseDeviceControlOptions = {}): UseDevi
     if (!hitlRequest || !token) return;
 
     try {
-      const url = `https://evoloop.develop-assistant.cn${GATEWAY_API.HITL_CONFIRM}`;
-      await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          request_id: hitlRequest.id,
-          response: 'cancel',
-          reason: reason || '用户取消',
-        }),
+      await api.post('/gateway/api/v1/hitl/confirm', {
+        request_id: hitlRequest.id,
+        response: 'cancel',
+        reason: reason || '用户取消',
       });
 
       setHitlRequest(null);

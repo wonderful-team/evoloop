@@ -1,7 +1,7 @@
 // Gateway WebSocket 客户端
 
 import { EventEmitter } from 'eventemitter3';
-import { WS_CONFIG } from '@/constants/config';
+import {WS_BASE_URL, WS_CONFIG} from '@/constants/config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   GatewayMessage,
@@ -20,7 +20,7 @@ export class GatewayClient extends EventEmitter {
   private state: ConnectionState = ConnectionState.DISCONNECTED;
   private static instance: GatewayClient | null = null;
 
-  constructor(url: string = 'wss://evoloop.develop-assistant.cn/gateway') {
+  constructor(url: string = WS_BASE_URL || 'ws://127.0.0.1') {
     super();
     this.url = url;
   }

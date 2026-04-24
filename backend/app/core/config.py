@@ -61,6 +61,10 @@ class Settings(BaseSettings):
     # Embedded Mode (No external dependencies)
     EMBEDDED_MODE: bool = False  # True: Use SQLite + LanceDB + LocalCelery, False: Use Postgres + Neo4j + Redis
 
+    # Desktop App / PyInstaller Build Settings
+    EVOLOOP_BUNDLED_APP: bool = False  # True: Running as PyInstaller bundled desktop app
+    EVOLOOP_TOKEN_STORAGE: Literal["keyring", "file"] = "keyring"  # keyring: OS keychain, file: local JSON file
+
     # Memory System Settings
     AUTO_MEMORY_EXTRACTION: bool = True  # Enable automatic memory extraction at conversation end
     AUTO_MEMORY_EXTRACTION_INTERVAL: int = 1  # Extract every N turns (1 = every turn, 2 = every other turn, etc.)
@@ -274,8 +278,8 @@ class Settings(BaseSettings):
     CHROME_STARTUP_TIMEOUT: int = Field(5, validation_alias="EVOLOOP_CHROME_STARTUP_TIMEOUT")
 
     # EvoCloud API
-    EVOCLOUD_API_URL: str = Field("https://api.evoloop.cn", validation_alias="EVOCLOUD_API_URL")
-    EVOCLOUD_WS_URL: str = Field("wss://api.evoloop.cn/wss/", validation_alias="EVOCLOUD_WS_URL")
+    EVOCLOUD_API_URL: str = Field("http://127.0.0.1", validation_alias="EVOCLOUD_API_URL")
+    EVOCLOUD_WS_URL: str = Field("ws://127.0.0.1/ws", validation_alias="EVOCLOUD_WS_URL")
     EVOCLOUD_API_KEY: str | None = Field(None, validation_alias="EVOCLOUD_API_KEY")
     EVOCLOUD_API_SECRET: str | None = Field(None, validation_alias="EVOCLOUD_API_SECRET")
 
@@ -297,8 +301,7 @@ class Settings(BaseSettings):
     CLIENT_CALLBACK_URL: str | None = None  # @deprecated: Managed by WebSocket handshake
 
     # Project Management
-    WORKSPACE_ROOT: str | None = Field(default=None, validation_alias="WORKSPACE_ROOT")
-    ENABLE_PROJECT_DISCOVERY: bool = Field(default=False, validation_alias="ENABLE_PROJECT_DISCOVERY")  # 启用/禁用项目自动发现（默认禁用）
+    # 启用/禁用项目自动发现（默认禁用）—— 已迁移到 SystemConfigService (DB)，不再通过 .env 配置
 
     # Artifacts (Relative to ~/.evoloop in home dir for persistence, or subfolder of WORKSPACE_ROOT?)
     # Decision: Keep them in user app data dir to avoid cluttering projects root or ephemeral CWD.

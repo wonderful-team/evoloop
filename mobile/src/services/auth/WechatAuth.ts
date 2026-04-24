@@ -9,9 +9,8 @@ try {
   console.warn('react-native-wechat-lib 未安装或不可用');
 }
 
-import { WECHAT_CONFIG } from '@/constants/config';
+import { WECHAT_CONFIG, UNIVERSAL_LINK_URL } from '@/constants/config';
 import { api } from '@/services/api/client';
-import { MEMBER_API } from '@/constants/api';
 import { ApiResponse } from '@/types';
 
 // 检查 WeChat 模块是否可用
@@ -74,7 +73,7 @@ export class WechatAuth {
     try {
       const result = await WeChat.registerApp(
         WECHAT_CONFIG.appId,
-        'https://evoloop.develop-assistant.cn/universal-link'
+        UNIVERSAL_LINK_URL
       );
       this.isRegistered = result;
       return result;
@@ -191,7 +190,7 @@ export class WechatAuth {
 
     // 步骤5: 调用后端登录接口
     const response = await api.post<ApiResponse<WechatLoginResult>>(
-      MEMBER_API.LOGIN_AUTH,
+      `/member/api/login/auth`,
       authData
     );
 

@@ -2,7 +2,6 @@
 // 架构：Mobile → MC (Member Center)
 
 import { api } from './client';
-import { MEMBER_API } from '@/constants/api';
 import {
   ModelInfo,
   ModelListResponse,
@@ -16,7 +15,7 @@ import {
  * GET /member/api/models
  */
 export async function getModels(): Promise<ModelListResponse> {
-  const response = await api.get(`${MEMBER_API.BASE}/models`);
+  const response = await api.get(`/member/models`);
   return response.data;
 }
 
@@ -25,7 +24,7 @@ export async function getModels(): Promise<ModelListResponse> {
  * GET /member/api/models/:id
  */
 export async function getModel(modelId: string): Promise<ModelInfo> {
-  const response = await api.get(`${MEMBER_API.BASE}/models/${modelId}`);
+  const response = await api.get(`/member/models/${modelId}`);
   return response.data;
 }
 
@@ -34,7 +33,7 @@ export async function getModel(modelId: string): Promise<ModelInfo> {
  * GET /member/subscription/api/aiQuota
  */
 export async function getUsageQuota(): Promise<UsageQuota> {
-  const response = await api.get(MEMBER_API.AI_QUOTA);
+  const response = await api.get(`/member/subscription/api/aiQuota/getQuota`);
   return response.data;
 }
 
@@ -46,7 +45,7 @@ export async function getConversationTokenStats(
   conversationId: string
 ): Promise<ConversationTokenStats> {
   const response = await api.get(
-    `${MEMBER_API.CONVERSATION_DETAIL(conversationId)}/token-stats`
+    `/member/evolooplink/api/conversation/detail?conversation_id=${conversationId}/token-stats`
   );
   return response.data;
 }
@@ -56,7 +55,7 @@ export async function getConversationTokenStats(
  * POST /member/api/models/default
  */
 export async function setDefaultModel(modelId: string): Promise<void> {
-  await api.post(`${MEMBER_API.BASE}/models/default`, { model_id: modelId });
+  await api.post(`/member/models/default`, { model_id: modelId });
 }
 
 /**
@@ -68,6 +67,6 @@ export async function checkModelAvailability(modelId: string): Promise<{
   reason?: string;
   alternative_models?: string[];
 }> {
-  const response = await api.get(`${MEMBER_API.BASE}/models/${modelId}/check`);
+  const response = await api.get(`/member/models/${modelId}/check`);
   return response.data;
 }

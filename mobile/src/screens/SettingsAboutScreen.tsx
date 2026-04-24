@@ -3,6 +3,7 @@ import { View, StyleSheet, ScrollView, Linking } from 'react-native';
 import { List, Divider, Text, Card, Avatar } from 'react-native-paper';
 import { useTheme } from '@/theme';
 import DeviceInfo from 'react-native-device-info';
+import { BASE_URL } from '@/constants/config';
 
 export default function AboutScreen() {
   const { theme } = useTheme();
@@ -11,7 +12,7 @@ export default function AboutScreen() {
   const buildNumber = DeviceInfo.getBuildNumber();
 
   const openWebsite = () => {
-    Linking.openURL('https://evoloop.develop-assistant.cn');
+    Linking.openURL(`${BASE_URL}/member`);
   };
 
   const openGithub = () => {
@@ -61,7 +62,7 @@ export default function AboutScreen() {
         <List.Subheader>链接</List.Subheader>
         <List.Item
           title="官方网站"
-          description="evoloop.develop-assistant.cn"
+          description="www.evoloop.cn"
           left={(props) => <List.Icon {...props} icon="web" />}
           right={(props) => <List.Icon {...props} icon="open-in-new" />}
           onPress={openWebsite}

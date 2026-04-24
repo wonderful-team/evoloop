@@ -4,7 +4,6 @@ Handles connection initialization and global client cleanup.
 """
 import json
 import logging
-import os
 
 from sqlalchemy import select
 
@@ -102,9 +101,7 @@ async def init_mcp(force_update: bool = False) -> dict[str, str]:
         results["local-postgres"] = "skipped"
 
     # 2. Filesystem (Critical for Coder)
-    db_workspace_root = SystemConfigService.get_value("WORKSPACE_ROOT")
-    workspace_root = db_workspace_root if db_workspace_root else settings.WORKSPACE_ROOT
-
+    workspace_root = SystemConfigService.get_value("WORKSPACE_ROOT")
     if workspace_root:
         needs_update = force_update
         needs_add = "filesystem" not in existing_db_servers
@@ -162,7 +159,7 @@ async def init_mcp(force_update: bool = False) -> dict[str, str]:
         results["filesystem"] = "skipped_no_workspace"
 
     # 3. Brave Search (Network Capability)
-    brave_key = os.getenv("BRAVE_API_KEY")
+    brave_key = settings.BRAVE_API_KEY
     if brave_key:
         if "brave-search" not in existing_db_servers:
             details_brave = {

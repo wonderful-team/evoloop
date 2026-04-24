@@ -9,7 +9,7 @@ import logging
 from pathlib import Path
 from typing import Optional
 
-from app.constants import DEFAULT_EXCLUDED_DIRS
+from app.constants import DEFAULT_EXCLUDED_DIRS, DEFAULT_PROJECT_ID
 from app.utils.process import run_command
 
 logger = logging.getLogger(__name__)
@@ -167,11 +167,7 @@ class CodeExplorationEngine:
             logger.error(f"[Engine] Type check failed: {e}")
             return [{"error": str(e)}]
     
-    async def analyze_impact(
-        self,
-        symbol: str,
-        project_id: int = 1
-    ) -> list[dict]:
+    async def analyze_impact(self, symbol: str, project_id: int = DEFAULT_PROJECT_ID) -> list[dict]:
         """
         Analyze symbol impact using Knowledge Graph.
         """

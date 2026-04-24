@@ -4,7 +4,6 @@
 // - 指令类 (停止、回退、重试): Mobile → Gateway → Desktop
 
 import { api } from './client';
-import { GATEWAY_API, MEMBER_API } from '@/constants/api';
 import {
   Conversation,
   ConversationListResponse,
@@ -35,7 +34,7 @@ export async function getConversations(
   params.append('page', page.toString());
   params.append('page_size', pageSize.toString());
   
-  const response = await api.get(`${MEMBER_API.CONVERSATIONS}?${params.toString()}`);
+  const response = await api.get(`/member/evolooplink/api/conversation/list?${params.toString()}`);
   
   // MC 返回格式处理
   if (response.code !== 0) {
@@ -61,7 +60,7 @@ export async function getConversations(
 export async function createConversation(
   data: CreateConversationRequest
 ): Promise<CreateConversationResponse> {
-  const response = await api.post(MEMBER_API.CONVERSATIONS, data);
+  const response = await api.post(`/member/evolooplink/api/conversation/list`, data);
   
   if (response.code !== 0) {
     throw new Error(response.message || '创建会话失败');
@@ -77,7 +76,7 @@ export async function createConversation(
  * MC 响应格式: { code: 0, data: {...}, message: 'success' }
  */
 export async function getConversation(conversationId: string): Promise<Conversation> {
-  const response = await api.get(MEMBER_API.CONVERSATION_DETAIL(conversationId));
+  const response = await api.get(`/member/evolooplink/api/conversation/detail?conversation_id=${conversationId}`);
   
   if (response.code !== 0) {
     throw new Error(response.message || '获取会话详情失败');
@@ -91,7 +90,7 @@ export async function getConversation(conversationId: string): Promise<Conversat
  * POST /evolooplink/api/conversation/delete (MC 存储)
  */
 export async function deleteConversation(conversationId: string): Promise<void> {
-  const response = await api.post(MEMBER_API.CONVERSATION_DELETE(conversationId), { 
+  const response = await api.post(`/member/evolooplink/api/conversation/delete`, {
     conversation_id: conversationId 
   });
   
@@ -116,9 +115,7 @@ export async function getConversationHistory(
   if (beforeMessageId) params.append('before_message_id', beforeMessageId);
   params.append('limit', limit.toString());
   
-  const response = await api.get(
-    `${MEMBER_API.CONVERSATION_HISTORY(conversationId)}&${params.toString()}`
-  );
+  const response = await api.get(`/member/evolooplink/api/conversation/messages?conversation_id=${conversationId}&${params.toString()}`);
   
   if (response.code !== 0) {
     throw new Error(response.message || '获取消息历史失败');
@@ -138,7 +135,7 @@ export async function getConversationHistory(
  * POST /gateway/api/v1/conversations/:id/stop
  */
 export async function stopAgent(conversationId: string): Promise<void> {
-  const response = await api.post(GATEWAY_API.CONVERSATION_STOP(conversationId), {});
+  const response = await api.post(`/gateway/api/v1/conversations/${conversationId}/stop`, {});
   
   if (response.code !== 0) {
     throw new Error(response.message || '停止失败');
@@ -154,7 +151,7 @@ export async function rewindConversation(
   request: RewindRequest
 ): Promise<RewindResponse> {
   const response = await api.post(
-    GATEWAY_API.CONVERSATION_REWIND(conversationId),
+    `/gateway/api/v1/conversations/${conversationId}/rewind`,
     request
   );
   
@@ -174,7 +171,7 @@ export async function retryConversation(
   request: RetryRequest
 ): Promise<RetryResponse> {
   const response = await api.post(
-    GATEWAY_API.CONVERSATION_RETRY(conversationId),
+    `/gateway/api/v1/conversations/${conversationId}/retry`,
     request
   );
   
@@ -194,7 +191,7 @@ export async function addToMemory(
   request: AddMemoryRequest
 ): Promise<MemoryConcept> {
   const response = await api.post(
-    MEMBER_API.PROJECT_MEMORY(projectId),
+    `/member/api/projects/${projectId}/memory`,
     request
   );
   
@@ -210,7 +207,7 @@ export async function addToMemory(
  * GET /member/api/projects/:id/memory
  */
 export async function getMemories(projectId: number): Promise<MemoryConcept[]> {
-  const response = await api.get(MEMBER_API.PROJECT_MEMORY(projectId));
+  const response = await api.get(`/member/api/projects/${projectId}/memory`);
   
   if (response.code !== 0) {
     throw new Error(response.message || '获取记忆失败');
@@ -236,7 +233,7 @@ export async function sendMessage(
   }
 ): Promise<{ message_id: string }> {
   const response = await api.post(
-    `${MEMBER_API.CONVERSATION_DETAIL(conversationId)}/messages`,
+    `/member/evolooplink/api/conversation/detail?conversation_id=${conversationId}/messages`,
     {
       content,
       attachments,

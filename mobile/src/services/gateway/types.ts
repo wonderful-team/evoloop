@@ -37,6 +37,9 @@ export enum GatewayMessageType {
   // 状态广播
   STATUS_UPDATE = 'status_update',
 
+  // 消息通知
+  NEW_MESSAGES = 'new_messages',
+
   // HITL (Human-in-the-Loop)
   HUMAN_REQUEST = 'human_request',
   HUMAN_RESPONSE = 'human_response',

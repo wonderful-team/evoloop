@@ -88,8 +88,7 @@ async def _execute_command(command: str, config: RunnableConfig | None = None) -
         working_dir = get_working_directory(config)
         
         if ctx.project_id == 0 or (ctx.project_id is None and working_dir == "."):
-            db_workspace_root = SystemConfigService.get_value("WORKSPACE_ROOT")
-            workspace_root = db_workspace_root if db_workspace_root else settings.WORKSPACE_ROOT
+            workspace_root = SystemConfigService.get_value("WORKSPACE_ROOT")
             if workspace_root:
                 working_dir = workspace_root
                 logger.info(f"Global mode: Using WORKSPACE_ROOT as working directory: {working_dir}")
@@ -190,7 +189,7 @@ async def execute_command(
     WARNING: Use dedicated tools for standard operations when available:
     - File Editing -> Use `edit_file` / `write_file`.
     - File Reading -> Use `read_file`.
-    - Directory Operations -> Use `list_directory` / `manage_directory`.
+    - Directory Operations -> Use `execute_command` (mkdir, rm, mv) or `list_directory`.
 
     Args:
         command: The shell command to execute
@@ -274,8 +273,7 @@ async def _run_command_background(
         
         if ctx.project_id == 0 or (ctx.project_id is None and working_dir == "."):
             from app.infrastructure.config.service import SystemConfigService
-            db_workspace_root = SystemConfigService.get_value("WORKSPACE_ROOT")
-            workspace_root = db_workspace_root if db_workspace_root else settings.WORKSPACE_ROOT
+            workspace_root = SystemConfigService.get_value("WORKSPACE_ROOT")
             if workspace_root:
                 working_dir = workspace_root
         
@@ -405,8 +403,7 @@ async def _execute_smart(
         
         if ctx.project_id == 0 or (ctx.project_id is None and working_dir == "."):
             from app.infrastructure.config.service import SystemConfigService
-            db_workspace_root = SystemConfigService.get_value("WORKSPACE_ROOT")
-            workspace_root = db_workspace_root if db_workspace_root else settings.WORKSPACE_ROOT
+            workspace_root = SystemConfigService.get_value("WORKSPACE_ROOT")
             if workspace_root:
                 working_dir = workspace_root
         
@@ -515,8 +512,7 @@ async def _execute_command_with_timeout(
     
     if ctx.project_id == 0 or (ctx.project_id is None and working_dir == "."):
         from app.infrastructure.config.service import SystemConfigService
-        db_workspace_root = SystemConfigService.get_value("WORKSPACE_ROOT")
-        workspace_root = db_workspace_root if db_workspace_root else settings.WORKSPACE_ROOT
+        workspace_root = SystemConfigService.get_value("WORKSPACE_ROOT")
         if workspace_root:
             working_dir = workspace_root
     

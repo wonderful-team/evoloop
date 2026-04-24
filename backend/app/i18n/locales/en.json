@@ -148,7 +148,6 @@
             "run_macro": "Executing macro: {skill_name}",
             "manage_git": "Git Operation: {action}",
             "manage_memory": "Memory Management: {action}",
-            "consult_architecture": "Consulting architecture: {path}",
             "use_mcp": "Enabling MCP server: {server_name}",
             "default": "Running {tool}"
         },

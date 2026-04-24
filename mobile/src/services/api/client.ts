@@ -55,14 +55,14 @@ const onTokenRefreshed = (token: string) => {
 // 请求拦截器
 apiClient.interceptors.request.use(
   async (config) => {
-    // 从 authStore 获取 token（实时状态）
-    const token = useAuthStore.getState().token;
-
-    // URL 前缀处理 - 根据路径前缀设置正确的 baseURL
-    const originalUrl = config.url || '';
+    // 从 authStore 获取 token（实时状态），若未就绪则回退 AsyncStorage
+    let token = useAuthStore.getState().token;
+    if (!token) {
+      token = await AsyncStorage.getItem('token');
+    }
 
     // 判断是否为 Gateway 请求（Gateway 使用 Authorization header）
-    const isGatewayRequest = originalUrl.startsWith('/gateway');
+    const isGatewayRequest = (config.url || '').startsWith('/gateway/');
 
     if (token) {
       if (isGatewayRequest) {
@@ -81,17 +81,7 @@ apiClient.interceptors.request.use(
       console.log('[API] No token available');
     }
 
-    if (originalUrl.startsWith('/gateway')) {
-      config.baseURL = `${API_CONFIG.baseURL}/gateway`;
-      // 移除 /gateway 前缀，因为 baseURL 已经包含
-      config.url = originalUrl.replace('/gateway', '');
-    } else if (originalUrl.startsWith('/member')) {
-      config.baseURL = `${API_CONFIG.baseURL}/member`;
-      // 移除 /member 前缀，因为 baseURL 已经包含
-      config.url = originalUrl.replace('/member', '');
-    }
-
-    console.log(`API Request: ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`);
+    console.log(`API Request: ${config.method?.toUpperCase()} ${config.url}`);
 
     return config;
   },
@@ -129,6 +119,12 @@ apiClient.interceptors.response.use(
       }
     }
 
+    // 若请求标记为需要完整 response，跳过解包
+    if ((response.config as any)._rawResponse) {
+      return response;
+    }
+
+    // 统一返回 data 字段
     return response.data;
   },
   async (error: AxiosError) => {
@@ -216,7 +212,7 @@ apiClient.interceptors.response.use(
   }
 );
 
-// 封装请求方法
+// 封装请求方法（返回 response.data）
 export const api = {
   get: <T = any>(url: string, config?: AxiosRequestConfig): Promise<T> => {
     return apiClient.get(url, config);
@@ -236,6 +232,17 @@ export const api = {
 
   patch: <T = any>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> => {
     return apiClient.patch(url, data, config);
+  },
+};
+
+// 原始请求方法（返回完整 AxiosResponse，用于需要 headers/status 的场景）
+export const apiRaw = {
+  get: <T = any>(url: string, config?: AxiosRequestConfig): Promise<AxiosResponse<T>> => {
+    return apiClient.get(url, { ...config, _rawResponse: true } as AxiosRequestConfig);
+  },
+
+  post: <T = any>(url: string, data?: any, config?: AxiosRequestConfig): Promise<AxiosResponse<T>> => {
+    return apiClient.post(url, data, { ...config, _rawResponse: true } as AxiosRequestConfig);
   },
 };
 

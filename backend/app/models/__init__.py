@@ -4,8 +4,6 @@ from .checkpoint import Checkpoint as Checkpoint
 from .checkpoint import CheckpointBlob as CheckpointBlob
 from .checkpoint import CheckpointMigration as CheckpointMigration
 from .checkpoint import CheckpointWrite as CheckpointWrite
-from .checkpoint import FileCheckpoint as FileCheckpoint
-from .checkpoint import FileCheckpointSnapshot as FileCheckpointSnapshot
 from .codebase import CodeChunk as CodeChunk
 from .codebase import CodeEntity as CodeEntity
 from .codebase import CodeRelation as CodeRelation
@@ -53,8 +51,6 @@ __all__ = [
     "HumanRequest",
     "MessageReference",
     "FileOperation",
-    "FileCheckpoint",
-    "FileCheckpointSnapshot",
     "LearnedSkill",
     "SynthesisJob",
     "TraceEvent",

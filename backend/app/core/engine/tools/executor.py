@@ -127,7 +127,8 @@ class AgentToolExecutor:
                 local_tool_history.append(tool_sig)
 
             # Capture snapshots BEFORE tool execution (for diff tracking)
-            if self.enable_diff_tracking:
+            # Only state-mutating tools can produce meaningful diffs
+            if self.enable_diff_tracking and getattr(tool, "metadata", {}).get("is_state_mutating"):
                 from app.core.tools.registry import get_tool_affected_paths
                 snapshot_paths = get_tool_affected_paths(tool_name, tool_args)
                 for path in snapshot_paths:
@@ -157,7 +158,8 @@ class AgentToolExecutor:
             asyncio.create_task(_fire_hook())
 
             # Diff Tracking (if enabled)
-            if self.enable_diff_tracking:
+            # Only state-mutating tools can produce meaningful diffs
+            if self.enable_diff_tracking and getattr(tool, "metadata", {}).get("is_state_mutating"):
                 await self._track_diffs(tool_name, tool_args, thread_id, tool_id)
 
             msg = self._create_tool_message(
@@ -208,7 +210,13 @@ class AgentToolExecutor:
         tool_id: str,
     ) -> None:
         """Track file diffs after tool execution."""
-        from app.core.tools.registry import get_tool_affected_paths
+        from app.core.tools.registry import get_tool_map, get_tool_affected_paths
+
+        # Guard: skip if tool is not state-mutating (e.g. read-only tools)
+        tool_map = get_tool_map()
+        tool_obj = tool_map.get(tool_name)
+        if not tool_obj or not getattr(tool_obj, "metadata", {}).get("is_state_mutating"):
+            return
 
         snapshot_paths = get_tool_affected_paths(tool_name, tool_args)
 

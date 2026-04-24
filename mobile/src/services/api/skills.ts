@@ -4,7 +4,6 @@
 // - 执行类 (执行技能): Mobile → Gateway → Desktop
 
 import { api } from './client';
-import { GATEWAY_API, MEMBER_API } from '@/constants/api';
 import {
   Skill,
   SkillExecutionRequest,
@@ -22,7 +21,7 @@ export async function getSkills(type?: 'builtin' | 'custom' | 'mcp'): Promise<Sk
   const params = new URLSearchParams();
   if (type) params.append('type', type);
   
-  const response = await api.get(`${MEMBER_API.SKILLS}?${params.toString()}`);
+  const response = await api.get(`/member/api/skills?${params.toString()}`);
   return response.data;
 }
 
@@ -31,7 +30,7 @@ export async function getSkills(type?: 'builtin' | 'custom' | 'mcp'): Promise<Sk
  * GET /member/api/skills/:id
  */
 export async function getSkill(skillId: string): Promise<Skill> {
-  const response = await api.get(MEMBER_API.SKILL_DETAIL(skillId));
+  const response = await api.get(`/member/api/skills/${skillId}`);
   return response.data;
 }
 
@@ -43,7 +42,7 @@ export async function executeSkill(
   request: SkillExecutionRequest
 ): Promise<SkillExecutionResponse> {
   // 通过 Gateway 执行
-  const response = await api.post(GATEWAY_API.COMMAND_EXECUTE, {
+  const response = await api.post(`/gateway/api/v1/command/send`, {
     device_key: request.deviceKey,
     command_type: 'skill',
     content: {
@@ -61,7 +60,7 @@ export async function executeSkill(
 export async function getSkillExecutionStatus(
   executionId: string
 ): Promise<SkillExecutionStatus> {
-  const response = await api.get(`${MEMBER_API.SKILLS}/execution/${executionId}`);
+  const response = await api.get(`/member/api/skills/execution/${executionId}`);
   return response.data;
 }
 
@@ -70,7 +69,7 @@ export async function getSkillExecutionStatus(
  * GET /member/api/mcp/servers
  */
 export async function getMcpServers(): Promise<McpServer[]> {
-  const response = await api.get(`${MEMBER_API.BASE}/mcp/servers`);
+  const response = await api.get(`/member/mcp/servers`);
   return response.data;
 }
 
@@ -79,7 +78,7 @@ export async function getMcpServers(): Promise<McpServer[]> {
  * GET /member/api/mcp/servers/:id
  */
 export async function getMcpServer(serverId: string): Promise<McpServer> {
-  const response = await api.get(`${MEMBER_API.BASE}/mcp/servers/${serverId}`);
+  const response = await api.get(`/member/mcp/servers/${serverId}`);
   return response.data;
 }
 
@@ -90,7 +89,7 @@ export async function getMcpServer(serverId: string): Promise<McpServer> {
 export async function addMcpServer(
   data: Omit<McpServer, 'id' | 'created_at' | 'updated_at'>
 ): Promise<McpServer> {
-  const response = await api.post(`${MEMBER_API.BASE}/mcp/servers`, data);
+  const response = await api.post(`/member/mcp/servers`, data);
   return response.data;
 }
 
@@ -102,7 +101,7 @@ export async function updateMcpServer(
   serverId: string,
   data: Partial<McpServer>
 ): Promise<McpServer> {
-  const response = await api.put(`${MEMBER_API.BASE}/mcp/servers/${serverId}`, data);
+  const response = await api.put(`/member/mcp/servers/${serverId}`, data);
   return response.data;
 }
 
@@ -111,7 +110,7 @@ export async function updateMcpServer(
  * DELETE /member/api/mcp/servers/:id
  */
 export async function deleteMcpServer(serverId: string): Promise<void> {
-  await api.delete(`${MEMBER_API.BASE}/mcp/servers/${serverId}`);
+  await api.delete(`/member/mcp/servers/${serverId}`);
 }
 
 /**
@@ -123,7 +122,7 @@ export async function testMcpConnection(serverId: string): Promise<{
   message: string;
   tools_count?: number;
 }> {
-  const response = await api.post(GATEWAY_API.COMMAND_EXECUTE, {
+  const response = await api.post(`/gateway/api/v1/command/send`, {
     command_type: 'mcp_test',
     content: { server_id: serverId },
   });
@@ -141,7 +140,7 @@ export async function matchSkills(
     project_id?: number;
   }
 ): Promise<SkillMatch[]> {
-  const response = await api.post(`${MEMBER_API.SKILLS}/match`, {
+  const response = await api.post(`/member/api/skills/match`, {
     query,
     ...context,
   });
@@ -161,7 +160,7 @@ export async function getRecommendedSkills(
   params.append('limit', limit.toString());
   
   const response = await api.get(
-    `${MEMBER_API.SKILLS}/recommended?${params.toString()}`
+    `/member/api/skills/recommended?${params.toString()}`
   );
   return response.data;
 }

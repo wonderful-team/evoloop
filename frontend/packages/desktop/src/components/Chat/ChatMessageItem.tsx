@@ -33,6 +33,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@evoloop/shared/components/
 import { Button } from "@evoloop/shared/components/ui/button"
 import { TestReportCard } from "./Artifacts/TestReportCard"
 import { EChartsArtifact } from "./Artifacts/EChartsArtifact"
+import { MapArtifact } from "./Artifacts/MapArtifact"
+import { extractArtifactsFromContent } from "./Artifacts/utils"
 import { MessageContent } from "./MessageContent"
 import { VoiceMessage } from "./VoiceMessage"
 import { SourcesFooter } from "./SourcesFooter"
@@ -362,33 +364,74 @@ const ChatMessageItem = memo(
                 }`}>
 
                 {(() => {
-                  // Artifact Detection
-                  if (msg.role === "ai") {
-                    try {
-                      const trimmed = msg.content.trim()
-                      if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
-                        const obj = JSON.parse(trimmed)
-                        if (obj.type === "artifact") {
-                          if (obj.artifact_type === "test_report") {
-                            return <TestReportCard data={obj.data} />
-                          }
-                          if (obj.artifact_type === "echarts") {
-                            return <EChartsArtifact data={obj.data} />
-                          }
-                          if (obj.artifact_type === "requirement_analysis") {
-                            return (
-                              <AnalysisResultMessage
-                                analysisId={obj.data.analysis_id}
-                                documentId={obj.data.document_id}
-                                projectId={obj.data.project_id}
-                                data={obj.data.analysis}
-                              />
-                            )
-                          }
+                  // Pre-process: strip <think> tags for both artifact detection and normal rendering
+                  let processedContent = msg.content
+                  if (!msg.thinking && msg.content.includes("<think>")) {
+                    processedContent = msg.content.replace(/<think>[\s\S]*?<\/think>/g, "").trim()
+                    if (processedContent.includes("<think>")) {
+                      processedContent = processedContent.split("<think>")[0].trim()
+                    }
+                  }
+
+                  // Artifact Detection (AI messages only, skip during streaming)
+                  if (msg.role === "ai" && msg.status !== "streaming") {
+                    const parts = extractArtifactsFromContent(processedContent)
+                    if (parts.some(p => p.type === 'artifact')) {
+                      // Single artifact with no surrounding text: direct render (backward compatible)
+                      if (parts.length === 1 && parts[0].type === 'artifact') {
+                        const art = parts[0]
+                        if (art.artifactType === "test_report") {
+                          return <TestReportCard data={art.data} />
+                        }
+                        if (art.artifactType === "echarts") {
+                          return <EChartsArtifact data={art.data} />
+                        }
+                        if (art.artifactType === "requirement_analysis") {
+                          return (
+                            <AnalysisResultMessage
+                              analysisId={art.data.analysis_id}
+                              documentId={art.data.document_id}
+                              projectId={art.data.project_id}
+                              data={art.data.analysis}
+                            />
+                          )
+                        }
+                        if (art.artifactType === "map") {
+                          return <MapArtifact data={art.data} />
                         }
                       }
-                    } catch (_e) {
-                      // Not JSON
+
+                      // Mixed content: render text and artifacts sequentially
+                      return (
+                        <div className="flex flex-col gap-2">
+                          {parts.map((part, idx) => {
+                            if (part.type === 'text') {
+                              return <MessageContent key={idx} content={part.content!} isUser={false} />
+                            }
+                            if (part.artifactType === "test_report") {
+                              return <TestReportCard key={idx} data={part.data} />
+                            }
+                            if (part.artifactType === "echarts") {
+                              return <EChartsArtifact key={idx} data={part.data} />
+                            }
+                            if (part.artifactType === "requirement_analysis") {
+                              return (
+                                <AnalysisResultMessage
+                                  key={idx}
+                                  analysisId={part.data.analysis_id}
+                                  documentId={part.data.document_id}
+                                  projectId={part.data.project_id}
+                                  data={part.data.analysis}
+                                />
+                              )
+                            }
+                            if (part.artifactType === "map") {
+                              return <MapArtifact key={idx} data={part.data} />
+                            }
+                            return null
+                          })}
+                        </div>
+                      )
                     }
                   }
 
@@ -406,16 +449,7 @@ const ChatMessageItem = memo(
                     )
                   }
 
-                  // Strip <think> tags
-                  let cleanContent = msg.content
-                  if (!msg.thinking && msg.content.includes("<think>")) {
-                    cleanContent = msg.content.replace(/<think>[\s\S]*?<\/think>/g, "").trim()
-                    if (cleanContent.includes("<think>")) {
-                      cleanContent = cleanContent.split("<think>")[0].trim()
-                    }
-                  }
-
-                  return <MessageContent content={cleanContent} isUser={msg.role === "human"} />
+                  return <MessageContent content={processedContent} isUser={msg.role === "human"} />
                 })()}
               </div>
             )}

@@ -4,8 +4,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 import BackgroundFetch from 'react-native-background-fetch';
-import { MEMBER_API } from '@/constants/api';
-import { generateUUID } from '@/utils/uuid';
+import { api } from '@/services/api/client';
 
 const LAST_CHECK_TIME_KEY = '@evoloop_last_check_time';
 const LAST_MESSAGE_ID_KEY = '@evoloop_last_message_id';
@@ -25,19 +24,13 @@ async function checkNewMessages(): Promise<boolean> {
     const lastMessageId = await AsyncStorage.getItem(LAST_MESSAGE_ID_KEY);
 
     // 获取最新的对话列表
-    const conversationsUrl = `https://evoloop.develop-assistant.cn${MEMBER_API.CONVERSATIONS}?page=1&page_size=1`;
-    const response = await fetch(conversationsUrl, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-      },
-    });
-
-    if (!response.ok) {
-      console.log('[BackgroundTask] Failed to fetch conversations:', response.status);
+    let data: any;
+    try {
+      data = await api.get('/member/evolooplink/api/conversation/list?page=1&page_size=1');
+    } catch (error) {
+      console.log('[BackgroundTask] Failed to fetch conversations:', error);
       return false;
     }
-
-    const data = await response.json();
     if (data.code !== 0 || !data.data?.list?.length) {
       return false;
     }
@@ -46,18 +39,12 @@ async function checkNewMessages(): Promise<boolean> {
     const conversationId = latestConversation.conversation_id;
 
     // 获取该对话的最新消息
-    const messagesUrl = `https://evoloop.develop-assistant.cn${MEMBER_API.CONVERSATION_HISTORY(conversationId)}?limit=1`;
-    const messagesResponse = await fetch(messagesUrl, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-      },
-    });
-
-    if (!messagesResponse.ok) {
+    let messagesData: any;
+    try {
+      messagesData = await api.get(`/member/evolooplink/api/conversation/messages?conversation_id=${conversationId}&limit=1`);
+    } catch (error) {
       return false;
     }
-
-    const messagesData = await messagesResponse.json();
     if (messagesData.code !== 0 || !messagesData.data?.length) {
       return false;
     }

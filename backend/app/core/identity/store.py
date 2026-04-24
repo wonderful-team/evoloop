@@ -1,6 +1,5 @@
 import json
 import logging
-import os
 from pathlib import Path
 
 from app.core.config import settings
@@ -28,9 +27,13 @@ def _get_token_file_path():
     return app_data / "tokens.json"
 
 
-def _is_embedded_mode():
-    """Check if running in embedded mode (PyInstaller build)."""
-    return os.getenv("EVOLOOP_EMBEDDED") == "true" or os.getenv("EVOLOOP_TOKEN_STORAGE") == "file"
+def _use_file_token_storage():
+    """Check if token should be stored in local file instead of OS keychain.
+
+    True when running as a PyInstaller bundled desktop app or when
+    EVOLOOP_TOKEN_STORAGE is explicitly set to 'file'.
+    """
+    return settings.EVOLOOP_BUNDLED_APP or settings.EVOLOOP_TOKEN_STORAGE == "file"
 
 
 def _file_storage_get(key: str) -> str | None:
@@ -90,7 +93,7 @@ class IdentityStore:
 
     @classmethod
     def save_access_token(cls, token: str) -> bool:
-        if _is_embedded_mode():
+        if _use_file_token_storage():
             return _file_storage_set("access_token", token)
         try:
             _get_keyring().set_password(settings.SERVICE_NAME, "access_token", token)
@@ -101,7 +104,7 @@ class IdentityStore:
 
     @classmethod
     def get_access_token(cls) -> str | None:
-        if _is_embedded_mode():
+        if _use_file_token_storage():
             return _file_storage_get("access_token")
         try:
             return _get_keyring().get_password(settings.SERVICE_NAME, "access_token")
@@ -111,7 +114,7 @@ class IdentityStore:
 
     @classmethod
     def delete_access_token(cls) -> bool:
-        if _is_embedded_mode():
+        if _use_file_token_storage():
             return _file_storage_delete("access_token")
         try:
             kr = _get_keyring()
@@ -125,7 +128,7 @@ class IdentityStore:
 
     @classmethod
     def save_device_key(cls, key: str) -> bool:
-        if _is_embedded_mode():
+        if _use_file_token_storage():
             return _file_storage_set("device_key", key)
         try:
             _get_keyring().set_password(settings.SERVICE_NAME, "device_key", key)
@@ -136,7 +139,7 @@ class IdentityStore:
 
     @classmethod
     def get_device_key(cls) -> str | None:
-        if _is_embedded_mode():
+        if _use_file_token_storage():
             return _file_storage_get("device_key")
         try:
             return _get_keyring().get_password(settings.SERVICE_NAME, "device_key")
@@ -146,7 +149,7 @@ class IdentityStore:
 
     @classmethod
     def save_member_id(cls, member_id: int) -> bool:
-        if _is_embedded_mode():
+        if _use_file_token_storage():
             return _file_storage_set("member_id", str(member_id))
         try:
             _get_keyring().set_password(settings.SERVICE_NAME, "member_id", str(member_id))
@@ -157,7 +160,7 @@ class IdentityStore:
 
     @classmethod
     def get_member_id(cls) -> int | None:
-        if _is_embedded_mode():
+        if _use_file_token_storage():
             val = _file_storage_get("member_id")
             return int(val) if val else None
         try:

@@ -435,6 +435,15 @@ def get_tool_affected_paths(tool_name: str, tool_args: dict) -> list[str]:
     tool_map = get_tool_map()
     if tool_name in tool_map:
         tool = tool_map[tool_name]
+
+        # Generic extension point: tools can define their own path extractor
+        custom_extractor = getattr(tool, "get_affected_paths", None)
+        if custom_extractor is not None:
+            try:
+                return custom_extractor(tool_args)
+            except Exception:
+                pass
+
         metadata = getattr(tool, "metadata", {})
         path_keys = metadata.get("affected_path_keys", [])
 

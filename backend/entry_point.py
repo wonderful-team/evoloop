@@ -8,7 +8,7 @@ freeze_support()
 
 # Embedded mode: Use file-based token storage instead of macOS Keychain
 # This avoids keychain authorization prompts in PyInstaller builds
-os.environ["EVOLOOP_EMBEDDED"] = "true"
+os.environ["EVOLOOP_BUNDLED_APP"] = "true"
 os.environ["EVOLOOP_TOKEN_STORAGE"] = "file"
 
 # Ensure the app package is importable
@@ -17,7 +17,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 def parse_args():
     """Parse command line arguments. Supports both --host/--port and env vars."""
     host = os.getenv("HOST", "127.0.0.1")
-    port = int(os.getenv("PORT", "8000"))
+    port = int(os.getenv("PORT", "8123"))
     
     # Parse command line arguments (sidecar passes --host and --port)
     args = sys.argv[1:]

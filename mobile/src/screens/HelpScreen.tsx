@@ -3,7 +3,7 @@ import { View, StyleSheet, ScrollView, Linking } from 'react-native';
 import { List, Divider, Text, Card, Button, TextInput, Portal, Dialog } from 'react-native-paper';
 import { useTheme } from '@/theme';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from '@/utils/navigation';
+import { BASE_URL } from '@/constants/config';
 
 const FAQ_ITEMS = [
   {
@@ -56,7 +56,7 @@ export default function HelpScreen() {
   };
 
   const openWebsite = () => {
-    Linking.openURL('https://evoloop.develop-assistant.cn/help');
+    Linking.openURL(`${BASE_URL}/member/help`);
   };
 
   return (

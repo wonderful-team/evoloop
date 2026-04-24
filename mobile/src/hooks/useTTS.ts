@@ -3,8 +3,8 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api } from '@/services/api/client';
-import { API_CONFIG } from '@/constants/config';
 import RNFS from 'react-native-fs';
+import { BASE_URL } from '@/constants/config';
 
 export interface TTSOptions {
   voiceId?: string;
@@ -108,7 +108,7 @@ export function useTTS(): UseTTSReturn {
       formData.append('speed', speed.toString());
       formData.append('format', format);
 
-      const response = await fetch(`${API_CONFIG.baseURL}/api/v1/audio/tts-stream`, {
+      const response = await fetch(`${BASE_URL}/member/api/v1/audio/tts-stream`, {
         method: 'POST',
         headers: {
           'Content-Type': 'multipart/form-data',

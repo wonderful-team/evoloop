@@ -66,7 +66,9 @@ class MemoryRewind:
         """
         try:
             # Get message IDs to clean up
-            message_ids = await self._find_message_ids(
+            # Prefer pre-computed affected_message_ids to avoid execution-order
+            # dependency with MessageRewind (which may have already deleted rows).
+            message_ids = event.affected_message_ids or await self._find_message_ids(
                 thread_id=event.thread_id,
                 target_message_id=event.target_message_id,
                 include_target=event.include_target

@@ -2,7 +2,6 @@
 // 链路: Mobile → Gateway → Desktop (WebSocket)
 
 import { api } from './client';
-import { GATEWAY_API } from '@/constants/api';
 
 // ========== 类型定义 ==========
 
@@ -109,7 +108,7 @@ export interface DeviceCommandPayload {
 export async function executeCommand(
   request: ExecuteCommandRequest
 ): Promise<ExecuteCommandResponse> {
-  return api.post(GATEWAY_API.COMMAND_EXECUTE, request);
+  return api.post(`/gateway/api/v1/command/send`, request);
 }
 
 /**
@@ -134,7 +133,7 @@ export async function sendChatMessage(
 export async function stopExecution(
   threadId: string
 ): Promise<ExecuteCommandResponse> {
-  return api.post(GATEWAY_API.CONVERSATION_STOP(threadId), {});
+  return api.post(`/gateway/api/v1/conversations/${threadId}/stop`, {});
 }
 
 /**
@@ -144,7 +143,7 @@ export async function rewindThread(
   threadId: string,
   payload: RewindPayload = {}
 ): Promise<ExecuteCommandResponse> {
-  return api.post(GATEWAY_API.CONVERSATION_REWIND(threadId), payload);
+  return api.post(`/gateway/api/v1/conversations/${threadId}/rewind`, payload);
 }
 
 /**
@@ -154,7 +153,7 @@ export async function retryThread(
   threadId: string,
   payload: RetryPayload = {}
 ): Promise<ExecuteCommandResponse> {
-  return api.post(GATEWAY_API.CONVERSATION_RETRY(threadId), payload);
+  return api.post(`/gateway/api/v1/conversations/${threadId}/retry`, payload);
 }
 
 // ========== HITL 交互 API ==========
@@ -165,7 +164,7 @@ export async function retryThread(
 export async function hitlConfirm(
   payload: HITLPayload
 ): Promise<ExecuteCommandResponse> {
-  return api.post(GATEWAY_API.HITL_CONFIRM, payload);
+  return api.post(`/gateway/api/v1/hitl/confirm`, payload);
 }
 
 /**
@@ -174,7 +173,7 @@ export async function hitlConfirm(
 export async function hitlChoice(
   payload: HITLPayload
 ): Promise<ExecuteCommandResponse> {
-  return api.post(GATEWAY_API.HITL_CHOICE, payload);
+  return api.post(`/gateway/api/v1/hitl/choice`, payload);
 }
 
 /**
@@ -183,7 +182,7 @@ export async function hitlChoice(
 export async function hitlText(
   payload: HITLPayload
 ): Promise<ExecuteCommandResponse> {
-  return api.post(GATEWAY_API.HITL_TEXT, payload);
+  return api.post(`/gateway/api/v1/hitl/text`, payload);
 }
 
 // ========== 工具执行 API ==========

@@ -1,4 +1,4 @@
-### 📊 高级数据可视化协议 (ECharts 交互式图表 + Mermaid)
+### 高级数据可视化协议 (ECharts 交互式图表 + Mermaid)
 
 你已开启**交互式图表权益**，可以在聊天气泡中渲染专业级、可交互的 ECharts 图表。
 
@@ -35,6 +35,10 @@
    - 分类对比 → `"type": "bar"`
    - 占比分布 → `"type": "pie"` with `radius: ["40%", "70%"]`（环形图）
    - 散点分析 → `"type": "scatter"`
+   - 多维对比 → `"type": "radar"`（雷达图，适合能力评估、多维指标）
+   - 矩阵密度 → `"type": "heatmap"`（热力图，适合相关性、时间-类别矩阵）
+   - 层级占比 → `"type": "treemap"`（树图，适合层级结构数据）
+   - 流程转化 → `"type": "funnel"`（漏斗图，适合转化路径分析）
 3. **美学要求**：
    - 始终开启 `tooltip: { trigger: "axis" }` 以增强交互性。
    - **不要**在 `option` 中设置固定的 `backgroundColor` 或 `color` 字段，系统会自动适配深色/浅色模式。

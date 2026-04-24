@@ -20,6 +20,9 @@
       "identifier": "http:default",
       "allow": [
         {
+          "url": "http://127.0.0.1:20160/**"
+        },
+        {
           "url": "http://localhost:20160/**"
         }
       ]
