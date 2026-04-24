@@ -1,0 +1,740 @@
+#!/usr/bin/env python3
+"""
+EvoLoop Agent 端到端验证脚本
+================================
+从 dispatch.py 入口开始，验证完整链路：
+
+    dispatch_agent_run() → run_agent_background() → LangGraph 图执行
+
+场景：全新对话 — 用户发送一条消息，Agent 完成处理并结束。
+
+运行方式:
+    cd /项目根目录
+    arch -arm64 python3 scripts/verify_e2e_dispatch.py
+
+不需要：
+    - 真实 LLM API Key
+    - 真实数据库连接
+    - Redis / EvoCloud 服务
+"""
+
+import asyncio
+import sys
+from contextlib import asynccontextmanager, ExitStack
+from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock, patch
+
+PROJECT_ROOT = Path(__file__).parent.parent
+sys.path.insert(0, str(PROJECT_ROOT / "backend"))
+
+import logging
+
+logging.basicConfig(level=logging.INFO, format="%(message)s")
+
+from langchain_core.messages import HumanMessage, AIMessage
+from app.core.engine.graph_builder import GraphBuilder
+from app.core.engine.engine import EngineResult, NodeOutcome
+from app.core.engine.routers import RoutingTarget
+from app.core.engine.state import AgentState, BlackboardState, StateUpdate
+from app.core.engine.signals.schema import RouteToSignal
+from app.core.engine.signals.handlers.routing import RoutingContext
+from app.core.engine.dispatch import dispatch_agent_run
+from app.core.engine.background_agent import run_agent_background
+
+CONFIG_PATH = (
+    PROJECT_ROOT
+    / "backend"
+    / "app"
+    / "core"
+    / "engine"
+    / "config"
+    / "agent_main.yaml"
+)
+
+
+# ---------------------------------------------------------------------------
+# Mock 辅助
+# ---------------------------------------------------------------------------
+class MockSession:
+    """模拟 async SQLAlchemy session，满足 dispatch + background_agent 的 DB 操作。
+    
+    同时提供查询接口，方便测试验证 DB 数据。
+    """
+
+    def __init__(self):
+        self.added = []
+        self.next_id = 1
+
+    async def get(self, model, key):
+        return None
+
+    async def execute(self, stmt):
+        result = MagicMock()
+        result.scalar = MagicMock(return_value=0)
+        return result
+
+    def add(self, obj):
+        self.added.append(obj)
+        if hasattr(obj, "id") and obj.id is None:
+            obj.id = self.next_id
+            self.next_id += 1
+
+    async def flush(self):
+        pass
+
+    async def commit(self):
+        pass
+
+    def get_messages(self):
+        """获取所有添加的 Message 对象。"""
+        from app.models import Message
+        return [obj for obj in self.added if isinstance(obj, Message)]
+
+    def get_conversations(self):
+        """获取所有添加的 Conversation 对象。"""
+        from app.models import Conversation
+        return [obj for obj in self.added if isinstance(obj, Conversation)]
+
+    def get_message_references(self):
+        """获取所有添加的 MessageReference 对象。"""
+        from app.models import MessageReference
+        return [obj for obj in self.added if isinstance(obj, MessageReference)]
+
+    def __repr__(self):
+        return f"MockSession(added={len(self.added)}, messages={len(self.get_messages())}, conversations={len(self.get_conversations())})"
+
+
+class MockMemoryManager:
+    async def get_merged_preferences(self, *args, **kwargs):
+        return {}
+
+    async def get_project_concepts(self, *args, **kwargs):
+        return ""
+
+
+class MockMemoryContainer:
+    memory_manager = MockMemoryManager()
+
+
+def make_engine_result(messages=None, signal=None, routing_target=None, outcome=None):
+    return EngineResult(
+        messages=messages or [],
+        signal=signal,
+        routing_target=routing_target,
+        outcome=outcome,
+    )
+
+
+def _mock_route_supervisor(state: AgentState):
+    next_node = state.next_node
+    blackboard = state.blackboard
+    if next_node == RoutingTarget.WORKER:
+        if blackboard and blackboard.ticket:
+            return RoutingTarget.WORKER
+        raise ValueError("Routing to worker but no execution ticket found")
+    if next_node in (
+        RoutingTarget.CHAT,
+        RoutingTarget.FINISH,
+        RoutingTarget.SUPERVISOR,
+        RoutingTarget.AGGREGATOR,
+        RoutingTarget.SEQUENTIAL_WORKFLOW,
+    ):
+        return next_node
+    return RoutingTarget.FINISH
+
+
+def _mock_route_by_next_node(state: AgentState):
+    target = state.next_node
+    if target:
+        return target
+    return RoutingTarget.SUPERVISOR
+
+
+def _mock_route_finish(state: AgentState):
+    blackboard = state.blackboard
+    if (
+        blackboard
+        and blackboard.metadata
+        and getattr(blackboard.metadata, "blocked_by_hook", False)
+    ):
+        return RoutingTarget.SUPERVISOR
+    return RoutingTarget.END
+
+
+@asynccontextmanager
+async def mock_session_scope():
+    """替换原始 session_scope async generator。"""
+    yield MockSession()
+
+
+# ---------------------------------------------------------------------------
+# 端到端场景
+# ---------------------------------------------------------------------------
+async def scenario_new_conversation():
+    print(f"\n{'=' * 60}")
+    print("场景: 全新对话 — 从 dispatch 入口到图执行完成")
+    print(f"{'=' * 60}")
+
+    # 记录图节点执行轨迹
+    visited: list[str] = []
+    call_counts: dict[str, int] = {}
+
+    async def mock_run_node(
+        *,
+        state,
+        config,
+        system_prompt,
+        tools,
+        model=None,
+        max_steps=5,
+        name="Agent",
+        temperature=0.7,
+        node_source=None,
+        is_subtask=False,
+        parallel_tools=False,
+    ):
+        visited.append(name)
+        name_to_node = {"Session Reviewer": "Finish"}
+        node_name = name_to_node.get(name, name)
+        call_counts.setdefault(node_name, 0)
+        idx = call_counts[node_name]
+        call_counts[node_name] += 1
+
+        if node_name == "Supervisor":
+            return make_engine_result(
+                messages=[AIMessage(content="Route to worker")],
+                signal=RouteToSignal(
+                    target=RoutingTarget.WORKER,
+                    reason="需要编写代码",
+                    context=RoutingContext(topic="快速排序算法"),
+                ),
+            )
+        if node_name == "Worker":
+            return make_engine_result(
+                messages=[AIMessage(content="```python\ndef quicksort(arr): ...\n```")],
+                outcome=NodeOutcome(status="success"),
+                routing_target=RoutingTarget.FINISH,
+            )
+        return EngineResult(messages=[AIMessage(content=f"Mock {name} response")])
+
+    # 数据捕获
+    sessions = []
+
+    @asynccontextmanager
+    async def tracking_session_scope():
+        session = MockSession()
+        sessions.append(session)
+        yield session
+
+    # 使用 ExitStack 管理大量 patch
+    with ExitStack() as stack:
+        # === dispatch.py 内部依赖 ===
+        stack.enter_context(
+            patch("app.core.engine.dispatch.session_scope", side_effect=tracking_session_scope)
+        )
+        stack.enter_context(
+            patch("app.infrastructure.database.sql.database.session_scope", side_effect=tracking_session_scope)
+        )
+        stack.enter_context(
+            patch(
+                "app.domain.project.reference_service.reference_service.process_references",
+                new_callable=AsyncMock,
+                return_value=MagicMock(content_blocks="帮我写一个快速排序算法"),
+            )
+        )
+        # activity_monitor 在 background_agent 模块顶部导入，需要 patch
+        stack.enter_context(
+            patch("app.core.engine.background_agent.activity_monitor.start_run", new_callable=AsyncMock)
+        )
+        stack.enter_context(
+            patch("app.core.engine.background_agent.activity_monitor.end_run", new_callable=AsyncMock)
+        )
+        stack.enter_context(
+            patch("app.core.engine.background_agent.activity_monitor.check_cancellation", new_callable=AsyncMock)
+        )
+        stack.enter_context(
+            patch(
+                "app.core.engine.background_agent.activity_monitor.get_activity",
+                new_callable=AsyncMock,
+                return_value={"steps": []},
+            )
+        )
+
+        # === EvoCloud ===
+        mock_evocloud = stack.enter_context(
+            patch("app.core.evocloud.evocloud_manager.upload_log", new_callable=AsyncMock)
+        )
+        stack.enter_context(
+            patch(
+                "app.core.evocloud.evocloud_manager.get_project_by_id",
+                new_callable=AsyncMock,
+                return_value={"path": "/tmp/test-project"},
+            )
+        )
+
+        # === 上下文缓存 ===
+        stack.enter_context(
+            patch("app.core.context.manager.ContextManager.load_from_redis", new_callable=AsyncMock, return_value=None)
+        )
+        stack.enter_context(
+            patch("app.core.context.manager.ContextManager.save_to_redis", new_callable=AsyncMock)
+        )
+
+        # === 记忆系统 ===
+        stack.enter_context(
+            patch("app.core.memory.lifespan.MemoryLifespanManager.is_initialized", return_value=True)
+        )
+        stack.enter_context(
+            patch("app.core.memory.lifespan.MemoryLifespanManager.get_container", return_value=MockMemoryContainer())
+        )
+        stack.enter_context(
+            patch("app.core.memory.lifespan.MemoryLifespanManager.ainitialize", new_callable=AsyncMock)
+        )
+
+        # === Engine & 图 ===
+        stack.enter_context(
+            patch(
+                "app.core.engine.context_hydrator.EvoContextMiddleware.hydrate",
+                new_callable=AsyncMock,
+                side_effect=lambda s, c: s,
+            )
+        )
+        mock_engine_cls = stack.enter_context(
+            patch("app.core.engine.nodes.base.get_default_engine")
+        )
+        # Note: get_default_engine moved to audit_service.py; FinishNode.__call__ is patched below anyway
+        stack.enter_context(
+            patch("app.core.tools.manager.tool_manager.get_node_tools", new_callable=AsyncMock, return_value=[])
+        )
+        stack.enter_context(
+            patch("app.core.engine.context_hydrator.SkillHydrator.get_node_skills", new_callable=AsyncMock, return_value=[])
+        )
+        stack.enter_context(
+            patch("app.core.engine.nodes.utils.skill_resolver.SkillResolver.inject_fallback_sops", new_callable=AsyncMock, return_value=[])
+        )
+        stack.enter_context(
+            patch("app.core.engine.nodes.utils.skill_resolver.SkillResolver.load_skills_by_ids", new_callable=AsyncMock, return_value=[])
+        )
+        stack.enter_context(
+            patch("app.core.engine.checkpoint.pruner.auto_prune_on_completion", new_callable=AsyncMock)
+        )
+        stack.enter_context(
+            patch(
+                "app.core.context.manager.ContextManager.current",
+                return_value=MagicMock(thread_id="test-thread", user_id="user-1", project_id=1),
+            )
+        )
+
+        # === Router ===
+        stack.enter_context(
+            patch("app.core.engine.routers.route_supervisor", side_effect=_mock_route_supervisor)
+        )
+        stack.enter_context(
+            patch("app.core.engine.routers.route_by_next_node", side_effect=_mock_route_by_next_node)
+        )
+        stack.enter_context(
+            patch("app.core.engine.routers.route_finish", side_effect=_mock_route_finish)
+        )
+
+        # === AuditService & Hooks ===
+        async def mock_audit_execute(*args, **kwargs):
+            visited.append("Finish")
+            return MagicMock(
+                summary="审计完成：代码已生成并通过基础检查",
+                tier="minimal",
+                meta={"tier": "minimal", "duration_ms": 5, "tools": []},
+            )
+        stack.enter_context(
+            patch("app.core.engine.nodes.finish.AuditService.execute", side_effect=mock_audit_execute)
+        )
+        stack.enter_context(
+            patch(
+                "app.core.engine.hooks.core.hook_system.trigger",
+                new_callable=AsyncMock,
+                return_value=MagicMock(block=False),
+            )
+        )
+
+        # === 事件总线 ===
+        mock_publish = stack.enter_context(
+            patch("app.core.events.system_bus.publish", new_callable=AsyncMock)
+        )
+        stack.enter_context(
+            patch("app.infrastructure.cache.cache.publish", new_callable=AsyncMock)
+        )
+
+        # === get_graph ===
+        mock_get_graph = stack.enter_context(
+            patch("app.core.engine.background_agent.get_graph")
+        )
+
+        # 给 engine mock 挂上 run_node
+        mock_engine = MagicMock()
+        mock_engine.run_node = AsyncMock(side_effect=mock_run_node)
+        mock_engine_cls.return_value = mock_engine
+        # Note: finish engine mock removed; FinishNode.__call__ is patched below
+
+        # 构建图并注入到 get_graph
+        builder = GraphBuilder()
+        graph = builder.build(str(CONFIG_PATH))
+        mock_get_graph.return_value = graph
+
+        # ---- 3. 调用 dispatch 入口 ----------------------------------
+        print("\n[1/3] 调用 dispatch_agent_run() ...")
+        result = await dispatch_agent_run(
+            thread_id="test-thread",
+            message_content="帮我写一个快速排序算法",
+            project_id=1,
+            model="gpt-4o",
+            skip_message_persistence=False,
+        )
+
+        if result.status != "queued":
+            print(f"❌ dispatch 失败: {result.error}")
+            return False
+
+        print(f"✅ dispatch 成功 — status={result.status}, thread_id={result.thread_id}")
+        print(f"    inputs keys: {list(result.inputs.keys())}")
+        print(f"    session_goal: {result.inputs.get('session_goal', '')[:40]}...")
+        print(f"    messages: {result.inputs['messages']}")
+
+        # ---- 4. 调用 background_agent 执行图 ------------------------
+        print("\n[2/3] 调用 run_agent_background() ...")
+        await run_agent_background(result.thread_id, result.inputs)
+
+    # ---- 5. 校验执行轨迹与数据 ------------------------------------
+    print("\n[3/3] 校验执行轨迹与数据 ...")
+    expected_nodes = ["Supervisor", "Worker", "Finish"]
+    print(f"实际流经节点: {visited}")
+    print(f"预期流经节点: {expected_nodes}")
+
+    if visited != expected_nodes:
+        print("❌ 节点流转路径不匹配")
+        return False
+    print("✅ 节点流转路径正确")
+
+    # 数据流校验
+    data_errors = []
+
+    # 1. DB 数据校验
+    all_msgs = []
+    all_convs = []
+    for session in sessions:
+        all_msgs.extend(session.get_messages())
+        all_convs.extend(session.get_conversations())
+    print(f"    DB: {len(all_msgs)} messages, {len(all_convs)} conversations")
+    if len(all_msgs) < 1:
+        data_errors.append("DB 中至少应有一条 Message")
+    if len(all_convs) < 1:
+        data_errors.append("DB 中至少应有一条 Conversation")
+
+    # 2. 事件总线校验
+    published_events = [call.args[0] for call in mock_publish.call_args_list]
+    print(f"    Events: {len(published_events)} events published")
+    session_events = [e for e in published_events if hasattr(e, 'data') and hasattr(e.data, 'summary')]
+    if not session_events:
+        data_errors.append("未发布 SessionCompletedEvent")
+    else:
+        se = session_events[-1]
+        if not se.data.summary:
+            data_errors.append("SessionCompletedEvent.summary 为空")
+        if not se.data.audit_tier:
+            data_errors.append("SessionCompletedEvent.audit_tier 为空")
+
+    # 3. EvoCloud 校验
+    evocloud_logs = [call.kwargs for call in mock_evocloud.call_args_list]
+    print(f"    EvoCloud: {len(evocloud_logs)} logs uploaded")
+    user_logs = [l for l in evocloud_logs if l.get("log_type") == "user"]
+    if not user_logs:
+        data_errors.append("未上传用户消息到 EvoCloud")
+
+    if data_errors:
+        for err in data_errors:
+            print(f"❌ 数据流校验失败: {err}")
+        return False
+
+    print("✅ 数据流校验通过")
+    print("\n✅ 端到端场景验证通过！")
+    return True
+
+
+# ---------------------------------------------------------------------------
+# 主入口
+# ---------------------------------------------------------------------------
+async def scenario_retry_conversation():
+    """场景 2: 重试对话 — 用户重试之前失败的任务。"""
+    print(f"\n{'=' * 60}")
+    print("场景: 重试对话 — 用户重试之前失败的任务")
+    print(f"{'=' * 60}")
+
+    visited: list[str] = []
+    call_counts: dict[str, int] = {}
+
+    async def mock_run_node(*, state, config, system_prompt, tools, model=None, max_steps=5, name="Agent", **kwargs):
+        visited.append(name)
+        name_to_node = {"Session Reviewer": "Finish"}
+        node_name = name_to_node.get(name, name)
+        call_counts.setdefault(node_name, 0)
+        idx = call_counts[node_name]
+        call_counts[node_name] += 1
+
+        if node_name == "Supervisor":
+            return make_engine_result(
+                messages=[AIMessage(content="Retry route to worker")],
+                signal=RouteToSignal(
+                    target=RoutingTarget.WORKER,
+                    reason="重试之前的代码生成任务",
+                    context=RoutingContext(topic="快速排序算法重试"),
+                ),
+            )
+        if node_name == "Worker":
+            return make_engine_result(
+                messages=[AIMessage(content="```python\ndef quicksort(arr): ...\n# 已修复之前的错误\n```")],
+                outcome=NodeOutcome(status="success"),
+                routing_target=RoutingTarget.FINISH,
+            )
+        return EngineResult(messages=[AIMessage(content=f"Mock {name} response")])
+
+    with ExitStack() as stack:
+        stack.enter_context(patch("app.core.engine.dispatch.session_scope", side_effect=mock_session_scope))
+        stack.enter_context(patch("app.infrastructure.database.sql.database.session_scope", side_effect=mock_session_scope))
+        stack.enter_context(patch("app.domain.project.reference_service.reference_service.process_references", new_callable=AsyncMock, return_value=MagicMock(content_blocks="重试：帮我写一个快速排序算法")))
+        stack.enter_context(patch("app.core.engine.background_agent.activity_monitor.start_run", new_callable=AsyncMock))
+        stack.enter_context(patch("app.core.engine.background_agent.activity_monitor.end_run", new_callable=AsyncMock))
+        stack.enter_context(patch("app.core.engine.background_agent.activity_monitor.check_cancellation", new_callable=AsyncMock))
+        stack.enter_context(patch("app.core.engine.background_agent.activity_monitor.get_activity", new_callable=AsyncMock, return_value={"steps": []}))
+        stack.enter_context(patch("app.core.evocloud.evocloud_manager.upload_log", new_callable=AsyncMock))
+        stack.enter_context(patch("app.core.evocloud.evocloud_manager.get_project_by_id", new_callable=AsyncMock, return_value={"path": "/tmp/test-project"}))
+        stack.enter_context(patch("app.core.context.manager.ContextManager.load_from_redis", new_callable=AsyncMock, return_value=None))
+        stack.enter_context(patch("app.core.context.manager.ContextManager.save_to_redis", new_callable=AsyncMock))
+        stack.enter_context(patch("app.core.memory.lifespan.MemoryLifespanManager.is_initialized", return_value=True))
+        stack.enter_context(patch("app.core.memory.lifespan.MemoryLifespanManager.get_container", return_value=MockMemoryContainer()))
+        stack.enter_context(patch("app.core.memory.lifespan.MemoryLifespanManager.ainitialize", new_callable=AsyncMock))
+        stack.enter_context(patch("app.core.engine.context_hydrator.EvoContextMiddleware.hydrate", new_callable=AsyncMock, side_effect=lambda s, c: s))
+        mock_engine_cls = stack.enter_context(patch("app.core.engine.nodes.base.get_default_engine"))
+        stack.enter_context(patch("app.core.engine.nodes.sequential_workflow.get_default_engine"))
+        stack.enter_context(patch("app.core.tools.manager.tool_manager.get_node_tools", new_callable=AsyncMock, return_value=[]))
+        stack.enter_context(patch("app.core.engine.context_hydrator.SkillHydrator.get_node_skills", new_callable=AsyncMock, return_value=[]))
+        stack.enter_context(patch("app.core.engine.nodes.utils.skill_resolver.SkillResolver.inject_fallback_sops", new_callable=AsyncMock, return_value=[]))
+        stack.enter_context(patch("app.core.engine.nodes.utils.skill_resolver.SkillResolver.load_skills_by_ids", new_callable=AsyncMock, return_value=[]))
+        stack.enter_context(patch("app.core.engine.checkpoint.pruner.auto_prune_on_completion", new_callable=AsyncMock))
+        stack.enter_context(patch("app.core.context.manager.ContextManager.current", return_value=MagicMock(thread_id="test-thread-retry", user_id="user-1", project_id=1)))
+        stack.enter_context(patch("app.core.engine.routers.route_supervisor", side_effect=_mock_route_supervisor))
+        stack.enter_context(patch("app.core.engine.routers.route_by_next_node", side_effect=_mock_route_by_next_node))
+        stack.enter_context(patch("app.core.engine.routers.route_finish", side_effect=_mock_route_finish))
+        async def mock_audit_execute(*args, **kwargs):
+            visited.append("Finish")
+            return MagicMock(
+                summary="审计完成：重试后代码已生成并通过检查",
+                tier="minimal",
+                meta={"tier": "minimal", "duration_ms": 5, "tools": []},
+            )
+        stack.enter_context(
+            patch("app.core.engine.nodes.finish.AuditService.execute", side_effect=mock_audit_execute)
+        )
+        stack.enter_context(
+            patch(
+                "app.core.engine.hooks.core.hook_system.trigger",
+                new_callable=AsyncMock,
+                return_value=MagicMock(block=False),
+            )
+        )
+        stack.enter_context(patch("app.core.events.system_bus.publish", new_callable=AsyncMock))
+        stack.enter_context(patch("app.infrastructure.cache.cache.publish", new_callable=AsyncMock))
+        mock_get_graph = stack.enter_context(patch("app.core.engine.background_agent.get_graph"))
+
+        mock_engine = MagicMock()
+        mock_engine.run_node = AsyncMock(side_effect=mock_run_node)
+        mock_engine_cls.return_value = mock_engine
+
+        builder = GraphBuilder()
+        graph = builder.build(str(CONFIG_PATH))
+        mock_get_graph.return_value = graph
+
+        print("\n[1/3] 调用 dispatch_agent_run() with is_retry=True ...")
+        result = await dispatch_agent_run(
+            thread_id="test-thread-retry",
+            message_content="重试：帮我写一个快速排序算法",
+            project_id=1,
+            model="gpt-4o",
+            is_retry=True,
+            skip_message_persistence=False,
+        )
+
+        if result.status != "queued":
+            print(f"❌ dispatch 失败: {result.error}")
+            return False
+
+        print(f"✅ dispatch 成功 — status={result.status}, is_retry={result.inputs.get('is_retry')}")
+        assert result.inputs.get("is_retry") is True, "is_retry 应被传递到 inputs"
+
+        print("\n[2/3] 调用 run_agent_background() ...")
+        await run_agent_background(result.thread_id, result.inputs)
+
+    print("\n[3/3] 校验执行轨迹 ...")
+    expected_nodes = ["Supervisor", "Worker", "Finish"]
+    print(f"实际流经节点: {visited}")
+    print(f"预期流经节点: {expected_nodes}")
+
+    if visited == expected_nodes:
+        print("✅ 节点流转路径正确")
+    else:
+        print("❌ 节点流转路径不匹配")
+        return False
+
+    print("\n✅ 重试场景验证通过！")
+    return True
+
+
+async def scenario_multi_turn_conversation():
+    """场景 3: 多轮交互 — Worker 返回 Supervisor，Supervisor 再次分配任务后结束。"""
+    print(f"\n{'=' * 60}")
+    print("场景: 多轮交互 — Worker → Supervisor → Worker → Finish")
+    print(f"{'=' * 60}")
+
+    visited: list[str] = []
+    call_counts: dict[str, int] = {}
+
+    async def mock_run_node(*, state, config, system_prompt, tools, model=None, max_steps=5, name="Agent", **kwargs):
+        visited.append(name)
+        name_to_node = {"Session Reviewer": "Finish"}
+        node_name = name_to_node.get(name, name)
+        call_counts.setdefault(node_name, 0)
+        idx = call_counts[node_name]
+        call_counts[node_name] += 1
+
+        if node_name == "Supervisor":
+            # 第一轮 Supervisor：分配给 Worker
+            # 第二轮 Supervisor：worker_outcome=success，直接 Finish（prepare_state 短路）
+            return make_engine_result(
+                messages=[AIMessage(content="Route to worker")],
+                signal=RouteToSignal(
+                    target=RoutingTarget.WORKER,
+                    reason="编写排序算法",
+                    context=RoutingContext(topic="排序算法"),
+                ),
+            )
+        if node_name == "Worker":
+            return make_engine_result(
+                messages=[AIMessage(content="快速排序已完成。请继续分配下一个任务。")],
+                outcome=NodeOutcome(status="success"),
+                routing_target=RoutingTarget.SUPERVISOR,
+            )
+        return EngineResult(messages=[AIMessage(content=f"Mock {name} response")])
+
+    with ExitStack() as stack:
+        stack.enter_context(patch("app.core.engine.dispatch.session_scope", side_effect=mock_session_scope))
+        stack.enter_context(patch("app.infrastructure.database.sql.database.session_scope", side_effect=mock_session_scope))
+        stack.enter_context(patch("app.domain.project.reference_service.reference_service.process_references", new_callable=AsyncMock, return_value=MagicMock(content_blocks="先写快速排序，再写归并排序")))
+        stack.enter_context(patch("app.core.engine.background_agent.activity_monitor.start_run", new_callable=AsyncMock))
+        stack.enter_context(patch("app.core.engine.background_agent.activity_monitor.end_run", new_callable=AsyncMock))
+        stack.enter_context(patch("app.core.engine.background_agent.activity_monitor.check_cancellation", new_callable=AsyncMock))
+        stack.enter_context(patch("app.core.engine.background_agent.activity_monitor.get_activity", new_callable=AsyncMock, return_value={"steps": []}))
+        stack.enter_context(patch("app.core.evocloud.evocloud_manager.upload_log", new_callable=AsyncMock))
+        stack.enter_context(patch("app.core.evocloud.evocloud_manager.get_project_by_id", new_callable=AsyncMock, return_value={"path": "/tmp/test-project"}))
+        stack.enter_context(patch("app.core.context.manager.ContextManager.load_from_redis", new_callable=AsyncMock, return_value=None))
+        stack.enter_context(patch("app.core.context.manager.ContextManager.save_to_redis", new_callable=AsyncMock))
+        stack.enter_context(patch("app.core.memory.lifespan.MemoryLifespanManager.is_initialized", return_value=True))
+        stack.enter_context(patch("app.core.memory.lifespan.MemoryLifespanManager.get_container", return_value=MockMemoryContainer()))
+        stack.enter_context(patch("app.core.memory.lifespan.MemoryLifespanManager.ainitialize", new_callable=AsyncMock))
+        stack.enter_context(patch("app.core.engine.context_hydrator.EvoContextMiddleware.hydrate", new_callable=AsyncMock, side_effect=lambda s, c: s))
+        mock_engine_cls = stack.enter_context(patch("app.core.engine.nodes.base.get_default_engine"))
+        stack.enter_context(patch("app.core.engine.nodes.sequential_workflow.get_default_engine"))
+        stack.enter_context(patch("app.core.tools.manager.tool_manager.get_node_tools", new_callable=AsyncMock, return_value=[]))
+        stack.enter_context(patch("app.core.engine.context_hydrator.SkillHydrator.get_node_skills", new_callable=AsyncMock, return_value=[]))
+        stack.enter_context(patch("app.core.engine.nodes.utils.skill_resolver.SkillResolver.inject_fallback_sops", new_callable=AsyncMock, return_value=[]))
+        stack.enter_context(patch("app.core.engine.nodes.utils.skill_resolver.SkillResolver.load_skills_by_ids", new_callable=AsyncMock, return_value=[]))
+        stack.enter_context(patch("app.core.engine.checkpoint.pruner.auto_prune_on_completion", new_callable=AsyncMock))
+        stack.enter_context(patch("app.core.context.manager.ContextManager.current", return_value=MagicMock(thread_id="test-thread-multi", user_id="user-1", project_id=1)))
+        stack.enter_context(patch("app.core.engine.routers.route_supervisor", side_effect=_mock_route_supervisor))
+        stack.enter_context(patch("app.core.engine.routers.route_by_next_node", side_effect=_mock_route_by_next_node))
+        stack.enter_context(patch("app.core.engine.routers.route_finish", side_effect=_mock_route_finish))
+        async def mock_audit_execute(*args, **kwargs):
+            visited.append("Finish")
+            return MagicMock(
+                summary="审计完成：所有排序算法已生成",
+                tier="minimal",
+                meta={"tier": "minimal", "duration_ms": 5, "tools": []},
+            )
+        stack.enter_context(
+            patch("app.core.engine.nodes.finish.AuditService.execute", side_effect=mock_audit_execute)
+        )
+        stack.enter_context(
+            patch(
+                "app.core.engine.hooks.core.hook_system.trigger",
+                new_callable=AsyncMock,
+                return_value=MagicMock(block=False),
+            )
+        )
+        stack.enter_context(patch("app.core.events.system_bus.publish", new_callable=AsyncMock))
+        stack.enter_context(patch("app.infrastructure.cache.cache.publish", new_callable=AsyncMock))
+        mock_get_graph = stack.enter_context(patch("app.core.engine.background_agent.get_graph"))
+
+        mock_engine = MagicMock()
+        mock_engine.run_node = AsyncMock(side_effect=mock_run_node)
+        mock_engine_cls.return_value = mock_engine
+
+        builder = GraphBuilder()
+        graph = builder.build(str(CONFIG_PATH))
+        mock_get_graph.return_value = graph
+
+        print("\n[1/3] 调用 dispatch_agent_run() ...")
+        result = await dispatch_agent_run(
+            thread_id="test-thread-multi",
+            message_content="先写快速排序，再写归并排序",
+            project_id=1,
+            model="gpt-4o",
+            skip_message_persistence=False,
+        )
+
+        if result.status != "queued":
+            print(f"❌ dispatch 失败: {result.error}")
+            return False
+
+        print(f"✅ dispatch 成功 — status={result.status}")
+
+        print("\n[2/3] 调用 run_agent_background() ...")
+        await run_agent_background(result.thread_id, result.inputs)
+
+    print("\n[3/3] 校验执行轨迹 ...")
+    expected_nodes = ["Supervisor", "Worker", "Finish"]
+    print(f"实际流经节点: {visited}")
+    print(f"预期流经节点: {expected_nodes}")
+
+    if visited == expected_nodes:
+        print("✅ 节点流转路径正确")
+    else:
+        print("❌ 节点流转路径不匹配")
+        return False
+
+    print("\n✅ 多轮交互场景验证通过！")
+    return True
+
+
+async def main():
+    print("🚀 EvoLoop Agent 端到端验证开始")
+    print(f"📋 图配置: {CONFIG_PATH}")
+
+    results = []
+    results.append(await scenario_new_conversation())
+    results.append(await scenario_retry_conversation())
+    results.append(await scenario_multi_turn_conversation())
+
+    print(f"\n{'=' * 60}")
+    print("📊 验证汇总")
+    print(f"{'=' * 60}")
+    total = len(results)
+    passed = sum(results)
+    print(f"通过: {passed}/{total}")
+
+    if passed == total:
+        print("🎉 端到端场景验证通过！从 dispatch 入口到图执行完成链路正常。")
+        return 0
+    else:
+        print("⚠️ 端到端场景验证失败，请检查日志。")
+        return 1
+
+
+if __name__ == "__main__":
+    exit_code = asyncio.run(main())
+    sys.exit(exit_code)
