@@ -46,17 +46,12 @@ class ThreadContextStore:
         Get the default root directory.
         Lazily attempts to load from DB, falling back to settings or home dir.
         """
-        # 1. 优先从数据库获取（通过 SystemConfigService）
-        # 如果数据库未就绪，SystemConfigService 会返回默认值（None）
+        # 优先从数据库获取（通过 SystemConfigService）
         db_root = SystemConfigService.get_value("WORKSPACE_ROOT")
         if db_root:
             return os.path.abspath(db_root)
 
-        # 2. 备选方案：从 Settings 获取
-        if settings.WORKSPACE_ROOT:
-            return os.path.abspath(settings.WORKSPACE_ROOT)
-
-        # 3. 最终回退：用户主目录
+        # 最终回退：用户主目录
         return os.path.expanduser("~")
 
     def set_working_directory(self, thread_id: str, path: str):

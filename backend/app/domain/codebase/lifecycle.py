@@ -36,8 +36,7 @@ class IndexingLifecycleHandler:
             default_path = thread_context_store.get_working_directory("default")
             
             # Get workspace root to avoid indexing the entire root as one repo
-            db_workspace_root = SystemConfigService.get_value("WORKSPACE_ROOT")
-            root_projects_dir = db_workspace_root if db_workspace_root else settings.WORKSPACE_ROOT
+            root_projects_dir = SystemConfigService.get_value("WORKSPACE_ROOT")
 
             if default_path and os.path.exists(default_path):
                 # Ensure it's not the root itself

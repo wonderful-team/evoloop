@@ -26,9 +26,7 @@ class ProjectLifecycleHandler:
         from app.infrastructure.config import SystemConfigService
         from app.domain.project.discovery_manager import discovery_manager
         
-        db_workspace_root = SystemConfigService.get_value("WORKSPACE_ROOT")
-        root_projects_dir = db_workspace_root if db_workspace_root else settings.WORKSPACE_ROOT
-
+        root_projects_dir = SystemConfigService.get_value("WORKSPACE_ROOT")
         if not root_projects_dir:
             logger.warning("[Project] WORKSPACE_ROOT not configured. Skipping discovery.")
             return

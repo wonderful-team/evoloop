@@ -58,8 +58,7 @@ def get_working_directory(config: RunnableConfig | None = None) -> str:
     from app.core.config import settings
     try:
         from app.infrastructure.config.service import SystemConfigService
-        db_workspace_root = SystemConfigService.get_value("WORKSPACE_ROOT")
-        workspace_root = db_workspace_root if db_workspace_root else settings.WORKSPACE_ROOT
+        workspace_root = SystemConfigService.get_value("WORKSPACE_ROOT")
         if workspace_root:
             return workspace_root
     except Exception as e:

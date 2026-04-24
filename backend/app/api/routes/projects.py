@@ -134,7 +134,7 @@ def _scan_workspace_projects() -> dict[str, str]:
     Scans 2 levels deep to handle nested projects like testProjects/software-ecommerce
     """
     # Priority: Database > Settings
-    workspace_root = SystemConfigService.get_value("WORKSPACE_ROOT") or settings.WORKSPACE_ROOT
+    workspace_root = SystemConfigService.get_value("WORKSPACE_ROOT")
     if not workspace_root or not os.path.isdir(workspace_root):
         return {}
 
@@ -496,9 +496,7 @@ async def get_current_project(_token: TokenDep):
 @router.post("/")
 async def create_project(req: CreateProjectRequest, _token: TokenDep):
     """Create a new project directory and sync to Member Center."""
-    db_workspace_root = SystemConfigService.get_value("WORKSPACE_ROOT")
-    root_dir = db_workspace_root if db_workspace_root else settings.WORKSPACE_ROOT
-
+    root_dir = SystemConfigService.get_value("WORKSPACE_ROOT")
     if not root_dir:
         raise HTTPException(500, "WORKSPACE_ROOT not configured")
 
@@ -610,12 +608,7 @@ async def get_detected_projects(_token: TokenDepOptional = None):
     from app.infrastructure.config.service import SystemConfigService
     from app.core.config import settings
 
-    # Check if project discovery is enabled
-    # Priority: Environment Variable > System Config
-    if not settings.ENABLE_PROJECT_DISCOVERY:
-        logger.debug("[ProjectsAPI] Project discovery disabled by environment variable, returning empty detected list")
-        return DetectedProjectsResponse(data=[])
-    
+    # Check if project discovery is enabled via System Config (DB)
     config_value = SystemConfigService.get_value("PROJECT_DISCOVERY_ENABLED")
     if config_value is not None and config_value.lower() not in ("true", "1", "yes", "on"):
         logger.debug("[ProjectsAPI] Project discovery disabled by system config, returning empty detected list")

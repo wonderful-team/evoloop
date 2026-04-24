@@ -1,15 +1,11 @@
 import logging
 import os
 
-from app.core.config import settings
 from app.domain.project.sync_service import project_sync_service
 from app.domain.watchers import ProjectDiscoveryWatcher
 from app.infrastructure.config.service import SystemConfigService
 
 logger = logging.getLogger(__name__)
-
-# Config key for project discovery enable/disable
-PROJECT_DISCOVERY_CONFIG_KEY = "PROJECT_DISCOVERY_ENABLED"
 
 
 class ProjectDiscoveryManager:
@@ -18,8 +14,7 @@ class ProjectDiscoveryManager:
     Handles WORKSPACE_ROOT changes and provides a clean interface for main.py.
     
     Project discovery can be disabled via:
-    1. Environment variable: ENABLE_PROJECT_DISCOVERY=false
-    2. System config: PROJECT_DISCOVERY_ENABLED=false (stored in database)
+    System config: PROJECT_DISCOVERY_ENABLED=false (stored in database)
     """
 
     def __init__(self):
@@ -27,20 +22,10 @@ class ProjectDiscoveryManager:
         self._current_root: str | None = None
 
     def _is_discovery_enabled(self) -> bool:
-        """
-        Check if project discovery is enabled.
-        Priority: Environment Variable > System Config > Default (True)
-        """
-        # First check environment variable (for deployment/development override)
-        if not settings.ENABLE_PROJECT_DISCOVERY:
-            return False
-        
-        # Then check system config (for runtime user control)
-        config_value = SystemConfigService.get_value(PROJECT_DISCOVERY_CONFIG_KEY)
+        """Check if project discovery is enabled via SystemConfigService (DB)."""
+        config_value = SystemConfigService.get_value("PROJECT_DISCOVERY_ENABLED")
         if config_value is not None:
             return config_value.lower() in ("true", "1", "yes", "on")
-        
-        # Default: enabled
         return True
 
     def start(self, root_path: str) -> bool:
@@ -146,7 +131,7 @@ class ProjectDiscoveryManager:
         
         # Update system config
         SystemConfigService.set_value(
-            PROJECT_DISCOVERY_CONFIG_KEY, 
+            "PROJECT_DISCOVERY_ENABLED",
             new_value,
             description="Enable or disable automatic project discovery in workspace"
         )
@@ -183,7 +168,4 @@ class ProjectDiscoveryManager:
 discovery_manager = ProjectDiscoveryManager()
 
 # Register config change handler
-SystemConfigService.register_change_handler(
-    PROJECT_DISCOVERY_CONFIG_KEY, 
-    discovery_manager.on_config_changed
-)
+SystemConfigService.register_change_handler("PROJECT_DISCOVERY_ENABLED", discovery_manager.on_config_changed)

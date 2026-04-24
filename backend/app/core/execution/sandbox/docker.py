@@ -35,9 +35,7 @@ class DockerSandbox(Sandbox):
                 # Create and start
                 # Mount WORKSPACE_ROOT to /workspace
                 # Priority: Database > Settings (consistent with other components)
-                db_workspace_root = SystemConfigService.get_value("WORKSPACE_ROOT")
-                workspace_root = db_workspace_root if db_workspace_root else settings.WORKSPACE_ROOT
-
+                workspace_root = SystemConfigService.get_value("WORKSPACE_ROOT")
                 if not workspace_root:
                     raise RuntimeError(
                         "WORKSPACE_ROOT not configured. "

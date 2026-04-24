@@ -28,9 +28,7 @@ async def resolve_and_validate_path(path: str, config: RunnableConfig | None = N
     if ctx.project_id == 0 or (ctx.project_id is None and root == "."):
         from app.infrastructure.config.service import SystemConfigService
 
-        db_workspace_root = SystemConfigService.get_value("WORKSPACE_ROOT")
-        workspace_root = db_workspace_root if db_workspace_root else settings.WORKSPACE_ROOT
-
+        workspace_root = SystemConfigService.get_value("WORKSPACE_ROOT")
         if workspace_root:
             root = workspace_root
 

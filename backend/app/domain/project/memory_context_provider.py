@@ -13,6 +13,7 @@ import os
 from app.constants import PROJECT_NORM_FILES
 from app.core.config import settings
 from app.core.events.decorators import event_register, event_subscribe
+from app.infrastructure.config import SystemConfigService
 from app.core.memory.events import (
     MEMORY_CONTEXT_GATHER_EVENT_TYPE,
     MemoryContextGatherEvent,
@@ -39,7 +40,7 @@ class ProjectMemoryContextProvider:
         if not project_id:
             return
 
-        project_path = getattr(settings, "WORKSPACE_ROOT", None)
+        project_path = SystemConfigService.get_value("WORKSPACE_ROOT")
         if not project_path:
             logger.debug("[ProjectContextProvider] WORKSPACE_ROOT not set, skipping.")
             return

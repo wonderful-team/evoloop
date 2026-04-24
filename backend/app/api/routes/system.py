@@ -291,15 +291,8 @@ async def get_project_discovery_config():
         enabled: 是否启用项目发现
         source: 配置来源 (env-环境变量, config-系统配置, default-默认值)
     """
-    from app.core.config import settings
-    from app.domain.project.discovery_manager import PROJECT_DISCOVERY_CONFIG_KEY
-    
-    # Check environment variable first
-    if not settings.ENABLE_PROJECT_DISCOVERY:
-        return ProjectDiscoveryConfigResponse(enabled=False, source="env")
-    
-    # Then check system config
-    config_value = SystemConfigService.get_value(PROJECT_DISCOVERY_CONFIG_KEY)
+    # Check system config (DB)
+    config_value = SystemConfigService.get_value("PROJECT_DISCOVERY_ENABLED")
     if config_value is not None:
         enabled = config_value.lower() in ("true", "1", "yes", "on")
         return ProjectDiscoveryConfigResponse(enabled=enabled, source="config")
@@ -319,17 +312,7 @@ async def set_project_discovery_config(req: ProjectDiscoveryConfigRequest) -> Pr
     
     Note: 如果通过环境变量 DISABLED，此处设置将无效（环境变量优先级最高）
     """
-    from app.core.config import settings
     from app.domain.project.discovery_manager import discovery_manager
-    
-    # Check if disabled by environment variable
-    if not settings.ENABLE_PROJECT_DISCOVERY:
-        return ProjectDiscoveryConfigUpdateResponse(
-            success=False,
-            message="Project discovery is disabled by environment variable (ENABLE_PROJECT_DISCOVERY=false). Cannot enable via API.",
-            enabled=False,
-            locked=True
-        )
     
     # Set the configuration
     success = await discovery_manager.set_discovery_enabled(req.enabled)

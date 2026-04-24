@@ -18,42 +18,23 @@ def init() -> None:
         # Seeding logic below uses SystemConfigiteService which internally uses session_scope/engine
         pass
 
-    # 1. WORKSPACE_ROOT
-    if not SystemConfigService.get_value("WORKSPACE_ROOT"):
-        default_root = settings.WORKSPACE_ROOT
-        if default_root:
-            logger.info(f"Seeding WORKSPACE_ROOT from settings: {default_root}")
-            SystemConfigService.set_value("WORKSPACE_ROOT", default_root, "Root directory for workspace/project storage")
-        else:
-            logger.info("WORKSPACE_ROOT not configured. User will be prompted to set it during initialization.")
-
-    # 2. EVOCLOUD_DEVICE_NAME
+    # 1. EVOCLOUD_DEVICE_NAME
     if not SystemConfigService.get_value("EVOCLOUD_DEVICE_NAME"):
         default_name = settings.EVOCLOUD_DEVICE_NAME
         if default_name:
             logger.info(f"Seeding EVOCLOUD_DEVICE_NAME from settings: {default_name}")
             SystemConfigService.set_value("EVOCLOUD_DEVICE_NAME", default_name, "Device identifier for EvoLoop Link")
 
-    # 3. PROJECT_DISCOVERY_ENABLED
-    if not SystemConfigService.get_value("PROJECT_DISCOVERY_ENABLED"):
-        default_discovery = "true" if settings.ENABLE_PROJECT_DISCOVERY else "false"
-        logger.info(f"Seeding PROJECT_DISCOVERY_ENABLED from settings: {default_discovery}")
-        SystemConfigService.set_value(
-            "PROJECT_DISCOVERY_ENABLED", 
-            default_discovery, 
-            "Enable or disable automatic project discovery in workspace (true/false)"
-        )
-
-    # 4. Embedding Configuration
+    # 2. Embedding Configuration
     if not SystemConfigService.get_value("EMBEDDING_PROVIDER"):
         logger.info("EMBEDDING_PROVIDER not configured. Skipping automatic seeding — user must configure embedding explicitly.")
 
-    # 5. Intent Classifier Configuration
+    # 3. Intent Classifier Configuration
     if not SystemConfigService.get_value("INTENT_MIN_CONFIDENCE"):
         logger.info("Seeding INTENT_MIN_CONFIDENCE...")
         SystemConfigService.set_value("INTENT_MIN_CONFIDENCE", "0.35", "Intent Classifier Threshold (0.0-1.0)")
 
-    # 6. LLM & Vision Configuration
+    # 4. LLM & Vision Configuration
     _seed_llm_config(SystemConfigService)
 
 
