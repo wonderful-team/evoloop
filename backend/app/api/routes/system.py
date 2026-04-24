@@ -169,6 +169,9 @@ class LLMConfigRequest(DynamicBaseModel):
     base_url: str = Field(..., description="API Base URL")
     model: str = Field(..., description="Model Name")
     vision_model: str | None = Field(None, description="Vision Model Name (e.g. gpt-4o)")
+    vision_base_url: str | None = Field(None, description="独立 Vision API Base URL (本地 VLM)")
+    vision_api_key: str | None = Field(None, description="独立 Vision API Key")
+    vision_provider_type: str | None = Field(None, description="独立 Vision 协议类型: openai | anthropic")
     api_key: str | None = None
     default_model_id: str | None = Field(None, description="Selected Default Model ID")
 
@@ -203,6 +206,12 @@ async def apply_llm_config(req: LLMConfigRequest) -> LLMApplyResponse:
 
     if req.vision_model:
         SystemConfigService.set_value("VISION_MODEL", req.vision_model)
+    if req.vision_base_url:
+        SystemConfigService.set_value("VISION_BASE_URL", req.vision_base_url)
+    if req.vision_api_key:
+        SystemConfigService.set_value("VISION_API_KEY", req.vision_api_key)
+    if req.vision_provider_type:
+        SystemConfigService.set_value("VISION_PROVIDER_TYPE", req.vision_provider_type)
     if req.api_key:
         SystemConfigService.set_value("LLM_API_KEY", req.api_key)
     

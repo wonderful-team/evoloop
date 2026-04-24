@@ -85,13 +85,29 @@ class LLMFactory:
         return hashlib.md5(key_data.encode()).hexdigest()[:16]
 
     @staticmethod
-    async def create_llm(model_name: str | None = None, temperature: float = 0.3, **kwargs):
+    async def create_llm(
+        model_name: str | None = None,
+        temperature: float = 0.3,
+        *,
+        base_url: str | None = None,
+        api_key: str | None = None,
+        provider_type: str | None = None,
+        **kwargs
+    ):
         """
         Create a standard LLM instance.
         
         Architecture:
         - Platform Mode: Backend → Gateway (OpenAI format) → Gateway handles protocol translation
         - Custom Mode: Backend → Direct connection (Backend handles protocol selection)
+        
+        Args:
+            model_name: Model identifier
+            temperature: Sampling temperature
+            base_url: Optional override for base URL (enables independent endpoint per call)
+            api_key: Optional override for API key
+            provider_type: Optional override for provider type (anthropic, openai, etc.)
+            **kwargs: Additional arguments (streaming, max_tokens, etc.)
         """
         # Defensive fallback for legacy 'model' parameter
         if model_name is None and "model" in kwargs:
@@ -102,9 +118,22 @@ class LLMFactory:
         if not model_name:
             raise ValueError("[LLMFactory] model_name must be specified.")
 
-        # 2. Detect Mode and Instantiate
+        # Detect Mode and Instantiate
         if model_name.startswith("custom-"):
-            return await LLMFactory._create_custom_llm(model_name, temperature, **kwargs)
+            return await LLMFactory._create_custom_llm(
+                model_name, temperature,
+                base_url=base_url, api_key=api_key, provider_type=provider_type,
+                **kwargs
+            )
+
+        # If explicit base_url/api_key provided, treat as custom direct connection
+        # even without "custom-" prefix (enables Vision local + LLM remote)
+        if base_url or api_key:
+            return await LLMFactory._create_direct_llm(
+                model_name, temperature,
+                base_url=base_url, api_key=api_key, provider_type=provider_type,
+                **kwargs
+            )
 
         return await LLMFactory._create_platform_llm(model_name, temperature, **kwargs)
 
@@ -137,13 +166,19 @@ class LLMFactory:
         )
 
     @staticmethod
-    async def _create_custom_llm(model_name: str, temperature: float, **kwargs):
+    async def _create_custom_llm(
+        model_name: str,
+        temperature: float,
+        *,
+        base_url: str | None = None,
+        api_key: str | None = None,
+        provider_type: str | None = None,
+        **kwargs
+    ):
         """
         Custom Mode: Direct connection to provider.
         Backend selects adapter based on provider_type.
         """
-        from app.infrastructure.config.service import SystemConfigService
-        
         # Parse custom-{provider}-{model}
         parts = model_name.split("-", 2)
         if len(parts) < 3:
@@ -152,10 +187,12 @@ class LLMFactory:
         custom_provider = parts[1]
         actual_model = parts[2]
         
-        # Get configuration
-        provider_type = SystemConfigService.get_value("LLM_PROVIDER_TYPE")
-        base_url = SystemConfigService.get_value("LLM_BASE_URL")
-        api_key = SystemConfigService.get_value("LLM_API_KEY")
+        # Use explicit overrides if provided, otherwise fall back to global config
+        if not base_url or not api_key or not provider_type:
+            from app.infrastructure.config.service import SystemConfigService
+            provider_type = provider_type or SystemConfigService.get_value("LLM_PROVIDER_TYPE")
+            base_url = base_url or SystemConfigService.get_value("LLM_BASE_URL")
+            api_key = api_key or SystemConfigService.get_value("LLM_API_KEY")
         
         if not base_url or not api_key:
             raise ValueError(f"Custom model '{actual_model}' requires LLM_BASE_URL and LLM_API_KEY")
@@ -165,23 +202,84 @@ class LLMFactory:
         # streaming 参数可从 kwargs 传入，默认为 False
         streaming = kwargs.get("streaming", False)
         
-        # Select adapter based on provider_type
+        return LLMFactory._build_llm_instance(
+            api_key=api_key,
+            base_url=base_url,
+            model_name=actual_model,
+            temperature=temperature,
+            provider_type=provider_type,
+            streaming=streaming,
+        )
+
+    @staticmethod
+    async def _create_direct_llm(
+        model_name: str,
+        temperature: float,
+        *,
+        base_url: str,
+        api_key: str | None = None,
+        provider_type: str | None = None,
+        **kwargs
+    ):
+        """
+        Direct connection mode for independent endpoints (e.g., Vision local + LLM remote).
+        Does not require 'custom-' prefix.
+        """
+        if not base_url:
+            raise ValueError(f"Direct model '{model_name}' requires base_url")
+        
+        # Use explicit provider_type or detect from URL
+        if not provider_type:
+            provider_type = LLMFactory._detect_provider_from_url(base_url)
+        
+        logger.info(f"[LLMFactory] Direct mode: provider_type={provider_type}, model={model_name}, base_url={base_url}")
+        
+        streaming = kwargs.get("streaming", False)
+        
+        return LLMFactory._build_llm_instance(
+            api_key=api_key or "",
+            base_url=base_url,
+            model_name=model_name,
+            temperature=temperature,
+            provider_type=provider_type,
+            streaming=streaming,
+        )
+
+    @staticmethod
+    def _detect_provider_from_url(base_url: str) -> str:
+        """Detect provider type from URL patterns."""
+        url = base_url.lower()
+        if "anthropic" in url:
+            return "anthropic"
+        return "openai"
+
+    @staticmethod
+    def _build_llm_instance(
+        *,
+        api_key: str,
+        base_url: str,
+        model_name: str,
+        temperature: float,
+        provider_type: str,
+        streaming: bool = False,
+    ):
+        """Build the actual LLM instance based on provider_type."""
         if provider_type == "anthropic":
             from app.infrastructure.llm.anthropic_adapter import CompatibleChatAnthropic
             return CompatibleChatAnthropic(
                 api_key=api_key,
                 base_url=base_url.rstrip("/"),
-                model_name=actual_model,
+                model_name=model_name,
                 temperature=temperature,
                 streaming=streaming,
                 http_async_client=_HTTP_CLIENT_POOL.get(),
             )
         else:
-            # openai, deepseek, moonshot, etc.
+            # openai, deepseek, moonshot, ollama, vllm, etc.
             return AdaptiveChatOpenAI(
                 api_key=api_key,
                 base_url=base_url.rstrip("/"),
-                model=actual_model,
+                model=model_name,
                 temperature=temperature,
                 streaming=streaming,
                 http_async_client=_HTTP_CLIENT_POOL.get(),

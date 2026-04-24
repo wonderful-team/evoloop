@@ -5,7 +5,7 @@ from langchain_core.messages import SystemMessage
 
 from app.core.vision.providers.base import VisionProvider
 from app.core.vision.types import VisionResult, VisionTask
-from app.infrastructure.llm.vision import VisionLLMFactory, get_vision_llm
+from app.infrastructure.llm.vision import VisionLLMFactory, get_vision_llm, get_vision_llm_async
 from app.utils import render_template
 
 logger = logging.getLogger(__name__)
@@ -56,7 +56,7 @@ class MultimodalVLMProvider(VisionProvider):
             else:
                 prompt = "Describe this image."
 
-        llm = get_vision_llm()
+        llm = await get_vision_llm_async()
 
         # Create Messages (System + Human with image)
         system_msg = SystemMessage(content=_get_vision_system_prompt())

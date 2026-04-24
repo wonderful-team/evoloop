@@ -23,11 +23,23 @@ class VisionLLMFactory:
 
     @staticmethod
     def create_vision_llm(
-        model_name: str | None = None, temperature: float = 0.3, max_tokens: int = 4096
+        model_name: str | None = None,
+        temperature: float = 0.3,
+        max_tokens: int = 4096,
+        *,
+        base_url: str | None = None,
+        api_key: str | None = None,
+        provider_type: str | None = None,
     ) -> BaseChatModel:
         """
         Create a Vision-capable LLM instance using the core LLMFactory.
+        
+        Supports independent connection configuration for Vision (e.g., local VLM)
+        while LLM uses a different remote endpoint.
+        
+        This is a synchronous wrapper that works in both sync and async contexts.
         """
+        import concurrent.futures
         from app.infrastructure.config.service import SystemConfigService
 
         # Fetch dynamic config for vision specifically
@@ -36,10 +48,76 @@ class VisionLLMFactory:
         # Priority: explicit arg > DB Vision > Default
         final_model = model_name or db_vision_model
 
-        logger.info(f"Creating Vision LLM - Model: {final_model}")
+        # Fetch independent Vision connection config if no explicit overrides
+        vision_base_url = base_url or SystemConfigService.get_value("VISION_BASE_URL")
+        vision_api_key = api_key or SystemConfigService.get_value("VISION_API_KEY")
+        vision_provider = provider_type or SystemConfigService.get_value("VISION_PROVIDER_TYPE")
 
-        # Use the central LLMFactory to get provider-specific adapters (Anthropic, Moonshot, etc.)
-        return LLMFactory.create_llm(model_name=final_model, temperature=temperature)
+        logger.info(
+            f"Creating Vision LLM - Model: {final_model}, "
+            f"Base URL: {vision_base_url or '(platform/gateway)'}, "
+            f"Provider: {vision_provider or '(auto)'}"
+        )
+
+        # Build coroutine using the central LLMFactory
+        coro = LLMFactory.create_llm(
+            model_name=final_model,
+            temperature=temperature,
+            base_url=vision_base_url,
+            api_key=vision_api_key,
+            provider_type=vision_provider,
+        )
+
+        # Execute the async factory synchronously, handling both sync and async contexts
+        try:
+            import asyncio
+            return asyncio.run(coro)
+        except RuntimeError:
+            # Inside a running event loop (e.g., FastAPI request handler).
+            # Run in a separate thread with its own event loop to avoid conflicts.
+            def _run_coro_in_new_loop(c):
+                import asyncio
+                return asyncio.run(c)
+
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                return executor.submit(_run_coro_in_new_loop, coro).result()
+
+    @staticmethod
+    async def create_vision_llm_async(
+        model_name: str | None = None,
+        temperature: float = 0.3,
+        max_tokens: int = 4096,
+        *,
+        base_url: str | None = None,
+        api_key: str | None = None,
+        provider_type: str | None = None,
+    ) -> BaseChatModel:
+        """
+        Async version of create_vision_llm.
+        Use this when already inside an async context to avoid thread overhead.
+        """
+        from app.infrastructure.config.service import SystemConfigService
+
+        db_vision_model = SystemConfigService.get_value("VISION_MODEL")
+        final_model = model_name or db_vision_model
+
+        vision_base_url = base_url or SystemConfigService.get_value("VISION_BASE_URL")
+        vision_api_key = api_key or SystemConfigService.get_value("VISION_API_KEY")
+        vision_provider = provider_type or SystemConfigService.get_value("VISION_PROVIDER_TYPE")
+
+        logger.info(
+            f"Creating Vision LLM (async) - Model: {final_model}, "
+            f"Base URL: {vision_base_url or '(platform/gateway)'}, "
+            f"Provider: {vision_provider or '(auto)'}"
+        )
+
+        return await LLMFactory.create_llm(
+            model_name=final_model,
+            temperature=temperature,
+            base_url=vision_base_url,
+            api_key=vision_api_key,
+            provider_type=vision_provider,
+        )
 
     @staticmethod
     def encode_image(image_path: str) -> str:
@@ -119,7 +197,12 @@ class VisionLLMFactory:
         return HumanMessage(content=content)
 
 
-# Convenience function
+# Convenience functions
 def get_vision_llm(model_name: str | None = None, **kwargs) -> BaseChatModel:
-    """Get a default Vision LLM instance."""
+    """Get a default Vision LLM instance (sync)."""
     return VisionLLMFactory.create_vision_llm(model_name=model_name, **kwargs)
+
+
+async def get_vision_llm_async(model_name: str | None = None, **kwargs) -> BaseChatModel:
+    """Get a default Vision LLM instance (async). Use inside async contexts."""
+    return await VisionLLMFactory.create_vision_llm_async(model_name=model_name, **kwargs)
