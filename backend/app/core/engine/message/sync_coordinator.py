@@ -145,11 +145,13 @@ class MessageSyncCoordinator:
         # 2. 发送 command_complete
         try:
             if evocloud_manager.link and evocloud_manager.link.is_connected():
+                # 统一 command_id 为 int，与 command_ack 保持一致
+                cmd_id_int = int(command_id) if command_id is not None else 0
                 await evocloud_manager.link.send_message({
                     "type": "command_complete",
                     "data": {
                         "thread_id": thread_id,
-                        "command_id": command_id,
+                        "command_id": cmd_id_int,
                         "status": "done",
                     },
                 })

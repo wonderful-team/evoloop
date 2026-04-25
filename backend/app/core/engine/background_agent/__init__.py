@@ -41,7 +41,7 @@ class BackgroundAgentInputs(BaseModel):
     project_id: int | None = None
     model: str | None = None
     goal: str = "处理用户请求"
-    command_id: str | None = None
+    command_id: str | int | None = None
     checkpoint_id: str | None = None
     is_retry: bool = False
     metadata: dict[str, Any] = Field(default_factory=dict)
