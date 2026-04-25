@@ -86,31 +86,6 @@ async def persist_file_operation_task(
     await _notify_file_operation(thread_id, message_id, file_path, operation)
 
 
-@shared_task(name="engine_upload_cloud_log")
-async def upload_cloud_log_task(
-    device_key: int,
-    thread_id: str,
-    log_type: str,
-    content: Any,
-    name: str | None = None,
-    command_id: int | None = None,
-    project_id: int | None = None
-):
-    """Background task to upload logs to EvoCloud for persistence."""
-    try:
-        from app.core.evocloud import evocloud_manager
-        if not evocloud_manager._initialized:
-            evocloud_manager.initialize()
-
-        await evocloud_manager.api.upload_log(
-            device_key, thread_id, log_type, content,
-            name=name, command_id=command_id, project_id=project_id
-        )
-        logger.debug(f"[Celery] Uploaded cloud log: {log_type}")
-    except Exception as e:
-        logger.error(f"[Celery] Cloud log upload failed: {e}")
-
-
 @shared_task(name="engine_snapshot_steps")
 async def snapshot_steps_task(
     thread_id: str,

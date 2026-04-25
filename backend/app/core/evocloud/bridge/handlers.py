@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import uuid
 
 from app.core.context import thread_context_store
 from app.core.engine.background_agent import run_agent_background
@@ -79,7 +80,10 @@ async def handle_remote_command(command: RemoteCommand):
         logger.debug("[EvoLoop] Remote command has no message or attachments, skipping")
         return
 
-    thread_id = command.get("thread_id") or "remote-default"
+    thread_id = command.get("thread_id")
+    if not thread_id:
+        logger.error("[EvoLoop] Remote command missing thread_id, rejecting")
+        raise ValueError("thread_id is required in remote command")
     logger.info(
         f"[EvoLoop] Executing remote command on thread {thread_id}: "
         f"Length={len(message) if message else 0}, Attachments={len(attachments)}"

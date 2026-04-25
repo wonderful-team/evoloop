@@ -302,7 +302,6 @@ def _register_local_tasks(app: LocalCelery):
 
         tasks_to_register = [
             ("engine_persist_file_operation", getattr(engine_tasks, 'persist_file_operation_task', None), False),
-            ("engine_upload_cloud_log", getattr(engine_tasks, 'upload_cloud_log_task', None), False),
             ("engine_snapshot_steps", getattr(engine_tasks, 'snapshot_steps_task', None), False),
             ("engine_harvest_concepts", getattr(engine_tasks, 'harvest_concepts_task', None), False),
             ("engine_record_episode", getattr(engine_tasks, 'record_episode_task', None), False),

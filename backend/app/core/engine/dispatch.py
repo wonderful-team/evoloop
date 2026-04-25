@@ -235,18 +235,6 @@ async def dispatch_agent_run(
             else:
                 logger.info("[Dispatch] Skipped persistence for retry")
 
-        # EvoCloud sync (outside DB transaction)
-        try:
-            await evocloud_manager.upload_log(
-                thread_id=thread_id,
-                log_type="user",
-                content=message_content,
-                project_id=project_id,
-                command_id=command_id,
-            )
-        except Exception as sync_e:
-            logger.warning(f"[Dispatch] Failed to sync to EvoCloud: {sync_e}")
-
     except Exception as e:
         logger.error(
             f"[Dispatch][DIAG] Failed to persist for thread_id={thread_id!r}: "
@@ -332,19 +320,6 @@ async def persist_user_message(
                 f"[Dispatch] Persisted user message for {thread_id} "
                 f"(seq={user_msg.sequence_number})"
             )
-
-            # EvoCloud sync (outside transaction)
-            try:
-                await evocloud_manager.upload_log(
-                    thread_id=thread_id,
-                    log_type="user",
-                    content=content,
-                    project_id=project_id or conversation.project_id,
-                    command_id=command_id,
-                )
-            except Exception as sync_e:
-                logger.warning(f"[Dispatch] Failed to sync to EvoCloud: {sync_e}")
-
             return user_msg.id
 
     except Exception as e:

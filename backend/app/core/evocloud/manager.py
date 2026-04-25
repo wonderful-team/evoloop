@@ -1,13 +1,9 @@
-import asyncio
 import logging
 import time
 from collections.abc import Callable
 from typing import Any
 
-from pydantic import Field
-
 from app.core.config import settings
-from app.core.context.manager import ContextManager
 from app.core.evocloud.backends.http_client import EvoCloudHTTPClient
 from app.core.evocloud.backends.websocket_link import EvoCloudWebSocketLink
 from app.core.evocloud.schemas import EvoCloudConfig, ProjectSwitchEvent, RemoteCommand
@@ -31,20 +27,6 @@ class EvoCloudProjectSummary(DynamicBaseModel):
     owner: str = ""
 
 
-class EvoCloudLogStreamEntry(DynamicBaseModel):
-    type: str
-    name: str | None = None
-    content: Any = None
-    thread_id: str = ""
-    project_id: int | None = None
-    timestamp: int
-
-
-class EvoCloudLogStreamPayload(DynamicBaseModel):
-    type: str = "log_streaming"
-    data: dict = Field(default_factory=dict)
-
-
 class EvoCloudManager:
     """
     Unified Facade for EvoCloud Core Module.
@@ -59,7 +41,7 @@ class EvoCloudManager:
         self._initialized = False
         self._config: EvoCloudConfig | None = None
         self._api_pool: LoopBoundResource[EvoCloudHTTPClient] | None = None
-        self._link_pool: LoopBoundResource[EvoCloudWebSocketLink] | None = None
+        self._link: EvoCloudWebSocketLink | None = None
         self._command_handler = None
         self._event_handler = None
 
@@ -95,28 +77,18 @@ class EvoCloudManager:
         async def cleanup_api(api):
             await api.close()
 
-        async def cleanup_link(link):
-            await link.stop()
-
         self._api_pool = LoopBoundResource(
             factory=lambda: EvoCloudHTTPClient(self._config),
             cleanup=cleanup_api
         )
 
-        def create_link():
-            link = EvoCloudWebSocketLink(self._config, self.api)
-            if self._command_handler:
-                link.set_command_handler(self._command_handler)
-            if self._event_handler:
-                link.set_event_handler(self._event_handler)
-            if hasattr(self, '_query_handler') and self._query_handler:
-                link.set_query_handler(self._query_handler)
-            return link
-
-        self._link_pool = LoopBoundResource(
-            factory=create_link,
-            cleanup=cleanup_link
-        )
+        self._link = EvoCloudWebSocketLink(self._config, self._api_pool.get())
+        if self._command_handler:
+            self._link.set_command_handler(self._command_handler)
+        if self._event_handler:
+            self._link.set_event_handler(self._event_handler)
+        if hasattr(self, '_query_handler') and self._query_handler:
+            self._link.set_query_handler(self._query_handler)
 
         self._initialized = True
         logger.info("EvoCloudManager: Initialized")
@@ -136,8 +108,8 @@ class EvoCloudManager:
         # Stop conversation sync
         await self._stop_conversation_sync()
 
-        if self._link_pool:
-            await self._link_pool.flush_all()
+        if self._link:
+            await self._link.stop()
         if self._api_pool:
             await self._api_pool.flush_all()
 
@@ -200,21 +172,6 @@ class EvoCloudManager:
         self._projects_cache_time = 0.0
         logger.debug("[EvoCloud] Projects cache invalidated")
 
-    async def _fallback_upload_log(self, device_key: str, thread_id: str, log_type: str,
-                                   content: Any, name: str | None, command_id: int | None,
-                                   project_id: int | None):
-        """
-        Async fallback upload for when Celery is unavailable.
-        Runs as fire-and-forget task to not block main flow.
-        """
-        try:
-            await self.api.upload_log(device_key, thread_id, log_type, content,
-                                      name=name, command_id=command_id, project_id=project_id)
-            logger.info(f"[EvoCloud] Fallback upload succeeded for {log_type}")
-        except Exception as fallback_ex:
-            # Last resort: log locally, don't propagate error
-            logger.error(f"[EvoCloud] Fallback upload also failed for {log_type}: {fallback_ex}")
-
     async def _fetch_projects_from_api(self) -> list[EvoCloudProjectSummary]:
         """Internal method to fetch projects from API."""
         import os
@@ -274,79 +231,7 @@ class EvoCloudManager:
     def link(self) -> EvoCloudWebSocketLink:
         if not self._initialized:
             self.initialize()
-        return self._link_pool.get()
-
-    # Chat Sync (Agent.py support)
-    async def upload_log(
-        self,
-        thread_id: str,
-        log_type: str,
-        content: Any,
-        name: str | None = None,
-        device_key: str | None = None,
-        command_id=None,
-        project_id=None,
-        persistent: bool = True
-    ):
-        if not self.api:
-            return
-
-        # Auto-fill from context if missing
-        if not project_id or not command_id:
-            ctx = ContextManager.current()
-            project_id = project_id or ctx.project_id
-            command_id = command_id or ctx.command_id
-
-        # Auto-fill device_key if not provided
-        target_device_key = device_key or (self.link.device_key if self.link.device_key else None)
-        if not target_device_key:
-            logger.debug("Skipping upload_log: No device_key available")
-            return
-
-        # Try WebSocket Streaming First (Real-time)
-        if self.link and self.link.is_connected():
-            # Construct payload matching Mobile App expectation
-            log_entry = EvoCloudLogStreamEntry(
-                type=log_type,
-                name=name,
-                content=content,
-                thread_id=thread_id,
-                project_id=project_id,
-                timestamp=int(time.time() * 1000)
-            )
-            payload = EvoCloudLogStreamPayload(
-                type="log_streaming",
-                data={
-                    "logs": [log_entry.model_dump()],
-                    "project_id": project_id
-                }
-            )
-            await self.link.send_message(payload.model_dump())
-
-        # Persistent storage (DB) - Offloaded to Celery
-        if persistent:
-            try:
-                from app.infrastructure.queue.factory import get_scheduler
-                get_scheduler().send_task("engine_upload_cloud_log", kwargs={
-                    "device_key": target_device_key,
-                    "thread_id": thread_id,
-                    "log_type": log_type,
-                    "content": content,
-                    "name": name,
-                    "command_id": command_id,
-                    "project_id": project_id
-                })
-                logger.debug(f"Dispatched cloud log persistence for {log_type} to Celery")
-            except Exception as ex:
-                logger.warning(f"Failed to dispatch cloud log to Celery: {ex}. Falling back to async background upload.")
-                # Fallback: Fire-and-forget to prevent blocking the main flow
-                # This ensures API responsiveness even if EvoCloud API is slow/down
-                asyncio.create_task(
-                    self._fallback_upload_log(
-                        target_device_key, thread_id, log_type, content,
-                        name, command_id, project_id
-                    )
-                )
+        return self._link
 
     async def scan_projects(self) -> list[EvoCloudProjectSummary]:
         """

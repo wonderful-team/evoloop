@@ -289,24 +289,24 @@ async def ask_human(
         },
     )
 
-    # Sync to EvoCloud (Mobile) - Backgrounded to ensure immediate interrupt
+    # 通过 MessageHandler 统一处理 HITL：持久化到本地 DB + 即时推送到 Gateway
     try:
-        asyncio.create_task(evocloud_manager.upload_log(
+        from app.core.engine.message import MessageHandler
+        handler = MessageHandler(
             thread_id=thread_id,
-            log_type="hitl_request",
-            content={
-                "id": request.id,
-                "type": input_type,
-                "prompt": prompt,
-                "options": options,
-                "context": context,
-                "default_value": default_value,
-            },
             project_id=project_id,
-            command_id=command_id,
+            run_id=str(command_id) if command_id else None,
+        )
+        asyncio.create_task(handler.handle_hitl_request(
+            request_type=input_type,
+            prompt=prompt,
+            request_id=request.id,
+            options=options,
+            context=context,
+            default_value=default_value,
         ))
     except Exception as e:
-        logger.warning(f"Failed to initiate HITL request sync: {e}")
+        logger.warning(f"Failed to initiate HITL request via MessageHandler: {e}")
 
     # Raise Interrupt Exception to pause execution
     # This ensures the graph stops immediately
@@ -406,24 +406,24 @@ async def ask_confirm(
         },
     )
 
-    # Sync to EvoCloud (Mobile) - Backgrounded
+    # 通过 MessageHandler 统一处理 HITL：持久化到本地 DB + 即时推送到 Gateway
     try:
-        asyncio.create_task(evocloud_manager.upload_log(
+        from app.core.engine.message import MessageHandler
+        handler = MessageHandler(
             thread_id=thread_id,
-            log_type="hitl_request",
-            content={
-                "id": request.id,
-                "type": "approval",
-                "prompt": action_description,
-                "context": approval_context,
-                "default_value": "REJECTED",
-                "risk_level": risk_level,
-            },
             project_id=project_id,
-            command_id=command_id,
+            run_id=str(command_id) if command_id else None,
+        )
+        asyncio.create_task(handler.handle_hitl_request(
+            request_type="approval",
+            prompt=action_description,
+            request_id=request.id,
+            options=None,
+            context=approval_context,
+            default_value="REJECTED",
         ))
     except Exception as e:
-        logger.warning(f"Failed to initiate HITL approval sync: {e}")
+        logger.warning(f"Failed to initiate HITL approval via MessageHandler: {e}")
 
     # Raise Interrupt Exception to pause execution
     raise AgentHumanInterruptException(request.id, response_text)

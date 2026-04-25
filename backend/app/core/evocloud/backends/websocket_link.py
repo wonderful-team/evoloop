@@ -42,6 +42,9 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
         # Device Identity
         self.device_name = self.config.device_name or f"{platform.node()}"
 
+        # Token change -> auto reconnect
+        self.api.on_token_change(self._on_token_changed)
+
         # State
         self.client_id: str | None = None
 
@@ -232,7 +235,7 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
                 retry_count += 1
 
     async def _handle_ws_message(self, message: str):
-        logger.debug(f"[EvoCloud] Incoming WS Message: {message}")
+        logger.info(f"[EvoCloud] WS RECV: {message[:500]}")
         try:
             data = json.loads(message)
             msg_type = data.get("type")
@@ -246,16 +249,33 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
 
             elif msg_type == "new_command":
                 cmd = data.get("data", {})
+                cmd_id = cmd.get("command_id")
+                thread_id = cmd.get("thread_id")
+                logger.info(f"[EvoCloud] NEW_COMMAND received: cmd_id={cmd_id}, thread_id={thread_id}, handler_set={self._command_handler is not None}")
+
+                # 立即发送 command_ack 给 Gateway
+                ack_msg = {
+                    "type": "command_ack",
+                    "data": {
+                        "command_id": cmd_id,
+                        "thread_id": thread_id,
+                        "status": "received",
+                    },
+                }
+                asyncio.create_task(self.send_message(ack_msg))
+                logger.info(f"[EvoCloud] command_ack sent: cmd_id={cmd_id}")
+
                 if not self._command_handler:
+                    logger.warning("[EvoCloud] NEW_COMMAND ignored: no command handler registered")
                     return
 
-                cmd_id = cmd.get("command_id")
                 if cmd_id and cmd_id in self._processed_commands:
-                    logger.debug(f"[EvoCloud] Skipping duplicate command: {cmd_id}")
+                    logger.info(f"[EvoCloud] NEW_COMMAND skipped (duplicate): cmd_id={cmd_id}")
                     return
                 if cmd_id:
                     self._processed_commands.append(cmd_id)
 
+                logger.info(f"[EvoCloud] NEW_COMMAND dispatching: cmd_id={cmd_id}")
                 asyncio.create_task(self._execute_command_wrapper(cmd))
 
             elif msg_type == "project_switch":
@@ -322,18 +342,60 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
         except Exception as e:
             logger.error(f"[EvoCloud] Project switch handler error: {e}")
 
+    def _on_token_changed(self, token: str | None):
+        """Callback invoked when the access token changes. Triggers reconnect
+        so the next handshake uses the latest token."""
+        if not self._running or not self.ws or not token:
+            return
+        logger.info("[EvoCloud] Token changed, triggering reconnect to use new token...")
+        try:
+            asyncio.get_running_loop().create_task(self._force_reconnect())
+        except RuntimeError:
+            pass
+
+    async def _force_reconnect(self):
+        """Force close current WebSocket connection to trigger reconnect.
+
+        Used when a command times out or the connection is stuck,
+        to let Gateway detect disconnect and clean up device status.
+        """
+        logger.warning("[EvoCloud] Force reconnect triggered due to stuck command/timeout")
+        if self.ws:
+            try:
+                await self.ws.close()
+            except Exception as e:
+                logger.debug(f"[EvoCloud] Error during force reconnect close: {e}")
+        self.ws = None
+
     async def _execute_command_wrapper(self, cmd_data: dict):
         cmd_id = cmd_data.get("command_id")
-        async with self._command_semaphore:
-            await self.api.update_command_status(cmd_id, 2)  # Running
+        logger.info(f"[EvoCloud] Command execution START: cmd_id={cmd_id}")
+
+        async def _run():
+            async with self._command_semaphore:
+                logger.info(f"[EvoCloud] Command status update -> RUNNING: cmd_id={cmd_id}")
+                await self.api.update_command_status(cmd_id, 2)  # Running
+                try:
+                    if self._command_handler:
+                        command = RemoteCommand.model_validate(cmd_data)
+                        logger.info(f"[EvoCloud] Command handler invoking: cmd_id={cmd_id}, type={command.type}")
+                        if asyncio.iscoroutinefunction(self._command_handler):
+                            await self._command_handler(command)
+                        else:
+                            await run_in_thread(self._command_handler, command)
+                    logger.info(f"[EvoCloud] Command execution SUCCESS: cmd_id={cmd_id}")
+                    await self.api.update_command_status(cmd_id, 3)  # Completed
+                except Exception as e:
+                    logger.error(f"[EvoCloud] Command execution FAILED: cmd_id={cmd_id}, error={e}")
+                    await self.api.update_command_status(cmd_id, 4, str(e))  # Failed
+
+        try:
+            await asyncio.wait_for(_run(), timeout=30.0)
+        except asyncio.TimeoutError:
+            logger.error(f"[EvoCloud] Command execution TIMEOUT: cmd_id={cmd_id}")
             try:
-                if self._command_handler:
-                    command = RemoteCommand.model_validate(cmd_data)
-                    if asyncio.iscoroutinefunction(self._command_handler):
-                        await self._command_handler(command)
-                    else:
-                        await run_in_thread(self._command_handler, command)
-                await self.api.update_command_status(cmd_id, 3)  # Completed
+                await self.api.update_command_status(cmd_id, 4, "execution timeout")
             except Exception as e:
-                logger.error(f"Command execution error: {e}")
-                await self.api.update_command_status(cmd_id, 4, str(e))  # Failed
+                logger.error(f"[EvoCloud] Failed to update timeout status: {e}")
+            # 修复 3：超时后触发强制重连，让 Gateway 清理 busy 状态
+            asyncio.create_task(self._force_reconnect())

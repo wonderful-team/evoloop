@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from typing import Any
 
 import httpx
@@ -36,6 +37,11 @@ class EvoCloudClientProtocol(ABC):
         """Get current access token."""
         pass
 
+    @abstractmethod
+    def on_token_change(self, callback: Callable[[str | None], None]) -> None:
+        """Register a callback invoked whenever the access token changes."""
+        pass
+
     # --- Core Requests ---
     @abstractmethod
     async def request(self, method: str, endpoint: str, **kwargs) -> dict:
@@ -51,9 +57,6 @@ class EvoCloudClientProtocol(ABC):
 
     @abstractmethod
     async def register_device(self, key: str, name: str, os_info: str) -> dict: ...
-
-    @abstractmethod
-    async def upload_log(self, device_key: str, thread_id: str, log_type: str, content: Any, command_id=None, project_id=None, persistent: bool = True): ...
 
     @abstractmethod
     async def send_heartbeat(self, device_key: str): ...

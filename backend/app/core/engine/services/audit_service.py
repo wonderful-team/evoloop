@@ -15,18 +15,14 @@ from __future__ import annotations
 import logging
 import re
 import time
-from typing import TYPE_CHECKING
 
 from langchain_core.messages import AIMessage
+from langchain_core.runnables import RunnableConfig
 
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.context.manager import ContextManager
-
-if TYPE_CHECKING:
-    from langchain_core.runnables import RunnableConfig
-
-    from app.core.engine.state import AgentState, StateUpdate
-    from app.core.engine.state.blackboard import BlackboardState, VerificationStatus
+from app.core.engine.state import AgentState, StateUpdate
+from app.core.engine.state.blackboard import BlackboardState, VerificationStatus
 
 logger = logging.getLogger(__name__)
 

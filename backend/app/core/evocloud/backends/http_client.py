@@ -6,6 +6,8 @@ from typing import Any
 
 import httpx
 
+from collections.abc import Callable
+
 from app.core.config import settings
 from app.core.evocloud.interfaces.client import EvoCloudClientProtocol
 from app.core.evocloud.routes import RouteTarget, get_endpoint_route
@@ -30,10 +32,7 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
         self.timeout = 30.0
 
         self._client: httpx.AsyncClient | None = None
-
-        # Log Batching
-        self._log_queue: asyncio.Queue = asyncio.Queue(maxsize=1000)
-        self._flush_task: asyncio.Task | None = None
+        self._token_change_callbacks: list[Callable[[str | None], None]] = []
 
     @property
     def root_url(self) -> str:
@@ -50,29 +49,26 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
         return self._client
 
     async def close(self):
-        # Stop log batching and flush remaining
-        if self._flush_task:
-            self._flush_task.cancel()
-            try:
-                await self._flush_task
-            except asyncio.CancelledError:
-                pass
-            self._flush_task = None
-
-        # Final flush
-        await self._flush_logs()
-
         if self._client and not self._client.is_closed:
             await self._client.aclose()
             self._client = None
 
     # --- Auth Helpers ---
 
+    def on_token_change(self, callback: Callable[[str | None], None]) -> None:
+        self._token_change_callbacks.append(callback)
+
     def set_token(self, token: str | None) -> None:
         if token:
             identity_service.store.save_access_token(token)
         else:
             identity_service.store.delete_access_token()
+
+        for cb in self._token_change_callbacks:
+            try:
+                cb(token)
+            except Exception as e:
+                logger.warning(f"Token change callback error: {e}")
 
     def get_token(self) -> str | None:
         return identity_service.get_access_token()
@@ -541,107 +537,6 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
             {"code": 0, "data": {"models": [...]}, "message": "..."}
         """
         return await self.request("GET", "/evolooplink/api/llm/getModels")
-
-    # ==================== Log APIs ====================
-
-    async def upload_log(self, device_key, thread_id, log_type, content, name=None, command_id=None, project_id=None):
-        content_str = json_utils.dumps(content) if isinstance(content, dict | list) else str(content)
-
-        # MySQL TEXT limit is 65535 bytes. Truncate aggressively to 60,000 bytes.
-        encoded_content = content_str.encode('utf-8')
-        if len(encoded_content) > 60000:
-            content_str = encoded_content[:60000].decode('utf-8', errors='ignore') + "\n...[TRUNCATED BY EVOLOOP DUE TO CLOUD SIZE LIMITS]"
-
-        data = {
-            "device_key": device_key,
-            "thread_id": thread_id,
-            "type": log_type,
-            "name": name,
-            "content": content_str,
-            "create_time": int(time.time() * 1000)
-        }
-        if command_id:
-            data["command_id"] = command_id
-        if project_id:
-            data["project_id"] = project_id
-
-        try:
-            # If queue is getting full, trigger immediate flush
-            if self._log_queue.qsize() > 100:
-                if self._flush_task is None or self._flush_task.done():
-                    self._flush_task = asyncio.create_task(self._process_log_queue())
-
-            # Non-blocking put
-            self._log_queue.put_nowait(data)
-        except asyncio.QueueFull:
-            logger.warning("[EvoCloud] Log queue full, dropping log entry")
-
-        if self._flush_task is None or self._flush_task.done():
-            self._flush_task = asyncio.create_task(self._process_log_queue())
-
-    async def _process_log_queue(self):
-        """Background loop to flush logs periodically."""
-        try:
-            while True:
-                await asyncio.sleep(2.0)  # Batch interval
-                await self._flush_logs()
-        except asyncio.CancelledError:
-            await self._flush_logs()
-        except Exception as e:
-            logger.error(f"[EvoCloud] Log queue processor error: {e}")
-
-    async def _flush_logs(self):
-        """Internal method to flush current queue to API."""
-        if self._log_queue.empty():
-            return
-
-        logger.debug(f"[EvoCloud] Flushing {self._log_queue.qsize()} logs from queue...")
-
-        # Drain queue up to 50 items
-        logs_buffer = []
-        while not self._log_queue.empty() and len(logs_buffer) < 50:
-            logs_buffer.append(await self._log_queue.get())
-
-        if not logs_buffer:
-            return
-
-        # Group by device_key to ensure safe batching
-        batches = {}
-        for log in logs_buffer:
-            dk = log.get("device_key")
-            if dk not in batches:
-                batches[dk] = []
-            batches[dk].append(log)
-
-        # Send batches
-        for dk, batch in batches.items():
-            try:
-                # Use batchUpload endpoint
-                # Log.php now expects device_key
-                payload = {
-                     "device_key": dk,
-                     "logs": batch
-                }
-
-                query_params = {"device_key": dk}
-
-                # Also pass project_id if consistent
-                if batch and batch[0].get("project_id"):
-                    pid = batch[0].get("project_id")
-                    payload["project_id"] = pid
-                    query_params["project_id"] = pid
-
-                res = await self.request(
-                    "POST",
-                    "/evolooplink/api/log/upload",
-                    params=query_params,
-                    data=payload
-                )
-
-                if res.get("code", -1) < 0:
-                    logger.warning(f"[EvoCloud] Batch upload failed for device {dk}: {res.get('message')}")
-            except Exception as e:
-                logger.error(f"[EvoCloud] Error in batch log upload for device {dk}: {e}")
 
     # ==================== Conversation Sync APIs (MC Storage) ====================
 

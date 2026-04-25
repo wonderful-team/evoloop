@@ -16,7 +16,6 @@ from app.core.context.thread_store import thread_context_store
 from app.core.engine.callbacks.database_logger import DatabaseCallbackHandler
 from app.core.engine.callbacks.transparent import TransparentCallbackHandler
 from app.core.evocloud import evocloud_manager
-from app.core.evocloud.callback_handler import EvoCloudCallbackHandler
 from app.core.exceptions import AgentCancelledException, AgentHumanInterruptException
 # Graph
 from app.core.globals import get_graph
@@ -217,13 +216,6 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
 
         try:
             callbacks = [callback, db_callback]
-            callbacks.append(EvoCloudCallbackHandler(
-                evocloud_manager,
-                thread_id,
-                project_id=project_id,
-                command_id=evoloop_command_id
-            ))
-
             config["callbacks"] = callbacks
             config["recursion_limit"] = settings.RECURSION_LIMIT
 
@@ -337,9 +329,6 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
                 if remaining_steps:
                     await db_callback.snapshot_steps_to_last_message(remaining_steps)
 
-            if not settings.EMBEDDED_MODE:
-                await asyncio.sleep(0.2)
-
             await activity_monitor.end_run(thread_id, "done")
 
             # Publish AgentRunCompletedEvent for automated learning
@@ -354,8 +343,13 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
             ))
             logger.info(f"[BackgroundAgent] 📡 Published AgentRunCompletedEvent for thread {thread_id}")
 
-            # Upload Log
-            await _upload_final_log(graph_instance, config, thread_id, evoloop_command_id, project_id)
+            # 最终同步：发送所有消息 + command_complete 信号到 Gateway
+            try:
+                from app.core.engine.message.sync_coordinator import get_sync_coordinator
+                coordinator = get_sync_coordinator()
+                await coordinator.sync_final(thread_id, evoloop_command_id)
+            except Exception as sync_e:
+                logger.warning(f"[BackgroundAgent] Final sync failed: {sync_e}")
 
         except AgentCancelledException:
             logger.info(f"Task {thread_id} cancelled by user.")
@@ -380,25 +374,3 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
         await activity_monitor.end_run(thread_id, "failed")
         from app.core.engine.background_agent.errors import persist_system_error
         await persist_system_error(thread_id, project_id, f"Preparation failed: {str(e)}")
-
-
-async def _upload_final_log(graph, config, thread_id, command_id, project_id):
-    try:
-        final_state = await graph.aget_state(config)
-        if final_state.values and "messages" in final_state.values:
-            messages = final_state.values["messages"]
-            if messages:
-                last_msg = messages[-1]
-                if hasattr(last_msg, "content") and last_msg.content:
-                    content = last_msg.content
-
-                    # Upload to debug logs (for trace viewing)
-                    await evocloud_manager.upload_log(
-                        thread_id=thread_id,
-                        log_type="model",
-                        content=content,
-                        command_id=command_id,
-                        project_id=project_id,
-                    )
-    except Exception as e:
-        logger.warning(f"Failed to send final output: {e}")

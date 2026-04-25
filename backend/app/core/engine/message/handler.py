@@ -4,7 +4,7 @@ MessageHandler - 消息处理器
 整合分类、持久化、推送策略的统一入口。
 替代原来分散在各 callback 中的处理逻辑。
 """
-
+import asyncio
 import logging
 import time
 from typing import Any
@@ -278,6 +278,70 @@ class MessageHandler:
             message_id=message_id,
         )
 
+    async def handle_hitl_request(
+        self,
+        request_type: str,
+        prompt: str,
+        request_id: str,
+        options: list[str] | None = None,
+        context: str | None = None,
+        default_value: str | None = None,
+    ) -> MessageHandlerResult:
+        """
+        处理人机交互请求（HITL）
+
+        1. 持久化到本地 DB（status='waiting_human'）
+        2. 即时推送到 Gateway（不等待批量同步）
+
+        Args:
+            request_type: 请求类型（text/choice/confirmation/approval）
+            prompt: 提示内容
+            request_id: HITL 请求 ID
+            options: 选项列表
+            context: 上下文
+            default_value: 默认值
+
+        Returns:
+            MessageHandlerResult: 处理结果
+        """
+        import json
+
+        content = json.dumps({
+            "id": request_id,
+            "type": request_type,
+            "prompt": prompt,
+            "options": options,
+            "context": context,
+            "default_value": default_value,
+        }, ensure_ascii=False)
+
+        # 1. 持久化到本地 DB（Celery 后台任务）
+        message_id = await self._persist_to_db(
+            role="system",
+            content=content,
+            category="hitl_request",
+            action_type="human_request",
+            status="waiting_human",
+            is_visible=True,
+        )
+
+        # 2. 即时推送到 Gateway（urgent，不等待批量同步）
+        await self._notify_gateway_urgent({
+            "role": "system",
+            "action_type": "human_request",
+            "status": "waiting_human",
+            "content": content,
+            "category": "hitl_request",
+            "sequence_number": self._sequence_counter,
+        })
+
+        return MessageHandlerResult(
+            category="hitl_request",
+            persisted=True,
+            streamed=True,
+            message_id=message_id,
+        )
+
     async def handle_error(self, error: Exception) -> MessageHandlerResult:
         """
         处理异常上报
@@ -383,6 +447,7 @@ class MessageHandler:
         tool_calls: list | None = None,
         category: str = "",
         action_type: str = "text",
+        status: str = "completed",
         is_visible: bool = True,
         tool_call_id: str | None = None,
         tool_name: str | None = None,
@@ -413,6 +478,7 @@ class MessageHandler:
                     "tool_calls": tool_calls,
                     "category": category,
                     "action_type": action_type,
+                    "status": status,
                     "sequence_number": self._sequence_counter,
                     "run_id": self.run_id,
                     "is_visible": is_visible,
@@ -420,6 +486,15 @@ class MessageHandler:
                     "tool_name": tool_name,
                 }
             )
+
+            # 每5条消息触发一次批量同步信号（同步由 SyncCoordinator 异步执行）
+            if self._sequence_counter % 5 == 0:
+                try:
+                    from app.core.engine.message.sync_coordinator import get_sync_coordinator
+                    coordinator = get_sync_coordinator()
+                    asyncio.create_task(coordinator.on_message_persisted(self.thread_id))
+                except Exception as e:
+                    logger.warning(f"[UnifiedHandler] Failed to trigger batch sync: {e}")
 
             # 返回临时 ID（实际 DB ID 会在后台生成）
             return f"temp-{self.thread_id}-{self._sequence_counter}"
@@ -480,3 +555,39 @@ class MessageHandler:
 
         except Exception as e:
             logger.warning(f"[UnifiedHandler] Failed to stream message: {e}")
+
+    async def _notify_gateway_urgent(self, message_data: dict) -> None:
+        """
+        即时推送 urgent 消息到 Gateway（不等待批量同步）
+
+        统一协议：payload 格式与 sync_batch 完全一致，Gateway 只做透明转发。
+        """
+        try:
+            from app.core.evocloud import evocloud_manager
+
+            if not evocloud_manager.link or not evocloud_manager.link.is_connected():
+                logger.debug("[UnifiedHandler] WebSocket not connected, skipping urgent notify")
+                return
+
+            device_key = evocloud_manager.link.device_key if evocloud_manager.link else ""
+
+            payload = {
+                "device_key": device_key,
+                "sync_type": "urgent",
+                "thread_id": self.thread_id,
+                "project_id": self.project_id,
+                "messages": [message_data],
+            }
+
+            await evocloud_manager.link.send_message({
+                "type": "message_sync",
+                "data": payload,
+            })
+
+            logger.info(
+                f"[UnifiedHandler] Urgent message sent to Gateway: "
+                f"thread={self.thread_id}, action_type={message_data.get('action_type')}"
+            )
+
+        except Exception as e:
+            logger.warning(f"[UnifiedHandler] Failed to send urgent notify: {e}")
