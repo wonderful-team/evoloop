@@ -141,6 +141,18 @@ async def dispatch_agent_run(
         content_blocks = message_content
 
     # ------------------------------------------------------------------
+    # 2.5 Extract explicit skill_id from attachments for downstream routing
+    # ------------------------------------------------------------------
+    metadata = metadata or {}
+    for att in (attachments or []):
+        if att.get("type") == "skill":
+            skill_meta = att.get("metadata", {})
+            metadata["explicit_skill_id"] = skill_meta.get("skill_id")
+            metadata["explicit_skill_name"] = skill_meta.get("skill_name")
+            logger.info(f"[Dispatch] Explicit skill attached: {metadata['explicit_skill_name']} (ID: {metadata['explicit_skill_id']})")
+            break
+
+    # ------------------------------------------------------------------
     # 3. Build goal for activity monitor
     # ------------------------------------------------------------------
     goal = message_content[:200] + "..." if len(message_content) > 200 else message_content

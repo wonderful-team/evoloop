@@ -1,5 +1,21 @@
 [CONTEXT UPDATE — Turn {{ iteration_count }}]
 
+{%- if explicit_skill %}
+## Explicitly Attached Skill
+- **Skill**: {{ explicit_skill.name }} (ID: {{ explicit_skill.id }})
+- **Instruction**: User explicitly selected this skill. Use `skill_id={{ explicit_skill.id }}` in your `route_to` call unless it is clearly irrelevant.
+{%- endif %}
+
+{%- if active_skills %}
+## Available Skills (Direct Match)
+{%- for namespace, group in active_skills|sort(attribute='namespace')|groupby('namespace') %}
+### {{ namespace }}
+{% for s in group -%}
+- {{ s.name }} (ID: {{ s.id }}): {{ s.description }}
+{% endfor -%}
+{%- endfor %}
+{%- endif %}
+
 {% if session_goal %}
 ## Session Goal
 {{ session_goal }}

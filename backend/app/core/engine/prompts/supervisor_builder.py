@@ -97,10 +97,22 @@ class SupervisorPromptBuilder:
                 active_plan_data = None
 
         env_block = ctx.environment_block or ""
+        active_skills = ctx.metadata.get("active_skills", [])
+
+        # Extract explicit skill attachment from run metadata (set by /chat endpoint)
+        run_metadata = config.get("metadata", {}) if isinstance(config, dict) else getattr(config, "metadata", {})
+        explicit_skill_id = run_metadata.get("explicit_skill_id")
+        explicit_skill_name = run_metadata.get("explicit_skill_name")
+
         template_vars = {
             "iteration_count": self.iteration_count,
             "environment_block": env_block,
             "session_goal": session_goal,
+            "active_skills": active_skills,
+            "explicit_skill": {
+                "id": explicit_skill_id,
+                "name": explicit_skill_name,
+            } if explicit_skill_id else None,
             "memory": {
                 "episodic_raw": ctx.metadata.get("episodic_memory_raw", ""),
                 "core_raw": ctx.metadata.get("core_memory_raw", ""),

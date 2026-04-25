@@ -144,7 +144,6 @@ class SupervisorNode(BaseAgentNode):
             ai_content = str(new_messages[-1].content).strip()
 
         if ai_content:
-            logger.warning("[Supervisor] ⚠️ Protocol violation: No route_to but returned content. Falling back to 'chat'.")
             log_msg_trace(self.node_name, "handle_outcome PROTOCOL_VIOLATION", next_node="chat")
             return StateUpdate(
                 next_node=RoutingTarget.CHAT,

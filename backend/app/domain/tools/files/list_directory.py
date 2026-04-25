@@ -21,8 +21,8 @@ from .utils import resolve_and_validate_path
 
 async def handle_list(
     path: str,
-    tree: bool = True,
-    max_depth: int = 3,
+    tree: bool = False,
+    max_depth: int = 2,
     with_symbols: bool = False,
     config: RunnableConfig | None = None,
 ) -> str:
@@ -70,8 +70,8 @@ async def handle_list(
 )
 async def list_directory(
     path: str,
-    tree: bool = True,
-    depth: int = 3,
+    tree: bool = False,
+    depth: int = 2,
     with_symbols: bool = False,
     config: Annotated[RunnableConfig, InjectedToolArg] = None,
 ) -> str:
@@ -80,8 +80,8 @@ async def list_directory(
 
     Args:
         path: Directory path to explore. **REQUIRED**
-        tree: If True, returns directory tree. If False, returns flat file list.
-        depth: Maximum depth for tree view (default 3).
+        tree: If True, returns directory tree. If False, returns flat file list. Default False.
+        depth: Maximum depth for tree view (default 2).
         with_symbols: If True, includes class and function names in the tree (requires indexing).
     
     Examples:

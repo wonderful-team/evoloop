@@ -122,8 +122,6 @@ class AgentToolExecutor:
             # Track tool execution history and detect repetitions (thread-safe)
             tool_sig = f"{tool_name}:{json.dumps(tool_args, sort_keys=True)}"
             async with self._history_lock:
-                if tool_sig in local_tool_history:
-                    logger.warning(f"[{self.name}] ⚠️ REPETITION DETECTED: Agent is repeating tool call: {tool_sig}")
                 local_tool_history.append(tool_sig)
 
             # Capture snapshots BEFORE tool execution (for diff tracking)

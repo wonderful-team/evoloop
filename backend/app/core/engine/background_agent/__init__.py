@@ -5,7 +5,7 @@ import time
 from typing import Any
 
 from langchain_core.messages import BaseMessage, HumanMessage
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import func, select
 
 # Callbacks
@@ -31,7 +31,13 @@ MAX_GOAL_LENGTH = 500
 
 
 class BackgroundAgentInputs(BaseModel):
-    """Structured inputs for background agent execution."""
+    """Structured inputs for background agent execution.
+    
+    Uses extra='allow' so callers (e.g. API routes) can inject LangGraph state
+    fields such as ``blackboard`` without modifying this schema.
+    """
+    model_config = ConfigDict(extra="allow")
+
     messages: list[dict] = Field(default_factory=list)
     project_id: int | None = None
     model: str | None = None

@@ -1,8 +1,12 @@
 """
 API routes for project profile discovery.
 
-Discovery is Agent-driven: the API creates an Agent Mission that lets
-the Agent explore, initialize, and document the project itself.
+Discovery is Agent-driven via the Skill system:
+1. The API looks up (or imports) the "Project Discovery" learned skill.
+2. It constructs an ExecutionTicket with ``skill_id`` set so the SkillHydrator
+   automatically injects the SOP into the Worker's system prompt.
+3. A concise mission message is dispatched; the Skill SOP (not the API) dictates
+   the analysis and write-file steps.
 """
 import logging
 import os
@@ -14,9 +18,13 @@ from app.api.deps import TokenDepOptional
 from app.api.responses import BaseAPIResponse
 from app.core.engine.background_agent import run_agent_background
 from app.core.engine.dispatch import dispatch_agent_run
+from app.core.engine.state.blackboard import BlackboardState
+from app.core.engine.state.config import AgentRuntimeConfig, ExecutionTicket
 from app.core.evocloud import evocloud_manager
+from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.pydantic_base import DynamicBaseModel
-from app.utils import file as file_utils, render_template
+from app.models.learning import LearnedSkill
+from app.utils import file as file_utils
 
 logger = logging.getLogger(__name__)
 
@@ -84,6 +92,43 @@ async def _resolve_project_path(project_id: int) -> str:
 # Endpoints
 # ------------------------------------------------------------------
 
+async def _ensure_project_discovery_skill() -> LearnedSkill | None:
+    """Fetch or import the 'Project Discovery' learned skill."""
+    # 1. Try DB lookup by exact name
+    async with session_scope() as session:
+        from sqlalchemy import select
+        stmt = select(LearnedSkill).where(
+            LearnedSkill.name == "Project Discovery",
+            LearnedSkill.is_active == True,
+        )
+        result = await session.execute(stmt)
+        skill = result.scalar_one_or_none()
+        if skill:
+            return skill
+
+    # 2. Not found — trigger import from built-in skills directory
+    try:
+        from app.core.config import settings
+        from app.core.learning.skill_importer import SkillImporter
+
+        import_path = os.path.join(settings.SKILLS_DIR, "roles", "project_discovery")
+        if os.path.isdir(import_path):
+            await SkillImporter.import_from_directory(settings.SKILLS_DIR)
+
+        # Re-query after import
+        async with session_scope() as session:
+            from sqlalchemy import select
+            stmt = select(LearnedSkill).where(
+                LearnedSkill.name == "Project Discovery",
+                LearnedSkill.is_active == True,
+            )
+            result = await session.execute(stmt)
+            return result.scalar_one_or_none()
+    except Exception as e:
+        logger.warning(f"[ProjectProfiles] Failed to import Project Discovery skill: {e}")
+        return None
+
+
 @router.post("/{project_id}/profile/discover", response_model=DiscoverResponse)
 async def discover_profile(
     project_id: int,
@@ -92,10 +137,11 @@ async def discover_profile(
     _token: TokenDepOptional = None,
 ):
     """
-    Trigger Agent-driven project discovery.
+    Trigger Agent-driven project discovery via the Skill system.
 
-    Dispatches an Agent Mission to explore the project, set up the environment,
-    and generate PROJECT.md. Returns a thread_id for SSE streaming.
+    The API resolves the skill, builds an ExecutionTicket with ``skill_id``,
+    and lets the Skill SOP guide the Worker. No template-level step-by-step
+    instructions are needed — the SKILL.md owns the execution flow.
     """
     path = await _resolve_project_path(project_id)
     if not path:
@@ -104,11 +150,18 @@ async def discover_profile(
         raise HTTPException(400, f"Project path does not exist: {path}")
 
     thread_id = f"discovery-{project_id}-{int(time.time())}"
-    message = render_template(
-        "domain/project/project_discovery.prompt.j2",
-        path=path,
-        record_secrets=req.record_secrets,
-    )
+
+    # Resolve the skill (lazy import if missing)
+    skill = await _ensure_project_discovery_skill()
+    if not skill:
+        logger.warning("[ProjectProfiles] Project Discovery skill not found; falling back to generic mission.")
+
+    # Concise mission — the Skill SOP (injected into Worker system prompt) owns the detailed flow
+    message = "Create a comprehensive PROJECT.md at the project root to document this codebase for AI assistants."
+
+    # Pre-set working directory so Agent executes in the correct path
+    from app.core.context import thread_context_store
+    thread_context_store.set_working_directory(thread_id, path)
 
     result = await dispatch_agent_run(
         thread_id=thread_id,
@@ -120,11 +173,23 @@ async def discover_profile(
     if result.status == "failed":
         raise HTTPException(500, detail=result.error)
 
+    # Inject the ExecutionTicket into the initial state so SkillHydrator can load the SOP.
+    # API layer only specifies the skill — tool authorization is Supervisor's decision.
+    blackboard = BlackboardState(
+        ticket=ExecutionTicket(
+            ticket_type="task",
+            topic="Project Discovery",
+            skill_id=skill.id if skill else None,
+            agent_config=AgentRuntimeConfig(role_name="Worker"),
+        )
+    )
+    result.inputs["blackboard"] = blackboard.model_dump(mode="json")
+
     bg_tasks.add_task(run_agent_background, thread_id, result.inputs)
 
     logger.info(
         f"[ProjectProfilesAPI] Dispatched discovery mission for project {project_id} "
-        f"(thread_id={thread_id})"
+        f"(thread_id={thread_id}, skill_id={skill.id if skill else 'None'})"
     )
 
     return DiscoverResponse(
