@@ -454,8 +454,9 @@ class MessageHandler:
     ) -> str | None:
         """
         持久化消息到数据库
-        
-        使用 Celery 后台任务，避免阻塞主流程
+
+        直接同步写入 SQLite，避免 Huey 异步队列带来的同步难题。
+        SQLite 本地 INSERT 通常 < 1ms，await 会让出事件循环，不会阻塞并发。
         """
         if not content and not thinking and not tool_calls:
             logger.warning(f"[UnifiedHandler] Skipping persist for {role}: no content, thinking, or tool_calls")
@@ -466,38 +467,35 @@ class MessageHandler:
 
             logger.info(f"[UnifiedHandler] Persisting {role} message (seq={self._sequence_counter}, cat={category})")
 
-            # 发送到 Celery 后台任务
-            get_scheduler().send_task(
-                "engine_persist_message",
-                kwargs={
-                    "thread_id": self.thread_id,
-                    "project_id": self.project_id,
-                    "role": role,
-                    "content": content or "",
-                    "thinking": thinking,
-                    "tool_calls": tool_calls,
-                    "category": category,
-                    "action_type": action_type,
-                    "status": status,
-                    "sequence_number": self._sequence_counter,
-                    "run_id": self.run_id,
-                    "is_visible": is_visible,
-                    "tool_call_id": tool_call_id,
-                    "tool_name": tool_name,
-                }
+            # 直接同步调用持久化任务（不再走 Huey 队列）
+            from app.core.engine.tasks import persist_message_task
+            await persist_message_task(
+                thread_id=self.thread_id,
+                project_id=self.project_id,
+                role=role,
+                content=content or "",
+                thinking=thinking,
+                tool_calls=tool_calls,
+                category=category,
+                action_type=action_type,
+                status=status,
+                sequence_number=self._sequence_counter,
+                run_id=self.run_id,
+                is_visible=is_visible,
+                tool_call_id=tool_call_id,
+                tool_name=tool_name,
             )
 
-            # 每5条消息触发一次批量同步信号（同步由 SyncCoordinator 异步执行）
-            if self._sequence_counter % 5 == 0:
+            # 触发增量同步（HITL 消息跳过，因为 handle_hitl_request 已通过 urgent 发送）
+            if action_type != "human_request":
                 try:
                     from app.core.engine.message.sync_coordinator import get_sync_coordinator
                     coordinator = get_sync_coordinator()
-                    asyncio.create_task(coordinator.on_message_persisted(self.thread_id))
+                    asyncio.create_task(coordinator.sync_batch(self.thread_id))
                 except Exception as e:
-                    logger.warning(f"[UnifiedHandler] Failed to trigger batch sync: {e}")
+                    logger.warning(f"[UnifiedHandler] Failed to trigger sync: {e}")
 
-            # 返回临时 ID（实际 DB ID 会在后台生成）
-            return f"temp-{self.thread_id}-{self._sequence_counter}"
+            return f"msg-{self.thread_id}-{self._sequence_counter}"
 
         except Exception as e:
             logger.error(f"[UnifiedHandler] Failed to persist message: {e}")

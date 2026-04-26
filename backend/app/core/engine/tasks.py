@@ -343,7 +343,7 @@ async def persist_message_task(**kwargs):
             if payload.references:
                 for ref in payload.references:
                     mr = MessageReference(
-                        id=str(UUID(int=hash(f"{log.id}-{ref['target_id']}-{time.time()}") & ((1 << 128) - 1))),
+                        id=gen_uuid(),
                         message_id=log.id,
                         type=ref["type"],
                         target_id=ref["target_id"],

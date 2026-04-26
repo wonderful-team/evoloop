@@ -11,10 +11,11 @@ MessageSyncCoordinator - 消息同步协调器
 - BackgroundAgent 运行完成后触发最终同步
 """
 
+import asyncio
 import logging
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import select, func
 
 from app.core.evocloud import evocloud_manager
 from app.infrastructure.database.sql.database import session_scope
@@ -31,11 +32,39 @@ class MessageSyncCoordinator:
         self._counter = 0
         # per-thread 的同步进度，避免多 conversation 间互相污染
         self._last_synced_seq: dict[str, int] = {}
+        # per-thread 的同步锁，防止并发竞争导致重复发送
+        self._sync_locks: dict[str, asyncio.Lock] = {}
+
+    def _get_lock(self, thread_id: str) -> asyncio.Lock:
+        """获取（或创建）指定 thread 的同步锁。"""
+        if thread_id not in self._sync_locks:
+            self._sync_locks[thread_id] = asyncio.Lock()
+        return self._sync_locks[thread_id]
+
+    async def _init_last_synced_seq(self, thread_id: str) -> None:
+        """从数据库初始化 _last_synced_seq，避免进程重启后重复发送历史消息。"""
+        if thread_id in self._last_synced_seq:
+            return
+        try:
+            async with session_scope() as session:
+                stmt = (
+                    select(func.max(Message.sequence_number))
+                    .where(Message.thread_id == thread_id)
+                )
+                max_seq = (await session.execute(stmt)).scalar() or 0
+                if max_seq > 0:
+                    self._last_synced_seq[thread_id] = max_seq
+                    logger.info(
+                        f"[SyncCoordinator] Init last_synced_seq for {thread_id}: {max_seq}"
+                    )
+        except Exception as e:
+            logger.warning(f"[SyncCoordinator] Failed to init last_synced_seq: {e}")
 
     def reset(self):
         """重置计数器（新任务开始时调用）"""
         self._counter = 0
         self._last_synced_seq.clear()
+        self._sync_locks.clear()
 
     async def on_message_persisted(self, thread_id: str) -> bool:
         """
@@ -57,101 +86,89 @@ class MessageSyncCoordinator:
         同步一批消息到 Gateway。
 
         增量同步：只读取该 thread _last_synced_seq 之后的新消息，避免全量传输。
-        首次同步某个 thread 时，自动以当前最大 sequence_number 作为起点，
-        避免把历史消息全部重发一遍。
+        last_synced_seq=0 时查询所有消息（首次同步），之后只查询新增消息。
+
+        使用 per-thread 锁防止并发竞争导致重复发送。
         """
         if not evocloud_manager.link or not evocloud_manager.link.is_connected():
             logger.debug("[SyncCoordinator] WebSocket not connected, skipping sync")
             return None
 
-        try:
-            async with session_scope() as session:
-                # 读取会话元数据
-                conv_result = await session.execute(
-                    select(Conversation).where(Conversation.id == thread_id)
-                )
-                conversation = conv_result.scalar_one_or_none()
+        # 初始化 last_synced_seq（进程重启后首次同步）
+        await self._init_last_synced_seq(thread_id)
 
-                # ── 首次同步该 thread：用当前最大 seq 作为起点 ──
-                last_seq = self._last_synced_seq.get(thread_id, 0)
-                if last_seq == 0:
-                    stmt = (
-                        select(Message.sequence_number)
+        async with self._get_lock(thread_id):
+            try:
+                async with session_scope() as session:
+                    # 读取会话元数据
+                    conv_result = await session.execute(
+                        select(Conversation).where(Conversation.id == thread_id)
+                    )
+                    conversation = conv_result.scalar_one_or_none()
+
+                    last_seq = self._last_synced_seq.get(thread_id, 0)
+
+                    # 增量读取
+                    query = (
+                        select(Message)
                         .where(Message.thread_id == thread_id)
-                        .order_by(Message.sequence_number.desc())
-                        .limit(1)
+                        .order_by(Message.sequence_number.asc())
                     )
-                    max_seq_result = await session.execute(stmt)
-                    current_max_seq = max_seq_result.scalar() or 0
-                    if current_max_seq > 0:
-                        self._last_synced_seq[thread_id] = current_max_seq
-                        last_seq = current_max_seq
-                        logger.info(
-                            f"[SyncCoordinator] First sync for thread={thread_id}, "
-                            f"initialized last_synced_seq={last_seq}"
+                    if last_seq > 0:
+                        query = query.where(Message.sequence_number > last_seq)
+
+                    msg_result = await session.execute(query)
+                    messages = msg_result.scalars().all()
+
+                    if not messages:
+                        logger.debug(
+                            f"[SyncCoordinator] No new messages to sync for {thread_id} "
+                            f"(last_synced_seq={last_seq})"
                         )
+                        return None
 
-                # 增量读取：只读取 last_seq 之后的新消息
-                query = (
-                    select(Message)
-                    .where(Message.thread_id == thread_id)
-                    .order_by(Message.sequence_number.asc())
-                )
-                if last_seq > 0:
-                    query = query.where(Message.sequence_number > last_seq)
+                    # 构建同步 payload
+                    sync_payload = self._build_sync_payload(conversation, messages)
 
-                msg_result = await session.execute(query)
-                messages = msg_result.scalars().all()
+                    # 通过 WebSocket 发送
+                    await evocloud_manager.link.send_message({
+                        "type": "message_sync",
+                        "data": sync_payload,
+                    })
 
-                if not messages:
-                    logger.debug(
-                        f"[SyncCoordinator] No new messages to sync for {thread_id} "
-                        f"(last_synced_seq={last_seq})"
+                    new_max_seq = max(m.sequence_number for m in messages)
+                    logger.info(
+                        f"[SyncCoordinator] Synced batch to Gateway: "
+                        f"thread={thread_id}, messages={len(messages)}, "
+                        f"seq_range=({last_seq+1 if last_seq > 0 else 1}~{new_max_seq})"
                     )
-                    return None
 
-                # 构建同步 payload（只包含新增消息）
-                sync_payload = self._build_sync_payload(conversation, messages)
+                    self._last_synced_seq[thread_id] = new_max_seq
+                    return sync_payload
 
-                # 通过 WebSocket 发送
-                await evocloud_manager.link.send_message({
-                    "type": "message_sync",
-                    "data": sync_payload,
-                })
-
-                new_max_seq = max(m.sequence_number for m in messages)
-                logger.info(
-                    f"[SyncCoordinator] Synced incremental batch to Gateway: "
-                    f"thread={thread_id}, new_messages={len(messages)}, "
-                    f"seq_range=({last_seq+1}~{new_max_seq})"
-                )
-
-                self._last_synced_seq[thread_id] = new_max_seq
-                return sync_payload
-
-        except Exception as e:
-            logger.error(f"[SyncCoordinator] Failed to sync batch: {e}")
-            return None
+            except Exception as e:
+                logger.error(f"[SyncCoordinator] Failed to sync batch: {e}")
+                return None
 
     async def sync_final(self, thread_id: str, command_id: str | int | None = None) -> dict[str, Any] | None:
         """
-        最终同步：Agent 运行完成后发送所有消息 + 完成信号。
+        最终同步：Agent 运行完成后发送完成信号。
 
-        先发送 message_sync（全部消息），再发送 command_complete。
+        消息同步已由 sync_batch（每条消息触发）实时完成，
+        sync_final 只负责发送 command_complete 通知 Mobile Agent 已结束。
         """
-        # 1. 发送最终 message_sync
+        # 发送最终增量同步（补偿运行过程中可能漏掉的消息）
         sync_payload = await self.sync_batch(thread_id)
 
-        # 2. 发送 command_complete
+        # 发送 command_complete
         try:
             if evocloud_manager.link and evocloud_manager.link.is_connected():
-                # 统一 command_id 为 int，与 command_ack 保持一致
-                cmd_id_int = int(command_id) if command_id is not None else 0
+                cmd_id = command_id if command_id is not None else 0
                 await evocloud_manager.link.send_message({
                     "type": "command_complete",
                     "data": {
                         "thread_id": thread_id,
-                        "command_id": cmd_id_int,
+                        "command_id": cmd_id,
                         "status": "done",
                     },
                 })
