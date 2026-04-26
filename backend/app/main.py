@@ -90,9 +90,6 @@ async def lifespan(app: FastAPI):
     try:
         from app.core.events.publishers import publish_app_stopping
         await publish_app_stopping()
-            source="main",
-            data={}
-        ))
         logger.info("[Shutdown] APP_STOPPING event published")
     except Exception as e:
         logger.error(f"[Shutdown] Failed to publish APP_STOPPING event: {e}")
