@@ -1,6 +1,6 @@
 // 附件选择组件 - 支持图片选择和相机拍照
 
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   View,
   StyleSheet,
@@ -12,7 +12,7 @@ import {
   PermissionsAndroid,
   Platform,
 } from 'react-native';
-import { Text, IconButton } from 'react-native-paper';
+import { Text } from 'react-native-paper';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import ImagePicker from 'react-native-image-crop-picker';
 import { useTheme } from '@/theme';
@@ -22,7 +22,7 @@ export { type ChatAttachment } from '@/services/api/upload';
 
 export interface Attachment {
   id: string;
-  type: 'image';
+  type: 'image' | 'video';
   uri: string;
   name?: string;
   mimeType?: string;
@@ -48,6 +48,45 @@ export function AttachmentPicker({
   const { colors } = useTheme();
   const [showOptions, setShowOptions] = useState(false);
   const [uploading, setUploading] = useState(false);
+
+  // 自动上传未上传的附件
+  useEffect(() => {
+    const pendingAttachments = attachments.filter(att => !att.uploaded && !att.uploading);
+    if (pendingAttachments.length === 0 || uploading) return;
+
+    let cancelled = false;
+    const uploadPending = async () => {
+      setUploading(true);
+      const uploadedAttachments: ChatAttachment[] = [];
+
+      for (const attachment of pendingAttachments) {
+        if (cancelled) break;
+        try {
+          const uploaded = await uploadSingleImage(attachment);
+          if (uploaded.url) {
+            uploadedAttachments.push({
+              type: uploaded.type || 'image',
+              url: uploaded.url,
+              name: uploaded.name || '',
+              ext: uploaded.name?.split('.').pop() || (uploaded.type === 'video' ? 'mp4' : 'jpg'),
+            });
+          }
+        } catch (error: any) {
+          console.error('自动上传失败:', error);
+        }
+      }
+
+      if (!cancelled) {
+        setUploading(false);
+        if (uploadedAttachments.length > 0) {
+          onUploadComplete?.(uploadedAttachments);
+        }
+      }
+    };
+
+    uploadPending();
+    return () => { cancelled = true; };
+  }, [attachments, uploading, onUploadComplete, uploadSingleImage]);
 
   // 请求相机权限 (Android)
   const requestCameraPermission = useCallback(async () => {
@@ -129,83 +168,59 @@ export function AttachmentPicker({
     setShowOptions(false);
 
     if (attachments.length >= maxAttachments) {
-      Alert.alert('提示', `最多只能选择 ${maxAttachments} 张图片`);
+      Alert.alert('提示', `最多只能选择 ${maxAttachments} 个媒体文件`);
       return;
     }
 
     const hasPermission = await requestMediaLibraryPermission();
     if (!hasPermission) {
-      Alert.alert('权限不足', '需要访问相册权限才能选择图片');
+      Alert.alert('权限不足', '需要访问相册权限才能选择媒体文件');
       return;
     }
 
     try {
       const result = await ImagePicker.openPicker({
-        mediaType: 'photo',
+        mediaType: 'any',
         multiple: true,
         maxFiles: maxAttachments - attachments.length,
         compressImageQuality: 0.8,
       });
 
-      // 处理单张或多张图片
-      const images = Array.isArray(result) ? result : [result];
+      // 处理单张或多张媒体文件
+      const assets = Array.isArray(result) ? result : [result];
 
-      const newAttachments: Attachment[] = images.map((asset, index) => ({
-        id: `img_${Date.now()}_${index}`,
-        type: 'image',
-        uri: asset.path,
-        name: asset.filename || `image_${Date.now()}_${index}.jpg`,
-        mimeType: asset.mime || 'image/jpeg',
-        size: asset.size,
-        uploading: false,
-        uploaded: false,
-      }));
+      const newAttachments: Attachment[] = assets.map((asset, index) => {
+        const isVideo = asset.mime?.startsWith('video/') || asset.path?.match(/\.(mp4|mov|avi|mkv|wmv)$/i);
+        return {
+          id: `${isVideo ? 'vid' : 'img'}_${Date.now()}_${index}`,
+          type: isVideo ? 'video' : 'image',
+          uri: asset.path,
+          name: asset.filename || `${isVideo ? 'video' : 'image'}_${Date.now()}_${index}.${isVideo ? 'mp4' : 'jpg'}`,
+          mimeType: asset.mime || (isVideo ? 'video/mp4' : 'image/jpeg'),
+          size: asset.size,
+          uploading: false,
+          uploaded: false,
+        };
+      });
 
       onAttachmentsChange([...attachments, ...newAttachments]);
-
-      // 自动开始上传
-      setUploading(true);
-      const uploadedAttachments: ChatAttachment[] = [];
-
-      for (const attachment of newAttachments) {
-        try {
-          const uploaded = await uploadSingleImage(attachment);
-          if (uploaded.url) {
-            uploadedAttachments.push({
-              type: 'image',
-              url: uploaded.url,
-              name: uploaded.name || '',
-              ext: uploaded.name?.split('.').pop() || 'jpg',
-            });
-          }
-        } catch (error: any) {
-          console.error('上传图片失败:', error);
-          Alert.alert('上传失败', error.message || '图片上传失败，请重试');
-        }
-      }
-
-      setUploading(false);
-
-      if (uploadedAttachments.length > 0) {
-        onUploadComplete?.(uploadedAttachments);
-      }
+      // 上传由 useEffect 自动处理
     } catch (error: any) {
       // 用户取消选择时不报错
       if (error.message?.includes('cancel') || error.message?.includes('Cancel')) {
         return;
       }
-      console.error('选择图片失败:', error);
-      Alert.alert('错误', '选择图片失败，请重试');
-      setUploading(false);
+      console.error('选择媒体失败:', error);
+      Alert.alert('错误', '选择媒体失败，请重试');
     }
-  }, [attachments, maxAttachments, onAttachmentsChange, onUploadComplete, requestMediaLibraryPermission, uploadSingleImage]);
+  }, [attachments, maxAttachments, onAttachmentsChange, requestMediaLibraryPermission]);
 
   // 处理相机拍照
   const handleCamera = useCallback(async () => {
     setShowOptions(false);
 
     if (attachments.length >= maxAttachments) {
-      Alert.alert('提示', `最多只能选择 ${maxAttachments} 张图片`);
+      Alert.alert('提示', `最多只能选择 ${maxAttachments} 个媒体文件`);
       return;
     }
 
@@ -233,26 +248,7 @@ export function AttachmentPicker({
       };
 
       onAttachmentsChange([...attachments, newAttachment]);
-
-      // 自动开始上传
-      setUploading(true);
-
-      try {
-        const uploaded = await uploadSingleImage(newAttachment);
-        if (uploaded.url) {
-          onUploadComplete?.([{
-            type: 'image',
-            url: uploaded.url,
-            name: uploaded.name || '',
-            ext: uploaded.name?.split('.').pop() || 'jpg',
-          }]);
-        }
-      } catch (error: any) {
-        console.error('上传照片失败:', error);
-        Alert.alert('上传失败', error.message || '照片上传失败，请重试');
-      } finally {
-        setUploading(false);
-      }
+      // 上传由 useEffect 自动处理
     } catch (error: any) {
       // 用户取消拍照时不报错
       if (error.message?.includes('cancel') || error.message?.includes('Cancel')) {
@@ -260,9 +256,51 @@ export function AttachmentPicker({
       }
       console.error('拍照失败:', error);
       Alert.alert('错误', '拍照失败，请重试');
-      setUploading(false);
     }
-  }, [attachments, maxAttachments, onAttachmentsChange, onUploadComplete, requestCameraPermission, uploadSingleImage]);
+  }, [attachments, maxAttachments, onAttachmentsChange, requestCameraPermission]);
+
+  // 处理视频录制
+  const handleVideoRecord = useCallback(async () => {
+    setShowOptions(false);
+
+    if (attachments.length >= maxAttachments) {
+      Alert.alert('提示', `最多只能选择 ${maxAttachments} 个媒体文件`);
+      return;
+    }
+
+    const hasPermission = await requestCameraPermission();
+    if (!hasPermission) {
+      Alert.alert('权限不足', '需要相机权限才能录制视频');
+      return;
+    }
+
+    try {
+      const result = await ImagePicker.openCamera({
+        mediaType: 'video',
+      });
+
+      const newAttachment: Attachment = {
+        id: `vid_${Date.now()}`,
+        type: 'video',
+        uri: result.path,
+        name: result.filename || `video_${Date.now()}.mp4`,
+        mimeType: result.mime || 'video/mp4',
+        size: result.size,
+        uploading: false,
+        uploaded: false,
+      };
+
+      onAttachmentsChange([...attachments, newAttachment]);
+      // 上传由 useEffect 自动处理
+    } catch (error: any) {
+      // 用户取消录制时不报错
+      if (error.message?.includes('cancel') || error.message?.includes('Cancel')) {
+        return;
+      }
+      console.error('录制视频失败:', error);
+      Alert.alert('错误', '录制视频失败，请重试');
+    }
+  }, [attachments, maxAttachments, onAttachmentsChange, requestCameraPermission]);
 
   // 移除附件
   const removeAttachment = useCallback((id: string) => {
@@ -286,22 +324,28 @@ export function AttachmentPicker({
         <View style={styles.attachmentList}>
           {attachments.map((att) => (
             <View key={att.id} style={styles.attachmentItem}>
-              <Image source={{ uri: att.uri }} style={styles.attachmentImage} />
-              
+              {att.type === 'video' ? (
+                <View style={[styles.attachmentImage, { backgroundColor: colors.surfaceVariant, alignItems: 'center', justifyContent: 'center' }]}>
+                  <MaterialIcons name="videocam" size={28} color={colors.primary} />
+                </View>
+              ) : (
+                <Image source={{ uri: att.uri }} style={styles.attachmentImage} />
+              )}
+
               {/* 上传中遮罩 */}
               {att.uploading && (
                 <View style={styles.uploadingOverlay}>
                   <ActivityIndicator size="small" color="#fff" />
                 </View>
               )}
-              
+
               {/* 上传失败标记 */}
               {!att.uploading && att.uploaded === false && (
                 <View style={styles.errorOverlay}>
                   <MaterialIcons name="error" size={20} color="#fff" />
                 </View>
               )}
-              
+
               {/* 删除按钮 */}
               {!att.uploading && (
                 <TouchableOpacity
@@ -342,7 +386,7 @@ export function AttachmentPicker({
         >
           <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
             <Text variant="titleMedium" style={styles.modalTitle}>
-              选择附件
+              选择图片或视频
             </Text>
             
             <TouchableOpacity
@@ -365,6 +409,17 @@ export function AttachmentPicker({
               <MaterialIcons name="camera-alt" size={24} color={colors.primary} />
               <Text variant="bodyLarge" style={[styles.optionText, { color: colors.onSurface }]}>
                 拍照
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.optionButton}
+              onPress={handleVideoRecord}
+              disabled={uploading}
+            >
+              <MaterialIcons name="videocam" size={24} color={colors.primary} />
+              <Text variant="bodyLarge" style={[styles.optionText, { color: colors.onSurface }]}>
+                录制视频
               </Text>
             </TouchableOpacity>
             

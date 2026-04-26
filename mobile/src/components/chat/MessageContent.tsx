@@ -1,6 +1,6 @@
 // 消息内容渲染组件 - 支持 Markdown、图片、文件、音频、代码高亮、表格、Mermaid 等
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View,
   StyleSheet,
@@ -13,7 +13,6 @@ import { Text, IconButton } from 'react-native-paper';
 import Markdown from 'react-native-markdown-display';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { useTheme } from '@/theme';
-;
 import { CodeBlock } from './CodeBlock';
 import { MarkdownTable } from './MarkdownTable';
 import { AutoLinkPreview } from './LinkPreview';
@@ -189,25 +188,32 @@ export function MessageContent({ content, isUser = false }: MessageContentProps)
     );
   }
 
-  // 预处理：过滤内部标签
-  let displayContent = content
-    .replace(/<audit>[\s\S]*?(?:<\/audit>|$)/gi, '')
-    .replace(/<thought>[\s\S]*?(?:<\/thought>|$)/gi, '')
-    .replace(/<outcome>[\s\S]*?(?:<\/outcome>|$)/gi, '')
-    .replace(/<reason>[\s\S]*?(?:<\/reason>|$)/gi, '')
-    .trim();
+  // 用 useMemo 缓存内容解析结果，避免每次渲染重复计算
+  const parsedContent = useMemo(() => {
+    // 预处理：过滤内部标签
+    let displayContent = content
+      .replace(/<audit>[\s\S]*?(?:<\/audit>|$)/gi, '')
+      .replace(/<thought>[\s\S]*?(?:<\/thought>|$)/gi, '')
+      .replace(/<outcome>[\s\S]*?(?:<\/outcome>|$)/gi, '')
+      .replace(/<reason>[\s\S]*?(?:<\/reason>|$)/gi, '')
+      .trim();
 
-  // 提取 report 内容
-  const reportMatch = displayContent.match(/<report>([\s\S]*?)(?:<\/report>|$)/i);
-  if (reportMatch) {
-    displayContent = reportMatch[1].trim();
-  }
-  displayContent = displayContent.replace(/<\/?report>/gi, '');
+    // 提取 report 内容
+    const reportMatch = displayContent.match(/<report>([\s\S]*?)(?:<\/report>|$)/i);
+    if (reportMatch) {
+      displayContent = reportMatch[1].trim();
+    }
+    displayContent = displayContent.replace(/<\/?report>/gi, '');
 
-  // 分割内容：按 [Image:/File:/Audio:] 和 Mermaid 代码块分割
-  const parts = displayContent.split(
-    /(\[(?:Image|File|Audio):\s*[^\]]+\]\([^)]+\)|\[(?:Image|File|Audio):\s*[^\]]+\])/g
-  );
+    // 分割内容：按 [Image:/File:/Audio:] 分割
+    const parts = displayContent.split(
+      /(\[(?:Image|File|Audio):\s*[^\]]+\]\([^)]+\)|\[(?:Image|File|Audio):\s*[^\]]+\])/g
+    );
+
+    return { displayContent, parts };
+  }, [content]);
+
+  const { displayContent, parts } = parsedContent;
 
   // 检查是否包含表格
   const hasTable = displayContent.includes('|') && displayContent.includes('\n');

@@ -60,10 +60,15 @@ export function useTTS(): UseTTSReturn {
     audioPlayerRef.current = player;
   }, []);
 
-  // 清理函数
+  // 清理函数：组件卸载时确保停止播放并删除音频文件
   useEffect(() => {
     return () => {
-      stop();
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      if (currentAudioUriRef.current) {
+        RNFS.unlink(currentAudioUriRef.current).catch(() => {});
+      }
     };
   }, []);
 
@@ -156,21 +161,29 @@ export function useTTS(): UseTTSReturn {
         },
         (err) => {
           // 播放错误
-          console.error('Audio playback error:', err);
           setError(t('chat.tts.playbackError', '播放失败'));
           setIsSpeaking(false);
+          if (currentAudioUriRef.current) {
+            RNFS.unlink(currentAudioUriRef.current).catch(() => {});
+            currentAudioUriRef.current = null;
+          }
         }
       );
 
-    } catch (err: any) {
-      if (err.name === 'AbortError') {
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name === 'AbortError') {
         return;
       }
 
-      console.error('TTS error:', err);
-      setError(err.message || t('chat.tts.error', '语音合成失败'));
+      const msg = err instanceof Error ? err.message : t('chat.tts.error', '语音合成失败');
+      setError(msg);
       setIsSpeaking(false);
       setIsLoading(false);
+      // 合成失败时清理已生成的音频文件
+      if (currentAudioUriRef.current) {
+        RNFS.unlink(currentAudioUriRef.current).catch(() => {});
+        currentAudioUriRef.current = null;
+      }
     }
   }, [currentVoice, stop, t]);
 

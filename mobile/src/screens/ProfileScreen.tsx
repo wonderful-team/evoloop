@@ -31,7 +31,8 @@ import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { useSubscription } from '@/hooks/useSubscription';
 import { useAuth } from '@/hooks/useAuth';
 import { Linking } from 'react-native';
-import ImagePicker from 'react-native-image-crop-picker';
+import { Image, ImageOrVideo } from 'react-native-image-crop-picker';
+import { MediaPickerModal } from '@/components/common/MediaPickerModal';
 import { authApi } from '@/services/api/auth';
 import { useLoading } from '@/hooks/useLoading';
 import { BASE_URL } from '@/constants/config';
@@ -306,6 +307,7 @@ function UserProfile() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [avatarError, setAvatarError] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [showAvatarPicker, setShowAvatarPicker] = useState(false);
 
   const { execute: executeUpload } = useLoading();
 
@@ -355,73 +357,31 @@ function UserProfile() {
 
   // 头像上传
   const handleAvatarPress = useCallback(() => {
-    Alert.alert(
-      t('profile.changeAvatar') || '更换头像',
-      '',
-      [
-        { text: t('common.cancel') || '取消', style: 'cancel' },
-        {
-          text: t('profile.takePhoto') || '拍照',
-          onPress: () => pickAndUploadAvatar('camera'),
-        },
-        {
-          text: t('profile.chooseFromAlbum') || '从相册选择',
-          onPress: () => pickAndUploadAvatar('gallery'),
-        },
-      ]
-    );
-  }, [t]);
+    setShowAvatarPicker(true);
+  }, []);
 
-  const pickAndUploadAvatar = useCallback(async (source: 'camera' | 'gallery') => {
+  const handleAvatarSelected = useCallback(async (images: ImageOrVideo[]) => {
+    const image = images[0] as Image;
+    if (!image?.data) {
+      Alert.alert(
+        t('common.error.title') || '错误',
+        t('profile.avatarImageError') || '无法获取图片数据'
+      );
+      return;
+    }
     try {
       setUploadingAvatar(true);
-
-      const image = source === 'camera'
-        ? await ImagePicker.openCamera({
-            width: 300,
-            height: 300,
-            cropping: true,
-            cropperCircleOverlay: true,
-            includeBase64: true,
-            compressImageMaxWidth: 300,
-            compressImageMaxHeight: 300,
-            compressImageQuality: 0.8,
-          })
-        : await ImagePicker.openPicker({
-            width: 300,
-            height: 300,
-            cropping: true,
-            cropperCircleOverlay: true,
-            includeBase64: true,
-            compressImageMaxWidth: 300,
-            compressImageMaxHeight: 300,
-            compressImageQuality: 0.8,
-          });
-
-      if (!image.data) {
-        throw new Error(t('profile.avatarImageError') || '无法获取图片数据');
-      }
-
-      // base64 数据可能需要加上前缀
-      const base64Data = image.data.startsWith('data:')
+      const base64Data = (image.data as string).startsWith('data:')
         ? image.data
         : `data:${image.mime || 'image/jpeg'};base64,${image.data}`;
-
-      // 1. 上传头像到服务器
       const uploadRes = await executeUpload(authApi.uploadHeadimgBase64(base64Data));
       const picPath = uploadRes.pic_path;
-
-      // 2. 修改用户头像
       await executeUpload(authApi.modifyHeadimg(picPath));
-
-      // 3. 更新本地状态
       const { updateUserInfo } = useAuthStore.getState();
       updateUserInfo({ avatar: picPath });
-
       Alert.alert(t('common.success') || '成功', t('profile.avatarUpdated') || '头像已更新');
     } catch (error: any) {
       console.error('Avatar upload error:', error);
-      // 用户取消不提示错误
       if (error.code !== 'E_PICKER_CANCELLED' && error.code !== 'E_USER_CANCELLED') {
         Alert.alert(
           t('common.error.title') || '错误',
@@ -605,6 +565,23 @@ function UserProfile() {
           </Dialog.Actions>
         </Dialog>
       </Portal>
+
+      {/* 头像选择面板 */}
+      <MediaPickerModal
+        visible={showAvatarPicker}
+        onClose={() => setShowAvatarPicker(false)}
+        options={['camera', 'album']}
+        maxFiles={1}
+        cropping
+        cropperCircleOverlay
+        includeBase64
+        width={300}
+        height={300}
+        compressImageMaxWidth={300}
+        compressImageMaxHeight={300}
+        compressImageQuality={0.8}
+        onSelectImage={handleAvatarSelected}
+      />
     </SafeAreaView>
   );
 }

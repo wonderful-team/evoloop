@@ -1,6 +1,6 @@
 // Mermaid 图表组件 - 使用 WebView 渲染
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, memo } from 'react';
 import {
   View,
   StyleSheet,
@@ -57,7 +57,7 @@ ${chart}
 </html>
 `;
 
-export function MermaidChart({ chart }: MermaidChartProps) {
+export const MermaidChart = memo(function MermaidChart({ chart }: MermaidChartProps) {
   const { colors, isDark } = useTheme();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -184,7 +184,7 @@ export function MermaidChart({ chart }: MermaidChartProps) {
       </Modal>
     </>
   );
-}
+});
 
 // 检测文本中的 Mermaid 代码块
 export function extractMermaidBlocks(text: string): Array<{ type: 'text' | 'mermaid'; content: string }> {

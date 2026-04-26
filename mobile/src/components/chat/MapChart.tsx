@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, memo } from 'react';
 import {
   View,
   StyleSheet,
@@ -167,7 +167,7 @@ const generateAMapHtml = (data: MapChartProps['data'], isDark: boolean) => {
 `;
 };
 
-export function MapChart({ data }: MapChartProps) {
+export const MapChart = memo(function MapChart({ data }: MapChartProps) {
   const { colors, isDark } = useTheme();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -289,7 +289,7 @@ export function MapChart({ data }: MapChartProps) {
       </Modal>
     </>
   );
-}
+});
 
 const styles = StyleSheet.create({
   container: {

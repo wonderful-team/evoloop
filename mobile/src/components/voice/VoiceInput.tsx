@@ -1,20 +1,29 @@
 // 语音/文本输入组件 - 支持引用、TTS、语音打断
 
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 import { View, StyleSheet, TextInput, Keyboard, TouchableOpacity, ScrollView } from 'react-native';
 import { IconButton, Text, Divider } from 'react-native-paper';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { useTheme } from '@/theme';
+import { ImageOrVideo } from 'react-native-image-crop-picker';
+import { Alert } from 'react-native';
 import { VoiceSessionState } from '@/services/voice/VoiceSessionManager';
 import { AttachmentPicker, Attachment, ChatAttachment } from './AttachmentPicker';
+import { uploadChatFile } from '@/services/api/upload';
 import { MessageQuote } from '@/components/chat/MessageQuote';
 import { MessageReference } from '@/types/conversation';
 import { ReferencePicker } from '@/components/chat/ReferencePicker';
 import { VoiceVisualizer } from '@/components/chat/VoiceVisualizer';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { MediaPickerModal } from '@/components/common/MediaPickerModal';
 
 export enum InputMode {
   VOICE = 'voice',
   TEXT = 'text',
+}
+
+export interface VoiceInputHandle {
+  addReference: (reference: MessageReference) => void;
 }
 
 interface VoiceInputProps {
@@ -47,7 +56,7 @@ interface VoiceInputProps {
   transcriptionText?: string;
 }
 
-export function VoiceInput({
+export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(({
   state,
   onSendText,
   onToggleVoice,
@@ -68,15 +77,42 @@ export function VoiceInput({
   isWakeWordListening = false,
   // 实时转录文字
   transcriptionText = '',
-}: VoiceInputProps) {
+}, ref) => {
   const { colors } = useTheme();
   const [text, setText] = useState('');
   const [internalInputMode, setInternalInputMode] = useState<InputMode>(InputMode.VOICE);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
+
+  // 草稿保存 key
+  const draftKey = `chat_draft_${conversationId || 'global'}`;
+
+  // 挂载时恢复草稿
+  useEffect(() => {
+    AsyncStorage.getItem(draftKey).then((draft) => {
+      if (draft) setText(draft);
+    }).catch(() => {});
+  }, [draftKey]);
+
+  // 文本变化时 debounce 保存草稿
+  const draftTimerRef = useRef<NodeJS.Timeout | null>(null);
+  useEffect(() => {
+    if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
+    draftTimerRef.current = setTimeout(() => {
+      if (text.trim()) {
+        AsyncStorage.setItem(draftKey, text).catch(() => {});
+      } else {
+        AsyncStorage.removeItem(draftKey).catch(() => {});
+      }
+    }, 500);
+    return () => {
+      if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
+    };
+  }, [text, draftKey]);
   const [uploadedAttachments, setUploadedAttachments] = useState<ChatAttachment[]>([]);
   const [references, setReferences] = useState<MessageReference[]>([]);
   const [showReferencePicker, setShowReferencePicker] = useState(false);
   const [showReferenceHint, setShowReferenceHint] = useState(false);
+  const [showMediaPicker, setShowMediaPicker] = useState(false);
 
   const inputMode = externalInputMode ?? internalInputMode;
   const isTextMode = inputMode === InputMode.TEXT;
@@ -125,7 +161,20 @@ export function VoiceInput({
     if (isTextMode) Keyboard.dismiss();
   }, [isTextMode, onToggleMode]);
 
-  // 添加引用
+  // 暴露 addReference 方法给父组件（如 ChatScreen 的长按引用）
+  useImperativeHandle(ref, () => ({
+    addReference: (reference: MessageReference) => {
+      // 避免重复引用
+      if (!references.some(r => r.id === reference.id)) {
+        setReferences(prev => [...prev, reference]);
+      }
+      // 在文本中插入引用标记
+      const refText = `@${reference.name} `;
+      setText(prev => prev + refText);
+    },
+  }), [references]);
+
+  // 添加引用（内部使用，与 useImperativeHandle 保持逻辑一致）
   const handleAddReference = useCallback((reference: MessageReference) => {
     // 避免重复引用
     if (!references.some(r => r.id === reference.id)) {
@@ -164,6 +213,49 @@ export function VoiceInput({
       onPressOut();
     }
   }, [isListening, onPressOut]);
+
+  // 底部媒体面板
+  const openMediaPicker = useCallback(() => {
+    if (attachments.length >= 5) {
+      Alert.alert('提示', '最多只能添加 5 个附件');
+      return;
+    }
+    setShowMediaPicker(true);
+  }, [attachments.length]);
+
+  const closeMediaPicker = useCallback(() => {
+    setShowMediaPicker(false);
+  }, []);
+
+  const handleSelectImage = useCallback((images: ImageOrVideo[]) => {
+    const newAtts: Attachment[] = images.map((asset, index) => ({
+      id: `media_${Date.now()}_${index}`,
+      type: asset.mime?.startsWith('video/') ? 'video' : 'image',
+      uri: asset.path,
+      name: asset.filename || `media_${Date.now()}_${index}.${asset.mime?.startsWith('video/') ? 'mp4' : 'jpg'}`,
+      mimeType: asset.mime || 'image/jpeg',
+      size: asset.size,
+      uploading: false,
+      uploaded: false,
+    }));
+    setAttachments(prev => [...prev, ...newAtts]);
+  }, []);
+
+  const handleSelectFile = useCallback(async (files: any[]) => {
+    const newAtts: ChatAttachment[] = [];
+    for (const file of files.slice(0, 5 - attachments.length)) {
+      try {
+        const uploaded = await uploadChatFile(file.uri, file.name);
+        newAtts.push(uploaded);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : '文件上传失败';
+        Alert.alert('上传失败', msg);
+      }
+    }
+    if (newAtts.length > 0) {
+      setUploadedAttachments(prev => [...prev, ...newAtts]);
+    }
+  }, [attachments.length]);
 
   const hasContent = text.trim() || uploadedAttachments.length > 0 || references.length > 0;
 
@@ -232,6 +324,14 @@ export function VoiceInput({
               </TouchableOpacity>
             )}
           </View>
+
+          {/* 附件按钮 */}
+          <TouchableOpacity
+            style={styles.iconBtn}
+            onPress={openMediaPicker}
+          >
+            <MaterialIcons name="attach-file" size={22} color={colors.onSurfaceVariant} />
+          </TouchableOpacity>
 
           {/* 引用按钮 */}
           <TouchableOpacity
@@ -359,7 +459,7 @@ export function VoiceInput({
 
           {/* 拍照 | 语音按钮 | 键盘 */}
           <View style={styles.voiceRow}>
-            <TouchableOpacity style={styles.sideBtn}>
+            <TouchableOpacity style={styles.sideBtn} onPress={openMediaPicker}>
               <MaterialIcons name="photo-camera" size={28} color={colors.onSurfaceVariant} />
             </TouchableOpacity>
 
@@ -374,13 +474,13 @@ export function VoiceInput({
                   backgroundColor: isAgentSpeaking
                     ? colors.error
                     : isListening
-                      ? colors.error
+                      ? colors.success
                       : colors.primary
                 }
               ]}
             >
               <MaterialIcons
-                name={isAgentSpeaking ? 'stop' : isListening ? 'mic' : 'mic'}
+                name={isAgentSpeaking ? 'stop' : 'mic'}
                 size={36}
                 color={colors.onPrimary}
               />
@@ -409,9 +509,19 @@ export function VoiceInput({
         projectId={projectId}
         conversationId={conversationId}
       />
+
+      {/* 底部媒体选择面板 */}
+      <MediaPickerModal
+        visible={showMediaPicker}
+        onClose={closeMediaPicker}
+        options={['camera', 'video', 'album', 'file']}
+        maxFiles={5 - attachments.length}
+        onSelectImage={handleSelectImage}
+        onSelectFile={handleSelectFile}
+      />
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   container: {
@@ -497,6 +607,10 @@ const styles = StyleSheet.create({
   },
   sideBtn: {
     padding: 12,
+  },
+  sideBtnPlaceholder: {
+    width: 52,
+    height: 52,
   },
   voiceBtn: {
     width: 200,

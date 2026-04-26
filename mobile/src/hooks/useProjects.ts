@@ -36,10 +36,10 @@ export function useProjects(options: UseProjectsOptions = {}) {
     ProjectManager.setCurrentProject(project);
   }, []);
 
-  // 设置全局模式
+  // 设置全局模式（使用 getState 避免依赖 store 对象导致循环）
   const setGlobalMode = useCallback((enabled: boolean) => {
-    store.setGlobalMode(enabled);
-  }, [store]);
+    useProjectStore.getState().setGlobalMode(enabled);
+  }, []);
 
   return {
     projects,

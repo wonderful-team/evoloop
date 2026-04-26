@@ -45,13 +45,21 @@ export class GatewayClient extends EventEmitter {
 
   // 连接 WebSocket
   async connect(): Promise<void> {
-    console.log('[GatewayClient] Connecting... current state:', this.state, 'ws state:', this.ws?.readyState);
     if (this.ws?.readyState === WebSocket.OPEN) {
-      console.log('[GatewayClient] Already connected');
       return;
     }
 
     this.setState(ConnectionState.CONNECTING);
+
+    // 清理旧的 WebSocket，避免事件处理器泄漏和 Promise 状态混乱
+    if (this.ws) {
+      this.ws.onopen = null;
+      this.ws.onmessage = null;
+      this.ws.onerror = null;
+      this.ws.onclose = null;
+      this.ws.close(1000);
+      this.ws = null;
+    }
 
     return new Promise(async (resolve, reject) => {
       try {
@@ -60,11 +68,16 @@ export class GatewayClient extends EventEmitter {
         let isGuest = false;
 
         if (!token) {
-          // 游客模式：生成或使用游客 token
+          // 游客模式：生成或使用游客 token（7 天过期）
+          const GUEST_TOKEN_TTL = 7 * 24 * 60 * 60 * 1000; // 7 天
           let guestToken = await AsyncStorage.getItem('guestToken');
-          if (!guestToken) {
+          const guestTokenTime = await AsyncStorage.getItem('guestToken_time');
+          const isExpired = guestTokenTime ? Date.now() - parseInt(guestTokenTime, 10) > GUEST_TOKEN_TTL : true;
+
+          if (!guestToken || isExpired) {
             guestToken = `guest_${Date.now()}_${Math.random().toString(36).slice(2)}`;
             await AsyncStorage.setItem('guestToken', guestToken);
+            await AsyncStorage.setItem('guestToken_time', Date.now().toString());
           }
           token = `guest:${guestToken}`;
           isGuest = true;
@@ -72,11 +85,10 @@ export class GatewayClient extends EventEmitter {
 
         // 构建 WebSocket URL（带 token 和游客标记）
         const url = `${this.url}?token=${encodeURIComponent(token)}${isGuest ? '&mode=guest' : ''}`;
-        console.log('[GatewayClient] Connecting to:', url);
         this.ws = new WebSocket(url);
 
         this.ws.onopen = () => {
-          console.log('Gateway WebSocket 已连接');
+          this.setState(ConnectionState.CONNECTED);
           this.setState(ConnectionState.CONNECTED);
           this.reconnectAttempts = 0;
           this.startHeartbeat();
@@ -143,9 +155,7 @@ export class GatewayClient extends EventEmitter {
 
   // 发送消息
   send(message: GatewayMessage): void {
-    console.log('[GatewayClient] Sending message:', message.type, message);
     if (this.ws?.readyState !== WebSocket.OPEN) {
-      console.warn('[GatewayClient] WebSocket not connected, cannot send. State:', this.ws?.readyState);
       return;
     }
 
@@ -155,7 +165,6 @@ export class GatewayClient extends EventEmitter {
     });
 
     this.ws.send(data);
-    console.log('[GatewayClient] Message sent successfully');
   }
 
   // 发送 ping

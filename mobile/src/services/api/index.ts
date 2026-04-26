@@ -7,8 +7,11 @@ export { subscriptionApi } from './subscription';
 export { paymentApi } from './payment';
 export { deviceApi } from './devices';
 export { projectApi } from './projects';
-export * as conversationApi from './conversations';
-export * as skillApi from './skills';
-export * as artifactApi from './artifacts';
-export * as modelApi from './models';
-export * as commandApi from './commands';
+
+import * as conversationApi from './conversations';
+import * as skillApi from './skills';
+import * as artifactApi from './artifacts';
+import * as modelApi from './models';
+import * as commandApi from './commands';
+
+export { conversationApi, skillApi, artifactApi, modelApi, commandApi };

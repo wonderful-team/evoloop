@@ -6,6 +6,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { useConversationStore } from '@/stores/conversationStore';
 import { api } from '@/services/api/client';
 import { HumanRequest } from '@/types/hitl';
+import { useHITLStore } from '@/stores/hitlStore';
 import { generateUUID } from '@/utils/uuid';
 
 // 生成用户友好的 HTTP 错误消息
@@ -112,7 +113,8 @@ export function useDeviceControl(options: UseDeviceControlOptions = {}): UseDevi
   const { messages } = useConversationStore();
 
   const [state, setState] = useState<DeviceControlState>('idle');
-  const [hitlRequest, setHitlRequest] = useState<HumanRequest | null>(null);
+  const hitlRequest = useHITLStore((state) => state.currentRequest);
+  const setHitlRequest = useHITLStore((state) => state.setCurrentRequest);
   const [pendingCommand, setPendingCommand] = useState<PendingCommand | null>(null);
   const [quotaExhaustedInfo, setQuotaExhaustedInfo] = useState<QuotaExhaustedInfo | null>(null);
 
@@ -129,7 +131,6 @@ export function useDeviceControl(options: UseDeviceControlOptions = {}): UseDevi
       throw new Error('未登录或未选择设备');
     }
 
-    console.log('[DeviceControl] 链路一（Desktop）POST to: /gateway/api/v1/command/send, deviceKey:', options.deviceKey);
 
     // 构建消息内容
     const messageContent: Record<string, any> = {
@@ -156,6 +157,11 @@ export function useDeviceControl(options: UseDeviceControlOptions = {}): UseDevi
         break;
     }
 
+    // 如果有引用（消息引用/文件引用等），塞进 content 透传给 Agent
+    if (options?.references && options.references.length > 0) {
+      messageContent.references = options.references;
+    }
+
     const data = await api.post('/gateway/api/v1/command/send', {
       device_key: options.deviceKey,
       command_type: 'chat',
@@ -163,7 +169,6 @@ export function useDeviceControl(options: UseDeviceControlOptions = {}): UseDevi
       content: messageContent,
     }, { signal: abortControllerRef.current?.signal });
 
-    console.log('[DeviceControl] 链路一响应:', data);
 
     if (data.code !== 0) {
       const rawMsg = data.message || '发送失败';
@@ -205,7 +210,6 @@ export function useDeviceControl(options: UseDeviceControlOptions = {}): UseDevi
       throw new Error('未登录');
     }
 
-    console.log('[DeviceControl] 链路二（直连 LLM）POST to: /gateway/v1/chat/completions');
 
     // 构建用户消息内容
     let userContent = '';
@@ -247,7 +251,6 @@ export function useDeviceControl(options: UseDeviceControlOptions = {}): UseDevi
       },
     });
 
-    console.log('[DeviceControl] 链路二响应:', data);
 
     if (data.error) {
       const errorCode = data.error?.code || '';
@@ -296,10 +299,8 @@ export function useDeviceControl(options: UseDeviceControlOptions = {}): UseDevi
     content: MessageContent,
     options?: { conversationId?: string; deviceKey?: string; references?: any[] }
   ) => {
-    console.log('[DeviceControl] sendMessage called:', content.type, 'deviceKey:', options?.deviceKey || 'none');
 
     if (!token) {
-      console.error('[DeviceControl] No auth token');
       onError?.(new Error('未登录'));
       return;
     }
@@ -331,11 +332,9 @@ export function useDeviceControl(options: UseDeviceControlOptions = {}): UseDevi
 
     } catch (error: any) {
       if (error.name === 'AbortError') {
-        console.log('[DeviceControl] Request aborted');
         return;
       }
       // 错误已由 UI 提示，控制台统一降级为 log
-      console.log('[DeviceControl] Send failed:', error.message);
       setState('error');
 
       // 将错误抛给上层（ChatScreen handleSendMessage），由上层统一展示 UI
@@ -356,7 +355,6 @@ export function useDeviceControl(options: UseDeviceControlOptions = {}): UseDevi
 
       setPendingCommand(null);
     } catch (error: any) {
-      console.error('[DeviceControl] Confirm failed:', error);
       onError?.(error);
     }
   }, [pendingCommand, token, onError]);
@@ -373,7 +371,6 @@ export function useDeviceControl(options: UseDeviceControlOptions = {}): UseDevi
 
       setHitlRequest(null);
     } catch (error: any) {
-      console.error('[DeviceControl] HITL response failed:', error);
       onError?.(error);
     }
   }, [hitlRequest, token, onError]);
@@ -391,7 +388,6 @@ export function useDeviceControl(options: UseDeviceControlOptions = {}): UseDevi
 
       setHitlRequest(null);
     } catch (error: any) {
-      console.error('[DeviceControl] HITL cancel failed:', error);
       onError?.(error);
     }
   }, [hitlRequest, token, onError]);

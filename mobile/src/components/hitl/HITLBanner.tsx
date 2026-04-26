@@ -31,7 +31,7 @@ export function HITLBanner({ message }: HITLBannerProps) {
   React.useEffect(() => {
     const pulse = Animated.sequence([
       Animated.timing(pulseAnim, {
-        toValue: 1.05,
+        toValue: 0.6,
         duration: 1000,
         useNativeDriver: true,
       }),
@@ -61,7 +61,7 @@ export function HITLBanner({ message }: HITLBannerProps) {
         {
           backgroundColor: colors.warningContainer,
           borderBottomColor: colors.warning,
-          transform: [{ scale: pulseAnim }],
+          opacity: pulseAnim,
         },
       ]}
     >

@@ -24,8 +24,8 @@ interface ConversationState {
 
   // 操作
   setCurrentConversation: (id: string | null, skipLoadMessages?: boolean) => void;
-  loadConversations: (projectId?: number, refresh?: boolean) => Promise<void>;
-  loadMoreConversations: (projectId?: number) => Promise<void>;
+  loadConversations: (projectId?: number, refresh?: boolean, deviceKey?: string) => Promise<void>;
+  loadMoreConversations: (projectId?: number, deviceKey?: string) => Promise<void>;
   createConversation: (projectId?: number, initialMessage?: string) => Promise<string>;
   deleteConversation: (id: string) => Promise<void>;
   loadMessages: (conversationId: string, refresh?: boolean) => Promise<void>;
@@ -76,12 +76,12 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
   },
 
   // 加载会话列表
-  loadConversations: async (projectId, refresh = false) => {
+  loadConversations: async (projectId, refresh = false, deviceKey?: string) => {
     set({ isLoadingConversations: true });
 
     try {
       const page = refresh ? 1 : get().conversationsPage;
-      const response = await conversationApi.getConversations(projectId, page);
+      const response = await conversationApi.getConversations(projectId, page, 20, deviceKey);
 
       set({
         conversations: refresh
@@ -101,9 +101,9 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
   },
 
   // 加载更多会话
-  loadMoreConversations: async (projectId) => {
+  loadMoreConversations: async (projectId, deviceKey?: string) => {
     if (!get().hasMoreConversations || get().isLoadingConversations) return;
-    await get().loadConversations(projectId);
+    await get().loadConversations(projectId, false, deviceKey);
   },
 
   // 创建新会话

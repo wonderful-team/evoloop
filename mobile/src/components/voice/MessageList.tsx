@@ -4,7 +4,7 @@ import React, { useRef, useEffect, useCallback, useState } from 'react';
 import {
   View,
   StyleSheet,
-  ScrollView,
+  FlatList,
   TouchableOpacity,
 } from 'react-native';
 import { Text, Menu, Divider } from 'react-native-paper';
@@ -19,6 +19,7 @@ interface MessageListProps {
   onRewind?: (messageId: string, hasFileOperations: boolean) => void;
   onRetry?: (messageId: string, hasFileOperations: boolean) => void;
   onQuote?: (message: ChatMessage) => void;
+  onForward?: (message: ChatMessage) => void;
   onAddToMemory?: (text: string) => void;
 }
 
@@ -52,6 +53,7 @@ function MessageItem({
   onRewind,
   onRetry,
   onQuote,
+  onForward,
   onAddToMemory,
   hasFileOperations,
 }: {
@@ -61,6 +63,7 @@ function MessageItem({
   onRewind?: (id: string, hasFiles: boolean) => void;
   onRetry?: (id: string, hasFiles: boolean) => void;
   onQuote?: (msg: ChatMessage) => void;
+  onForward?: (msg: ChatMessage) => void;
   onAddToMemory?: (text: string) => void;
   hasFileOperations: boolean;
 }) {
@@ -89,6 +92,11 @@ function MessageItem({
     onAddToMemory?.(message.content);
     setMenuVisible(false);
   }, [message.content, onAddToMemory]);
+
+  const handleForward = useCallback(() => {
+    onForward?.(message);
+    setMenuVisible(false);
+  }, [message, onForward]);
 
   const roleIcon = getRoleIcon(message.role);
   const roleColor = getRoleColor(message.role, colors);
@@ -134,6 +142,9 @@ function MessageItem({
       {onQuote && (
         <Menu.Item onPress={handleQuote} title="引用" leadingIcon="format-quote-close" />
       )}
+      {onForward && (
+        <Menu.Item onPress={handleForward} title="转发" leadingIcon="share-variant" />
+      )}
       {!isUser && onAddToMemory && (
         <Menu.Item onPress={handleAddToMemory} title="添加到记忆" leadingIcon="brain" />
       )}
@@ -141,9 +152,9 @@ function MessageItem({
   );
 }
 
-export function MessageList({ messages, onRewind, onRetry, onQuote, onAddToMemory }: MessageListProps) {
+export function MessageList({ messages, onRewind, onRetry, onQuote, onForward, onAddToMemory }: MessageListProps) {
   const { colors } = useTheme();
-  const scrollViewRef = useRef<ScrollView>(null);
+  const flatListRef = useRef<FlatList>(null);
   const isUserAtBottomRef = useRef(true);
   const lastMessageCountRef = useRef(messages.length);
 
@@ -157,7 +168,7 @@ export function MessageList({ messages, onRewind, onRetry, onQuote, onAddToMemor
       const lastMessage = messages[messages.length - 1];
       if (lastMessage?.role === 'user') {
         setTimeout(() => {
-          scrollViewRef.current?.scrollToEnd({ animated: true });
+          flatListRef.current?.scrollToEnd({ animated: true });
         }, 100);
       }
     }
@@ -210,6 +221,7 @@ export function MessageList({ messages, onRewind, onRetry, onQuote, onAddToMemor
           onRewind={onRewind}
           onRetry={onRetry}
           onQuote={onQuote}
+          onForward={onForward}
           onAddToMemory={onAddToMemory}
           hasFileOperations={hasFileOps}
         />
@@ -248,22 +260,22 @@ export function MessageList({ messages, onRewind, onRetry, onQuote, onAddToMemor
   }
 
   return (
-    <ScrollView
-      ref={scrollViewRef}
+    <FlatList
+      ref={flatListRef}
       style={[styles.container, { backgroundColor: colors.background }]}
       contentContainerStyle={styles.contentContainer}
       showsVerticalScrollIndicator={false}
+      data={messages}
+      keyExtractor={(item) => item.id}
+      renderItem={({ item, index }) => renderMessage(item, index)}
       onScroll={handleScroll}
       scrollEventThrottle={200}
-    >
-      {messages.length === 0 ? (
-        <WelcomeView />
-      ) : (
-        <View style={styles.messageList}>
-          {messages.map((message, index) => renderMessage(message, index))}
-        </View>
-      )}
-    </ScrollView>
+      ListEmptyComponent={<WelcomeView />}
+      maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
+      initialNumToRender={15}
+      maxToRenderPerBatch={10}
+      windowSize={10}
+    />
   );
 }
 

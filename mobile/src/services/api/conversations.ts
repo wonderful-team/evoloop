@@ -27,10 +27,12 @@ import {
 export async function getConversations(
   projectId?: number,
   page = 1,
-  pageSize = 20
+  pageSize = 20,
+  deviceKey?: string
 ): Promise<ConversationListResponse> {
   const params = new URLSearchParams();
   if (projectId) params.append('project_id', projectId.toString());
+  if (deviceKey) params.append('device_key', deviceKey);
   params.append('page', page.toString());
   params.append('page_size', pageSize.toString());
   

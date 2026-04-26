@@ -4,6 +4,6 @@ export { VoiceStatusIndicator } from './VoiceStatusIndicator';
 export { MessageList } from './MessageList';
 export { CommandConfirmCard } from './CommandConfirmCard';
 export { VoiceControlButton } from './VoiceControlButton';
-export { VoiceInput, InputMode } from './VoiceInput';
+export { VoiceInput, VoiceInputHandle, InputMode } from './VoiceInput';
 export { VolumeIndicator, VolumeBar, VolumeCircle } from './VolumeIndicator';
 export { AttachmentPicker, type Attachment, type ChatAttachment } from './AttachmentPicker';

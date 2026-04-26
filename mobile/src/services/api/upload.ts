@@ -11,7 +11,7 @@ export interface UploadResponse {
 }
 
 export interface ChatAttachment {
-  type: 'image' | 'file';
+  type: 'image' | 'video' | 'file';
   url: string;
   name: string;
   ext: string;
@@ -31,11 +31,17 @@ export async function uploadChatImage(uri: string): Promise<ChatAttachment> {
   const match = /\.([a-zA-Z]+)$/.exec(filename);
   const ext = match ? match[1].toLowerCase() : 'jpg';
   
+  // 根据扩展名判断 MIME 类型
+  const mimeType = ext === 'mp4' || ext === 'mov' || ext === 'avi'
+    ? `video/${ext === 'mov' ? 'quicktime' : ext}`
+    : `image/${ext === 'jpg' ? 'jpeg' : ext}`;
+  const fileType = mimeType.startsWith('video/') ? 'video' : 'image';
+  
   // 添加文件到 FormData
   formData.append('file', {
     uri,
     name: filename,
-    type: `image/${ext === 'jpg' ? 'jpeg' : ext}`,
+    type: mimeType,
   } as any);
 
   const response = await api.post<any>(
@@ -51,11 +57,11 @@ export async function uploadChatImage(uri: string): Promise<ChatAttachment> {
   const data = response.data || response;
   
   if (data.code !== 0) {
-    throw new Error(data.message || '上传图片失败');
+    throw new Error(data.message || '上传失败');
   }
 
   return {
-    type: 'image',
+    type: fileType as 'image' | 'video',
     url: data.data.pic_path,
     name: data.data.pic_name,
     ext: data.data.file_ext,

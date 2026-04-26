@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, memo } from 'react';
 import {
   View,
   StyleSheet,
@@ -83,7 +83,7 @@ const generateEChartsHtml = (option: any, isDark: boolean) => {
 `;
 };
 
-export function EChartsChart({ data }: EChartsChartProps) {
+export const EChartsChart = memo(function EChartsChart({ data }: EChartsChartProps) {
   const { colors, isDark } = useTheme();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -205,7 +205,7 @@ export function EChartsChart({ data }: EChartsChartProps) {
       </Modal>
     </>
   );
-}
+});
 
 const styles = StyleSheet.create({
   container: {
