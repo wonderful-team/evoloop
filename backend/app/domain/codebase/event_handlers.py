@@ -63,14 +63,3 @@ class CodebaseSystemEventHandler:
                 asyncio.create_task(indexing_manager.run_indexing_background(repo.id))
             except Exception as e:
                 logger.error(f"[Codebase] Failed to handle project switch for {path}: {e}")
-
-
-def register_codebase_events():
-    """
-    Register codebase domain listeners.
-    
-    Note: With @event_register() decorator, handlers are auto-registered on import.
-    This function is kept for explicit registration if needed.
-    """
-    CodebaseSystemEventHandler()
-    logger.info("📡 Codebase system event handlers registered")

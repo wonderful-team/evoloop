@@ -19,8 +19,12 @@ from app.models.schemas.events import QuotaExhaustedEvent
 logger = logging.getLogger(__name__)
 
 
-async def handle_task_exception(thread_id: str, project_id: int, e: Exception):
-    """Handle exceptions during graph execution using unified LLMErrorHandler."""
+async def handle_task_exception(thread_id: str, project_id: int, e: Exception, handler=None):
+    """Handle exceptions during graph execution using unified LLMErrorHandler.
+
+    Args:
+        handler: Optional MessageHandler instance for pushing errors to Mobile.
+    """
     from app.core.exceptions import AgentHumanInterruptException
     from app.core.engine.error_handler import LLMErrorHandler
 
@@ -84,10 +88,10 @@ async def handle_task_exception(thread_id: str, project_id: int, e: Exception):
 
     # 3. Handle Retryable or Fatal errors
     await activity_monitor.end_run(thread_id, "failed")
-    
+
     # Standard classification of "retryable" keywords
     is_retryable = error_type in ("rate_limit", "service_unavailable", "network_error")
-    
+
     icon_warning = i18n.get('icons.warning') or '⚠️'
     icon_failed = i18n.get('icons.failed') or '❌'
 
@@ -111,6 +115,11 @@ async def handle_task_exception(thread_id: str, project_id: int, e: Exception):
 
     # Persist the failure message to DB for visibility and future learning (if applicable)
     await persist_system_error(thread_id, project_id, user_message, action_type=action_type)
+
+    # 4. Push error to Mobile (统一走 MobileErrorNotifier)
+    if handler:
+        from app.core.engine.message.mobile_notifier import MobileErrorNotifier
+        await MobileErrorNotifier(handler).push(classification)
 
 
 async def persist_system_error(thread_id: str, project_id: int, error_details: str, action_type: str = "system"):

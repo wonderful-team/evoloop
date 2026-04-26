@@ -40,41 +40,31 @@ class FileIndexingHandler:
     async def on_file_modified(self, event: FileModifiedEvent) -> None:
         """Enqueue a background task to index the modified file."""
         try:
-            logger.info(
-                f"[FileIndexingHandler] Enqueuing index task for: {event.file_path}"
-            )
+            logger.info(f"[FileIndexingHandler] Enqueuing index task for: {event.file_path}")
             _scheduler.send_task(
                 "codebase_index_file",
                 kwargs={"file_path": event.file_path, "repo_id": event.repo_id},
             )
         except Exception as e:
-            logger.error(
-                f"[FileIndexingHandler] Failed to enqueue index task for {event.file_path}: {e}"
-            )
+            logger.error(f"[FileIndexingHandler] Failed to enqueue index task for {event.file_path}: {e}")
 
     @event_subscribe(IndexingEventType.FILE_REMOVED)
     async def on_file_removed(self, event: FileRemovedEvent) -> None:
         """Enqueue a background task to remove the file from the index."""
         try:
-            logger.info(
-                f"[FileIndexingHandler] Enqueuing remove task for: {event.file_path}"
-            )
+            logger.info(f"[FileIndexingHandler] Enqueuing remove task for: {event.file_path}")
             _scheduler.send_task(
                 "codebase_remove_file",
                 kwargs={"file_path": event.file_path, "repo_id": event.repo_id},
             )
         except Exception as e:
-            logger.error(
-                f"[FileIndexingHandler] Failed to enqueue remove task for {event.file_path}: {e}"
-            )
+            logger.error(f"[FileIndexingHandler] Failed to enqueue remove task for {event.file_path}: {e}")
 
     @event_subscribe(IndexingEventType.FILE_MOVED)
     async def on_file_moved(self, event: FileMovedEvent) -> None:
         """Enqueue a background task to move/rename the file in the index."""
         try:
-            logger.info(
-                f"[FileIndexingHandler] Enqueuing move task: {event.src_path} -> {event.dest_path}"
-            )
+            logger.info(f"[FileIndexingHandler] Enqueuing move task: {event.src_path} -> {event.dest_path}")
             _scheduler.send_task(
                 "codebase_move_file",
                 kwargs={
@@ -84,6 +74,4 @@ class FileIndexingHandler:
                 },
             )
         except Exception as e:
-            logger.error(
-                f"[FileIndexingHandler] Failed to enqueue move task for {event.src_path}: {e}"
-            )
+            logger.error(f"[FileIndexingHandler] Failed to enqueue move task for {event.src_path}: {e}")

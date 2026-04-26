@@ -32,6 +32,16 @@ class AgentEventType(str, Enum):
     HITL_RESPONDED = "agent.hitl_responded"
 
 
+class WebSocketEventType(str, Enum):
+    """
+    WebSocket message events from Gateway.
+
+    Published by EvoCloudWebSocketLink when it receives messages from Gateway.
+    Business modules subscribe to these instead of registering callbacks on the link.
+    """
+    NEW_COMMAND = "websocket.new_command"
+
+
 class AgentEvent(BaseEvent):
     """Base class for agent-related events."""
     source: str = "agent_engine"
@@ -55,3 +65,35 @@ class AgentRunCompletedEvent(AgentEvent):
             "status": self.status,
         }
         return self
+
+
+class WebSocketCommandEvent(AgentEvent):
+    """
+    Published when EvoCloudWebSocketLink receives a 'new_command' message from Gateway.
+
+    Subscribers (e.g. EngineCommandHandler) receive the raw command payload and
+    are responsible for dispatching agent runs or HITL responses.
+    """
+    event_type: str = WebSocketEventType.NEW_COMMAND
+    command: dict[str, Any] = Field(default_factory=dict)
+    source: str = "websocket"
+
+
+class WebSocketMessageReceivedEvent(AgentEvent):
+    """
+    Published when EvoCloudWebSocketLink receives ANY message from Gateway.
+
+    All business modules subscribe to this single event type and filter by
+    ``msg_type`` internally. This eliminates the need for if/elif chains in
+    the transport layer and decouples the link from domain logic.
+
+    Attributes:
+        msg_type: The Gateway message type (init, new_command, project_switch, query, ...)
+        payload:  The ``data`` field from the raw message
+        raw:      The complete raw JSON message
+    """
+    event_type: str = "websocket.message_received"
+    msg_type: str = ""
+    payload: dict[str, Any] = Field(default_factory=dict)
+    raw: dict[str, Any] = Field(default_factory=dict)
+    source: str = "websocket"

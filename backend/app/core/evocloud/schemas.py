@@ -81,13 +81,6 @@ class RemoteCommand(DynamicBaseModel):
     project_id: int | None = None
 
 
-class ProjectSwitchEvent(DynamicBaseModel):
-    project_id: int | None = None
-    project_name: str | None = None
-    external_path: str | None = None
-    path: str | None = None
-
-
 class QueryResponseData(DynamicBaseModel):
     """Payload for a query response."""
 

@@ -6,7 +6,7 @@ from typing import Any
 from app.core.config import settings
 from app.core.evocloud.backends.http_client import EvoCloudHTTPClient
 from app.core.evocloud.backends.websocket_link import EvoCloudWebSocketLink
-from app.core.evocloud.schemas import EvoCloudConfig, ProjectSwitchEvent, RemoteCommand
+from app.core.evocloud.schemas import EvoCloudConfig
 from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.models.schemas.auth import LoginResult
 from app.utils.async_utils import LoopBoundResource
@@ -42,9 +42,6 @@ class EvoCloudManager:
         self._config: EvoCloudConfig | None = None
         self._api_pool: LoopBoundResource[EvoCloudHTTPClient] | None = None
         self._link: EvoCloudWebSocketLink | None = None
-        self._command_handler = None
-        self._event_handler = None
-
         # Project cache with TTL
         self._projects_cache: list[EvoCloudProjectSummary] | None = None
         self._projects_cache_time: float = 0.0
@@ -83,10 +80,6 @@ class EvoCloudManager:
         )
 
         self._link = EvoCloudWebSocketLink(self._config, self._api_pool.get())
-        if self._command_handler:
-            self._link.set_command_handler(self._command_handler)
-        if self._event_handler:
-            self._link.set_event_handler(self._event_handler)
         if hasattr(self, '_query_handler') and self._query_handler:
             self._link.set_query_handler(self._query_handler)
 
@@ -147,16 +140,6 @@ class EvoCloudManager:
                 logger.error(f"[EvoCloud] Error stopping conversation sync: {e}")
 
     # --- Callbacks / Bridge ---
-
-    def set_command_handler(self, handler: Callable[[RemoteCommand], None]):
-        self._command_handler = handler
-        if self._initialized:
-            self.link.set_command_handler(handler)
-
-    def set_event_handler(self, handler: Callable[[str, ProjectSwitchEvent], None]):
-        self._event_handler = handler
-        if self._initialized:
-            self.link.set_event_handler(handler)
 
     def set_query_handler(self, handler: Callable[[str, str, dict[str, Any]], Any]):
         """设置查询处理器: (query_type, thread_id, params) -> result"""

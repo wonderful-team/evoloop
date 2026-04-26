@@ -74,8 +74,10 @@ class TestWebSocketLinkIssues:
         """
         from app.core.evocloud.schemas import QueryResponse
 
+        import websockets
         link._running = True
         link.ws = MagicMock()
+        link.ws.state = websockets.State.OPEN
         link.ws.send = AsyncMock()
         link._query_handler = MagicMock(return_value={"test": "data"})
 
@@ -89,47 +91,40 @@ class TestWebSocketLinkIssues:
         await link._handle_query(data)
         assert link.ws.send.called, "send_message should delegate to ws.send"
 
-    @pytest.mark.asyncio
-    async def test_wait_for_device_id_zero_not_falsy(self, link):
+    def test_processed_commands_fifo_eviction(self, link):
         """
-        P1: wait_for_device_id should treat device_id=0 as valid.
-        Previously: `if self._device_id:` would skip when device_id==0.
+        P2: _processed_commands uses deque(maxlen=500) for FIFO eviction.
+        Oldest items are automatically dropped when capacity is exceeded.
         """
-        link._device_id = 0
-        link._device_id_event.set()
-
-        result = await link.wait_for_device_id(timeout=0.1)
-        assert result == 0, "device_id=0 should be treated as valid, not None"
-
-    def test_processed_commands_lru_not_fifo(self, link):
-        """
-        P2: _processed_commands cleanup does not guarantee LRU eviction.
-        set->list conversion order is arbitrary in theory.
-        """
-        # Simulate 600 commands to trigger cleanup
+        # Simulate 600 commands - only last 500 should remain
         for i in range(600):
-            link._processed_commands.add(i)
+            link._processed_commands.append(i)
 
-        # Trigger cleanup
-        if len(link._processed_commands) > 500:
-            link._processed_commands = set(list(link._processed_commands)[250:])
+        # deque with maxlen automatically evicts oldest items
+        assert len(link._processed_commands) == 500
+        # Oldest 100 (0-99) should have been dropped
+        assert 0 not in link._processed_commands
+        assert 99 not in link._processed_commands
+        # Newest 500 (100-599) should remain
+        assert 100 in link._processed_commands
+        assert 599 in link._processed_commands
 
-        # After cleanup, should have 350 items
-        assert len(link._processed_commands) == 350
-        # But which 250 were removed? Not necessarily the oldest.
-
-    def test_is_connected_without_open_check(self, link):
+    def test_is_connected_checks_ws_state(self, link):
         """
-        P1: is_connected() should check ws.open, not just ws is not None.
+        P1: is_connected() checks ws.state == OPEN, not just ws is not None.
         A closed ws object can still be non-None.
         """
+        import websockets
         link._running = True
         link.ws = MagicMock()
-        # Simulate a closed websocket (object exists but connection closed)
-        delattr(link.ws, "open")  # remove open attr if present
 
-        # Current implementation only checks ws is not None
-        assert link.is_connected() is True  # This is the bug: should be False if closed
+        # Simulate a closed websocket (state != OPEN)
+        link.ws.state = websockets.State.CLOSED
+        assert link.is_connected() is False
+
+        # Simulate an open websocket
+        link.ws.state = websockets.State.OPEN
+        assert link.is_connected() is True
 
     @pytest.mark.asyncio
     async def test_cancelled_error_swallowed(self, link):
@@ -170,7 +165,8 @@ class TestHandlersIssues:
         P1: hitl_response creates a background task without tracking.
         If the task fails, the exception is never retrieved.
         """
-        from app.core.evocloud.bridge.handlers import handle_remote_command
+        from app.core.engine.command_handler import EngineCommandHandler
+        from app.core.evocloud.schemas import RemoteCommand
 
         tasks_before = len(asyncio.all_tasks())
 
@@ -181,8 +177,9 @@ class TestHandlersIssues:
             "command_id": "77",
         }
 
-        with patch("app.core.evocloud.bridge.handlers.run_agent_background", new_callable=AsyncMock):
-            await handle_remote_command(command)
+        with patch("app.core.engine.command_handler.run_agent_background", new_callable=AsyncMock):
+            handler = EngineCommandHandler()
+            await handler._handle_command(RemoteCommand.model_validate(command))
 
         tasks_after = len(asyncio.all_tasks())
         # Task was created but not tracked/awaited
@@ -191,10 +188,11 @@ class TestHandlersIssues:
     @pytest.mark.asyncio
     async def test_remote_command_dict_api_on_model(self):
         """
-        P1: handle_remote_command uses .get() on RemoteCommand (Pydantic model).
+        P1: EngineCommandHandler._handle_command uses .get() on RemoteCommand (Pydantic model).
         If model doesn't support dict-like access, this fails.
         """
-        from app.core.evocloud.bridge.handlers import handle_remote_command
+        from app.core.engine.command_handler import EngineCommandHandler
+        from app.core.evocloud.schemas import RemoteCommand
         from app.core.evocloud.schemas import RemoteCommand
 
         # RemoteCommand as Pydantic model
@@ -272,7 +270,13 @@ class TestAgentRoutesIssues:
         from app.api.routes.agent import webhook_endpoint, WebhookRequest, WebhookPayload
         from langchain_core.messages import AIMessage
 
-        with patch("app.api.routes.agent.EventAdapter.adapt", return_value=[AIMessage(content="AI reply")]):
+        mock_dispatch_result = MagicMock(
+            status="queued",
+            inputs={"messages": [{"type": "human", "content": "AI reply"}]},
+            error=None,
+        )
+        with patch("app.api.routes.agent.EventAdapter.adapt", return_value=[AIMessage(content="AI reply")]), \
+             patch("app.api.routes.agent.dispatch_agent_run", return_value=mock_dispatch_result):
             req = WebhookRequest(
                 source="test",
                 event_type="test_event",
@@ -316,18 +320,18 @@ class TestDispatchIssues:
     """Tests for dispatch.py findings."""
 
     @pytest.mark.asyncio
-    async def test_resume_graph_background_hitl_no_cleanup(self):
+    async def test_resume_graph_background_hitl_cleanup(self):
         """
         P0: resume_graph_background catches AgentHumanInterruptException
-        but does NOT call activity_monitor.end_run(). The run stays active.
+        and calls activity_monitor.end_run() with status='human_interrupt'.
         """
-        from app.core.engine.dispatch import resume_graph_background
+        from app.core.engine.graph_runner import resume_graph_background
         from app.core.exceptions import AgentHumanInterruptException
 
         mock_graph = MagicMock()
         mock_graph.astream = MagicMock(side_effect=AgentHumanInterruptException("HITL"))
 
-        with patch("app.core.globals.get_graph", return_value=mock_graph), \
+        with patch("app.core.engine.graph_runner.get_graph", return_value=mock_graph), \
              patch("app.core.engine.callbacks.transparent.TransparentCallbackHandler"), \
              patch("app.core.monitoring.activity.activity_monitor.end_run", new_callable=AsyncMock) as mock_end, \
              patch("app.core.monitoring.activity.activity_monitor.start_run", new_callable=AsyncMock):
@@ -338,8 +342,8 @@ class TestDispatchIssues:
                 {"configurable": {"thread_id": "t-1"}},
             )
 
-            # Bug: end_run was NOT called for HITL interrupt
-            mock_end.assert_not_awaited()
+            # end_run should be called for HITL interrupt with proper status
+            mock_end.assert_awaited_once_with("t-1", "human_interrupt")
 
     @pytest.mark.asyncio
     async def test_content_blocks_type_inconsistency(self):
@@ -352,8 +356,8 @@ class TestDispatchIssues:
 
         with patch("app.core.engine.dispatch.session_scope") as mock_scope, \
              patch("app.domain.project.reference_service.reference_service.process_references", side_effect=Exception("DB down")), \
-             patch("app.core.evocloud.manager.EvoCloudManager.upload_log", new_callable=AsyncMock), \
-             patch("app.core.engine.dispatch.activity_monitor.start_run", new_callable=AsyncMock):
+             patch("app.core.engine.dispatch.activity_monitor.start_run", new_callable=AsyncMock), \
+             patch("app.infrastructure.config.service.SystemConfigService.get_value", return_value="gpt-4o"):
 
             from contextlib import asynccontextmanager
             session = MagicMock()
@@ -390,8 +394,8 @@ class TestDispatchIssues:
 
         with patch("app.core.engine.dispatch.session_scope") as mock_scope, \
              patch("app.domain.project.reference_service.reference_service.process_references", new_callable=AsyncMock) as mock_refs, \
-             patch("app.core.evocloud.manager.EvoCloudManager.upload_log", new_callable=AsyncMock), \
-             patch("app.core.engine.dispatch.activity_monitor.start_run", new_callable=AsyncMock):
+             patch("app.core.engine.dispatch.activity_monitor.start_run", new_callable=AsyncMock), \
+             patch("app.infrastructure.config.service.SystemConfigService.get_value", return_value="gpt-4o"):
 
             mock_refs.return_value = MagicMock(content_blocks="[]")
 
@@ -460,7 +464,6 @@ class TestEndToEndDataFlowConsistency:
 
         with patch("app.core.engine.dispatch.session_scope") as mock_scope, \
              patch("app.domain.project.reference_service.reference_service.process_references", new_callable=AsyncMock) as mock_refs, \
-             patch("app.core.evocloud.manager.EvoCloudManager.upload_log", new_callable=AsyncMock), \
              patch("app.core.engine.dispatch.activity_monitor.start_run", new_callable=AsyncMock):
 
             mock_refs.return_value = MagicMock(content_blocks="hello")

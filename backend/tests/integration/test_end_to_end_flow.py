@@ -61,7 +61,6 @@ async def test_http_chat_full_flow(fake_session):
     with patch("app.api.routes.agent.dispatch_agent_run", wraps=None) as mock_dispatch, \
          patch("app.api.routes.agent.run_agent_background") as mock_bg, \
          patch("app.api.routes.agent.session_scope", scope), \
-         patch("app.core.evocloud.manager.EvoCloudManager.upload_log", new_callable=AsyncMock), \
          patch("app.core.monitoring.activity.activity_monitor.start_run", new_callable=AsyncMock), \
          patch("app.domain.project.reference_service.reference_service.process_references", new_callable=AsyncMock) as mock_refs:
 
@@ -107,16 +106,16 @@ async def test_websocket_chat_full_flow(fake_session):
     E2E: WebSocket remote command → handle_remote_command → dispatch_agent_run.
     Verifies model fallback and inputs construction.
     """
-    from app.core.evocloud.bridge.handlers import handle_remote_command
+    from app.core.engine.command_handler import EngineCommandHandler
+    from app.core.evocloud.schemas import RemoteCommand
     from app.core.engine.background_agent import BackgroundAgentInputs
-    from app.core.config import settings
+    # Model fallback uses SystemConfigService.get_value("LLM_MODEL") in production
 
     session, scope = fake_session
 
-    with patch("app.core.evocloud.bridge.handlers.dispatch_agent_run", wraps=None) as mock_dispatch, \
-         patch("app.core.evocloud.bridge.handlers.run_agent_background") as mock_bg, \
+    with patch("app.core.engine.command_handler.dispatch_agent_run", wraps=None) as mock_dispatch, \
+         patch("app.core.engine.command_handler.run_agent_background") as mock_bg, \
          patch("app.core.engine.dispatch.session_scope", scope), \
-         patch("app.core.evocloud.manager.EvoCloudManager.upload_log", new_callable=AsyncMock), \
          patch("app.core.monitoring.activity.activity_monitor.start_run", new_callable=AsyncMock), \
          patch("app.domain.project.reference_service.reference_service.process_references", new_callable=AsyncMock) as mock_refs:
 
@@ -127,7 +126,7 @@ async def test_websocket_chat_full_flow(fake_session):
             message_id=2,
             inputs={
                 "messages": [{"type": "human", "content": "WS message"}],
-                "model": settings.OPENAI_MODEL_NAME,
+                "model": "gpt-4o",
             },
             error=None,
         )
@@ -139,7 +138,8 @@ async def test_websocket_chat_full_flow(fake_session):
             "project_id": 1,
         }
 
-        await handle_remote_command(command)
+        handler = EngineCommandHandler()
+        await handler._handle_command(RemoteCommand.model_validate(command))
 
         mock_dispatch.assert_awaited_once()
         kwargs = mock_dispatch.call_args.kwargs
@@ -148,7 +148,7 @@ async def test_websocket_chat_full_flow(fake_session):
         # Background should be scheduled
         mock_bg.assert_called_once()
         _, inputs = mock_bg.call_args[0]
-        assert inputs["model"] == settings.OPENAI_MODEL_NAME
+        assert inputs["model"] == "gpt-4o"
 
 
 @pytest.mark.asyncio
@@ -230,7 +230,7 @@ async def test_resume_flow_persists_and_resumes(fake_session):
     with patch("app.api.routes.agent.get_graph", return_value=MagicMock()), \
          patch("app.api.routes.agent.db_resource_manager") as mock_db_res, \
          patch("app.core.engine.dispatch.persist_user_message", new_callable=AsyncMock) as mock_persist, \
-         patch("app.core.engine.dispatch.resume_graph_background") as mock_resume_bg:
+         patch("app.api.routes.agent.resume_graph_background") as mock_resume_bg:
 
         mock_db_res.checkpointer = MagicMock()
 
@@ -266,16 +266,17 @@ async def test_unified_inputs_structure_across_all_entrypoints(fake_session):
     produce BackgroundAgentInputs with the same required keys.
     """
     from app.api.routes.agent import chat_endpoint, ChatRequest
-    from app.core.evocloud.bridge.handlers import handle_remote_command
+    from app.core.engine.command_handler import EngineCommandHandler
+    from app.core.evocloud.schemas import RemoteCommand
     from app.core.engine.dispatch import dispatch_agent_run
 
     session, scope = fake_session
     required_keys = {"messages", "project_id", "checkpoint_id", "is_retry", "goal", "session_goal", "model"}
 
     with patch("app.core.engine.dispatch.session_scope", scope), \
-         patch("app.core.evocloud.manager.EvoCloudManager.upload_log", new_callable=AsyncMock), \
          patch("app.core.monitoring.activity.activity_monitor.start_run", new_callable=AsyncMock), \
-         patch("app.domain.project.reference_service.reference_service.process_references", new_callable=AsyncMock) as mock_refs:
+         patch("app.domain.project.reference_service.reference_service.process_references", new_callable=AsyncMock) as mock_refs, \
+         patch("app.infrastructure.config.service.SystemConfigService.get_value", return_value="gpt-4o"):
 
         mock_refs.return_value = MagicMock(content_blocks="test")
 

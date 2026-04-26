@@ -1,7 +1,7 @@
 """
 Integration tests for WebSocket remote command handlers.
 
-Focus: verify that handle_remote_command correctly delegates to
+Focus: verify that EngineCommandHandler._handle_command correctly delegates to
  dispatch_agent_run for chat_message flows.
 
 Run: cd backend && python -m pytest tests/integration/test_websocket_dispatch.py -v
@@ -23,23 +23,21 @@ if os.path.exists(env_path):
                 os.environ.setdefault(key.strip(), value.strip().strip('"\''))
 
 
+# Pre-import to avoid pkgutil.resolve_name + __getattr__ issues with Pydantic v2
+import app.core.engine.command_handler as _ch
+
+
 @pytest.fixture(autouse=True)
 def mock_dispatch():
     """Patch dispatch_agent_run."""
-    with patch(
-        "app.core.evocloud.bridge.handlers.dispatch_agent_run",
-        new_callable=AsyncMock,
-    ) as m:
+    with patch.object(_ch, "dispatch_agent_run", new_callable=AsyncMock) as m:
         yield m
 
 
 @pytest.fixture(autouse=True)
 def mock_background():
     """Patch run_agent_background."""
-    with patch(
-        "app.core.evocloud.bridge.handlers.run_agent_background",
-        new_callable=AsyncMock,
-    ) as m:
+    with patch.object(_ch, "run_agent_background", new_callable=AsyncMock) as m:
         yield m
 
 
@@ -59,7 +57,8 @@ def mock_dispatch_result():
 @pytest.mark.asyncio
 async def test_handle_remote_command_chat_message(mock_dispatch, mock_dispatch_result, mock_background):
     """chat_message should call dispatch_agent_run with parsed text."""
-    from app.core.evocloud.bridge.handlers import handle_remote_command
+    from app.core.engine.command_handler import EngineCommandHandler
+    from app.core.evocloud.schemas import RemoteCommand
 
     mock_dispatch.return_value = mock_dispatch_result
 
@@ -71,7 +70,8 @@ async def test_handle_remote_command_chat_message(mock_dispatch, mock_dispatch_r
         "command_id": 7,
     }
 
-    await handle_remote_command(command)
+    handler = EngineCommandHandler()
+    await handler._handle_command(RemoteCommand.model_validate(command))
 
     mock_dispatch.assert_awaited_once()
     call_kwargs = mock_dispatch.call_args.kwargs
@@ -85,7 +85,8 @@ async def test_handle_remote_command_chat_message(mock_dispatch, mock_dispatch_r
 @pytest.mark.asyncio
 async def test_handle_remote_command_with_attachments(mock_dispatch, mock_dispatch_result, mock_background):
     """chat_message with attachments should pass them to dispatch."""
-    from app.core.evocloud.bridge.handlers import handle_remote_command
+    from app.core.engine.command_handler import EngineCommandHandler
+    from app.core.evocloud.schemas import RemoteCommand
 
     mock_dispatch.return_value = mock_dispatch_result
 
@@ -96,7 +97,8 @@ async def test_handle_remote_command_with_attachments(mock_dispatch, mock_dispat
         "attachments": [{"type": "image", "url": "https://example.com/img.png"}],
     }
 
-    await handle_remote_command(command)
+    handler = EngineCommandHandler()
+    await handler._handle_command(RemoteCommand.model_validate(command))
 
     call_kwargs = mock_dispatch.call_args.kwargs
     assert len(call_kwargs["attachments"]) == 1
@@ -106,7 +108,8 @@ async def test_handle_remote_command_with_attachments(mock_dispatch, mock_dispat
 @pytest.mark.asyncio
 async def test_handle_remote_command_nested_content(mock_dispatch, mock_dispatch_result, mock_background):
     """Legacy nested 'content' format should be parsed correctly."""
-    from app.core.evocloud.bridge.handlers import handle_remote_command
+    from app.core.engine.command_handler import EngineCommandHandler
+    from app.core.evocloud.schemas import RemoteCommand
 
     mock_dispatch.return_value = mock_dispatch_result
 
@@ -119,7 +122,8 @@ async def test_handle_remote_command_nested_content(mock_dispatch, mock_dispatch
         },
     }
 
-    await handle_remote_command(command)
+    handler = EngineCommandHandler()
+    await handler._handle_command(RemoteCommand.model_validate(command))
 
     call_kwargs = mock_dispatch.call_args.kwargs
     assert call_kwargs["message_content"] == "Nested message"
@@ -128,7 +132,8 @@ async def test_handle_remote_command_nested_content(mock_dispatch, mock_dispatch
 @pytest.mark.asyncio
 async def test_handle_remote_command_params_format(mock_dispatch, mock_dispatch_result, mock_background):
     """Params nested inside content should be parsed."""
-    from app.core.evocloud.bridge.handlers import handle_remote_command
+    from app.core.engine.command_handler import EngineCommandHandler
+    from app.core.evocloud.schemas import RemoteCommand
 
     mock_dispatch.return_value = mock_dispatch_result
 
@@ -143,7 +148,8 @@ async def test_handle_remote_command_params_format(mock_dispatch, mock_dispatch_
         },
     }
 
-    await handle_remote_command(command)
+    handler = EngineCommandHandler()
+    await handler._handle_command(RemoteCommand.model_validate(command))
 
     call_kwargs = mock_dispatch.call_args.kwargs
     assert call_kwargs["message_content"] == "Param message"
@@ -153,14 +159,16 @@ async def test_handle_remote_command_params_format(mock_dispatch, mock_dispatch_
 @pytest.mark.asyncio
 async def test_handle_remote_command_no_message_skips(mock_dispatch, mock_background):
     """When no message and no attachments, handler should skip silently."""
-    from app.core.evocloud.bridge.handlers import handle_remote_command
+    from app.core.engine.command_handler import EngineCommandHandler
+    from app.core.evocloud.schemas import RemoteCommand
 
     command = {
         "type": "chat_message",
         "thread_id": "ws-123",
     }
 
-    await handle_remote_command(command)
+    handler = EngineCommandHandler()
+    await handler._handle_command(RemoteCommand.model_validate(command))
 
     mock_dispatch.assert_not_awaited()
     mock_background.assert_not_awaited()
@@ -169,7 +177,8 @@ async def test_handle_remote_command_no_message_skips(mock_dispatch, mock_backgr
 @pytest.mark.asyncio
 async def test_handle_remote_command_dispatches_background(mock_dispatch, mock_dispatch_result, mock_background):
     """On success, handler should schedule run_agent_background."""
-    from app.core.evocloud.bridge.handlers import handle_remote_command
+    from app.core.engine.command_handler import EngineCommandHandler
+    from app.core.evocloud.schemas import RemoteCommand
 
     mock_dispatch.return_value = mock_dispatch_result
 
@@ -179,7 +188,8 @@ async def test_handle_remote_command_dispatches_background(mock_dispatch, mock_d
         "message": "Go",
     }
 
-    await handle_remote_command(command)
+    handler = EngineCommandHandler()
+    await handler._handle_command(RemoteCommand.model_validate(command))
 
     # run_agent_background is scheduled via asyncio.create_task
     # create_task does not await, so assert_called instead of assert_awaited
@@ -190,7 +200,8 @@ async def test_handle_remote_command_dispatches_background(mock_dispatch, mock_d
 async def test_handle_remote_command_dispatch_failure(mock_dispatch, mock_background):
     """When dispatch fails, handler should log and not schedule background."""
     from app.core.engine.dispatch import DispatchResult
-    from app.core.evocloud.bridge.handlers import handle_remote_command
+    from app.core.engine.command_handler import EngineCommandHandler
+    from app.core.evocloud.schemas import RemoteCommand
 
     mock_dispatch.return_value = DispatchResult(
         status="failed",
@@ -205,7 +216,8 @@ async def test_handle_remote_command_dispatch_failure(mock_dispatch, mock_backgr
     }
 
     with pytest.raises(RuntimeError, match="Agent dispatch failed"):
-        await handle_remote_command(command)
+        handler = EngineCommandHandler()
+        await handler._handle_command(RemoteCommand.model_validate(command))
 
     mock_background.assert_not_called()
 
@@ -213,7 +225,8 @@ async def test_handle_remote_command_dispatch_failure(mock_dispatch, mock_backgr
 @pytest.mark.asyncio
 async def test_handle_remote_command_hitl_response(mock_background):
     """hitl_response should bypass dispatch and resume directly."""
-    from app.core.evocloud.bridge.handlers import handle_remote_command
+    from app.core.engine.command_handler import EngineCommandHandler
+    from app.core.evocloud.schemas import RemoteCommand
 
     command = {
         "type": "hitl_response",
@@ -222,7 +235,8 @@ async def test_handle_remote_command_hitl_response(mock_background):
         "command_id": "77",
     }
 
-    await handle_remote_command(command)
+    handler = EngineCommandHandler()
+    await handler._handle_command(RemoteCommand.model_validate(command))
 
     # create_task does not await
     mock_background.assert_called_once()
@@ -238,7 +252,6 @@ async def test_handle_remote_command_model_fallback(mock_dispatch, mock_dispatch
     crashes in run_agent_background. dispatch_agent_run now handles fallback.
     """
     from app.core.engine.dispatch import dispatch_agent_run
-    from app.core.config import settings
 
     # Call the real dispatch (not mocked) to verify fallback
     with patch("app.core.engine.dispatch.session_scope") as mock_scope:
@@ -254,9 +267,9 @@ async def test_handle_remote_command_model_fallback(mock_dispatch, mock_dispatch
             yield session
         mock_scope.side_effect = _fake
 
-        with patch("app.core.evocloud.manager.EvoCloudManager.upload_log", new_callable=AsyncMock), \
-             patch("app.core.monitoring.activity.activity_monitor.start_run", new_callable=AsyncMock), \
-             patch("app.domain.project.reference_service.reference_service.process_references", new_callable=AsyncMock) as mock_refs:
+        with patch("app.core.monitoring.activity.activity_monitor.start_run", new_callable=AsyncMock), \
+             patch("app.domain.project.reference_service.reference_service.process_references", new_callable=AsyncMock) as mock_refs, \
+             patch("app.infrastructure.config.service.SystemConfigService.get_value", return_value="gpt-4"):
 
             mock_refs.return_value = MagicMock(content_blocks="hi")
 
@@ -267,4 +280,4 @@ async def test_handle_remote_command_model_fallback(mock_dispatch, mock_dispatch
             )
 
             assert result.status == "queued"
-            assert result.inputs["model"] == settings.OPENAI_MODEL_NAME
+            assert result.inputs["model"] == "gpt-4"

@@ -5,9 +5,12 @@ MessageHandler - 消息处理器
 替代原来分散在各 callback 中的处理逻辑。
 """
 import asyncio
+import json
 import logging
 import time
 from typing import Any
+
+from sqlalchemy import select, func
 
 from app.core.engine.message.category import MessageCategory
 from app.core.engine.message.classifier import MessageClassifier
@@ -15,6 +18,7 @@ from app.core.engine.message.persistence import MessagePersistencePolicy
 from app.core.engine.message.stream import MessageStreamPolicy
 from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.infrastructure.queue.factory import get_scheduler
+from app.models import Message
 
 logger = logging.getLogger(__name__)
 
@@ -47,17 +51,10 @@ class MessageHandler:
         )
     """
 
-    def __init__(
-        self,
-        thread_id: str,
-        project_id: int | None = None,
-        run_id: str | None = None,
-        start_sequence: int = 0,
-    ):
+    def __init__(self, thread_id: str, project_id: int | None = None, run_id: str | None = None):
         self.thread_id = thread_id
         self.project_id = project_id
         self.run_id = run_id
-        self._sequence_counter = start_sequence
         self._last_logged_hash = None
         self._last_logged_time = 0
 
@@ -120,10 +117,10 @@ class MessageHandler:
                 reason="duplicate",
             )
 
-        # 4. 持久化
+        # 4. 持久化 + 即时推送到 Mobile
         message_id = None
         if persist_data.should_persist:
-            message_id = await self._persist_to_db(
+            message_id, seq = await self._persist_to_db(
                 role="ai",
                 content=persist_data.content,
                 thinking=persist_data.thinking,
@@ -131,8 +128,20 @@ class MessageHandler:
                 category=category.value,
                 is_visible=category.is_visible_to_user,
             )
+            # 即时推送：AI 消息产生时直接发到 Mobile，不经过 SQLite 中转
+            # 注意：思考过程（INTERNAL_REASONING）不推送到 Mobile，Mobile UI 暂不展示思考过程
+            if message_id and category.is_visible_to_user and category != MessageCategory.INTERNAL_REASONING:
+                await self._push_to_mobile(
+                    role="ai",
+                    content=persist_data.content,
+                    thinking=persist_data.thinking,
+                    tool_calls=persist_data.tool_calls,
+                    category=category.value,
+                    status="completed",
+                    sequence_number=seq,
+                )
 
-        # 5. 流式推送
+        # 5. 流式推送到 Web UI (Redis SSE)
         if stream_data.should_stream:
             await self._stream_to_frontend(
                 content=stream_data.content,
@@ -188,10 +197,10 @@ class MessageHandler:
             content=content,
         )
 
-        # 3. 持久化
+        # 3. 持久化 + 即时推送到 Mobile
         message_id = None
         if persist_data.should_persist:
-            message_id = await self._persist_to_db(
+            message_id, seq = await self._persist_to_db(
                 role="tool",
                 content=persist_data.content,
                 category=category.value,
@@ -200,6 +209,18 @@ class MessageHandler:
                 tool_call_id=persist_data.tool_call_id,
                 tool_name=persist_data.tool_name,
             )
+            # 即时推送：工具输出对用户可见时直接发到 Mobile
+            if message_id and category.is_visible_to_user:
+                await self._push_to_mobile(
+                    role="tool",
+                    content=persist_data.content,
+                    category=category.value,
+                    action_type="tool_output",
+                    status="completed",
+                    sequence_number=seq,
+                    tool_name=persist_data.tool_name,
+                    tool_call_id=persist_data.tool_call_id,
+                )
 
             # [Optimization] Also update the steps_snapshot of the parent AI message
             # This implements the "Cache-on-Save" pattern for fast historical loading
@@ -223,7 +244,7 @@ class MessageHandler:
             except Exception as e:
                 logger.warning(f"[UnifiedHandler] Failed to trigger incremental snapshot: {e}")
 
-        # 4. 流式推送
+        # 4. 流式推送到 Web UI (Redis SSE)
         if stream_data.should_stream:
             await self._stream_to_frontend(
                 content=content,
@@ -240,11 +261,7 @@ class MessageHandler:
             message_id=message_id,
         )
 
-    async def handle_user_message(
-        self,
-        content: str,
-        metadata: dict | None = None,
-    ) -> MessageHandlerResult:
+    async def handle_user_message(self, content: str, metadata: dict | None = None) -> MessageHandlerResult:
         """
         处理用户消息
         
@@ -257,14 +274,15 @@ class MessageHandler:
         """
         category = MessageCategory.USER
 
-        # 用户消息默认持久化和推送
-        message_id = await self._persist_to_db(
+        # 用户消息只持久化，不推送到 Mobile（Mobile 已做乐观更新）
+        message_id, _ = await self._persist_to_db(
             role="human",
             content=content,
             category=category.value,
             is_visible=True,
         )
 
+        # 仍推送到 Web UI (Redis SSE) 以便桌面端看到
         await self._stream_to_frontend(
             content=content,
             frontend_type="human",
@@ -304,8 +322,6 @@ class MessageHandler:
         Returns:
             MessageHandlerResult: 处理结果
         """
-        import json
-
         content = json.dumps({
             "id": request_id,
             "type": request_type,
@@ -315,8 +331,8 @@ class MessageHandler:
             "default_value": default_value,
         }, ensure_ascii=False)
 
-        # 1. 持久化到本地 DB（Celery 后台任务）
-        message_id = await self._persist_to_db(
+        # 1. 持久化到本地 DB
+        message_id, seq = await self._persist_to_db(
             role="system",
             content=content,
             category="hitl_request",
@@ -325,15 +341,15 @@ class MessageHandler:
             is_visible=True,
         )
 
-        # 2. 即时推送到 Gateway（urgent，不等待批量同步）
-        await self._notify_gateway_urgent({
-            "role": "system",
-            "action_type": "human_request",
-            "status": "waiting_human",
-            "content": content,
-            "category": "hitl_request",
-            "sequence_number": self._sequence_counter,
-        })
+        # 2. 即时推送到 Mobile（通过统一入口 _push_to_mobile，替代 _notify_gateway_urgent）
+        await self._push_to_mobile(
+            role="system",
+            content=content,
+            category="hitl_request",
+            action_type="human_request",
+            status="waiting_human",
+            sequence_number=seq,
+        )
 
         return MessageHandlerResult(
             category="hitl_request",
@@ -364,17 +380,23 @@ class MessageHandler:
 
         logger.warning(f"[UnifiedHandler] Handling error: {classification.error_type} (cat={category.value})")
 
-        # 2. 持久化（仅对 ERROR_BUSINESS）
+        # 2. 持久化（仅对 ERROR_BUSINESS）+ 推送到 Mobile + Web UI
         message_id = None
         if category == MessageCategory.ERROR_BUSINESS:
-            message_id = await self._persist_to_db(
+            # 持久化使用 Markdown 格式（Web UI 支持）
+            error_markdown = f"**{classification.title}**\n\n{classification.message}\n\n*Hint: {classification.hint}*"
+            message_id, _ = await self._persist_to_db(
                 role="ai",
-                content=f"**{classification.title}**\n\n{classification.message}\n\n*Hint: {classification.hint}*",
+                content=error_markdown,
                 category=category.value,
                 is_visible=True
             )
 
-        # 3. 流式推送
+        # 推送到 Mobile（统一走 MobileErrorNotifier）
+        from app.core.engine.message.mobile_notifier import MobileErrorNotifier
+        await MobileErrorNotifier(self).push(classification)
+
+        # 3. 流式推送到 Web UI (Redis SSE)
         # 3.1 推送特定弹窗事件 (429 Quota)
         if classification.error_type == "quota_exhausted":
             try:
@@ -451,21 +473,29 @@ class MessageHandler:
         is_visible: bool = True,
         tool_call_id: str | None = None,
         tool_name: str | None = None,
-    ) -> str | None:
+    ) -> tuple[str | None, int]:
         """
-        持久化消息到数据库
+        持久化消息到数据库。
 
-        直接同步写入 SQLite，避免 Huey 异步队列带来的同步难题。
-        SQLite 本地 INSERT 通常 < 1ms，await 会让出事件循环，不会阻塞并发。
+        只做 INSERT，不触发任何推送。推送由调用方根据消息类型决定。
+        返回 (message_id, sequence_number)。
+
+        注意：使用数据库查询获取下一个序列号，避免并发 Agent run 导致 sequence_number 冲突。
         """
         if not content and not thinking and not tool_calls:
             logger.warning(f"[UnifiedHandler] Skipping persist for {role}: no content, thinking, or tool_calls")
-            return None
+            return None, 0
 
         try:
-            self._sequence_counter += 1
+            # 使用数据库查询获取下一个序列号，确保并发安全
+            from app.infrastructure.database.sql.database import session_scope
 
-            logger.info(f"[UnifiedHandler] Persisting {role} message (seq={self._sequence_counter}, cat={category})")
+            async with session_scope() as session:
+                stmt = select(func.max(Message.sequence_number)).where(Message.thread_id == self.thread_id)
+                max_seq = (await session.execute(stmt)).scalar() or 0
+                seq = max_seq + 1
+
+            logger.info(f"[UnifiedHandler] Persisting {role} message (seq={seq}, cat={category})")
 
             # 直接同步调用持久化核心函数（不再走 Huey 队列）
             from app.core.engine.tasks import _persist_message_impl
@@ -479,27 +509,76 @@ class MessageHandler:
                 category=category,
                 action_type=action_type,
                 status=status,
-                sequence_number=self._sequence_counter,
+                sequence_number=seq,
                 run_id=self.run_id,
                 is_visible=is_visible,
                 tool_call_id=tool_call_id,
                 tool_name=tool_name,
             )
 
-            # 触发增量同步（HITL 消息跳过，因为 handle_hitl_request 已通过 urgent 发送）
-            if action_type != "human_request":
-                try:
-                    from app.core.engine.message.sync_coordinator import get_sync_coordinator
-                    coordinator = get_sync_coordinator()
-                    asyncio.create_task(coordinator.sync_batch(self.thread_id))
-                except Exception as e:
-                    logger.warning(f"[UnifiedHandler] Failed to trigger sync: {e}")
-
-            return f"msg-{self.thread_id}-{self._sequence_counter}"
+            msg_id = f"msg-{self.thread_id}-{seq}"
+            return msg_id, seq
 
         except Exception as e:
             logger.error(f"[UnifiedHandler] Failed to persist message: {e}")
-            return None
+            return None, 0
+
+    async def _push_to_mobile(
+        self,
+        role: str,
+        content: str | None,
+        thinking: str | None = None,
+        tool_calls: list | None = None,
+        category: str = "",
+        action_type: str = "text",
+        status: str = "completed",
+        sequence_number: int = 0,
+        tool_name: str | None = None,
+        tool_call_id: str | None = None,
+    ) -> None:
+        """
+        即时推送单条消息到 Mobile（通过 Gateway WebSocket）。
+
+        在消息产生时立即调用，不经过 SQLite 中转。
+        只有 AI 产生的消息（role != human）且对用户可见的消息才需要推送。
+        """
+        if role == "human":
+            return
+
+        try:
+            from app.core.evocloud import evocloud_manager
+            from app.core.engine.message.mobile_schema import MobileSyncMessage
+
+            if not evocloud_manager.link or not evocloud_manager.link.is_connected():
+                logger.debug("[UnifiedHandler] WebSocket not connected, skipping mobile push")
+                return
+
+            msg = MobileSyncMessage(
+                id=f"msg-{self.thread_id}-{sequence_number}",
+                thread_id=self.thread_id,
+                project_id=self.project_id or 0,
+                role=role,  # type: ignore[arg-type]
+                content=content or "",
+                thinking=thinking,
+                created_at=int(time.time()),
+                sequence_number=sequence_number,
+                action_type=action_type,
+                status=status,  # type: ignore[arg-type]
+                category=category,
+                tool_calls=tool_calls,
+                tool_name=tool_name,
+                tool_call_id=tool_call_id,
+            )
+
+            await evocloud_manager.link.send_message({
+                "type": "message_sync",
+                "data": msg.model_dump(exclude_none=True),
+            })
+
+            logger.info(f"[UnifiedHandler] Pushed to mobile: seq={sequence_number}, role={role}, action={action_type}")
+
+        except Exception as e:
+            logger.warning(f"[UnifiedHandler] Failed to push to mobile: {e}")
 
     async def _stream_to_frontend(
         self,
@@ -553,39 +632,3 @@ class MessageHandler:
 
         except Exception as e:
             logger.warning(f"[UnifiedHandler] Failed to stream message: {e}")
-
-    async def _notify_gateway_urgent(self, message_data: dict) -> None:
-        """
-        即时推送 urgent 消息到 Gateway（不等待批量同步）
-
-        统一协议：payload 格式与 sync_batch 完全一致，Gateway 只做透明转发。
-        """
-        try:
-            from app.core.evocloud import evocloud_manager
-
-            if not evocloud_manager.link or not evocloud_manager.link.is_connected():
-                logger.debug("[UnifiedHandler] WebSocket not connected, skipping urgent notify")
-                return
-
-            device_key = evocloud_manager.link.device_key if evocloud_manager.link else ""
-
-            payload = {
-                "device_key": device_key,
-                "sync_type": "urgent",
-                "thread_id": self.thread_id,
-                "project_id": self.project_id,
-                "messages": [message_data],
-            }
-
-            await evocloud_manager.link.send_message({
-                "type": "message_sync",
-                "data": payload,
-            })
-
-            logger.info(
-                f"[UnifiedHandler] Urgent message sent to Gateway: "
-                f"thread={self.thread_id}, action_type={message_data.get('action_type')}"
-            )
-
-        except Exception as e:
-            logger.warning(f"[UnifiedHandler] Failed to send urgent notify: {e}")

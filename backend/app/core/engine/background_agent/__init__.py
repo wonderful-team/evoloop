@@ -138,16 +138,6 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
         # 2. Context & DB Preparation
         evoloop_command_id = inputs.command_id
 
-        # Fetch max sequence number
-        start_seq = 0
-        try:
-            async with session_scope() as session:
-                stmt = select(func.max(Message.sequence_number)).where(Message.thread_id == thread_id)
-                result = await session.execute(stmt)
-                start_seq = result.scalar() or 0
-        except Exception as e:
-            logger.warning(f"Failed to fetch max sequence number: {e}")
-
         # Parallel context load
         loaded_ctx = await ContextManager.load(thread_id)
 
@@ -184,7 +174,6 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
         db_callback = DatabaseCallbackHandler(
             thread_id=thread_id,
             project_id=project_id,
-            start_sequence=start_seq,
             run_id=run_id,
         )
 
@@ -302,7 +291,7 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
                             thread_id, project_id, error_content, action_type="warning"
                         )
 
-                        # Publish event to Redis
+                        # Publish event to Redis (Web UI)
                         from app.infrastructure.cache import cache
                         await cache.publish(
                             f"chat:{thread_id}:events",
@@ -313,6 +302,17 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
                                 "message": error_content,
                             })
                         )
+
+                        # Push error to Mobile (统一走 MobileErrorNotifier)
+                        try:
+                            from app.core.engine.message.mobile_notifier import MobileErrorNotifier
+                            from app.core.engine.error_handler import LLMErrorHandler
+                            classification = LLMErrorHandler.classify_exception(
+                                Exception(error_content)
+                            )
+                            await MobileErrorNotifier(db_callback._handler).push(classification)
+                        except Exception as push_e:
+                            logger.warning(f"[BackgroundAgent] Failed to push error to mobile: {push_e}")
                 else:
                     logger.info("[MSG-TRACE][background] GRAPH_OUTPUT checkpoint: no values")
             except Exception as e:
@@ -365,12 +365,32 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
                 await activity_monitor.end_run(thread_id, "failed")
                 from app.core.engine.background_agent.errors import persist_system_error
                 await persist_system_error(thread_id, project_id, "Recursion limit exceeded. The agent may be stuck in a loop.")
+                # Push error to Mobile (统一走 MobileErrorNotifier)
+                try:
+                    from app.core.engine.message.mobile_notifier import MobileErrorNotifier, ErrorSummary
+                    await MobileErrorNotifier(db_callback._handler).push(
+                        ErrorSummary(
+                            title='递归深度超限',
+                            message='Agent 可能陷入了循环，请简化问题后重试。',
+                            error_type='recursion_limit',
+                        )
+                    )
+                except Exception as push_e:
+                    logger.warning(f"[BackgroundAgent] Failed to push recursion error to mobile: {push_e}")
             else:
                 from app.core.engine.background_agent.errors import handle_task_exception
-                await handle_task_exception(thread_id, project_id, e)
+                await handle_task_exception(thread_id, project_id, e, handler=db_callback._handler)
 
     except Exception as e:
         logger.error(f"Fatal error during agent preparation for {thread_id}: {e}", exc_info=True)
         await activity_monitor.end_run(thread_id, "failed")
         from app.core.engine.background_agent.errors import persist_system_error
         await persist_system_error(thread_id, project_id, f"Preparation failed: {str(e)}")
+        # Push error to Mobile (统一走 MobileErrorNotifier)
+        try:
+            from app.core.engine.message.mobile_notifier import MobileErrorNotifier
+            from app.core.engine.error_handler import LLMErrorHandler
+            classification = LLMErrorHandler.classify_exception(e)
+            await MobileErrorNotifier(db_callback._handler).push(classification)
+        except Exception as push_e:
+            logger.warning(f"[BackgroundAgent] Failed to push preparation error to mobile: {push_e}")

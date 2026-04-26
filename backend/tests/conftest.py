@@ -207,8 +207,14 @@ def _create_mock_modules():
     }
 
 
-# Create mocks at module load time
-_MOCKS = _create_mock_modules()
+# Create mocks at module load time, but only if real packages are not available
+_MOCKS = None
+try:
+    import langchain_core
+    import langgraph
+    # Real packages available — skip mocking
+except ImportError:
+    _MOCKS = _create_mock_modules()
 
 
 def pytest_configure(config):

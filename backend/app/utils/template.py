@@ -20,7 +20,7 @@ except ImportError:
 _CONFIG_TEMPLATE_DIR = os.path.join(
     os.path.dirname(__file__), "..", "config", "templates"
 )
-_config_env: Environment | None = None
+_config_env: "Environment | None" = None
 
 
 def _truncate_list(items: list, max_items: int = 10) -> list:
@@ -28,7 +28,7 @@ def _truncate_list(items: list, max_items: int = 10) -> list:
     return items[:max_items] if items else []
 
 
-def _get_config_env() -> Environment:
+def _get_config_env() -> "Environment":
     """Get or create the global config templates environment."""
     global _config_env
     if _config_env is None and HAS_JINJA2:
@@ -183,7 +183,7 @@ class TemplateRenderer:
             **env_kwargs: Additional Jinja2 Environment options
         """
         self.template_dir = template_dir
-        self.env: Environment | None = None
+        self.env: "Environment | None" = None
         
         if HAS_JINJA2 and template_dir:
             self.env = Environment(

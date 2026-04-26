@@ -36,6 +36,22 @@ class ProjectEvent(BaseEvent):
     data: dict[str, Any] = Field(default_factory=dict)
 
 
+class ProjectSwitchEvent(ProjectEvent):
+    project_id: int | None = None
+    project_name: str | None = None
+    external_path: str | None = None
+    path: str | None = None
+
+    def model_post_init(self, __context: Any) -> None:
+        self.event_type = ProjectEventType.PROJECT_SWITCHED
+        self.data = {
+            "project_id": self.project_id,
+            "project_name": self.project_name,
+            "external_path": self.external_path,
+            "path": self.path
+        }
+
+
 class ProjectCreatedEvent(ProjectEvent):
     """
     Published when a new project directory is detected.

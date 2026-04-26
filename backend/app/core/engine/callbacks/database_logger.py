@@ -35,13 +35,7 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
     所有分类和策略决策都委托给 message 模块。
     """
 
-    def __init__(
-        self,
-        thread_id: str,
-        project_id: int,
-        start_sequence: int = 0,
-        run_id: str = None,
-    ):
+    def __init__(self, thread_id: str, project_id: int, run_id: str = None):
         self.thread_id = thread_id
         self.project_id = project_id
         self.run_id = run_id
@@ -51,7 +45,6 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
             thread_id=thread_id,
             project_id=project_id,
             run_id=run_id,
-            start_sequence=start_sequence,
         )
 
         # 步骤追踪（用于与 activity_monitor 协调）
@@ -69,10 +62,10 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
         2. 委托给 MessageHandler
         3. Handler 会自动分类并应用策略
         """
-        try:
-            if not response.generations:
-                return
+        if not response.generations:
+            return
 
+        try:
             generation = response.generations[0][0]
             message = generation.message
 

@@ -32,10 +32,17 @@ _import_map = {
     "ContextTrimmer": ("app.core.engine.context_trimmer", "ContextTrimmer"),
 }
 
+# Submodule lazy imports (for pkgutil.resolve_name / mock.patch compatibility)
+_submodule_map = {
+    "command_handler": "app.core.engine.command_handler",
+}
+
 
 def __getattr__(name: str):
     if name in _import_map:
         module_path, obj_name = _import_map[name]
         module = __import__(module_path, fromlist=[obj_name])
         return getattr(module, obj_name)
+    if name in _submodule_map:
+        return __import__(_submodule_map[name], fromlist=["__name__"])
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

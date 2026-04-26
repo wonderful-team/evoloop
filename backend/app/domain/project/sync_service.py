@@ -30,6 +30,48 @@ class ProjectSyncService:
     def __init__(self):
         self._indexing_service = IndexingService()
 
+    async def sync_cloud_project(self) -> None:
+        """
+        Sync the current cloud project to local workspace on app start.
+
+        1. Query EvoCloud API for the active project
+        2. Check if the local path is ignored
+        3. Set working directory + create/get repo + start file watching
+        """
+        try:
+            from app.core.context import thread_context_store
+            from app.domain.codebase.indexing.manager import indexing_manager
+
+            res = await evocloud_manager.api.get_current_project()
+            if res.get("code") != 0:
+                logger.warning(f"[ProjectSync] Failed to fetch current project: {res.get('message')}")
+                return
+
+            project_data = res.get("data", {})
+            cloud_path = project_data.get("external_path")
+            if not cloud_path or not os.path.exists(cloud_path):
+                return
+
+            is_ignored = await project_cache.is_path_ignored(cloud_path)
+            if not is_ignored:
+                existing_repo = await self._indexing_service.get_repo_by_path(cloud_path)
+                if existing_repo and existing_repo.sync_status == "IGNORED":
+                    is_ignored = True
+
+            if is_ignored:
+                logger.info(f"[ProjectSync] Skipping cloud project sync for ignored path: {cloud_path}")
+                return
+
+            logger.info(f"[ProjectSync] Synced active project from Cloud: {cloud_path}")
+            thread_context_store.set_working_directory("default", cloud_path)
+
+            repo_name = os.path.basename(cloud_path)
+            repo = await self._indexing_service.get_or_create_repo(cloud_path, repo_name)
+            await indexing_manager.start_watching(cloud_path, repo.id)
+
+        except Exception as e:
+            logger.warning(f"[ProjectSync] Error syncing cloud project: {e}")
+
     async def handle_project_created(self, path: str):
         """
         Handle creation of a new local project directory.
