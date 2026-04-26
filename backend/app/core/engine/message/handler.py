@@ -467,9 +467,9 @@ class MessageHandler:
 
             logger.info(f"[UnifiedHandler] Persisting {role} message (seq={self._sequence_counter}, cat={category})")
 
-            # 直接同步调用持久化任务（不再走 Huey 队列）
-            from app.core.engine.tasks import persist_message_task
-            await persist_message_task(
+            # 直接同步调用持久化核心函数（不再走 Huey 队列）
+            from app.core.engine.tasks import _persist_message_impl
+            await _persist_message_impl(
                 thread_id=self.thread_id,
                 project_id=self.project_id,
                 role=role,

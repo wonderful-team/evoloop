@@ -191,13 +191,6 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
         # Inject message_handler into config so nodes can report errors (e.g. QuotaExhaustedEvent)
         config["configurable"]["message_handler"] = db_callback._handler
 
-        # Pre-init sync coordinator before any messages are generated,
-        # to avoid race where _init_last_synced_seq reads newly-persisted messages.
-        from app.core.engine.message.sync_coordinator import get_sync_coordinator
-        coordinator = get_sync_coordinator()
-        coordinator.reset()
-        await coordinator._init_last_synced_seq(thread_id)
-
         # 4. Prepare Workflow Inputs
         inputs_dict = inputs.model_dump()
 

@@ -282,16 +282,9 @@ async def prune_checkpoints_task(keep_days: int = 7):
         logger.error(f"[Celery] Failed to prune checkpoints: {e}")
 
 
-@shared_task(name="engine_persist_message")
-async def persist_message_task(**kwargs):
-    """Background task to persist agent messages to the database.
-
-    Note: is_visible is now completely determined by category.
-    No manual calculation based on role/content.
-    """
+async def _persist_message_impl(**kwargs):
+    """消息持久化核心实现（普通 async 函数，供直接调用和 Huey 任务共用）。"""
     payload = PersistMessagePayload(**kwargs)
-
-    from uuid import UUID
 
     from app.core.engine.message.category import MessageCategory
     from app.models import Conversation, Message, MessageReference
@@ -317,7 +310,6 @@ async def persist_message_task(**kwargs):
                     cat_enum = MessageCategory(payload.category)
                     final_is_visible = cat_enum in MessageCategory.get_visible_categories()
                 except ValueError:
-                    # Unknown category, use passed value or default to visible
                     pass
 
             log = Message(
@@ -356,17 +348,27 @@ async def persist_message_task(**kwargs):
             if conversation and conversation.sync_status == "synced":
                 conversation.sync_status = "pending"
                 logger.debug(
-                    f"[Celery] Marked conversation {payload.thread_id} as pending for sync"
+                    f"[Persist] Marked conversation {payload.thread_id} as pending for sync"
                 )
 
-        logger.debug(f"[Celery] Persisted message {payload.sequence_number} with {len(payload.references or [])} refs for thread {payload.thread_id}")
+        logger.debug(
+            f"[Persist] Persisted message {payload.sequence_number} "
+            f"with {len(payload.references or [])} refs for thread {payload.thread_id}"
+        )
+        return True
     except Exception as e:
-        error_msg = f"[Celery] Failed to persist message: {type(e).__name__}: {e}"
+        error_msg = f"[Persist] Failed to persist message: {type(e).__name__}: {e}"
         logger.error(error_msg)
-        # Print as fallback to ensure error is visible even if logger level is high
         print(f"ERROR: {error_msg}", flush=True)
         import traceback
         traceback.print_exc()
+        raise
+
+
+@shared_task(name="engine_persist_message")
+async def persist_message_task(**kwargs):
+    """Huey/Celery 后台任务入口，包装 _persist_message_impl。"""
+    return await _persist_message_impl(**kwargs)
 
 
 @shared_task(name="engine_cleanup_artifacts")
