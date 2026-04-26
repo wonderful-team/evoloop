@@ -160,14 +160,14 @@ class ProjectSyncService:
                     logger.info(f"[ProjectSync] Project '{repo_name}' created with status DETECTED (ID: {repo.id})")
 
                     # Publish NewProjectDetectedEvent for frontend notification
-                    from app.domain.project.events import NewProjectDetectedEvent
+                    from app.domain.project.event.publishers import publish_new_project_detected
 
-                    await system_bus.publish(NewProjectDetectedEvent(
+                    await publish_new_project_detected(
                         repo_id=repo.id,
                         path=path,
                         name=repo_name,
                         detected_at=repo.detected_at
-                    ))
+                    )
 
         except Exception as e:
             logger.error(f"[ProjectSync] Failed to create repository record: {e}")
@@ -206,15 +206,15 @@ class ProjectSyncService:
         Called when cloud project exists locally.
         """
         try:
-            from app.domain.project.events import ProjectCreatedEvent
+            from app.domain.project.event.publishers import publish_project_created
 
             # Publish ProjectCreatedEvent to trigger indexing
-            await system_bus.publish(ProjectCreatedEvent(
+            await publish_project_created(
                 path=path,
                 repo_id=repo.id,
                 project_id=repo.project_id,
                 project_name=repo.name
-            ))
+            )
             logger.info(f"[ProjectSync] Auto-triggered indexing for '{repo.name}' (Repo ID: {repo.id})")
 
             # Start watching
@@ -262,14 +262,14 @@ class ProjectSyncService:
         # Publish ProjectCreatedEvent to trigger indexing
         # IndexingManager subscribes to this event
         try:
-            from app.domain.project.events import ProjectCreatedEvent
+            from app.domain.project.event.publishers import publish_project_created
 
-            await system_bus.publish(ProjectCreatedEvent(
+            await publish_project_created(
                 path=repo.local_path,
                 repo_id=repo.id,
                 project_id=repo.project_id,
                 project_name=repo.name
-            ))
+            )
             logger.info(f"[ProjectSync] Published ProjectCreatedEvent for {repo.name}")
         except Exception as e:
             logger.error(f"[ProjectSync] Failed to publish ProjectCreatedEvent: {e}")
@@ -424,13 +424,13 @@ class ProjectSyncService:
         # 2. Publish ProjectDeletedEvent (decoupled)
         # IndexingManager will subscribe and stop watching
         try:
-            from app.domain.project.events import ProjectDeletedEvent
+            from app.domain.project.event.publishers import publish_project_deleted
 
-            await system_bus.publish(ProjectDeletedEvent(
+            await publish_project_deleted(
                 path=path,
                 repo_id=repo_id or 0,
                 project_id=project_id
-            ))
+            )
         except Exception as e:
             logger.error(f"[ProjectSync] Failed to publish ProjectDeletedEvent: {e}")
 

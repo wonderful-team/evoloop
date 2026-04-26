@@ -252,7 +252,8 @@ class FinishNode(BaseNode):
             ticket_reason=blackboard.ticket.reason if blackboard.ticket else None,
         )
 
-        await system_bus.publish(SessionCompletedEvent(data=event_data))
+        from app.core.events.publishers import publish_session_completed
+        await publish_session_completed(data=event_data)
         logger.info(f"[Finish] 📡 SessionCompletedEvent published for thread {effective_thread_id}")
 
         # --------------------------------------------------------------

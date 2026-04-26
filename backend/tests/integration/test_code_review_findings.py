@@ -165,7 +165,7 @@ class TestHandlersIssues:
         P1: hitl_response creates a background task without tracking.
         If the task fails, the exception is never retrieved.
         """
-        from app.core.engine.command_handler import EngineCommandHandler
+        from app.core.engine.event.subscribers import EngineCommandHandler
         from app.core.evocloud.schemas import RemoteCommand
 
         tasks_before = len(asyncio.all_tasks())
@@ -177,7 +177,7 @@ class TestHandlersIssues:
             "command_id": "77",
         }
 
-        with patch("app.core.engine.command_handler.run_agent_background", new_callable=AsyncMock):
+        with patch("app.core.engine.event.subscribers.run_agent_background", new_callable=AsyncMock):
             handler = EngineCommandHandler()
             await handler._handle_command(RemoteCommand.model_validate(command))
 
@@ -191,7 +191,7 @@ class TestHandlersIssues:
         P1: EngineCommandHandler._handle_command uses .get() on RemoteCommand (Pydantic model).
         If model doesn't support dict-like access, this fails.
         """
-        from app.core.engine.command_handler import EngineCommandHandler
+        from app.core.engine.event.subscribers import EngineCommandHandler
         from app.core.evocloud.schemas import RemoteCommand
         from app.core.evocloud.schemas import RemoteCommand
 

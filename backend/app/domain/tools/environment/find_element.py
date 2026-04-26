@@ -75,7 +75,8 @@ async def find_element(
 
         # Fire UI_TREE_OBSERVED event for spatial mapping (Background)
         try:
-            from app.core.environment.events import UiTreeObservedEvent, event_bus
+            from app.core.environment.event import UiTreeObservedEvent
+            from app.core.environment.bus import event_bus
 
             if platform == "android":
                 app_info = adb_driver.get_current_app(device_id=device_id)
@@ -86,13 +87,14 @@ async def find_element(
                 bundle_id = app_info.get("bundle_id", "unknown")
                 window_title = app_info.get("title", "unknown")
 
-            asyncio.create_task(event_bus.publish(UiTreeObservedEvent(
+            from app.core.environment.event.publishers import publish_ui_tree_observed
+            asyncio.create_task(publish_ui_tree_observed(
                 platform=platform,
                 bundle_id=bundle_id,
                 window_title=window_title,
                 elements=[e.model_dump() for e in elements],
-                screenshot_hash=result.metadata.get("file_hash", "")
-            )))
+                screenshot_hash=result.metadata.get("file_hash", ""),
+            ))
         except Exception as e:
             logger.warning(f"Failed to publish UI_TREE_OBSERVED: {e}")
 

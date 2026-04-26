@@ -140,12 +140,12 @@ class AdaptiveBoundaryManager:
         logger.warning(f"⚠️ New dynamic boundary: {mitigation}")
 
         # 5. Publish event
-        from app.core.environment.events import BoundaryLearnedEvent, event_bus
-        await event_bus.publish(BoundaryLearnedEvent(
+        from app.core.environment.event.publishers import publish_boundary_learned
+        await publish_boundary_learned(
             tool_name=tool_name,
             category=category.value,
-            description=mitigation
-        ))
+            description=mitigation,
+        )
 
         return boundary
 

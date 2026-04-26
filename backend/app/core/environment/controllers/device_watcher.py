@@ -102,10 +102,10 @@ class DeviceWatcher:
 
     async def _handle_event(self, serial: str, status: str):
         """Handle individual device events via event bus."""
-        from app.core.environment.events import (
+        from app.core.environment.bus import event_bus
+        from app.core.environment.event import (
             DeviceConnectedEvent,
             DeviceDisconnectedEvent,
-            event_bus,
         )
 
         if status == "device":
@@ -127,15 +127,14 @@ class DeviceWatcher:
                 logger.warning(f"⚠️ Failed to detect capabilities for {serial}: {e}")
 
             await mirror_manager.on_device_connected(serial)
-            await event_bus.publish(DeviceConnectedEvent(
-                device_id=serial,
-                device_type="android"
-            ))
+            from app.core.environment.event.publishers import publish_device_connected
+            await publish_device_connected(device_id=serial, device_type="android")
             logger.info(f"🌅 Published device connected event: {serial}")
         else:
             logger.info(f"Device disconnected/offline: {serial} ({status})")
             mirror_manager.on_device_disconnected(serial)
-            await event_bus.publish(DeviceDisconnectedEvent(device_id=serial))
+            from app.core.environment.event.publishers import publish_device_disconnected
+            await publish_device_disconnected(device_id=serial)
 
 
 # Global Watcher Instance

@@ -18,9 +18,6 @@ class SystemEventType(str, Enum):
     APP_STARTED = "system.app_started"
     APP_STOPPING = "system.app_stopping"
 
-    # Error Events
-    UNHANDLED_ERROR = "system.unhandled_error"
-
     # Context Polishing
     # Published by Engine after context hydration. Subscribed by Domain experts to enrich/clean context.
     CONTEXT_POLISHING = "system.context_polishing"
@@ -31,12 +28,17 @@ class SystemEventType(str, Enum):
     # Configuration Handlers
     CONFIG_CHANGED = "system.config_changed"
 
+    # Awakening / Environment Events
+    AWAKENING_COMPLETE = "system.awakening_complete"
+    STATE_REFRESHED = "system.state_refreshed"
+    BOUNDARY_LEARNED = "system.boundary_learned"
+
 
 # Note: Module-specific event types are defined in their respective modules:
-# - AgentEventType -> app.core.engine.events
-# - MacroEventType -> app.core.execution.macro.events
-# - RewindEventType -> app.core.engine.rewind.events
-# - AwakeningEventType -> app.core.environment.events
-# - ProjectEventType -> app.domain.project.events
-# - IndexingEventType -> app.domain.codebase.events
-# - FileSystemEventType -> app.core.file.events
+# - AgentEventType -> app.core.engine.event.types
+# - MacroEventType -> app.core.execution.macro.event.types
+# - RewindEventType -> app.core.engine.rewind.event.types
+# - Environment EventType -> app.core.environment.event.types
+# - ProjectEventType -> app.domain.project.event.types
+# - IndexingEventType -> app.domain.codebase.event.types
+# - FileSystemEventType -> app.core.file.event.types

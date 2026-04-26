@@ -350,14 +350,11 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
                     return
 
             # --- Publish generic event — business logic lives in subscribers ---
-            from app.core.engine.events import WebSocketMessageReceivedEvent
-            from app.core.events import system_bus
-            await system_bus.publish(
-                WebSocketMessageReceivedEvent(
-                    msg_type=msg_type or "unknown",
-                    payload=payload,
-                    raw=raw,
-                )
+            from app.core.engine.event.publishers import publish_ws_message_received
+            await publish_ws_message_received(
+                msg_type=msg_type or "unknown",
+                payload=payload,
+                raw=raw,
             )
 
         except Exception as e:

@@ -1,0 +1,56 @@
+"""
+Macro Execution Event Subscribers
+==================================
+
+Event subscribers for macro execution lifecycle.
+"""
+
+import logging
+
+from app.core.events.decorators import event_register, event_subscribe
+from app.core.execution.macro.event import MacroEventType, MacroExecutionFailedEvent
+from app.core.execution.macro.healing_policy import SelfHealingPolicy
+
+logger = logging.getLogger(__name__)
+
+
+@event_register()
+class MacroSelfHealingAdvisor:
+    """
+    Decoupled listener that decides if an agent should attempt self-healing
+    after a macro fails.
+
+    This advisor uses the centralized SelfHealingPolicy for consistency,
+    but adds contextual suggestions based on the failure context.
+    """
+
+    def __init__(self):
+        pass
+
+    @event_subscribe(MacroEventType.EXECUTION_FAILED)
+    async def on_macro_failed(self, event: MacroExecutionFailedEvent) -> None:
+        """
+        Evaluate healing switches and append guidance to the event.
+        Uses centralized SelfHealingPolicy for decision making.
+        """
+        # Use centralized policy check
+        decision = SelfHealingPolicy.check(
+            skill=None,  # Skill-level check already done in MacroService
+            execution_params=event.data
+        )
+
+        if not decision.allowed:
+            logger.info(f"[Self-Healing] {decision.source}-level skip for macro failure in thread {event.thread_id}")
+            event.suggestions.append(
+                SelfHealingPolicy.get_disabled_message(decision)
+            )
+            return
+
+        # Success Case: Suggest recovery with contextual information
+        logger.info(f"[Self-Healing] Suggesting perceptual recovery for macro '{event.skill_name}'")
+        event.suggestions.append(
+            SelfHealingPolicy.get_enabled_message(
+                skill_name=event.skill_name,
+                error_message=event.error_message
+            )
+        )

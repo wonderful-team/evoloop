@@ -180,13 +180,9 @@ class IndexingEventHandler(FileSystemEventHandler):
         logger.info(f"File modified (Debounced): {path}")
         
         # Publish event to system bus instead of directly calling service
-        from app.core.events import system_bus
-        from app.domain.codebase.events import FileModifiedEvent
+        from app.domain.codebase.event.publishers import publish_file_modified
         
-        await system_bus.publish(FileModifiedEvent(
-            repo_id=self.repo_id,
-            file_path=path
-        ))
+        await publish_file_modified(repo_id=self.repo_id, file_path=path)
 
     def _process_delete(self, path: str):
         """Publish FileRemovedEvent to the event bus."""
@@ -194,14 +190,10 @@ class IndexingEventHandler(FileSystemEventHandler):
             logger.info(f"File deleted: {path}")
             
             # Publish event to system bus instead of directly calling service
-            from app.core.events import system_bus
-            from app.domain.codebase.events import FileRemovedEvent
+            from app.domain.codebase.event.publishers import publish_file_removed
             
             asyncio.run_coroutine_threadsafe(
-                system_bus.publish(FileRemovedEvent(
-                    repo_id=self.repo_id,
-                    file_path=path
-                )),
+                publish_file_removed(repo_id=self.repo_id, file_path=path),
                 self.loop
             )
 
@@ -214,15 +206,10 @@ class IndexingEventHandler(FileSystemEventHandler):
             logger.info(f"File moved: {src} -> {dest}")
             
             # Publish event to system bus instead of directly calling service
-            from app.core.events import system_bus
-            from app.domain.codebase.events import FileMovedEvent
+            from app.domain.codebase.event.publishers import publish_file_moved
             
             asyncio.run_coroutine_threadsafe(
-                system_bus.publish(FileMovedEvent(
-                    repo_id=self.repo_id,
-                    src_path=src,
-                    dest_path=dest
-                )),
+                publish_file_moved(repo_id=self.repo_id, src_path=src, dest_path=dest),
                 self.loop
             )
         elif src_valid and not dest_valid:
@@ -314,31 +301,28 @@ class ProjectDiscoveryEventHandler(FileSystemEventHandler):
 
     def _publish_project_created(self, path: str):
         """Publish ProjectCreatedEvent to the event bus."""
-        from app.core.events import system_bus
-        from app.domain.project.events import ProjectCreatedEvent
+        from app.domain.project.event.publishers import publish_project_created
         
         asyncio.run_coroutine_threadsafe(
-            system_bus.publish(ProjectCreatedEvent(path=path)),
+            publish_project_created(path=path, repo_id=0, project_id=None, project_name=""),
             self.loop
         )
 
     def _publish_project_deleted(self, path: str):
         """Publish ProjectDeletedEvent to the event bus."""
-        from app.core.events import system_bus
-        from app.domain.project.events import ProjectDeletedEvent
+        from app.domain.project.event.publishers import publish_project_deleted
         
         asyncio.run_coroutine_threadsafe(
-            system_bus.publish(ProjectDeletedEvent(path=path)),
+            publish_project_deleted(path=path, repo_id=0, project_id=None),
             self.loop
         )
 
     def _publish_project_moved(self, src_path: str, dest_path: str):
         """Publish ProjectMovedEvent to the event bus."""
-        from app.core.events import system_bus
-        from app.domain.project.events import ProjectMovedEvent
+        from app.domain.project.event.publishers import publish_project_moved
         
         asyncio.run_coroutine_threadsafe(
-            system_bus.publish(ProjectMovedEvent(src_path=src_path, dest_path=dest_path)),
+            publish_project_moved(src_path=src_path, dest_path=dest_path),
             self.loop
         )
 

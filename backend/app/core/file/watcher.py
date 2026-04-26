@@ -8,7 +8,7 @@ to the system_bus, allowing decoupled handling by any subscriber.
 Usage:
     # Method 1: Direct event subscription
     from app.core.events import system_bus
-    from app.core.file.events import FileSystemEventType
+    from app.core.file.event import FileSystemEventType
     
     async def on_file_changed(event):
         if event.event_type == FileSystemEventType.FILE_MODIFIED:
@@ -44,7 +44,7 @@ from watchdog.events import FileSystemEvent, FileSystemEventHandler
 from watchdog.observers import Observer
 
 from app.core.events import system_bus
-from app.core.file.events import FileSystemEventType, FileWatcherEvent
+from app.core.file.event import FileSystemEventType, FileWatcherEvent
 
 logger = logging.getLogger(__name__)
 
@@ -78,20 +78,18 @@ class _EventBusHandler(FileSystemEventHandler):
 
     def _publish_event(self, event_type: FileSystemEventType, path: str, **extra_data):
         """Publish event to system bus from any thread."""
-        event = FileWatcherEvent(
-            event_type=event_type,
-            data={
-                "path": path,
-                "watch_path": self.watch_path,
-                **extra_data
-            }
-        )
+        from app.core.file.event.publishers import publish_file_watcher_event
 
         # Use the stored event loop to publish from main thread
         if self._event_loop and self._event_loop.is_running():
             try:
                 asyncio.run_coroutine_threadsafe(
-                    system_bus.publish(event),
+                    publish_file_watcher_event(
+                        event_type=event_type,
+                        path=path,
+                        watch_path=self.watch_path,
+                        **extra_data
+                    ),
                     self._event_loop
                 )
             except Exception as e:
@@ -183,7 +181,7 @@ class FileWatcher:
         
         # Subscribe to events elsewhere
         from app.core.events import system_bus
-        from app.core.file.events import FileSystemEventType
+        from app.core.file.event import FileSystemEventType
         
         async def on_change(event):
             print(f"File changed: {event.data['path']}")
@@ -250,11 +248,14 @@ class FileWatcher:
 
             # Publish started event
             if self._event_loop and self._event_loop.is_running():
-                event = FileWatcherEvent(
-                    event_type=FileSystemEventType.WATCHER_STARTED,
-                    data={"path": self.path, "recursive": self.recursive}
+                from app.core.file.event.publishers import publish_file_watcher_event
+                asyncio.create_task(
+                    publish_file_watcher_event(
+                        event_type=FileSystemEventType.WATCHER_STARTED,
+                        path=self.path,
+                        recursive=self.recursive,
+                    )
                 )
-                asyncio.create_task(system_bus.publish(event))
 
             logger.info(f"Started file watcher: {self.path}")
 
@@ -275,11 +276,13 @@ class FileWatcher:
 
         # Publish stopped event
         if self._event_loop and self._event_loop.is_running():
-            event = FileWatcherEvent(
-                event_type=FileSystemEventType.WATCHER_STOPPED,
-                data={"path": self.path}
+            from app.core.file.event.publishers import publish_file_watcher_event
+            asyncio.create_task(
+                publish_file_watcher_event(
+                    event_type=FileSystemEventType.WATCHER_STOPPED,
+                    path=self.path,
+                )
             )
-            asyncio.create_task(system_bus.publish(event))
 
         logger.info(f"Stopped file watcher: {self.path}")
 
@@ -327,7 +330,7 @@ class FileWatcherManager:
         
         # Subscribe to all events
         from app.core.events import system_bus
-        from app.core.file.events import FileSystemEventType
+        from app.core.file.event import FileSystemEventType
         system_bus.subscribe(FileSystemEventType.FILE_MODIFIED, on_any_file_change)
     """
 

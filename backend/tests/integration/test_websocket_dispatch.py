@@ -24,7 +24,7 @@ if os.path.exists(env_path):
 
 
 # Pre-import to avoid pkgutil.resolve_name + __getattr__ issues with Pydantic v2
-import app.core.engine.command_handler as _ch
+import app.core.engine.event.subscribers as _ch
 
 
 @pytest.fixture(autouse=True)
@@ -57,7 +57,7 @@ def mock_dispatch_result():
 @pytest.mark.asyncio
 async def test_handle_remote_command_chat_message(mock_dispatch, mock_dispatch_result, mock_background):
     """chat_message should call dispatch_agent_run with parsed text."""
-    from app.core.engine.command_handler import EngineCommandHandler
+    from app.core.engine.event.subscribers import EngineCommandHandler
     from app.core.evocloud.schemas import RemoteCommand
 
     mock_dispatch.return_value = mock_dispatch_result
@@ -85,7 +85,7 @@ async def test_handle_remote_command_chat_message(mock_dispatch, mock_dispatch_r
 @pytest.mark.asyncio
 async def test_handle_remote_command_with_attachments(mock_dispatch, mock_dispatch_result, mock_background):
     """chat_message with attachments should pass them to dispatch."""
-    from app.core.engine.command_handler import EngineCommandHandler
+    from app.core.engine.event.subscribers import EngineCommandHandler
     from app.core.evocloud.schemas import RemoteCommand
 
     mock_dispatch.return_value = mock_dispatch_result
@@ -108,7 +108,7 @@ async def test_handle_remote_command_with_attachments(mock_dispatch, mock_dispat
 @pytest.mark.asyncio
 async def test_handle_remote_command_nested_content(mock_dispatch, mock_dispatch_result, mock_background):
     """Legacy nested 'content' format should be parsed correctly."""
-    from app.core.engine.command_handler import EngineCommandHandler
+    from app.core.engine.event.subscribers import EngineCommandHandler
     from app.core.evocloud.schemas import RemoteCommand
 
     mock_dispatch.return_value = mock_dispatch_result
@@ -132,7 +132,7 @@ async def test_handle_remote_command_nested_content(mock_dispatch, mock_dispatch
 @pytest.mark.asyncio
 async def test_handle_remote_command_params_format(mock_dispatch, mock_dispatch_result, mock_background):
     """Params nested inside content should be parsed."""
-    from app.core.engine.command_handler import EngineCommandHandler
+    from app.core.engine.event.subscribers import EngineCommandHandler
     from app.core.evocloud.schemas import RemoteCommand
 
     mock_dispatch.return_value = mock_dispatch_result
@@ -159,7 +159,7 @@ async def test_handle_remote_command_params_format(mock_dispatch, mock_dispatch_
 @pytest.mark.asyncio
 async def test_handle_remote_command_no_message_skips(mock_dispatch, mock_background):
     """When no message and no attachments, handler should skip silently."""
-    from app.core.engine.command_handler import EngineCommandHandler
+    from app.core.engine.event.subscribers import EngineCommandHandler
     from app.core.evocloud.schemas import RemoteCommand
 
     command = {
@@ -177,7 +177,7 @@ async def test_handle_remote_command_no_message_skips(mock_dispatch, mock_backgr
 @pytest.mark.asyncio
 async def test_handle_remote_command_dispatches_background(mock_dispatch, mock_dispatch_result, mock_background):
     """On success, handler should schedule run_agent_background."""
-    from app.core.engine.command_handler import EngineCommandHandler
+    from app.core.engine.event.subscribers import EngineCommandHandler
     from app.core.evocloud.schemas import RemoteCommand
 
     mock_dispatch.return_value = mock_dispatch_result
@@ -200,7 +200,7 @@ async def test_handle_remote_command_dispatches_background(mock_dispatch, mock_d
 async def test_handle_remote_command_dispatch_failure(mock_dispatch, mock_background):
     """When dispatch fails, handler should log and not schedule background."""
     from app.core.engine.dispatch import DispatchResult
-    from app.core.engine.command_handler import EngineCommandHandler
+    from app.core.engine.event.subscribers import EngineCommandHandler
     from app.core.evocloud.schemas import RemoteCommand
 
     mock_dispatch.return_value = DispatchResult(
@@ -225,7 +225,7 @@ async def test_handle_remote_command_dispatch_failure(mock_dispatch, mock_backgr
 @pytest.mark.asyncio
 async def test_handle_remote_command_hitl_response(mock_background):
     """hitl_response should bypass dispatch and resume directly."""
-    from app.core.engine.command_handler import EngineCommandHandler
+    from app.core.engine.event.subscribers import EngineCommandHandler
     from app.core.evocloud.schemas import RemoteCommand
 
     command = {

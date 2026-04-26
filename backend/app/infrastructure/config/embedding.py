@@ -139,13 +139,8 @@ class EmbeddingConfigService:
             if repo:
                 logger.info(f"Emitting system.embedding_updated event for active project {current_project_id} (Repo {repo.id})")
 
-                from app.core.events.base import BaseEvent, system_bus
-                event = BaseEvent(
-                    event_type="system.embedding_updated",
-                    source="embedding_config",
-                    data={"repo_id": repo.id, "project_id": current_project_id}
-                )
-                await system_bus.publish(event)
+                from app.core.events.publishers import publish_embedding_updated
+                await publish_embedding_updated(repo.id, current_project_id)
 
     @staticmethod
     async def _migrate_neo4j_concepts(provider, base_url, model, api_key):

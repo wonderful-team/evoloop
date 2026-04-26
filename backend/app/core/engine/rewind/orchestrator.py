@@ -12,15 +12,10 @@ import asyncio
 import logging
 from typing import TYPE_CHECKING
 
-from app.core.engine.rewind.events import (
-    RewindFailedEvent,
-    RewindRequestedEvent,
-)
 from app.core.engine.rewind.exceptions import (
     RewindError,
 )
 from app.core.engine.rewind.models import RewindResult
-from app.core.events import system_bus
 
 if TYPE_CHECKING:
     from app.core.events.base import AsyncEventBus
@@ -122,7 +117,18 @@ class RewindOrchestrator:
 
             # Sequential=True is CRITICAL for SQLite to prevent 'Database is locked' errors
             # propagate_errors=True ensures we don't silently fail as requested by USER
-            await self.bus.publish(rewind_event, sequential=True, propagate_errors=True)
+            from app.core.engine.rewind.event.publishers import publish_rewind_requested
+            await publish_rewind_requested(
+                thread_id=thread_id,
+                target_message_id=target_message_id,
+                include_target=include_target,
+                revert_files=revert_files,
+                reset_state=reset_state,
+                reason=reason,
+                affected_message_ids=affected_ids,
+                sequential=True,
+                propagate_errors=True,
+            )
 
             # Phase 2: Results are now aggregated in rewind_event.results by handlers
             # Since AsyncEventBus.publish awaits all handlers concurrently, 
@@ -152,11 +158,12 @@ class RewindOrchestrator:
             logger.error(f"[RewindOrchestrator] Rewind failed for thread={thread_id}: {e}")
 
             # Publish failure event
-            await self.bus.publish(RewindFailedEvent(
+            from app.core.engine.rewind.event.publishers import publish_rewind_failed
+            await publish_rewind_failed(
                 thread_id=thread_id,
                 error=str(e),
-                failed_step="orchestrator"
-            ))
+                failed_step="orchestrator",
+            )
 
             raise RewindError(
                 message=f"Rewind operation failed: {e}",

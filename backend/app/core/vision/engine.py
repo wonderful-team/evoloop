@@ -1,9 +1,10 @@
 import logging
 import time
 
-from app.core.environment.events import UiTreeObservedEvent, event_bus
+from app.core.environment.event import UiTreeObservedEvent
+from app.core.environment.bus import event_bus
 from app.core.events.base import system_bus
-from app.core.vision.events import (
+from app.core.vision.event import (
     VisionProcessCompletedEvent,
     VisionProcessStartedEvent,
 )
@@ -37,9 +38,8 @@ class VisionEngine:
         start_time = time.time()
 
         # 1. Publish Start Event
-        await system_bus.publish(VisionProcessStartedEvent(
-            data={"task": task.value, "source": image_source}
-        ))
+        from app.core.vision.event.publishers import publish_vision_process_started
+        await publish_vision_process_started(task.value, image_source)
 
         # Specialized Logic: DETECTION (Multiple Providers)
         if task == VisionTask.DETECT:
@@ -62,13 +62,14 @@ class VisionEngine:
                 app_info = macos_driver.get_current_app()
 
                 # 2. Publish to Awakening Event Bus for AppAtlasService to consume
-                await event_bus.publish(UiTreeObservedEvent(
+                from app.core.environment.event.publishers import publish_ui_tree_observed
+                await publish_ui_tree_observed(
                     platform="macos",
                     bundle_id=app_info.get("bundle_id", "unknown"),
                     window_title=app_info.get("title", "unknown"),
                     elements=[e.to_dict() for e in elements],
-                    screenshot_hash=""
-                ))
+                    screenshot_hash="",
+                )
                 logger.debug(f"[VisionEngine] Emitted UiTreeObservedEvent for {app_info.get('bundle_id')}")
             except Exception as e:
                 logger.warning(f"[VisionEngine] Failed to emit Atlas event: {e}")
@@ -126,10 +127,8 @@ class VisionEngine:
 
         # 6. Publish Completion Event
         provider_name = provider.name if task != VisionTask.DETECT else "pipeline_manager"
-        await system_bus.publish(VisionProcessCompletedEvent(
-            result=result,
-            data={"task": task.value, "provider": provider_name}
-        ))
+        from app.core.vision.event.publishers import publish_vision_process_completed
+        await publish_vision_process_completed(result, task.value, provider_name)
 
         return result
 

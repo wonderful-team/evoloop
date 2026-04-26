@@ -3,7 +3,7 @@ from typing import Callable, Awaitable
 
 from sqlmodel import Session, select
 
-from app.core.events import system_bus, SystemEventType, BaseEvent
+from app.core.events.publishers import publish_config_changed
 from app.infrastructure.database.resource_manager import db_resource_manager
 from app.models.system import SystemConfig
 
@@ -82,16 +82,8 @@ class SystemConfigService:
                 for handler in _change_handlers[key]:
                     await handler(old_value, value)
 
-            # 2. Publish System Event (New Decoupled Approach)
-            await system_bus.publish(BaseEvent(
-                event_type=SystemEventType.CONFIG_CHANGED,
-                source="SystemConfigService",
-                data={
-                    "key": key,
-                    "old_value": old_value,
-                    "new_value": value
-                }
-            ))
+            # 2. Publish System Event via core layer publisher
+            await publish_config_changed(key, old_value, value)
             logger.info(f"Published CONFIG_CHANGED event for {key}")
 
         return config

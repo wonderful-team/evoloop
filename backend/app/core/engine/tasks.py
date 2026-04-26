@@ -12,7 +12,8 @@ from sqlalchemy import desc, func, select, text
 
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.config import settings
-from app.core.environment.events import UiTreeObservedEvent, event_bus
+from app.core.environment.event import UiTreeObservedEvent
+from app.core.environment.bus import event_bus
 from app.core.learning.trace_recorder import sync_thread_to_graph
 from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.queue.factory import shared_task
@@ -164,12 +165,13 @@ async def harvest_concepts_task(concepts_data: list[dict], project_id: int):
                     pkg_match = re.search(r"\(([^)]+)\)", name)
                     bundle_id = pkg_match.group(1) if pkg_match else "unknown"
 
-                    await event_bus.publish(UiTreeObservedEvent(
+                    from app.core.environment.event.publishers import publish_ui_tree_observed
+                    await publish_ui_tree_observed(
                         platform="android",
                         bundle_id=bundle_id,
                         window_title=name.replace("android_layout:", "").split('(')[0].strip(),
-                        elements=elements
-                    ))
+                        elements=elements,
+                    )
 
                     # 2. Use dehydrated summary as Concept description
                     description = summary

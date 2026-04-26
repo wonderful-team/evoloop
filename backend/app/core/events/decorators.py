@@ -6,7 +6,7 @@ Provides decorators for automatic event handler registration.
 
 Usage:
     from app.core.events.decorators import event_subscribe, event_register
-    from app.core.engine.rewind.events import RewindEventType
+    from app.core.engine.rewind.event import RewindEventType
     
     @event_register()
     class FileRewind:
@@ -120,7 +120,7 @@ def event_register_with_bus(bus: Any) -> Callable[[type], type]:
         The decorated class
         
     Example:
-        from app.core.environment.events import event_bus
+        from app.core.environment.bus import event_bus
         
         @event_register_with_bus(event_bus)
         class DeviceEventHandler:

@@ -332,15 +332,14 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
             await activity_monitor.end_run(thread_id, "done")
 
             # Publish AgentRunCompletedEvent for automated learning
-            from app.core.engine.events import AgentRunCompletedEvent
-            from app.core.events import system_bus
+            from app.core.engine.event.publishers import publish_agent_run_completed
 
-            await system_bus.publish(AgentRunCompletedEvent(
+            await publish_agent_run_completed(
                 thread_id=thread_id,
                 project_id=project_id,
-                goal="Autonomous Task Execution", # Simplified goal for event
+                goal="Autonomous Task Execution",  # Simplified goal for event
                 status="done"
-            ))
+            )
             logger.info(f"[BackgroundAgent] 📡 Published AgentRunCompletedEvent for thread {thread_id}")
 
             # 最终同步：发送所有消息 + command_complete 信号到 Gateway

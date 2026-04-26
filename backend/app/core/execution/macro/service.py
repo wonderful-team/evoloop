@@ -94,7 +94,7 @@ class MacroService:
 
                 # Self-healing is allowed - trigger fallback via event system
                 from app.core.events import system_bus
-                from app.core.execution.macro.events import MacroExecutionFailedEvent
+                from app.core.execution.macro.event import MacroExecutionFailedEvent
 
                 event = MacroExecutionFailedEvent(
                     skill_id=params.get("_skill_id") if params else None,
@@ -105,7 +105,14 @@ class MacroService:
                 )
 
                 # Publish event for listeners (advisor will add suggestions)
-                await system_bus.publish(event)
+                from app.core.execution.macro.event.publishers import publish_macro_execution_failed
+                event = await publish_macro_execution_failed(
+                    skill_id=params.get("_skill_id") if params else None,
+                    skill_name=params.get("_skill_name") if params else "manual_macro",
+                    error_message=msg,
+                    fallback_context=fallback_ctx,
+                    thread_id=thread_id,
+                )
 
                 return MacroRunResult(
                     success=False,

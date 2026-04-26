@@ -95,11 +95,8 @@ async def awaken(project_id: int | None = None) -> AwakenedState:
     logger.info(f"🧠 Agent awakened. Platforms: {platforms}")
 
     # Publish awakening complete event
-    from app.core.environment.events import AwakenEvent, EventType, event_bus
-    await event_bus.publish(AwakenEvent(
-        event_type=EventType.AWAKENING_COMPLETE,
-        data={"platforms": platforms, "project_id": project_id}
-    ))
+    from app.core.environment.event.publishers import publish_awakening_complete
+    await publish_awakening_complete(platforms=platforms, project_id=project_id)
 
     return state
 

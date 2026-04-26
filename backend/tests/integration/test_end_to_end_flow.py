@@ -106,15 +106,15 @@ async def test_websocket_chat_full_flow(fake_session):
     E2E: WebSocket remote command → handle_remote_command → dispatch_agent_run.
     Verifies model fallback and inputs construction.
     """
-    from app.core.engine.command_handler import EngineCommandHandler
+    from app.core.engine.event.subscribers import EngineCommandHandler
     from app.core.evocloud.schemas import RemoteCommand
     from app.core.engine.background_agent import BackgroundAgentInputs
     # Model fallback uses SystemConfigService.get_value("LLM_MODEL") in production
 
     session, scope = fake_session
 
-    with patch("app.core.engine.command_handler.dispatch_agent_run", wraps=None) as mock_dispatch, \
-         patch("app.core.engine.command_handler.run_agent_background") as mock_bg, \
+    with patch("app.core.engine.event.subscribers.dispatch_agent_run", wraps=None) as mock_dispatch, \
+         patch("app.core.engine.event.subscribers.run_agent_background") as mock_bg, \
          patch("app.core.engine.dispatch.session_scope", scope), \
          patch("app.core.monitoring.activity.activity_monitor.start_run", new_callable=AsyncMock), \
          patch("app.domain.project.reference_service.reference_service.process_references", new_callable=AsyncMock) as mock_refs:
@@ -266,7 +266,7 @@ async def test_unified_inputs_structure_across_all_entrypoints(fake_session):
     produce BackgroundAgentInputs with the same required keys.
     """
     from app.api.routes.agent import chat_endpoint, ChatRequest
-    from app.core.engine.command_handler import EngineCommandHandler
+    from app.core.engine.event.subscribers import EngineCommandHandler
     from app.core.evocloud.schemas import RemoteCommand
     from app.core.engine.dispatch import dispatch_agent_run
 

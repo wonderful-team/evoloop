@@ -187,18 +187,16 @@ class EvoContextMiddleware:
 
         # 7. Domain Expert Polishing (Event-Driven)
         try:
-            from app.core.events import system_bus
-            from app.core.events.base import BaseEvent
-            from app.core.events.registry import SystemEventType
-            polishing_event = BaseEvent(
-                event_type=SystemEventType.CONTEXT_POLISHING,
-                source="context_hydrator",
-                data={
+            from app.core.events.publishers import publish_context_polishing
+            await publish_context_polishing(
+                thread_id=thread_id,
+                project_id=project_id,
+                model=model,
+                context={
                     "ctx": ctx,
                     "topic": (blackboard.ticket.topic if blackboard.ticket else ""),
-                }
+                },
             )
-            await system_bus.publish(polishing_event)
         except Exception as e:
             logger.warning(f"[Middleware] CONTEXT_POLISHING event failed: {e}")
 

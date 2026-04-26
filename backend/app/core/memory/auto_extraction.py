@@ -543,19 +543,13 @@ class AutoMemoryExtractor:
         if not project_id:
             return "No project selected."
 
-        from app.core.events import system_bus
-        from app.core.memory.events import MemoryContextGatherEvent, MemoryContextGatherData
-
-        event = MemoryContextGatherEvent(
-            project_id=project_id,
-            data=MemoryContextGatherData(project_id=project_id),
-        )
+        from app.core.memory.event.publishers import publish_memory_context_gather
 
         try:
-            # Publish and await domain handlers to fill data fields
-            await system_bus.publish(event, sequential=True)
+            event = await publish_memory_context_gather(project_id=project_id)
         except Exception as e:
             logger.warning(f"[AutoExtract] Context gather event failed: {e}")
+            return "No multi-source facts available."
 
         return event.data.to_context_string()
 

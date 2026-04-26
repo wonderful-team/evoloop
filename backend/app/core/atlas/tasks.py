@@ -3,7 +3,8 @@ import logging
 import os
 
 from app.core.atlas.models import AtlasApp
-from app.core.environment.events import UiTreeObservedEvent, event_bus
+from app.core.environment.event import UiTreeObservedEvent
+from app.core.environment.bus import event_bus
 from app.infrastructure.drivers.adb import adb_driver
 from app.infrastructure.drivers.macos import macos_driver
 # Unified task queue (Huey in embedded mode, Celery in full mode)
@@ -125,14 +126,15 @@ def map_observed_ui_task(
             stored_path = image_source if image_source and os.path.exists(image_source) else None
 
             # 5. Trigger the Atlas engine via the event bus
-            await event_bus.publish(UiTreeObservedEvent(
+            from app.core.environment.event.publishers import publish_ui_tree_observed
+            await publish_ui_tree_observed(
                 platform=platform,
                 bundle_id=final_bundle_id,
                 window_title=window_title,
                 elements=atlas_elements,
                 screenshot_hash=scene_hash,
-                version_hash=version_hash
-            ))
+                version_hash=version_hash,
+            )
 
             logger.info(f"[AtlasTask] Successfully mapped {len(atlas_elements)} elements for {final_bundle_id}")
 

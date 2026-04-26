@@ -76,12 +76,8 @@ async def lifespan(app: FastAPI):
     # (EvoCloud bridge, Discovery, Indexing, MCP, Knowledge Base)
 
     # 11. Publish Application Started Event
-    from app.core.events import system_bus, SystemEventType, BaseEvent
-    await system_bus.publish(BaseEvent(
-        event_type=SystemEventType.APP_STARTED,
-        source="main",
-        data={"startup_time": startup_time}
-    ))
+    from app.core.events.publishers import publish_app_started
+    await publish_app_started(startup_time)
     logger.info("[Startup] APP_STARTED event published")
 
     yield
@@ -92,9 +88,8 @@ async def lifespan(app: FastAPI):
     # 1. Publish Application Stopping Event
     # This triggers all decentalized LifecycleHandlers (EvoCloud, Memory, Indexing, MCP, etc.)
     try:
-        from app.core.events import system_bus, SystemEventType, BaseEvent
-        await system_bus.publish(BaseEvent(
-            event_type=SystemEventType.APP_STOPPING,
+        from app.core.events.publishers import publish_app_stopping
+        await publish_app_stopping()
             source="main",
             data={}
         ))
