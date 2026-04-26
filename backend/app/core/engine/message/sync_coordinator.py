@@ -15,7 +15,7 @@ import asyncio
 import logging
 from typing import Any
 
-from sqlalchemy import select, func
+from sqlalchemy import select
 
 from app.core.evocloud import evocloud_manager
 from app.infrastructure.database.sql.database import session_scope
@@ -41,24 +41,7 @@ class MessageSyncCoordinator:
             self._sync_locks[thread_id] = asyncio.Lock()
         return self._sync_locks[thread_id]
 
-    async def _init_last_synced_seq(self, thread_id: str) -> None:
-        """从数据库初始化 _last_synced_seq，避免进程重启后重复发送历史消息。"""
-        if thread_id in self._last_synced_seq:
-            return
-        try:
-            async with session_scope() as session:
-                stmt = (
-                    select(func.max(Message.sequence_number))
-                    .where(Message.thread_id == thread_id)
-                )
-                max_seq = (await session.execute(stmt)).scalar() or 0
-                if max_seq > 0:
-                    self._last_synced_seq[thread_id] = max_seq
-                    logger.info(
-                        f"[SyncCoordinator] Init last_synced_seq for {thread_id}: {max_seq}"
-                    )
-        except Exception as e:
-            logger.warning(f"[SyncCoordinator] Failed to init last_synced_seq: {e}")
+
 
     def reset(self):
         """重置计数器（新任务开始时调用）"""
@@ -93,9 +76,6 @@ class MessageSyncCoordinator:
         if not evocloud_manager.link or not evocloud_manager.link.is_connected():
             logger.debug("[SyncCoordinator] WebSocket not connected, skipping sync")
             return None
-
-        # 初始化 last_synced_seq（进程重启后首次同步）
-        await self._init_last_synced_seq(thread_id)
 
         async with self._get_lock(thread_id):
             try:
