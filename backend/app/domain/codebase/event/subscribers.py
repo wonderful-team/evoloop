@@ -39,7 +39,6 @@ class IndexingLifecycleHandler:
         """
         try:
             from app.core.context import thread_context_store
-            from app.core.config import settings
             from app.infrastructure.config import SystemConfigService
             from app.domain.codebase.indexing.manager import indexing_manager
             from app.domain.codebase.indexing.service import IndexingService

@@ -30,7 +30,7 @@ async def publish_memory_cleanup(
     thread_id: str, source_message_ids: list[str], run_ids: list[str] | None = None
 ) -> None:
     """Publish a memory cleanup event for rewind operations."""
-    from app.core.memory.rewind import MemoryCleanupEvent
+    from app.core.memory.event.schemas import MemoryCleanupEvent
 
     await system_bus.publish(
         MemoryCleanupEvent(

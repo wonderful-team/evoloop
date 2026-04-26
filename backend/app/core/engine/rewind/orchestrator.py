@@ -16,6 +16,7 @@ from app.core.engine.rewind.exceptions import (
     RewindError,
 )
 from app.core.engine.rewind.models import RewindResult
+from app.core.events import system_bus
 
 if TYPE_CHECKING:
     from app.core.events.base import AsyncEventBus
@@ -105,20 +106,10 @@ class RewindOrchestrator:
 
             # Phase 1: Publish main rewind event
             # Handlers will subscribe to this and perform their cleanup
-            rewind_event = RewindRequestedEvent(
-                thread_id=thread_id,
-                target_message_id=target_message_id,
-                include_target=include_target,
-                revert_files=revert_files,
-                reset_state=reset_state,
-                reason=reason,
-                affected_message_ids=affected_ids
-            )
-
             # Sequential=True is CRITICAL for SQLite to prevent 'Database is locked' errors
             # propagate_errors=True ensures we don't silently fail as requested by USER
             from app.core.engine.rewind.event.publishers import publish_rewind_requested
-            await publish_rewind_requested(
+            rewind_event = await publish_rewind_requested(
                 thread_id=thread_id,
                 target_message_id=target_message_id,
                 include_target=include_target,

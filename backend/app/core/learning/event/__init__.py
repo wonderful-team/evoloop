@@ -1,6 +1,12 @@
 """
-Event Package
-=============
+Learning Event Package
+======================
 
-Public exports for event subscribers.
+Public exports for learning event schemas and subscribers.
 """
+
+from .schemas import TraceCleanupEvent
+
+__all__ = [
+    "TraceCleanupEvent",
+]

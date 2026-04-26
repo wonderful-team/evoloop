@@ -14,7 +14,7 @@ from app.core.events import SystemEventType
 from app.core.events.base import AsyncEventBus
 from app.core.events.decorators import event_register, event_subscribe, register_instance_handlers
 from app.core.events.schema import SessionCompletedEvent
-from app.core.learning.rewind import TraceCleanupEvent
+from app.core.learning.event.schemas import TraceCleanupEvent
 from app.infrastructure.database.sql.database import session_scope
 
 logger = logging.getLogger(__name__)

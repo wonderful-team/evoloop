@@ -1,6 +1,14 @@
 """
-Event Package
-=============
+Memory Event Package
+====================
 
-Public exports for event subscribers.
+Public exports for memory event schemas and subscribers.
 """
+
+from .schemas import MemoryCleanupEvent, MemoryContextGatherEvent, MemoryContextGatherData
+
+__all__ = [
+    "MemoryCleanupEvent",
+    "MemoryContextGatherEvent",
+    "MemoryContextGatherData",
+]

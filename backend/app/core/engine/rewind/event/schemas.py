@@ -5,11 +5,11 @@ Rewind Event Schemas
 Pydantic data classes for rewind/rollback events.
 """
 
-from typing import Any
-
 from pydantic import Field, model_validator
 
 from app.core.events.base import BaseEvent
+
+from .types import RewindEventType
 
 
 class RewindEvent(BaseEvent):
@@ -89,5 +89,38 @@ class RewindFailedEvent(RewindEvent):
             "error": self.error,
             "failed_step": self.failed_step,
             "partial_results": self.partial_results,
+        }
+        return self
+
+
+class CheckpointCleanupEvent(RewindEvent):
+    """Published to trigger checkpoint deletion from SQLite."""
+    event_type: str = RewindEventType.CHECKPOINT_CLEANUP
+    checkpoint_ids: list[str] = Field(default_factory=list)
+    min_checkpoint_id: str | None = None
+
+    @model_validator(mode="after")
+    def _build_data(self):
+        self.data = {
+            "thread_id": self.thread_id,
+            "checkpoint_ids": self.checkpoint_ids,
+            "min_checkpoint_id": self.min_checkpoint_id,
+            "count": len(self.checkpoint_ids),
+        }
+        return self
+
+
+class MessagesCleanupEvent(RewindEvent):
+    """Published to trigger message deletion."""
+    event_type: str = RewindEventType.MESSAGES_CLEANUP
+    message_ids: list[str] = Field(default_factory=list)
+    delete_references: bool = True
+
+    @model_validator(mode="after")
+    def _build_data(self):
+        self.data = {
+            "thread_id": self.thread_id,
+            "message_ids": self.message_ids,
+            "count": len(self.message_ids),
         }
         return self

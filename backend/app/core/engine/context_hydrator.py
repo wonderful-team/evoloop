@@ -11,7 +11,7 @@ import logging
 import time
 from typing import Any
 
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import AIMessage
 from langchain_core.runnables import RunnableConfig
 
 from app.constants import DEFAULT_PROJECT_ID
@@ -189,9 +189,9 @@ class EvoContextMiddleware:
         try:
             from app.core.events.publishers import publish_context_polishing
             await publish_context_polishing(
-                thread_id=thread_id,
-                project_id=project_id,
-                model=model,
+                thread_id=ctx.thread_id,
+                project_id=ctx.project_id,
+                model=ctx.active_model,
                 context={
                     "ctx": ctx,
                     "topic": (blackboard.ticket.topic if blackboard.ticket else ""),

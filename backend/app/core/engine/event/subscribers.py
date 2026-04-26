@@ -302,7 +302,7 @@ class EngineCommandHandler:
             return
 
         if not should_redispatch:
-            logger.info(f"[EngineCommand] Rewind done, no re-dispatch required")
+            logger.info("[EngineCommand] Rewind done, no re-dispatch required")
             return
 
         # Retry: re-dispatch the message

@@ -6,7 +6,7 @@ Core framework for conversation rewinding and retry operations.
 
 This module provides the orchestrator, event type constants, data models,
 and exceptions. Domain-specific cleanup event classes live in their
-respective handler modules (e.g. FilesCleanupEvent in app.core.file.rewind).
+respective modules' event/schemas.py (e.g. FilesCleanupEvent in app.core.file.event.schemas).
 """
 from app.core.engine.rewind.exceptions import PartialRewindError, RewindError
 from app.core.engine.rewind.models import RewindOperation as RewindRequest, RewindResult

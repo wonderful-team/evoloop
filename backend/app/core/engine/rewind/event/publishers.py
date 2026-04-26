@@ -20,21 +20,19 @@ async def publish_rewind_requested(
     affected_message_ids: list[str] | None = None,
     sequential: bool = False,
     propagate_errors: bool = False,
-) -> None:
-    """Publish a rewind request event."""
-    await system_bus.publish(
-        RewindRequestedEvent(
-            thread_id=thread_id,
-            target_message_id=target_message_id,
-            include_target=include_target,
-            revert_files=revert_files,
-            reset_state=reset_state,
-            reason=reason,
-            affected_message_ids=affected_message_ids or [],
-        ),
-        sequential=sequential,
-        propagate_errors=propagate_errors,
+) -> RewindRequestedEvent:
+    """Publish a rewind request event. Returns the event instance for result reading."""
+    event = RewindRequestedEvent(
+        thread_id=thread_id,
+        target_message_id=target_message_id,
+        include_target=include_target,
+        revert_files=revert_files,
+        reset_state=reset_state,
+        reason=reason,
+        affected_message_ids=affected_message_ids or [],
     )
+    await system_bus.publish(event, sequential=sequential, propagate_errors=propagate_errors)
+    return event
 
 
 async def publish_rewind_completed(
@@ -79,7 +77,7 @@ async def publish_checkpoint_cleanup(
     min_checkpoint_id: str | None = None,
 ) -> None:
     """Publish a checkpoint cleanup event for rewind operations."""
-    from app.core.engine.rewind.checkpoint import CheckpointCleanupEvent
+    from app.core.engine.rewind.event.schemas import CheckpointCleanupEvent
 
     await system_bus.publish(
         CheckpointCleanupEvent(
@@ -97,7 +95,7 @@ async def publish_messages_cleanup(
     delete_references: bool = True,
 ) -> None:
     """Publish a messages cleanup event for rewind operations."""
-    from app.core.engine.rewind.message import MessagesCleanupEvent
+    from app.core.engine.rewind.event.schemas import MessagesCleanupEvent
 
     await system_bus.publish(
         MessagesCleanupEvent(

@@ -11,7 +11,7 @@ from pathlib import Path
 from app.core.engine.rewind.event import RewindEventType, RewindRequestedEvent
 from app.core.events.base import AsyncEventBus
 from app.core.events.decorators import event_register, event_subscribe, register_instance_handlers
-from app.core.file.rewind import FilesCleanupEvent
+from app.core.file.event.schemas import FilesCleanupEvent
 
 logger = logging.getLogger(__name__)
 

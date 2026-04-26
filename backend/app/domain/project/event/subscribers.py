@@ -12,13 +12,10 @@ import os
 from app.constants import PROJECT_NORM_FILES
 from app.core.context import thread_context_store
 from app.core.engine.event.schemas import WebSocketMessageReceivedEvent
-from app.core.events import system_bus
 from app.core.events.decorators import event_register, event_subscribe
 from app.core.events.registry import SystemEventType
-from app.core.memory.event import (
-    MEMORY_CONTEXT_GATHER_EVENT_TYPE,
-    MemoryContextGatherEvent,
-)
+from app.core.memory.event import MemoryContextGatherEvent
+from app.core.memory.event.types import MEMORY_CONTEXT_GATHER_EVENT_TYPE
 from app.domain.project.event import (
     ProjectCreatedEvent,
     ProjectDeletedEvent,
@@ -145,7 +142,6 @@ class ProjectLifecycleHandler:
         """
         Handle APP_STARTED: Initialize project discovery and reconcile state.
         """
-        from app.core.config import settings
         from app.domain.project.discovery_manager import discovery_manager
         
         root_projects_dir = SystemConfigService.get_value("WORKSPACE_ROOT")

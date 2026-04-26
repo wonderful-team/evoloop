@@ -20,7 +20,7 @@ from app.core.memory.event import (
     MEMORY_CONTEXT_GATHER_EVENT_TYPE,
     MemoryContextGatherEvent,
 )
-from app.domain.todo.rewind import TodoCleanupEvent
+from app.domain.todo.event.schemas import TodoCleanupEvent
 from app.infrastructure.database.sql.database import session_scope
 from app.utils import render_template
 
