@@ -2,17 +2,19 @@
 
 import React, { useCallback, useState } from 'react';
 import { View, StyleSheet, FlatList, RefreshControl } from 'react-native';
-import { Text, Card, Chip, FAB, Portal, Dialog, Button } from 'react-native-paper';
+import { Text, Card, Chip, Portal, Dialog, Button } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { router } from '@/utils/navigation';
 import { useProjects } from '@/hooks/useProjects';
 import { useAuthStore } from '@/stores/authStore';
+import { useDeviceStore } from '@/stores/deviceStore';
 import { useTheme } from '@/theme';
-import { ProjectSwitcher } from '@/components/device/ProjectSwitcher';
+
 import { Skeleton, ListSkeleton } from '@/components/ui/Skeleton';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
-import { Project } from '@/types';
+import { Header } from '@/components/common/Header';
+import { Project, GLOBAL_PROJECT, isGlobalProject } from '@/types';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 
 // 游客模式下的登录提示组件
@@ -57,14 +59,17 @@ const ProjectsContent = () => {
   const {
     projects,
     currentProject,
+    isGlobalMode,
     isLoading,
     error,
     refresh,
     switchProject,
+    setGlobalMode,
   } = useProjects({ autoFetch: isLoggedIn }); // 只有登录后才自动获取
 
+  const currentDevice = useDeviceStore(state => state.currentDevice);
+
   const [refreshing, setRefreshing] = useState(false);
-  const [switcherVisible, setSwitcherVisible] = useState(false);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [dialogVisible, setDialogVisible] = useState(false);
   const [switching, setSwitching] = useState(false);
@@ -87,15 +92,22 @@ const ProjectsContent = () => {
 
   const handleSwitch = useCallback(async () => {
     if (!selectedProject) return;
-    
+
     setSwitching(true);
     try {
-      await switchProject(selectedProject.id);
+      if (isGlobalProject(selectedProject)) {
+        setGlobalMode(true);
+      } else if (!currentDevice) {
+        // 没有选中设备时不能切换项目
+        return;
+      } else {
+        await switchProject(selectedProject.id);
+      }
       setDialogVisible(false);
     } finally {
       setSwitching(false);
     }
-  }, [selectedProject, switchProject]);
+  }, [selectedProject, switchProject, setGlobalMode, currentDevice]);
 
   const renderItem = useCallback(({ item }: { item: Project }) => (
     <Card
@@ -152,32 +164,12 @@ const ProjectsContent = () => {
 
   return (
     <SafeAreaView style={styles.container}>
+      <Header title={t('projects.title') || '项目管理'} showBack />
+
       <View style={styles.pageHeader}>
-        <Text variant="headlineMedium" style={styles.title}>
-          {t('projects.title')}
+        <Text variant="bodySmall" style={{ opacity: 0.6 }}>
+          {isGlobalMode ? '当前为全局模式' : currentProject ? `当前项目: ${currentProject.name}` : '请选择项目'}
         </Text>
-        {currentProject && (
-          <Card style={[styles.currentCard, { backgroundColor: colors.surfaceVariant }]}>
-            <Card.Content style={styles.currentCardContent}>
-              <MaterialIcons name="folder-open" size={24} color={colors.primary} />
-              <View style={styles.currentInfo}>
-                <Text variant="bodySmall" style={styles.currentLabel}>
-                  当前项目
-                </Text>
-                <Text variant="titleSmall" numberOfLines={1}>
-                  {currentProject.name}
-                </Text>
-              </View>
-              <Button
-                mode="text"
-                onPress={() => setSwitcherVisible(true)}
-                compact
-              >
-                切换
-              </Button>
-            </Card.Content>
-          </Card>
-        )}
       </View>
 
       {error ? (
@@ -204,22 +196,58 @@ const ProjectsContent = () => {
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
           }
+          ListHeaderComponent={
+            <Card
+              style={[
+                styles.card,
+                styles.globalCard,
+                isGlobalMode && [styles.activeCard, { borderColor: colors.primary }],
+              ]}
+              onPress={() => {
+                setSelectedProject(GLOBAL_PROJECT);
+                setDialogVisible(true);
+              }}
+            >
+              <Card.Content>
+                <View style={styles.itemHeader}>
+                  <View style={[styles.iconContainer, { backgroundColor: '#E3F2FD' }]}>
+                    <MaterialIcons name="public" size={28} color="#1976D2" />
+                  </View>
+                  <View style={styles.info}>
+                    <Text variant="titleMedium" style={styles.name}>
+                      全局模式
+                    </Text>
+                    <Text variant="bodySmall" style={styles.path}>
+                      跨项目对话与一般问答
+                    </Text>
+                  </View>
+                  {isGlobalMode && (
+                    <Chip
+                      icon="check-circle"
+                      compact
+                      style={[styles.activeChip, { backgroundColor: colors.primaryContainer }]}
+                      textStyle={{ color: colors.primary }}
+                    >
+                      当前
+                    </Chip>
+                  )}
+                </View>
+              </Card.Content>
+            </Card>
+          }
         />
       )}
-
-      <ProjectSwitcher
-        visible={switcherVisible}
-        onDismiss={() => setSwitcherVisible(false)}
-        onSelect={() => {}}
-        currentProjectId={currentProject?.id}
-      />
 
       <Portal>
         <Dialog visible={dialogVisible} onDismiss={() => setDialogVisible(false)}>
           <Dialog.Title>{selectedProject?.name}</Dialog.Title>
           <Dialog.Content>
             <Text variant="bodyMedium">
-              切换到此项目？这将同步到所有已连接的设备。
+              {selectedProject?.isGlobal
+                ? '切换到全局模式？在此模式下可进行跨项目对话与一般问答。'
+                : currentDevice
+                  ? `切换到此项目？该项目将在设备「${currentDevice.name}」上激活。`
+                  : '请先选择设备，再切换项目。'}
             </Text>
           </Dialog.Content>
           <Dialog.Actions>
@@ -236,12 +264,7 @@ const ProjectsContent = () => {
         </Dialog>
       </Portal>
 
-      <FAB
-        icon="swap-horizontal"
-        style={[styles.fab, { backgroundColor: colors.primary }]}
-        onPress={() => setSwitcherVisible(true)}
-        label="切换项目"
-      />
+
     </SafeAreaView>
   );
 }
@@ -267,20 +290,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 12,
   },
-  currentCard: {
-    marginBottom: 8,
-  },
-  currentCardContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  currentInfo: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  currentLabel: {
-    opacity: 0.6,
-  },
   list: {
     padding: 8,
   },
@@ -290,6 +299,10 @@ const styles = StyleSheet.create({
   },
   activeCard: {
     borderWidth: 2,
+  },
+  globalCard: {
+    marginBottom: 12,
+    backgroundColor: '#FAFBFC',
   },
   itemHeader: {
     flexDirection: 'row',
@@ -337,12 +350,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     color: '#757575',
-  },
-  fab: {
-    position: 'absolute',
-    margin: 16,
-    right: 0,
-    bottom: 0,
   },
   // 游客模式样式
   guestContainer: {

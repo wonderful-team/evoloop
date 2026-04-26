@@ -28,10 +28,11 @@ export const BASE_URL = API_CONFIG.baseURL;
 export const GATEWAY_BASE_URL = `${API_CONFIG.baseURL}/gateway`;
 
 // WebSocket 配置
+// NOTE: Metro cache-bust marker v2
 export const WS_CONFIG = {
   baseURL: EVOCLOUD_BASE_WS_URL || 'ws://127.0.0.1',
-  reconnectInterval: 3000,
-  maxReconnectAttempts: 5,
+  reconnectBaseInterval: 2000,   // 首次重连等待 2s
+  reconnectMaxInterval: 60000,   // 最长间隔 60s
   heartbeatInterval: 30000,
 };
 

@@ -3,8 +3,10 @@
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, ScrollView } from 'react-native';
 import { List, Switch, Divider, Text, Button, Slider } from 'react-native-paper';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/theme';
+import { Header } from '@/components/common/Header';
 import { AudioRecorder } from '@/services/voice/AudioRecorder';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -75,10 +77,10 @@ export default function VoiceSettingsScreen() {
   };
 
   return (
-    <ScrollView
-      style={[styles.container, { backgroundColor: colors.background }]}
-    >
-      {/* 权限状态 */}
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <Header title="语音设置" showBack />
+      <ScrollView>
+        {/* 权限状态 */}
       <View style={styles.permissionCard}>
         <Text variant="titleMedium" style={{ color: colors.onSurface }}>
           麦克风权限
@@ -220,7 +222,8 @@ export default function VoiceSettingsScreen() {
       </View>
 
       <View style={styles.bottomPadding} />
-    </ScrollView>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 

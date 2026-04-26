@@ -25,6 +25,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '@/stores/authStore';
 import { useTheme } from '@/theme';
 import { router } from '@/utils/navigation';
+import { Header } from '@/components/common/Header';
 import { maskMobile, formatDate } from '@/utils/format';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { useSubscription } from '@/hooks/useSubscription';
@@ -226,6 +227,7 @@ function GuestProfile() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <Header title={t('profile.title') || '个人中心'} showBack />
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* 头部 */}
         <View style={styles.guestHeader}>
@@ -436,6 +438,7 @@ function UserProfile() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <Header title={t('profile.title') || '个人中心'} showBack />
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* 用户信息头部 - 左右排列 */}
         <View style={styles.userHeader}>

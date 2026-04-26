@@ -3,8 +3,10 @@
 import { create } from 'zustand';
 import { Conversation, ConversationHistoryResponse } from '@/types/conversation';
 import { ChatMessage } from '@/types/conversation';
+import { AgentSyncMessage } from '@/services/gateway/agentMessage';
 import * as conversationApi from '@/services/api/conversations';
 import { isAuthError } from '@/utils/error';
+import { adaptAgentMessages, deduplicateMessages } from '@/utils/messageAdapter';
 
 interface ConversationState {
   // 会话列表
@@ -21,7 +23,7 @@ interface ConversationState {
   firstMessageId: string | null;
 
   // 操作
-  setCurrentConversation: (id: string | null) => void;
+  setCurrentConversation: (id: string | null, skipLoadMessages?: boolean) => void;
   loadConversations: (projectId?: number, refresh?: boolean) => Promise<void>;
   loadMoreConversations: (projectId?: number) => Promise<void>;
   createConversation: (projectId?: number, initialMessage?: string) => Promise<string>;
@@ -29,6 +31,7 @@ interface ConversationState {
   loadMessages: (conversationId: string, refresh?: boolean) => Promise<void>;
   loadMoreMessages: (conversationId: string) => Promise<void>;
   addMessage: (message: ChatMessage) => void;
+  syncMessages: (messages: AgentSyncMessage[]) => void;
   updateLastMessage: (updates: Partial<ChatMessage>) => void;
   clearMessages: () => void;
   clearConversations: () => void;
@@ -54,16 +57,20 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
   firstMessageId: null,
 
   // 设置当前会话
-  setCurrentConversation: (id) => {
+  setCurrentConversation: (id, skipLoadMessages = false) => {
+    const prevId = get().currentConversationId;
+
     set({
       currentConversationId: id,
-      messages: [], // 切换会话时清空消息
+      // 真正切换会话（从 A 到 B，且 A 不为 null）时才清空消息
+      // 首次设置（null -> id）保留乐观更新的用户消息
+      messages: prevId !== null && prevId !== id ? [] : get().messages,
       hasMoreMessages: true,
       firstMessageId: null,
     });
 
-    // 如果设置了新会话，加载消息
-    if (id) {
+    // 如果设置了新会话，加载消息（可跳过，例如 Gateway 创建的会话 PHP 中不存在）
+    if (id && !skipLoadMessages) {
       get().loadMessages(id);
     }
   },
@@ -173,6 +180,19 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
   // 添加消息
   addMessage: (message) => {
     set({ messages: [...get().messages, message] });
+  },
+
+  // 从 Agent 即时推送同步单条消息到 UI（绕过 PHP API）
+  syncMessages: (incomingMessages) => {
+    if (!incomingMessages || incomingMessages.length === 0) return;
+
+    const existingMessages = get().messages;
+    const adapted = adaptAgentMessages(incomingMessages);
+    const newMessages = deduplicateMessages(existingMessages, adapted);
+
+    if (newMessages.length === 0) return;
+
+    set({ messages: [...existingMessages, ...newMessages] });
   },
 
   // 更新最后一条消息

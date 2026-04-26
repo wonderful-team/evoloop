@@ -3,6 +3,7 @@ import { View, StyleSheet, ScrollView, Linking } from 'react-native';
 import { List, Divider, Text, Avatar } from 'react-native-paper';
 import { router } from '@/utils/navigation';
 import { useTranslation } from 'react-i18next';
+import { Header } from '@/components/common/Header';
 import { useAuthStore } from '@/stores/authStore';
 import { useTheme } from '@/theme';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -29,6 +30,7 @@ export default function SettingsScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <Header title="设置" showBack />
       <ScrollView>
         {/* 用户信息卡片 */}
         <View style={styles.userCard}>

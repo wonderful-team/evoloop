@@ -12,7 +12,7 @@ interface UseProjectsOptions {
 export function useProjects(options: UseProjectsOptions = {}) {
   const { autoFetch = true } = options;
   const store = useProjectStore();
-  const { projects, currentProject, isLoading, error } = store;
+  const { projects, currentProject, isGlobalMode, isLoading, error } = store;
 
   // 自动获取项目列表
   useEffect(() => {
@@ -36,15 +36,22 @@ export function useProjects(options: UseProjectsOptions = {}) {
     ProjectManager.setCurrentProject(project);
   }, []);
 
+  // 设置全局模式
+  const setGlobalMode = useCallback((enabled: boolean) => {
+    store.setGlobalMode(enabled);
+  }, [store]);
+
   return {
     projects,
     currentProject,
+    isGlobalMode,
     isLoading,
     error,
-    projectCount: projects.length,
+    projectCount: (projects || []).length,
     refresh,
     switchProject,
     setCurrentProject,
+    setGlobalMode,
   };
 }
 
@@ -52,7 +59,7 @@ export function useProjects(options: UseProjectsOptions = {}) {
 export function useProject(projectId: number | null) {
   const store = useProjectStore();
   const project = projectId
-    ? store.projects.find((p) => p.id === projectId)
+    ? (store.projects || []).find((p) => p.id === projectId)
     : null;
 
   const switchToThis = useCallback(async () => {

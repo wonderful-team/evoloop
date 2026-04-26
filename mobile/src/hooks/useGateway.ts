@@ -95,6 +95,11 @@ export function useGateway(options: UseGatewayOptions = {}) {
     return client.reconnect();
   }, [client]);
 
+  // 重置退避并立即尝试连接（适合 App 回到前台、网络恢复时调用）
+  const resetBackoff = useCallback(() => {
+    client.resetBackoff();
+  }, [client]);
+
   // 发送消息
   const send = useCallback(
     (message: GatewayMessage) => {
@@ -109,6 +114,7 @@ export function useGateway(options: UseGatewayOptions = {}) {
     connect,
     disconnect,
     reconnect,
+    resetBackoff,
     send,
     client,
   };

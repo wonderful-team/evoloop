@@ -79,6 +79,7 @@ export interface UseDeviceControlReturn {
   // HITL 状态
   hitlRequest: HumanRequest | null;
   isWaitingForHuman: boolean;
+  setHitlRequest: (request: HumanRequest | null) => void;
 
   // 待确认指令
   pendingCommand: PendingCommand | null;
@@ -184,8 +185,8 @@ export function useDeviceControl(options: UseDeviceControlOptions = {}): UseDevi
       throw new Error(friendlyMsg);
     }
 
-    // 链路一不立即返回 AI 消息，由 Desktop 处理后上报到 MC
-    // Mobile 通过后台轮询从 MC 获取结果
+    // 链路一：消息由 Desktop Agent 通过 WebSocket 即时推送到 Mobile
+    // Agent 产生消息时直接调用 _push_to_mobile()，不再依赖 MC 轮询
     onMessageSent?.({
       commandId: data.command_id || 0,
       threadId: data.data?.thread_id || options?.conversationId || '',

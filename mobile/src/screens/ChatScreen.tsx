@@ -8,7 +8,6 @@ import {
   Platform,
   TouchableOpacity,
   StatusBar,
-  Alert,
   Modal,
   Animated,
   PermissionsAndroid,
@@ -19,7 +18,6 @@ import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import {
   Text,
   Snackbar,
-  Menu,
   Portal,
   Dialog,
   Button,
@@ -36,23 +34,20 @@ import { useDeviceControl } from '@/hooks/useDeviceControl';
 import { useTTS, useAutoSpeak } from '@/hooks/useTTS';
 import { useWakeWord, useWakeWordSettings } from '@/hooks/useWakeWord';
 import { useConversationStore } from '@/stores/conversationStore';
-import { useProjectStore } from '@/stores/projectStore';
 import { useTheme } from '@/theme';
 import { useAuthStore } from '@/stores/authStore';
 import { useDeviceStore } from '@/stores/deviceStore';
-import { Project, Device } from '@/types';
+import { useProjects } from '@/hooks/useProjects';
+import { Device } from '@/types';
 import { ChatMessage, MessageReference } from '@/types/conversation';
 import type { ChatAttachment } from '@/services/api/upload';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import Video from 'react-native-video';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { generateUUID } from '@/utils/uuid';
 import { getGatewayClient } from '@/services/gateway/GatewayClient';
-import { GatewayMessageType } from '@/services/gateway/types';
-
-// 游客默认项目
-const GUEST_PROJECTS: Project[] = [
-  { id: 0, name: '示例项目', rootPath: '/demo', description: '游客体验项目', isActive: true },
-];
+import { GatewayMessageType, ConnectionState } from '@/services/gateway/types';
+import { AgentSyncMessage, AgentCommandComplete } from '@/services/gateway/agentMessage';
+import { parseHITLRequest } from '@/utils/messageAdapter';
 
 export default function ChatScreen() {
   const { t } = useTranslation();
@@ -65,64 +60,85 @@ export default function ChatScreen() {
     token: authStore.token ? 'exists' : 'null',
     hasUserInfo: !!authStore.userInfo
   });
-  const { currentProject } = useProjectStore();
+
+  // 从 MC 拉取项目列表（登录后才请求）
+  const { currentProject } = useProjects({ autoFetch: isLoggedIn });
 
   // 输入模式
   const [inputMode, setInputMode] = useState<InputMode>(InputMode.VOICE);
 
   // UI 状态
-  const [showProjectMenu, setShowProjectMenu] = useState(false);
   const [showHistoryDrawer, setShowHistoryDrawer] = useState(false);
   const [snackbarVisible, setSnackbarVisible] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [showRewindDialog, setShowRewindDialog] = useState(false);
+  const [gatewayConnectionState, setGatewayConnectionState] = useState<ConnectionState>(ConnectionState.DISCONNECTED);
   const [pendingRewindMessageId, setPendingRewindMessageId] = useState<string | null>(null);
   const [pendingRetryMessageId, setPendingRetryMessageId] = useState<string | null>(null);
   const [hasFileOperations, setHasFileOperations] = useState(false);
 
-  // 设备-对话映射缓存
+  // 设备-对话映射缓存（从 AsyncStorage 恢复）
   const [deviceConversationMap, setDeviceConversationMap] = useState<Record<string, string>>({});
 
-  // 保存设备-对话映射（仅内存，不持久化）
-  const saveDeviceConversation = useCallback((deviceKey: string, conversationId: string | null) => {
-    const map = { ...deviceConversationMap };
-    if (conversationId) {
-      map[deviceKey] = conversationId;
-    } else {
-      delete map[deviceKey];
-    }
-    setDeviceConversationMap(map);
-  }, [deviceConversationMap]);
+  // 从 AsyncStorage 加载设备-对话映射
+  useEffect(() => {
+    AsyncStorage.getItem('device_conversation_map')
+      .then((saved) => {
+        if (saved) {
+          try {
+            setDeviceConversationMap(JSON.parse(saved));
+          } catch {
+            // 解析失败静默处理
+          }
+        }
+      })
+      .catch(() => {
+        // 读取失败静默处理
+      });
+  }, []);
 
-  // 设备变化时：恢复该设备的最近对话，没有则显示 Welcome
+  // 保存设备-对话映射（内存 + AsyncStorage）
+  const saveDeviceConversation = useCallback((deviceKey: string, conversationId: string | null) => {
+    setDeviceConversationMap((prev) => {
+      const map = { ...prev };
+      if (conversationId) {
+        map[deviceKey] = conversationId;
+      } else {
+        delete map[deviceKey];
+      }
+      AsyncStorage.setItem('device_conversation_map', JSON.stringify(map)).catch(() => {});
+      return map;
+    });
+  }, []);
+
+  // 设备变化时：进入全局模式 → 刷新对话列表 → 恢复该设备的最近对话 / Welcome
   useEffect(() => {
     if (!isLoggedIn || !selectedDevice?.deviceKey) return;
 
+    // 1. 切到全局模式（安全兜底，新项目状态未知）
+    setGlobalMode(true);
+
+    // 2. 重新加载对话列表（全局模式 = 不筛选项目）
+    loadConversations(undefined, true);
+
+    // 3. 恢复该设备的最近对话
     const conversationId = deviceConversationMap[selectedDevice.deviceKey];
     if (conversationId) {
-      // 检查该对话是否还在列表中（可能被删除）
       const exists = conversations.some(c => c.id === conversationId);
       if (exists && currentConversationId !== conversationId) {
-        console.log('[ChatScreen] Restore device conversation:', selectedDevice.deviceKey, '->', conversationId);
         setCurrentConversation(conversationId);
       } else if (!exists) {
-        // 对话已被删除，清除映射
         saveDeviceConversation(selectedDevice.deviceKey, null);
         if (currentConversationId !== null) {
           setCurrentConversation(null);
         }
       }
     } else {
-      // 没有映射，显示 Welcome
       if (currentConversationId !== null) {
         setCurrentConversation(null);
       }
     }
-  }, [selectedDevice?.deviceKey, isLoggedIn, deviceConversationMap, conversations, currentConversationId, setCurrentConversation, saveDeviceConversation]);
-
-  // 项目状态
-  const [projects, setProjects] = useState<Project[]>(GUEST_PROJECTS);
-  const [currentProjectState, setCurrentProjectState] = useState<Project>(GUEST_PROJECTS[0]);
+  }, [selectedDevice?.deviceKey, isLoggedIn, deviceConversationMap, conversations, currentConversationId, setCurrentConversation, saveDeviceConversation, setGlobalMode, loadConversations]);
 
   // TTS 音频播放器引用
   const ttsPlayerRef = useRef<Video | null>(null);
@@ -138,6 +154,7 @@ export default function ChatScreen() {
     createConversation,
     addMessage,
     loadMessages,
+    syncMessages,
     rewindConversation,
     retryConversation,
     addToMemory,
@@ -156,19 +173,6 @@ export default function ChatScreen() {
       setTtsAudioUri(uri);
     });
   }, [setAudioPlayer]);
-
-  // 加载项目
-  useEffect(() => {
-    const loadProjects = async () => {
-      if (!isLoggedIn) {
-        const saved = await AsyncStorage.getItem('guest_current_project');
-        if (saved) setCurrentProjectState(JSON.parse(saved));
-      } else if (currentProject) {
-        setCurrentProjectState(currentProject);
-      }
-    };
-    loadProjects();
-  }, [isLoggedIn, currentProject]);
 
   // ========== NLS 语音识别 ==========
   const {
@@ -204,6 +208,7 @@ export default function ChatScreen() {
     isSending,
     hitlRequest,
     isWaitingForHuman: isHITLWaiting,
+    setHitlRequest,
     pendingCommand,
     quotaExhaustedInfo,
     isQuotaExhausted,
@@ -222,6 +227,15 @@ export default function ChatScreen() {
     },
     onMessageSent: (result) => {
       console.log('消息已发送:', result);
+
+      // 新会话时 Gateway 会返回 thread_id，必须设置到 currentConversationId
+      // 否则后续 message_sync / command_complete 的 thread_id 匹配会失败，消息被丢弃
+      if (result.threadId && !currentConversationId) {
+        console.log('[ChatScreen] Setting currentConversationId from Gateway:', result.threadId);
+        // 跳过从 PHP 加载消息，后续 message_sync 会直接推送消息到 UI
+        setCurrentConversation(result.threadId, true);
+      }
+
       // 链路二（直连 LLM）：立即显示 AI 回复
       if (result.aiMessage) {
         const aiMessage: ChatMessage = {
@@ -243,41 +257,76 @@ export default function ChatScreen() {
   // 从 deviceStore 获取当前选中的设备
   const { currentDevice: selectedDevice } = useDeviceStore();
 
+  // 使用 ref 存储 currentConversationId，避免 WebSocket useEffect 因 conversationId 变化而重新执行
+  // 否则发送第一条消息时（conversationId 从 null 变为 threadId）会导致 WebSocket 断线重连，丢失 Agent 推送的消息
+  const currentConversationIdRef = useRef(currentConversationId);
+  useEffect(() => {
+    currentConversationIdRef.current = currentConversationId;
+  }, [currentConversationId]);
+
   // ========== Gateway WebSocket 连接（接收 Desktop Agent 回复通知） ==========
   useEffect(() => {
     if (!isLoggedIn) return;
 
     const client = getGatewayClient();
 
-    const handleNewMessages = (message: any) => {
-      console.log('[ChatScreen] Gateway new_messages:', message);
-      // Go Gateway sendResponse 把 payload 包装在 data 字段中
+    // 即时消息推送处理（Agent → Gateway → Mobile）
+    // Agent 通过 _push_to_mobile() 直接发送单条消息，不再经过批量同步
+    const handleMessageSync = (message: { data: AgentSyncMessage }) => {
+      console.log('[ChatScreen] Gateway message_sync:', message);
+      const msg = message.data;
+      const threadId = msg?.thread_id;
+
+      // 使用 ref 获取最新的 conversationId，避免闭包捕获旧值
+      if (!threadId || threadId !== currentConversationIdRef.current) return;
+      if (!msg) return;
+
+      // 1. 检查是否是 HITL 消息，立即弹窗
+      const hitlRequest = parseHITLRequest(msg);
+      if (hitlRequest) {
+        setHitlRequest(hitlRequest);
+        console.log('[ChatScreen] HITL request triggered:', hitlRequest);
+      }
+
+      // 2. 直接同步单条消息到 UI
+      syncMessages([msg]);
+    };
+
+    // Agent 完成信号
+    const handleCommandComplete = (message: { data: AgentCommandComplete }) => {
+      console.log('[ChatScreen] Gateway command_complete:', message);
       const payload = message.data;
-      const threadId = payload?.data?.thread_id;
-      if (threadId && threadId === currentConversationId) {
-        loadMessages(threadId, true);
-        showSnackbar('收到新消息');
+      const threadId = payload?.thread_id;
+      // 使用 ref 获取最新的 conversationId
+      if (threadId && threadId === currentConversationIdRef.current) {
+        // Agent 已完成，停止 loading 状态
+        // 消息已通过 message_sync 同步到 UI，无需再从 PHP 加载
+        showSnackbar('Agent 已完成');
       }
     };
 
-    const handleLogStreaming = (message: any) => {
-      console.log('[ChatScreen] Gateway log_streaming:', message);
-      // 可选：在 UI 上显示 AI 思考/工具执行进度
+    // 监听连接状态变化（用于顶部提示条）
+    const handleStateChange = (state: ConnectionState) => {
+      setGatewayConnectionState(state);
     };
 
-    client.on(GatewayMessageType.NEW_MESSAGES || 'new_messages', handleNewMessages);
-    client.on('log_streaming', handleLogStreaming);
+    client.on('stateChange', handleStateChange);
+    client.on(GatewayMessageType.MESSAGE_SYNC || 'message_sync', handleMessageSync);
+    client.on('command_complete', handleCommandComplete);
 
-    client.connect().catch((err: any) => {
-      console.log('[ChatScreen] Gateway connect error:', err);
+    client.connect().catch(() => {
+      // 错误通过 stateChange 事件通知，不打印日志
     });
 
     return () => {
-      client.off(GatewayMessageType.NEW_MESSAGES || 'new_messages', handleNewMessages);
-      client.off('log_streaming', handleLogStreaming);
+      client.off('stateChange', handleStateChange);
+      client.off(GatewayMessageType.MESSAGE_SYNC || 'message_sync', handleMessageSync);
+      client.off('command_complete', handleCommandComplete);
       client.disconnect();
     };
-  }, [isLoggedIn, currentConversationId, loadMessages]);
+    // 注意：currentConversationId 不在依赖数组中，使用 ref 获取最新值
+    // 避免发送第一条消息时 WebSocket 断线重连导致消息丢失
+  }, [isLoggedIn, syncMessages]);
 
   // 自动朗读 AI 回复
   useEffect(() => {
@@ -309,19 +358,10 @@ export default function ChatScreen() {
     // deviceKey 是可选的，如果没有选择设备，直接通过 Gateway 和 LLM 对话
     // 不需要强制选择设备
 
-    // 如果没有会话，先创建会话
+    // 注意：不再调用 PHP createConversation API（list() 只是获取列表，不创建会话）
+    // 新会话由 Gateway 在收到无 thread_id 的请求时自动生成，
+    // 生成的 thread_id 通过 onMessageSent 回调返回并设置到 currentConversationId
     let conversationId = currentConversationId;
-    if (!conversationId) {
-      console.log('[ChatScreen] No conversation, creating new one...');
-      try {
-        conversationId = await createConversation(currentProjectState?.id);
-        console.log('[ChatScreen] Created conversation:', conversationId);
-      } catch (error: any) {
-        console.error('[ChatScreen] Failed to create conversation:', error);
-        showSnackbar('创建会话失败: ' + error.message);
-        return;
-      }
-    }
 
     let finalText = text;
 
@@ -372,7 +412,7 @@ export default function ChatScreen() {
         console.log('[ChatScreen] Send failed (quota exhausted):', errorText);
       }
     }
-  }, [currentConversationId, sendMessageToDevice, createConversation, currentProjectState, selectedDevice, addMessage, saveDeviceConversation]);
+  }, [currentConversationId, sendMessageToDevice, selectedDevice, addMessage, saveDeviceConversation]);
 
   // 请求麦克风权限
   const requestMicrophonePermission = useCallback(async () => {
@@ -440,15 +480,6 @@ export default function ChatScreen() {
       // 注意：实际发送在 useNLS 的 onResult 回调中处理（isFinal=true 时）
     }
   }, [nlsIsRecording, stopNLS]);
-
-  const handleSwitchProject = useCallback(async (project: Project) => {
-    setCurrentProjectState(project);
-    setShowProjectMenu(false);
-    if (!isLoggedIn) {
-      await AsyncStorage.setItem('guest_current_project', JSON.stringify(project));
-    }
-    showSnackbar(`已切换到: ${project.name}`);
-  }, [isLoggedIn]);
 
   const handleGoToProfile = useCallback(() => {
     router.push('Profile');
@@ -566,13 +597,17 @@ export default function ChatScreen() {
 
   // 添加到记忆
   const handleAddToMemory = useCallback(async (text: string) => {
-    if (!currentProjectState?.id) {
+    if (!currentProject) {
       showSnackbar('请先选择项目');
+      return;
+    }
+    if (currentProject.isGlobal) {
+      showSnackbar('全局模式下无法添加记忆');
       return;
     }
 
     try {
-      await addToMemory(currentProjectState.id, {
+      await addToMemory(currentProject.id, {
         name: '从对话学习',
         description: text,
       });
@@ -580,7 +615,7 @@ export default function ChatScreen() {
     } catch (error: any) {
       showSnackbar('添加记忆失败: ' + error.message);
     }
-  }, [currentProjectState?.id, addToMemory]);
+  }, [currentProject, addToMemory]);
 
   // 引用消息
   const handleQuote = useCallback((message: ChatMessage) => {
@@ -631,40 +666,9 @@ export default function ChatScreen() {
               <MaterialIcons name="history" size={24} color={colors.primary} />
             </TouchableOpacity>
 
-            {/* 项目选择器 */}
-            <Menu
-              visible={showProjectMenu}
-              onDismiss={() => setShowProjectMenu(false)}
-              anchor={
-                <TouchableOpacity
-                  style={styles.projectSelector}
-                  onPress={() => setShowProjectMenu(true)}
-                >
-                  <MaterialIcons name="folder" size={18} color={colors.primary} />
-                  <Text
-                    variant="titleMedium"
-                    style={[styles.projectName, { color: colors.onSurface }]}
-                    numberOfLines={1}
-                  >
-                    {currentProjectState?.name}
-                  </Text>
-                  <MaterialIcons name="arrow-drop-down" size={20} color={colors.onSurfaceVariant} />
-                </TouchableOpacity>
-              }
-            >
-              {projects.map((p) => (
-                <Menu.Item
-                  key={p.id}
-                  onPress={() => handleSwitchProject(p)}
-                  title={p.name}
-                  leadingIcon={currentProjectState?.id === p.id ? 'check' : undefined}
-                />
-              ))}
-            </Menu>
-
             {/* 设备选择器 - 点击进入设备列表页面 */}
             <TouchableOpacity
-              style={[styles.projectSelector, { marginLeft: 8 }]}
+              style={styles.projectSelector}
               onPress={() => router.push('Devices')}
             >
               <MaterialIcons
@@ -681,17 +685,33 @@ export default function ChatScreen() {
               </Text>
               <MaterialIcons name="chevron-right" size={20} color={colors.onSurfaceVariant} />
             </TouchableOpacity>
-          </View>
 
-          {/* 调试按钮（仅开发模式） */}
-          {__DEV__ && (
+            {/* 项目选择器 - 独立于设备，支持全局模式 */}
             <TouchableOpacity
-              style={styles.iconBtn}
-              onPress={() => router.push('Debug')}
+              style={styles.projectSelector}
+              onPress={() => {
+                if (!isLoggedIn) {
+                  router.push('Auth');
+                } else {
+                  router.push('Projects');
+                }
+              }}
             >
-              <MaterialIcons name="bug-report" size={24} color={colors.warning} />
+              <MaterialIcons
+                name={currentProject?.isGlobal ? 'public' : 'folder'}
+                size={18}
+                color={colors.primary}
+              />
+              <Text
+                variant="titleMedium"
+                style={[styles.projectName, { color: colors.onSurface }]}
+                numberOfLines={1}
+              >
+                {currentProject?.name || '全局模式'}
+              </Text>
+              <MaterialIcons name="chevron-right" size={20} color={colors.onSurfaceVariant} />
             </TouchableOpacity>
-          )}
+          </View>
 
           {/* 右侧我的按钮 */}
           <TouchableOpacity
@@ -713,6 +733,45 @@ export default function ChatScreen() {
               游客模式 - 点击登录
             </Text>
           </TouchableOpacity>
+        )}
+
+        {/* ===== Gateway 连接状态提示（登录后非已连接状态时显示） ===== */}
+        {isLoggedIn && gatewayConnectionState !== ConnectionState.CONNECTED && (
+          <View style={[styles.connectionBanner, {
+            backgroundColor:
+              gatewayConnectionState === ConnectionState.ERROR ? '#FFEBEE' :
+              gatewayConnectionState === ConnectionState.RECONNECTING ? '#FFF3E0' :
+              '#F5F5F5',
+          }]}>
+            <MaterialIcons
+              name={
+                gatewayConnectionState === ConnectionState.ERROR ? 'error-outline' :
+                gatewayConnectionState === ConnectionState.RECONNECTING ? 'sync' :
+                'cloud-off'
+              }
+              size={16}
+              color={
+                gatewayConnectionState === ConnectionState.ERROR ? '#D32F2F' :
+                gatewayConnectionState === ConnectionState.RECONNECTING ? '#F57C00' :
+                '#757575'
+              }
+            />
+            <Text
+              variant="bodySmall"
+              style={{
+                marginLeft: 8,
+                color:
+                  gatewayConnectionState === ConnectionState.ERROR ? '#D32F2F' :
+                  gatewayConnectionState === ConnectionState.RECONNECTING ? '#F57C00' :
+                  '#757575',
+              }}
+            >
+              {gatewayConnectionState === ConnectionState.CONNECTING ? '连接中...' :
+               gatewayConnectionState === ConnectionState.RECONNECTING ? '重连中...' :
+               gatewayConnectionState === ConnectionState.ERROR ? '连接失败' :
+               'Gateway 已断开'}
+            </Text>
+          </View>
         )}
 
         {/* ===== 实时识别文字（显示在顶部） ===== */}
@@ -782,7 +841,7 @@ export default function ChatScreen() {
           autoSpeak={autoSpeak}
           onToggleAutoSpeak={toggleAutoSpeak}
           isSpeaking={isTTSSpeaking}
-          projectId={currentProjectState?.id}
+          projectId={currentProject?.id}
           conversationId={currentConversationId || undefined}
           wakeWordEnabled={wakeWordEnabled}
           isWakeWordListening={isWakeWordListening}
@@ -860,7 +919,7 @@ export default function ChatScreen() {
             ]}
           >
             <ThreadList
-              projectId={currentProjectState?.id}
+              projectId={currentProject?.id}
               onSelectThread={handleSelectThread}
               onNewThread={handleNewThread}
             />
@@ -904,6 +963,8 @@ const styles = StyleSheet.create({
   projectSelector: {
     flexDirection: 'row',
     alignItems: 'center',
+    flex: 1,
+    justifyContent: 'center',
   },
   projectName: {
     marginLeft: 6,
@@ -916,6 +977,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 8,
+    marginHorizontal: 12,
+    marginBottom: 8,
+    borderRadius: 8,
+  },
+  connectionBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 6,
     marginHorizontal: 12,
     marginBottom: 8,
     borderRadius: 8,

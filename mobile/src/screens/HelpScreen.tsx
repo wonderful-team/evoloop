@@ -3,6 +3,7 @@ import { View, StyleSheet, ScrollView, Linking } from 'react-native';
 import { List, Divider, Text, Card, Button, TextInput, Portal, Dialog } from 'react-native-paper';
 import { useTheme } from '@/theme';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Header } from '@/components/common/Header';
 import { BASE_URL } from '@/constants/config';
 
 const FAQ_ITEMS = [
@@ -61,6 +62,7 @@ export default function HelpScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <Header title="帮助中心" showBack />
       <ScrollView>
         {/* 快速操作 */}
         <Card style={styles.quickActionsCard}>

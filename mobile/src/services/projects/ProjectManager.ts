@@ -1,8 +1,9 @@
 // 项目管理服务
 
 import { projectApi } from '@/services/api/projects';
-import { Project } from '@/types';
+import { Project, GLOBAL_PROJECT, isGlobalProject } from '@/types';
 import { useProjectStore } from '@/stores/projectStore';
+import { useDeviceStore } from '@/stores/deviceStore';
 
 export class ProjectManager {
   // 获取项目列表
@@ -13,15 +14,12 @@ export class ProjectManager {
 
     try {
       const projects = await projectApi.getProjects();
-      store.setProjects(projects);
+      store.setProjects(projects || []);
       
-      // 设置当前项目（如果没有设置的话）
+      // 设置当前项目（如果没有设置的话，默认进入全局模式）
       const currentProject = store.currentProject;
-      if (!currentProject && projects.length > 0) {
-        const activeProject = projects.find(p => p.isActive);
-        if (activeProject) {
-          store.setCurrentProject(activeProject);
-        }
+      if (!currentProject) {
+        store.setCurrentProject(GLOBAL_PROJECT);
       }
       
       return projects;
@@ -34,23 +32,47 @@ export class ProjectManager {
     }
   }
 
-  // 切换项目
+  // 切换项目（支持全局模式）
+  // 项目归属于设备，指令只发送给当前选中的设备
   static async switchProject(projectId: number): Promise<Project> {
     const store = useProjectStore.getState();
+    const deviceStore = useDeviceStore.getState();
+    const currentDevice = deviceStore.currentDevice;
     store.setLoading(true);
 
     try {
-      const result = await projectApi.switchProject({ project_id: projectId });
-      
+      // 全局模式：直接更新 store，不调用 Gateway
+      if (projectId === 0 || isGlobalProject({ id: projectId } as Project)) {
+        const projects = (store.projects || []).map(p => ({
+          ...p,
+          isActive: false,
+        }));
+        store.setProjects(projects);
+        store.setCurrentProject(GLOBAL_PROJECT);
+        return GLOBAL_PROJECT;
+      }
+
+      // 非全局模式：向当前设备发送 project_switch 指令
+      await projectApi.switchProject({
+        deviceKey: currentDevice?.deviceKey || '',
+        projectId,
+      });
+
+      // 从列表中找到目标项目
+      const targetProject = (store.projects || []).find(p => p.id === projectId);
+      if (!targetProject) {
+        throw new Error('项目不存在');
+      }
+
       // 更新本地项目状态
-      const projects = store.projects.map(p => ({
+      const projects = (store.projects || []).map(p => ({
         ...p,
         isActive: p.id === projectId,
       }));
       store.setProjects(projects);
-      store.setCurrentProject(result.project);
-      
-      return result.project;
+      store.setCurrentProject(targetProject);
+
+      return targetProject;
     } finally {
       store.setLoading(false);
     }

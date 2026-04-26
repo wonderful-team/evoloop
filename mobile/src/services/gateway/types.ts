@@ -37,8 +37,8 @@ export enum GatewayMessageType {
   // 状态广播
   STATUS_UPDATE = 'status_update',
 
-  // 消息通知
-  NEW_MESSAGES = 'new_messages',
+  // 消息同步（Agent → Gateway → Mobile 统一协议）
+  MESSAGE_SYNC = 'message_sync',
 
   // HITL (Human-in-the-Loop)
   HUMAN_REQUEST = 'human_request',

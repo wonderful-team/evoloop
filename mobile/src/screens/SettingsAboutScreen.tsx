@@ -1,7 +1,9 @@
 import React from 'react';
 import { View, StyleSheet, ScrollView, Linking } from 'react-native';
 import { List, Divider, Text, Card, Avatar } from 'react-native-paper';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/theme';
+import { Header } from '@/components/common/Header';
 import DeviceInfo from 'react-native-device-info';
 import { BASE_URL } from '@/constants/config';
 
@@ -24,24 +26,24 @@ export default function AboutScreen() {
   };
 
   return (
-    <ScrollView
-      style={[styles.container, { backgroundColor: colors.background }]}
-    >
-      {/* 应用信息 */}
-      <View style={styles.header}>
-        <Avatar.Text
-          size={100}
-          label="E"
-          style={{ backgroundColor: colors.primary, marginBottom: 16 }}
-          labelStyle={{ fontSize: 48, fontWeight: 'bold' }}
-        />
-        <Text variant="headlineMedium" style={{ color: colors.onSurface }}>
-          EvoLoop
-        </Text>
-        <Text variant="bodyMedium" style={{ color: colors.onSurfaceVariant }}>
-          版本 {appVersion} ({buildNumber})
-        </Text>
-      </View>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <Header title="关于" showBack />
+      <ScrollView>
+        {/* 应用信息 */}
+        <View style={styles.header}>
+          <Avatar.Text
+            size={100}
+            label="E"
+            style={{ backgroundColor: colors.primary, marginBottom: 16 }}
+            labelStyle={{ fontSize: 48, fontWeight: 'bold' }}
+          />
+          <Text variant="headlineMedium" style={{ color: colors.onSurface }}>
+            EvoLoop
+          </Text>
+          <Text variant="bodyMedium" style={{ color: colors.onSurfaceVariant }}>
+            版本 {appVersion} ({buildNumber})
+          </Text>
+        </View>
 
       <Divider />
 
@@ -113,7 +115,8 @@ export default function AboutScreen() {
       </View>
 
       <View style={styles.bottomPadding} />
-    </ScrollView>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 

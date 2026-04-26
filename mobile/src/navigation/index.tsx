@@ -63,6 +63,7 @@ export default function RootNavigator() {
       <Stack.Screen name="Help" component={HelpScreen} />
       <Stack.Screen name="Profile" component={ProfileScreen} />
       <Stack.Screen name="Devices" component={DevicesScreen} />
+      <Stack.Screen name="Projects" component={ProjectsScreen} />
 
       {/* 调试测试 */}
       <Stack.Screen name="Debug" component={DebugScreen} />

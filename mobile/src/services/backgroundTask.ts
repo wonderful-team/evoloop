@@ -36,7 +36,8 @@ async function checkNewMessages(): Promise<boolean> {
     }
 
     const latestConversation = data.data.list[0];
-    const conversationId = latestConversation.conversation_id;
+    // API 返回字段是 id，不是 conversation_id
+    const conversationId = latestConversation.id || latestConversation.conversation_id;
 
     // 获取该对话的最新消息
     let messagesData: any;

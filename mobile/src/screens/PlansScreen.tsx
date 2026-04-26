@@ -5,6 +5,7 @@ import { View, StyleSheet, ScrollView, RefreshControl } from 'react-native';
 import { Text, Card, Button, Chip, ActivityIndicator, Divider } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
+import { Header } from '@/components/common/Header';
 import { router } from '@/utils/navigation';
 import { useCallback, useMemo } from 'react';
 import { useSubscriptionPlans, useSubscription, useIsDowngrade } from '@/hooks/useSubscription';
@@ -238,6 +239,7 @@ export default function PlansScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      <Header title="选择会员方案" showBack />
       <ScrollView
         style={styles.content}
         refreshControl={
@@ -246,13 +248,10 @@ export default function PlansScreen() {
       >
         {/* 头部信息 */}
         <View style={styles.header}>
-          <Text variant="headlineMedium" style={styles.title}>
-            选择会员方案
-          </Text>
           <Text variant="bodyMedium" style={styles.subtitle}>
             解锁更多 AI 能力，提升开发效率
           </Text>
-          
+
           {hasActiveSubscription && (
             <View style={styles.currentSubscription}>
               <MaterialIcons name="verified" size={20} color="#109C8F" />

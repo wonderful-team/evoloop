@@ -3,8 +3,10 @@
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, ScrollView, Alert, Image, TouchableOpacity } from 'react-native';
 import { List, Divider, Text, Button, TextInput, Portal, Dialog } from 'react-native-paper';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/theme';
+import { Header } from '@/components/common/Header';
 import { useAuthStore } from '@/stores/authStore';
 import { authApi } from '@/services/api/auth';
 import { AuthManager } from '@/services/auth/AuthManager';
@@ -219,10 +221,10 @@ export default function AccountSettingsScreen() {
   };
 
   return (
-    <ScrollView
-      style={[styles.container, { backgroundColor: colors.background }]}
-    >
-      {/* 账号信息 */}
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <Header title="账号与安全" showBack />
+      <ScrollView>
+        {/* 账号信息 */}
       <List.Section>
         <List.Subheader>账号信息</List.Subheader>
         <List.Item
@@ -397,7 +399,8 @@ export default function AccountSettingsScreen() {
       </Portal>
 
       <View style={styles.bottomPadding} />
-    </ScrollView>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 

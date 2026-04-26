@@ -21,11 +21,20 @@ export interface ProjectFile {
 
 export const projectApi = {
   // 获取项目列表 (MC 存储)
+  // 后端实际接口: GET /member/projectmanage/api/projectOpen/projects
+  // 响应格式: { code: 0, data: { list: [...] }, message: 'success' }
   getProjects: async (): Promise<Project[]> => {
-    const response = await api.get<ApiResponse<Project[]>>(
-      `/member/projectmanage/api/projects`
+    const response = await api.get<ApiResponse<{ list: any[] }>>(
+      `/member/projectmanage/api/projectOpen/projects`
     );
-    return response.data;
+    const list = response.data?.list || [];
+    return list.map((p: any) => ({
+      id: p.project_id,
+      name: p.project_name || '未命名项目',
+      description: p.project_desc || '',
+      rootPath: p.external_path || '',
+      isActive: false,
+    }));
   },
 
   // 切换项目 (指令类 → Gateway → Desktop)

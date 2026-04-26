@@ -99,7 +99,6 @@ export class GatewayClient extends EventEmitter {
         };
 
         this.ws.onerror = (error) => {
-          console.error('Gateway WebSocket 错误:', error);
           this.setState(ConnectionState.ERROR);
           this.emit('error', error);
           reject(error);
@@ -111,8 +110,8 @@ export class GatewayClient extends EventEmitter {
           this.setState(ConnectionState.DISCONNECTED);
           this.emit('disconnected', event);
 
-          // 自动重连
-          if (!event.wasClean) {
+          // 正常关闭 (1000) 或 端点离开 (1001) 不重连，其余异常都自动重连
+          if (event.code !== 1000 && event.code !== 1001) {
             this.scheduleReconnect();
           }
         };
@@ -240,7 +239,7 @@ export class GatewayClient extends EventEmitter {
       this.emit('message', message);
       this.emit(message.type, message);
     } catch (error) {
-      console.error('解析消息失败:', error);
+      // 解析错误静默处理，避免控制台刷屏
     }
   }
 
@@ -269,24 +268,40 @@ export class GatewayClient extends EventEmitter {
     }
   }
 
-  // 安排重连
-  private scheduleReconnect(): void {
-    if (this.reconnectAttempts >= WS_CONFIG.maxReconnectAttempts) {
-      console.error('重连次数已达上限');
-      this.emit('maxReconnectReached');
-      return;
-    }
+  // 计算指数退避延迟（带抖动）
+  private getReconnectDelay(): number {
+    const base = WS_CONFIG.reconnectBaseInterval;
+    const max = WS_CONFIG.reconnectMaxInterval;
+    // 指数退避: base * 2^attempts，封顶 max，再加 0~1s 抖动避免惊群
+    const delay = Math.min(max, base * Math.pow(2, this.reconnectAttempts));
+    const jitter = Math.random() * 1000;
+    return delay + jitter;
+  }
 
+  // 安排重连（无限重连 + 指数退避）
+  private scheduleReconnect(): void {
     this.reconnectAttempts++;
     this.setState(ConnectionState.RECONNECTING);
 
-    console.log(`计划重连... 尝试次数: ${this.reconnectAttempts}`);
+    const delay = this.getReconnectDelay();
+    console.log(`计划重连... 尝试次数: ${this.reconnectAttempts}, 延迟: ${Math.round(delay)}ms`);
 
     this.reconnectTimer = setTimeout(() => {
-      this.connect().catch((error) => {
-        console.error('重连失败:', error);
+      this.connect().catch(() => {
+        // 错误通过 stateChange + error 事件通知，不在控制台打印
       });
-    }, WS_CONFIG.reconnectInterval);
+    }, delay);
+  }
+
+  // 重置退避计数（App 回到前台、网络恢复时调用，可立即尝试连接）
+  resetBackoff(): void {
+    this.reconnectAttempts = 0;
+    this.clearReconnectTimer();
+    if (!this.isConnected() && this.state !== ConnectionState.CONNECTING) {
+      this.connect().catch(() => {
+        // 错误通过 stateChange + error 事件通知，不在控制台打印
+      });
+    }
   }
 
   // 清除重连定时器

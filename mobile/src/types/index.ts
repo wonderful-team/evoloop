@@ -108,12 +108,29 @@ export interface ApiResponse<T = any> {
 // ========== 项目相关类型 ==========
 
 export interface Project {
-  id: string;
+  id: number;
   name: string;
   description?: string;
+  rootPath?: string;
+  isActive?: boolean;
+  isGlobal?: boolean;
   createdAt?: string;
   updatedAt?: string;
 }
+
+// 虚拟全局项目（跨项目对话模式）
+export const GLOBAL_PROJECT: Project = {
+  id: 0,
+  name: '全局模式',
+  description: '跨项目对话与一般问答',
+  rootPath: '',
+  isActive: false,
+  isGlobal: true,
+};
+
+export const isGlobalProject = (project: Project | null): boolean => {
+  return project?.id === 0 || project?.isGlobal === true;
+};
 
 // ========== 设备相关类型 ==========
 

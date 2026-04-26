@@ -1,16 +1,18 @@
 // 项目状态管理
 
 import { create } from 'zustand';
-import { Project } from '@/types';
+import { Project, GLOBAL_PROJECT, isGlobalProject } from '@/types';
 
 interface ProjectState {
   projects: Project[];
   currentProject: Project | null;
+  isGlobalMode: boolean;
   isLoading: boolean;
   error: Error | null;
 
   setProjects: (projects: Project[]) => void;
   setCurrentProject: (project: Project | null) => void;
+  setGlobalMode: (enabled: boolean) => void;
   addProject: (project: Project) => void;
   updateProject: (id: number, updates: Partial<Project>) => void;
   removeProject: (id: number) => void;
@@ -21,12 +23,29 @@ interface ProjectState {
 export const useProjectStore = create<ProjectState>((set, get) => ({
   projects: [],
   currentProject: null,
+  isGlobalMode: false,
   isLoading: false,
   error: null,
 
   setProjects: (projects) => set({ projects }),
 
-  setCurrentProject: (project) => set({ currentProject: project }),
+  setCurrentProject: (project) => set({
+    currentProject: project,
+    isGlobalMode: isGlobalProject(project),
+  }),
+
+  setGlobalMode: (enabled) => {
+    if (enabled) {
+      set({ currentProject: GLOBAL_PROJECT, isGlobalMode: true });
+    } else {
+      const { projects } = get();
+      if (projects.length > 0) {
+        set({ currentProject: projects[0], isGlobalMode: false });
+      } else {
+        set({ currentProject: null, isGlobalMode: false });
+      }
+    }
+  },
 
   addProject: (project) => {
     const { projects } = get();

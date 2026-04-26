@@ -12,6 +12,7 @@ import { DeviceCard } from '@/components/device/DeviceCard';
 import { DeviceStatus } from '@/components/device/DeviceStatus';
 import { Skeleton, ListSkeleton } from '@/components/ui/Skeleton';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
+import { Header } from '@/components/common/Header';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 
 // 游客模式下的登录提示组件
@@ -110,11 +111,10 @@ const DevicesContent = () => {
 
   return (
     <SafeAreaView style={styles.container}>
+      <Header title="我的设备" showBack />
+
       <View style={styles.header}>
         <View style={styles.headerTop}>
-          <Text variant="headlineSmall" style={styles.title}>
-            我的设备
-          </Text>
           <Text variant="bodyMedium" style={styles.subtitle}>
             {totalCount > 0 ? `共 ${totalCount} 台设备` : '管理您的 EvoLoop 设备'}
           </Text>
