@@ -1,0 +1,60 @@
+"""
+SequenceService — Atomic thread-local sequence number generation.
+
+Replaces the race-prone SELECT MAX(sequence_number) + 1 pattern
+with a database-native atomic counter.
+"""
+
+import logging
+
+from sqlalchemy import text
+
+from app.infrastructure.database.sql.database import session_scope
+
+logger = logging.getLogger(__name__)
+
+
+class SequenceService:
+    """
+    Generate unique sequence numbers per thread.
+
+    Uses INSERT ... ON CONFLICT DO UPDATE for atomicity.
+    Works with both SQLite and PostgreSQL.
+    """
+
+    @staticmethod
+    async def next_sequence(thread_id: str) -> int:
+        """
+        Atomically get the next sequence number for a thread.
+
+        Args:
+            thread_id: The conversation thread ID
+
+        Returns:
+            The next sequence number (starting from 1)
+        """
+        async with session_scope() as session:
+            # SQLite supports INSERT ... ON CONFLICT DO UPDATE
+            # PostgreSQL supports INSERT ... ON CONFLICT DO UPDATE
+            stmt = text(
+                """
+                INSERT INTO thread_sequences (thread_id, next_seq)
+                VALUES (:thread_id, 2)
+                ON CONFLICT (thread_id) DO UPDATE
+                SET next_seq = thread_sequences.next_seq + 1
+                RETURNING next_seq - 1
+                """
+            )
+            result = await session.execute(stmt, {"thread_id": thread_id})
+            seq = result.scalar()
+            if seq is None:
+                # Fallback for databases that don't support RETURNING
+                # (should not happen with SQLite/PostgreSQL)
+                from sqlalchemy import select
+                from app.models import ThreadSequence
+
+                row = await session.execute(
+                    select(ThreadSequence.next_seq).where(ThreadSequence.thread_id == thread_id)
+                )
+                seq = row.scalar() or 1
+            return seq
