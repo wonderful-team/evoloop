@@ -9,6 +9,7 @@ import { useTheme } from '@/theme';
 import { Header } from '@/components/common/Header';
 import { AudioRecorder } from '@/services/voice/AudioRecorder';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { DEFAULT_VOICES } from '@/hooks/useTTS';
 
 interface VoiceSettings {
   autoStart: boolean;
@@ -42,6 +43,7 @@ export default function VoiceSettingsScreen() {
   const [settings, setSettings] = useState<VoiceSettings>(DEFAULT_SETTINGS);
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [showLanguageDialog, setShowLanguageDialog] = useState(false);
+  const [ttsVoice, setTtsVoice] = useState<string>('aimei');
 
   // 加载设置
   useEffect(() => {
@@ -50,6 +52,10 @@ export default function VoiceSettingsScreen() {
         const savedSettings = await AsyncStorage.getItem('voice_settings');
         if (savedSettings) {
           setSettings({ ...DEFAULT_SETTINGS, ...JSON.parse(savedSettings) });
+        }
+        const savedTtsVoice = await AsyncStorage.getItem('evoloop_tts_voice');
+        if (savedTtsVoice) {
+          setTtsVoice(savedTtsVoice);
         }
       } catch (e) {
         console.error('Failed to parse voice settings:', e);
@@ -68,6 +74,12 @@ export default function VoiceSettingsScreen() {
     const updated = { ...settings, ...newSettings };
     setSettings(updated);
     await AsyncStorage.setItem('voice_settings', JSON.stringify(updated));
+  };
+
+  // 保存 TTS 声音
+  const saveTtsVoice = async (voice: string) => {
+    setTtsVoice(voice);
+    await AsyncStorage.setItem('evoloop_tts_voice', voice);
   };
 
   // 请求麦克风权限
@@ -154,6 +166,26 @@ export default function VoiceSettingsScreen() {
           right={(props) => <List.Icon {...props} icon="chevron-right" />}
           onPress={() => setShowLanguageDialog(true)}
         />
+      </List.Section>
+
+      <Divider />
+
+      {/* TTS 语音合成设置 */}
+      <List.Section>
+        <List.Subheader>语音朗读</List.Subheader>
+        {DEFAULT_VOICES.map((voice) => (
+          <List.Item
+            key={voice.id}
+            title={voice.name}
+            description={voice.description}
+            right={(props) =>
+              ttsVoice === voice.id ? (
+                <List.Icon {...props} icon="check" color={colors.primary} />
+              ) : null
+            }
+            onPress={() => saveTtsVoice(voice.id)}
+          />
+        ))}
       </List.Section>
 
       <Divider />

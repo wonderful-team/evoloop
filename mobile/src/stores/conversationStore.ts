@@ -33,6 +33,7 @@ interface ConversationState {
   addMessage: (message: ChatMessage) => void;
   syncMessages: (messages: AgentSyncMessage[]) => void;
   updateLastMessage: (updates: Partial<ChatMessage>) => void;
+  updateMessageStatus: (messageId: string, status: ChatMessage['status']) => void;
   clearMessages: () => void;
   clearConversations: () => void;
 
@@ -71,7 +72,8 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
 
     // 如果设置了新会话，加载消息（可跳过，例如 Gateway 创建的会话 PHP 中不存在）
     if (id && !skipLoadMessages) {
-      get().loadMessages(id);
+      // 首次加载用 refresh=true，直接替换旧消息，避免并发追加导致重复
+      get().loadMessages(id, true);
     }
   },
 
@@ -142,6 +144,9 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
 
   // 加载消息
   loadMessages: async (conversationId, refresh = false) => {
+    // 防止同一个会话的并发请求导致消息重复
+    if (get().isLoadingMessages && !refresh) return;
+
     set({ isLoadingMessages: true });
 
     try {
@@ -203,6 +208,17 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
     const lastIndex = messages.length - 1;
     const updatedMessages = [...messages];
     updatedMessages[lastIndex] = { ...updatedMessages[lastIndex], ...updates };
+    set({ messages: updatedMessages });
+  },
+
+  // 更新指定消息的发送状态
+  updateMessageStatus: (messageId, status) => {
+    const { messages } = get();
+    const index = messages.findIndex(m => m.id === messageId);
+    if (index === -1) return;
+
+    const updatedMessages = [...messages];
+    updatedMessages[index] = { ...updatedMessages[index], status };
     set({ messages: updatedMessages });
   },
 

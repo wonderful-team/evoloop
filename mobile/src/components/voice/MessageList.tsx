@@ -6,21 +6,27 @@ import {
   StyleSheet,
   FlatList,
   TouchableOpacity,
+  ActivityIndicator,
 } from 'react-native';
 import { Text, Menu, Divider } from 'react-native-paper';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { ChatMessage } from '@/types/conversation';
 import { useTheme } from '@/theme';
 import { MessageContent } from '@/components/chat/MessageContent';
 import { WoodenRobot } from '@/components/WoodenRobot';
+import { useConversationStore } from '@/stores/conversationStore';
+import { shareChatMessage } from '@/utils/share';
 
 interface MessageListProps {
-  messages: ChatMessage[];
   onRewind?: (messageId: string, hasFileOperations: boolean) => void;
   onRetry?: (messageId: string, hasFileOperations: boolean) => void;
   onQuote?: (message: ChatMessage) => void;
   onForward?: (message: ChatMessage) => void;
   onAddToMemory?: (text: string) => void;
+  onResend?: (message: ChatMessage) => void;
+  /** 是否显示 AI 思考中指示器 */
+  isTyping?: boolean;
 }
 
 // 获取角色图标名
@@ -45,8 +51,9 @@ function getRoleColor(role: string, colors: any): string {
   }
 }
 
-// 单条消息组件
-function MessageItem({
+// 单条消息组件 - 用 React.memo 包装
+// 自定义比较：忽略 hasFileOperations 变化（它不影响渲染内容，只影响菜单行为）
+const MessageItem = React.memo(function MessageItem({
   message,
   isUser,
   colors,
@@ -55,6 +62,7 @@ function MessageItem({
   onQuote,
   onForward,
   onAddToMemory,
+  onResend,
   hasFileOperations,
 }: {
   message: ChatMessage;
@@ -65,6 +73,7 @@ function MessageItem({
   onQuote?: (msg: ChatMessage) => void;
   onForward?: (msg: ChatMessage) => void;
   onAddToMemory?: (text: string) => void;
+  onResend?: (msg: ChatMessage) => void;
   hasFileOperations: boolean;
 }) {
   const [menuVisible, setMenuVisible] = useState(false);
@@ -98,6 +107,12 @@ function MessageItem({
     setMenuVisible(false);
   }, [message, onForward]);
 
+  const handleShare = useCallback(async () => {
+    const sender = isUser ? '我' : 'AI';
+    await shareChatMessage(message.content, sender);
+    setMenuVisible(false);
+  }, [message.content, isUser]);
+
   const roleIcon = getRoleIcon(message.role);
   const roleColor = getRoleColor(message.role, colors);
 
@@ -128,6 +143,31 @@ function MessageItem({
             <View style={styles.messageBody}>
               <MessageContent content={message.content} isUser={isUser} />
             </View>
+
+            {/* 发送状态指示器 */}
+            {isUser && message.status && message.status !== 'sent' && (
+              <View style={styles.statusRow}>
+                {message.status === 'sending' && (
+                  <>
+                    <ActivityIndicator size={12} color={colors.onSurfaceVariant} />
+                    <Text variant="bodySmall" style={{ marginLeft: 4, color: colors.onSurfaceVariant }}>
+                      发送中
+                    </Text>
+                  </>
+                )}
+                {message.status === 'failed' && (
+                  <TouchableOpacity
+                    onPress={() => onResend?.(message)}
+                    style={styles.resendBtn}
+                  >
+                    <MaterialIcons name="error-outline" size={14} color={colors.error} />
+                    <Text variant="bodySmall" style={{ marginLeft: 4, color: colors.error }}>
+                      发送失败，点击重试
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
           </View>
         </TouchableOpacity>
       }
@@ -145,32 +185,69 @@ function MessageItem({
       {onForward && (
         <Menu.Item onPress={handleForward} title="转发" leadingIcon="share-variant" />
       )}
+      <Menu.Item onPress={handleShare} title="分享" leadingIcon="export-variant" />
       {!isUser && onAddToMemory && (
         <Menu.Item onPress={handleAddToMemory} title="添加到记忆" leadingIcon="brain" />
       )}
     </Menu>
   );
+}, (prev, next) => {
+  // 只比较影响渲染的 props，忽略 hasFileOperations（它只影响菜单行为）
+  return prev.message === next.message &&
+    prev.isUser === next.isUser &&
+    prev.colors === next.colors;
+});
+
+// 将 WelcomeView 提取到组件外部，避免每次 MessageList 重渲染时重新创建组件定义
+function WelcomeView({ colors }: { colors: any }) {
+  const [mood, setMood] = useState<'neutral' | 'happy' | 'thinking'>('happy');
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const moods: Array<'neutral' | 'happy' | 'thinking'> = ['neutral', 'happy', 'thinking'];
+      setMood(moods[Math.floor(Math.random() * moods.length)]);
+    }, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <View style={styles.welcomeContainer}>
+      <WoodenRobot primaryColor={colors.primary} mood={mood} />
+      <Text variant="headlineSmall" style={[styles.welcomeTitle, { color: colors.primary }]}>
+        EvoLoop AI
+      </Text>
+      <Text variant="bodyMedium" style={[styles.welcomeSubtitle, { color: colors.onSurfaceVariant }]}>
+        你好！我是你的木头机器人助手
+      </Text>
+      <Text variant="bodySmall" style={[styles.welcomeHint, { color: colors.onSurfaceVariant }]}>
+        点击麦克风开始语音对话
+      </Text>
+    </View>
+  );
 }
 
-export function MessageList({ messages, onRewind, onRetry, onQuote, onForward, onAddToMemory }: MessageListProps) {
+export const MessageList = React.memo(function MessageList({
+  onRewind, onRetry, onQuote, onForward, onAddToMemory, onResend, isTyping
+}: MessageListProps) {
+  const messages = useConversationStore((state) => state.messages);
   const { colors } = useTheme();
   const flatListRef = useRef<FlatList>(null);
   const isUserAtBottomRef = useRef(true);
   const lastMessageCountRef = useRef(messages.length);
 
-  // 自动滚动到底部
+  // 自动滚动到底部：只要消息数量增加（用户发送或 AI 回复），都滚动到底部
   useEffect(() => {
     const prevCount = lastMessageCountRef.current;
     const currentCount = messages.length;
     lastMessageCountRef.current = currentCount;
 
-    if (currentCount > prevCount && isUserAtBottomRef.current) {
-      const lastMessage = messages[messages.length - 1];
-      if (lastMessage?.role === 'user') {
+    if (currentCount > prevCount) {
+      // 使用 requestAnimationFrame + 短暂延迟，确保内容渲染和布局计算完成后再滚动
+      requestAnimationFrame(() => {
         setTimeout(() => {
           flatListRef.current?.scrollToEnd({ animated: true });
-        }, 100);
-      }
+        }, 50);
+      });
     }
   }, [messages]);
 
@@ -195,7 +272,9 @@ export function MessageList({ messages, onRewind, onRetry, onQuote, onForward, o
     return false;
   }, [messages]);
 
-  const renderMessage = (message: ChatMessage, index: number) => {
+  // 使用 useCallback 稳定 renderItem 引用，避免 FlatList 在 MessageList 重渲染时
+  // 因 renderItem 引用变化而重新渲染所有可见项
+  const renderMessage = useCallback((message: ChatMessage, index: number) => {
     const isUser = message.role === 'user';
     const isSystem = message.role === 'system';
 
@@ -223,6 +302,7 @@ export function MessageList({ messages, onRewind, onRetry, onQuote, onForward, o
           onQuote={onQuote}
           onForward={onForward}
           onAddToMemory={onAddToMemory}
+          onResend={onResend}
           hasFileOperations={hasFileOps}
         />
         {index < messages.length - 1 && (
@@ -230,34 +310,7 @@ export function MessageList({ messages, onRewind, onRetry, onQuote, onForward, o
         )}
       </View>
     );
-  };
-
-  function WelcomeView() {
-    const [mood, setMood] = useState<'neutral' | 'happy' | 'thinking'>('happy');
-
-    useEffect(() => {
-      const interval = setInterval(() => {
-        const moods: Array<'neutral' | 'happy' | 'thinking'> = ['neutral', 'happy', 'thinking'];
-        setMood(moods[Math.floor(Math.random() * moods.length)]);
-      }, 5000);
-      return () => clearInterval(interval);
-    }, []);
-
-    return (
-      <View style={styles.welcomeContainer}>
-        <WoodenRobot primaryColor={colors.primary} mood={mood} />
-        <Text variant="headlineSmall" style={[styles.welcomeTitle, { color: colors.primary }]}>
-          EvoLoop AI
-        </Text>
-        <Text variant="bodyMedium" style={[styles.welcomeSubtitle, { color: colors.onSurfaceVariant }]}>
-          你好！我是你的木头机器人助手
-        </Text>
-        <Text variant="bodySmall" style={[styles.welcomeHint, { color: colors.onSurfaceVariant }]}>
-          点击麦克风开始语音对话
-        </Text>
-      </View>
-    );
-  }
+  }, [colors, onRewind, onRetry, onQuote, onForward, onAddToMemory, onResend, hasFileOperationsAfter]);
 
   return (
     <FlatList
@@ -270,14 +323,38 @@ export function MessageList({ messages, onRewind, onRetry, onQuote, onForward, o
       renderItem={({ item, index }) => renderMessage(item, index)}
       onScroll={handleScroll}
       scrollEventThrottle={200}
-      ListEmptyComponent={<WelcomeView />}
+      ListEmptyComponent={<WelcomeView colors={colors} />}
+      ListFooterComponent={
+        isTyping ? (
+          <View style={styles.typingContainer}>
+            <View style={[styles.typingBubble, { backgroundColor: colors.surfaceVariant }]}>
+              <View style={[styles.typingDot, { backgroundColor: colors.primary }]} />
+              <View style={[styles.typingDot, { backgroundColor: colors.primary }]} />
+              <View style={[styles.typingDot, { backgroundColor: colors.primary }]} />
+            </View>
+            <Text variant="bodySmall" style={{ color: colors.onSurfaceVariant, marginTop: 4 }}>
+              AI 思考中...
+            </Text>
+          </View>
+        ) : null
+      }
       maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
       initialNumToRender={15}
       maxToRenderPerBatch={10}
       windowSize={10}
     />
   );
-}
+}, (prev, next) => {
+  // 自定义比较：只有 props 引用或 isTyping 变化时才重渲染
+  // 避免 ChatScreen 因高频状态（nlsVolume/nlsCurrentText）变化导致 MessageList 无辜重渲染
+  return prev.onRewind === next.onRewind &&
+    prev.onRetry === next.onRetry &&
+    prev.onQuote === next.onQuote &&
+    prev.onForward === next.onForward &&
+    prev.onAddToMemory === next.onAddToMemory &&
+    prev.onResend === next.onResend &&
+    prev.isTyping === next.isTyping;
+});
 
 const styles = StyleSheet.create({
   container: {
@@ -334,5 +411,35 @@ const styles = StyleSheet.create({
   },
   systemText: {
     fontStyle: 'italic',
+  },
+  statusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+    paddingLeft: 4,
+  },
+  resendBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  typingContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  typingBubble: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 16,
+    gap: 4,
+  },
+  typingDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    opacity: 0.6,
   },
 });

@@ -21,3 +21,7 @@ export { QuotaExhaustedBanner } from './QuotaExhaustedBanner';
 export { QuotaExhaustedCard } from './QuotaExhaustedCard';
 export { ReferencePicker } from './ReferencePicker';
 export { VoiceVisualizer, CompactVoiceVisualizer } from './VoiceVisualizer';
+export { HistoryDrawer } from './HistoryDrawer';
+export { AutoSpeakHandler } from './AutoSpeakHandler';
+export { AgentProcessingHandler } from './AgentProcessingHandler';
+export { RecognizingBanner } from './RecognizingBanner';

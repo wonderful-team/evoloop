@@ -9,6 +9,7 @@ import {
   NLS_APP_KEY,
   NLS_WS_URL,
   AMAP_KEY,
+  DASHSCOPE_API_KEY,
 } from '@env';
 
 export const APP_CONFIG = {
@@ -55,12 +56,17 @@ export const AUDIO_CONFIG = {
   maxDuration: 60000, // 最大录音时长 60s
 };
 
-// NLS 配置（阿里云实时语音识别）
+// NLS 配置（阿里云实时语音识别）—— 作为可选项保留
 export const NLS_CONFIG = {
   appKey: NLS_APP_KEY || '',
   url: NLS_WS_URL || 'wss://nls-gateway.aliyuncs.com/ws/v1',
   sampleRate: 16000,
   format: 'opus' as const, // opus 或 pcm
+};
+
+// DashScope 百炼配置（Qwen3-TTS 语音合成）
+export const DASHSCOPE_CONFIG = {
+  apiKey: DASHSCOPE_API_KEY || 'sk-39bddeb06c784ae38e2144e090b7783d',
 };
 
 // 高德地图配置

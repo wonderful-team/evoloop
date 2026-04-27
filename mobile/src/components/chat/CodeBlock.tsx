@@ -6,6 +6,7 @@ import { Text, IconButton, Menu } from 'react-native-paper';
 import SyntaxHighlighter from 'react-native-syntax-highlighter';
 import { useTheme } from '@/theme';
 import Clipboard from '@react-native-clipboard/clipboard';
+import { shareCodeBlock } from '@/utils/share';
 
 interface CodeBlockProps {
   code: string;
@@ -53,14 +54,27 @@ const languageMap: Record<string, string> = {
   angular: 'typescript',
 };
 
+// react-native-syntax-highlighter / prism 支持的语言白名单
+// 注意：'text' 不在 Prism 支持列表中，传进去会导致 Object.keys(undefined) 崩溃
+// 不在白名单中的语言直接渲染纯文本，不调用 SyntaxHighlighter
+const SUPPORTED_LANGUAGES = new Set([
+  'javascript', 'typescript', 'python', 'java', 'kotlin', 'swift',
+  'go', 'rust', 'cpp', 'c', 'csharp', 'php', 'bash', 'sql', 'json',
+  'xml', 'html', 'css', 'scss', 'less', 'markdown', 'yaml', 'dockerfile',
+  'graphql', 'ruby',
+]);
+
 export function CodeBlock({ code, language = 'text', showLineNumbers = false }: CodeBlockProps) {
   const { colors, isDark } = useTheme();
   const [copied, setCopied] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [menuVisible, setMenuVisible] = useState(false);
   
-  // 标准化语言名称
-  const normalizedLang = languageMap[language.toLowerCase()] || language.toLowerCase();
+  // 防御：language 可能为 undefined 或空字符串
+  const safeLanguage = (language || '').toLowerCase();
+  const mappedLang = languageMap[safeLanguage] || safeLanguage;
+  // 只有白名单内的语言才使用 SyntaxHighlighter，否则渲染纯文本
+  const normalizedLang = SUPPORTED_LANGUAGES.has(mappedLang) ? mappedLang : null;
   
   // 判断是否展开（代码超过10行时）
   const lineCount = code.split('\n').length;
@@ -88,10 +102,10 @@ export function CodeBlock({ code, language = 'text', showLineNumbers = false }: 
     setTimeout(() => setCopied(false), 2000);
   }, [code]);
 
-  const handleShare = useCallback(() => {
-    // 可以集成分享功能
+  const handleShare = useCallback(async () => {
+    await shareCodeBlock(code, language);
     setMenuVisible(false);
-  }, []);
+  }, [code, language]);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.surfaceVariant }]}>
@@ -150,27 +164,39 @@ export function CodeBlock({ code, language = 'text', showLineNumbers = false }: 
         </View>
       </View>
 
-      {/* 代码内容 */}
+      {/* 代码内容：白名单内语言用 SyntaxHighlighter，其他纯文本 */}
       <View style={styles.codeWrapper}>
-        <SyntaxHighlighter
-          language={normalizedLang}
-          style={isDark ? 'atomOneDark' : 'github'}
-          highlighter="prism"
-          customStyle={{
-            backgroundColor: 'transparent',
-            padding: 0,
-            margin: 0,
-          }}
-          codeTagProps={{
-            style: {
-              fontFamily: 'monospace',
-              fontSize: 13,
-              lineHeight: 20,
-            },
-          }}
-        >
-          {displayCode}
-        </SyntaxHighlighter>
+        {normalizedLang ? (
+          <SyntaxHighlighter
+            language={normalizedLang}
+            style={isDark ? 'atomOneDark' : 'github'}
+            highlighter="prism"
+            customStyle={{
+              backgroundColor: 'transparent',
+              padding: 0,
+              margin: 0,
+            }}
+            codeTagProps={{
+              style: {
+                fontFamily: 'monospace',
+                fontSize: 13,
+                lineHeight: 20,
+              },
+            }}
+          >
+            {displayCode}
+          </SyntaxHighlighter>
+        ) : (
+          <Text
+            selectable
+            style={[
+              styles.plainCode,
+              { color: colors.onSurface, fontFamily: 'monospace', fontSize: 13, lineHeight: 20 },
+            ]}
+          >
+            {displayCode}
+          </Text>
+        )}
       </View>
 
       {/* 展开/收起按钮 */}
@@ -265,5 +291,10 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     fontFamily: 'monospace',
     fontSize: 13,
+  },
+  plainCode: {
+    fontFamily: 'monospace',
+    fontSize: 13,
+    lineHeight: 20,
   },
 });

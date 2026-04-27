@@ -8,8 +8,6 @@ import {
   Platform,
   TouchableOpacity,
   StatusBar,
-  Modal,
-  Animated,
   PermissionsAndroid,
 } from 'react-native';
 import { router } from '@/utils/navigation';
@@ -24,13 +22,13 @@ import {
 } from 'react-native-paper';
 import {
   MessageList,
-  VoiceInput,
-  VoiceInputHandle,
+  VoiceInputWithNLS,
+  VoiceInputWithNLSHandle,
   InputMode,
 } from '@/components/voice';
 import { HITLBanner, HumanRequestCard } from '@/components/hitl';
-import { ThreadList, QuotaExhaustedBanner, QuotaExhaustedCard } from '@/components/chat';
-import { useNLS } from '@/hooks/useNLS';
+import { QuotaExhaustedBanner, QuotaExhaustedCard, HistoryDrawer, AutoSpeakHandler, AgentProcessingHandler, RecognizingBanner } from '@/components/chat';
+// useNLS 已移到 VoiceInputWithNLS 内部，ChatScreen 不再直接订阅 NLS 高频状态
 import { useDeviceControl } from '@/hooks/useDeviceControl';
 import { useCommands } from '@/hooks/useCommands';
 import { useTTS, useAutoSpeak } from '@/hooks/useTTS';
@@ -69,14 +67,18 @@ export default function ChatScreen() {
   const [pendingRetryMessageId, setPendingRetryMessageId] = useState<string | null>(null);
   const [hasFileOperations, setHasFileOperations] = useState(false);
   const [pendingForwardContent, setPendingForwardContent] = useState<string | null>(null);
+  const [isAgentProcessing, setIsAgentProcessing] = useState(false);
 
   // TTS 音频播放器引用
   const ttsPlayerRef = useRef<Video | null>(null);
   const [ttsAudioUri, setTtsAudioUri] = useState<string | null>(null);
+  const ttsOnEndRef = useRef<(() => void) | null>(null);
+  const ttsOnErrorRef = useRef<((error: any) => void) | null>(null);
 
   // Store
   // 状态字段 - 使用 selector 避免不必要重渲染
-  const messages = useConversationStore((state) => state.messages);
+  // ❌ 不再订阅 messages：由 MessageList 和独立 Handler 组件自行订阅
+  //    避免 ChatScreen 因消息增加而整页重渲染，导致语音按钮卡顿
   const conversations = useConversationStore((state) => state.conversations);
   const currentConversationId = useConversationStore((state) => state.currentConversationId);
 
@@ -87,12 +89,13 @@ export default function ChatScreen() {
   const addMessage = useConversationStore((state) => state.addMessage);
   const loadMessages = useConversationStore((state) => state.loadMessages);
   const syncMessages = useConversationStore((state) => state.syncMessages);
+  const updateMessageStatus = useConversationStore((state) => state.updateMessageStatus);
   const rewindConversation = useConversationStore((state) => state.rewindConversation);
   const retryConversation = useConversationStore((state) => state.retryConversation);
   const addToMemory = useConversationStore((state) => state.addToMemory);
 
   // TTS
-  const { speak, stop: stopTTS, isSpeaking: isTTSSpeaking, setAudioPlayer } = useTTS();
+  const { speak, stop: stopTTS, isSpeaking: isTTSSpeaking, setAudioPlayer, setOnStop } = useTTS();
 
   // 控制指令（stop / retry / rewind）
   const { stop: stopAgent } = useCommands();
@@ -105,37 +108,58 @@ export default function ChatScreen() {
   useEffect(() => {
     setAudioPlayer((uri: string, onEnd: () => void, onError: (error: any) => void) => {
       setTtsAudioUri(uri);
+      ttsOnEndRef.current = onEnd;
+      ttsOnErrorRef.current = onError;
     });
   }, [setAudioPlayer]);
 
-  // ========== NLS 语音识别 ==========
-  const {
-    state: nlsState,
-    isRecording: nlsIsRecording,
-    currentText: nlsCurrentText,
-    volume: nlsVolume,
-    start: startNLS,
-    stop: stopNLS,
-  } = useNLS({
-    onResult: (text, isFinal) => {
-      if (isFinal) {
-        // 一句话识别完成，发送给后端对话
-        handleSendMessage(text);
-      }
-    },
-    onError: (error: any) => {
-      const errorMsg = error?.message || '';
-      // 检查是否为登录相关错误
-      if (errorMsg.includes('登录') || errorMsg.includes('authorization') || errorMsg.includes('401')) {
-        showSnackbar('语音功能需要登录');
-        router.push('Auth');
-      } else {
-        showSnackbar('语音识别错误: ' + errorMsg);
-      }
-    },
-  });
+  // 注册 TTS 停止回调：stopTTS() 被调用时自动卸载 Video 组件（彻底停止音频播放）
+  useEffect(() => {
+    setOnStop(() => {
+      setTtsAudioUri(null);
+      ttsOnEndRef.current = null;
+      ttsOnErrorRef.current = null;
+    });
+  }, [setOnStop]);
+
+  // Snackbar 工具函数（提前定义，供下方回调使用）
+  const showSnackbar = useCallback((message: string) => {
+    setSnackbarMessage(message);
+    setSnackbarVisible(true);
+  }, []);
 
   // ========== 设备控制（HTTP 版本） ==========
+  // 使用 useCallback 稳定回调引用，避免 ChatScreen 重渲染导致 useDeviceControl 内部重建
+  const handleDeviceError = useCallback((error: any) => {
+    showSnackbar('发送失败: ' + error.message);
+  }, [showSnackbar]);
+
+  const handleMessageSent = useCallback((result: any) => {
+    // 使用 getState() 避免依赖 currentConversationId 导致重建
+    const currentId = useConversationStore.getState().currentConversationId;
+
+    // 新会话时 Gateway 会返回 thread_id，必须设置到 currentConversationId
+    // 否则后续 message_sync / command_complete 的 thread_id 匹配会失败，消息被丢弃
+    if (result.threadId && !currentId) {
+      // 跳过从 PHP 加载消息，后续 message_sync 会直接推送消息到 UI
+      setCurrentConversation(result.threadId, true);
+    }
+
+    // 链路二（直连 LLM）：立即显示 AI 回复
+    if (result.aiMessage) {
+      addMessage({
+        id: generateUUID(),
+        role: 'assistant',
+        content: result.aiMessage,
+        timestamp: Date.now(),
+        isComplete: true,
+      });
+    } else {
+      // 链路一（转发 Desktop）：显示发送成功，等待后台轮询
+      showSnackbar('消息已发送');
+    }
+  }, [setCurrentConversation, addMessage, showSnackbar]);
+
   const {
     state: deviceState,
     isSending,
@@ -150,35 +174,10 @@ export default function ChatScreen() {
     cancelHITL,
     clearQuotaExhausted,
   } = useDeviceControl({
-    onError: (error: any) => showSnackbar('发送失败: ' + error.message),
-    onCommandReady: (command) => {
-    },
-    onHITLRequest: (request) => {
-    },
-    onMessageSent: (result) => {
-
-      // 新会话时 Gateway 会返回 thread_id，必须设置到 currentConversationId
-      // 否则后续 message_sync / command_complete 的 thread_id 匹配会失败，消息被丢弃
-      if (result.threadId && !currentConversationId) {
-        // 跳过从 PHP 加载消息，后续 message_sync 会直接推送消息到 UI
-        setCurrentConversation(result.threadId, true);
-      }
-
-      // 链路二（直连 LLM）：立即显示 AI 回复
-      if (result.aiMessage) {
-        const aiMessage: ChatMessage = {
-          id: generateUUID(),
-          role: 'assistant',
-          content: result.aiMessage,
-          timestamp: Date.now(),
-          isComplete: true,
-        };
-        addMessage(aiMessage);
-      } else {
-        // 链路一（转发 Desktop）：显示发送成功，等待后台轮询
-        showSnackbar('消息已发送');
-      }
-    },
+    onError: handleDeviceError,
+    onCommandReady: () => {},
+    onHITLRequest: () => {},
+    onMessageSent: handleMessageSent,
   });
 
   // 从 deviceStore 获取当前选中的设备
@@ -198,15 +197,9 @@ export default function ChatScreen() {
     setCurrentConversationId(currentConversationId);
   }, [currentConversationId, setCurrentConversationId]);
 
-  // 自动朗读 AI 回复
-  useEffect(() => {
-    if (autoSpeak && messages.length > 0) {
-      const lastMessage = messages[messages.length - 1];
-      if (lastMessage.role === 'assistant' && lastMessage.isComplete) {
-        speak(lastMessage.content);
-      }
-    }
-  }, [messages, autoSpeak, speak]);
+  const clearAgentProcessing = useCallback(() => {
+    setIsAgentProcessing(false);
+  }, []);
 
   useEffect(() => {
     if (isLoggedIn) {
@@ -214,10 +207,27 @@ export default function ChatScreen() {
     }
   }, [isLoggedIn]);
 
-  const showSnackbar = (message: string) => {
-    setSnackbarMessage(message);
-    setSnackbarVisible(true);
-  };
+  // 重发失败消息
+  const handleResend = useCallback(async (message: ChatMessage) => {
+    updateMessageStatus(message.id, 'sending');
+    try {
+      await sendMessageToDevice({
+        type: 'text',
+        text: message.content,
+      }, {
+        conversationId: currentConversationId || undefined,
+        deviceKey: selectedDevice?.deviceKey,
+        references: message.references,
+      });
+      updateMessageStatus(message.id, 'sent');
+    } catch (error: unknown) {
+      updateMessageStatus(message.id, 'failed');
+      const errorText = getErrorMessage(error);
+      if (!isQuotaError(error)) {
+        showSnackbar('发送失败: ' + errorText);
+      }
+    }
+  }, [currentConversationId, sendMessageToDevice, selectedDevice, updateMessageStatus]);
 
   // 发送消息（HTTP 版本）
   const handleSendMessage = useCallback(async (text: string, options?: { attachments?: ChatAttachment[]; references?: MessageReference[] }) => {
@@ -251,6 +261,7 @@ export default function ChatScreen() {
       content: finalText,
       timestamp: Date.now(),
       isComplete: true,
+      status: 'sending',
     };
     addMessage(userMessage);
 
@@ -265,18 +276,29 @@ export default function ChatScreen() {
         references: options?.references,
       });
 
+      // 发送成功：标记为已送达
+      updateMessageStatus(userMessage.id, 'sent');
+
+      // 链路一（Desktop）：显示 AI 思考中指示器
+      if (selectedDevice?.deviceKey) {
+        setIsAgentProcessing(true);
+      }
+
       // 发送成功：更新设备-对话映射
       if (selectedDevice?.deviceKey && conversationId) {
         saveDeviceConversation(selectedDevice.deviceKey, conversationId);
       }
     } catch (error: unknown) {
+      // 发送失败：标记为失败
+      updateMessageStatus(userMessage.id, 'failed');
+
       const errorText = getErrorMessage(error);
       // 配额耗尽由专门的 UI 卡片提示，其他错误用 snackbar
       if (!isQuotaError(error)) {
         showSnackbar('发送失败: ' + errorText);
       }
     }
-  }, [currentConversationId, sendMessageToDevice, selectedDevice, addMessage, saveDeviceConversation]);
+  }, [currentConversationId, sendMessageToDevice, selectedDevice, addMessage, saveDeviceConversation, updateMessageStatus]);
 
   // 请求麦克风权限
   const requestMicrophonePermission = useCallback(async () => {
@@ -301,46 +323,57 @@ export default function ChatScreen() {
     return true;
   }, []);
 
-  // ========== 按住说话模式 ==========
-  const handleVoicePressIn = useCallback(async () => {
-    if (isTTSSpeaking) {
-      // 打断 AI 讲话
-      stopTTS();
-      return;
-    }
-
+  // ========== 按住说话模式（前置检查，实际录音由 VoiceInputWithNLS 内部管理） ==========
+  const handleBeforeStartRecording = useCallback(async (): Promise<boolean> => {
     // 未登录时提示并跳转登录页
     if (!isLoggedIn) {
       showSnackbar('语音功能需要登录');
       router.push('Auth');
-      return;
+      return false;
     }
 
     // 请求录音权限
     const hasPermission = await requestMicrophonePermission();
     if (!hasPermission) {
       showSnackbar('没有录音权限，无法使用语音功能');
-      return;
+      return false;
     }
 
-    // 启动 NLS 录音
-    try {
-      await startNLS();
-    } catch (error: unknown) {
-      showSnackbar('语音识别启动失败: ' + getErrorMessage(error));
-    }
-  }, [isTTSSpeaking, isLoggedIn, startNLS, stopTTS, requestMicrophonePermission]);
-
-  const handleVoicePressOut = useCallback(async () => {
-    if (nlsIsRecording) {
-      await stopNLS();
-      // 注意：实际发送在 useNLS 的 onResult 回调中处理（isFinal=true 时）
-    }
-  }, [nlsIsRecording, stopNLS]);
+    return true;
+  }, [isLoggedIn, requestMicrophonePermission, showSnackbar]);
 
   const handleGoToProfile = useCallback(() => {
     router.push('Profile');
   }, []);
+
+  // 稳定内联回调引用，避免传给 MessageList / VoiceInput 时导致子组件无辜重渲染
+  const handleForward = useCallback((msg: ChatMessage) => {
+    setPendingForwardContent(msg.content);
+    setShowHistoryDrawer(true);
+  }, []);
+
+  const handleInterrupt = useCallback(() => {
+    stopTTS();
+    // 同时停止 Agent 生成（如果正在运行）
+    if (currentConversationId) {
+      stopAgent(currentConversationId).catch(() => {});
+    }
+  }, [stopTTS, currentConversationId, stopAgent]);
+
+  const handleToggleMode = useCallback(() => {
+    setInputMode(m => m === InputMode.VOICE ? InputMode.TEXT : InputMode.VOICE);
+  }, []);
+
+  // NLS 错误处理（稳定引用，避免 VoiceInputWithNLS 无辜重渲染）
+  const handleNLSError = useCallback((error: Error) => {
+    const errorMsg = error?.message || '';
+    if (errorMsg.includes('登录') || errorMsg.includes('authorization') || errorMsg.includes('401')) {
+      showSnackbar('语音功能需要登录');
+      router.push('Auth');
+    } else {
+      showSnackbar('语音识别错误: ' + errorMsg);
+    }
+  }, [showSnackbar]);
 
   // 处理选择历史会话
   const handleSelectThread = useCallback((threadId: string) => {
@@ -366,24 +399,7 @@ export default function ChatScreen() {
     }
   }, [setCurrentConversation, selectedDevice, saveDeviceConversation, pendingForwardContent, sendMessageToDevice]);
 
-  // 抽屉动画
-  const slideAnim = useRef(new Animated.Value(-320)).current;
 
-  useEffect(() => {
-    if (showHistoryDrawer) {
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 250,
-        useNativeDriver: true,
-      }).start();
-    } else {
-      Animated.timing(slideAnim, {
-        toValue: -320,
-        duration: 200,
-        useNativeDriver: true,
-      }).start();
-    }
-  }, [showHistoryDrawer]);
 
   // 处理新建会话
   const handleNewThread = useCallback(() => {
@@ -505,7 +521,7 @@ export default function ChatScreen() {
   }, [currentProject, addToMemory]);
 
   // 引用消息
-  const voiceInputRef = useRef<VoiceInputHandle>(null);
+  const voiceInputRef = useRef<VoiceInputWithNLSHandle>(null);
 
   // 引用消息：长按消息后，将消息添加到 VoiceInput 的引用列表
   const handleQuote = useCallback((message: ChatMessage) => {
@@ -517,21 +533,7 @@ export default function ChatScreen() {
     });
   }, []);
 
-  // 状态（仅 NLS）
-  // 将 NLSState 映射为 VoiceSessionState
-  const mapNLSStateToVoiceState = (nlsState: string): string => {
-    switch (nlsState) {
-      case 'connected': return 'listening';  // NLS 连接成功 = 正在监听
-      case 'error': return 'idle';           // 错误状态显示为 idle
-      default: return nlsState;              // idle, connecting, recognizing 直接映射
-    }
-  };
-  const combinedState = nlsIsRecording ? mapNLSStateToVoiceState(nlsState) : 'idle';
   const isAgentSpeaking = isTTSSpeaking;
-
-  // 调试：监听 NLS 状态变化
-  useEffect(() => {
-  }, [nlsState, nlsIsRecording, combinedState]);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -667,16 +669,8 @@ export default function ChatScreen() {
           </View>
         )}
 
-        {/* ===== 实时识别文字（显示在顶部） ===== */}
-        {nlsIsRecording && nlsCurrentText && (
-          <View style={[styles.recognizingBanner, { backgroundColor: colors.surfaceVariant }]}>
-            <MaterialIcons name="mic" size={16} color={colors.primary} />
-            <Text variant="bodySmall" style={{ color: colors.onSurface, marginLeft: 8, flex: 1 }}>
-              {nlsCurrentText}
-            </Text>
-            <View style={[styles.volumeIndicator, { width: nlsVolume * 50 }]} />
-          </View>
-        )}
+        {/* ===== 实时识别文字（独立组件，自行订阅 NLS Store） ===== */}
+        <RecognizingBanner />
 
         {/* ===== HITL 横幅 ===== */}
         <HITLBanner />
@@ -692,15 +686,13 @@ export default function ChatScreen() {
         {/* ===== 消息列表（核心区域） ===== */}
         <View style={styles.messagesArea}>
           <MessageList
-            messages={messages}
             onRewind={handleRewind}
             onRetry={handleRetry}
             onQuote={handleQuote}
-            onForward={(msg) => {
-              setPendingForwardContent(msg.content);
-              setShowHistoryDrawer(true);
-            }}
+            onForward={handleForward}
             onAddToMemory={handleAddToMemory}
+            onResend={handleResend}
+            isTyping={isAgentProcessing}
           />
           {isQuotaExhausted && (
             <QuotaExhaustedCard
@@ -722,24 +714,16 @@ export default function ChatScreen() {
           />
         )}
 
-        {/* ===== 底部输入区 ===== */}
-        <VoiceInput
+        {/* ===== 底部输入区（VoiceInput + NLS 自行管理） ===== */}
+        <VoiceInputWithNLS
           ref={voiceInputRef}
-          state={combinedState}
           onSendText={handleSendMessage}
-          onPressIn={handleVoicePressIn}
-          onPressOut={handleVoicePressOut}
-          onInterrupt={() => {
-            stopTTS();
-            // 同时停止 Agent 生成（如果正在运行）
-            if (currentConversationId) {
-              stopAgent(currentConversationId).catch(() => {});
-            }
-          }}
-          disabled={false}
+          onBeforeStartRecording={handleBeforeStartRecording}
+          onFinalResult={handleSendMessage}
+          onError={handleNLSError}
+          onInterrupt={handleInterrupt}
           inputMode={inputMode}
-          onToggleMode={() => setInputMode(m => m === InputMode.VOICE ? InputMode.TEXT : InputMode.VOICE)}
-          nlsVolume={nlsVolume}
+          onToggleMode={handleToggleMode}
           autoSpeak={autoSpeak}
           onToggleAutoSpeak={toggleAutoSpeak}
           isSpeaking={isTTSSpeaking}
@@ -747,19 +731,35 @@ export default function ChatScreen() {
           conversationId={currentConversationId || undefined}
           wakeWordEnabled={wakeWordEnabled}
           isWakeWordListening={isWakeWordListening}
-          transcriptionText={nlsCurrentText}
         />
+
+        {/* ===== TTS 自动朗读（副作用组件，自行订阅 messages） ===== */}
+        <AutoSpeakHandler speak={speak} />
+
+        {/* ===== AI 思考中超时处理（副作用组件） ===== */}
+        <AgentProcessingHandler isProcessing={isAgentProcessing} onTimeout={() => setIsAgentProcessing(false)} />
       </KeyboardAvoidingView>
 
       {/* ===== TTS 音频播放器（隐藏） ===== */}
+      {/* paused 绑定 isTTSSpeaking：stopTTS() 后自动暂停，不需要手动清空 ttsAudioUri */}
       {ttsAudioUri && (
         <Video
           ref={ttsPlayerRef}
           source={{ uri: ttsAudioUri }}
           audioOnly
-          paused={false}
-          onEnd={() => setTtsAudioUri(null)}
-          onError={() => setTtsAudioUri(null)}
+          paused={!isTTSSpeaking}
+          onEnd={() => {
+            setTtsAudioUri(null);
+            ttsOnEndRef.current?.();
+            ttsOnEndRef.current = null;
+            ttsOnErrorRef.current = null;
+          }}
+          onError={(error) => {
+            setTtsAudioUri(null);
+            ttsOnErrorRef.current?.(error);
+            ttsOnEndRef.current = null;
+            ttsOnErrorRef.current = null;
+          }}
           style={{ width: 0, height: 0 }}
         />
       )}
@@ -806,33 +806,13 @@ export default function ChatScreen() {
       </Snackbar>
 
       {/* ===== 历史会话抽屉 ===== */}
-      <Modal
+      <HistoryDrawer
         visible={showHistoryDrawer}
-        transparent={true}
-        animationType="none"
-        onRequestClose={() => setShowHistoryDrawer(false)}
-      >
-        <View style={styles.modalContainer}>
-          <Animated.View
-            style={[
-              styles.drawer,
-              { backgroundColor: colors.background },
-              { transform: [{ translateX: slideAnim }] },
-            ]}
-          >
-            <ThreadList
-              projectId={currentProject?.id}
-              onSelectThread={handleSelectThread}
-              onNewThread={handleNewThread}
-            />
-          </Animated.View>
-          <TouchableOpacity
-            style={styles.overlay}
-            activeOpacity={1}
-            onPress={() => setShowHistoryDrawer(false)}
-          />
-        </View>
-      </Modal>
+        onClose={() => setShowHistoryDrawer(false)}
+        projectId={currentProject?.id}
+        onSelectThread={handleSelectThread}
+        onNewThread={handleNewThread}
+      />
     </View>
   );
 }
@@ -912,18 +892,5 @@ const styles = StyleSheet.create({
   messagesArea: {
     flex: 1,
     marginHorizontal: 12,
-  },
-  // 抽屉模态框
-  modalContainer: {
-    flex: 1,
-    flexDirection: 'row',
-  },
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.3)',
-  },
-  drawer: {
-    width: 320,
-    height: '100%',
   },
 });

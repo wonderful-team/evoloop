@@ -110,7 +110,6 @@ export interface UseDeviceControlReturn {
 export function useDeviceControl(options: UseDeviceControlOptions = {}): UseDeviceControlReturn {
   const { onError, onCommandReady, onHITLRequest, onMessageSent } = options;
   const { token } = useAuthStore();
-  const { messages } = useConversationStore();
 
   const [state, setState] = useState<DeviceControlState>('idle');
   const hitlRequest = useHITLStore((state) => state.currentRequest);
@@ -233,7 +232,8 @@ export function useDeviceControl(options: UseDeviceControlOptions = {}): UseDevi
     }
 
     // 构建多轮对话消息上下文（仅包含 user 和 assistant 消息）
-    const contextMessages = messages
+    // 使用 getState() 避免订阅 messages 导致不必要的重渲染
+    const contextMessages = useConversationStore.getState().messages
       .filter(m => m.role === 'user' || m.role === 'assistant')
       .map(m => ({ role: m.role, content: m.content }));
     contextMessages.push({ role: 'user', content: userContent });
@@ -290,7 +290,7 @@ export function useDeviceControl(options: UseDeviceControlOptions = {}): UseDevi
       aiMessage: aiMessage,
       mode: 'direct_llm',
     });
-  }, [token, messages, onMessageSent]);
+  }, [token, onMessageSent]);
 
   /**
    * 发送消息 - 自动根据 deviceKey 选择链路
@@ -402,6 +402,7 @@ export function useDeviceControl(options: UseDeviceControlOptions = {}): UseDevi
     isSending: state === 'sending',
     hitlRequest,
     isWaitingForHuman: !!hitlRequest,
+    setHitlRequest,
     pendingCommand,
     quotaExhaustedInfo,
     isQuotaExhausted: !!quotaExhaustedInfo,

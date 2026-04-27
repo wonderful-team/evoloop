@@ -117,7 +117,7 @@ export async function getConversationHistory(
   if (beforeMessageId) params.append('before_message_id', beforeMessageId);
   params.append('limit', limit.toString());
   
-  const response = await api.get(`/member/evolooplink/api/conversation/messages?conversation_id=${conversationId}&${params.toString()}`);
+  const response = await api.get(`/member/evolooplink/api/conversation/messages?${params.toString()}`);
   
   if (response.code !== 0) {
     throw new Error(response.message || '获取消息历史失败');

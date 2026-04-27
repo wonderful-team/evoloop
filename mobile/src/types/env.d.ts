@@ -10,5 +10,6 @@ declare module '@env' {
   export const WECHAT_APP_SECRET: string | undefined;
   export const NLS_APP_KEY: string | undefined;
   export const NLS_WS_URL: string | undefined;
+  export const DASHSCOPE_API_KEY: string | undefined;
   export const AMAP_KEY: string | undefined;
 }

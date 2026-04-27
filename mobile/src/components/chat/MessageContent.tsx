@@ -281,7 +281,7 @@ export function MessageContent({ content, isUser = false }: MessageContentProps)
 
                     // 检查是否包含代码块
                     if (mermaidPart.content.includes('```')) {
-                      return renderContentWithCodeBlocks(mermaidPart.content, isUser, colors);
+                      return renderContentWithCodeBlocks(mermaidPart.content, isUser, colors, `cb-${mIndex}`);
                     }
 
                     // 普通 Markdown 渲染
@@ -360,7 +360,7 @@ export function MessageContent({ content, isUser = false }: MessageContentProps)
 }
 
 // 渲染带代码块的内容
-function renderContentWithCodeBlocks(content: string, isUser: boolean, colors: any) {
+function renderContentWithCodeBlocks(content: string, isUser: boolean, colors: any, keyPrefix: string) {
   const codeBlockRegex = /```(\w*)\n([\s\S]*?)```/g;
   const parts: React.ReactNode[] = [];
   let lastIndex = 0;
@@ -372,7 +372,7 @@ function renderContentWithCodeBlocks(content: string, isUser: boolean, colors: a
       const textBefore = content.slice(lastIndex, match.index);
       parts.push(
         <Markdown
-          key={`text-${lastIndex}`}
+          key={`${keyPrefix}-text-${lastIndex}`}
           style={{
             body: {
               color: isUser ? colors.onPrimaryContainer : colors.onSurface,
@@ -390,7 +390,7 @@ function renderContentWithCodeBlocks(content: string, isUser: boolean, colors: a
     const language = match[1] || 'text';
     const code = match[2].trim();
     parts.push(
-      <CodeBlock key={`code-${match.index}`} code={code} language={language} />
+      <CodeBlock key={`${keyPrefix}-code-${match.index}`} code={code} language={language} />
     );
 
     lastIndex = match.index + match[0].length;
@@ -400,7 +400,7 @@ function renderContentWithCodeBlocks(content: string, isUser: boolean, colors: a
   if (lastIndex < content.length) {
     parts.push(
       <Markdown
-        key={`text-end`}
+        key={`${keyPrefix}-text-end`}
         style={{
           body: {
             color: isUser ? colors.onPrimaryContainer : colors.onSurface,
@@ -414,7 +414,7 @@ function renderContentWithCodeBlocks(content: string, isUser: boolean, colors: a
     );
   }
 
-  return <View>{parts}</View>;
+  return <View key={keyPrefix}>{parts}</View>;
 }
 
 // 解析 Markdown 表格

@@ -4,7 +4,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { NLSClient } from '@/services/nls/NLSClient';
 import { AudioStreamRecorder } from '@/services/audio/AudioStreamRecorder';
 import { nlsTokenManager } from '@/services/nls/NLSTokenManager';
-import { NLSState, NLSCallbacks } from '@/services/nls/types';
+import { NLSState } from '@/services/nls/types';
+import { useNLSStore } from '@/stores/nlsStore';
 
 export interface UseNLSOptions {
   onResult?: (text: string, isFinal: boolean) => void;
@@ -34,11 +35,17 @@ export function useNLS(options: UseNLSOptions = {}): UseNLSReturn {
   const audioRecorderRef = useRef<AudioStreamRecorder | null>(null);
   const stoppingRef = useRef<boolean>(false);
 
+  // 同时更新共享 store，让不直接调用 useNLS 的组件也能获取状态
+  const storeSetState = useNLSStore.getState().setState;
+  const storeSetCurrentText = useNLSStore.getState().setCurrentText;
+  const storeSetVolume = useNLSStore.getState().setVolume;
+
   // 更新状态
   const updateState = useCallback((newState: NLSState) => {
     setState(newState);
+    storeSetState(newState as any);
     onStateChange?.(newState);
-  }, [onStateChange]);
+  }, [onStateChange, storeSetState]);
 
   // 初始化 NLS 客户端
   const initNLSClient = useCallback(async () => {
@@ -81,11 +88,13 @@ export function useNLS(options: UseNLSOptions = {}): UseNLSReturn {
           onResultChanged: (text) => {
             // 中间结果
             setCurrentText(text);
+            storeSetCurrentText(text);
             onResult?.(text, false);
           },
           onSentenceEnd: (text) => {
             // 一句结束，最终结果
             setCurrentText(text);
+            storeSetCurrentText(text);
             onResult?.(text, true);
           },
           onRecognitionCompleted: () => {
@@ -137,6 +146,7 @@ export function useNLS(options: UseNLSOptions = {}): UseNLSReturn {
           },
           onVolumeChange: (vol) => {
             setVolume(vol);
+            storeSetVolume(vol);
           },
           onError: (error) => {
             console.error('录音错误:', error);
@@ -178,6 +188,8 @@ export function useNLS(options: UseNLSOptions = {}): UseNLSReturn {
       // 6. 重置状态
       setCurrentText('');
       setVolume(0);
+      storeSetCurrentText('');
+      storeSetVolume(0);
       updateState('idle');
 
     } catch (error) {

@@ -5,5 +5,6 @@ export { MessageList } from './MessageList';
 export { CommandConfirmCard } from './CommandConfirmCard';
 export { VoiceControlButton } from './VoiceControlButton';
 export { VoiceInput, VoiceInputHandle, InputMode } from './VoiceInput';
+export { VoiceInputWithNLS, VoiceInputWithNLSHandle } from './VoiceInputWithNLS';
 export { VolumeIndicator, VolumeBar, VolumeCircle } from './VolumeIndicator';
 export { AttachmentPicker, type Attachment, type ChatAttachment } from './AttachmentPicker';

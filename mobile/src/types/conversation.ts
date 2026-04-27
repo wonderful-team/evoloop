@@ -62,6 +62,8 @@ export interface ChatMessage {
   has_file_operations?: boolean;
   steps?: any[];
   steps_snapshot?: any[];
+  /** 消息发送状态：sending=发送中, sent=已送达, failed=发送失败 */
+  status?: 'sending' | 'sent' | 'failed';
 }
 
 export interface ConversationHistoryResponse {

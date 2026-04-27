@@ -10,10 +10,10 @@ import { Alert } from 'react-native';
 import { VoiceSessionState } from '@/services/voice/VoiceSessionManager';
 import { AttachmentPicker, Attachment, ChatAttachment } from './AttachmentPicker';
 import { uploadChatFile } from '@/services/api/upload';
-import { MessageQuote } from '@/components/chat/MessageQuote';
+import { VoiceInputReferencesBar } from './VoiceInputReferencesBar';
 import { MessageReference } from '@/types/conversation';
 import { ReferencePicker } from '@/components/chat/ReferencePicker';
-import { VoiceVisualizer } from '@/components/chat/VoiceVisualizer';
+import { VoiceInputVoicePanel } from './VoiceInputVoicePanel';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MediaPickerModal } from '@/components/common/MediaPickerModal';
 
@@ -195,13 +195,12 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(({
     }
   }, [references]);
 
-  // 处理语音按钮按下（按住开始录音）
+  // 处理语音按钮按下：先打断（如有），再开始录音
   const handleVoicePressIn = useCallback(() => {
     if (isAgentSpeaking && onInterrupt) {
-      // 如果 AI 正在说话，按住则是打断
       onInterrupt();
-    } else if (!isListening && onPressIn) {
-      // 未录音状态下按住开始录音
+    }
+    if (!isListening && onPressIn) {
       onPressIn();
     }
   }, [isAgentSpeaking, isListening, onInterrupt, onPressIn]);
@@ -270,23 +269,7 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(({
       />
 
       {/* 引用预览 */}
-      {references.length > 0 && (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.referencesContainer}
-          contentContainerStyle={styles.referencesContent}
-        >
-          {references.map((ref, index) => (
-            <MessageQuote
-              key={ref.id}
-              reference={ref}
-              onRemove={() => handleRemoveReference(index)}
-              compact
-            />
-          ))}
-        </ScrollView>
-      )}
+      <VoiceInputReferencesBar references={references} onRemove={handleRemoveReference} />
 
       {isTextMode ? (
         // ===== 文本输入模式 =====
@@ -423,39 +406,11 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(({
 
           <Divider style={{ width: '100%', marginVertical: 8 }} />
 
-          {/* 录音时显示均衡器可视化 */}
-          {isListening && nlsVolume !== undefined && (
-            <View style={styles.visualizerContainer}>
-              <VoiceVisualizer
-                volume={nlsVolume}
-                isRecording={isListening}
-                barCount={15}
-                height={60}
-              />
-            </View>
-          )}
-
-          {/* 实时转录文字显示 */}
-          {isListening && transcriptionText ? (
-            <View style={styles.transcriptionContainer}>
-              <Text
-                variant="bodyLarge"
-                style={[styles.transcriptionText, { color: colors.onSurface }]}
-                numberOfLines={2}
-              >
-                {transcriptionText}
-              </Text>
-            </View>
-          ) : isListening ? (
-            <View style={styles.transcriptionContainer}>
-              <Text
-                variant="bodyMedium"
-                style={[styles.listeningHint, { color: colors.onSurfaceVariant }]}
-              >
-                正在聆听...
-              </Text>
-            </View>
-          ) : null}
+          <VoiceInputVoicePanel
+            isListening={isListening}
+            nlsVolume={nlsVolume}
+            transcriptionText={transcriptionText}
+          />
 
           {/* 拍照 | 语音按钮 | 键盘 */}
           <View style={styles.voiceRow}>
@@ -466,21 +421,17 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(({
             <TouchableOpacity
               onPressIn={handleVoicePressIn}
               onPressOut={handleVoicePressOut}
-              disabled={!isListening && isProcessing && !isAgentSpeaking}
+              disabled={!isListening && isProcessing}
               activeOpacity={0.8}
               style={[
                 styles.voiceBtn,
                 {
-                  backgroundColor: isAgentSpeaking
-                    ? colors.error
-                    : isListening
-                      ? colors.success
-                      : colors.primary
+                  backgroundColor: isListening ? colors.success : colors.primary
                 }
               ]}
             >
               <MaterialIcons
-                name={isAgentSpeaking ? 'stop' : 'mic'}
+                name="mic"
                 size={36}
                 color={colors.onPrimary}
               />
@@ -492,11 +443,7 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(({
           </View>
 
           <Text variant="bodySmall" style={[styles.hint, { color: colors.onSurfaceVariant }]}>
-            {isAgentSpeaking
-              ? '点击打断'
-              : isListening
-                ? '松开发送'
-                : '按住说话'}
+            {isListening ? '松开发送' : '按住说话'}
           </Text>
         </View>
       )}
@@ -527,16 +474,6 @@ const styles = StyleSheet.create({
   container: {
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: 'rgba(0, 0, 0, 0.1)',
-  },
-  // 引用
-  referencesContainer: {
-    maxHeight: 40,
-    marginHorizontal: 8,
-    marginTop: 4,
-  },
-  referencesContent: {
-    paddingHorizontal: 4,
-    alignItems: 'center',
   },
   // 文本输入
   inputRow: {
@@ -626,29 +563,5 @@ const styles = StyleSheet.create({
   },
   hint: {
     marginTop: 12,
-  },
-  visualizerContainer: {
-    height: 70,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginVertical: 8,
-    width: '100%',
-    paddingHorizontal: 40,
-  },
-  transcriptionContainer: {
-    minHeight: 50,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    marginVertical: 8,
-    width: '100%',
-  },
-  transcriptionText: {
-    textAlign: 'center',
-    fontSize: 18,
-    lineHeight: 26,
-  },
-  listeningHint: {
-    textAlign: 'center',
   },
 });
