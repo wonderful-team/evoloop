@@ -2,7 +2,7 @@
 Learning Event Schemas
 ======================
 
-Pydantic data classes for learning-related events.
+Pydantic data classes for learning domain events.
 """
 
 from pydantic import Field
@@ -12,7 +12,6 @@ from app.core.engine.rewind.event import RewindEvent, RewindEventType
 
 class TraceCleanupEvent(RewindEvent):
     """Published to trigger trace event deletion."""
-
     source_message_ids: list[str] = Field(default_factory=list)
 
     def model_post_init(self, __context) -> None:
