@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 class UserCacheService:
     """
     Service for caching user data.
-    
+
     Keys:
         evoloop:user:{member_id} -> User data dict
     """
@@ -65,7 +65,7 @@ class UserCacheService:
 class RateLimitService:
     """
     Service for rate limiting.
-    
+
     Keys:
         ratelimit:{endpoint}:{identifier} -> Request count
     """
@@ -101,7 +101,7 @@ class RateLimitService:
 class LinkTokenService:
     """
     Service for temporary link tokens.
-    
+
     Keys:
         evoloop:link:token -> Token data
     """
@@ -137,6 +137,7 @@ class ActivityStep(DynamicBaseModel):
     time: str = "0s"
     input: dict | None = None
     details: str | None = None
+    tool_name_display: str | None = None
 
 
 class ActivityArtifact(DynamicBaseModel):
@@ -166,189 +167,230 @@ class ActivityState(DynamicBaseModel):
 class ActivityStateService:
     """
     Service for managing agent activity state.
-    
-    Replaces direct cache usage in ActivityMonitor.
-    
-    Keys:
-        activity:{thread_id} -> Hash with state fields
+
+    Uses SQLite (AgentActivity table) for persistent storage.
+    Replaces the previous FileCache-based implementation for better
+    performance and reliability in embedded mode.
     """
 
-    KEY_PREFIX = "activity"
-    DEFAULT_TTL = 86400  # 24 hours
-
     def __init__(self, backend: Cache | None = None):
-        self._cache = backend or get_cache()
+        # backend is kept for API compatibility but no longer used
+        self._backend = backend
 
-    def _key(self, thread_id: str) -> str:
-        return f"{self.KEY_PREFIX}:{thread_id}"
+    @staticmethod
+    def _get_session_scope():
+        from app.infrastructure.database.sql.database import session_scope
+        return session_scope
 
     async def start_run(self, thread_id: str, main_goal: str = "处理用户请求") -> bool:
         """Initialize activity state for a new run."""
-        import time
-        data = {
-            "status": "running",
-            "main_goal": main_goal,
-            "agent_state": json.dumps({}),
-            "verification": json.dumps({}),
-            "steps": json.dumps([]),
-            "artifacts": json.dumps([]),
-            "active_memories": json.dumps([]),
-            "final_outcome": "",
-            "updated_at": str(time.time()),
-        }
-        await self._cache.hset(self._key(thread_id), mapping=data)
-        await self._cache.expire(self._key(thread_id), self.DEFAULT_TTL)
+        from app.models import AgentActivity
+
+        async with self._get_session_scope()() as session:
+            activity = await session.get(AgentActivity, thread_id)
+            if activity is None:
+                activity = AgentActivity(thread_id=thread_id)
+                session.add(activity)
+            activity.status = "running"
+            activity.main_goal = main_goal
+            activity.steps_json = json.dumps([])
+            activity.artifacts_json = json.dumps([])
+            activity.agent_state_json = json.dumps({})
+            activity.active_memories_json = json.dumps([])
+            activity.human_request_json = None
+            activity.final_outcome = ""
         return True
 
     async def end_run(self, thread_id: str, status: str = "done", final_outcome: str | None = None) -> ActivityState:
         """Mark run as ended and return final state."""
-        import time
-        key = self._key(thread_id)
-        
-        # Get current status to handle stopping->cancelled
-        current = await self._cache.hget(key, "status")
-        final_status = "cancelled" if current == "stopping" else status
-        
-        mapping = {
-            "status": final_status,
-            "updated_at": str(time.time())
-        }
-        if final_outcome:
-            mapping["final_outcome"] = final_outcome
-        
-        await self._cache.hset(key, mapping=mapping)
-        
-        # Mark running steps as done/cancelled
-        steps_json = await self._cache.hget(key, "steps")
-        if steps_json:
-            steps = json.loads(steps_json) if isinstance(steps_json, str) else steps_json
-            modified = False
-            for step in steps:
-                if step.get("status") == "running":
-                    step["status"] = "cancelled" if final_status == "cancelled" else "done"
-                    modified = True
-            if modified:
-                await self._cache.hset(key, "steps", json.dumps(steps))
+        from app.models import AgentActivity
+
+        async with self._get_session_scope()() as session:
+            activity = await session.get(AgentActivity, thread_id)
+            if activity is None:
+                return ActivityState(status=status)
+
+            final_status = "cancelled" if activity.status == "stopping" else status
+            activity.status = final_status
+            if final_outcome:
+                activity.final_outcome = final_outcome
+
+            # Mark running steps as done/cancelled
+            try:
+                steps = json.loads(activity.steps_json or "[]")
+                modified = False
+                for step in steps:
+                    if step.get("status") == "running":
+                        step["status"] = "cancelled" if final_status == "cancelled" else "done"
+                        modified = True
+                if modified:
+                    activity.steps_json = json.dumps(steps)
+            except (json.JSONDecodeError, TypeError):
+                pass
 
         return await self.get_state(thread_id)
 
     async def get_state(self, thread_id: str) -> ActivityState:
         """Get full activity state."""
-        key = self._key(thread_id)
-        data = await self._cache.hgetall(key)
+        from app.models import AgentActivity
 
-        if not data:
-            return ActivityState(status="idle")
+        async with self._get_session_scope()() as session:
+            activity = await session.get(AgentActivity, thread_id)
+            if activity is None:
+                return ActivityState(status="idle")
 
-        # Parse JSON fields
-        try:
-            steps_raw = json.loads(data.get("steps", "[]"))
-            artifacts_raw = json.loads(data.get("artifacts", "[]"))
-            return ActivityState(
-                status=data.get("status", "unknown"),
-                main_goal=data.get("main_goal", ""),
-                updated_at=float(data.get("updated_at", 0)),
-                steps=[ActivityStep.model_validate(s) for s in steps_raw],
-                artifacts=[ActivityArtifact.model_validate(a) for a in artifacts_raw],
-                agent_state=json.loads(data.get("agent_state", "{}")),
-                verification=json.loads(data.get("verification", "{}")),
-                active_memories=json.loads(data.get("active_memories", "[]")),
-                human_request=json.loads(data.get("human_request")) if data.get("human_request") else None,
-                final_outcome=data.get("final_outcome", ""),
-            )
-        except (json.JSONDecodeError, ValueError) as e:
-            logger.error(f"Failed to parse activity state for {thread_id}: {e}")
-            return ActivityState(status="error")
+            try:
+                steps_raw = json.loads(activity.steps_json or "[]")
+                artifacts_raw = json.loads(activity.artifacts_json or "[]")
+                return ActivityState(
+                    status=activity.status,
+                    main_goal=activity.main_goal,
+                    updated_at=activity.updated_at.timestamp() if activity.updated_at else 0,
+                    steps=[ActivityStep.model_validate(s) for s in steps_raw],
+                    artifacts=[ActivityArtifact.model_validate(a) for a in artifacts_raw],
+                    agent_state=json.loads(activity.agent_state_json or "{}"),
+                    verification={},
+                    active_memories=json.loads(activity.active_memories_json or "[]"),
+                    human_request=json.loads(activity.human_request_json) if activity.human_request_json else None,
+                    final_outcome=activity.final_outcome,
+                )
+            except (json.JSONDecodeError, ValueError) as e:
+                logger.error(f"Failed to parse activity state for {thread_id}: {e}")
+                return ActivityState(status="error")
 
     async def update_field(self, thread_id: str, field: str, value: Any) -> bool:
         """Update a single field in the activity state."""
+        from app.models import AgentActivity
+
         if not isinstance(value, str):
             value = json.dumps(value) if isinstance(value, (dict, list)) else str(value)
-        return await self._cache.hset(self._key(thread_id), field, value) > 0
+
+        field_map = {
+            "status": "status",
+            "main_goal": "main_goal",
+            "steps": "steps_json",
+            "artifacts": "artifacts_json",
+            "agent_state": "agent_state_json",
+            "active_memories": "active_memories_json",
+            "human_request": "human_request_json",
+            "final_outcome": "final_outcome",
+            "interrupt_reason": "human_request_json",  # stored inside human_request or ignored
+        }
+
+        db_field = field_map.get(field)
+        if db_field is None:
+            logger.warning(f"Unknown activity field: {field}")
+            return False
+
+        async with self._get_session_scope()() as session:
+            activity = await session.get(AgentActivity, thread_id)
+            if activity is None:
+                activity = AgentActivity(thread_id=thread_id)
+                session.add(activity)
+            setattr(activity, db_field, value)
+        return True
 
     async def get_field(self, thread_id: str, field: str) -> Any | None:
         """Get a single field from activity state."""
-        return await self._cache.hget(self._key(thread_id), field)
+        from app.models import AgentActivity
+
+        field_map = {
+            "status": "status",
+            "main_goal": "main_goal",
+            "steps": "steps_json",
+            "artifacts": "artifacts_json",
+            "agent_state": "agent_state_json",
+            "active_memories": "active_memories_json",
+            "human_request": "human_request_json",
+            "final_outcome": "final_outcome",
+        }
+
+        db_field = field_map.get(field)
+        if db_field is None:
+            return None
+
+        async with self._get_session_scope()() as session:
+            activity = await session.get(AgentActivity, thread_id)
+            if activity is None:
+                return None
+            return getattr(activity, db_field)
 
     async def signal_stop(self, thread_id: str) -> bool:
         """Signal a run to stop."""
-        if await self._cache.exists(self._key(thread_id)):
-            await self._cache.hset(
-                self._key(thread_id),
-                mapping={
-                    "status": "stopping",
-                    "updated_at": str(__import__('time').time())
-                }
-            )
-            return True
-        return False
+        from app.models import AgentActivity
+
+        async with self._get_session_scope()() as session:
+            activity = await session.get(AgentActivity, thread_id)
+            if activity is None:
+                return False
+            activity.status = "stopping"
+        return True
 
     async def check_cancellation(self, thread_id: str) -> bool:
         """Check if run is marked for stopping."""
-        status = await self._cache.hget(self._key(thread_id), "status")
-        return status == "stopping"
+        from app.models import AgentActivity
+
+        async with self._get_session_scope()() as session:
+            activity = await session.get(AgentActivity, thread_id)
+            if activity is None:
+                return False
+            return activity.status == "stopping"
 
     async def set_interrupted(self, thread_id: str, reason: str = "awaiting_human_input") -> bool:
         """Mark run as interrupted."""
-        key = self._key(thread_id)
-        if await self._cache.exists(key):
-            await self._cache.hset(
-                key,
-                mapping={
-                    "status": "interrupted",
-                    "interrupt_reason": reason,
-                    "updated_at": str(__import__('time').time())
-                }
-            )
-            return True
-        return False
+        from app.models import AgentActivity
+
+        async with self._get_session_scope()() as session:
+            activity = await session.get(AgentActivity, thread_id)
+            if activity is None:
+                return False
+            activity.status = "interrupted"
+            # Store reason in human_request_json as a fallback
+            existing_hr = activity.human_request_json
+            if existing_hr:
+                try:
+                    hr = json.loads(existing_hr)
+                    hr["interrupt_reason"] = reason
+                    activity.human_request_json = json.dumps(hr)
+                except (json.JSONDecodeError, TypeError):
+                    pass
+        return True
 
     async def set_human_request(self, thread_id: str, request_data: dict) -> bool:
         """Store structured human request."""
-        key = self._key(thread_id)
-        if not await self._cache.exists(key):
-            return False
-        
-        await self._cache.hset(
-            key,
-            mapping={
-                "status": "interrupted",
-                "human_request": json.dumps(request_data),
-                "interrupt_reason": request_data.get("prompt", "Human Input Required"),
-                "updated_at": str(__import__('time').time())
-            }
-        )
+        from app.models import AgentActivity
+
+        async with self._get_session_scope()() as session:
+            activity = await session.get(AgentActivity, thread_id)
+            if activity is None:
+                return False
+            activity.status = "interrupted"
+            activity.human_request_json = json.dumps(request_data)
         return True
 
     async def clear_human_request(self, thread_id: str) -> bool:
         """Clear human request upon resumption."""
-        key = self._key(thread_id)
-        if await self._cache.exists(key):
-            await self._cache.hset(
-                key,
-                mapping={
-                    "status": "idle",  # HITL cleared, agent not yet resumed
-                    "human_request": "",
-                    "interrupt_reason": "",
-                    "updated_at": str(__import__('time').time())
-                }
-            )
-            return True
-        return False
+        from app.models import AgentActivity
 
-    async def add_step(self, thread_id: str, name: str, step_type: str = "node", parent_id: int = None, input_data: dict = None) -> int | None:
+        async with self._get_session_scope()() as session:
+            activity = await session.get(AgentActivity, thread_id)
+            if activity is None:
+                return False
+            activity.status = "idle"
+            activity.human_request_json = None
+        return True
+
+    async def add_step(self, thread_id: str, name: str, step_type: str = "node", parent_id: int = None, input_data: dict = None, tool_name_display: str = None) -> int | None:
         """Add a new step to the activity."""
         import time
-        key = self._key(thread_id)
-        lock_key = f"lock:{key}"
+        from app.models import AgentActivity
 
-        async with self._cache.lock(lock_key, timeout=2.0, blocking_timeout=1.0):
-            if not await self._cache.exists(key):
+        async with self._get_session_scope()() as session:
+            activity = await session.get(AgentActivity, thread_id)
+            if activity is None:
                 return None
 
-            steps_json = await self._cache.hget(key, "steps")
-            steps = json.loads(steps_json) if steps_json else []
-
+            steps = json.loads(activity.steps_json or "[]")
             if not name:
                 return None
 
@@ -362,96 +404,87 @@ class ActivityStateService:
                 start_time=time.time(),
                 time="0s",
                 input=input_data,
+                tool_name_display=tool_name_display,
             )
             steps.append(new_step.model_dump())
-
-            await self._cache.hset(
-                key,
-                mapping={
-                    "steps": json.dumps(steps),
-                    "updated_at": str(time.time())
-                }
-            )
+            activity.steps_json = json.dumps(steps)
             return step_id
 
     async def complete_step(self, thread_id: str, step_id: int) -> bool:
         """Mark a step as completed."""
         import time
-        key = self._key(thread_id)
-        lock_key = f"lock:{key}"
-        
-        async with self._cache.lock(lock_key, timeout=2.0, blocking_timeout=1.0):
-            steps_json = await self._cache.hget(key, "steps")
-            if not steps_json:
+        from app.models import AgentActivity
+
+        async with self._get_session_scope()() as session:
+            activity = await session.get(AgentActivity, thread_id)
+            if activity is None:
                 return False
-            
-            steps = json.loads(steps_json) if isinstance(steps_json, str) else steps_json
+
+            try:
+                steps = json.loads(activity.steps_json or "[]")
+            except (json.JSONDecodeError, TypeError):
+                return False
+
             for step in steps:
                 if step.get("id") == step_id:
                     step["status"] = "done"
                     step["end_time"] = time.time()
-                    await self._cache.hset(
-                        key,
-                        mapping={
-                            "steps": json.dumps(steps),
-                            "updated_at": str(time.time())
-                        }
-                    )
+                    activity.steps_json = json.dumps(steps)
                     return True
             return False
 
     async def update_agent_state(self, thread_id: str, state: dict) -> bool:
         """Update agent state."""
-        key = self._key(thread_id)
-        await self._cache.hset(key, "agent_state", json.dumps(state))
+        from app.models import AgentActivity
+
+        async with self._get_session_scope()() as session:
+            activity = await session.get(AgentActivity, thread_id)
+            if activity is None:
+                activity = AgentActivity(thread_id=thread_id)
+                session.add(activity)
+            activity.agent_state_json = json.dumps(state)
         return True
 
     async def add_artifact(self, thread_id: str, name: str, artifact_type: str, status: str = "created", path: str = None) -> bool:
         """Add or update an artifact."""
-        import time
-        key = self._key(thread_id)
+        from app.models import AgentActivity
 
-        arts_json = await self._cache.hget(key, "artifacts")
-        artifacts = json.loads(arts_json) if arts_json else []
+        async with self._get_session_scope()() as session:
+            activity = await session.get(AgentActivity, thread_id)
+            if activity is None:
+                activity = AgentActivity(thread_id=thread_id)
+                session.add(activity)
 
-        # Check if exists
-        for art in artifacts:
-            if art["name"] == name:
-                art["status"] = "modified"
-                await self._cache.hset(
-                    key,
-                    mapping={
-                        "artifacts": json.dumps(artifacts),
-                        "updated_at": str(time.time())
-                    }
-                )
-                return True
+            try:
+                artifacts = json.loads(activity.artifacts_json or "[]")
+            except (json.JSONDecodeError, TypeError):
+                artifacts = []
 
-        # Add new
-        new_artifact = ActivityArtifact(
-            id=len(artifacts) + 1,
-            name=name,
-            type=artifact_type,
-            status=status,
-            path=path,
-            icon="FileCode",
-        )
-        artifacts.append(new_artifact.model_dump())
+            # Check if exists
+            for art in artifacts:
+                if art.get("name") == name:
+                    art["status"] = "modified"
+                    activity.artifacts_json = json.dumps(artifacts)
+                    return True
 
-        await self._cache.hset(
-            key,
-            mapping={
-                "artifacts": json.dumps(artifacts),
-                "updated_at": str(time.time())
-            }
-        )
+            # Add new
+            new_artifact = ActivityArtifact(
+                id=len(artifacts) + 1,
+                name=name,
+                type=artifact_type,
+                status=status,
+                path=path,
+                icon="FileCode",
+            )
+            artifacts.append(new_artifact.model_dump())
+            activity.artifacts_json = json.dumps(artifacts)
         return True
 
 
 class ContextCacheService:
     """
     Service for caching EvoContext between agent runs.
-    
+
     Keys:
         evoloop:context:{thread_id} -> Context data
     """

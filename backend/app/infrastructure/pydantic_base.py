@@ -1,4 +1,6 @@
-from pydantic import BaseModel, ConfigDict
+import time
+
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.utils.model_helpers import LegacyDictMixin
 
@@ -10,3 +12,8 @@ class DynamicBaseModel(BaseModel, LegacyDictMixin):
     """
 
     model_config = ConfigDict(extra="allow", arbitrary_types_allowed=True)
+
+
+class EventBase(DynamicBaseModel):
+    """Base class for all SSE/streaming events with automatic timestamp."""
+    timestamp: float = Field(default_factory=time.time)

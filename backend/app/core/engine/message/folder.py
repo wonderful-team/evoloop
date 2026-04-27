@@ -4,15 +4,17 @@ MessageFolder - 消息折叠工具类
 统一处理消息由扁平结构向嵌套结构（FoldedMessage/ToolStep）的转换逻辑。
 解决流式推送与历史加载逻辑不一致的问题。
 """
-
+import asyncio
 import logging
+import time
 from datetime import datetime
 from typing import Any
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
 
 from app.core.engine.state.history import FoldedMessage, ToolStep
-from app.core.tools.registry import get_tool_friendly_name
+from app.core.tools.registry import get_tool_friendly_name, get_tool_metadata
+from app.i18n.service import i18n
 from app.utils import gen_uuid
 
 logger = logging.getLogger(__name__)
@@ -46,6 +48,62 @@ class MessageFolder:
         return ""
 
     @staticmethod
+    def append_tool_event_to_ai_message(ai_message: dict, tool_event: dict) -> None:
+        """
+        Append a tool execution event to its parent AI message's steps array.
+        Used by the real-time SSE stream to fold tool messages on the fly.
+        """
+        tool_id = tool_event.get('tool_call_id')
+        tool_name = tool_event.get('tool_name') or 'unknown'
+        tool_name_display = tool_event.get('tool_name_display') or None
+        
+        # Find matching tool call in the parent AI message
+        tool_calls = ai_message.get('tool_calls', []) or []
+        matched_call = next((tc for tc in tool_calls if tc.get('id') == tool_id), None)
+        
+        tool_input = matched_call.get('args', {}) if matched_call else {}
+        
+        step = ToolStep(
+            id=tool_event.get('id') or f"step-{time.monotonic()}",
+            tool=tool_name,
+            tool_name=tool_name,
+            tool_name_display=tool_name_display,
+            input=tool_input,
+            output=tool_event.get('content', ''),
+            status='success',
+            tool_call_id=tool_id,
+        )
+        
+        if 'steps' not in ai_message:
+            ai_message['steps'] = []
+            
+        # Avoid duplicate steps if event is re-sent
+        # Guard: only deduplicate when both IDs are non-None to prevent
+        # false collisions between unrelated steps that both lack an ID.
+        if tool_id is not None:
+            if not any(s.get('tool_call_id') == tool_id for s in ai_message['steps']):
+                ai_message['steps'].append(step.model_dump())
+        else:
+            ai_message['steps'].append(step.model_dump())
+
+    @staticmethod
+    def _build_tool_name_display(tool_name: str, args: dict | None, lang: str = "zh") -> str | None:
+        """
+        使用与 TransparentCallback 相同的 i18n 模板生成带参数的友好名称。
+        例如: read_file + {path: '/foo.py'} → "正在读取 '/foo.py'"
+        """
+        if not args:
+            return None
+        metadata = get_tool_metadata(tool_name) or {}
+        summary_template = metadata.get("summary_template")
+        if not summary_template:
+            return None
+        try:
+            return i18n.get(summary_template, **args)
+        except (KeyError, TypeError):
+            return None
+
+    @staticmethod
     def to_tool_step(
         tool_msg: ToolMessage, 
         tc_name: str | None = None, 
@@ -63,15 +121,20 @@ class MessageFolder:
         """
         tool_id = tool_msg.tool_call_id or gen_uuid()
         tool_name_raw = tool_msg.name or tc_name or "unknown"
+        args = tc_args or {}
         
-        # 优先从注册中心获取友好名称
+        # 通用友好名称 (e.g. "正在读取文件")
         friendly_name = get_tool_friendly_name(tool_name_raw, lang=lang) or tool_name_raw
+        
+        # 带参数的显示名 (e.g. "正在读取 '/path/to/file'")
+        tool_name_display = MessageFolder._build_tool_name_display(tool_name_raw, args, lang)
 
         return ToolStep(
             id=tool_id,
             tool=tool_name_raw,
             tool_name=friendly_name,
-            input=tc_args or {},
+            tool_name_display=tool_name_display,
+            input=args,
             output=MessageFolder.get_message_text(tool_msg),
             status="success",
             tool_call_id=tool_msg.tool_call_id
@@ -94,29 +157,7 @@ class MessageFolder:
             if isinstance(created_at, datetime):
                 created_at = created_at.isoformat()
 
-            # --- 快速路径：检查是否有预存的快照 ---
-            steps_snapshot = msg.additional_kwargs.get("steps_snapshot")
-            if isinstance(msg, AIMessage) and steps_snapshot:
-                # 如果有快照，尝试直接使用。
-                # 对旧格式数据做容错：如果 schema 不兼容则回退到标准扫描路径。
-                try:
-                    validated_steps = [ToolStep.model_validate(s) for s in steps_snapshot]
-                    result.append(FoldedMessage(
-                        id=msg_id,
-                        role="ai",
-                        content=cls.get_message_text(msg),
-                        thinking=getattr(msg, "thinking", None) or msg.additional_kwargs.get("thinking"),
-                        tool_calls=[(tc.model_dump() if hasattr(tc, 'model_dump') else tc) for tc in (msg.tool_calls or [])],
-                        steps=validated_steps,
-                        created_at=created_at
-                    ))
-                    i += 1
-                    continue
-                except Exception as e:
-                    # Legacy data with incompatible schema — fall through to standard path
-                    logger.warning(f"[MessageFolder] steps_snapshot validation failed, falling back to scan: {e}")
-
-            # --- 标准路径：动态扫描与匹配 ---
+            # --- 动态扫描与匹配 ---
             if isinstance(msg, AIMessage):
                 steps = []
                 tool_calls = msg.tool_calls or []

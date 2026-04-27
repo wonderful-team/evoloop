@@ -60,6 +60,44 @@ class InferenceEngine:
             return llm.bind_tools(tools), {t.name: t for t in tools}
         return llm, {}
 
+    @staticmethod
+    async def _stream_llm_response(llm_with_tools, loop_messages, config):
+        """Stream LLM response and accumulate chunks into a complete AIMessage.
+
+        Uses astream() so on_llm_new_token callbacks fire for real-time
+        thinking/streaming display. Falls back to ainvoke() on providers
+        that don't support streaming (e.g. kimi with long context).
+        """
+        from langchain_core.messages import AIMessage, AIMessageChunk
+
+        try:
+            response = None
+            async for chunk in llm_with_tools.astream(loop_messages, config=config):
+                if response is None:
+                    response = chunk
+                else:
+                    response = response + chunk
+        except Exception as e:
+            error_str = str(e)
+            # Some providers (e.g. kimi) reject streaming when prompt is long
+            # Fall back to non-streaming so the user still gets a response
+            if "context" in error_str.lower() or "n_keep" in error_str or "n_ctx" in error_str:
+                logger.warning(f"[InferenceEngine] Streaming rejected ({error_str}), falling back to ainvoke")
+                response = await llm_with_tools.ainvoke(loop_messages, config=config)
+            else:
+                raise
+
+        # Convert accumulated chunk to a proper AIMessage for downstream compatibility
+        if isinstance(response, AIMessageChunk):
+            response = AIMessage(
+                content=response.content,
+                additional_kwargs=response.additional_kwargs,
+                tool_calls=getattr(response, "tool_calls", None),
+                response_metadata=getattr(response, "response_metadata", {}),
+            )
+
+        return response
+
     def build_system_messages(self, system_prompt: str, provider: str) -> list[SystemMessage]:
         """Build provider-optimized system messages."""
         if provider == "anthropic":
@@ -136,7 +174,7 @@ class InferenceEngine:
 
             try:
                 start_perf = time.perf_counter()
-                response = await llm_with_tools.ainvoke(loop_messages, config=config)
+                response = await self._stream_llm_response(llm_with_tools, loop_messages, config)
                 latency = time.perf_counter() - start_perf
 
                 from app.core.engine.telemetry_recorder import record_inference_telemetry
@@ -208,7 +246,7 @@ class InferenceEngine:
                 tool_results = await tool_executor.execute_batch(remaining_tool_calls, local_tool_history)
                 logger.info(f"[{name}] 📦 tool_results returned: {len(tool_results)} items, types={[type(m).__name__ for m in tool_results]}")
                 for tool_msg in tool_results:
-                    logger.info(f"[{name}] Result ({tool_msg.name}): {str(tool_msg.content)[:300]}...")
+                    logger.info(f"[{name}] Result ({tool_msg.name}): {str(tool_msg.content)}")
                     loop_messages.append(tool_msg)
                     new_messages.append(tool_msg)
             else:
@@ -276,7 +314,7 @@ class InferenceEngine:
         sys_hash = hashlib.md5(system_prompt.encode()).hexdigest()
         start_perf = time.perf_counter()
         try:
-            response = await llm_with_tools.ainvoke(loop_messages, config=config)
+            response = await self._stream_llm_response(llm_with_tools, loop_messages, config)
             latency = time.perf_counter() - start_perf
 
             logger.warning(f"[{name}] PROMPT CACHE DIAGNOSTIC: SystemPromptHash={sys_hash} | Latency={latency:.2f}s")
@@ -310,7 +348,7 @@ class InferenceEngine:
             if remaining:
                 tool_results = await tool_executor.execute_batch(remaining, local_tool_history)
                 for tool_msg in tool_results:
-                    logger.info(f"[{name}] Result ({tool_msg.name}): {str(tool_msg.content)[:300]}...")
+                    logger.info(f"[{name}] Result ({tool_msg.name}): {str(tool_msg.content)}")
                     new_messages.append(tool_msg)
 
         return {

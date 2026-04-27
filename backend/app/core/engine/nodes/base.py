@@ -7,8 +7,9 @@ from langchain_core.runnables import RunnableConfig
 
 from app.core.engine import get_default_engine
 from app.core.engine.engine import EngineResult
-from app.core.engine.nodes.utils import log_msg_trace, resolve_is_subtask, dispatch_signal_if_present
+from app.core.engine.nodes.utils import resolve_is_subtask
 from app.core.engine.routers import RoutingTarget
+from app.core.engine.signals import SignalDispatcher, signal_manager
 from app.core.engine.state import AgentState, StateUpdate, ensure_state
 
 logger = logging.getLogger(__name__)
@@ -101,14 +102,10 @@ class BaseAgentNode(BaseNode, ABC):
             state = await EvoContextMiddleware.hydrate(state, config)
             logger.info(f"[{self.node_name}] Context Hydrated via Middleware")
 
-            # [MSG-TRACE] ENTER
-            log_msg_trace(self.node_name, "ENTER", state.messages)
-
             # 1. State Preparation & Environment Hydration
             # Includes early-exit checks (e.g., Aggregator routing)
             state_update = await self.prepare_state(state, config)
             if state_update and state_update.next_node:
-                log_msg_trace(self.node_name, "SHORT-CIRCUIT", getattr(state_update, 'messages', None))
                 return state_update
 
             # 2. Build Prompts (Enforcing Static/Dynamic Split)
@@ -135,10 +132,6 @@ class BaseAgentNode(BaseNode, ABC):
                     messages.append(ticket_msg)
 
             execution_state = state.model_copy(update={"messages": messages})
-
-            # [MSG-TRACE] EXECUTION
-            ticket_at = next((i for i, m in enumerate(execution_state.messages) if getattr(m, "name", None) == "context_ticket"), "N/A")
-            log_msg_trace(self.node_name, "EXECUTION", execution_state.messages, ticket_at=ticket_at)
 
             # 3. Engine Execution
             engine = get_default_engine()
@@ -172,8 +165,6 @@ class BaseAgentNode(BaseNode, ABC):
 
             # 4. Handle Outcome & Signal Dispatching
             outcome = await self.handle_outcome(state, engine_result, config)
-            # [MSG-TRACE] EXIT
-            log_msg_trace(self.node_name, "EXIT", getattr(outcome, 'messages', None), next_node=getattr(outcome, 'next_node', 'N/A'))
             logger.info(
                 f"[{self.node_name}] 📤 Outcome RETURN | messages={len(getattr(outcome, 'messages', []) or [])} | "
                 f"types={[type(m).__name__ for m in (getattr(outcome, 'messages', []) or [])]} | "
@@ -219,31 +210,18 @@ class BaseAgentNode(BaseNode, ABC):
         Subclasses should typically NOT override this; instead customize
         `_customize_dispatch_result` or `_build_fallback_outcome`.
         """
-        signal = engine_result.signal
-        log_msg_trace(
-            self.node_name, "handle_outcome ENTER",
-            engine_result.messages,
-            signal=type(signal).__name__ if signal else "None",
-        )
+        if not engine_result.signal:
+            return StateUpdate()
 
         # 1. Signal dispatch path
-        dispatch_result = await dispatch_signal_if_present(original_state, signal, config, self.node_name)
+        dispatch_result = await signal_manager.dispatch(original_state, engine_result.signal, config)
+        # dispatch_result = await SignalDispatcher.dispatch(original_state, engine_result.signal, config)
         if dispatch_result is not None:
             customized = await self._customize_dispatch_result(dispatch_result, original_state, engine_result, config)
-            log_msg_trace(
-                self.node_name, "handle_outcome SIGNAL_PATH",
-                getattr(customized, 'messages', None),
-                next_node=getattr(customized, 'next_node', 'N/A'),
-            )
             return customized
 
         # 2. Non-signal fallback path
         fallback = await self._build_fallback_outcome(original_state, engine_result, config)
-        log_msg_trace(
-            self.node_name, "handle_outcome RETURN",
-            getattr(fallback, 'messages', None),
-            next_node=getattr(fallback, 'next_node', 'N/A'),
-        )
         return fallback
 
     async def _customize_dispatch_result(

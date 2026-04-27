@@ -1,6 +1,7 @@
 """
 Message folding utilities — convert between flat and nested message formats.
 """
+import json
 import logging
 from typing import Any
 
@@ -30,24 +31,32 @@ def to_base_message(msg: Any) -> BaseMessage | None:
     created_at = getattr(msg, "created_at", None)
     thinking = getattr(msg, "thinking", None)
 
-    # LangChain messages use additional_kwargs for extra metadata
-    kwargs = {"id": msg_id}
+    # LangChain messages use additional_kwargs for extra metadata.
+    # Note: `id` is passed as a top-level constructor arg, NOT inside
+    # additional_kwargs, to avoid duplicate-key warnings.
+    kwargs: dict[str, Any] = {}
     if created_at:
         kwargs["created_at"] = created_at
     if thinking:
         kwargs["thinking"] = thinking
-    if getattr(msg, "steps_snapshot", None):
-        kwargs["steps_snapshot"] = msg.steps_snapshot
 
     try:
         if role == "human":
             return HumanMessage(content=content, id=msg_id, additional_kwargs=kwargs)
         elif role == "ai":
             tool_calls = getattr(msg, "tool_calls", []) or []
+            # Defensive: some DB drivers may return JSON as a string
+            if isinstance(tool_calls, str):
+                try:
+                    tool_calls = json.loads(tool_calls)
+                except (json.JSONDecodeError, ValueError):
+                    tool_calls = []
+            if not isinstance(tool_calls, list):
+                tool_calls = []
             return AIMessage(
                 content=content, 
                 id=msg_id,
-                tool_calls=tool_calls if isinstance(tool_calls, list) else [],
+                tool_calls=tool_calls,
                 additional_kwargs=kwargs
             )
         elif role == "tool":

@@ -5,6 +5,7 @@ Provides real-time state management and event publishing for agent runs.
 Uses ActivityStateService for state persistence and Cache for Pub/Sub.
 """
 
+import asyncio
 import json
 import logging
 import time
@@ -12,6 +13,7 @@ from typing import Any
 
 from pydantic import Field
 
+from app.core.engine.message.event_bus import get_event_bus
 from app.infrastructure.cache import cache
 from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.models.schemas.events import (
@@ -68,11 +70,6 @@ class ActivityMonitor:
     def __init__(self):
         self._state_service = ActivityStateService(cache)
 
-    @property
-    def client(self):
-        """Legacy compatibility for cache access."""
-        return cache
-
     @classmethod
     def get_instance(cls):
         if cls._instance is None:
@@ -88,7 +85,7 @@ class ActivityMonitor:
         result = await self._state_service.end_run(thread_id, status, final_outcome)
 
         # Publish final status
-        await cache.publish(
+        await get_event_bus().publish(
             f"chat:{thread_id}:events",
             StatusEvent(status=result.get("status", status)).model_dump_json()
         )
@@ -122,13 +119,13 @@ class ActivityMonitor:
 
         if success:
             # Publish Event
-            await cache.publish(
+            await get_event_bus().publish(
                 f"chat:{thread_id}:events",
                 HumanRequestEvent(action="create", data=request_dict).model_dump_json(),
             )
 
             # [HITL FIX] Also publish StatusEvent so UI knows we are interrupted
-            await cache.publish(
+            await get_event_bus().publish(
                 f"chat:{thread_id}:events",
                 StatusEvent(status="interrupted").model_dump_json()
             )
@@ -139,12 +136,12 @@ class ActivityMonitor:
 
         if success:
             # Publish Event
-            await cache.publish(
+            await get_event_bus().publish(
                 f"chat:{thread_id}:events",
                 HumanRequestEvent(action="clear", data={}).model_dump_json(),
             )
             # [UI Sync Fix]: Also publish StatusEvent to unlock input and hide card
-            await cache.publish(
+            await get_event_bus().publish(
                 f"chat:{thread_id}:events",
                 StatusEvent(status="idle").model_dump_json()
             )
@@ -189,13 +186,13 @@ class ActivityMonitor:
 
         if success:
             # Publish Event
-            await cache.publish(
+            await get_event_bus().publish(
                 f"chat:{thread_id}:events",
                 HumanRequestEvent(action="create", data=request_data).model_dump_json(),
             )
 
             # [HITL FIX] Also publish StatusEvent
-            await cache.publish(
+            await get_event_bus().publish(
                 f"chat:{thread_id}:events",
                 StatusEvent(status="interrupted").model_dump_json()
             )
@@ -229,16 +226,23 @@ class ActivityMonitor:
             await cache.hset(key, "active_memories", json.dumps([]))
 
     async def add_step(
-        self, thread_id: str, name: str, step_type="node", parent_id: int = None, input_data: dict = None
+        self, thread_id: str, name: str, step_type="node", parent_id: int = None,
+        input_data: dict = None, tool_name_display: str = None
     ):
         """Add a new step and return its ID."""
-        step_id = await self._state_service.add_step(thread_id, name, step_type, parent_id, input_data)
+        step_id = await self._state_service.add_step(thread_id, name, step_type, parent_id, input_data, tool_name_display)
 
         if step_id:
-            # Publish Event
-            await cache.publish(
+            # Publish Event — include tool_name_display so frontend can render parameterized names
+            step_data = {
+                "name": name,
+                "status": "running",
+                "input": input_data,
+                "tool_name_display": tool_name_display,
+            }
+            await get_event_bus().publish(
                 f"chat:{thread_id}:events",
-                StepEvent(action="create", id=step_id, data={"name": name, "status": "running", "input": input_data}).model_dump_json(),
+                StepEvent(action="create", id=step_id, data=step_data).model_dump_json(),
             )
 
         return step_id
@@ -246,46 +250,57 @@ class ActivityMonitor:
     async def update_step(
         self, thread_id: str, step_id: int, status: str, details: str = None
     ):
-        """Update step status and optionally details."""
+        """Update step status and optionally details.
+
+        Uses distributed locking with retries to mitigate non-atomic
+        read-modify-write on the cached steps JSON array.
+        """
         key = f"activity:{thread_id}"
         lock_key = f"lock:{key}"
+        max_retries = 3
 
-        try:
-            async with cache.lock(lock_key, timeout=2.0, blocking_timeout=1.0):
-                steps_json = await cache.hget(key, "steps")
-                if not steps_json:
-                    return
+        for attempt in range(1, max_retries + 1):
+            try:
+                async with cache.lock(lock_key, timeout=5.0, blocking_timeout=3.0):
+                    steps_json = await cache.hget(key, "steps")
+                    if not steps_json:
+                        return
 
-                steps = json.loads(steps_json) if isinstance(steps_json, str) else steps_json
-                modified = False
+                    steps = json.loads(steps_json) if isinstance(steps_json, str) else steps_json
+                    modified = False
 
-                for step in steps:
-                    if step["id"] == step_id:
-                        step["status"] = status
+                    for step in steps:
+                        if step["id"] == step_id:
+                            step["status"] = status
+                            if details:
+                                step["details"] = details
+                            if status in ["done", "failed"]:
+                                duration = time.time() - step["start_time"]
+                                step["time"] = f"{duration:.2f}s"
+                            modified = True
+                            break
+
+                    if modified:
+                        await cache.hset(
+                            key,
+                            mapping={"steps": json.dumps(steps), "updated_at": str(time.time())},
+                        )
+
+                        # Publish Event
+                        update_data = {"status": status}
                         if details:
-                            step["details"] = details
-                        if status in ["done", "failed"]:
-                            duration = time.time() - step["start_time"]
-                            step["time"] = f"{duration:.2f}s"
-                        modified = True
-                        break
-
-                if modified:
-                    await cache.hset(
-                        key,
-                        mapping={"steps": json.dumps(steps), "updated_at": str(time.time())},
-                    )
-
-                    # Publish Event
-                    update_data = {"status": status}
-                    if details:
-                        update_data["details"] = details
-                    await cache.publish(
-                        f"chat:{thread_id}:events",
-                        StepEvent(action="update", id=step_id, data=update_data).model_dump_json(),
-                    )
-        except Exception:
-            pass
+                            update_data["details"] = details
+                        await get_event_bus().publish(
+                            f"chat:{thread_id}:events",
+                            StepEvent(action="update", id=step_id, data=update_data).model_dump_json(),
+                        )
+                    return  # Success — exit retry loop
+            except Exception as e:
+                if attempt < max_retries:
+                    logger.debug(f"[ActivityMonitor] Step update attempt {attempt} failed for {step_id}, retrying: {e}")
+                    await asyncio.sleep(0.1 * attempt)
+                    continue
+                logger.error(f"[ActivityMonitor] Failed to update step {step_id} for thread {thread_id} after {max_retries} attempts: {e}")
 
     async def update_agent_state(
         self, thread_id: str, mode: str, task_name: str, task_status: str, details: AgentStateDetails | None = None
@@ -301,7 +316,7 @@ class ActivityMonitor:
         await self._state_service.update_agent_state(thread_id, state.model_dump())
 
         # Publish Event
-        await cache.publish(
+        await get_event_bus().publish(
             f"chat:{thread_id}:events",
             AgentStateEvent(data=state).model_dump_json()
         )
@@ -316,12 +331,15 @@ class ActivityMonitor:
         )
 
         # Log to a system list in cache for persistence
-        await cache.lpush(f"system:logs:{event_type}", payload.model_dump_json())
-        await cache.ltrim(f"system:logs:{event_type}", 0, 99)  # Keep last 100
+        # Use pipeline to make lpush+ltrim atomic
+        pipe = cache.pipeline()
+        pipe.lpush(f"system:logs:{event_type}", payload.model_dump_json())
+        pipe.ltrim(f"system:logs:{event_type}", 0, 99)  # Keep last 100
+        await pipe.execute()
 
         # Publish to the chat stream if it's a session event
         if thread_id != "system":
-            await cache.publish(
+            await get_event_bus().publish(
                 f"chat:{thread_id}:events",
                 json.dumps({"event": "system_log", "data": payload.model_dump()})
             )
@@ -346,7 +364,7 @@ class ActivityMonitor:
 
         if target_art:
             action = "update" if status == "modified" else "create"
-            await cache.publish(
+            await get_event_bus().publish(
                 f"chat:{thread_id}:events",
                 ArtifactEvent(action=action, name=name, data=target_art).model_dump_json(),
             )

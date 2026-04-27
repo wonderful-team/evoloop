@@ -167,7 +167,7 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
         return str(content)
 
     def _extract_thinking(self, content: str) -> str | None:
-        """提取思考内容（<think> 或 <evoloop_session_audit> 标签）"""
+        """提取思考内容（<think>、<|channel|>thought、<evoloop_session_audit> 标签）"""
         if not content:
             return None
 
@@ -177,6 +177,16 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
         think_match = re.search(r"<think>(.*?)</think>", content, re.DOTALL | re.IGNORECASE)
         if think_match:
             thinking_parts.append(think_match.group(1).strip())
+
+        # 提取 <|channel>thought ... <channel|> (或 <|channel|>thought ... <|channel|>) 内容
+        for pattern in [
+            r"<\|channel>thought(.*?)<channel\|>",
+            r"<\|channel\|>thought(.*?)<\|channel\|>",
+        ]:
+            channel_match = re.search(pattern, content, re.DOTALL | re.IGNORECASE)
+            if channel_match:
+                thinking_parts.append(channel_match.group(1).strip())
+                break
 
         # 提取 <evoloop_session_audit> 内容
         audit_match = re.search(
@@ -202,6 +212,14 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
             flags=re.DOTALL | re.IGNORECASE
         )
 
+        # 移除 <|channel>thought ... <channel|> (或 <|channel|>thought ... <|channel|>) 标签
+        content = re.sub(
+            r"<\|channel\|?>thought.*?<\|?channel\|>",
+            "",
+            content,
+            flags=re.DOTALL | re.IGNORECASE
+        )
+
         # 移除 <evoloop_session_audit> 标签
         content = re.sub(
             r"<evoloop_session_audit>.*?</evoloop_session_audit>",
@@ -210,7 +228,7 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
             flags=re.DOTALL | re.IGNORECASE
         )
 
-        # 清理空标签
+        # 清理残留的空标签
         content = re.sub(r"<[^>]+>", "", content)
 
         return content.strip()
@@ -252,33 +270,3 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
     ) -> Any:
         """工具错误，记录日志即可"""
         logger.warning(f"[DatabaseCallback] Tool error: {error}")
-
-    async def snapshot_steps_to_last_message(self, steps: list) -> None:
-        """将步骤快照到最后一条 AI 消息
-        
-        Args:
-            steps: 要保存的步骤列表
-        """
-        if not steps:
-            return
-
-        try:
-            from app.core.engine.tasks import snapshot_steps_task
-
-            # 使用 Celery 任务异步保存步骤
-            snapshot_steps_task.delay(
-                thread_id=self.thread_id,
-                project_id=self.project_id,
-                run_id=self.run_id,
-                steps=steps
-            )
-
-            # 更新最后归因的索引
-            self._last_attributed_step_index += len(steps)
-
-            logger.debug(
-                f"[DatabaseCallback] Queued {len(steps)} steps for snapshot, "
-                f"new index: {self._last_attributed_step_index}"
-            )
-        except Exception as e:
-            logger.error(f"[DatabaseCallback] Failed to queue steps snapshot: {e}")

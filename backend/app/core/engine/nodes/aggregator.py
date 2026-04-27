@@ -9,7 +9,6 @@ import logging
 from langchain_core.messages import AIMessage
 from langchain_core.runnables import RunnableConfig
 
-from app.core.engine.nodes.utils import log_msg_trace
 from app.core.engine.nodes.base import BaseNode
 from app.core.engine.routers import RoutingTarget
 from app.core.engine.schema import AggregateResult
@@ -83,13 +82,11 @@ class AggregatorNode(BaseNode):
             metadata={"is_error": is_error, "error_type": "aggregation_failed"} if is_error else None,
         )
 
-        result = StateUpdate(
+        return StateUpdate(
             messages=[msg],
             next_node=RoutingTarget.SUPERVISOR,
             blackboard=blackboard,
         )
-        log_msg_trace(self.node_name, "RETURN", result.messages, next_node=result.next_node)
-        return result
 
     async def aggregate_results(
         self,

@@ -1,3 +1,11 @@
+"""
+Message history models for LangGraph state.
+
+NOTE: ToolStep / FoldedMessage 的 canonical 定义在 app.core.engine.message.schemas
+（ToolBlock / MessageBlock）。此文件保留运行时内部使用的轻量版本，API/SSE/Mobile
+传输请使用 app.core.engine.message.schemas 中的标准化模型。
+"""
+
 from datetime import datetime
 from typing import Any
 
@@ -20,7 +28,8 @@ class ToolStep(DynamicBaseModel):
     """
     id: str
     tool: str  # Original tool identifier (e.g., "search_web")
-    tool_name: str | None = None  # Friendly name for display (e.g., "搜索网页")
+    tool_name: str | None = None  # Generic friendly name (e.g., "搜索网页")
+    tool_name_display: str | None = None  # Parameter-enriched name (e.g., "正在读取 '/path/to/file'")
     input: dict | str | Any = Field(default_factory=dict)
     output: str = ""
     status: str = "success"  # success, error, pending

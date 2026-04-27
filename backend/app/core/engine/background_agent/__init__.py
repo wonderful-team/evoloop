@@ -4,7 +4,7 @@ import logging
 import time
 from typing import Any
 
-from langchain_core.messages import BaseMessage, HumanMessage
+from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import func, select
 
@@ -247,17 +247,6 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
                     graph_instance, config, inputs.hitl_resume_response
                 )
 
-            # [MSG-TRACE] INPUT to graph
-            from app.core.engine.nodes.utils import log_msg_trace
-            if isinstance(input_payload, dict):
-                _input_msgs = input_payload.get("messages", [])
-                log_msg_trace("background", "GRAPH_INPUT", _input_msgs)
-            elif hasattr(input_payload, "resume"):
-                _resume = getattr(input_payload, 'resume', None)
-                logger.info(f"[MSG-TRACE][background] GRAPH_INPUT Command: resume_type={type(_resume).__name__} | resume_content={str(_resume)[:80] if _resume else 'None'}")
-            else:
-                logger.info(f"[MSG-TRACE][background] GRAPH_INPUT unknown type: {type(input_payload).__name__}")
-
             # Run Graph
             async for _event in graph_instance.astream(input_payload, config=config):
                 await activity_monitor.check_cancellation(thread_id)
@@ -269,10 +258,8 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
                 final_checkpoint_state = await graph_instance.aget_state(config)
                 if final_checkpoint_state and final_checkpoint_state.values:
                     _final_msgs = final_checkpoint_state.values.get("messages", [])
-                    log_msg_trace("background", "GRAPH_OUTPUT", _final_msgs)
 
                     # Detect LLM errors that were swallowed as AIMessage(metadata={"is_error": True})
-                    from langchain_core.messages import AIMessage
                     error_msgs = [
                         msg for msg in _final_msgs
                         if isinstance(msg, AIMessage) and getattr(msg, "metadata", {}).get("is_error")
@@ -281,19 +268,15 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
                         _has_error_in_final_state = True
                         last_error = error_msgs[-1]
                         error_content = str(last_error.content)
-                        logger.warning(
-                            f"[BackgroundAgent] Graph completed with embedded error: {error_content[:120]}..."
-                        )
+                        logger.warning(f"[BackgroundAgent] Graph completed with embedded error: {error_content[:120]}...")
 
                         # Persist to DB so frontend can display it
                         from app.core.engine.background_agent.errors import persist_system_error
-                        await persist_system_error(
-                            thread_id, project_id, error_content, action_type="warning"
-                        )
+                        await persist_system_error(thread_id, project_id, error_content, action_type="warning")
 
-                        # Publish event to Redis (Web UI)
-                        from app.infrastructure.cache import cache
-                        await cache.publish(
+                        # Publish event to EventBus (Web UI)
+                        from app.core.engine.message.event_bus import get_event_bus
+                        await get_event_bus().publish(
                             f"chat:{thread_id}:events",
                             json.dumps({
                                 "type": "warning",
@@ -307,9 +290,7 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
                         try:
                             from app.core.engine.message.mobile_notifier import MobileErrorNotifier
                             from app.core.engine.error_handler import LLMErrorHandler
-                            classification = LLMErrorHandler.classify_exception(
-                                Exception(error_content)
-                            )
+                            classification = LLMErrorHandler.classify_exception(Exception(error_content))
                             await MobileErrorNotifier(db_callback._handler).push(classification)
                         except Exception as push_e:
                             logger.warning(f"[BackgroundAgent] Failed to push error to mobile: {push_e}")
@@ -320,15 +301,6 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
 
             # Phase 4 Autonomy: Persist the subconscious Context Pool to cache before exiting/suspending
             await ContextManager.save(thread_id)
-
-            # Snapshot & Finish - Save remaining steps to the final message
-            activity_data = await activity_monitor.get_activity(thread_id)
-            steps_snapshot = activity_data.get("steps", [])
-            if steps_snapshot:
-                remaining_steps = steps_snapshot[db_callback._last_attributed_step_index:]
-                if remaining_steps:
-                    await db_callback.snapshot_steps_to_last_message(remaining_steps)
-
             await activity_monitor.end_run(thread_id, "done")
 
             # Publish AgentRunCompletedEvent for automated learning
@@ -366,14 +338,12 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
                 await persist_system_error(thread_id, project_id, "Recursion limit exceeded. The agent may be stuck in a loop.")
                 # Push error to Mobile (统一走 MobileErrorNotifier)
                 try:
-                    from app.core.engine.message.mobile_notifier import MobileErrorNotifier, ErrorSummary
-                    await MobileErrorNotifier(db_callback._handler).push(
-                        ErrorSummary(
-                            title='递归深度超限',
-                            message='Agent 可能陷入了循环，请简化问题后重试。',
-                            error_type='recursion_limit',
-                        )
+                    from app.core.engine.message.mobile_notifier import MobileErrorNotifier
+                    from app.core.engine.error_handler import LLMErrorHandler
+                    classification = LLMErrorHandler.classify_exception(
+                        Exception("Recursion limit exceeded. The agent may be stuck in a loop.")
                     )
+                    await MobileErrorNotifier(db_callback._handler).push(classification)
                 except Exception as push_e:
                     logger.warning(f"[BackgroundAgent] Failed to push recursion error to mobile: {push_e}")
             else:

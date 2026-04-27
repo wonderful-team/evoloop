@@ -10,6 +10,7 @@ EvoLoop Message System - 统一消息处理系统
         MessagePersistencePolicy,
         MessageStreamPolicy,
         MessageHandler,
+        MessagePublisher,
     )
     
     # 处理 AI 消息
@@ -27,7 +28,10 @@ EvoLoop Message System - 统一消息处理系统
 from app.core.engine.message.category import MessageCategory
 from app.core.engine.message.classifier import MessageClassifier
 from app.core.engine.message.handler import MessageHandler
+from app.core.engine.message.mapper import BlockMapper
 from app.core.engine.message.persistence import MessagePersistencePolicy
+from app.core.engine.message.publisher import MessagePublisher
+from app.core.engine.message.schemas import MessageBlock, ToolBlock, BlockEvent, HumanRequestEvent
 from app.core.engine.message.stream import MessageStreamPolicy
 
 __all__ = [
@@ -36,4 +40,10 @@ __all__ = [
     "MessagePersistencePolicy",
     "MessageStreamPolicy",
     "MessageHandler",
+    "MessagePublisher",
+    "MessageBlock",
+    "ToolBlock",
+    "BlockEvent",
+    "HumanRequestEvent",
+    "BlockMapper",
 ]

@@ -1,35 +1,63 @@
-import time
+"""
+SSE 流式事件 Schema —— 全系统通用事件定义。
+
+职责：
+1. 定义非消息特定的流式事件（StepEvent, ArtifactEvent, TokenEvent 等）
+2. 消息特定事件（BlockEvent, HumanRequestEvent）从消息模块导入
+
+架构位置：
+- 通用事件 → app.models.schemas.events（此文件）
+- 消息/引擎特定事件 → app.core.engine.message.schemas
+"""
+
+from enum import Enum
 from typing import Any, Dict, List, Literal, Optional, Union
 
-from pydantic import Field
+from app.infrastructure.pydantic_base import EventBase
 
-from app.infrastructure.pydantic_base import DynamicBaseModel
+# Re-export message-specific events that downstream code expects from this module
+from app.core.engine.message.schemas import HumanRequestEvent  # noqa: F401
 
 
-class EventBase(DynamicBaseModel):
-    timestamp: float = Field(default_factory=time.time)
+class StreamEventType(str, Enum):
+    """Canonical stream event types for real-time UI updates.
+
+    Includes all values from app.core.engine.callbacks.transparent.StreamEventType
+    plus additional error/auth types used in the SSE stream endpoint.
+    """
+    THINKING = "thinking"
+    TOOL_START = "tool_start"
+    TOOL_PROGRESS = "tool_progress"
+    TOOL_COMPLETE = "tool_complete"
+    TOOL_ERROR = "tool_error"
+    CHECKPOINT = "checkpoint"
+    PROGRESS = "progress"
+    COMPLETE = "complete"
+    LLM_AUTH_ERROR = "llm_auth_error"
+    QUOTA_EXHAUSTED = "quota_exhausted"
+    AUTH_EXPIRED = "auth_expired"
 
 
 # --- Step Events ---
 class StepEvent(EventBase):
     type: Literal["step"] = "step"
-    action: Literal["create", "update"]
+    action: Literal["create", "update"] = "create"
     id: int
     data: Dict[str, Any]  # Delta or full object
 
 
 # --- Artifact Events ---
-class ArtifactPayload(DynamicBaseModel):
+class ArtifactPayload(EventBase):
     name: str
     artifact_type: str  # "code", "design", "log"
     path: Optional[str] = None
     content: Optional[str] = None
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    metadata: Dict[str, Any] = {}
 
 
 class ArtifactEvent(EventBase):
     type: Literal["artifact"] = "artifact"
-    action: Literal["create", "update"]
+    action: Literal["create", "update"] = "create"
     name: str = ""
     data: Union[ArtifactPayload, Dict[str, Any]]
 
@@ -54,28 +82,6 @@ class StatusEvent(EventBase):
     message: Optional[str] = None
 
 
-# --- Message Events ---
-class MessageEvent(EventBase):
-    type: Literal["message"] = "message"
-    action: Literal["create"] = "create"
-    data: Dict[str, Any]  # Serialized Message model
-
-
-# --- Human Request Events ---
-class HumanRequestPayload(DynamicBaseModel):
-    type: Literal["text_input", "project_switch", "confirm", "file_select", "approval"]
-    prompt: str
-    allow_cancel: bool = True
-    payload: Dict[str, Any] = Field(default_factory=dict)
-    options: Optional[List[str]] = None
-
-
-class HumanRequestEvent(EventBase):
-    type: Literal["human_request"] = "human_request"
-    action: Literal["create", "update", "clear"] = "create"
-    data: Union[HumanRequestPayload, Dict[str, Any]]
-
-
 # --- Quota Exhausted Event ---
 class QuotaExhaustedEvent(EventBase):
     type: Literal["quota_exhausted"] = "quota_exhausted"
@@ -83,16 +89,3 @@ class QuotaExhaustedEvent(EventBase):
     message: str = "Your LLM quota has been exhausted."
     hint: str = "Please contact the administrator to add more quota."
     action_text: str = "Check Quota"
-
-
-# Union type for easy parsing
-StreamEvent = Union[
-    StepEvent,
-    ArtifactEvent,
-    AgentStateEvent,
-    TokenEvent,
-    StatusEvent,
-    MessageEvent,
-    HumanRequestEvent,
-    QuotaExhaustedEvent
-]

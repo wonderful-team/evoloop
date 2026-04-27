@@ -11,7 +11,6 @@ from app.core.config import settings
 from app.core.context import ContextManager
 from app.core.engine.context_monitor import ContextMonitor
 from app.core.engine.engine import EngineResult
-from app.core.engine.nodes.utils import log_msg_trace
 from app.core.engine.nodes.base import BaseAgentNode
 from app.core.engine.nodes.utils.focus_file_hydrator import FocusFileHydrator
 from app.core.engine.nodes.utils.skill_resolver import SkillResolver
@@ -114,14 +113,7 @@ class WorkerNode(BaseAgentNode):
         """Worker-specific post-processing when no signal is present."""
         execution_ticket = original_state.blackboard.ticket
         role_name = execution_ticket.agent_config.role_name if execution_ticket and execution_ticket.agent_config else "Worker"
-        result = process_worker_result(
-            self.node_name, original_state, engine_result, execution_ticket, role_name
-        )
-        log_msg_trace(
-            self.node_name, "handle_outcome RETURN",
-            getattr(result, 'messages', None),
-            next_node=getattr(result, 'next_node', 'N/A'),
-        )
+        result = process_worker_result(self.node_name, original_state, engine_result, execution_ticket, role_name)
         return result
 
     async def __call__(self, state: AgentState, config: RunnableConfig) -> StateUpdate:

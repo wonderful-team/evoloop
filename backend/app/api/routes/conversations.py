@@ -1,5 +1,6 @@
 import logging
 from datetime import datetime
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
 from sqlalchemy import delete, select, func
@@ -9,6 +10,7 @@ from app.api.responses import BaseAPIResponse, ListResponse
 from app.core.engine.message.folding import to_base_message, fold_messages
 from app.core.engine.state.history import FoldedMessage
 from app.core.monitoring.activity import activity_monitor
+from app.core.engine.message.schemas import HistoryBlock  # noqa: F401  # 标准化 Block 模型
 from app.infrastructure.database.sql.database import get_db_session
 from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.models import Conversation, FileOperation, Message
@@ -69,12 +71,22 @@ def get_tool_display_name(tool_name: str) -> str | None:
 
 
 class MessageItem(FoldedMessage):
-    steps_snapshot: list[dict] | None = None  # Historical task steps for completed runs
     run_id: str | None = None  # Deep Linking
     parent_id: int | None = None  # Threading
     references: list[ReferenceItem] = []  # Persistent References
     has_file_operations: bool = False  # For Undo/Retry optimization
     changeset_count: int = 0  # Number of file changes associated with this message
+    # --- 新增：与后端 MessageBlock 对齐的字段 ---
+    category: str | None = None
+    content_type: str = "text"
+    status: str | None = None
+    sequence_number: int | None = None
+    checkpoint_id: str | None = None
+    is_visible: bool = True  # Whether message is visible in the chat list
+    # Override thinking to support structured array (MessageBlock standard)
+    thinking: str | list[dict[str, Any]] | None = None
+    # Tool blocks for structured tool execution display
+    tool_blocks: list[dict[str, Any]] | None = None
 
 
 class ChangesetNode(DynamicBaseModel):
@@ -243,29 +255,22 @@ async def get_conversation_messages(
         # Get total count on first load (when before_id is None)
         total_count = None
         if before_id is None:
-            count_stmt = select(Message.id).where(
+            count_stmt = select(func.count(Message.id)).where(
                 Message.thread_id == thread_id,
                 Message.is_visible == True
             )
-            count_result = await session.execute(count_stmt)
-            total_count = len(count_result.scalars().all())
+            total_count = (await session.execute(count_stmt)).scalar()
 
-        # Pre-check file operations for undo optimization
+        # Query file operations: presence set + changeset count in one query
         file_ops_stmt = (
-            select(FileOperation.message_id)
-            .where(FileOperation.thread_id == thread_id)
-        )
-        file_ops_result = await session.execute(file_ops_stmt)
-        messages_with_files = set(file_ops_result.scalars().all())
-
-        # Query changeset count per message
-        changeset_count_stmt = (
             select(FileOperation.message_id, func.count(FileOperation.id).label("count"))
             .where(FileOperation.thread_id == thread_id)
             .group_by(FileOperation.message_id)
         )
-        changeset_count_result = await session.execute(changeset_count_stmt)
-        message_changeset_counts = {str(row.message_id): row.count for row in changeset_count_result.all()}
+        file_ops_result = await session.execute(file_ops_stmt)
+        file_ops_rows = file_ops_result.all()
+        messages_with_files = set(row.message_id for row in file_ops_rows)
+        message_changeset_counts = {str(row.message_id): row.count for row in file_ops_rows}
 
         # Conversion: Message DB -> LangChain BaseMessage -> FoldedMessage
         langchain_messages = []
@@ -273,6 +278,8 @@ async def get_conversation_messages(
             bm = to_base_message(m)
             if bm:
                 langchain_messages.append(bm)
+            else:
+                logger.warning(f"[Conversations] Dropping message with unknown role: id={m.id}, role={m.role}")
 
         folded = fold_messages(langchain_messages)
 
@@ -297,7 +304,7 @@ async def get_conversation_messages(
                         type=ref.type,
                         target_id=ref.target_id,
                         target_name=ref.target_name,
-                        metadata=ref.metadata,
+                        metadata=ref.meta_data,
                     )
                     for ref in db_m.references
                 ]
@@ -305,25 +312,44 @@ async def get_conversation_messages(
                 else []
             )
 
+            # Convert FoldedMessage steps to tool_blocks for structured display
+            tool_blocks = [
+                {
+                    "id": step.id,
+                    "tool_call_id": step.tool_call_id or step.id,
+                    "tool": step.tool,
+                    "tool_name": step.tool_name,
+                    "tool_name_display": step.tool_name_display,
+                    "input": step.input,
+                    "output": step.output,
+                    "status": step.status,
+                    "duration_ms": int(step.duration * 1000) if step.duration else None,
+                }
+                for step in (f.steps or [])
+            ] if f.steps else None
+
             item = MessageItem(
                 **f.model_dump(),
-                steps_snapshot=None, # Stripped to optimize payload size
                 run_id=db_m.run_id,
                 parent_id=db_m.parent_id,
                 references=refs,
                 has_file_operations=bool(
-                    str(db_m.id) in messages_with_files or
-                    (db_m.run_id and db_m.run_id in messages_with_files)
+                    db_m.run_id and db_m.run_id in messages_with_files
                 ),
-                changeset_count=message_changeset_counts.get(str(db_m.id), 0),
+                changeset_count=message_changeset_counts.get(db_m.run_id, 0) if db_m.run_id else 0,
+                # --- 新增：填充 MessageBlock 对齐字段 ---
+                category=db_m.category,
+                content_type=db_m.content_type or "text",
+                status=db_m.status,
+                sequence_number=db_m.sequence_number,
+                checkpoint_id=db_m.checkpoint_id,
+                is_visible=db_m.is_visible,
+                tool_blocks=tool_blocks,
             )
             
-            # Optimization: Remove heavy tool calls and output details from history
+            # Remove raw tool_calls (frontend uses folded steps instead)
+            # Note: step.output is preserved in full — frontend needs it to display results
             item.tool_calls = None
-            if item.steps:
-                for step in item.steps:
-                    step.output = "" # Hide execution results in list view
-            
             final_items.append(item)
 
         # Build response with cursors (based on visible messages only)
@@ -354,6 +380,10 @@ async def search_conversations(q: str, project_id: int | None = None):
         # Only search visible messages
         # This includes: user, assistant_response, assistant_tool_call, tool_output
         # This excludes: internal_*, error
+        #
+        # TODO: Replace ilike with proper full-text search (PostgreSQL tsvector
+        # or SQLite FTS5) to avoid O(n) sequential scan on large message tables.
+        # The leading wildcard prevents index usage on the content column.
         stmt = (
             select(Message)
             .where(Message.content.ilike(f"%{q}%"))

@@ -302,58 +302,222 @@ class _FileCacheCore:
 # ============================================================================
 
 class InMemoryPubSubAdapter(PubSubBackend):
-    """Pub/Sub using the global in_memory_bus."""
+    """Pub/Sub using the global in_memory_bus (thread-safe)."""
 
     def __init__(self):
-        self._subscriptions: dict[str, asyncio.Queue] = {}
+        self._subscriptions: dict[str, Any] = {}  # channel -> Queue
 
     async def subscribe(self, *channels: str) -> None:
         for channel in channels:
             if channel not in self._subscriptions:
-                self._subscriptions[channel] = await in_memory_bus.subscribe(channel)
+                self._subscriptions[channel] = in_memory_bus.subscribe(channel)
 
     async def unsubscribe(self, *channels: str) -> None:
         for channel in channels:
             if channel in self._subscriptions:
-                await in_memory_bus.unsubscribe(channel, self._subscriptions[channel])
+                in_memory_bus.unsubscribe(channel, self._subscriptions[channel])
                 del self._subscriptions[channel]
 
     async def get_message(self, ignore_subscribe_messages: bool = False, timeout: float = None) -> dict | None:
+        import time
+        from queue import Empty
+
         if not self._subscriptions:
             return None
-        
+
         # Get first subscribed channel
         channel = next(iter(self._subscriptions.keys()))
         queue = self._subscriptions[channel]
 
-        try:
-            if timeout:
-                msg = await asyncio.wait_for(queue.get(), timeout=timeout)
-            else:
-                msg = queue.get_nowait()
-            return {"type": "message", "channel": channel, "data": msg}
-        except (asyncio.TimeoutError, asyncio.QueueEmpty):
+        if timeout:
+            deadline = time.monotonic() + timeout
+            while time.monotonic() < deadline:
+                try:
+                    msg = queue.get_nowait()
+                    return {"type": "message", "channel": channel, "data": msg}
+                except Empty:
+                    await asyncio.sleep(0.01)
             return None
+        else:
+            try:
+                msg = queue.get_nowait()
+                return {"type": "message", "channel": channel, "data": msg}
+            except Empty:
+                return None
 
     async def close(self) -> None:
         for channel, queue in list(self._subscriptions.items()):
-            await in_memory_bus.unsubscribe(channel, queue)
+            in_memory_bus.unsubscribe(channel, queue)
         self._subscriptions.clear()
 
 
+# Cross-platform file locking support
+# fcntl is Unix-only; msvcrt is Windows-only
+try:
+    import fcntl
+    _HAS_FCNTL = True
+except ImportError:
+    _HAS_FCNTL = False
+    fcntl = None  # type: ignore
+
+try:
+    import msvcrt
+    _HAS_MSVCRT = True
+except ImportError:
+    _HAS_MSVCRT = False
+    msvcrt = None  # type: ignore
+
+
 class FileCacheLockAdapter(CacheLock):
-    """No-op lock for file-based cache (embedded mode doesn't need distributed locks)."""
+    """
+    Real file-based lock for embedded mode.
+
+    Uses OS-level file locking (fcntl on Unix, msvcrt on Windows) to provide
+    cross-thread and cross-process mutual exclusion. The lock file is stored
+    in ~/.evoloop/cache/locks/.
+    """
 
     def __init__(self, name: str):
         self.name = name
         self._locked = False
+        self._fd: int | None = None
+        self._lock_file: Path | None = None
 
     async def acquire(self, blocking: bool = True, blocking_timeout: float = None) -> bool:
-        self._locked = True
-        return True
+        """
+        Acquire the file lock.
+
+        Args:
+            blocking: If True, block until the lock is available.
+                      If False, return immediately with True/False.
+            blocking_timeout: Maximum seconds to wait (only when blocking=True).
+                              None means wait forever.
+        """
+        if self._locked:
+            return True
+
+        lock_dir = Path.home() / ".evoloop" / "cache" / "locks"
+        lock_dir.mkdir(parents=True, exist_ok=True)
+        self._lock_file = lock_dir / f"{self.name}.lock"
+
+        try:
+            # Open (or create) the lock file
+            fd = os.open(str(self._lock_file), os.O_CREAT | os.O_RDWR)
+            self._fd = fd
+
+            if _HAS_FCNTL:
+                return await self._acquire_fcntl(fd, blocking, blocking_timeout)
+            elif _HAS_MSVCRT:
+                return await self._acquire_msvcrt(fd, blocking, blocking_timeout)
+            else:
+                # Fallback: no OS-level locking available — still better than no-op
+                # because the file itself acts as a crude mutex indicator
+                self._locked = True
+                return True
+        except OSError as e:
+            logger.warning(f"[FileCacheLock] Failed to acquire lock {self.name}: {e}")
+            return False
+
+    async def _acquire_fcntl(self, fd: int, blocking: bool, blocking_timeout: float | None) -> bool:
+        """Unix fcntl-based locking with optional timeout."""
+        import asyncio
+
+        if blocking and blocking_timeout is None:
+            # Block forever
+            fcntl.flock(fd, fcntl.LOCK_EX)
+            self._locked = True
+            return True
+
+        if not blocking:
+            # Non-blocking: try once
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                self._locked = True
+                return True
+            except (IOError, OSError):
+                os.close(fd)
+                self._fd = None
+                return False
+
+        # Blocking with timeout: poll using non-blocking attempts
+        import time
+        deadline = time.monotonic() + blocking_timeout
+        while time.monotonic() < deadline:
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                self._locked = True
+                return True
+            except (IOError, OSError):
+                await asyncio.sleep(0.05)
+
+        # Timeout reached
+        os.close(fd)
+        self._fd = None
+        return False
+
+    async def _acquire_msvcrt(self, fd: int, blocking: bool, blocking_timeout: float | None) -> bool:
+        """Windows msvcrt-based locking with optional timeout."""
+        import asyncio
+        import time
+
+        if blocking and blocking_timeout is None:
+            # Lock entire file (bytes 0-0xffffffff means "to end of file")
+            msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+            self._locked = True
+            return True
+
+        if not blocking:
+            try:
+                msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+                self._locked = True
+                return True
+            except OSError:
+                os.close(fd)
+                self._fd = None
+                return False
+
+        deadline = time.monotonic() + blocking_timeout
+        while time.monotonic() < deadline:
+            try:
+                msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+                self._locked = True
+                return True
+            except OSError:
+                await asyncio.sleep(0.05)
+
+        os.close(fd)
+        self._fd = None
+        return False
 
     async def release(self) -> None:
-        self._locked = False
+        """Release the file lock."""
+        if not self._locked:
+            return
+
+        try:
+            if self._fd is not None:
+                if _HAS_FCNTL:
+                    fcntl.flock(self._fd, fcntl.LOCK_UN)
+                elif _HAS_MSVCRT:
+                    msvcrt.locking(self._fd, msvcrt.LK_UNLCK, 1)
+                os.close(self._fd)
+                self._fd = None
+        except OSError as e:
+            logger.warning(f"[FileCacheLock] Error releasing lock {self.name}: {e}")
+        finally:
+            self._locked = False
+
+    def __del__(self):
+        """Ensure the lock is released if the adapter is garbage-collected."""
+        if self._locked and self._fd is not None:
+            try:
+                if _HAS_FCNTL:
+                    fcntl.flock(self._fd, fcntl.LOCK_UN)
+                elif _HAS_MSVCRT:
+                    msvcrt.locking(self._fd, msvcrt.LK_UNLCK, 1)
+                os.close(self._fd)
+            except Exception:
+                pass
 
 
 class FileCachePipelineAdapter(CachePipeline):

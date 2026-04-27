@@ -11,12 +11,17 @@ from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 
 from app.api.deps import verify_guest_access
+from app.core.engine.message.folder import MessageFolder
 from app.core.engine.state.history import ToolStep
 from app.core.monitoring.activity import activity_monitor
 from app.infrastructure.cache import cache
+from app.models.schemas.events import StreamEventType
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/stream", tags=["stream"])
+
+# Pre-compute set of all stream event type values for fast membership testing
+_STREAM_EVENT_TYPE_VALUES = {e.value for e in StreamEventType}
 
 
 @router.get("/chat/{thread_id}", dependencies=[Depends(verify_guest_access)])
@@ -64,18 +69,36 @@ async def stream_chat(thread_id: str):
             await pubsub.subscribe(f"chat:{thread_id}:events")
 
             # 3. Stream Events (incremental)
+            reconnect_attempts = 0
+            MAX_RECONNECT_ATTEMPTS = 10
+            BASE_BACKOFF = 0.5
+
             while True:
                 try:
                     message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
+                    # Reset backoff on successful read
+                    reconnect_attempts = 0
                 except (ConnectionError, asyncio.TimeoutError) as e:
-                    logger.warning(f"PubSub read error: {e}. Attempting to re-subscribe...")
-                    await asyncio.sleep(0.5)
+                    reconnect_attempts += 1
+                    if reconnect_attempts > MAX_RECONNECT_ATTEMPTS:
+                        logger.error(f"PubSub max reconnect attempts ({MAX_RECONNECT_ATTEMPTS}) exceeded. Aborting stream.")
+                        yield f"event: error\ndata: {json.dumps({'error': 'Stream connection lost after maximum retries'})}\n\n"
+                        break
+                    backoff = min(BASE_BACKOFF * (2 ** (reconnect_attempts - 1)), 30.0)
+                    logger.warning(f"PubSub read error: {e}. Re-subscribing in {backoff}s (attempt {reconnect_attempts}/{MAX_RECONNECT_ATTEMPTS})...")
+                    await asyncio.sleep(backoff)
                     await pubsub.subscribe(f"chat:{thread_id}:events")
                     continue
                 except Exception as e:
                     if "Buffer is closed" in str(e):
-                        logger.error("Cache buffer is closed. Re-initializing connection...")
-                        await asyncio.sleep(1.0)
+                        reconnect_attempts += 1
+                        if reconnect_attempts > MAX_RECONNECT_ATTEMPTS:
+                            logger.error(f"PubSub max reconnect attempts ({MAX_RECONNECT_ATTEMPTS}) exceeded. Aborting stream.")
+                            yield f"event: error\ndata: {json.dumps({'error': 'Stream connection lost after maximum retries'})}\n\n"
+                            break
+                        backoff = min(BASE_BACKOFF * (2 ** (reconnect_attempts - 1)), 30.0)
+                        logger.error(f"Cache buffer is closed. Re-initializing connection in {backoff}s (attempt {reconnect_attempts}/{MAX_RECONNECT_ATTEMPTS})...")
+                        await asyncio.sleep(backoff)
                         await pubsub.subscribe(f"chat:{thread_id}:events")
                         continue
                     raise e
@@ -110,39 +133,18 @@ async def stream_chat(thread_id: str):
                             # Server-side Tool Message Folding
                             if msg_role == 'tool' or msg_type == 'tool':
                                 if last_ai_message:
-                                    tool_id = msg_data.get('tool_call_id')
-                                    tool_name = msg_data.get('tool_name') or 'unknown'
-                                    tool_name_display = msg_data.get('tool_name_display') or tool_name
-                                    
-                                    # Find matching tool call in the parent AI message
-                                    tool_calls = last_ai_message.get('tool_calls', []) or []
-                                    matched_call = next((tc for tc in tool_calls if tc.get('id') == tool_id), None)
-                                    
-                                    tool_input = matched_call.get('args', {}) if matched_call else {}
-                                    
-                                    step = ToolStep(
-                                        id=msg_data.get('id') or f"step-{asyncio.get_event_loop().time()}",
-                                        tool=tool_name,
-                                        tool_name=tool_name_display,
-                                        input=tool_input,
-                                        output=msg_data.get('content', ''),
-                                        status='success',
-                                        tool_call_id=tool_id,
-                                    )
-                                    
-                                    if 'steps' not in last_ai_message:
-                                        last_ai_message['steps'] = []
-                                    
-                                    # Avoid duplicate steps if event is re-sent
-                                    if not any(s.get('tool_call_id') == tool_id for s in last_ai_message['steps']):
-                                        last_ai_message['steps'].append(step.model_dump())
-                                    
-                                    yield f"event: message\ndata: {json.dumps(last_ai_message)}\n\n"
+                                    # Deep-copy to avoid mutating the shared reference
+                                    folded = dict(last_ai_message)
+                                    MessageFolder.append_tool_event_to_ai_message(folded, msg_data)
+                                    yield f"event: message\ndata: {json.dumps(folded)}\n\n"
                                 else:
-                                    logger.warning(f"[Stream] Orphan tool message received: {msg_data.get('id')}")
+                                    # Orphan tool message — forward as-is so frontend can display it
+                                    yield f"event: message\ndata: {json.dumps(msg_data)}\n\n"
                             else:
                                 if msg_role == 'ai':
-                                    msg_data['steps'] = msg_data.get('steps', [])
+                                    # Ensure steps is a list without clobbering non-list data
+                                    if not msg_data.get('steps'):
+                                        msg_data['steps'] = []
                                     last_ai_message = msg_data
                                 yield f"event: message\ndata: {json.dumps(msg_data)}\n\n"
                         
@@ -151,16 +153,13 @@ async def stream_chat(thread_id: str):
                         
                         # Enhanced Stream Events (thinking, tool progress, errors, etc.)
                         # Also includes error events that need user notification
-                        elif event_type in [
-                            "thinking", "tool_start", "tool_progress", "tool_complete",
-                            "tool_error", "checkpoint", "progress", "complete",
-                            "llm_auth_error", "quota_exhausted",  # Error notifications for user
-                            "auth_expired",  # EvoLoop 平台认证过期
-                        ]:
+                        elif event_type in _STREAM_EVENT_TYPE_VALUES:
                             yield f"event: stream\ndata: {json.dumps(event_data)}\n\n"
 
                     except Exception as e:
                         logger.error(f"Error processing pubsub message: {e}")
+                        # Notify client that an event was lost
+                        yield f"event: error\ndata: {json.dumps({'error': 'Failed to process server event', 'details': str(e)})}\n\n"
 
                 await asyncio.sleep(0.01)
 

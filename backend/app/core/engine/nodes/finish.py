@@ -18,7 +18,6 @@ from app.core.engine.state import AgentState, StateUpdate
 
 from app.core.events import system_bus
 from app.core.events.schema import SessionCompletedEvent, SessionCompletedData
-from app.core.engine.nodes.utils import log_msg_trace
 from app.core.engine.nodes.base import BaseNode
 from app.core.engine.routers import RoutingTarget
 from app.core.engine.services.audit_service import AuditService, AuditResult
@@ -286,11 +285,6 @@ class FinishNode(BaseNode):
         # --------------------------------------------------------------
         asyncio.create_task(_safe_prune(effective_thread_id))
 
-        log_msg_trace(
-            self.node_name, "RETURN",
-            messages_to_return,
-            remove_msgs=len([m for m in messages_to_return if isinstance(m, RemoveMessage)]),
-        )
         return StateUpdate(
             messages=messages_to_return,
             next_node=RoutingTarget.END,

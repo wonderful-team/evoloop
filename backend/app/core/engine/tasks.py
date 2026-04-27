@@ -39,25 +39,37 @@ class PersistMessagePayload(BaseModel):
     references: list[dict] | None = None
     action_type: str = "text"
     category: str | None = None
+    content_type: str | None = None
     is_visible: bool = True
     tool_call_id: str | None = None
     tool_name: str | None = None
 
 
 async def _notify_file_operation(thread_id: str, message_id: str, file_path: str, operation: str):
-    """Notify frontend of new file operation via SSE."""
-    from app.infrastructure.cache import cache
+    """Notify frontend of new file operation via SSE through MessagePublisher."""
+    from app.core.engine.message.publisher import MessagePublisher
+    from app.core.engine.message.schemas import MessageBlock
+    import time
 
-    event_data = {
-        "type": "file_operation",
-        "thread_id": thread_id,
-        "message_id": message_id,
-        "file_path": file_path,
-        "operation": operation,  # "ADD", "EDIT", "DELETE"
-        "timestamp": datetime.now().isoformat(),
-    }
+    block = MessageBlock(
+        id=f"file-op-{thread_id}-{message_id}",
+        thread_id=thread_id,
+        role="system",
+        category="file_operation",
+        content=f"File {operation}: {file_path}",
+        content_type="text",
+        status="completed",
+        is_visible=False,
+        sequence_number=int(time.time() * 1000),
+        metadata={
+            "file_path": file_path,
+            "operation": operation,
+            "message_id": message_id,
+        },
+    )
 
-    await cache.publish(f"chat:{thread_id}:events", json.dumps(event_data))
+    publisher = MessagePublisher(thread_id=thread_id)
+    await publisher.publish(block, channels={"sse"})
     logger.debug(f"[Celery] Published file operation event for {file_path}")
 
 
@@ -85,57 +97,6 @@ async def persist_file_operation_task(
 
     # Notify frontend via SSE
     await _notify_file_operation(thread_id, message_id, file_path, operation)
-
-
-@shared_task(name="engine_snapshot_steps")
-async def snapshot_steps_task(
-    thread_id: str,
-    project_id: int,
-    run_id: str | None,
-    steps: list
-):
-    """Background task to persist executed steps to the last AI message.
-    
-    Note: This now APPENDS to existing steps rather than overwriting,
-    supporting the "Real-time Attribution" (方案 A) design where steps
-    are incrementally attributed to the AI message active when they ran.
-    """
-    from app.models import Message
-    async with session_scope() as session:
-        stmt = (
-            select(Message)
-            .where(Message.thread_id == thread_id)
-            .where(Message.role == "ai")
-        )
-        if run_id:
-            stmt = stmt.where(Message.run_id == run_id)
-        stmt = stmt.order_by(desc(Message.sequence_number)).limit(1)
-
-        result = await session.execute(stmt)
-        last_msg = result.scalar_one_or_none()
-
-        if last_msg:
-            # Use standard ToolStep serialization logic
-            serialized_steps = []
-            for t in steps:
-                # Map incoming step data to ToolStep schema
-                step_data = {
-                    "id": str(t.get("id", gen_uuid())),
-                    "tool": t.get("tool") or t.get("name", "unknown"),
-                    "tool_name": t.get("tool_name") or t.get("name"),
-                    "input": t.get("input") or {},
-                    "output": str(t.get("details") or t.get("output") or ""),
-                    "status": t.get("status", "success"),
-                    "duration": t.get("duration"),
-                    "tool_call_id": t.get("tool_call_id"),
-                }
-                serialized_steps.append(step_data)
-
-            # Append to existing steps instead of overwriting
-            existing_steps = last_msg.steps_snapshot or []
-            last_msg.steps_snapshot = existing_steps + serialized_steps
-
-    logger.info(f"[Celery] Snapshotted {len(steps)} steps for AI message in thread {thread_id}")
 
 
 @shared_task(name="engine_harvest_concepts")
@@ -179,8 +140,12 @@ async def harvest_concepts_task(concepts_data: list[dict], project_id: int):
 
             # Use unified MemoryManager interface
             from app.core.memory.lifespan import MemoryLifespanManager
-            if not MemoryLifespanManager.is_initialized():
-                await MemoryLifespanManager.ainitialize()
+            import asyncio
+            # Module-level lock to prevent TOCTOU between is_initialized() and ainitialize()
+            _memory_init_lock = asyncio.Lock()
+            async with _memory_init_lock:
+                if not MemoryLifespanManager.is_initialized():
+                    await MemoryLifespanManager.ainitialize()
             container = MemoryLifespanManager.get_container()
             await container.memory_manager.store_concept(
                 name=name,
@@ -284,95 +249,6 @@ async def prune_checkpoints_task(keep_days: int = 7):
         logger.error(f"[Celery] Failed to prune checkpoints: {e}")
 
 
-async def _persist_message_impl(**kwargs):
-    """消息持久化核心实现（普通 async 函数，供直接调用和 Huey 任务共用）。"""
-    payload = PersistMessagePayload(**kwargs)
-
-    from app.core.engine.message.category import MessageCategory
-    from app.models import Conversation, Message, MessageReference
-
-    try:
-        async with session_scope() as session:
-            target_parent_id = payload.parent_id
-            if not target_parent_id:
-                # Find last message in thread
-                stmt = (
-                    select(Message.id)
-                    .where(Message.thread_id == payload.thread_id)
-                    .order_by(desc(Message.sequence_number))
-                    .limit(1)
-                )
-                res = await session.execute(stmt)
-                target_parent_id = res.scalar_one_or_none()
-
-            # is_visible can be overridden by parameter, otherwise determined by category
-            final_is_visible = payload.is_visible
-            if payload.category:
-                try:
-                    cat_enum = MessageCategory(payload.category)
-                    final_is_visible = cat_enum in MessageCategory.get_visible_categories()
-                except ValueError:
-                    pass
-
-            log = Message(
-                thread_id=payload.thread_id,
-                project_id=payload.project_id,
-                role=payload.role,
-                content=payload.content,
-                thinking=payload.thinking,
-                sequence_number=payload.sequence_number,
-                run_id=payload.run_id,
-                status=payload.status,
-                parent_id=target_parent_id,
-                tool_calls=payload.tool_calls,
-                action_type=payload.action_type,
-                is_visible=final_is_visible,
-                category=payload.category,
-                tool_call_id=payload.tool_call_id,
-                tool_name=payload.tool_name,
-            )
-            session.add(log)
-            await session.flush()  # Get ID for references
-
-            if payload.references:
-                for ref in payload.references:
-                    mr = MessageReference(
-                        id=gen_uuid(),
-                        message_id=log.id,
-                        type=ref["type"],
-                        target_id=ref["target_id"],
-                        target_name=ref["target_name"],
-                    )
-                    session.add(mr)
-
-            # Mark conversation as pending so incremental sync picks it up
-            conversation = await session.get(Conversation, payload.thread_id)
-            if conversation and conversation.sync_status == "synced":
-                conversation.sync_status = "pending"
-                logger.debug(
-                    f"[Persist] Marked conversation {payload.thread_id} as pending for sync"
-                )
-
-        logger.debug(
-            f"[Persist] Persisted message {payload.sequence_number} "
-            f"with {len(payload.references or [])} refs for thread {payload.thread_id}"
-        )
-        return True
-    except Exception as e:
-        error_msg = f"[Persist] Failed to persist message: {type(e).__name__}: {e}"
-        logger.error(error_msg)
-        print(f"ERROR: {error_msg}", flush=True)
-        import traceback
-        traceback.print_exc()
-        raise
-
-
-@shared_task(name="engine_persist_message")
-async def persist_message_task(**kwargs):
-    """Huey/Celery 后台任务入口，包装 _persist_message_impl。"""
-    return await _persist_message_impl(**kwargs)
-
-
 @shared_task(name="engine_cleanup_artifacts")
 def cleanup_artifacts_task(max_age_days: int = 3):
     """
@@ -453,8 +329,12 @@ async def git_harvest_task(cwd: str, project_id: int, model: str | None = None):
         if isinstance(result, GitConceptExtractionResult) and result.concepts:
             # Use singleton container to store concepts
             from app.core.memory.lifespan import MemoryLifespanManager
-            if not MemoryLifespanManager.is_initialized():
-                await MemoryLifespanManager.ainitialize()
+            import asyncio
+            # Module-level lock to prevent TOCTOU between is_initialized() and ainitialize()
+            _memory_init_lock = asyncio.Lock()
+            async with _memory_init_lock:
+                if not MemoryLifespanManager.is_initialized():
+                    await MemoryLifespanManager.ainitialize()
             container = MemoryLifespanManager.get_container()
             from app.core.memory.models import Concept as MemConcept
             for concept in result.concepts:

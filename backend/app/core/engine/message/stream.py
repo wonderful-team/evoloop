@@ -25,22 +25,8 @@ class MessageStreamPolicy:
     消息流式推送策略
     
     集中管理所有消息的实时推送规则。
+    所有规则已下沉到 MessageCategory 枚举属性，此类仅作为统一入口。
     """
-
-    # 分类 → (是否推送, 前端显示类型)
-    _RULES = {
-        MessageCategory.USER: (True, "human"),
-        MessageCategory.ASSISTANT_RESPONSE: (True, "ai"),
-        MessageCategory.ASSISTANT_TOOL_CALL: (True, "ai"),  # 工具调用消息也推送（用于步骤跟踪）
-        MessageCategory.TOOL_OUTPUT: (True, "tool"),
-        MessageCategory.INTERNAL_TOOL_CALL: (False, None),  # 内部工具调用不推送
-        MessageCategory.INTERNAL_REASONING: (True, "thought"),  # 思考过程推送（可选显示）
-        MessageCategory.INTERNAL_SYSTEM: (False, None),
-        MessageCategory.INTERNAL_LLM_JSON: (False, None),
-        MessageCategory.ERROR_SYSTEM: (True, "error"),  # 系统错误流式推送
-        MessageCategory.AUTH_EXPIRED: (True, "auth_expired"),  # EvoLoop认证过期流式推送
-        MessageCategory.ERROR_BUSINESS: (True, "error"),  # 业务错误流式推送
-    }
 
     @classmethod
     def should_stream(cls, category: MessageCategory) -> bool:
@@ -53,8 +39,7 @@ class MessageStreamPolicy:
         Returns:
             bool: 是否推送
         """
-        should, _ = cls._RULES.get(category, (False, None))
-        return should
+        return category.should_stream_to_frontend
 
     @classmethod
     def get_frontend_type(cls, category: MessageCategory) -> str | None:
@@ -68,8 +53,7 @@ class MessageStreamPolicy:
             str: 前端类型 (human, ai, tool, thought)
             None: 不推送
         """
-        _, frontend_type = cls._RULES.get(category, (False, None))
-        return frontend_type
+        return category.frontend_type
 
     @classmethod
     def apply_policy(

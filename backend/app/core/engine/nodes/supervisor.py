@@ -8,7 +8,6 @@ from app.constants import DEFAULT_PROJECT_ID
 from app.core.config import settings
 from app.core.engine.engine import EngineResult
 from app.core.engine.message.utils import get_last_human_message
-from app.core.engine.nodes.utils import log_msg_trace
 from app.core.engine.nodes.base import BaseAgentNode
 from app.core.engine.prompts import SupervisorContext, SupervisorPromptBuilder
 from app.core.engine.routers import RoutingTarget
@@ -130,7 +129,6 @@ class SupervisorNode(BaseAgentNode):
             if hasattr(msg, "metadata")
         )
         if has_error_msg:
-            log_msg_trace(self.node_name, "handle_outcome ERROR_PATH", new_messages)
             return StateUpdate(
                 messages=new_messages,
                 next_node=RoutingTarget.FINISH,
@@ -144,7 +142,6 @@ class SupervisorNode(BaseAgentNode):
             ai_content = str(new_messages[-1].content).strip()
 
         if ai_content:
-            log_msg_trace(self.node_name, "handle_outcome PROTOCOL_VIOLATION", next_node="chat")
             return StateUpdate(
                 next_node=RoutingTarget.CHAT,
                 blackboard=blackboard,
@@ -152,7 +149,6 @@ class SupervisorNode(BaseAgentNode):
             )
 
         logger.error("[Supervisor] 🛑 Stop: No routing signal and no content.")
-        log_msg_trace(self.node_name, "handle_outcome EMPTY", next_node="finish")
         return StateUpdate(
             next_node=RoutingTarget.FINISH,
             blackboard=blackboard,

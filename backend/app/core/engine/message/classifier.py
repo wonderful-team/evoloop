@@ -71,6 +71,12 @@ class MessageClassifier:
             if metadata.get("skip_persistence"):
                 return MessageCategory.ERROR_SYSTEM
 
+            # source 标记优先于 is_error 推断
+            if source == "error_system":
+                return MessageCategory.ERROR_SYSTEM
+            if source == "error_business":
+                return MessageCategory.ERROR_BUSINESS
+
             # 区分系统错误和业务错误
             if metadata.get("is_error"):
                 # 系统预定义的错误类型
@@ -96,10 +102,6 @@ class MessageClassifier:
 
                 return MessageCategory.ERROR_BUSINESS
 
-            if source == "error_system":
-                return MessageCategory.ERROR_SYSTEM
-            if source == "error_business":
-                return MessageCategory.ERROR_BUSINESS
             if source == "internal_llm" or source.startswith("internal_"):
                 return MessageCategory.INTERNAL_LLM_JSON
 

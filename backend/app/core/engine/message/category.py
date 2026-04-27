@@ -106,6 +106,21 @@ class MessageCategory(str, Enum):
         }
 
     @property
+    def frontend_type(self) -> str | None:
+        """前端显示类型 (human, ai, tool, thought, error, auth_expired)"""
+        mapping = {
+            MessageCategory.USER: "human",
+            MessageCategory.ASSISTANT_RESPONSE: "ai",
+            MessageCategory.ASSISTANT_TOOL_CALL: "ai",
+            MessageCategory.TOOL_OUTPUT: "tool",
+            MessageCategory.INTERNAL_REASONING: "thought",
+            MessageCategory.ERROR_SYSTEM: "error",
+            MessageCategory.ERROR_BUSINESS: "error",
+            MessageCategory.AUTH_EXPIRED: "auth_expired",
+        }
+        return mapping.get(self)
+
+    @property
     def storage_field(self) -> str | None:
         """
         存储字段映射
@@ -126,8 +141,17 @@ class MessageCategory(str, Enum):
             MessageCategory.INTERNAL_TOOL_CALL: None,
             MessageCategory.INTERNAL_SYSTEM: None,
             MessageCategory.INTERNAL_LLM_JSON: None,
+            MessageCategory.AUTH_EXPIRED: None,
         }
         return mapping.get(self)
+
+    @property
+    def should_store_tool_calls(self) -> bool:
+        """是否应该存储 tool_calls 到数据库"""
+        return self in {
+            MessageCategory.ASSISTANT_RESPONSE,
+            MessageCategory.ASSISTANT_TOOL_CALL,
+        }
 
     @classmethod
     def get_visible_categories(cls) -> set:

@@ -14,18 +14,15 @@ from .schemas import (
     ProjectSwitchedEvent,
     ProjectSwitchEvent,
 )
-from .subscribers import ProjectDomainHandler, ProjectSwitchWebSocketHandler
 from .types import ProjectEventType
 
 __all__ = [
     "NewProjectDetectedEvent",
     "ProjectCreatedEvent",
     "ProjectDeletedEvent",
-    "ProjectDomainHandler",
     "ProjectEvent",
     "ProjectEventType",
     "ProjectMovedEvent",
     "ProjectSwitchedEvent",
-    "ProjectSwitchWebSocketHandler",
     "ProjectSwitchEvent",
 ]

@@ -17,6 +17,7 @@ Both implementations conform to the TaskScheduler abstract base class.
 import asyncio
 import functools
 import logging
+import threading
 from pathlib import Path
 from typing import Any, Callable, Optional
 
@@ -29,6 +30,7 @@ logger = logging.getLogger(__name__)
 
 # Temporary registry for tasks registered before celery_app is created
 _pending_shared_tasks: list[tuple] = []
+_pending_tasks_lock = threading.Lock()
 
 
 # =============================================================================
@@ -264,7 +266,8 @@ def shared_task(func=None, *, name=None, bind=False, **options):
             logger.debug(f"[shared_task] Registered: {task_name}")
         else:
             # Queue for later registration
-            _pending_shared_tasks.append((task_name, task))
+            with _pending_tasks_lock:
+                _pending_shared_tasks.append((task_name, task))
             logger.debug(f"[shared_task] Queued for registration: {task_name}")
         return task
 
@@ -302,11 +305,9 @@ def _register_local_tasks(app: LocalCelery):
 
         tasks_to_register = [
             ("engine_persist_file_operation", getattr(engine_tasks, 'persist_file_operation_task', None), False),
-            ("engine_snapshot_steps", getattr(engine_tasks, 'snapshot_steps_task', None), False),
             ("engine_harvest_concepts", getattr(engine_tasks, 'harvest_concepts_task', None), False),
             ("engine_record_episode", getattr(engine_tasks, 'record_episode_task', None), False),
             ("engine_prune_checkpoints", getattr(engine_tasks, 'prune_checkpoints_task', None), False),
-            ("engine_persist_message", getattr(engine_tasks, 'persist_message_task', None), False),
             ("engine_cleanup_artifacts", getattr(engine_tasks, 'cleanup_artifacts_task', None), False),
             ("engine_git_harvest", getattr(engine_tasks, 'git_harvest_task', None), False),
             ("engine_reconcile_skill_macro", getattr(engine_tasks, 'reconcile_skill_macro_task', None), False),

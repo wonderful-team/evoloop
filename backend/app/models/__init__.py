@@ -9,7 +9,9 @@ from .codebase import CodeEntity as CodeEntity
 from .codebase import CodeRelation as CodeRelation
 from .codebase import Repository as Repository
 from .codebase import SourceFile as SourceFile
+from .conversation import AgentActivity as AgentActivity
 from .conversation import Conversation as Conversation
+from .conversation import ThreadSequence as ThreadSequence
 from .conversation import HumanRequest as HumanRequest
 from .conversation import Message as Message
 from .conversation import MessageReference as MessageReference

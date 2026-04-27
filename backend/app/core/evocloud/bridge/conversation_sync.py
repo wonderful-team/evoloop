@@ -206,7 +206,6 @@ class ConversationSyncManager:
             is_visible=1 if msg.is_visible else 0,
             run_id=msg.run_id or "",
             status=msg.status or "completed",
-            steps_snapshot=msg.steps_snapshot if msg.steps_snapshot else None,
             parent_id=msg.parent_id or 0,
             category=msg.category or "",
         )

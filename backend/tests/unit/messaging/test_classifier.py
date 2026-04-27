@@ -4,8 +4,8 @@
 import sys
 sys.path.insert(0, '/Users/huangjinhuan/项目/develop-assistant.cn/evoloop/backend')
 
-from app.core.messaging.category import MessageCategory
-from app.core.messaging.classifier import MessageClassifier
+from app.core.engine.message.category import MessageCategory
+from app.core.engine.message.classifier import MessageClassifier
 
 
 def test_classify_internal_json():

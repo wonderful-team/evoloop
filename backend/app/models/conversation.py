@@ -1,12 +1,24 @@
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import JSON, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import JSON, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.infrastructure.database.sql.database import Base
 from app.utils.time import utcnow
 from .planning import Plan
+
+
+class ThreadSequence(Base):
+    """
+    Atomic sequence counter per thread for message ordering.
+    Replaces SELECT MAX(sequence_number) + 1 to prevent race conditions.
+    """
+
+    __tablename__ = "thread_sequences"
+
+    thread_id: Mapped[str] = mapped_column(String(255), primary_key=True)
+    next_seq: Mapped[int] = mapped_column(Integer, default=1)
 
 
 class Message(Base):
@@ -16,6 +28,14 @@ class Message(Base):
     """
 
     __tablename__ = "messages"
+    __table_args__ = (
+        UniqueConstraint("thread_id", "sequence_number", name="uq_message_thread_seq"),
+        Index("ix_messages_thread_visible_id", "thread_id", "is_visible", "id"),
+        # NOTE: For PostgreSQL deployments, a GIN index on content would help
+        # full-text search. SQLite (embedded mode) does not support GIN;
+        # consider FTS5 virtual table for large local message volumes.
+        Index("ix_messages_content", "content"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     thread_id: Mapped[str] = mapped_column(String(255), index=True)
@@ -24,6 +44,7 @@ class Message(Base):
     content: Mapped[str] = mapped_column(Text)
     thinking: Mapped[str | None] = mapped_column(Text)  # Separate reasoning content
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), onupdate=utcnow, nullable=True)
     sequence_number: Mapped[int | None] = mapped_column(Integer)  # Thread-local ordering
 
     # Optional: reference to checkpoint ID if we want to linked back to graph state
@@ -41,13 +62,16 @@ class Message(Base):
     #         'internal_tool_call', 'internal_reasoning', 'internal_system', 'internal_llm_json'
     category: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True)
 
+    # Content type for rendering differentiation
+    # values: 'text', 'markdown', 'json', 'multipart'
+    content_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
+
     # Visibility flag for pagination (hide intermediate tool-calling AI/Tool messages)
     is_visible: Mapped[bool] = mapped_column(default=True, server_default="1")
 
     # Message-Run Association for tracking execution context
     run_id: Mapped[str | None] = mapped_column(String(255), index=True)  # Associate with a specific execution run
     status: Mapped[str | None] = mapped_column(String(50))  # pending, streaming, completed, failed, waiting_human
-    steps_snapshot: Mapped[list[dict] | None] = mapped_column(JSON)  # Embedded task steps at completion
 
     # Threading support for message branching
     parent_id: Mapped[int | None] = mapped_column(ForeignKey("messages.id"), nullable=True)
@@ -120,6 +144,28 @@ class Conversation(Base):
         back_populates="conversation",
         uselist=False,
         cascade="all, delete-orphan",
+    )
+
+
+class AgentActivity(Base):
+    """
+    Stores agent execution activity state for real-time UI tracking.
+    Replaces FileCache-based activity storage for better performance and reliability.
+    """
+
+    __tablename__ = "agent_activities"
+
+    thread_id: Mapped[str] = mapped_column(String(255), primary_key=True)
+    status: Mapped[str] = mapped_column(String(50), default="idle")
+    main_goal: Mapped[str] = mapped_column(Text, default="")
+    steps_json: Mapped[str] = mapped_column(Text, default="[]")
+    artifacts_json: Mapped[str] = mapped_column(Text, default="[]")
+    agent_state_json: Mapped[str] = mapped_column(Text, default="{}")
+    active_memories_json: Mapped[str] = mapped_column(Text, default="[]")
+    human_request_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    final_outcome: Mapped[str] = mapped_column(Text, default="")
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow
     )
 
 

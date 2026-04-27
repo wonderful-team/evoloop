@@ -4,6 +4,7 @@ Core directory operations - Domain-agnostic directory utilities.
 This module provides foundational directory operations used by the tool layer.
 """
 
+import fnmatch
 import logging
 import os
 import shutil
@@ -55,6 +56,75 @@ class DirectoryEntry(DynamicBaseModel):
 
 
 # ============================================================================
+# File type priority for sorting (code > config > doc > other)
+# ============================================================================
+
+_FILE_TYPE_PRIORITY = {
+    ".py": 10, ".js": 10, ".ts": 10, ".jsx": 10, ".tsx": 10,
+    ".php": 10, ".go": 10, ".rs": 10, ".java": 10, ".kt": 10,
+    ".swift": 10, ".cpp": 10, ".c": 10, ".h": 10, ".cs": 10,
+    ".rb": 10, ".scala": 10, ".r": 10,
+    ".json": 20, ".yaml": 20, ".yml": 20, ".toml": 20, ".ini": 20,
+    ".cfg": 20, ".conf": 20, ".env": 20,
+    ".md": 30, ".rst": 30, ".txt": 30, ".doc": 30, ".docx": 30,
+}
+
+
+def _get_entry_priority(entry: os.DirEntry) -> tuple:
+    """Return sort key for directory entries. Directories first, then by type priority, then alphabetically."""
+    if entry.is_dir():
+        return (0, 0, entry.name.lower())
+    ext = os.path.splitext(entry.name)[1].lower()
+    priority = _FILE_TYPE_PRIORITY.get(ext, 99)
+    return (1, priority, entry.name.lower())
+
+
+def _format_size(size: int) -> str:
+    """Format file size in human-readable form."""
+    if size < 1024:
+        return f"{size}B"
+    elif size < 1024 * 1024:
+        return f"{size / 1024:.1f}K"
+    elif size < 1024 * 1024 * 1024:
+        return f"{size / (1024 * 1024):.1f}M"
+    else:
+        return f"{size / (1024 * 1024 * 1024):.1f}G"
+
+
+def _count_entries(path: str, exclude_dirs: list[str]) -> tuple[int, int, int]:
+    """Count files, subdirs, and total size in a directory."""
+    file_count = 0
+    subdir_count = 0
+    total_size = 0
+    try:
+        for entry in os.scandir(path):
+            if entry.name.startswith('.'):
+                continue
+            if entry.is_dir() and entry.name in exclude_dirs:
+                continue
+            if entry.is_file():
+                file_count += 1
+                total_size += entry.stat().st_size
+            elif entry.is_dir():
+                subdir_count += 1
+    except OSError:
+        pass
+    return file_count, subdir_count, total_size
+
+
+def _format_dir_stats(file_count: int, subdir_count: int) -> str:
+    """Format directory stats string."""
+    parts = []
+    if file_count > 0:
+        parts.append(f"{file_count} files")
+    if subdir_count > 0:
+        parts.append(f"{subdir_count} dirs")
+    if parts:
+        return f" [{', '.join(parts)}]"
+    return " [empty]"
+
+
+# ============================================================================
 # Directory Listing
 # ============================================================================
 
@@ -63,15 +133,17 @@ def list_directory(
     recursive: bool = False,
     max_depth: int | None = None,
     exclude_dirs: list[str] | None = None,
+    filter_pattern: str | None = None,
 ) -> Iterator[DirectoryEntry]:
     """
-    List directory entries with optional recursion.
+    List directory entries with optional recursion and filtering.
     
     Args:
         path: Directory path
         recursive: Whether to list recursively
         max_depth: Maximum depth for recursion (None = unlimited)
         exclude_dirs: Directory names to exclude (e.g., ['node_modules', '.git'])
+        filter_pattern: Glob pattern to filter entries (e.g., '*.py', 'test_*')
         
     Yields:
         DirectoryEntry objects
@@ -85,22 +157,32 @@ def list_directory(
     base_path = Path(path).resolve()
 
     if recursive:
-        yield from _walk_directory(base_path, base_path, 0, max_depth, exclude_dirs)
+        yield from _walk_directory(base_path, base_path, 0, max_depth, exclude_dirs, filter_pattern)
     else:
         try:
             for entry in os.scandir(base_path):
                 if entry.name.startswith('.'):
                     continue
-
-                stat = entry.stat()
-                yield DirectoryEntry(
-                    name=entry.name,
-                    path=str(entry.path),
-                    is_dir=entry.is_dir(),
-                    size=stat.st_size if entry.is_file() else 0
-                )
+                if _filter_entry(entry, filter_pattern):
+                    stat = entry.stat()
+                    yield DirectoryEntry(
+                        name=entry.name,
+                        path=str(entry.path),
+                        is_dir=entry.is_dir(),
+                        size=stat.st_size if entry.is_file() else 0
+                    )
         except OSError as e:
             logger.warning(f"Cannot list directory {path}: {e}")
+
+
+def _filter_entry(entry: os.DirEntry, filter_pattern: str | None) -> bool:
+    """Check if entry matches filter pattern. Directories always pass."""
+    if filter_pattern is None:
+        return True
+    # Directories always pass (they may contain matching files)
+    if entry.is_dir():
+        return True
+    return fnmatch.fnmatch(entry.name, filter_pattern)
 
 
 def _walk_directory(
@@ -108,7 +190,8 @@ def _walk_directory(
     current_path: Path,
     current_depth: int,
     max_depth: int | None,
-    exclude_dirs: list[str]
+    exclude_dirs: list[str],
+    filter_pattern: str | None,
 ) -> Iterator[DirectoryEntry]:
     """Internal recursive directory walker."""
     if max_depth is not None and current_depth > max_depth:
@@ -122,6 +205,10 @@ def _walk_directory(
 
             # Skip excluded directories
             if entry.is_dir() and entry.name in exclude_dirs:
+                continue
+
+            # Check filter
+            if not _filter_entry(entry, filter_pattern):
                 continue
 
             stat = entry.stat()
@@ -139,7 +226,8 @@ def _walk_directory(
                     Path(entry.path),
                     current_depth + 1,
                     max_depth,
-                    exclude_dirs
+                    exclude_dirs,
+                    filter_pattern
                 )
     except OSError as e:
         logger.warning(f"Cannot access {current_path}: {e}")
@@ -451,26 +539,35 @@ def get_directory_size(path: str) -> int:
 
 
 # ============================================================================
-# Tree Generation
+# Tree Generation (Agent-friendly compact format)
 # ============================================================================
 
 def generate_tree(
     path: str,
     max_depth: int = 3,
+    max_entries: int = 200,
+    with_stats: bool = False,
     prefix: str = "",
     exclude_dirs: list[str] | None = None,
+    _state: dict | None = None,
 ) -> str:
     """
-    Generate ASCII tree representation of directory.
+    Generate compact tree representation of directory.
+    
+    Uses 2-space indentation instead of ASCII decorators to save tokens.
+    Supports max_entries limit and optional directory stats.
     
     Args:
         path: Root directory path
         max_depth: Maximum depth to display
+        max_entries: Maximum number of entries to show (default 200)
+        with_stats: If True, shows file count and size for directories
         prefix: Prefix for indentation (internal use)
         exclude_dirs: Directory names to exclude
+        _state: Internal state for tracking entries across recursion
         
     Returns:
-        ASCII tree string
+        Compact tree string
     """
     if exclude_dirs is None:
         exclude_dirs = DEFAULT_EXCLUDED_DIRS
@@ -478,14 +575,41 @@ def generate_tree(
     if not os.path.isdir(path):
         return f"Not a directory: {path}"
 
+    # Initialize state on first call
+    if _state is None:
+        _state = {"count": 0, "truncated": False, "total": 0}
+        # Pre-count total for truncation message
+        try:
+            _state["total"] = len([
+                e for e in os.scandir(path)
+                if not e.name.startswith('.') and
+                (not e.is_dir() or e.name not in exclude_dirs)
+            ])
+            # Add recursive count if depth allows
+            # Note: this is approximate, we don't scan full tree
+        except OSError:
+            pass
+
     result = []
     base_name = os.path.basename(path) or path
-    result.append(base_name + "/")
+
+    # Count files in this directory for stats
+    file_count, subdir_count, _ = _count_entries(path, exclude_dirs) if with_stats else (0, 0, 0)
+    stats_str = _format_dir_stats(file_count, subdir_count) if with_stats else ""
+
+    if prefix:
+        result.append(f"{prefix}{base_name}/{stats_str}")
+    else:
+        result.append(f"{base_name}/{stats_str}")
+    _state["count"] += 1
+
+    if _state["truncated"]:
+        return '\n'.join(result)
 
     try:
         entries = list(os.scandir(path))
-        # Sort: directories first, then alphabetically
-        entries.sort(key=lambda e: (not e.is_dir(), e.name.lower()))
+        # Sort by priority: directories first, then by file type, then alphabetically
+        entries.sort(key=_get_entry_priority)
 
         # Filter out hidden and excluded
         visible_entries = [
@@ -495,27 +619,47 @@ def generate_tree(
         ]
 
         for i, entry in enumerate(visible_entries):
-            is_last = (i == len(visible_entries) - 1)
-            connector = "└── " if is_last else "├── "
+            if _state["count"] >= max_entries:
+                remaining = len(visible_entries) - i
+                # Try to estimate total remaining including subdirs
+                result.append(
+                    f"{prefix}  ... ({remaining}+ more entries hidden)\n"
+                    f"  Tip: Use list_directory(path=\"...\", filter=\"*.py\") to narrow results, "
+                    f"or increase max_entries to see more."
+                )
+                _state["truncated"] = True
+                break
+
+            child_prefix = f"{prefix}  "
 
             if entry.is_dir():
-                result.append(f"{prefix}{connector}{entry.name}/")
                 if max_depth > 1:
-                    extension = "    " if is_last else "│   "
                     subtree = generate_tree(
                         entry.path,
                         max_depth - 1,
-                        prefix + extension,
-                        exclude_dirs
+                        max_entries,
+                        with_stats,
+                        child_prefix,
+                        exclude_dirs,
+                        _state
                     )
-                    # Remove the root name from subtree (already added)
-                    subtree_lines = subtree.split('\n')[1:]
-                    result.extend(subtree_lines)
+                    # Keep all lines from subtree (directory name is shown by generate_tree)
+                    result.extend(subtree.split('\n'))
+                    if _state["truncated"]:
+                        break
+                else:
+                    # Depth limit reached, show directory name only
+                    child_file_count, child_subdir_count, _ = _count_entries(entry.path, exclude_dirs) if with_stats else (0, 0, 0)
+                    child_stats = _format_dir_stats(child_file_count, child_subdir_count) if with_stats else ""
+                    result.append(f"{child_prefix}{entry.name}/{child_stats}")
+                    _state["count"] += 1
             else:
-                result.append(f"{prefix}{connector}{entry.name}")
+                size_str = f"  {_format_size(entry.stat().st_size)}" if with_stats else ""
+                result.append(f"{child_prefix}{entry.name}{size_str}")
+                _state["count"] += 1
 
     except OSError as e:
-        result.append(f"{prefix}[Error: {e}]")
+        result.append(f"{prefix}  [Error: {e}]")
 
     return '\n'.join(result)
 

@@ -19,11 +19,26 @@ from app.core.tools import evoloop_tool
 from .utils import resolve_and_validate_path
 
 
+def _format_size(size: int) -> str:
+    """Format file size in human-readable form."""
+    if size < 1024:
+        return f"{size}B"
+    elif size < 1024 * 1024:
+        return f"{size / 1024:.1f}K"
+    elif size < 1024 * 1024 * 1024:
+        return f"{size / (1024 * 1024):.1f}M"
+    else:
+        return f"{size / (1024 * 1024 * 1024):.1f}G"
+
+
 async def handle_list(
     path: str,
     tree: bool = False,
-    max_depth: int = 2,
+    max_depth: int = 1,
+    filter_pattern: str | None = None,
+    stats: bool = True,
     with_symbols: bool = False,
+    max_entries: int = 200,
     config: RunnableConfig | None = None,
 ) -> str:
     """Handle file listing operations using core.file module."""
@@ -37,9 +52,24 @@ async def handle_list(
 
     if not tree:
         # Simple flat listing using core.file
-        entries = list(core_list_directory(target_path, recursive=False))
-        lines = [f"{e.name}/" if e.is_dir else e.name for e in entries]
-        return '\n'.join(lines[:200])  # Limit output
+        entries = list(core_list_directory(target_path, recursive=False, filter_pattern=filter_pattern))
+        # In flat mode with filter, only show directories whose names also match the filter
+        if filter_pattern:
+            import fnmatch
+            entries = [e for e in entries if not e.is_dir or fnmatch.fnmatch(e.name, filter_pattern)]
+        lines = []
+        for e in entries:
+            if e.is_dir:
+                lines.append(f"{e.name}/")
+            else:
+                size_str = f"  {_format_size(e.size)}" if stats else ""
+                lines.append(f"{e.name}{size_str}")
+
+        output = '\n'.join(lines[:max_entries])
+        if len(lines) > max_entries:
+            output += f"\n\n... ({len(lines) - max_entries} more entries hidden)\nTip: Use filter=\"*.ext\" to narrow results, or increase max_entries."
+        return output
+        return output
     else:
         # Tree view using core.file
         # For with_symbols=True, fall back to existing tree generator
@@ -57,8 +87,13 @@ async def handle_list(
             except Exception as e:
                 return f"Error generating annotated tree: {e}"
         else:
-            # Use core.file tree generation
-            return core_generate_tree(target_path, max_depth=max_depth)
+            # Use core.file tree generation (compact format)
+            return core_generate_tree(
+                target_path,
+                max_depth=max_depth,
+                max_entries=max_entries,
+                with_stats=stats,
+            )
 
 
 @evoloop_tool(
@@ -71,30 +106,66 @@ async def handle_list(
 async def list_directory(
     path: str,
     tree: bool = False,
-    depth: int = 2,
+    depth: int = 1,
+    filter: str | None = None,
+    stats: bool = True,
     with_symbols: bool = False,
+    max_entries: int = 200,
     config: Annotated[RunnableConfig, InjectedToolArg] = None,
 ) -> str:
     """
-    List files and subdirectories in a directory.
+    Browse and explore directory contents with filtering, stats, and tree view.
+
+    Use this tool to:
+    - Explore project structure (tree view)
+    - Find files by type or name pattern (filter)
+    - Analyze directory composition (stats)
+    - Navigate the codebase efficiently
 
     Args:
         path: Directory path to explore. **REQUIRED**
-        tree: If True, returns directory tree. If False, returns flat file list. Default False.
-        depth: Maximum depth for tree view (default 2).
-        with_symbols: If True, includes class and function names in the tree (requires indexing).
-    
+        tree: If True, returns hierarchical tree. If False, returns flat file list.
+              Use tree=True to understand nested structure; use tree=False for a quick scan.
+        depth: Maximum depth for tree view (default: 1).
+               IMPORTANT: depth only works when tree=True.
+               When tree=False (flat list), depth is ignored and all entries are shown at the same level.
+               Use depth=1 for top-level overview (recommended first step).
+               Use depth=2+ only when you need to see nested structure.
+        filter: Filename pattern to filter results. Examples:
+                - "*.py" → only Python files
+                - "test_*" → files starting with "test_"
+                - "*.js|*.ts" → JavaScript or TypeScript files
+                When filter is set, matching is applied at all depths.
+        stats: If True (default), includes file size (flat mode) and directory
+               file counts (tree mode). Helps identify important files at a glance.
+               Set to False for cleaner output when size info is not needed.
+        max_entries: Maximum number of entries to return (default: 200).
+                     Increase this (e.g. 500 or 1000) when you need to see more
+                     entries in large directories. Be aware that very large values
+                     will consume more tokens in the response.
+        with_symbols: If True, includes class and function names in the tree
+                      (requires indexing, may be slow on large projects).
+
     Examples:
-        # Get tree view of project structure
-        list_directory(path="src/", tree=True)
-        
-        # Simple flat list
-        list_directory(path="src/", tree=False)
+        # Quick overview of project top-level
+        list_directory(path="src/")
+
+        # Find all Python files in a module
+        list_directory(path="src/core/", filter="*.py")
+
+        # Deep dive into a specific directory
+        list_directory(path="src/core/", tree=True, depth=2)
+
+        # Find test files anywhere in the project
+        list_directory(path=".", tree=True, depth=2, filter="test_*.py")
     """
     return await handle_list(
         path=path,
         tree=tree,
         max_depth=depth,
+        filter_pattern=filter,
+        stats=stats,
         with_symbols=with_symbols,
+        max_entries=max_entries,
         config=config
     )

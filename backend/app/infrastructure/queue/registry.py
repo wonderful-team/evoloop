@@ -9,11 +9,9 @@ different scheduler implementations (Celery, Huey, LocalCelery).
 TASK_MODULE_MAP = {
     # Engine tasks
     "engine_persist_file_operation": "app.core.engine.tasks",
-    "engine_snapshot_steps": "app.core.engine.tasks",
     "engine_harvest_concepts": "app.core.engine.tasks",
     "engine_record_episode": "app.core.engine.tasks",
     "engine_prune_checkpoints": "app.core.engine.tasks",
-    "engine_persist_message": "app.core.engine.tasks",
     "engine_cleanup_artifacts": "app.core.engine.tasks",
     "engine_git_harvest": "app.core.engine.tasks",
     "engine_reconcile_skill_macro": "app.core.engine.tasks",

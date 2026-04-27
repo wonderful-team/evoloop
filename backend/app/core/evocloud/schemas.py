@@ -66,7 +66,6 @@ class SyncMessage(DynamicBaseModel):
     is_visible: int = 1
     run_id: str = ""
     status: str = "completed"
-    steps_snapshot: Any | None = None
     parent_id: int | str = 0
     category: str = ""
 

@@ -46,14 +46,14 @@ class EventBridgeHandler:
         frontend_type = self.BRIDGED_EVENTS[event_type]
 
         try:
-            from app.core.monitoring.activity import activity_monitor
+            from app.core.engine.message.event_bus import get_event_bus
             payload = {
                 "type": "system_event",
                 "event": frontend_type,
                 "data": event.data,
                 "timestamp": event.timestamp.isoformat() if hasattr(event.timestamp, 'isoformat') else str(event.timestamp)
             }
-            await activity_monitor.client.publish("system:events", json.dumps(payload, ensure_ascii=False))
+            await get_event_bus().publish("system:events", json.dumps(payload, ensure_ascii=False))
             logger.debug(f"[EventBridge] Bridged {event_type} -> system:events")
         except Exception as e:
             logger.warning(f"[EventBridge] Failed to bridge event {event_type}: {e}")

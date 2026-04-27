@@ -4,7 +4,7 @@
 import sys
 sys.path.insert(0, '/Users/huangjinhuan/项目/develop-assistant.cn/evoloop/backend')
 
-from app.core.messaging.category import MessageCategory
+from app.core.engine.message.category import MessageCategory
 
 
 def test_category_values():
@@ -66,12 +66,15 @@ def test_should_stream_to_frontend():
     assert MessageCategory.TOOL_OUTPUT.should_stream_to_frontend is True
     assert MessageCategory.INTERNAL_REASONING.should_stream_to_frontend is True
     
+    # 错误消息通过 SSE 推送（前端显示错误卡片）
+    assert MessageCategory.ERROR_SYSTEM.should_stream_to_frontend is True
+    assert MessageCategory.ERROR_BUSINESS.should_stream_to_frontend is True
+    assert MessageCategory.AUTH_EXPIRED.should_stream_to_frontend is True
+    
     # 不应该推送
     assert MessageCategory.INTERNAL_TOOL_CALL.should_stream_to_frontend is False
     assert MessageCategory.INTERNAL_SYSTEM.should_stream_to_frontend is False
     assert MessageCategory.INTERNAL_LLM_JSON.should_stream_to_frontend is False
-    assert MessageCategory.ERROR_SYSTEM.should_stream_to_frontend is False  # 系统错误不流式推送
-    assert MessageCategory.ERROR_BUSINESS.should_stream_to_frontend is False  # 业务错误不流式推送
 
 
 if __name__ == "__main__":

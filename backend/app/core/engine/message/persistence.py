@@ -30,66 +30,25 @@ class MessagePersistencePolicy:
     消息持久化策略
     
     集中管理所有消息的持久化规则，避免分散在各处的过滤逻辑。
+    
+    注：持久化规则已下沉到 MessageCategory 枚举本身，此类仅作为统一入口
+    和结果封装，避免调用方直接访问枚举内部细节。
     """
-
-    # 分类 → (是否入库, 存储字段, 是否记录 tool_calls)
-    _RULES = {
-        MessageCategory.USER: (True, "content", False),
-        MessageCategory.ASSISTANT_RESPONSE: (True, "content", True),
-        MessageCategory.ASSISTANT_TOOL_CALL: (True, "content", True),
-        MessageCategory.TOOL_OUTPUT: (True, "content", False),
-        MessageCategory.INTERNAL_TOOL_CALL: (False, None, False),
-        MessageCategory.INTERNAL_REASONING: (True, "thinking", False),
-        MessageCategory.INTERNAL_SYSTEM: (False, None, False),
-        MessageCategory.INTERNAL_LLM_JSON: (False, None, False),
-        MessageCategory.ERROR_SYSTEM: (False, None, False),  # 系统错误不入库
-        MessageCategory.AUTH_EXPIRED: (False, None, False),  # EvoLoop认证过期不入库
-        MessageCategory.ERROR_BUSINESS: (True, "content", False),  # 业务错误入库供Agent学习
-    }
 
     @classmethod
     def should_persist(cls, category: MessageCategory) -> bool:
-        """
-        判断消息是否应该持久化到数据库
-        
-        Args:
-            category: 消息分类
-            
-        Returns:
-            bool: 是否入库
-        """
-        should, _, _ = cls._RULES.get(category, (False, None, False))
-        return should
+        """判断消息是否应该持久化到数据库"""
+        return category.should_persist_to_db
 
     @classmethod
     def get_storage_field(cls, category: MessageCategory) -> str | None:
-        """
-        获取存储字段
-        
-        Args:
-            category: 消息分类
-            
-        Returns:
-            "content": 存入 content 字段
-            "thinking": 存入 thinking 字段
-            None: 不存储
-        """
-        _, field, _ = cls._RULES.get(category, (False, None, False))
-        return field
+        """获取存储字段（content / thinking / None）"""
+        return category.storage_field
 
     @classmethod
     def should_store_tool_calls(cls, category: MessageCategory) -> bool:
-        """
-        判断是否应该存储 tool_calls
-        
-        Args:
-            category: 消息分类
-            
-        Returns:
-            bool: 是否存储 tool_calls
-        """
-        _, _, store_tools = cls._RULES.get(category, (False, None, False))
-        return store_tools
+        """判断是否应该存储 tool_calls"""
+        return category.should_store_tool_calls
 
     @classmethod
     def apply_policy(
@@ -115,9 +74,9 @@ class MessagePersistencePolicy:
         Returns:
             PersistencePolicyResult: 处理后的数据
         """
-        should_persist = cls.should_persist(category)
-        storage_field = cls.get_storage_field(category)
-        should_store_tools = cls.should_store_tool_calls(category)
+        should_persist = category.should_persist_to_db
+        storage_field = category.storage_field
+        should_store_tools = category.should_store_tool_calls
 
         result = PersistencePolicyResult(
             should_persist=should_persist,
@@ -149,12 +108,12 @@ class MessagePersistencePolicy:
     @classmethod
     def get_all_categories(cls) -> list[MessageCategory]:
         """获取所有支持的分类"""
-        return list(cls._RULES.keys())
+        return list(MessageCategory)
 
     @classmethod
     def get_persisted_categories(cls) -> list[MessageCategory]:
         """获取会持久化的分类列表"""
         return [
-            cat for cat in cls._RULES.keys()
-            if cls.should_persist(cat)
+            cat for cat in MessageCategory
+            if cat.should_persist_to_db
         ]

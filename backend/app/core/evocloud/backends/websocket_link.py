@@ -121,7 +121,7 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
         if self.is_connected() and self.ws:
             try:
                 payload = message if isinstance(message, str) else json.dumps(message)
-                logger.info(f"[EvoCloud] WS SEND RAW: {payload}")
+                logger.info(f"[EvoCloud] WS SEND RAW: {payload[:500]}...")
                 await self.ws.send(payload)
                 return True
             except Exception as e:

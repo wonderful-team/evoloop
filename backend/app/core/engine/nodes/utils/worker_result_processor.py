@@ -14,7 +14,6 @@ from langchain_core.messages import AIMessage, ToolMessage
 
 from app.core.engine.engine import EngineResult
 from app.core.engine.message.utils import get_message_text
-from app.core.engine.nodes.utils import log_msg_trace
 from app.core.engine.routers import RoutingTarget
 from app.core.engine.state import AgentState, StateUpdate
 from app.core.engine.state.blackboard import SubtaskResult, VerificationStatus
@@ -163,16 +162,9 @@ def process_worker_result(
         # Append a new summary AIMessage when there is no trailing AI msg
         preserved_messages.append(AIMessage(content=worker_content))
 
-    result = StateUpdate(
+    return StateUpdate(
         messages=preserved_messages,
         next_node=routing_target or RoutingTarget.SUPERVISOR,
         blackboard=blackboard,
         workspace_context=workspace_context,
     )
-    log_msg_trace(
-        node_name, "_post_process_result RETURN",
-        result.messages,
-        content_len=len(worker_content),
-        next_node=result.next_node,
-    )
-    return result

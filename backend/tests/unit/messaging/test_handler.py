@@ -4,10 +4,10 @@
 import sys
 sys.path.insert(0, '/Users/huangjinhuan/项目/develop-assistant.cn/evoloop/backend')
 
-from app.core.messaging.category import MessageCategory
-from app.core.messaging.classifier import MessageClassifier
-from app.core.messaging.persistence import MessagePersistencePolicy
-from app.core.messaging.stream import MessageStreamPolicy
+from app.core.engine.message.category import MessageCategory
+from app.core.engine.message.classifier import MessageClassifier
+from app.core.engine.message.persistence import MessagePersistencePolicy
+from app.core.engine.message.stream import MessageStreamPolicy
 
 
 def test_persist_policy_for_internal_messages():

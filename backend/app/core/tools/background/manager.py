@@ -480,9 +480,9 @@ class BackgroundTaskManager:
             "timestamp": datetime.now().isoformat(),
         }
 
-        # Publish to cache for SSE
-        from app.infrastructure.cache import cache
-        await cache.publish(
+        # Publish to EventBus for SSE
+        from app.core.engine.message.event_bus import get_event_bus
+        await get_event_bus().publish(
             f"task:{task.thread_id}:events",
             json.dumps(event_data)
         )
@@ -500,8 +500,8 @@ class BackgroundTaskManager:
         # to avoid flooding the event bus
         if task.metadata.get("enable_streaming_output"):
             try:
-                from app.infrastructure.cache import cache
-                await cache.publish(
+                from app.core.engine.message.event_bus import get_event_bus
+                await get_event_bus().publish(
                     f"task:{task.thread_id}:output",
                     json.dumps({
                         "task_id": task.task_id,

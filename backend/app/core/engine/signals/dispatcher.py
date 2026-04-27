@@ -28,6 +28,9 @@ class SignalDispatcher:
         # Ensure state is hydrated (safety for dict-based runs)
         state = ensure_state(state)
 
+        if signal is None:
+            return None
+
         if not isinstance(signal, AgentSignal):
             logger.warning(f"[Dispatcher] Unknown signal type received: {type(signal)}")
             return StateUpdate(next_node=RoutingTarget.SUPERVISOR)
