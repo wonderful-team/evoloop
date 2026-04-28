@@ -52,8 +52,10 @@
       </activity>
 
       <!-- Notifee 前台服务（唤醒词后台监听） -->
+      <!-- 覆盖 Notifee 库默认的 shortService，使用 microphone 以支持后台录音 -->
       <service
         android:name="app.notifee.core.ForegroundService"
-        android:foregroundServiceType="microphone" />
+        android:foregroundServiceType="microphone"
+        tools:replace="android:foregroundServiceType" />
     </application>
 </manifest>

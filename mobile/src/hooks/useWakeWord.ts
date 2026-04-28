@@ -37,8 +37,18 @@ export function useWakeWord(options: UseWakeWordOptions = {}): UseWakeWordReturn
   const vadThreshold = settings.wakeWordVadThreshold;
 
   const startListening = useCallback(async () => {
-    if (!enabled || serviceRef.current?.getIsStarted()) {
+    if (!enabled) {
       return;
+    }
+
+    // 如果已有服务在运行，先停止它（确保新配置生效）
+    if (serviceRef.current) {
+      try {
+        await serviceRef.current.stop();
+      } catch (e) {
+        // 忽略停止错误（可能正在停止中）
+      }
+      serviceRef.current = null;
     }
 
     try {
