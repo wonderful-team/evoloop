@@ -15,7 +15,7 @@ from app.core.engine.rewind.event import RewindEventType, RewindRequestedEvent
 from app.core.events import SystemEventType
 from app.core.events.base import AsyncEventBus
 from app.core.events.decorators import event_register, event_subscribe, register_instance_handlers
-from app.core.events.schema import SessionCompletedEvent
+from app.core.events.schemas import SessionCompletedEvent
 from app.core.memory.event import (
     MEMORY_CONTEXT_GATHER_EVENT_TYPE,
     MemoryContextGatherEvent,

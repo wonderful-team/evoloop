@@ -167,7 +167,7 @@ class WikiService:
                 container = MemoryLifespanManager.get_container()
                 manager = container.memory_manager
                 for concept in result.concepts[:5]:
-                    from app.core.memory.models import Concept as MemConcept
+                    from app.core.memory.schemas import Concept as MemConcept
                     mem_concept = MemConcept(name=concept.name, description=concept.description, project_id=project_id, related_files=[])
                     await manager.store_concept(mem_concept)
                     stored_names.append(concept.name)

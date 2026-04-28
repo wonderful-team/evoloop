@@ -348,7 +348,7 @@ class TestWikiAgentConfigValidation:
     def test_yaml_config_valid(self):
         """Test YAML configuration is valid and complete."""
         import yaml
-        from app.core.engine.schema import AgentConfig
+        from app.core.engine.schemas import AgentConfig
         
         with open("app/config/agents/wiki_agent.yml") as f:
             raw_config = yaml.safe_load(f)

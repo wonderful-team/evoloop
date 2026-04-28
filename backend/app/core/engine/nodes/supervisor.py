@@ -6,7 +6,7 @@ from langchain_core.runnables import RunnableConfig
 
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.config import settings
-from app.core.engine.engine import EngineResult
+from app.core.engine.schemas import EngineResult
 from app.core.engine.message.utils import get_last_human_message
 from app.core.engine.nodes.base import BaseAgentNode
 from app.core.engine.prompts import SupervisorContext, SupervisorPromptBuilder

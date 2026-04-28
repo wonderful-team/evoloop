@@ -14,7 +14,7 @@ from unittest.mock import MagicMock
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
-from app.core.engine.engine import EngineResult
+from app.core.engine.schemas import EngineResult
 from app.core.engine.nodes.utils.worker_result_processor import process_worker_result
 from app.core.engine.state import AgentState, StateUpdate
 from app.core.engine.state.blackboard import BlackboardState

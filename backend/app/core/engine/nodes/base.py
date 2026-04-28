@@ -6,7 +6,7 @@ from langchain_core.messages import HumanMessage, AIMessage
 from langchain_core.runnables import RunnableConfig
 
 from app.core.engine import get_default_engine
-from app.core.engine.engine import EngineResult
+from app.core.engine.schemas import EngineResult
 from app.core.engine.nodes.utils import resolve_is_subtask
 from app.core.engine.routers import RoutingTarget
 from app.core.engine.signals import signal_manager

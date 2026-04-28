@@ -65,7 +65,7 @@ class ProjectStandardsAnalyst:
                 await MemoryLifespanManager.ainitialize()
             container = MemoryLifespanManager.get_container()
             manager = container.memory_manager
-            from app.core.memory.models import Concept
+            from app.core.memory.schemas import Concept
             concept = Concept(name="Project Coding Standards", description=standards_report, project_id=project_id, related_files=sample_files)
             await manager.store_concept(concept)
 

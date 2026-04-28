@@ -1,7 +1,7 @@
 """Tests for MacroScript YAML support in schema."""
 
 import pytest
-from app.core.execution.macro.schema import MacroScript, MacroStep
+from app.core.execution.macro.schemas import MacroScript, MacroStep
 from app.utils.yaml import YAMLError
 
 

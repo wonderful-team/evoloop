@@ -6,7 +6,7 @@ from app.core.engine.routers import RoutingTarget
 from app.core.engine.signals.base import SignalHandler
 from app.core.engine.state import AgentState, StateUpdate
 from app.core.engine.state.blackboard import BlackboardMetadata
-from ..schema import SpawnSubtasksSignal, TerminateSignal
+from ..schemas import SpawnSubtasksSignal, TerminateSignal
 
 logger = logging.getLogger(__name__)
 

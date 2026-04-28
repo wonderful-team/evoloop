@@ -4,7 +4,7 @@ from typing import Any, Callable, Type, TypeVar, Optional
 from langchain_core.runnables import RunnableConfig
 
 from app.core.engine.signals.base import SignalHandler
-from app.core.engine.signals.schema import AgentSignal
+from app.core.engine.signals.schemas import AgentSignal
 from app.core.engine.state import AgentState, StateUpdate
 from app.core.engine.state.history import ToolCall
 
@@ -63,7 +63,7 @@ class SignalManager:
         """
         # Logic for decompose_task
         if tool_name == "decompose_task" and hasattr(result, "spawn_plan") and result.spawn_plan:
-            from .schema import SpawnSubtasksSignal
+            from .schemas import SpawnSubtasksSignal
             return SpawnSubtasksSignal(plan=result.spawn_plan)
         
         # Generic protocol: result has _signal attribute or dict key
@@ -92,7 +92,7 @@ signal_manager = SignalManager()
 
 def bootstrap_signals():
     """Register core signals and their handlers."""
-    from .schema import RouteToSignal, SpawnSubtasksSignal, TerminateSignal
+    from .schemas import RouteToSignal, SpawnSubtasksSignal, TerminateSignal
     from app.core.engine.signals.handlers.routing import RouteToHandler, create_route_to_signal
     from app.core.engine.signals.handlers.task import SpawnSubtasksHandler, TerminateHandler
 

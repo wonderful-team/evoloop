@@ -169,7 +169,7 @@ async def _summarize_project_logic(name: str, path: str):
             c_name = c.get("name")
             c_desc = c.get("description")
             if c_name and c_desc:
-                from app.core.memory.models import Concept
+                from app.core.memory.schemas import Concept
                 concept = Concept(name=c_name, description=c_desc, project_id=project_id, related_files=[path])
                 await manager.store_concept(concept)
 

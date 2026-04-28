@@ -26,8 +26,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
 from app.core.file.watcher import (
     FileWatcher,
     FileWatcherManager,
-    FileWatcherEvent,
 )
+from app.core.file.event.schemas import FileWatcherEvent
 from app.core.events import system_bus, AsyncEventBus, BaseEvent
 from app.core.file.event.types import FileSystemEventType
 

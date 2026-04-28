@@ -221,7 +221,7 @@ async def remember_concept(name: str, description: str, related_files: list[str]
     if related_files is None:
         related_files = []
     try:
-        from app.core.memory.models import Concept
+        from app.core.memory.schemas import Concept
         from app.core.memory.lifespan import MemoryLifespanManager
 
         if not MemoryLifespanManager.is_initialized():

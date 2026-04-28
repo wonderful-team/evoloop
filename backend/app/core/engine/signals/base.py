@@ -3,7 +3,7 @@ from typing import TypeVar, Generic
 
 from langchain_core.runnables import RunnableConfig
 
-from app.core.engine.signals.schema import AgentSignal
+from app.core.engine.signals.schemas import AgentSignal
 from app.core.engine.state import AgentState, StateUpdate
 
 S = TypeVar("S", bound=AgentSignal)

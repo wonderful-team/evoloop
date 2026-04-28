@@ -18,7 +18,7 @@ from app.core.engine.routers import RoutingTarget
 from app.core.engine.services.audit_service import AuditService, AuditResult
 from app.core.engine.state import AgentState, StateUpdate
 from app.core.engine.state.blackboard import AuditMeta
-from app.core.events.schema import SessionCompletedData
+from app.core.events.schemas import SessionCompletedData
 
 logger = logging.getLogger(__name__)
 

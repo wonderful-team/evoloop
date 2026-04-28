@@ -7,7 +7,7 @@ from langchain_core.runnables import RunnableConfig
 from app.core.config import settings
 from app.core.context import ContextManager
 from app.core.engine.context_monitor import ContextMonitor
-from app.core.engine.engine import EngineResult
+from app.core.engine.schemas import EngineResult
 from app.core.engine.nodes.base import BaseAgentNode
 from app.core.engine.nodes.utils.focus_file_hydrator import FocusFileHydrator
 from app.core.engine.nodes.utils.skill_resolver import SkillResolver

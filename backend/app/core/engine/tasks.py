@@ -308,7 +308,7 @@ async def git_harvest_task(cwd: str, project_id: int, model: str | None = None):
                 if not MemoryLifespanManager.is_initialized():
                     await MemoryLifespanManager.ainitialize()
             container = MemoryLifespanManager.get_container()
-            from app.core.memory.models import Concept as MemConcept
+            from app.core.memory.schemas import Concept as MemConcept
             for concept in result.concepts:
                 mem_concept = MemConcept(
                     name=concept.name,

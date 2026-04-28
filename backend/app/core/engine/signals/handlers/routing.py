@@ -10,7 +10,7 @@ from app.core.engine.state.config import (
     ExecutionTicket,
     TicketParameters,
 )
-from ..schema import RouteToSignal, RoutingContext
+from ..schemas import RouteToSignal, RoutingContext
 
 logger = logging.getLogger(__name__)
 

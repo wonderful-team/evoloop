@@ -6,7 +6,7 @@ from typing import Any
 import yaml
 from langgraph.graph import END, StateGraph
 
-from app.core.engine.schema import AgentGraphConfig as AgentConfig
+from app.core.engine.schemas import AgentGraphConfig as AgentConfig
 
 logger = logging.getLogger(__name__)
 

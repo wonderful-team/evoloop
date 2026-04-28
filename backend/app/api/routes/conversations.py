@@ -376,7 +376,7 @@ async def rewind_conversation(
     Uses the new event-driven RewindOrchestrator for distributed cleanup.
     """
     from app.core.engine.rewind import RewindOrchestrator
-    from app.core.engine.rewind.models import RewindOperation as RewindReq
+    from app.core.engine.schemas import RewindOperation as RewindReq
     from app.core.engine.rewind.exceptions import MessageNotFoundError, NoHumanMessageError
     from app.core.events import system_bus
 

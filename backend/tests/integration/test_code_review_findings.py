@@ -257,7 +257,8 @@ class TestAgentRoutesIssues:
         P2: webhook_endpoint marks all non-HumanMessage as type="human".
         This loses message type information.
         """
-        from app.api.routes.agent import webhook_endpoint, WebhookRequest, WebhookPayload
+        from app.api.routes.agent import webhook_endpoint, WebhookRequest
+        from app.api.schemas.agent import WebhookPayload
         from langchain_core.messages import AIMessage
 
         mock_dispatch_result = MagicMock(
@@ -346,7 +347,6 @@ class TestDispatchIssues:
 
         with patch("app.core.engine.dispatch.session_scope") as mock_scope, \
              patch("app.domain.project.reference_service.reference_service.process_references", side_effect=Exception("DB down")), \
-             patch("app.core.engine.dispatch.activity_monitor.start_run", new_callable=AsyncMock), \
              patch("app.infrastructure.config.service.SystemConfigService.get_value", return_value="gpt-4o"):
 
             from contextlib import asynccontextmanager
@@ -384,7 +384,6 @@ class TestDispatchIssues:
 
         with patch("app.core.engine.dispatch.session_scope") as mock_scope, \
              patch("app.domain.project.reference_service.reference_service.process_references", new_callable=AsyncMock) as mock_refs, \
-             patch("app.core.engine.dispatch.activity_monitor.start_run", new_callable=AsyncMock), \
              patch("app.infrastructure.config.service.SystemConfigService.get_value", return_value="gpt-4o"):
 
             mock_refs.return_value = MagicMock(content_blocks="[]")
@@ -454,7 +453,7 @@ class TestEndToEndDataFlowConsistency:
 
         with patch("app.core.engine.dispatch.session_scope") as mock_scope, \
              patch("app.domain.project.reference_service.reference_service.process_references", new_callable=AsyncMock) as mock_refs, \
-             patch("app.core.engine.dispatch.activity_monitor.start_run", new_callable=AsyncMock):
+             patch("app.infrastructure.config.service.SystemConfigService.get_value", return_value="gpt-4o"):
 
             mock_refs.return_value = MagicMock(content_blocks="hello")
 

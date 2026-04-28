@@ -9,7 +9,7 @@ from unittest.mock import MagicMock
 from langchain_core.messages import AIMessage
 
 from app.core.engine.inference_engine import InferenceEngine
-from app.core.engine.signals.schema import RouteToSignal
+from app.core.engine.signals.schemas import RouteToSignal
 from app.core.engine.signals.handlers.routing import RoutingContext
 from app.core.engine.routers import RoutingTarget
 

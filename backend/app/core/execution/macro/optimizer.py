@@ -1,13 +1,13 @@
 import logging
 from enum import Enum
 
-from app.core.execution.macro.schema import (
+from app.core.execution.macro.schemas import (
     MacroActionType,
     MacroScript,
     MacroStep,
     MacroStepType,
+    OptimizationResult,
 )
-from app.core.execution.macro.schemas import OptimizationResult
 
 logger = logging.getLogger(__name__)
 

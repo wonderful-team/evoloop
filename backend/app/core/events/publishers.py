@@ -51,7 +51,7 @@ async def publish_context_polishing(thread_id: str, project_id: int | None, mode
 
 async def publish_session_completed(data) -> None:
     """Publish a session completed event with full SessionCompletedData."""
-    from app.core.events.schema import SessionCompletedEvent
+    from app.core.events.schemas import SessionCompletedEvent
 
     await system_bus.publish(SessionCompletedEvent(data=data))
 

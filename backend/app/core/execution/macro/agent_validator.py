@@ -837,7 +837,7 @@ class AgentMacroValidator:
         )
 
         # Phase 3b: Optimize the evolved macro using full MacroOptimizer
-        from app.core.execution.macro.schema import MacroScript
+        from app.core.execution.macro.schemas import MacroScript
         optimizer = MacroOptimizer(enable_all_strategies=True)
         script = MacroScript(steps=evolved_macro)
         optimized_script, stats = optimizer.optimize(script)

@@ -22,7 +22,7 @@ class SignalDispatcher:
         Dispatches the signal using registered handlers and returns the StateUpdate.
         """
         from .manager import signal_manager
-        from .schema import AgentSignal
+        from .schemas import AgentSignal
         from app.core.engine.state import ensure_state
         
         # Ensure state is hydrated (safety for dict-based runs)

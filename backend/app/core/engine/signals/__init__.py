@@ -4,7 +4,7 @@ Signals Package - Registry-based control flow management for EvoLoop Agents.
 
 from .dispatcher import SignalDispatcher
 from .manager import signal_manager
-from .schema import (
+from .schemas import (
     AgentSignal,
     RouteToSignal,
     RoutingContext,

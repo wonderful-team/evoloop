@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from app.core.environment.capabilities.registry import ActionRegistry
-from app.core.execution.macro.schema import MacroSource, MacroStep, MacroStepType
+from app.core.execution.macro.schemas import MacroSource, MacroStep, MacroStepType
 from app.core.monitoring.activity import activity_monitor
 from app.utils.geometry import parse_bounds
 from app.utils.xml import clean_xml_content

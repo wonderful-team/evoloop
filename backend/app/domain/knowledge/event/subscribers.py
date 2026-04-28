@@ -9,7 +9,7 @@ import logging
 
 from app.core.events import SystemEventType
 from app.core.events.decorators import event_register, event_subscribe
-from app.core.events.schema import SessionCompletedEvent
+from app.core.events.schemas import SessionCompletedEvent
 
 logger = logging.getLogger(__name__)
 

@@ -10,7 +10,7 @@ import logging
 import operator
 from collections.abc import Callable
 
-from app.core.engine.schema import EdgeCondition
+from app.core.engine.schemas import EdgeCondition
 from app.core.engine.state import AgentState
 
 logger = logging.getLogger(__name__)

@@ -11,7 +11,7 @@ from langchain_core.runnables import RunnableConfig
 
 from app.core.engine.nodes.base import BaseNode
 from app.core.engine.routers import RoutingTarget
-from app.core.engine.schema import AggregateResult
+from app.core.engine.schemas import AggregateResult
 from app.core.engine.state import AgentState, StateUpdate
 
 logger = logging.getLogger(__name__)

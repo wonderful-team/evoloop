@@ -1,2 +1,0 @@
-"""Macro verification report models."""
-

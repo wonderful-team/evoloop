@@ -11,7 +11,7 @@ import logging
 
 from langchain_core.messages import AIMessage, ToolMessage
 
-from app.core.engine.engine import EngineResult
+from app.core.engine.schemas import EngineResult
 from app.core.engine.message.utils import get_message_text
 from app.core.engine.routers import RoutingTarget
 from app.core.engine.state import AgentState, StateUpdate
