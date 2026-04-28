@@ -1,6 +1,7 @@
 """PostgreSQL implementation of short-term memory using Message table."""
-
+import json
 import logging
+from typing import Any
 
 from langchain_core.messages import (
     AIMessage,
@@ -11,6 +12,7 @@ from langchain_core.messages import (
 )
 from sqlalchemy import delete, or_, select
 
+from app.core.engine.reasoning import parse_thinking
 from app.core.memory.interfaces.short_term import IShortTermMemory
 from app.infrastructure.database.sql.database import session_scope
 from app.models.conversation import Message
@@ -155,6 +157,12 @@ class SqlShortTermMemory(IShortTermMemory):
                     kwargs["tool_calls"] = msg.tool_calls
                     # Stash them so ToolMessages can claim their IDs
                     pending_tool_calls[msg.id] = list(msg.tool_calls)
+                # Preserve thinking content in additional_kwargs for reasoning models
+                thinking_raw = getattr(msg, "thinking", None)
+                if thinking_raw:
+                    parsed = parse_thinking(thinking_raw)
+                    if parsed:
+                        kwargs["additional_kwargs"] = {"thinking": parsed}
                 lc_messages.append(AIMessage(**kwargs))
             elif msg.role == "tool":
                 parent_calls = pending_tool_calls.get(msg.parent_id, [])
@@ -249,7 +257,14 @@ class SqlShortTermMemory(IShortTermMemory):
             if msg.role == "human":
                 lc_messages.append(HumanMessage(content=msg.content))
             elif msg.role == "ai":
-                lc_messages.append(AIMessage(content=msg.content))
+                kwargs = {"content": msg.content}
+                # Preserve thinking content in additional_kwargs for reasoning models
+                thinking_raw = getattr(msg, "thinking", None)
+                if thinking_raw:
+                    parsed = parse_thinking(thinking_raw)
+                    if parsed:
+                        kwargs["additional_kwargs"] = {"thinking": parsed}
+                lc_messages.append(AIMessage(**kwargs))
             elif msg.role == "system":
                 lc_messages.append(SystemMessage(content=msg.content))
 

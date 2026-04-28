@@ -61,7 +61,7 @@ class MessageBlock(DynamicBaseModel):
     content_type: Literal["text", "markdown", "json", "multipart"] = "text"
 
     # === 思考过程（结构化）===
-    thinking: list[dict[str, Any]] | None = None   # [{"type": "cot", "content": "..."}]
+    thinking: list[dict[str, Any]] | None = None   # [{"type": "reasoning", "content": "..."}]
 
     # === 工具调用 ===
     tool_calls: list[dict[str, Any]] | None = None
@@ -132,7 +132,7 @@ class MessageHandlerResult(DynamicBaseModel):
 class PersistencePolicyResult(DynamicBaseModel):
     should_persist: bool
     content: str | None = None
-    thinking: str | None = None
+    thinking: list[dict[str, Any]] | None = None
     tool_calls: list | None = None
     category: str
     tool_call_id: str | None = None

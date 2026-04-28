@@ -10,6 +10,7 @@ from datetime import datetime
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
 
+from app.core.engine.reasoning import extract_reasoning_string
 from app.core.engine.state.history import FoldedMessage, ToolStep
 from app.core.tools.registry import get_tool_friendly_name, get_tool_metadata
 from app.i18n.service import i18n
@@ -189,11 +190,14 @@ class MessageFolder:
                     steps.append(cls.to_tool_step(tool_msg, tc_name=tc_name, tc_args=tc_args, lang=lang))
                     j += 1
 
+                # 读取原生 reasoning_content
+                thinking_content = extract_reasoning_string(msg)
+
                 result.append(FoldedMessage(
                     id=msg_id,
                     role="ai",
                     content=cls.get_message_text(msg),
-                    thinking=getattr(msg, "thinking", None) or msg.additional_kwargs.get("thinking"),
+                    thinking=thinking_content,
                     tool_calls=[(tc.model_dump() if hasattr(tc, 'model_dump') else tc) for tc in tool_calls] if tool_calls else None,
                     steps=steps,
                     created_at=created_at

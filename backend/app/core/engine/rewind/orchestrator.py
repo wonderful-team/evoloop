@@ -134,7 +134,7 @@ class RewindOrchestrator:
                 removed_memory_count=res.get("memories", 0),
                 removed_todo_count=res.get("todos", 0),
                 removed_trace_count=res.get("traces", 0),
-                new_checkpoint_id=res.get("checkpoint_id"),
+                checkpoint_id=res.get("checkpoint_id"),
                 errors=rewind_event.errors
             )
 

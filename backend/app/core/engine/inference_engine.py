@@ -25,6 +25,7 @@ from langchain_core.runnables import RunnableConfig
 from app.infrastructure.llm.factory import LLMFactory
 from app.core.engine.context_trimmer import ContextTrimmer, TrimTrigger
 from app.core.engine.error_handler import LLMErrorHandler
+from app.core.engine.reasoning import extract_reasoning_string
 
 logger = logging.getLogger(__name__)
 
@@ -203,11 +204,11 @@ class InferenceEngine:
             tool_calls_count = len(response.tool_calls) if hasattr(response, "tool_calls") and response.tool_calls else 0
             logger.info(f"[{name}] LLM response: content='{content_preview}...', tool_calls={tool_calls_count}")
 
-            if response.content:
-                thinking_content = response.content
-            elif hasattr(response, "additional_kwargs") and "thought" in response.additional_kwargs:
-                thinking_content = response.additional_kwargs["thought"]
-                logger.info(f"[{name}] Thinking (from additional_kwargs): {thinking_content[:200]}...")
+            # Extract reasoning_content from additional_kwargs (kimi-k2-thinking-turbo)
+            reasoning = extract_reasoning_string(response)
+            if reasoning:
+                thinking_content = reasoning
+                logger.info(f"[{name}] Reasoning: {thinking_content[:200]}...")
 
             if thinking_content and on_thinking:
                 await on_thinking(thinking_content)

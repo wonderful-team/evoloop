@@ -3,13 +3,13 @@ MessageRepository — Database persistence and query operations for messages.
 
 Extracted from MessageHandler to separate persistence concerns from orchestration.
 """
-
 import json
 import logging
 
 from sqlalchemy import desc, select
 
 from app.core.engine.message.sequence import SequenceService
+from app.core.engine.reasoning import wrap_reasoning_for_db
 from app.infrastructure.database.sql.database import session_scope
 from app.models import Message
 
@@ -62,7 +62,7 @@ class MessageRepository:
                     project_id=self.project_id,
                     role=role,
                     content=content or "",
-                    thinking=thinking,
+                    thinking=wrap_reasoning_for_db(thinking),
                     sequence_number=seq,
                     run_id=self.run_id,
                     status=status,

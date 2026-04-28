@@ -28,6 +28,7 @@ from langchain_core.messages import (
 )
 
 from app.core.engine.message.schemas import BlockEvent, MessageBlock, ToolBlock
+from app.core.engine.reasoning import parse_thinking, serialize_thinking, to_thinking_blocks
 from app.core.engine.state.history import FoldedMessage
 
 logger = logging.getLogger(__name__)
@@ -72,7 +73,7 @@ class BlockMapper:
             category=msg.category or "",
             content_type=msg.content_type or "text",
             content=msg.content or "",
-            thinking=_parse_thinking(msg.thinking),
+            thinking=parse_thinking(msg.thinking),
             tool_calls=msg.tool_calls,
             tool_blocks=None,
             status=msg.status or "completed",  # type: ignore[arg-type]
@@ -97,7 +98,7 @@ class BlockMapper:
             "role": msg.role,
             "content": msg.content,
             "content_type": msg.content_type,
-            "thinking": _serialize_thinking(msg.thinking),
+            "thinking": serialize_thinking(msg.thinking),
             "tool_calls": msg.tool_calls,
             "action_type": _infer_action_type(msg),
             "category": msg.category,
@@ -120,7 +121,7 @@ class BlockMapper:
         """LangChain BaseMessage → MessageBlock"""
         kwargs: dict[str, Any] = {
             "id": _extract_lc_id(msg),
-            "thinking": _extract_lc_thinking(msg),
+            "thinking": to_thinking_blocks(msg),
             "created_at": _format_iso(msg.additional_kwargs.get("created_at")),
             "thread_id": msg.additional_kwargs.get("thread_id", ""),
             "run_id": msg.additional_kwargs.get("run_id"),
@@ -239,7 +240,7 @@ class BlockMapper:
             id=fm.id or f"folded-{id(fm)}",
             role=fm.role,  # type: ignore[arg-type]
             content=fm.content,
-            thinking=[{"type": "cot", "content": fm.thinking}] if fm.thinking else None,
+            thinking=fm.thinking,
             tool_calls=fm.tool_calls,
             tool_blocks=tool_blocks or None,
             created_at=_format_iso(fm.created_at),
@@ -317,36 +318,6 @@ class BlockMapper:
 def _extract_lc_id(msg: BaseMessage) -> str:
     """从 LangChain 消息中提取或生成 ID"""
     return getattr(msg, "id", None) or msg.additional_kwargs.get("id") or f"lc-{id(msg)}"
-
-
-def _extract_lc_thinking(msg: BaseMessage) -> list[dict[str, Any]] | None:
-    """从 LangChain 消息的 additional_kwargs 中提取思考过程"""
-    thinking = msg.additional_kwargs.get("thinking")
-    if not thinking:
-        return None
-    if isinstance(thinking, list):
-        return thinking
-    return [{"type": "cot", "content": str(thinking)}]
-
-
-def _parse_thinking(raw: str | None) -> list[dict[str, Any]] | None:
-    """从数据库字符串解析思考过程"""
-    if not raw:
-        return None
-    try:
-        parsed = json.loads(raw)
-        if isinstance(parsed, list):
-            return parsed
-        return [{"type": "cot", "content": parsed}]
-    except json.JSONDecodeError:
-        return [{"type": "cot", "content": raw}]
-
-
-def _serialize_thinking(thinking: list[dict[str, Any]] | None) -> str | None:
-    """将思考过程序列化为数据库存储格式"""
-    if not thinking:
-        return None
-    return json.dumps(thinking, ensure_ascii=False)
 
 
 def _format_iso(dt: datetime | str | None) -> str:

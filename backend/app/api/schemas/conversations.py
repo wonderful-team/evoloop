@@ -20,7 +20,7 @@ class MessageItem(FoldedMessage):
     sequence_number: int | None = None
     checkpoint_id: str | None = None
     is_visible: bool = True
-    thinking: str | list[dict[str, Any]] | None = None
+    thinking: list[dict[str, Any]] | None = None
     tool_blocks: list[dict[str, Any]] | None = None
 
 class ConversationSearchResult(DynamicBaseModel):

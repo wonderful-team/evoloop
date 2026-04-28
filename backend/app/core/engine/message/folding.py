@@ -7,6 +7,7 @@ from typing import Any
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
 
+from app.core.engine.reasoning import parse_thinking
 from app.core.engine.state.history import FoldedMessage
 
 logger = logging.getLogger(__name__)
@@ -29,7 +30,10 @@ def to_base_message(msg: Any) -> BaseMessage | None:
     # Preserve key metadata that fold_messages and other utilities need
     msg_id = str(getattr(msg, "id", "")) or None
     created_at = getattr(msg, "created_at", None)
-    thinking = getattr(msg, "thinking", None)
+    thinking_raw = getattr(msg, "thinking", None)
+
+    # Parse thinking from DB: JSON-serialized list[dict]
+    thinking = parse_thinking(thinking_raw) if isinstance(thinking_raw, str) else thinking_raw
 
     # LangChain messages use additional_kwargs for extra metadata.
     # Note: `id` is passed as a top-level constructor arg, NOT inside

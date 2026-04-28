@@ -165,7 +165,7 @@ class AgentEngine:
                 blackboard=state.blackboard,
             )
 
-        # 7. Parse blackboard updates from thinking content
+        # 7. Parse blackboard updates from final response content
         last_response = inference_result.get("last_response")
         blackboard = state.blackboard
         if last_response and last_response.content:
