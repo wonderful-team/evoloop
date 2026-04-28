@@ -1,7 +1,7 @@
 """API schemas for utils routes."""
 
-from app.api.schemas.responses import BaseAPIResponse, ListResponse
-from typing import Any, Optional
+from app.api.schemas.responses import BaseAPIResponse
+
 
 class EvoloopStatusResponse(BaseAPIResponse):
     connected: bool

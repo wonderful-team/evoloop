@@ -1,8 +1,9 @@
 """API schemas for tools routes."""
 
-from app.infrastructure.pydantic_base import DynamicBaseModel
 from typing import Any
-from typing import Any, Optional
+
+from app.infrastructure.pydantic_base import DynamicBaseModel
+
 
 class ToolInfo(DynamicBaseModel):
     name: str

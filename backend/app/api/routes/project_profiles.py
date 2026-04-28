@@ -15,17 +15,15 @@ import time
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 
 from app.api.deps import TokenDepOptional
-from app.api.responses import BaseAPIResponse
+from app.api.schemas.project_profiles import DiscoverRequest, DiscoverResponse, ProfileContentResponse
 from app.core.engine.background_agent import run_agent_background
 from app.core.engine.dispatch import dispatch_agent_run
 from app.core.engine.state.blackboard import BlackboardState
 from app.core.engine.state.config import AgentRuntimeConfig, ExecutionTicket
 from app.core.evocloud import evocloud_manager
 from app.infrastructure.database.sql.database import session_scope
-from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.models.learning import LearnedSkill
 from app.utils import file as file_utils
-from app.api.schemas.project_profiles import DiscoverRequest, DiscoverResponse, ProfileContentResponse
 
 logger = logging.getLogger(__name__)
 

@@ -12,13 +12,10 @@ import io
 import logging
 from enum import Enum
 from pathlib import Path
-from typing import Any
 
 from PIL import Image
-from pydantic import Field
 
-from app.infrastructure.pydantic_base import DynamicBaseModel
-from app.core.learning.schemas import CompressionConfig, CompressedFrame, NormalizedEvent, KeyframeCandidate
+from app.core.learning.schemas import CompressionConfig, CompressedFrame, KeyframeCandidate
 
 logger = logging.getLogger(__name__)
 

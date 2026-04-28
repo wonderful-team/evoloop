@@ -2,10 +2,8 @@ import logging
 from pathlib import Path
 
 import yaml
-from pydantic import BaseModel
 
-from app.infrastructure.pydantic_base import DynamicBaseModel
-from app.core.learning.schemas import ValidationMetadata, ValidationResult
+from app.core.learning.schemas import ValidationResult
 
 logger = logging.getLogger(__name__)
 

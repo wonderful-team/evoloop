@@ -1,13 +1,6 @@
 import logging
 import time
 
-from app.core.environment.event import UiTreeObservedEvent
-from app.core.environment.bus import event_bus
-from app.core.events.base import system_bus
-from app.core.vision.event import (
-    VisionProcessCompletedEvent,
-    VisionProcessStartedEvent,
-)
 from app.core.vision.router import get_vision_router
 from app.core.vision.types import VisionResult, VisionTask
 from app.infrastructure.drivers.macos import macos_driver

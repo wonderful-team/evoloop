@@ -5,7 +5,7 @@ from langchain_core.messages import SystemMessage
 
 from app.core.vision.providers.base import VisionProvider
 from app.core.vision.types import VisionResult, VisionTask
-from app.infrastructure.llm.vision import VisionLLMFactory, get_vision_llm, get_vision_llm_async
+from app.infrastructure.llm.vision import VisionLLMFactory, get_vision_llm_async
 from app.utils import render_template
 
 logger = logging.getLogger(__name__)

@@ -3,11 +3,9 @@ import logging
 from fastapi import APIRouter
 from sqlalchemy import select
 
-from app.api.responses import BaseAPIResponse
-from app.infrastructure.database.sql.database import session_scope
-from app.infrastructure.pydantic_base import DynamicBaseModel
-from app.models.planning import Plan, PlanStep
 from app.api.schemas.planning import PlanStepResponse, PlanDataResponse, PlanResponse
+from app.infrastructure.database.sql.database import session_scope
+from app.models.planning import Plan, PlanStep
 
 logger = logging.getLogger(__name__)
 

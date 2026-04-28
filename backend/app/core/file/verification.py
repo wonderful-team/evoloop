@@ -8,10 +8,9 @@ with concurrent modification detection.
 import logging
 import os
 
-from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.core.file.schemas import FileWriteResult
 from .io import get_file_info, read_file, write_file
 from .models import FileInfo
-from app.core.file.schemas import FileWriteResult
 
 # FileStats is an alias for FileInfo for backward compatibility
 FileStats = FileInfo

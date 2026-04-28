@@ -7,7 +7,6 @@ from contextlib import AsyncExitStack
 from typing import Any
 
 from langchain_core.tools import StructuredTool
-from pydantic import Field
 from sqlalchemy import select
 
 from app.core.mcp.auth.manager import mcp_auth_manager
@@ -24,11 +23,10 @@ from app.core.mcp.features.prompts import McpPromptsFeature
 from app.core.mcp.features.resources import McpResourcesFeature
 from app.core.mcp.features.tools import McpToolsFeature
 from app.core.mcp.health import HealthStatus, McpHealthChecker
+from app.core.mcp.schemas import McpResource, McpPromptArgument, McpPrompt, McpServerSummary
 from app.core.mcp.transport import McpTransport
 from app.infrastructure.database.sql.database import session_scope
-from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.models import McpServer
-from app.core.mcp.schemas import McpResource, McpPromptArgument, McpPrompt, McpServerSummary
 
 logger = logging.getLogger(__name__)
 

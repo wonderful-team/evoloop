@@ -5,16 +5,14 @@ import shutil
 from typing import Any
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
-from pydantic import Field
 from sqlalchemy import select
 
 from app.core.config import settings
 from app.core.learning.prompts import prompt_builder
+from app.core.learning.schemas import SkillListItem, SkillMatch
 from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.llm import get_default_llm
-from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.models.learning import LearnedSkill
-from app.core.learning.schemas import SkillParams, SkillListItem, SkillMatch
 
 logger = logging.getLogger(__name__)
 

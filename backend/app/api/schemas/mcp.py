@@ -1,7 +1,7 @@
 """API schemas for mcp routes."""
 
-from app.api.schemas.responses import BaseAPIResponse, ListResponse
-from typing import Any, Optional
+from app.api.schemas.responses import BaseAPIResponse
+
 
 class McpOperationResponse(BaseAPIResponse):
     """Response for MCP add/remove operations."""

@@ -8,7 +8,6 @@ import logging
 import time
 from typing import Dict, List, Any, Optional
 
-from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.infrastructure.schemas import PlatformModel
 
 logger = logging.getLogger(__name__)

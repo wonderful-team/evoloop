@@ -3,15 +3,13 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
-from pydantic import Field
 
-from app.api.responses import BaseAPIResponse
+from app.api.schemas.account import MobileCodeRequest, MobileLoginRequest, MobileCodeResponse, WeChatConfigResponse, \
+    WeChatQRResponse, WeChatStatusResponse, LogoutResponse
 from app.core.evocloud import evocloud_manager
 from app.core.identity import identity_service
-from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.models import Token
 from app.models.schemas.auth import EvoCloudProxyResponse
-from app.api.schemas.account import MobileCodeRequest, MobileLoginRequest, MobileCodeResponse, WeChatConfigResponse, WeChatQRResponse, WeChatStatusResponse, LogoutResponse
 
 logger = logging.getLogger(__name__)
 

@@ -11,7 +11,6 @@ import threading
 import time
 from typing import Callable
 
-from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.core.environment.schemas import AndroidEvent, DebounceConfig, AndroidTraceEvent
 
 logger = logging.getLogger(__name__)

@@ -1,8 +1,8 @@
 """API schemas for project_profiles routes."""
 
+from app.api.schemas.responses import BaseAPIResponse
 from app.infrastructure.pydantic_base import DynamicBaseModel
-from app.api.schemas.responses import BaseAPIResponse, ListResponse
-from typing import Any, Optional
+
 
 class DiscoverRequest(DynamicBaseModel):
     record_secrets: bool = False

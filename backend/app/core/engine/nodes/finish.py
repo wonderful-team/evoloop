@@ -9,19 +9,16 @@ import asyncio
 import logging
 import re
 import time
-from typing import Any
 
 from langchain_core.messages import AIMessage, RemoveMessage
 from langchain_core.runnables import RunnableConfig
 
-from app.core.engine.state import AgentState, StateUpdate
-
-from app.core.events import system_bus
-from app.core.events.schema import SessionCompletedEvent, SessionCompletedData
 from app.core.engine.nodes.base import BaseNode
 from app.core.engine.routers import RoutingTarget
 from app.core.engine.services.audit_service import AuditService, AuditResult
+from app.core.engine.state import AgentState, StateUpdate
 from app.core.engine.state.blackboard import AuditMeta
+from app.core.events.schema import SessionCompletedData
 
 logger = logging.getLogger(__name__)
 

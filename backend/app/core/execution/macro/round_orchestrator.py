@@ -10,13 +10,11 @@ import logging
 from abc import ABC, abstractmethod
 from typing import Any
 
-from pydantic import Field
-
 from app.core.execution.macro.models import (
     RoundConfig,
     RoundReport,
 )
-from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.core.execution.macro.schemas import RoundContext
 from app.utils.random import (
     random_delay_ms,
     random_drift,
@@ -24,7 +22,6 @@ from app.utils.random import (
     should_trigger,
 )
 from app.utils.registry import ClassRegistry
-from app.core.execution.macro.schemas import InterferenceConfig, RoundContext
 
 logger = logging.getLogger(__name__)
 

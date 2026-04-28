@@ -41,9 +41,8 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Any, Optional
 
-from app.infrastructure.pydantic_base import DynamicBaseModel
-from .models import BackgroundTask, TaskMetadata, TaskStatus, TaskType
 from app.core.tools.schemas import CreateBackgroundTaskRequest, BackgroundTaskManagerStats
+from .models import BackgroundTask, TaskStatus
 
 logger = logging.getLogger(__name__)
 

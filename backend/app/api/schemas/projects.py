@@ -1,9 +1,9 @@
 """API schemas for projects routes."""
 
+from app.api.schemas.responses import BaseAPIResponse
 from app.infrastructure.pydantic_base import DynamicBaseModel
-from app.api.schemas.responses import BaseAPIResponse, ListResponse
 from app.models.schemas.base import ScopedRequest
-from typing import Any, Optional
+
 
 class IndexingRequest(ScopedRequest):
     project_id: int

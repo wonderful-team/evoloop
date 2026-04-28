@@ -8,22 +8,22 @@ import logging
 import os
 import shutil
 from pathlib import Path
-from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, UploadFile
 from sqlalchemy.orm import selectinload
 
 from app.api.deps import TokenDep, TokenDepOptional
-from app.api.responses import BaseAPIResponse, ListResponse
+from app.api.responses import ListResponse
+from app.api.schemas.project_requirements import RequirementUploadResponse, RequirementListItem, \
+    RequirementAnalysisItem, RequirementDetailResponse, RequirementDeleteResponse, RequirementTaskItem, \
+    RequirementMapping, RequirementTasksResponse, RequirementProgress, RequirementSyncProgressResponse
 from app.core.config import settings
 from app.core.engine.background_agent import run_agent_background
 from app.core.file.document_reader import document_reader_service
 from app.domain.project.requirements import ProjectRequirementDocument
 from app.infrastructure.database.sql.database import session_scope
-from app.infrastructure.pydantic_base import DynamicBaseModel
-from app.utils.id import gen_uuid
 from app.utils import render_template
-from app.api.schemas.project_requirements import RequirementUploadResponse, RequirementListItem, RequirementAnalysisItem, RequirementDetailResponse, RequirementDeleteResponse, RequirementTaskItem, RequirementMapping, RequirementTasksResponse, RequirementProgress, RequirementSyncProgressResponse
+from app.utils.id import gen_uuid
 
 logger = logging.getLogger(__name__)
 

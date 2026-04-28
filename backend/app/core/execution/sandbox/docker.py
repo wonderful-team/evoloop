@@ -3,7 +3,6 @@ import logging
 import docker
 from docker.errors import NotFound
 
-from app.core.config import settings
 from app.core.execution.sandbox.base import Sandbox
 from app.infrastructure.config.service import SystemConfigService
 

@@ -4,11 +4,9 @@ MessageFolder - 消息折叠工具类
 统一处理消息由扁平结构向嵌套结构（FoldedMessage/ToolStep）的转换逻辑。
 解决流式推送与历史加载逻辑不一致的问题。
 """
-import asyncio
 import logging
 import time
 from datetime import datetime
-from typing import Any
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
 

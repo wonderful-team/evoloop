@@ -1,10 +1,13 @@
 """API schemas for system routes."""
 
-from app.infrastructure.pydantic_base import DynamicBaseModel
-from app.api.schemas.responses import BaseAPIResponse, ListResponse
-from app.models.schemas.base import ScopedRequest
+from typing import Any
+
 from pydantic import Field
-from typing import Any, Optional
+
+from app.api.schemas.responses import BaseAPIResponse
+from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.models.schemas.base import ScopedRequest
+
 
 class EmbeddingConfigRequest(ScopedRequest):
     provider: str = Field(..., description="openai, ollama, or generic")

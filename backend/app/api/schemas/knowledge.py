@@ -1,10 +1,12 @@
 """API schemas for knowledge routes."""
 
-from app.infrastructure.pydantic_base import DynamicBaseModel
-from app.infrastructure.schemas import SearchResults
+from typing import Any, Optional
+
 from app.api.schemas.responses import BaseAPIResponse, ListResponse
 from app.domain.knowledge.services.store import DocumentListItem
-from typing import Any, Optional
+from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.infrastructure.schemas import SearchResults
+
 
 class DocumentResponse(BaseAPIResponse):
     """Response for document operations."""

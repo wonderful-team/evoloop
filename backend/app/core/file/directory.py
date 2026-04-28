@@ -9,11 +9,9 @@ import logging
 import os
 import shutil
 from collections.abc import Iterator
-from enum import Enum
 from pathlib import Path
 
 from app.constants import DEFAULT_EXCLUDED_DIRS
-from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.core.file.schemas import DirectoryInfo, DirectoryOperationResult, DirectoryEntry, DirectoryStatus
 
 logger = logging.getLogger(__name__)

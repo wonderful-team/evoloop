@@ -17,8 +17,8 @@ from app.core.config import settings
 from app.core.context import ContextManager
 from app.core.engine import get_default_engine
 from app.core.engine.message.utils import get_message_text
-from app.core.engine.nodes.utils import resolve_is_subtask
 from app.core.engine.nodes.base import BaseAgentNode
+from app.core.engine.nodes.utils import resolve_is_subtask
 from app.core.engine.prompts import WorkerPromptBuilder
 from app.core.engine.routers import RoutingTarget
 from app.core.engine.state import AgentState, StateUpdate

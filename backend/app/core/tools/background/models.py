@@ -9,8 +9,8 @@ from typing import Any
 
 from pydantic import ConfigDict, Field
 
-from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.core.tools.schemas import TaskMetadata, TaskStatus, TaskType
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 
 class BackgroundTask(DynamicBaseModel):

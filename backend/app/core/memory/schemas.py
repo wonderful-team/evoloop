@@ -1,11 +1,12 @@
 """Schemas for memory module."""
 
 from datetime import datetime
-from typing import Any, List, Optional
+from typing import List
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from app.infrastructure.pydantic_base import DynamicBaseModel
+
 
 class SearchResult(DynamicBaseModel):
     """Semantic search result for concepts."""

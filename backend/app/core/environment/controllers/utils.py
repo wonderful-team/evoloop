@@ -11,7 +11,7 @@ import time
 from collections.abc import Callable
 from typing import Any
 
-from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.core.environment.schemas import BatchStepResult
 from app.utils import (
     cleanup_file,
     normalize_coordinates,
@@ -19,7 +19,6 @@ from app.utils import (
     render_template,
 )
 from app.utils.text import truncate_output
-from app.core.environment.schemas import BatchStepResult
 
 logger = logging.getLogger(__name__)
 

@@ -6,13 +6,11 @@ Allows for dynamic context injection and potential LLM-specific adaptations.
 """
 import json
 import logging
-from typing import Any
 
 from langchain_core.runnables import RunnableConfig
 
-from app.core.engine.state.blackboard import BlackboardState
-from app.infrastructure.config.service import SystemConfigService
 from app.core.engine.schemas import SupervisorContext
+from app.infrastructure.config.service import SystemConfigService
 from app.utils import render_template
 
 logger = logging.getLogger(__name__)

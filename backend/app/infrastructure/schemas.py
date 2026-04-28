@@ -2,8 +2,7 @@
 
 import asyncio
 from datetime import datetime
-from enum import auto
-from typing import Any, Generic, Optional
+from typing import Any, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 

@@ -3,9 +3,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db
-from app.api.responses import BaseAPIResponse
-from app.models import CodeEntity, Repository
 from app.api.schemas.symbols import SymbolResponse, SymbolWikiResponse
+from app.models import CodeEntity, Repository
 
 router = APIRouter()
 

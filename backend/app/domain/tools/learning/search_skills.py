@@ -1,10 +1,7 @@
 import json
 from typing import Any
 
-from pydantic import BaseModel, Field
-
 from app.core.tools import evoloop_tool
-from app.domain.tools.schemas import SearchSkillsSchema
 
 
 @evoloop_tool(

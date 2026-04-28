@@ -3,14 +3,12 @@ import logging
 from pathlib import Path
 
 import yaml
-from pydantic import Field
 from sqlalchemy import select
 
+from app.core.learning.schemas import SkillImportResult
 from app.core.learning.skill_validator import SkillValidator
 from app.infrastructure.database.sql.database import session_scope
-from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.models.learning import LearnedSkill
-from app.core.learning.schemas import SkillImportResult
 
 logger = logging.getLogger(__name__)
 

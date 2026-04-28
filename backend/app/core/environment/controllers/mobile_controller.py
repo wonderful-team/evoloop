@@ -21,12 +21,11 @@ from app.core.environment.controllers.utils import (
     RecordingContext,
     resolve_element_alias,
 )
+from app.core.environment.schemas import AppInfo
 from app.core.learning.trace_recorder import get_recorder
 from app.core.vision import VisionTask, vision_engine
 from app.core.vision.providers.native.android_a11y import android_a11y_provider
 from app.infrastructure.drivers.adb import ADBError, adb_driver
-from app.core.environment.schemas import AppInfo
-from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.utils import (
     ControllerResponse,
     PerceptionsFormatter,

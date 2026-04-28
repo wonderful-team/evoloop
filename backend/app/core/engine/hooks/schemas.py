@@ -2,11 +2,11 @@
 
 from typing import Any
 
-from pydantic import ConfigDict, Field
 from langchain_core.messages import BaseMessage
+from pydantic import ConfigDict, Field
 
-from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.core.engine.state.blackboard import BlackboardState
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 
 class HookMetadata(DynamicBaseModel):

@@ -1,5 +1,13 @@
 """Learning schemas package."""
 
+from app.core.learning.schemas.events import (
+    DomEventData,
+    GlobalEventData,
+    PreviewEventsSummary,
+    PreviewKeyframeSummary,
+    PreviewVideoInfo,
+    RecordingSessionItem,
+)
 from app.core.learning.schemas.migrated import (
     ActionCategory,
     ActionRegistryItem,
@@ -27,15 +35,6 @@ from app.core.learning.schemas.migrated import (
     ValidationMetadata,
     ValidationResult,
     VideoInfo,
-)
-from app.core.learning.trace_parser import TraceSequence
-from app.core.learning.schemas.events import (
-    DomEventData,
-    GlobalEventData,
-    PreviewEventsSummary,
-    PreviewKeyframeSummary,
-    PreviewVideoInfo,
-    RecordingSessionItem,
 )
 from app.core.learning.schemas.requests import (
     AndroidExtractPointRequest,

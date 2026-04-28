@@ -1,13 +1,10 @@
 import logging
-from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.api.deps import TokenDep, require_benefit
-from app.api.responses import BaseAPIResponse
+from app.api.schemas.devices import BindResponse, DebugStatusResponse, BindClientRequest, SendCommandRequest
 from app.core.evocloud import evocloud_manager
-from app.infrastructure.pydantic_base import DynamicBaseModel
-from app.api.schemas.devices import BindResponse, DebugStatusResponse, BindClientRequest, CommandParams, SendCommandRequest
 
 logger = logging.getLogger(__name__)
 

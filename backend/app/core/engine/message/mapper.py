@@ -28,7 +28,7 @@ from langchain_core.messages import (
 )
 
 from app.core.engine.message.schemas import BlockEvent, MessageBlock, ToolBlock
-from app.core.engine.state.history import FoldedMessage, ToolStep
+from app.core.engine.state.history import FoldedMessage
 
 logger = logging.getLogger(__name__)
 

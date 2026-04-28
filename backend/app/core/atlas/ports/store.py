@@ -1,7 +1,6 @@
 from abc import ABC, abstractmethod
 
 from app.core.atlas.models import AtlasApp
-from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.core.atlas.schemas import AtlasAppSummary, AtlasStateDetail, AtlasAppInfo
 
 

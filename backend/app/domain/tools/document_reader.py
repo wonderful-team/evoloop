@@ -2,17 +2,15 @@ import logging
 import os
 import sqlite3
 
-from pydantic import BaseModel
-
 from app.core.context.manager import ContextManager
 from app.core.file.document_reader import document_reader_service
 from app.core.tools import evoloop_tool
-from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.domain.tools.schemas import DocxHeading, ExcelSheetInfo, ExcelInspectionResult, DocxInspectionResult, \
+    PdfInspectionResult
 from app.utils import ContentFormatter, ControllerResponse, render_template
 from app.utils import json as json_utils
 from app.utils.detect import detect_language
 from app.utils.file import ensure_local_path, read_file_content, resolve_path
-from app.domain.tools.schemas import DocxHeading, ExcelSheetInfo, ExcelInspectionResult, DocxInspectionResult, PdfInspectionResult
 
 try:
     import docx

@@ -1,20 +1,17 @@
 import logging
-from datetime import datetime
-from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
 from sqlalchemy import delete, select, func
 from sqlalchemy.orm import selectinload
 
-from app.api.responses import BaseAPIResponse, ListResponse
+from app.api.schemas.conversations import MessageItem, ConversationSearchResult, RenameRequest, ConversationListItem, \
+    ReferenceItem, ChangesetNode, RewindResponse, ConversationRenameResponse, ConversationDeleteResponse, RewindRequest, \
+    MessageListResponse
 from app.core.engine.message.folding import to_base_message, fold_messages
-from app.core.engine.state.history import FoldedMessage
-from app.core.monitoring.activity import activity_monitor
 from app.core.engine.message.schemas import HistoryBlock  # noqa: F401  # 标准化 Block 模型
+from app.core.monitoring.activity import activity_monitor
 from app.infrastructure.database.sql.database import get_db_session
-from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.models import Conversation, FileOperation, Message
-from app.api.schemas.conversations import MessageItem, ConversationSearchResult, RenameRequest, ConversationListItem, ReferenceItemMetadata, ReferenceItem, ChangesetNode, RewindResponse, ConversationRenameResponse, ConversationDeleteResponse, RewindRequest, MessageListResponse
 
 logger = logging.getLogger(__name__)
 

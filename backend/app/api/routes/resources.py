@@ -1,14 +1,11 @@
 import logging
-from typing import Literal
 
 from fastapi import APIRouter, HTTPException
 from sqlalchemy import select
 
-from app.api.responses import BaseAPIResponse
-from app.infrastructure.database.sql.database import get_db_session
-from app.infrastructure.pydantic_base import DynamicBaseModel
-from app.models import ProjectResource
 from app.api.schemas.resources import ResourceCreate, ResourceResponse, OperationResponse
+from app.infrastructure.database.sql.database import get_db_session
+from app.models import ProjectResource
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/projects/{project_id}/resources", tags=["resources"])

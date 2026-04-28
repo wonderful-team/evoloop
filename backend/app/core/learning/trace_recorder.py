@@ -7,14 +7,12 @@ from typing import Any
 
 from langchain_core.callbacks import AsyncCallbackHandler
 from langchain_core.outputs import LLMResult
-from pydantic import Field
 
 from app.core.config import settings
 from app.core.context.manager import ContextManager
+from app.core.learning.schemas import ActionTrace
 from app.infrastructure.database.sql.database import session_scope
-from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.utils.path import ensure_dir
-from app.core.learning.schemas import TraceParameters, TraceContext, ActionTrace
 
 logger = logging.getLogger(__name__)
 

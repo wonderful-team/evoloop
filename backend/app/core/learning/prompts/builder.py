@@ -1,12 +1,9 @@
 import logging
 from typing import Any
 
-from pydantic import Field
-
 from app.core.environment.capabilities.registry import ActionRegistry
-from app.infrastructure.pydantic_base import DynamicBaseModel
-from app.utils import render_template
 from app.core.learning.schemas.migrated import ActionRegistryItem
+from app.utils import render_template
 
 logger = logging.getLogger(__name__)
 

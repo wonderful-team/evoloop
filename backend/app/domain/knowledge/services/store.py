@@ -10,7 +10,6 @@ from pathlib import Path
 from typing import Iterator, Optional
 
 from app.domain.knowledge.models import DocumentMetadata, MarkdownDocument
-from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.domain.knowledge.schemas import DocumentSaveResult, DocumentReadResult, DocumentListItem
 from app.utils.file import (
     read_file_content,

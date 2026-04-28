@@ -1,8 +1,7 @@
 import logging
-from typing import Optional
 
-from app.core.exceptions import InferenceError, AgentTerminalException
 from app.core.engine.schemas import ErrorClassification
+from app.core.exceptions import InferenceError
 
 logger = logging.getLogger(__name__)
 

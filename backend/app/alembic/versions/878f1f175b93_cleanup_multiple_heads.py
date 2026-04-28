@@ -5,10 +5,6 @@ Revises: 20250321_macro_script_yaml, 20250328_add_metadata, 20250403_add_subtask
 Create Date: 2026-04-20 02:22:55.416505
 
 """
-from alembic import op
-import sqlalchemy as sa
-import sqlmodel.sql.sqltypes
-
 
 # revision identifiers, used by Alembic.
 revision = '878f1f175b93'

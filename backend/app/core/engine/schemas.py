@@ -1,14 +1,11 @@
 """Core engine schemas — graph config, execution results, and operational models."""
 
 from typing import Any, Literal, Optional
-from datetime import datetime
 
-from pydantic import BaseModel, Field, model_validator, ConfigDict
+from pydantic import BaseModel, Field, model_validator
 
-from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.core.engine.state.blackboard import BlackboardState
-from app.core.engine.state.blackboard import SpawnPlan
-from app.core.engine.state.config import AgentRuntimeConfig
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 
 # ---------------------------------------------------------------------------

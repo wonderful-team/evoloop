@@ -11,7 +11,6 @@ Inspired by Claude Code's extractMemories.ts, this module implements:
 import asyncio
 import json
 import logging
-import os
 import re
 import uuid
 from datetime import datetime

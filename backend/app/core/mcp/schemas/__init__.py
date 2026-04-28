@@ -25,5 +25,3 @@ from .tools import (
 )
 
 # Models with business methods — re-exported from their original modules
-from app.core.mcp.config import McpServerConfig
-from app.core.mcp.worker_config import WorkerMcpConfig as _WorkerMcpConfig, WorkerMcpServerConfig as _WorkerMcpServerConfig

@@ -1,12 +1,13 @@
 import time
-from typing import Any
 
 import psutil
 from fastapi import APIRouter, Depends
-from pydantic import Field
 
 from app.api.deps import get_current_user
-from app.api.responses import BaseAPIResponse
+from app.api.schemas.system import EmbeddingConfigRequest, SystemStatusResponse, HealthCheckResponse, \
+    EmbeddingTestResponse, EmbeddingApplyResponse, LLMTestResponse, LLMApplyResponse, ResetKnowledgeResponse, \
+    CloudStatusResponse, ModelsListResponse, ProjectDiscoveryConfigUpdateResponse, LLMConfigRequest, \
+    ProjectDiscoveryConfigResponse, ProjectDiscoveryConfigRequest
 from app.infrastructure.config import EmbeddingConfigService
 from app.infrastructure.config.service import SystemConfigService
 from app.infrastructure.llm import LLMConfigService
@@ -14,10 +15,7 @@ from app.infrastructure.llm.platform_service import (
     get_available_llm_models,
     get_available_embedding_models,
 )
-from app.infrastructure.pydantic_base import DynamicBaseModel
-from app.models.schemas.base import ScopedRequest
 from app.models.system import SystemConfig
-from app.api.schemas.system import EmbeddingConfigRequest, SystemStatusResponse, HealthCheckResponse, EmbeddingTestResponse, EmbeddingApplyResponse, LLMTestResponse, LLMApplyResponse, ResetKnowledgeResponse, CloudStatusResponse, ModelsListResponse, ProjectDiscoveryConfigUpdateResponse, LLMConfigRequest, ProjectDiscoveryConfigResponse, ProjectDiscoveryConfigRequest
 
 router = APIRouter(prefix="/system", tags=["system"])
 

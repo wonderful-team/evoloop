@@ -3,7 +3,6 @@ from enum import Enum
 from pydantic import field_validator
 
 from app.infrastructure.pydantic_base import DynamicBaseModel
-from app.core.file.schemas import FileChunk, PaginationInfo
 
 
 class FileStatus(str, Enum):

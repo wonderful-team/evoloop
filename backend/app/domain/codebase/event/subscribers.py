@@ -9,8 +9,8 @@ import asyncio
 import logging
 import os
 
-from app.core.events.base import BaseEvent
 from app.core.events import SystemEventType
+from app.core.events.base import BaseEvent
 from app.core.events.decorators import event_register, event_subscribe
 from app.domain.project.event import (
     ProjectCreatedEvent,

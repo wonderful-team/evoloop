@@ -18,15 +18,14 @@ from langchain_core.messages import AIMessage
 from langchain_core.runnables import RunnableConfig
 
 from app.core.engine.blackboard_parser import BlackboardParser
-from app.core.engine.schemas import EngineResult, NodeOutcome
-from app.core.engine.inference_engine import InferenceEngine
 from app.core.engine.context_trimmer import ContextTrimmer
+from app.core.engine.inference_engine import InferenceEngine
+from app.core.engine.schemas import EngineResult, NodeOutcome
+from app.core.engine.signals.registry import get_default_registry
+from app.core.engine.state import AgentState
+from app.core.engine.tools.executor import AgentToolExecutor
 from app.core.exceptions import InferenceError
 from app.core.memory.tool_output_memory import get_tool_memory_from_state
-from app.core.engine.signals import AgentSignal
-from app.core.engine.signals.registry import get_default_registry
-from app.core.engine.state import AgentState, BlackboardState
-from app.core.engine.tools.executor import AgentToolExecutor
 from app.infrastructure.llm.factory import LLMFactory
 
 logger = logging.getLogger(__name__)

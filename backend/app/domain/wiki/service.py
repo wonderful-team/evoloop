@@ -3,20 +3,18 @@ import logging
 import os
 import re
 
-from pydantic import BaseModel, Field
 from sqlmodel import Session, select
 
 from app.core.config import settings
 from app.core.evocloud import evocloud_manager
 from app.core.file.service import filter_code_files, walk_tree
+from app.domain.wiki.schemas import ConceptExtractionResult, WikiPagePlan, WikiStructure, WikiValidationResult
 from app.domain.wiki.wiki_builder import WikiBuilder
 from app.i18n.service import i18n
 from app.infrastructure.database.resource_manager import db_resource_manager as rm
 from app.models.wiki import WikiPage
 from app.utils import render_template
 from app.utils.file import normalize_path
-from app.domain.tools.schemas import ExtractedConcept
-from app.domain.wiki.schemas import ConceptExtractionResult, WikiPagePlan, WikiStructure, WikiValidationResult
 
 logger = logging.getLogger(__name__)
 

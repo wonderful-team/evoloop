@@ -10,7 +10,6 @@ from typing import Any
 from pydantic import Field, model_validator
 
 from app.core.events.base import BaseEvent
-from app.infrastructure.pydantic_base import DynamicBaseModel
 
 
 class AgentEvent(BaseEvent):

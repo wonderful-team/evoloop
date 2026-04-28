@@ -13,10 +13,9 @@ from typing import Optional
 from sqlalchemy import desc, func, select
 from sqlalchemy.orm import Session
 
-from app.infrastructure.database.resource_manager import db_resource_manager
-from app.infrastructure.pydantic_base import DynamicBaseModel
-from app.models.citation import CitationEvent, DocStat, SessionDoc
 from app.domain.knowledge.schemas import DocumentStats, DocumentRecommendation
+from app.infrastructure.database.resource_manager import db_resource_manager
+from app.models.citation import CitationEvent, DocStat, SessionDoc
 
 logger = logging.getLogger(__name__)
 

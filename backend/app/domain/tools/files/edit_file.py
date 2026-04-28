@@ -6,7 +6,6 @@ from typing import Annotated
 
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import InjectedToolArg
-from pydantic import BaseModel, ConfigDict
 
 from app.core.file import (
     safe_read_with_hash,
@@ -15,9 +14,9 @@ from app.core.file import (
 )
 from app.core.file.editor import EditEngine
 from app.core.tools import evoloop_tool, get_working_directory
+from app.domain.tools.schemas import FileEditOperation, EditFileRequest, EditPreviewResult
 from app.i18n.service import i18n
 from .utils import resolve_and_validate_path
-from app.domain.tools.schemas import FileEditOperation, EditFileRequest, EditPreviewResult
 
 logger = logging.getLogger(__name__)
 

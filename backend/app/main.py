@@ -12,9 +12,7 @@ from starlette.middleware.cors import CORSMiddleware
 from app.api.main import api_router
 from app.core.config import settings
 from app.core.context.middleware import ContextMiddleware
-
 # EvoLoop Imports
-from app.core.context import thread_context_store
 from app.core.engine.graph_builder import GraphBuilder
 from app.core.globals import set_graph
 from app.infrastructure.database.resource_manager import db_resource_manager

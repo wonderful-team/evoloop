@@ -1,9 +1,10 @@
 """API schemas for member routes."""
 
-from app.infrastructure.pydantic_base import DynamicBaseModel
-from app.api.schemas.responses import BaseAPIResponse, ListResponse
 from pydantic import Field
-from typing import Any, Optional
+
+from app.api.schemas.responses import BaseAPIResponse
+from app.infrastructure.pydantic_base import DynamicBaseModel
+
 
 class ChangePasswordRequest(DynamicBaseModel):
     old_password: str = Field(..., min_length=1, description="Current password")

@@ -17,11 +17,10 @@ from app.core.execution.macro.models import (
     RoundReport,
     VerificationIssue,
 )
+from app.core.execution.macro.schemas import ActionDecision
 from app.infrastructure.llm.vision import VisionLLMFactory
-from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.utils import render_template
 from app.utils.yaml import safe_yaml_dumps
-from app.core.execution.macro.schemas import ActionDecision
 
 logger = logging.getLogger(__name__)
 

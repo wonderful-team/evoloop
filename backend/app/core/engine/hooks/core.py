@@ -40,7 +40,7 @@ from datetime import datetime
 from enum import Enum, auto
 from typing import Any
 
-from app.core.engine.hooks.schemas import HookMetadata, ToolInput, ToolResult, HookContext, HookResult
+from app.core.engine.hooks.schemas import HookContext, HookResult
 
 logger = logging.getLogger(__name__)
 

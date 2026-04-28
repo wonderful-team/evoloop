@@ -1,12 +1,13 @@
 """Schemas for context module."""
 
-from app.infrastructure.pydantic_base import DynamicBaseModel
-from pydantic import BaseModel
-from pydantic import Field
 from typing import Any
-from typing import Any, Optional
+
+from pydantic import Field
+
 from app.core.engine.state.blackboard import BlackboardState
 from app.core.engine.state.config import ExecutionTicket
+from app.infrastructure.pydantic_base import DynamicBaseModel
+
 
 class DynamicContextLayer(DynamicBaseModel):
     """Dynamic context that must always be fresh."""

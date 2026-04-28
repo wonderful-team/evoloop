@@ -11,14 +11,13 @@ from uuid import uuid4
 from pydantic import BaseModel, Field
 from sqlalchemy import select, update
 
-from app.core.evocloud import evocloud_manager
 from app.core.exceptions import AgentHumanInterruptException
 from app.core.monitoring.activity import activity_monitor
 from app.core.tools import evoloop_tool
+from app.domain.tools.schemas import RequestHumanInputArgs, RequestApprovalArgs
 from app.i18n.service import i18n
 from app.infrastructure.database.sql.database import session_scope
 from app.models.conversation import HumanRequest
-from app.domain.tools.schemas import RequestHumanInputArgs, RequestApprovalArgs
 
 logger = logging.getLogger(__name__)
 

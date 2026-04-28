@@ -5,11 +5,11 @@ import os
 from langchain_core.output_parsers import JsonOutputParser
 
 from app.core.evocloud import evocloud_manager
-from app.infrastructure.queue.factory import get_scheduler, shared_task
 from app.core.monitoring.activity import activity_monitor
 from app.domain.codebase.filter import FileFilter
 from app.domain.project.service import project_context_manager
 from app.infrastructure.database.graph.driver import get_graph_db
+from app.infrastructure.queue.factory import get_scheduler, shared_task
 from app.utils import file as file_utils
 from app.utils import json as json_utils
 from app.utils.async_utils import flush_loop_bound_resources

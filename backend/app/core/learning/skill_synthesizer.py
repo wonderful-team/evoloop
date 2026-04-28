@@ -15,7 +15,7 @@ from pydantic import Field
 from sqlalchemy import select
 
 from app.core.config import settings
-from app.core.execution.macro.models import VerificationResponse, VerificationStatus
+from app.core.execution.macro.models import VerificationResponse
 from app.core.learning.prompts import prompt_builder
 from app.core.learning.schemas import SkillParameter
 from app.core.learning.synthesizer_utils import (

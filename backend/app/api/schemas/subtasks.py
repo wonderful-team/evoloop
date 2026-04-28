@@ -1,12 +1,13 @@
 """API schemas for subtasks routes."""
 
-from app.infrastructure.pydantic_base import DynamicBaseModel
-from app.api.schemas.responses import BaseAPIResponse, ListResponse
-from app.models.schemas.base import TimestampedEntity
-from pydantic import Field
-from typing import Optional
-from typing import Any
 from typing import Any, Optional
+
+from pydantic import Field
+
+from app.api.schemas.responses import BaseAPIResponse
+from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.models.schemas.base import TimestampedEntity
+
 
 class SubtaskCreate(DynamicBaseModel):
     """Subtask creation request."""

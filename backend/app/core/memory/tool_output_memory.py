@@ -11,7 +11,6 @@ import logging
 import time
 
 from app.core.engine.state import AgentState
-from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.core.memory.schemas import ForgottenRecord, AuditEntry
 
 logger = logging.getLogger(__name__)

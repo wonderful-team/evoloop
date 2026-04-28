@@ -17,7 +17,6 @@ from app.core.evocloud.interfaces.link import DeviceLinkProtocol
 from app.core.evocloud.schemas import (
     EvoCloudConfig,
     QueryResponse,
-    RemoteCommand,
     WebSocketHandshake,
     WebSocketPing,
 )

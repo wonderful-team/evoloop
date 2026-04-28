@@ -1,11 +1,9 @@
-import asyncio
 import logging
 
 from app.domain.wiki.schemas import WikiSyncResult
 from app.domain.wiki.service import wiki_service
 # Use unified task queue (Huey in embedded mode, Celery in full mode)
 from app.infrastructure.queue.factory import shared_task
-from app.utils.async_utils import flush_loop_bound_resources
 
 logger = logging.getLogger(__name__)
 

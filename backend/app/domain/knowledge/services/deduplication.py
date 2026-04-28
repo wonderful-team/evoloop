@@ -15,9 +15,9 @@ from typing import Optional
 
 from pydantic import Field
 
+from app.domain.knowledge.schemas import DuplicateResult, MergeSuggestion, MergeResult, DeleteDuplicatesResult
 from app.domain.knowledge.services.store import KnowledgeStoreService
 from app.infrastructure.pydantic_base import DynamicBaseModel
-from app.domain.knowledge.schemas import DuplicateResult, MergeSuggestion, MergeResult, DeleteDuplicatesResult
 
 logger = logging.getLogger(__name__)
 

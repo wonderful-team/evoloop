@@ -1,8 +1,8 @@
 import asyncio
 import re
+from urllib.parse import quote, quote_plus
 
 import requests
-from urllib.parse import quote, quote_plus
 
 from app.core.tools.base import evoloop_tool
 

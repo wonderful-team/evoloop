@@ -11,9 +11,8 @@ import logging
 import os
 import re
 
-from app.infrastructure.pydantic_base import DynamicBaseModel
-from .io import detect_encoding
 from app.core.file.schemas import FileStats, OutlineEntry, FilePreview
+from .io import detect_encoding
 
 logger = logging.getLogger(__name__)
 

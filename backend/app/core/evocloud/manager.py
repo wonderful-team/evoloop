@@ -7,10 +7,9 @@ from app.core.config import settings
 from app.core.evocloud.backends.http_client import EvoCloudHTTPClient
 from app.core.evocloud.backends.websocket_link import EvoCloudWebSocketLink
 from app.core.evocloud.schemas import EvoCloudConfig
-from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.core.evocloud.schemas import EvoCloudProjectSummary
 from app.models.schemas.auth import LoginResult
 from app.utils.async_utils import LoopBoundResource
-from app.core.evocloud.schemas import EvoCloudProjectSummary
 
 logger = logging.getLogger(__name__)
 

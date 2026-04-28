@@ -7,7 +7,6 @@ MessageStreamPolicy - 消息流式推送策略
 import logging
 
 from app.core.engine.message.category import MessageCategory
-from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.core.engine.message.schemas import StreamPolicyResult
 
 logger = logging.getLogger(__name__)

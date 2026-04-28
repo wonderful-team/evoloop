@@ -6,19 +6,20 @@ Handles document upload, retrieval, and management for the Agent knowledge base.
 import json
 import logging
 from pathlib import Path
-from typing import Optional, Any
+from typing import Optional
 
 from fastapi import APIRouter, Body, File, Form, HTTPException, Query, UploadFile
 
-from app.api.responses import BaseAPIResponse, ListResponse
+from app.api.responses import BaseAPIResponse
+from app.api.schemas.knowledge import DocumentResponse, DocumentListResponse, DocumentMetadataResponse, \
+    DocumentContentResponse, CollectionResponse, TagItem, TagResponse, DocumentSearchResponse, FTSSearchResult, \
+    FTSSearchResponse, FTSSuggestResponse
 from app.domain.knowledge.services.bulk_import import BulkImportService
 from app.domain.knowledge.services.citations import get_citation_tracker
 from app.domain.knowledge.services.deduplication import DeduplicationService
 from app.domain.knowledge.services.pipeline import IngestionPipeline
 from app.domain.knowledge.services.search import get_fts_service
-from app.domain.knowledge.services.store import DocumentListItem, KnowledgeStoreService
-from app.infrastructure.pydantic_base import DynamicBaseModel
-from app.api.schemas.knowledge import DocumentResponse, DocumentListResponse, DocumentMetadataResponse, DocumentContentResponse, CollectionResponse, TagItem, TagResponse, DocumentSearchItem, DocumentSearchResponse, FTSSearchResult, FTSSearchResponse, FTSSuggestResponse
+from app.domain.knowledge.services.store import KnowledgeStoreService
 
 logger = logging.getLogger(__name__)
 

@@ -1,15 +1,12 @@
 import logging
 from enum import Enum
 
-from pydantic import Field
-
 from app.core.execution.macro.schema import (
     MacroActionType,
     MacroScript,
     MacroStep,
     MacroStepType,
 )
-from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.core.execution.macro.schemas import OptimizationResult
 
 logger = logging.getLogger(__name__)

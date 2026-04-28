@@ -11,12 +11,11 @@ SSE 流式事件 Schema —— 全系统通用事件定义。
 """
 
 from enum import Enum
-from typing import Any, Dict, List, Literal, Optional, Union
-
-from app.infrastructure.pydantic_base import EventBase
+from typing import Any, Dict, Literal, Optional, Union
 
 # Re-export message-specific events that downstream code expects from this module
 from app.core.engine.message.schemas import HumanRequestEvent  # noqa: F401
+from app.infrastructure.pydantic_base import EventBase
 
 
 class StreamEventType(str, Enum):

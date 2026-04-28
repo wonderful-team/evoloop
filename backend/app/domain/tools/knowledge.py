@@ -3,7 +3,6 @@ from typing import Annotated
 
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import InjectedToolArg
-from pydantic import BaseModel, Field
 
 from app.core.context.manager import ContextManager
 from app.core.tools import evoloop_tool

@@ -3,13 +3,11 @@ import logging
 
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import BaseTool
-from pydantic import BaseModel, Field
 from sqlalchemy import delete, select
 
 from app.core.context.manager import ContextManager
 from app.core.tools import evoloop_tool
 from .models import Plan, Step
-from app.domain.planning.schemas import CreatePlanInput, UpdatePlanInput
 
 logger = logging.getLogger(__name__)
 

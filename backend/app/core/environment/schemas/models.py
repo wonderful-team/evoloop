@@ -1,11 +1,12 @@
 """Schemas for environment module."""
 
-from app.infrastructure.pydantic_base import DynamicBaseModel
 from datetime import datetime
-from pydantic import BaseModel
-from pydantic import Field
 from typing import Any
-from typing import Any, Optional
+
+from pydantic import Field
+
+from app.infrastructure.pydantic_base import DynamicBaseModel
+
 
 class DehydratedElement(DynamicBaseModel):
     """A dehydrated Android UI element."""

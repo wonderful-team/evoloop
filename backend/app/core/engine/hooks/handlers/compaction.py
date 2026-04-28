@@ -5,9 +5,8 @@ Pre-compact hook handler — saves checkpoint state before context compression.
 import logging
 from datetime import datetime
 
-from langchain_core.messages import BaseMessage
-
 import yaml
+from langchain_core.messages import BaseMessage
 
 from app.core.engine.hooks.core import HookContext, HookResult
 from app.core.memory.models import MemoryEntry, MemoryType, PrivacyLevel

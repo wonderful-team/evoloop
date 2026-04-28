@@ -7,7 +7,6 @@ to replace hardcoded constants throughout the system.
 
 import logging
 
-from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.infrastructure.schemas import ModelProfile
 
 logger = logging.getLogger(__name__)

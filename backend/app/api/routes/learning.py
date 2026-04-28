@@ -93,14 +93,12 @@ from app.domain.tools.human_input import (
 from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.drivers.adb import adb_driver
 from app.models import (
-    Conversation,
     LearnedSkill,
-    Message,
     SynthesisJob,
     TraceEvent,
 )
-from app.utils.yaml import macro_from_yaml, YAMLError, validate_macro_yaml
 from app.utils import render_template
+from app.utils.yaml import macro_from_yaml, YAMLError, validate_macro_yaml
 
 logger = logging.getLogger(__name__)
 

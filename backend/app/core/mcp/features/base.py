@@ -4,10 +4,8 @@ import re
 from abc import ABC, abstractmethod
 
 from mcp import ClientSession
-from pydantic import Field
 
-from app.infrastructure.pydantic_base import DynamicBaseModel
-from app.core.mcp.schemas import McpFeatureCapabilities, McpResourceContent, McpPromptMessage, McpPromptResult
+from app.core.mcp.schemas import McpFeatureCapabilities
 
 MCP_TOOL_NAME_PREFIX = "mcp__"
 MCP_TOOL_NAME_SEPARATOR = "__"

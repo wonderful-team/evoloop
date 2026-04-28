@@ -6,11 +6,6 @@ Mobile 推送逻辑集中到此，避免重复实现和遗漏。
 """
 import logging
 
-from sqlalchemy import select, func
-
-from app.infrastructure.database.sql.database import session_scope
-from app.models import Message
-
 logger = logging.getLogger(__name__)
 
 

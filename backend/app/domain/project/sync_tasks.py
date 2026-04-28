@@ -2,9 +2,9 @@ import logging
 from datetime import datetime
 
 from app.core.evocloud import evocloud_manager
+from app.domain.codebase.indexing.service import IndexingService
 from app.infrastructure.queue.factory import shared_task
 from app.utils import render_template
-from app.domain.codebase.indexing.service import IndexingService
 from app.utils.async_utils import flush_loop_bound_resources
 
 logger = logging.getLogger(__name__)

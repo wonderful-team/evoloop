@@ -1,7 +1,6 @@
 import json
 
-from pydantic import BaseModel, Field
-from app.domain.planning.schemas import PlanStep, PlanDefinition
+from app.domain.planning.schemas import PlanDefinition
 
 
 class PlanManager:

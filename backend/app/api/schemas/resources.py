@@ -1,8 +1,10 @@
 """API schemas for resources routes."""
 
+from typing import Literal
+
+from app.api.schemas.responses import BaseAPIResponse
 from app.infrastructure.pydantic_base import DynamicBaseModel
-from app.api.schemas.responses import BaseAPIResponse, ListResponse
-from typing import Any, Literal, Optional
+
 
 class ResourceCreate(DynamicBaseModel):
     type: Literal["file", "link"]

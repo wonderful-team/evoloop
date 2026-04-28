@@ -8,10 +8,9 @@ import time
 from fastapi import APIRouter, File, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse
 
-from app.api.responses import BaseAPIResponse
+from app.api.schemas.files import FileNode, FileContent, OpenFileRequest, OpenFileResponse, FileUploadResponse, \
+    FileSearchResult, FileNameSearchResult, CreateFileRequest
 from app.core.evocloud import evocloud_manager
-from app.infrastructure.pydantic_base import DynamicBaseModel
-from app.api.schemas.files import FileNode, FileContent, OpenFileRequest, OpenFileResponse, FileUploadResponse, FileSearchResult, FileNameSearchResult, CreateFileRequest
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/projects/{project_id}/files", tags=["files"])

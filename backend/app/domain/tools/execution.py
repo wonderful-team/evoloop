@@ -8,7 +8,6 @@ from typing import Any, Annotated, Optional
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import InjectedToolArg
 
-from app.core.config import settings
 from app.core.context import ContextManager
 from app.core.tools import evoloop_tool, get_working_directory
 from app.core.tools.background import task_manager, TaskType, TaskStatus, CreateBackgroundTaskRequest

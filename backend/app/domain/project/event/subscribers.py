@@ -16,6 +16,9 @@ from app.core.events.decorators import event_register, event_subscribe
 from app.core.events.registry import SystemEventType
 from app.core.memory.event import MemoryContextGatherEvent
 from app.core.memory.event.types import MEMORY_CONTEXT_GATHER_EVENT_TYPE
+from app.domain.project.sync_service import ProjectSyncService
+from app.infrastructure.config import SystemConfigService
+from app.utils import render_template
 from .schemas import (
     ProjectCreatedEvent,
     ProjectDeletedEvent,
@@ -23,9 +26,6 @@ from .schemas import (
     ProjectSwitchedEvent,
 )
 from .types import ProjectEventType
-from app.domain.project.sync_service import ProjectSyncService
-from app.infrastructure.config import SystemConfigService
-from app.utils import render_template
 
 logger = logging.getLogger(__name__)
 

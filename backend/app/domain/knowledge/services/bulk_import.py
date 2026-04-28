@@ -15,9 +15,9 @@ from typing import BinaryIO, Optional
 
 from pydantic import Field
 
+from app.domain.knowledge.schemas import BulkImportError, ArchiveValidationResult
 from app.domain.knowledge.services.pipeline import IngestionPipeline
 from app.infrastructure.pydantic_base import DynamicBaseModel
-from app.domain.knowledge.schemas import BulkImportError, ArchiveValidationResult
 
 logger = logging.getLogger(__name__)
 

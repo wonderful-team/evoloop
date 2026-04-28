@@ -4,12 +4,11 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from app.api.responses import ListResponse, BaseAPIResponse
+from app.api.schemas.memory import ConceptCreate, ConceptUpdate, ConceptResponse, EpisodeResponse, VectorSearchResult, \
+    VectorSearchResponse, HybridResultItem, HybridSearchResponse, ConceptOperationResponse
 from app.core.memory.models import MemoryType
 from app.infrastructure.database.vector import get_vector_store
 from app.infrastructure.embeddings.factory import EmbedderFactory
-from app.infrastructure.pydantic_base import DynamicBaseModel
-from app.api.schemas.memory import ConceptCreate, ConceptUpdate, ConceptResponse, EpisodeResponse, VectorSearchResult, VectorSearchResponse, HybridResultItem, HybridSearchResponse, ConceptOperationResponse
 
 logger = logging.getLogger(__name__)
 

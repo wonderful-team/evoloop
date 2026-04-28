@@ -1,6 +1,5 @@
 import logging
 
-from sqlalchemy import text
 from sqlmodel import Session, select
 
 from app.core.config import settings

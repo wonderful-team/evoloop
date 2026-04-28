@@ -1,10 +1,10 @@
 """API schemas for audio routes."""
 
-from app.infrastructure.pydantic_base import DynamicBaseModel
-from app.api.schemas.responses import BaseAPIResponse, ListResponse
-from typing import Optional
-from typing import Any
 from typing import Any, Optional
+
+from app.api.schemas.responses import BaseAPIResponse
+from app.infrastructure.pydantic_base import DynamicBaseModel
+
 
 class TranscriptionResponse(BaseAPIResponse):
     """语音识别响应"""

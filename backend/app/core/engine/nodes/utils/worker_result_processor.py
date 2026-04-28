@@ -8,7 +8,6 @@ MCP interception, and subtask result collection.
 import asyncio
 import json
 import logging
-from typing import Any
 
 from langchain_core.messages import AIMessage, ToolMessage
 

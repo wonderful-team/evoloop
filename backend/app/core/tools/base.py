@@ -2,13 +2,10 @@ import functools
 import json
 import logging
 import os
-from typing import Any
 
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool as langchain_tool
-from pydantic import Field
 
-from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.core.tools.schemas import EvoLoopToolConfig
 
 logger = logging.getLogger(__name__)
@@ -35,7 +32,6 @@ def get_working_directory(config: RunnableConfig | None = None) -> str:
             return wd
 
     # 3. Fallback to SystemConfig WORKSPACE_ROOT
-    from app.core.config import settings
     try:
         from app.infrastructure.config.service import SystemConfigService
         workspace_root = SystemConfigService.get_value("WORKSPACE_ROOT")
@@ -94,7 +90,7 @@ def evoloop_tool(
                 # 权限检查
                 from app.core.context.manager import ContextManager
                 if config.required_benefit:
-                    from app.api.deps import check_benefit, create_benefit_error_detail
+                    from app.api.deps import create_benefit_error_detail
                     from app.core.identity import identity_service
 
                     try:

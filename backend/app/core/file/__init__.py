@@ -58,11 +58,9 @@ from .io import (
 
 # Models
 from .models import (
-    FileChunk,
     FileInfo,
     FileMetadata,
     FileStatus,
-    PaginationInfo,
     ReadResult,
     WriteResult,
 )
@@ -96,7 +94,6 @@ from .verification import (
 # File watching (event system integrated)
 from .watcher import (
     FileWatcher,
-    FileWatcherEvent,
     FileWatcherManager,
 )
 

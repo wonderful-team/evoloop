@@ -5,11 +5,12 @@ from typing import Any
 
 from pydantic import Field
 
+from app.core.context.schemas import ContextMetadata
 from app.core.exceptions import GlobalModeError
 from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.services.cache_services import ContextCacheService
 from app.utils.id import gen_uuid
-from app.core.context.schemas import ContextMetadata
+
 
 # ==========================================
 # Core Context Definition

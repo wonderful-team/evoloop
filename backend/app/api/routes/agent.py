@@ -3,7 +3,6 @@ import logging
 import os
 import time
 import uuid
-from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from langchain_core.messages import HumanMessage, ToolMessage
@@ -14,10 +13,10 @@ from app.api.deps import (
     CurrentUserOptional,
     verify_guest_access,
 )
-from app.api.responses import BaseAPIResponse
+from app.api.schemas.agent import ChatRequest, WebhookRequest, ResumeRequest, CancelHITLRequest, StopChatResponse, \
+    ResumeChatResponse, CancelHITLResponse, WebhookResponse
 from app.core.context import thread_context_store
 from app.core.context.manager import ContextManager, EvoContext
-
 # --- Background Worker ---
 from app.core.engine.background_agent import run_agent_background
 from app.core.engine.dispatch import dispatch_agent_run
@@ -30,12 +29,9 @@ from app.domain.codebase.indexing.service import IndexingService
 from app.domain.integration.adapters import EventAdapter
 from app.infrastructure.database.resource_manager import db_resource_manager
 from app.infrastructure.database.sql.database import session_scope
-from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.models import Message
 from app.models.learning import LearnedSkill
-from app.models.schemas.base import ScopedRequest
 from app.utils.id import gen_uuid
-from app.api.schemas.agent import ChatRequest, WebhookPayload, WebhookRequest, ResumeRequest, CancelHITLRequest, StopChatResponse, ResumeChatResponse, CancelHITLResponse, WebhookResponse
 
 logger = logging.getLogger(__name__)
 

@@ -13,7 +13,6 @@ from app.core.engine.hooks.core import (
     HookEvent,
     HookResult,
     HookSystem,
-    ToolInput,
     ToolResult,
     hook_system,
     setup_default_hooks,

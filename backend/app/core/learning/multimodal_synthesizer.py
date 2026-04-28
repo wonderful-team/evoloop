@@ -35,6 +35,7 @@ from app.core.learning.frame_compressor import (
     KeyframeSelector,
 )
 from app.core.learning.prompts.builder import LearningPromptBuilder
+from app.core.learning.schemas import RecordingSession, VideoInfo
 from app.core.learning.skill_synthesizer import SynthesizedSkill
 from app.core.learning.synthesizer_utils import (
     MacroVerificationResult,
@@ -50,9 +51,7 @@ from app.infrastructure.config.service import SystemConfigService
 from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.drivers.adb import adb_driver
 from app.infrastructure.llm.vision import VisionLLMFactory
-from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.models import TraceEvent
-from app.core.learning.schemas import RecordingSession, VideoInfo
 
 logger = logging.getLogger(__name__)
 

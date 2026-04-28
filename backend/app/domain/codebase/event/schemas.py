@@ -10,7 +10,6 @@ from typing import Any
 from pydantic import Field
 
 from app.infrastructure.pydantic_base import DynamicBaseModel
-
 from .types import IndexingEventType
 
 

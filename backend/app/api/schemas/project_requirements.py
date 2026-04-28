@@ -1,9 +1,10 @@
 """API schemas for project_requirements routes."""
 
-from app.infrastructure.pydantic_base import DynamicBaseModel
-from app.api.schemas.responses import BaseAPIResponse, ListResponse
 from typing import Any
-from typing import Any, Optional
+
+from app.api.schemas.responses import BaseAPIResponse
+from app.infrastructure.pydantic_base import DynamicBaseModel
+
 
 class RequirementUploadResponse(BaseAPIResponse):
     """Response after uploading a requirement document."""

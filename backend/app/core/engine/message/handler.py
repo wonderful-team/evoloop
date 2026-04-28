@@ -23,10 +23,9 @@ from app.core.engine.message.deduplicator import MessageDeduplicator
 from app.core.engine.message.persistence import MessagePersistencePolicy
 from app.core.engine.message.publisher import MessagePublisher
 from app.core.engine.message.repository import MessageRepository
-from app.core.engine.message.stream import MessageStreamPolicy
-from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.core.engine.message.schemas import MessageBlock
 from app.core.engine.message.schemas import MessageHandlerResult
+from app.core.engine.message.stream import MessageStreamPolicy
 
 logger = logging.getLogger(__name__)
 
@@ -197,7 +196,6 @@ class MessageHandler:
     async def handle_error(self, error: Exception) -> MessageHandlerResult:
         """处理异常上报"""
         from app.core.engine.error_handler import LLMErrorHandler
-        from app.core.monitoring.activity import activity_monitor
 
         classification = LLMErrorHandler.classify_exception(error)
         category = MessageCategory.ERROR_BUSINESS if classification.error_type in ["business_logic", "workflow_error"] else MessageCategory.ERROR_SYSTEM

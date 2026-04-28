@@ -10,7 +10,6 @@ MessagePersistencePolicy - 消息持久化策略
 import logging
 
 from app.core.engine.message.category import MessageCategory
-from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.core.engine.message.schemas import PersistencePolicyResult
 
 logger = logging.getLogger(__name__)

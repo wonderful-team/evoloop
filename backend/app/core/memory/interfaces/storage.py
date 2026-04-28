@@ -15,7 +15,6 @@ from app.core.memory.models import (
     MemoryType,
     PrivacyLevel,
 )
-from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.core.memory.schemas import StorageHealthCheck
 
 

@@ -9,10 +9,8 @@ from typing import Annotated
 
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import InjectedToolArg
-from pydantic import BaseModel
 
 from app.core.tools import evoloop_tool
-
 from .edit_file import handle_multi_edit, FileEditOperation
 
 

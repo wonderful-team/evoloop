@@ -4,7 +4,6 @@ import os
 
 from sqlalchemy import select
 
-from app.core.events import system_bus
 from app.core.evocloud import evocloud_manager
 from app.domain.codebase.indexing.service import IndexingService
 from app.domain.project import cache as project_cache

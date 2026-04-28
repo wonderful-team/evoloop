@@ -55,8 +55,8 @@ from pydantic import Field
 from app.core.config import settings
 from app.core.memory.models import MemoryEntry, MemoryType, MemoryTier, MemorySearchResult
 from app.core.memory.retrieval import MemoryRetriever
+from app.core.memory.schemas import MemorySectionEntry
 from app.infrastructure.pydantic_base import DynamicBaseModel
-from app.core.memory.schemas import SectionBudget, MemorySectionEntry
 
 logger = logging.getLogger(__name__)
 

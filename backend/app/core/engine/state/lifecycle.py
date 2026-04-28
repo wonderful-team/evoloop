@@ -6,10 +6,8 @@ after use, preventing stale state from leaking across turns.
 """
 
 import logging
-from typing import Any
 
 from app.core.engine.state import AgentState
-from app.core.engine.state.blackboard import BlackboardState
 
 logger = logging.getLogger(__name__)
 

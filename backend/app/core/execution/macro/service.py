@@ -5,9 +5,8 @@ from app.core.execution.macro.engine import MacroEngine
 from app.core.execution.macro.healing_policy import SelfHealingPolicy
 from app.core.execution.macro.optimizer import MacroOptimizer
 from app.core.execution.macro.schema import MacroScript
-from app.core.monitoring.activity import activity_monitor
-from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.core.execution.macro.schemas import MacroRunResult
+from app.core.monitoring.activity import activity_monitor
 
 logger = logging.getLogger(__name__)
 

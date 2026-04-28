@@ -29,12 +29,9 @@ import time
 from datetime import datetime
 from typing import Any
 
-from pydantic import Field
-
 from app.core.memory.models import MemoryEntry, MemoryType, PrivacyLevel
-from app.infrastructure.pydantic_base import DynamicBaseModel
-from app.utils.template import render_template
 from app.core.memory.schemas import RetrievalContext
+from app.utils.template import render_template
 
 logger = logging.getLogger(__name__)
 

@@ -6,13 +6,12 @@ Extracted from MessageHandler to separate persistence concerns from orchestratio
 
 import json
 import logging
-from typing import Any
 
 from sqlalchemy import desc, select
 
+from app.core.engine.message.sequence import SequenceService
 from app.infrastructure.database.sql.database import session_scope
 from app.models import Message
-from app.core.engine.message.sequence import SequenceService
 
 logger = logging.getLogger(__name__)
 

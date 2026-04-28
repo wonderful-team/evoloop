@@ -2,12 +2,11 @@
 
 import time
 from enum import Enum
+from typing import Any
 
 from pydantic import BaseModel
 from pydantic import ConfigDict
 from pydantic import Field
-from typing import Any
-from typing import Any, Optional
 
 from app.infrastructure.pydantic_base import DynamicBaseModel
 

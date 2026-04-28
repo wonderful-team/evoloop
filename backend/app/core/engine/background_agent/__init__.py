@@ -6,7 +6,6 @@ from typing import Any
 
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy import func, select
 
 # Callbacks
 from app.constants import DEFAULT_PROJECT_ID
@@ -20,8 +19,6 @@ from app.core.exceptions import AgentCancelledException, AgentHumanInterruptExce
 # Graph
 from app.core.globals import get_graph
 from app.core.monitoring.activity import activity_monitor
-from app.infrastructure.database.sql.database import session_scope
-from app.models import Conversation, Message
 from app.utils.id import gen_uuid
 
 logger = logging.getLogger(__name__)

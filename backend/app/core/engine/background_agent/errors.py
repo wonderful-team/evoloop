@@ -5,16 +5,15 @@ Background agent error handling utilities.
 import json
 import logging
 
-
 from app.core.engine.message.category import MessageCategory
 from app.core.engine.message.classifier import MessageClassifier
+from app.core.engine.message.event_bus import get_event_bus
+from app.core.engine.message.sequence import SequenceService
 from app.core.monitoring.activity import activity_monitor
 from app.i18n.service import i18n
-from app.core.engine.message.sequence import SequenceService
 from app.infrastructure.database.sql.database import session_scope
 from app.models import Message
 from app.models.schemas.events import QuotaExhaustedEvent
-from app.core.engine.message.event_bus import get_event_bus
 
 logger = logging.getLogger(__name__)
 

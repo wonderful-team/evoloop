@@ -11,7 +11,6 @@ from typing import Any
 from pydantic import Field
 
 from app.core.events.base import BaseEvent
-
 from .types import ProjectEventType
 
 

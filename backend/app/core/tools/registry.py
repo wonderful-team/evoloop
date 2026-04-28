@@ -16,9 +16,7 @@ from pathlib import Path
 
 import yaml
 from langchain_core.tools import BaseTool
-from pydantic import Field
 
-from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.core.tools.schemas import ToolRegistryMetadata
 
 logger = logging.getLogger(__name__)

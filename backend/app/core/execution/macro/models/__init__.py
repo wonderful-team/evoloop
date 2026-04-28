@@ -12,21 +12,3 @@ from app.core.execution.macro.models.enums import (
     StepExecutionStatus,
     VerificationStatus,
 )
-from app.core.execution.macro.models.execution import (
-    AdaptationRecord,
-    ExecutionDetail,
-    MacroEvolutionRecord,
-    RedundancyCheckResult,
-    StepResult,
-)
-from app.core.execution.macro.models.report import (
-    ReportSummary,
-    RoundReport,
-    VerificationIssue,
-    VerificationReport,
-)
-from app.core.execution.macro.models.request import (
-    AIAnalysisResult,
-    VerificationRequest,
-    VerificationResponse,
-)

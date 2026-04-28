@@ -10,16 +10,12 @@ import logging
 from abc import ABC, abstractmethod
 from typing import Any
 
-from pydantic import Field
-
 from app.core.execution.macro.models import (
-    AnomalyType,
     MacroEvolutionRecord,
     StepExecutionStatus,
     StepResult,
 )
-from app.infrastructure.pydantic_base import DynamicBaseModel
-from app.core.execution.macro.schemas import EvolutionRule, EvolutionContext
+from app.core.execution.macro.schemas import EvolutionContext
 
 logger = logging.getLogger(__name__)
 

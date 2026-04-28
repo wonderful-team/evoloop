@@ -10,7 +10,6 @@ from typing import Any
 from sqlalchemy import select
 
 from app.core.engine.skill_hydrator import SkillHydrator
-from app.core.engine.state import AgentState
 from app.infrastructure.database.sql.database import session_scope
 
 logger = logging.getLogger(__name__)

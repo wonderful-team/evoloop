@@ -1,12 +1,10 @@
-import asyncio
 import json
 import logging
 import time
+from collections.abc import Callable
 from typing import Any
 
 import httpx
-
-from collections.abc import Callable
 
 from app.core.config import settings
 from app.core.evocloud.interfaces.client import EvoCloudClientProtocol

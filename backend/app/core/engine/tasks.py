@@ -1,24 +1,19 @@
-import json
+import logging
 import logging
 import os
 import re
 import shutil
 import time
-from datetime import datetime
-from typing import Any
 
-from sqlalchemy import desc, func, select, text
+from sqlalchemy import func, select, text
 
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.config import settings
-from app.core.environment.event import UiTreeObservedEvent
-from app.core.environment.bus import event_bus
+from app.core.context.manager import ContextManager, EvoContext
 from app.core.learning.trace_recorder import sync_thread_to_graph
 from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.queue.factory import shared_task
 from app.models import FileOperation
-from app.utils import gen_uuid
-from app.core.context.manager import ContextManager, EvoContext
 
 logger = logging.getLogger(__name__)
 

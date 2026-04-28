@@ -9,13 +9,14 @@ Audio processing API - Speech-to-Text and Text-to-Speech
 import logging
 import os
 import tempfile
-from typing import Optional, Any
+from typing import Optional
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, Form
 from fastapi.responses import StreamingResponse, FileResponse
 
 from app.api.deps import require_benefit
-from app.api.responses import BaseAPIResponse
+from app.api.schemas.audio import TranscriptionResponse, TTSRequest, TTSResponse, VoiceListResponse, \
+    STTProvidersResponse
 from app.core.voice import (
     get_tts_provider,
     get_stt_provider,
@@ -23,8 +24,6 @@ from app.core.voice import (
     STTOptions,
     VoiceLocale,
 )
-from app.infrastructure.pydantic_base import DynamicBaseModel
-from app.api.schemas.audio import TranscriptionResponse, TTSRequest, TTSResponse, VoiceListResponse, STTProvidersResponse
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["audio"])

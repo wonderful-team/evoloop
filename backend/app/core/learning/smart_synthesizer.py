@@ -2,9 +2,6 @@ import json
 import logging
 from typing import Any
 
-from pydantic import Field
-
-from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.core.learning.schemas import SynthesizedSopConfig, TraceAction
 
 logger = logging.getLogger(__name__)

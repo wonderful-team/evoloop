@@ -3,7 +3,6 @@
 from abc import ABC, abstractmethod
 from enum import Enum
 
-from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.core.mcp.schemas.auth import AuthToken, AuthConfig
 
 

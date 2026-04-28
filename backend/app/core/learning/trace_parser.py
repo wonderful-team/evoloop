@@ -16,18 +16,16 @@ import logging
 from pydantic import Field
 from sqlalchemy import select
 
-from app.infrastructure.database.sql.database import session_scope
-from app.infrastructure.pydantic_base import DynamicBaseModel
-from app.models import TraceEvent
 from app.core.learning.schemas import (
     ActionCategory,
     ActionSource,
-    TraceActionArgs,
-    TraceStateContext,
     TraceStep,
     TraceSummary,
     UIContext,
 )
+from app.infrastructure.database.sql.database import session_scope
+from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.models import TraceEvent
 
 logger = logging.getLogger(__name__)
 

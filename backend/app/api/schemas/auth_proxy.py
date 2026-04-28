@@ -1,7 +1,7 @@
 """API schemas for auth_proxy routes."""
 
 from app.infrastructure.pydantic_base import DynamicBaseModel
-from typing import Any, Optional
+
 
 class RegisterMobileRequest(DynamicBaseModel):
     mobile: str

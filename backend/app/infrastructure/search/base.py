@@ -14,8 +14,9 @@ Usage:
 
 from typing import Any, Optional, Protocol, runtime_checkable
 
-from pydantic import BaseModel, Field
-from app.infrastructure.schemas import KnowledgeSearchResult, SearchResults, SearchSuggestion, SearchIndexStats, ReindexResult, IndexDocumentRequest
+from app.infrastructure.schemas import SearchResults, SearchSuggestion, SearchIndexStats, ReindexResult, \
+    IndexDocumentRequest
+
 
 # ---------------------------------------------------------------------------
 # Shared models (previously in domain/knowledge/services/search.py)

@@ -12,6 +12,7 @@ from .mcp import *  # noqa: F401,F403
 from .member import *  # noqa: F401,F403
 from .memory import *  # noqa: F401,F403
 from .planning import *  # noqa: F401,F403
+from .project_modules import *  # noqa: F401,F403
 from .project_profiles import *  # noqa: F401,F403
 from .project_requirements import *  # noqa: F401,F403
 from .projects import *  # noqa: F401,F403
@@ -24,4 +25,3 @@ from .system import *  # noqa: F401,F403
 from .tasks import *  # noqa: F401,F403
 from .tools import *  # noqa: F401,F403
 from .utils import *  # noqa: F401,F403
-from .project_modules import *  # noqa: F401,F403

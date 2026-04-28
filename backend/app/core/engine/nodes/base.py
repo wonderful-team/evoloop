@@ -9,7 +9,7 @@ from app.core.engine import get_default_engine
 from app.core.engine.engine import EngineResult
 from app.core.engine.nodes.utils import resolve_is_subtask
 from app.core.engine.routers import RoutingTarget
-from app.core.engine.signals import SignalDispatcher, signal_manager
+from app.core.engine.signals import signal_manager
 from app.core.engine.state import AgentState, StateUpdate, ensure_state
 
 logger = logging.getLogger(__name__)

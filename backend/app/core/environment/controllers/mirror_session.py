@@ -10,12 +10,9 @@ import threading
 import time
 from pathlib import Path
 
-from pydantic import Field
-
 from app.core.config import settings
-from app.infrastructure.pydantic_base import DynamicBaseModel
-from .android_event_recorder import AndroidEventRecorder, AndroidTraceEvent
 from app.core.environment.schemas import MirrorSessionStopResult
+from .android_event_recorder import AndroidEventRecorder, AndroidTraceEvent
 
 logger = logging.getLogger(__name__)
 

@@ -5,7 +5,7 @@ Checkpoint Models
 LangGraph persistence models (checkpoints, writes, blobs, migrations).
 """
 
-from sqlalchemy import ForeignKey, Integer, LargeBinary, Text, JSON
+from sqlalchemy import Integer, LargeBinary, Text, JSON
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.infrastructure.database.sql.database import Base

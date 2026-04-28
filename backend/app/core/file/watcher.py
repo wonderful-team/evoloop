@@ -43,8 +43,7 @@ from typing import Any
 from watchdog.events import FileSystemEvent, FileSystemEventHandler
 from watchdog.observers import Observer
 
-from app.core.events import system_bus
-from app.core.file.event import FileSystemEventType, FileWatcherEvent
+from app.core.file.event import FileSystemEventType
 
 logger = logging.getLogger(__name__)
 

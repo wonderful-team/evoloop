@@ -5,17 +5,16 @@ Provides hierarchical task management for Agent task planning.
 """
 
 import logging
-from typing import Any, Optional
+from typing import Optional
 
 from fastapi import APIRouter, HTTPException
-from pydantic import Field
 
 from app.api.deps import TokenDep
 from app.api.responses import BaseAPIResponse
+from app.api.schemas.subtasks import TaskWithSubtasksCreate, TaskProgressUpdate, TaskCreateResponse, \
+    TaskTreeWrapperResponse, NextTaskResponse, TaskFlatResponse, TaskListItem, TaskListResponse
 from app.domain.project.subtask_service import subtask_service
-from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.utils.id import gen_uuid
-from app.api.schemas.subtasks import SubtaskCreate, TaskWithSubtasksCreate, TaskProgressUpdate, TaskTreeResponse, ExecutableTaskResponse, TaskCreateResponse, TaskTreeWrapperResponse, NextTaskResponse, TaskFlatResponse, TaskListItem, TaskListResponse
 
 logger = logging.getLogger(__name__)
 

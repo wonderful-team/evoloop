@@ -6,10 +6,11 @@ import time
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from pydantic import Field, PrivateAttr
+from pydantic import PrivateAttr
 
+from app.core.environment.schemas import MacOSEnvironment, AndroidDevice, NetworkStatus, EpisodeSummary, ConceptSummary, \
+    AndroidTelemetry, TelemetrySnapshot
 from app.infrastructure.pydantic_base import DynamicBaseModel
-from app.core.environment.schemas import AppUsageRecord, MacOSEnvironment, AndroidDevice, NetworkStatus, EpisodeSummary, ConceptSummary, MemoryContext, AndroidTelemetry, TelemetrySnapshot, PreferenceContext
 
 if TYPE_CHECKING:
     pass

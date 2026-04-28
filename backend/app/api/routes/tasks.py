@@ -5,19 +5,15 @@ Handles CRUD for Project Tasks (Tickets/Requirements).
 
 import logging
 import time
-from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, Header, HTTPException
 
 from app.api.deps import TokenDep, TokenDepOptional
-from app.api.responses import BaseAPIResponse
-from app.core.evocloud import evocloud_manager
+from app.api.schemas.tasks import TaskCreateRequest, TaskUpdateRequest, TaskStatusUpdate, TaskExecutionResponse
 from app.core.engine.background_agent import run_agent_background
 from app.core.engine.dispatch import dispatch_agent_run
-from app.infrastructure.pydantic_base import DynamicBaseModel
-from app.models.schemas.base import ScopedRequest
+from app.core.evocloud import evocloud_manager
 from app.utils import render_template
-from app.api.schemas.tasks import TaskCreateRequest, TaskUpdateRequest, TaskStatusUpdate, TaskExecutionResponse
 
 logger = logging.getLogger(__name__)
 

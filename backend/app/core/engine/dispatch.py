@@ -25,10 +25,8 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
-from app.core.config import settings
 from app.core.context.manager import ContextManager, EvoContext
 from app.core.evocloud import evocloud_manager
-from app.core.monitoring.activity import activity_monitor
 from app.domain.project.reference_service import reference_service
 from app.infrastructure.database.sql.database import session_scope
 from app.models import Conversation, Message, MessageReference

@@ -3,8 +3,6 @@
 from enum import Enum
 
 from app.infrastructure.pydantic_base import DynamicBaseModel
-from pydantic import BaseModel
-from typing import Any, Optional
 
 
 class DirectoryStatus(Enum):

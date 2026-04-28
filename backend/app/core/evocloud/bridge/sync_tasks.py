@@ -9,11 +9,12 @@ Conversation Sync Tasks - Huey-based background sync for EvoCloud.
 import asyncio
 import logging
 from datetime import datetime, timezone
+
 from sqlalchemy import select, update
 
 from app.core.evocloud.schemas import SyncConversation, SyncMessage
-from app.infrastructure.queue.factory import shared_task
 from app.infrastructure.database.sql.database import get_db_session
+from app.infrastructure.queue.factory import shared_task
 from app.models import Conversation as ConversationModel, Message as MessageModel
 
 logger = logging.getLogger(__name__)

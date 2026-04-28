@@ -14,15 +14,12 @@ import asyncio
 import json
 import logging
 import platform
-from datetime import datetime
 from typing import Any, Optional
 
 import websockets
-from pydantic import Field, ConfigDict
 from websockets.exceptions import ConnectionClosed
 
 from app.core.config import settings
-from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.infrastructure.schemas import ToolRequest
 
 try:

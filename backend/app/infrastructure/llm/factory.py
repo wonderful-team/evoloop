@@ -6,9 +6,8 @@ from typing import Dict
 import httpx
 
 from app.infrastructure.llm.adaptive import AdaptiveChatOpenAI
-from app.infrastructure.pydantic_base import DynamicBaseModel
-from app.utils.async_utils import LoopBoundResource
 from app.infrastructure.schemas import LLMCacheStats
+from app.utils.async_utils import LoopBoundResource
 
 logger = logging.getLogger(__name__)
 

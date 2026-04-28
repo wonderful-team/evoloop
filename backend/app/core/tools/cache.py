@@ -22,9 +22,7 @@ from typing import Any
 
 import aiofiles
 import aiofiles.os
-from pydantic import BaseModel, ConfigDict, Field
 
-from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.core.tools.schemas import CacheKey, CacheEntry, CacheStats
 
 logger = logging.getLogger(__name__)

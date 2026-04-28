@@ -1,8 +1,8 @@
 """API schemas for files routes."""
 
+from app.api.schemas.responses import BaseAPIResponse
 from app.infrastructure.pydantic_base import DynamicBaseModel
-from app.api.schemas.responses import BaseAPIResponse, ListResponse
-from typing import Any, Optional
+
 
 class FileNode(DynamicBaseModel):
     name: str  # display name

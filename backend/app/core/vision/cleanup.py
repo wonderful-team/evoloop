@@ -10,13 +10,13 @@ Can be run as:
 import logging
 from datetime import datetime
 
-from app.core.vision.storage import screen_recording_storage, screenshot_storage
 from app.core.vision.schemas import (
     CombinedCleanupResult,
     RecordingCleanupResult,
     ScreenshotCleanupResult,
     StorageReport,
 )
+from app.core.vision.storage import screen_recording_storage, screenshot_storage
 
 logger = logging.getLogger(__name__)
 

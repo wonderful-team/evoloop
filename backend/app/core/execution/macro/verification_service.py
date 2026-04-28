@@ -10,16 +10,14 @@ High-level service for integrating agent-based verification with:
 import logging
 from typing import Any
 
-from pydantic import Field
-
 from app.core.execution.macro.agent_validator import AgentMacroValidator
-from app.core.execution.macro.models import EnvironmentConfig, VerificationRequest, VerificationResponse, VerificationStatus, ExecutionMode
+from app.core.execution.macro.models import EnvironmentConfig, VerificationRequest, VerificationResponse, \
+    VerificationStatus, ExecutionMode
 from app.core.execution.macro.schema import MacroScript, MacroStep
+from app.core.execution.macro.schemas import ModeRecommendation, MacroEvolutionResult
 from app.core.execution.macro.service import MacroRunResult, MacroService
 from app.core.execution.macro.verification_reporter import VerificationReporter
-from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.utils.yaml import macro_from_yaml
-from app.core.execution.macro.schemas import ModeRecommendation, MacroEvolutionResult
 
 logger = logging.getLogger(__name__)
 

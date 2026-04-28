@@ -8,9 +8,6 @@ import json
 import logging
 from typing import Optional
 
-from pydantic import Field
-
-from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.domain.knowledge.schemas import TaggingResult
 
 logger = logging.getLogger(__name__)

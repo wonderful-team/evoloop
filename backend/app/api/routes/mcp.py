@@ -2,10 +2,9 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
-from app.api.responses import BaseAPIResponse
+from app.api.schemas.mcp import McpOperationResponse, McpConnectResponse
 from app.core.mcp import mcp_client_manager
 from app.core.mcp.schemas import McpServerCreate
-from app.api.schemas.mcp import McpOperationResponse, McpConnectResponse
 
 router = APIRouter()
 

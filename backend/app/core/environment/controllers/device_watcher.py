@@ -102,11 +102,6 @@ class DeviceWatcher:
 
     async def _handle_event(self, serial: str, status: str):
         """Handle individual device events via event bus."""
-        from app.core.environment.bus import event_bus
-        from app.core.environment.event import (
-            DeviceConnectedEvent,
-            DeviceDisconnectedEvent,
-        )
 
         if status == "device":
             logger.info(f"Device connected: {serial}")

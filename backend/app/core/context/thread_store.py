@@ -2,7 +2,6 @@ import logging
 import os
 from threading import Lock
 
-from app.core.config import settings
 from app.infrastructure.config.service import SystemConfigService
 
 logger = logging.getLogger(__name__)

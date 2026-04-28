@@ -1,11 +1,12 @@
 """Schemas for knowledge module."""
 
-from app.infrastructure.pydantic_base import DynamicBaseModel
 from datetime import datetime
-from enum import auto
+from typing import Any, Dict, List, Optional
+
 from pydantic import BaseModel
 from pydantic import Field
-from typing import Any, Dict, List, Optional
+
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 
 class ExtractorInfo(DynamicBaseModel):

@@ -23,7 +23,7 @@ from app.core.tools.registry import (
 )
 from app.i18n.service import i18n
 from app.infrastructure.pydantic_base import DynamicBaseModel
-from app.models.schemas.events import StreamEventType, TokenEvent
+from app.models.schemas.events import StreamEventType
 from app.utils.time import format_iso_timestamp
 
 logger = logging.getLogger(__name__)
@@ -60,7 +60,6 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
         self.thread_id = thread_id
         from app.core.context import tool_state_store
         from app.core.monitoring.activity import activity_monitor
-        from app.infrastructure.cache import cache
 
         self.monitor = activity_monitor
         self._tool_store = tool_state_store

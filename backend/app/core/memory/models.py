@@ -8,8 +8,9 @@ from typing import Any, Optional
 import yaml
 from pydantic import Field, model_validator
 
+from app.core.memory.schemas import MemoryMetadata
 from app.infrastructure.pydantic_base import DynamicBaseModel
-from app.core.memory.schemas import MemoryMetadata, CheckpointDedupResult, Concept, Episode
+
 
 class MemoryType(str, Enum):
     """Four-type memory taxonomy (inspired by Claude Code)."""

@@ -6,17 +6,16 @@ from fastapi import APIRouter, HTTPException
 from sqlalchemy import select
 
 from app.api.deps import TokenDep, TokenDepOptional
-from app.api.responses import BaseAPIResponse, ListResponse
-from app.core.config import settings
+from app.api.responses import ListResponse
+from app.api.schemas.projects import IndexingRequest, CreateProjectRequest, ProjectStatusActivity, \
+    ProjectStatusResponse, ProjectDeleteResponse, IndexingRunResponse, DetectedProjectItem, ImportProjectResponse, \
+    IgnoreProjectResponse, UnignoreProjectResponse, BatchResultItem, BatchImportResponse, BatchImportRequest
 from app.core.evocloud import evocloud_manager
 from app.domain.codebase.indexing.manager import indexing_manager
 from app.infrastructure.config.service import SystemConfigService
 from app.infrastructure.database.sql.database import AsyncSessionLocal
-from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.models import Repository
-from app.models.schemas.base import ScopedRequest
 from app.utils.time import utcnow
-from app.api.schemas.projects import IndexingRequest, CreateProjectRequest, UpdateProjectRequest, ProjectStatusActivity, ProjectStatusResponse, ProjectDeleteResponse, IndexingRunResponse, DetectedProjectItem, ImportProjectResponse, IgnoreProjectResponse, UnignoreProjectResponse, BatchResultItem, BatchImportResponse, BatchImportRequest
 
 logger = logging.getLogger(__name__)
 
@@ -508,7 +507,6 @@ async def get_detected_projects(_token: TokenDepOptional = None):
     """
     from app.domain.project.sync_service import project_sync_service
     from app.infrastructure.config.service import SystemConfigService
-    from app.core.config import settings
 
     # Check if project discovery is enabled via System Config (DB)
     config_value = SystemConfigService.get_value("PROJECT_DISCOVERY_ENABLED")

@@ -4,7 +4,6 @@ import logging
 import os
 
 from langchain_core.tools import StructuredTool
-from pydantic import BaseModel, Field
 
 from app.core.tools import evoloop_tool
 from app.core.tools.registry import REGISTRY

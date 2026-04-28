@@ -23,14 +23,15 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
+from app.domain.knowledge.schemas import MaintenanceConfig, UsageDocInfo, UsageAnalysisResult, OptimizationSuggestion, \
+    DocumentQuality
 from app.domain.knowledge.services.citations import get_citation_tracker
 from app.domain.knowledge.services.deduplication import DeduplicationService
 from app.domain.knowledge.services.search import get_fts_service, IndexDocumentRequest
 from app.domain.knowledge.services.store import KnowledgeStoreService
 from app.infrastructure.pydantic_base import DynamicBaseModel
-from app.domain.knowledge.schemas import MaintenanceConfig, UsageDocInfo, UsageAnalysisResult, OptimizationSuggestion, DocumentQuality
 
 logger = logging.getLogger(__name__)
 

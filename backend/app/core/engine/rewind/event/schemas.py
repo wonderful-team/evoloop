@@ -8,7 +8,6 @@ Pydantic data classes for rewind/rollback events.
 from pydantic import Field, model_validator
 
 from app.core.events.base import BaseEvent
-
 from .types import RewindEventType
 
 
