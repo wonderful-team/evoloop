@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, ScrollView } from 'react-native';
-import { List, Switch, Divider, Text, Button, Slider } from 'react-native-paper';
+import { List, Switch, Divider, Text, Button, IconButton } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/theme';
@@ -10,6 +10,8 @@ import { Header } from '@/components/common/Header';
 import { AudioRecorder } from '@/services/voice/AudioRecorder';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DEFAULT_VOICES } from '@/hooks/useTTS';
+import { useSettingsStore } from '@/stores/settingsStore';
+import { router } from '@/utils/navigation';
 
 interface VoiceSettings {
   autoStart: boolean;
@@ -41,6 +43,11 @@ export default function VoiceSettingsScreen() {
   const { theme } = useTheme();
   const colors = theme.colors;
   const [settings, setSettings] = useState<VoiceSettings>(DEFAULT_SETTINGS);
+
+  // 唤醒词设置使用 settingsStore（zustand persist）
+  const wakeWordEnabled = useSettingsStore((state) => state.settings.wakeWordEnabled);
+  const wakeWord = useSettingsStore((state) => state.settings.wakeWord);
+  const setSetting = useSettingsStore((state) => state.setSetting);
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [showLanguageDialog, setShowLanguageDialog] = useState(false);
   const [ttsVoice, setTtsVoice] = useState<string>('aimei');
@@ -144,14 +151,19 @@ export default function VoiceSettingsScreen() {
         />
         <List.Item
           title="唤醒词"
-          description="说出「小爱同学」唤醒（即将上线）"
+          description={`说出「${wakeWord}」唤醒`}
           right={() => (
             <Switch
-              value={settings.wakeWordEnabled}
-              onValueChange={(value) => saveSettings({ wakeWordEnabled: value })}
-              disabled
+              value={wakeWordEnabled}
+              onValueChange={(value) => setSetting('wakeWordEnabled', value)}
             />
           )}
+        />
+        <List.Item
+          title="唤醒词设置"
+          description="修改唤醒词文本和灵敏度"
+          right={(props) => <List.Icon {...props} icon="chevron-right" />}
+          onPress={() => router.push('SettingsWakeWord')}
         />
       </List.Section>
 
@@ -202,14 +214,29 @@ export default function VoiceSettingsScreen() {
               {Math.round(settings.vadThreshold * 100)}%
             </Text>
           </View>
-          <Slider
-            value={settings.vadThreshold}
-            onValueChange={(value) => saveSettings({ vadThreshold: value })}
-            minimumValue={0.05}
-            maximumValue={0.5}
-            step={0.05}
-            style={styles.slider}
-          />
+          <View style={styles.stepperRow}>
+            <IconButton
+              icon="minus"
+              size={20}
+              onPress={() => saveSettings({ vadThreshold: Math.max(0.05, Math.round((settings.vadThreshold - 0.05) * 100) / 100) })}
+            />
+            <View style={[styles.stepperTrack, { backgroundColor: colors.surfaceVariant }]}>
+              <View
+                style={[
+                  styles.stepperFill,
+                  {
+                    backgroundColor: colors.primary,
+                    width: `${((settings.vadThreshold - 0.05) / 0.45) * 100}%`,
+                  },
+                ]}
+              />
+            </View>
+            <IconButton
+              icon="plus"
+              size={20}
+              onPress={() => saveSettings({ vadThreshold: Math.min(0.5, Math.round((settings.vadThreshold + 0.05) * 100) / 100) })}
+            />
+          </View>
           <Text variant="bodySmall" style={{ color: colors.onSurfaceVariant }}>
             较高的值会降低误触发，但可能漏掉轻声说话
           </Text>
@@ -224,14 +251,29 @@ export default function VoiceSettingsScreen() {
               {settings.silenceTimeout}ms
             </Text>
           </View>
-          <Slider
-            value={settings.silenceTimeout}
-            onValueChange={(value) => saveSettings({ silenceTimeout: Math.round(value) })}
-            minimumValue={500}
-            maximumValue={3000}
-            step={100}
-            style={styles.slider}
-          />
+          <View style={styles.stepperRow}>
+            <IconButton
+              icon="minus"
+              size={20}
+              onPress={() => saveSettings({ silenceTimeout: Math.max(500, settings.silenceTimeout - 100) })}
+            />
+            <View style={[styles.stepperTrack, { backgroundColor: colors.surfaceVariant }]}>
+              <View
+                style={[
+                  styles.stepperFill,
+                  {
+                    backgroundColor: colors.primary,
+                    width: `${((settings.silenceTimeout - 500) / 2500) * 100}%`,
+                  },
+                ]}
+              />
+            </View>
+            <IconButton
+              icon="plus"
+              size={20}
+              onPress={() => saveSettings({ silenceTimeout: Math.min(3000, settings.silenceTimeout + 100) })}
+            />
+          </View>
           <Text variant="bodySmall" style={{ color: colors.onSurfaceVariant }}>
             检测到静音后多久结束录音
           </Text>
@@ -284,6 +326,23 @@ const styles = StyleSheet.create({
   },
   slider: {
     marginVertical: 8,
+  },
+  stepperRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginVertical: 8,
+  },
+  stepperTrack: {
+    flex: 1,
+    height: 8,
+    borderRadius: 4,
+    marginHorizontal: 8,
+    overflow: 'hidden',
+  },
+  stepperFill: {
+    height: '100%',
+    borderRadius: 4,
   },
   resetContainer: {
     padding: 20,

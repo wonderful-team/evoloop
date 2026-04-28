@@ -3,7 +3,7 @@
 import React, { useEffect, useRef } from 'react';
 import { View, StyleSheet, Animated } from 'react-native';
 import { Text } from 'react-native-paper';
-import { VoiceSessionState } from '@/services/voice/VoiceSessionManager';
+import { VoiceSessionState } from '@/types/voice';
 import { useTheme } from '@/theme';
 
 interface VoiceStatusIndicatorProps {

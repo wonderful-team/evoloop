@@ -7,7 +7,7 @@ import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { useTheme } from '@/theme';
 import { ImageOrVideo } from 'react-native-image-crop-picker';
 import { Alert } from 'react-native';
-import { VoiceSessionState } from '@/services/voice/VoiceSessionManager';
+import { VoiceSessionState } from '@/types/voice';
 import { AttachmentPicker, Attachment, ChatAttachment } from './AttachmentPicker';
 import { uploadChatFile } from '@/services/api/upload';
 import { VoiceInputReferencesBar } from './VoiceInputReferencesBar';
@@ -52,6 +52,7 @@ interface VoiceInputProps {
   // 唤醒词状态
   wakeWordEnabled?: boolean;
   isWakeWordListening?: boolean;
+  isWakeWordDetected?: boolean;
   // 实时转录文字
   transcriptionText?: string;
 }
@@ -75,6 +76,7 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(({
   conversationId,
   wakeWordEnabled = false,
   isWakeWordListening = false,
+  isWakeWordDetected = false,
   // 实时转录文字
   transcriptionText = '',
 }, ref) => {
@@ -89,14 +91,14 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(({
   // 挂载时恢复草稿
   useEffect(() => {
     AsyncStorage.getItem(draftKey).then((draft) => {
-      if (draft) setText(draft);
+      if (draft) {setText(draft);}
     }).catch(() => {});
   }, [draftKey]);
 
   // 文本变化时 debounce 保存草稿
   const draftTimerRef = useRef<NodeJS.Timeout | null>(null);
   useEffect(() => {
-    if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
+    if (draftTimerRef.current) {clearTimeout(draftTimerRef.current);}
     draftTimerRef.current = setTimeout(() => {
       if (text.trim()) {
         AsyncStorage.setItem(draftKey, text).catch(() => {});
@@ -105,7 +107,7 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(({
       }
     }, 500);
     return () => {
-      if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
+      if (draftTimerRef.current) {clearTimeout(draftTimerRef.current);}
     };
   }, [text, draftKey]);
   const [uploadedAttachments, setUploadedAttachments] = useState<ChatAttachment[]>([]);
@@ -158,7 +160,7 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(({
     } else {
       setInternalInputMode(prev => prev === InputMode.VOICE ? InputMode.TEXT : InputMode.VOICE);
     }
-    if (isTextMode) Keyboard.dismiss();
+    if (isTextMode) {Keyboard.dismiss();}
   }, [isTextMode, onToggleMode]);
 
   // 暴露 addReference 方法给父组件（如 ChatScreen 的长按引用）
@@ -387,18 +389,18 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(({
             {wakeWordEnabled && (
               <View style={[styles.toolbarBtn, { opacity: 0.6 }]}>
                 <MaterialIcons
-                  name={isWakeWordListening ? 'hearing' : 'hearing-disabled'}
+                  name={isWakeWordDetected ? 'notifications-active' : isWakeWordListening ? 'hearing' : 'hearing-disabled'}
                   size={20}
-                  color={isWakeWordListening ? colors.success : colors.onSurfaceVariant}
+                  color={isWakeWordDetected ? colors.primary : isWakeWordListening ? colors.success : colors.onSurfaceVariant}
                 />
                 <Text
                   variant="bodySmall"
                   style={{
-                    color: isWakeWordListening ? colors.success : colors.onSurfaceVariant,
-                    marginLeft: 4
+                    color: isWakeWordDetected ? colors.primary : isWakeWordListening ? colors.success : colors.onSurfaceVariant,
+                    marginLeft: 4,
                   }}
                 >
-                  {isWakeWordListening ? '监听中' : '待机'}
+                  {isWakeWordDetected ? '已唤醒' : isWakeWordListening ? '监听中' : '待机'}
                 </Text>
               </View>
             )}
@@ -426,8 +428,8 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(({
               style={[
                 styles.voiceBtn,
                 {
-                  backgroundColor: isListening ? colors.success : colors.primary
-                }
+                  backgroundColor: isListening ? colors.success : colors.primary,
+                },
               ]}
             >
               <MaterialIcons

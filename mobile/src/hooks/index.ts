@@ -6,7 +6,6 @@ export * from './useLoading';
 export * from './useNetworkStatus';
 export * from './useDevices';
 export * from './useProjects';
-export * from './useVoice';
 export * from './useCommands';
 export * from './useConversations';
 export * from './useSubscription';

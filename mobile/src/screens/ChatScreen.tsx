@@ -33,6 +33,7 @@ import { useDeviceControl } from '@/hooks/useDeviceControl';
 import { useCommands } from '@/hooks/useCommands';
 import { useTTS, useAutoSpeak } from '@/hooks/useTTS';
 import { useWakeWord, useWakeWordSettings } from '@/hooks/useWakeWord';
+import ReactNativeHapticFeedback from 'react-native-haptic-feedback';
 import { useConversationStore } from '@/stores/conversationStore';
 import { useTheme } from '@/theme';
 import { useAuthStore } from '@/stores/authStore';
@@ -101,8 +102,8 @@ export default function ChatScreen() {
   const { stop: stopAgent } = useCommands();
   const { autoSpeak, toggleAutoSpeak } = useAutoSpeak();
 
-  // 唤醒词
-  const { wakeWordEnabled, isListening: isWakeWordListening, startListening: startWakeWord, stopListening: stopWakeWord } = useWakeWordSettings();
+  // 唤醒词设置
+  const { enabled: wakeWordEnabled } = useWakeWordSettings();
 
   // 设置音频播放器
   useEffect(() => {
@@ -127,6 +128,28 @@ export default function ChatScreen() {
     setSnackbarMessage(message);
     setSnackbarVisible(true);
   }, []);
+
+  const {
+    isListening: isWakeWordListening,
+    isWakeWordDetected,
+    startListening: startWakeWord,
+    stopListening: stopWakeWord,
+  } = useWakeWord({
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    onWake: (detectedWord: string) => {
+      // 1. 停止唤醒词监听（释放麦克风，避免与 NLS 冲突）
+      stopWakeWord();
+      // 2. Haptic 震动反馈
+      ReactNativeHapticFeedback.trigger('notificationSuccess', {
+        enableVibrateFallback: true,
+        ignoreAndroidSystemSettings: false,
+      });
+      // 3. 显示提示
+      showSnackbar(`已唤醒: 「${detectedWord}」，请说话`);
+      // 4. 自动启动 NLS 语音识别
+      voiceInputRef.current?.startNLS();
+    },
+  });
 
   // ========== 设备控制（HTTP 版本） ==========
   // 使用 useCallback 稳定回调引用，避免 ChatScreen 重渲染导致 useDeviceControl 内部重建
@@ -302,6 +325,11 @@ export default function ChatScreen() {
       if (!isQuotaError(error)) {
         showSnackbar('发送失败: ' + errorText);
       }
+    } finally {
+      // NLS 语音识别结束后，恢复唤醒词监听
+      if (wakeWordEnabled) {
+        startWakeWord();
+      }
     }
   }, [currentConversationId, sendMessageToDevice, selectedDevice, addMessage, saveDeviceConversation, updateMessageStatus]);
 
@@ -344,8 +372,13 @@ export default function ChatScreen() {
       return false;
     }
 
+    // 停止唤醒词监听，释放麦克风给 NLS 使用
+    if (wakeWordEnabled) {
+      await stopWakeWord();
+    }
+
     return true;
-  }, [isLoggedIn, requestMicrophonePermission, showSnackbar]);
+  }, [isLoggedIn, requestMicrophonePermission, showSnackbar, wakeWordEnabled, stopWakeWord]);
 
   const handleGoToProfile = useCallback(() => {
     router.push('Profile');
@@ -471,7 +504,7 @@ export default function ChatScreen() {
 
   // 执行 Rewind
   const executeRewind = useCallback(async (messageId: string, revertFiles: boolean) => {
-    if (!currentConversationId) return;
+    if (!currentConversationId) {return;}
 
     try {
       const result = await rewindConversation(currentConversationId, {
@@ -488,7 +521,7 @@ export default function ChatScreen() {
 
   // 执行 Retry
   const executeRetry = useCallback(async (messageId: string, revertFiles: boolean) => {
-    if (!currentConversationId) return;
+    if (!currentConversationId) {return;}
 
     try {
       const result = await retryConversation(currentConversationId, {
@@ -530,7 +563,7 @@ export default function ChatScreen() {
 
   // 引用消息：长按消息后，将消息添加到 VoiceInput 的引用列表
   const handleQuote = useCallback((message: ChatMessage) => {
-    if (!message || !message.id) return;
+    if (!message || !message.id) {return;}
     voiceInputRef.current?.addReference({
       type: 'message',
       id: String(message.id),
@@ -736,6 +769,7 @@ export default function ChatScreen() {
           conversationId={currentConversationId || undefined}
           wakeWordEnabled={wakeWordEnabled}
           isWakeWordListening={isWakeWordListening}
+          isWakeWordDetected={isWakeWordDetected}
         />
 
         {/* ===== TTS 自动朗读（副作用组件，自行订阅 messages） ===== */}

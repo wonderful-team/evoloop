@@ -7,6 +7,13 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { PaperProvider } from 'react-native-paper';
 import notifee from '@notifee/react-native';
 import './src/locales'; // 初始化 i18n
+
+// 注册 Notifee 前台服务（唤醒词后台监听必需）
+notifee.registerForegroundService(() => {
+  return new Promise(() => {
+    // 保持服务运行，直到调用 notifee.stopForegroundService()
+  });
+});
 import { ToastProvider } from './src/contexts/ToastContext';
 import RootNavigator from './src/navigation';
 import { navigationRef } from './src/utils/navigation';

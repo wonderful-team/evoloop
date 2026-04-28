@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { IconButton } from 'react-native-paper';
 import { useTheme } from '@/theme';
-import { VoiceSessionState } from '@/services/voice/VoiceSessionManager';
+import { VoiceSessionState } from '@/types/voice';
 
 interface VoiceControlButtonProps {
   state: VoiceSessionState;

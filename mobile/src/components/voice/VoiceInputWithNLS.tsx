@@ -44,6 +44,8 @@ interface VoiceInputWithNLSProps {
   wakeWordEnabled: boolean;
   /** 唤醒词监听中 */
   isWakeWordListening: boolean;
+  /** 唤醒词已检测到 */
+  isWakeWordDetected: boolean;
   /** 录音启动前的前置检查（权限、登录等），返回 false 则取消录音 */
   onBeforeStartRecording?: () => Promise<boolean>;
   /** 语音识别最终结果回调 */
@@ -137,6 +139,7 @@ export const VoiceInputWithNLS = forwardRef<VoiceInputWithNLSHandle, VoiceInputW
       conversationId={props.conversationId}
       wakeWordEnabled={props.wakeWordEnabled}
       isWakeWordListening={props.isWakeWordListening}
+      isWakeWordDetected={props.isWakeWordDetected}
       transcriptionText={nlsCurrentText}
     />
   );

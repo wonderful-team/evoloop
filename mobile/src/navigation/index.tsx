@@ -14,12 +14,13 @@ import SettingsScreen from '../screens/SettingsScreen';
 import SettingsVoiceScreen from '../screens/SettingsVoiceScreen';
 import SettingsAccountScreen from '../screens/SettingsAccountScreen';
 import SettingsAboutScreen from '../screens/SettingsAboutScreen';
+import WakeWordSettingsScreen from '../screens/WakeWordSettingsScreen';
 import HelpScreen from '../screens/HelpScreen';
 import PlansScreen from '../screens/PlansScreen';
 import PayConfirmScreen from '../screens/PayConfirmScreen';
 import PayResultScreen from '../screens/PayResultScreen';
 import CloudChatScreen from '../screens/CloudChatScreen';
-import VoiceScreen from '../screens/VoiceScreen';
+
 import DebugScreen from '../screens/DebugScreen';
 
 const Stack = createStackNavigator();
@@ -44,7 +45,7 @@ export default function RootNavigator() {
       <Stack.Screen name="BindMobile" component={BindMobileScreen} />
       
       {/* 核心功能页 */}
-      <Stack.Screen name="Voice" component={VoiceScreen} />
+
       <Stack.Screen name="CloudChat" component={CloudChatScreen} />
       <Stack.Screen name="CloudChatNew" component={CloudChatScreen} initialParams={{ id: 'new' }} />
       
@@ -53,6 +54,7 @@ export default function RootNavigator() {
       <Stack.Screen name="SettingsVoice" component={SettingsVoiceScreen} />
       <Stack.Screen name="SettingsAccount" component={SettingsAccountScreen} />
       <Stack.Screen name="SettingsAbout" component={SettingsAboutScreen} />
+      <Stack.Screen name="SettingsWakeWord" component={WakeWordSettingsScreen} />
       
       {/* 订阅相关 */}
       <Stack.Screen name="Plans" component={PlansScreen} />
