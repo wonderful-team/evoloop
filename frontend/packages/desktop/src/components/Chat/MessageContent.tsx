@@ -67,10 +67,9 @@ export function MessageContent({ content, isUser }: { content: string; isUser?: 
   if (reportMatch) {
     displayContent = reportMatch[1].trim();
   } else {
-    // B. Hide internal tags and their content
+    // B. Hide internal audit tags and their content
     displayContent = displayContent
       .replace(/<audit>[\s\S]*?(?:<\/audit>|$)/gi, "")
-      .replace(/<thought>[\s\S]*?(?:<\/thought>|$)/gi, "")
       .replace(/<outcome>[\s\S]*?(?:<\/outcome>|$)/gi, "")
       .replace(/<reason>[\s\S]*?(?:<\/reason>|$)/gi, "")
       .replace(/<proof_points>[\s\S]*?(?:<\/proof_points>|$)/gi, "");

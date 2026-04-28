@@ -4,7 +4,7 @@
  * Enhanced streaming state for transparent agent execution.
  */
 
-export type StreamEventType = 
+export type StreamEventType =
   | 'thinking'
   | 'tool_start'
   | 'tool_progress'

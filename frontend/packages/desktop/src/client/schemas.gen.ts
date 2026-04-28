@@ -3635,7 +3635,14 @@ export const MessageItemSchema = {
         thinking: {
             anyOf: [
                 {
-                    type: 'string'
+                    type: 'array',
+                    items: {
+                        type: 'object',
+                        properties: {
+                            type: { type: 'string' },
+                            content: { type: 'string' }
+                        }
+                    }
                 },
                 {
                     type: 'null'

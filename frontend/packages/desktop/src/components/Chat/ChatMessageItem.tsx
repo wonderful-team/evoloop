@@ -184,7 +184,7 @@ export interface Message {
   role: "human" | "ai" | "tool" | "system"
   content: string
   action_type?: string // Tool output discriminator
-  thinking?: string
+  thinking?: Array<{ type: string; content: string }>
   timestamp?: string // ISO timestamp from backend
   run_id?: string // Deep Linking
   parent_id?: number // Parent message ID for threading
@@ -315,17 +315,7 @@ const ChatMessageItem = memo(
             <div className="chat-action-stream empty:hidden animate-in fade-in slide-in-from-top-1 duration-500">
               {/* Reasoning/Thinking Block - Integrated, Always prominent if open */}
               {showThinking && (() => {
-                let thinkingContent = msg.thinking
-                if (!thinkingContent && msg.content && msg.content.includes("<think>")) {
-                  const thinkMatch = msg.content.match(/<think>([\s\S]*?)<\/think>/)
-                  if (thinkMatch) {
-                    thinkingContent = thinkMatch[1]
-                  } else if (msg.content.includes("<think>")) {
-                    const parts = msg.content.split("<think>")
-                    if (parts.length > 1) thinkingContent = parts[1]
-                  }
-                }
-
+                const thinkingContent = msg.thinking?.map(b => b.content).join("\n\n") ?? ""
                 if (!thinkingContent) return null
 
                 return (
@@ -364,16 +354,8 @@ const ChatMessageItem = memo(
                 }`}>
 
                 {(() => {
-                  // Pre-process: strip <think> tags for both artifact detection and normal rendering
-                  let processedContent = msg.content
-                  if (!msg.thinking && msg.content.includes("<think>")) {
-                    processedContent = msg.content.replace(/<think>[\s\S]*?<\/think>/g, "").trim()
-                    if (processedContent.includes("<think>")) {
-                      processedContent = processedContent.split("<think>")[0].trim()
-                    }
-                  }
-
                   // Artifact Detection (AI messages only, skip during streaming)
+                  let processedContent = msg.content
                   if (msg.role === "ai" && msg.status !== "streaming") {
                     const parts = extractArtifactsFromContent(processedContent)
                     if (parts.some(p => p.type === 'artifact')) {
