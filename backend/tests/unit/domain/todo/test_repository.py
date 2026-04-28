@@ -248,7 +248,7 @@ class TestTodoRepositorySync:
         mock_todo.id = "sync-id"
         mock_todo.title = sample_todo_data.title
         
-        with patch('app.domain.todo.repository.session_scope') as mock_scope:
+        with patch('app.infrastructure.database.sql.database.session_scope') as mock_scope:
             mock_session = Mock()
             mock_scope.return_value.__enter__ = Mock(return_value=mock_session)
             mock_scope.return_value.__exit__ = Mock(return_value=False)
@@ -269,8 +269,9 @@ class TestTodoRepositorySync:
         
         mock_todo = Mock(spec=TodoItem)
         mock_todo.id = "test-id"
+        mock_todo._sa_instance_state = Mock()
         
-        with patch('app.domain.todo.repository.session_scope') as mock_scope:
+        with patch('app.infrastructure.database.sql.database.session_scope') as mock_scope:
             mock_session = Mock()
             mock_scope.return_value.__enter__ = Mock(return_value=mock_session)
             mock_scope.return_value.__exit__ = Mock(return_value=False)
@@ -287,7 +288,7 @@ class TestTodoRepositorySync:
         """Test synchronous list."""
         repo = TodoRepositorySync()
         
-        with patch('app.domain.todo.repository.session_scope') as mock_scope:
+        with patch('app.infrastructure.database.sql.database.session_scope') as mock_scope:
             mock_session = Mock()
             mock_scope.return_value.__enter__ = Mock(return_value=mock_session)
             mock_scope.return_value.__exit__ = Mock(return_value=False)

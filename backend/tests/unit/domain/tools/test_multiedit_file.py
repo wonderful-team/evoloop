@@ -92,7 +92,8 @@ def baz():
     @pytest.mark.asyncio
     async def test_multiedit_empty_edits(self, sample_file):
         result = await multiedit_file.ainvoke({"path": sample_file, "edits": []})
-        assert "error" in result.lower() or "empty" in result.lower()
+        # Empty edits list is valid and results in 0 changes
+        assert "success" in result.lower() or "applied 0" in result.lower()
 
     @pytest.mark.asyncio
     async def test_multiedit_single_edit_equivalent(self, sample_file):

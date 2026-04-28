@@ -14,46 +14,9 @@ from pathlib import Path
 
 from app.constants import DEFAULT_EXCLUDED_DIRS
 from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.core.file.schemas import DirectoryInfo, DirectoryOperationResult, DirectoryEntry, DirectoryStatus
 
 logger = logging.getLogger(__name__)
-
-
-class DirectoryStatus(Enum):
-    """Status of a directory operation."""
-    SUCCESS = "success"
-    NOT_FOUND = "not_found"
-    ALREADY_EXISTS = "already_exists"
-    PERMISSION_DENIED = "permission_denied"
-    NOT_EMPTY = "not_empty"
-    ERROR = "error"
-
-
-class DirectoryInfo(DynamicBaseModel):
-    """Information about a directory."""
-    path: str
-    exists: bool
-    is_empty: bool = False
-    file_count: int = 0
-    subdir_count: int = 0
-    total_size: int = 0
-
-
-class DirectoryOperationResult(DynamicBaseModel):
-    """Result of a directory operation."""
-    success: bool
-    status: DirectoryStatus
-    path: str
-    message: str = ""
-    destination: str | None = None  # For move operations
-
-
-class DirectoryEntry(DynamicBaseModel):
-    """A single entry in directory listing."""
-    name: str
-    path: str
-    is_dir: bool
-    size: int = 0
-
 
 # ============================================================================
 # File type priority for sorting (code > config > doc > other)

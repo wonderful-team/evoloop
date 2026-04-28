@@ -10,21 +10,12 @@ from app.core.evocloud.schemas import EvoCloudConfig
 from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.models.schemas.auth import LoginResult
 from app.utils.async_utils import LoopBoundResource
+from app.core.evocloud.schemas import EvoCloudProjectSummary
 
 logger = logging.getLogger(__name__)
 
 # Conversation sync manager
 _conversation_sync_manager = None
-
-
-class EvoCloudProjectSummary(DynamicBaseModel):
-    id: int | None = None
-    name: str
-    description: str = ""
-    path: str = ""
-    exists_locally: bool = False
-    status_text: str = ""
-    owner: str = ""
 
 
 class EvoCloudManager:

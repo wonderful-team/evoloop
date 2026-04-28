@@ -1,5 +1,34 @@
 """Learning schemas package."""
 
+from app.core.learning.schemas.migrated import (
+    ActionCategory,
+    ActionRegistryItem,
+    ActionSource,
+    ActionTrace,
+    CompressedFrame,
+    CompressionConfig,
+    KeyframeCandidate,
+    MacroVerificationResult,
+    NormalizedEvent,
+    RecordingSession,
+    SkillImportResult,
+    SkillListItem,
+    SkillMatch,
+    SkillParams,
+    SynthesizedSopConfig,
+    TraceAction,
+    TraceActionArgs,
+    TraceContext,
+    TraceParameters,
+    TraceStateContext,
+    TraceStep,
+    TraceSummary,
+    UIContext,
+    ValidationMetadata,
+    ValidationResult,
+    VideoInfo,
+)
+from app.core.learning.trace_parser import TraceSequence
 from app.core.learning.schemas.events import (
     DomEventData,
     GlobalEventData,

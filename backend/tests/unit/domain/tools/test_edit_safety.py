@@ -11,9 +11,10 @@ import tempfile
 import pytest
 
 from app.domain.tools.files.edit_file import handle_edit
+from app.domain.tools.schemas import EditFileRequest
 from app.core.tools import get_working_directory
 import uuid
-from app.utils.file import safe_read_with_hash
+from app.core.file import safe_read_with_hash
 
 
 class TestEditSafety:
@@ -34,13 +35,15 @@ class TestEditSafety:
     async def test_hash_mismatch_triggers_rollback(self, sample_file):
         wrong_hash = "00000000000000000000000000000000"
         result = await handle_edit(
-            path=sample_file,
-            target="    return True",
-            content="    return False",
-            allow_multiple=False,
-            expected_hash=wrong_hash,
-            verify_types=False,
-            config=None
+            EditFileRequest(
+                path=sample_file,
+                target="    return True",
+                content="    return False",
+                allow_multiple=False,
+                expected_hash=wrong_hash,
+                verify_types=False,
+                config=None
+            )
         )
         assert "hash" in result.lower() or "mismatch" in result.lower() or "concurrent" in result.lower()
 
@@ -54,13 +57,15 @@ class TestEditSafety:
         correct_hash = stats.content_hash
 
         result = await handle_edit(
-            path=sample_file,
-            target="    return True",
-            content="    return False",
-            allow_multiple=False,
-            expected_hash=correct_hash,
-            verify_types=False,
-            config=None
+            EditFileRequest(
+                path=sample_file,
+                target="    return True",
+                content="    return False",
+                allow_multiple=False,
+                expected_hash=correct_hash,
+                verify_types=False,
+                config=None
+            )
         )
         assert "success" in result.lower() or "✅" in result
 
@@ -70,13 +75,15 @@ class TestEditSafety:
     @pytest.mark.asyncio
     async def test_no_hash_still_writes(self, sample_file):
         result = await handle_edit(
-            path=sample_file,
-            target="    return True",
-            content="    return False",
-            allow_multiple=False,
-            expected_hash=None,
-            verify_types=False,
-            config=None
+            EditFileRequest(
+                path=sample_file,
+                target="    return True",
+                content="    return False",
+                allow_multiple=False,
+                expected_hash=None,
+                verify_types=False,
+                config=None
+            )
         )
         assert "success" in result.lower() or "✅" in result
 
@@ -93,13 +100,15 @@ class TestEditSafety:
             f.write("# modified externally\n")
 
         result = await handle_edit(
-            path=sample_file,
-            target="    return True",
-            content="    return False",
-            allow_multiple=False,
-            expected_hash=correct_hash,
-            verify_types=False,
-            config=None
+            EditFileRequest(
+                path=sample_file,
+                target="    return True",
+                content="    return False",
+                allow_multiple=False,
+                expected_hash=correct_hash,
+                verify_types=False,
+                config=None
+            )
         )
         assert "hash" in result.lower() or "mismatch" in result.lower() or "concurrent" in result.lower()
 

@@ -1,8 +1,9 @@
 from datetime import datetime
 
-from pydantic import Field
+from pydantic import BaseModel, Field
 from sqlmodel import Field as SQLField, SQLModel
 
+from app.domain.tools.schemas import ExtractedConcept
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 
@@ -65,3 +66,7 @@ class WikiPagePlan(DynamicBaseModel):
 
 class WikiStructure(DynamicBaseModel):
     pages: list[WikiPagePlan] = Field(default_factory=list)
+
+
+class ConceptExtractionResult(BaseModel):
+    concepts: list[ExtractedConcept] = Field(default_factory=list)

@@ -8,16 +8,9 @@ import logging
 
 from app.core.engine.message.category import MessageCategory
 from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.core.engine.message.schemas import StreamPolicyResult
 
 logger = logging.getLogger(__name__)
-
-
-class StreamPolicyResult(DynamicBaseModel):
-    should_stream: bool
-    frontend_type: str | None = None
-    content: str
-    category: str
-    metadata: dict = {}
 
 
 class MessageStreamPolicy:

@@ -20,6 +20,7 @@ from app.core.engine.state import AgentState
 from app.core.engine.state.blackboard import BlackboardState
 from app.core.engine.state.config import ExecutionTicket
 from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.core.context.schemas import DynamicContextLayer
 
 logger = logging.getLogger(__name__)
 
@@ -39,14 +40,6 @@ class StaticContextLayer(DynamicBaseModel):
     def is_valid(self, max_age: int = 300) -> bool:
         """Check if cache is still valid."""
         return (time.time() - self.cached_at) < max_age
-
-
-class DynamicContextLayer(DynamicBaseModel):
-    """Dynamic context that must always be fresh."""
-    blackboard: BlackboardState | None = None
-    execution_ticket: ExecutionTicket | None = None
-    messages: list = Field(default_factory=list)
-    iteration_count: int = 0
 
 
 class LayeredContextCache:

@@ -12,19 +12,10 @@ from langchain_core.runnables import RunnableConfig
 
 from app.core.engine.state.blackboard import BlackboardState
 from app.infrastructure.config.service import SystemConfigService
-from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.core.engine.schemas import SupervisorContext
 from app.utils import render_template
 
 logger = logging.getLogger(__name__)
-
-
-class SupervisorContext(DynamicBaseModel):
-    """Formalized context structure for Supervisor decision making."""
-    tools: list[Any]
-    iteration_count: int
-    last_human_msg: str | None
-    blackboard: BlackboardState
-    structured_plan: str | dict | None = None
 
 
 class SupervisorPromptBuilder:

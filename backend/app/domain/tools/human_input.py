@@ -18,6 +18,7 @@ from app.core.tools import evoloop_tool
 from app.i18n.service import i18n
 from app.infrastructure.database.sql.database import session_scope
 from app.models.conversation import HumanRequest
+from app.domain.tools.schemas import RequestHumanInputArgs, RequestApprovalArgs
 
 logger = logging.getLogger(__name__)
 
@@ -62,44 +63,6 @@ class HumanInputRequest(BaseModel):
 
 
 # ============ Input Schemas ============
-
-
-class RequestHumanInputArgs(BaseModel):
-    prompt: str = Field(
-        ..., description="The question or instruction to present to the user."
-    )
-    input_type: Literal["text", "choice", "confirmation"] = Field(
-        "text",
-        description="Type of input: 'text' for free-form, 'choice' for selection, 'confirmation' for yes/no.",
-    )
-    options: list[str] | None = Field(
-        None,
-        description="Required if input_type is 'choice'. List of options for user to select from.",
-    )
-    context: str | None = Field(
-        None,
-        description="Additional context to help the user understand what's needed.",
-    )
-    default_value: str | None = Field(
-        None, description="Default value if user doesn't respond within timeout."
-    )
-
-
-class RequestApprovalArgs(BaseModel):
-    action_description: str = Field(
-        ..., description="Clear description of the action that requires approval."
-    )
-    risk_level: Literal["low", "medium", "high", "critical"] = Field(
-        "medium",
-        description="Risk level of the action to help user make informed decision.",
-    )
-    details: str | None = Field(
-        None, description="Detailed information about what will happen if approved."
-    )
-    consequences: str | None = Field(
-        None, description="Potential consequences or impact of this action."
-    )
-
 
 # ============ Core Request Management ============
 

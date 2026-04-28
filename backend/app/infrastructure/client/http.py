@@ -21,25 +21,9 @@ from pydantic import Field, ConfigDict
 
 from app.core.config import settings
 from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.infrastructure.schemas import ToolRequest
 
 logger = logging.getLogger(__name__)
-
-
-class ToolRequest(DynamicBaseModel):
-    """Represents a pending tool execution request."""
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    request_id: str
-    thread_id: str
-    tool: str
-    params: dict[str, Any]
-    status: str = "pending"  # pending, executing, completed, failed
-    result: Any | None = None
-    error: str | None = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    completed_at: datetime | None = None
-    # Async event for waiting
-    event: asyncio.Event = Field(default_factory=asyncio.Event, exclude=True)
 
 
 class ToolRequestManager:

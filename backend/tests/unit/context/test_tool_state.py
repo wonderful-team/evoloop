@@ -54,11 +54,11 @@ class TestToolState:
             start_time=0.0,
             metadata={}
         )
-        # Create output > 500 chars
-        output = "x" * 600
+        # Create output > 500 chars and > 20 lines
+        output = "\n".join(["x" * 30 for _ in range(30)])
         summary, is_file = state.get_summary(output)
         
-        assert "Truncated" in summary
+        assert "[Truncated" in summary
         assert len(summary) < len(output)
 
 

@@ -16,16 +16,7 @@ from app.core.memory.models import (
     PrivacyLevel,
 )
 from app.infrastructure.pydantic_base import DynamicBaseModel
-
-
-class StorageHealthCheck(DynamicBaseModel):
-    """Health check result for a memory storage backend."""
-    status: str = "unknown"
-    backend: str = ""
-    version: str | None = None
-    entry_count: int | None = None
-    latency_ms: float | None = None
-    error: str | None = None
+from app.core.memory.schemas import StorageHealthCheck
 
 
 class IMemoryStorage(ABC):

@@ -11,6 +11,7 @@ import os
 from app.infrastructure.pydantic_base import DynamicBaseModel
 from .io import get_file_info, read_file, write_file
 from .models import FileInfo
+from app.core.file.schemas import FileWriteResult
 
 # FileStats is an alias for FileInfo for backward compatibility
 FileStats = FileInfo
@@ -54,16 +55,6 @@ def verify_file_hash(file_path: str, expected_hash: str) -> bool:
         return current_info.content_hash == expected_hash
     except Exception:
         return False
-
-
-class FileWriteResult(DynamicBaseModel):
-    success: bool
-    path: str | None = None
-    new_hash: str | None = None
-    bytes_written: int | None = None
-    error: str | None = None
-    message: str | None = None
-    change_count: int | None = None
 
 
 def write_file_with_verification(

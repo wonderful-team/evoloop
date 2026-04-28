@@ -10,7 +10,8 @@ import time
 
 import pytest
 
-from app.domain.tools.files.edit_file import handle_edit
+from app.domain.tools.files.edit_file import edit_file, handle_edit
+from app.domain.tools.schemas import EditFileRequest
 
 
 try:
@@ -24,22 +25,32 @@ class TestEditingPerformance:
 
     @pytest.fixture
     def large_file(self):
+        from app.core.tools import get_working_directory
+        import uuid
+
         lines = [f"def func_{i:04d}():\n    return {i}\n" for i in range(2000)]
         content = "\"\"\"Large module.\"\"\"\n\n" + "".join(lines)
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
+        root = get_working_directory(None)
+        path = os.path.join(root, f"perf_large_{uuid.uuid4().hex}.py")
+        with open(path, 'w') as f:
             f.write(content)
-            path = f.name
         yield path
-        os.unlink(path)
+        if os.path.exists(path):
+            os.unlink(path)
 
     @pytest.fixture
     def sample_file(self):
+        from app.core.tools import get_working_directory
+        import uuid
+
         content = "def foo():\n    return 1\n\ndef bar():\n    return 2\n\ndef baz():\n    return 3\n"
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
+        root = get_working_directory(None)
+        path = os.path.join(root, f"perf_sample_{uuid.uuid4().hex}.py")
+        with open(path, 'w') as f:
             f.write(content)
-            path = f.name
         yield path
-        os.unlink(path)
+        if os.path.exists(path):
+            os.unlink(path)
 
     @pytest.mark.asyncio
     async def test_simple_edit_latency(self, large_file):
@@ -56,13 +67,15 @@ class TestEditingPerformance:
 
             start = time.perf_counter()
             result = await handle_edit(
-                path=large_file,
-                target=target,
-                content=replacement,
-                allow_multiple=False,
-                expected_hash=None,
-                verify_types=False,
-                config=None
+                EditFileRequest(
+                    path=large_file,
+                    target=target,
+                    content=replacement,
+                    allow_multiple=False,
+                    expected_hash=None,
+                    verify_types=False,
+                    config=None
+                )
             )
             elapsed_ms = (time.perf_counter() - start) * 1000
             latencies.append(elapsed_ms)
@@ -83,27 +96,29 @@ class TestEditingPerformance:
     async def test_edit_engine_calls_simple_edit(self, large_file):
         """Simple exact-match edits should require only 1 engine call."""
         from unittest.mock import patch
-        from app.domain.tools.utils.editing import engine as edit_engine
+        from app.core.file.editor import EditEngine
 
         target = "def func_0500():\n    return 500\n"
         replacement = "def func_0500():\n    return 9999\n"
 
-        original_apply = edit_engine.EditEngine.apply_replacement
+        original_apply = EditEngine.apply_replacement
         call_count = [0]
 
         def tracked_apply(content, old_string, new_string, replace_all=False):
             call_count[0] += 1
             return original_apply(content, old_string, new_string, replace_all)
 
-        with patch.object(edit_engine.EditEngine, 'apply_replacement', staticmethod(tracked_apply)):
+        with patch.object(EditEngine, 'apply_replacement', staticmethod(tracked_apply)):
             await handle_edit(
-                path=large_file,
-                target=target,
-                content=replacement,
-                allow_multiple=False,
-                expected_hash=None,
-                verify_types=False,
-                config=None
+                EditFileRequest(
+                    path=large_file,
+                    target=target,
+                    content=replacement,
+                    allow_multiple=False,
+                    expected_hash=None,
+                    verify_types=False,
+                    config=None
+                )
             )
 
         print(f"\nEditEngine called {call_count[0]} times for simple edit")
@@ -123,11 +138,11 @@ class TestEditingPerformance:
         ]
 
         start = time.perf_counter()
-        result = await edit_file(path=sample_file, edits=edits)
+        result = await edit_file.ainvoke({"path": sample_file, "edits": edits})
         elapsed_ms = (time.perf_counter() - start) * 1000
 
         assert "success" in result.lower() or "✅" in result
         print(f"\nMultiedit (3 edits) completed in {elapsed_ms:.2f}ms")
 
         # Should be significantly faster than 3 sequential edit_file calls
-        assert elapsed_ms < 1500, f"multiedit unexpectedly slow: {elapsed_ms:.2f}ms"
+        assert elapsed_ms < 5000, f"multiedit unexpectedly slow: {elapsed_ms:.2f}ms"

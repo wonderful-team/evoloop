@@ -12,29 +12,9 @@ import time
 
 from app.core.engine.state import AgentState
 from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.core.memory.schemas import ForgottenRecord, AuditEntry
 
 logger = logging.getLogger(__name__)
-
-
-class ForgottenRecord(DynamicBaseModel):
-    """Record of a forgotten tool output."""
-    tool_call_id: str
-    tool_name: str
-    summary: str
-    original_length: int
-    forgotten_at: float
-    reason: str
-    step_index: int  # The message index when it was forgotten
-
-
-class AuditEntry(DynamicBaseModel):
-    """Audit log entry for tracking forget/recall operations."""
-    action: str  # "forget" or "recall"
-    tool_call_id: str
-    timestamp: float
-    reason: str
-    success: bool
-    details: str = ""
 
 
 class ToolOutputMemory:

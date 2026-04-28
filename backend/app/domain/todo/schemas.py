@@ -9,6 +9,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.models.schemas.base import TimestampedEntity
 from app.models.schemas.requests import BaseFilter
 from app.models.todo import TodoPriority, TodoStatus
 
@@ -66,7 +67,7 @@ class TodoUpdate(BaseModel):
 
 # ============== Response Schemas ==============
 
-class TodoResponse(BaseModel):
+class TodoResponse(TimestampedEntity):
     """Schema for Todo responses."""
     id: str
     title: str
@@ -78,8 +79,6 @@ class TodoResponse(BaseModel):
     source_conversation_id: str | None
     source_message_id: str | None
     project_id: int | None
-    created_at: datetime
-    updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
 

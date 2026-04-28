@@ -110,7 +110,7 @@ class TestFileCacheList:
         """Test list push and range."""
         await file_cache.lpush("list_name", "item1", "item2")
         result = await file_cache.lrange("list_name", 0, -1)
-        # Implementation appends items in order, so item1, item2
+        # lpush inserts reversed values at front: item2 then item1 -> [item1, item2]
         assert result == ["item1", "item2"]
 
     @pytest.mark.asyncio
@@ -119,7 +119,7 @@ class TestFileCacheList:
         await file_cache.lpush("list_name", "a", "b", "c", "d")
         await file_cache.ltrim("list_name", 0, 1)
         result = await file_cache.lrange("list_name", 0, -1)
-        # lpush adds in order: a, b, c, d; ltrim(0, 1) keeps first 2
+        # lpush inserts reversed values at front: d, c, b, a -> [a, b, c, d]; ltrim(0, 1) keeps first 2
         assert result == ["a", "b"]
 
 

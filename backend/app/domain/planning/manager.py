@@ -1,17 +1,7 @@
 import json
 
 from pydantic import BaseModel, Field
-
-
-class PlanStep(BaseModel):
-    title: str
-    status: str = "pending"  # pending, in_progress, completed, failed
-    details: str | None = None
-
-
-class PlanDefinition(BaseModel):
-    title: str
-    steps: list[PlanStep] = Field(default_factory=list)
+from app.domain.planning.schemas import PlanStep, PlanDefinition
 
 
 class PlanManager:

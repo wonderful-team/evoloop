@@ -17,11 +17,11 @@ from app.core.engine.dispatch import dispatch_agent_run
 from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.models.schemas.base import ScopedRequest
 from app.utils import render_template
+from app.api.schemas.tasks import TaskCreateRequest, TaskUpdateRequest, TaskStatusUpdate, TaskExecutionResponse
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["tasks"])
-
 
 # --- Helper ---
 def get_token(authorization: str | None = Header(None)):
@@ -30,46 +30,6 @@ def get_token(authorization: str | None = Header(None)):
     if authorization.startswith("Bearer "):
         return authorization.replace("Bearer ", "")
     return authorization
-
-
-class TaskCreateRequest(ScopedRequest):
-    project_id: int
-    task_title: str
-    task_desc: str | None = ""
-    # Optional fields that match the AI Enhanced structure
-    priority: int = 2
-    match_score: float | None = None
-    relevance_analysis: str | None = None
-    key_modules: Any | None = None  # List or Str
-    technical_challenges: Any | None = None
-    implementation_complexity: str | None = None
-    deliverables: Any | None = None
-
-
-class TaskUpdateRequest(DynamicBaseModel):
-    task_title: str | None = None
-    task_desc: str | None = None
-    priority: int | None = None
-    status: int | None = None
-    progress: int | None = None
-    # AI fields are also updateable
-    match_score: float | None = None
-    relevance_analysis: str | None = None
-    key_modules: Any | None = None
-    technical_challenges: Any | None = None
-    implementation_complexity: str | None = None
-    deliverables: Any | None = None
-
-
-class TaskStatusUpdate(DynamicBaseModel):
-    status: int
-    progress: int | None = 0
-
-
-class TaskExecutionResponse(BaseAPIResponse):
-    status: str
-    thread_id: str
-
 
 @router.get("/")
 async def get_project_tasks(
@@ -95,7 +55,6 @@ async def get_project_tasks(
 
     return res.get("data", {})
 
-
 @router.get("/{task_id}")
 async def get_task_detail(task_id: int, token: TokenDep):
     """
@@ -108,7 +67,6 @@ async def get_task_detail(task_id: int, token: TokenDep):
         )
 
     return res.get("data", {})
-
 
 @router.post("/")
 async def create_task(req: TaskCreateRequest, authorization: str | None = Header(None)):
@@ -127,7 +85,6 @@ async def create_task(req: TaskCreateRequest, authorization: str | None = Header
 
     return res
 
-
 @router.put("/{task_id}")
 async def update_task(task_id: int, req: TaskUpdateRequest, authorization: str | None = Header(None)):
     """
@@ -145,7 +102,6 @@ async def update_task(task_id: int, req: TaskUpdateRequest, authorization: str |
 
     return res
 
-
 @router.delete("/{task_id}")
 async def delete_task(task_id: int, authorization: str | None = Header(None)):
     """
@@ -160,7 +116,6 @@ async def delete_task(task_id: int, authorization: str | None = Header(None)):
 
     return res
 
-
 @router.put("/{task_id}/status")
 async def update_task_status_endpoint(task_id: int, req: TaskStatusUpdate, authorization: str | None = Header(None)):
     """
@@ -174,7 +129,6 @@ async def update_task_status_endpoint(task_id: int, req: TaskStatusUpdate, autho
         )
 
     return res
-
 
 @router.post("/{task_id}/execute")
 async def execute_task(task_id: int, bg_tasks: BackgroundTasks, authorization: str | None = Header(None)):

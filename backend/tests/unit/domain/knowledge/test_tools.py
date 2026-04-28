@@ -29,12 +29,10 @@ class TestKBReadTool:
             store.read_document.return_value = mock_result
             MockStore.return_value = store
             
-            result = await kb_read(path="test.md", offset=0, limit=100)
+            result = await kb_read.ainvoke({"path": "test.md", "offset": 0, "limit": 100})
             
-            assert result.success is True
-            assert "test.md" in result.output
-            assert "Line 1" in result.output
-            assert result.metadata["total_lines"] == 3
+            assert "test.md" in result
+            assert "Line 1" in result
     
     @pytest.mark.asyncio
     async def test_read_document_not_found(self):
@@ -44,10 +42,9 @@ class TestKBReadTool:
             store.read_document.side_effect = FileNotFoundError("Not found")
             MockStore.return_value = store
             
-            result = await kb_read(path="nonexistent.md")
+            result = await kb_read.ainvoke({"path": "nonexistent.md"})
             
-            assert result.success is False
-            assert "not found" in result.output.lower()
+            assert "not found" in result.lower()
 
 
 class TestKBSearchTool:
@@ -74,10 +71,9 @@ class TestKBSearchTool:
             }
             MockStore.return_value = store
             
-            result = await kb_search(pattern="search term")
+            result = await kb_search.ainvoke({"pattern": "search term"})
             
-            assert result.success is True
-            assert "search term" in result.output
+            assert "search term" in result
     
     @pytest.mark.asyncio
     async def test_search_no_results(self):
@@ -87,10 +83,9 @@ class TestKBSearchTool:
             store.list_documents.return_value = []
             MockStore.return_value = store
             
-            result = await kb_search(pattern="nonexistent")
+            result = await kb_search.ainvoke({"pattern": "nonexistent"})
             
-            assert result.success is True
-            assert "No matches" in result.output
+            assert "No matches" in result or "no matches" in result.lower()
 
 
 class TestKBListTool:
@@ -99,21 +94,24 @@ class TestKBListTool:
     @pytest.mark.asyncio
     async def test_list_documents(self):
         """Test listing documents."""
+        from app.domain.knowledge.schemas import DocumentListItem
         mock_docs = [
-            {
-                "path": "project/doc1.md",
-                "title": "Doc 1",
-                "size_bytes": 100,
-                "modified_at": "2024-01-01T00:00:00",
-                "has_metadata": True
-            },
-            {
-                "path": "project/doc2.md",
-                "title": "Doc 2",
-                "size_bytes": 200,
-                "modified_at": "2024-01-02T00:00:00",
-                "has_metadata": True
-            }
+            DocumentListItem(
+                path="project/doc1.md",
+                title="Doc 1",
+                size_bytes=100,
+                modified_at="2024-01-01T00:00:00",
+                has_metadata=True,
+                tags=[],
+            ),
+            DocumentListItem(
+                path="project/doc2.md",
+                title="Doc 2",
+                size_bytes=200,
+                modified_at="2024-01-02T00:00:00",
+                has_metadata=True,
+                tags=[],
+            )
         ]
         
         with patch("app.domain.knowledge.tools.list.KnowledgeStoreService") as MockStore:
@@ -121,11 +119,10 @@ class TestKBListTool:
             store.list_documents.return_value = mock_docs
             MockStore.return_value = store
             
-            result = await kb_list(project="project")
+            result = await kb_list.ainvoke({"collection": "project"})
             
-            assert result.success is True
-            assert "Doc 1" in result.output
-            assert "Doc 2" in result.output
+            assert "Doc 1" in result
+            assert "Doc 2" in result
     
     @pytest.mark.asyncio
     async def test_list_empty(self):
@@ -135,10 +132,9 @@ class TestKBListTool:
             store.list_documents.return_value = []
             MockStore.return_value = store
             
-            result = await kb_list()
+            result = await kb_list.ainvoke({})
             
-            assert result.success is True
-            assert "No documents" in result.output
+            assert "No documents" in result
 
 
 class TestToolIntegration:

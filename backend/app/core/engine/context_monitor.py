@@ -13,75 +13,17 @@ from langchain_core.messages import (
     BaseMessage,
     ToolMessage,
 )
-from pydantic import Field
 
 from app.constants import DEFAULT_MAX_CONTEXT_TOKENS
 from app.core.engine.message.utils import estimate_message_tokens
 from app.infrastructure.llm.model_profile import get_profile
-from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.core.engine.schemas import ToolCallInfo, ContextStats
 
 # Context usage thresholds (pure ratios, unit-agnostic)
 CONTEXT_WARNING_THRESHOLD = 0.80
 CONTEXT_CRITICAL_THRESHOLD = 0.95
 
 logger = logging.getLogger(__name__)
-
-
-class ToolCallInfo(DynamicBaseModel):
-    """Information about a recent tool call."""
-    tool_call_id: str
-    name: str
-    timestamp: float
-    token_count: int
-
-
-class ContextStats(DynamicBaseModel):
-    """
-    Context usage statistics for Agent awareness (token-based).
-    """
-    total_tokens: int
-    max_tokens: int
-    message_count: int
-    tool_message_count: int
-    tool_tokens: int
-    recent_tools: list[ToolCallInfo] = Field(default_factory=list)
-    usage_ratio: float
-
-    def to_prompt(self) -> str:
-        """Format as a concise prompt section for System Prompt injection."""
-        usage_pct = self.usage_ratio * 100
-
-        # Status indicator
-        if self.usage_ratio >= CONTEXT_CRITICAL_THRESHOLD:
-            status = "🔴 CRITICAL - Context nearly full!"
-        elif self.usage_ratio >= CONTEXT_WARNING_THRESHOLD:
-            status = "⚠️  WARNING - Consider freeing space"
-        else:
-            status = "✅ OK"
-
-        lines = [
-            "[Context Monitor]",
-            f"Usage: {self.total_tokens:,} / {self.max_tokens:,} tokens ({usage_pct:.0f}%) - {status}",
-            f"Messages: {self.message_count} total, {self.tool_message_count} tool outputs ({self.tool_tokens:,} tokens)",
-        ]
-
-        if self.recent_tools:
-            recent_names = [f"{t.name}({t.token_count//1000}k)" for t in self.recent_tools[-5:]]
-            lines.append(f"Recent tools: {', '.join(recent_names)}")
-
-        # Add guidance when approaching limit
-        if self.usage_ratio >= CONTEXT_WARNING_THRESHOLD:
-            lines.append("Tip: Use forget_tool_outputs to fold old exploration steps")
-
-        return "\n".join(lines)
-
-    def is_near_limit(self) -> bool:
-        """Check if context is approaching limit."""
-        return self.usage_ratio >= CONTEXT_WARNING_THRESHOLD
-
-    def is_critical(self) -> bool:
-        """Check if context is critically full."""
-        return self.usage_ratio >= CONTEXT_CRITICAL_THRESHOLD
 
 
 class ContextMonitor:

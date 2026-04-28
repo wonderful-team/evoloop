@@ -10,6 +10,7 @@ from app.core.execution.macro.schema import (
     MacroStepType,
 )
 from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.core.execution.macro.schemas import OptimizationResult
 
 logger = logging.getLogger(__name__)
 
@@ -20,20 +21,6 @@ class OptimizationStrategy(Enum):
     TIME_INTERVAL = "time_interval"
     FILTER_REDUNDANT = "filter_redundant"
     COALESCE_EXTRACTS = "coalesce_extracts"
-
-
-class OptimizationResult(DynamicBaseModel):
-    original_steps: int
-    optimized_steps: int
-    removed_steps: int
-    merged_steps: int
-    time_saved_ms: int
-    strategies_applied: list[str] = Field(default_factory=list)
-
-    @property
-    def reduction_ratio(self) -> float:
-        if self.original_steps == 0: return 0.0
-        return (self.original_steps - self.optimized_steps) / self.original_steps
 
 
 class MacroOptimizer:

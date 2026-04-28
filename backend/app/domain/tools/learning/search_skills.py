@@ -4,21 +4,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from app.core.tools import evoloop_tool
-
-
-class SearchSkillsSchema(BaseModel):
-    query: str = Field(
-        "",
-        description="The specific action or pattern you are looking to perform. e.g. 'click on save button'",
-    )
-    namespace: str = Field(
-        None,
-        description="Optional directory tree namespace to restrict the search. e.g. 'android', 'macos', 'browser'",
-    )
-    index_mode: bool = Field(
-        False,
-        description="If True, returns a high-level catalog of all skills in the namespace instead of searching for a specific match."
-    )
+from app.domain.tools.schemas import SearchSkillsSchema
 
 
 @evoloop_tool(

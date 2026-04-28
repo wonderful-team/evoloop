@@ -1,53 +1,16 @@
 """
 Data models for background task management.
 """
-
+import asyncio
 from collections import deque
 from collections.abc import Callable
 from datetime import datetime
-from enum import Enum
 from typing import Any
 
 from pydantic import ConfigDict, Field
 
 from app.infrastructure.pydantic_base import DynamicBaseModel
-
-
-class TaskStatus(str, Enum):
-    """Task lifecycle states."""
-    PENDING = "pending"           # Created but not started
-    RUNNING = "running"           # Actively executing
-    COMPLETED = "completed"       # Successfully finished
-    FAILED = "failed"             # Error occurred
-    CANCELLED = "cancelled"       # User cancelled
-    TIMEOUT = "timeout"           # Exceeded time limit
-
-
-class TaskType(str, Enum):
-    """Types of background tasks - determines execution strategy."""
-    COMMAND = "command"           # Shell commands (npm build, docker)
-    BROWSER = "browser"           # Browser automation
-    MOBILE = "mobile"             # Mobile automation
-    DESKTOP = "desktop"           # Desktop automation
-    FILE_OPERATION = "file_op"    # Large file operations
-    SEARCH = "search"             # Long-running search
-    BUILD = "build"               # Build tasks
-    TEST = "test"                 # Test execution
-    CUSTOM = "custom"             # User-defined tasks
-
-
-class TaskMetadata(DynamicBaseModel):
-    shell_env: dict[str, str] = Field(default_factory=dict)
-    browser_profile: str | None = None
-    device_id: str | None = None
-    working_directory: str | None = None
-
-
-class TaskResult(DynamicBaseModel):
-    success: bool = True
-    output: str = ""
-    exit_code: int | None = None
-    data: Any = None
+from app.core.tools.schemas import TaskMetadata, TaskStatus, TaskType
 
 
 class BackgroundTask(DynamicBaseModel):
@@ -94,6 +57,9 @@ class BackgroundTask(DynamicBaseModel):
         """Convert to dictionary for API responses."""
 
         data = self.model_dump()
+        # Convert deque to list for JSON serialization
+        if "output_buffer" in data:
+            data["output_buffer"] = list(data["output_buffer"])
 
         # Override timing to string
         data["created_at"] = self.created_at.isoformat()
@@ -196,6 +162,3 @@ class BackgroundTask(DynamicBaseModel):
 
         self.completed_at = datetime.now()
         return True
-
-
-import asyncio  # For type checking in cancel method

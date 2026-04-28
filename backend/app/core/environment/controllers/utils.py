@@ -19,16 +19,9 @@ from app.utils import (
     render_template,
 )
 from app.utils.text import truncate_output
+from app.core.environment.schemas import BatchStepResult
 
 logger = logging.getLogger(__name__)
-
-
-class BatchStepResult(DynamicBaseModel):
-    step: int
-    action: str
-    status: str
-    result: Any = None
-    latency_ms: int
 
 
 class RecordingContext:

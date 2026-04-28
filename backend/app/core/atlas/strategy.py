@@ -7,6 +7,7 @@ Instead of storing coordinates, we store interaction strategies.
 
 import json
 import logging
+from typing import Any
 
 from pydantic import Field
 
@@ -18,14 +19,6 @@ logger = logging.getLogger(__name__)
 REDIS_KEY_ATLAS_STRATEGIES = "atlas:strategies"
 
 
-class StrategyParameters(DynamicBaseModel):
-    pass
-
-
-class AppHints(DynamicBaseModel):
-    pass
-
-
 class InteractionStrategy(DynamicBaseModel):
     """
     A strategy for finding/interacting with an element.
@@ -35,7 +28,7 @@ class InteractionStrategy(DynamicBaseModel):
     target_element: str  # What we're looking for (e.g., "Alice", "Send button")
 
     # Strategy-specific parameters
-    parameters: StrategyParameters = Field(default_factory=StrategyParameters)
+    parameters: dict[str, Any] = Field(default_factory=dict)
 
     # Reliability metrics
     success_count: int = 0
@@ -75,7 +68,7 @@ class AppStrategy(DynamicBaseModel):
     strategies: list[InteractionStrategy] = Field(default_factory=list)
 
     # App-specific hints
-    hints: AppHints = Field(default_factory=AppHints)
+    hints: dict[str, Any] = Field(default_factory=dict)
 
     def get_strategy_for(self, target: str) -> InteractionStrategy | None:
         """Find the best strategy for a target element."""

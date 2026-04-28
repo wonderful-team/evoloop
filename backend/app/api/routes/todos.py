@@ -12,13 +12,7 @@ from app.models.todo import (
 
 router = APIRouter(tags=["todos"])
 
-
-class DeleteTodoResponse(BaseAPIResponse):
-    pass
-
-
 # --- Routes ---
-
 
 @router.post("/", response_model=TodoResponse)
 async def create_todo(todo_in: TodoCreate, session: AsyncSession = Depends(get_db)):
@@ -27,7 +21,6 @@ async def create_todo(todo_in: TodoCreate, session: AsyncSession = Depends(get_d
     await session.commit()
     await session.refresh(todo)
     return todo
-
 
 @router.get("/", response_model=list[TodoResponse])
 async def list_todos(
@@ -47,7 +40,6 @@ async def list_todos(
     todos = result.scalars().all()
     return todos
 
-
 @router.get("/{todo_id}", response_model=TodoResponse)
 async def get_todo(todo_id: str, session: AsyncSession = Depends(get_db)):
     result = await session.execute(select(TodoItem).where(TodoItem.id == todo_id))
@@ -55,7 +47,6 @@ async def get_todo(todo_id: str, session: AsyncSession = Depends(get_db)):
     if not todo:
         raise HTTPException(status_code=404, detail="Todo not found")
     return todo
-
 
 @router.patch("/{todo_id}", response_model=TodoResponse)
 async def update_todo(
@@ -74,7 +65,6 @@ async def update_todo(
     await session.refresh(todo)
     return todo
 
-
 @router.delete("/{todo_id}")
 async def delete_todo(todo_id: str, session: AsyncSession = Depends(get_db)):
     result = await session.execute(select(TodoItem).where(TodoItem.id == todo_id))
@@ -84,4 +74,4 @@ async def delete_todo(todo_id: str, session: AsyncSession = Depends(get_db)):
 
     await session.delete(todo)
     await session.commit()
-    return DeleteTodoResponse(message="Todo deleted successfully")
+    return BaseAPIResponse(message="Todo deleted successfully")

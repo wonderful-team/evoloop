@@ -30,41 +30,9 @@ from app.domain.knowledge.services.deduplication import DeduplicationService
 from app.domain.knowledge.services.search import get_fts_service, IndexDocumentRequest
 from app.domain.knowledge.services.store import KnowledgeStoreService
 from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.domain.knowledge.schemas import MaintenanceConfig, UsageDocInfo, UsageAnalysisResult, OptimizationSuggestion, DocumentQuality
 
 logger = logging.getLogger(__name__)
-
-
-class MaintenanceConfig(BaseModel):
-    """Configuration for auto-maintenance tasks."""
-    enable_auto_merge: bool = True
-    enable_auto_archive: bool = True
-    similarity_threshold: float = 0.85
-    cold_doc_days: int = 90
-    min_quality_score: float = 0.3
-
-
-class UsageDocInfo(DynamicBaseModel):
-    """Usage information for a single document."""
-    path: str
-    citations: int
-    last_accessed: Optional[str] = None
-    unique_sessions: Optional[int] = None
-
-
-class UsageAnalysisResult(DynamicBaseModel):
-    """Result of analyzing document usage patterns."""
-    hot_docs: list[UsageDocInfo] = Field(default_factory=list)
-    cold_docs: list[UsageDocInfo] = Field(default_factory=list)
-    total_analyzed: int = 0
-
-
-class OptimizationSuggestion(DynamicBaseModel):
-    """Optimization suggestion based on usage analysis."""
-    type: str
-    reason: str
-    priority: str = "medium"
-    path: Optional[str] = None
-    count: Optional[int] = None
 
 
 class MaintenanceReport(DynamicBaseModel):
@@ -125,14 +93,6 @@ class MaintenanceReport(DynamicBaseModel):
                 "relations": self.relations_created,
             },
         }
-
-
-class DocumentQuality(DynamicBaseModel):
-    """文档质量评估"""
-    path: str
-    score: float  # 0.0 - 1.0
-    issues: list[str] = Field(default_factory=list)
-    suggestions: list[str] = Field(default_factory=list)
 
 
 class UsageAnalyzer:

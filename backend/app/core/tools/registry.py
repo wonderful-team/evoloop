@@ -19,6 +19,7 @@ from langchain_core.tools import BaseTool
 from pydantic import Field
 
 from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.core.tools.schemas import ToolRegistryMetadata
 
 logger = logging.getLogger(__name__)
 
@@ -58,19 +59,6 @@ SYSTEM_TOOL_METADATA = {
         "name_map": {"zh": "批量替换文件", "en": "Multi-Replace File"},
     },
 }
-
-
-class ToolRegistryMetadata(DynamicBaseModel):
-    """Metadata for a tool, merging registry and system fallback data."""
-    affected_path_keys: list[str] = Field(default_factory=list)
-    result_summary_template: str | None = None
-    is_state_mutating: bool = False
-    is_pollable: bool = False
-    description: str = ""
-    is_hidden: bool = False
-    name_map: dict[str, str] = Field(default_factory=dict)
-    summary_template: str | None = None  # Legacy support for i18n
-    is_memory_tool: bool = False
 
 
 class AutoDiscoveryRegistry:

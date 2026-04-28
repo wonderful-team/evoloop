@@ -56,29 +56,9 @@ from app.core.config import settings
 from app.core.memory.models import MemoryEntry, MemoryType, MemoryTier, MemorySearchResult
 from app.core.memory.retrieval import MemoryRetriever
 from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.core.memory.schemas import SectionBudget, MemorySectionEntry
 
 logger = logging.getLogger(__name__)
-
-
-class SectionBudget(DynamicBaseModel):
-    """Budget allocation for a MEMORY.md section."""
-    name: str
-    lines: int
-    used: int = 0
-    overflow: bool = False
-
-    @property
-    def remaining(self) -> int:
-        return self.lines - self.used
-
-
-class MemorySectionEntry(DynamicBaseModel):
-    """A single entry in a MEMORY.md section."""
-    id: str | None = None
-    title: str
-    description: str
-    score: float | None = None
-    type: str | None = None
 
 
 class MemorySection(DynamicBaseModel):
@@ -103,7 +83,6 @@ class MemorySection(DynamicBaseModel):
             lines.append(f"\n*... and {overflow_count} more in cold memory*")
 
         return "\n".join(lines) + "\n\n"
-
 
 
 class TwoTierMemoryManager:
@@ -629,6 +608,3 @@ class TwoTierMemoryManager:
 
 Memories are automatically extracted from conversations and ranked by importance.
 """
-
-
-

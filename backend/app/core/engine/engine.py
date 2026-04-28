@@ -16,39 +16,20 @@ from typing import Any
 
 from langchain_core.messages import AIMessage
 from langchain_core.runnables import RunnableConfig
-from pydantic import Field
 
 from app.core.engine.blackboard_parser import BlackboardParser
-from app.core.exceptions import InferenceError
+from app.core.engine.schemas import EngineResult, NodeOutcome
 from app.core.engine.inference_engine import InferenceEngine
 from app.core.engine.context_trimmer import ContextTrimmer
+from app.core.exceptions import InferenceError
 from app.core.memory.tool_output_memory import get_tool_memory_from_state
 from app.core.engine.signals import AgentSignal
 from app.core.engine.signals.registry import get_default_registry
 from app.core.engine.state import AgentState, BlackboardState
 from app.core.engine.tools.executor import AgentToolExecutor
 from app.infrastructure.llm.factory import LLMFactory
-from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
-
-
-class NodeOutcome(DynamicBaseModel):
-    """Structured outcome of a node execution."""
-    status: str = "success"  # success, failed, truncated, error, interrupted
-    reason: str | None = None
-    metadata: dict[str, Any] = Field(default_factory=dict)
-
-
-class EngineResult(DynamicBaseModel):
-    """Structured result from AgentEngine.run_node() and internal execution methods."""
-    messages: list[Any] = Field(default_factory=list)
-    tool_history: list[str] = Field(default_factory=list)
-    blackboard: BlackboardState | None = None
-    is_truncated: bool = False
-    signal: AgentSignal | None = None
-    routing_target: str | None = None
-    outcome: NodeOutcome | None = None
 
 
 class AgentEngine:

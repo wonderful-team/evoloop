@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends, Header, HTTPException
 
 from app.api.deps import TokenDep, require_benefit
+from app.api.schemas.project_modules import TimesheetQuickAddRequest
 from app.core.evocloud import evocloud_manager
-from app.models.schemas.base import ScopedRequest
 
 router = APIRouter()
 
@@ -16,13 +16,6 @@ def get_token(authorization: str | None = Header(None)):
 
 
 # The get_token helper is replaced by TokenDep in the new route definitions.
-
-
-class TimesheetQuickAddRequest(ScopedRequest):
-    project_id: int
-    hours: float
-    description: str
-    work_type: str | None = "development"
 
 
 # --- Budget & Timesheet ---

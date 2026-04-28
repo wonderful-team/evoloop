@@ -5,16 +5,16 @@ Unit tests for RewindOrchestrator.
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from app.core.rewind.events import RewindEventType
-from app.core.rewind.events import (
-    FilesCleanupEvent,
-    MemoryCleanupEvent,
+from app.core.engine.rewind.event.types import RewindEventType
+from app.core.engine.rewind.event.schemas import (
     MessagesCleanupEvent,
     RewindFailedEvent,
     RewindRequestedEvent,
 )
-from app.core.rewind import RewindOrchestrator
-from app.core.rewind.exceptions import RewindError
+from app.core.file.event.schemas import FilesCleanupEvent
+from app.core.memory.event.schemas import MemoryCleanupEvent
+from app.core.engine.rewind.orchestrator import RewindOrchestrator
+from app.core.engine.rewind.exceptions import RewindError
 
 
 class TestRewindOrchestrator:
@@ -28,8 +28,29 @@ class TestRewindOrchestrator:
         return bus
 
     @pytest.fixture
-    def orchestrator(self, mock_event_bus):
+    def orchestrator(self, mock_event_bus, monkeypatch):
         """Create a RewindOrchestrator with mock bus."""
+        monkeypatch.setattr(
+            "app.core.engine.rewind.event.publishers.system_bus",
+            mock_event_bus,
+        )
+        # Mock session_scope to avoid database dependencies
+        from contextlib import asynccontextmanager
+        
+        @asynccontextmanager
+        async def mock_session_scope():
+            session = AsyncMock()
+            # In SQLAlchemy 2.0 async, execute() returns a Result where scalars() and all() are sync
+            result = MagicMock()
+            result.all.return_value = []
+            result.scalar_one_or_none.return_value = None
+            session.execute.return_value = result
+            yield session
+        
+        monkeypatch.setattr(
+            "app.infrastructure.database.sql.database.session_scope",
+            mock_session_scope,
+        )
         return RewindOrchestrator(event_bus=mock_event_bus)
 
     @pytest.mark.asyncio
@@ -82,7 +103,7 @@ class TestRewindOrchestrator:
         """Test that perform_rewind publishes RewindFailedEvent on error."""
         # Arrange
         call_count = 0
-        async def side_effect(event):
+        async def side_effect(event, sequential=False, propagate_errors=False):
             nonlocal call_count
             call_count += 1
             if call_count == 1:
@@ -111,7 +132,7 @@ class TestRewindEventTypes:
         assert RewindEventType.MEMORY_CLEANUP == "rewind.memory.cleanup"
         assert RewindEventType.TODO_CLEANUP == "rewind.todo.cleanup"
         assert RewindEventType.TRACE_CLEANUP == "rewind.trace.cleanup"
-        assert RewindEventType.STATE_RESET == "rewind.state.reset"
+        assert RewindEventType.CHECKPOINT_CLEANUP == "rewind.checkpoint.cleanup"
 
 
 class TestRewindModels:
@@ -119,7 +140,7 @@ class TestRewindModels:
 
     def test_rewind_request_creation(self):
         """Test RewindRequest creation."""
-        from app.core.rewind import RewindRequest
+        from app.core.engine.rewind import RewindRequest
 
         req = RewindRequest(
             thread_id="thread-123",
@@ -139,7 +160,7 @@ class TestRewindModels:
 
     def test_rewind_request_defaults(self):
         """Test RewindRequest default values."""
-        from app.core.rewind import RewindRequest
+        from app.core.engine.rewind import RewindRequest
 
         req = RewindRequest(thread_id="thread-123")
 
@@ -152,7 +173,7 @@ class TestRewindModels:
 
     def test_rewind_result_creation(self):
         """Test RewindResult creation."""
-        from app.core.rewind import RewindResult
+        from app.core.engine.rewind import RewindResult
 
         result = RewindResult(
             status="success",
@@ -170,7 +191,7 @@ class TestRewindModels:
 
     def test_rewind_result_to_dict(self):
         """Test RewindResult.to_dict method."""
-        from app.core.rewind import RewindResult
+        from app.core.engine.rewind import RewindResult
 
         result = RewindResult(
             status="success",
@@ -192,7 +213,7 @@ class TestRewindExceptions:
 
     def test_rewind_error(self):
         """Test RewindError creation."""
-        from app.core.rewind.exceptions import RewindError
+        from app.core.engine.rewind.exceptions import RewindError
 
         err = RewindError("Test error", thread_id="thread-123")
 
@@ -202,7 +223,7 @@ class TestRewindExceptions:
 
     def test_partial_rewind_error(self):
         """Test PartialRewindError creation."""
-        from app.core.rewind.exceptions import PartialRewindError
+        from app.core.engine.rewind.exceptions import PartialRewindError
 
         err = PartialRewindError(
             "Partial failure",
@@ -220,7 +241,7 @@ class TestRewindExceptions:
 
     def test_message_not_found_error(self):
         """Test MessageNotFoundError."""
-        from app.core.rewind.exceptions import MessageNotFoundError
+        from app.core.engine.rewind.exceptions import MessageNotFoundError
 
         err = MessageNotFoundError("Message not found", thread_id="thread-123")
 
@@ -229,7 +250,7 @@ class TestRewindExceptions:
 
     def test_no_human_message_error(self):
         """Test NoHumanMessageError."""
-        from app.core.rewind.exceptions import NoHumanMessageError
+        from app.core.engine.rewind.exceptions import NoHumanMessageError
 
         err = NoHumanMessageError("No human message", thread_id="thread-123")
 

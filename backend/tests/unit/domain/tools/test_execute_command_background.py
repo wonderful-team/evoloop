@@ -10,7 +10,7 @@ import asyncio
 import pytest
 from unittest.mock import patch, MagicMock
 
-from app.core.tools.background import task_manager, TaskType, TaskStatus
+from app.core.tools.background import task_manager, TaskType, TaskStatus, CreateBackgroundTaskRequest
 from app.domain.tools.execution import (
     execute_command,
     query_command_status,
@@ -36,19 +36,19 @@ class TestExecuteCommandBackground:
     async def test_execute_command_background_creates_task(self):
         """Test that background=True creates a task."""
         # Mock the background execution to avoid actually running command
-        with patch('app.domain.tools.execution._run_command_background') as mock_run:
+        with patch('app.domain.tools.execution._run_command_background') as mock_run, \
+             patch('app.domain.tools.execution._get_thread_id', return_value="test-thread-1"):
             mock_run.return_value = asyncio.Future()
             mock_run.return_value.set_result(None)
             
-            result = await execute_command(
-                command="echo hello",
-                background=True,
-                timeout=60,
-                config={"configurable": {"thread_id": "test-thread-1"}}
-            )
+            result = await execute_command.ainvoke({
+                "command": "echo hello",
+                "background": True,
+                "timeout": 60,
+            })
             
             # Verify task was created
-            assert "后台任务已启动" in result
+            assert "Background task started" in result
             assert "任务ID:" in result
             assert "查询状态:" in result
             
@@ -65,12 +65,12 @@ class TestExecuteCommandBackground:
         with patch('app.domain.tools.execution._execute_command_with_timeout') as mock_exec:
             mock_exec.return_value = ("hello output", "", 0)
             
-            result = await execute_command(
-                command="echo hello",
-                background=False,
-                timeout=60,
-                config=None
-            )
+            result = await execute_command.ainvoke({
+                "command": "echo hello",
+                "background": False,
+                "timeout": 60,
+                "config": None
+            })
             
             assert "Command Succeeded" in result
             assert "hello output" in result
@@ -78,9 +78,9 @@ class TestExecuteCommandBackground:
     @pytest.mark.asyncio
     async def test_query_command_status_not_found(self):
         """Test querying non-existent task."""
-        result = await query_command_status("cmd-nonexistent")
+        result = await query_command_status.ainvoke({"task_id": "cmd-nonexistent"})
         
-        assert "任务不存在" in result
+        assert "not found" in result.lower()
         assert "cmd-nonexistent" in result
 
     @pytest.mark.asyncio
@@ -88,10 +88,12 @@ class TestExecuteCommandBackground:
         """Test querying running task."""
         # Create a task
         task = await task_manager.create_task(
-            task_type=TaskType.COMMAND,
-            title="测试命令",
-            tool_name="execute_command",
-            thread_id="test-thread",
+            CreateBackgroundTaskRequest(
+                task_type=TaskType.COMMAND,
+                title="测试命令",
+                tool_name="execute_command",
+                thread_id="test-thread",
+            )
         )
         
         # Mark as running
@@ -102,7 +104,7 @@ class TestExecuteCommandBackground:
         task_manager.append_output(task.task_id, "Line 2")
         
         # Query
-        result = await query_command_status(task.task_id, output_lines=10)
+        result = await query_command_status.ainvoke({"task_id": task.task_id, "output_lines": 10})
         
         assert "▶️" in result or "RUNNING" in result or "运行" in result
         assert "测试命令" in result
@@ -115,10 +117,12 @@ class TestExecuteCommandBackground:
         """Test querying completed task."""
         # Create and complete task
         task = await task_manager.create_task(
-            task_type=TaskType.COMMAND,
-            title="测试命令",
-            tool_name="execute_command",
-            thread_id="test-thread",
+            CreateBackgroundTaskRequest(
+                task_type=TaskType.COMMAND,
+                title="测试命令",
+                tool_name="execute_command",
+                thread_id="test-thread",
+            )
         )
         
         await task_manager.start_task(task.task_id)
@@ -126,26 +130,28 @@ class TestExecuteCommandBackground:
         await task_manager.complete_task(task.task_id, result={"exit_code": 0})
         
         # Query
-        result = await query_command_status(task.task_id)
+        result = await query_command_status.ainvoke({"task_id": task.task_id})
         
         assert "✅" in result or "COMPLETED" in result or "成功" in result
         assert "Success output" in result
-        assert "命令执行成功" in result
+        assert "Command execution successful" in result
 
     @pytest.mark.asyncio
     async def test_query_command_status_failed(self):
         """Test querying failed task."""
         task = await task_manager.create_task(
-            task_type=TaskType.COMMAND,
-            title="测试命令",
-            tool_name="execute_command",
-            thread_id="test-thread",
+            CreateBackgroundTaskRequest(
+                task_type=TaskType.COMMAND,
+                title="测试命令",
+                tool_name="execute_command",
+                thread_id="test-thread",
+            )
         )
         
         await task_manager.start_task(task.task_id)
         await task_manager.fail_task(task.task_id, error="Command not found")
         
-        result = await query_command_status(task.task_id)
+        result = await query_command_status.ainvoke({"task_id": task.task_id})
         
         assert "❌" in result or "FAILED" in result or "失败" in result
         assert "Command not found" in result
@@ -154,19 +160,21 @@ class TestExecuteCommandBackground:
     async def test_cancel_command_success(self):
         """Test cancelling a running task."""
         task = await task_manager.create_task(
-            task_type=TaskType.COMMAND,
-            title="测试命令",
-            tool_name="execute_command",
-            thread_id="test-thread",
+            CreateBackgroundTaskRequest(
+                task_type=TaskType.COMMAND,
+                title="测试命令",
+                tool_name="execute_command",
+                thread_id="test-thread",
+            )
         )
         
         await task_manager.start_task(task.task_id, process_id=12345)
         
         # Mock os.killpg to avoid actually killing anything
         with patch('os.killpg') as mock_kill:
-            result = await cancel_command(task.task_id, force=False)
+            result = await cancel_command.ainvoke({"task_id": task.task_id, "force": False})
             
-            assert "✅" in result or "已取消" in result
+            assert "✅" in result or "已取消" in result or "cancelled" in result.lower()
             assert task.task_id in result
             
             # Verify task status
@@ -176,27 +184,29 @@ class TestExecuteCommandBackground:
     @pytest.mark.asyncio
     async def test_cancel_command_not_found(self):
         """Test cancelling non-existent task."""
-        result = await cancel_command("cmd-nonexistent")
+        result = await cancel_command.ainvoke({"task_id": "cmd-nonexistent"})
         
-        assert "❌" in result
-        assert "不存在" in result
+        assert "not found" in result.lower()
+        assert "cmd-nonexistent" in result
 
     @pytest.mark.asyncio
     async def test_cancel_command_already_completed(self):
         """Test cancelling already completed task."""
         task = await task_manager.create_task(
-            task_type=TaskType.COMMAND,
-            title="测试命令",
-            tool_name="execute_command",
-            thread_id="test-thread",
+            CreateBackgroundTaskRequest(
+                task_type=TaskType.COMMAND,
+                title="测试命令",
+                tool_name="execute_command",
+                thread_id="test-thread",
+            )
         )
         
         await task_manager.start_task(task.task_id)
         await task_manager.complete_task(task.task_id)
         
-        result = await cancel_command(task.task_id)
+        result = await cancel_command.ainvoke({"task_id": task.task_id})
         
-        assert "⚠️" in result or "已完成" in result
+        assert "⚠️" in result or "已完成" in result or "completed" in result.lower()
 
     @pytest.mark.asyncio
     async def test_get_thread_id_from_config(self):
@@ -223,12 +233,12 @@ class TestExecuteCommandIntegration:
     @pytest.mark.asyncio
     async def test_quick_command_sync_execution(self):
         """Test that quick commands work in sync mode."""
-        result = await execute_command(
-            command="echo 'hello world'",
-            background=False,
-            timeout=10,
-            config=None
-        )
+        result = await execute_command.ainvoke({
+            "command": "echo 'hello world'",
+            "background": False,
+            "timeout": 10,
+            "config": None
+        })
         
         assert "Succeeded" in result or "hello world" in result
 
@@ -241,12 +251,12 @@ class TestExecuteCommandIntegration:
             future.set_result(None)
             mock_run.return_value = future
             
-            result = await execute_command(
-                command="sleep 1 && echo done",
-                background=True,
-                timeout=300,
-                config={"configurable": {"thread_id": "lifecycle-test"}}
-            )
+            result = await execute_command.ainvoke({
+                "command": "sleep 1 && echo done",
+                "background": True,
+                "timeout": 300,
+                "config": {"configurable": {"thread_id": "lifecycle-test"}}
+            })
             
             # Extract task ID from result
             import re
@@ -266,27 +276,27 @@ class TestExecuteCommandIntegration:
         with patch('app.domain.tools.execution._execute_command_with_timeout') as mock_exec:
             mock_exec.return_value = ("", "", 0)
             
-            await execute_command(
-                command="echo test",
-                background=False,
-                timeout=5,  # Below minimum
-                config=None
-            )
+            await execute_command.ainvoke({
+                "command": "echo test",
+                "background": False,
+                "timeout": 5,  # Below minimum
+                "config": None
+            })
             
             # Check that timeout was clamped to at least 10
             call_args = mock_exec.call_args
-            assert call_args[1]['timeout'] >= 10
+            assert call_args[0][1] >= 10  # positional arg: timeout
 
         # Test maximum (should be 3600)
         with patch('app.domain.tools.execution._execute_command_with_timeout') as mock_exec:
             mock_exec.return_value = ("", "", 0)
             
-            await execute_command(
-                command="echo test",
-                background=False,
-                timeout=5000,  # Above maximum
-                config=None
-            )
+            await execute_command.ainvoke({
+                "command": "echo test",
+                "background": False,
+                "timeout": 5000,  # Above maximum
+                "config": None
+            })
             
             call_args = mock_exec.call_args
-            assert call_args[1]['timeout'] <= 3600
+            assert call_args[0][1] <= 3600  # positional arg: timeout

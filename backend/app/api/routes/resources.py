@@ -8,31 +8,10 @@ from app.api.responses import BaseAPIResponse
 from app.infrastructure.database.sql.database import get_db_session
 from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.models import ProjectResource
+from app.api.schemas.resources import ResourceCreate, ResourceResponse, OperationResponse
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/projects/{project_id}/resources", tags=["resources"])
-
-
-class ResourceCreate(DynamicBaseModel):
-    type: Literal["file", "link"]
-    name: str  # user friendly name
-    content: str  # Relative Path for file, or URL for link
-
-
-class ResourceResponse(BaseAPIResponse):
-    id: int
-    project_id: int
-    type: str
-    name: str
-    content: str
-    created_at: str
-
-
-class OperationResponse(BaseAPIResponse):
-    """Simple operation status response."""
-    status: str
-    id: int
-
 
 @router.get("", response_model=list[ResourceResponse])
 async def list_resources(project_id: int):
@@ -56,7 +35,6 @@ async def list_resources(project_id: int):
     except Exception as e:
         logger.error(f"Failed to list resources: {e}")
         return []
-
 
 @router.post("", response_model=ResourceResponse)
 async def create_resource(project_id: int, req: ResourceCreate):
@@ -104,7 +82,6 @@ async def create_resource(project_id: int, req: ResourceCreate):
     except Exception as e:
         logger.error(f"Failed to create resource: {e}")
         raise HTTPException(500, str(e))
-
 
 @router.delete("/{resource_id}", response_model=OperationResponse)
 async def delete_resource(project_id: int, resource_id: int):

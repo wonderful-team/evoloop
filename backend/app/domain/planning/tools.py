@@ -9,6 +9,7 @@ from sqlalchemy import delete, select
 from app.core.context.manager import ContextManager
 from app.core.tools import evoloop_tool
 from .models import Plan, Step
+from app.domain.planning.schemas import CreatePlanInput, UpdatePlanInput
 
 logger = logging.getLogger(__name__)
 
@@ -23,18 +24,6 @@ def _render_analysis_prompt(plan: str, context: str, tree: str, user_lang: str) 
         tree=tree,
         user_lang=user_lang
     )
-
-
-class CreatePlanInput(BaseModel):
-    title: str = Field(..., description="High level goal of the plan")
-    steps: list[str] = Field(..., description="List of step titles")
-
-
-class UpdatePlanInput(BaseModel):
-    plan_id: str = Field(..., description="ID of the plan to update")
-    step_id: str = Field(..., description="ID of the step to update")
-    status: str = Field(..., description="New status: pending, in_progress, completed, failed")
-    result: str | None = Field(None, description="Result of the step")
 
 
 class PlanningTool(BaseTool):

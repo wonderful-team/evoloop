@@ -13,10 +13,6 @@ from app.core.events.base import BaseEvent
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 
-class AgentEventPayload(DynamicBaseModel):
-    """Dynamic payload for agent lifecycle events."""
-
-
 class AgentEvent(BaseEvent):
     """Base class for agent-related events."""
     source: str = "agent_engine"
@@ -29,7 +25,7 @@ class AgentRunCompletedEvent(AgentEvent):
     project_id: int = 1
     goal: str = ""
     status: str = "done"
-    payload: AgentEventPayload = Field(default_factory=AgentEventPayload)
+    payload: dict[str, Any] = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def _build_data(self):

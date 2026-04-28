@@ -11,9 +11,9 @@ from typing import Optional
 from pydantic import Field
 
 from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.domain.knowledge.schemas import TaggingResult
 
 logger = logging.getLogger(__name__)
-
 
 # Default bilingual tag categories (T-2.1: configurable)
 _DEFAULT_TAG_CATEGORIES = {
@@ -43,15 +43,6 @@ _DEFAULT_TAG_CATEGORIES = {
         "紧急", "高", "中", "低", "归档"
     ]
 }
-
-
-class TaggingResult(DynamicBaseModel):
-    """Result of auto-tagging."""
-    tags: list[str] = Field(default_factory=list)
-    category: str  # primary category
-    confidence: float
-    summary: str  # brief summary of document
-    keywords: list[str] = Field(default_factory=list)  # extracted keywords
 
 
 class AutoTaggerService:

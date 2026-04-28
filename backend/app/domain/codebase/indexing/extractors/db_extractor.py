@@ -10,14 +10,9 @@ from pydantic import Field
 
 from app.domain.codebase.indexing.extractors.base_extractor import SemanticExtractorBase
 from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.domain.codebase.schemas import DBTable
 
 logger = logging.getLogger(__name__)
-
-
-class DBTable(DynamicBaseModel):
-    name: str
-    file_path: str
-    columns: list[str] = Field(default_factory=list)
 
 
 class DBExtractor(SemanticExtractorBase[DBTable]):

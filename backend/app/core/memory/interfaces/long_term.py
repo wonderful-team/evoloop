@@ -10,14 +10,7 @@ from pydantic import Field
 
 from app.core.memory.models import Concept, Episode
 from app.infrastructure.pydantic_base import DynamicBaseModel
-
-
-class SearchResult(DynamicBaseModel):
-    """Semantic search result for concepts."""
-    name: str
-    description: str
-    score: float
-    files: List[str] = Field(default_factory=list)
+from app.core.memory.schemas import SearchResult
 
 
 class ILongTermMemory(ABC):

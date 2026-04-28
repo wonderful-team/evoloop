@@ -26,16 +26,9 @@ from app.core.engine.message.repository import MessageRepository
 from app.core.engine.message.stream import MessageStreamPolicy
 from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.core.engine.message.schemas import MessageBlock
+from app.core.engine.message.schemas import MessageHandlerResult
 
 logger = logging.getLogger(__name__)
-
-
-class MessageHandlerResult(DynamicBaseModel):
-    category: str
-    persisted: bool
-    streamed: bool
-    message_id: str | None = None
-    reason: str | None = None
 
 
 class MessageHandler:

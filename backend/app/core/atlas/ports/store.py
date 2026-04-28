@@ -2,30 +2,7 @@ from abc import ABC, abstractmethod
 
 from app.core.atlas.models import AtlasApp
 from app.infrastructure.pydantic_base import DynamicBaseModel
-
-
-class AtlasAppSummary(DynamicBaseModel):
-    """Summary of an Atlas app for LLM context generation."""
-    app_name: str
-    bundle_id: str
-    platform: str
-    version_hash: str = ""
-    state_count: int = 0
-    states: list = []
-
-
-class AtlasStateDetail(DynamicBaseModel):
-    """Detailed information about a specific UI state."""
-    state_id: str
-    window_title: str | None = None
-    elements: list = []
-
-
-class AtlasAppInfo(DynamicBaseModel):
-    """Lightweight info for a mapped app."""
-    app_name: str
-    bundle_id: str
-    platform: str
+from app.core.atlas.schemas import AtlasAppSummary, AtlasStateDetail, AtlasAppInfo
 
 
 class IAtlasStore(ABC):

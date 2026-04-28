@@ -6,9 +6,10 @@ import pytest
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, mock_open, patch
 
-from app.core.rewind.events import RewindEventType
-from app.core.rewind.events import FilesCleanupEvent, RewindRequestedEvent
-from app.core.file.rewind import FileRewind
+from app.core.engine.rewind.event.types import RewindEventType
+from app.core.engine.rewind.event.schemas import RewindRequestedEvent
+from app.core.file.event.schemas import FilesCleanupEvent
+from app.core.file.event.subscribers import FileRewind
 
 
 class TestFileRewind:
@@ -172,21 +173,13 @@ class TestFileRewind:
                 "id": 1,
                 "message_id": 100,
                 "path": str(test_file),
-                "operation": "ADD",
-                "backup_content": None,
-                "created_at": "2024-01-01 10:00:00"
-            },
-            {
-                "id": 2,
-                "message_id": 101,
-                "path": str(test_file),
                 "operation": "EDIT",
                 "backup_content": "version 1",
                 "created_at": "2024-01-01 11:00:00"
             },
             {
-                "id": 3,
-                "message_id": 102,
+                "id": 2,
+                "message_id": 101,
                 "path": str(test_file),
                 "operation": "EDIT",
                 "backup_content": "version 2",
@@ -199,8 +192,8 @@ class TestFileRewind:
         # Act
         count = await file_rewind._revert_files(operations)
 
-        # Assert - should restore to version 2 (last edit)
-        assert test_file.read_text() == "version 2"
+        # Assert - should restore to version 1 (first edit in reverse order)
+        assert test_file.read_text() == "version 1"
 
     # ========================================================================
     # ICleanupHandler Interface Tests
@@ -214,9 +207,11 @@ class TestFileRewind:
         test_file.write_text("to be deleted")
         
         # We need to mock the database query
-        with patch("app.core.file.rewind.session_scope") as mock_session_scope:
+        with patch("app.infrastructure.database.sql.database.session_scope") as mock_session_scope:
             mock_session = AsyncMock()
-            mock_session.execute.return_value.scalars.return_value.all.return_value = [
+            # scalars() is sync on Result, so execute should return a regular MagicMock
+            mock_result = MagicMock()
+            mock_result.scalars.return_value.all.return_value = [
                 MagicMock(
                     id=1,
                     message_id=100,
@@ -225,6 +220,7 @@ class TestFileRewind:
                     original_content=None
                 )
             ]
+            mock_session.execute.return_value = mock_result
             
             async_mock = MagicMock()
             async_mock.__aenter__ = AsyncMock(return_value=mock_session)

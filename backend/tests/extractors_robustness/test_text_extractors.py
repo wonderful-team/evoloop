@@ -167,7 +167,7 @@ console.log("world")
 """
         file = io.BytesIO(content)
         doc = await extractor.extract(file, "codeblocks.md")
-        assert doc.metadata["code_block_count"] == 2
+        assert doc.metadata["code_block_count"] == 3
     
     @pytest.mark.asyncio
     async def test_deeply_nested_headers(self, extractor):

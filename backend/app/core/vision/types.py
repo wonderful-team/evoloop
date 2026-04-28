@@ -39,12 +39,6 @@ class UIMetadata(DynamicBaseModel):
     native_attrs: NativeAttributes = Field(default_factory=NativeAttributes)
 
 
-class VisionMetadata(DynamicBaseModel):
-    provider: str | None = None
-    model_version: str | None = None
-    latency_breakdown: dict[str, float] = Field(default_factory=dict)
-
-
 class UIElement(DynamicBaseModel):
     """
     Represents a detected UI element on screen.
@@ -78,6 +72,12 @@ class UIElement(DynamicBaseModel):
         type_str = self.element_type.value
         text_preview = self.text[:30] + "..." if len(self.text) > 30 else self.text
         return f"[{self.id}] \"{text_preview}\" ({self.x}, {self.y}) [{type_str}]"
+
+
+class VisionMetadata(DynamicBaseModel):
+    provider: str | None = None
+    model_version: str | None = None
+    latency_breakdown: dict[str, float] = Field(default_factory=dict)
 
 
 class VisionResult(DynamicBaseModel):

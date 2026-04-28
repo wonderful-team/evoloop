@@ -5,87 +5,16 @@ This module defines standardized interaction types that the backend can send
 to the frontend to request human input or actions. All interactions are
 blocking (agent paused) until user responds.
 """
-from enum import Enum
-
-from app.infrastructure.pydantic_base import DynamicBaseModel
-
-
-class HumanRequestType(str, Enum):
-    """Types of human requests that backend can make."""
-
-    # Traditional text input
-    TEXT_INPUT = "text_input"
-    """Request text input from user (traditional HITL)."""
-
-    # Project-related
-    PROJECT_SWITCH = "project_switch"
-    """Request user to switch to a specific project or select from list."""
-
-    # Confirmation
-    CONFIRM = "confirm"
-    """Request yes/no confirmation from user."""
-
-    # Approval
-    APPROVAL = "approval"
-    """Request explicit approval for impactful actions."""
-
-    # File selection
-    FILE_SELECT = "file_select"
-    """Request user to select one or more files."""
-
-
-class TextInputRequest(DynamicBaseModel):
-    """Human request for text input."""
-    type: HumanRequestType
-    prompt: str
-    placeholder: str = "Enter your response..."
-    multiline: bool = False
-    allow_cancel: bool = True
-
-
-class ProjectSwitchPayload(DynamicBaseModel):
-    """Payload for project switch request."""
-    allow_global: bool = False
-    suggested_project_id: int | None = None
-    show_project_list: bool = True
-    temporary: bool = True
-
-
-class ProjectSwitchRequest(DynamicBaseModel):
-    """Human request for project switch."""
-    type: HumanRequestType
-    prompt: str
-    allow_cancel: bool = True
-    payload: ProjectSwitchPayload
-
-
-class ConfirmPayload(DynamicBaseModel):
-    """Payload for confirmation request."""
-    confirm_text: str = "Confirm"
-    cancel_text: str = "Cancel"
-
-
-class ConfirmRequest(DynamicBaseModel):
-    """Human request for confirmation."""
-    type: HumanRequestType
-    prompt: str
-    title: str = "Confirmation Required"
-    allow_cancel: bool = True
-    payload: ConfirmPayload
-
-
-class FileSelectPayload(DynamicBaseModel):
-    """Payload for file selection request."""
-    multiple: bool = False
-    file_types: list[str] = []
-
-
-class FileSelectRequest(DynamicBaseModel):
-    """Human request for file selection."""
-    type: HumanRequestType
-    prompt: str
-    allow_cancel: bool = True
-    payload: FileSelectPayload
+from app.core.monitoring.schemas import (
+    HumanRequestType,
+    TextInputRequest,
+    ProjectSwitchPayload,
+    ProjectSwitchRequest,
+    ConfirmPayload,
+    ConfirmRequest,
+    FileSelectPayload,
+    FileSelectRequest,
+)
 
 
 def create_text_input_request(

@@ -17,6 +17,7 @@ from pydantic import Field
 
 from app.domain.knowledge.services.store import KnowledgeStoreService
 from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.domain.knowledge.schemas import DuplicateResult, MergeSuggestion, MergeResult, DeleteDuplicatesResult
 
 logger = logging.getLogger(__name__)
 
@@ -80,37 +81,6 @@ class LSH:
                         for j in range(i + 1, len(doc_ids)):
                             pairs.add(tuple(sorted((doc_ids[i], doc_ids[j]))))
         return pairs
-
-
-class DuplicateResult(DynamicBaseModel):
-    """Result of duplicate detection."""
-    doc_id: str
-    path: str
-    similarity: float  # 0.0 to 1.0
-    match_type: str  # "exact", "content", "title", "fuzzy"
-    suggested_action: str  # "keep", "merge", "delete"
-
-
-class MergeSuggestion(DynamicBaseModel):
-    """Suggested document merge."""
-    documents: list[str]
-    suggested_title: str
-    strategy: str  # "concatenate", "diff", "selective"
-
-
-class MergeResult(DynamicBaseModel):
-    """Result of merging documents."""
-    success: bool
-    path: Optional[str] = None
-    source_count: Optional[int] = None
-    strategy: Optional[str] = None
-    error: Optional[str] = None
-
-
-class DeleteDuplicatesResult(DynamicBaseModel):
-    """Result of deleting duplicate documents."""
-    deleted: int
-    errors: list[dict] = Field(default_factory=list)
 
 
 class DeduplicationReport(DynamicBaseModel):

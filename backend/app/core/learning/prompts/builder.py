@@ -6,16 +6,9 @@ from pydantic import Field
 from app.core.environment.capabilities.registry import ActionRegistry
 from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.utils import render_template
+from app.core.learning.schemas.migrated import ActionRegistryItem
 
 logger = logging.getLogger(__name__)
-
-
-class ActionRegistryItem(DynamicBaseModel):
-    """Action metadata injected into prompt templates."""
-    id: str
-    description: str
-    params: list[str] = Field(default_factory=list)
-    platforms: list[str] = Field(default_factory=list)
 
 
 class LearningPromptBuilder:

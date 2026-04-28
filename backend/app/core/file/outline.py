@@ -13,33 +13,9 @@ import re
 
 from app.infrastructure.pydantic_base import DynamicBaseModel
 from .io import detect_encoding
+from app.core.file.schemas import FileStats, OutlineEntry, FilePreview
 
 logger = logging.getLogger(__name__)
-
-
-class FileStats(DynamicBaseModel):
-    """File statistics for a preview."""
-    path: str
-    size: int
-    total_lines: int
-    encoding: str | None = None
-    content_hash: str | None = None
-
-
-class OutlineEntry(DynamicBaseModel):
-    """A single entry in file outline."""
-    type: str  # 'class', 'function', 'method', 'variable', etc.
-    name: str
-    line: int  # 1-based line number
-    indent: int  # indentation level in spaces
-
-
-class FilePreview(DynamicBaseModel):
-    stats: FileStats
-    outline: list[OutlineEntry]
-    preview: str
-    preview_lines: list[int]
-
 
 # Language-specific patterns for lightweight parsing
 OUTLINE_PATTERNS = {

@@ -6,7 +6,7 @@ New code should import directly from the sub-modules.
 """
 
 # Schemas
-from app.core.engine.tools.orchestration.schemas import DecomposeTaskResult, ToolResult  # noqa: F401
+from app.core.engine.tools.orchestration.schemas import DecomposeTaskResult, OrchestrationToolResult  # noqa: F401
 
 # Tools
 from app.core.engine.tools.orchestration.planning import decompose_task  # noqa: F401

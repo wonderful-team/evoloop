@@ -23,6 +23,7 @@ from websockets.exceptions import ConnectionClosed
 
 from app.core.config import settings
 from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.infrastructure.schemas import ToolRequest
 
 try:
     from zeroconf import IPVersion, ServiceInfo, Zeroconf
@@ -31,18 +32,6 @@ except ImportError:
     HAS_ZEROCONF = False
 
 logger = logging.getLogger(__name__)
-
-
-class PendingToolRequest(DynamicBaseModel):
-    """Represents a pending tool request awaiting response."""
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    request_id: str
-    thread_id: str
-    tool: str
-    params: dict[str, Any]
-    future: asyncio.Future = Field(default_factory=lambda: asyncio.get_event_loop().create_future(), exclude=True)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
 class ClientWebSocketManager:
@@ -67,7 +56,7 @@ class ClientWebSocketManager:
 
         self._initialized = True
         self._websocket: Optional[websockets.WebSocketServerProtocol] = None
-        self._pending_requests: dict[str, PendingToolRequest] = {}
+        self._pending_requests: dict[str, ToolRequest] = {}
         self._lock = asyncio.Lock()
         self._server = None
         self._is_running = False
@@ -144,7 +133,7 @@ class ClientWebSocketManager:
         # Cancel all pending requests
         async with self._lock:
             for req in self._pending_requests.values():
-                if not req.future.done():
+                if req.future and not req.future.done():
                     req.future.set_exception(ConnectionError("WebSocket server shutting down"))
             self._pending_requests.clear()
 
@@ -282,11 +271,12 @@ class ClientWebSocketManager:
             raise ConnectionError("Client not connected via WebSocket")
 
         request_id = f"ws-{asyncio.get_event_loop().time():.6f}"
-        pending = PendingToolRequest(
+        pending = ToolRequest(
             request_id=request_id,
             thread_id=thread_id,
             tool=tool,
-            params=params
+            params=params,
+            future=asyncio.get_event_loop().create_future()
         )
 
         async with self._lock:

@@ -5,16 +5,9 @@ from fastapi import APIRouter
 from app.core.tools.manager import tool_manager
 from app.core.tools.registry import REGISTRY
 from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.api.schemas.tools import ToolInfo
 
 router = APIRouter(prefix="/tools", tags=["tools"])
-
-
-class ToolInfo(DynamicBaseModel):
-    name: str
-    description: str
-    args_schema: dict[str, Any] | None = None
-    is_runtime: bool | None = None
-
 
 @router.get("/runtime")
 async def list_runtime_tools() -> list[ToolInfo]:
@@ -38,7 +31,6 @@ async def list_runtime_tools() -> list[ToolInfo]:
             ToolInfo(name=t.name, description=t.description, args_schema=args_schema)
         )
     return results
-
 
 @router.get("")
 async def list_all_tools() -> list[ToolInfo]:

@@ -11,21 +11,9 @@ from app.domain.codebase.filter import FileFilter
 from app.models import Repository, SourceFile
 from app.utils.file import get_file_ext
 from app.utils.hash import compute_md5
+from app.domain.codebase.schemas import PreparedFile
 
 logger = logging.getLogger(__name__)
-
-
-class PreparedFile(BaseModel):
-    """Result of file preparation, ready for indexing."""
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    file_path: str
-    rel_path: str
-    content: str
-    checksum: str
-    source_file: SourceFile | None
-    is_new: bool
-    repo: Repository
 
 
 class FilePreparer:

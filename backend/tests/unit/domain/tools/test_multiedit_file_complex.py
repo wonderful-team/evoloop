@@ -12,9 +12,9 @@ pytest tests/unit/domain/tools/test_multiedit_file_complex.py -v
 """
 
 import os
-import tempfile
 import pytest
 import hashlib
+import uuid
 import asyncio
 from typing import List
 
@@ -86,9 +86,10 @@ class UserManager:
             limit = 1000
         return self.db.query_all(limit=limit)
 '''
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
+        root = get_working_directory(None)
+        path = os.path.join(root, f"multiedit_complex_{uuid.uuid4().hex}.py")
+        with open(path, 'w') as f:
             f.write(content)
-            path = f.name
         yield path
         if os.path.exists(path):
             os.unlink(path)
@@ -147,9 +148,10 @@ class UserManager:
         # Create file with 20 functions
         funcs = "\n".join([f"def old_func_{i:02d}():\n    return {i}" for i in range(20)])
         
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
+        root = get_working_directory(None)
+        bulk_file = os.path.join(root, f"multiedit_bulk_{uuid.uuid4().hex}.py")
+        with open(bulk_file, 'w') as f:
             f.write(f'"""Module with many functions."""\n\n{funcs}\n')
-            bulk_file = f.name
         
         try:
             # Generate 20 edits to rename all functions
@@ -201,9 +203,10 @@ def main():
     b = process_b()
     return a, b
 '''
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
+        root = get_working_directory(None)
+        chain_file = os.path.join(root, f"multiedit_chain_{uuid.uuid4().hex}.py")
+        with open(chain_file, 'w') as f:
             f.write(content)
-            chain_file = f.name
         
         try:
             edits = [
@@ -251,9 +254,10 @@ def main():
         """
         content = "\n".join([f"line_{i} = {i}" for i in range(10)])
         
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
+        root = get_working_directory(None)
+        atomic_file = os.path.join(root, f"multiedit_atomic_{uuid.uuid4().hex}.py")
+        with open(atomic_file, 'w') as f:
             f.write(content)
-            atomic_file = f.name
         
         try:
             # Capture original hash
@@ -315,9 +319,10 @@ class TestMultiEditFileRealWorldScenarios:
             f.write(result)
         return True
 '''
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
+        root = get_working_directory(None)
+        types_file = os.path.join(root, f"multiedit_types_{uuid.uuid4().hex}.py")
+        with open(types_file, 'w') as f:
             f.write(content)
-            types_file = f.name
         
         try:
             edits = [
@@ -382,9 +387,10 @@ class TestMultiEditFileRealWorldScenarios:
         # Delete logic
         return True
 '''
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
+        root = get_working_directory(None)
+        extract_file = os.path.join(root, f"multiedit_extract_{uuid.uuid4().hex}.py")
+        with open(extract_file, 'w') as f:
             f.write(content)
-            extract_file = f.name
         
         try:
             edits = [
@@ -440,9 +446,10 @@ def process():
     data = fetch_data()
     return data.json()
 '''
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
+        root = get_working_directory(None)
+        import_file = os.path.join(root, f"multiedit_import_{uuid.uuid4().hex}.py")
+        with open(import_file, 'w') as f:
             f.write(content)
-            import_file = f.name
         
         try:
             edits = [
@@ -488,10 +495,11 @@ class TestMultiEditFilePerformance:
         # Create 1000 line file
         lines = [f"def func_{i:04d}():\n    \"\"\"Docstring {i}.\"\"\"\n    return {i}\n" for i in range(1000)]
         
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
+        root = get_working_directory(None)
+        large_file = os.path.join(root, f"multiedit_large_{uuid.uuid4().hex}.py")
+        with open(large_file, 'w') as f:
             f.write('"""Large module."""\n\n')
             f.write("".join(lines))
-            large_file = f.name
         
         try:
             # Edit every 100th function
@@ -529,15 +537,16 @@ class TestMultiEditFilePerformance:
         
         multiedit should be faster and only write file once.
         """
-        content = "\n".join([f"var_{i} = {i}" for i in range(5)])
+        content = "\n".join([f"var_{i} = {i+1}" for i in range(5)])
         
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
+        root = get_working_directory(None)
+        comp_file = os.path.join(root, f"multiedit_comp_{uuid.uuid4().hex}.py")
+        with open(comp_file, 'w') as f:
             f.write(content)
-            comp_file = f.name
         
         try:
             edits = [
-                {"target": f"var_{i} = {i}", "replacement": f"var_{i} = {i*10}"}
+                {"target": f"var_{i} = {i+1}", "replacement": f"var_{i} = {(i+1)*10}"}
                 for i in range(5)
             ]
             
@@ -556,6 +565,6 @@ class TestMultiEditFilePerformance:
             with open(comp_file) as f:
                 final = f.read()
             for i in range(5):
-                assert f"var_{i} = {i*10}" in final
+                assert f"var_{i} = {(i+1)*10}" in final
         finally:
             os.unlink(comp_file)

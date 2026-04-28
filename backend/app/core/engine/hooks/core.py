@@ -40,11 +40,7 @@ from datetime import datetime
 from enum import Enum, auto
 from typing import Any
 
-from langchain_core.messages import BaseMessage
-from pydantic import ConfigDict, Field
-
-from app.core.engine.state.blackboard import BlackboardState
-from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.core.engine.hooks.schemas import HookMetadata, ToolInput, ToolResult, HookContext, HookResult
 
 logger = logging.getLogger(__name__)
 
@@ -84,78 +80,6 @@ class HookEvent(Enum):
 
     # Prompt Enrichment
     PROMPT_POLISHING = auto()    # Context-aware prompt polishing (domain expert hook)
-
-
-class HookMetadata(DynamicBaseModel):
-    """Dynamic metadata for hook events."""
-    summary: str | None = None
-    audit_tier: str | None = None
-    final_outcome: str | None = None
-    duration_ms: float | None = None
-    prompt: str | None = None
-
-
-class ToolInput(DynamicBaseModel):
-    """Typed wrapper for tool input arguments."""
-    command: str | None = None
-    path: str | None = None
-    content: str | None = None
-    query: str | None = None
-    args: dict[str, Any] | None = None
-
-
-class ToolResult(DynamicBaseModel):
-    """Structured wrapper for tool execution results."""
-    output: Any | None = None
-    error: str | None = None
-    data: dict[str, Any] | None = None
-
-
-class HookContext(DynamicBaseModel):
-    """Context passed to hook handlers - enriched with Claude Code-like fields."""
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    thread_id: str
-    project_id: int | None = None
-    user_id: str | None = None
-    messages: list[BaseMessage] = Field(default_factory=list)
-    blackboard: BlackboardState | None = None
-    metadata: HookMetadata = Field(default_factory=HookMetadata)
-
-    # For tool-related events
-    tool_name: str | None = None
-    tool_input: ToolInput | None = None
-    tool_result: ToolResult | None = None
-    tool_use_id: str | None = None
-    error: Exception | None = None
-    error_message: str | None = None
-
-    # For permission events
-    permission_mode: str | None = None  # "ask", "allow", "deny"
-
-    # For compact events
-    compact_trigger: str | None = None  # "manual" or "auto"
-
-    # For dependency injection (optional, falls back to global singleton)
-    memory_manager: Any | None = None  # MemoryManager instance
-    memory_config: Any | None = None   # MemoryConfig instance
-
-    # Allow arbitrary additional data
-    extra: dict[str, Any] = Field(default_factory=dict)
-
-
-class HookResult(DynamicBaseModel):
-    """Result from hook handler."""
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    success: bool = True
-    block: bool = False  # For blocking hooks (PreToolUse, Stop)
-    retry: bool = False  # For PermissionDenied - allow retry
-    message: str | None = None
-    modified_context: HookContext | None = None
-    data: dict[str, Any] = Field(default_factory=dict)
-    error: Exception | None = None
-
 
 # Handler type alias
 HookHandler = Callable[[HookContext], HookResult | Awaitable[HookResult]]

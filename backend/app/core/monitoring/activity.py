@@ -24,36 +24,9 @@ from app.models.schemas.events import (
     StepEvent,
 )
 from app.services.cache_services import ActivityStateService
+from app.core.monitoring.schemas import AgentActivityState, HumanRequestData, SystemLogPayload
 
 logger = logging.getLogger(__name__)
-
-
-class AgentActivityState(DynamicBaseModel):
-    mode: str
-    task_name: str
-    task_status: str
-    details: dict | None = None
-
-
-class HumanRequestData(DynamicBaseModel):
-    type: str
-    prompt: str
-    allow_cancel: bool = True
-    payload: dict = Field(default_factory=dict)
-
-
-class InteractionPayload(DynamicBaseModel):
-    pass
-
-
-class AgentStateDetails(DynamicBaseModel):
-    pass
-
-
-class SystemLogPayload(DynamicBaseModel):
-    type: str
-    data: dict
-    timestamp: float
 
 
 class ActivityMonitor:
@@ -151,7 +124,7 @@ class ActivityMonitor:
         thread_id: str,
         request_type: str,
         prompt: str,
-        payload: InteractionPayload | None = None,
+        payload: dict[str, Any] | None = None,
         allow_cancel: bool = True
     ) -> None:
         """
@@ -179,7 +152,7 @@ class ActivityMonitor:
             type=request_type,
             prompt=prompt,
             allow_cancel=allow_cancel,
-            payload=payload.model_dump() if isinstance(payload, InteractionPayload) else (payload or {}),
+            payload=payload or {},
         )
 
         success = await self._state_service.set_human_request(thread_id, request_data.model_dump())
@@ -303,7 +276,7 @@ class ActivityMonitor:
                 logger.error(f"[ActivityMonitor] Failed to update step {step_id} for thread {thread_id} after {max_retries} attempts: {e}")
 
     async def update_agent_state(
-        self, thread_id: str, mode: str, task_name: str, task_status: str, details: AgentStateDetails | None = None
+        self, thread_id: str, mode: str, task_name: str, task_status: str, details: dict[str, Any] | None = None
     ):
         """Update agent state and publish event."""
         state = AgentActivityState(

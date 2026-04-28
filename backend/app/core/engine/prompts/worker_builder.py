@@ -28,7 +28,10 @@ class WorkerPromptBuilder:
         self.agent_config = agent_config
         self.blackboard = blackboard
         self.skills = skills or []
-        self.clipboard = blackboard.clipboard if blackboard else []
+        if isinstance(blackboard, dict):
+            self.clipboard = blackboard.get("clipboard", [])
+        else:
+            self.clipboard = blackboard.clipboard if blackboard else []
         self.ticket = ticket
         self.focus_files = focus_files or []
         self.plan = plan

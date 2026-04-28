@@ -7,7 +7,7 @@ Helper functions for publishing agent-related events.
 
 from app.core.events import system_bus
 
-from .schemas import AgentEventPayload, AgentRunCompletedEvent, WebSocketMessageReceivedEvent
+from .schemas import AgentRunCompletedEvent, WebSocketMessageReceivedEvent
 
 
 async def publish_agent_run_completed(
@@ -18,7 +18,7 @@ async def publish_agent_run_completed(
     payload: dict | None = None,
 ) -> None:
     """Publish an event when an agent run completes."""
-    event_payload = AgentEventPayload(**(payload or {}))
+    event_payload = payload or {}
     await system_bus.publish(
         AgentRunCompletedEvent(
             thread_id=thread_id,

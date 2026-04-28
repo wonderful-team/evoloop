@@ -12,6 +12,7 @@ from app.utils import ContentFormatter, ControllerResponse, render_template
 from app.utils import json as json_utils
 from app.utils.detect import detect_language
 from app.utils.file import ensure_local_path, read_file_content, resolve_path
+from app.domain.tools.schemas import DocxHeading, ExcelSheetInfo, ExcelInspectionResult, DocxInspectionResult, PdfInspectionResult
 
 try:
     import docx
@@ -24,35 +25,9 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-
 # Helper logic moved to app.utils.file
 # _ensure_local_path -> ensure_local_path
 # _resolve_project_path -> resolve_path (with context awareness handled below or in util if passed)
-
-
-class DocxHeading(BaseModel):
-    style: str
-    text: str
-
-
-class ExcelSheetInfo(DynamicBaseModel):
-    columns: list[str]
-    preview: list[dict]
-
-
-class ExcelInspectionResult(DynamicBaseModel):
-    sheets: list[str]
-    details: dict[str, ExcelSheetInfo]
-
-
-class DocxInspectionResult(DynamicBaseModel):
-    headings_count: int
-    headings: list[DocxHeading]
-
-
-class PdfInspectionResult(DynamicBaseModel):
-    pages: int
-    metadata: dict | None = None
 
 
 def _resolve_project_path(file_path: str) -> str:

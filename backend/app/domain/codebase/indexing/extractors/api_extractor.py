@@ -12,16 +12,9 @@ import tree_sitter
 from app.domain.codebase.indexing.extractors.base_extractor import SemanticExtractorBase
 from app.domain.codebase.indexing.parsers import parser_registry
 from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.domain.codebase.schemas import APIEndpoint
 
 logger = logging.getLogger(__name__)
-
-
-class APIEndpoint(DynamicBaseModel):
-    method: str
-    path: str
-    handler_name: str
-    file_path: str
-    line_number: int
 
 
 class APIExtractor(SemanticExtractorBase[APIEndpoint]):

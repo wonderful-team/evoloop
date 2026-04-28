@@ -6,17 +6,9 @@ import time
 from mcp import ClientSession
 
 from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.core.mcp.schemas import HealthStatus
 
 logger = logging.getLogger(__name__)
-
-
-class HealthStatus(DynamicBaseModel):
-    """Health check result."""
-    is_healthy: bool
-    server_name: str
-    last_check: float
-    response_time_ms: float
-    error_message: str | None = None
 
 
 class McpHealthChecker:

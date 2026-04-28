@@ -15,7 +15,7 @@ from app.domain.tools.files.edit_file import edit_file, handle_edit
 
 # edit_file is a StructuredTool; inspect its underlying coroutine for signature
 _edit_file_func = edit_file.coroutine if hasattr(edit_file, 'coroutine') else edit_file
-from app.utils.file import apply_edit_with_verification
+from app.core.file import apply_edit_with_verification
 
 
 class TestEditAPICompat:
@@ -29,6 +29,7 @@ class TestEditAPICompat:
             "path",
             "target",
             "replacement",
+            "edits",
             "allow_multiple",
             "expected_hash",
             "dry_run",
@@ -77,7 +78,7 @@ class TestEditAPICompat:
 
     @pytest.mark.asyncio
     async def test_expected_hash_still_works(self):
-        from app.utils.file import safe_read_with_hash
+        from app.core.file import safe_read_with_hash
         from app.core.tools import get_working_directory
         import uuid
 
@@ -102,12 +103,6 @@ class TestEditAPICompat:
         sig = inspect.signature(handle_edit)
         params = list(sig.parameters.keys())
         expected = [
-            "path",
-            "target",
-            "content",
-            "allow_multiple",
-            "expected_hash",
-            "verify_types",
-            "config",
+            "request",
         ]
         assert params == expected, f"handle_edit signature changed: {params}"

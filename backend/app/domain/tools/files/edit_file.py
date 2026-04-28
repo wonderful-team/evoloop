@@ -17,6 +17,7 @@ from app.core.file.editor import EditEngine
 from app.core.tools import evoloop_tool, get_working_directory
 from app.i18n.service import i18n
 from .utils import resolve_and_validate_path
+from app.domain.tools.schemas import FileEditOperation, EditFileRequest, EditPreviewResult
 
 logger = logging.getLogger(__name__)
 
@@ -27,39 +28,6 @@ class MatchConfidence(Enum):
     MEDIUM = "medium"  # Fuzzy match successful
     LOW = "low"  # Multiple candidates or partial match
     NONE = "none"  # No match found
-
-
-class FileEditOperation(BaseModel):
-    """Single edit operation within a multi-edit request."""
-    target: str
-    replacement: str
-    allow_multiple: bool = False
-
-
-class EditFileRequest(BaseModel):
-    """Request model for editing a file."""
-    path: str
-    target: str | None = None
-    content: str | None = None
-    allow_multiple: bool = False
-    expected_hash: str | None = None
-    verify_types: bool = True
-    config: RunnableConfig | None = None
-    edits: list[FileEditOperation] | None = None
-
-
-class EditPreviewResult(BaseModel):
-    """Result of previewing an edit."""
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    success: bool
-    confidence: MatchConfidence
-    diff: str
-    original_content: str
-    new_content: str
-    matched_text: str | None = None
-    strategy_used: str | None = None
-    message: str
 
 
 def generate_unified_diff(

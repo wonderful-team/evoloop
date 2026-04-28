@@ -21,7 +21,6 @@ from .schemas import (
     ProjectDeletedEvent,
     ProjectMovedEvent,
     ProjectSwitchedEvent,
-    ProjectSwitchEvent,
 )
 from .types import ProjectEventType
 from app.domain.project.sync_service import ProjectSyncService
@@ -47,7 +46,7 @@ class ProjectSwitchWebSocketHandler:
             return
 
         try:
-            switch_data = ProjectSwitchEvent.model_validate(event.payload)
+            switch_data = ProjectSwitchedEvent.model_validate(event.payload)
         except Exception as e:
             logger.error(f"[ProjectSwitchWS] Invalid project_switch payload: {e}")
             return
@@ -56,11 +55,11 @@ class ProjectSwitchWebSocketHandler:
         await publish_project_switched(
             project_id=switch_data.project_id or 0,
             project_name=switch_data.project_name or "",
-            path=switch_data.external_path or switch_data.path or "",
+            path=switch_data.path or "",
         )
         logger.info(
             f"[ProjectSwitchWS] Bridged project_switch -> ProjectSwitchedEvent: "
-            f"id={switch_data.project_id}, path={switch_data.external_path or switch_data.path}"
+            f"id={switch_data.project_id}, path={switch_data.path}"
         )
 
 

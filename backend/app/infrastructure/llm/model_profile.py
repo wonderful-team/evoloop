@@ -8,46 +8,9 @@ to replace hardcoded constants throughout the system.
 import logging
 
 from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.infrastructure.schemas import ModelProfile
 
 logger = logging.getLogger(__name__)
-
-
-class ModelProfile(DynamicBaseModel):
-    """Profile defining a model's capabilities and tuning parameters."""
-
-    name: str
-    max_context_tokens: int
-    recommended_output_tokens: int = 4096
-    context_window_ratio: float = 0.6  # Use 60% of context for history
-    prune_threshold_ratio: float = 0.7  # Start pruning at 70% capacity
-    truncate_limit_tokens: int = 5000  # Max tokens per single tool output
-    supports_vision: bool = False
-    supports_tool_calls: bool = True
-
-    @property
-    def effective_history_tokens(self) -> int:
-        """Max tokens available for message history."""
-        return int(self.max_context_tokens * self.context_window_ratio)
-
-    @property
-    def prune_threshold_tokens(self) -> int:
-        """Token count at which pruning should trigger."""
-        return int(self.effective_history_tokens * self.prune_threshold_ratio)
-
-    @property
-    def window_size(self) -> int:
-        """
-        Recommended message window size.
-        Heuristic: average message ~200 tokens.
-        """
-        avg_msg_tokens = 200
-        return max(10, self.effective_history_tokens // avg_msg_tokens)
-
-    @property
-    def truncate_limit_chars(self) -> int:
-        """Character-based truncate limit (for backward compatibility)."""
-        return self.truncate_limit_tokens * 4
-
 
 _BUILTIN_PROFILES: dict[str, ModelProfile] = {
     # OpenAI

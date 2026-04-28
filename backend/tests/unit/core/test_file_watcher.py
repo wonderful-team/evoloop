@@ -26,11 +26,11 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../.."))
 from app.core.file.watcher import (
     FileWatcher,
     FileWatcherManager,
-    FileWatcherEvent,
     _EventBusHandler,
 )
+from app.core.file.event.schemas import FileWatcherEvent
+from app.core.file.event.types import FileSystemEventType
 from app.core.events import system_bus
-from app.core.file.events import FileSystemEventType
 
 
 # ============================================================

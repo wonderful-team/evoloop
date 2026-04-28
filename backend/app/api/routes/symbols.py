@@ -5,25 +5,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_db
 from app.api.responses import BaseAPIResponse
 from app.models import CodeEntity, Repository
+from app.api.schemas.symbols import SymbolResponse, SymbolWikiResponse
 
 router = APIRouter()
-
-
-class SymbolResponse(BaseAPIResponse):
-    """Code symbol search result."""
-    id: int
-    name: str
-    full_name: str
-    type: str
-    file_path: str
-    start_line: int
-    end_line: int
-
-
-class SymbolWikiResponse(BaseAPIResponse):
-    """Response for symbol wiki generation."""
-    content: str
-
 
 @router.get("/projects/{project_id}/symbols", response_model=list[SymbolResponse])
 async def search_symbols(
@@ -83,7 +67,6 @@ async def search_symbols(
         ))
 
     return response
-
 
 @router.post("/projects/{project_id}/symbols/{symbol_id}/wiki", response_model=SymbolWikiResponse)
 async def generate_symbol_wiki(

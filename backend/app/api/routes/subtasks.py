@@ -15,105 +15,13 @@ from app.api.responses import BaseAPIResponse
 from app.domain.project.subtask_service import subtask_service
 from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.utils.id import gen_uuid
+from app.api.schemas.subtasks import SubtaskCreate, TaskWithSubtasksCreate, TaskProgressUpdate, TaskTreeResponse, ExecutableTaskResponse, TaskCreateResponse, TaskTreeWrapperResponse, NextTaskResponse, TaskFlatResponse, TaskListItem, TaskListResponse
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/projects/{project_id}/subtasks", tags=["subtasks"])
 
-
 # --- Pydantic Models ---
-
-class SubtaskCreate(DynamicBaseModel):
-    """Subtask creation request."""
-    title: str = Field(..., min_length=1, max_length=255)
-    description: str = ""
-    priority: str = "medium"  # high/medium/low
-    estimated_hours: int = 0
-
-
-class TaskWithSubtasksCreate(DynamicBaseModel):
-    """Create parent task with subtasks."""
-    title: str = Field(..., min_length=1, max_length=255)
-    description: str = ""
-    priority: str = "medium"
-    estimated_hours: int = 0
-    subtasks: list[SubtaskCreate] = []
-    analysis_id: Optional[str] = None  # Optional, can be dummy
-
-
-class TaskProgressUpdate(DynamicBaseModel):
-    """Task progress update."""
-    status: Optional[str] = None  # pending/in_progress/completed/failed
-    progress: Optional[int] = Field(None, ge=0, le=100)
-    result: Optional[str] = None  # Execution result summary
-
-
-class TaskTreeResponse(DynamicBaseModel):
-    """Task tree response."""
-    id: str
-    title: str
-    description: str
-    status: str
-    progress: int
-    priority: str
-    estimated_hours: int
-    is_parent: bool
-    created_at: Optional[str]
-    updated_at: Optional[str]
-    subtasks: list["TaskTreeResponse"] = []
-
-
-class ExecutableTaskResponse(DynamicBaseModel):
-    """Next executable task response."""
-    id: str
-    title: str
-    description: str
-    is_subtask: bool
-    parent_title: Optional[str] = None
-
-
-class TaskCreateResponse(BaseAPIResponse):
-    """Response after creating a task with subtasks."""
-    task: dict[str, Any]
-
-
-class TaskTreeWrapperResponse(BaseAPIResponse):
-    """Response wrapping a task tree."""
-    task: dict[str, Any]
-
-
-class TaskProgressUpdateResponse(BaseAPIResponse):
-    """Response after updating task progress."""
-    pass
-
-
-class NextTaskResponse(BaseAPIResponse):
-    """Response for next executable task."""
-    task: dict[str, Any] | None
-
-
-class TaskFlatResponse(BaseAPIResponse):
-    """Response for flattened task tree."""
-    count: int
-    tasks: list[dict[str, Any]]
-
-
-class TaskListItem(DynamicBaseModel):
-    """Item in root task list."""
-    id: str
-    title: str
-    status: str
-    progress: int
-    priority: str
-    has_subtasks: bool
-    created_at: str | None
-
-
-class TaskListResponse(BaseAPIResponse):
-    """Response for listing root tasks."""
-    count: int
-    tasks: list[TaskListItem]
-
 
 # --- API Routes ---
 
@@ -169,7 +77,6 @@ async def create_task_with_subtasks(
         logger.error(f"[SubtasksAPI] Failed to create task: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @router.get("/tree/{task_id}", response_model=TaskTreeWrapperResponse)
 async def get_task_tree(
     project_id: int,
@@ -188,8 +95,7 @@ async def get_task_tree(
         task=tree
     )
 
-
-@router.put("/progress/{task_id}", response_model=TaskProgressUpdateResponse)
+@router.put("/progress/{task_id}", response_model=BaseAPIResponse)
 async def update_task_progress(
     project_id: int,
     task_id: str,
@@ -212,11 +118,10 @@ async def update_task_progress(
     if not success:
         raise HTTPException(status_code=404, detail="Task not found")
         
-    return TaskProgressUpdateResponse(
+    return BaseAPIResponse(
         success=True,
         message="Progress updated"
     )
-
 
 @router.get("/next", response_model=NextTaskResponse)
 async def get_next_executable_task(
@@ -242,7 +147,6 @@ async def get_next_executable_task(
         task=task
     )
 
-
 @router.get("/flat/{task_id}", response_model=TaskFlatResponse)
 async def flatten_task_tree(
     project_id: int,
@@ -260,7 +164,6 @@ async def flatten_task_tree(
         count=len(flat_list),
         tasks=flat_list
     )
-
 
 @router.get("/list", response_model=TaskListResponse)
 async def list_root_tasks(

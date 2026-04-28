@@ -664,6 +664,9 @@ class FileCacheCore:
     async def ltrim(self, name: str, start: int, end: int) -> bool:
         return await self._core.ltrim(name, start, end)
 
+    async def lrange(self, name: str, start: int, end: int) -> list:
+        return await self._core.lrange(name, start, end)
+
 class FileCache(Cache):
     """
     Embedded mode cache backend using file-based storage.

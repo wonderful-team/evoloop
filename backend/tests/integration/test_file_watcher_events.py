@@ -29,7 +29,7 @@ from app.core.file.watcher import (
     FileWatcherEvent,
 )
 from app.core.events import system_bus, AsyncEventBus, BaseEvent
-from app.core.file.events import FileSystemEventType
+from app.core.file.event.types import FileSystemEventType
 
 
 # Helper function to compare paths (handles macOS /private prefix)

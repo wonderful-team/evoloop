@@ -12,7 +12,6 @@ Key Concepts:
 
 import json
 import logging
-from enum import Enum
 
 from pydantic import Field
 from sqlalchemy import select
@@ -20,83 +19,17 @@ from sqlalchemy import select
 from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.models import TraceEvent
+from app.core.learning.schemas import (
+    ActionCategory,
+    ActionSource,
+    TraceActionArgs,
+    TraceStateContext,
+    TraceStep,
+    TraceSummary,
+    UIContext,
+)
 
 logger = logging.getLogger(__name__)
-
-
-class ActionSource(str, Enum):
-    """Who initiated the action."""
-    AGENT = "agent"
-    HUMAN = "human"
-
-
-class ActionCategory(str, Enum):
-    """High-level categorization of actions."""
-    NAVIGATION = "navigation"  # File/URL navigation
-    EDIT = "edit"  # Content modification
-    QUERY = "query"  # Information retrieval
-    COMMAND = "command"  # System command execution
-    INTERACTION = "interaction"  # UI interaction
-    DECISION = "decision"  # Approval/choice
-    SYSTEM_INTERACTION = "system_interaction"  # Global system interaction
-    OTHER = "other"
-
-
-class UIContext(DynamicBaseModel):
-    """Visual/UI context at the time of action."""
-    screenshot_path: str | None = None
-    element_selector: str | None = None
-    element_text: str | None = None
-
-
-class TraceActionArgs(DynamicBaseModel):
-    """Dynamic arguments for a trace action."""
-
-
-class TraceStateContext(DynamicBaseModel):
-    """Dynamic state context for a trace step."""
-    app_name: str | None = None
-    is_mirrored: bool | None = None
-    window_title: str | None = None
-
-
-class TraceSummary(DynamicBaseModel):
-    """Summary of a trace sequence."""
-    thread_id: str
-    task_name: str | None = None
-    total_steps: int
-    human_steps: int
-    agent_steps: int
-    tools_used: list[str] = Field(default_factory=list)
-    success: bool = True
-
-
-class TraceStep(DynamicBaseModel):
-    """
-    A single semantic step in a trace sequence.
-    Represents one complete action-observation pair.
-    """
-    step_number: int
-    source: ActionSource
-    category: ActionCategory
-
-    # Core action info
-    action_type: str  # Raw type (tool_call, click, input, etc.)
-    action_name: str  # Semantic name (e.g., "read_file", "click_button")
-    action_args: TraceActionArgs = Field(default_factory=TraceActionArgs)
-
-    # Observation/result
-    observation: str | None = None
-    success: bool = True
-
-    # Context
-    node_name: str = "unknown"
-    state_context: TraceStateContext = Field(default_factory=TraceStateContext)
-    ui_context: UIContext | None = None
-
-    # Metadata
-    timestamp: float | None = None
-    user_feedback: str | None = None
 
 
 class TraceSequence(DynamicBaseModel):

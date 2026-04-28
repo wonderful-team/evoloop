@@ -7,11 +7,11 @@ from app.api.responses import BaseAPIResponse
 from app.core.evocloud import evocloud_manager
 from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.services.benefit_service import benefit_service
+from app.api.schemas.subscription import CreateOrderRequest, BenefitsUpdateWebhook, SubscriptionWebhookResponse
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["subscription"])
-
 
 # --- Subscription Plans & Status ---
 
@@ -20,41 +20,30 @@ async def get_subscription_plans(_token: TokenDep):
     """获取可用订阅计划"""
     return await evocloud_manager.api.get_subscription_plans()
 
-
 @router.post("/subscription/upgrade-preview")
 async def calculate_upgrade_price(target_level_id: int, _token: TokenDep):
     """计算升级价格预览"""
     return await evocloud_manager.api.calculate_upgrade_price(target_level_id)
-
 
 @router.get("/subscription/status")
 async def get_subscription_status(_token: TokenDep):
     """获取订阅状态"""
     return await evocloud_manager.api.get_subscription_status()
 
-
 @router.get("/subscription/detail")
 async def get_subscription_detail(_token: TokenDep):
     """获取订阅详情"""
     return await evocloud_manager.api.get_subscription_detail()
-
-
-class CreateOrderRequest(DynamicBaseModel):
-    level_id: int
-    auto_renew: bool = False
-
 
 @router.post("/subscription/order")
 async def create_subscription_order(req: CreateOrderRequest, _token: TokenDep):
     """创建订阅订单"""
     return await evocloud_manager.api.create_subscription_order(req.level_id, req.auto_renew)
 
-
 @router.post("/subscription/cancel")
 async def cancel_subscription(cancel_type: str = "expire", reason: str = "", _token: TokenDep = None):
     """取消订阅"""
     return await evocloud_manager.api.cancel_subscription(cancel_type, reason)
-
 
 @router.get("/subscription/order/status")
 async def check_subscription_order_status(
@@ -66,7 +55,6 @@ async def check_subscription_order_status(
     """
     return await evocloud_manager.api.check_subscription_order_status(order_id)
 
-
 # --- AI Quota ---
 
 @router.get("/quota")
@@ -74,33 +62,17 @@ async def get_ai_quota(_token: TokenDep):
     """获取主要 AI 配额 (统一配额池)"""
     return await evocloud_manager.api.get_ai_quota()
 
-
 @router.get("/quota/all")
 async def get_all_ai_quotas(_token: TokenDep):
     """获取所有 AI 配额"""
     return await evocloud_manager.api.get_all_ai_quotas()
-
 
 @router.get("/quota/history")
 async def get_ai_quota_history(page: int = 1, page_size: int = 20, _token: TokenDep = None):
     """获取配额使用历史"""
     return await evocloud_manager.api.get_ai_quota_history(page, page_size=page_size)
 
-
 # --- Webhook for Benefits Update ---
-
-class BenefitsUpdateWebhook(DynamicBaseModel):
-    member_id: int
-    event: str  # "subscription_created", "subscription_renewed", "subscription_cancelled"
-    level_id: int | None = None
-    timestamp: int
-    signature: str  # HMAC签名用于验证
-
-
-class WebhookResponse(BaseAPIResponse):
-    """Webhook processing response."""
-    code: int
-
 
 @router.post("/webhook/benefits-update")
 async def handle_benefits_update_webhook(payload: BenefitsUpdateWebhook):
@@ -134,7 +106,7 @@ async def handle_benefits_update_webhook(payload: BenefitsUpdateWebhook):
         benefit_service.invalidate_cache(payload.member_id)
         logger.info(f"[Webhook] Benefits cache invalidated due to {payload.event}")
     
-    return WebhookResponse(
+    return SubscriptionWebhookResponse(
         code=0,
         message="Webhook processed successfully"
     )

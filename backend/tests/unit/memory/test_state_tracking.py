@@ -280,6 +280,7 @@ class TestCleanup:
         from app.core.memory.state_tracking import MemoryStateTracker
         
         tracker = MemoryStateTracker()
+        tracker._last_cleanup = 0  # Force immediate cleanup
         
         # Add some entries
         tracker._surfaced["thread_1"]["mem_001"] = time.time() - 7200  # Expired
@@ -299,6 +300,7 @@ class TestCleanup:
         from app.core.memory.state_tracking import MemoryStateTracker
         
         tracker = MemoryStateTracker()
+        tracker._last_cleanup = 0  # Force immediate cleanup
         
         # Add only expired entries to thread
         tracker._surfaced["thread_1"]["mem_001"] = time.time() - 7200
@@ -432,6 +434,7 @@ class TestConvenienceFunctions:
             memory_tracker,
         )
         
+        memory_tracker.clear_thread("thread_1")
         memory_tracker.mark_surfaced("thread_1", ["mem_001"])
         
         class MockEntry:

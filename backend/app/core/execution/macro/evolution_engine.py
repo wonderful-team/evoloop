@@ -19,30 +19,9 @@ from app.core.execution.macro.models import (
     StepResult,
 )
 from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.core.execution.macro.schemas import EvolutionRule, EvolutionContext
 
 logger = logging.getLogger(__name__)
-
-
-class EvolutionRule(DynamicBaseModel):
-    """Rule for transforming a step based on anomaly type"""
-    name: str
-    anomaly_type: AnomalyType
-    description: str
-    priority: int = 0
-
-
-class EvolutionContext(DynamicBaseModel):
-    """Context for macro evolution"""
-    original_macro: list[dict[str, Any]]
-    step_results: list[StepResult]
-    evolution_records: list[MacroEvolutionRecord]
-    target_platform: str = "web"
-
-    # Track which steps have been modified
-    modified_steps: set[int] = Field(default_factory=set)
-
-    # Track added steps (insertions)
-    inserted_steps: dict[int, list[dict[str, Any]]] = Field(default_factory=dict)
 
 
 class StepTransformer(ABC):

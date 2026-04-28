@@ -16,29 +16,9 @@ from sqlalchemy.orm import Session
 from app.infrastructure.database.resource_manager import db_resource_manager
 from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.models.citation import CitationEvent, DocStat, SessionDoc
+from app.domain.knowledge.schemas import DocumentStats, DocumentRecommendation
 
 logger = logging.getLogger(__name__)
-
-
-class DocumentStats(DynamicBaseModel):
-    """Citation statistics for a document."""
-
-    doc_id: str
-    doc_path: str
-    total_citations: int = 0
-    unique_sessions: int = 0
-    last_accessed: Optional[datetime] = None
-    tools_used: dict[str, int] = {}
-    related_docs: list[str] = []
-
-
-class DocumentRecommendation(DynamicBaseModel):
-    """Document recommendation based on citation patterns."""
-
-    path: str
-    reason: str
-    relevance: float
-    total_citations: int
 
 
 class CitationTracker:

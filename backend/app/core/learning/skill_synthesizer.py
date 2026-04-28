@@ -15,7 +15,7 @@ from pydantic import Field
 from sqlalchemy import select
 
 from app.core.config import settings
-from app.core.execution.macro.verification_service import SynthesisVerificationResult
+from app.core.execution.macro.models import VerificationResponse, VerificationStatus
 from app.core.learning.prompts import prompt_builder
 from app.core.learning.schemas import SkillParameter
 from app.core.learning.synthesizer_utils import (
@@ -127,7 +127,7 @@ class WorkflowSynthesizer:
         verification = await self.verify_macro(macro_script)
 
         # Use evolved macro if available
-        if verification.status == "success" and verification.evolved_macro:
+        if verification.success and verification.evolved_macro:
             evolved_steps = verification.evolved_macro
             # Count lines/steps in original YAML for comparison
             original_steps = yaml.safe_load(macro_script) if macro_script else []
@@ -137,11 +137,11 @@ class WorkflowSynthesizer:
             macro_script = yaml.dump(evolved_steps, default_flow_style=False, allow_unicode=True, sort_keys=False)
             logger.info(
                 f"[{self.thread_id}] Using evolved macro: {original_count} -> {evolved_count} steps, "
-                f"mode={verification.execution_mode or 'unknown'}"
+                f"mode={verification.execution_mode.value if verification.execution_mode else 'unknown'}"
             )
-        elif verification.status != "success":
+        elif not verification.success:
             logger.warning(
-                f"[{self.thread_id}] ⚠️ Verification failed: {verification.error or 'Unknown error'}. "
+                f"[{self.thread_id}] ⚠️ Verification failed: {verification.error_message or 'Unknown error'}. "
                 f"Proceeding with unverified macro."
             )
             # Don't abort - let the LLM have a chance to fix it
@@ -161,10 +161,10 @@ class WorkflowSynthesizer:
             logger.info(f"[{self.thread_id}] Using LLM-synthesized smart macro script")
 
         # Set execution mode based on verification results
-        if verification.status == "success":
+        if verification.success:
             # Use the verified execution mode
-            skill.execution_mode = verification.execution_mode or "deterministic"
-            confidence = verification.confidence or 0
+            skill.execution_mode = verification.execution_mode.value if verification.execution_mode else "deterministic"
+            confidence = verification.confidence_score or 0
             logger.info(
                 f"[{self.thread_id}] Verified execution mode for {skill.name}: "
                 f"{skill.execution_mode} (confidence: {confidence:.2%})"
@@ -179,7 +179,7 @@ class WorkflowSynthesizer:
 
         return skill
 
-    async def verify_macro(self, macro_script: str, project_id: int = 1) -> SynthesisVerificationResult:
+    async def verify_macro(self, macro_script: str, project_id: int = 1) -> VerificationResponse:
         """
         [Phase 5] Agent-based verification of a draft macro.
 

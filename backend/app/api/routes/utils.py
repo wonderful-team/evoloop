@@ -2,6 +2,7 @@ from fastapi import APIRouter
 
 from app.api.responses import BaseAPIResponse
 from app.core.evocloud import evocloud_manager
+from app.api.schemas.utils import EvoloopStatusResponse
 
 router = APIRouter(prefix="/utils", tags=["utils"])
 
@@ -9,12 +10,6 @@ router = APIRouter(prefix="/utils", tags=["utils"])
 @router.get("/health-check/")
 async def health_check() -> bool:
     return True
-
-
-class EvoloopStatusResponse(BaseAPIResponse):
-    connected: bool
-    device_key: str | None = None
-    device_name: str
 
 
 @router.get("/evoloop-status")

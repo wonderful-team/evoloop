@@ -15,23 +15,13 @@ from app.infrastructure.database.resource_manager import db_resource_manager as 
 from app.models.wiki import WikiPage
 from app.utils import render_template
 from app.utils.file import normalize_path
-from .schemas import (
-    WikiPagePlan,
-    WikiStructure,
-    WikiValidationResult,
-)
+from app.domain.tools.schemas import ExtractedConcept
+from app.domain.wiki.schemas import ConceptExtractionResult, WikiPagePlan, WikiStructure, WikiValidationResult
 
 logger = logging.getLogger(__name__)
 
 
 # --- Pydantic models for structured LLM output ---
-class ExtractedConcept(BaseModel):
-    name: str = Field(description="Name of the concept")
-    description: str = Field(description="Description of what it is and why it matters")
-
-
-class ConceptExtractionResult(BaseModel):
-    concepts: list[ExtractedConcept] = Field(default_factory=list)
 
 
 class WikiService:

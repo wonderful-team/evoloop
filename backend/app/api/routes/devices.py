@@ -7,46 +7,13 @@ from app.api.deps import TokenDep, require_benefit
 from app.api.responses import BaseAPIResponse
 from app.core.evocloud import evocloud_manager
 from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.api.schemas.devices import BindResponse, DebugStatusResponse, BindClientRequest, CommandParams, SendCommandRequest
 
 logger = logging.getLogger(__name__)
 
-
-class BindResponse(BaseAPIResponse):
-    """Device bind response."""
-    status: str
-    data: dict[str, Any] | None = None
-
-
-class DebugStatusResponse(BaseAPIResponse):
-    """EvoCloud debug status response."""
-    is_logged_in: bool
-    token_prefix: str | None
-    device_id: str | None
-    device_name: str
-    is_connected: bool
-    api_url: str
-
-
-class BindClientRequest(DynamicBaseModel):
-    client_id: str
-
-
-class CommandParams(DynamicBaseModel):
-    """Dynamic command parameters for device control.
-    
-    Different command_types accept different parameters.
-    Extra fields are allowed to support all command types.
-    """
-
-
 router = APIRouter()
 
-
 # --- Schemas (Basic) ---
-class SendCommandRequest(DynamicBaseModel):
-    command_type: str
-    params: CommandParams = CommandParams()
-
 
 @router.get("/")
 async def get_devices(token: TokenDep):
@@ -104,7 +71,6 @@ async def get_devices(token: TokenDep):
 
     return devices
 
-
 @router.post("/{device_key}/command", dependencies=[Depends(require_benefit("mobile_control"))])
 async def send_command(device_key: str, req: SendCommandRequest, token: TokenDep):
     """Send remote command"""
@@ -112,7 +78,6 @@ async def send_command(device_key: str, req: SendCommandRequest, token: TokenDep
     if res.get("code") != 0:
         raise HTTPException(500, res.get("message"))
     return res.get("data")
-
 
 @router.get("/{device_key}/logs")
 async def get_recent_logs(
@@ -126,7 +91,6 @@ async def get_recent_logs(
     if res.get("code") != 0:
         raise HTTPException(500, res.get("message"))
     return res.get("data", [])
-
 
 @router.get("/{device_key}/logs/search")
 async def search_logs(
@@ -142,7 +106,6 @@ async def search_logs(
         raise HTTPException(500, res.get("message"))
     return res.get("data", [])
 
-
 @router.post("/{device_key}/bind", response_model=BindResponse)
 async def bind_client(device_key: str, req: BindClientRequest, _token: TokenDep):
     """Bind mobile client to device"""
@@ -151,7 +114,6 @@ async def bind_client(device_key: str, req: BindClientRequest, _token: TokenDep)
     res = await evocloud_manager.api.bind_client_id(device_key, req.client_id)
     return BindResponse(status="success", data=res)
 
-
 @router.post("/bind", response_model=BindResponse)
 async def bind_current_device(req: BindClientRequest, _token: TokenDep):
     """Bind a client_id (e.g. mobile) to THIS server device"""
@@ -159,7 +121,6 @@ async def bind_current_device(req: BindClientRequest, _token: TokenDep):
         await evocloud_manager.link.bind_client_id(req.client_id)
         return BindResponse(status="success")
     return BindResponse(status="error", message="Device not registered on cloud")
-
 
 @router.get("/debug/status", response_model=DebugStatusResponse)
 async def get_debug_status(_token: TokenDep):

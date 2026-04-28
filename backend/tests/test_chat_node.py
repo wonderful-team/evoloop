@@ -12,7 +12,7 @@ import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 from typing import Any
 
-from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
+from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig
 
 
@@ -42,7 +42,7 @@ class TestChatNode:
     async def test_chat_node_no_tools(self, mock_state, mock_config):
         """测试 Chat Node 不使用工具"""
         # 由于 chat_node 依赖外部模块，我们模拟它
-        with patch("app.core.engine.nodes.chat.AgentEngine") as mock_engine:
+        with patch("app.core.engine.engine.AgentEngine") as mock_engine:
             mock_engine.run_node = AsyncMock(return_value={
                 "messages": [AIMessage(content="你好！有什么可以帮助你的？")],
                 "next_node": "END"

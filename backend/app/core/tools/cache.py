@@ -25,39 +25,9 @@ import aiofiles.os
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.core.tools.schemas import CacheKey, CacheEntry, CacheStats
 
 logger = logging.getLogger(__name__)
-
-
-class CacheKey(BaseModel):
-    """Immutable cache key with content verification."""
-    model_config = ConfigDict(frozen=True)
-
-    tool_name: str
-    args_hash: str
-    content_hash: str = ""  # File content hash for verification
-
-    def __hash__(self):
-        return hash((self.tool_name, self.args_hash, self.content_hash))
-
-
-class CacheEntry(DynamicBaseModel):
-    """Cache entry with metadata."""
-    result: Any
-    timestamp: float = Field(default_factory=time.time)
-    access_count: int = 0
-    last_verified: float = 0.0
-
-
-class CacheStats(DynamicBaseModel):
-    """Cache statistics."""
-    hits: int
-    misses: int
-    hit_rate: str
-    verifications: int
-    invalidations: int
-    cache_size: int
-    max_size: int
 
 
 class DeterministicToolCache:

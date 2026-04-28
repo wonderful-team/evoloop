@@ -3,6 +3,7 @@ from enum import Enum
 from pydantic import field_validator
 
 from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.core.file.schemas import FileChunk, PaginationInfo
 
 
 class FileStatus(str, Enum):
@@ -49,8 +50,6 @@ class ReadResult(DynamicBaseModel):
     @property
     def has_more(self) -> bool:
         """Check if there's more content (for paginated reads)."""
-        # Note: logic in original was metadata.total_lines > metadata.total_lines which is always False.
-        # Assuming it meant current lines vs total. For now keeping original logic if it's a marker.
         return False
 
 
@@ -65,23 +64,6 @@ class WriteResult(DynamicBaseModel):
     @property
     def success(self) -> bool:
         return self.status == FileStatus.SUCCESS
-
-
-class FileChunk(DynamicBaseModel):
-    """A chunk of file content for streaming."""
-    content: str
-    line_start: int
-    line_end: int
-    is_last: bool = False
-
-
-class PaginationInfo(DynamicBaseModel):
-    """Pagination metadata."""
-    total_lines: int
-    start_line: int
-    end_line: int
-    has_more: bool
-    page_size: int = 100
 
 
 # Convenience type alias

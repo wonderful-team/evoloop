@@ -30,6 +30,7 @@ from app.core.learning.trace_recorder import get_recorder
 from app.core.shortcuts import get_shortcut
 from app.core.vision import VisionTask, get_vision_router, vision_engine
 from app.infrastructure.drivers.macos import macos_driver
+from app.core.environment.schemas import ElementResolutionResult
 from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.utils import (
     ControllerResponse,
@@ -42,16 +43,6 @@ from app.utils import (
 logger = logging.getLogger(__name__)
 
 MAX_OUTPUT_LENGTH = 60000  # Max characters for tool output before truncation
-
-
-class ElementResolutionResult(DynamicBaseModel):
-    type: str | None = None
-    value: str | None = None
-    x: int | None = None
-    y: int | None = None
-    strategy: str | None = None
-    parameters: dict | None = None
-    source: str | None = None
 
 
 # ─────────────────────────────────────────────

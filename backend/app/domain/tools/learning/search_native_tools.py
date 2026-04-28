@@ -3,13 +3,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from app.core.tools import evoloop_tool
-
-
-class SearchNativeToolsSchema(BaseModel):
-    query: str = Field(
-        "",
-        description="Optional keyword to filter tools by name or description. Leave empty to list all available execution tools.",
-    )
+from app.domain.tools.schemas import SearchNativeToolsSchema
 
 
 @evoloop_tool(

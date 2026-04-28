@@ -121,6 +121,32 @@ class HistoryBlock(MessageBlock):
     changeset_count: int = 0
 
 
+class MessageHandlerResult(DynamicBaseModel):
+    category: str
+    persisted: bool
+    streamed: bool
+    message_id: str | None = None
+    reason: str | None = None
+
+
+class PersistencePolicyResult(DynamicBaseModel):
+    should_persist: bool
+    content: str | None = None
+    thinking: str | None = None
+    tool_calls: list | None = None
+    category: str
+    tool_call_id: str | None = None
+    tool_name: str | None = None
+
+
+class StreamPolicyResult(DynamicBaseModel):
+    should_stream: bool
+    frontend_type: str | None = None
+    content: str
+    category: str
+    metadata: dict = {}
+
+
 class HumanRequestEvent(EventBase):
     """
     人机交互请求事件。

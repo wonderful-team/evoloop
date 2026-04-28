@@ -7,20 +7,9 @@ from app.core.execution.macro.optimizer import MacroOptimizer
 from app.core.execution.macro.schema import MacroScript
 from app.core.monitoring.activity import activity_monitor
 from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.core.execution.macro.schemas import MacroRunResult
 
 logger = logging.getLogger(__name__)
-
-
-class MacroRunResult(DynamicBaseModel):
-    success: bool
-    message: str
-    extracted_data: dict[str, Any] | None = None
-    allow_self_healing: bool | None = None
-    healing_disabled_reason: str | None = None
-    healing_disabled_source: str | None = None
-    suggestions: list[str] | None = None
-    status: str | None = None  # e.g. "fallback_required"
-    fallback_context: dict[str, Any] | None = None
 
 
 class MacroService:

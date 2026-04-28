@@ -12,7 +12,6 @@ from .schemas import (
     ProjectEvent,
     ProjectMovedEvent,
     ProjectSwitchedEvent,
-    ProjectSwitchEvent,
 )
 from .types import ProjectEventType
 
@@ -24,5 +23,4 @@ __all__ = [
     "ProjectEventType",
     "ProjectMovedEvent",
     "ProjectSwitchedEvent",
-    "ProjectSwitchEvent",
 ]

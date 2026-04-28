@@ -14,29 +14,9 @@ from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.llm import get_default_llm
 from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.models.learning import LearnedSkill
+from app.core.learning.schemas import SkillParams, SkillListItem, SkillMatch
 
 logger = logging.getLogger(__name__)
-
-
-class SkillParams(DynamicBaseModel):
-    """Dynamic parameters extracted during skill matching."""
-
-
-class SkillListItem(DynamicBaseModel):
-    """Lightweight item for active skills list."""
-    id: int
-    name: str
-    namespace: str = "general"
-    description: str = ""
-
-
-class SkillMatch(DynamicBaseModel):
-    """Result of skill matching (intentional execution)."""
-    skill_id: int
-    skill_name: str
-    confidence: float
-    reasoning: str
-    extracted_params: SkillParams = Field(default_factory=SkillParams)
 
 
 class SkillDiscovery:

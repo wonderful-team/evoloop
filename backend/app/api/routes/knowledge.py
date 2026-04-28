@@ -18,7 +18,7 @@ from app.domain.knowledge.services.pipeline import IngestionPipeline
 from app.domain.knowledge.services.search import get_fts_service
 from app.domain.knowledge.services.store import DocumentListItem, KnowledgeStoreService
 from app.infrastructure.pydantic_base import DynamicBaseModel
-from app.models.schemas.base import SearchResponse
+from app.api.schemas.knowledge import DocumentResponse, DocumentListResponse, DocumentMetadataResponse, DocumentContentResponse, CollectionResponse, TagItem, TagResponse, DocumentSearchItem, DocumentSearchResponse, FTSSearchResult, FTSSearchResponse, FTSSuggestResponse
 
 logger = logging.getLogger(__name__)
 
@@ -27,103 +27,7 @@ pipeline = IngestionPipeline()
 store = KnowledgeStoreService()
 bulk_import = BulkImportService(pipeline)
 
-
 # ============ Schemas ============
-
-class DocumentResponse(BaseAPIResponse):
-    """Response for document operations."""
-    path: Optional[str] = None
-    document: Optional[dict] = None
-
-
-class DocumentListResponse(ListResponse[DocumentListItem]):
-    """Response for listing documents."""
-    documents: list[DocumentListItem]
-    collections: list[str]
-
-
-class DocumentMetadataResponse(BaseAPIResponse):
-    """Structured metadata for a document chunk/response."""
-    title: str | None = None
-    source_file: str | None = None
-    source_mime_type: str | None = None
-    file_size_bytes: int | None = None
-    extracted_at: str | None = None
-    source_project_id: int | None = None
-
-
-class DocumentContentResponse(BaseAPIResponse):
-    """Response for reading document content."""
-    path: str
-    content: str
-    metadata: DocumentMetadataResponse
-    offset: int
-    limit: int
-    total_lines: int
-    has_more: bool
-
-
-class CollectionResponse(BaseAPIResponse):
-    """Response for listing collections."""
-    collections: list[str]
-    stats: dict[str, Any]
-
-
-class TagItem(DynamicBaseModel):
-    """Single tag with document count."""
-    name: str
-    count: int
-
-
-class TagResponse(BaseAPIResponse):
-    """Response for listing tags."""
-    tags: list[TagItem]
-    total: int
-
-
-class DocumentSearchItem(DynamicBaseModel):
-    """Single document search result."""
-    path: str
-    match_count: int
-    matches: list[dict[str, Any]]
-
-
-class DocumentSearchResponse(SearchResponse):
-    """Response for document search."""
-    results: list[DocumentSearchItem]
-
-
-class BulkUploadResponse(BaseAPIResponse):
-    """Response for bulk upload."""
-    pass
-
-
-class ZipImportResponse(BaseAPIResponse):
-    """Response for ZIP import."""
-    pass
-
-
-class FTSSearchResult(DynamicBaseModel):
-    """Single FTS search result."""
-    doc_id: str
-    path: str
-    collection: str | None
-    title: str
-    snippet: str
-    highlights: str
-    score: float
-
-
-class FTSSearchResponse(SearchResponse):
-    """Response for FTS search."""
-    results: list[FTSSearchResult]
-    facets: dict[str, Any]
-
-
-class FTSSuggestResponse(BaseAPIResponse):
-    """Response for FTS suggestions."""
-    suggestions: list[str]
-
 
 # ============ Routes ============
 
@@ -171,7 +75,6 @@ async def upload_document(
         logger.error(f"Upload failed: {e}")
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
-
 @router.get("/documents", response_model=DocumentListResponse)
 async def list_documents(
     collection: Optional[str] = Query(None, description="Filter by collection"),
@@ -210,7 +113,6 @@ async def list_documents(
         logger.error(f"List documents failed: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to list documents: {str(e)}")
 
-
 @router.get("/documents/{path:path}", response_model=DocumentContentResponse)
 async def read_document(
     path: str,
@@ -242,7 +144,6 @@ async def read_document(
     except Exception as e:
         logger.error(f"Read document failed: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to read document: {str(e)}")
-
 
 @router.delete("/documents/{path:path}", response_model=DocumentResponse)
 async def delete_document(path: str):
@@ -277,7 +178,6 @@ async def delete_document(path: str):
         logger.error(f"Delete document failed: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to delete document: {str(e)}")
 
-
 @router.get("/collections", response_model=CollectionResponse)
 async def list_collections():
     """List all knowledge base collections."""
@@ -294,7 +194,6 @@ async def list_collections():
         logger.error(f"List collections failed: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to list collections: {str(e)}")
 
-
 @router.post("/collections/{name}", response_model=DocumentResponse)
 async def create_collection(name: str):
     """Create a new knowledge base collection."""
@@ -305,7 +204,6 @@ async def create_collection(name: str):
     except Exception as e:
         logger.error(f"Create collection failed: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to create collection: {str(e)}")
-
 
 @router.get("/tags", response_model=TagResponse)
 async def list_tags(
@@ -329,7 +227,6 @@ async def list_tags(
     except Exception as e:
         logger.error(f"List tags failed: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to list tags: {str(e)}")
-
 
 @router.get("/search", response_model=DocumentSearchResponse)
 async def search_documents(
@@ -355,8 +252,7 @@ async def search_documents(
         logger.error(f"Search failed: {e}")
         raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
 
-
-@router.post("/bulk-upload", response_model=BulkUploadResponse)
+@router.post("/bulk-upload", response_model=BaseAPIResponse)
 async def bulk_upload(
     files: list[UploadFile] = File(..., description="Multiple files to upload"),
     collection: str = Form(default="default", description="Collection name"),
@@ -382,7 +278,7 @@ async def bulk_upload(
         )
         
         # Note: result.to_dict() fields are dropped from structured response to keep schema stable.
-        return BulkUploadResponse(
+        return BaseAPIResponse(
             success=result.failed == 0,
             message=f"Imported {result.successful}/{result.total_files} files"
         )
@@ -391,8 +287,7 @@ async def bulk_upload(
         logger.error(f"Bulk upload failed: {e}")
         raise HTTPException(status_code=500, detail=f"Bulk upload failed: {str(e)}")
 
-
-@router.post("/import-zip", response_model=ZipImportResponse)
+@router.post("/import-zip", response_model=BaseAPIResponse)
 async def import_zip(
     file: UploadFile = File(..., description="ZIP archive containing documents"),
     collection: str = Form(default="default", description="Collection name"),
@@ -420,7 +315,7 @@ async def import_zip(
             preserve_structure=preserve_structure
         )
         
-        return ZipImportResponse(
+        return BaseAPIResponse(
             success=result.failed == 0,
             message=f"Imported {result.successful}/{result.total_files} files from ZIP"
         )
@@ -430,7 +325,6 @@ async def import_zip(
     except Exception as e:
         logger.error(f"ZIP import failed: {e}")
         raise HTTPException(status_code=500, detail=f"ZIP import failed: {str(e)}")
-
 
 @router.post("/validate-zip")
 async def validate_zip(
@@ -451,7 +345,6 @@ async def validate_zip(
     except Exception as e:
         logger.error(f"ZIP validation failed: {e}")
         raise HTTPException(status_code=500, detail=f"Validation failed: {str(e)}")
-
 
 # ============ FTS Search ============
 
@@ -507,7 +400,6 @@ async def fts_search(
         logger.error(f"FTS search failed: {e}")
         raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
 
-
 @router.get("/fts/suggest", response_model=FTSSuggestResponse)
 async def fts_suggest(
     prefix: str = Query(..., description="Search prefix"),
@@ -523,7 +415,6 @@ async def fts_suggest(
     except Exception as e:
         logger.error(f"Suggestions failed: {e}")
         raise HTTPException(status_code=500, detail=f"Suggestions failed: {str(e)}")
-
 
 # ============ Deduplication ============
 
@@ -545,7 +436,6 @@ async def analyze_duplicates(
         logger.error(f"Duplicate analysis failed: {e}")
         raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
 
-
 @router.post("/merge")
 async def merge_documents(
     source_paths: list[str],
@@ -561,7 +451,6 @@ async def merge_documents(
     except Exception as e:
         logger.error(f"Merge failed: {e}")
         raise HTTPException(status_code=500, detail=f"Merge failed: {str(e)}")
-
 
 # ============ Citation Analytics ============
 
@@ -597,7 +486,6 @@ async def get_popular_documents(
         logger.error(f"Popular docs failed: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get popular docs: {str(e)}")
 
-
 @router.get("/analytics/usage")
 async def get_usage_analytics(
     days: int = Query(30, ge=1, le=365)
@@ -612,7 +500,6 @@ async def get_usage_analytics(
         logger.error(f"Usage analytics failed: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get analytics: {str(e)}")
 
-
 @router.get("/recommendations")
 async def get_recommendations(
     path: str = Query(..., description="Reference document path")
@@ -626,7 +513,6 @@ async def get_recommendations(
     except Exception as e:
         logger.error(f"Recommendations failed: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get recommendations: {str(e)}")
-
 
 @router.get("/{path:path}/stats")
 async def get_document_stats(path: str):
@@ -651,7 +537,6 @@ async def get_document_stats(path: str):
     except Exception as e:
         logger.error(f"Document stats failed: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get stats: {str(e)}")
-
 
 # ============ Auto Maintenance ============
 
@@ -689,7 +574,6 @@ async def run_maintenance(
         logger.error(f"Maintenance failed: {e}")
         raise HTTPException(status_code=500, detail=f"Maintenance failed: {str(e)}")
 
-
 @router.get("/maintenance/duplicates")
 async def analyze_maintenance_duplicates(
     collection: Optional[str] = Query(None, description="Target collection")
@@ -706,7 +590,6 @@ async def analyze_maintenance_duplicates(
     except Exception as e:
         logger.error(f"Duplicate analysis failed: {e}")
         raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
-
 
 @router.post("/maintenance/merge")
 async def merge_maintenance_documents(
@@ -731,7 +614,6 @@ async def merge_maintenance_documents(
     except Exception as e:
         logger.error(f"Merge failed: {e}")
         raise HTTPException(status_code=500, detail=f"Merge failed: {str(e)}")
-
 
 @router.get("/maintenance/quality")
 async def check_quality(
@@ -765,7 +647,6 @@ async def check_quality(
     except Exception as e:
         logger.error(f"Quality check failed: {e}")
         raise HTTPException(status_code=500, detail=f"Quality check failed: {str(e)}")
-
 
 @router.get("/maintenance/reports")
 async def list_maintenance_reports(

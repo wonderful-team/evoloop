@@ -5,23 +5,9 @@ from typing import Any
 from pydantic import Field
 
 from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.core.learning.schemas import SynthesizedSopConfig, TraceAction
 
 logger = logging.getLogger(__name__)
-
-
-class SynthesizedSopConfig(DynamicBaseModel):
-    """Result of smart synthesis: a Phase 4 graph configuration."""
-    name: str = "synthesized_sop"
-    version: str = "1.0"
-    nodes: list[dict] = Field(default_factory=list)
-    edges: list[dict] = Field(default_factory=list)
-
-
-class TraceAction(DynamicBaseModel):
-    """A single action extracted from a trace."""
-    action: str
-    target: str | None = None
-    params: dict = Field(default_factory=dict)
 
 
 class SmartSynthesizer:

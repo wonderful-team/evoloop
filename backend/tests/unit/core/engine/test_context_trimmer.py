@@ -30,15 +30,15 @@ class TestTokenEstimation:
     def test_estimate_message_tokens(self):
         msg = HumanMessage(content="hello world")
         tokens = estimate_message_tokens(msg)
-        # In MagicMock env: base = max(1, 11//4) = 2, overhead = 4 + 8 = 12, total = 14
-        assert tokens == 14
+        # base = 11//4 = 2, overhead = 4, total = 6
+        assert tokens == 6
 
     def test_count_total_tokens(self):
         messages = [
-            HumanMessage(content="hello"),  # base=1, overhead=12, total=13
-            HumanMessage(content="world"),  # base=1, overhead=12, total=13
+            HumanMessage(content="hello"),  # base=1, overhead=4, total=5
+            HumanMessage(content="world"),  # base=1, overhead=4, total=5
         ]
-        assert count_total_tokens(messages) == 26
+        assert count_total_tokens(messages) == 10
 
 
 class TestContextTrimmerTrim:
@@ -71,8 +71,8 @@ class TestContextTrimmerTrim:
             node_source="worker",
             stages={"repair"},
         )
-        # Should run repair without errors
-        assert len(result.messages) >= 2
+        # Should run repair without errors; repair merges consecutive HumanMessages
+        assert len(result.messages) >= 1
 
     def test_window_stage_reduces_long_history(self):
         trimmer = ContextTrimmer()

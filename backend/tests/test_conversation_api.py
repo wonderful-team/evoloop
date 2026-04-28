@@ -191,7 +191,7 @@ class TestStreamEventFormat:
         ("token", {"content": "Hello"}),
         ("step", {"id": "step-1", "tool": "browser"}),
         ("status", {"status": "running"}),
-        ("human_request", {"type": "input", "description": "请输入"}),
+        ("input_request", {"description": "请输入"}),
     ])
     def test_various_event_types(self, event_type, event_data):
         """测试各种事件类型的格式"""

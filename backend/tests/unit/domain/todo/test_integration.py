@@ -31,9 +31,7 @@ class TestTodoWorkflow:
         mock_todo.id = "workflow-test-id"
         mock_todo.title = "Workflow Test Todo"
         mock_todo.priority = TodoPriority.HIGH
-        mock_todo.priority.value = "high"
         mock_todo.status = TodoStatus.COMPLETED
-        mock_todo.status.value = "completed"
         
         with patch('app.domain.todo.tools.TodoServiceSync') as MockService:
             mock_service = MockService.return_value
@@ -42,11 +40,11 @@ class TestTodoWorkflow:
             mock_service.mark_completed = Mock(return_value=mock_todo)
             
             # Step 1: Create a todo
-            result = await create_todo(
-                title="Workflow Test Todo",
-                priority="high",
-                due_date="1 hour"
-            )
+            result = await create_todo.ainvoke({
+                "title": "Workflow Test Todo",
+                "priority": "high",
+                "due_date": "1 hour"
+            })
             assert "Workflow Test Todo" in result
             mock_service.create.assert_called_once()
             
@@ -67,7 +65,6 @@ class TestTodoWorkflow:
         mock_todo.id = "cancel-test-id"
         mock_todo.title = "Cancel Test"
         mock_todo.priority = TodoPriority.MEDIUM
-        mock_todo.priority.value = "medium"
         mock_todo.status = TodoStatus.CANCELLED
         
         with patch('app.domain.todo.tools.TodoServiceSync') as MockService:
@@ -76,7 +73,7 @@ class TestTodoWorkflow:
             mock_service.mark_cancelled = Mock(return_value=mock_todo)
             
             # Create
-            result = await create_todo(title="Cancel Test")
+            result = await create_todo.ainvoke({"title": "Cancel Test"})
             assert "Cancel Test" in result
             
             # Cancel
@@ -98,7 +95,7 @@ class TestTodoWorkflow:
             mock_service.list_todos = Mock(return_value=mock_todos)
             mock_service.format_todo_list = Mock(return_value="2 todos found")
             
-            result = await list_todos(status="pending", project_id=1, limit=10)
+            result = await list_todos.ainvoke({"status": "pending", "project_id": 1, "limit": 10})
             
             mock_service.list_todos.assert_called_once()
             call_args = mock_service.list_todos.call_args[0][0]
@@ -113,7 +110,7 @@ class TestTodoToolsErrorHandling:
     @pytest.mark.asyncio
     async def test_create_without_title(self):
         """Test creating todo without title fails."""
-        result = await create_todo(title="")
+        result = await create_todo.ainvoke({"title": ""})
         assert "error" in result.lower() or "错误" in result or "required" in result.lower()
     
     @pytest.mark.asyncio
@@ -123,7 +120,7 @@ class TestTodoToolsErrorHandling:
             mock_service = MockService.return_value
             mock_service.mark_completed = Mock(side_effect=Exception("Not found"))
             
-            result = await complete_todo(todo_id="non-existent")
+            result = await complete_todo.ainvoke({"todo_id": "non-existent"})
             # Should handle error gracefully
             assert "non-existent" in result or "error" in result.lower() or "未找到" in result
     
@@ -135,7 +132,7 @@ class TestTodoToolsErrorHandling:
             from app.domain.todo import TodoNotFoundError
             mock_service.mark_cancelled = Mock(side_effect=TodoNotFoundError("Not found"))
             
-            result = await cancel_todo(todo_id="non-existent")
+            result = await cancel_todo.ainvoke({"todo_id": "non-existent"})
             assert "non-existent" in result or "not found" in result.lower() or "未找到" in result
 
 
@@ -149,7 +146,6 @@ class TestTodoDateParsingIntegration:
         mock_todo.id = "date-test-id"
         mock_todo.title = "Date Test"
         mock_todo.priority = TodoPriority.MEDIUM
-        mock_todo.priority.value = "medium"
         
         with patch('app.domain.todo.tools.TodoServiceSync') as MockService:
             mock_service = MockService.return_value
@@ -157,20 +153,20 @@ class TestTodoDateParsingIntegration:
             
             # Various date formats
             for date_str in ["1 hour", "30 mins", "tomorrow", "2 days", "明天"]:
-                result = await create_todo(
-                    title="Date Test",
-                    due_date=date_str
-                )
+                result = await create_todo.ainvoke({
+                    "title": "Date Test",
+                    "due_date": date_str
+                })
                 assert "Date Test" in result
                 mock_service.create.assert_called()
     
     @pytest.mark.asyncio
     async def test_create_with_invalid_date(self):
         """Test creating todo with invalid date shows error."""
-        result = await create_todo(
-            title="Invalid Date Test",
-            due_date="invalid date format that cannot be parsed"
-        )
+        result = await create_todo.ainvoke({
+            "title": "Invalid Date Test",
+            "due_date": "invalid date format that cannot be parsed"
+        })
         # Should return error message about date parsing
         assert "error" in result.lower() or "date" in result.lower() or "无法解析" in result
 
@@ -186,10 +182,11 @@ class TestTodoDomainImports:
             complete_todo,
             cancel_todo,
         )
-        assert callable(create_todo)
-        assert callable(list_todos)
-        assert callable(complete_todo)
-        assert callable(cancel_todo)
+        from langchain_core.tools import StructuredTool
+        assert isinstance(create_todo, StructuredTool)
+        assert isinstance(list_todos, StructuredTool)
+        assert isinstance(complete_todo, StructuredTool)
+        assert isinstance(cancel_todo, StructuredTool)
     
     def test_all_services_exported(self):
         """Test all services are exported."""

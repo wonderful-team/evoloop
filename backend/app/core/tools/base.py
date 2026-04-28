@@ -9,29 +9,9 @@ from langchain_core.tools import tool as langchain_tool
 from pydantic import Field
 
 from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.core.tools.schemas import EvoLoopToolConfig
 
 logger = logging.getLogger(__name__)
-
-
-class EvoLoopToolConfig(DynamicBaseModel):
-    """Configuration for EvoLoop tool metadata injected by the @evoloop_tool decorator."""
-    is_pollable: bool = False
-    is_state_mutating: bool = False
-    affected_path_keys: list[str] = Field(default_factory=list)
-    summary_template: str | None = None
-    result_summary_template: str | None = None
-    is_memory_tool: bool = False
-    is_multimodal: bool = False
-    is_hidden: bool = False
-    name_map: dict[str, str] = Field(default_factory=dict)
-    handle_tool_error: bool = True
-    required_benefit: str | None = None
-
-    def model_post_init(self, __context: Any) -> None:
-        if self.affected_path_keys is None:
-            self.affected_path_keys = []
-        if self.name_map is None:
-            self.name_map = {}
 
 
 def get_working_directory(config: RunnableConfig | None = None) -> str:

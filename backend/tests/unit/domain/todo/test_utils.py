@@ -114,21 +114,21 @@ class TestFormatTodoSummary:
         """Test pending todo formatting."""
         todo = {"title": "Test Task", "status": TodoStatus.PENDING, "priority": TodoPriority.MEDIUM}
         result = format_todo_summary(todo)
-        assert "○" in result
+        assert "[PENDING]" in result
         assert "Test Task" in result
     
     def test_completed_todo(self):
         """Test completed todo formatting."""
         todo = {"title": "Done Task", "status": TodoStatus.COMPLETED, "priority": TodoPriority.LOW}
         result = format_todo_summary(todo)
-        assert "✓" in result
+        assert "[DONE]" in result
         assert "Done Task" in result
     
     def test_cancelled_todo(self):
         """Test cancelled todo formatting."""
         todo = {"title": "Cancelled Task", "status": TodoStatus.CANCELLED, "priority": TodoPriority.LOW}
         result = format_todo_summary(todo)
-        assert "✗" in result
+        assert "[CANCELLED]" in result
     
     def test_high_priority_marker(self):
         """Test high priority shows marker."""

@@ -25,30 +25,15 @@ from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.models.learning import LearnedSkill
 from app.utils import file as file_utils
+from app.api.schemas.project_profiles import DiscoverRequest, DiscoverResponse, ProfileContentResponse
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["project-profiles"])
 
-
 # ------------------------------------------------------------------
 # Schemas
 # ------------------------------------------------------------------
-
-class DiscoverRequest(DynamicBaseModel):
-    record_secrets: bool = False
-
-
-class DiscoverResponse(BaseAPIResponse):
-    status: str
-    project_id: int
-    thread_id: str
-
-
-class ProfileContentResponse(BaseAPIResponse):
-    content: str | None = None
-    exists: bool = False
-
 
 # ------------------------------------------------------------------
 # Helpers
@@ -86,7 +71,6 @@ async def _resolve_project_path(project_id: int) -> str:
         logger.debug(f"[ProjectProfiles] DB lookup failed for {project_id}: {e}")
 
     return ""
-
 
 # ------------------------------------------------------------------
 # Endpoints
@@ -127,7 +111,6 @@ async def _ensure_project_discovery_skill() -> LearnedSkill | None:
     except Exception as e:
         logger.warning(f"[ProjectProfiles] Failed to import Project Discovery skill: {e}")
         return None
-
 
 @router.post("/{project_id}/profile/discover", response_model=DiscoverResponse)
 async def discover_profile(
@@ -197,7 +180,6 @@ async def discover_profile(
         project_id=project_id,
         thread_id=thread_id,
     )
-
 
 @router.get("/{project_id}/profile", response_model=ProfileContentResponse)
 async def get_profile(

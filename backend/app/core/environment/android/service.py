@@ -2,23 +2,9 @@ import logging
 
 from app.core.vision.providers.native.android_a11y import android_a11y_provider
 from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.core.environment.schemas import DehydratedElement
 
 logger = logging.getLogger(__name__)
-
-
-class DehydratedElement(DynamicBaseModel):
-    """A dehydrated Android UI element."""
-    id: int
-    text: str
-    x: int
-    y: int
-    width: int
-    height: int
-    clickable: bool
-    scrollable: bool = False
-    package: str = ""
-    class_: str = ""  # mapped from "class"
-    resource_id: str = ""
 
 
 class AndroidService:

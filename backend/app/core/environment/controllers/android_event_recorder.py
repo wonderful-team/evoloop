@@ -12,41 +12,9 @@ import time
 from typing import Callable
 
 from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.core.environment.schemas import AndroidEvent, DebounceConfig, AndroidTraceEvent
 
 logger = logging.getLogger(__name__)
-
-
-class AndroidEvent(DynamicBaseModel):
-    """Represents a single Android input event."""
-    timestamp: float
-    event_type: str  # "touch_down", "touch_up", "touch_move", "swipe", "key"
-    x: int | None = None
-    y: int | None = None
-    key_code: int | None = None
-    device_id: str = ""
-    app_package: str | None = None
-    swipe_end_x: int | None = None
-    swipe_end_y: int | None = None
-    swipe_duration_ms: float | None = None
-
-
-class DebounceConfig(DynamicBaseModel):
-    """Configuration for event debouncing."""
-    # Time threshold in milliseconds - ignore events within this window
-    time_threshold_ms: float = 50.0
-    # Spatial threshold in pixels - ignore movements smaller than this
-    spatial_threshold_px: int = 10
-    # Maximum swipe events to keep (for very long swipes)
-    max_swipe_points: int = 5
-
-
-class AndroidTraceEvent(DynamicBaseModel):
-    """Trace event representation for Android mirror sessions."""
-    timestamp: int
-    event_type: str
-    target_selector: str | None = None
-    target_text: str | None = None
-    payload: dict = {}
 
 
 class AndroidEventRecorder:

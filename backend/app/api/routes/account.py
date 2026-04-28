@@ -11,52 +11,13 @@ from app.core.identity import identity_service
 from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.models import Token
 from app.models.schemas.auth import EvoCloudProxyResponse
+from app.api.schemas.account import MobileCodeRequest, MobileLoginRequest, MobileCodeResponse, WeChatConfigResponse, WeChatQRResponse, WeChatStatusResponse, LogoutResponse
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["account"])
 
-
 # --- Request / Response Schemas ---
-
-class MobileCodeRequest(DynamicBaseModel):
-    mobile: str = Field(..., description="Phone number")
-    captcha_id: str | None = None
-    captcha_code: str | None = None
-
-
-class MobileLoginRequest(DynamicBaseModel):
-    mobile: str = Field(..., description="Phone number")
-    code: str = Field(..., description="SMS verification code")
-    key: str = Field(..., description="Verification key returned from code request")
-
-
-class MobileCodeResponse(BaseAPIResponse):
-    code: int
-    key: str | None = None
-
-
-class WeChatConfigResponse(BaseAPIResponse):
-    enabled: bool
-    app_id: str | None = None
-
-
-class WeChatQRResponse(BaseAPIResponse):
-    key: str | None = None
-    expire_time: int
-    qrcode_url: str | None = None
-    ticket: str
-
-
-class WeChatStatusResponse(BaseAPIResponse):
-    status: str
-    access_token: str | None = None
-    token_type: str | None = None
-
-
-class LogoutResponse(BaseAPIResponse):
-    code: int
-
 
 # --- Internal Helpers ---
 

@@ -9,7 +9,7 @@ import yaml
 from pydantic import Field, model_validator
 
 from app.infrastructure.pydantic_base import DynamicBaseModel
-
+from app.core.memory.schemas import MemoryMetadata, CheckpointDedupResult, Concept, Episode
 
 class MemoryType(str, Enum):
     """Four-type memory taxonomy (inspired by Claude Code)."""
@@ -32,12 +32,6 @@ class PrivacyLevel(str, Enum):
     """Privacy scope for memory entries."""
     PRIVATE = "private"
     TEAM = "team"
-
-
-class MemoryMetadata(DynamicBaseModel):
-    source_url: str | None = None
-    author: str | None = None
-    related_message_ids: list[str] = Field(default_factory=list)
 
 
 class MemoryEntry(DynamicBaseModel):
@@ -239,40 +233,3 @@ class MemoryIndexEntry(DynamicBaseModel):
         if match:
             return cls(title=match.group(1), path=match.group(2), description=match.group(3) or "")
         return None
-
-
-class CheckpointDedupResult(DynamicBaseModel):
-    """Result of a checkpoint deduplication operation."""
-    dry_run: bool = True
-    total_checkpoints: int = 0
-    duplicate_groups: int = 0
-    duplicates_found: int = 0
-    duplicates_removed: int = 0
-    bytes_saved: int = 0
-    elapsed_ms: int = 0
-    error: str | None = None
-
-
-# ========================================================================
-# Long-Term (Graph) Models
-# ========================================================================
-
-class Concept(DynamicBaseModel):
-    """A semantic concept or knowledge entity extracted from the codebase or conversations."""
-    name: str = Field(description="Unique name of the concept, technology, or pattern")
-    description: str = Field(description="Detailed description of what it is and how it is used")
-    project_id: int | None = Field(default=0, description="Associated project ID (0 for global)")
-    related_files: list[str] = Field(default_factory=list, description="List of file paths related to this concept")
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
-
-
-class Episode(DynamicBaseModel):
-    """A recorded execution episode representing a past task attempt."""
-    id: str | None = None
-    goal: str = Field(description="What was the agent trying to achieve")
-    result: str = Field(description="The outcome of the attempt")
-    plan_summary: str | None = Field(default=None, description="Summary of the plan used")
-    error_msg: str | None = Field(default=None, description="Error message if failed")
-    project_id: int | None = Field(default=0)
-    source_message_id: str | None = Field(default=None)
-    timestamp: datetime = Field(default_factory=datetime.utcnow)

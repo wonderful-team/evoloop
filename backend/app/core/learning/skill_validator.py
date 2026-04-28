@@ -5,20 +5,9 @@ import yaml
 from pydantic import BaseModel
 
 from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.core.learning.schemas import ValidationMetadata, ValidationResult
 
 logger = logging.getLogger(__name__)
-
-
-class ValidationMetadata(DynamicBaseModel):
-    """Dynamic metadata from skill validation."""
-
-
-class ValidationResult(BaseModel):
-    is_valid: bool
-    status: str  # "healthy", "warning", "error"
-    errors: list[str] = []
-    warnings: list[str] = []
-    metadata: ValidationMetadata | None = None
 
 
 class SkillValidator:

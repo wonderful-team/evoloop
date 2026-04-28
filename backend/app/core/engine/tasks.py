@@ -7,7 +7,6 @@ import time
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel
 from sqlalchemy import desc, func, select, text
 
 from app.constants import DEFAULT_PROJECT_ID
@@ -22,27 +21,6 @@ from app.utils import gen_uuid
 from app.core.context.manager import ContextManager, EvoContext
 
 logger = logging.getLogger(__name__)
-
-
-class PersistMessagePayload(BaseModel):
-    """Structured payload for message persistence tasks."""
-    thread_id: str
-    project_id: int
-    role: str
-    content: str
-    thinking: str | None = None
-    sequence_number: int = 0
-    run_id: str | None = None
-    status: str = "completed"
-    parent_id: int | None = None
-    tool_calls: list | None = None
-    references: list[dict] | None = None
-    action_type: str = "text"
-    category: str | None = None
-    content_type: str | None = None
-    is_visible: bool = True
-    tool_call_id: str | None = None
-    tool_name: str | None = None
 
 
 async def _notify_file_operation(thread_id: str, message_id: str, file_path: str, operation: str):
@@ -247,7 +225,6 @@ async def prune_checkpoints_task(keep_days: int = 7):
         logger.info(f"[Celery] Pruned LangGraph checkpoints/writes (Keep: {keep_days} days).")
     except Exception as e:
         logger.error(f"[Celery] Failed to prune checkpoints: {e}")
-
 
 @shared_task(name="engine_cleanup_artifacts")
 def cleanup_artifacts_task(max_age_days: int = 3):

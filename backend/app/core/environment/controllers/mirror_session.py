@@ -15,17 +15,12 @@ from pydantic import Field
 from app.core.config import settings
 from app.infrastructure.pydantic_base import DynamicBaseModel
 from .android_event_recorder import AndroidEventRecorder, AndroidTraceEvent
+from app.core.environment.schemas import MirrorSessionStopResult
 
 logger = logging.getLogger(__name__)
 
 # Android recordings directory (from settings)
 ANDROID_RECORDINGS_DIR = Path(settings.ANDROID_RECORDINGS_DIR)
-
-
-class MirrorSessionStopResult(DynamicBaseModel):
-    video_path: str | None = None
-    events: list[AndroidTraceEvent] = Field(default_factory=list)
-    session_id: str
 
 
 class MirrorSession:

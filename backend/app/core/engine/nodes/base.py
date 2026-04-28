@@ -210,15 +210,13 @@ class BaseAgentNode(BaseNode, ABC):
         Subclasses should typically NOT override this; instead customize
         `_customize_dispatch_result` or `_build_fallback_outcome`.
         """
-        if not engine_result.signal:
-            return StateUpdate()
-
-        # 1. Signal dispatch path
-        dispatch_result = await signal_manager.dispatch(original_state, engine_result.signal, config)
-        # dispatch_result = await SignalDispatcher.dispatch(original_state, engine_result.signal, config)
-        if dispatch_result is not None:
-            customized = await self._customize_dispatch_result(dispatch_result, original_state, engine_result, config)
-            return customized
+        if engine_result.signal:
+            # 1. Signal dispatch path
+            dispatch_result = await signal_manager.dispatch(original_state, engine_result.signal, config)
+            # dispatch_result = await SignalDispatcher.dispatch(original_state, engine_result.signal, config)
+            if dispatch_result is not None:
+                customized = await self._customize_dispatch_result(dispatch_result, original_state, engine_result, config)
+                return customized
 
         # 2. Non-signal fallback path
         fallback = await self._build_fallback_outcome(original_state, engine_result, config)

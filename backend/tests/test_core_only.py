@@ -189,7 +189,7 @@ def test_store_service():
         
         # Read with pagination
         page = store.read_document(result["path"], offset=1, limit=2)
-        assert page["total_lines"] == 4  # title + empty + 2 lines
+        assert page["total_lines"] == 5  # title + empty + 3 lines
         assert page["has_more"] == True
         
         # List

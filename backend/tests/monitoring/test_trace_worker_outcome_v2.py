@@ -4,10 +4,6 @@
 """
 
 import sys
-# 在导入任何其他模块之前清除缓存
-for mod in list(sys.modules.keys()):
-    if any(x in mod for x in ['app', 'langgraph']):
-        del sys.modules[mod]
 
 import asyncio
 import logging

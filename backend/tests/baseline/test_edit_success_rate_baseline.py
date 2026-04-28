@@ -16,6 +16,7 @@ from typing import List
 import pytest
 
 from app.domain.tools.files.edit_file import handle_edit
+from app.domain.tools.schemas import EditFileRequest
 from app.core.tools import get_working_directory
 
 
@@ -78,13 +79,15 @@ def process(items):
     async def _run_scenario(self, scenario_id: str, description: str, path: str, target: str, replacement: str):
         start = time.perf_counter()
         result = await handle_edit(
-            path=path,
-            target=target,
-            content=replacement,
-            allow_multiple=False,
-            expected_hash=None,
-            verify_types=False,
-            config=None
+            EditFileRequest(
+                path=path,
+                target=target,
+                content=replacement,
+                allow_multiple=False,
+                expected_hash=None,
+                verify_types=False,
+                config=None
+            )
         )
         latency_ms = (time.perf_counter() - start) * 1000
 

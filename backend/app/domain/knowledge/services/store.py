@@ -11,49 +11,13 @@ from typing import Iterator, Optional
 
 from app.domain.knowledge.models import DocumentMetadata, MarkdownDocument
 from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.domain.knowledge.schemas import DocumentSaveResult, DocumentReadResult, DocumentListItem
 from app.utils.file import (
     read_file_content,
     write_file_contents,
 )
 
 logger = logging.getLogger(__name__)
-
-
-class DocumentSaveResult(DynamicBaseModel):
-    """Result of saving a document to the knowledge base."""
-    path: str
-    title: str
-    content: str
-    collection: str
-    size: int
-    word_count: int
-    source_project_id: Optional[int] = None
-
-
-class DocumentReadResult(DynamicBaseModel):
-    """Result of reading a document from the knowledge base."""
-    content: str
-    frontmatter: dict
-    extracted_metadata: Optional[dict] = None
-    path: str
-    encoding: str
-    offset: int
-    limit: Optional[int] = None
-    total_lines: int
-    has_more: bool
-    content_hash: Optional[str] = None
-
-
-class DocumentListItem(DynamicBaseModel):
-    """Item in a document list from the knowledge base."""
-    path: str
-    size_bytes: int
-    modified_at: str
-    has_metadata: bool
-    tags: list[str]
-    title: str
-    source: Optional[str] = None
-    source_project_id: Optional[int] = None
 
 
 class KnowledgeStoreService:

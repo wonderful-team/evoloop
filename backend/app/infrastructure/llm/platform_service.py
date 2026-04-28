@@ -9,27 +9,9 @@ import time
 from typing import Dict, List, Any, Optional
 
 from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.infrastructure.schemas import PlatformModel
 
 logger = logging.getLogger(__name__)
-
-
-class PlatformModel(DynamicBaseModel):
-    """平台模型配置"""
-    model_id: str
-    display_name: str
-    provider_name: str
-    provider_type: str = "openai"  # openai | anthropic
-    model_type: str = "llm"  # llm, embedding, vision
-    config_type: str = "evoloop"  # evoloop, custom
-    context_window: int = 8192
-    max_tokens: int = 4096
-    supports_streaming: bool = True
-    supports_vision: bool = False
-    supports_functions: bool = True
-    description: str = ""
-    icon: str = "default"
-    available: bool = True
-    quota_required: bool = True
 
 
 def _get_custom_model_context_window(model_name: str) -> int:

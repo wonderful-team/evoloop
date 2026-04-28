@@ -12,28 +12,13 @@ from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.models import User, UserPublic
 from app.models.schemas.auth import CacheInvalidateResponse, EvoCloudProxyResponse, MemberBenefitsResponse
 from app.services.benefit_service import benefit_service
+from app.api.schemas.member import ChangePasswordRequest, UpdateUserRequest, BatchCheckRequest, BatchCheckResponse
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["member"])
 
-
 # --- Request/Response Schemas ---
-
-class ChangePasswordRequest(DynamicBaseModel):
-    old_password: str = Field(..., min_length=1, description="Current password")
-    new_password: str = Field(..., min_length=8, description="New password (min 8 characters)")
-
-
-class UpdateUserRequest(DynamicBaseModel):
-    nickname: str | None = Field(None, description="User nickname")
-    headimg: str | None = Field(None, description="Avatar URL")
-    email: str | None = Field(None, description="Email address")
-
-
-class MessageResponse(BaseAPIResponse):
-    pass
-
 
 # --- User Profile (Unified) ---
 
@@ -47,7 +32,6 @@ def _parse_int_safe(value: Any, default: int = 0) -> int:
         except ValueError:
             return default
     return default
-
 
 def _map_mc_user_to_user(data: dict) -> User:
     """
@@ -111,7 +95,6 @@ def _map_mc_user_to_user(data: dict) -> User:
         is_active=data.get("status") == 1,
     )
 
-
 @router.get("/me", response_model=UserPublic)
 async def read_user_me(current_user: CurrentUser) -> Any:
     """
@@ -138,8 +121,7 @@ async def read_user_me(current_user: CurrentUser) -> Any:
             detail="Session expired",
         )
 
-
-@router.put("/password", response_model=MessageResponse)
+@router.put("/password", response_model=BaseAPIResponse)
 async def change_password(
     data: ChangePasswordRequest,
     current_user: CurrentUser,
@@ -152,7 +134,6 @@ async def change_password(
         new_password=data.new_password,
     )
 
-
 @router.put("/me", response_model=UserPublic)
 async def update_user_me(
     data: UpdateUserRequest,
@@ -164,35 +145,21 @@ async def update_user_me(
     update_data = data.model_dump(exclude_none=True)
     return await evocloud_manager.api.update_user_info(update_data)
 
-
 # --- Account Cancellation ---
 
 @router.get("/cancellation/info")
 async def get_cancellation_info(_token: TokenDep) -> EvoCloudProxyResponse:
     return await evocloud_manager.api.get_cancellation_info()
 
-
 @router.post("/cancellation/apply")
 async def apply_cancellation(_token: TokenDep) -> EvoCloudProxyResponse:
     return await evocloud_manager.api.apply_cancellation()
-
 
 @router.post("/cancellation/cancel")
 async def cancel_cancellation(_token: TokenDep) -> EvoCloudProxyResponse:
     return await evocloud_manager.api.cancel_cancellation_apply()
 
-
 # --- Batch Benefits & Cache Management ---
-
-class BatchCheckRequest(DynamicBaseModel):
-    benefit_codes: List[str]
-
-
-class BatchCheckResponse(BaseAPIResponse):
-    results: dict[str, bool]
-    is_expired: bool
-    level_name: str
-
 
 @router.post("/benefits/check-batch", response_model=BatchCheckResponse)
 async def check_benefits_batch(req: BatchCheckRequest, token: TokenDep):
@@ -217,7 +184,6 @@ async def check_benefits_batch(req: BatchCheckRequest, token: TokenDep):
         level_name=benefits_data.get("level_name", "免费用户")
     )
 
-
 @router.get("/benefits")
 async def get_member_benefits_api(force_refresh: bool = False, token: TokenDep = None) -> MemberBenefitsResponse:
     """
@@ -231,7 +197,6 @@ async def get_member_benefits_api(force_refresh: bool = False, token: TokenDep =
         force_refresh=force_refresh
     )
     return MemberBenefitsResponse(code=0, data=data)
-
 
 @router.post("/benefits/cache/invalidate")
 async def invalidate_member_benefits_cache(token: TokenDep) -> CacheInvalidateResponse:

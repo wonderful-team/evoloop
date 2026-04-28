@@ -15,19 +15,9 @@ from app.domain.codebase.indexing.extractors.treesitter_extractor import (
 )
 from app.infrastructure.embeddings.base import BaseEmbedder
 from app.infrastructure.embeddings.factory import EmbedderFactory
+from app.domain.codebase.schemas import IndexedContent
 
 logger = logging.getLogger(__name__)
-
-
-class IndexedContent(BaseModel):
-    """Result of content indexing, ready for persistence."""
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    documents: list[Document]
-    entities: list[ExtractedEntity]
-    relations: list[ExtractedRelation]
-    embeddings: list[list[float]]
-    file_summary_doc: Document  # Whole file summary chunk
 
 
 class ContentIndexer:

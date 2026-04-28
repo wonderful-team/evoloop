@@ -10,16 +10,9 @@ from app.core.learning.skill_validator import SkillValidator
 from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.models.learning import LearnedSkill
+from app.core.learning.schemas import SkillImportResult
 
 logger = logging.getLogger(__name__)
-
-
-class SkillImportResult(DynamicBaseModel):
-    """Result of a bulk skill import operation."""
-    total_found: int = 0
-    imported: int = 0
-    skipped: int = 0
-    errors: list[str] = Field(default_factory=list)
 
 
 class SkillImporter:

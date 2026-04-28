@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 
 from app.core.tools import evoloop_tool
 from app.core.tools.registry import REGISTRY
+from app.domain.tools.schemas import CreatePythonToolInput
 
 logger = logging.getLogger(__name__)
 
@@ -67,13 +68,6 @@ class SafeASTVisitor(ast.NodeVisitor):
             pass
 
         self.generic_visit(node)
-
-
-class CreatePythonToolInput(BaseModel):
-    name: str = Field(..., description="The name of the tool (snake_case), e.g., 'calculate_hash'.")
-    description: str = Field(..., description="A clear description of what the tool does and its arguments.")
-    code: str = Field(..., description="The Python code defining the function. MUST include type hints and a docstring.")
-    version: str | None = Field("1.0.0", description="Version string.")
 
 
 @evoloop_tool(

@@ -8,7 +8,7 @@ from app.core.engine.state.blackboard import SpawnPlan
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 
-class ToolResult(DynamicBaseModel):
+class OrchestrationToolResult(DynamicBaseModel):
     status: str
     message: str
     _signal: str | None = None

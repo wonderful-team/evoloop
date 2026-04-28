@@ -5,43 +5,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from app.infrastructure.pydantic_base import DynamicBaseModel
-
-
-class TelemetryMetadata(DynamicBaseModel):
-    """Dynamic metadata attached to an inference telemetry event."""
-
-
-class PromptStats(BaseModel):
-    """Metrics for the input prompt."""
-    system_len: int = 0
-    history_len: int = 0
-    total_len: int = 0
-
-
-class UsageMetadata(BaseModel):
-    """Token usage metrics from the LLM provider."""
-    prompt_tokens: int | None = None
-    completion_tokens: int | None = None
-    total_tokens: int | None = None
-
-
-class ResponseStats(BaseModel):
-    """Metrics for the LLM response."""
-    content_len: int = 0
-    is_tool_call: bool = False
-    tool_names: list[str] = Field(default_factory=list)
-
-
-class InferenceEvent(DynamicBaseModel):
-    """A complete record of a single inference call."""
-    timestamp: str = Field(default_factory=lambda: datetime.now().isoformat())
-    node_name: str
-    turn_id: int
-    latency_ms: float
-    prompt: PromptStats
-    usage: UsageMetadata
-    response: ResponseStats
-    metadata: TelemetryMetadata = Field(default_factory=TelemetryMetadata)
+from app.core.monitoring.schemas import PromptStats, UsageMetadata, ResponseStats, InferenceEvent
 
 
 class TelemetryCollector:
@@ -116,7 +80,7 @@ class TelemetryCollector:
                 prompt=prompt,
                 usage=usage,
                 response=response,
-                metadata=TelemetryMetadata(**(metadata or {}))
+                metadata=metadata or {}
             )
 
             with open(self.current_log_file, "a", encoding="utf-8") as f:

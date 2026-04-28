@@ -35,11 +35,11 @@ from app.models import Message
 from app.models.learning import LearnedSkill
 from app.models.schemas.base import ScopedRequest
 from app.utils.id import gen_uuid
+from app.api.schemas.agent import ChatRequest, WebhookPayload, WebhookRequest, ResumeRequest, CancelHITLRequest, StopChatResponse, ResumeChatResponse, CancelHITLResponse, WebhookResponse
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-
 
 async def _get_pending_tool_call(graph, config: dict) -> dict | None:
     """Check if the graph's last message has a pending HITL tool call.
@@ -63,73 +63,9 @@ async def _get_pending_tool_call(graph, config: dict) -> dict | None:
         pass
     return None
 
-
-class ChatRequest(ScopedRequest):
-    thread_id: str | None = None
-    message: str
-    project_id: int | None = 1
-    model: str | None = None  # User selected model (optional)
-    command_id: int | None = None
-    checkpoint_id: str | None = None
-    message_id: int | None = None  # Targeted retry/edit support
-    attachments: list[dict[str, Any]] | None = None  # [{"url": "...", "type": "image"}]
-    skill_id: int | None = None  # Attach a learned skill to the message
-    revert_files: bool = True  # For retry/undo support
-
-
-class WebhookPayload(DynamicBaseModel):
-    """External webhook payload. Extra fields are allowed per source/event_type."""
-
-
-class WebhookRequest(ScopedRequest):
-    source: str
-    event_type: str
-    payload: WebhookPayload
-    thread_id: str | None = None
-
-
-class ResumeRequest(ScopedRequest):
-    thread_id: str
-    user_input: str | None = None  # Optional user response for HITL
-    command_id: int | None = None  # Explicit command_id for resumption trace
-    model: str | None = None  # User selected model (optional)
-
-
-class CancelHITLRequest(ScopedRequest):
-    thread_id: str
-    reason: str | None = None  # Optional reason for cancellation
-    model: str | None = None  # User selected model (optional)
-
-
-class StopChatResponse(BaseAPIResponse):
-    """Response for stopping a chat."""
-    status: str
-    thread_id: str
-
-
-class ResumeChatResponse(BaseAPIResponse):
-    """Response for resuming a chat."""
-    status: str
-    thread_id: str
-
-
-class CancelHITLResponse(BaseAPIResponse):
-    """Response for cancelling a HITL request."""
-    status: str
-    thread_id: str
-    request_id: str | None
-
-
-class WebhookResponse(BaseAPIResponse):
-    """Response for webhook endpoint."""
-    status: str
-    thread_id: str
-
-
 # =============================================================================
 # Unified Dispatch Helpers
 # =============================================================================
-
 
 @router.post("/chat", dependencies=[Depends(verify_guest_access)])
 async def chat_endpoint(req: ChatRequest, bg_tasks: BackgroundTasks, _current_user: CurrentUserOptional):
@@ -188,7 +124,6 @@ async def chat_endpoint(req: ChatRequest, bg_tasks: BackgroundTasks, _current_us
     bg_tasks.add_task(run_agent_background, req.thread_id, result.inputs)
     return {"status": "queued", "thread_id": req.thread_id, "message_id": result.message_id}
 
-
 @router.post("/chat/stop", response_model=StopChatResponse)
 async def stop_chat(req: ChatRequest):
     """
@@ -198,7 +133,6 @@ async def stop_chat(req: ChatRequest):
         raise HTTPException(status_code=400, detail="thread_id is required")
     await activity_monitor.stop_run(req.thread_id)
     return StopChatResponse(status="stopping", thread_id=req.thread_id)
-
 
 @router.post("/chat/retry", dependencies=[Depends(verify_guest_access)])
 async def retry_chat(req: ChatRequest, bg_tasks: BackgroundTasks, _request: Request = None):
@@ -355,7 +289,6 @@ async def retry_chat(req: ChatRequest, bg_tasks: BackgroundTasks, _request: Requ
         "files_reverted": files_reverted,
     }
 
-
 @router.post("/chat/resume")
 async def resume_chat(req: ResumeRequest, bg_tasks: BackgroundTasks):
     """
@@ -432,7 +365,6 @@ async def resume_chat(req: ResumeRequest, bg_tasks: BackgroundTasks):
     )
 
     return ResumeChatResponse(status="resuming", thread_id=req.thread_id)
-
 
 @router.post("/hitl/cancel")
 async def cancel_hitl_request(req: CancelHITLRequest, bg_tasks: BackgroundTasks):

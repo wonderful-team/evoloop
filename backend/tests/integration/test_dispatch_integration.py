@@ -68,10 +68,21 @@ def mock_ref_service():
 
 @pytest.fixture(autouse=True)
 def mock_evocloud():
-    """Patch EvoCloud upload_log."""
+    """Patch EvoCloud get_token."""
     with patch(
-        "app.core.evocloud.manager.EvoCloudManager.upload_log",
+        "app.core.evocloud.manager.EvoCloudManager.get_token",
         new_callable=AsyncMock,
+        return_value="mock_token",
+    ) as m:
+        yield m
+
+
+@pytest.fixture(autouse=True)
+def mock_system_config():
+    """Patch SystemConfigService.get_value to return a default model."""
+    with patch(
+        "app.infrastructure.config.service.SystemConfigService.get_value",
+        return_value="gpt-4o",
     ) as m:
         yield m
 
@@ -103,10 +114,9 @@ async def test_dispatch_returns_queued_status(mock_scope, mock_ref_service):
 
 
 @pytest.mark.asyncio
-async def test_dispatch_model_fallback(mock_scope, mock_ref_service):
-    """When model is None, dispatch should fallback to settings.OPENAI_MODEL_NAME."""
+async def test_dispatch_model_fallback(mock_scope, mock_ref_service, mock_system_config):
+    """When model is None, dispatch should fallback to SystemConfigService."""
     from app.core.engine.dispatch import dispatch_agent_run
-    from app.core.config import settings
 
     result = await dispatch_agent_run(
         thread_id="t-123",
@@ -115,7 +125,7 @@ async def test_dispatch_model_fallback(mock_scope, mock_ref_service):
     )
 
     assert result.inputs is not None
-    assert result.inputs["model"] == settings.OPENAI_MODEL_NAME
+    assert result.inputs["model"] == "gpt-4o"
 
 
 @pytest.mark.asyncio
@@ -269,7 +279,7 @@ async def test_persist_user_message_missing_conversation(mock_scope):
     assert msg_id is None
 
 
-@pytest.mark.asyncio
+@pytest.mark.skip(reason="resume_graph_background removed in schema migration")
 async def test_resume_graph_background_exists():
     """resume_graph_background helper should be importable."""
     from app.core.engine.dispatch import resume_graph_background

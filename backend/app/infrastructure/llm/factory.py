@@ -8,6 +8,7 @@ import httpx
 from app.infrastructure.llm.adaptive import AdaptiveChatOpenAI
 from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.utils.async_utils import LoopBoundResource
+from app.infrastructure.schemas import LLMCacheStats
 
 logger = logging.getLogger(__name__)
 
@@ -50,14 +51,6 @@ _HTTP_CLIENT_POOL = LoopBoundResource(
     ),
     cleanup=_close_client
 )
-
-
-class LLMCacheStats(DynamicBaseModel):
-    """Statistics for the LLM instance cache."""
-    cache_hits: int
-    cache_misses: int
-    hit_rate: str
-    cached_instances: int
 
 
 class LLMFactory:

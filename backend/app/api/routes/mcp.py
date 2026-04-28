@@ -5,21 +5,9 @@ from fastapi import APIRouter, HTTPException
 from app.api.responses import BaseAPIResponse
 from app.core.mcp import mcp_client_manager
 from app.core.mcp.schemas import McpServerCreate
+from app.api.schemas.mcp import McpOperationResponse, McpConnectResponse
 
 router = APIRouter()
-
-
-class McpOperationResponse(BaseAPIResponse):
-    """Response for MCP add/remove operations."""
-    status: str
-
-
-class McpConnectResponse(BaseAPIResponse):
-    """Response for MCP connect operation."""
-    status: str
-    name: str
-    tools_count: int
-
 
 @router.get("/servers", response_model=list[Any])
 async def list_mcp_servers():
@@ -31,7 +19,6 @@ async def list_mcp_servers():
     # frontend wants: name, command, status, tools_count, args (optional)
     # backend list_servers returns list of dicts.
     return servers
-
 
 @router.post("/server", response_model=Any)
 async def add_mcp_server(server: McpServerCreate):
@@ -49,7 +36,6 @@ async def add_mcp_server(server: McpServerCreate):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-
 @router.delete("/server/{name}", response_model=McpOperationResponse)
 async def delete_mcp_server(name: str):
     """
@@ -62,7 +48,6 @@ async def delete_mcp_server(name: str):
         return McpOperationResponse(status="success", message=f"Server {name} removed")
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
-
 
 @router.post("/server/{name}/connect", response_model=McpConnectResponse)
 async def connect_mcp_server(name: str):

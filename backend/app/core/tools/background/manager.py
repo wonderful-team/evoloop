@@ -43,28 +43,9 @@ from typing import Any, Optional
 
 from app.infrastructure.pydantic_base import DynamicBaseModel
 from .models import BackgroundTask, TaskMetadata, TaskStatus, TaskType
+from app.core.tools.schemas import CreateBackgroundTaskRequest, BackgroundTaskManagerStats
 
 logger = logging.getLogger(__name__)
-
-
-class CreateBackgroundTaskRequest(DynamicBaseModel):
-    """Request model for creating a background task."""
-    task_type: TaskType
-    title: str
-    tool_name: str
-    thread_id: str
-    description: str = ""
-    project_id: int | None = None
-    timeout_seconds: int = 3600
-    metadata: TaskMetadata | None = None
-
-
-class BackgroundTaskManagerStats(DynamicBaseModel):
-    """Background task manager statistics."""
-    total_tasks: int
-    by_status: dict[str, int]
-    by_thread: int
-    by_tool: dict[str, int]
 
 
 class BackgroundTaskManager:

@@ -163,9 +163,11 @@ class TestRedisCacheList:
 
     @pytest.mark.asyncio
     async def test_lrange(self, redis_cache, mock_redis):
-        """Test list range - not implemented in RedisCache."""
-        # lrange is not part of Cache interface
-        assert not hasattr(redis_cache, 'lrange')
+        """Test list range - implemented in RedisCache."""
+        # lrange is part of Cache interface
+        assert hasattr(redis_cache, 'lrange')
+        result = await redis_cache.lrange("list_name", 0, -1)
+        assert result == ["item1", "item2"]
 
     @pytest.mark.asyncio
     async def test_ltrim(self, redis_cache, mock_redis):

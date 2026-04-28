@@ -4,7 +4,7 @@ Tests for TransparentCallbackHandler.
 import pytest
 from unittest.mock import MagicMock, AsyncMock, patch
 
-from app.core.callbacks.transparent import TransparentCallbackHandler
+from app.core.engine.callbacks.transparent import TransparentCallbackHandler
 from app.core.context import tool_state_store
 
 

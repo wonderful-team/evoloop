@@ -1,21 +1,10 @@
 import logging
 from typing import Optional
 
-from pydantic import BaseModel
 from app.core.exceptions import InferenceError, AgentTerminalException
+from app.core.engine.schemas import ErrorClassification
 
 logger = logging.getLogger(__name__)
-
-
-class ErrorClassification(BaseModel):
-    """Structured error classification result."""
-    error_type: str
-    status_code: Optional[int] = None
-    title: str
-    message: str
-    hint: str
-    raw_error: str
-    is_terminal: bool = False
 
 
 class LLMErrorHandler:

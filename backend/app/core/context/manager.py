@@ -9,22 +9,7 @@ from app.core.exceptions import GlobalModeError
 from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.services.cache_services import ContextCacheService
 from app.utils.id import gen_uuid
-
-
-class ContextMetadata(DynamicBaseModel):
-    """Dynamic metadata attached to an EvoContext."""
-    has_android: bool | None = None
-    has_macos: bool | None = None
-    user_preferences: Any | None = None
-    project_concepts: Any | None = None
-    active_skills: Any | None = None
-    environment_telemetry: Any | None = None
-    blackboard: Any | None = None
-    execution_ticket: Any | None = None
-    iteration_count: int | None = None
-    active_plan_context: str | None = None
-    prompt: str | None = None
-
+from app.core.context.schemas import ContextMetadata
 
 # ==========================================
 # Core Context Definition

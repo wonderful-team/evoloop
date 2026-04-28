@@ -1,0 +1,29 @@
+"""MCP schemas package — unified import entry for all MCP models."""
+
+# Pure DTOs defined in this package
+from .auth import AuthConfig, AuthToken, ElicitationField, ElicitationRequest, ElicitationValues
+from .client import McpPrompt, McpPromptArgument, McpResource, McpServerSummary
+from .features import McpFeatureCapabilities, McpPromptMessage, McpPromptResult, McpResourceContent
+from .servers import (
+    ConnectionResult,
+    ConnectionState,
+    HealthStatus,
+    McpServerBase,
+    McpServerCreate,
+    McpServerRead,
+    McpServerUpdate,
+    ServerCapabilities,
+    WorkerMcpConfig,
+    WorkerMcpServerConfig,
+)
+from .tools import (
+    GetMcpPromptInput,
+    ListMcpPromptsInput,
+    ListMcpResourcesInput,
+    ReadMcpResourceInput,
+    UseMcpServerSchema,
+)
+
+# Models with business methods — re-exported from their original modules
+from app.core.mcp.config import McpServerConfig
+from app.core.mcp.worker_config import WorkerMcpConfig as _WorkerMcpConfig, WorkerMcpServerConfig as _WorkerMcpServerConfig

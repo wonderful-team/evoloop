@@ -52,24 +52,9 @@ from app.infrastructure.drivers.adb import adb_driver
 from app.infrastructure.llm.vision import VisionLLMFactory
 from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.models import TraceEvent
+from app.core.learning.schemas import RecordingSession, VideoInfo
 
 logger = logging.getLogger(__name__)
-
-
-class RecordingSession(DynamicBaseModel):
-    """录制会话数据"""
-    video_path: str
-    session_id: str
-    task_description: str
-    thread_id: str | None = None
-
-
-class VideoInfo(DynamicBaseModel):
-    """视频元信息"""
-    duration: float
-    width: int
-    height: int
-    fps: float
 
 
 class MultimodalSkillSynthesizer:

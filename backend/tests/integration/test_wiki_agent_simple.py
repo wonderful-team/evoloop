@@ -345,27 +345,28 @@ class TestWikiAgentStateManagement:
 class TestWikiAgentConfig:
     """Test Wiki Agent configuration."""
 
+    @pytest.mark.skip(reason="Module deleted in schema migration")
     def test_config_yaml_structure(self):
         """Test YAML config has correct structure."""
         import yaml
         import os
-        
+
         config_path = os.path.join(
-            os.path.dirname(__file__), 
-            '..', '..', 
+            os.path.dirname(__file__),
+            '..', '..',
             'app', 'config', 'agents', 'wiki_agent.yml'
         )
-        
+
         with open(config_path) as f:
             config = yaml.safe_load(f)
-        
+
         # Verify structure
         assert "name" in config
         assert "version" in config
         assert "state_schema" in config
         assert "nodes" in config
         assert "edges" in config
-        
+
         # Verify nodes
         assert len(config["nodes"]) == 4
         node_ids = [n["id"] for n in config["nodes"]]
@@ -373,7 +374,7 @@ class TestWikiAgentConfig:
         assert "wiki_structure_worker" in node_ids
         assert "wiki_content_worker" in node_ids
         assert "wiki_finish" in node_ids
-        
+
         # Verify edges
         assert len(config["edges"]) == 4
 

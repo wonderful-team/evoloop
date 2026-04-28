@@ -6,7 +6,7 @@ from typing import Any
 
 from langchain_core.runnables import RunnableConfig
 
-from app.core.engine.tools.orchestration.schemas import ToolResult
+from app.core.engine.tools.orchestration.schemas import OrchestrationToolResult
 from app.core.tools import evoloop_tool
 
 
@@ -15,7 +15,7 @@ from app.core.tools import evoloop_tool
     is_hidden=True,  # Internal state management, not user-facing
     name_map={"zh": "管理会话元数据", "en": "Manage Session Metadata"}
 )
-def manage_session_metadata(key: str, value: Any, _config: RunnableConfig) -> ToolResult:
+def manage_session_metadata(key: str, value: Any, _config: RunnableConfig) -> OrchestrationToolResult:
     """
     Updates session-level metadata to guide the agent's behavior and context resolution.
     
@@ -28,7 +28,7 @@ def manage_session_metadata(key: str, value: Any, _config: RunnableConfig) -> To
         key: The metadata key to set.
         value: The value to assign.
     """
-    return ToolResult(
+    return OrchestrationToolResult(
         status="success",
         message=f"Session metadata '{key}' updated successfully.",
         _signal="update_session_metadata",

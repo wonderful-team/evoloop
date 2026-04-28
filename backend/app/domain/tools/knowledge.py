@@ -7,13 +7,9 @@ from pydantic import BaseModel, Field
 
 from app.core.context.manager import ContextManager
 from app.core.tools import evoloop_tool
+from app.domain.tools.schemas import ExtractedConcept
 
 logger = logging.getLogger(__name__)
-
-
-class ConceptInput(BaseModel):
-    name: str = Field(description="Name of the concept, technology, or pattern")
-    description: str = Field(description="Concise description of the concept")
 
 
 @evoloop_tool(
@@ -22,7 +18,7 @@ class ConceptInput(BaseModel):
     name_map={"zh": "保存概念", "en": "Save Concepts"}
 )
 async def save_concepts(
-    concepts: list[ConceptInput],
+    concepts: list[ExtractedConcept],
     config: Annotated[RunnableConfig, InjectedToolArg] = None
 ) -> str:
     """

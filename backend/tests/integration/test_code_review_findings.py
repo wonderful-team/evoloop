@@ -20,16 +20,6 @@ from collections import deque
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
 
-# Mock message module before any imports
-mock_messaging_mod = MagicMock()
-mock_messaging_mod.MessageHandler = MagicMock
-mock_messaging_mod.MessageCategory = MagicMock
-mock_messaging_mod.MessageClassifier = MagicMock
-mock_messaging_mod.MessagePersistencePolicy = MagicMock
-mock_messaging_mod.MessageStreamPolicy = MagicMock
-sys.modules["app.core.engine.message"] = mock_messaging_mod
-sys.modules["app.core.message"] = mock_messaging_mod
-
 env_path = os.path.join(os.path.dirname(__file__), "../../../.env")
 if os.path.exists(env_path):
     with open(env_path) as f:

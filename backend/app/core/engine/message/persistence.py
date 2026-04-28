@@ -11,18 +11,9 @@ import logging
 
 from app.core.engine.message.category import MessageCategory
 from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.core.engine.message.schemas import PersistencePolicyResult
 
 logger = logging.getLogger(__name__)
-
-
-class PersistencePolicyResult(DynamicBaseModel):
-    should_persist: bool
-    content: str | None = None
-    thinking: str | None = None
-    tool_calls: list | None = None
-    category: str
-    tool_call_id: str | None = None
-    tool_name: str | None = None
 
 
 class MessagePersistencePolicy:

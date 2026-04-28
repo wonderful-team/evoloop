@@ -21,21 +21,11 @@ Usage:
     if not decision.allowed:
         logger.info(f"Self-healing disabled: {decision.reason}")
 """
-from typing import TYPE_CHECKING, Any, Optional
+from typing import Any, Optional
 
 from app.core.config import settings
-from app.infrastructure.pydantic_base import DynamicBaseModel
-
-if TYPE_CHECKING:
-    from app.models import LearnedSkill
-
-
-class HealingDecision(DynamicBaseModel):
-    """Result of a self-healing policy check."""
-    allowed: bool
-    reason: str
-    # Source of the decision for debugging
-    source: str  # "global" | "skill" | "execution" | "allowed"
+from app.core.execution.macro.schemas import HealingDecision
+from app.models import LearnedSkill
 
 
 class SelfHealingPolicy:

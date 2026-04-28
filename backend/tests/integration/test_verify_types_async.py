@@ -11,6 +11,7 @@ import time
 import pytest
 
 from app.domain.tools.files.edit_file import handle_edit
+from app.domain.tools.schemas import EditFileRequest
 
 
 class TestVerifyTypesAsync:
@@ -20,7 +21,7 @@ class TestVerifyTypesAsync:
     def sample_file(self):
         from app.core.tools import get_working_directory
         import uuid
-        
+
         root = get_working_directory(None)
         path = os.path.join(root, f"verify_test_{uuid.uuid4().hex}.py")
         content = "def foo():\n    return 1\n"
@@ -34,13 +35,15 @@ class TestVerifyTypesAsync:
     async def test_verify_types_runs_in_background(self, sample_file):
         start = time.perf_counter()
         result = await handle_edit(
-            path=sample_file,
-            target="    return 1",
-            content="    return 2",
-            allow_multiple=False,
-            expected_hash=None,
-            verify_types=False,  # Disable for speed test
-            config=None
+            EditFileRequest(
+                path=sample_file,
+                target="    return 1",
+                content="    return 2",
+                allow_multiple=False,
+                expected_hash=None,
+                verify_types=False,  # Disable for speed test
+                config=None
+            )
         )
         elapsed_ms = (time.perf_counter() - start) * 1000
 
@@ -54,13 +57,15 @@ class TestVerifyTypesAsync:
 
         with patch('asyncio.create_task') as mock_create_task:
             result = await handle_edit(
-                path=sample_file,
-                target="    return 1",
-                content="    return 2",
-                allow_multiple=False,
-                expected_hash=None,
-                verify_types=False,
-                config=None
+                EditFileRequest(
+                    path=sample_file,
+                    target="    return 1",
+                    content="    return 2",
+                    allow_multiple=False,
+                    expected_hash=None,
+                    verify_types=False,
+                    config=None
+                )
             )
             # If verify_types=False, no background task should be created
             mock_create_task.assert_not_called()

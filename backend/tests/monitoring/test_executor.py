@@ -20,7 +20,7 @@ import os
 import signal
 import argparse
 from datetime import datetime
-from typing import Optional, List, Dict, Any, Callable
+from typing import Optional, Tuple, List, Dict, Any, Callable
 from dataclasses import dataclass, field
 from enum import Enum
 import httpx

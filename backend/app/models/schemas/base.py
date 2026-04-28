@@ -29,14 +29,6 @@ class ProgressTrackable(BaseModel):
     result: str | None = None
 
 
-class SearchResponse(BaseModel):
-    """Base for search result envelopes."""
-
-    query: str
-    results: list[Any]
-    total: int
-
-
 class ScopedRequest(BaseModel):
     """Base for requests that target a specific project/thread context."""
 

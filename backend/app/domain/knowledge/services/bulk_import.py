@@ -17,25 +17,9 @@ from pydantic import Field
 
 from app.domain.knowledge.services.pipeline import IngestionPipeline
 from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.domain.knowledge.schemas import BulkImportError, ArchiveValidationResult
 
 logger = logging.getLogger(__name__)
-
-
-class BulkImportError(DynamicBaseModel):
-    """Error entry for a bulk import operation."""
-    file: str
-    error: str
-
-
-class ArchiveValidationResult(DynamicBaseModel):
-    """Result of archive validation."""
-    valid: bool
-    total_files: int = 0
-    processable_files: int = 0
-    total_size_bytes: int = 0
-    compressed_size_bytes: int = 0
-    sample_files: list[str] = Field(default_factory=list)
-    error: Optional[str] = None
 
 
 class BulkImportResult(DynamicBaseModel):

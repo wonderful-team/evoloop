@@ -11,17 +11,10 @@ from fastapi.responses import FileResponse
 from app.api.responses import BaseAPIResponse
 from app.core.evocloud import evocloud_manager
 from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.api.schemas.files import FileNode, FileContent, OpenFileRequest, OpenFileResponse, FileUploadResponse, FileSearchResult, FileNameSearchResult, CreateFileRequest
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/projects/{project_id}/files", tags=["files"])
-
-
-class FileNode(DynamicBaseModel):
-    name: str  # display name
-    path: str  # relative path to project root
-    type: str  # 'file' or 'directory'
-    children: list["FileNode"] | None = None
-
 
 @router.get("", response_model=list[FileNode])
 async def list_files(project_id: int, path: str | None = None):
@@ -106,12 +99,6 @@ async def list_files(project_id: int, path: str | None = None):
 
     return build_tree(target_dir, path or "")
 
-
-class FileContent(DynamicBaseModel):
-    content: str
-    language: str
-
-
 @router.get("/content", response_model=FileContent)
 async def get_file_content(project_id: int, path: str = Query(..., min_length=1)):
     """
@@ -146,7 +133,6 @@ async def get_file_content(project_id: int, path: str = Query(..., min_length=1)
         logger.error(f"Error reading file {target_file}: {e}")
         raise HTTPException(500, "Error reading file")
 
-
 @router.get("/raw")
 async def get_raw_file(project_id: int, path: str = Query(..., min_length=1)):
     """
@@ -171,37 +157,6 @@ async def get_raw_file(project_id: int, path: str = Query(..., min_length=1)):
         raise HTTPException(404, "File not found")
 
     return FileResponse(target_file)
-
-
-class OpenFileRequest(DynamicBaseModel):
-    path: str
-
-
-class OpenFileResponse(BaseAPIResponse):
-    """Response for opening a file."""
-    status: str
-
-
-class FileUploadResponse(BaseAPIResponse):
-    """Response for uploading a file."""
-    url: str
-    filename: str
-    path: str
-
-
-class FileSearchResult(DynamicBaseModel):
-    """Single file content search result."""
-    file: str
-    line: int
-    content: str
-
-
-class FileNameSearchResult(DynamicBaseModel):
-    """Single file name search result."""
-    name: str
-    path: str
-    type: str
-
 
 @router.post("/open")
 async def open_file(project_id: int, req: OpenFileRequest):
@@ -237,12 +192,6 @@ async def open_file(project_id: int, req: OpenFileRequest):
         logger.error(f"Failed to open file {target_file}: {e}")
         raise HTTPException(500, f"Failed to open file: {str(e)}")
 
-
-class CreateFileRequest(DynamicBaseModel):
-    path: str
-    content: str
-
-
 @router.post("", response_model=FileNode)
 async def create_file(project_id: int, req: CreateFileRequest):
     """
@@ -271,7 +220,6 @@ async def create_file(project_id: int, req: CreateFileRequest):
     except Exception as e:
         logger.error(f"Failed to write file {target_file}: {e}")
         raise HTTPException(500, f"Failed to write file: {str(e)}")
-
 
 @router.post("/upload")
 async def upload_file(project_id: int, file: UploadFile = File(...)):
@@ -328,7 +276,6 @@ async def upload_file(project_id: int, file: UploadFile = File(...)):
     except Exception as e:
         logger.error(f"Failed to upload file {target_path}: {e}")
         raise HTTPException(500, f"Failed to upload file: {str(e)}")
-
 
 @router.get("/search", response_model=list[FileSearchResult])
 async def search_files(project_id: int, q: str):
@@ -404,7 +351,6 @@ async def search_files(project_id: int, q: str):
         logger.error(f"Search failed: {e}")
 
     return results
-
 
 @router.get("/search_name", response_model=list[FileNameSearchResult])
 async def search_files_by_name(project_id: int, q: str):

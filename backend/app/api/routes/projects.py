@@ -16,101 +16,11 @@ from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.models import Repository
 from app.models.schemas.base import ScopedRequest
 from app.utils.time import utcnow
+from app.api.schemas.projects import IndexingRequest, CreateProjectRequest, UpdateProjectRequest, ProjectStatusActivity, ProjectStatusResponse, ProjectDeleteResponse, IndexingRunResponse, DetectedProjectItem, ImportProjectResponse, IgnoreProjectResponse, UnignoreProjectResponse, BatchResultItem, BatchImportResponse, BatchImportRequest
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["projects"])
-
-
-class IndexingRequest(ScopedRequest):
-    project_id: int
-
-
-class CreateProjectRequest(DynamicBaseModel):
-    name: str
-    description: str = ""
-    path: str
-
-
-class UpdateProjectRequest(DynamicBaseModel):
-    name: str | None = None
-    description: str | None = None
-    path: str | None = None
-
-
-class ProjectStatusActivity(DynamicBaseModel):
-    """System task activity state."""
-    status: str = "idle"
-    updated_at: float = 0.0
-    agent_state: dict = {}
-    steps: list = []
-
-
-class ProjectStatusResponse(BaseAPIResponse):
-    """Real-time project system status."""
-    indexing: ProjectStatusActivity
-    summarization: ProjectStatusActivity
-    wiki: ProjectStatusActivity
-
-
-class ProjectDeleteResponse(BaseAPIResponse):
-    """Project deletion response."""
-    status: str
-    id: int
-
-
-class IndexingRunResponse(BaseAPIResponse):
-    """Indexing dispatch response."""
-    status: str
-    project_id: int
-
-
-class DetectedProjectItem(DynamicBaseModel):
-    """Detected project awaiting import."""
-    id: int
-    name: str
-    path: str | None
-    detected_at: str | None
-
-
-class DetectedProjectsResponse(ListResponse[DetectedProjectItem]):
-    """Response for detected projects."""
-    pass
-
-
-class ImportProjectResponse(BaseAPIResponse):
-    """Project import response."""
-    status: str
-    repo_id: int
-    name: str
-
-
-class IgnoreProjectResponse(BaseAPIResponse):
-    """Project ignore response."""
-    status: str
-    repo_id: int
-
-
-class UnignoreProjectResponse(BaseAPIResponse):
-    """Project unignore response."""
-    status: str
-    repo_id: int
-    name: str
-
-
-class BatchResultItem(DynamicBaseModel):
-    """Single result in batch operation."""
-    repo_id: int
-    name: str | None = None
-    error: str | None = None
-
-
-class BatchImportResponse(BaseAPIResponse):
-    """Batch import response."""
-    status: str
-    summary: str
-    results: dict[str, list[BatchResultItem]]
-
 
 def _extract_projects(response: dict | list) -> tuple[list, dict | None]:
     """
@@ -125,7 +35,6 @@ def _extract_projects(response: dict | list) -> tuple[list, dict | None]:
     elif isinstance(response, list):
         return response, None  # Direct list, update by returning new list
     return [], None
-
 
 def _scan_workspace_projects() -> dict[str, str]:
     """
@@ -159,7 +68,6 @@ def _scan_workspace_projects() -> dict[str, str]:
         logger.warning(f"[ProjectsAPI] Failed to scan workspace: {e}")
 
     return local_projects
-
 
 @router.get("/")
 async def get_projects(
@@ -480,7 +388,6 @@ async def get_projects(
         return res
     return projects
 
-
 @router.get("/current")
 async def get_current_project(_token: TokenDep):
     """
@@ -491,7 +398,6 @@ async def get_current_project(_token: TokenDep):
     # Add local context if needed
     # ...
     return cloud_res
-
 
 @router.post("/")
 async def create_project(req: CreateProjectRequest, _token: TokenDep):
@@ -527,7 +433,6 @@ async def create_project(req: CreateProjectRequest, _token: TokenDep):
     except Exception as e:
         logger.error(f"Failed to create project: {e}")
         raise HTTPException(500, str(e))
-
 
 @router.get("/{project_id}/status", response_model=ProjectStatusResponse)
 async def get_project_status(project_id: int):
@@ -565,7 +470,6 @@ async def get_project_status(project_id: int):
         wiki=ProjectStatusActivity.model_validate(parse_act(results[2]))
     )
 
-
 @router.delete("/{project_id}", response_model=ProjectDeleteResponse)
 async def delete_project(project_id: int):
     """Delete a project (Unlink from Member Center)."""
@@ -581,7 +485,6 @@ async def delete_project(project_id: int):
         logger.error(f"Failed to delete project: {e}")
         raise HTTPException(500, str(e))
 
-
 @router.post("/indexing/run", response_model=IndexingRunResponse)
 async def run_indexing_endpoint(req: IndexingRequest):
     """
@@ -590,12 +493,11 @@ async def run_indexing_endpoint(req: IndexingRequest):
     indexing_manager.dispatch_full_index(req.project_id)
     return IndexingRunResponse(status="queued", project_id=req.project_id)
 
-
 # ============================================================================
 # Project Import Management Endpoints
 # ============================================================================
 
-@router.get("/detected", response_model=DetectedProjectsResponse)
+@router.get("/detected", response_model=ListResponse[DetectedProjectItem])
 async def get_detected_projects(_token: TokenDepOptional = None):
     """
     Get all newly detected projects awaiting user confirmation.
@@ -616,7 +518,7 @@ async def get_detected_projects(_token: TokenDepOptional = None):
 
     try:
         repos = await project_sync_service.get_detected_projects()
-        return DetectedProjectsResponse(
+        return ListResponse[DetectedProjectItem](
             data=[
                 DetectedProjectItem(
                     id=r.id,
@@ -630,7 +532,6 @@ async def get_detected_projects(_token: TokenDepOptional = None):
     except Exception as e:
         logger.error(f"Failed to get detected projects: {e}")
         raise HTTPException(500, f"Failed to get detected projects: {str(e)}")
-
 
 @router.post("/{repo_id}/import", response_model=ImportProjectResponse)
 async def import_detected_project(repo_id: int, _token: TokenDep):
@@ -658,7 +559,6 @@ async def import_detected_project(repo_id: int, _token: TokenDep):
         logger.error(f"Failed to import project {repo_id}: {e}")
         raise HTTPException(500, f"Failed to import project: {str(e)}")
 
-
 @router.post("/{repo_id}/ignore", response_model=IgnoreProjectResponse)
 async def ignore_detected_project(repo_id: int, _token: TokenDep):
     """
@@ -677,8 +577,7 @@ async def ignore_detected_project(repo_id: int, _token: TokenDep):
         logger.error(f"Failed to ignore project {repo_id}: {e}")
         raise HTTPException(500, f"Failed to ignore project: {str(e)}")
 
-
-@router.get("/ignored", response_model=DetectedProjectsResponse)
+@router.get("/ignored", response_model=ListResponse[DetectedProjectItem])
 async def get_ignored_projects(_token: TokenDep):
     """
     Get all ignored projects.
@@ -689,7 +588,7 @@ async def get_ignored_projects(_token: TokenDep):
 
     try:
         repos = await project_sync_service.get_ignored_projects()
-        return DetectedProjectsResponse(
+        return ListResponse[DetectedProjectItem](
             data=[
                 DetectedProjectItem(
                     id=r.id,
@@ -703,7 +602,6 @@ async def get_ignored_projects(_token: TokenDep):
     except Exception as e:
         logger.error(f"Failed to get ignored projects: {e}")
         raise HTTPException(500, f"Failed to get ignored projects: {str(e)}")
-
 
 @router.post("/{repo_id}/unignore", response_model=UnignoreProjectResponse)
 async def unignore_project(repo_id: int, _token: TokenDep):
@@ -727,11 +625,6 @@ async def unignore_project(repo_id: int, _token: TokenDep):
     except Exception as e:
         logger.error(f"Failed to unignore project {repo_id}: {e}")
         raise HTTPException(500, f"Failed to restore project: {str(e)}")
-
-
-class BatchImportRequest(DynamicBaseModel):
-    repo_ids: list[int]
-
 
 @router.post("/batch/import", response_model=BatchImportResponse)
 async def batch_import_projects(req: BatchImportRequest, _token: TokenDep):
@@ -773,7 +666,6 @@ async def batch_import_projects(req: BatchImportRequest, _token: TokenDep):
         summary=f"Imported {len(results['success'])} of {len(req.repo_ids)} projects",
         results=results
     )
-
 
 @router.post("/batch/ignore", response_model=BatchImportResponse)
 async def batch_ignore_projects(req: BatchImportRequest, _token: TokenDep):

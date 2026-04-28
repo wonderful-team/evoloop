@@ -9,11 +9,11 @@ from app.core.memory.models import MemoryType
 from app.infrastructure.database.vector import get_vector_store
 from app.infrastructure.embeddings.factory import EmbedderFactory
 from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.api.schemas.memory import ConceptCreate, ConceptUpdate, ConceptResponse, EpisodeResponse, VectorSearchResult, VectorSearchResponse, HybridResultItem, HybridSearchResponse, ConceptOperationResponse
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["memory"])
-
 
 async def get_memory_manager():
     """Dependency to get memory manager via MemoryLifespanManager (singleton)."""
@@ -23,78 +23,6 @@ async def get_memory_manager():
         await MemoryLifespanManager.ainitialize()
 
     yield MemoryLifespanManager.get_manager()
-
-
-class ConceptCreate(DynamicBaseModel):
-    name: str
-    description: str
-    related_files: list[str] | None = None
-
-
-class ConceptUpdate(DynamicBaseModel):
-    description: str | None = None
-    related_files: list[str] | None = None
-
-
-class ConceptResponse(BaseAPIResponse):
-    name: str
-    description: str | None = None
-    episode_count: int | None = 0
-
-
-class ConceptWithEpisodeCount(ConceptResponse):
-    """Legacy model for compatibility."""
-    pass
-
-
-class EpisodeResponse(BaseAPIResponse):
-    id: str
-    goal: str
-    result: str | None
-    error: str | None
-    timestamp: str | None  # ISO format datetime string from Neo4j
-
-
-class VectorSearchResult(DynamicBaseModel):
-    """Vector search result item."""
-    id: str
-    content: str
-    file_path: str
-    repository_id: str
-    chunk_type: str
-    identifier: str
-    start_line: int
-    end_line: int
-    language: str
-    score: float
-
-
-class VectorSearchResponse(ListResponse[VectorSearchResult]):
-    """Vector search response."""
-    query: str
-    search_type: str
-
-
-class HybridResultItem(DynamicBaseModel):
-    """Single item in hybrid search results."""
-    type: str
-    score: float
-    data: dict[str, Any]
-
-
-class HybridSearchResponse(ListResponse[HybridResultItem]):
-    """Hybrid search response."""
-    query: str
-    search_type: str
-    vector_results_count: int | None = None
-    text_results_count: int | None = None
-
-
-class ConceptOperationResponse(BaseAPIResponse):
-    """Response for concept add/delete/update operations."""
-    status: str
-    name: str
-
 
 @router.get("/concepts", response_model=list[ConceptResponse])
 async def list_concepts(project_id: int, manager=Depends(get_memory_manager)):
@@ -121,7 +49,6 @@ async def list_concepts(project_id: int, manager=Depends(get_memory_manager)):
     except Exception as e:
         logger.warning(f"Failed to list concepts: {e}")
         return []
-
 
 @router.get("/concepts/list", response_model=list[ConceptResponse])
 async def list_concepts_with_counts(
@@ -150,7 +77,6 @@ async def list_concepts_with_counts(
     except Exception as e:
         logger.warning(f"Failed to list concepts: {e}")
         return []
-
 
 @router.get("/concepts/{concept_name}", response_model=ConceptResponse)
 async def get_concept(
@@ -183,7 +109,6 @@ async def get_concept(
         logger.error(f"Failed to get concept {concept_name}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @router.post("/concepts", response_model=ConceptOperationResponse)
 async def add_concept(
     project_id: int, req: ConceptCreate, manager=Depends(get_memory_manager)
@@ -202,7 +127,6 @@ async def add_concept(
     except Exception as e:
         logger.error(f"Failed to add concept: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get("/search", response_model=list[ConceptResponse])
 async def search_memory(
@@ -234,7 +158,6 @@ async def search_memory(
             episode_count=0
         ) for r in results
     ]
-
 
 @router.get("/search/vector", response_model=VectorSearchResponse)
 async def search_memory_vector(
@@ -289,7 +212,6 @@ async def search_memory_vector(
         logger.error(f"Vector search failed: {e}")
         raise HTTPException(status_code=500, detail=f"Vector search failed: {str(e)}")
 
-
 async def _perform_vector_search(
     query: str,
     project_id: int | None = None,
@@ -331,7 +253,6 @@ async def _perform_vector_search(
     )
     
     return results
-
 
 @router.get("/search/hybrid", response_model=HybridSearchResponse)
 async def search_memory_hybrid(
@@ -418,7 +339,6 @@ async def search_memory_hybrid(
             search_type="text_fallback"
         )
 
-
 @router.delete("/concepts/{concept_name}", response_model=ConceptOperationResponse)
 async def delete_concept(
     project_id: int, concept_name: str, manager=Depends(get_memory_manager)
@@ -438,7 +358,6 @@ async def delete_concept(
     except Exception as e:
         logger.error(f"Failed to delete concept {concept_name}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.put("/concepts/{concept_name}", response_model=ConceptOperationResponse)
 async def update_concept(
@@ -473,7 +392,6 @@ async def update_concept(
         logger.error(f"Failed to update concept {concept_name}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @router.get("/episodes/by-concept", response_model=list[EpisodeResponse])
 async def get_episodes_by_concept(
     project_id: int, concept: str, limit: int = 10, manager=Depends(get_memory_manager)
@@ -500,7 +418,6 @@ async def get_episodes_by_concept(
     except Exception as e:
         logger.error(f"Failed to find episodes by concept: {e}")
         return []
-
 
 @router.post("/maintenance/deduplicate-checkpoints")
 async def deduplicate_checkpoints(

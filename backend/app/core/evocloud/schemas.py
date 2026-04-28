@@ -26,23 +26,6 @@ class EvoCloudConfig(DynamicBaseModel):
     ssl_verify: bool = True
 
 
-class EvoCloudAttachment(DynamicBaseModel):
-    """Attachment metadata in an EvoCloud command."""
-
-
-class CommandData(BaseModel):
-    """Structure of a command received from Cloud."""
-
-    command_id: str
-    type: str # 'chat_message', 'hitl_response', etc.
-    content: dict[str, Any] | None = None
-    # Flat structure support
-    message: str | None = None
-    attachments: list[EvoCloudAttachment] = []
-    thread_id: str | None = None
-    project_id: int | None = None
-
-
 class SyncConversation(DynamicBaseModel):
     id: str
     project_id: int = 0
@@ -75,28 +58,20 @@ class RemoteCommand(DynamicBaseModel):
     type: str = "chat_message"
     content: dict[str, Any] | None = None
     message: str | None = None
-    attachments: list[EvoCloudAttachment] = []
+    attachments: list[dict[str, Any]] = []
     thread_id: str | None = None
     project_id: int | None = None
-
-
-class QueryResponseData(DynamicBaseModel):
-    """Payload for a query response."""
 
 
 class QueryResponse(DynamicBaseModel):
     type: str = "query_response"
     request_id: str | int | None = None
-    data: QueryResponseData
-
-
-class HandshakePayload(DynamicBaseModel):
-    """Payload for the EvoCloud WebSocket handshake."""
+    data: dict[str, Any]
 
 
 class WebSocketHandshake(DynamicBaseModel):
     type: str = "connect"
-    payload: HandshakePayload
+    payload: dict[str, Any]
 
 
 class WebSocketPing(DynamicBaseModel):
@@ -139,3 +114,13 @@ class McpServerInfo(DynamicBaseModel):
 class ModelInfo(DynamicBaseModel):
     id: str
     name: str
+
+
+class EvoCloudProjectSummary(DynamicBaseModel):
+    id: int | None = None
+    name: str
+    description: str = ""
+    path: str = ""
+    exists_locally: bool = False
+    status_text: str = ""
+    owner: str = ""

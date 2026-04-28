@@ -21,17 +21,9 @@ from app.infrastructure.llm.vision import VisionLLMFactory
 from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.utils import render_template
 from app.utils.yaml import safe_yaml_dumps
+from app.core.execution.macro.schemas import ActionDecision
 
 logger = logging.getLogger(__name__)
-
-
-class ActionDecision(DynamicBaseModel):
-    """Decision made by the reasoning engine"""
-    action: str  # 'execute', 'correct', 'skip', 'retry', 'abort'
-    reasoning: str
-    suggested_step: dict[str, Any] | None = None
-    additional_steps: list[dict[str, Any]] = []
-    confidence: float
 
 
 class AgentReasoningEngine:

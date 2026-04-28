@@ -7,45 +7,9 @@ from typing import Any
 from pydantic import Field
 
 from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.core.mcp.schemas import ElicitationValues, ElicitationField, ElicitationRequest
 
 logger = logging.getLogger(__name__)
-
-
-class ElicitationValues(DynamicBaseModel):
-    """Values provided for an elicitation request."""
-
-
-class ElicitationField(DynamicBaseModel):
-    """A field requiring user input."""
-    name: str
-    description: str
-    required: bool = True
-    sensitive: bool = False
-    field_type: str = "string"  # string, number, boolean, url
-
-
-class ElicitationRequest(DynamicBaseModel):
-    """Request for additional configuration."""
-    server_name: str
-    message: str
-    fields: list[ElicitationField] = Field(default_factory=list)
-
-    def to_dict(self) -> dict[str, Any]:
-        """Backward compatibility for existing code calling to_dict manually."""
-        return {
-            "server_name": self.server_name,
-            "message": self.message,
-            "fields": [
-                {
-                    "name": f.name,
-                    "description": f.description,
-                    "required": f.required,
-                    "sensitive": f.sensitive,
-                    "type": f.field_type,
-                }
-                for f in self.fields
-            ]
-        }
 
 
 class McpElicitationHandler:

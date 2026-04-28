@@ -14,26 +14,9 @@ from app.core.context.manager import ContextManager
 from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.utils.path import ensure_dir
+from app.core.learning.schemas import TraceParameters, TraceContext, ActionTrace
 
 logger = logging.getLogger(__name__)
-
-
-class TraceParameters(DynamicBaseModel):
-    """Dynamic parameters for a recorded action."""
-
-
-class TraceContext(DynamicBaseModel):
-    """Dynamic context (view hierarchy, URL, etc.) for a recorded action."""
-
-
-class ActionTrace(DynamicBaseModel):
-    """Represents a single user action captured during demonstration."""
-    timestamp: float
-    action_type: str  # click, type, swipe, key, navigate, etc.
-    platform: str     # android, web, desktop
-    parameters: TraceParameters
-    context: TraceContext = Field(default_factory=TraceContext) # View hierarchy, URL, etc.
-    screenshot_path: str | None = None
 
 
 class TraceRecorder:

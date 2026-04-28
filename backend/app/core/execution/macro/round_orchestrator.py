@@ -24,25 +24,9 @@ from app.utils.random import (
     should_trigger,
 )
 from app.utils.registry import ClassRegistry
+from app.core.execution.macro.schemas import InterferenceConfig, RoundContext
 
 logger = logging.getLogger(__name__)
-
-
-class InterferenceConfig(DynamicBaseModel):
-    """Configuration for interference injection"""
-    enabled: bool = False
-    type: str = "none"  # none, delay, chaos, network_degradation
-    intensity: float = 0.3  # 0.0 - 1.0
-    targets: list[str] = Field(default_factory=list)  # step types to target
-    custom_params: dict[str, Any] = Field(default_factory=dict)
-
-
-class RoundContext(DynamicBaseModel):
-    """Context passed between rounds"""
-    round_number: int
-    previous_reports: list[RoundReport]
-    shared_state: dict[str, Any] = Field(default_factory=dict)
-    accumulated_anomalies: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class InterferenceInjector(ABC):

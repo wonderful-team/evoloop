@@ -17,60 +17,9 @@ from app.infrastructure.llm.platform_service import (
 from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.models.schemas.base import ScopedRequest
 from app.models.system import SystemConfig
+from app.api.schemas.system import EmbeddingConfigRequest, SystemStatusResponse, HealthCheckResponse, EmbeddingTestResponse, EmbeddingApplyResponse, LLMTestResponse, LLMApplyResponse, ResetKnowledgeResponse, CloudStatusResponse, ModelsListResponse, ProjectDiscoveryConfigUpdateResponse, LLMConfigRequest, ProjectDiscoveryConfigResponse, ProjectDiscoveryConfigRequest
 
 router = APIRouter(prefix="/system", tags=["system"])
-
-
-class SystemStatusResponse(BaseAPIResponse):
-    cpu_percent: float
-    ram_percent: float
-    ram_used_gb: float
-    ram_total_gb: float
-    status: str = "ok"
-
-
-class HealthCheckResponse(BaseAPIResponse):
-    status: str
-    service: str
-
-
-class EmbeddingTestResponse(BaseAPIResponse):
-    dimensions: int | None = None
-
-
-class EmbeddingApplyResponse(BaseAPIResponse):
-    status: str
-
-
-class LLMTestResponse(BaseAPIResponse):
-    reply: str | None = None
-
-
-class LLMApplyResponse(BaseAPIResponse):
-    status: str
-
-
-class ResetKnowledgeResponse(BaseAPIResponse):
-    status: str
-
-
-class CloudStatusResponse(BaseAPIResponse):
-    is_logged_in: bool
-    device_key: str | None = None
-    is_linked: bool
-    device_name: str
-    api_url: str
-
-
-class ModelsListResponse(BaseAPIResponse):
-    models: list[dict[str, Any]]
-    last_updated: str
-
-
-class ProjectDiscoveryConfigUpdateResponse(BaseAPIResponse):
-    enabled: bool
-    locked: bool | None = None
-
 
 @router.get("/status", dependencies=[Depends(get_current_user)])
 def get_system_status() -> SystemStatusResponse:
@@ -88,11 +37,9 @@ def get_system_status() -> SystemStatusResponse:
         status="ok"
     )
 
-
 @router.get("/config", dependencies=[Depends(get_current_user)])
 def get_system_config() -> list[SystemConfig]:
     return SystemConfigService.get_all()
-
 
 @router.get("/health")
 def health_check() -> HealthCheckResponse:
@@ -101,22 +48,10 @@ def health_check() -> HealthCheckResponse:
     """
     return HealthCheckResponse(status="ok", service="evoloop-backend")
 
-
 @router.post("/config", dependencies=[Depends(get_current_user)])
 async def update_system_config(config: SystemConfig) -> SystemConfig:
     """Update system configuration and trigger side effects if needed."""
     return await SystemConfigService.set_value_async(config.key, config.value, config.description)
-
-
-class EmbeddingConfigRequest(ScopedRequest):
-    provider: str = Field(..., description="openai, ollama, or generic")
-    base_url: str = Field(..., description="API Base URL")
-    model: str = Field(..., description="Model Name")
-    dimensions: int | None = None  # Embedding dimensions
-    api_key: str | None = None
-    project_id: int | None = None  # For triggering reindex
-    default_model_id: str | None = Field(None, description="Selected Default Embedding Model ID")
-
 
 @router.post("/embedding/test", dependencies=[Depends(get_current_user)])
 async def test_embedding_connection(req: EmbeddingConfigRequest) -> EmbeddingTestResponse:
@@ -130,7 +65,6 @@ async def test_embedding_connection(req: EmbeddingConfigRequest) -> EmbeddingTes
         api_key=req.api_key,
     )
     return EmbeddingTestResponse(success=success, dimensions=dim)
-
 
 @router.post("/embedding/apply", dependencies=[Depends(get_current_user)])
 async def apply_embedding_config(req: EmbeddingConfigRequest) -> EmbeddingApplyResponse:
@@ -161,20 +95,7 @@ async def apply_embedding_config(req: EmbeddingConfigRequest) -> EmbeddingApplyR
         message="Embedding model switched. Re-indexing triggered.",
     )
 
-
 # --- LLM Config ---
-class LLMConfigRequest(DynamicBaseModel):
-    provider: str = Field(..., description="供应商名称: openai, anthropic, moonshot, deepseek")
-    provider_type: str = Field(default="openai", description="协议类型: openai | anthropic")
-    base_url: str = Field(..., description="API Base URL")
-    model: str = Field(..., description="Model Name")
-    vision_model: str | None = Field(None, description="Vision Model Name (e.g. gpt-4o)")
-    vision_base_url: str | None = Field(None, description="独立 Vision API Base URL (本地 VLM)")
-    vision_api_key: str | None = Field(None, description="独立 Vision API Key")
-    vision_provider_type: str | None = Field(None, description="独立 Vision 协议类型: openai | anthropic")
-    api_key: str | None = None
-    default_model_id: str | None = Field(None, description="Selected Default Model ID")
-
 
 @router.post("/llm/test", dependencies=[Depends(get_current_user)])
 async def test_llm_connection(req: LLMConfigRequest) -> LLMTestResponse:
@@ -188,7 +109,6 @@ async def test_llm_connection(req: LLMConfigRequest) -> LLMTestResponse:
         api_key=req.api_key,
     )
     return LLMTestResponse(success=success, reply=reply)
-
 
 @router.post("/llm/apply", dependencies=[Depends(get_current_user)])
 async def apply_llm_config(req: LLMConfigRequest) -> LLMApplyResponse:
@@ -224,7 +144,6 @@ async def apply_llm_config(req: LLMConfigRequest) -> LLMApplyResponse:
 
     return LLMApplyResponse(status="applied", message="LLM Configuration applied successfully.")
 
-
 @router.post("/reset-knowledge", dependencies=[Depends(get_current_user)])
 async def reset_knowledge_base() -> ResetKnowledgeResponse:
     """
@@ -234,7 +153,6 @@ async def reset_knowledge_base() -> ResetKnowledgeResponse:
 
     await wipe_knowledge_base()
     return ResetKnowledgeResponse(status="success", message="Knowledge Base Wiped.")
-
 
 @router.get("/cloud-status")
 async def get_cloud_status() -> CloudStatusResponse:
@@ -250,7 +168,6 @@ async def get_cloud_status() -> CloudStatusResponse:
         device_name=evocloud_manager.link.device_name if evocloud_manager.link else "Unknown",
         api_url=evocloud_manager.api.base_url if evocloud_manager.api else "Unknown",
     )
-
 
 @router.get("/llm/models")
 async def get_llm_models(config_type: str = None) -> ModelsListResponse:
@@ -272,7 +189,6 @@ async def get_llm_models(config_type: str = None) -> ModelsListResponse:
         last_updated=time.strftime("%Y-%m-%d")
     )
 
-
 @router.get("/embedding/models")
 async def get_embedding_models() -> ModelsListResponse:
     """
@@ -284,12 +200,7 @@ async def get_embedding_models() -> ModelsListResponse:
         last_updated=time.strftime("%Y-%m-%d")
     )
 
-
 # --- Project Discovery Config ---
-class ProjectDiscoveryConfigResponse(BaseAPIResponse):
-    enabled: bool
-    source: str  # "env" | "config" | "default"
-
 
 @router.get("/project-discovery/config", dependencies=[Depends(get_current_user)])
 async def get_project_discovery_config():
@@ -308,11 +219,6 @@ async def get_project_discovery_config():
     
     # Default: enabled
     return ProjectDiscoveryConfigResponse(enabled=True, source="default")
-
-
-class ProjectDiscoveryConfigRequest(DynamicBaseModel):
-    enabled: bool
-
 
 @router.post("/project-discovery/config", dependencies=[Depends(get_current_user)])
 async def set_project_discovery_config(req: ProjectDiscoveryConfigRequest) -> ProjectDiscoveryConfigUpdateResponse:

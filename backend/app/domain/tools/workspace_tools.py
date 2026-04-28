@@ -3,12 +3,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from app.core.tools import evoloop_tool
-
-
-class GetWorkspaceTreeSchema(BaseModel):
-    dir_path: str = Field(".", description="Subdirectory to list. If omitted, lists from the current working directory root.")
-    max_depth: int = Field(2, description="Maximum depth of the directory tree to explore.")
-    with_symbols: bool = Field(False, description="Whether to include code symbols (classes/functions) in the tree. Defaults to False for speed and token economy.")
+from app.domain.tools.schemas import GetWorkspaceTreeSchema
 
 
 @evoloop_tool(

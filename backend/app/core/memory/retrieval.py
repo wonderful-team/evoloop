@@ -34,17 +34,9 @@ from pydantic import Field
 from app.core.memory.models import MemoryEntry, MemoryType, PrivacyLevel
 from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.utils.template import render_template
+from app.core.memory.schemas import RetrievalContext
 
 logger = logging.getLogger(__name__)
-
-
-class RetrievalContext(DynamicBaseModel):
-    """Context for memory retrieval."""
-    query: str
-    recent_tools: list[str] = Field(default_factory=list)
-    already_surfaced: set[str] = Field(default_factory=set)  # Memory IDs already shown to user
-    user_id: str | None = None
-    project_id: int | None = None
 
 
 class MemoryRetriever:

@@ -3,50 +3,12 @@ from fastapi import APIRouter
 from app.core.evocloud import evocloud_manager
 from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.models.schemas.auth import EvoCloudProxyResponse, LoginResult
+from app.api.schemas.account import MobileCodeRequest, MobileLoginRequest
+from app.api.schemas.auth_proxy import RegisterMobileRequest, RegisterUsernameRequest, ResetPasswordMobileRequest, CheckMobileRequest
 
 router = APIRouter()
 
 # --- Schemas ---
-
-
-class AuthProxyMobileCodeRequest(DynamicBaseModel):
-    mobile: str
-    captcha_id: str
-    captcha_code: str
-    type: str = "login"
-
-
-class RegisterMobileRequest(DynamicBaseModel):
-    mobile: str
-    key: str
-    code: str
-    captcha_id: str | None = None
-    captcha_code: str | None = None
-
-
-class RegisterUsernameRequest(DynamicBaseModel):
-    username: str
-    password: str
-    captcha_id: str | None = None
-    captcha_code: str | None = None
-
-
-class LoginMobileRequest(DynamicBaseModel):
-    mobile: str
-    key: str
-    code: str
-
-
-class ResetPasswordMobileRequest(DynamicBaseModel):
-    mobile: str
-    key: str
-    code: str
-    password: str
-
-
-class CheckMobileRequest(DynamicBaseModel):
-    mobile: str
-
 
 # --- Endpoints ---
 
@@ -76,7 +38,7 @@ async def get_register_agreement() -> EvoCloudProxyResponse:
 
 
 @router.post("/sms/send")
-async def send_sms(req: AuthProxyMobileCodeRequest) -> EvoCloudProxyResponse:
+async def send_sms(req: MobileCodeRequest) -> EvoCloudProxyResponse:
     """Send Mobile Verification Code"""
     return await evocloud_manager.api.send_mobile_code(
         req.mobile,
@@ -99,7 +61,7 @@ async def register_username(req: RegisterUsernameRequest) -> EvoCloudProxyRespon
 
 
 @router.post("/login/mobile")
-async def login_mobile(req: LoginMobileRequest) -> LoginResult:
+async def login_mobile(req: MobileLoginRequest) -> LoginResult:
     """Login with Mobile Code"""
     return await evocloud_manager.api.login_mobile(req.mobile, req.key, req.code)
 

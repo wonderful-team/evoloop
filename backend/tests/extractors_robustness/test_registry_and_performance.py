@@ -61,16 +61,17 @@ class TestExtractorRegistryRobustness:
         extractor = await ExtractorRegistry.get_extractor("text/plain", "test.txt")
         # Note: Current implementation might not check availability in get_extractor
     
-    def test_duplicate_registration(self):
+    @pytest.mark.asyncio
+    async def test_duplicate_registration(self):
         """Test handling duplicate registrations."""
         ExtractorRegistry.clear()
-        
+
         plain = PlainTextExtractor()
         ExtractorRegistry.register(plain)
         ExtractorRegistry.register(plain)  # Duplicate
-        
+
         # Should handle gracefully (either dedupe or keep both)
-        extractors = ExtractorRegistry.list_extractors()
+        extractors = await ExtractorRegistry.list_extractors()
         assert len([e for e in extractors if e["name"] == "plain_text"]) >= 1
     
     def test_clear_registry(self):
@@ -243,7 +244,7 @@ class TestExtractorErrorHandling:
         # Create a mock file that raises on read
         class BadFile:
             def read(self):
-                raise IOError("Cannot read")
+                raise OSError("Cannot read")
             def seek(self, pos):
                 pass
             def tell(self):
@@ -253,7 +254,7 @@ class TestExtractorErrorHandling:
             doc = await extractor.extract(BadFile(), "bad.txt")
         except Exception as e:
             # Should raise appropriate error
-            assert "ExtractionError" in str(type(e)) or "IOError" in str(type(e))
+            assert "ExtractionError" in str(type(e)) or "OSError" in str(type(e))
     
     @pytest.mark.asyncio
     async def test_none_input(self):
@@ -278,7 +279,8 @@ class TestExtractorErrorHandling:
 
 
 # Initialize all extractors for integration test
-def test_all_extractors_registration():
+@pytest.mark.asyncio
+async def test_all_extractors_registration():
     """Test that all extractors can be registered together."""
     from app.domain.knowledge.extractors import (
         PlainTextExtractor, MarkdownExtractor, CodeDocExtractor,
@@ -286,9 +288,9 @@ def test_all_extractors_registration():
         WordExtractor, ExcelExtractor, PowerPointExtractor,
         ImageOCRExtractor, ScreenshotExtractor
     )
-    
+
     ExtractorRegistry.clear()
-    
+
     # Register all extractors
     extractors = [
         PlainTextExtractor(),
@@ -303,13 +305,13 @@ def test_all_extractors_registration():
         ImageOCRExtractor(),
         ScreenshotExtractor(),
     ]
-    
+
     for ext in extractors:
         ExtractorRegistry.register(ext)
-    
-    registered = ExtractorRegistry.list_extractors()
+
+    registered = await ExtractorRegistry.list_extractors()
     assert len(registered) == 11, f"Expected 11 extractors, got {len(registered)}"
-    
+
     # Verify priorities are respected
     sorted_extractors = sorted(registered, key=lambda x: x["priority"])
     for i in range(len(sorted_extractors) - 1):

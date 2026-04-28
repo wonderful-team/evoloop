@@ -23,11 +23,11 @@ from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.utils.id import gen_uuid
 from app.utils import render_template
+from app.api.schemas.project_requirements import RequirementUploadResponse, RequirementListItem, RequirementAnalysisItem, RequirementDetailResponse, RequirementDeleteResponse, RequirementTaskItem, RequirementMapping, RequirementTasksResponse, RequirementProgress, RequirementSyncProgressResponse
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["project-requirements"])
-
 
 def _get_upload_dir() -> Path:
     """Get upload directory for requirement documents."""
@@ -35,7 +35,6 @@ def _get_upload_dir() -> Path:
     upload_dir = upload_dir / "requirements"
     upload_dir.mkdir(parents=True, exist_ok=True)
     return upload_dir
-
 
 def _guess_file_type(filename: str) -> str:
     """Guess MIME type from filename."""
@@ -51,7 +50,6 @@ def _guess_file_type(filename: str) -> str:
     }
     return mime_types.get(ext, "application/octet-stream")
 
-
 async def _save_uploaded_file(file: UploadFile, file_id: str) -> str:
     """Save uploaded file to disk."""
     upload_dir = _get_upload_dir()
@@ -62,114 +60,6 @@ async def _save_uploaded_file(file: UploadFile, file_id: str) -> str:
         shutil.copyfileobj(file.file, f)
 
     return str(file_path)
-
-
-class RequirementUploadResponse(BaseAPIResponse):
-    """Response after uploading a requirement document."""
-    document_id: str
-    thread_id: str
-    status: str
-
-
-class RequirementListItem(DynamicBaseModel):
-    """Item in requirement document list."""
-    id: str
-    file_name: str
-    file_type: str
-    status: str
-    created_at: str | None
-    analysis_count: int
-
-
-class RequirementListResponse(ListResponse[RequirementListItem]):
-    """Response for listing requirement documents."""
-    pass
-
-
-class RequirementAnalysisItem(DynamicBaseModel):
-    """Analysis item in requirement detail."""
-    id: str
-    status: str
-    version: int
-    data: dict[str, Any] | None
-    user_edited: bool
-    confirmed_at: str | None
-    tasks_count: int
-    synced_tasks: int
-
-
-class RequirementDetailResponse(BaseAPIResponse):
-    """Response for requirement document detail."""
-    id: str
-    file_name: str
-    file_type: str
-    file_size: int
-    status: str
-    raw_content_preview: str | None
-    created_at: str | None
-    updated_at: str | None
-    analyses: list[RequirementAnalysisItem]
-
-
-class RequirementDeleteResponse(BaseAPIResponse):
-    """Response after deleting a requirement document."""
-    status: str
-    document_id: str
-
-
-class RequirementTaskItem(DynamicBaseModel):
-    """Task item in requirement task list."""
-    id: str
-    title: str
-    description: str
-    priority: str
-    estimated_hours: int
-    category: str
-    tags: list[str]
-    requirement_refs: list[str]
-    acceptance_criteria: list[str]
-    sync_status: str
-    sync_error: str | None
-    evocloud_task_id: str | None
-    synced_at: str | None
-    created_at: str | None
-
-
-class RequirementMapping(DynamicBaseModel):
-    """Requirement to task mapping."""
-    by_requirement: dict[str, list[str]]
-    by_task: dict[str, list[str]]
-    unmapped_tasks: list[str]
-
-
-class RequirementTasksResponse(BaseAPIResponse):
-    """Response for analysis tasks."""
-    analysis_id: str
-    document_id: str
-    project_id: int
-    sync_stats: dict[str, int]
-    tasks: list[RequirementTaskItem]
-    requirement_mapping: RequirementMapping
-
-
-class RequirementProgress(DynamicBaseModel):
-    """Sync progress stats."""
-    total: int
-    synced: int
-    failed: int
-    syncing: int
-    pending: int
-    percentage: float
-    is_complete: bool
-    has_failures: bool
-
-
-class RequirementSyncProgressResponse(BaseAPIResponse):
-    """Response for sync progress."""
-    analysis_id: str
-    progress: RequirementProgress
-    last_updated: str | None
-
 
 @router.post("/projects/{project_id}/requirements/upload", response_model=RequirementUploadResponse)
 async def upload_requirement_document(
@@ -243,8 +133,7 @@ async def upload_requirement_document(
         logger.exception(f"Failed to upload requirement document: {e}")
         raise HTTPException(500, f"Failed to upload document: {e}")
 
-
-@router.get("/projects/{project_id}/requirements", response_model=RequirementListResponse)
+@router.get("/projects/{project_id}/requirements", response_model=ListResponse[RequirementListItem])
 async def list_project_requirements(
     project_id: int,
     _token: TokenDepOptional,
@@ -263,7 +152,7 @@ async def list_project_requirements(
         result = await session.execute(stmt)
         docs = result.scalars().all()
 
-        return RequirementListResponse(
+        return ListResponse[RequirementListItem](
             data=[
                 RequirementListItem(
                     id=d.id,
@@ -276,7 +165,6 @@ async def list_project_requirements(
                 for d in docs
             ]
         )
-
 
 @router.get("/projects/{project_id}/requirements/{doc_id}", response_model=RequirementDetailResponse)
 async def get_requirement_detail(
@@ -321,7 +209,6 @@ async def get_requirement_detail(
             ],
         )
 
-
 @router.delete("/projects/{project_id}/requirements/{doc_id}", response_model=RequirementDeleteResponse)
 async def delete_requirement_document(
     project_id: int,
@@ -346,7 +233,6 @@ async def delete_requirement_document(
         await session.delete(doc)
 
         return RequirementDeleteResponse(status="deleted", document_id=doc_id)
-
 
 @router.get("/projects/{project_id}/requirements/{doc_id}/analyses/{analysis_id}/tasks", response_model=RequirementTasksResponse)
 async def get_analysis_tasks(
@@ -427,7 +313,6 @@ async def get_analysis_tasks(
             ),
         )
 
-
 def _build_requirement_mapping(tasks: list) -> dict:
     """Build a mapping of requirements to tasks for visualization."""
     mapping = {
@@ -451,7 +336,6 @@ def _build_requirement_mapping(tasks: list) -> dict:
                 mapping["by_requirement"][ref].append(task_id)
 
     return mapping
-
 
 @router.get("/projects/{project_id}/requirements/{doc_id}/analyses/{analysis_id}/sync-progress", response_model=RequirementSyncProgressResponse)
 async def get_analysis_sync_progress(

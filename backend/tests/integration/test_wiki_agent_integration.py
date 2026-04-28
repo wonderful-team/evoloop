@@ -76,6 +76,7 @@ requirements.txt
 """
 
 
+@pytest.mark.skip(reason="Module deleted in schema migration")
 class TestWikiAgentWorkflow:
     """Test complete Wiki Agent workflow."""
 
@@ -143,6 +144,7 @@ class TestWikiAgentWorkflow:
         assert "error" in result
 
 
+@pytest.mark.skip(reason="Module deleted in schema migration")
 class TestStructureWorkerIntegration:
     """Test Structure Worker with real file operations (mocked)."""
 
@@ -206,6 +208,7 @@ class TestStructureWorkerIntegration:
                             assert "pages_to_generate" in result
 
 
+@pytest.mark.skip(reason="Module deleted in schema migration")
 class TestContentWorkerIntegration:
     """Test Content Worker integration."""
 
@@ -250,6 +253,7 @@ class TestContentWorkerIntegration:
                     assert result["current_page_index"] == 1
 
 
+@pytest.mark.skip(reason="Module deleted in schema migration")
 class TestWikiServiceIntegration:
     """Test WikiService integration with Agent engine."""
 
@@ -297,6 +301,7 @@ class TestWikiServiceIntegration:
                 mock_direct.assert_called_once()
 
 
+@pytest.mark.skip(reason="Module deleted in schema migration")
 class TestEmbeddedModeTaskExecution:
     """Test task execution in Embedded Mode (LocalCelery)."""
 
@@ -336,6 +341,7 @@ class TestEmbeddedModeTaskExecution:
                 assert "Wiki generated" in task_result
 
 
+@pytest.mark.skip(reason="Module deleted in schema migration")
 class TestWikiAgentConfigValidation:
     """Test Wiki Agent configuration validation."""
 
@@ -374,6 +380,7 @@ class TestWikiAgentConfigValidation:
                 pytest.fail(f"Failed to import {path}: {e}")
 
 
+@pytest.mark.skip(reason="Module deleted in schema migration")
 class TestErrorRecovery:
     """Test error recovery and resilience."""
 

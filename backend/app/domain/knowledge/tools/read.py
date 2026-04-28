@@ -12,29 +12,9 @@ from pydantic import BaseModel, Field
 from app.core.tools import evoloop_tool
 from app.domain.knowledge.services.citations import get_citation_tracker
 from app.domain.knowledge.services.store import KnowledgeStoreService
+from app.domain.knowledge.schemas import KBReadInput
 
 logger = logging.getLogger(__name__)
-
-
-class KBReadInput(BaseModel):
-    """Input for kb_read tool."""
-    path: str = Field(
-        description="Path to the document (e.g., 'guides/auth.md' or 'collection/api/guide.md')"
-    )
-    offset: int = Field(
-        default=0,
-        description="Line offset to start reading from (0-based)"
-    )
-    limit: int = Field(
-        default=100,
-        ge=1,
-        le=500,
-        description="Maximum number of lines to read (max 500)"
-    )
-    collection: str = Field(
-        default="",
-        description="Collection name (if not included in path)"
-    )
 
 
 @evoloop_tool(

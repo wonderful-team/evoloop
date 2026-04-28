@@ -18,6 +18,7 @@ from PIL import Image
 from pydantic import Field
 
 from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.core.learning.schemas import CompressionConfig, CompressedFrame, NormalizedEvent, KeyframeCandidate
 
 logger = logging.getLogger(__name__)
 
@@ -27,14 +28,6 @@ class CompressionStrategy(Enum):
     GENERAL = "general"           # 一般 UI：768px, low detail
     TEXT_DENSE = "text_dense"     # 文字密集：1024px, high detail
     ICON_UI = "icon_ui"           # 图标导航：512px, low detail
-
-
-class CompressionConfig(DynamicBaseModel):
-    """压缩配置"""
-    max_width: int
-    quality: int                  # JPEG 质量 0-100
-    detail_level: str             # "low" or "high" (for LLM)
-    format: str = "JPEG"
 
 
 # 预设配置
@@ -55,43 +48,6 @@ PRESETS = {
         detail_level="low"
     )
 }
-
-
-class CompressedFrame(DynamicBaseModel):
-    """压缩后的帧数据"""
-    data: bytes                   # JPEG 数据
-    width: int
-    height: int
-    original_size: tuple[int, int]  # 原始分辨率
-    compression_ratio: float      # 压缩比
-    detail_level: str             # "low" or "high"
-
-    # 动态注入的语义信息
-    timestamp: float | None = None
-    description: str | None = None
-    norm_events: list[dict[str, Any]] = Field(default_factory=list)
-
-
-class NormalizedEvent(DynamicBaseModel):
-    """归一化后的事件"""
-    action: str
-    norm_x: float | None = Field(None, ge=0.0, le=1.0)       # 0.0-1.0
-    norm_y: float | None = Field(None, ge=0.0, le=1.0)
-    target_text: str | None = None
-    timestamp: float
-    description: str              # 人类可读描述
-
-
-class KeyframeCandidate(DynamicBaseModel):
-    """关键帧候选"""
-    timestamp: float
-    context: str           # "pre_action", "post_action", "transition"
-    description: str
-    related_event: Any
-    priority: int          # 3=high, 2=medium, 1=low
-
-    def __repr__(self):
-        return f"Keyframe({self.timestamp:.2f}s, {self.context}, P{self.priority})"
 
 
 class CoordinateNormalizer:

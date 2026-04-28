@@ -15,6 +15,7 @@ from unittest.mock import patch
 import pytest
 
 from app.domain.tools.files.edit_file import handle_edit
+from app.domain.tools.schemas import EditFileRequest
 
 
 class TestEditLatencyBaseline:
@@ -22,13 +23,18 @@ class TestEditLatencyBaseline:
 
     @pytest.fixture
     def sample_file(self):
+        from app.core.tools import get_working_directory
+        import uuid
+
         lines = [f"def func_{i}():\n    return {i}\n" for i in range(200)]
         content = "\"\"\"Large sample module.\"\"\"\n\n" + "".join(lines)
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
+        root = get_working_directory(None)
+        path = os.path.join(root, f"latency_test_{uuid.uuid4().hex}.py")
+        with open(path, 'w') as f:
             f.write(content)
-            path = f.name
         yield path
-        os.unlink(path)
+        if os.path.exists(path):
+            os.unlink(path)
 
     @pytest.mark.asyncio
     async def test_baseline_latency_simple_edit(self, sample_file):
@@ -46,24 +52,26 @@ class TestEditLatencyBaseline:
                 f.write(base_content)
 
             # Count EditEngine calls by patching apply_replacement
-            from app.domain.tools.utils.editing import engine as edit_engine
-            original_apply = edit_engine.EditEngine.apply_replacement
+            from app.core.file.editor import EditEngine
+            original_apply = EditEngine.apply_replacement
             call_count = [0]
 
             def tracked_apply(content, old_string, new_string, replace_all=False):
                 call_count[0] += 1
                 return original_apply(content, old_string, new_string, replace_all)
 
-            with patch.object(edit_engine.EditEngine, 'apply_replacement', staticmethod(tracked_apply)):
+            with patch.object(EditEngine, 'apply_replacement', staticmethod(tracked_apply)):
                 start = time.perf_counter()
                 result = await handle_edit(
-                    path=sample_file,
-                    target=target,
-                    content=replacement,
-                    allow_multiple=False,
-                    expected_hash=None,
-                    verify_types=False,
-                    config=None
+                    EditFileRequest(
+                        path=sample_file,
+                        target=target,
+                        content=replacement,
+                        allow_multiple=False,
+                        expected_hash=None,
+                        verify_types=False,
+                        config=None
+                    )
                 )
                 latency_ms = (time.perf_counter() - start) * 1000
 
