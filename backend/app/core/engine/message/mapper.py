@@ -316,7 +316,7 @@ class BlockMapper:
 
 def _extract_lc_id(msg: BaseMessage) -> str:
     """从 LangChain 消息中提取或生成 ID"""
-    return getattr(msg, "id", None) or msg.additional_kwargs.get("id") or f"lc-{id(msg)}"
+    return msg.id or msg.additional_kwargs.get("id") or f"lc-{id(msg)}"
 
 
 def _extract_lc_thinking(msg: BaseMessage) -> list[dict[str, Any]] | None:

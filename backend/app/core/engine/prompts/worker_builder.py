@@ -57,7 +57,7 @@ class WorkerPromptBuilder:
                     if len(content) > 4000:
                         content = content[:4000] + "\n\n... [PROJECT.md truncated for brevity]"
                     project_profile = content
-                except Exception:
+                except (OSError, TypeError, ValueError):
                     pass
 
         # Static Sys Info (Project identity only)
@@ -89,7 +89,7 @@ class WorkerPromptBuilder:
                 has_interactive_charts = await benefit_service.has_benefit(
                     member_id, "interactive_charts", token
                 )
-        except Exception as e:
+        except ValueError as e:
             logger.debug(f"[WorkerPrompt] Benefit check failed: {e}")
 
         template_vars = {
@@ -177,7 +177,7 @@ class WorkerPromptBuilder:
             blocks = [b.strip() for b in rendered.split('\n\n\n') if b.strip()]
             return blocks or [rendered.strip()]
 
-        except Exception as e:
+        except (TypeError, ValueError, RuntimeError) as e:
             logger.error(f"Error rendering Knowledge Blocks: {e}")
             # Fallback: render each skill individually
             blocks = []

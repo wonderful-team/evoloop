@@ -103,7 +103,7 @@ def route_finish(state: AgentState) -> str:
     # when Supervisor -> Chat -> Finish re-enters Finish after a historic block).
     if state.next_node == RoutingTarget.END:
         return RoutingTarget.END
-    if blackboard and blackboard.metadata and getattr(blackboard.metadata, "blocked_by_hook", False):
+    if blackboard and blackboard.metadata and (blackboard.metadata.blocked_by_hook or False):
         logger.info("[Router] Finish blocked by hook. Looping back to supervisor.")
         return RoutingTarget.SUPERVISOR
     return RoutingTarget.END

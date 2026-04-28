@@ -36,7 +36,7 @@ def ensure_state(state: Any) -> AgentState:
     if isinstance(state, dict):
         try:
             return AgentState.model_validate(state)
-        except Exception:
+        except (TypeError, ValueError):
             # Fallback to keyword unpacking if validation fails (backward compatibility)
             return AgentState(**state)
 

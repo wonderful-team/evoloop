@@ -108,7 +108,7 @@ class FinishNode(BaseNode):
         # ------------------------------------------------------------
         for msg in reversed(messages):
             if isinstance(msg, AIMessage):
-                meta = getattr(msg, "metadata", {}) or {}
+                meta = getattr(msg, "metadata", None) or {}
                 if meta.get("is_truncated") and meta.get("requires_replan"):
                     logger.warning(
                         f"[Finish] 🔄 Worker was truncated (max_steps={meta.get('max_steps')}). "
@@ -127,7 +127,7 @@ class FinishNode(BaseNode):
             else False
         ) or False
 
-        tool_history = getattr(blackboard.metadata, "tool_history", []) or []
+        tool_history = state.tool_history or []
 
         # --------------------------------------------------------------
         # 1. Audit
@@ -177,8 +177,8 @@ class FinishNode(BaseNode):
                     # Create a new message to avoid mutating the original state.messages
                     messages[i] = AIMessage(
                         content=summary,
-                        id=getattr(m, "id", None),
-                        name=getattr(m, "name", None),
+                        id=m.id,
+                        name=m.name,
                         metadata=getattr(m, "metadata", None),
                     )
                     break
@@ -261,7 +261,7 @@ class FinishNode(BaseNode):
             if isinstance(msg, AIMessage) and msg.content:
                 content = str(msg.content)
                 if "<evoloop_session_audit>" in content and "<evoloop_final_report>" in content:
-                    msg_id = getattr(msg, "id", None)
+                    msg_id = msg.id
                     if msg_id:
                         messages_to_return.append(RemoveMessage(id=msg_id))
                     else:
@@ -270,7 +270,7 @@ class FinishNode(BaseNode):
                         cleared_copy = AIMessage(
                             content="",
                             id=None,
-                            name=getattr(msg, "name", None),
+                            name=msg.name,
                             metadata=getattr(msg, "metadata", None),
                         )
                         messages_to_return.append(cleared_copy)

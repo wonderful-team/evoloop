@@ -59,7 +59,7 @@ class FocusFileHydrator:
                 with open(full_path, encoding="utf-8") as f:
                     file_content = f.read()
                 results.append({"rel_path": display_path, "status": "ok", "content": file_content})
-            except Exception as e:
+            except OSError as e:
                 results.append({"rel_path": path_item, "status": "error", "detail": str(e)})
 
         return results

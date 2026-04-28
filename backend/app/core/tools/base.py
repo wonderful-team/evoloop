@@ -37,7 +37,7 @@ def get_working_directory(config: RunnableConfig | None = None) -> str:
         workspace_root = SystemConfigService.get_value("WORKSPACE_ROOT")
         if workspace_root:
             return workspace_root
-    except Exception as e:
+    except (OSError, RuntimeError, TypeError, ValueError) as e:
         logger.warning(f"Failed to fetch WORKSPACE_ROOT for tool fallback: {e}")
 
     # 4. Final Fallback
@@ -122,7 +122,7 @@ def evoloop_tool(
                                 "required_plan": error_detail["required_plan"],
                                 "upgrade_url": error_detail["upgrade_url"]
                             }, ensure_ascii=False)
-                    except Exception as e:
+                    except (TypeError, ValueError, RuntimeError) as e:
                         logger.error(f"Permission check failed for {func.__name__}: {e}")
                         return json.dumps({
                             "error": "Permission check failed",

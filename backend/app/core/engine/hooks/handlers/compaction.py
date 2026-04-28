@@ -70,7 +70,7 @@ async def pre_compact_save_state(context: HookContext) -> HookResult:
                                 recent_duplicate = cp_entry
                                 logger.warning(f"[PreCompact] ⚠️ Found duplicate checkpoint from {cp_time.isoformat()}: {cp_entry.id}")
                                 break
-                    except Exception as e:
+                    except ValueError as e:
                         logger.debug(f"[PreCompact] Failed to parse existing checkpoint {cp_summary.id}: {e}")
 
         duplicate_check_elapsed = (datetime.utcnow() - duplicate_check_start).total_seconds()
@@ -90,8 +90,8 @@ async def pre_compact_save_state(context: HookContext) -> HookResult:
             "message_count": len(context.messages),
             "task_progress": task_progress,
             "key_decisions": key_decisions,
-            "remaining_work": getattr(context.blackboard, "remaining_work", None) if context.blackboard else None,
-            "current_goal": getattr(context.blackboard, "current_goal", None) if context.blackboard else None,
+            "remaining_work": context.blackboard.remaining_work if context.blackboard else None,
+            "current_goal": context.blackboard.current_goal if context.blackboard else None,
             "compact_trigger": context.compact_trigger or "auto",
         }
         logger.debug(f"[PreCompact] Checkpoint data: {len(context.messages)} messages, trigger={checkpoint['compact_trigger']}")
@@ -142,7 +142,7 @@ def _extract_task_progress(messages: list[BaseMessage]) -> str:
 
     # Look for the most recent human message
     for msg in reversed(messages):
-        if hasattr(msg, 'type') and msg.type == 'human':
+        if msg.type == 'human':
             return str(msg.content)[:200]
 
     return "Unknown task"
@@ -153,7 +153,7 @@ def _extract_decisions(messages: list[BaseMessage]) -> list[str]:
     decisions = []
 
     for msg in messages:
-        if hasattr(msg, 'type') and msg.type == 'ai':
+        if msg.type == 'ai':
             content = str(msg.content).lower()
             # Look for decision indicators
             if any(keyword in content for keyword in ['decided', 'decision', 'choose', 'selected', 'we will']):

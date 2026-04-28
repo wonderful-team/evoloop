@@ -82,7 +82,7 @@ def create_route_to_signal(args: dict) -> RouteToSignal:
     if isinstance(context_data, str):
         try:
             context_data = json.loads(context_data)
-        except Exception:
+        except (json.JSONDecodeError, TypeError, ValueError):
             context_data = {}
             
     return RouteToSignal(

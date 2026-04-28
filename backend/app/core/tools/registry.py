@@ -105,7 +105,7 @@ class AutoDiscoveryRegistry:
                 try:
                     module = importlib.import_module(name)
                     self._register_tools_from_module(module)
-                except Exception as e:
+                except (ImportError, TypeError, ValueError, RuntimeError) as e:
                     # WARNING level so failures are visible in production
                     logger.warning(f"[Registry] Skipping module {name} during scan: {e}")
         else:
@@ -127,7 +127,7 @@ class AutoDiscoveryRegistry:
                             self._tools[obj.name] = obj
                             new_tools.append(obj.name)
                             logger.debug(f"Registered tool: {obj.name} from {module.__name__}")
-                except Exception as e:
+                except (TypeError, ValueError, AttributeError, RuntimeError) as e:
                     logger.warning(f"Failed to inspect tool {name} in {module.__name__}: {e}")
         if new_tools:
             _invalidate_caches()
@@ -275,7 +275,7 @@ def _load_yaml_config(config_path: str | None = None) -> dict:
     except FileNotFoundError:
         logger.error(f"YAML config not found: {path}")
         return {}
-    except Exception as e:
+    except (TypeError, ValueError, RuntimeError) as e:
         logger.error(f"Failed to parse YAML config {path}: {e}")
         return {}
 
@@ -427,7 +427,7 @@ def get_tool_affected_paths(tool_name: str, tool_args: dict) -> list[str]:
         if custom_extractor is not None:
             try:
                 return custom_extractor(tool_args)
-            except Exception:
+            except (TypeError, ValueError, RuntimeError):
                 pass
 
         metadata = getattr(tool, "metadata", {})

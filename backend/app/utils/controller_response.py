@@ -336,12 +336,12 @@ class SystemToolsFormatter:
         """Format autonomous task list for display."""
         cp_data = []
         for t in tasks:
-            status = "DLQ" if getattr(t, 'is_dead_letter', False) else ("Active" if getattr(t, 'is_active', False) else "Paused")
+            status = "DLQ" if t.is_dead_letter else ("Active" if t.is_active else "Paused")
             cp_data.append({
                 "id": t.id,
                 "status": status,
-                "name": getattr(t, 'intent_description', 'Unknown')[:50],
-                "time": f"Next: {getattr(t, 'next_run_at', 'Unknown')}"
+                "name": t.intent_description[:50],
+                "time": f"Next: {t.next_run_at or 'Unknown'}"
             })
         return render_template("common/events/system_tools.prompt.j2", checkpoints=cp_data)
 
@@ -579,10 +579,10 @@ class ContentFormatter:
         todo_data = []
         for t in todos:
             todo_data.append({
-                "status": getattr(t, 'status', t.get('status', '?') if isinstance(t, dict) else '?'),
-                "title": getattr(t, 'title', t.get('title', 'Unknown') if isinstance(t, dict) else 'Unknown'),
-                "id": getattr(t, 'id', t.get('id', 0) if isinstance(t, dict) else 0),
-                "due_date": getattr(t, 'due_date', t.get('due_date', None) if isinstance(t, dict) else None)
+                "status": t.status,
+                "title": t.title,
+                "id": t.id,
+                "due_date": t.due_date,
             })
         return render_template(
             "common/events/todo_list.prompt.j2",
@@ -605,8 +605,8 @@ class ContentFormatter:
         """Format chat history search results."""
         formatted_results = []
         for msg in results:
-            role = "User" if getattr(msg, 'type', None) == "human" else "Assistant"
-            content = getattr(msg, 'content', str(msg))
+            role = "User" if msg.type == "human" else "Assistant"
+            content = msg.content
             preview = content[:200] + "..." if len(content) > 200 else content
             formatted_results.append({"role": role, "content": preview})
         

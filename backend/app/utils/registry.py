@@ -337,7 +337,7 @@ class HandlerRegistry(Generic[T]):
             try:
                 result = handler(*args, **kwargs)
                 results.append(result)
-            except Exception as e:
+            except (TypeError, ValueError, RuntimeError, OSError) as e:
                 logger.error(f"Handler failed for key '{key}': {e}")
         return results
 
@@ -399,7 +399,7 @@ class AutoDiscoverRegistry(ListRegistry[T]):
             for item in items:
                 cls.register(item)
             return len(items)
-        except Exception as e:
+        except (ImportError, TypeError, ValueError, RuntimeError) as e:
             logger.error(f"Failed to scan package '{package_name}': {e}")
             return 0
     

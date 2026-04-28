@@ -117,7 +117,7 @@ class BackgroundTaskManager:
                 await self._cleanup_old_tasks()
             except asyncio.CancelledError:
                 break
-            except Exception as e:
+            except (TypeError, ValueError, RuntimeError, OSError) as e:
                 logger.error(f"Cleanup error: {e}")
 
     async def _cleanup_old_tasks(self):
@@ -489,7 +489,7 @@ class BackgroundTaskManager:
                         "timestamp": datetime.now().isoformat(),
                     })
                 )
-            except Exception:
+            except (TypeError, ValueError, RuntimeError, OSError):
                 pass  # Output events are best-effort
 
     # ==================== Stats ====================

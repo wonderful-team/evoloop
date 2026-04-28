@@ -46,6 +46,7 @@ class SpawnPlan(DynamicBaseModel):
     parent_task: str = ""
     aggregation_strategy: str = "merge"
     routing_signal: str | None = None
+    suggested_skill: str | None = None
 
 
 class PendingAggregation(DynamicBaseModel):
@@ -144,7 +145,31 @@ class BlackboardState(DynamicBaseModel):
     workflow_results: list[WorkflowStepResult] | None = Field(
         default=None, json_schema_extra={"merge_policy": MergePolicy.REPLACE}
     )
+    workflow_plan: list[Any] | None = Field(
+        default=None, json_schema_extra={"merge_policy": MergePolicy.REPLACE}
+    )
+    workflow_step_index: int | None = Field(
+        default=None, json_schema_extra={"merge_policy": MergePolicy.REPLACE}
+    )
     summary: str | None = Field(
+        default=None, json_schema_extra={"merge_policy": MergePolicy.REPLACE}
+    )
+    active_subagents: list[dict[str, Any]] | None = Field(
+        default=None, json_schema_extra={"merge_policy": MergePolicy.REPLACE}
+    )
+    completed_subagents: list[dict[str, Any]] | None = Field(
+        default=None, json_schema_extra={"merge_policy": MergePolicy.REPLACE}
+    )
+    remaining_work: str | None = Field(
+        default=None, json_schema_extra={"merge_policy": MergePolicy.REPLACE}
+    )
+    current_goal: str | None = Field(
+        default=None, json_schema_extra={"merge_policy": MergePolicy.REPLACE}
+    )
+    test_failures: Any | None = Field(
+        default=None, json_schema_extra={"merge_policy": MergePolicy.REPLACE}
+    )
+    lint_errors: Any | None = Field(
         default=None, json_schema_extra={"merge_policy": MergePolicy.REPLACE}
     )
 

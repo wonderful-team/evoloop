@@ -59,7 +59,7 @@ class McpServerConfig(DynamicBaseModel):
         if isinstance(args, str):
             try:
                 args = json.loads(args)
-            except:
+            except (json.JSONDecodeError, TypeError, ValueError):
                 args = []
 
         # Parse env
@@ -67,7 +67,7 @@ class McpServerConfig(DynamicBaseModel):
         if isinstance(env, str):
             try:
                 env = json.loads(env)
-            except:
+            except (json.JSONDecodeError, TypeError, ValueError):
                 env = {}
 
         # Parse auth config if stored
@@ -77,7 +77,7 @@ class McpServerConfig(DynamicBaseModel):
             try:
                 auth_config_data = json.loads(server.auth_config) if isinstance(server.auth_config, str) else server.auth_config
                 auth_type = AuthType(auth_config_data.get('method', 'none'))
-            except:
+            except (json.JSONDecodeError, TypeError, ValueError):
                 pass
 
         # Determine transport

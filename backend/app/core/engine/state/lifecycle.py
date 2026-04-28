@@ -53,7 +53,8 @@ class StateLifecycleManager:
             return
         cleared = []
         for field in ("pending_aggregation", "subtask_results", "spawn_plan"):
-            if hasattr(blackboard, field) and getattr(blackboard, field) is not None:
+            val = getattr(blackboard, field, None)
+            if val is not None:
                 setattr(blackboard, field, None)
                 cleared.append(field)
         if cleared:
@@ -67,7 +68,8 @@ class StateLifecycleManager:
             return
         cleared = []
         for field in ("workflow_plan", "workflow_step_index", "workflow_results"):
-            if hasattr(blackboard, field) and getattr(blackboard, field) is not None:
+            val = getattr(blackboard, field, None)
+            if val is not None:
                 setattr(blackboard, field, None)
                 cleared.append(field)
         if cleared:
@@ -80,6 +82,7 @@ class StateLifecycleManager:
         if not blackboard or not blackboard.metadata:
             return
         for field in ("final_outcome", "shadow_audit"):
-            if hasattr(blackboard.metadata, field) and getattr(blackboard.metadata, field) is not None:
+            val = getattr(blackboard.metadata, field, None)
+            if val is not None:
                 setattr(blackboard.metadata, field, None)
                 logger.debug(f"[Lifecycle] Reset metadata.{field}")

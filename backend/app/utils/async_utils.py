@@ -65,7 +65,7 @@ class LoopBoundResource(Generic[R]):
                 if self._cleanup:
                     try:
                         await self._cleanup(resource)
-                    except Exception as e:
+                    except (TypeError, ValueError, RuntimeError, OSError) as e:
                         logger.warning(f"Error cleaning up loop-bound resource: {e}")
         except RuntimeError:
             pass
@@ -77,7 +77,7 @@ class LoopBoundResource(Generic[R]):
             for loop, resource in list(self._resources.items()):
                 try:
                     await self._cleanup(resource)
-                except Exception as e:
+                except (TypeError, ValueError, RuntimeError, OSError) as e:
                     logger.warning(f"Error cleaning up loop-bound resource during flush_all: {e}")
         self._resources.clear()
 

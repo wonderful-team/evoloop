@@ -52,30 +52,20 @@ async def upload_document(
     - Office: .pdf (OCR-based), .docx
     - Images: .png, .jpg (OCR-based)
     """
-    try:
-        result = await pipeline.process_upload(
-            upload_file=file,
-            collection=collection,
-            doc_type=doc_type,
-            extract_metadata=extract_metadata
-        )
-        
-        if not result.success:
-            raise HTTPException(status_code=400, detail=result.error)
-        
-        return DocumentResponse(
-            success=True,
-            message=f"Document uploaded successfully",
-            path=result.path,
-            document=result.metadata.model_dump(mode="json") if result.metadata else None
-        )
-    
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Upload failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
-
+    result = await pipeline.process_upload(
+        upload_file=file,
+        collection=collection,
+        doc_type=doc_type,
+        extract_metadata=extract_metadata
+    )
+    if not result.success:
+        raise HTTPException(status_code=400, detail=result.error)
+    return DocumentResponse(
+        success=True,
+        message=f"Document uploaded successfully",
+        path=result.path,
+        document=result.metadata.model_dump(mode="json") if result.metadata else None
+    )
 @router.get("/documents", response_model=DocumentListResponse)
 async def list_documents(
     collection: Optional[str] = Query(None, description="Filter by collection"),
@@ -91,29 +81,20 @@ async def list_documents(
     Returns a paginated list of documents with metadata.
     Supports filtering by collection, tags, and workspace project.
     """
-    try:
-        documents = store.list_documents(collection, pattern, source_project_id, limit=limit, offset=offset)
-
-        # Filter by tags if specified (applied post-query for now)
-        if tags:
-            tag_list = [t.strip() for t in tags.split(",") if t.strip()]
-            documents = [
-                doc for doc in documents
-                if any(tag in doc.tags for tag in tag_list)
-            ]
-
-        collections = store.list_collections()
-
-        return DocumentListResponse(
-            total=len(documents),
-            documents=documents,
-            collections=collections
-        )
-    
-    except Exception as e:
-        logger.error(f"List documents failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to list documents: {str(e)}")
-
+    documents = store.list_documents(collection, pattern, source_project_id, limit=limit, offset=offset)
+    # Filter by tags if specified (applied post-query for now)
+    if tags:
+        tag_list = [t.strip() for t in tags.split(",") if t.strip()]
+        documents = [
+            doc for doc in documents
+            if any(tag in doc.tags for tag in tag_list)
+        ]
+    collections = store.list_collections()
+    return DocumentListResponse(
+        total=len(documents),
+        documents=documents,
+        collections=collections
+    )
 @router.get("/documents/{path:path}", response_model=DocumentContentResponse)
 async def read_document(
     path: str,
@@ -141,71 +122,42 @@ async def read_document(
     
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail=f"Document not found: {path}")
-    
-    except Exception as e:
-        logger.error(f"Read document failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to read document: {str(e)}")
 
 @router.delete("/documents/{path:path}", response_model=DocumentResponse)
 async def delete_document(path: str):
     """
     Delete a document from the knowledge base.
     """
+    deleted = store.delete_document(path)
+    if not deleted:
+        raise HTTPException(status_code=404, detail=f"Document not found: {path}")
+    # Clean up FTS and vector indexes
     try:
-        deleted = store.delete_document(path)
-        
-        if not deleted:
-            raise HTTPException(status_code=404, detail=f"Document not found: {path}")
-        
-        # Clean up FTS and vector indexes
-        try:
-            fts = get_fts_service()
-            await fts.remove_document(path)
-        except Exception as e:
-            logger.warning(f"Failed to remove document from FTS index: {e}")
-        
-        try:
-            from app.domain.knowledge.services.vector_search import get_kb_vector_service
-            vector_service = get_kb_vector_service()
-            await vector_service.delete_document(path)
-        except Exception as e:
-            logger.warning(f"Failed to remove document from vector index: {e}")
-        
-        return DocumentResponse(success=True, message=f"Document deleted: {path}")
-    
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Delete document failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to delete document: {str(e)}")
-
+        fts = get_fts_service()
+        await fts.remove_document(path)
+    except (OSError, RuntimeError, TypeError, ValueError) as e:
+        logger.warning(f"Failed to remove document from FTS index: {e}")
+    try:
+        from app.domain.knowledge.services.vector_search import get_kb_vector_service
+        vector_service = get_kb_vector_service()
+        await vector_service.delete_document(path)
+    except (OSError, RuntimeError, TypeError, ValueError) as e:
+        logger.warning(f"Failed to remove document from vector index: {e}")
+    return DocumentResponse(success=True, message=f"Document deleted: {path}")
 @router.get("/collections", response_model=CollectionResponse)
 async def list_collections():
     """List all knowledge base collections."""
-    try:
-        collections = store.list_collections()
-        stats = store.get_stats()
-        
-        return CollectionResponse(
-            collections=collections,
-            stats=stats
-        )
-    
-    except Exception as e:
-        logger.error(f"List collections failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to list collections: {str(e)}")
-
+    collections = store.list_collections()
+    stats = store.get_stats()
+    return CollectionResponse(
+        collections=collections,
+        stats=stats
+    )
 @router.post("/collections/{name}", response_model=DocumentResponse)
 async def create_collection(name: str):
     """Create a new knowledge base collection."""
-    try:
-        store.create_collections(name)
-        return DocumentResponse(success=True, message=f"Collection created: {name}")
-    
-    except Exception as e:
-        logger.error(f"Create collection failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to create collection: {str(e)}")
-
+    store.create_collections(name)
+    return DocumentResponse(success=True, message=f"Collection created: {name}")
 @router.get("/tags", response_model=TagResponse)
 async def list_tags(
     collection: Optional[str] = Query(None, description="Filter by collection"),
@@ -216,19 +168,12 @@ async def list_tags(
     
     Returns tags with document counts for the tag cloud/filter UI.
     """
-    try:
-        fts = get_fts_service()
-        tags, total = await fts.list_tags(collection=collection, limit=limit)
-        
-        return TagResponse(
-            tags=[TagItem(name=t["name"], count=t["count"]) for t in tags],
-            total=total
-        )
-    
-    except Exception as e:
-        logger.error(f"List tags failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to list tags: {str(e)}")
-
+    fts = get_fts_service()
+    tags, total = await fts.list_tags(collection=collection, limit=limit)
+    return TagResponse(
+        tags=[TagItem(name=t["name"], count=t["count"]) for t in tags],
+        total=total
+    )
 @router.get("/search", response_model=DocumentSearchResponse)
 async def search_documents(
     q: str = Query(..., description="Search query"),
@@ -240,19 +185,12 @@ async def search_documents(
     
     Performs full-text search across all documents.
     """
-    try:
-        results = list(store.search_documents(q, collection, context_lines))
-        
-        return DocumentSearchResponse(
-            query=q,
-            results=results,
-            total=sum(r.get("match_count", 0) for r in results)
-        )
-    
-    except Exception as e:
-        logger.error(f"Search failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
-
+    results = list(store.search_documents(q, collection, context_lines))
+    return DocumentSearchResponse(
+        query=q,
+        results=results,
+        total=sum(r.get("match_count", 0) for r in results)
+    )
 @router.post("/bulk-upload", response_model=BaseAPIResponse)
 async def bulk_upload(
     files: list[UploadFile] = File(..., description="Multiple files to upload"),
@@ -265,29 +203,21 @@ async def bulk_upload(
     Supports uploading multiple files in a single request.
     Each file is processed independently.
     """
-    try:
-        # Convert UploadFiles to tuples
-        file_tuples = []
-        for upload_file in files:
-            await upload_file.seek(0)
-            file_tuples.append((upload_file.file, upload_file.filename))
-        
-        result = await bulk_import.import_files(
-            files=file_tuples,
-            collection=collection,
-            doc_type=doc_type
-        )
-        
-        # Note: result.to_dict() fields are dropped from structured response to keep schema stable.
-        return BaseAPIResponse(
-            success=result.failed == 0,
-            message=f"Imported {result.successful}/{result.total_files} files"
-        )
-    
-    except Exception as e:
-        logger.error(f"Bulk upload failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Bulk upload failed: {str(e)}")
-
+    # Convert UploadFiles to tuples
+    file_tuples = []
+    for upload_file in files:
+        await upload_file.seek(0)
+        file_tuples.append((upload_file.file, upload_file.filename))
+    result = await bulk_import.import_files(
+        files=file_tuples,
+        collection=collection,
+        doc_type=doc_type
+    )
+    # Note: result.to_dict() fields are dropped from structured response to keep schema stable.
+    return BaseAPIResponse(
+        success=result.failed == 0,
+        message=f"Imported {result.successful}/{result.total_files} files"
+    )
 @router.post("/import-zip", response_model=BaseAPIResponse)
 async def import_zip(
     file: UploadFile = File(..., description="ZIP archive containing documents"),
@@ -300,33 +230,22 @@ async def import_zip(
     Extracts and processes all supported documents from the ZIP file.
     Directory structure can be preserved or flattened.
     """
-    try:
-        # Validate first
-        await file.seek(0)
-        validation = bulk_import.validate_archive(file.file)
-        
-        if not validation["valid"]:
-            raise HTTPException(status_code=400, detail=validation["error"])
-        
-        # Process archive
-        await file.seek(0)
-        result = await bulk_import.import_zip(
-            file=file.file,
-            collection=collection,
-            preserve_structure=preserve_structure
-        )
-        
-        return BaseAPIResponse(
-            success=result.failed == 0,
-            message=f"Imported {result.successful}/{result.total_files} files from ZIP"
-        )
-    
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"ZIP import failed: {e}")
-        raise HTTPException(status_code=500, detail=f"ZIP import failed: {str(e)}")
-
+    # Validate first
+    await file.seek(0)
+    validation = bulk_import.validate_archive(file.file)
+    if not validation["valid"]:
+        raise HTTPException(status_code=400, detail=validation["error"])
+    # Process archive
+    await file.seek(0)
+    result = await bulk_import.import_zip(
+        file=file.file,
+        collection=collection,
+        preserve_structure=preserve_structure
+    )
+    return BaseAPIResponse(
+        success=result.failed == 0,
+        message=f"Imported {result.successful}/{result.total_files} files from ZIP"
+    )
 @router.post("/validate-zip")
 async def validate_zip(
     file: UploadFile = File(..., description="ZIP archive to validate")
@@ -336,17 +255,10 @@ async def validate_zip(
     
     Returns information about the archive contents without importing.
     """
-    try:
-        await file.seek(0)
-        validation = bulk_import.validate_archive(file.file)
-        await file.seek(0)
-        
-        return validation
-    
-    except Exception as e:
-        logger.error(f"ZIP validation failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Validation failed: {str(e)}")
-
+    await file.seek(0)
+    validation = bulk_import.validate_archive(file.file)
+    await file.seek(0)
+    return validation
 # ============ FTS Search ============
 
 @router.get("/fts/search", response_model=FTSSearchResponse)
@@ -367,40 +279,32 @@ async def fts_search(
     - AND/OR: "auth AND token", "auth OR oauth"
     - Prefix: "auth*"
     """
-    try:
-        fts = get_fts_service()
-        tag_list = tags.split(",") if tags else None
-        
-        results = await fts.search(
-            query=q,
-            collection=collection,
-            tags=tag_list,
-            limit=limit,
-            offset=offset
-        )
-        
-        return FTSSearchResponse(
-            query=q,
-            total=results.total,
-            results=[
-                FTSSearchResult(
-                    doc_id=r.doc_id,
-                    path=r.path,
-                    collection=r.collection,
-                    title=r.title,
-                    snippet=r.content_snippet,
-                    highlights=r.highlights,
-                    score=r.bm25_score
-                )
-                for r in results.results
-            ],
-            facets=results.facets
-        )
-    
-    except Exception as e:
-        logger.error(f"FTS search failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
-
+    fts = get_fts_service()
+    tag_list = tags.split(",") if tags else None
+    results = await fts.search(
+        query=q,
+        collection=collection,
+        tags=tag_list,
+        limit=limit,
+        offset=offset
+    )
+    return FTSSearchResponse(
+        query=q,
+        total=results.total,
+        results=[
+            FTSSearchResult(
+                doc_id=r.doc_id,
+                path=r.path,
+                collection=r.collection,
+                title=r.title,
+                snippet=r.content_snippet,
+                highlights=r.highlights,
+                score=r.bm25_score
+            )
+            for r in results.results
+        ],
+        facets=results.facets
+    )
 @router.get("/fts/suggest", response_model=FTSSuggestResponse)
 async def fts_suggest(
     prefix: str = Query(..., description="Search prefix"),
@@ -408,15 +312,9 @@ async def fts_suggest(
     limit: int = Query(10, ge=1, le=20)
 ):
     """Get search suggestions based on prefix."""
-    try:
-        fts = get_fts_service()
-        suggestions = await fts.suggest(prefix, collection, limit)
-        return FTSSuggestResponse(suggestions=suggestions)
-    
-    except Exception as e:
-        logger.error(f"Suggestions failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Suggestions failed: {str(e)}")
-
+    fts = get_fts_service()
+    suggestions = await fts.suggest(prefix, collection, limit)
+    return FTSSuggestResponse(suggestions=suggestions)
 # ============ Deduplication ============
 
 @router.get("/analytics/duplicates")
@@ -428,15 +326,9 @@ async def analyze_duplicates(
     
     Returns groups of similar documents and suggested merges.
     """
-    try:
-        dedup = DeduplicationService(store)
-        report = await dedup.analyze_collection(collection)
-        return report.to_dict()
-    
-    except Exception as e:
-        logger.error(f"Duplicate analysis failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
-
+    dedup = DeduplicationService(store)
+    report = await dedup.analyze_collection(collection)
+    return report.to_dict()
 @router.post("/merge")
 async def merge_documents(
     source_paths: list[str],
@@ -444,15 +336,9 @@ async def merge_documents(
     strategy: str = "concatenate"
 ):
     """Merge multiple documents into one."""
-    try:
-        dedup = DeduplicationService(store)
-        result = await dedup.merge_documents(source_paths, target_path, strategy)
-        return result
-    
-    except Exception as e:
-        logger.error(f"Merge failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Merge failed: {str(e)}")
-
+    dedup = DeduplicationService(store)
+    result = await dedup.merge_documents(source_paths, target_path, strategy)
+    return result
 # ============ Citation Analytics ============
 
 @router.get("/analytics/popular")
@@ -462,83 +348,55 @@ async def get_popular_documents(
     limit: int = Query(10, ge=1, le=50)
 ):
     """Get most cited/popular documents."""
-    try:
-        tracker = get_citation_tracker()
-        from datetime import datetime, timedelta
-        
-        since = datetime.now() - timedelta(days=days)
-        docs = await tracker.get_most_cited(collection, limit, since)
-        
-        return {
-            "period_days": days,
-            "documents": [
-                {
-                    "path": d.doc_path,
-                    "citations": d.total_citations,
-                    "unique_sessions": d.unique_sessions,
-                    "last_accessed": d.last_accessed,
-                    "tools_used": d.tools_used
-                }
-                for d in docs
-            ]
-        }
-    
-    except Exception as e:
-        logger.error(f"Popular docs failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to get popular docs: {str(e)}")
-
+    tracker = get_citation_tracker()
+    from datetime import datetime, timedelta
+    since = datetime.now() - timedelta(days=days)
+    docs = await tracker.get_most_cited(collection, limit, since)
+    return {
+        "period_days": days,
+        "documents": [
+            {
+                "path": d.doc_path,
+                "citations": d.total_citations,
+                "unique_sessions": d.unique_sessions,
+                "last_accessed": d.last_accessed,
+                "tools_used": d.tools_used
+            }
+            for d in docs
+        ]
+    }
 @router.get("/analytics/usage")
 async def get_usage_analytics(
     days: int = Query(30, ge=1, le=365)
 ):
     """Get knowledge base usage analytics."""
-    try:
-        tracker = get_citation_tracker()
-        analytics = await tracker.get_usage_analytics(days)
-        return analytics
-    
-    except Exception as e:
-        logger.error(f"Usage analytics failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to get analytics: {str(e)}")
-
+    tracker = get_citation_tracker()
+    analytics = await tracker.get_usage_analytics(days)
+    return analytics
 @router.get("/recommendations")
 async def get_recommendations(
     path: str = Query(..., description="Reference document path")
 ):
     """Get document recommendations based on citation patterns."""
-    try:
-        tracker = get_citation_tracker()
-        recommendations = await tracker.get_recommendations(path)
-        return {"recommendations": recommendations}
-    
-    except Exception as e:
-        logger.error(f"Recommendations failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to get recommendations: {str(e)}")
-
+    tracker = get_citation_tracker()
+    recommendations = await tracker.get_recommendations(path)
+    return {"recommendations": recommendations}
 @router.get("/{path:path}/stats")
 async def get_document_stats(path: str):
     """Get citation statistics for a specific document."""
-    try:
-        tracker = get_citation_tracker()
-        stats = await tracker.get_document_stats(path)
-
-        if not stats:
-            return {"found": False, "message": "No citation data for this document"}
-
-        return {
-            "found": True,
-            "path": stats.doc_path,
-            "total_citations": stats.total_citations,
-            "unique_sessions": stats.unique_sessions,
-            "last_accessed": stats.last_accessed,
-            "tools_used": stats.tools_used,
-            "related_documents": stats.related_docs
-        }
-
-    except Exception as e:
-        logger.error(f"Document stats failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to get stats: {str(e)}")
-
+    tracker = get_citation_tracker()
+    stats = await tracker.get_document_stats(path)
+    if not stats:
+        return {"found": False, "message": "No citation data for this document"}
+    return {
+        "found": True,
+        "path": stats.doc_path,
+        "total_citations": stats.total_citations,
+        "unique_sessions": stats.unique_sessions,
+        "last_accessed": stats.last_accessed,
+        "tools_used": stats.tools_used,
+        "related_documents": stats.related_docs
+    }
 # ============ Auto Maintenance ============
 
 @router.post("/maintenance/run")
@@ -555,43 +413,27 @@ async def run_maintenance(
     - medium: Merge duplicates, archive cold docs
     - deep: Full optimization including knowledge graph
     """
-    try:
-        from app.domain.knowledge.services import run_manual_maintenance
-
-        report = await run_manual_maintenance(
-            collection=collection,
-            dry_run=dry_run,
-            level=level
-        )
-
-        return {
-            "success": True,
-            "dry_run": dry_run,
-            "level": level,
-            "report": report
-        }
-
-    except Exception as e:
-        logger.error(f"Maintenance failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Maintenance failed: {str(e)}")
-
+    from app.domain.knowledge.services import run_manual_maintenance
+    report = await run_manual_maintenance(
+        collection=collection,
+        dry_run=dry_run,
+        level=level
+    )
+    return {
+        "success": True,
+        "dry_run": dry_run,
+        "level": level,
+        "report": report
+    }
 @router.get("/maintenance/duplicates")
 async def analyze_maintenance_duplicates(
     collection: Optional[str] = Query(None, description="Target collection")
 ):
     """Analyze and return duplicate document report."""
-    try:
-        from app.domain.knowledge.services.deduplication import DeduplicationService
-
-        service = DeduplicationService()
-        report = await service.analyze_project(collection)
-
-        return report.to_dict()
-
-    except Exception as e:
-        logger.error(f"Duplicate analysis failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
-
+    from app.domain.knowledge.services.deduplication import DeduplicationService
+    service = DeduplicationService()
+    report = await service.analyze_project(collection)
+    return report.to_dict()
 @router.post("/maintenance/merge")
 async def merge_maintenance_documents(
     paths: list[str] = Body(..., description="Document paths to merge"),
@@ -599,127 +441,95 @@ async def merge_maintenance_documents(
     target_path: Optional[str] = Query(None, description="Target path for merged document")
 ):
     """Merge multiple documents into one."""
-    try:
-        from app.domain.knowledge.services.deduplication import DeduplicationService
-
-        service = DeduplicationService()
-        result = await service.merge_documents(paths, target_path, strategy)
-
-        if not result["success"]:
-            raise HTTPException(status_code=400, detail=result.get("error", "Merge failed"))
-
-        return result
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Merge failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Merge failed: {str(e)}")
-
+    from app.domain.knowledge.services.deduplication import DeduplicationService
+    service = DeduplicationService()
+    result = await service.merge_documents(paths, target_path, strategy)
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result.get("error", "Merge failed"))
+    return result
 @router.get("/maintenance/quality")
 async def check_quality(
     collection: Optional[str] = Query(None, description="Target collection"),
     limit: int = Query(50, description="Maximum documents to check")
 ):
     """Check document quality and return report."""
-    try:
-        from app.domain.knowledge.services.auto_maintenance import QualityChecker
-
-        checker = QualityChecker()
-        results = await checker.scan_collection(collection)
-
-        # Sort by score (lowest first) and limit
-        results = sorted(results, key=lambda x: x.score)[:limit]
-
-        return {
-            "total_checked": len(results),
-            "low_quality_count": sum(1 for r in results if r.score < 0.5),
-            "documents": [
-                {
-                    "path": r.path,
-                    "score": r.score,
-                    "issues": r.issues,
-                    "suggestions": r.suggestions
-                }
-                for r in results
-            ]
-        }
-
-    except Exception as e:
-        logger.error(f"Quality check failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Quality check failed: {str(e)}")
-
+    from app.domain.knowledge.services.auto_maintenance import QualityChecker
+    checker = QualityChecker()
+    results = await checker.scan_collection(collection)
+    # Sort by score (lowest first) and limit
+    results = sorted(results, key=lambda x: x.score)[:limit]
+    return {
+        "total_checked": len(results),
+        "low_quality_count": sum(1 for r in results if r.score < 0.5),
+        "documents": [
+            {
+                "path": r.path,
+                "score": r.score,
+                "issues": r.issues,
+                "suggestions": r.suggestions
+            }
+            for r in results
+        ]
+    }
 @router.get("/maintenance/reports")
 async def list_maintenance_reports(
     limit: int = Query(10, description="Number of recent reports")
 ):
     """List recent maintenance reports from database."""
+    reports = []
+    # Try database first (T-1.4)
     try:
-        reports = []
-
-        # Try database first (T-1.4)
-        try:
-            from app.infrastructure.database.resource_manager import db_resource_manager
-            from app.models.maintenance import MaintenanceReport
-            from sqlalchemy import desc, select
-
-            async with db_resource_manager.session_factory() as session:
-                result = await session.execute(
-                    select(MaintenanceReport)
-                    .order_by(desc(MaintenanceReport.timestamp))
-                    .limit(limit)
-                )
-                rows = result.scalars().all()
-
-                for row in rows:
-                    summary = {}
-                    try:
-                        summary = json.loads(row.summary_json or "{}")
-                    except Exception:
-                        pass
-
-                    reports.append({
-                        "id": row.id,
-                        "timestamp": row.timestamp.isoformat() if row.timestamp else None,
-                        "level": row.level,
-                        "dry_run": bool(row.dry_run),
-                        "duration_seconds": row.duration_seconds,
-                        "summary": summary,
-                    })
-        except Exception as e:
-            logger.warning(f"Failed to read reports from DB: {e}")
-
-        # Fallback to JSON files if SQLite is empty
-        if not reports:
-            reports_dir = Path.home() / ".evoloop" / "knowledge" / "reports"
-            if reports_dir.exists():
-                report_files = sorted(
-                    reports_dir.glob("maintenance_*.json"),
-                    key=lambda p: p.stat().st_mtime,
-                    reverse=True
-                )[:limit]
-
-                for filepath in report_files:
-                    try:
-                        with open(filepath, "r", encoding="utf-8") as f:
-                            data = json.load(f)
-                            reports.append({
-                                "filename": filepath.name,
-                                "timestamp": data.get("timestamp"),
-                                "duration_seconds": data.get("duration_seconds"),
-                                "tasks_completed": data.get("tasks_completed", []),
-                                "duplicates": data.get("duplicates", {}),
-                                "summary": {
-                                    "duplicates_found": data.get("duplicates", {}).get("found", 0),
-                                    "low_quality_found": data.get("low_quality", {}).get("found", 0),
-                                    "cold_docs_found": data.get("cold_content", {}).get("found", 0),
-                                }
-                            })
-                    except Exception as e:
-                        logger.warning(f"Failed to read report {filepath}: {e}")
-
-        return {"reports": reports}
-
-    except Exception as e:
-        logger.error(f"Failed to list reports: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to list reports: {str(e)}")
+        from app.infrastructure.database.resource_manager import db_resource_manager
+        from app.models.maintenance import MaintenanceReport
+        from sqlalchemy import desc, select
+        async with db_resource_manager.session_factory() as session:
+            result = await session.execute(
+                select(MaintenanceReport)
+                .order_by(desc(MaintenanceReport.timestamp))
+                .limit(limit)
+            )
+            rows = result.scalars().all()
+            for row in rows:
+                summary = {}
+                try:
+                    summary = json.loads(row.summary_json or "{}")
+                except (json.JSONDecodeError, TypeError):
+                    pass
+                reports.append({
+                    "id": row.id,
+                    "timestamp": row.timestamp.isoformat() if row.timestamp else None,
+                    "level": row.level,
+                    "dry_run": bool(row.dry_run),
+                    "duration_seconds": row.duration_seconds,
+                    "summary": summary,
+                })
+    except (OSError, RuntimeError) as e:
+        logger.warning(f"Failed to read reports from DB: {e}")
+    # Fallback to JSON files if SQLite is empty
+    if not reports:
+        reports_dir = Path.home() / ".evoloop" / "knowledge" / "reports"
+        if reports_dir.exists():
+            report_files = sorted(
+                reports_dir.glob("maintenance_*.json"),
+                key=lambda p: p.stat().st_mtime,
+                reverse=True
+            )[:limit]
+            for filepath in report_files:
+                try:
+                    with open(filepath, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                        reports.append({
+                            "filename": filepath.name,
+                            "timestamp": data.get("timestamp"),
+                            "duration_seconds": data.get("duration_seconds"),
+                            "tasks_completed": data.get("tasks_completed", []),
+                            "duplicates": data.get("duplicates", {}),
+                            "summary": {
+                                "duplicates_found": data.get("duplicates", {}).get("found", 0),
+                                "low_quality_found": data.get("low_quality", {}).get("found", 0),
+                                "cold_docs_found": data.get("cold_content", {}).get("found", 0),
+                            }
+                        })
+                except (OSError, json.JSONDecodeError, TypeError, ValueError) as e:
+                    logger.warning(f"Failed to read report {filepath}: {e}")
+    return {"reports": reports}

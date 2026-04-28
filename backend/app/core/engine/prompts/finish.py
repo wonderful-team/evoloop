@@ -66,7 +66,7 @@ class FinishPromptBuilder:
             }
 
             return render_template("core/engine/finish.prompt.j2", **template_vars)
-        except Exception as e:
+        except (TypeError, ValueError, RuntimeError) as e:
             logger.error(f"[FinishPromptBuilder] Template render failed: {e}")
             return (
                 "You are the Session Reviewer. Please review the session and provide "

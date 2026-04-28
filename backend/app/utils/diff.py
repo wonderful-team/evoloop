@@ -78,7 +78,7 @@ class DiffTracker:
         except FileNotFoundError:
             # File might mean to be created
             self._snapshots[key] = ""
-        except Exception as e:
+        except (OSError, TypeError, ValueError) as e:
             logger.warning(f"Failed to capture snapshot for {path} (thread {thread_id}): {e}")
 
     def compute_diff(

@@ -68,7 +68,7 @@ class MacOSVisionOCRProvider(VisionProvider):
             # Support both English and Chinese if supported by OS
             try:
                 request.setRecognitionLanguages_(["zh-Hans", "en-US"])
-            except:
+            except Exception:
                 pass
 
             # Perform request
@@ -148,5 +148,5 @@ class MacOSVisionOCRProvider(VisionProvider):
         # macOS ones from ~/.evoloop/artifacts/screenshots
         try:
             return macos_driver.get_ui_scale_factor()
-        except:
+        except Exception:
             return 1.0

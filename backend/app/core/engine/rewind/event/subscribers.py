@@ -677,7 +677,7 @@ class StateRewind:
                 try:
                     parsed = json.loads(content)
                     return self._extract_text(parsed)
-                except:
+                except (json.JSONDecodeError, TypeError, ValueError):
                     # If JSON parsing fails, use regex as a fallback to grab anything in 'text' fields
                     text_matches = re.findall(r'["\']text["\']:\s*["\'](.*?)["\']', content)
                     if text_matches:

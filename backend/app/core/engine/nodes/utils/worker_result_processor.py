@@ -137,7 +137,7 @@ def process_worker_result(
                     req_servers.add(server_name)
                     updated_execution_ticket.mcp_servers_required = list(req_servers)
                     logger.info(f"[Worker] 🔌 Appended MCP server '{server_name}' to execution_ticket.")
-            except Exception as e:
+            except (TypeError, ValueError, json.JSONDecodeError) as e:
                 logger.error(f"[Worker] Failed to parse use_mcp_server arguments: {e}")
 
     verification_summary = VerificationStatus(status="unverified", signals=verification_signals)

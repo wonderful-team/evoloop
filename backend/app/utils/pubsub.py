@@ -52,7 +52,7 @@ class SimplePubSubBus:
                 try:
                     queue.get_nowait()
                     queue.put_nowait(message)
-                except Exception:
+                except (TypeError, ValueError, RuntimeError):
                     pass
 
 # Global Instance

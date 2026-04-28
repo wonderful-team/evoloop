@@ -117,7 +117,7 @@ class EvoContextMiddleware:
         # Extract last human message
         last_human_msg = ""
         for msg in reversed(state.messages):
-            if hasattr(msg, "type") and msg.type == "human":
+            if msg.type == "human":
                 if isinstance(msg.content, list):
                     last_human_msg = " ".join([b.get("text", "") for b in msg.content if isinstance(b, dict) and b.get("type") == "text"])
                 else:

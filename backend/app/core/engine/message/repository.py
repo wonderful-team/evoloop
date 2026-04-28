@@ -111,7 +111,7 @@ class MessageRepository:
                 if isinstance(tool_calls, str):
                     try:
                         tool_calls = json.loads(tool_calls)
-                    except Exception:
+                    except (json.JSONDecodeError, TypeError, ValueError):
                         return {}
                 for tc in (tool_calls or []):
                     tc_id = tc.get("id") if isinstance(tc, dict) else getattr(tc, "id", None)

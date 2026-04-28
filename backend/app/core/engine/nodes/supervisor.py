@@ -119,14 +119,14 @@ class SupervisorNode(BaseAgentNode):
         new_iter_count = (original_state.iteration_count or 0) + 1
         new_messages = [
             m for m in (engine_result.messages or [])
-            if getattr(m, "name", None) != "context_ticket"
+            if m.name != "context_ticket"
         ]
         blackboard = engine_result.blackboard or original_state.blackboard
 
         # Check for infrastructure errors
         has_error_msg = any(
             getattr(msg, "metadata", {}).get("is_error") for msg in new_messages
-            if hasattr(msg, "metadata")
+            if getattr(msg, "metadata", None)
         )
         if has_error_msg:
             return StateUpdate(
@@ -167,7 +167,7 @@ class SupervisorNode(BaseAgentNode):
                 task_status=status,
             )
         except Exception:
-            pass
+            logger.debug("[Supervisor] Status emit failed, continuing")
 
     async def _build_context(
         self, state: AgentState, config: RunnableConfig, messages: list, project_id: int

@@ -51,7 +51,7 @@ def _get_encoder(encoding_name: str):
     except ImportError:
         logger.warning("tiktoken not installed. Using character-based estimation. Install with: pip install tiktoken")
         return None
-    except Exception as e:
+    except (TypeError, ValueError, RuntimeError) as e:
         logger.warning(f"Failed to load tiktoken encoding '{encoding_name}': {e}")
         return None
 

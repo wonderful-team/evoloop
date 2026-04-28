@@ -542,7 +542,7 @@ async def _execute_command_with_timeout(
         try:
             process.kill()
             await process.wait()
-        except:
+        except (OSError, ProcessLookupError):
             pass
         raise
 

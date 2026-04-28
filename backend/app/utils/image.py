@@ -288,7 +288,7 @@ def is_valid_image(image_path: str) -> bool:
             with Image.open(image_path) as img:
                 img.verify()
             return True
-        except Exception:
+        except (OSError, TypeError, ValueError):
             return False
     else:
         # Basic check using extension

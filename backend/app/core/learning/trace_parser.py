@@ -174,7 +174,7 @@ class TraceParser:
                 try:
                     payload = event.action_payload if isinstance(event.action_payload, dict) else json.loads(event.action_payload)
                     window_bounds = payload.get("window_bounds")
-                except:
+                except (json.JSONDecodeError, TypeError, ValueError):
                     pass
 
             if window_bounds and len(window_bounds) == 4 and event.action_type in ("mouse_click", "click"):

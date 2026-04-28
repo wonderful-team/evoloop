@@ -67,7 +67,7 @@ def run_command(
             stdout=result.stdout,
             stderr=result.stderr
         )
-    except Exception as e:
+    except (subprocess.SubprocessError, OSError, TypeError, ValueError) as e:
         logger.error(f"Command execution exception: {e}")
         return CommandResult(-1, "", str(e))
 
@@ -124,6 +124,6 @@ async def run_async_command(
             stderr=stderr.decode().strip() if stderr else "",
         )
 
-    except Exception as e:
+    except (subprocess.SubprocessError, OSError, TypeError, ValueError, asyncio.TimeoutError) as e:
         logger.error(f"Async command failed: {e}")
         return CommandResult(-1, "", str(e))

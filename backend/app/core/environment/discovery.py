@@ -107,7 +107,7 @@ class EnvironmentProbe:
                     if "battery" in info and "%" in info["battery"]:
                         try:
                             battery_percent = int(info["battery"].replace("%", ""))
-                        except:
+                        except ValueError:
                             pass
 
                     devices.append(AndroidDevice(
@@ -164,7 +164,7 @@ class EnvironmentProbe:
                 try:
                     with socket.create_connection(("8.8.8.8", 53), timeout=3) as _:
                         return True
-                except:
+                except OSError:
                     return False
 
             internet_connected = await asyncio.to_thread(_check_internet)
@@ -177,7 +177,7 @@ class EnvironmentProbe:
                 try:
                     hostname = socket.gethostname()
                     return socket.gethostbyname_ex(hostname)[2]
-                except:
+                except OSError:
                     return []
 
             local_ips = await asyncio.to_thread(_get_ips)

@@ -21,14 +21,14 @@ async def stop_quality_gate(context: HookContext) -> HookResult:
     blackboard = context.blackboard
 
     # Check if there were any failures in the session
-    if getattr(blackboard, "test_failures", None) if blackboard else None:
+    if blackboard and blackboard.test_failures:
         return HookResult(
             success=False,
             block=True,
             message="Tests failed. Please fix before completing.",
         )
 
-    if getattr(blackboard, "lint_errors", None) if blackboard else None:
+    if blackboard and blackboard.lint_errors:
         return HookResult(
             success=False,
             block=True,

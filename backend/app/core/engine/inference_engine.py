@@ -50,7 +50,7 @@ class InferenceEngine:
                 return "anthropic"
             if hasattr(llm, "lc_secrets") and "anthropic" in str(llm.lc_secrets).lower():
                 return "anthropic"
-        except Exception:
+        except (AttributeError, TypeError):
             pass
         return "openai"
 
@@ -92,8 +92,8 @@ class InferenceEngine:
             response = AIMessage(
                 content=response.content,
                 additional_kwargs=response.additional_kwargs,
-                tool_calls=getattr(response, "tool_calls", None),
-                response_metadata=getattr(response, "response_metadata", {}),
+                tool_calls=response.tool_calls,
+                response_metadata=response.response_metadata,
             )
 
         return response
@@ -190,22 +190,20 @@ class InferenceEngine:
             # Inject run_id
             run_id = config.get("configurable", {}).get("run_id")
             if run_id:
-                if not hasattr(response, "metadata"):
+                if response.metadata is None:
                     response.metadata = {}
                 response.metadata["run_id"] = run_id
-                if not hasattr(response, "additional_kwargs"):
-                    response.additional_kwargs = {}
                 response.additional_kwargs["run_id"] = run_id
 
             # Parse thinking content for logging / callback
             thinking_content = ""
             content_preview = str(response.content)[:200] if response.content else "(empty)"
-            tool_calls_count = len(response.tool_calls) if hasattr(response, "tool_calls") and response.tool_calls else 0
+            tool_calls_count = len(response.tool_calls) if response.tool_calls else 0
             logger.info(f"[{name}] LLM response: content='{content_preview}...', tool_calls={tool_calls_count}")
 
             if response.content:
                 thinking_content = response.content
-            elif hasattr(response, "additional_kwargs") and "thought" in response.additional_kwargs:
+            elif "thought" in response.additional_kwargs:
                 thinking_content = response.additional_kwargs["thought"]
                 logger.info(f"[{name}] Thinking (from additional_kwargs): {thinking_content[:200]}...")
 
@@ -331,11 +329,9 @@ class InferenceEngine:
         # Inject run_id
         run_id = config.get("configurable", {}).get("run_id")
         if run_id:
-            if not hasattr(response, "metadata"):
+            if response.metadata is None:
                 response.metadata = {}
             response.metadata["run_id"] = run_id
-            if not hasattr(response, "additional_kwargs"):
-                response.additional_kwargs = {}
             response.additional_kwargs["run_id"] = run_id
 
         new_messages = [response]

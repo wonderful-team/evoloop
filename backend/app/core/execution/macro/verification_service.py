@@ -252,7 +252,7 @@ class VerificationService:
             try:
                 steps = macro_from_yaml(macro_script)
                 original_count = len(steps)
-            except:
+            except Exception:
                 original_count = 0
         else:
             original_count = 0

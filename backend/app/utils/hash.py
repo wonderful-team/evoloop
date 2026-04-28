@@ -55,7 +55,7 @@ def compute_file_hash(
             for chunk in iter(lambda: f.read(chunk_size), b""):
                 hasher.update(chunk)
         return hasher.hexdigest()
-    except Exception:
+    except (OSError, TypeError, ValueError):
         return ""
 
 

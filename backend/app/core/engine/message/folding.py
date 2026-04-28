@@ -70,7 +70,7 @@ def to_base_message(msg: Any) -> BaseMessage | None:
             )
         elif role == "system":
             return SystemMessage(content=content, id=msg_id, additional_kwargs=kwargs)
-    except Exception as e:
+    except (TypeError, ValueError) as e:
         logger.warning(f"[to_base_message] Failed to convert msg id={msg_id} role={role}: {e}")
         return None
 

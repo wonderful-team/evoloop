@@ -41,8 +41,8 @@ class AggregatorNode(BaseNode):
 
         # Log pre-aggregation raw texts for auditing (no truncation applied)
         for i, r in enumerate(subtask_results):
-            raw_text = str(getattr(r, "result", r))
-            sid = getattr(r, "subtask_id", i)
+            raw_text = str(r.result)
+            sid = r.subtask_id
             logger.info(f"[Aggregator] Pre-aggregate raw result [{i}] (subtask_id={sid}, length={len(raw_text)}):\n{raw_text}")
 
         try:
@@ -123,5 +123,4 @@ class AggregatorNode(BaseNode):
             temperature=0.3,
             model_name=model_name,
         )
-        content = response.content if hasattr(response, 'content') else str(response)
-        return AggregateResult(status="success", aggregated=content)
+        return AggregateResult(status="success", aggregated=response.content)

@@ -47,7 +47,7 @@ def resolve_path(file_path: str, base_path: str | None = None) -> str | None:
     if file_path.startswith(("http://", "https://")):
         try:
             return ensure_local_path(file_path)
-        except Exception as e:
+        except (OSError, TypeError, ValueError) as e:
             logger.error(f"Failed to resolve URL {file_path}: {e}")
             return None
 
@@ -110,7 +110,7 @@ def ensure_local_path(file_path: str) -> str:
 
             logger.info(f"Downloaded {file_path} to {temp_path}")
             return temp_path
-        except Exception as e:
+        except (OSError, TypeError, ValueError) as e:
             raise ValueError(f"Failed to download remote file: {e}")
 
     return file_path
@@ -269,7 +269,7 @@ def read_file_content(
             }
 
         return content, encoding, metadata
-    except Exception as e:
+    except (OSError, TypeError, ValueError) as e:
         logger.error(f"Failed to read file: {file_path}, error: {str(e)}")
         return "", encoding, {"error": str(e)}
 
@@ -286,7 +286,7 @@ def write_file_contents(content: str, file_path: str) -> bool:
         with open(file_path, "w", encoding="utf-8") as f:
             f.write(content)
         return True
-    except Exception as e:
+    except (OSError, TypeError, ValueError) as e:
         logger.error(f"Failed to write file {file_path}: {e}")
         raise ValueError(f"Failed to write file: {e}")
 
@@ -403,7 +403,7 @@ def get_file_outline(file_path: str, max_entries: int = 100) -> list[dict]:
     except SyntaxError:
         # File has syntax errors, can't parse
         pass
-    except Exception as e:
+    except (OSError, TypeError, ValueError, RuntimeError) as e:
         logger.warning(f"Failed to extract outline from {file_path}: {e}")
 
     return outline
@@ -449,7 +449,7 @@ def _get_python_outline_ast(file_path: str, max_entries: int = 100) -> list[dict
 
         outline.sort(key=lambda x: x["line"])
 
-    except Exception:
+    except (OSError, TypeError, ValueError, RuntimeError):
         pass
 
     return outline
@@ -551,7 +551,7 @@ def verify_file_hash(file_path: str, expected_hash: str) -> bool:
     try:
         current_stats = get_file_stats(file_path)
         return current_stats.content_hash == expected_hash
-    except Exception:
+    except (OSError, TypeError, ValueError):
         return False
 
 

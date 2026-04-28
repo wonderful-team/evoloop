@@ -127,7 +127,7 @@ def _format_list(documents: list, total: int, limit: int) -> str:
                 try:
                     dt = datetime.fromisoformat(updated)
                     date_str = dt.strftime("%Y-%m-%d")
-                except:
+                except ValueError:
                     date_str = updated[:10] if len(updated) >= 10 else updated
             else:
                 date_str = "unknown"

@@ -45,7 +45,7 @@ async def decompose_task(
             temperature=0.3,
             model_name=model_name,
         )
-        content = response.content if hasattr(response, 'content') else str(response)
+        content = response.content
         json_content = extract_json_from_markdown(content)
         subtasks = json.loads(json_content)
 

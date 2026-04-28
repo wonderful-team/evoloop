@@ -213,7 +213,7 @@ class DeterministicToolCache:
                     content = await f.read()
 
             return hashlib.sha256(content).hexdigest()[:16]
-        except Exception as e:
+        except (OSError, TypeError, ValueError) as e:
             logger.debug(f"[ToolCache] Failed to hash file {path}: {e}")
             return ""
 

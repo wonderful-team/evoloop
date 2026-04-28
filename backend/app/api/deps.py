@@ -199,7 +199,7 @@ def require_benefit(benefit_code: str):
                 member_id = await identity_service.get_member_id(token)
                 benefits_data = await benefit_service.get_member_entitlements(member_id, token)
                 current_level = benefits_data.get("level_name")
-            except:
+            except Exception:
                 pass
             
             raise_benefit_required(benefit_code, current_level)

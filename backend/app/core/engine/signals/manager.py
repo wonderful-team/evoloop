@@ -62,12 +62,12 @@ class SignalManager:
         (Post-execution detection)
         """
         # Logic for decompose_task
-        if tool_name == "decompose_task" and hasattr(result, "spawn_plan") and result.spawn_plan:
+        if tool_name == "decompose_task" and result.spawn_plan:
             from .schemas import SpawnSubtasksSignal
             return SpawnSubtasksSignal(plan=result.spawn_plan)
         
         # Generic protocol: result has _signal attribute or dict key
-        if hasattr(result, "_signal") and isinstance(result._signal, AgentSignal):
+        if isinstance(getattr(result, "_signal", None), AgentSignal):
             return result._signal
             
         return None

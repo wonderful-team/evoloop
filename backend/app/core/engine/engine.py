@@ -107,7 +107,7 @@ class AgentEngine:
             model=model,
             node_source=node_source or name.lower(),
             tool_memory=tool_memory,
-            is_retry=getattr(state, "is_retry", False),
+            is_retry=state.is_retry or False,
         )
         repaired_messages = trim_result.messages
 
@@ -190,7 +190,7 @@ class AgentEngine:
         # 9. Build EngineResult
         # Extract routing_target from last_response metadata if signal is not present
         routing_target = None
-        if not inference_result.get("signal") and last_response and hasattr(last_response, "metadata"):
+        if not inference_result.get("signal") and last_response and getattr(last_response, "metadata", None):
             routing_target = (last_response.metadata or {}).get("routing_target")
 
         result = EngineResult(
@@ -207,7 +207,7 @@ class AgentEngine:
         if node_source:
             for msg in result.messages or []:
                 if isinstance(msg, AIMessage) and msg.content:
-                    if not hasattr(msg, "metadata") or msg.metadata is None:
+                    if getattr(msg, "metadata", None) is None:
                         msg.metadata = {}
                     msg.metadata["node_source"] = node_source
 

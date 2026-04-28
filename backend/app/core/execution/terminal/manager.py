@@ -170,12 +170,12 @@ class PersistentTerminal(BaseModel):
             try:
                 self._proc.terminate()
                 self._proc.wait(timeout=1)
-            except:
+            except (OSError, ProcessLookupError):
                 try: self._proc.kill()
-                except: pass
+                except (OSError, ProcessLookupError): pass
         if self._master_fd != -1:
             try: os.close(self._master_fd)
-            except: pass
+            except OSError: pass
 
 
 class TerminalSession(BaseModel):

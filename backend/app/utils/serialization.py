@@ -96,13 +96,13 @@ def serialize_message(message: "BaseMessage") -> dict[str, Any]:
     
     # Add additional fields based on message type
     # For ToolMessage, tool_call_id is required
-    if isinstance(message, ToolMessage) or getattr(message, "type", "") == "tool":
-        data["tool_call_id"] = getattr(message, "tool_call_id", "")
-        data["name"] = getattr(message, "name", "")
+    if isinstance(message, ToolMessage):
+        data["tool_call_id"] = message.tool_call_id
+        data["name"] = message.name
 
     # For AIMessage, tool_calls may exist
-    if isinstance(message, AIMessage) or getattr(message, "type", "") == "ai":
-        data["tool_calls"] = getattr(message, "tool_calls", [])
+    if isinstance(message, AIMessage):
+        data["tool_calls"] = message.tool_calls
     
     # Include additional_kwargs
     if message.additional_kwargs:

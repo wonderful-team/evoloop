@@ -297,7 +297,7 @@ class FunASRProvider(BaseSTTProvider):
             # 清理临时文件
             try:
                 os.unlink(tmp_path)
-            except:
+            except OSError:
                 pass
 
     async def transcribe_stream(self, options: STTOptions) -> AsyncIterator[STTResult]:

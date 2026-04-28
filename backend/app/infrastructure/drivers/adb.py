@@ -388,7 +388,7 @@ class ADBDriver:
                 # 66 is ENTER (if needed, but usually just paste)
                 try:
                     self.press_key(279, device_id=device_id)
-                except:
+                except (subprocess.CalledProcessError, ADBError):
                     # Fallback to Ctrl+V if Paste keycode is not supported
                     self._run_adb(["shell", "input", "keyevent", "--longpress", "279"], device_id=device_id)
                 return True
@@ -399,7 +399,7 @@ class ADBDriver:
             self._run_adb([
                 "shell", "am", "broadcast", "-a", "ADB_INPUT_TEXT", "--es", "msg", f"'{text}'"
             ], device_id=device_id)
-        except:
+        except (subprocess.CalledProcessError, ADBError):
             pass
 
         # 2. Attempt standard input text (if ASCII)
@@ -534,7 +534,7 @@ class ADBDriver:
             self._run_adb([
                 "shell", "am", "broadcast", "-a", "ADB_SET_CLIPBOARD", "--es", "text", f"'{text}'"
             ], device_id=device_id)
-        except:
+        except (subprocess.CalledProcessError, ADBError):
             pass
 
         # Method 2: Service call (Universal for Android 8-13+)
@@ -560,7 +560,7 @@ class ADBDriver:
             ], device_id=device_id)
             # This is messy as it opens a UI, so we only use as last resort or if we can close it
             return True
-        except:
+        except (subprocess.CalledProcessError, ADBError):
             pass
 
         return False

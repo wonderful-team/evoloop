@@ -241,7 +241,7 @@ class AgentToolExecutor:
                         )
                     except Exception:
                         logger.warning("Failed to dispatch FileOperation to Celery.")
-            except Exception as e:
+            except OSError as e:
                 logger.error(f"Failed to process diff for {path}: {e}")
 
     async def execute_batch(

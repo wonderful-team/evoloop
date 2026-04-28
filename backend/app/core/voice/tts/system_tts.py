@@ -88,7 +88,7 @@ class SystemTTSProvider(BaseTTSProvider):
             import subprocess
             result = subprocess.run(['which', 'say'], capture_output=True, text=True)
             return result.returncode == 0
-        except:
+        except (OSError, subprocess.SubprocessError):
             return False
 
     def list_voices(self, locale: VoiceLocale | None = None) -> list[Voice]:
@@ -192,7 +192,7 @@ class SystemTTSProvider(BaseTTSProvider):
                     None,
                     lambda: subprocess.run(convert_cmd, check=True, capture_output=True)
                 )
-            except:
+            except subprocess.CalledProcessError:
                 # 如果 afconvert 失败，尝试使用 ffmpeg
                 try:
                     ffmpeg_cmd = ['ffmpeg', '-i', temp_aiff_path, '-codec:a', 'libmp3lame', '-q:a', '2', temp_mp3_path, '-y']
@@ -200,7 +200,7 @@ class SystemTTSProvider(BaseTTSProvider):
                         None,
                         lambda: subprocess.run(ffmpeg_cmd, check=True, capture_output=True)
                     )
-                except:
+                except subprocess.CalledProcessError:
                     # 如果都失败，直接读取 AIFF 文件
                     temp_mp3_path = temp_aiff_path
 
@@ -227,7 +227,7 @@ class SystemTTSProvider(BaseTTSProvider):
                     os.unlink(temp_aiff_path)
                 if temp_mp3_path != temp_aiff_path and os.path.exists(temp_mp3_path):
                     os.unlink(temp_mp3_path)
-            except:
+            except OSError:
                 pass
 
     async def synthesize_stream(self, options: TTSOptions) -> AsyncIterator[bytes]:

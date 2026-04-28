@@ -26,7 +26,7 @@ def record_inference_telemetry(
         },
         response_info={
             "content": response.content,
-            "usage": getattr(response, "usage_metadata", {}),
+            "usage": response.usage_metadata or {},
             "is_tool_call": bool(response.tool_calls),
             "tool_names": [tc["name"] for tc in response.tool_calls]
         },

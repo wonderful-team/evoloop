@@ -15,6 +15,7 @@ from __future__ import annotations
 import logging
 import re
 import time
+from typing import Any
 
 from langchain_core.messages import AIMessage
 from langchain_core.runnables import RunnableConfig
@@ -31,13 +32,18 @@ logger = logging.getLogger(__name__)
 # Helpers
 # ---------------------------------------------------------------------------
 
+def _tool_call_name(tc: dict | Any) -> str | None:
+    """Extract tool call name from dict or pydantic model."""
+    return tc.get("name") if isinstance(tc, dict) else getattr(tc, "name", None)
+
+
 def _extract_tool_usage(messages: list) -> str:
     """Extract structured tool usage summary from messages."""
     tool_msgs = []
     for msg in messages:
-        if hasattr(msg, "tool_calls") and msg.tool_calls:
+        if isinstance(msg, AIMessage) and msg.tool_calls:
             for tc in msg.tool_calls:
-                name = tc.get("name") if isinstance(tc, dict) else getattr(tc, "name", None)
+                name = _tool_call_name(tc)
                 if name:
                     args = tc.get("args") if isinstance(tc, dict) else getattr(tc, "args", None)
                     arg_str = str(args)[:200] if args else ""
@@ -213,9 +219,9 @@ class LayeredAuditor:
                     break
 
         for msg in messages:
-            if hasattr(msg, "tool_calls") and msg.tool_calls:
+            if isinstance(msg, AIMessage) and msg.tool_calls:
                 for tc in msg.tool_calls:
-                    name = tc.get("name") if isinstance(tc, dict) else getattr(tc, "name", None)
+                    name = _tool_call_name(tc)
                     if name:
                         tool_usage.append(name)
 
@@ -239,9 +245,9 @@ class LayeredAuditor:
 
         tool_usage = []
         for msg in messages:
-            if hasattr(msg, "tool_calls") and msg.tool_calls:
+            if isinstance(msg, AIMessage) and msg.tool_calls:
                 for tc in msg.tool_calls:
-                    name = tc.get("name") if isinstance(tc, dict) else getattr(tc, "name", None)
+                    name = _tool_call_name(tc)
                     if name:
                         tool_usage.append(name)
 
@@ -277,7 +283,7 @@ class LayeredAuditor:
                 max_tokens=500,
                 model_name=model_name,
             )
-            summary = str(response.content).strip() if hasattr(response, "content") else str(response).strip()
+            summary = str(response.content).strip()
             if len(summary) < 20:
                 summary = f"Task completed. {summary}"
         except Exception as e:

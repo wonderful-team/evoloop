@@ -15,6 +15,7 @@ from typing import Any
 from uuid import UUID
 
 from langchain_core.callbacks import AsyncCallbackHandler
+from langchain_core.messages import AIMessage
 from langchain_core.outputs import LLMResult
 
 from app.core.engine.message import MessageHandler
@@ -76,9 +77,9 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
 
             # 提取工具调用
             tool_calls = None
-            if hasattr(message, "tool_calls") and message.tool_calls:
+            if isinstance(message, AIMessage) and message.tool_calls:
                 tool_calls = message.tool_calls
-            elif hasattr(message, "additional_kwargs") and message.additional_kwargs:
+            elif message.additional_kwargs:
                 tool_calls = message.additional_kwargs.get("tool_calls")
 
             # 提取元数据
@@ -258,7 +259,7 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
             self._current_tool_name = tool_name
 
             logger.debug(f"[DatabaseCallback] Tool started: {tool_name} (tool_call_id={tool_call_id})")
-        except Exception as e:
+        except (TypeError, ValueError) as e:
             logger.debug(f"[DatabaseCallback] Failed to track tool start: {e}")
 
     async def on_tool_error(

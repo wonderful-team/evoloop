@@ -243,7 +243,7 @@ def cleanup_artifacts_task(max_age_days: int = 3):
                         os.remove(file_path)
                     elif os.path.isdir(file_path):
                         shutil.rmtree(file_path)
-            except Exception as e:
+            except OSError as e:
                 logger.warning(f"Failed to delete artifact {file_path}: {e}")
 
 
@@ -269,7 +269,7 @@ async def git_harvest_task(cwd: str, project_id: int, model: str | None = None):
             return
         if len(diff_text) > 10000:
             diff_text = diff_text[:10000] + "\n...(truncated)"
-    except Exception as e:
+    except (subprocess.SubprocessError, OSError) as e:
         logger.error(f"[Celery] Git diff failed: {e}")
         return
 

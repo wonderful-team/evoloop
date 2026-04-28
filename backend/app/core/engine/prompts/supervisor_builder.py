@@ -82,7 +82,7 @@ class SupervisorPromptBuilder:
         if isinstance(active_plan_data, str):
             try:
                 active_plan_data = json.loads(active_plan_data)
-            except Exception:
+            except (json.JSONDecodeError, TypeError, ValueError):
                 active_plan_data = None
 
         env_block = ctx.environment_block or ""

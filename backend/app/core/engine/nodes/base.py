@@ -166,9 +166,9 @@ class BaseAgentNode(BaseNode, ABC):
             # 4. Handle Outcome & Signal Dispatching
             outcome = await self.handle_outcome(state, engine_result, config)
             logger.info(
-                f"[{self.node_name}] 📤 Outcome RETURN | messages={len(getattr(outcome, 'messages', []) or [])} | "
-                f"types={[type(m).__name__ for m in (getattr(outcome, 'messages', []) or [])]} | "
-                f"next_node={getattr(outcome, 'next_node', 'N/A')}"
+                f"[{self.node_name}] 📤 Outcome RETURN | messages={len(outcome.messages or [])} | "
+                f"types={[type(m).__name__ for m in (outcome.messages or [])]} | "
+                f"next_node={outcome.next_node or 'N/A'}"
             )
             return outcome
 
@@ -247,7 +247,7 @@ class BaseAgentNode(BaseNode, ABC):
         """
         new_messages = [
             m for m in (engine_result.messages or [])
-            if getattr(m, "name", None) != "context_ticket"
+            if m.name != "context_ticket"
         ]
         logger.info(
             f"[{self.node_name}] _build_fallback_outcome | "

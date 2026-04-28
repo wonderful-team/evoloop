@@ -79,7 +79,7 @@ class AgentState(AgentStateBase):
                 if "error_type" in v:
                     return f"Error ({v.get('category', 'UNKNOWN')}): {v['error_type']}"
                 return json.dumps(v, ensure_ascii=False)
-            except Exception:
+            except (TypeError, ValueError):
                 return str(v)
         return v
 

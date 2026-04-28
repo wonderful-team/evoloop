@@ -846,7 +846,7 @@ class MacroEngine:
                 if isinstance(res, str) and (res.startswith("[") or res.startswith("{")):
                     try:
                         extracted_data[key] = json.loads(res)
-                    except:
+                    except (json.JSONDecodeError, TypeError, ValueError):
                         extracted_data[key] = res
                 else:
                     extracted_data[key] = res

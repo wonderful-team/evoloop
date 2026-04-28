@@ -38,7 +38,7 @@ class ToolManager:
         # 1. Fetch statically configured tools for this role (Native + specifically requested MCP if defined in yaml)
         try:
             tools = _legacy_get_node_tools(node_name)
-        except Exception as e:
+        except (TypeError, ValueError, RuntimeError, OSError) as e:
             logger.error(f"[ToolManager] Failed to fetch static tools for {node_name}: {e}")
             tools = []
 
@@ -90,7 +90,7 @@ class ToolManager:
 
                         if add_tool:
                             combined_map[t.name] = t
-                except Exception as e:
+                except (TypeError, ValueError, RuntimeError, OSError) as e:
                     logger.error(f"[ToolManager] Failed to progressively load MCP tools: {e}")
 
             # 3. Strict Supervisor Allowlist Enforcement

@@ -48,7 +48,7 @@ async def handle_task_exception(thread_id: str, project_id: int, e: Exception, h
             try:
                 from app.core.engine.message.mobile_notifier import MobileErrorNotifier
                 await MobileErrorNotifier(handler).push(classification_obj)
-            except Exception as push_e:
+            except (TypeError, ValueError, RuntimeError, OSError) as push_e:
                 logger.warning(f"[ErrorHandler] Mobile push failed: {push_e}")
 
     if error_type == "auth_expired":
@@ -128,7 +128,7 @@ async def handle_task_exception(thread_id: str, project_id: int, e: Exception, h
         action_type = "system"
 
     # Persist the failure message to DB for visibility and future learning (if applicable)
-    await persist_system_error(thread_id, project_id, user_message, action_type=action_type, run_id=getattr(handler, "run_id", None) if handler else None)
+    await persist_system_error(thread_id, project_id, user_message, action_type=action_type, run_id=handler.run_id if handler else None)
 
     # 4. Push error to Mobile (统一走 MobileErrorNotifier)
     if handler:
@@ -179,7 +179,7 @@ async def persist_system_error(
                 run_id=run_id,
             )
             session.add(error_msg)
-    except Exception as db_e:
+    except (TypeError, ValueError, RuntimeError, OSError) as db_e:
         logger.error(
             f"Failed to persist error message for thread {thread_id}: {type(db_e).__name__}: {db_e}",
             exc_info=True,

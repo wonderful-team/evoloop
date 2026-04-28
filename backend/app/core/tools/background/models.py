@@ -155,7 +155,7 @@ class BackgroundTask(DynamicBaseModel):
                     await self.cancel_fn()
                 else:
                     self.cancel_fn()
-            except Exception as e:
+            except (TypeError, ValueError, RuntimeError, OSError) as e:
                 # Log but don't fail
                 import logging
                 logging.getLogger(__name__).warning(f"Cancel callback failed: {e}")

@@ -657,7 +657,7 @@ class BrowserController:
                     # Get current count
                     try:
                         count = await page.locator(item_selector).count()
-                    except:
+                    except Exception:
                         count = 0
 
                     if count > last_count and last_count > 0:

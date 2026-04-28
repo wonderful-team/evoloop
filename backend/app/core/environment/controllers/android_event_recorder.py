@@ -408,7 +408,7 @@ class AndroidEventRecorder:
             try:
                 self.process.terminate()
                 self.process.wait(timeout=2)
-            except:
+            except (OSError, ProcessLookupError):
                 if self.process: self.process.kill()
             self.process = None
         if self._recording_thread and self._recording_thread.is_alive():

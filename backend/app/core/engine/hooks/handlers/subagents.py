@@ -26,7 +26,7 @@ async def subagent_start_handler(context: HookContext) -> HookResult:
     logger.info(f"[SubagentStart] Spawned {agent_type} agent ({agent_id}) for: {parent_task[:50]}...")
 
     # Track in blackboard
-    active_agents = getattr(context.blackboard, "active_subagents", []) if context.blackboard else []
+    active_agents = list(context.blackboard.active_subagents or []) if context.blackboard else []
     active_agents.append({
         "agent_id": agent_id,
         "agent_type": agent_type,
@@ -57,13 +57,13 @@ async def subagent_stop_handler(context: HookContext) -> HookResult:
     logger.info(f"[SubagentStop] Agent {agent_id} completed with outcome: {outcome}")
 
     # Update tracking
-    active_agents = getattr(context.blackboard, "active_subagents", []) if context.blackboard else []
+    active_agents = list(context.blackboard.active_subagents or []) if context.blackboard else []
     active_agents = [a for a in active_agents if a["agent_id"] != agent_id]
     if context.blackboard:
         context.blackboard.active_subagents = active_agents
 
     # Track completed
-    completed = getattr(context.blackboard, "completed_subagents", []) if context.blackboard else []
+    completed = list(context.blackboard.completed_subagents or []) if context.blackboard else []
     completed.append({
         "agent_id": agent_id,
         "outcome": outcome,

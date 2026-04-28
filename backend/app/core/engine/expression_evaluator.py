@@ -206,7 +206,7 @@ def make_expression_router(conditions: list[EdgeCondition], default: str) -> Cal
                 if result:
                     logger.info(f"Router Expression '{expr}' matched. Routing to {to_node}")
                     return to_node
-            except Exception as e:
+            except (AttributeError, KeyError, TypeError, ValueError) as e:
                 logger.error(f"Error evaluating expression '{expr}': {e}")
 
         logger.info(f"No expressions matched. Routing to default: {default}")
