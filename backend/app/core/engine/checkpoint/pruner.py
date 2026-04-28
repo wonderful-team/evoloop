@@ -15,13 +15,9 @@ async def prune_checkpoints(
     max_versions_per_thread: int = 10,
     thread_id: str | None = None
 ):
-    """
-    Prune old checkpoints and writes to save space.
-    Works with LangGraph AsyncSqliteSaver schema (checkpoints + writes tables).
-    """
     logger.info(f"🚀 Starting checkpoint pruning (thread={thread_id})...")
 
-    async with db_resource_manager.get_checkpoint_raw_connection() as conn:
+    async with db_resource_manager.get_raw_connection() as conn:
         try:
             placeholder = db_resource_manager.placeholder
             writes_table = db_resource_manager.writes_table
