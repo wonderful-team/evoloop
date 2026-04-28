@@ -133,8 +133,7 @@ class ContextTrimmer:
         # in the next turn. This is always safe regardless of retry state.
         pruned_errors = 0
         while working and isinstance(working[-1], AIMessage):
-            metadata = getattr(working[-1], "metadata", None)
-            # Strict type check to avoid MagicMock false positives in tests
+            metadata = working[-1].additional_kwargs
             if isinstance(metadata, dict) and metadata.get("is_error") is True:
                 working.pop()
                 pruned_errors += 1
@@ -260,7 +259,7 @@ class ContextTrimmer:
         for msg in messages:
             is_error = False
             if isinstance(msg, AIMessage):
-                if getattr(msg, "metadata", None) and msg.metadata.get("is_error"):
+                if msg.additional_kwargs.get("is_error"):
                     is_error = True
                 elif isinstance(msg.content, str) and msg.content.startswith("Error:"):
                     is_error = True
@@ -279,19 +278,19 @@ class ContextTrimmer:
         # Deduplicate HumanMessages
         last_human_idx = -1
         for idx, msg in enumerate(non_error_messages):
-            if isinstance(msg, HumanMessage) and getattr(msg, "name", None) != "context_ticket":
+            if isinstance(msg, HumanMessage) and msg.name != "context_ticket":
                 last_human_idx = idx
 
         if last_human_idx >= 0:
             segment = non_error_messages[: last_human_idx + 1]
             deduped: list[BaseMessage] = []
             for msg in segment:
-                if isinstance(msg, HumanMessage) and getattr(msg, "name", None) == "context_ticket":
+                if isinstance(msg, HumanMessage) and msg.name == "context_ticket":
                     deduped.append(msg)
                     continue
                 if isinstance(msg, HumanMessage) and deduped:
                     prev = deduped[-1]
-                    if isinstance(prev, HumanMessage) and getattr(prev, "name", None) != "context_ticket":
+                    if isinstance(prev, HumanMessage) and prev.name != "context_ticket":
                         prev_text = get_message_text(prev)
                         curr_text = get_message_text(msg)
                         if prev_text and curr_text and (prev_text in curr_text or curr_text in prev_text):
@@ -363,7 +362,7 @@ class ContextTrimmer:
         for i in range(recent_idx - 1, -1, -1):
             msg = messages[i]
             msg_tokens = estimate_message_tokens(msg)
-            is_ticket = getattr(msg, "name", None) == "context_ticket"
+            is_ticket = msg.name == "context_ticket"
 
             if isinstance(msg, HumanMessage):
                 # User instructions are core drivers — keep them
@@ -377,7 +376,7 @@ class ContextTrimmer:
                 if not is_ticket and middle_tokens + msg_tokens > middle_budget:
                     break
 
-            elif isinstance(msg, AIMessage) and getattr(msg, "tool_calls", None):
+            elif isinstance(msg, AIMessage) and msg.tool_calls:
                 # Decision records — keep them
                 if middle_tokens + msg_tokens <= middle_budget:
                     middle_messages.insert(0, msg)
@@ -410,7 +409,7 @@ class ContextTrimmer:
 
             elif isinstance(msg, ToolMessage):
                 # Tool outputs: keep only if forgotten (has summary)
-                if getattr(msg, "metadata", None) and msg.metadata.get("forgotten"):
+                if msg.additional_kwargs.get("forgotten"):
                     if middle_tokens + msg_tokens <= middle_budget:
                         middle_messages.insert(0, msg)
                         middle_tokens += msg_tokens
@@ -458,7 +457,7 @@ class ContextTrimmer:
             # Aggressive: drop non-forgotten ToolMessages first
             pruned = [
                 m for m in result
-                if not (isinstance(m, ToolMessage) and not getattr(m, "metadata", {}).get("forgotten"))
+                if not (isinstance(m, ToolMessage) and not m.additional_kwargs.get("forgotten"))
             ]
             if count_total_tokens(pruned) <= hard_limit:
                 result = pruned
@@ -470,13 +469,13 @@ class ContextTrimmer:
                 for m in result:
                     if (m.additional_kwargs or {}).get("is_topic_marker"):
                         preserved.append(m)
-                    if getattr(m, "name", None) == "context_ticket":
+                    if m.name == "context_ticket":
                         ticket_to_preserve.append(m)
 
                 for m in reversed(result):
                     if (m.additional_kwargs or {}).get("is_topic_marker"):
                         continue
-                    if getattr(m, "name", None) == "context_ticket":
+                    if m.name == "context_ticket":
                         continue
                     test = preserved + ticket_to_preserve + recent_to_keep + [m]
                     if count_total_tokens(test) <= int(hard_limit * 0.95):
@@ -578,11 +577,11 @@ def _repair_message_history(messages: list[BaseMessage]) -> list[BaseMessage]:
             if is_orphaned:
                 dummy = AIMessage(
                     content=_get_msg("orphaned_tool"),
-                    tool_calls=[ToolCall(
-                        id=str(msg.tool_call_id),
-                        name=str(msg.name) if msg.name else "unknown_tool",
-                        args={}
-                    ).model_dump()]
+                    tool_calls=[{
+                        "id": str(msg.tool_call_id),
+                        "name": str(msg.name) if msg.name else "unknown_tool",
+                        "args": {}
+                    }]
                 )
                 stage1.append(dummy)
 
@@ -595,12 +594,12 @@ def _repair_message_history(messages: list[BaseMessage]) -> list[BaseMessage]:
             # Use isinstance for subclass compatibility
             if isinstance(last, type(msg)) and isinstance(msg, HumanMessage | AIMessage):
                 # Skip merge if last message has tool_calls to preserve structure
-                if isinstance(last, AIMessage) and getattr(last, 'tool_calls', None):
+                if isinstance(last, AIMessage) and last.tool_calls:
                     stage1.append(msg)
                     continue
                 # Skip merge if either message is a context_ticket (injected synthetic message)
-                if (getattr(last, 'name', None) == 'context_ticket' or
-                        getattr(msg, 'name', None) == 'context_ticket'):
+                if (last.name == 'context_ticket' or
+                        msg.name == 'context_ticket'):
                     stage1.append(msg)
                     continue
                 # Merge content — create a NEW message object to avoid mutating

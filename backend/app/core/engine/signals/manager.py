@@ -53,7 +53,7 @@ class SignalManager:
                 return signal
             except Exception as e:
                 logger.error(f"Failed to create signal from tool '{tool_call.name}': {e}")
-                return None
+                raise
         return None
 
     def detect_post_execution_signal(self, tool_name: str, result: Any) -> Optional[AgentSignal]:
@@ -62,12 +62,12 @@ class SignalManager:
         (Post-execution detection)
         """
         # Logic for decompose_task
-        if tool_name == "decompose_task" and hasattr(result, "spawn_plan") and result.spawn_plan:
+        if tool_name == "decompose_task" and result.spawn_plan:
             from .schemas import SpawnSubtasksSignal
             return SpawnSubtasksSignal(plan=result.spawn_plan)
         
-        # Generic protocol: result has _signal attribute or dict key
-        if hasattr(result, "_signal") and isinstance(result._signal, AgentSignal):
+        # Generic protocol: result has _signal attribute
+        if isinstance(getattr(result, "_signal", None), AgentSignal):
             return result._signal
             
         return None

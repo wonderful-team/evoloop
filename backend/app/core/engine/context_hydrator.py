@@ -66,9 +66,9 @@ class EvoContextMiddleware:
             terminal_source = f"context ({ctx.terminal_error})"
         elif state.messages:
             last_msg = state.messages[-1]
-            if isinstance(last_msg, AIMessage) and getattr(last_msg, "metadata", None):
-                if last_msg.metadata.get("is_terminal"):
-                    terminal_source = f"history ({last_msg.metadata.get('error_type', 'unknown')})"
+            if isinstance(last_msg, AIMessage):
+                if last_msg.additional_kwargs.get("is_terminal"):
+                    terminal_source = f"history ({last_msg.additional_kwargs.get('error_type', 'unknown')})"
 
         if terminal_source:
             logger.warning(f"[Middleware] 🚫 Circuit Breaker: {terminal_source}. Aborting.")
@@ -95,59 +95,45 @@ class EvoContextMiddleware:
         blackboard = state.blackboard
 
         # 3. Trigger SessionStart Hook
-        try:
-            session_start_result = await hook_system.trigger(
-                HookEvent.SESSION_START,
-                HookContext(
-                    thread_id=ctx.thread_id,
-                    project_id=ctx.project_id,
-                    user_id=ctx.user_id,
-                    blackboard=blackboard,
-                ),
-            )
-            if session_start_result.modified_context:
-                blackboard.update(session_start_result.modified_context.blackboard)
-        except Exception as e:
-            logger.warning(f"[Middleware] SessionStart hook failed: {e}")
-
-        # 4. Memory Preparation
-        memory_container = await EvoContextMiddleware._get_shared_memory_container()
-        memory_data = {}
+        session_start_result = await hook_system.trigger(
+            HookEvent.SESSION_START,
+            HookContext(
+                thread_id=ctx.thread_id,
+                project_id=ctx.project_id,
+                user_id=ctx.user_id,
+                blackboard=blackboard,
+            ),
+        )
+        if session_start_result.modified_context:
+            blackboard.update(session_start_result.modified_context.blackboard)
 
         # Extract last human message
-        last_human_msg = ""
-        for msg in reversed(state.messages):
-            if hasattr(msg, "type") and msg.type == "human":
-                if isinstance(msg.content, list):
-                    last_human_msg = " ".join([b.get("text", "") for b in msg.content if isinstance(b, dict) and b.get("type") == "text"])
-                else:
-                    last_human_msg = str(msg.content)
-                break
+        from app.core.engine.message.utils import get_last_human_message
+        last_human_msg = get_last_human_message(state.messages) or ""
 
-        try:
-            memory_manager = memory_container.memory_manager
+        memory_data = {}
+        memory_container = await EvoContextMiddleware._get_shared_memory_container()
+        memory_manager = memory_container.memory_manager
+        
+        # Tier 1: Hot Memory (High Priority Instructions)
+        hot_memory = await memory_manager.get_hot_memory()
+        if hot_memory:
+            memory_data['hot_memory'] = hot_memory
+
+        # Tier 2: Predictive load (Concepts & Episodes - Only for primary turns)
+        if last_human_msg and not state.is_subtask:
+            concepts, episodes = await __import__("asyncio").gather(
+                memory_manager.search_concepts(last_human_msg, ctx.project_id),
+                memory_manager.search_episodes(last_human_msg, ctx.project_id, limit=3)
+            )
             
-            # Tier 1: Hot Memory (High Priority Instructions)
-            hot_memory = await memory_manager.get_hot_memory()
-            if hot_memory:
-                memory_data['hot_memory'] = hot_memory
-
-            # Tier 2: Predictive load (Concepts & Episodes - Only for primary turns)
-            if last_human_msg and not state.is_subtask:
-                concepts, episodes = await __import__("asyncio").gather(
-                    memory_manager.search_concepts(last_human_msg, ctx.project_id),
-                    memory_manager.search_episodes(last_human_msg, ctx.project_id, limit=3)
-                )
-                
-                if concepts:
-                    memory_data['project_concepts'] = "\n".join([f"- **{c.name}**: {c.description}" for c in concepts[:3]])
-                if episodes:
-                    current_run_id = config.get("configurable", {}).get("run_id")
-                    filtered = [e for e in episodes if e.get("id") != f"ep_{current_run_id}"]
-                    if filtered:
-                        memory_data['episodes'] = "\n".join([f"- **Goal**: {e['goal']}\n  **Result**: {e['result']}" for e in filtered[:2]])
-        except Exception as e:
-            logger.warning(f"[Middleware] Memory hydration failed: {e}")
+            if concepts:
+                memory_data['project_concepts'] = "\n".join([f"- **{c.name}**: {c.description}" for c in concepts[:3]])
+            if episodes:
+                current_run_id = config.get("configurable", {}).get("run_id")
+                filtered = [e for e in episodes if e.get("id") != f"ep_{current_run_id}"]
+                if filtered:
+                    memory_data['episodes'] = "\n".join([f"- **Goal**: {e['goal']}\n  **Result**: {e['result']}" for e in filtered[:2]])
 
         # 5. Static Layer (Skills, Telemetry)
         async def _load_static_data():
@@ -186,19 +172,16 @@ class EvoContextMiddleware:
         plugin_registry.hydrate_context(ctx)
 
         # 7. Domain Expert Polishing (Event-Driven)
-        try:
-            from app.core.events.publishers import publish_context_polishing
-            await publish_context_polishing(
-                thread_id=ctx.thread_id,
-                project_id=ctx.project_id,
-                model=ctx.active_model,
-                context={
-                    "ctx": ctx,
-                    "topic": (blackboard.ticket.topic if blackboard.ticket else ""),
-                },
-            )
-        except Exception as e:
-            logger.warning(f"[Middleware] CONTEXT_POLISHING event failed: {e}")
+        from app.core.events.publishers import publish_context_polishing
+        await publish_context_polishing(
+            thread_id=ctx.thread_id,
+            project_id=ctx.project_id,
+            model=ctx.active_model,
+            context={
+                "ctx": ctx,
+                "topic": (blackboard.ticket.topic if blackboard.ticket else ""),
+            },
+        )
 
         # 8. Retry Hardening (Metadata Reset)
         is_retry = config.get("metadata", {}).get("is_retry", False)
@@ -208,18 +191,16 @@ class EvoContextMiddleware:
                 state.is_retry = True
 
             # Reset stale outcomes but preserve the core intent
-            if blackboard.metadata:
-                blackboard.metadata.final_outcome = None
-                blackboard.metadata.shadow_audit = None
+            blackboard.metadata.final_outcome = None
+            blackboard.metadata.shadow_audit = None
             blackboard.verification = None
             blackboard.route_reason = None
             
             # Invalidate static cache for this session to ensure fresh environment scan on retry
             LayeredContextCache.invalidate_static(session_id)
         else:
-            if blackboard.metadata:
-                blackboard.metadata.final_outcome = None
-                blackboard.metadata.shadow_audit = None
+            blackboard.metadata.final_outcome = None
+            blackboard.metadata.shadow_audit = None
 
         # 9. Final State Update
         state.blackboard = blackboard

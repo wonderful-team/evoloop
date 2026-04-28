@@ -25,7 +25,7 @@ from langchain_core.runnables import RunnableConfig
 from app.infrastructure.llm.factory import LLMFactory
 from app.core.engine.context_trimmer import ContextTrimmer, TrimTrigger
 from app.core.engine.error_handler import LLMErrorHandler
-from app.core.engine.reasoning import extract_reasoning_string
+from app.core.engine.reasoning import extract_reasoning_from_message
 
 logger = logging.getLogger(__name__)
 
@@ -45,14 +45,11 @@ class InferenceEngine:
 
     def _detect_provider(self, llm) -> str:
         """Detect LLM provider for prompt-caching optimizations."""
-        try:
-            class_name = llm.__class__.__name__
-            if "Anthropic" in class_name:
-                return "anthropic"
-            if hasattr(llm, "lc_secrets") and "anthropic" in str(llm.lc_secrets).lower():
-                return "anthropic"
-        except Exception:
-            pass
+        class_name = llm.__class__.__name__
+        if "Anthropic" in class_name:
+            return "anthropic"
+        if "anthropic" in str(getattr(llm, "lc_secrets", {})).lower():
+            return "anthropic"
         return "openai"
 
     def bind_tools(self, llm, tools: list[Any]):
@@ -71,30 +68,22 @@ class InferenceEngine:
         """
         from langchain_core.messages import AIMessage, AIMessageChunk
 
-        try:
-            response = None
-            async for chunk in llm_with_tools.astream(loop_messages, config=config):
-                if response is None:
-                    response = chunk
-                else:
-                    response = response + chunk
-        except Exception as e:
-            error_str = str(e)
-            # Some providers (e.g. kimi) reject streaming when prompt is long
-            # Fall back to non-streaming so the user still gets a response
-            if "context" in error_str.lower() or "n_keep" in error_str or "n_ctx" in error_str:
-                logger.warning(f"[InferenceEngine] Streaming rejected ({error_str}), falling back to ainvoke")
-                response = await llm_with_tools.ainvoke(loop_messages, config=config)
+        # astream() triggers on_llm_new_token callbacks for real-time thinking/streaming.
+        # AdaptiveChatOpenAI handles retries and parameter reduction internally.
+        response = None
+        async for chunk in llm_with_tools.astream(loop_messages, config=config):
+            if response is None:
+                response = chunk
             else:
-                raise
+                response = response + chunk
 
         # Convert accumulated chunk to a proper AIMessage for downstream compatibility
         if isinstance(response, AIMessageChunk):
             response = AIMessage(
                 content=response.content,
                 additional_kwargs=response.additional_kwargs,
-                tool_calls=getattr(response, "tool_calls", None),
-                response_metadata=getattr(response, "response_metadata", {}),
+                tool_calls=response.tool_calls,
+                response_metadata=response.response_metadata,
             )
 
         return response
@@ -191,29 +180,14 @@ class InferenceEngine:
             # Inject run_id
             run_id = config.get("configurable", {}).get("run_id")
             if run_id:
-                if not hasattr(response, "metadata"):
-                    response.metadata = {}
-                response.metadata["run_id"] = run_id
-                if not hasattr(response, "additional_kwargs"):
-                    response.additional_kwargs = {}
                 response.additional_kwargs["run_id"] = run_id
 
-            # Parse thinking content for logging / callback
-            thinking_content = ""
-            content_preview = str(response.content)[:200] if response.content else "(empty)"
-            tool_calls_count = len(response.tool_calls) if hasattr(response, "tool_calls") and response.tool_calls else 0
-            logger.info(f"[{name}] LLM response: content='{content_preview}...', tool_calls={tool_calls_count}")
-
-            # Extract reasoning_content from additional_kwargs (kimi-k2-thinking-turbo)
-            reasoning = extract_reasoning_string(response)
-            if reasoning:
-                thinking_content = reasoning
-                logger.info(f"[{name}] Reasoning: {thinking_content[:200]}...")
-
-            if thinking_content and on_thinking:
-                await on_thinking(thinking_content)
+            # Extract thinking content using unified utility
+            thinking_content = extract_reasoning_from_message(response)
             if thinking_content:
-                logger.info(f"[{name}] Thinking: {thinking_content}")
+                logger.info(f"[{name}] Thinking: {thinking_content[:200]}...")
+                if on_thinking:
+                    await on_thinking(thinking_content)
 
             loop_messages.append(response)
             new_messages.append(response)
@@ -274,7 +248,7 @@ class InferenceEngine:
                     f"with pending tool calls. The task may be incomplete or stuck in a loop. "
                     f"Supervisor review and replanning is required."
                 ),
-                metadata={"is_truncated": True, "max_steps": max_steps, "requires_replan": True}
+                additional_kwargs={"is_truncated": True, "max_steps": max_steps, "requires_replan": True}
             )
             new_messages.append(truncation_msg)
             is_truncated = True
@@ -332,11 +306,6 @@ class InferenceEngine:
         # Inject run_id
         run_id = config.get("configurable", {}).get("run_id")
         if run_id:
-            if not hasattr(response, "metadata"):
-                response.metadata = {}
-            response.metadata["run_id"] = run_id
-            if not hasattr(response, "additional_kwargs"):
-                response.additional_kwargs = {}
             response.additional_kwargs["run_id"] = run_id
 
         new_messages = [response]

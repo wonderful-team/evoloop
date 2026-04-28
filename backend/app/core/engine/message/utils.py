@@ -68,7 +68,7 @@ def estimate_message_tokens(msg: BaseMessage) -> int:
     text = get_message_text(msg)
     base = estimate_tokens(text)
     overhead = 4  # role, name, etc.
-    if isinstance(msg, AIMessage) and getattr(msg, "tool_calls", None):
+    if isinstance(msg, AIMessage) and msg.tool_calls:
         overhead += 8  # tool_calls have extra overhead
     return base + overhead
 

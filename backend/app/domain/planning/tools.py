@@ -245,7 +245,7 @@ async def analyze_feasibility(proposed_plan: str, config: RunnableConfig) -> str
         
         # Use simple invoke with prepared text
         response = await llm.ainvoke(prompt_text, config=config)
-        report = response.content if hasattr(response, 'content') else str(response)
+        report = response.content
 
         return report
 

@@ -249,53 +249,6 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
                 await activity_monitor.check_cancellation(thread_id)
                 pass
 
-            # [MSG-TRACE] OUTPUT from checkpoint
-            _has_error_in_final_state = False
-            try:
-                final_checkpoint_state = await graph_instance.aget_state(config)
-                if final_checkpoint_state and final_checkpoint_state.values:
-                    _final_msgs = final_checkpoint_state.values.get("messages", [])
-
-                    # Detect LLM errors that were swallowed as AIMessage(metadata={"is_error": True})
-                    error_msgs = [
-                        msg for msg in _final_msgs
-                        if isinstance(msg, AIMessage) and getattr(msg, "metadata", {}).get("is_error")
-                    ]
-                    if error_msgs:
-                        _has_error_in_final_state = True
-                        last_error = error_msgs[-1]
-                        error_content = str(last_error.content)
-                        logger.warning(f"[BackgroundAgent] Graph completed with embedded error: {error_content[:120]}...")
-
-                        # Persist to DB so frontend can display it
-                        from app.core.engine.background_agent.errors import persist_system_error
-                        await persist_system_error(thread_id, project_id, error_content, action_type="warning")
-
-                        # Publish event to EventBus (Web UI)
-                        from app.core.engine.message.event_bus import get_event_bus
-                        await get_event_bus().publish(
-                            f"chat:{thread_id}:events",
-                            json.dumps({
-                                "type": "warning",
-                                "status": "failed",
-                                "title": "请求失败",
-                                "message": error_content,
-                            })
-                        )
-
-                        # Push error to Mobile (统一走 MobileErrorNotifier)
-                        try:
-                            from app.core.engine.message.mobile_notifier import MobileErrorNotifier
-                            from app.core.engine.error_handler import LLMErrorHandler
-                            classification = LLMErrorHandler.classify_exception(Exception(error_content))
-                            await MobileErrorNotifier(db_callback._handler).push(classification)
-                        except Exception as push_e:
-                            logger.warning(f"[BackgroundAgent] Failed to push error to mobile: {push_e}")
-                else:
-                    logger.info("[MSG-TRACE][background] GRAPH_OUTPUT checkpoint: no values")
-            except Exception as e:
-                logger.warning(f"[MSG-TRACE][background] Failed to read final checkpoint: {e}")
-
             # Phase 4 Autonomy: Persist the subconscious Context Pool to cache before exiting/suspending
             await ContextManager.save(thread_id)
             await activity_monitor.end_run(thread_id, "done")
@@ -312,12 +265,9 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
             logger.info(f"[BackgroundAgent] 📡 Published AgentRunCompletedEvent for thread {thread_id}")
 
             # 最终同步：发送所有消息 + command_complete 信号到 Gateway
-            try:
-                from app.core.engine.message.sync_coordinator import get_sync_coordinator
-                coordinator = get_sync_coordinator()
-                await coordinator.sync_final(thread_id, evoloop_command_id)
-            except Exception as sync_e:
-                logger.warning(f"[BackgroundAgent] Final sync failed: {sync_e}")
+            from app.core.engine.message.sync_coordinator import get_sync_coordinator
+            coordinator = get_sync_coordinator()
+            await coordinator.sync_final(thread_id, evoloop_command_id)
 
         except AgentCancelledException:
             logger.info(f"Task {thread_id} cancelled by user.")

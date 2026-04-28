@@ -15,16 +15,40 @@ from __future__ import annotations
 import logging
 import re
 import time
+from typing import Any
 
-from langchain_core.messages import AIMessage
+from pydantic import Field
+from langchain_core.messages import AIMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig
 
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.context.manager import ContextManager
 from app.core.engine.state import AgentState
 from app.core.engine.state.blackboard import BlackboardState, VerificationStatus
+from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.core.engine.reasoning import extract_tool_calls
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Domain objects
+# ---------------------------------------------------------------------------
+
+class AuditDecision(DynamicBaseModel):
+    """Decision for audit tier selection."""
+    tier: str
+    reason: str
+    confidence: float
+
+
+class AuditResult(DynamicBaseModel):
+    """Result of an audit execution."""
+    summary: str
+    tier: str
+    meta: dict
+    messages: list = Field(default_factory=list)
+    blackboard: BlackboardState | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -35,13 +59,12 @@ def _extract_tool_usage(messages: list) -> str:
     """Extract structured tool usage summary from messages."""
     tool_msgs = []
     for msg in messages:
-        if hasattr(msg, "tool_calls") and msg.tool_calls:
-            for tc in msg.tool_calls:
-                name = tc.get("name") if isinstance(tc, dict) else getattr(tc, "name", None)
-                if name:
-                    args = tc.get("args") if isinstance(tc, dict) else getattr(tc, "args", None)
-                    arg_str = str(args)[:200] if args else ""
-                    tool_msgs.append(f"  - {name}: {arg_str}")
+        for tc in extract_tool_calls(msg):
+            name = tc.get("name")
+            if name:
+                args = tc.get("args")
+                arg_str = str(args)[:200] if args else ""
+                tool_msgs.append(f"  - {name}: {arg_str}")
     return "\n".join(tool_msgs) if tool_msgs else "No tools used."
 
 
@@ -60,37 +83,6 @@ def _extract_final_summary(messages: list) -> str:
                     return match.group(1).strip()
             return content
     return "Task completed."
-
-
-# ---------------------------------------------------------------------------
-# Domain objects
-# ---------------------------------------------------------------------------
-
-class AuditDecision:
-    """Decision for audit tier selection."""
-
-    def __init__(self, tier: str, reason: str, confidence: float):
-        self.tier = tier
-        self.reason = reason
-        self.confidence = confidence
-
-
-class AuditResult:
-    """Result of an audit execution."""
-
-    def __init__(
-        self,
-        summary: str,
-        tier: str,
-        meta: dict,
-        messages: list | None = None,
-        blackboard: "BlackboardState" | None = None,
-    ):
-        self.summary = summary
-        self.tier = tier
-        self.meta = meta
-        self.messages = messages or []
-        self.blackboard = blackboard
 
 
 # ---------------------------------------------------------------------------
@@ -173,7 +165,7 @@ class LayeredAuditor:
             triggers.append("long_conversation")
 
         if triggers:
-            return AuditDecision("comprehensive", f"safety: {', '.join(triggers)}", 1.0)
+            return AuditDecision(tier="comprehensive", reason=f"safety: {', '.join(triggers)}", confidence=1.0)
 
         minimal_ok = [
             used_tools.issubset(self.READONLY_TOOLS),
@@ -184,9 +176,9 @@ class LayeredAuditor:
         ]
 
         if all(minimal_ok):
-            return AuditDecision("minimal", "readonly_safe", 0.95)
+            return AuditDecision(tier="minimal", reason="readonly_safe", confidence=0.95)
 
-        return AuditDecision("standard", "default", 0.90)
+        return AuditDecision(tier="standard", reason="default", confidence=0.90)
 
     # ------------------------------------------------------------------
     # Minimal audit — rule-based, <10 ms
@@ -206,18 +198,16 @@ class LayeredAuditor:
                 break
 
         if not last_content:
-            from langchain_core.messages import ToolMessage
             for msg in reversed(messages):
                 if isinstance(msg, ToolMessage) and msg.content:
                     last_content = str(msg.content)
                     break
 
         for msg in messages:
-            if hasattr(msg, "tool_calls") and msg.tool_calls:
-                for tc in msg.tool_calls:
-                    name = tc.get("name") if isinstance(tc, dict) else getattr(tc, "name", None)
-                    if name:
-                        tool_usage.append(name)
+            for tc in extract_tool_calls(msg):
+                name = tc.get("name")
+                if name:
+                    tool_usage.append(name)
 
         max_len = 2000
         summary = last_content[:max_len] if len(last_content) <= max_len else last_content[:max_len] + "\n\n[Truncated]"
@@ -239,11 +229,10 @@ class LayeredAuditor:
 
         tool_usage = []
         for msg in messages:
-            if hasattr(msg, "tool_calls") and msg.tool_calls:
-                for tc in msg.tool_calls:
-                    name = tc.get("name") if isinstance(tc, dict) else getattr(tc, "name", None)
-                    if name:
-                        tool_usage.append(name)
+            for tc in extract_tool_calls(msg):
+                name = tc.get("name")
+                if name:
+                    tool_usage.append(name)
 
         last_content = ""
         for msg in reversed(messages):
@@ -251,7 +240,6 @@ class LayeredAuditor:
                 last_content = str(msg.content)
                 break
 
-        # Lazy import to avoid circular deps and heavy init at import time
         from app.core.engine.prompts import FinishPromptBuilder
 
         builder = FinishPromptBuilder(
@@ -266,23 +254,19 @@ class LayeredAuditor:
         )
         prompt = builder.build_standard_prompt(last_content, list(set(tool_usage)))
 
-        try:
-            from app.core.llm import InternalLLMService
-            from app.infrastructure.config.service import SystemConfigService
-            model_name = SystemConfigService.get_value("LLM_MODEL")
-            response = await InternalLLMService.invoke(
-                messages=[{"role": "system", "content": prompt}],
-                purpose="audit_summary",
-                temperature=0.1,
-                max_tokens=500,
-                model_name=model_name,
-            )
-            summary = str(response.content).strip() if hasattr(response, "content") else str(response).strip()
-            if len(summary) < 20:
-                summary = f"Task completed. {summary}"
-        except Exception as e:
-            logger.error(f"[Auditor] Standard audit failed: {e}")
-            summary = f"Task completed.\n\n{last_content[:1000]}"
+        from app.core.llm import InternalLLMService
+        from app.infrastructure.config.service import SystemConfigService
+        model_name = SystemConfigService.get_value("LLM_MODEL")
+        response = await InternalLLMService.invoke(
+            messages=[{"role": "system", "content": prompt}],
+            purpose="audit_summary",
+            temperature=0.1,
+            max_tokens=500,
+            model_name=model_name,
+        )
+        summary = response.content.strip()
+        if len(summary) < 20:
+            summary = f"Task completed. {summary}"
 
         duration = (time.time() - start) * 1000
         return summary, {"tier": "standard", "duration_ms": duration}
@@ -311,7 +295,6 @@ class LayeredAuditor:
         iteration_count = state.iteration_count or 0
         project_id = ctx.project_id or state.project_id or DEFAULT_PROJECT_ID
 
-        # Lazy import to avoid circular deps
         from app.core.environment import get_awakened_state
         env_state = get_awakened_state()
         telemetry_data = {}
@@ -394,10 +377,6 @@ def reset_auditor() -> None:
 class AuditService:
     """
     High-level facade for the three-tier audit system.
-
-    Usage:
-        service = AuditService()
-        result = await service.execute(state, config, tool_history, is_shadow_mode)
     """
 
     def __init__(self, auditor: LayeredAuditor | None = None):
@@ -412,11 +391,6 @@ class AuditService:
     ) -> AuditResult:
         """
         Run the full audit pipeline and return an AuditResult.
-
-        * Shadow mode   → skip all auditing, return raw summary.
-        * Minimal       → rule-based fast path.
-        * Standard      → lightweight LLM audit.
-        * Comprehensive → full engine-driven audit.
         """
         if is_shadow_mode:
             summary = _extract_final_summary(state.messages)

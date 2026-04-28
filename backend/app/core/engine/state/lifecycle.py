@@ -24,12 +24,8 @@ class StateLifecycleManager:
     def consume_worker_outcome(state: AgentState) -> str | None:
         """
         Consume and clear blackboard.worker_outcome.
-
-        Returns the outcome value (e.g., 'success', 'failed') or None.
         """
         blackboard = state.blackboard
-        if not blackboard:
-            return None
         outcome = blackboard.worker_outcome
         if outcome is not None:
             blackboard.worker_outcome = None
@@ -49,11 +45,9 @@ class StateLifecycleManager:
     def clear_aggregation_state(state: AgentState) -> None:
         """Clear all orchestration-related blackboard fields after aggregation."""
         blackboard = state.blackboard
-        if not blackboard:
-            return
         cleared = []
         for field in ("pending_aggregation", "subtask_results", "spawn_plan"):
-            if hasattr(blackboard, field) and getattr(blackboard, field) is not None:
+            if getattr(blackboard, field) is not None:
                 setattr(blackboard, field, None)
                 cleared.append(field)
         if cleared:
@@ -63,11 +57,9 @@ class StateLifecycleManager:
     def clear_workflow_state(state: AgentState) -> None:
         """Clear sequential workflow state from blackboard."""
         blackboard = state.blackboard
-        if not blackboard:
-            return
         cleared = []
         for field in ("workflow_plan", "workflow_step_index", "workflow_results"):
-            if hasattr(blackboard, field) and getattr(blackboard, field) is not None:
+            if getattr(blackboard, field) is not None:
                 setattr(blackboard, field, None)
                 cleared.append(field)
         if cleared:
@@ -77,9 +69,7 @@ class StateLifecycleManager:
     def reset_terminal_metadata(state: AgentState) -> None:
         """Reset terminal metadata fields that should not persist across runs."""
         blackboard = state.blackboard
-        if not blackboard or not blackboard.metadata:
-            return
         for field in ("final_outcome", "shadow_audit"):
-            if hasattr(blackboard.metadata, field) and getattr(blackboard.metadata, field) is not None:
+            if getattr(blackboard.metadata, field) is not None:
                 setattr(blackboard.metadata, field, None)
                 logger.debug(f"[Lifecycle] Reset metadata.{field}")

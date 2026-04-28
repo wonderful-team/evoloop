@@ -30,17 +30,12 @@ from app.utils.time import format_iso_timestamp
 logger = logging.getLogger(__name__)
 
 
-class StreamEvent(DynamicBaseModel):
-    """A structured streaming event for frontend consumption."""
-    type: str
-    message: str
-    data: dict | None = None
-    progress: int | None = None
-    timestamp: str = Field(default_factory=lambda: format_iso_timestamp())
-
-    def to_json(self) -> str:
-        """Convert to JSON string for SSE."""
-        return self.model_dump_json(exclude_none=True)
+from app.core.engine.message.publisher import MessagePublisher
+from app.core.engine.message.schemas import (
+    StreamEvent, 
+    ThinkingPayload, 
+    ToolProgressPayload
+)
 
 
 class TransparentCallbackHandler(AsyncCallbackHandler):
@@ -75,6 +70,7 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
         # Stream tracking
         self._current_stream_buffer = ""
         self._token_filter = TokenFilter()
+        self._publisher: MessagePublisher | None = None
 
     # ==============================================================================
     # Structured Stream Event Methods
@@ -83,27 +79,18 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
     async def _publish_stream_event(self, event: StreamEvent):
         """
         Publish a structured stream event to EventBus for frontend SSE consumption.
-        
-        Unified with existing events channel (single channel architecture).
-        All events (tokens, thinking, tool_progress) go through the same channel.
         """
-        if not self.thread_id:
-            return
+        if not self._publisher:
+            self._publisher = MessagePublisher(thread_id=self.thread_id)
+        
+        await self._publisher.publish(event)
 
-        # Unified: Publish to events channel (same as TokenEvent)
-        # Frontend distinguishes by event structure (type field)
-        from app.core.engine.message.event_bus import get_event_bus
-        await get_event_bus().publish(
-            f"chat:{self.thread_id}:events",
-            event.to_json()
-        )
-
-    async def emit_thinking(self, message: str, detail: str | None = None):
+    async def emit_thinking(self, message: str, detail: str = "reasoning"):
         """Emit thinking/reasoning event."""
         await self._publish_stream_event(StreamEvent(
             type=StreamEventType.THINKING,
             message=message,
-            data={"detail": detail} if detail else None
+            data=ThinkingPayload(detail=detail)
         ))
 
     async def emit_tool_progress(self, tool_name: str, message: str, progress: int | None = None):
@@ -111,7 +98,7 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
         await self._publish_stream_event(StreamEvent(
             type=StreamEventType.TOOL_PROGRESS,
             message=message,
-            data={"tool": tool_name},
+            data=ToolProgressPayload(tool=tool_name),
             progress=progress
         ))
 
@@ -164,15 +151,12 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
         if generation_chunk and hasattr(generation_chunk, "message"):
             msg_chunk = generation_chunk.message
             reasoning = extract_reasoning_from_kwargs(getattr(msg_chunk, "additional_kwargs", None))
-            if reasoning and self.thread_id:
-                    try:
-                        await self._publish_stream_event(StreamEvent(
-                            type=StreamEventType.THINKING,
-                            message=reasoning,
-                            data={"detail": "reasoning"}
-                        ))
-                    except Exception:
-                        pass
+            if reasoning:
+                await self._publish_stream_event(StreamEvent(
+                    type=StreamEventType.THINKING,
+                    message=reasoning,
+                    data={"detail": "reasoning"}
+                ))
 
         # 2. Defensive: normalize structured tokens
         if not isinstance(token, str):
@@ -202,12 +186,14 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
 
         if self._token_filter.should_flush():
             buf = self._token_filter.flush()
-            if buf and self.thread_id:
-                try:
-                    from app.core.engine.message.handler import MessageHandler
-                    await MessageHandler.stream_token(self.thread_id, buf)
-                except Exception:
-                    pass
+            # Note: We no longer stream AI content tokens to support block-based message delivery.
+            # Thinking content still streams via StreamEventType.THINKING above.
+            # if buf and self.thread_id:
+            #     try:
+            #         from app.core.engine.message.handler import MessageHandler
+            #         await MessageHandler.stream_token(self.thread_id, buf)
+            #     except Exception:
+            #         pass
 
             try:
                 await self.monitor.update_step(
@@ -222,13 +208,7 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
     async def on_llm_end(self, response: LLMResult, **kwargs: Any) -> None:
         """Run when LLM ends running."""
         # FLUSH REMAINING PUBLISH BUFFER
-        buf = self._token_filter.flush()
-        if buf and self.thread_id:
-            try:
-                from app.core.engine.message.handler import MessageHandler
-                await MessageHandler.stream_token(self.thread_id, buf)
-            except Exception:
-                pass
+        self._token_filter.flush()
 
         run_id = kwargs.get("run_id")
         # Note: We no longer record "Thinking..." steps, so no update needed
@@ -241,14 +221,15 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
         """Run when LLM errors."""
         logger.error(f"LLM Error in thread {self.thread_id}: {error}", exc_info=True)
 
-        # Flush any buffered tokens before cleanup so frontend doesn't lose content
+        # Flush any buffered tokens before cleanup
         buf = self._token_filter.flush()
-        if buf and self.thread_id:
-            try:
-                from app.core.engine.message.handler import MessageHandler
-                await MessageHandler.stream_token(self.thread_id, buf)
-            except Exception:
-                pass
+        # Note: We no longer stream AI content tokens to support block-based message delivery.
+        # if buf and self.thread_id:
+        #     try:
+        #         from app.core.engine.message.handler import MessageHandler
+        #         await MessageHandler.stream_token(self.thread_id, buf)
+        #     except Exception:
+        #         pass
 
         run_id = kwargs.get("run_id")
         if run_id == self.active_llm_run_id:

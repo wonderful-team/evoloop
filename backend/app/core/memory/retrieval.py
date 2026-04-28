@@ -380,7 +380,7 @@ class MemoryRetriever:
 
             # Parse selection
             parse_start = time.time()
-            content = response.content if hasattr(response, 'content') else str(response)
+            content = response.content
             content_preview = content if content else "(empty)"
             logger.debug(f"[_llm_select] Response content preview: {content_preview}...")
 

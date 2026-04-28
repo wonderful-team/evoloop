@@ -1,7 +1,10 @@
 import json
+import logging
 from typing import Any
 
 from app.core.tools import evoloop_tool
+
+logger = logging.getLogger(__name__)
 
 
 @evoloop_tool(
@@ -39,8 +42,9 @@ async def search_skills(query: str = "", namespace: str = None, index_mode: bool
         if hasattr(skill_obj, "tools_used") and skill_obj.tools_used:
             try:
                 tools_req = json.loads(skill_obj.tools_used)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.error(f"[search_skills] Malformed tools_used JSON: {e}")
+                tools_req = []
 
         return {
             "result_type": "match",

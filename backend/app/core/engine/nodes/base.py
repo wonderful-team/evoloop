@@ -50,25 +50,11 @@ class BaseNode(ABC):
         from app.core.engine.error_handler import LLMErrorHandler
         classification = LLMErrorHandler.classify_exception(error)
 
-        # Terminal errors must propagate to trigger proper end_run handling in background_agent.py
-        if classification.is_terminal:
-            logger.warning(f"[{self.node_name}] 🛑 Terminal error detected. Propagating to outer handler.")
-            raise error
-
-        # 3. Non-terminal error: return error message and route to FINISH
-        #    (routing back to SUPERVISOR causes infinite retry loops)
-        error_msg = AIMessage(
-            content=f"Node '{self.node_name}' failed: {error}",
-            metadata={
-                "is_error": True,
-                "error_type": classification.error_type or "node_execution",
-                "is_terminal": False
-            }
-        )
-        return StateUpdate(
-            messages=[error_msg],
-            next_node=RoutingTarget.FINISH
-        )
+        # 3. Always raise the error to the outer graph runner.
+        #    Defensive "soft-fails" (routing to FINISH with an error message)
+        #    are removed to prevent inconsistent states and infinite loops.
+        logger.error(f"[{self.node_name}] 🛑 Execution failed (terminal={classification.is_terminal}): {error}")
+        raise error
 
 
 class BaseAgentNode(BaseNode, ABC):
@@ -135,7 +121,6 @@ class BaseAgentNode(BaseNode, ABC):
 
             # 3. Engine Execution
             engine = get_default_engine()
-
             is_subtask = resolve_is_subtask(state)
             model = config.get("configurable", {}).get("model")
 
@@ -143,6 +128,11 @@ class BaseAgentNode(BaseNode, ABC):
                 f"[{self.node_name}] 🚀 Engine.run_node | model={model} | is_subtask={is_subtask} | "
                 f"max_steps={1 if is_subtask else self.max_steps}"
             )
+
+            # Log full context for debugging protocol violations
+            for i, msg in enumerate(messages):
+                content_preview = str(msg.content)[:200] + "..." if len(str(msg.content)) > 200 else str(msg.content)
+                logger.debug(f"[{self.node_name}] 📝 Message {i} | role={type(msg).__name__} | name={getattr(msg, 'name', 'N/A')} | content={content_preview}")
 
             engine_result = await engine.run_node(
                 state=execution_state,
@@ -166,9 +156,9 @@ class BaseAgentNode(BaseNode, ABC):
             # 4. Handle Outcome & Signal Dispatching
             outcome = await self.handle_outcome(state, engine_result, config)
             logger.info(
-                f"[{self.node_name}] 📤 Outcome RETURN | messages={len(getattr(outcome, 'messages', []) or [])} | "
-                f"types={[type(m).__name__ for m in (getattr(outcome, 'messages', []) or [])]} | "
-                f"next_node={getattr(outcome, 'next_node', 'N/A')}"
+                f"[{self.node_name}] 📤 Outcome RETURN | messages={len(outcome.messages or [])} | "
+                f"types={[type(m).__name__ for m in (outcome.messages or [])]} | "
+                f"next_node={outcome.next_node}"
             )
             return outcome
 
@@ -247,7 +237,7 @@ class BaseAgentNode(BaseNode, ABC):
         """
         new_messages = [
             m for m in (engine_result.messages or [])
-            if getattr(m, "name", None) != "context_ticket"
+            if m.name != "context_ticket"
         ]
         logger.info(
             f"[{self.node_name}] _build_fallback_outcome | "

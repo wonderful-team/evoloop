@@ -291,7 +291,7 @@ class ActivityMonitor:
         # Publish Event
         await get_event_bus().publish(
             f"chat:{thread_id}:events",
-            AgentStateEvent(data=state).model_dump_json()
+            AgentStateEvent(data=state.model_dump()).model_dump_json()
         )
 
     async def log_event(self, event_type: str, data: dict[str, Any], thread_id: str = "system"):

@@ -263,7 +263,7 @@ class AutoMemoryExtractor:
             )
 
             # Parse extracted memories
-            content = response.content if hasattr(response, 'content') else str(response)
+            content = response.content
             extracted = await self._parse_extraction_response(content, project_id, user_id)
 
             # Save extracted memories

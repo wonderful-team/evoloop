@@ -94,21 +94,23 @@ class MessageHandler:
                 is_visible=category.is_visible_to_user,
                 content_type="text",
             )
+            
+            # 只有用户可见且不是纯内部思考的消息才推送到 Mobile
             if message_id and category.is_visible_to_user and category != MessageCategory.INTERNAL_REASONING:
-                await self._push_to_mobile(
+                await self._dispatch_block(
                     role="ai", content=persist_data.content, thinking=persist_data.thinking,
                     tool_calls=persist_data.tool_calls, category=category.value,
-                    status="completed", sequence_number=seq,
-                    thinking_type=thinking_type,
+                    status="completed", sequence_number=seq, channels={"mobile"}
                 )
 
         if stream_data.should_stream:
-            await self._stream_to_frontend(
-                content=stream_data.content, frontend_type=stream_data.frontend_type,
+            await self._dispatch_block(
+                role="ai", content=stream_data.content,
                 category=category.value, metadata=metadata,
                 tool_calls=persist_data.tool_calls, thinking=thinking,
                 sequence_number=seq if persist_data.should_persist else 0,
-                thinking_type=thinking_type,
+                status="streaming" if persist_data.should_persist else "completed",
+                channels={"sse"}
             )
 
         return MessageHandlerResult(
@@ -143,17 +145,19 @@ class MessageHandler:
                 content_type="text",
             )
             if message_id and category.is_visible_to_user:
-                await self._push_to_mobile(
+                await self._dispatch_block(
                     role="tool", content=persist_data.content, category=category.value,
-                    action_type="tool_output", status="completed", sequence_number=seq,
+                    status="completed", sequence_number=seq,
                     tool_name=persist_data.tool_name, tool_call_id=persist_data.tool_call_id,
+                    channels={"mobile"}
                 )
 
         if stream_data.should_stream:
-            await self._stream_to_frontend(
-                content=content, frontend_type=stream_data.frontend_type,
-                category=category.value, tool_name=tool_name, tool_call_id=tool_call_id,
+            await self._dispatch_block(
+                role="tool", content=content, category=category.value,
+                tool_name=tool_name, tool_call_id=tool_call_id,
                 sequence_number=seq if persist_data.should_persist else 0,
+                channels={"sse"}
             )
 
         return MessageHandlerResult(
@@ -168,9 +172,9 @@ class MessageHandler:
             role="human", content=content, category=category.value,
             is_visible=True, content_type="text",
         )
-        await self._stream_to_frontend(
-            content=content, frontend_type="human",
-            category=category.value, sequence_number=seq,
+        await self._dispatch_block(
+            role="human", content=content, category=category.value,
+            sequence_number=seq, channels={"sse"}
         )
         return MessageHandlerResult(category=category.value, persisted=True, streamed=True, message_id=message_id)
 
@@ -194,9 +198,10 @@ class MessageHandler:
             action_type="human_request", status="waiting_human",
             is_visible=True, content_type="json",
         )
-        await self._push_to_mobile(
+        await self._dispatch_block(
             role="system", content=content, category="hitl_request",
-            action_type="human_request", status="waiting_human", sequence_number=seq,
+            status="waiting_human", sequence_number=seq,
+            channels={"sse", "mobile"}
         )
         return MessageHandlerResult(category="hitl_request", persisted=True, streamed=True, message_id=message_id)
 
@@ -221,22 +226,24 @@ class MessageHandler:
         await MobileErrorNotifier(self).push(classification)
 
         if classification.error_type == "quota_exhausted":
-            try:
-                from app.models.schemas.events import QuotaExhaustedEvent
-                from app.core.engine.message.event_bus import get_event_bus
-                await get_event_bus().publish(
-                    f"chat:{self.thread_id}:events",
-                    QuotaExhaustedEvent(
-                        title=classification.title, message=classification.message, hint=classification.hint
-                    ).model_dump_json()
-                )
-            except Exception as e:
-                logger.error(f"[MessageHandler] Failed to publish QuotaExhaustedEvent: {e}")
+            from app.models.schemas.events import QuotaExhaustedEvent
+            from app.core.engine.message.event_bus import get_event_bus
+            await get_event_bus().publish(
+                f"chat:{self.thread_id}:events",
+                QuotaExhaustedEvent(
+                    title=classification.title, message=classification.message, hint=classification.hint
+                ).model_dump_json()
+            )
 
-        await self._stream_to_frontend(
-            content=f"**{classification.title}**\n{classification.message}",
-            frontend_type="error", category=category.value,
-            metadata={"error_type": classification.error_type, "hint": classification.hint, "is_terminal": classification.is_terminal},
+        await self._dispatch_block(
+            role="system", content=f"**{classification.title}**\n{classification.message}",
+            category=category.value,
+            metadata={
+                "error_type": classification.error_type,
+                "hint": classification.hint,
+                "is_terminal": classification.is_terminal
+            },
+            channels={"sse"}
         )
         return MessageHandlerResult(
             category=category.value, persisted=category == MessageCategory.ERROR_BUSINESS,
@@ -247,79 +254,63 @@ class MessageHandler:
     # Private helpers
     # ------------------------------------------------------------------
 
-    async def _push_to_mobile(
-        self, role: str, content: str | None, thinking: str | None = None,
-        tool_calls: list | None = None, category: str = "", action_type: str = "text",
-        status: str = "completed", sequence_number: int = 0,
-        tool_name: str | None = None, tool_call_id: str | None = None,
-        thinking_type: str = "reasoning",
+    async def _dispatch_block(
+        self,
+        role: str,
+        content: str | None,
+        thinking: str | None = None,
+        tool_calls: list | None = None,
+        category: str = "",
+        status: str = "completed",
+        sequence_number: int = 0,
+        tool_name: str | None = None,
+        tool_call_id: str | None = None,
+        metadata: dict | None = None,
+        channels: set[str] | None = None,
     ) -> None:
-        if role == "human":
-            return
-        try:
-            block = MessageBlock(
-                id=f"msg-{self.thread_id}-{sequence_number}",
-                thread_id=self.thread_id, run_id=self.run_id, role=role,  # type: ignore[arg-type]
-                category=category, content=content or "",
-                thinking=build_thinking_blocks(thinking),
-                tool_calls=tool_calls, status=status,  # type: ignore[arg-type]
-                is_visible=True, sequence_number=sequence_number,
-                created_at=datetime.now().isoformat(),
-                metadata={"tool_name": tool_name, "tool_call_id": tool_call_id, "action_type": action_type},
-            )
-            if not self._publisher:
-                self._publisher = MessagePublisher(thread_id=self.thread_id, project_id=self.project_id)
-            await self._publisher.publish(block, channels={"mobile"})
-            logger.info(f"[MessageHandler] Pushed to mobile: seq={sequence_number}, role={role}")
-        except Exception as e:
-            logger.warning(f"[MessageHandler] Failed to push to mobile: {e}")
-
-    async def _stream_to_frontend(
-        self, content: str, frontend_type: str, category: str,
-        metadata: dict | None = None, tool_name: str | None = None,
-        tool_call_id: str | None = None, tool_calls: list | None = None,
-        thinking: str | None = None, sequence_number: int = 0,
-        content_type: str = "text", thinking_type: str = "reasoning",
-    ) -> None:
-        role_map = {"human": "human", "ai": "ai", "assistant": "ai", "tool": "tool"}
-        role = role_map.get(frontend_type, "system")
+        """统一构造 MessageBlock 并分发"""
         if sequence_number == 0:
             self._stream_seq += 1
             sequence_number = self._stream_seq
-        try:
-            block = MessageBlock(
-                id=f"msg-{self.thread_id}-{sequence_number}",
-                thread_id=self.thread_id, run_id=self.run_id, role=role,  # type: ignore[arg-type]
-                category=category, content=content, content_type=content_type,  # type: ignore[arg-type]
-                thinking=build_thinking_blocks(thinking),
-                tool_calls=tool_calls, status="streaming", is_visible=True,
-                sequence_number=sequence_number, created_at=datetime.now().isoformat(),
-                metadata={"tool_name": tool_name, "tool_call_id": tool_call_id, **(metadata or {})},
-            )
-            if not self._publisher:
-                self._publisher = MessagePublisher(thread_id=self.thread_id, project_id=self.project_id)
-            await self._publisher.publish(block, channels={"sse"})
-        except Exception as e:
-            logger.warning(f"[MessageHandler] Failed to stream message: {e}")
+
+        block = MessageBlock(
+            id=f"msg-{self.thread_id}-{sequence_number}",
+            thread_id=self.thread_id,
+            run_id=self.run_id,
+            role=role,  # type: ignore[arg-type]
+            category=category,
+            content=content or "",
+            thinking=build_thinking_blocks(thinking),
+            tool_calls=tool_calls,
+            status=status,  # type: ignore[arg-type]
+            is_visible=True,
+            sequence_number=sequence_number,
+            created_at=datetime.now().isoformat(),
+            metadata={
+                "tool_name": tool_name,
+                "tool_call_id": tool_call_id,
+                **(metadata or {}),
+            },
+        )
+        
+        if not self._publisher:
+            self._publisher = MessagePublisher(thread_id=self.thread_id, project_id=self.project_id)
+        
+        await self._publisher.publish(block, channels=channels)
 
     @staticmethod
     async def stream_token(thread_id: str, token_buffer: str) -> None:
         """
-        Stream a token buffer to the frontend via SSE.
-
-        This is the unified entry point for token streaming,
-        replacing direct cache.publish() calls in TransparentCallbackHandler.
-        Preserves TokenEvent format for frontend compatibility.
+        Stream a token buffer via unified MessagePublisher.
         """
         if not token_buffer or not thread_id:
             return
-        try:
-            from app.core.engine.message.event_bus import get_event_bus
-            from app.models.schemas.events import TokenEvent
-            bus = get_event_bus()
-            await bus.publish(
-                f"chat:{thread_id}:events",
-                TokenEvent(content=token_buffer).json(),
-            )
-        except Exception as e:
-            logger.warning(f"[MessageHandler] Failed to stream token: {e}")
+
+        from app.core.engine.message.schemas import StreamEvent, StreamEventType
+        publisher = MessagePublisher(thread_id=thread_id)
+        
+        # 使用统一的 StreamEvent 协议，不再直接操作 Redis 通道
+        await publisher.publish(StreamEvent(
+            type=StreamEventType.TOKEN,
+            data={"content": token_buffer}
+        ))

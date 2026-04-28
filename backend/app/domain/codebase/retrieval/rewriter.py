@@ -40,7 +40,7 @@ class QueryRewriter:
                 temperature=0.0,
                 model_name=model_name,
             )
-            rewritten = response.content.strip() if hasattr(response, 'content') else str(response).strip()
+            rewritten = response.content.strip()
 
             # Remove quotes if model added them
             rewritten = rewritten.strip('"').strip("'")

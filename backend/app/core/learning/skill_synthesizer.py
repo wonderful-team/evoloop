@@ -234,7 +234,7 @@ class WorkflowSynthesizer:
             purpose="skill_synthesis",
             model_name=model_name,
         )
-        content = response.content if hasattr(response, 'content') else str(response)
+        content = response.content
 
         logger.info(f"--- [Skill Synthesis Response Start] ---\n{content}\n--- [Skill Synthesis Response End] ---")
 

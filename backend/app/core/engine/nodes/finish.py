@@ -108,7 +108,7 @@ class FinishNode(BaseNode):
         # ------------------------------------------------------------
         for msg in reversed(messages):
             if isinstance(msg, AIMessage):
-                meta = getattr(msg, "metadata", {}) or {}
+                meta = msg.additional_kwargs
                 if meta.get("is_truncated") and meta.get("requires_replan"):
                     logger.warning(
                         f"[Finish] 🔄 Worker was truncated (max_steps={meta.get('max_steps')}). "
@@ -121,13 +121,8 @@ class FinishNode(BaseNode):
                         blackboard=blackboard,
                     )
 
-        is_shadow_mode = (
-            blackboard.metadata.shadow_audit
-            if blackboard and blackboard.metadata
-            else False
-        ) or False
-
-        tool_history = getattr(blackboard.metadata, "tool_history", []) or []
+        is_shadow_mode = blackboard.metadata.shadow_audit or False
+        tool_history = blackboard.metadata.tool_history
 
         # --------------------------------------------------------------
         # 1. Audit
@@ -177,9 +172,9 @@ class FinishNode(BaseNode):
                     # Create a new message to avoid mutating the original state.messages
                     messages[i] = AIMessage(
                         content=summary,
-                        id=getattr(m, "id", None),
-                        name=getattr(m, "name", None),
-                        metadata=getattr(m, "metadata", None),
+                        id=m.id,
+                        name=m.name,
+                        metadata=m.additional_kwargs,
                     )
                     break
 
@@ -237,7 +232,7 @@ class FinishNode(BaseNode):
             project_id=ctx.project_id,
             user_id=ctx.user_id,
             messages=messages,
-            blackboard_dict=blackboard.model_dump() if hasattr(blackboard, "model_dump") else {},
+            blackboard_dict=blackboard.model_dump(),
             summary=summary,
             outcome=final_outcome,
             audit_tier=audit_tier,
@@ -261,17 +256,16 @@ class FinishNode(BaseNode):
             if isinstance(msg, AIMessage) and msg.content:
                 content = str(msg.content)
                 if "<evoloop_session_audit>" in content and "<evoloop_final_report>" in content:
-                    msg_id = getattr(msg, "id", None)
-                    if msg_id:
-                        messages_to_return.append(RemoveMessage(id=msg_id))
+                    if msg.id:
+                        messages_to_return.append(RemoveMessage(id=msg.id))
                     else:
                         # The original msg is in state.messages; we must not mutate it.
                         # Instead, append a cleared copy to the return list.
                         cleared_copy = AIMessage(
                             content="",
                             id=None,
-                            name=getattr(msg, "name", None),
-                            metadata=getattr(msg, "metadata", None),
+                            name=msg.name,
+                            metadata=msg.additional_kwargs,
                         )
                         messages_to_return.append(cleared_copy)
                         cleared_count += 1

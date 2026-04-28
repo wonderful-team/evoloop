@@ -78,6 +78,7 @@ class BlackboardMetadata(DynamicBaseModel):
     audit_tier: str | None = None
     audit_meta: AuditMeta | None = None
     blocked_by_hook: bool | None = None
+    tool_history: list[str] = Field(default_factory=list)
 
 
 class WorkflowStepResult(DynamicBaseModel):
@@ -142,6 +143,12 @@ class BlackboardState(DynamicBaseModel):
         default=None, json_schema_extra={"merge_policy": MergePolicy.REPLACE}
     )
     workflow_results: list[WorkflowStepResult] | None = Field(
+        default=None, json_schema_extra={"merge_policy": MergePolicy.REPLACE}
+    )
+    workflow_plan: list[dict] | None = Field(
+        default=None, json_schema_extra={"merge_policy": MergePolicy.REPLACE}
+    )
+    workflow_step_index: int | None = Field(
         default=None, json_schema_extra={"merge_policy": MergePolicy.REPLACE}
     )
     summary: str | None = Field(

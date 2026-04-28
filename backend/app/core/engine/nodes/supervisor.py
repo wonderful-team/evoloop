@@ -119,14 +119,13 @@ class SupervisorNode(BaseAgentNode):
         new_iter_count = (original_state.iteration_count or 0) + 1
         new_messages = [
             m for m in (engine_result.messages or [])
-            if getattr(m, "name", None) != "context_ticket"
+            if m.name != "context_ticket"
         ]
         blackboard = engine_result.blackboard or original_state.blackboard
 
         # Check for infrastructure errors
         has_error_msg = any(
-            getattr(msg, "metadata", {}).get("is_error") for msg in new_messages
-            if hasattr(msg, "metadata")
+            msg.additional_kwargs.get("is_error") for msg in new_messages
         )
         if has_error_msg:
             return StateUpdate(
@@ -138,18 +137,30 @@ class SupervisorNode(BaseAgentNode):
 
         # Handle "Silent" Protocol Violation - fallback to CHAT if there is content
         ai_content = ""
-        if new_messages and isinstance(new_messages[-1], AIMessage):
-            ai_content = str(new_messages[-1].content).strip()
+        last_msg = new_messages[-1] if new_messages else None
+        
+        if isinstance(last_msg, AIMessage):
+            ai_content = str(last_msg.content).strip()
 
         if ai_content:
             return StateUpdate(
+                messages=new_messages,
                 next_node=RoutingTarget.CHAT,
                 blackboard=blackboard,
                 iteration_count=new_iter_count,
             )
 
-        logger.error("[Supervisor] 🛑 Stop: No routing signal and no content.")
+        # Diagnostic: Why are we stopping?
+        logger.error(
+            f"[Supervisor] 🛑 Stop: No routing signal and no content. "
+            f"Last message type: {type(last_msg).__name__ if last_msg else 'None'}. "
+            f"Content length: {len(ai_content)}. "
+            f"Has tool_calls: {bool(getattr(last_msg, 'tool_calls', []))}. "
+            f"Additional Kwargs Keys: {list(last_msg.additional_kwargs.keys()) if hasattr(last_msg, 'additional_kwargs') else 'N/A'}"
+        )
+        
         return StateUpdate(
+            messages=new_messages,
             next_node=RoutingTarget.FINISH,
             blackboard=blackboard,
             iteration_count=new_iter_count
@@ -166,8 +177,8 @@ class SupervisorNode(BaseAgentNode):
                 task_name="Supervisor Decision",
                 task_status=status,
             )
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"[Supervisor] Failed to emit status update: {e}")
 
     async def _build_context(
         self, state: AgentState, config: RunnableConfig, messages: list, project_id: int

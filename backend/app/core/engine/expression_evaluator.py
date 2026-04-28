@@ -25,10 +25,9 @@ def _safe_eval_expr(expr: str, context: dict) -> bool:
     if not expr or "import" in expr or "__" in expr:
         return False
 
-    try:
-        tree = ast.parse(expr, mode="eval")
-    except SyntaxError:
-        return False
+    # Syntax errors in expressions should be caught early (usually during graph build)
+    # but if they happen at runtime, they are fatal bugs.
+    tree = ast.parse(expr, mode="eval")
 
     # Allowed node types for safe evaluation
     allowed_nodes = (
@@ -201,13 +200,12 @@ def make_expression_router(conditions: list[EdgeCondition], default: str) -> Cal
             expr = case.expr
             to_node = case.to
 
-            try:
-                result = _safe_eval_expr(expr, eval_context)
-                if result:
-                    logger.info(f"Router Expression '{expr}' matched. Routing to {to_node}")
-                    return to_node
-            except Exception as e:
-                logger.error(f"Error evaluating expression '{expr}': {e}")
+            # Evaluation errors (e.g. missing blackboard keys, type mismatch) 
+            # should be raised to prevent incorrect routing decisions.
+            result = _safe_eval_expr(expr, eval_context)
+            if result:
+                logger.info(f"Router Expression '{expr}' matched. Routing to {to_node}")
+                return to_node
 
         logger.info(f"No expressions matched. Routing to default: {default}")
         return default

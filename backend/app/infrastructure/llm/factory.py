@@ -1,12 +1,12 @@
 import asyncio
 import hashlib
 import logging
-from typing import Dict
+from typing import Dict, Any
 
 import httpx
 
 from app.infrastructure.llm.adaptive import AdaptiveChatOpenAI
-from app.infrastructure.schemas import LLMCacheStats
+from app.infrastructure.schemas import LLMCacheStats, ThinkingConfig, LLMConfig
 from app.utils.async_utils import LoopBoundResource
 
 logger = logging.getLogger(__name__)
@@ -77,63 +77,36 @@ class LLMFactory:
         return hashlib.md5(key_data.encode()).hexdigest()[:16]
 
     @staticmethod
-    async def create_llm(
-        model_name: str | None = None,
-        temperature: float = 0.3,
-        *,
-        base_url: str | None = None,
-        api_key: str | None = None,
-        provider_type: str | None = None,
-        **kwargs
-    ):
+    async def create_llm(config: LLMConfig | str | None = None, **kwargs) -> Any:
         """
-        Create a standard LLM instance.
-        
-        Architecture:
-        - Platform Mode: Backend → Gateway (OpenAI format) → Gateway handles protocol translation
-        - Custom Mode: Backend → Direct connection (Backend handles protocol selection)
-        
-        Args:
-            model_name: Model identifier
-            temperature: Sampling temperature
-            base_url: Optional override for base URL (enables independent endpoint per call)
-            api_key: Optional override for API key
-            provider_type: Optional override for provider type (anthropic, openai, etc.)
-            **kwargs: Additional arguments (streaming, max_tokens, etc.)
+        Create a standard LLM instance using structured configuration.
         """
-        # Defensive fallback for legacy 'model' parameter
-        if model_name is None and "model" in kwargs:
-            model_name = kwargs.pop("model")
+        # 兼容性处理：如果第一个参数是 None，尝试从 kwargs 提取 model_name
+        if config is None:
+            model_name = kwargs.pop("model_name", None) or kwargs.pop("model", None)
+            if not model_name:
+                raise ValueError("[LLMFactory] model_name or LLMConfig must be specified.")
+            config = LLMConfig(model_name=model_name, **kwargs)
+        
+        # 将字符串类型的 model_name 转换为 LLMConfig
+        if isinstance(config, str):
+            config = LLMConfig(model_name=config, **kwargs)
             
-        logger.debug(f"[LLMFactory] Creating LLM with model_name={model_name}")
-        
-        if not model_name:
-            raise ValueError("[LLMFactory] model_name must be specified.")
+        logger.debug(f"[LLMFactory] Creating LLM: {config.model_name}")
 
         # Detect Mode and Instantiate
-        if model_name.startswith("custom-"):
-            return await LLMFactory._create_custom_llm(
-                model_name, temperature,
-                base_url=base_url, api_key=api_key, provider_type=provider_type,
-                **kwargs
-            )
+        if config.model_name.startswith("custom-"):
+            return await LLMFactory._create_custom_llm(config)
 
-        # If explicit base_url/api_key provided, treat as custom direct connection
-        # even without "custom-" prefix (enables Vision local + LLM remote)
-        if base_url or api_key:
-            return await LLMFactory._create_direct_llm(
-                model_name, temperature,
-                base_url=base_url, api_key=api_key, provider_type=provider_type,
-                **kwargs
-            )
+        if config.base_url or config.api_key:
+            return await LLMFactory._create_direct_llm(config)
 
-        return await LLMFactory._create_platform_llm(model_name, temperature, **kwargs)
+        return await LLMFactory._create_platform_llm(config)
 
     @staticmethod
-    async def _create_platform_llm(model_name: str | None, temperature: float, **kwargs):
+    async def _create_platform_llm(config: LLMConfig):
         """
         Platform Mode: Always use OpenAI format to Gateway.
-        Gateway handles protocol translation based on provider_type.
         """
         from app.core.evocloud import evocloud_manager
 
@@ -145,104 +118,85 @@ class LLMFactory:
         if not gateway_url:
             raise ValueError("EvoLoop Gateway URL not configured")
 
-        # model_name is guaranteed by the caller (create_llm)
-        # Backend always sends OpenAI format to Gateway
-        # Gateway handles protocol translation (OpenAI ↔ Anthropic)
-        #
-        # Apply reasoning_content patch before creating any ChatOpenAI instances
+        # Apply reasoning_content patch
         import app.core.engine.reasoning  # noqa: F401
+
+        # Merge standard thinking config into extra_body
+        extra_body = {
+            **ThinkingConfig().to_extra_body(),
+            **config.extra_body
+        }
 
         return AdaptiveChatOpenAI(
             api_key=token,
             base_url=f"{gateway_url}/gateway/v1",
-            model=model_name,
-            temperature=temperature,
-            streaming=kwargs.get("streaming", False),
+            model=config.model_name,
+            temperature=config.temperature,
+            streaming=config.streaming,
+            max_tokens=config.max_tokens,
             http_async_client=_HTTP_CLIENT_POOL.get(),
-            model_kwargs={
-                "enable_thinking": True,
-                "return_reasoning": True,
-            },
+            model_kwargs={"extra_body": extra_body},
         )
 
     @staticmethod
-    async def _create_custom_llm(
-        model_name: str,
-        temperature: float,
-        *,
-        base_url: str | None = None,
-        api_key: str | None = None,
-        provider_type: str | None = None,
-        **kwargs
-    ):
+    async def _create_custom_llm(config: LLMConfig):
         """
         Custom Mode: Direct connection to provider.
-        Backend selects adapter based on provider_type.
         """
         # Parse custom-{provider}-{model}
-        parts = model_name.split("-", 2)
+        parts = config.model_name.split("-", 2)
         if len(parts) < 3:
-            raise ValueError(f"Invalid custom model ID: {model_name}")
+            raise ValueError(f"Invalid custom model ID: {config.model_name}")
         
         custom_provider = parts[1]
         actual_model = parts[2]
         
         # Use explicit overrides if provided, otherwise fall back to global config
-        if not base_url or not api_key or not provider_type:
+        if not config.base_url or not config.api_key or not config.provider_type:
             from app.infrastructure.config.service import SystemConfigService
-            provider_type = provider_type or SystemConfigService.get_value("LLM_PROVIDER_TYPE")
-            base_url = base_url or SystemConfigService.get_value("LLM_BASE_URL")
-            api_key = api_key or SystemConfigService.get_value("LLM_API_KEY")
+            config.provider_type = config.provider_type or SystemConfigService.get_value("LLM_PROVIDER_TYPE")
+            config.base_url = config.base_url or SystemConfigService.get_value("LLM_BASE_URL")
+            config.api_key = config.api_key or SystemConfigService.get_value("LLM_API_KEY")
         
-        if not base_url or not api_key:
+        if not config.base_url or not config.api_key:
             raise ValueError(f"Custom model '{actual_model}' requires LLM_BASE_URL and LLM_API_KEY")
         
-        logger.info(f"[LLMFactory] Custom mode: provider={custom_provider}, type={provider_type}, model={actual_model}")
-        
-        # streaming 参数可从 kwargs 传入，默认为 False
-        streaming = kwargs.get("streaming", False)
+        logger.info(f"[LLMFactory] Custom mode: provider={custom_provider}, model={actual_model}")
         
         return LLMFactory._build_llm_instance(
-            api_key=api_key,
-            base_url=base_url,
+            api_key=config.api_key,
+            base_url=config.base_url,
             model_name=actual_model,
-            temperature=temperature,
-            provider_type=provider_type,
-            streaming=streaming,
+            temperature=config.temperature,
+            provider_type=config.provider_type,
+            streaming=config.streaming,
+            max_tokens=config.max_tokens,
+            extra_body=config.extra_body,
         )
 
     @staticmethod
-    async def _create_direct_llm(
-        model_name: str,
-        temperature: float,
-        *,
-        base_url: str,
-        api_key: str | None = None,
-        provider_type: str | None = None,
-        **kwargs
-    ):
+    async def _create_direct_llm(config: LLMConfig):
         """
-        Direct connection mode for independent endpoints (e.g., Vision local + LLM remote).
-        Does not require 'custom-' prefix.
+        Direct connection mode for independent endpoints.
         """
-        if not base_url:
-            raise ValueError(f"Direct model '{model_name}' requires base_url")
+        if not config.base_url:
+            raise ValueError(f"Direct model '{config.model_name}' requires base_url")
         
         # Use explicit provider_type or detect from URL
-        if not provider_type:
-            provider_type = LLMFactory._detect_provider_from_url(base_url)
+        if not config.provider_type:
+            config.provider_type = LLMFactory._detect_provider_from_url(config.base_url)
         
-        logger.info(f"[LLMFactory] Direct mode: provider_type={provider_type}, model={model_name}, base_url={base_url}")
-        
-        streaming = kwargs.get("streaming", False)
+        logger.info(f"[LLMFactory] Direct mode: model={config.model_name}, base_url={config.base_url}")
         
         return LLMFactory._build_llm_instance(
-            api_key=api_key or "",
-            base_url=base_url,
-            model_name=model_name,
-            temperature=temperature,
-            provider_type=provider_type,
-            streaming=streaming,
+            api_key=config.api_key or "",
+            base_url=config.base_url,
+            model_name=config.model_name,
+            temperature=config.temperature,
+            provider_type=config.provider_type,
+            streaming=config.streaming,
+            max_tokens=config.max_tokens,
+            extra_body=config.extra_body,
         )
 
     @staticmethod
@@ -262,16 +216,17 @@ class LLMFactory:
         temperature: float,
         provider_type: str,
         streaming: bool = False,
+        max_tokens: int | None = None,
+        extra_body: dict[str, Any] | None = None,
     ):
         """Build the actual LLM instance based on provider_type."""
         # 导入 reasoning 确保对 ChatOpenAI 的 patch 已应用
         import app.core.engine.reasoning  # noqa: F401
 
-        # 统一的 thinking 配置（对支持 reasoning_content 的模型生效）
-        thinking_kwargs = {
-            "enable_thinking": True,
-            "return_reasoning": True,
-        }
+        # 统一的 thinking 配置
+        # 使用 extra_body 避免 OpenAI SDK 校验失败
+        thinking_extra = ThinkingConfig().to_extra_body()
+        merged_extra = {**thinking_extra, **(extra_body or {})}
 
         if provider_type == "anthropic":
             from app.infrastructure.llm.anthropic_adapter import CompatibleChatAnthropic
@@ -291,8 +246,9 @@ class LLMFactory:
                 model=model_name,
                 temperature=temperature,
                 streaming=streaming,
+                max_tokens=max_tokens,
                 http_async_client=_HTTP_CLIENT_POOL.get(),
-                model_kwargs=thinking_kwargs,
+                model_kwargs={"extra_body": merged_extra},
             )
 
     @staticmethod
@@ -338,21 +294,15 @@ class LLMFactory:
 
 # Global instance for easy import if needed, or prefer using Factory.create()
 def get_default_llm(model_name: str | None = None, temperature: float = 0.3, **kwargs):
-    """Get default LLM (async wrapper for backward compatibility).
-    
-    Args:
-        model_name: Model name
-        temperature: Sampling temperature
-        **kwargs: Additional arguments passed to LLMFactory.create_llm (e.g., max_tokens)
-    """
+    """Get default LLM (async wrapper for backward compatibility)."""
     import asyncio
+    config = LLMConfig(model_name=model_name or "gpt-3.5-turbo", temperature=temperature, **kwargs)
+    
     try:
         loop = asyncio.get_event_loop()
         if loop.is_running():
-            # If in async context, use create_task
-            return asyncio.create_task(LLMFactory.create_llm(model_name=model_name, temperature=temperature, **kwargs))
+            return asyncio.create_task(LLMFactory.create_llm(config))
         else:
-            return loop.run_until_complete(LLMFactory.create_llm(model_name=model_name, temperature=temperature, **kwargs))
+            return loop.run_until_complete(LLMFactory.create_llm(config))
     except RuntimeError:
-        # No event loop, create new one
-        return asyncio.run(LLMFactory.create_llm(model_name=model_name, temperature=temperature, **kwargs))
+        return asyncio.run(LLMFactory.create_llm(config))

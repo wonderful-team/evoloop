@@ -16,6 +16,15 @@ from typing import Any, Literal
 from pydantic import Field
 
 from app.infrastructure.pydantic_base import DynamicBaseModel, EventBase
+from app.utils.time import format_iso_timestamp
+
+
+class ThinkingBlock(DynamicBaseModel):
+    """
+    思考过程块 —— 结构化推理内容。
+    """
+    type: Literal["reasoning", "audit"] = "reasoning"
+    content: str
 
 
 class ToolBlock(DynamicBaseModel):
@@ -61,7 +70,7 @@ class MessageBlock(DynamicBaseModel):
     content_type: Literal["text", "markdown", "json", "multipart"] = "text"
 
     # === 思考过程（结构化）===
-    thinking: list[dict[str, Any]] | None = None   # [{"type": "reasoning", "content": "..."}]
+    thinking: list[ThinkingBlock] | None = None
 
     # === 工具调用 ===
     tool_calls: list[dict[str, Any]] | None = None
@@ -92,6 +101,31 @@ class BlockEvent(DynamicBaseModel):
     type: Literal["message"] = "message"
     action: Literal["create", "update", "append"] = "create"
     data: MessageBlock
+
+
+class StreamEvent(DynamicBaseModel):
+    """
+    结构化流式事件 —— 用于前端实时交互展示。
+    """
+    type: str                                      # StreamEventType
+    message: str = ""
+    data: dict[str, Any] | DynamicBaseModel | None = None
+    progress: int | None = None
+    timestamp: str = Field(default_factory=lambda: format_iso_timestamp())
+
+    def to_json(self) -> str:
+        """Convert to JSON string for SSE."""
+        return self.model_dump_json(exclude_none=True)
+
+
+class ThinkingPayload(DynamicBaseModel):
+    """思考流事件的 data 负载"""
+    detail: str = "reasoning"
+
+
+class ToolProgressPayload(DynamicBaseModel):
+    """工具进度流事件的 data 负载"""
+    tool: str
 
 
 class HITLBlock(DynamicBaseModel):
@@ -132,7 +166,7 @@ class MessageHandlerResult(DynamicBaseModel):
 class PersistencePolicyResult(DynamicBaseModel):
     should_persist: bool
     content: str | None = None
-    thinking: list[dict[str, Any]] | None = None
+    thinking: list[ThinkingBlock] | None = None
     tool_calls: list | None = None
     category: str
     tool_call_id: str | None = None

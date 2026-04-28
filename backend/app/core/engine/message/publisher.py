@@ -23,7 +23,7 @@ from typing import Any
 
 from app.core.engine.message.event_bus import get_event_bus
 from app.core.engine.message.mapper import BlockMapper
-from app.core.engine.message.schemas import MessageBlock
+from app.core.engine.message.schemas import MessageBlock, StreamEvent
 from app.core.evocloud import evocloud_manager
 
 logger = logging.getLogger(__name__)
@@ -36,36 +36,48 @@ class MessagePublisher:
         self.thread_id = thread_id
         self.project_id = project_id
 
-    async def publish(self, block: MessageBlock, channels: set[str] | None = None, action: str = "create") -> None:
+    async def publish(
+        self, 
+        payload: MessageBlock | StreamEvent, 
+        channels: set[str] | None = None, 
+        action: str = "create"
+    ) -> None:
         """
-        将 MessageBlock 分发到所有注册的前端通道。
+        统一分发入口：将数据（块或流）分发到注册的前端通道。
 
         Args:
-            block: 标准化的消息块
-            channels: 指定通道，默认 {"sse", "mobile"}
-            action: SSE 事件动作类型 (create/update/append)
+            payload: MessageBlock (持久化消息块) 或 StreamEvent (流式交互事件)
+            channels: 指定通道，默认根据 payload 类型自动决定
+            action: 仅针对 MessageBlock 的 SSE 动作 (create/update/append)
         """
-        channels = channels or {"sse", "mobile"}
+        if channels is None:
+            # 默认：MessageBlock 发往双端，StreamEvent 仅发往 SSE
+            channels = {"sse", "mobile"} if isinstance(payload, MessageBlock) else {"sse"}
 
         if "sse" in channels:
-            await self._publish_sse(block, action=action)
+            await self._send_to_sse(payload, action=action)
 
-        if "mobile" in channels:
-            await self._publish_mobile(block)
+        if "mobile" in channels and isinstance(payload, MessageBlock):
+            await self._publish_mobile(payload)
 
-    async def _publish_sse(self, block: MessageBlock, action: str = "create") -> None:
-        """通过 EventBus 推送到 Web UI (SSE)"""
+    async def _send_to_sse(self, payload: MessageBlock | StreamEvent, action: str = "create") -> None:
+        """推送数据到 Web UI (SSE)"""
         try:
-            event = BlockMapper.to_sse(block, action=action)
             channel = f"chat:{self.thread_id}:events"
-            payload = event.model_dump_json()
+            
+            if isinstance(payload, MessageBlock):
+                event = BlockMapper.to_sse(payload, action=action)
+                data_json = event.model_dump_json()
+            else:
+                # StreamEvent 自带 to_json() 逻辑
+                data_json = payload.to_json()
 
             bus = get_event_bus()
-            await bus.publish(channel, payload)
-            logger.debug(f"[Publisher] SSE published: seq={block.sequence_number}, role={block.role}, action={action}")
+            await bus.publish(channel, data_json)
+            logger.debug(f"[Publisher] SSE sent: type={getattr(payload, 'type', 'message')}")
 
         except Exception as e:
-            logger.warning(f"[Publisher] SSE publish failed: {e}")
+            logger.warning(f"[Publisher] SSE send failed: {e}")
 
     async def _publish_mobile(self, block: MessageBlock) -> None:
         """通过 EvoCloud Gateway WebSocket 推送到 Mobile"""
@@ -99,32 +111,21 @@ class MessagePublisher:
         error_type: str = "system",
         metadata: dict[str, Any] | None = None,
     ) -> None:
-        """
-        推送错误消息到所有通道。
-
-        用于非消息流场景（如配额耗尽、认证过期等系统级错误）。
-        """
-        try:
-            block = MessageBlock(
-                id=f"msg-{self.thread_id}-error-{int(time.time() * 1000)}",
-                thread_id=self.thread_id,
-                role="system",
-                category="error_system",
-                content=message,
-                content_type="text",
-                status="failed",
-                is_visible=True,
-                created_at=datetime.now().isoformat(),
-                metadata={
-                    "title": title,
-                    "error_type": error_type,
-                    **(metadata or {}),
-                },
-            )
-
-            event = BlockMapper.to_sse(block)
-            await self.publish(block, channels={"sse", "mobile"})
-            logger.info(f"[Publisher] Error published: {error_type}")
-
-        except Exception as e:
-            logger.warning(f"[Publisher] Error publish failed: {e}")
+        """推送系统错误消息（复用 publish 入口）"""
+        block = MessageBlock(
+            id=f"msg-{self.thread_id}-error-{int(time.time() * 1000)}",
+            thread_id=self.thread_id,
+            role="system",
+            category="error_system",
+            content=message,
+            content_type="text",
+            status="failed",
+            is_visible=True,
+            created_at=datetime.now().isoformat(),
+            metadata={
+                "title": title,
+                "error_type": error_type,
+                **(metadata or {}),
+            },
+        )
+        await self.publish(block)

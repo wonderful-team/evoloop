@@ -11,11 +11,16 @@ Import order constraint:
     LLM factory imports this module at startup to ensure the patch is active.
 """
 
+from __future__ import annotations
 import json
 import logging
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
-from langchain_core.messages import BaseMessage
+if TYPE_CHECKING:
+    from app.core.engine.message.schemas import ThinkingBlock
+
+from langchain_core.messages import BaseMessage, AIMessageChunk
+
 
 logger = logging.getLogger(__name__)
 
@@ -57,9 +62,26 @@ _apply_reasoning_patch()
 # ---------------------------------------------------------------------------
 
 
-def extract_reasoning_string(msg: BaseMessage) -> str | None:
-    """Extract raw reasoning_content string from a LangChain BaseMessage."""
-    return extract_reasoning_from_kwargs(getattr(msg, "additional_kwargs", None))
+def extract_reasoning_from_chunk(chunk: Any) -> str | None:
+    """从 LangChain 流式 Chunk 中提取推理内容"""
+    if not hasattr(chunk, "message"):
+        return None
+    
+    msg_chunk = chunk.message
+    if not isinstance(msg_chunk, AIMessageChunk):
+        return None
+        
+    return extract_reasoning_from_kwargs(msg_chunk.additional_kwargs)
+
+
+def extract_reasoning_from_message(message: BaseMessage) -> str | None:
+    """从完整的 LangChain 消息中提取推理内容 (支持 Kimi/OpenAI 格式)"""
+    # 1. 尝试从 additional_kwargs 提取 (如 kimi-k2-thinking-turbo)
+    reasoning = extract_reasoning_from_kwargs(message.additional_kwargs)
+    if reasoning:
+        return reasoning
+            
+    return None
 
 
 def extract_reasoning_from_kwargs(additional_kwargs: dict | None) -> str | None:
@@ -70,11 +92,12 @@ def extract_reasoning_from_kwargs(additional_kwargs: dict | None) -> str | None:
     return str(reasoning).strip() if reasoning else None
 
 
-def to_thinking_blocks(msg: BaseMessage) -> list[dict[str, Any]] | None:
-    """Extract structured thinking blocks [{"type": "reasoning", "content": "..."}] from a BaseMessage."""
-    reasoning = extract_reasoning_string(msg)
+def to_thinking_blocks(msg: BaseMessage) -> list[ThinkingBlock] | None:
+    """Extract structured thinking blocks from a BaseMessage."""
+    from app.core.engine.message.schemas import ThinkingBlock
+    reasoning = extract_reasoning_from_message(msg)
     if reasoning:
-        return [{"type": _THINKING_TYPE, "content": reasoning}]
+        return [ThinkingBlock(type="reasoning", content=reasoning)]
     return None
 
 
@@ -83,20 +106,21 @@ def to_thinking_blocks(msg: BaseMessage) -> list[dict[str, Any]] | None:
 # ---------------------------------------------------------------------------
 
 
-_THINKING_TYPE: str = "reasoning"
-
-
-def build_thinking_blocks(raw_reasoning: str | None) -> list[dict[str, Any]] | None:
-    """Build structured thinking blocks from a raw reasoning_content string."""
-    if not raw_reasoning:
+def build_thinking_blocks(thinking_content: str | None) -> list | None:
+    """
+    将推理字符串转换为结构化 ThinkingBlock 列表。
+    """
+    if not thinking_content:
         return None
-    return [{"type": _THINKING_TYPE, "content": raw_reasoning}]
+
+    from app.core.engine.message.schemas import ThinkingBlock
+    return [ThinkingBlock(type="reasoning", content=thinking_content)]
 
 
 def infer_thinking_type(metadata: dict | None) -> str | None:
     """Infer thinking type from message metadata. Returns 'reasoning' if metadata contains reasoning_content."""
     if metadata and metadata.get("reasoning_content"):
-        return _THINKING_TYPE
+        return "reasoning"
     return None
 
 
@@ -105,28 +129,40 @@ def infer_thinking_type(metadata: dict | None) -> str | None:
 # ---------------------------------------------------------------------------
 
 
-def parse_thinking(raw: str | None) -> list[dict[str, Any]] | None:
-    """Parse JSON-serialized thinking from DB string into structured list[dict]."""
+def parse_thinking(raw: str | None) -> list[ThinkingBlock] | None:
+    """Parse JSON-serialized thinking from DB string into structured list[ThinkingBlock]."""
+    from app.core.engine.message.schemas import ThinkingBlock
     if not raw:
         return None
     try:
         parsed = json.loads(raw)
         if isinstance(parsed, list):
-            return parsed
-    except json.JSONDecodeError:
+            return [ThinkingBlock.model_validate(item) for item in parsed]
+    except (json.JSONDecodeError, ValueError):
         pass
     return None
+def extract_tool_calls(msg: Any) -> list[dict]:
+    """
+    归一化从消息中提取工具调用。
+    支持 LangChain BaseMessage 对象、AIMessageChunk 以及字典格式。
+    """
+    if hasattr(msg, "tool_calls"):
+        return msg.tool_calls
+    if isinstance(msg, dict):
+        return msg.get("tool_calls", [])
+    return []
 
 
-def serialize_thinking(thinking: list[dict[str, Any]] | None) -> str | None:
-    """Serialize structured thinking list[dict] into JSON string for DB storage."""
+def serialize_thinking(thinking: list[ThinkingBlock] | None) -> str | None:
+    """Serialize structured thinking list into JSON string for DB storage."""
     if not thinking:
         return None
-    return json.dumps(thinking, ensure_ascii=False)
+    return json.dumps([t.model_dump() for t in thinking], ensure_ascii=False)
 
 
 def wrap_reasoning_for_db(reasoning: str | None) -> str | None:
     """Wrap raw reasoning_content string as structured JSON list for DB storage."""
+    from app.core.engine.message.schemas import ThinkingBlock
     if not reasoning:
         return None
-    return json.dumps([{"type": _THINKING_TYPE, "content": reasoning}], ensure_ascii=False)
+    return serialize_thinking([ThinkingBlock(type="reasoning", content=reasoning)])

@@ -35,39 +35,35 @@ async def decompose_task(
         context=f"Context: {context}\nMax Parallelism: {max_parallel}"
     )
 
-    try:
-        from app.core.llm import InternalLLMService
-        from app.infrastructure.config.service import SystemConfigService
-        model_name = SystemConfigService.get_value("LLM_MODEL")
-        response = await InternalLLMService.invoke(
-            messages=[{"role": "user", "content": prompt}],
-            purpose="task_decomposition",
-            temperature=0.3,
-            model_name=model_name,
-        )
-        content = response.content if hasattr(response, 'content') else str(response)
-        json_content = extract_json_from_markdown(content)
-        subtasks = json.loads(json_content)
+    from app.core.llm import InternalLLMService
+    from app.infrastructure.config.service import SystemConfigService
+    model_name = SystemConfigService.get_value("LLM_MODEL")
+    response = await InternalLLMService.invoke(
+        messages=[{"role": "user", "content": prompt}],
+        purpose="task_decomposition",
+        temperature=0.3,
+        model_name=model_name,
+    )
+    content = response.content
+    json_content = extract_json_from_markdown(content)
+    subtasks = json.loads(json_content)
 
-        # LLM should return an array of task objects per the prompt
-        if not isinstance(subtasks, list):
-            return DecomposeTaskResult(
-                status="error",
-                error=f"Expected JSON array of tasks, got {type(subtasks).__name__}. Please ensure the prompt requests an array format."
-            )
-
-        plan = SpawnPlan(
-            subtasks=subtasks,
-            routing_signal="spawn_subtasks",
-            requires_aggregation=requires_aggregation,
-            parent_task=task_description
-        )
-
+    # LLM should return an array of task objects per the prompt
+    if not isinstance(subtasks, list):
         return DecomposeTaskResult(
-            status="success",
-            routing_target="spawn_subtasks",
-            spawn_plan=plan
+            status="error",
+            error=f"Expected JSON array of tasks, got {type(subtasks).__name__}. Please ensure the prompt requests an array format."
         )
-    except Exception as e:
-        logger.error(f"[decompose_task] Failed: {e}")
-        return DecomposeTaskResult(status="error", error=str(e))
+
+    plan = SpawnPlan(
+        subtasks=subtasks,
+        routing_signal="spawn_subtasks",
+        requires_aggregation=requires_aggregation,
+        parent_task=task_description
+    )
+
+    return DecomposeTaskResult(
+        status="success",
+        routing_target="spawn_subtasks",
+        spawn_plan=plan
+    )

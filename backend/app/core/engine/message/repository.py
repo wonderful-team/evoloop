@@ -57,12 +57,20 @@ class MessageRepository:
             logger.info(f"[MessageRepository] Persisting {role} message (seq={seq}, cat={category})")
 
             async with session_scope() as session:
+                # Handle both raw string and structured list of blocks
+                thinking_data = thinking
+                if isinstance(thinking, str):
+                    thinking_data = wrap_reasoning_for_db(thinking)
+                elif isinstance(thinking, list):
+                    from app.core.engine.reasoning import serialize_thinking
+                    thinking_data = serialize_thinking(thinking)
+
                 log = Message(
                     thread_id=self.thread_id,
                     project_id=self.project_id,
                     role=role,
                     content=content or "",
-                    thinking=wrap_reasoning_for_db(thinking),
+                    thinking=thinking_data,
                     sequence_number=seq,
                     run_id=self.run_id,
                     status=status,
@@ -82,7 +90,7 @@ class MessageRepository:
 
         except Exception as e:
             logger.error(f"[MessageRepository] Failed to persist message: {e}")
-            return None, 0
+            raise
 
     async def resolve_tool_input(self, tool_call_id: str | None) -> dict:
         """
@@ -108,16 +116,14 @@ class MessageRepository:
                 if not ai_msg or not ai_msg.tool_calls:
                     return {}
                 tool_calls = ai_msg.tool_calls
-                if isinstance(tool_calls, str):
-                    try:
-                        tool_calls = json.loads(tool_calls)
-                    except Exception:
-                        return {}
+                if isinstance(tool_calls, str) and tool_calls.strip():
+                    tool_calls = json.loads(tool_calls)
                 for tc in (tool_calls or []):
-                    tc_id = tc.get("id") if isinstance(tc, dict) else getattr(tc, "id", None)
+                    tc_id = tc.get("id")
                     if tc_id == tool_call_id:
-                        args = tc.get("args") if isinstance(tc, dict) else getattr(tc, "args", {})
+                        args = tc.get("args", {})
                         return args or {}
         except Exception as e:
-            logger.debug(f"[MessageRepository] resolve_tool_input failed: {e}")
+            logger.error(f"[MessageRepository] resolve_tool_input failed: {e}")
+            raise
         return {}

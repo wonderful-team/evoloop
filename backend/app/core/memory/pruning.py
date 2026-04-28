@@ -138,7 +138,7 @@ class MemoryPruningService:
                 model_name=model_name,
             )
             
-            content = response.content if hasattr(response, 'content') else str(response)
+            content = response.content
             match = re.search(r'\[.*\]', content, re.DOTALL)
             if not match:
                 return []
@@ -193,7 +193,7 @@ class MemoryConsolidator:
                 purpose="memory_consolidation",
                 model_name=model_name,
             )
-            content = response.content if hasattr(response, 'content') else str(response)
+            content = response.content
             match = re.search(r'\[.*\]', content, re.DOTALL)
             if not match:
                 return []

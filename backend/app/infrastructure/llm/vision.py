@@ -11,6 +11,7 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage
 
 from app.infrastructure.llm.factory import LLMFactory
+from app.infrastructure.schemas import LLMConfig
 
 logger = logging.getLogger(__name__)
 
@@ -60,13 +61,14 @@ class VisionLLMFactory:
         )
 
         # Build coroutine using the central LLMFactory
-        coro = LLMFactory.create_llm(
+        config = LLMConfig(
             model_name=final_model,
             temperature=temperature,
             base_url=vision_base_url,
             api_key=vision_api_key,
             provider_type=vision_provider,
         )
+        coro = LLMFactory.create_llm(config)
 
         # Execute the async factory synchronously, handling both sync and async contexts
         try:
@@ -111,13 +113,14 @@ class VisionLLMFactory:
             f"Provider: {vision_provider or '(auto)'}"
         )
 
-        return await LLMFactory.create_llm(
+        config = LLMConfig(
             model_name=final_model,
             temperature=temperature,
             base_url=vision_base_url,
             api_key=vision_api_key,
             provider_type=vision_provider,
         )
+        return await LLMFactory.create_llm(config)
 
     @staticmethod
     def encode_image(image_path: str) -> str:

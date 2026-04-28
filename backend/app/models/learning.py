@@ -147,6 +147,7 @@ class LearnedSkill(Base):
     execution_mode: Mapped[str] = mapped_column(String(20), default="agentic")  # "agentic" or "deterministic"
     macro_script: Mapped[str | None] = mapped_column(Text, nullable=True)  # YAML format of deterministic steps
     allow_self_healing: Mapped[bool] = mapped_column(default=True)
+    active_model: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
 
 class RouterTrainingData(Base):

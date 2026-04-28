@@ -26,7 +26,7 @@ class AuthConfig(DynamicBaseModel):
 
 
 class ElicitationValues(DynamicBaseModel):
-    values: dict[str, Any] = Field(default_factory=dict)
+    data: dict[str, Any] = Field(default_factory=dict)
 
 
 class ElicitationField(DynamicBaseModel):

@@ -31,7 +31,7 @@ InternalLLMService - 内部 LLM 调用服务
         model_name=model_name,  # 必须显式传入，禁止隐式 fallback
     )
 
-    content = response.content if hasattr(response, 'content') else str(response)
+    content = response.content
 """
 
 import logging

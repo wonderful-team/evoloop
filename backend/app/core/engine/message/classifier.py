@@ -106,9 +106,11 @@ class MessageClassifier:
                 return MessageCategory.INTERNAL_LLM_JSON
 
         # 2. 识别需存入 thinking 字段的内容（原生推理内容或内部审计标签）
-        if metadata and metadata.get("reasoning_content"):
-            return MessageCategory.INTERNAL_REASONING
-        if content and cls._has_hidden_audit_tags(content):
+        has_reasoning = (metadata and metadata.get("reasoning_content")) or (content and cls._has_hidden_audit_tags(content))
+        
+        # 只有在没有实际回复正文时，才分类为 INTERNAL_REASONING (纯推理消息)
+        # 如果包含正文，则属于正常的 ASSISTANT_RESPONSE，由 PersistencePolicy 负责将 reasoning 存入 thinking 字段
+        if has_reasoning and not (content and content.strip()):
             return MessageCategory.INTERNAL_REASONING
 
         # 3. 分析工具调用
@@ -204,7 +206,7 @@ class MessageClassifier:
         has_hidden = False
 
         for tc in tool_calls:
-            tool_name = tc.get("name", "") if isinstance(tc, dict) else getattr(tc, "name", "")
+            tool_name = tc.get("name", "")
             if not tool_name:
                 continue
 

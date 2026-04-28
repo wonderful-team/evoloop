@@ -126,43 +126,28 @@ class AgentEngine:
         interceptors = self._signal_registry.build_interceptors()
 
         # 6. Run inference
-        try:
-            if is_subtask:
-                inference_result = await self._inference_engine.run_single_shot(
-                    llm_with_tools=llm_with_tools,
-                    messages=repaired_messages,
-                    system_prompt=system_prompt,
-                    provider=provider,
-                    config=config,
-                    name=name,
-                    tool_executor=tool_executor,
-                )
-            else:
-                inference_result = await self._inference_engine.run_react_loop(
-                    llm_with_tools=llm_with_tools,
-                    messages=repaired_messages,
-                    system_prompt=system_prompt,
-                    provider=provider,
-                    config=config,
-                    name=name,
-                    max_steps=max_steps,
-                    tool_executor=tool_executor,
-                    interceptors=interceptors,
-                    model=model,
-                )
-        except InferenceError as ie:
-            return EngineResult(
-                messages=[AIMessage(
-                    content=ie.user_friendly_msg,
-                    metadata={
-                        "is_error": True,
-                        "error_type": ie.error_type,
-                        "status_code": ie.status_code,
-                        "raw_error": ie.raw_error,
-                    }
-                )],
-                tool_history=[],
-                blackboard=state.blackboard,
+        if is_subtask:
+            inference_result = await self._inference_engine.run_single_shot(
+                llm_with_tools=llm_with_tools,
+                messages=repaired_messages,
+                system_prompt=system_prompt,
+                provider=provider,
+                config=config,
+                name=name,
+                tool_executor=tool_executor,
+            )
+        else:
+            inference_result = await self._inference_engine.run_react_loop(
+                llm_with_tools=llm_with_tools,
+                messages=repaired_messages,
+                system_prompt=system_prompt,
+                provider=provider,
+                config=config,
+                name=name,
+                max_steps=max_steps,
+                tool_executor=tool_executor,
+                interceptors=interceptors,
+                model=model,
             )
 
         # 7. Parse blackboard updates from final response content
@@ -182,7 +167,7 @@ class AgentEngine:
         elif inference_result.get("signal"):
             outcome_status = "interrupted"
         last_msg = inference_result.get("messages", [])[-1] if inference_result.get("messages") else None
-        if last_msg and isinstance(last_msg, AIMessage) and getattr(last_msg, "metadata", {}).get("is_error"):
+        if last_msg and isinstance(last_msg, AIMessage) and last_msg.additional_kwargs.get("is_error"):
             outcome_status = "error"
 
         outcome = NodeOutcome(status=outcome_status)
@@ -190,8 +175,8 @@ class AgentEngine:
         # 9. Build EngineResult
         # Extract routing_target from last_response metadata if signal is not present
         routing_target = None
-        if not inference_result.get("signal") and last_response and hasattr(last_response, "metadata"):
-            routing_target = (last_response.metadata or {}).get("routing_target")
+        if not inference_result.get("signal") and last_response and hasattr(last_response, "additional_kwargs"):
+            routing_target = (last_response.additional_kwargs or {}).get("routing_target")
 
         result = EngineResult(
             messages=inference_result.get("messages", []),
@@ -205,11 +190,10 @@ class AgentEngine:
 
         # Add node_source marker to AI messages
         if node_source:
-            for msg in result.messages or []:
-                if isinstance(msg, AIMessage) and msg.content:
-                    if not hasattr(msg, "metadata") or msg.metadata is None:
-                        msg.metadata = {}
-                    msg.metadata["node_source"] = node_source
+            for msg in inference_result.get("messages", []):
+                if not hasattr(msg, "additional_kwargs") or msg.additional_kwargs is None:
+                    msg.additional_kwargs = {}
+                msg.additional_kwargs["node_source"] = node_source
 
         return result
 

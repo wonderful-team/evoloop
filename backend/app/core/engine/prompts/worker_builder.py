@@ -57,8 +57,8 @@ class WorkerPromptBuilder:
                     if len(content) > 4000:
                         content = content[:4000] + "\n\n... [PROJECT.md truncated for brevity]"
                     project_profile = content
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"[WorkerPrompt] Failed to read PROJECT.md: {e}")
 
         # Static Sys Info (Project identity only)
         sys_info = {

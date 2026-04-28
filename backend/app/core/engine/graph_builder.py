@@ -21,13 +21,9 @@ class GraphBuilder:
         Dynamically imports an object (class, function, variable) from a string path.
         e.g. "app.core.engine.nodes.worker.WorkerNode"
         """
-        try:
-            module_name, obj_name = path.rsplit(".", 1)
-            module = importlib.import_module(module_name)
-            return getattr(module, obj_name)
-        except (ImportError, AttributeError, ValueError) as e:
-            logger.error(f"Failed to import {path}: {e}")
-            raise
+        module_name, obj_name = path.rsplit(".", 1)
+        module = importlib.import_module(module_name)
+        return getattr(module, obj_name)
 
     def build(self, config_path: str, checkpointer=None):
         """
