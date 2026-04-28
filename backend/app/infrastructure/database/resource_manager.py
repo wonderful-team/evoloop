@@ -116,12 +116,13 @@ class DatabaseResourceManager:
                 expire_on_commit=False
             )
 
-            # 2. Initialize Tables & Extensions
+            # 2. Initialize Checkpointer Resources
+            # IMPORTANT: We must set journal mode BEFORE other engines touch the DB to avoid locking issues
+            await self._init_checkpointer()
+
+            # 3. Initialize Tables & Extensions
             if create_tables:
                 await self._ensure_tables_exist()
-
-            # 3. Initialize Checkpointer Resources
-            await self._init_checkpointer()
 
             # 4. Vector Store Initialization
             from app.infrastructure.database.vector import get_vector_store
@@ -167,7 +168,7 @@ class DatabaseResourceManager:
             from app.infrastructure.database.checkpoint_saver import FixedAsyncSqliteSaver
             self._checkpointer = FixedAsyncSqliteSaver(conn=self._sqlite_conn)
             await self._checkpointer.setup()
-            logger.info("[ResourceManager] SQLite checkpointer initialized (WAL mode, busy_timeout=30s)")
+            logger.info("[ResourceManager] SQLite checkpointer initialized (DELETE mode, busy_timeout=30s)")
         else:
             from psycopg_pool import AsyncConnectionPool
             from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver

@@ -43,7 +43,7 @@ class MessageCategory(str, Enum):
     """AI 只调用 hidden 工具的消息，不应被用户看到"""
 
     INTERNAL_REASONING = "internal_reasoning"
-    """AI 思考过程（native reasoning_content），存入 thinking 字段"""
+    """AI 思考过程（native reasoning_content）或内部审计标签，存入 thinking 字段"""
 
     INTERNAL_SYSTEM = "internal_system"
     """系统事件（如 SESSION COMPLETE），不入库"""

@@ -55,10 +55,6 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Agent Awakening/Discovery failed (non-critical): {e}")
 
-    # 3. Persistence & Database (Unified Resource Manager)
-    await db_resource_manager.initialize()
-    checkpointer = db_resource_manager.checkpointer
-
     # 4. Engine Graph (Dynamic Build)
     try:
         builder = GraphBuilder()

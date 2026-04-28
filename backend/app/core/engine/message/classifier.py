@@ -56,7 +56,7 @@ class MessageClassifier:
             
         分类逻辑（按优先级）：
         1. 如果 metadata 中标记为 internal → INTERNAL_LLM_JSON
-        2. 如果 metadata 包含 reasoning_content 或内容包含 hidden audit 标签 → INTERNAL_REASONING
+        2. 识别需存入 thinking 字段的内容（原生推理或内部审计标签） → INTERNAL_REASONING
         3. 如果只调用 hidden 工具 → INTERNAL_TOOL_CALL
         4. 如果调用 visible 工具 → ASSISTANT_TOOL_CALL
         5. 如果是 JSON 格式且有内部特征 → INTERNAL_LLM_JSON
@@ -105,7 +105,7 @@ class MessageClassifier:
             if source == "internal_llm" or source.startswith("internal_"):
                 return MessageCategory.INTERNAL_LLM_JSON
 
-        # 2. 检查原生 reasoning_content 或 hidden audit 标签
+        # 2. 识别需存入 thinking 字段的内容（原生推理内容或内部审计标签）
         if metadata and metadata.get("reasoning_content"):
             return MessageCategory.INTERNAL_REASONING
         if content and cls._has_hidden_audit_tags(content):
