@@ -5,7 +5,7 @@ Memory Replay - Retrieves relevant memories during awakening.
 import logging
 import os
 
-from app.core.environment.models import (
+from app.core.environment.schemas import (
     ConceptSummary,
     EpisodeSummary,
     MemoryContext,

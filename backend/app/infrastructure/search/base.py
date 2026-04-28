@@ -15,7 +15,7 @@ Usage:
 from typing import Any, Optional, Protocol, runtime_checkable
 
 from app.infrastructure.schemas import SearchResults, SearchSuggestion, SearchIndexStats, ReindexResult, \
-    IndexDocumentRequest
+    IndexDocumentRequest, KnowledgeSearchResult
 
 
 # ---------------------------------------------------------------------------

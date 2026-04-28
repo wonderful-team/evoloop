@@ -7,7 +7,7 @@ from sqlalchemy import delete, select
 
 from app.core.context.manager import ContextManager
 from app.core.tools import evoloop_tool
-from .models import Plan, Step
+from .schemas import Plan, Step
 
 logger = logging.getLogger(__name__)
 

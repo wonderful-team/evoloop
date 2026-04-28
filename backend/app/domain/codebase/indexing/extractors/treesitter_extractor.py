@@ -3,8 +3,8 @@ import logging
 import tree_sitter
 
 from app.core.file.service import is_test_file
-from app.domain.codebase.indexing.base import (
-    BaseExtractor,
+from app.domain.codebase.indexing.base import BaseExtractor
+from app.domain.codebase.schemas import (
     Document,
     ExtractedEntity,
     ExtractedRelation,

@@ -16,7 +16,7 @@ import os
 import subprocess
 from datetime import datetime, timezone
 
-from app.core.environment.models import AppUsageRecord
+from app.core.environment.schemas import AppUsageRecord
 
 logger = logging.getLogger(__name__)
 

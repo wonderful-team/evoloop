@@ -64,6 +64,10 @@ from .models import (
     ReadResult,
     WriteResult,
 )
+from .schemas import (
+    FileChunk,
+    PaginationInfo,
+)
 
 # Outline extraction (file structure analysis)
 from .outline import (

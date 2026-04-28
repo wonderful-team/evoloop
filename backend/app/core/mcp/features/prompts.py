@@ -5,8 +5,8 @@ from typing import Any
 
 from mcp import ClientSession
 
-from app.core.mcp.features.base import (
-    McpFeature,
+from app.core.mcp.features.base import McpFeature
+from app.core.mcp.schemas import (
     McpFeatureCapabilities,
     McpPromptMessage,
     McpPromptResult,

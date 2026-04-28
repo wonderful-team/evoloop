@@ -6,8 +6,7 @@ and execution history (Episodes).
 from abc import ABC, abstractmethod
 from typing import List, Optional, Dict, Any
 
-from app.core.memory.models import Concept, Episode
-from app.core.memory.schemas import SearchResult
+from app.core.memory.schemas import Concept, Episode, SearchResult
 
 
 class ILongTermMemory(ABC):

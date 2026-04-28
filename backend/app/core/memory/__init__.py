@@ -49,9 +49,9 @@ from app.core.memory.state_tracking import (
     mark_memories_surfaced,
     memory_tracker,
 )
+from app.core.memory.schemas import CheckpointDedupResult, SectionBudget
 from app.core.memory.two_tier import (
     MemorySection,
-    SectionBudget,
     TwoTierMemoryManager,
 )
 
@@ -92,6 +92,7 @@ __all__ = [
     "TwoTierMemoryManager",
     "MemorySection",
     "SectionBudget",
+    "CheckpointDedupResult",
 
     # Maintenance
     "MemoryMaintenanceAgent",

@@ -10,7 +10,8 @@ import logging
 import os
 from collections.abc import Iterator
 
-from .models import FileInfo, FileStatus, PaginationInfo, ReadResult, WriteResult
+from .models import FileInfo, FileStatus, ReadResult, WriteResult
+from .schemas import PaginationInfo
 
 logger = logging.getLogger(__name__)
 

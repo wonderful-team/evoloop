@@ -5,7 +5,7 @@ import logging
 
 from pydantic import BaseModel, ConfigDict
 
-from app.domain.codebase.indexing.base import (
+from app.domain.codebase.schemas import (
     Document,
     ExtractedEntity,
     ExtractedRelation,

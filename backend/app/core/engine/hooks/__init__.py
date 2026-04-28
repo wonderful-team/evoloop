@@ -9,14 +9,12 @@ from app.core.engine.hooks import security
 
 # Import core classes from the core module
 from app.core.engine.hooks.core import (
-    HookContext,
     HookEvent,
-    HookResult,
     HookSystem,
-    ToolResult,
     hook_system,
     setup_default_hooks,
 )
+from app.core.engine.hooks.schemas import HookContext, HookResult, ToolInput, ToolResult
 
 ToolOutput = ToolResult
 

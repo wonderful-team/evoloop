@@ -22,14 +22,12 @@ from app.core.memory.backends.sql_short_term import SqlShortTermMemory
 from app.core.memory.config import MemoryConfig
 from app.core.memory.interfaces.short_term import IShortTermMemory
 from app.core.memory.models import (
-    CheckpointDedupResult,
-    Concept,
-    Episode,
     MemoryEntry,
     MemorySearchResult,
     MemoryType,
     PrivacyLevel,
 )
+from app.core.memory.schemas import CheckpointDedupResult, Concept, Episode
 from app.core.memory.retrieval import MemoryRetriever
 
 logger = logging.getLogger(__name__)

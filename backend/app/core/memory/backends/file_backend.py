@@ -28,13 +28,13 @@ from typing import Any, Optional
 from app.core.config import settings
 from app.core.memory.interfaces.storage import IMemoryStorage, StorageHealthCheck
 from app.core.memory.models import (
-    CheckpointDedupResult,
     MemoryEntry,
     MemorySearchResult,
     MemoryTier,
     MemoryType,
     PrivacyLevel,
 )
+from app.core.memory.schemas import CheckpointDedupResult
 from app.utils import render_template
 
 logger = logging.getLogger(__name__)

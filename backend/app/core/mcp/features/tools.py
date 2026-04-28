@@ -7,11 +7,8 @@ from langchain_core.tools import StructuredTool
 from mcp import ClientSession
 from pydantic import Field, create_model
 
-from app.core.mcp.features.base import (
-    McpFeature,
-    McpFeatureCapabilities,
-    format_mcp_tool_name,
-)
+from app.core.mcp.features.base import McpFeature, format_mcp_tool_name
+from app.core.mcp.schemas import McpFeatureCapabilities
 
 logger = logging.getLogger(__name__)
 

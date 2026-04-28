@@ -18,7 +18,7 @@ class TestSectionBudget:
     
     def test_section_budget_creation(self):
         """Test that SectionBudget can be created."""
-        from app.core.memory.two_tier import SectionBudget
+        from app.core.memory.schemas import SectionBudget
         
         budget = SectionBudget(name="architecture", lines=25)
         
@@ -30,7 +30,7 @@ class TestSectionBudget:
     
     def test_section_budget_with_usage(self):
         """Test SectionBudget with usage tracking."""
-        from app.core.memory.two_tier import SectionBudget
+        from app.core.memory.schemas import SectionBudget
         
         budget = SectionBudget(name="decisions", lines=25, used=20)
         
@@ -40,7 +40,7 @@ class TestSectionBudget:
     
     def test_section_budget_overflow(self):
         """Test SectionBudget overflow detection."""
-        from app.core.memory.two_tier import SectionBudget
+        from app.core.memory.schemas import SectionBudget
         
         budget = SectionBudget(name="patterns", lines=25, used=30, overflow=True)
         
