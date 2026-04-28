@@ -83,20 +83,20 @@ export function CodeBlock({ code, language = 'text', showLineNumbers = false }: 
     ? code.split('\n').slice(0, 10).join('\n') + '\n...'
     : code;
 
-  const handleCopy = useCallback(async () => {
-    await Clipboard.setStringAsync(code);
+  const handleCopy = useCallback(() => {
+    Clipboard.setString(code);
     setCopied(true);
     setMenuVisible(false);
     setTimeout(() => setCopied(false), 2000);
   }, [code]);
 
-  const handleCopyWithoutFormat = useCallback(async () => {
+  const handleCopyWithoutFormat = useCallback(() => {
     // 移除代码中的格式，只保留纯文本
     const plainText = code
       .replace(/```[\w]*\n?/g, '')
       .replace(/```/g, '')
       .trim();
-    await Clipboard.setStringAsync(plainText);
+    Clipboard.setString(plainText);
     setCopied(true);
     setMenuVisible(false);
     setTimeout(() => setCopied(false), 2000);

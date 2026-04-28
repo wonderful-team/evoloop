@@ -248,10 +248,15 @@ export default function ChatScreen() {
       finalText = `${refText} ${text}`;
     }
 
-    // 如果有附件，先上传再发送
+    // 如果有附件，将附件信息拼接到消息文本中
     if (options?.attachments && options.attachments.length > 0) {
-      // 处理附件上传逻辑
-      // ...
+      const attachmentTexts = options.attachments.map(att => {
+        if (att.type === 'image' || att.type === 'video') {
+          return `![${att.name}](${att.url})`;
+        }
+        return `[附件: ${att.name}](${att.url})`;
+      }).join('\n');
+      finalText = finalText ? `${finalText}\n\n${attachmentTexts}` : attachmentTexts;
     }
 
     // 立即将用户消息添加到本地消息列表（乐观更新）
@@ -737,7 +742,7 @@ export default function ChatScreen() {
         <AutoSpeakHandler speak={speak} />
 
         {/* ===== AI 思考中超时处理（副作用组件） ===== */}
-        <AgentProcessingHandler isProcessing={isAgentProcessing} onTimeout={() => setIsAgentProcessing(false)} />
+        <AgentProcessingHandler isAgentProcessing={isAgentProcessing} onClear={() => setIsAgentProcessing(false)} />
       </KeyboardAvoidingView>
 
       {/* ===== TTS 音频播放器（隐藏） ===== */}
@@ -746,7 +751,7 @@ export default function ChatScreen() {
         <Video
           ref={ttsPlayerRef}
           source={{ uri: ttsAudioUri }}
-          audioOnly
+          // audioOnly removed in react-native-video v6
           paused={!isTTSSpeaking}
           onEnd={() => {
             setTtsAudioUri(null);

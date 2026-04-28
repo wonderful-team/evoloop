@@ -17,6 +17,7 @@ import { MessageContent } from '@/components/chat/MessageContent';
 import { WoodenRobot } from '@/components/WoodenRobot';
 import { useConversationStore } from '@/stores/conversationStore';
 import { shareChatMessage } from '@/utils/share';
+import Clipboard from '@react-native-clipboard/clipboard';
 
 interface MessageListProps {
   onRewind?: (messageId: string, hasFileOperations: boolean) => void;
@@ -79,8 +80,9 @@ const MessageItem = React.memo(function MessageItem({
   const [menuVisible, setMenuVisible] = useState(false);
 
   const handleCopy = useCallback(() => {
+    Clipboard.setString(message.content);
     setMenuVisible(false);
-  }, []);
+  }, [message.content]);
 
   const handleRewind = useCallback(() => {
     onRewind?.(message.id, hasFileOperations);

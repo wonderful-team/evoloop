@@ -51,8 +51,8 @@ export function MessageActions({
   const [copied, setCopied] = useState(false);
 
   // 复制消息内容
-  const handleCopy = useCallback(async () => {
-    await Clipboard.setStringAsync(content);
+  const handleCopy = useCallback(() => {
+    Clipboard.setString(content);
     setCopied(true);
     setMenuVisible(false);
     setTimeout(() => setCopied(false), 2000);
@@ -173,8 +173,8 @@ export function MessageActionBar({
   const { colors } = useTheme();
   const [copied, setCopied] = useState(false);
 
-  const handleCopy = useCallback(async () => {
-    await Clipboard.setStringAsync(content);
+  const handleCopy = useCallback(() => {
+    Clipboard.setString(content);
     setCopied(true);
     onCopy?.();
     setTimeout(() => setCopied(false), 2000);

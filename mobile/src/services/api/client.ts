@@ -114,8 +114,8 @@ apiClient.interceptors.response.use(
         useAuthStore.getState().logout();
         isRefreshing = false;
 
-        // 返回一个永远不会 resolve 的 promise，阻止后续处理
-        return new Promise(() => {});
+        // 返回 rejected promise，让调用方捕获错误
+        return Promise.reject(new Error('登录已过期，请重新登录'));
       }
     }
 
@@ -188,7 +188,10 @@ apiClient.interceptors.response.use(
       const responseData = error.response.data;
 
       // 检查是否为权益错误
-      if (checkIsBenefitError({ ...responseData, status: 403 })) {
+      const benefitCheckData = typeof responseData === 'object' && responseData !== null
+        ? { ...responseData, status: 403 }
+        : { status: 403 };
+      if (checkIsBenefitError(benefitCheckData)) {
         const errorInfo = handleBenefitError(responseData);
 
         // 触发全局回调（如果设置了）

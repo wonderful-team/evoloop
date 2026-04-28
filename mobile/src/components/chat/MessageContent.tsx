@@ -20,6 +20,7 @@ import { MermaidChart, extractMermaidBlocks } from './MermaidChart';
 import { EChartsChart } from './EChartsChart';
 import { MapChart } from './MapChart';
 import { extractArtifactBlocks } from './artifactUtils';
+import Video from 'react-native-video';
 
 // 图片查看器
 interface ImageViewerProps {
@@ -123,40 +124,22 @@ function FileMessage({ url }: { url: string }) {
 function AudioMessage({ url, name }: { url: string; name: string }) {
   const { colors } = useTheme();
   const [isPlaying, setIsPlaying] = useState(false);
-  const [sound, setSound] = useState<Audio.Sound | null>(null);
 
-  const togglePlay = useCallback(async () => {
-    try {
-      if (isPlaying) {
-        await sound?.pauseAsync();
-        setIsPlaying(false);
-      } else {
-        if (!sound) {
-          const { sound: newSound } = await Audio.Sound.createAsync(
-            { uri: url },
-            { shouldPlay: true }
-          );
-          setSound(newSound);
-          newSound.setOnPlaybackStatusUpdate((status) => {
-            if (status.isLoaded && status.didJustFinish) {
-              setIsPlaying(false);
-            }
-          });
-        } else {
-          await sound.playAsync();
-        }
-        setIsPlaying(true);
-      }
-    } catch (error) {
-      console.error('播放音频失败:', error);
-    }
-  }, [isPlaying, sound, url]);
+  const togglePlay = useCallback(() => {
+    setIsPlaying(prev => !prev);
+  }, []);
 
   return (
     <TouchableOpacity
       style={[styles.audioContainer, { backgroundColor: colors.tertiaryContainer }]}
       onPress={togglePlay}
     >
+      <Video
+        source={{ uri: url }}
+        paused={!isPlaying}
+        onEnd={() => setIsPlaying(false)}
+        style={{ width: 0, height: 0 }}
+      />
       <View style={[styles.audioIcon, { backgroundColor: colors.tertiary }]}>
         <MaterialIcons
           name={isPlaying ? 'pause' : 'play-arrow'}
