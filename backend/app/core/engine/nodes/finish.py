@@ -284,8 +284,22 @@ class FinishNode(BaseNode):
         # --------------------------------------------------------------
         asyncio.create_task(_safe_prune(effective_thread_id))
 
+        # LangGraph optimization: only return messages that were ADDED or MODIFIED during this node.
+        # Since we modified the original messages list and potentially added RemoveMessage markers,
+        # we return the delta.
+        # NOTE: Returning the full list 'messages_to_return' causes duplication in LangGraph
+        # because it appends everything to the state.
+        
+        # We only return messages that are NOT already in the original state.messages list
+        # OR if they are RemoveMessage / placeholder messages.
+        existing_ids = {m.id for m in state.messages if hasattr(m, 'id') and m.id}
+        delta_messages = [
+            m for m in messages_to_return 
+            if not hasattr(m, 'id') or not m.id or m.id not in existing_ids or isinstance(m, RemoveMessage)
+        ]
+
         return StateUpdate(
-            messages=messages_to_return,
+            messages=delta_messages,
             next_node=RoutingTarget.END,
             blackboard=blackboard,
         )

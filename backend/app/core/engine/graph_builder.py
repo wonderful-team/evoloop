@@ -66,7 +66,11 @@ class GraphBuilder:
             else:
                 raise TypeError(f"Node {node.id} at {node.path} is not callable")
 
-            workflow.add_node(node.id, node_func)
+            workflow.add_node(
+                node.id,
+                node_func,
+                metadata={"streaming": node.streaming}
+            )
 
         # 4. Add Edges
         for edge in agent_config.edges:

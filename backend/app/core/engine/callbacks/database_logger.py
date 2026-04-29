@@ -103,11 +103,16 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
                 metadata=metadata,
             )
 
+            # 重要：将持久化后的 ID 回填给消息对象，防止 LangGraph 状态重复追加
+            if result.get("message_id"):
+                message.id = str(result["message_id"])
+
             logger.debug(
                 f"[DatabaseCallback] AI message handled: "
                 f"category={result['category']}, "
                 f"persisted={result['persisted']}, "
-                f"streamed={result['streamed']}"
+                f"streamed={result['streamed']}, "
+                f"id={message.id}"
             )
 
         except Exception as e:
@@ -144,11 +149,16 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
                 tool_call_id=tool_call_id,
             )
 
+            # 注意：on_tool_end 并不直接持有 ToolMessage 对象，因此无法直接回填 ID。
+            # 但由于 handle_tool_output 内部使用了 deduplicator，重复调用会被拦截。
+            # 此外，FinishNode 的增量过滤逻辑也会基于内容进行防御。
+
             logger.debug(
                 f"[DatabaseCallback] Tool output handled: "
                 f"tool={tool_name}, "
                 f"category={result['category']}, "
-                f"persisted={result['persisted']}"
+                f"persisted={result['persisted']}, "
+                f"id={result.get('message_id')}"
             )
 
         except Exception as e:

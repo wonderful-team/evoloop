@@ -23,7 +23,7 @@ from app.core.engine.message.deduplicator import MessageDeduplicator
 from app.core.engine.message.persistence import MessagePersistencePolicy
 from app.core.engine.message.publisher import MessagePublisher
 from app.core.engine.message.repository import MessageRepository
-from app.core.engine.message.schemas import MessageBlock
+from app.core.engine.message.schemas import MessageBlock, ThinkingBlock
 from app.core.engine.message.schemas import MessageHandlerResult
 from app.core.engine.message.stream import MessageStreamPolicy
 from app.core.engine.message.reasoning import build_thinking_blocks, infer_thinking_type
@@ -108,7 +108,8 @@ class MessageHandler:
             await self._dispatch_block(
                 role="ai", content=stream_data.content,
                 category=category.value, metadata=metadata,
-                tool_calls=persist_data.tool_calls, thinking=thinking,
+                tool_calls=persist_data.tool_calls, 
+                thinking=build_thinking_blocks(thinking),
                 sequence_number=seq if persist_data.should_persist else 0,
                 status="streaming" if persist_data.should_persist else "completed",
                 channels={"sse"}
@@ -261,7 +262,7 @@ class MessageHandler:
         self,
         role: str,
         content: str | None,
-        thinking: str | None = None,
+        thinking: list[ThinkingBlock] | None = None,
         tool_calls: list | None = None,
         category: str = "",
         status: str = "completed",
@@ -283,7 +284,7 @@ class MessageHandler:
             role=role,  # type: ignore[arg-type]
             category=category,
             content=content or "",
-            thinking=build_thinking_blocks(thinking),
+            thinking=thinking,
             tool_calls=tool_calls,
             status=status,  # type: ignore[arg-type]
             is_visible=True,

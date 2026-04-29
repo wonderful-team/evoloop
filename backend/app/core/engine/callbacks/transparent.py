@@ -72,6 +72,9 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
         self._token_filter = TokenFilter()
         self._publisher: MessagePublisher | None = None
 
+        # Node-level streaming control: run_id -> metadata mapping
+        self._run_metadata: dict[str, dict] = {}
+
     # ==============================================================================
     # Structured Stream Event Methods
     # ==============================================================================
@@ -114,15 +117,29 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
     # LangChain Callback Methods
     # ==============================================================================
 
+    def _is_streaming_disabled(self, run_id: str) -> bool:
+        """Check if the run's node has streaming disabled via metadata."""
+        metadata = self._run_metadata.get(run_id, {})
+        if metadata.get("streaming") is False:
+            return True
+        return False
+
     async def on_llm_start(self, serialized: dict[str, Any], prompts: list[str], **kwargs: Any) -> None:
         """Run when LLM starts running."""
+        run_id = kwargs.get("run_id")
+        run_id_str = str(run_id)
+        self._run_metadata[run_id_str] = kwargs.get("metadata", {})
+
         if self.thread_id and self.monitor:
             await self.monitor.check_cancellation(self.thread_id)
 
-            run_id = kwargs.get("run_id")
             if self.active_llm_run_id is None:
                 self.active_llm_run_id = run_id
             self.llm_task_id = run_id
+
+            # Skip thinking indicator for nodes with streaming disabled
+            if self._is_streaming_disabled(run_id_str):
+                return
 
             # Emit thinking indicator so frontend shows loading state
             try:
@@ -137,13 +154,16 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
         - THINKING (reasoning_content): stream per-chunk in real-time
         - CONTENT: batch through TokenFilter (flush on \n or 50 chars)
         """
+        run_id = str(kwargs.get("run_id", ""))
+        if self._is_streaming_disabled(run_id):
+            return
+
         if not (self.thread_id and self.monitor):
             return
 
         await self.monitor.check_cancellation(self.thread_id)
 
-        run_id = kwargs.get("run_id")
-        if not (self.llm_task_id and run_id == self.active_llm_run_id):
+        if not (self.llm_task_id and run_id == str(self.active_llm_run_id)):
             return
 
         # 1. Extract and stream reasoning_content in real-time (chunk-level)
@@ -207,18 +227,23 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
 
     async def on_llm_end(self, response: LLMResult, **kwargs: Any) -> None:
         """Run when LLM ends running."""
+        run_id = str(kwargs.get("run_id", ""))
+        self._run_metadata.pop(run_id, None)
+
         # FLUSH REMAINING PUBLISH BUFFER
         self._token_filter.flush()
 
-        run_id = kwargs.get("run_id")
         # Note: We no longer record "Thinking..." steps, so no update needed
-        if run_id == self.active_llm_run_id:
+        if run_id == str(self.active_llm_run_id):
             self.active_llm_run_id = None
             self._current_stream_buffer = ""
             self._token_filter.reset()
 
     async def on_llm_error(self, error: BaseException, **kwargs: Any) -> None:
         """Run when LLM errors."""
+        run_id = str(kwargs.get("run_id", ""))
+        self._run_metadata.pop(run_id, None)
+
         logger.error(f"LLM Error in thread {self.thread_id}: {error}", exc_info=True)
 
         # Flush any buffered tokens before cleanup
@@ -231,11 +256,13 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
         #     except Exception:
         #         pass
 
-        run_id = kwargs.get("run_id")
-        if run_id == self.active_llm_run_id:
+        if run_id == str(self.active_llm_run_id):
             self.active_llm_run_id = None
             self._current_stream_buffer = ""
             self._token_filter.reset()
+
+        if self._is_streaming_disabled(run_id):
+            return
 
         try:
             await self._publish_stream_event(StreamEvent(
@@ -249,10 +276,15 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
 
     async def on_tool_start(self, serialized: dict[str, Any], input_str: str, **kwargs: Any) -> None:
         """Run when tool starts running."""
+        run_id = str(kwargs.get("run_id", "default"))
+        self._run_metadata[run_id] = kwargs.get("metadata", {})
+
+        if self._is_streaming_disabled(run_id):
+            return
+
         if self.thread_id and self.monitor:
             await self.monitor.check_cancellation(self.thread_id)
 
-        run_id = str(kwargs.get("run_id", "default"))
         tool_name = serialized.get("name") if serialized else "Unknown Tool"
         self._tool_names[run_id] = tool_name
 
@@ -287,7 +319,6 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
                 pass
 
         # Skip ActivityMonitor and stream events for hidden (internal) tools
-        run_id = str(kwargs.get("run_id", "default"))
         step_type = "tool"
         if not is_hidden and self.thread_id and self.monitor:
             task_id = await self.monitor.add_step(
@@ -369,6 +400,13 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
     async def on_tool_end(self, output: str, **kwargs: Any) -> None:
         """Run when tool ends running."""
         run_id = str(kwargs.get("run_id", "default"))
+        self._run_metadata.pop(run_id, None)
+
+        if self._is_streaming_disabled(run_id):
+            self._tool_names.pop(run_id, None)
+            self._tool_task_ids.pop(run_id, None)
+            return
+
         tool_name = self._tool_names.pop(run_id, "Unknown Tool")
 
         # Get the correct task_id for this tool run (support parallel tools)
@@ -414,6 +452,13 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
     async def on_tool_error(self, error: BaseException, **kwargs: Any) -> None:
         """Run when tool errors."""
         run_id = str(kwargs.get("run_id", "default"))
+        self._run_metadata.pop(run_id, None)
+
+        if self._is_streaming_disabled(run_id):
+            self._tool_names.pop(run_id, None)
+            self._tool_task_ids.pop(run_id, None)
+            return
+
         tool_name = self._tool_names.pop(run_id, "Unknown Tool")
 
         # Get the correct task_id for this tool run (support parallel tools)
@@ -447,8 +492,8 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
         Note: We no longer record Phase headers ("► Supervisor Phase", etc.) to reduce noise.
         Only actual tool executions are tracked.
         """
-        # Phase headers tracking removed - only track actual tool executions
-        pass
+        run_id = str(kwargs.get("run_id", ""))
+        self._run_metadata[run_id] = kwargs.get("metadata", {})
 
     async def on_chain_end(self, outputs: dict[str, Any], **kwargs: Any) -> None:
         """Run when chain ends running.

@@ -79,7 +79,17 @@ class StateLifecycleManager:
     def reset_terminal_metadata(state: AgentState) -> None:
         """Reset terminal metadata fields that should not persist across runs."""
         blackboard = state.blackboard
-        for field in ("final_outcome", "shadow_audit"):
+        for field in ("final_outcome", "shadow_audit", "blocked_by_hook"):
             if getattr(blackboard.metadata, field) is not None:
                 setattr(blackboard.metadata, field, None)
                 logger.debug(f"[Lifecycle] Reset metadata.{field}")
+
+    @staticmethod
+    def consume_blocked_by_hook(state: AgentState) -> bool:
+        """Consume and clear blocked_by_hook flag."""
+        blackboard = state.blackboard
+        blocked = blackboard.metadata.blocked_by_hook or False
+        if blackboard.metadata.blocked_by_hook is not None:
+            blackboard.metadata.blocked_by_hook = None
+            logger.debug("[Lifecycle] Consumed blocked_by_hook")
+        return blocked

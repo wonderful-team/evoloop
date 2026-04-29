@@ -42,6 +42,7 @@ class SupervisorNode(BaseAgentNode):
         from app.core.engine.state.lifecycle import StateLifecycleManager
         StateLifecycleManager.consume_next_node(state)
         StateLifecycleManager.consume_spawn_plan(state)
+        StateLifecycleManager.consume_blocked_by_hook(state)
 
         # Optional: Emit initial status
         await self._emit_status(config, i18n.get("supervisor.status_analyzing"))

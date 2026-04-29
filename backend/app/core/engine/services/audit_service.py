@@ -165,6 +165,7 @@ class LayeredAuditor:
             triggers.append("long_conversation")
 
         if triggers:
+            logger.info(f"[AuditService] 🚩 Comprehensive triggers: {triggers}")
             return AuditDecision(tier="comprehensive", reason=f"safety: {', '.join(triggers)}", confidence=1.0)
 
         minimal_ok = [
@@ -338,6 +339,9 @@ class LayeredAuditor:
             name="Session Reviewer",
             max_steps=settings.FINISH_AGENT_MAX_STEPS,
             node_source="finish",
+            # Note: Comprehensive audit by default runs through the engine loop.
+            # In Phase 1 hardening, we allow this to record to the DB for traceability.
+            # The duplication is fixed in FinishNode's delta return logic.
         )
 
         summary = _extract_final_summary(result.messages or [])

@@ -211,7 +211,7 @@ def to_thinking_blocks(msg: BaseMessage) -> list[ThinkingBlock] | None:
 # ---------------------------------------------------------------------------
 
 
-def build_thinking_blocks(thinking_content: str | None) -> list | None:
+def build_thinking_blocks(thinking_content: str | None) -> list[ThinkingBlock] | None:
     """
     将推理字符串转换为结构化 ThinkingBlock 列表。
     """

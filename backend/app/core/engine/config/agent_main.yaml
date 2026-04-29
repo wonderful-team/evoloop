@@ -89,6 +89,7 @@ nodes:
 
   - id: "finish"
     path: "app.core.engine.nodes.finish.FinishNode"
+    streaming: false
     tools:
       - "read_file"
       - "list_directory"
