@@ -90,28 +90,24 @@ def route_supervisor(state: AgentState) -> str | list[Send]:
         RoutingTarget.SPAWN_SUBTASKS,
         RoutingTarget.SEQUENTIAL_WORKFLOW,
     )
-    if next_node in terminal_nodes:
-        return next_node
-
     if next_node:
-        logger.info(f"[Router] Remapping intelligent target '{next_node}' -> 'worker'")
-
-        # Define the set of allowed targets for the supervisor's conditional edge
-        # mapping in agent_main.yaml. If target is not here, it's a structural error.
-        allowed_targets = {
+        # Define the set of allowed terminal targets for the supervisor's conditional edge
+        # mapping in agent_main.yaml. 
+        terminal_targets = {
             RoutingTarget.CHAT,
             RoutingTarget.FINISH,
             RoutingTarget.SUPERVISOR,
             RoutingTarget.AGGREGATOR,
             RoutingTarget.SPAWN_SUBTASKS,
             RoutingTarget.SEQUENTIAL_WORKFLOW,
-            RoutingTarget.WORKER,
         }
-        
-        if next_node not in allowed_targets:
-            logger.error(f"[Router] 🚨 Invalid routing target '{next_node}' from Supervisor. Not in YAML map.")
-            return "finish" # Fallback to finish for safety
 
+        if next_node in terminal_targets:
+            return next_node
+
+        # If it's an intelligent target (not in terminal_targets), it MUST be handled by worker
+        logger.info(f"[Router] Remapping intelligent target '{next_node}' -> 'worker'")
+        
         # Verify ticket exists in blackboard (set by SignalDispatcher) before routing to worker
         if not blackboard.ticket:
             raise ValueError(

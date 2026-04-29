@@ -300,17 +300,15 @@ async def persist_user_message(
 
             conversation.updated_at = datetime.now(timezone.utc)
 
-            from sqlalchemy import func, select
-
-            stmt = select(func.max(Message.sequence_number)).where(Message.thread_id == thread_id)
-            max_seq = (await session.execute(stmt)).scalar() or 0
+            from app.core.engine.message.sequence import SequenceService
+            seq = await SequenceService.next_sequence(thread_id)
 
             user_msg = Message(
                 thread_id=thread_id,
                 project_id=project_id or conversation.project_id,
                 role="human",
                 content=content,
-                sequence_number=max_seq + 1,
+                sequence_number=seq,
             )
             session.add(user_msg)
             await session.flush()

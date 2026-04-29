@@ -103,16 +103,19 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
                 metadata=metadata,
             )
 
-            # 重要：将持久化后的 ID 回填给消息对象，防止 LangGraph 状态重复追加
+            # 重要：将持久化后的 ID 和序列号回填给消息对象，供后续环节（如 MemoryExtractor）使用
             if result.get("message_id"):
                 message.id = str(result["message_id"])
+                # 同时回填 sequence_number 到 additional_kwargs，确保 ID 构造的一致性
+                if not hasattr(message, "additional_kwargs") or message.additional_kwargs is None:
+                    message.additional_kwargs = {}
+                message.additional_kwargs["sequence_number"] = result.get("sequence_number", 0)
 
             logger.debug(
                 f"[DatabaseCallback] AI message handled: "
                 f"category={result['category']}, "
                 f"persisted={result['persisted']}, "
-                f"streamed={result['streamed']}, "
-                f"id={message.id}"
+                f"id={message.id}, seq={result.get('sequence_number')}"
             )
 
         except Exception as e:

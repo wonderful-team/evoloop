@@ -242,7 +242,6 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
     async def on_llm_error(self, error: BaseException, **kwargs: Any) -> None:
         """Run when LLM errors."""
         run_id = str(kwargs.get("run_id", ""))
-        self._run_metadata.pop(run_id, None)
 
         logger.error(f"LLM Error in thread {self.thread_id}: {error}", exc_info=True)
 
@@ -262,7 +261,10 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
             self._token_filter.reset()
 
         if self._is_streaming_disabled(run_id):
+            self._run_metadata.pop(run_id, None)
             return
+
+        self._run_metadata.pop(run_id, None)
 
         try:
             await self._publish_stream_event(StreamEvent(
@@ -318,6 +320,13 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
             except (KeyError, TypeError):
                 pass
 
+        # Build tool_meta for backend-driven rendering
+        tool_meta = {
+            "name_map": getattr(metadata, "name_map", {}),
+            "affected_path_keys": getattr(metadata, "affected_path_keys", []),
+            "display_name": tool_name_display,
+        }
+
         # Skip ActivityMonitor and stream events for hidden (internal) tools
         step_type = "tool"
         if not is_hidden and self.thread_id and self.monitor:
@@ -326,7 +335,8 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
                 friendly_name,
                 step_type,
                 input_data=data,
-                tool_name_display=tool_name_display,
+                tool=tool_name,
+                tool_meta=tool_meta,
             )
             self.tool_task_id = task_id
             self._tool_task_ids[run_id] = task_id
@@ -348,12 +358,16 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
                 path=current_tool_path
             )
 
-        # Emit structured stream event — include tool_name_display for frontend
+        # Emit structured stream event — include tool_meta for frontend
         if not is_hidden:
             await self._publish_stream_event(StreamEvent(
                 type=StreamEventType.TOOL_START,
                 message=friendly_name,
-                data={"tool": tool_name, "tool_name_display": tool_name_display, "params": data}
+                data={
+                    "tool": tool_name,
+                    "params": data,
+                    "tool_meta": tool_meta,
+                }
             ))
 
         logger.info(f"[Tool Start] {tool_name} {'(hidden)' if is_hidden else ''}")
@@ -400,12 +414,14 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
     async def on_tool_end(self, output: str, **kwargs: Any) -> None:
         """Run when tool ends running."""
         run_id = str(kwargs.get("run_id", "default"))
-        self._run_metadata.pop(run_id, None)
 
         if self._is_streaming_disabled(run_id):
+            self._run_metadata.pop(run_id, None)
             self._tool_names.pop(run_id, None)
             self._tool_task_ids.pop(run_id, None)
             return
+
+        self._run_metadata.pop(run_id, None)
 
         tool_name = self._tool_names.pop(run_id, "Unknown Tool")
 
@@ -452,12 +468,14 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
     async def on_tool_error(self, error: BaseException, **kwargs: Any) -> None:
         """Run when tool errors."""
         run_id = str(kwargs.get("run_id", "default"))
-        self._run_metadata.pop(run_id, None)
 
         if self._is_streaming_disabled(run_id):
+            self._run_metadata.pop(run_id, None)
             self._tool_names.pop(run_id, None)
             self._tool_task_ids.pop(run_id, None)
             return
+
+        self._run_metadata.pop(run_id, None)
 
         tool_name = self._tool_names.pop(run_id, "Unknown Tool")
 
@@ -500,14 +518,16 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
         
         Note: Phase headers tracking removed, this is now a no-op.
         """
-        pass
+        run_id = str(kwargs.get("run_id", ""))
+        self._run_metadata.pop(run_id, None)
 
     async def on_chain_error(self, error: BaseException, **kwargs: Any) -> None:
         """Run when chain errors.
         
         Note: Phase headers tracking removed, this is now a no-op.
         """
-        pass
+        run_id = str(kwargs.get("run_id", ""))
+        self._run_metadata.pop(run_id, None)
 
     async def on_text(self, text: str, **kwargs: Any) -> None:
         """Run on arbitrary text."""

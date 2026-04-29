@@ -87,6 +87,20 @@ class FinishNode(BaseNode):
             )
             from app.core.engine.context_trimmer import TrimTrigger
             if trim_result.trigger != TrimTrigger.NONE:
+                # Trigger PRE_COMPACT hook BEFORE applying the trim to save state
+                from app.core.engine.hooks import HookContext, HookEvent, hook_system
+                await hook_system.trigger(
+                    HookEvent.PRE_COMPACT,
+                    HookContext(
+                        thread_id=effective_thread_id,
+                        run_id=config.get("configurable", {}).get("run_id"),
+                        messages=messages,
+                        project_id=config.get("configurable", {}).get("project_id"),
+                        user_id=config.get("configurable", {}).get("user_id"),
+                        compact_trigger=trim_result.trigger.name.lower(),
+                    )
+                )
+
                 logger.info(
                     f"[Finish] Soft trim before audit: {trim_result.before_count} -> "
                     f"{trim_result.after_count} msgs, {trim_result.before_tokens} -> "
@@ -245,6 +259,7 @@ class FinishNode(BaseNode):
         )
 
         from app.core.events.publishers import publish_session_completed
+        logger.info(f"[Finish] 📡 Publishing SessionCompletedEvent for thread {effective_thread_id}...")
         await publish_session_completed(data=event_data)
         logger.info(f"[Finish] 📡 SessionCompletedEvent published for thread {effective_thread_id}")
 

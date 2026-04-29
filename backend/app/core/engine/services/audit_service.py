@@ -12,6 +12,7 @@ This module has NO runtime side effects at import time (lazy-init pattern).
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 import time
@@ -258,14 +259,24 @@ class LayeredAuditor:
         from app.core.llm import InternalLLMService
         from app.infrastructure.config.service import SystemConfigService
         model_name = SystemConfigService.get_value("LLM_MODEL")
-        response = await InternalLLMService.invoke(
-            messages=[{"role": "system", "content": prompt}],
-            purpose="audit_summary",
-            temperature=0.1,
-            max_tokens=500,
-            model_name=model_name,
-        )
-        summary = response.content.strip()
+        try:
+            response = await asyncio.wait_for(
+                InternalLLMService.invoke(
+                    messages=[{"role": "system", "content": prompt}],
+                    purpose="audit_summary",
+                    temperature=0.1,
+                    max_tokens=500,
+                    model_name=model_name,
+                ),
+                timeout=30.0
+            )
+            summary = response.content.strip()
+        except asyncio.TimeoutError:
+            logger.warning("[AuditService] Standard audit LLM call timed out after 30s. Using fallback summary.")
+            summary = "Task completed (audit timed out)."
+        except Exception as e:
+            logger.error(f"[AuditService] Standard audit LLM call failed: {e}")
+            summary = "Task completed (audit failed)."
         if len(summary) < 20:
             summary = f"Task completed. {summary}"
 

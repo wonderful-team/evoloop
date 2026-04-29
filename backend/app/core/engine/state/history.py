@@ -29,12 +29,13 @@ class ToolStep(DynamicBaseModel):
     id: str
     tool: str  # Original tool identifier (e.g., "search_web")
     tool_name: str | None = None  # Generic friendly name (e.g., "搜索网页")
-    tool_name_display: str | None = None  # Parameter-enriched name (e.g., "正在读取 '/path/to/file'")
+
     input: dict | str | Any = Field(default_factory=dict)
     output: str = ""
     status: str = "success"  # success, error, pending
     duration: float | None = None
     tool_call_id: str | None = None
+    tool_meta: dict[str, Any] | None = None
 
     @classmethod
     def model_validate(cls, obj: Any, **kwargs):

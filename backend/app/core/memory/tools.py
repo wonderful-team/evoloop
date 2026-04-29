@@ -66,6 +66,8 @@ async def remember(content: str, context: str = "", is_user_preference: bool = F
         # Ensure IDs are types that MemoryEntry expects (support mocks in tests)
         project_id = int(ctx.project_id) if ctx else None
 
+        run_id = ctx.run_id if ctx else None
+        
         entry = MemoryEntry(
             id=entry_id,
             type=mem_type,
@@ -77,7 +79,8 @@ async def remember(content: str, context: str = "", is_user_preference: bool = F
             project_id=project_id,
             tags=["remembered"],
             source="agent_tool",
-            source_message_id=None, # Ensure all fields are provided for dataclass
+            source_message_id=str(run_id) if run_id else None,
+            run_id=str(run_id) if run_id else None,
         )
 
         from app.core.memory.lifespan import MemoryLifespanManager

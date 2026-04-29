@@ -57,4 +57,5 @@ class SequenceService:
                     select(ThreadSequence.next_seq).where(ThreadSequence.thread_id == thread_id)
                 )
                 seq = row.scalar() or 1
+            
             return seq

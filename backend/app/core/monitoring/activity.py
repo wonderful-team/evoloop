@@ -200,18 +200,27 @@ class ActivityMonitor:
 
     async def add_step(
         self, thread_id: str, name: str, step_type="node", parent_id: int = None,
-        input_data: dict = None, tool_name_display: str = None
+        input_data: dict = None, tool: str = None, tool_meta: dict = None,
     ):
-        """Add a new step and return its ID."""
-        step_id = await self._state_service.add_step(thread_id, name, step_type, parent_id, input_data, tool_name_display)
+        """Add a new step and return its ID.
+
+        Args:
+            tool_meta: Backend-driven rendering metadata. Must contain:
+                - display_name: Parameterized display name (e.g. "正在读取 '/path/to/file'")
+                - name_map: Language map for the tool name
+                - affected_path_keys: Keys in input that identify affected paths
+        """
+        step_id = await self._state_service.add_step(
+            thread_id, name, step_type, parent_id, input_data, tool=tool, tool_meta=tool_meta
+        )
 
         if step_id:
-            # Publish Event — include tool_name_display so frontend can render parameterized names
             step_data = {
                 "name": name,
+                "tool": tool,
                 "status": "running",
                 "input": input_data,
-                "tool_name_display": tool_name_display,
+                "tool_meta": tool_meta or {},
             }
             await get_event_bus().publish(
                 f"chat:{thread_id}:events",

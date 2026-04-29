@@ -34,6 +34,7 @@ class EvoContext(DynamicBaseModel):
     working_directory: str | None = None
     command_id: int | None = None   # For EvoCloud command tracing
     trace_id: str | None = None     # Distributed trace ID
+    run_id: str | None = None       # Current execution run ID
 
     # Feature Flags / Runtime Config
     is_dry_run: bool = False

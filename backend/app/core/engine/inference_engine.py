@@ -150,6 +150,20 @@ class InferenceEngine:
                     stages={"window", "repair"},
                 )
                 if trim_result.trigger != TrimTrigger.NONE:
+                    # Trigger PRE_COMPACT hook BEFORE applying the trim to save state
+                    from app.core.engine.hooks import HookContext, HookEvent, hook_system
+                    await hook_system.trigger(
+                        HookEvent.PRE_COMPACT,
+                        HookContext(
+                            thread_id=thread_id,
+                            run_id=run_id,
+                            messages=loop_messages,
+                            project_id=config.get("configurable", {}).get("project_id"),
+                            user_id=config.get("configurable", {}).get("user_id"),
+                            compact_trigger=trim_result.trigger.name.lower(),
+                        )
+                    )
+
                     loop_messages = trim_result.messages
                     logger.info(
                         f"[{name}] ✂️ Loop trim: {trim_result.before_count} -> {trim_result.after_count} msgs, "
@@ -229,10 +243,15 @@ class InferenceEngine:
 
             if remaining_tool_calls and tool_executor is not None:
                 logger.info(f"[{name}] 🛠️ Executing {len(remaining_tool_calls)} tool calls via tool_executor")
-                tool_results = await tool_executor.execute_batch(remaining_tool_calls, local_tool_history)
-                logger.info(f"[{name}] 📦 tool_results returned: {len(tool_results)} items, types={[type(m).__name__ for m in tool_results]}")
+                tool_results, batch_signal = await tool_executor.execute_batch(remaining_tool_calls, local_tool_history)
+                
+                if batch_signal and pending_signal is None:
+                    logger.info(f"[{name}] ⚡ Post-execution signal detected: {type(batch_signal).__name__}")
+                    pending_signal = batch_signal
+
+                logger.info(f"[{name}] 📦 tool_results returned: {len(tool_results)} items")
                 for tool_msg in tool_results:
-                    logger.info(f"[{name}] Result ({tool_msg.name}): {str(tool_msg.content)}")
+                    logger.info(f"[{name}] Result ({tool_msg.name}): {str(tool_msg.content)[:200]}...")
                     loop_messages.append(tool_msg)
                     new_messages.append(tool_msg)
             else:
@@ -327,14 +346,24 @@ class InferenceEngine:
             intercepted_tools = set((interceptors or {}).keys())
             remaining = [tc for tc in response.tool_calls if tc["name"] not in intercepted_tools]
             if remaining:
-                tool_results = await tool_executor.execute_batch(remaining, local_tool_history)
+                tool_results, batch_signal = await tool_executor.execute_batch(remaining, local_tool_history)
                 for tool_msg in tool_results:
-                    logger.info(f"[{name}] Result ({tool_msg.name}): {str(tool_msg.content)}")
+                    logger.info(f"[{name}] Result ({tool_msg.name}): {str(tool_msg.content)[:200]}...")
                     new_messages.append(tool_msg)
+                if batch_signal:
+                    logger.info(f"[{name}] ⚡ Post-execution signal detected in single-shot: {type(batch_signal).__name__}")
+                    # Note: We include signal in result for callers who need it
+                    # although single-shot callers (like Workers) might not expect it yet.
+                    pass
+            else:
+                batch_signal = None
+        else:
+            batch_signal = None
 
         return {
             "messages": new_messages,
             "tool_history": local_tool_history,
             "last_response": response,
             "is_truncated": False,
+            "signal": batch_signal,
         }

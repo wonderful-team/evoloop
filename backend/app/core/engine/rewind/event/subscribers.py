@@ -302,14 +302,21 @@ class MessageRewind:
         async with session_scope() as session:
             if target_message_id:
                 try:
-                    msg_id_int = int(target_message_id)
-                    target_msg = await session.get(Message, msg_id_int)
+                    t_seq = target_message_id
+                    if t_seq.startswith("msg-"):
+                        parts = t_seq.split("-")
+                        if len(parts) >= 3:
+                            t_seq = parts[-1]
+                    
+                    target_seq_int = int(t_seq)
+                    stmt = select(Message).where(Message.thread_id == thread_id, Message.sequence_number == target_seq_int)
+                    result = await session.execute(stmt)
+                    target_msg = result.scalar_one_or_none()
 
                     if not target_msg:
                         raise MessageNotFoundError(f"Target message {target_message_id} not found", thread_id=thread_id)
 
-                    min_id_to_delete = target_msg.id
-
+                    min_id_to_delete = target_msg.id  # Internal DB ID used for later range deletion
                 except (ValueError, TypeError):
                     logger.error(f"[MessageRewind] Invalid target message ID: {target_message_id}")
                     return []
@@ -639,11 +646,16 @@ class StateRewind:
             )
 
             if target_message_id:
-                target_id = int(target_message_id)
+                t_seq = target_message_id
+                if t_seq.startswith("msg-"):
+                    parts = t_seq.split("-")
+                    if len(parts) >= 3:
+                        t_seq = parts[-1]
+                target_seq = int(t_seq)
                 if include_target:
-                    stmt = stmt.where(Message.id <= target_id)
+                    stmt = stmt.where(Message.sequence_number <= target_seq)
                 else:
-                    stmt = stmt.where(Message.id < target_id)
+                    stmt = stmt.where(Message.sequence_number < target_seq)
 
             result = await session.execute(stmt)
             messages = result.scalars().all()

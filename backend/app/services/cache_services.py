@@ -129,6 +129,7 @@ class ActivityStep(DynamicBaseModel):
     """A single step in the agent activity."""
     id: int
     name: str
+    tool: str | None = None          # Original tool identifier (e.g. "search_web")
     status: str
     type: str = "node"
     parent_id: int | None = None
@@ -137,7 +138,6 @@ class ActivityStep(DynamicBaseModel):
     time: str = "0s"
     input: dict | None = None
     details: str | None = None
-    tool_name_display: str | None = None
 
 
 class ActivityArtifact(DynamicBaseModel):
@@ -380,7 +380,11 @@ class ActivityStateService:
             activity.human_request_json = None
         return True
 
-    async def add_step(self, thread_id: str, name: str, step_type: str = "node", parent_id: int = None, input_data: dict = None, tool_name_display: str = None) -> int | None:
+    async def add_step(
+        self, thread_id: str, name: str, step_type: str = "node",
+        parent_id: int = None, input_data: dict = None,
+        tool: str = None, tool_meta: dict = None,
+    ) -> int | None:
         """Add a new step to the activity."""
         import time
         from app.models import AgentActivity
@@ -398,13 +402,13 @@ class ActivityStateService:
             new_step = ActivityStep(
                 id=step_id,
                 name=name,
+                tool=tool,
                 status="running",
                 type=step_type,
                 parent_id=parent_id,
                 start_time=time.time(),
                 time="0s",
                 input=input_data,
-                tool_name_display=tool_name_display,
             )
             steps.append(new_step.model_dump())
             activity.steps_json = json.dumps(steps)

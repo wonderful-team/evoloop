@@ -53,9 +53,12 @@ class MessageFolder:
         Used by the real-time SSE stream to fold tool messages on the fly.
         """
         tool_id = tool_event.get('tool_call_id')
-        tool_name = tool_event.get('tool_name') or 'unknown'
-        tool_name_display = tool_event.get('tool_name_display') or None
-        
+        # tool_name may be stored in metadata for MessageBlock-format events
+        tool_name = (
+            tool_event.get('tool_name')
+            or tool_event.get('metadata', {}).get('tool_name')
+            or 'unknown'
+        )
         # Find matching tool call in the parent AI message
         tool_calls = ai_message.get('tool_calls', []) or []
         matched_call = next((tc for tc in tool_calls if tc.get('id') == tool_id), None)
@@ -66,7 +69,7 @@ class MessageFolder:
             id=tool_event.get('id') or f"step-{time.monotonic()}",
             tool=tool_name,
             tool_name=tool_name,
-            tool_name_display=tool_name_display,
+
             input=tool_input,
             output=tool_event.get('content', ''),
             status='success',
@@ -84,23 +87,6 @@ class MessageFolder:
                 ai_message['steps'].append(step.model_dump())
         else:
             ai_message['steps'].append(step.model_dump())
-
-    @staticmethod
-    def _build_tool_name_display(tool_name: str, args: dict | None, lang: str = "zh") -> str | None:
-        """
-        使用与 TransparentCallback 相同的 i18n 模板生成带参数的友好名称。
-        例如: read_file + {path: '/foo.py'} → "正在读取 '/foo.py'"
-        """
-        if not args:
-            return None
-        metadata = get_tool_metadata(tool_name) or {}
-        summary_template = metadata.get("summary_template")
-        if not summary_template:
-            return None
-        try:
-            return i18n.get(summary_template, **args)
-        except (KeyError, TypeError):
-            return None
 
     @staticmethod
     def to_tool_step(
@@ -124,19 +110,31 @@ class MessageFolder:
         
         # 通用友好名称 (e.g. "正在读取文件")
         friendly_name = get_tool_friendly_name(tool_name_raw, lang=lang) or tool_name_raw
-        
-        # 带参数的显示名 (e.g. "正在读取 '/path/to/file'")
-        tool_name_display = MessageFolder._build_tool_name_display(tool_name_raw, args, lang)
+
+        # Build tool_meta for backend-driven rendering
+        metadata = get_tool_metadata(tool_name_raw) or {}
+        summary_template = metadata.get("summary_template")
+        tool_name_display = None
+        if summary_template and args:
+            try:
+                tool_name_display = i18n.get(summary_template, **args)
+            except (KeyError, TypeError):
+                pass
+        tool_meta = {
+            "name_map": getattr(metadata, "name_map", {}),
+            "affected_path_keys": getattr(metadata, "affected_path_keys", []),
+            "display_name": tool_name_display,
+        }
 
         return ToolStep(
             id=tool_id,
             tool=tool_name_raw,
             tool_name=friendly_name,
-            tool_name_display=tool_name_display,
             input=args,
             output=MessageFolder.get_message_text(tool_msg),
             status="success",
-            tool_call_id=tool_msg.tool_call_id
+            tool_call_id=tool_msg.tool_call_id,
+            tool_meta=tool_meta,
         )
 
     @classmethod

@@ -35,13 +35,14 @@ class ToolBlock(DynamicBaseModel):
     tool_call_id: str
     tool: str                                    # 原始标识符，如 "read_file"
     tool_name: str | None = None                 # 友好名称，如 "读取文件"
-    tool_name_display: str | None = None         # 带参数的显示名，如 "正在读取 '/foo.py'"
+
     input: dict[str, Any] = Field(default_factory=dict)
     output: str = ""
     status: Literal["pending", "running", "success", "error"] = "pending"
     duration_ms: int | None = None
     started_at: datetime | None = None
     finished_at: datetime | None = None
+    tool_meta: dict[str, Any] | None = None
 
 
 class MessageBlock(DynamicBaseModel):
@@ -160,6 +161,7 @@ class MessageHandlerResult(DynamicBaseModel):
     persisted: bool
     streamed: bool
     message_id: str | None = None
+    sequence_number: int = 0
     reason: str | None = None
 
 

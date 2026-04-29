@@ -118,6 +118,7 @@ class MessageHandler:
         return MessageHandlerResult(
             category=category.value, persisted=persist_data.should_persist,
             streamed=stream_data.should_stream, message_id=message_id,
+            sequence_number=seq,
         )
 
     async def handle_tool_output(
@@ -166,6 +167,7 @@ class MessageHandler:
         return MessageHandlerResult(
             category=category.value, persisted=persist_data.should_persist,
             streamed=stream_data.should_stream, message_id=message_id,
+            sequence_number=seq,
         )
 
     async def handle_user_message(self, content: str, metadata: dict | None = None) -> MessageHandlerResult:
@@ -180,7 +182,10 @@ class MessageHandler:
             role="human", content=content, category=category.value,
             sequence_number=seq, channels={"sse"}
         )
-        return MessageHandlerResult(category=category.value, persisted=True, streamed=True, message_id=message_id)
+        return MessageHandlerResult(
+            category=category.value, persisted=True, streamed=True, 
+            message_id=message_id, sequence_number=seq
+        )
 
     async def handle_hitl_request(
         self,

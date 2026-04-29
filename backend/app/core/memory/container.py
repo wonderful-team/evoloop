@@ -64,6 +64,7 @@ class MemoryContainer:
 
         # Initialize storage backend
         await self._init_storage()
+        await self.storage.initialize()
 
         # Initialize short-term memory
         await self._init_short_term()

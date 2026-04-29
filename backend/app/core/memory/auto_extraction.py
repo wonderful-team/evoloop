@@ -97,6 +97,8 @@ class AutoMemoryExtractor:
         project_id: int | None = None,
         user_id: str | None = None,
         summary: str | None = None,
+        run_id: str | None = None,
+        force: bool = False
     ) -> list[MemoryEntry] | None:
         """
         Conditionally trigger memory extraction.
@@ -110,6 +112,7 @@ class AutoMemoryExtractor:
             project_id: Associated project ID
             user_id: User ID
             summary: Optional conversation summary
+            force: Whether to bypass gating logic
             
         Returns:
             List of extracted memories, or None if skipped
@@ -122,7 +125,7 @@ class AutoMemoryExtractor:
 
         async with lock:
             return await self._extract_with_gates(
-                thread_id, messages, project_id, user_id, summary
+                thread_id, messages, project_id, user_id, summary, run_id, force
             )
 
     async def _extract_with_gates(
@@ -132,11 +135,13 @@ class AutoMemoryExtractor:
         project_id: int | None,
         user_id: str | None,
         summary: str | None,
+        run_id: str | None = None,
+        force: bool = False
     ) -> list[MemoryEntry] | None:
         """Run extraction with all gating logic."""
 
         # Gate 1: Minimum message count
-        if len(messages) < self.min_messages:
+        if not force and len(messages) < self.min_messages:
             logger.debug(f"[AutoExtract] Skip: only {len(messages)} messages (< {self.min_messages})")
             return None
 
@@ -144,14 +149,23 @@ class AutoMemoryExtractor:
         turns_count = self._turns_since_extraction.get(thread_id, 0) + 1
         self._turns_since_extraction[thread_id] = turns_count
 
-        if turns_count < self.extraction_interval:
+        if not force and turns_count < self.extraction_interval:
             logger.debug(f"[AutoExtract] Skip: throttled ({turns_count}/{self.extraction_interval})")
             return None
 
         self._turns_since_extraction[thread_id] = 0
 
+        # Discover terms from raw messages regardless of extraction gates
+        if self._term_bank and project_id:
+            try:
+                combined_text = "\n".join([str(m.content) for m in messages])
+                # We use a neutral confidence for raw interaction discovery
+                await self._term_bank.discover(combined_text, project_id=project_id, memory_confidence=0.5)
+            except Exception as e:
+                logger.debug(f"[AutoExtract] Raw message discovery failed: {e}")
+
         # Gate 3: Skip if main agent already wrote memories this turn
-        if self._has_memory_writes(messages, thread_id):
+        if not force and self._has_memory_writes(messages, thread_id):
             logger.info("[AutoExtract] Skip: main agent already wrote memories")
             return None
 
@@ -163,18 +177,67 @@ class AutoMemoryExtractor:
         logger.info(f"[AutoExtract] Starting extraction for thread {thread_id}")
 
         try:
+            # Standardize source_message_id using msg-{thread_id}-{sequence_number}
+            # This is critical for atomic cleanup during session rewinds.
+            last_msg = messages[-1]
+            last_msg_id = None
+            seq = None
+            
+            # 1. Try to get sequence_number from metadata
+            if hasattr(last_msg, 'additional_kwargs') and last_msg.additional_kwargs:
+                seq = last_msg.additional_kwargs.get("sequence_number")
+            
+            # 2. Fallback: If sequence is missing but we have a standardized ID string, parse it
+            # This handles cases where LangChain ID was updated but metadata was lost.
+            if seq is None and hasattr(last_msg, 'id') and last_msg.id:
+                msg_id_str = str(last_msg.id)
+                if msg_id_str.startswith("msg-"):
+                    parts = msg_id_str.split("-")
+                    if len(parts) >= 3:
+                        try:
+                            seq = int(parts[-1])
+                        except (ValueError, TypeError):
+                            pass
+
+            # 3. Final Fallback: If still missing but we have a UUID, query DB
+            # This handles cases where LangGraph state lost all in-memory updates.
+            if seq is None and hasattr(last_msg, 'id') and last_msg.id:
+                msg_uuid = str(last_msg.id)
+                try:
+                    from app.infrastructure.database.sql.database import session_scope
+                    from app.models import Message
+                    from sqlalchemy import select
+                    async with session_scope() as session:
+                        stmt = select(Message.sequence_number).where(Message.thread_id == thread_id)
+                        if msg_uuid.isdigit():
+                            stmt = stmt.where(Message.id == int(msg_uuid))
+                        
+                        result = await session.execute(stmt.order_by(Message.sequence_number.desc()).limit(1))
+                        db_seq = result.scalar_one_or_none()
+                        if db_seq is not None:
+                            seq = db_seq
+                            logger.debug(f"[AutoExtract] Resolved sequence {seq} from DB for message {msg_uuid}")
+                except Exception as db_err:
+                    logger.debug(f"[AutoExtract] DB sequence lookup failed: {db_err}")
+
+            if seq is not None:
+                last_msg_id = f"msg-{thread_id}-{seq}"
+            elif hasattr(last_msg, 'id') and last_msg.id:
+                # Last resort fallback to raw ID
+                last_msg_id = str(last_msg.id)
+            
+            if last_msg_id:
+                self._last_message_uuid[thread_id] = last_msg_id
+
             extracted = await self._run_extraction(
                 thread_id=thread_id,
                 messages=messages,
                 project_id=project_id,
                 user_id=user_id,
                 summary=summary,
+                source_message_id=last_msg_id,
+                run_id=run_id
             )
-
-            # Update cursor position
-            last_msg = messages[-1]
-            if hasattr(last_msg, 'id') and last_msg.id:
-                self._last_message_uuid[thread_id] = str(last_msg.id)
 
             return extracted
 
@@ -233,13 +296,15 @@ class AutoMemoryExtractor:
         project_id: int | None = None,
         user_id: str | None = None,
         summary: str | None = None,
+        source_message_id: str | None = None,
+        run_id: str | None = None,
     ) -> list[MemoryEntry]:
         """
         Run extraction logic using a forked agent pattern.
         """
         # Gather multi-source context
         multi_source_context = await self._gather_multi_source_context(project_id)
-        
+        logger.info(f"[AutoExtract] Multi-source context length: {len(multi_source_context)}")
         # Build extraction prompt using standardized builder
         from app.core.memory.prompts import MemoryExtractionPromptBuilder
 
@@ -279,11 +344,19 @@ class AutoMemoryExtractor:
                 messages=extraction_messages,
                 purpose="memory_extraction",
                 model_name=model_name,
+                max_tokens=4000,
             )
 
             # Parse extracted memories
             content = response.content
-            extracted = await self._parse_extraction_response(content, project_id, user_id)
+            logger.debug(f"[AutoExtract] Raw LLM response: {content[:500]}...")
+            extracted = await self._parse_extraction_response(
+                content, 
+                project_id, 
+                user_id,
+                source_message_id=source_message_id,
+                run_id=run_id
+            )
 
             # Save extracted memories
             saved_count = 0
@@ -320,17 +393,33 @@ class AutoMemoryExtractor:
             elif isinstance(msg, ToolMessage):
                 role = f"Tool ({getattr(msg, 'name', 'output')})"
 
-            content_raw = str(msg.content)
+            content_raw = ""
+            if isinstance(msg.content, str):
+                content_raw = msg.content
+            elif isinstance(msg.content, list):
+                text_parts = []
+                for block in msg.content:
+                    if isinstance(block, dict) and block.get("type") == "text":
+                        text_parts.append(block.get("text", ""))
+                    elif isinstance(block, str):
+                        text_parts.append(block)
+                content_raw = " ".join(text_parts)
+            else:
+                content_raw = str(msg.content)
             
-            # Smart Truncation: Head (300) + Tail (200) for very long messages
+            # Smart Truncation: Head (400) + Tail (300) for very long messages
             if len(content_raw) > 800:
                 content = content_raw[:400] + "\n... [TRUNCATED] ...\n" + content_raw[-300:]
             else:
                 content = content_raw
 
-            lines.append(f"{role}: {content}")
+            msg_line = f"{role}: {content}"
+            logger.info(f"[AutoExtract] Message {len(lines)}: {msg_line[:100]}...")
+            lines.append(msg_line)
 
-        return "\n\n".join(lines)
+        formatted = "\n\n".join(lines)
+        logger.info(f"[AutoExtract] Formatted {len(lines)} messages for LLM (len: {len(formatted)})")
+        return formatted
 
     async def _get_existing_memory_manifest(self) -> str:
         """Get a summary of existing memories to avoid duplicates."""
@@ -482,6 +571,8 @@ class AutoMemoryExtractor:
         response: str,
         project_id: int | None,
         user_id: str | None,
+        source_message_id: str | None = None,
+        run_id: str | None = None,
     ) -> list[MemoryEntry]:
         """Parse LLM extraction response into memory entries."""
         entries = []
@@ -489,6 +580,11 @@ class AutoMemoryExtractor:
 
         # Try to extract JSON from response
         try:
+            response = response.strip()
+            if not response:
+                logger.info("[AutoExtract] Empty response from LLM, assuming no extractions.")
+                return []
+
             # Find JSON block
             json_match = re.search(r'```(?:json)?\s*(\[.*?\])\s*```', response, re.DOTALL)
             if json_match:
@@ -569,6 +665,7 @@ class AutoMemoryExtractor:
                 utility_score = float(item.get("utility_score", 0.0))
                 rationale = item.get("rationale", "")
 
+                logger.info(f"[AutoExtract] Creating memory '{title}' with source_msg={source_message_id}, run_id={run_id}")
                 entry = MemoryEntry(
                     id=f"auto_{mem_type.value}_{uuid.uuid4().hex[:8]}",
                     type=mem_type,
@@ -581,6 +678,8 @@ class AutoMemoryExtractor:
                     description=content[:200],
                     project_id=project_id,
                     user_id=user_id,
+                    source_message_id=source_message_id,
+                    run_id=run_id,
                     tags=["auto_extracted"],
                     source="auto_extraction",
                     confidence=confidence,
@@ -632,6 +731,8 @@ async def trigger_auto_extraction(
     messages: list[BaseMessage],
     project_id: int | None = None,
     user_id: str | None = None,
+    run_id: str | None = None,
+    force: bool = False,
 ) -> list[MemoryEntry] | None:
     """
     Convenience function to trigger auto-extraction.
@@ -646,4 +747,6 @@ async def trigger_auto_extraction(
         messages=messages,
         project_id=project_id,
         user_id=user_id,
+        run_id=run_id,
+        force=force
     )

@@ -217,11 +217,11 @@ async def get_conversation_messages(
                     "tool_call_id": step.tool_call_id or step.id,
                     "tool": step.tool,
                     "tool_name": step.tool_name,
-                    "tool_name_display": step.tool_name_display,
                     "input": step.input,
                     "output": step.output,
                     "status": step.status,
                     "duration_ms": int(step.duration * 1000) if step.duration else None,
+                    "tool_meta": step.tool_meta,
                 }
                 for step in (f.steps or [])
             ] if f.steps else None

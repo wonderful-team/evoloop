@@ -81,6 +81,13 @@ class AgentToolExecutor:
 
         logger.info(f"[{self.name}] 🛠️ Call: {tool_name} | Args: {json.dumps(tool_args)}")
 
+        # Inject run context into EvoContext if available
+        from app.core.context.manager import ContextManager
+        ctx = ContextManager.current()
+        if run_id and ctx.run_id != run_id:
+            ctx.run_id = run_id
+            logger.debug(f"[{self.name}] Injected run_id={run_id} into context")
+
         tool = self.tool_map.get(tool_name)
         if not tool:
             msg = self._create_tool_message(
@@ -261,23 +268,35 @@ class AgentToolExecutor:
         Returns:
             List of ToolMessage results
         """
-        async def _run_one(tc: dict) -> ToolMessage:
+        async def _run_one(tc: dict) -> tuple[ToolMessage, Any]:
             result = await self.execute_tool(
                 tool_name=tc["name"],
                 tool_args=tc["args"],
                 tool_id=tc["id"],
                 local_tool_history=local_tool_history,
             )
-            return result.message
+            return result.message, result.raw_result
+
+        from app.core.engine.signals import signal_manager
+        pending_signal = None
+        results = []
 
         if parallel:
-            results = await asyncio.gather(*[_run_one(tc) for tc in tool_calls])
-            return list(results)
+            batch_results = await asyncio.gather(*[_run_one(tc) for tc in tool_calls])
+            for msg, raw in batch_results:
+                results.append(msg)
+                # Detect signal from raw result
+                if not pending_signal:
+                    tool_name = next(tc["name"] for tc in tool_calls if tc["id"] == msg.tool_call_id)
+                    pending_signal = signal_manager.detect_post_execution_signal(tool_name, raw)
         else:
-            results = []
             for tc in tool_calls:
-                results.append(await _run_one(tc))
-            return results
+                msg, raw = await _run_one(tc)
+                results.append(msg)
+                if not pending_signal:
+                    pending_signal = signal_manager.detect_post_execution_signal(tc["name"], raw)
+
+        return results, pending_signal
 
     def _create_tool_message(
         self,

@@ -112,7 +112,7 @@ class InternalLLMService:
         # 记录内部调用（仅用于调试）
         logger.debug(
             f"[InternalLLM] Calling LLM for purpose: {purpose}, "
-            f"messages: {len(messages)}, temp: {temperature}"
+            f"messages: {len(messages)}, temp: {temperature}, max_tokens: {max_tokens}"
         )
 
         try:

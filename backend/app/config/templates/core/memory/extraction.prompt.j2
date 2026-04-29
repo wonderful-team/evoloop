@@ -18,22 +18,22 @@ Guidance the user has given you about how to approach work.
 - IMPORTANT: Include WHY (reason) so you can judge edge cases later
 
 ### 3. PROJECT (prefer team)
-Information about ongoing work, goals, bugs, or incidents.
-- Examples: "Merge freeze starts Thursday", "Auth rewrite is for compliance"
-- When to save: When you learn who is doing what, why, or by when
+Information about ongoing work, goals, strategic decisions, bugs, or architectural baselines.
+- Examples: "Merge freeze starts Thursday", "Auth rewrite is for compliance", "Strategic Decision: Use gRPC for all internal RPC"
+- When to save: When you learn who is doing what, why, or by when. Also save critical architectural mandates or constraints dictated by the user.
 - Convert relative dates to absolute (e.g., "Thursday" → "2026-04-15")
 
 ### 4. REFERENCE (usually team)
-Pointers to external systems and resources.
-- Examples: "Bugs tracked in Linear project INGEST"
-- When to save: When you learn about external dashboards, docs, channels
+Pointers to external systems, resources, and persistent configuration keys.
+- Examples: "Bugs tracked in Linear project INGEST", "Deployment Key: KEY-12345"
+- When to save: When you learn about external dashboards, docs, channels, or long-term secrets/keys needed for operations.
 
 ## What NOT to Save
 
-- Code patterns or architecture (derivable from codebase)
+- Transient code implementation details (derivable from current file state)
 - Git history (use git commands instead)
-- Temporary task details (in-progress work)
-- Anything already well-documented in code comments
+- Minor temporary task details (in-progress work that will be finished in minutes)
+- Anything already well-documented in existing persistent memories
 
 ## Existing Memories
 

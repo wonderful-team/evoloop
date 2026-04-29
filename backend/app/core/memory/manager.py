@@ -384,8 +384,19 @@ class MemoryManager:
     # ========================================================================
 
     async def save_memory(self, entry: MemoryEntry) -> None:
-        """Save a memory entry."""
+        """Save a memory entry and discover potential domain terms."""
         await self._storage.save(entry)
+        
+        # Trigger term discovery if bank is available
+        if self.extraction._term_bank and entry.content and entry.project_id:
+            try:
+                await self.extraction._term_bank.discover(
+                    content=entry.content,
+                    project_id=entry.project_id,
+                    memory_confidence=entry.confidence
+                )
+            except Exception as e:
+                logger.warning(f"Failed to discover terms from memory {entry.id}: {e}")
 
     async def delete_memory(self, entry_id: str) -> bool:
         """Permanently delete a memory entry by ID."""

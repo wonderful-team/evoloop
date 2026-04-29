@@ -56,7 +56,9 @@ class MemoryLifecycleHandler:
                         thread_id=data.thread_id,
                         messages=data.messages,
                         project_id=data.project_id,
-                        user_id=data.user_id
+                        user_id=data.user_id,
+                        run_id=data.run_id,
+                        force=True
                     )
                 finally:
                     ContextManager.reset(token)
@@ -104,10 +106,8 @@ class MemoryRewind:
     async def _handle_rewind_requested(self, event: RewindRequestedEvent) -> None:
         """
         Handle main rewind event - prepare memory cleanup.
-        
-        This extracts message IDs and run IDs from the rewind request
-        and publishes a MEMORY_CLEANUP event.
         """
+        logger.info(f"[MemoryRewind] 🔄 Rewind requested for thread {event.thread_id}, affected msgs: {len(event.affected_message_ids)}")
         try:
             # Get message IDs to clean up
             # Prefer pre-computed affected_message_ids to avoid execution-order
@@ -118,26 +118,21 @@ class MemoryRewind:
                 include_target=event.include_target
             )
 
-            if message_ids:
+            if message_ids or event.affected_run_ids:
+                logger.info(f"[MemoryRewind] Identified {len(message_ids)} affected messages and {len(event.affected_run_ids)} run_ids for thread {event.thread_id}")
+                
                 # Perform deletion directly to capture count for aggregation
                 count = await self._delete_memories(
                     source_message_ids=message_ids,
-                    run_ids=[]
+                    run_ids=event.affected_run_ids
                 )
                 self._deleted_count = count
 
                 # Report back to the main event
                 event.results["memories"] = count
-
-                # Still publish specific cleanup event for other potential listeners
-                from app.core.memory.event.publishers import publish_memory_cleanup
-                await publish_memory_cleanup(
-                    thread_id=event.thread_id,
-                    source_message_ids=message_ids,
-                )
-                logger.info(f"[MemoryRewind] Deleted {count} memories for thread {event.thread_id}")
+                logger.info(f"[MemoryRewind] Successfully purged {count} memories for thread {event.thread_id}")
             else:
-                logger.debug(f"[MemoryRewind] No memories found to delete for thread {event.thread_id}")
+                logger.debug(f"[MemoryRewind] No affected messages identified for thread {event.thread_id}")
 
         except Exception as e:
             error_msg = f"Memory cleanup failed: {e}"
@@ -145,23 +140,6 @@ class MemoryRewind:
             event.errors.append(error_msg)
             event.success = False
 
-    @event_subscribe(RewindEventType.MEMORY_CLEANUP)
-    async def _handle_memory_cleanup(self, event: MemoryCleanupEvent) -> None:
-        """
-        Handle specific memory cleanup event.
-        
-        This performs the actual memory deletion.
-        """
-        try:
-            count = await self._delete_memories(
-                source_message_ids=event.source_message_ids,
-                run_ids=event.run_ids
-            )
-            self._deleted_count = count
-            logger.info(f"[MemoryRewind] Deleted {count} memories")
-        except Exception as e:
-            logger.error(f"[MemoryRewind] Memory cleanup failed: {e}")
-            raise
 
     async def _find_message_ids(
         self,
@@ -186,18 +164,24 @@ class MemoryRewind:
         from app.models import Message
 
         async with session_scope() as session:
-            stmt = select(Message.id).where(Message.thread_id == thread_id)
+            # Use sequence_number for standardized ID construction
+            stmt = select(Message.sequence_number).where(Message.thread_id == thread_id)
 
             if target_message_id:
-                target_id = int(target_message_id)
+                t_seq = target_message_id
+                if t_seq.startswith("msg-"):
+                    parts = t_seq.split("-")
+                    if len(parts) >= 3:
+                        t_seq = parts[-1]
+                target_seq = int(t_seq)
                 if include_target:
-                    stmt = stmt.where(Message.id >= target_id)
+                    stmt = stmt.where(Message.sequence_number >= target_seq)
                 else:
-                    stmt = stmt.where(Message.id > target_id)
+                    stmt = stmt.where(Message.sequence_number > target_seq)
 
             result = await session.execute(stmt)
-            # Convert to strings for consistency
-            return [str(row[0]) for row in result.all()]
+            # Standardized IDs: msg-{thread_id}-{sequence_number}
+            return [f"msg-{thread_id}-{row.sequence_number}" for row in result.all()]
 
     async def _delete_memories(
         self,
@@ -229,7 +213,6 @@ class MemoryRewind:
             # Delete by source message ID
             for msg_id in source_message_ids:
                 try:
-                    # Use structured filters for precise metadata matching
                     results = await memory_manager.search_memories(
                         query="",
                         filters={"source_message_id": msg_id},
@@ -243,8 +226,19 @@ class MemoryRewind:
                 except Exception as e:
                     logger.warning(f"[MemoryRewind] Failed to delete memories for msg {msg_id}: {e}")
 
-            # TODO: Delete by run_id if memory system supports it
-            # This would require the memory system to index by run_id
+            # Delete by run_id
+            for run_id in run_ids:
+                try:
+                    results = await memory_manager.search_memories(
+                        query="",
+                        filters={"run_id": run_id},
+                        limit=100
+                    )
+                    for mem in results:
+                        if await memory_manager.delete_memory(mem.id):
+                            count += 1
+                except Exception as e:
+                    logger.warning(f"[MemoryRewind] Failed to delete memories for run {run_id}: {e}")
 
         except Exception as e:
             logger.error(f"[MemoryRewind] Memory manager initialization failed: {e}")

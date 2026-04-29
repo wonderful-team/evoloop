@@ -67,6 +67,9 @@ class MemoryConfig(DynamicBaseModel):
     default_search_limit: int = 10
     """Default number of results to return from search."""
 
+    max_selections: int = 5
+    """Maximum number of memories to select via LLM ranking."""
+
     min_relevance_score: float = 0.7
     """Minimum relevance score for search results."""
 
