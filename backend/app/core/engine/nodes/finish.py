@@ -164,12 +164,11 @@ class FinishNode(BaseNode):
             blackboard.metadata.final_outcome = final_outcome
             logger.info(f"[Finish] 🎯 Outcome: {final_outcome}")
 
-        # Apply summary for non-comprehensive tiers
-        if audit_tier != "comprehensive":
+        # Apply summary ONLY for comprehensive tiers to avoid technical log pollution
+        if audit_tier == "comprehensive":
             for i in range(len(messages) - 1, -1, -1):
                 m = messages[i]
                 if isinstance(m, AIMessage) and m.content:
-                    # Create a new message to avoid mutating the original state.messages
                     messages[i] = AIMessage(
                         content=summary,
                         id=m.id,
@@ -177,6 +176,8 @@ class FinishNode(BaseNode):
                         metadata=m.additional_kwargs,
                     )
                     break
+        else:
+            logger.debug(f"[Finish] Silent audit (tier={audit_tier}) - not updating message content.")
 
         # Persist audit metadata
         blackboard.metadata.audit_tier = audit_tier

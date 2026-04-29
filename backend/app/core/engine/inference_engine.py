@@ -167,6 +167,17 @@ class InferenceEngine:
                 response = await self._stream_llm_response(llm_with_tools, loop_messages, config)
                 latency = time.perf_counter() - start_perf
 
+                # [DIAGNOSTIC] Deep inspection of raw response
+                logger.debug(
+                    f"[{name}] 🔍 RAW RESPONSE DIAGNOSTIC:\n"
+                    f"  - Content length: {len(response.content)}\n"
+                    f"  - Tool Calls: {getattr(response, 'tool_calls', [])}\n"
+                    f"  - Invalid Tool Calls: {getattr(response, 'invalid_tool_calls', [])}\n"
+                    f"  - Additional Kwargs: {list(response.additional_kwargs.keys())}\n"
+                    f"  - Finish Reason: {response.response_metadata.get('finish_reason')}\n"
+                    f"  - Model Metadata: {response.response_metadata}\n"
+                )
+
                 from app.core.engine.telemetry_recorder import record_inference_telemetry
                 record_inference_telemetry(
                     name=name, turn_id=i, system_prompt=system_prompt,

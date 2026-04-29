@@ -144,9 +144,10 @@ class SupervisorNode(BaseAgentNode):
             ai_content = str(last_msg.content).strip()
 
         if ai_content:
+            # P1 Improvement: Direct response is now allowed. Route to FINISH.
             return StateUpdate(
                 messages=new_messages,
-                next_node=RoutingTarget.CHAT,
+                next_node=RoutingTarget.FINISH,
                 blackboard=blackboard,
                 iteration_count=new_iter_count,
             )

@@ -43,7 +43,11 @@ def build_subtask_sends(state: AgentState, blackboard: BlackboardState) -> list[
         scoped_thread_id = f"{parent_thread_id}:sub:{subtask_id}"
 
         skill_hint = subtask.skill_hint or getattr(spawn_plan, "suggested_skill", None)
-        system_instructions = "Analyze the mission goal and execute the necessary tools effectively."
+        # P2 Improvement: Inject specific subtask description into system instructions
+        system_instructions = f"Mission: {subtask.intent or 'Execute task'}.\n"
+        if subtask.description:
+            system_instructions += f"Details: {subtask.description}\n"
+        system_instructions += "Analyze the goal and execute the necessary tools effectively."
         if skill_hint:
             system_instructions += f" Use learned skill: {skill_hint}."
 

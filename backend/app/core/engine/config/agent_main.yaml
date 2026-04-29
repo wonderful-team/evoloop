@@ -9,10 +9,13 @@ nodes:
     path: "app.core.engine.nodes.supervisor.SupervisorNode"
     tools:
       - "route_to"
-      # - "update_blackboard"
       - "manage_session_metadata"
       - "decompose_task"
       - "search_skills"
+      - "search_history"
+      - "read_file"
+      - "list_directory"
+      - "search_files"
       - "create_plan"
       - "ask_confirm"
       - "ask_human"
@@ -89,10 +92,6 @@ nodes:
     tools:
       - "read_file"
       - "list_directory"
-      - "create_todo"
-      - "list_todos"
-      - "complete_todo"
-      - "cancel_todo"
       - "synthesize_skill"
 
   - id: "chat"
