@@ -52,6 +52,12 @@ For every candidate memory, assign a **Tier** and a **Utility Score (0.0 - 1.0)*
 ## PENDING TODOs:
 {{ pending_todos }}
 
+{% if domain_terms %}
+## PROJECT-SPECIFIC TERMINOLOGY
+The following terms are commonly used in this project. Use them as signals for domain-specific knowledge:
+{% for term in domain_terms %}- {{ term }}{% endfor %}
+{% endif %}
+
 ## RECENT CONVERSATION:
 {{ messages_text }}
 

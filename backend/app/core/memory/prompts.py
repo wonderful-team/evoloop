@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 class MemoryExtractionPromptBuilder:
     """Builder for knowledge extraction prompts."""
-    
+
     def __init__(
         self,
         readme_summary: str = "",
@@ -22,7 +22,8 @@ class MemoryExtractionPromptBuilder:
         existing_memories: str = "",
         multi_source_context: str = "",
         messages_text: str = "",
-        summary: Optional[str] = None
+        summary: Optional[str] = None,
+        domain_terms: list[str] | None = None,
     ):
         self.readme_summary = readme_summary
         self.pending_todos = pending_todos
@@ -30,21 +31,23 @@ class MemoryExtractionPromptBuilder:
         self.multi_source_context = multi_source_context
         self.messages_text = messages_text
         self.summary = summary
+        self.domain_terms = domain_terms or []
 
     async def build(self) -> List[dict]:
         """Builds standardized message list for extraction."""
-        
+
         # 1. Static System Prompt (Persona & Rules)
         # Note: In a full caching setup, we'd split high-churn context into a separate User Message "ticket"
         # but for now we'll consolidate into a clean J2 template.
-        
+
         template_vars = {
             "readme_summary": self.readme_summary,
             "pending_todos": self.pending_todos,
             "existing_memories": self.existing_memories,
             "multi_source_context": self.multi_source_context,
             "messages_text": self.messages_text,
-            "summary": self.summary
+            "summary": self.summary,
+            "domain_terms": self.domain_terms,
         }
         
         rendered = render_template("core/memory/auto_extraction.prompt.j2", **template_vars)

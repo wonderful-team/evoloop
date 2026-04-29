@@ -51,6 +51,7 @@ class MemoryManager:
         config: Optional['MemoryConfig'] = None,
         storage: FileMemoryStorage | None = None,
         short_term: IShortTermMemory | None = None,
+        term_bank=None,
     ):
         """
         Initialize memory manager with appropriate backends.
@@ -96,11 +97,13 @@ class MemoryManager:
         from app.core.memory.auto_extraction import AutoMemoryExtractor
         from app.core.memory.pruning import MemoryPruningService
         from app.core.memory.quality import MemoryQualityAnalyzer
-        
-        self.extraction = AutoMemoryExtractor(self, config=self.config)
+        from app.core.memory.term_bank_maintenance import TermBankMaintenanceService
+
+        self.extraction = AutoMemoryExtractor(self, config=self.config, term_bank=term_bank)
         self.pruning = MemoryPruningService(self._storage)
         self.retrieval = MemoryRetriever(self._storage, config=self.config)
         self.quality = MemoryQualityAnalyzer(self._storage, config=self.config)
+        self._term_bank_maintenance = TermBankMaintenanceService(term_bank) if term_bank else None
 
     async def initialize(self) -> None:
         """Initialize all memory components."""
@@ -654,13 +657,19 @@ class MemoryManager:
         # 2. Pruning & Semantic Consolidation
         pruning_logs = await self.pruning.run_pruning_cycle(project_id=project_id)
 
-        # 3. Regenerate Hot Memory (MEMORY.md)
+        # 3. Term Bank Decay
+        term_bank_result = {}
+        if self._term_bank_maintenance is not None:
+            term_bank_result = await self._term_bank_maintenance.run(project_id=project_id)
+
+        # 4. Regenerate Hot Memory (MEMORY.md)
         await self.regenerate_memory_md()
 
         return {
             "status": "completed",
             "low_quality_count": low_quality_count,
             "pruning_count": len(pruning_logs),
+            "term_bank": term_bank_result,
             "logs": pruning_logs,
             "timestamp": datetime.utcnow().isoformat()
         }

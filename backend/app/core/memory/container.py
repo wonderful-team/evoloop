@@ -12,6 +12,7 @@ from app.core.memory.auto_extraction import AutoMemoryExtractor
 from app.core.memory.backends.file_backend import FileMemoryStorage
 from app.core.memory.backends.sql_short_term import SqlShortTermMemory
 from app.core.memory.config import MemoryConfig
+from app.core.memory.domain_terms import DomainTermBank
 from app.core.memory.interfaces.storage import IMemoryStorage
 from app.core.memory.manager import MemoryManager
 from app.core.memory.pruning import MemoryPruningService
@@ -52,6 +53,7 @@ class MemoryContainer:
         self._two_tier: TwoTierMemoryManager | None = None
         self._auto_extractor: AutoMemoryExtractor | None = None
         self._manager: MemoryManager | None = None
+        self._term_bank: DomainTermBank | None = None
 
     async def initialize(self) -> None:
         """Initialize all components."""
@@ -66,11 +68,16 @@ class MemoryContainer:
         # Initialize short-term memory
         await self._init_short_term()
 
+        # Initialize domain term bank (lightweight JSON storage)
+        term_bank_path = self.config.memory_root / "domain_terms"
+        self._term_bank = DomainTermBank(base_path=term_bank_path)
+
         # Initialize main manager (depends on storage)
         self._manager = MemoryManager(
             config=self.config,
             storage=self.storage,
             short_term=self.short_term,
+            term_bank=self._term_bank,
         )
         await self._manager.initialize()
 
@@ -202,5 +209,13 @@ class MemoryContainer:
             self._auto_extractor = AutoMemoryExtractor(
                 memory_manager=self.memory_manager,
                 config=self.config,
+                term_bank=self._term_bank,
             )
         return self._auto_extractor
+
+    @property
+    def term_bank(self) -> DomainTermBank:
+        """Get domain term bank."""
+        if self._term_bank is None:
+            raise RuntimeError("Container not initialized. Call initialize() first.")
+        return self._term_bank

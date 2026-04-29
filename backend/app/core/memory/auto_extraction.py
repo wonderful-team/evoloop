@@ -19,6 +19,12 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMe
 
 from app.core.config import settings
 from app.core.memory.models import MemoryEntry, MemoryType, PrivacyLevel
+from app.core.memory.sentiment_markers import (
+    ACTION_MARKERS,
+    VAGUE_MARKERS,
+    _ACTION_PATTERN_EN,
+    _VAGUE_PATTERN_EN,
+)
 from app.utils import render_template
 
 logger = logging.getLogger(__name__)
@@ -47,6 +53,7 @@ class AutoMemoryExtractor:
         extraction_interval: int = None,
         max_turns: int = 5,
         min_messages: int = None,
+        term_bank=None,
     ):
         """
         Initialize auto memory extractor.
@@ -60,6 +67,7 @@ class AutoMemoryExtractor:
         """
         self._memory_manager = memory_manager
         self._config = config
+        self._term_bank = term_bank
 
         # Get values from config if provided, otherwise use settings
         if config is not None:
@@ -234,11 +242,21 @@ class AutoMemoryExtractor:
         
         # Build extraction prompt using standardized builder
         from app.core.memory.prompts import MemoryExtractionPromptBuilder
-        
+
         # Extract metadata from multi-source context
         readme_summary = multi_source_context.split("### README.md")[-1].split("###")[0].strip() if "### README.md" in multi_source_context else "None"
         pending_todos = multi_source_context.split("### Pending TODOs")[-1].split("###")[0].strip() if "### Pending TODOs" in multi_source_context else "None"
         existing_memories = await self._get_existing_memory_manifest()
+
+        # Inject discovered domain terms so LLM knows project vocabulary
+        domain_terms = []
+        if self._term_bank is not None:
+            try:
+                domain_terms = await self._term_bank.get_top_terms(
+                    project_id, limit=20
+                )
+            except Exception as e:
+                logger.debug(f"[AutoExtract] Failed to load domain terms: {e}")
 
         builder = MemoryExtractionPromptBuilder(
             readme_summary=readme_summary,
@@ -246,7 +264,8 @@ class AutoMemoryExtractor:
             existing_memories=existing_memories,
             multi_source_context=multi_source_context,
             messages_text=self._format_messages(messages[-15:]),
-            summary=summary
+            summary=summary,
+            domain_terms=domain_terms,
         )
 
         extraction_messages = await builder.build()
@@ -331,71 +350,103 @@ class AutoMemoryExtractor:
             logger.warning(f"[AutoExtract] Failed to get memory manifest: {e}")
             return "Could not load existing memories."
 
-    def _calculate_confidence(self, content: str, item: dict) -> float:
+    # ── Domain-agnostic scoring regexes (pre-compiled) ──────────────────
+    _RESOURCE_PATH_RE = re.compile(
+        r'\b(?:[\w\-]+/)+[\w\-]+(?:\.[\w\-]+)+\b'
+    )
+    _DATE_RE = re.compile(
+        r'\b(?:19|20)\d{2}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01])\b'
+    )
+    _VERSION_RE = re.compile(
+        r'\bv\d+\.\d+(?:\.\d+)?(?:[-+.]?[a-zA-Z0-9]+)*\b'
+    )
+    _LIST_RE = re.compile(
+        r'^\s*(?:[-*]|\d+\.)\s+\S', re.MULTILINE
+    )
+    _NUMBER_RE = re.compile(r'\b\d+(?:\.\d+)?\b')
+
+    # (sentiment markers are module-level imports: _ACTION_PATTERN_EN, _VAGUE_PATTERN_EN)
+
+    async def _calculate_confidence(
+        self,
+        content: str,
+        llm_confidence: float | None = None,
+        project_id: int | None = None,
+    ) -> float:
         """Calculate confidence score based on content quality.
-        
-        Factors:
-        - Content length (50-500 chars is ideal)
-        - Specific indicators (file paths, dates, technical terms)
-        - Clear structure (bullet points, numbered lists)
-        - Actionability (clear instructions vs vague statements)
+
+        Uses tiered mutually-exclusive scoring:
+        - Tier A (+0.25): high domain-term density or resource paths
+        - Tier B (+0.15): medium domain-term density or specific indicators
+        - Tier C (+0.05): structural / actionable quality
+
+        LLM confidence acts as a trust ceiling, not a blended average.
         """
         score = 0.5  # Base score
 
-        # Length factor (ideal: 100-500 chars)
+        # ── Length scoring (continuous trapezoid) ───────────────────────
         content_len = len(content)
         if 100 <= content_len <= 500:
             score += 0.2
         elif 50 <= content_len < 100:
-            score += 0.1
-        elif content_len > 1000:  # Too long, might be noisy
+            # Linear ramp from 50 to 100
+            score += 0.1 + 0.1 * (content_len - 50) / 50
+        elif 500 < content_len <= 1000:
+            # Linear decay from 500 to 1000
+            score += 0.2 * (1000 - content_len) / 500
+        elif content_len > 1000:
             score -= 0.1
-        elif content_len < 30:  # Too short
-            score -= 0.2
-
-        # Specific indicators
-        # File paths
-        if re.search(r'[\w\-./]+\.(py|js|ts|java|go|rs|cpp|c|h|md|txt|json|yaml|yml)', content):
-            score += 0.1
-
-        # Dates or versions
-        if re.search(r'\d{4}-\d{2}-\d{2}|v?\d+\.\d+', content):
+        elif content_len < 30:
+            score -= 0.15
+        else:  # 30-50
             score += 0.05
 
-        # Technical terms
-        tech_terms = ['function', 'class', 'method', 'api', 'database', 'config',
-                     'server', 'client', 'request', 'response', 'error', 'bug']
-        if any(term in content.lower() for term in tech_terms):
-            score += 0.05
+        # ── Vague-word penalty (capped) ────────────────────────────────
+        content_lower = content.lower()
+        # Vagueness: English via word-boundary regex, Chinese via substring
+        vague_count = len(_VAGUE_PATTERN_EN.findall(content))
+        if vague_count < 3:
+            vague_count += sum(
+                1 for word in VAGUE_MARKERS["zh"] if word in content
+            )
+            vague_count = min(vague_count, 3)  # Re-apply cap after both langs
+        score -= min(vague_count, 3) * 0.05
 
-        # Clear structure indicators
-        if re.search(r'^[\s]*[-*\d]\s+', content, re.MULTILINE):  # List items
-            score += 0.05
+        # ── Domain-term density (async lookup) ─────────────────────────
+        term_density = 0
+        if self._term_bank is not None:
+            matched = await self._term_bank.match(content, project_id)
+            term_density = len(matched)
 
-        # Actionability indicators
-        action_words = ['should', 'must', 'need to', 'use', 'prefer', 'always', 'never']
-        if any(word in content.lower() for word in action_words):
-            score += 0.05
+        # ── Specific indicators ────────────────────────────────────────
+        has_resource_path = bool(self._RESOURCE_PATH_RE.search(content))
+        has_date = bool(self._DATE_RE.search(content))
+        has_version = bool(self._VERSION_RE.search(content))
+        has_number = bool(self._NUMBER_RE.search(content))
+        has_list = bool(self._LIST_RE.search(content))
+        # Actionability: English via word-boundary regex, Chinese via substring
+        has_actionable = bool(_ACTION_PATTERN_EN.search(content))
+        if not has_actionable:
+            has_actionable = any(w in content for w in ACTION_MARKERS["zh"])
 
-        # Vague indicators (penalty)
-        vague_words = ['maybe', 'perhaps', 'something', 'somehow', 'might', 'could be']
-        vague_count = sum(1 for word in vague_words if word in content.lower())
-        score -= vague_count * 0.05
+        # ── Tiered scoring (mutually exclusive) ────────────────────────
+        if term_density >= 3 or has_resource_path:
+            score += 0.25  # Tier A
+        elif term_density >= 1 or has_date or has_version or has_number:
+            score += 0.15  # Tier B
+        elif has_list or has_actionable:
+            score += 0.05  # Tier C
 
-        # LLM-provided confidence (if available)
-        if "confidence" in item:
-            try:
-                llm_conf = float(item["confidence"])
-                # Blend with our calculation
-                score = (score + llm_conf) / 2
-            except (ValueError, TypeError):
-                pass
+        # ── LLM confidence: trust ceiling ──────────────────────────────
+        if llm_confidence is not None:
+            if llm_confidence < 0.3:
+                # LLM doesn't trust it → cap regardless of local signals
+                score = min(score, 0.6)
+            elif llm_confidence > 0.8:
+                # LLM is very confident → allow slight boost
+                score = min(score * 1.1, 1.0)
 
-        # Technical Boost: If it contains file paths and technical terms, boost it
-        if re.search(r'[\w\-./]+\.(py|js|ts|java|go|rs|cpp|c|h|md|txt|json|yaml|yml)', content) and any(term in content.lower() for term in tech_terms):
-            score += 0.15
-            
-        return max(0.1, min(1.0, score))  # Clamp between 0.1 and 1.0
+        return max(0.1, min(1.0, score))
 
     def _generate_title(self, content: str) -> str:
         """Generate a meaningful title from content.
@@ -487,10 +538,20 @@ class AutoMemoryExtractor:
                 privacy = PrivacyLevel.PRIVATE if mem_type in (MemoryType.USER, MemoryType.FEEDBACK) else PrivacyLevel.TEAM
 
                 # Calculate dynamic confidence based on content quality
-                confidence = self._calculate_confidence(content, item)
+                llm_conf = item.get("confidence")
+                try:
+                    llm_confidence = float(llm_conf) if llm_conf is not None else None
+                except (ValueError, TypeError):
+                    llm_confidence = None
+
+                confidence = await self._calculate_confidence(
+                    content,
+                    llm_confidence=llm_confidence,
+                    project_id=project_id,
+                )
 
                 # Skip low-confidence extractions
-                if confidence < 0.35: # Lowered threshold from 0.4
+                if confidence < 0.35:  # Lowered threshold from 0.4
                     logger.info(f"[AutoExtract] ❌ Rejecting low-confidence ({confidence:.2f}): {content[:60]}...")
                     continue
 
@@ -533,6 +594,15 @@ class AutoMemoryExtractor:
                 )
 
                 entries.append(entry)
+
+                # Discover domain terms from accepted high-confidence memories
+                if self._term_bank is not None:
+                    try:
+                        await self._term_bank.discover(
+                            content, project_id=project_id, memory_confidence=confidence
+                        )
+                    except Exception as e:
+                        logger.debug(f"[AutoExtract] Term discovery failed: {e}")
 
         except json.JSONDecodeError as e:
             logger.warning(f"[AutoExtract] Failed to parse JSON: {e}")
