@@ -114,7 +114,9 @@ class WorkerNode(BaseAgentNode):
 
     async def __call__(self, state: AgentState, config: RunnableConfig) -> StateUpdate:
         """Override to handle sequential multi-skill logic."""
-        # ensure_state is already called in BaseAgentNode.__call__;
+        from app.core.engine.state import ensure_state
+        state = ensure_state(state)
+
         execution_ticket = state.blackboard.ticket
 
         # Check for multi-skill workflow

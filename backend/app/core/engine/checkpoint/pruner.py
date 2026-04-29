@@ -36,8 +36,8 @@ async def prune_checkpoints(
                         await cur.execute(query)
                         threads = [row[0] for row in await cur.fetchall()]
                 else:
-                    async with conn.execute(query) as cur:
-                        threads = [row[0] for row in await cur.fetchall()]
+                    cur = await conn.execute(query)
+                    threads = [row[0] for row in await cur.fetchall()]
 
             total_pruned = 0
             for tid in threads:
@@ -48,8 +48,8 @@ async def prune_checkpoints(
                         await cur.execute(select_query, (tid,))
                         all_ids = [row[0] for row in await cur.fetchall()]
                 else:
-                    async with conn.execute(select_query, (tid,)) as cur:
-                        all_ids = [row[0] for row in await cur.fetchall()]
+                    cur = await conn.execute(select_query, (tid,))
+                    all_ids = [row[0] for row in await cur.fetchall()]
 
                 if len(all_ids) <= max_versions_per_thread:
                     continue

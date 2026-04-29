@@ -38,9 +38,10 @@ class SupervisorNode(BaseAgentNode):
         # uniformly by ContextTrimmer in engine.run_node(). SupervisorNode should
         # not perform ad-hoc message manipulation here.
 
-        # Consume stale routing from previous turns
+        # Consume stale routing and plans from previous turns
         from app.core.engine.state.lifecycle import StateLifecycleManager
         StateLifecycleManager.consume_next_node(state)
+        StateLifecycleManager.consume_spawn_plan(state)
 
         # Optional: Emit initial status
         await self._emit_status(config, i18n.get("supervisor.status_analyzing"))

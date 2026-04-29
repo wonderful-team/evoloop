@@ -167,7 +167,7 @@ class AgentEngine:
         elif inference_result.get("signal"):
             outcome_status = "interrupted"
         last_msg = inference_result.get("messages", [])[-1] if inference_result.get("messages") else None
-        if last_msg and isinstance(last_msg, AIMessage) and last_msg.additional_kwargs.get("is_error"):
+        if last_msg and isinstance(last_msg, AIMessage) and getattr(last_msg, "metadata", {}).get("is_error"):
             outcome_status = "error"
 
         outcome = NodeOutcome(status=outcome_status)

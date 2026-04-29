@@ -33,6 +33,16 @@ class StateLifecycleManager:
         return outcome
 
     @staticmethod
+    def consume_spawn_plan(state: AgentState) -> None:
+        """
+        Consume and clear blackboard.spawn_plan.
+        """
+        blackboard = state.blackboard
+        if blackboard.spawn_plan is not None:
+            blackboard.spawn_plan = None
+            logger.debug("[Lifecycle] Consumed spawn_plan")
+
+    @staticmethod
     def consume_next_node(state: AgentState) -> str | None:
         """Consume and clear state.next_node."""
         target = state.next_node

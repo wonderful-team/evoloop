@@ -11,6 +11,12 @@ from app.utils.async_utils import LoopBoundResource
 
 logger = logging.getLogger(__name__)
 
+# Apply reasoning_content patch before any LLM creation
+try:
+    import app.core.engine.reasoning  # noqa: F401
+except Exception as e:
+    logger.warning(f"[Reasoning] Failed to import patch in factory.py: {e}")
+
 
 # Global Shared HTTP Client for Connection Pooling (HTTP/2 enabled), per Event Loop
 async def _close_client(client: httpx.AsyncClient):
@@ -118,9 +124,6 @@ class LLMFactory:
         if not gateway_url:
             raise ValueError("EvoLoop Gateway URL not configured")
 
-        # Apply reasoning_content patch
-        import app.core.engine.reasoning  # noqa: F401
-
         # Merge standard thinking config into extra_body
         extra_body = {
             **ThinkingConfig().to_extra_body(),
@@ -135,7 +138,7 @@ class LLMFactory:
             streaming=config.streaming,
             max_tokens=config.max_tokens,
             http_async_client=_HTTP_CLIENT_POOL.get(),
-            model_kwargs={"extra_body": extra_body},
+            extra_body=extra_body,
         )
 
     @staticmethod
@@ -220,8 +223,6 @@ class LLMFactory:
         extra_body: dict[str, Any] | None = None,
     ):
         """Build the actual LLM instance based on provider_type."""
-        # 导入 reasoning 确保对 ChatOpenAI 的 patch 已应用
-        import app.core.engine.reasoning  # noqa: F401
 
         # 统一的 thinking 配置
         # 使用 extra_body 避免 OpenAI SDK 校验失败
@@ -248,7 +249,7 @@ class LLMFactory:
                 streaming=streaming,
                 max_tokens=max_tokens,
                 http_async_client=_HTTP_CLIENT_POOL.get(),
-                model_kwargs={"extra_body": merged_extra},
+                extra_body=merged_extra,
             )
 
     @staticmethod

@@ -98,6 +98,8 @@ class BaseAgentNode(BaseNode, ABC):
             # static_prompt: Huge instructions + tools -> goes to generic SystemMessage
             # dynamic_ticket: Small turn-based telemetry -> injected as HumanMessage
             static_system_prompt, dynamic_ticket_text = await self.build_prompt_pair(state, config)
+            print("static_system_prompt=", static_system_prompt)
+            print("dynamic_ticket_text=", dynamic_ticket_text)
             tools = await self.get_tools(state)
 
             # Insert Context Ticket just before the LAST HumanMessage so that
@@ -121,6 +123,7 @@ class BaseAgentNode(BaseNode, ABC):
 
             # 3. Engine Execution
             engine = get_default_engine()
+
             is_subtask = resolve_is_subtask(state)
             model = config.get("configurable", {}).get("model")
 
@@ -128,11 +131,6 @@ class BaseAgentNode(BaseNode, ABC):
                 f"[{self.node_name}] 🚀 Engine.run_node | model={model} | is_subtask={is_subtask} | "
                 f"max_steps={1 if is_subtask else self.max_steps}"
             )
-
-            # Log full context for debugging protocol violations
-            for i, msg in enumerate(messages):
-                content_preview = str(msg.content)[:200] + "..." if len(str(msg.content)) > 200 else str(msg.content)
-                logger.debug(f"[{self.node_name}] 📝 Message {i} | role={type(msg).__name__} | name={getattr(msg, 'name', 'N/A')} | content={content_preview}")
 
             engine_result = await engine.run_node(
                 state=execution_state,

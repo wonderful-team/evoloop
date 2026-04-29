@@ -75,7 +75,7 @@ def build_subtask_sends(state: AgentState, blackboard: BlackboardState) -> list[
 
         ticket = ExecutionTicket(
             ticket_type="subtask",
-            topic=subtask["intent"],
+            topic=subtask.intent,
             parent_task_id=parent_thread_id,
             subtask_id=subtask_id,
             agent_config=agent_config,
