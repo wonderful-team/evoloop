@@ -71,14 +71,13 @@ class AggregatorNode(BaseNode):
         # Reset ticket so Supervisor does not treat itself as a subtask
         blackboard.ticket = None
 
-        msg = AIMessage(
+        agg_msg = AIMessage(
             content=f"Aggregation complete. Strategy: {strategy}. Total results: {len(subtask_results)}.",
             metadata={"is_error": is_error, "error_type": "aggregation_failed"} if is_error else None,
         )
 
         return StateUpdate(
-            messages=[msg],
-            next_node=RoutingTarget.SUPERVISOR,
+            messages=[agg_msg],
             blackboard=blackboard,
         )
 

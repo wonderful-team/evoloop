@@ -36,6 +36,18 @@ def route_by_next_node(state: AgentState) -> str:
     """Generic router that follows state.next_node if set."""
     target = state.next_node
     if target:
+        # Define the set of allowed targets for general conditional edges
+        # mapping in agent_main.yaml. 
+        allowed_targets = {
+            RoutingTarget.SUPERVISOR,
+            RoutingTarget.SEQUENTIAL_WORKFLOW,
+            RoutingTarget.FINISH,
+            RoutingTarget.END,
+        }
+        if target not in allowed_targets:
+            logger.error(f"[Router] 🚨 Invalid next_node '{target}'. Not in YAML map. Falling back to supervisor.")
+            return RoutingTarget.SUPERVISOR
+            
         logger.info(f"[Router] Dynamic next_node: {target}")
         return target
     return RoutingTarget.SUPERVISOR
@@ -83,6 +95,22 @@ def route_supervisor(state: AgentState) -> str | list[Send]:
 
     if next_node:
         logger.info(f"[Router] Remapping intelligent target '{next_node}' -> 'worker'")
+
+        # Define the set of allowed targets for the supervisor's conditional edge
+        # mapping in agent_main.yaml. If target is not here, it's a structural error.
+        allowed_targets = {
+            RoutingTarget.CHAT,
+            RoutingTarget.FINISH,
+            RoutingTarget.SUPERVISOR,
+            RoutingTarget.AGGREGATOR,
+            RoutingTarget.SPAWN_SUBTASKS,
+            RoutingTarget.SEQUENTIAL_WORKFLOW,
+            RoutingTarget.WORKER,
+        }
+        
+        if next_node not in allowed_targets:
+            logger.error(f"[Router] 🚨 Invalid routing target '{next_node}' from Supervisor. Not in YAML map.")
+            return "finish" # Fallback to finish for safety
 
         # Verify ticket exists in blackboard (set by SignalDispatcher) before routing to worker
         if not blackboard.ticket:

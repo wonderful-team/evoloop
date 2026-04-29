@@ -122,6 +122,7 @@ edges:
       worker: "worker"
       aggregator: "aggregator"
       sequential_workflow: "sequential_workflow"
+      spawn_subtasks: "supervisor" # Loopback to supervisor if sends fails
       # NOTE: route_supervisor may also return list[Send] for dynamic subtask
       # spawning.  This is handled directly by LangGraph (not via this map).
       # See app.core.engine.routers._build_subtask_sends for details.
