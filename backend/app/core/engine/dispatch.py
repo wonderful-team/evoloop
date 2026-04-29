@@ -120,6 +120,7 @@ async def dispatch_agent_run(
         context = context.model_copy(update=update_data)
     
     ContextManager.set(context)
+    await ContextManager.save(thread_id)
 
     # ------------------------------------------------------------------
     # 2. Process references (images, files, skills)
