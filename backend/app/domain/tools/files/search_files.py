@@ -24,6 +24,8 @@ async def _search_by_content(
     case_insensitive: bool,
 ) -> str:
     """Search file contents using ripgrep or grep."""
+    # Resolve symlinks so external tools (grep on macOS BSD) traverse properly
+    real_target = os.path.realpath(target_path)
     if _has_ripgrep():
         cmd = ["rg", "-n", "--json"]
         if case_insensitive:
@@ -33,7 +35,7 @@ async def _search_by_content(
         for exclude_dir in DEFAULT_EXCLUDED_DIRS:
             cmd.extend(["-g", f"!{exclude_dir}"])
         cmd.append(pattern)
-        cmd.append(target_path)
+        cmd.append(real_target)
     else:
         cmd = ["grep", "-E", "-r", "-n"]
         if case_insensitive:
@@ -43,7 +45,7 @@ async def _search_by_content(
         for excluded_dir in DEFAULT_EXCLUDED_DIRS:
             cmd.append(f"--exclude-dir={excluded_dir}")
         cmd.append(pattern)
-        cmd.append(target_path)
+        cmd.append(real_target)
 
     res = await asyncio.to_thread(run_command, cmd)
     if not res.success:
@@ -80,16 +82,21 @@ async def _search_by_name(
     max_files: int = 20,
 ) -> str:
     """
-    Search files by name and return their raw content.
+    Search files by name and return matching paths with a short preview.
 
     Uses ripgrep --files or find to list candidate files, then filters by both
     name pattern and scope using Python (ensuring AND semantics).
+
+    Each matched file shows the first 3 lines so the LLM can quickly judge
+    which file is the right one, without being overwhelmed by full content.
     """
     import fnmatch
 
-    MAX_LINES_PER_FILE = 50
+    MAX_PREVIEW_LINES = 3
 
     # Step 1: List all files under target_path
+    # Resolve symlinks so external tools (find/grep on macOS) traverse properly
+    real_target = os.path.realpath(target_path)
     if _has_ripgrep():
         # rg --files lists all files, respecting exclusions
         exclude_args = []
@@ -97,10 +104,10 @@ async def _search_by_name(
             exclude_args.extend(["-g", f"!{exclude_dir}"])
         cmd = ["rg", "--files"]
         cmd.extend(exclude_args)
-        cmd.append(target_path)
+        cmd.append(real_target)
     else:
         # Fallback: use find to list all files
-        cmd = ["find", target_path, "-type", "f"]
+        cmd = ["find", real_target, "-type", "f"]
 
     res = await asyncio.to_thread(run_command, cmd)
     if not res.success or not res.stdout.strip():
@@ -117,7 +124,7 @@ async def _search_by_name(
         basename = os.path.basename(filepath)
         basename_check = basename.lower() if case_insensitive else basename
 
-        # Check name pattern
+        # Check name pattern (substring match)
         if name_check not in basename_check:
             continue
 
@@ -130,38 +137,58 @@ async def _search_by_name(
     if not matched_files:
         return "No files found matching the name pattern."
 
-    # Step 3: Read content of each matched file
-    outputs = []
+    # Step 3: Build output with file paths and short previews
     total_files = len(matched_files)
     files_to_show = matched_files[:max_files]
+    project_name = os.path.basename(target_path)
 
-    for filepath in files_to_show:
-        if not os.path.isfile(filepath):
-            continue
+    entries = []
+    for idx, filepath in enumerate(files_to_show, 1):
+        # Relative path for readability
         try:
-            with open(filepath, 'r', encoding='utf-8', errors='replace') as f:
-                lines = f.readlines()
-        except Exception as e:
-            outputs.append(f"=== File: {filepath} ===\n[Error reading file: {e}]\n")
-            continue
+            rel = os.path.relpath(filepath, real_target)
+            if rel.startswith('./'):
+                rel = rel[2:]
+            display_path = f"{project_name}/{rel}"
+        except ValueError:
+            display_path = filepath
 
-        # Truncate if too long
-        truncated = False
-        total_lines = len(lines)
-        if len(lines) > MAX_LINES_PER_FILE:
-            lines = lines[:MAX_LINES_PER_FILE]
-            truncated = True
+        # Read a smart preview: try to find the first meaningful definition line
+        # (class/function/def/trait/interface) and show 3 lines from there.
+        preview_lines = []
+        if os.path.isfile(filepath):
+            try:
+                with open(filepath, 'r', encoding='utf-8', errors='replace') as f:
+                    all_lines = f.readlines()
 
-        # Format with line numbers
-        numbered = []
-        for i, line in enumerate(lines, 1):
-            numbered.append(f"{i:4d}: {line.rstrip()}")
+                # Try to find a definition line
+                import re
+                definition_pattern = re.compile(
+                    r'^\s*(class\s+|function\s+|def\s+|trait\s+|interface\s+)',
+                    re.IGNORECASE
+                )
+                start_idx = 0
+                for _idx, line in enumerate(all_lines):
+                    if definition_pattern.search(line):
+                        start_idx = _idx
+                        break
 
-        content = '\n'.join(numbered)
-        if truncated:
-            content += f"\n... ({MAX_LINES_PER_FILE} lines shown, {total_lines} total)"
+                # Show up to MAX_PREVIEW_LINES from start_idx
+                for i in range(start_idx, min(start_idx + MAX_PREVIEW_LINES, len(all_lines))):
+                    preview_lines.append(all_lines[i].rstrip('\n'))
+            except Exception as e:
+                preview_lines.append(f"[Unable to preview: {e}]")
+        else:
+            preview_lines.append("[Not a readable file]")
 
-        outputs.append(f"=== File: {filepath} ===\n{content}\n")
+        numbered = [f"     {i:3d}: {ln}" for i, ln in enumerate(preview_lines, 1)]
+        preview_block = "\n".join(numbered) if numbered else "     (empty file)"
+
+        entries.append(
+            f"  {idx}. {display_path}\n"
+            f"     Preview:\n"
+            f"{preview_block}"
+        )
 
     header = f"Found {total_files} file(s) matching name pattern '{pattern}'"
     if scope:
@@ -171,7 +198,12 @@ async def _search_by_name(
         header += f"(Showing first {max_files} files; {total_files - max_files} more not displayed)\n"
     header += "\n"
 
-    return header + '\n'.join(outputs)
+    footer = (
+        "\n\nUse read_file(path='<selected_path>') to read the full content of a file.\n"
+        "If none of these look right, refine your search pattern or scope."
+    )
+
+    return header + "\n\n".join(entries) + footer
 
 
 async def search_files_internal(
@@ -179,7 +211,7 @@ async def search_files_internal(
     path: str = ".",
     scope: Optional[str] = None,
     case_insensitive: bool = False,
-    search_in_name: bool = False,
+    search_in_name: bool = True,
     max_files: int = 20,
     config: RunnableConfig | None = None,
 ) -> str:
@@ -210,7 +242,7 @@ async def search_files(
     path: str = ".",
     scope: Optional[str] = None,
     case_insensitive: bool = False,
-    search_in_name: bool = False,
+    search_in_name: bool = True,
     max_files: int = 20,
     config: Annotated[RunnableConfig, InjectedToolArg] = None,
 ) -> str:
@@ -219,32 +251,32 @@ async def search_files(
     Supports regex patterns, file filtering, case-insensitive search, and name-based search.
 
     Output Limit (content search): Maximum 100 matches per call.
-    Output Limit (name search): Maximum `max_files` files shown (default 20), 50 lines per file.
+    Output Limit (name search): Maximum `max_files` files shown (default 20), 3 preview lines per file.
     If you hit these limits, refine your search pattern or narrow the scope.
 
     Useful for finding all occurrences of a function, class, variable, TODO, etc.
-    When search_in_name=True, returns the raw content of matched files.
+    When search_in_name=True, returns file paths with a 3-line preview of each match.
 
     Args:
         pattern: The search pattern. **REQUIRED** (supports regex for content, glob-like for name)
         path: Directory or file path to search in (default: current directory).
         scope: Optional file pattern to limit search (e.g., "*.py", "src/services/*").
         case_insensitive: If True, performs case-insensitive search.
-        search_in_name: If True, searches for files whose names match the pattern
-                        and returns their raw content instead of searching file contents.
+        search_in_name: If True (default), searches for files whose names match the pattern
+                        and returns file paths with a short preview.
+                        Set to False only when you need to search inside file contents.
         max_files: Maximum number of files to display when search_in_name=True (default 20).
 
     Examples:
         # Search file contents
-        search_files(pattern="def main", path="src/")
-        search_files(pattern="TODO", case_insensitive=True)
-        search_files(pattern="UserService", scope="*.ts")
-        search_files(pattern="class.*Service", scope="backend/*.py")
+        search_files(pattern="def main", path="src/", search_in_name=False)
+        search_files(pattern="TODO", case_insensitive=True, search_in_name=False)
+        search_files(pattern="UserService", scope="*.ts", search_in_name=False)
 
-        # Search by file name and return raw content
-        search_files(pattern="user", path="src/", search_in_name=True)
-        search_files(pattern="config", scope="*.py", search_in_name=True)
-        search_files(pattern="test_", case_insensitive=True, search_in_name=True)
+        # Search by file name (with preview)
+        search_files(pattern="user", path="src/")
+        search_files(pattern="config", scope="*.py")
+        search_files(pattern="test_", case_insensitive=True)
     """
     return await search_files_internal(
         pattern=pattern,

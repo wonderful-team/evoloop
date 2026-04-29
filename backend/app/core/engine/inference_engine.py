@@ -25,7 +25,7 @@ from langchain_core.runnables import RunnableConfig
 from app.infrastructure.llm.factory import LLMFactory
 from app.core.engine.context_trimmer import ContextTrimmer, TrimTrigger
 from app.core.engine.error_handler import LLMErrorHandler
-from app.core.engine.reasoning import extract_reasoning_from_message
+from app.core.engine.message.reasoning import extract_reasoning_from_message
 
 logger = logging.getLogger(__name__)
 

@@ -26,7 +26,7 @@ from app.core.engine.message.repository import MessageRepository
 from app.core.engine.message.schemas import MessageBlock
 from app.core.engine.message.schemas import MessageHandlerResult
 from app.core.engine.message.stream import MessageStreamPolicy
-from app.core.engine.reasoning import build_thinking_blocks, infer_thinking_type
+from app.core.engine.message.reasoning import build_thinking_blocks, infer_thinking_type
 
 logger = logging.getLogger(__name__)
 
@@ -93,6 +93,7 @@ class MessageHandler:
                 category=category.value,
                 is_visible=category.is_visible_to_user,
                 content_type="text",
+                metadata=metadata,
             )
             
             # 只有用户可见且不是纯内部思考的消息才推送到 Mobile
@@ -143,6 +144,7 @@ class MessageHandler:
                 action_type="tool_output", is_visible=category.is_visible_to_user,
                 tool_call_id=persist_data.tool_call_id, tool_name=persist_data.tool_name,
                 content_type="text",
+                metadata={"tool_name": tool_name, "tool_call_id": tool_call_id},
             )
             if message_id and category.is_visible_to_user:
                 await self._dispatch_block(
@@ -171,6 +173,7 @@ class MessageHandler:
         message_id, seq = await self._repository.persist(
             role="human", content=content, category=category.value,
             is_visible=True, content_type="text",
+            metadata=metadata,
         )
         await self._dispatch_block(
             role="human", content=content, category=category.value,

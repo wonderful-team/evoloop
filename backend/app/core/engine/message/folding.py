@@ -7,7 +7,7 @@ from typing import Any
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
 
-from app.core.engine.reasoning import parse_thinking
+from app.core.engine.message.reasoning import parse_thinking
 from app.core.engine.state.history import FoldedMessage
 
 logger = logging.getLogger(__name__)

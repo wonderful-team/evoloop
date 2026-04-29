@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 # Apply reasoning_content patch before any LLM creation
 try:
-    import app.core.engine.reasoning  # noqa: F401
+    import app.core.engine.message.reasoning  # noqa: F401
 except Exception as e:
     logger.warning(f"[Reasoning] Failed to import patch in factory.py: {e}")
 

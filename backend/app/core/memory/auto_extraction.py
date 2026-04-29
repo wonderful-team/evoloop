@@ -391,6 +391,10 @@ class AutoMemoryExtractor:
             except (ValueError, TypeError):
                 pass
 
+        # Technical Boost: If it contains file paths and technical terms, boost it
+        if re.search(r'[\w\-./]+\.(py|js|ts|java|go|rs|cpp|c|h|md|txt|json|yaml|yml)', content) and any(term in content.lower() for term in tech_terms):
+            score += 0.15
+            
         return max(0.1, min(1.0, score))  # Clamp between 0.1 and 1.0
 
     def _generate_title(self, content: str) -> str:
@@ -486,8 +490,8 @@ class AutoMemoryExtractor:
                 confidence = self._calculate_confidence(content, item)
 
                 # Skip low-confidence extractions
-                if confidence < 0.4:
-                    logger.debug(f"[AutoExtract] Skipping low-confidence ({confidence:.2f}): {content[:40]}...")
+                if confidence < 0.35: # Lowered threshold from 0.4
+                    logger.info(f"[AutoExtract] ❌ Rejecting low-confidence ({confidence:.2f}): {content[:60]}...")
                     continue
 
                 # Generate meaningful title or use provided one

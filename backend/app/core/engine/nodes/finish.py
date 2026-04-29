@@ -273,7 +273,14 @@ class FinishNode(BaseNode):
                         logger.warning("[Finish] ⚠️ Audit message has no id, cleared copy appended")
 
         # --------------------------------------------------------------
-        # 5. Automatic state pruning (fire-and-forget)
+        # 5. Blackboard Pruning: Clear transient subtask data to prevent bloat
+        # --------------------------------------------------------------
+        blackboard.subtask_results = []
+        blackboard.spawn_plan = None
+        logger.debug(f"[Finish] Blackboard pruned for thread {effective_thread_id}")
+
+        # --------------------------------------------------------------
+        # 6. Automatic state pruning (fire-and-forget)
         # --------------------------------------------------------------
         asyncio.create_task(_safe_prune(effective_thread_id))
 

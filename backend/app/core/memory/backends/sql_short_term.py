@@ -12,7 +12,7 @@ from langchain_core.messages import (
 )
 from sqlalchemy import delete, or_, select
 
-from app.core.engine.reasoning import parse_thinking
+from app.core.engine.message.reasoning import parse_thinking
 from app.core.memory.interfaces.short_term import IShortTermMemory
 from app.infrastructure.database.sql.database import session_scope
 from app.models.conversation import Message

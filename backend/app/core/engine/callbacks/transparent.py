@@ -16,7 +16,7 @@ from langchain_core.outputs import LLMResult
 from pydantic import Field
 
 from app.core.engine.callbacks.token_filter import TokenFilter
-from app.core.engine.reasoning import extract_reasoning_from_kwargs
+from app.core.engine.message.reasoning import extract_reasoning_from_kwargs
 from app.core.tools.registry import (
     get_tool_affected_paths,
     get_tool_metadata,

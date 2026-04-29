@@ -71,6 +71,15 @@ async def handle_read(
                 pass
         return i18n.get("domain_tools.files.read_not_found", path=path)
 
+    # Guard against reading directories
+    if os.path.isdir(target_path):
+        return (
+            f"⚠️ Cannot read a directory with read_file.\n\n"
+            f"Path '{path}' is a directory, not a file.\n\n"
+            f"Use list_directory(path='{path}') to explore its contents, "
+            f"or search_files(pattern='keyword', path='{path}') to find files inside it."
+        )
+
     # Check if it's a large file (use core.file for size info)
     try:
         file_info = get_file_info(target_path)

@@ -11,7 +11,7 @@ import logging
 
 from app.core.engine.message.category import MessageCategory
 from app.core.engine.message.schemas import PersistencePolicyResult
-from app.core.engine.reasoning import build_thinking_blocks
+from app.core.engine.message.reasoning import build_thinking_blocks
 
 logger = logging.getLogger(__name__)
 

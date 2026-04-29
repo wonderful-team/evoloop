@@ -9,7 +9,7 @@ import logging
 from sqlalchemy import desc, select
 
 from app.core.engine.message.sequence import SequenceService
-from app.core.engine.reasoning import wrap_reasoning_for_db
+from app.core.engine.message.reasoning import wrap_reasoning_for_db
 from app.infrastructure.database.sql.database import session_scope
 from app.models import Message
 
@@ -41,6 +41,7 @@ class MessageRepository:
         tool_call_id: str | None = None,
         tool_name: str | None = None,
         content_type: str = "text",
+        metadata: dict | None = None,
     ) -> tuple[str | None, int]:
         """
         Persist a message to the database.
@@ -62,7 +63,7 @@ class MessageRepository:
                 if isinstance(thinking, str):
                     thinking_data = wrap_reasoning_for_db(thinking)
                 elif isinstance(thinking, list):
-                    from app.core.engine.reasoning import serialize_thinking
+                    from app.core.engine.message.reasoning import serialize_thinking
                     thinking_data = serialize_thinking(thinking)
 
                 log = Message(
@@ -81,6 +82,7 @@ class MessageRepository:
                     tool_calls=tool_calls,
                     tool_call_id=tool_call_id,
                     tool_name=tool_name,
+                    meta_data=metadata,
                 )
                 session.add(log)
                 await session.flush()

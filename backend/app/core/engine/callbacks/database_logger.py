@@ -18,7 +18,7 @@ from langchain_core.callbacks import AsyncCallbackHandler
 from langchain_core.outputs import LLMResult
 
 from app.core.engine.message import MessageHandler
-from app.core.engine.reasoning import extract_reasoning_from_kwargs
+from app.core.engine.message.reasoning import extract_reasoning_from_kwargs
 
 logger = logging.getLogger(__name__)
 

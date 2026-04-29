@@ -28,7 +28,7 @@ from langchain_core.messages import (
 )
 
 from app.core.engine.message.schemas import BlockEvent, MessageBlock, ToolBlock
-from app.core.engine.reasoning import parse_thinking, serialize_thinking, to_thinking_blocks
+from app.core.engine.message.reasoning import parse_thinking, serialize_thinking, to_thinking_blocks
 from app.core.engine.state.history import FoldedMessage
 
 logger = logging.getLogger(__name__)

@@ -26,7 +26,7 @@ from app.core.context.manager import ContextManager
 from app.core.engine.state import AgentState
 from app.core.engine.state.blackboard import BlackboardState, VerificationStatus
 from app.infrastructure.pydantic_base import DynamicBaseModel
-from app.core.engine.reasoning import extract_tool_calls
+from app.core.engine.message.reasoning import extract_tool_calls
 
 logger = logging.getLogger(__name__)
 

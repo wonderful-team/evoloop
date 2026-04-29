@@ -43,6 +43,7 @@ class Message(Base):
     role: Mapped[str] = mapped_column(String(50))  # "human", "ai"
     content: Mapped[str] = mapped_column(Text)
     thinking: Mapped[str | None] = mapped_column(Text)  # JSON-serialized list[dict]: [{"type": "reasoning", "content": "..."}]
+    meta_data: Mapped[dict | None] = mapped_column(JSON) # Silent audit & state metadata
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), onupdate=utcnow, nullable=True)
     sequence_number: Mapped[int | None] = mapped_column(Integer)  # Thread-local ordering

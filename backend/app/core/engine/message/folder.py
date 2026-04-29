@@ -10,7 +10,7 @@ from datetime import datetime
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
 
-from app.core.engine.reasoning import extract_reasoning_from_message
+from app.core.engine.message.reasoning import extract_reasoning_from_message
 from app.core.engine.state.history import FoldedMessage, ToolStep
 from app.core.tools.registry import get_tool_friendly_name, get_tool_metadata
 from app.i18n.service import i18n
