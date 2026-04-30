@@ -26,7 +26,9 @@ from app.core.engine.message.repository import MessageRepository
 from app.core.engine.message.schemas import MessageBlock, ThinkingBlock
 from app.core.engine.message.schemas import MessageHandlerResult
 from app.core.engine.message.stream import MessageStreamPolicy
-from app.core.engine.message.reasoning import build_thinking_blocks, infer_thinking_type
+from app.core.engine.message.reasoning import build_thinking_blocks
+from app.core.tools.registry import get_tool_metadata
+from app.i18n.service import i18n
 
 logger = logging.getLogger(__name__)
 
@@ -81,9 +83,6 @@ class MessageHandler:
         message_id = None
         seq = 0
 
-        # Determine thinking type from metadata
-        thinking_type = infer_thinking_type(metadata)
-
         if persist_data.should_persist:
             message_id, seq = await self._repository.persist(
                 role="ai",
@@ -121,14 +120,87 @@ class MessageHandler:
             sequence_number=seq,
         )
 
+    async def handle_tool_start(
+        self,
+        tool_name: str,
+        tool_call_id: str | None = None,
+        input_data: dict | None = None,
+    ) -> MessageHandlerResult:
+        """处理工具开始执行 — 预插入 running 状态记录"""
+        category = MessageCategory.TOOL_OUTPUT
+
+        # Build tool_meta for frontend rendering (canonical source)
+        metadata = get_tool_metadata(tool_name) or {}
+        summary_template = metadata.get("summary_template")
+        display_name = None
+        if summary_template and input_data:
+            try:
+                display_name = i18n.get(summary_template, **input_data)
+            except (KeyError, TypeError):
+                pass
+        tool_meta = {
+            "display_name": display_name,
+            "affected_path_keys": metadata.get("affected_path_keys", []),
+        }
+
+        message_id, seq = await self._repository.persist(
+            role="tool",
+            content="",
+            category=category.value,
+            action_type="tool_output",
+            status="running",
+            is_visible=True,
+            tool_call_id=tool_call_id,
+            tool_name=tool_name,
+            content_type="text",
+            metadata={"tool_name": tool_name, "tool_call_id": tool_call_id, "input": input_data, "tool_meta": tool_meta},
+        )
+
+        # Push real-time "running" event
+        await self._dispatch_block(
+            role="tool", content="", category=category.value,
+            status="running", sequence_number=seq,
+            tool_name=tool_name, tool_call_id=tool_call_id,
+            channels={"sse", "mobile"}
+        )
+
+        # Publish StepEvent for frontend step tracking (unified link)
+        try:
+            from app.core.engine.message.event_bus import get_event_bus
+            from app.models.schemas.events import StepEvent
+            await get_event_bus().publish(
+                f"chat:{self.thread_id}:events",
+                StepEvent(
+                    action="create",
+                    id=seq,
+                    data={
+                        "name": display_name or tool_name,
+                        "tool": tool_name,
+                        "status": "running",
+                        "input": input_data,
+                        "tool_meta": tool_meta,
+                        "type": "tool",
+                    },
+                ).model_dump_json(),
+            )
+        except Exception:
+            pass
+
+        logger.info(f"[MessageHandler] Tool start tracked: {tool_name} (seq={seq})")
+        return MessageHandlerResult(
+            category=category.value, persisted=True, streamed=True,
+            message_id=message_id, sequence_number=seq,
+        )
+
     async def handle_tool_output(
         self,
         tool_name: str,
         output: Any,
         tool_call_id: str | None = None,
         run_id: str | None = None,
+        sequence_number: int | None = None,
     ) -> MessageHandlerResult:
-        """处理工具输出消息"""
+        """处理工具输出消息 — 支持 UPDATE 已有 running 记录"""
         category = MessageClassifier.classify_tool_output(tool_name, output)
         content = str(output) if output else ""
         persist_data = MessagePersistencePolicy.apply_policy(
@@ -139,8 +211,46 @@ class MessageHandler:
         logger.info(f"[MessageHandler] Tool {tool_name} output classified as: {category.value}, persist={persist_data.should_persist}")
 
         message_id = None
-        seq = 0
-        if persist_data.should_persist:
+        seq = sequence_number or 0
+
+        if sequence_number and persist_data.should_persist:
+            # UPDATE existing running record
+            updated = await self._repository.update(
+                sequence_number=sequence_number,
+                status="completed",
+                content=persist_data.content,
+                meta_data={"tool_name": tool_name, "tool_call_id": tool_call_id, "output": output},
+            )
+            if updated:
+                message_id = f"msg-{self.thread_id}-{sequence_number}"
+                if category.is_visible_to_user:
+                    await self._dispatch_block(
+                        role="tool", content=persist_data.content, category=category.value,
+                        status="completed", sequence_number=sequence_number,
+                        tool_name=persist_data.tool_name, tool_call_id=persist_data.tool_call_id,
+                        channels={"mobile"}
+                    )
+                # Publish StepEvent update for frontend step tracking (unified link)
+                try:
+                    from app.core.engine.message.event_bus import get_event_bus
+                    from app.models.schemas.events import StepEvent
+                    await get_event_bus().publish(
+                        f"chat:{self.thread_id}:events",
+                        StepEvent(
+                            action="update",
+                            id=sequence_number,
+                            data={
+                                "status": "done",
+                                "details": persist_data.content,
+                                "tool": tool_name,
+                                "type": "tool",
+                            },
+                        ).model_dump_json(),
+                    )
+                except Exception:
+                    pass
+        elif persist_data.should_persist:
+            # Fallback: INSERT new record (backward compatibility)
             message_id, seq = await self._repository.persist(
                 role="tool", content=persist_data.content, category=category.value,
                 action_type="tool_output", is_visible=category.is_visible_to_user,
@@ -168,6 +278,50 @@ class MessageHandler:
             category=category.value, persisted=persist_data.should_persist,
             streamed=stream_data.should_stream, message_id=message_id,
             sequence_number=seq,
+        )
+
+    async def handle_tool_error(
+        self,
+        tool_name: str,
+        error: Exception,
+        tool_call_id: str | None = None,
+        sequence_number: int | None = None,
+    ) -> MessageHandlerResult:
+        """处理工具执行错误 — 将 running 记录标记为 failed"""
+        content = str(error) if error else "Tool execution failed"
+        seq = sequence_number or 0
+
+        if sequence_number:
+            updated = await self._repository.update(
+                sequence_number=sequence_number,
+                status="failed",
+                content=content,
+                meta_data={"tool_name": tool_name, "tool_call_id": tool_call_id, "error": content},
+            )
+            if updated:
+                # Publish StepEvent update for frontend step tracking
+                try:
+                    from app.core.engine.message.event_bus import get_event_bus
+                    from app.models.schemas.events import StepEvent
+                    await get_event_bus().publish(
+                        f"chat:{self.thread_id}:events",
+                        StepEvent(
+                            action="update",
+                            id=sequence_number,
+                            data={
+                                "status": "failed",
+                                "details": content,
+                                "tool": tool_name,
+                                "type": "tool",
+                            },
+                        ).model_dump_json(),
+                    )
+                except Exception:
+                    pass
+
+        return MessageHandlerResult(
+            category="tool_error", persisted=bool(sequence_number),
+            streamed=False, message_id=None, sequence_number=seq,
         )
 
     async def handle_user_message(self, content: str, metadata: dict | None = None) -> MessageHandlerResult:

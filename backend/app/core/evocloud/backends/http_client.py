@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import time
@@ -31,6 +32,7 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
 
         self._client: httpx.AsyncClient | None = None
         self._token_change_callbacks: list[Callable[[str | None], None]] = []
+        self._refresh_lock = asyncio.Lock()
 
     @property
     def root_url(self) -> str:
@@ -56,11 +58,11 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
     def on_token_change(self, callback: Callable[[str | None], None]) -> None:
         self._token_change_callbacks.append(callback)
 
-    def set_token(self, token: str | None) -> None:
+    def set_token(self, token: str | None, refresh_token: str | None = None) -> None:
         if token:
-            identity_service.store.save_access_token(token)
+            identity_service.set_token(token, refresh_token)
         else:
-            identity_service.store.delete_access_token()
+            identity_service.logout()
 
         for cb in self._token_change_callbacks:
             try:
@@ -70,6 +72,45 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
 
     def get_token(self) -> str | None:
         return identity_service.get_access_token()
+
+    async def refresh_access_token(self, failed_token: str | None = None) -> str | None:
+        """
+        Refresh the access token using the stored refresh_token via Login.php.
+        Includes a double-check lock to prevent redundant refreshes from concurrent requests.
+        """
+        refresh_token = identity_service.get_refresh_token()
+        if not refresh_token:
+            logger.warning("[EvoCloud] Missing Refresh Token, cannot refresh session")
+            return None
+
+        async with self._refresh_lock:
+            # Double-check: Has someone else already refreshed it while we were waiting for the lock?
+            current_token = self.get_token()
+            if failed_token and current_token != failed_token:
+                logger.info("[EvoCloud] Access token was already refreshed by another request")
+                return current_token
+
+            logger.info("[EvoCloud] Attempting to refresh access token using Refresh Token...")
+            
+            # Call Login.refreshToken endpoint
+            res = await self.request(
+                "POST", 
+                "/api/login/refreshToken", 
+                data={"refresh_token": refresh_token},
+                token="",
+                headers={"X-Evoloop-Refresh": "true"}
+            )
+            if res.get("code") == 0:
+                data = res.get("data", {})
+                new_token = data.get("token")
+                new_refresh_token = data.get("refresh_token")
+                if new_token:
+                    self.set_token(new_token, new_refresh_token)
+                    logger.info("[EvoCloud] Successfully refreshed access token")
+                    return new_token
+            
+            logger.error(f"[EvoCloud] Token refresh failed: {res.get('message', 'Unknown error')}")
+            return None
 
     def get_member_id(self) -> int | None:
         return identity_service.get_member_id()
@@ -82,7 +123,7 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
     def _generate_signature(self, method: str, uri: str, body: str, timestamp: int) -> str:
         if not self.config.api_secret:
             return ""
-        string_to_sign = f"{method}\\n{uri}\\n{body}\\n{timestamp}"
+        string_to_sign = f"{method}\n{uri}\n{body}\n{timestamp}"
         return generate_hmac_signature(self.config.api_secret, string_to_sign)
 
     async def request(
@@ -92,10 +133,15 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
         params: dict | None = None,
         data: dict | None = None,
         token: str | None = None,
-        headers: dict | None = None
+        headers: dict | None = None,
+        _retry_count: int = 0
     ) -> dict:
         client = await self.get_client()
-        active_token = token or self.get_token()
+        # If token is explicitly "", we don't fetch from store (used during refresh)
+        if token == "":
+            active_token = None
+        else:
+            active_token = token or self.get_token()
 
         # Split-Proxy Logic: Determine routing target for endpoint
         is_gateway = get_endpoint_route(endpoint) == RouteTarget.GATEWAY
@@ -117,14 +163,36 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
             req_headers["X-API-Key"] = self.config.api_key
             req_headers["X-Signature"] = self._generate_signature(method, endpoint, body_str, timestamp)
 
-        if params is None:
-            params = {}
+        # Copy params to avoid mutating the original dictionary (especially during retries)
+        request_params = params.copy() if params is not None else {}
 
         if active_token:
-            params["token"] = active_token
+            request_params["token"] = active_token
 
         try:
-            resp = await client.request(method, url, params=params, json=data, headers=req_headers)
+            resp = await client.request(method, url, params=request_params, json=data, headers=req_headers)
+            # Handle token expiration (401 or specific error code)
+            resp_json = resp.json() if resp.status_code == 200 else {}
+            is_token_expired = (
+                resp.status_code == 401 or 
+                resp_json.get("code") in [-10009, -10010] or
+                resp_json.get("message") == "TOKEN_EXPIRE"
+            )
+            if is_token_expired and _retry_count < 1:
+                logger.warning(f"[EvoCloud] Token expired during request to {endpoint} (code: {resp_json.get('code')}), attempting refresh...")
+                new_token = await self.refresh_access_token(failed_token=active_token)
+                if new_token:
+                    # Retry once with new token
+                    return await self.request(
+                        method=method,
+                        endpoint=endpoint,
+                        params=params,
+                        data=data,
+                        token=new_token,
+                        headers=headers,
+                        _retry_count=_retry_count + 1
+                    )
+
             if resp.status_code >= 400:
                 logger.error(f"API Error {resp.status_code}: {resp.text[:200]}")
 
@@ -147,7 +215,10 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
         if res.get("code", -1) >= 0:
             data = res.get("data", {})
             token = data.get("token")
+            refresh_token = data.get("refresh_token")
             if token:
+                self.set_token(token, refresh_token)
+
                 # Member Center doesn't return member_id in login response
                 # Fetch it from /api/member/info
                 try:
@@ -158,6 +229,10 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
                         member_id = 0
                 except Exception:
                     member_id = 0
+
+                # Update store with member_id
+                identity_service.store.save_member_id(member_id)
+
                 return LoginResult(
                     success=True,
                     token=token,
@@ -328,7 +403,10 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
         if res.get("code", -1) >= 0:
             data = res.get("data", {})
             token = data.get("token")
+            refresh_token = data.get("refresh_token")
             if token:
+                self.set_token(token, refresh_token)
+
                 # Member Center doesn't return member_id in login response
                 # Fetch it from /api/member/info
                 try:
@@ -339,6 +417,10 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
                         member_id = 0
                 except Exception:
                     member_id = 0
+
+                # Update store with member_id
+                identity_service.store.save_member_id(member_id)
+
                 return LoginResult(
                     success=True,
                     token=token,

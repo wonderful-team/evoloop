@@ -5,23 +5,19 @@ Provides real-time state management and event publishing for agent runs.
 Uses ActivityStateService for state persistence and Cache for Pub/Sub.
 """
 
-import asyncio
 import json
 import logging
 import time
 from typing import Any
 
-from pydantic import Field
 
 from app.core.engine.message.event_bus import get_event_bus
 from app.infrastructure.cache import cache
-from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.models.schemas.events import (
     AgentStateEvent,
     ArtifactEvent,
     HumanRequestEvent,
     StatusEvent,
-    StepEvent,
 )
 from app.services.cache_services import ActivityStateService
 from app.core.monitoring.schemas import AgentActivityState, HumanRequestData, SystemLogPayload
@@ -197,91 +193,6 @@ class ActivityMonitor:
         key = f"activity:{thread_id}"
         if await cache.exists(key):
             await cache.hset(key, "active_memories", json.dumps([]))
-
-    async def add_step(
-        self, thread_id: str, name: str, step_type="node", parent_id: int = None,
-        input_data: dict = None, tool: str = None, tool_meta: dict = None,
-    ):
-        """Add a new step and return its ID.
-
-        Args:
-            tool_meta: Backend-driven rendering metadata. Must contain:
-                - display_name: Parameterized display name (e.g. "正在读取 '/path/to/file'")
-                - affected_path_keys: Keys in input that identify affected paths
-        """
-        step_id = await self._state_service.add_step(
-            thread_id, name, step_type, parent_id, input_data, tool=tool, tool_meta=tool_meta
-        )
-
-        if step_id:
-            step_data = {
-                "name": name,
-                "tool": tool,
-                "status": "running",
-                "input": input_data,
-                "tool_meta": tool_meta or {},
-            }
-            await get_event_bus().publish(
-                f"chat:{thread_id}:events",
-                StepEvent(action="create", id=step_id, data=step_data).model_dump_json(),
-            )
-
-        return step_id
-
-    async def update_step(
-        self, thread_id: str, step_id: int, status: str, details: str = None
-    ):
-        """Update step status and optionally details.
-
-        Uses distributed locking with retries to mitigate non-atomic
-        read-modify-write on the cached steps JSON array.
-        """
-        key = f"activity:{thread_id}"
-        lock_key = f"lock:{key}"
-        max_retries = 3
-
-        for attempt in range(1, max_retries + 1):
-            try:
-                async with cache.lock(lock_key, timeout=5.0, blocking_timeout=3.0):
-                    steps_json = await cache.hget(key, "steps")
-                    if not steps_json:
-                        return
-
-                    steps = json.loads(steps_json) if isinstance(steps_json, str) else steps_json
-                    modified = False
-
-                    for step in steps:
-                        if step["id"] == step_id:
-                            step["status"] = status
-                            if details:
-                                step["details"] = details
-                            if status in ["done", "failed"]:
-                                duration = time.time() - step["start_time"]
-                                step["time"] = f"{duration:.2f}s"
-                            modified = True
-                            break
-
-                    if modified:
-                        await cache.hset(
-                            key,
-                            mapping={"steps": json.dumps(steps), "updated_at": str(time.time())},
-                        )
-
-                        # Publish Event
-                        update_data = {"status": status}
-                        if details:
-                            update_data["details"] = details
-                        await get_event_bus().publish(
-                            f"chat:{thread_id}:events",
-                            StepEvent(action="update", id=step_id, data=update_data).model_dump_json(),
-                        )
-                    return  # Success — exit retry loop
-            except Exception as e:
-                if attempt < max_retries:
-                    logger.debug(f"[ActivityMonitor] Step update attempt {attempt} failed for {step_id}, retrying: {e}")
-                    await asyncio.sleep(0.1 * attempt)
-                    continue
-                logger.error(f"[ActivityMonitor] Failed to update step {step_id} for thread {thread_id} after {max_retries} attempts: {e}")
 
     async def update_agent_state(
         self, thread_id: str, mode: str, task_name: str, task_status: str, details: dict[str, Any] | None = None

@@ -8,7 +8,7 @@ DatabaseCallbackHandler - 数据库日志回调处理器（重构版）
 
 不再包含复杂的过滤逻辑！
 """
-
+import json
 import logging
 import re
 from typing import Any
@@ -139,17 +139,19 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
             tool_info = self._tool_info_by_run_id.pop(run_id_str, {})
             tool_name = tool_info.get("name")
             tool_call_id = tool_info.get("tool_call_id")
+            seq = tool_info.get("seq")
 
             if not tool_name:
                 # 回退逻辑
                 tool_name = 'unknown_tool'
                 tool_call_id = run_id_str # 假设 run_id 就是 tool_call_id（符合 Engine 行为）
 
-            # 委托给统一处理器
+            # 委托给统一处理器，传入 sequence_number 以 UPDATE 记录
             result = await self._handler.handle_tool_output(
                 tool_name=tool_name,
                 output=output,
                 tool_call_id=tool_call_id,
+                sequence_number=seq,
             )
 
             # 注意：on_tool_end 并不直接持有 ToolMessage 对象，因此无法直接回填 ID。
@@ -222,7 +224,7 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
         **kwargs: Any,
     ) -> Any:
         """
-        工具执行开始时调用
+        工具执行开始时调用 — 预插入 running 状态记录
         """
         try:
             # 提取工具名称
@@ -230,14 +232,29 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
             run_id_str = str(run_id)
             tool_call_id = kwargs.get("tool_call_id") or run_id_str
 
+            # Parse input data
+            input_data = None
+            if input_str and input_str.strip().startswith("{"):
+                try:
+                    input_data = json.loads(input_str)
+                except (json.JSONDecodeError, ValueError):
+                    pass
+
+            # Pre-insert running record via MessageHandler
+            result = await self._handler.handle_tool_start(
+                tool_name=tool_name,
+                tool_call_id=tool_call_id,
+                input_data=input_data,
+            )
+
             # 存储工具详情（支持并行工具）
             self._tool_info_by_run_id[run_id_str] = {
                 "name": tool_name,
-                "tool_call_id": tool_call_id
+                "tool_call_id": tool_call_id,
+                "seq": result.sequence_number,
             }
-            self._current_tool_name = tool_name
 
-            logger.debug(f"[DatabaseCallback] Tool started: {tool_name} (tool_call_id={tool_call_id})")
+            logger.debug(f"[DatabaseCallback] Tool started: {tool_name} (tool_call_id={tool_call_id}, seq={result.sequence_number})")
         except Exception as e:
             logger.debug(f"[DatabaseCallback] Failed to track tool start: {e}")
 
@@ -248,5 +265,20 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
         run_id: UUID,
         **kwargs: Any,
     ) -> Any:
-        """工具错误，记录日志即可"""
-        logger.warning(f"[DatabaseCallback] Tool error: {error}")
+        """工具错误 — 将 running 记录标记为 failed"""
+        run_id_str = str(run_id)
+        tool_info = self._tool_info_by_run_id.pop(run_id_str, {})
+        tool_name = tool_info.get("name", "unknown_tool")
+        tool_call_id = tool_info.get("tool_call_id", run_id_str)
+        seq = tool_info.get("seq")
+
+        try:
+            await self._handler.handle_tool_error(
+                tool_name=tool_name,
+                error=error,
+                tool_call_id=tool_call_id,
+                sequence_number=seq,
+            )
+            logger.debug(f"[DatabaseCallback] Tool error tracked: {tool_name} (seq={seq})")
+        except Exception as e:
+            logger.debug(f"[DatabaseCallback] Failed to track tool error: {e}")

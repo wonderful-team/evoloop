@@ -49,7 +49,8 @@ class MessageRepository:
         Returns:
             (message_id, sequence_number) or (None, 0) on failure
         """
-        if not content and not thinking and not tool_calls:
+        # Allow empty content for running tool steps (pre-inserted before execution)
+        if not content and not thinking and not tool_calls and status != "running":
             logger.warning(f"[MessageRepository] Skipping persist for {role}: no content, thinking, or tool_calls")
             return None, 0
 
@@ -92,6 +93,44 @@ class MessageRepository:
 
         except Exception as e:
             logger.error(f"[MessageRepository] Failed to persist message: {e}")
+            raise
+
+    async def update(self, sequence_number: int, **fields) -> bool:
+        """
+        Update an existing message by sequence_number.
+
+        Args:
+            sequence_number: The sequence_number of the message to update
+            **fields: Fields to update (e.g. status="completed", content="...")
+
+        Returns:
+            True if updated, False if message not found
+        """
+        try:
+            async with session_scope() as session:
+                from app.models import Message
+                stmt = select(Message).where(
+                    Message.thread_id == self.thread_id,
+                    Message.sequence_number == sequence_number
+                )
+                result = await session.execute(stmt)
+                msg = result.scalar_one_or_none()
+                if not msg:
+                    logger.warning(f"[MessageRepository] Message not found for update: thread={self.thread_id}, seq={sequence_number}")
+                    return False
+
+                for key, value in fields.items():
+                    if hasattr(msg, key):
+                        setattr(msg, key, value)
+                    else:
+                        logger.warning(f"[MessageRepository] Unknown field '{key}' on Message, skipping")
+
+                await session.flush()
+                logger.info(f"[MessageRepository] Updated message seq={sequence_number}: {fields.keys()}")
+                return True
+
+        except Exception as e:
+            logger.error(f"[MessageRepository] Failed to update message seq={sequence_number}: {e}")
             raise
 
     async def resolve_tool_input(self, tool_call_id: str | None) -> dict:

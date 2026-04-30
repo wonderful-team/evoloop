@@ -7,6 +7,7 @@ standard exception handling.
 
 import logging
 
+from app.core.engine.callbacks.database_logger import DatabaseCallbackHandler
 from app.core.engine.callbacks.transparent import TransparentCallbackHandler
 from app.core.exceptions import AgentCancelledException, AgentHumanInterruptException
 from app.core.globals import get_graph
@@ -36,13 +37,23 @@ async def resume_graph_background(
 
     callback = TransparentCallbackHandler(thread_id=thread_id)
 
+    # Extract project_id from config metadata (same pattern as run_agent_background)
+    project_id = config.get("metadata", {}).get("project_id") if config else None
+    run_id = config.get("configurable", {}).get("run_id", f"resume-{thread_id}") if config else f"resume-{thread_id}"
+
+    db_callback = DatabaseCallbackHandler(
+        thread_id=thread_id,
+        project_id=project_id,
+        run_id=run_id,
+    )
+
     try:
         if clear_human_request_flag:
             await activity_monitor.clear_human_request(thread_id)
 
         await activity_monitor.start_run(thread_id, run_label)
 
-        resume_config = {**config, "callbacks": [callback]}
+        resume_config = {**config, "callbacks": [callback, db_callback]}
 
         async for _event in graph.astream(inputs, config=resume_config):
             await activity_monitor.check_cancellation(thread_id)

@@ -25,11 +25,6 @@ class StreamEventType(str, Enum):
     plus additional error/auth types used in the SSE stream endpoint.
     """
     THINKING = "thinking"
-    TOOL_START = "tool_start"
-    TOOL_PROGRESS = "tool_progress"
-    TOOL_COMPLETE = "tool_complete"
-    TOOL_ERROR = "tool_error"
-    CHECKPOINT = "checkpoint"
     PROGRESS = "progress"
     COMPLETE = "complete"
     LLM_AUTH_ERROR = "llm_auth_error"

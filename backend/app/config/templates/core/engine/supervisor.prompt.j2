@@ -118,10 +118,16 @@ As the Manager, you are responsible for **Tool Poisoning Prevention** and **Prin
 1. **Sense**: Review the Environment Awareness section above to understand available platforms.
 2. **Plan**: Discovery SOPs/Tools needed for the task.
 3. **Delegate**: Route to the specialist with a MINIMAL set of authorized tools.
-{% if sys_info.project_concepts %}
+{% if sys_info.project_profile %}
+## Project Profile (PROJECT.md)
+The following PROJECT.md describes the current project context, tech stack, and infrastructure. Refer to this to understand how the project is structured and initialized.
 
-## Project Context
-{{ sys_info.project_concepts }}
+{{ sys_info.project_profile | truncate(8000, True, "\n\n... [PROJECT.md truncated for brevity]") }}
+{%- endif %}
+
+{% if project_concepts %}
+## Project Concepts
+{{ project_concepts }}
 {%- endif %}
 
 ## CRITICAL: Using route_to (MANDATORY)

@@ -110,7 +110,6 @@ def _apply_reasoning_patch() -> None:
                         modified = False
                         for i, msg in enumerate(body["messages"]):
                             role = msg.get("role")
-                            has_reasoning = "reasoning_content" in msg
                             
                             if role == "assistant":
                                 # Always ensure reasoning_content exists and is at the front
@@ -145,7 +144,7 @@ def _apply_reasoning_patch() -> None:
                             request.headers["Content-Length"] = str(len(new_content))
                             if "Transfer-Encoding" in request.headers:
                                 del request.headers["Transfer-Encoding"]
-                except Exception as e:
+                except Exception:
                     pass # Silent failure in production
             
             return await _original_httpx_send(self, request, **kwargs)
@@ -220,14 +219,6 @@ def build_thinking_blocks(thinking_content: str | None) -> list[ThinkingBlock] |
 
     from app.core.engine.message.schemas import ThinkingBlock
     return [ThinkingBlock(type="reasoning", content=thinking_content)]
-
-
-def infer_thinking_type(metadata: dict | None) -> str | None:
-    """Infer thinking type from message metadata. Returns 'reasoning' if metadata contains reasoning_content."""
-    if metadata and metadata.get("reasoning_content"):
-        return "reasoning"
-    return None
-
 
 # ---------------------------------------------------------------------------
 # 4. DB Serialization / Deserialization

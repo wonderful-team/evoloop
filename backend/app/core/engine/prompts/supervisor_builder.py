@@ -6,6 +6,7 @@ Allows for dynamic context injection and potential LLM-specific adaptations.
 """
 import json
 import logging
+import os
 
 from langchain_core.runnables import RunnableConfig
 
@@ -48,6 +49,18 @@ class SupervisorPromptBuilder:
         # 2. Protocol & Sys Info Prep (STATIC parts only)
         is_global_mode = self.project_id == 0 or self.project_id is None
 
+        # Read PROJECT.md if exists (static for the session)
+        project_profile = ""
+        if not is_global_mode and ctx.working_directory:
+            from app.utils import file as file_utils
+            profile_path = os.path.join(ctx.working_directory, "PROJECT.md")
+            if os.path.isfile(profile_path):
+                try:
+                    content = file_utils.read_file(profile_path)
+                    project_profile = content
+                except Exception as e:
+                    logger.debug(f"[SupervisorPrompt] Failed to read PROJECT.md: {e}")
+
         # 3. Prepare Template Variables (STATIC only — no blackboard/memory/telemetry)
         template_vars = {
             "project_id": self.project_id,
@@ -56,8 +69,9 @@ class SupervisorPromptBuilder:
             "sys_info": {
                 "cwd": actual_cwd,
                 "is_global_mode": is_global_mode,
+                "project_profile": project_profile,
             },
-            # Keep static references but NOT the per-turn dynamic data
+            "project_concepts": ctx.metadata.get("project_concepts", ""),
         }
 
         # 4. Render Template

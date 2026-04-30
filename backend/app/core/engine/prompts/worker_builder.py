@@ -54,8 +54,6 @@ class WorkerPromptBuilder:
             if os.path.isfile(profile_path):
                 try:
                     content = file_utils.read_file(profile_path)
-                    if len(content) > 4000:
-                        content = content[:4000] + "\n\n... [PROJECT.md truncated for brevity]"
                     project_profile = content
                 except Exception as e:
                     logger.debug(f"[WorkerPrompt] Failed to read PROJECT.md: {e}")
