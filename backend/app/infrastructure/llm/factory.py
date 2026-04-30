@@ -48,8 +48,50 @@ try:
 except ImportError:
     pass
 
+
+class EvoCloudPlatformAuth(httpx.Auth):
+    """
+    Custom httpx Auth for EvoLoop Platform LLM requests.
+    Automatically detects requests to the EvoLoop Gateway and:
+    - Injects the latest access token from identity_service.
+    - Handles 401 Unauthorized by refreshing the token and retrying.
+    """
+
+    async def async_auth_flow(self, request):
+        from app.core.evocloud import evocloud_manager
+        
+        # 1. Identify if this is a platform request
+        gateway_url = evocloud_manager.api.root_url if evocloud_manager.api else ""
+        is_platform = gateway_url and str(request.url).startswith(gateway_url)
+        
+        if not is_platform:
+            # Not a platform request (e.g. direct OpenAI/Anthropic), pass through
+            yield request
+            return
+
+        # 2. Always inject the LATEST token from identity_service
+        # This ensures we are not stuck with an old token even if the LLM instance is cached.
+        token = evocloud_manager.get_token()
+        if token:
+            request.headers["Authorization"] = f"Bearer {token}"
+        
+        # 3. Send request
+        response = yield request
+
+        # 4. Handle 401 automatically
+        if response.status_code == 401:
+            logger.warning(f"[LLMAuth] Platform token expired (401) for {request.url.path}, attempting background refresh...")
+            # Trigger refresh (using our lock mechanism in http_client)
+            new_token = await evocloud_manager.api.refresh_access_token(failed_token=token)
+            if new_token:
+                logger.info("[LLMAuth] Token refreshed successfully, retrying request...")
+                request.headers["Authorization"] = f"Bearer {new_token}"
+                yield request
+
+
 _HTTP_CLIENT_POOL = LoopBoundResource(
     factory=lambda: httpx.AsyncClient(
+        auth=EvoCloudPlatformAuth(),
         http2=True,
         timeout=httpx.Timeout(300.0, connect=10.0), # Increased from 60s to 300s for reasoning models
         limits=httpx.Limits(max_connections=100, max_keepalive_connections=20)
@@ -86,6 +128,7 @@ class LLMFactory:
     async def create_llm(config: LLMConfig | str | None = None, **kwargs) -> Any:
         """
         Create a standard LLM instance using structured configuration.
+        Includes instance caching to avoid redundant initialization.
         """
         # 兼容性处理：如果第一个参数是 None，尝试从 kwargs 提取 model_name
         if config is None:
@@ -98,27 +141,48 @@ class LLMFactory:
         if isinstance(config, str):
             config = LLMConfig(model_name=config, **kwargs)
             
-        logger.debug(f"[LLMFactory] Creating LLM: {config.model_name}")
-
-        # Detect Mode and Instantiate
+        # Determine mode for cache key
+        config_type = "standard"
+        provider = "platform"
+        base_url = ""
+        
         if config.model_name.startswith("custom-"):
-            return await LLMFactory._create_custom_llm(config)
+            config_type = "custom"
+            provider = config.model_name.split("-")[1]
+        elif config.base_url or config.api_key:
+            config_type = "direct"
+            base_url = config.base_url or ""
 
-        if config.base_url or config.api_key:
-            return await LLMFactory._create_direct_llm(config)
+        # Generate cache key
+        cache_key = LLMFactory._generate_cache_key(
+            config_type, provider, base_url, config.model_name, config.temperature, **config.extra_body
+        )
+        
+        async with LLMFactory._cache_lock:
+            if cache_key in LLMFactory._instance_cache:
+                LLMFactory._cache_hits += 1
+                return LLMFactory._instance_cache[cache_key]
+            
+            LLMFactory._cache_misses += 1
+            logger.debug(f"[LLMFactory] Creating new LLM instance: {config.model_name} (type={config_type})")
 
-        return await LLMFactory._create_platform_llm(config)
+            # Detect Mode and Instantiate
+            if config_type == "custom":
+                instance = await LLMFactory._create_custom_llm(config)
+            elif config_type == "direct":
+                instance = await LLMFactory._create_direct_llm(config)
+            else:
+                instance = await LLMFactory._create_platform_llm(config)
+            
+            LLMFactory._instance_cache[cache_key] = instance
+            return instance
 
     @staticmethod
     async def _create_platform_llm(config: LLMConfig):
         """
-        Platform Mode: Always use OpenAI format to Gateway.
+        Platform Mode: Use dynamic auth via PLATFORM_TOKEN placeholder.
         """
         from app.core.evocloud import evocloud_manager
-
-        token = evocloud_manager.get_token()
-        if not token:
-            raise ValueError("Not authenticated with EvoLoop platform. Please login first.")
 
         gateway_url = evocloud_manager.api.root_url if evocloud_manager.api else ""
         if not gateway_url:
@@ -129,6 +193,11 @@ class LLMFactory:
             **ThinkingConfig().to_extra_body(),
             **config.extra_body
         }
+
+        # Use the current token for initialization.
+        # Note: EvoCloudPlatformAuth will automatically replace it with 
+        # the latest token at request-time if it changes in the background.
+        token = evocloud_manager.get_token() or ""
 
         return AdaptiveChatOpenAI(
             api_key=token,

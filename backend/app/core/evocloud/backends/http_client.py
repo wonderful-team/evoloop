@@ -58,15 +58,20 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
     def on_token_change(self, callback: Callable[[str | None], None]) -> None:
         self._token_change_callbacks.append(callback)
 
-    def set_token(self, token: str | None, refresh_token: str | None = None) -> None:
+    def set_token(self, token: str, refresh_token: str | None = None):
+        """Save tokens to secure storage after stripping and fixing URL-decoding issues."""
         if token:
-            identity_service.set_token(token, refresh_token)
-        else:
-            identity_service.logout()
+            # Fix common PHP/URL-decoding issue where '+' becomes ' '
+            token = token.strip().replace(" ", "+")
+            identity_service.store.save_access_token(token)
+        if refresh_token:
+            refresh_token = refresh_token.strip().replace(" ", "+")
+            identity_service.store.save_refresh_token(refresh_token)
 
-        for cb in self._token_change_callbacks:
+        # Trigger callbacks
+        for callback in self._token_change_callbacks:
             try:
-                cb(token)
+                callback(token)
             except Exception as e:
                 logger.warning(f"Token change callback error: {e}")
 

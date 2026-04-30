@@ -42,6 +42,11 @@ class EvoCloudClientProtocol(ABC):
         """Register a callback invoked whenever the access token changes."""
         pass
 
+    @abstractmethod
+    async def refresh_access_token(self, failed_token: str | None = None) -> str | None:
+        """Refresh the access token using a refresh token."""
+        pass
+
     # --- Core Requests ---
     @abstractmethod
     async def request(self, method: str, endpoint: str, **kwargs) -> dict:
