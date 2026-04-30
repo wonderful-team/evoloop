@@ -11,12 +11,17 @@ import { llmPlatformService } from "@/services/llmPlatform"
 export interface StepItem {
     id: number
     name: string
+    tool?: string              // Original tool identifier (e.g. "search_web")
     status: "running" | "done" | "failed" | "cancelled"
     type: "node" | "tool" | "ai" | "skill"
     parent_id?: number
     time: string
     details?: string
     input?: any  // Tool input parameters (for real-time steps)
+    tool_meta?: {
+        affected_path_keys?: string[]
+        display_name?: string
+    }
 }
 
 interface ChangesetFile {
@@ -661,19 +666,22 @@ export const useChatStore = create<ChatState>((set, get) => ({
         const stepData = stepEvent.data || stepEvent
         if (!stepData) return
 
+        // The 'id' is in the event wrapper, not inside data — inject it
+        const mergedData = { ...stepData, id: stepEvent.id }
+
         set(state => {
-            const existingIndex = state.steps.findIndex(s => s.id === stepData.id)
+            const existingIndex = state.steps.findIndex(s => s.id === mergedData.id)
             let newSteps
-            
+
             if (existingIndex >= 0) {
-                // Update existing step
+                // Update existing step — preserve original name/tool/input from create event
                 newSteps = [...state.steps]
-                newSteps[existingIndex] = { ...newSteps[existingIndex], ...stepData }
+                newSteps[existingIndex] = { ...newSteps[existingIndex], ...mergedData }
             } else {
                 // Add new step
-                newSteps = [...state.steps, stepData]
+                newSteps = [...state.steps, mergedData]
             }
-            
+
             return { steps: newSteps }
         })
     },
@@ -927,7 +935,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
                         currentTool: {
                             id: event.data?.toolId || `tool-${Date.now()}`,
                             toolName: event.data?.toolName || i18n.t("common.tool.defaultName"),
-                            displayName: event.data?.displayName || event.data?.toolName || i18n.t("common.tool.defaultName"),
+                            displayName: event.data?.tool_meta?.display_name || event.data?.displayName || event.data?.toolName || i18n.t("common.tool.defaultName"),
                             status: 'running',
                             progress: 0,
                             message: event.message,

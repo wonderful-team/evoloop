@@ -281,32 +281,6 @@ export const AnnotationResponseSchema = {
     description: '标注响应'
 } as const;
 
-export const AuthProxyMobileCodeRequestSchema = {
-    properties: {
-        mobile: {
-            type: 'string',
-            title: 'Mobile'
-        },
-        captcha_id: {
-            type: 'string',
-            title: 'Captcha Id'
-        },
-        captcha_code: {
-            type: 'string',
-            title: 'Captcha Code'
-        },
-        type: {
-            type: 'string',
-            title: 'Type',
-            default: 'login'
-        }
-    },
-    additionalProperties: true,
-    type: 'object',
-    required: ['mobile', 'captcha_id', 'captcha_code'],
-    title: 'AuthProxyMobileCodeRequest'
-} as const;
-
 export const BaseAPIResponseSchema = {
     properties: {
         success: {
@@ -838,25 +812,6 @@ export const Body_project_requirements_upload_requirement_documentSchema = {
     title: 'Body_project-requirements-upload_requirement_document'
 } as const;
 
-export const BulkUploadResponseSchema = {
-    properties: {
-        success: {
-            type: 'boolean',
-            title: 'Success',
-            default: true
-        },
-        message: {
-            type: 'string',
-            title: 'Message',
-            default: ''
-        }
-    },
-    additionalProperties: true,
-    type: 'object',
-    title: 'BulkUploadResponse',
-    description: 'Response for bulk upload.'
-} as const;
-
 export const CacheInvalidateResponseSchema = {
     properties: {
         code: {
@@ -1008,7 +963,14 @@ export const ChatRequestSchema = {
             default: 1
         },
         thread_id: {
-            type: 'string',
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
             title: 'Thread Id'
         },
         message: {
@@ -1670,47 +1632,6 @@ export const DetectedProjectItemSchema = {
     description: 'Detected project awaiting import.'
 } as const;
 
-export const DetectedProjectsResponseSchema = {
-    properties: {
-        success: {
-            type: 'boolean',
-            title: 'Success',
-            default: true
-        },
-        message: {
-            type: 'string',
-            title: 'Message',
-            default: ''
-        },
-        data: {
-            items: {
-                '$ref': '#/components/schemas/DetectedProjectItem'
-            },
-            type: 'array',
-            title: 'Data'
-        },
-        total: {
-            type: 'integer',
-            title: 'Total',
-            default: 0
-        },
-        page: {
-            type: 'integer',
-            title: 'Page',
-            default: 1
-        },
-        page_size: {
-            type: 'integer',
-            title: 'Page Size',
-            default: 20
-        }
-    },
-    additionalProperties: true,
-    type: 'object',
-    title: 'DetectedProjectsResponse',
-    description: 'Response for detected projects.'
-} as const;
-
 export const DeviceResolutionResponseSchema = {
     properties: {
         success: {
@@ -2103,6 +2024,10 @@ export const DocumentSearchResponseSchema = {
             type: 'string',
             title: 'Query'
         },
+        total: {
+            type: 'integer',
+            title: 'Total'
+        },
         results: {
             items: {
                 '$ref': '#/components/schemas/DocumentSearchItem'
@@ -2110,13 +2035,14 @@ export const DocumentSearchResponseSchema = {
             type: 'array',
             title: 'Results'
         },
-        total: {
-            type: 'integer',
-            title: 'Total'
+        facets: {
+            additionalProperties: true,
+            type: 'object',
+            title: 'Facets'
         }
     },
     type: 'object',
-    required: ['query', 'results', 'total'],
+    required: ['query', 'total', 'results'],
     title: 'DocumentSearchResponse',
     description: 'Response for document search.'
 } as const;
@@ -2581,16 +2507,16 @@ export const FTSSearchResponseSchema = {
             type: 'string',
             title: 'Query'
         },
+        total: {
+            type: 'integer',
+            title: 'Total'
+        },
         results: {
             items: {
                 '$ref': '#/components/schemas/FTSSearchResult'
             },
             type: 'array',
             title: 'Results'
-        },
-        total: {
-            type: 'integer',
-            title: 'Total'
         },
         facets: {
             additionalProperties: true,
@@ -2599,7 +2525,7 @@ export const FTSSearchResponseSchema = {
         }
     },
     type: 'object',
-    required: ['query', 'results', 'total', 'facets'],
+    required: ['query', 'total', 'results', 'facets'],
     title: 'FTSSearchResponse',
     description: 'Response for FTS search.'
 } as const;
@@ -3320,6 +3246,42 @@ export const LLMConfigRequestSchema = {
             title: 'Vision Model',
             description: 'Vision Model Name (e.g. gpt-4o)'
         },
+        vision_base_url: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Vision Base Url',
+            description: '独立 Vision API Base URL (本地 VLM)'
+        },
+        vision_api_key: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Vision Api Key',
+            description: '独立 Vision API Key'
+        },
+        vision_provider_type: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Vision Provider Type',
+            description: '独立 Vision 协议类型: openai | anthropic'
+        },
         api_key: {
             anyOf: [
                 {
@@ -3379,25 +3341,84 @@ export const LLMTestResponseSchema = {
     title: 'LLMTestResponse'
 } as const;
 
-export const LoginMobileRequestSchema = {
+export const ListResponse_DetectedProjectItem_Schema = {
     properties: {
-        mobile: {
-            type: 'string',
-            title: 'Mobile'
+        success: {
+            type: 'boolean',
+            title: 'Success',
+            default: true
         },
-        key: {
+        message: {
             type: 'string',
-            title: 'Key'
+            title: 'Message',
+            default: ''
         },
-        code: {
-            type: 'string',
-            title: 'Code'
+        data: {
+            items: {
+                '$ref': '#/components/schemas/DetectedProjectItem'
+            },
+            type: 'array',
+            title: 'Data'
+        },
+        total: {
+            type: 'integer',
+            title: 'Total',
+            default: 0
+        },
+        page: {
+            type: 'integer',
+            title: 'Page',
+            default: 1
+        },
+        page_size: {
+            type: 'integer',
+            title: 'Page Size',
+            default: 20
         }
     },
     additionalProperties: true,
     type: 'object',
-    required: ['mobile', 'key', 'code'],
-    title: 'LoginMobileRequest'
+    title: 'ListResponse[DetectedProjectItem]'
+} as const;
+
+export const ListResponse_RequirementListItem_Schema = {
+    properties: {
+        success: {
+            type: 'boolean',
+            title: 'Success',
+            default: true
+        },
+        message: {
+            type: 'string',
+            title: 'Message',
+            default: ''
+        },
+        data: {
+            items: {
+                '$ref': '#/components/schemas/RequirementListItem'
+            },
+            type: 'array',
+            title: 'Data'
+        },
+        total: {
+            type: 'integer',
+            title: 'Total',
+            default: 0
+        },
+        page: {
+            type: 'integer',
+            title: 'Page',
+            default: 1
+        },
+        page_size: {
+            type: 'integer',
+            title: 'Page Size',
+            default: 20
+        }
+    },
+    additionalProperties: true,
+    type: 'object',
+    title: 'ListResponse[RequirementListItem]'
 } as const;
 
 export const LoginResultSchema = {
@@ -3635,14 +3656,11 @@ export const MessageItemSchema = {
         thinking: {
             anyOf: [
                 {
-                    type: 'array',
                     items: {
-                        type: 'object',
-                        properties: {
-                            type: { type: 'string' },
-                            content: { type: 'string' }
-                        }
-                    }
+                        additionalProperties: true,
+                        type: 'object'
+                    },
+                    type: 'array'
                 },
                 {
                     type: 'null'
@@ -3692,21 +3710,6 @@ export const MessageItemSchema = {
             type: 'object',
             title: 'Metadata'
         },
-        steps_snapshot: {
-            anyOf: [
-                {
-                    items: {
-                        additionalProperties: true,
-                        type: 'object'
-                    },
-                    type: 'array'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Steps Snapshot'
-        },
         run_id: {
             anyOf: [
                 {
@@ -3746,6 +3749,75 @@ export const MessageItemSchema = {
             type: 'integer',
             title: 'Changeset Count',
             default: 0
+        },
+        category: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Category'
+        },
+        content_type: {
+            type: 'string',
+            title: 'Content Type',
+            default: 'text'
+        },
+        status: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Status'
+        },
+        sequence_number: {
+            anyOf: [
+                {
+                    type: 'integer'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Sequence Number'
+        },
+        checkpoint_id: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Checkpoint Id'
+        },
+        is_visible: {
+            type: 'boolean',
+            title: 'Is Visible',
+            default: true
+        },
+        tool_blocks: {
+            anyOf: [
+                {
+                    items: {
+                        additionalProperties: true,
+                        type: 'object'
+                    },
+                    type: 'array'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Tool Blocks'
         }
     },
     additionalProperties: true,
@@ -3831,24 +3903,6 @@ export const MessageListResponseSchema = {
     required: ['has_more'],
     title: 'MessageListResponse',
     description: 'Response model for paginated message list.'
-} as const;
-
-export const MessageResponseSchema = {
-    properties: {
-        success: {
-            type: 'boolean',
-            title: 'Success',
-            default: true
-        },
-        message: {
-            type: 'string',
-            title: 'Message',
-            default: ''
-        }
-    },
-    additionalProperties: true,
-    type: 'object',
-    title: 'MessageResponse'
 } as const;
 
 export const MirrorDevicesResponseSchema = {
@@ -3983,6 +4037,11 @@ export const MobileCodeRequestSchema = {
                 }
             ],
             title: 'Captcha Code'
+        },
+        type: {
+            type: 'string',
+            title: 'Type',
+            default: 'login'
         }
     },
     additionalProperties: true,
@@ -5093,47 +5152,6 @@ export const RequirementListItemSchema = {
     required: ['id', 'file_name', 'file_type', 'status', 'created_at', 'analysis_count'],
     title: 'RequirementListItem',
     description: 'Item in requirement document list.'
-} as const;
-
-export const RequirementListResponseSchema = {
-    properties: {
-        success: {
-            type: 'boolean',
-            title: 'Success',
-            default: true
-        },
-        message: {
-            type: 'string',
-            title: 'Message',
-            default: ''
-        },
-        data: {
-            items: {
-                '$ref': '#/components/schemas/RequirementListItem'
-            },
-            type: 'array',
-            title: 'Data'
-        },
-        total: {
-            type: 'integer',
-            title: 'Total',
-            default: 0
-        },
-        page: {
-            type: 'integer',
-            title: 'Page',
-            default: 1
-        },
-        page_size: {
-            type: 'integer',
-            title: 'Page Size',
-            default: 20
-        }
-    },
-    additionalProperties: true,
-    type: 'object',
-    title: 'RequirementListResponse',
-    description: 'Response for listing requirement documents.'
 } as const;
 
 export const RequirementMappingSchema = {
@@ -7201,25 +7219,6 @@ export const TaskProgressUpdateSchema = {
     description: 'Task progress update.'
 } as const;
 
-export const TaskProgressUpdateResponseSchema = {
-    properties: {
-        success: {
-            type: 'boolean',
-            title: 'Success',
-            default: true
-        },
-        message: {
-            type: 'string',
-            title: 'Message',
-            default: ''
-        }
-    },
-    additionalProperties: true,
-    type: 'object',
-    title: 'TaskProgressUpdateResponse',
-    description: 'Response after updating task progress.'
-} as const;
-
 export const TaskStatusUpdateSchema = {
     properties: {
         status: {
@@ -7593,6 +7592,36 @@ export const TodoPrioritySchema = {
 
 export const TodoResponseSchema = {
     properties: {
+        created_at: {
+            anyOf: [
+                {
+                    type: 'string',
+                    format: 'date-time'
+                },
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Created At'
+        },
+        updated_at: {
+            anyOf: [
+                {
+                    type: 'string',
+                    format: 'date-time'
+                },
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Updated At'
+        },
         id: {
             type: 'string',
             title: 'Id'
@@ -7673,20 +7702,10 @@ export const TodoResponseSchema = {
                 }
             ],
             title: 'Project Id'
-        },
-        created_at: {
-            type: 'string',
-            format: 'date-time',
-            title: 'Created At'
-        },
-        updated_at: {
-            type: 'string',
-            format: 'date-time',
-            title: 'Updated At'
         }
     },
     type: 'object',
-    required: ['id', 'title', 'description', 'status', 'priority', 'category', 'due_date', 'source_conversation_id', 'source_message_id', 'project_id', 'created_at', 'updated_at'],
+    required: ['id', 'title', 'description', 'status', 'priority', 'category', 'due_date', 'source_conversation_id', 'source_message_id', 'project_id'],
     title: 'TodoResponse',
     description: 'Schema for Todo responses.'
 } as const;
@@ -9026,23 +9045,4 @@ export const WikiPageReadSchema = {
     type: 'object',
     required: ['project_id', 'title', 'slug', 'content', 'id', 'created_at', 'updated_at'],
     title: 'WikiPageRead'
-} as const;
-
-export const ZipImportResponseSchema = {
-    properties: {
-        success: {
-            type: 'boolean',
-            title: 'Success',
-            default: true
-        },
-        message: {
-            type: 'string',
-            title: 'Message',
-            default: ''
-        }
-    },
-    additionalProperties: true,
-    type: 'object',
-    title: 'ZipImportResponse',
-    description: 'Response for ZIP import.'
 } as const;

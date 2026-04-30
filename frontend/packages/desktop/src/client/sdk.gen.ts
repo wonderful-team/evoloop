@@ -9,7 +9,7 @@ export class AccountService {
     /**
      * Login Access Token
      * Passthrough login to Member Center using username and password.
-     * Returns a thin local token based on the Cloud member_id.
+     * Returns the access token directly.
      * @param data The data for the request.
      * @param data.formData
      * @returns Token Successful Response
@@ -116,7 +116,7 @@ export class AccountService {
     
     /**
      * Wechat Direct Login
-     * Exchanges the Member Center token for a local JWT after successful WeChat scan.
+     * Returns the cloud access token directly after successful WeChat scan.
      * @param data The data for the request.
      * @param data.key The unique key from QR code generation
      * @returns Token Successful Response
@@ -162,7 +162,7 @@ export class AccountService {
     
     /**
      * Logout
-     * Clear local session and cloud tokens.
+     * Clear local session and access tokens.
      * @returns LogoutResponse Successful Response
      * @throws ApiError
      */
@@ -1452,7 +1452,7 @@ export class KnowledgeService {
      * Each file is processed independently.
      * @param data The data for the request.
      * @param data.formData
-     * @returns BulkUploadResponse Successful Response
+     * @returns BaseAPIResponse Successful Response
      * @throws ApiError
      */
     public static bulkUpload(data: KnowledgeBulkUploadData): CancelablePromise<KnowledgeBulkUploadResponse> {
@@ -1475,7 +1475,7 @@ export class KnowledgeService {
      * Directory structure can be preserved or flattened.
      * @param data The data for the request.
      * @param data.formData
-     * @returns ZipImportResponse Successful Response
+     * @returns BaseAPIResponse Successful Response
      * @throws ApiError
      */
     public static importZip(data: KnowledgeImportZipData): CancelablePromise<KnowledgeImportZipResponse> {
@@ -1813,7 +1813,7 @@ export class KnowledgeService {
     
     /**
      * List Maintenance Reports
-     * List recent maintenance reports from SQLite.
+     * List recent maintenance reports from database.
      * @param data The data for the request.
      * @param data.limit Number of recent reports
      * @returns unknown Successful Response
@@ -2861,7 +2861,7 @@ export class MemberService {
      * Change current user's password (Transparent Proxy).
      * @param data The data for the request.
      * @param data.requestBody
-     * @returns MessageResponse Successful Response
+     * @returns BaseAPIResponse Successful Response
      * @throws ApiError
      */
     public static changePassword(data: MemberChangePasswordData): CancelablePromise<MemberChangePasswordResponse> {
@@ -3417,10 +3417,11 @@ export class ProjectModulesService {
 export class ProjectProfilesService {
     /**
      * Discover Profile
-     * Trigger Agent-driven project discovery.
+     * Trigger Agent-driven project discovery via the Skill system.
      *
-     * Dispatches an Agent Mission to explore the project, set up the environment,
-     * and generate PROJECT.md. Returns a thread_id for SSE streaming.
+     * The API resolves the skill, builds an ExecutionTicket with ``skill_id``,
+     * and lets the Skill SOP guide the Worker. No template-level step-by-step
+     * instructions are needed — the SKILL.md owns the execution flow.
      * @param data The data for the request.
      * @param data.projectId
      * @param data.requestBody
@@ -3500,7 +3501,7 @@ export class ProjectRequirementsService {
      * Get all requirement documents for a project.
      * @param data The data for the request.
      * @param data.projectId
-     * @returns RequirementListResponse Successful Response
+     * @returns ListResponse_RequirementListItem_ Successful Response
      * @throws ApiError
      */
     public static listProjectRequirements(data: ProjectRequirementsListProjectRequirementsData): CancelablePromise<ProjectRequirementsListProjectRequirementsResponse> {
@@ -3745,7 +3746,7 @@ export class ProjectsService {
      * Returns projects with sync_status="DETECTED" that need to be imported or ignored.
      *
      * Note: Returns empty list if project discovery is disabled via configuration.
-     * @returns DetectedProjectsResponse Successful Response
+     * @returns ListResponse_DetectedProjectItem_ Successful Response
      * @throws ApiError
      */
     public static getDetectedProjects(): CancelablePromise<ProjectsGetDetectedProjectsResponse> {
@@ -3809,7 +3810,7 @@ export class ProjectsService {
      * Get all ignored projects.
      *
      * These projects can be restored (un-ignored) later.
-     * @returns DetectedProjectsResponse Successful Response
+     * @returns ListResponse_DetectedProjectItem_ Successful Response
      * @throws ApiError
      */
     public static getIgnoredProjects(): CancelablePromise<ProjectsGetIgnoredProjectsResponse> {
@@ -4275,7 +4276,7 @@ export class SubtasksService {
      * @param data.projectId
      * @param data.taskId
      * @param data.requestBody
-     * @returns TaskProgressUpdateResponse Successful Response
+     * @returns BaseAPIResponse Successful Response
      * @throws ApiError
      */
     public static updateTaskProgress(data: SubtasksUpdateTaskProgressData): CancelablePromise<SubtasksUpdateTaskProgressResponse> {

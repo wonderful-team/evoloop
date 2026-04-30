@@ -38,7 +38,7 @@ import { extractArtifactsFromContent } from "./Artifacts/utils"
 import { MessageContent } from "./MessageContent"
 import { VoiceMessage } from "./VoiceMessage"
 import { SourcesFooter } from "./SourcesFooter"
-import { AgentProcess, AgentProcessStep } from "./AgentProcess"
+import { AgentProcess } from "./AgentProcess"
 import { AnalysisResultMessage } from "./AnalysisResultMessage"
 import { useShowThinking } from "../UserSettings/AppearanceSettings"
 import { TTSButton } from "./TTSButton"
@@ -46,7 +46,9 @@ import { useAutoSpeak, useTTS } from "@/hooks/useTTS"
 import { useEffect } from "react"
 import { cn } from "@evoloop/shared/lib/utils"
 
-// Convert StepItem (from backend steps_snapshot) to AgentProcessStep format
+// Convert legacy StepItem (from backend steps_snapshot) to raw step format.
+// NOTE: steps_snapshot is deprecated; backend now returns folded steps via msg.steps.
+// This converter is kept only for backward compatibility with very old messages.
 function convertStepsToAgentProcess(steps: Array<{
   id: number
   name: string
@@ -54,38 +56,27 @@ function convertStepsToAgentProcess(steps: Array<{
   type?: string
   time?: string
   details?: string
-}>): AgentProcessStep[] {
+  input?: any
+}>): any[] {
   return steps
     .map((step) => {
-      let name = step.name || ""
-      let tool = name.replace("Using ", "") || "unknown"
+      // Legacy snapshots store the friendly name in 'name' (e.g. "Using read_file")
+      // and sometimes store input in the 'input' field.
+      const name = step.name || ""
+      const rawTool = name.replace("Using ", "") || "unknown"
 
-      // If tool is still unknown, try to infer it from the name (common in snapshots)
+      // Infer tool ID from friendly name
+      let tool = rawTool
       if (tool === "unknown" && name) {
         if (name.includes("正在读取") || name.includes("read_file")) tool = "read_file"
         else if (name.includes("正在列出") || name.includes("list_directory") || name.includes("list_files")) tool = "list_directory"
         else if (name.includes("正在查找") || name.includes("search_files")) tool = "search_files"
+        else if (name.includes("搜索网页") || name.includes("search_web")) tool = "search_web"
+        else if (name.includes("执行命令") || name.includes("bash")) tool = "bash_command"
       }
 
-      let input: any = null
-      if (step.details) {
-        try {
-          const detailsJson = JSON.parse(step.details)
-          if (detailsJson.input) {
-            input = detailsJson.input
-          } else if (detailsJson.query || detailsJson.url || detailsJson.path || detailsJson.command) {
-            input = {
-              query: detailsJson.query,
-              url: detailsJson.url,
-              path: detailsJson.path,
-              command: detailsJson.command,
-              target: detailsJson.target,
-            }
-          }
-        } catch (e) {
-          // If not JSON, it might be raw text output
-        }
-      }
+      // Use explicit 'input' if available; do NOT try to parse it from 'details' (which is output)
+      const input = step.input ?? null
 
       return {
         id: `snap-${step.id}`,
@@ -105,18 +96,17 @@ function ToolExecutionSection({ msg }: { msg: Message }) {
   const { t } = useTranslation()
   const [isOpen, setIsOpen] = useState(false)
 
-  // Combine real-time steps (from SSE) and historical snapshot
-  // Prefer real-time steps if available, otherwise use snapshot
-  const hasRealtimeSteps = msg.steps && msg.steps.length > 0
-  const hasSnapshot = msg.steps_snapshot && msg.steps_snapshot.length > 0
+  // Backend now folds tool steps into msg.steps (ToolStep format) server-side.
+  // steps_snapshot is deprecated and no longer returned by the API.
+  const displaySteps: any[] = msg.steps && msg.steps.length > 0
+    ? msg.steps
+    : (msg.steps_snapshot && msg.steps_snapshot.length > 0
+        ? convertStepsToAgentProcess(msg.steps_snapshot)
+        : [])
 
-  if (!hasRealtimeSteps && !hasSnapshot) return null
+  if (displaySteps.length === 0) return null
 
-  // Convert snapshot steps to AgentProcessStep format if needed
-  const displaySteps: AgentProcessStep[] = hasRealtimeSteps
-    ? msg.steps!
-    : convertStepsToAgentProcess(msg.steps_snapshot!)
-  const isRealtime = hasRealtimeSteps
+  const isRealtime = !!(msg.steps && msg.steps.length > 0)
 
   // Calculate status counts
   const runningCount = displaySteps.filter((s) => s.status === "running").length
@@ -225,7 +215,7 @@ export interface Message {
     time?: string
     details?: string
   }>
-  steps?: AgentProcessStep[] // Tool execution steps
+  steps?: any[] // Tool execution steps
   tool_calls?: any[] // Tool calls for real-time matching
   has_file_operations?: boolean // Whether this message has associated file operations (for Rewind/Retry)
   status?: "pending" | "streaming" | "completed" | "failed" // Message generation status
