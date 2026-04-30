@@ -242,8 +242,8 @@ class MessageRewind:
         Uses event.affected_message_ids (pre-computed by RewindOrchestrator)
         to avoid race conditions with other handlers querying the messages table.
         """
-        # Use pre-computed message IDs if available, otherwise fall back to query
-        message_ids = event.affected_message_ids or await self._find_messages_to_delete(
+        # Use pre-computed database IDs if available, otherwise fall back to query
+        message_ids = event.affected_db_message_ids or event.affected_message_ids or await self._find_messages_to_delete(
             thread_id=event.thread_id,
             target_message_id=event.target_message_id,
             include_target=event.include_target

@@ -37,6 +37,7 @@ class RewindRequestedEvent(RewindEvent):
     # Populated by RewindOrchestrator so handlers do not race
     # against each other querying the messages table.
     affected_message_ids: list[str] = Field(default_factory=list)
+    affected_db_message_ids: list[str] = Field(default_factory=list)
     affected_run_ids: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")

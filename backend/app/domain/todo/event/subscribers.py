@@ -153,7 +153,7 @@ class TodoRewind:
         Uses event.affected_message_ids (pre-computed by RewindOrchestrator)
         to avoid race conditions with other handlers querying the messages table.
         """
-        message_ids = event.affected_message_ids or await self._find_message_ids(
+        message_ids = event.affected_db_message_ids or event.affected_message_ids or await self._find_message_ids(
             thread_id=event.thread_id,
             target_message_id=event.target_message_id,
             include_target=event.include_target

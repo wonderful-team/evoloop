@@ -126,8 +126,8 @@ class TraceRewind:
         
         Extracts message IDs and publishes a TRACE_CLEANUP event.
         """
-        # Use pre-computed message IDs if available, otherwise fall back to query
-        message_ids = event.affected_message_ids or await self._find_message_ids(
+        # Use pre-computed database IDs if available, otherwise fall back to query
+        message_ids = event.affected_db_message_ids or event.affected_message_ids or await self._find_message_ids(
             thread_id=event.thread_id,
             target_message_id=event.target_message_id,
             include_target=event.include_target

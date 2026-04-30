@@ -52,10 +52,11 @@ class FileRewind:
             return
 
         # Query file operations for this thread
-        if event.affected_message_ids:
+        target_ids = event.affected_db_message_ids or event.affected_message_ids
+        if target_ids:
             file_ops = await self._find_file_operations_by_message_ids(
                 thread_id=event.thread_id,
-                message_ids=event.affected_message_ids
+                message_ids=target_ids
             )
         else:
             file_ops = await self._find_file_operations(
