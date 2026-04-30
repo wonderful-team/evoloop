@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 
 @evoloop_tool(
     is_state_mutating=True,
-    name_map={"zh": "记住", "en": "Remember"}
+    summary_template="database_logger.tool_summary.remember"
 )
 async def remember(content: str, context: str = "", is_user_preference: bool = False) -> str:
     """
@@ -100,7 +100,7 @@ async def remember(content: str, context: str = "", is_user_preference: bool = F
 
 @evoloop_tool(
     is_state_mutating=False,
-    name_map={"zh": "回忆", "en": "Recall"}
+    summary_template="database_logger.tool_summary.recall"
 )
 async def recall(query: str, limit: int = 5) -> str:
     """
@@ -154,7 +154,7 @@ async def recall(query: str, limit: int = 5) -> str:
 
 @evoloop_tool(
     is_state_mutating=True,
-    name_map={"zh": "删除记忆", "en": "Forget Memory"}
+    summary_template="database_logger.tool_summary.forget_memory"
 )
 async def forget_memory(memory_id: str) -> str:
     """
@@ -193,7 +193,7 @@ async def forget_memory(memory_id: str) -> str:
 @evoloop_tool(
     is_pollable=True,
     is_memory_tool=True,
-    name_map={"zh": "搜索历史", "en": "Search History"}
+    summary_template="database_logger.tool_summary.search_history"
 )
 async def search_history(
     query: str,
@@ -242,8 +242,8 @@ async def search_history(
 # ========================================================================
 
 @evoloop_tool(
-    name_map={"zh": "遗忘工具输出", "en": "Forget Tool Outputs"},
     is_state_mutating=True,
+    summary_template="database_logger.tool_summary.forget_tool_outputs"
 )
 async def forget_tool_outputs(
     tool_call_ids: Annotated[list[str], "List of tool_call_ids to forget"],
@@ -347,8 +347,8 @@ async def forget_tool_outputs(
 
 
 @evoloop_tool(
-    name_map={"zh": "召回工具输出", "en": "Recall Tool Output"},
     is_state_mutating=True,
+    summary_template="database_logger.tool_summary.recall_tool_output"
 )
 async def recall_tool_output(
     tool_call_id: Annotated[str, "The tool_call_id to recall"],
@@ -396,8 +396,8 @@ async def recall_tool_output(
 
 
 @evoloop_tool(
-    name_map={"zh": "列出已遗忘的输出", "en": "List Forgotten Outputs"},
     is_state_mutating=False,
+    summary_template="database_logger.tool_summary.list_forgotten_outputs"
 )
 async def list_forgotten_outputs(
     limit: Annotated[int, "Max records to return"] = 20,

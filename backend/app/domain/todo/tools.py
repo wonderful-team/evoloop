@@ -20,8 +20,7 @@ from app.utils import ContentFormatter
 
 @evoloop_tool(
     is_state_mutating=True,
-    summary_template="database_logger.tool_summary.create_todo",
-    name_map={"zh": "创建待办", "en": "Create Todo"}
+    summary_template="database_logger.tool_summary.create_todo"
 )
 async def create_todo(
     title: str,
@@ -102,8 +101,7 @@ async def create_todo(
 
 @evoloop_tool(
     is_pollable=True,
-    summary_template="database_logger.tool_summary.list_todos",
-    name_map={"zh": "列出现办", "en": "List Todos"}
+    summary_template="database_logger.tool_summary.list_todos"
 )
 async def list_todos(
     status: Literal["pending", "completed", "cancelled"] | None = None,
@@ -147,8 +145,7 @@ async def list_todos(
 
 @evoloop_tool(
     is_state_mutating=True,
-    summary_template="database_logger.tool_summary.complete_todo",
-    name_map={"zh": "完成待办", "en": "Complete Todo"}
+    summary_template="database_logger.tool_summary.complete_todo"
 )
 async def complete_todo(todo_id: str) -> str:
     """
@@ -178,7 +175,7 @@ async def complete_todo(todo_id: str) -> str:
         todo = service.mark_completed(todo_id)
         return i18n.get(
             "domain_tools.manage_todo.success_update",
-            id=todo.id,
+            id=todo.id
         ) + f" [{todo.status.value}] {todo.title}"
     except TodoNotFoundError:
         return i18n.get("domain_tools.manage_todo.error_not_found", id=todo_id)
@@ -186,8 +183,7 @@ async def complete_todo(todo_id: str) -> str:
 
 @evoloop_tool(
     is_state_mutating=True,
-    summary_template="database_logger.tool_summary.cancel_todo",
-    name_map={"zh": "取消待办", "en": "Cancel Todo"}
+    summary_template="database_logger.tool_summary.cancel_todo"
 )
 async def cancel_todo(todo_id: str) -> str:
     """
@@ -218,7 +214,7 @@ async def cancel_todo(todo_id: str) -> str:
         todo = service.mark_cancelled(todo_id)
         return i18n.get(
             "domain_tools.manage_todo.success_update",
-            id=todo.id,
+            id=todo.id
         ) + f" [{todo.status.value}] {todo.title}"
     except TodoNotFoundError:
         return i18n.get("domain_tools.manage_todo.error_not_found", id=todo_id)
@@ -228,10 +224,7 @@ async def cancel_todo(todo_id: str) -> str:
 # Future Tools (can be enabled when needed)
 # =============================================================================
 
-# @evoloop_tool(
-#     is_pollable=True,
-#     name_map={"zh": "获取待办", "en": "Get Todo"}
-# )
+# @evoloop_tool(is_pollable=True)
 # async def get_todo(todo_id: str) -> str:
 #     """Get details of a specific Todo."""
 #     service = TodoServiceSync()

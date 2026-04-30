@@ -21,8 +21,7 @@ logger = logging.getLogger(__name__)
 
 @evoloop_tool(
     is_pollable=True,
-    summary_template="database_logger.tool_summary.search_code",
-    name_map={"zh": "查找符号", "en": "Find Symbol"}
+    summary_template="database_logger.tool_summary.search_code"
 )
 async def find_symbol(
     name: str,
@@ -79,8 +78,7 @@ async def find_symbol(
 
 @evoloop_tool(
     is_pollable=True,
-    summary_template="database_logger.tool_summary.search_code",
-    name_map={"zh": "询问代码库", "en": "Ask Codebase"}
+    summary_template="database_logger.tool_summary.search_code"
 )
 async def ask_codebase(
     question: str,

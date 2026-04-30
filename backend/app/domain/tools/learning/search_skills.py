@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 @evoloop_tool(
     is_pollable=False,
-    name_map={"zh": "搜索技能", "en": "Search Skills"}
+    summary_template="database_logger.tool_summary.search_skills"
 )
 async def search_skills(query: str = "", namespace: str = None, index_mode: bool = False) -> dict[str, Any]:
     """

@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 @evoloop_tool(
     is_state_mutating=True,
-    name_map={"zh": "创建层级任务", "en": "Create Hierarchical Task"}
+    summary_template="database_logger.tool_summary.create_task_with_subtasks"
 )
 async def create_task_with_subtasks(
     title: str,
@@ -106,9 +106,7 @@ You can track progress by asking "show task tree {task.id[:8]}"""
         return f"Error creating task: {str(e)}"
 
 
-@evoloop_tool(
-    name_map={"zh": "获取任务树", "en": "Get Task Tree"}
-)
+@evoloop_tool(summary_template="database_logger.tool_summary.get_task_tree_summary")
 async def get_task_tree_summary(task_id: str) -> str:
     """
     Get hierarchical view of a task and its subtasks with progress.
@@ -186,7 +184,7 @@ Status: {tree['status']}
 
 @evoloop_tool(
     is_state_mutating=True,
-    name_map={"zh": "更新任务进度", "en": "Update Task Progress"}
+    summary_template="database_logger.tool_summary.update_task_completion"
 )
 async def update_task_completion(
     task_id: str,
@@ -268,9 +266,7 @@ async def update_task_completion(
         return f"Error updating task: {str(e)}"
 
 
-@evoloop_tool(
-    name_map={"zh": "获取待执行任务", "en": "Get Next Executable Task"}
-)
+@evoloop_tool(summary_template="database_logger.tool_summary.get_next_executable_task")
 async def get_next_executable_task() -> str:
     """
     Get the next task ready for execution.
@@ -307,9 +303,7 @@ Use this ID with update_task_completion when done."""
         return f"Error getting next task: {str(e)}"
 
 
-@evoloop_tool(
-    name_map={"zh": "列出项目任务", "en": "List Project Tasks"}
-)
+@evoloop_tool(summary_template="database_logger.tool_summary.list_project_tasks")
 async def list_project_tasks(
     status_filter: str = "all",
     limit: int = 20

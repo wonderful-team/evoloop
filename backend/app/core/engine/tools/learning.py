@@ -23,7 +23,7 @@ class SynthesizeSkillInput(DynamicBaseModel):
 @evoloop_tool(
     args_schema=SynthesizeSkillInput,
     is_state_mutating=False,
-    name_map={"zh": "合成技能", "en": "Synthesize Skill"}
+    summary_template="database_logger.tool_summary.synthesize_skill"
 )
 async def synthesize_skill(reason: str, thread_id: str | None = None) -> str:
     """

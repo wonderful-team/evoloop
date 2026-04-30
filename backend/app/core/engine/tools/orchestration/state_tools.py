@@ -12,8 +12,8 @@ from app.core.tools import evoloop_tool
 
 @evoloop_tool(
     is_state_mutating=True,
-    is_hidden=True,  # Internal state management, not user-facing
-    name_map={"zh": "管理会话元数据", "en": "Manage Session Metadata"}
+    is_hidden=True,  # Internal state management, not user-facing,
+    summary_template="database_logger.tool_summary.manage_session_metadata"
 )
 def manage_session_metadata(key: str, value: Any, _config: RunnableConfig) -> OrchestrationToolResult:
     """

@@ -63,6 +63,13 @@ class FinishNode(BaseNode):
         messages = list(state.messages)
         blackboard = state.blackboard
 
+        effective_thread_id = (
+            ctx.thread_id
+            or state.thread_id
+            or config.get("configurable", {}).get("thread_id")
+            or "unknown"
+        )
+
         # Light-weight context trimming before finish processing.
         # FinishNode does not go through engine.run_node(), so it does not
         # benefit from the standard ContextTrimmer at the entry point.
@@ -107,13 +114,6 @@ class FinishNode(BaseNode):
                     f"{trim_result.after_tokens} tokens"
                 )
             messages = trim_result.messages
-
-        effective_thread_id = (
-            ctx.thread_id
-            or state.thread_id
-            or config.get("configurable", {}).get("thread_id")
-            or "unknown"
-        )
 
         # ------------------------------------------------------------
         # 0. Early truncation / replan gate

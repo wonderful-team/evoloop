@@ -228,10 +228,10 @@ class FileMemoryStorage(IMemoryStorage):
             # 3. Vector Layer (LanceDB)
             if category != MemoryCategory.JOURNAL:
                 await self.vector_db.add_entry(
-                    entry.id,
-                    f"{entry.title}\n{entry.description}\n{entry.content}",
-                    entry.project_id,
-                    entry.user_id
+                    memory_id=entry.id,
+                    text=f"{entry.title}\n{entry.description}\n{entry.content}",
+                    project_id=entry.project_id,
+                    user_id=entry.user_id
                 )
             
             logger.info(f"[FileStorage] Saved & Indexed {entry.id}")
@@ -244,7 +244,8 @@ class FileMemoryStorage(IMemoryStorage):
         def _sync_append():
             mode = "a" if path.exists() else "w"
             with open(path, mode, encoding="utf-8") as f:
-                if mode == "w": f.write(f"# Journal {entry.created_at.strftime('%Y-%m-%d')}\n")
+                if mode == "w":
+                    f.write(f"# Journal {entry.created_at.strftime('%Y-%m-%d')}\n")
                 f.write(journal_line)
 
         await asyncio.get_event_loop().run_in_executor(None, _sync_append)
@@ -254,10 +255,12 @@ class FileMemoryStorage(IMemoryStorage):
         if not self._initialized: await self.initialize()
         
         target = self._id_index.get(entry_id)
-        if not target: return None
+        if not target:
+            return None
         
         path, category = target
-        if not path.exists(): return None
+        if not path.exists():
+            return None
         
         def _read():
             text = path.read_text(encoding="utf-8")
@@ -267,14 +270,17 @@ class FileMemoryStorage(IMemoryStorage):
 
     async def delete(self, entry_id: str) -> bool:
         """Atomic deletion from disk, SQL index, and Vector store."""
-        if not self._initialized: await self.initialize()
+        if not self._initialized:
+            await self.initialize()
         
         async with self._lock:
             target = self._id_index.get(entry_id)
-            if not target: return False
+            if not target:
+                return False
             
             path, _ = target
-            if path.exists(): path.unlink()
+            if path.exists():
+                path.unlink()
             
             # Cleanup indices
             if entry_id in self._id_index: del self._id_index[entry_id]

@@ -307,9 +307,6 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
             except (ValueError, SyntaxError):
                 pass
 
-        from app.core.tools.registry import get_tool_friendly_name
-        friendly_name = get_tool_friendly_name(tool_name)
-
         # Build display name (parameterized, e.g. "正在读取 '/path/to/file'")
         tool_name_display = None
         summary_template = metadata.get("summary_template")
@@ -322,7 +319,6 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
 
         # Build tool_meta for backend-driven rendering
         tool_meta = {
-            "name_map": getattr(metadata, "name_map", {}),
             "affected_path_keys": getattr(metadata, "affected_path_keys", []),
             "display_name": tool_name_display,
         }
@@ -332,7 +328,7 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
         if not is_hidden and self.thread_id and self.monitor:
             task_id = await self.monitor.add_step(
                 self.thread_id,
-                friendly_name,
+                tool_name_display or tool_name,
                 step_type,
                 input_data=data,
                 tool=tool_name,
@@ -362,7 +358,7 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
         if not is_hidden:
             await self._publish_stream_event(StreamEvent(
                 type=StreamEventType.TOOL_START,
-                message=friendly_name,
+                message=tool_name_display or tool_name,
                 data={
                     "tool": tool_name,
                     "params": data,

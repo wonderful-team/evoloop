@@ -34,8 +34,7 @@ class ToolBlock(DynamicBaseModel):
     id: str
     tool_call_id: str
     tool: str                                    # 原始标识符，如 "read_file"
-    tool_name: str | None = None                 # 友好名称，如 "读取文件"
-
+    tool_name: str | None = None                 # 显示名回退（当前与 tool 相同）
     input: dict[str, Any] = Field(default_factory=dict)
     output: str = ""
     status: Literal["pending", "running", "success", "error"] = "pending"

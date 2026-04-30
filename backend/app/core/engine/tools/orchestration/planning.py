@@ -14,8 +14,8 @@ logger = logging.getLogger(__name__)
 
 
 @evoloop_tool(
-    is_hidden=True,  # Internal task planning, not user-facing
-    name_map={"zh": "分解任务", "en": "Decompose Task"}
+    is_hidden=True,  # Internal task planning, not user-facing,
+    summary_template="database_logger.tool_summary.decompose_task"
 )
 async def decompose_task(
     task_description: str,

@@ -9,7 +9,8 @@ logger = logging.getLogger(__name__)
 
 
 @evoloop_tool(
-    name_map={"zh": "分析图像", "en": "Analyze Image"}
+    summary_template="database_logger.tool_summary.analyze_image",
+    affected_path_keys=["image_source"]
 )
 async def analyze_image(
     image_source: str,

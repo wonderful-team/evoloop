@@ -21,8 +21,7 @@ class ListMcpResourcesInput(BaseModel):
     "list_mcp_resources",
     args_schema=ListMcpResourcesInput,
     is_state_mutating=False,
-    summary_template="database_logger.tool_summary.list_mcp_resources",
-    name_map={"zh": "列出MCP资源", "en": "List MCP Resources"}
+    summary_template="database_logger.tool_summary.list_mcp_resources"
 )
 async def list_mcp_resources(server_name: str) -> str:
     """

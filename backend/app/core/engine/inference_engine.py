@@ -136,6 +136,7 @@ class InferenceEngine:
 
         for i in range(max_steps):
             thread_id = config.get("configurable", {}).get("thread_id")
+            run_id = config.get("configurable", {}).get("run_id")
             if thread_id:
                 await activity_monitor.check_cancellation(thread_id)
 

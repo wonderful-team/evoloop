@@ -31,30 +31,25 @@ SYSTEM_TOOL_METADATA = {
     "execute_command": {
         "summary_template": "database_logger.tool_summary.execute_command",
         "is_state_mutating": True,
-        "name_map": {"zh": "执行命令", "en": "Execute Command"},
     },
     "task_boundary": {
         "summary_template": "database_logger.tool_summary.task_boundary",
         "is_pollable": True,
-        "name_map": {"zh": "任务边界", "en": "Task Boundary"},
     },
     "write_to_file": {
         "summary_template": "database_logger.tool_summary.write_file",
         "affected_path_keys": ["TargetFile"],
         "is_state_mutating": True,
-        "name_map": {"zh": "写入文件", "en": "Write File"},
     },
     "replace_file_content": {
         "summary_template": "database_logger.tool_summary.edit_file",
         "affected_path_keys": ["TargetFile"],
         "is_state_mutating": True,
-        "name_map": {"zh": "替换文件内容", "en": "Replace File Content"},
     },
     "multi_replace_file_content": {
         "summary_template": "database_logger.tool_summary.edit_file",
         "affected_path_keys": ["TargetFile"],
         "is_state_mutating": True,
-        "name_map": {"zh": "批量替换文件", "en": "Multi-Replace File"},
     },
 }
 
@@ -385,31 +380,6 @@ def get_tool_metadata(tool_name: str) -> ToolRegistryMetadata:
                 metadata[k] = v
 
     return ToolRegistryMetadata.model_validate(metadata)
-
-
-def get_tool_friendly_name(tool_name: str, lang: str = "zh") -> str | None:
-    """
-    Get the friendly display name for a tool in the specified language.
-
-    Args:
-        tool_name: The internal tool identifier (e.g., "search_web")
-        lang: The language code ("zh", "en", etc.)
-
-    Returns:
-        The friendly name if found, None otherwise.
-    """
-    metadata = get_tool_metadata(tool_name)
-    name_map = metadata.get("name_map", {})
-
-    # Try requested language first
-    if lang in name_map:
-        return name_map[lang]
-
-    # Fallback to any available language
-    if name_map:
-        return next(iter(name_map.values()))
-
-    return None
 
 
 def get_tool_affected_paths(tool_name: str, tool_args: dict) -> list[str]:

@@ -207,7 +207,6 @@ class ActivityMonitor:
         Args:
             tool_meta: Backend-driven rendering metadata. Must contain:
                 - display_name: Parameterized display name (e.g. "正在读取 '/path/to/file'")
-                - name_map: Language map for the tool name
                 - affected_path_keys: Keys in input that identify affected paths
         """
         step_id = await self._state_service.add_step(

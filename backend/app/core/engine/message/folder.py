@@ -12,7 +12,7 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, System
 
 from app.core.engine.message.reasoning import extract_reasoning_from_message
 from app.core.engine.state.history import FoldedMessage, ToolStep
-from app.core.tools.registry import get_tool_friendly_name, get_tool_metadata
+from app.core.tools.registry import get_tool_metadata
 from app.i18n.service import i18n
 from app.utils import gen_uuid
 
@@ -69,7 +69,6 @@ class MessageFolder:
             id=tool_event.get('id') or f"step-{time.monotonic()}",
             tool=tool_name,
             tool_name=tool_name,
-
             input=tool_input,
             output=tool_event.get('content', ''),
             status='success',
@@ -108,9 +107,6 @@ class MessageFolder:
         tool_name_raw = tool_msg.name or tc_name or "unknown"
         args = tc_args or {}
         
-        # 通用友好名称 (e.g. "正在读取文件")
-        friendly_name = get_tool_friendly_name(tool_name_raw, lang=lang) or tool_name_raw
-
         # Build tool_meta for backend-driven rendering
         metadata = get_tool_metadata(tool_name_raw) or {}
         summary_template = metadata.get("summary_template")
@@ -120,8 +116,8 @@ class MessageFolder:
                 tool_name_display = i18n.get(summary_template, **args)
             except (KeyError, TypeError):
                 pass
+
         tool_meta = {
-            "name_map": getattr(metadata, "name_map", {}),
             "affected_path_keys": getattr(metadata, "affected_path_keys", []),
             "display_name": tool_name_display,
         }
@@ -129,7 +125,7 @@ class MessageFolder:
         return ToolStep(
             id=tool_id,
             tool=tool_name_raw,
-            tool_name=friendly_name,
+            tool_name=tool_name_raw,
             input=args,
             output=MessageFolder.get_message_text(tool_msg),
             status="success",

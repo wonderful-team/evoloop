@@ -234,8 +234,7 @@ async def search_files_internal(
     is_pollable=True,
     affected_path_keys=["path"],
     summary_template="database_logger.tool_summary.search_code",
-    result_summary_template="database_logger.tool_summary.file_op_result",
-    name_map={"zh": "搜索文件", "en": "Search Files"}
+    result_summary_template="database_logger.tool_summary.file_op_result"
 )
 async def search_files(
     pattern: str,

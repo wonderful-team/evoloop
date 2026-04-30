@@ -28,7 +28,7 @@ class ToolStep(DynamicBaseModel):
     """
     id: str
     tool: str  # Original tool identifier (e.g., "search_web")
-    tool_name: str | None = None  # Generic friendly name (e.g., "搜索网页")
+    tool_name: str | None = None  # Display name fallback (currently same as tool identifier)
 
     input: dict | str | Any = Field(default_factory=dict)
     output: str = ""

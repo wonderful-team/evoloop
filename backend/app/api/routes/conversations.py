@@ -4,9 +4,19 @@ from fastapi import APIRouter, HTTPException, Request
 from sqlalchemy import delete, select, func
 from sqlalchemy.orm import selectinload
 
-from app.api.schemas.conversations import MessageItem, ConversationSearchResult, RenameRequest, ConversationListItem, \
-    ReferenceItem, ChangesetNode, RewindResponse, ConversationRenameResponse, ConversationDeleteResponse, RewindRequest, \
-    MessageListResponse
+from app.api.schemas.conversations import (
+    MessageItem,
+    ConversationSearchResult,
+    RenameRequest,
+    ConversationListItem,
+    ReferenceItem,
+    ChangesetNode,
+    RewindResponse,
+    ConversationRenameResponse,
+    ConversationDeleteResponse,
+    RewindRequest,
+    MessageListResponse,
+)
 from app.core.engine.message.folding import to_base_message, fold_messages
 from app.core.engine.message.schemas import HistoryBlock  # noqa: F401  # 标准化 Block 模型
 from app.core.monitoring.activity import activity_monitor
@@ -16,14 +26,6 @@ from app.models import Conversation, FileOperation, Message
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-
-# --- Schemas ---
-
-
-def get_tool_display_name(tool_name: str) -> str | None:
-    """Get friendly display name for a tool from registry."""
-    from app.core.tools.registry import get_tool_friendly_name
-    return get_tool_friendly_name(tool_name, lang="zh")
 
 # ToolStep and FoldedMessage are now imported from app.core.engine.state.history
 

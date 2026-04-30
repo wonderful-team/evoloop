@@ -18,7 +18,8 @@ logger = logging.getLogger(__name__)
 
 @evoloop_tool(
     is_pollable=True,
-    name_map={"zh": "列出知识文档", "en": "List Knowledge Documents"}
+    summary_template="database_logger.tool_summary.kb_list",
+    affected_path_keys=["path"]
 )
 async def kb_list(
     collection: Annotated[str, Field(default="", description="Filter by collection name")] = "",

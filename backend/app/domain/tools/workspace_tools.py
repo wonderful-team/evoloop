@@ -5,7 +5,7 @@ from app.core.tools import evoloop_tool
 
 @evoloop_tool(
     is_state_mutating=True,
-    name_map={"zh": "暂存到剪贴板", "en": "Stash to Clipboard"}
+    summary_template="database_logger.tool_summary.stash_to_clipboard"
 )
 async def stash_to_clipboard(content: Any, mime_type: str = "text/plain", metadata: dict = None) -> str:
     """
@@ -25,7 +25,7 @@ async def stash_to_clipboard(content: Any, mime_type: str = "text/plain", metada
 
 @evoloop_tool(
     is_pollable=True,
-    name_map={"zh": "从剪贴板检索", "en": "Retrieve from Clipboard"}
+    summary_template="database_logger.tool_summary.retrieve_from_clipboard"
 )
 async def retrieve_from_clipboard() -> str:
     """

@@ -12,8 +12,8 @@ from app.models.learning import LearnedSkill
 
 @evoloop_tool(
     is_state_mutating=True,
-    name_map={"zh": "从轨迹学习技能", "en": "Learn Skill from Trace"},
-    required_benefit="skill_learning"
+    required_benefit="skill_learning",
+    summary_template="database_logger.tool_summary.learn_from_trace"
 )
 async def learn_from_trace(thread_id: str, session_id: str | None = None) -> str:
     """

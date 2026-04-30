@@ -6,7 +6,9 @@ from app.domain.codebase.indexing.service import IndexingService
 
 
 @evoloop_tool(
-    is_hidden=True,  # Internal knowledge base indexing, not user-facing
+    is_hidden=True,  # Internal knowledge base indexing, not user-facing,
+    summary_template="database_logger.tool_summary.index_path",
+    affected_path_keys=["path"],
 )
 async def index_path(path: str) -> str:
     """

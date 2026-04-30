@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
     is_pollable=True,
     is_state_mutating=True,
     is_hidden=True,
-    name_map={"zh": "等待", "en": "Wait For"}
+    summary_template="database_logger.tool_summary.wait_for"
 )
 async def wait_for(seconds: float) -> str:
     """

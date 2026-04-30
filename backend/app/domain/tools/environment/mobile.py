@@ -16,8 +16,9 @@ logger = logging.getLogger(__name__)
 
 @evoloop_tool(
     is_pollable=True,
-    name_map={"zh": "移动设备控制", "en": "Mobile Control"},
     required_benefit="mobile_control",
+    summary_template="database_logger.tool_summary.mobile_control",
+    affected_path_keys=["local_path", "remote_path"]
 )
 async def mobile_control(
     action: Literal["screenshot", "tap", "click", "long_press", "swipe", "scroll", "input_text", "press_key", "dump_ui", "list_devices", "get_info", "list_apps", "open_app", "push", "pull", "intent_flow", "read_sms", "gui_extract"] = "screenshot",

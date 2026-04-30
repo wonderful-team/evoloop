@@ -11,9 +11,8 @@ from app.core.tools import evoloop_tool
 
 @evoloop_tool(
     is_state_mutating=True,
-    is_hidden=True,  # Internal routing signal, not user-facing
-    name_map={"zh": "路由到", "en": "Route To"}
-)
+    is_hidden=True,  # Internal routing signal, not user-facing,
+    summary_template="database_logger.tool_summary.route_to")
 def route_to(
     target: RoutingTarget,
     reason: str,

@@ -147,7 +147,8 @@ async def create_plan(title: str, steps: list[str], config: RunnableConfig) -> s
 
 
 @evoloop_tool(
-    is_hidden=True,  # Internal plan step tracking, not user-facing
+    is_hidden=True,  # Internal plan step tracking, not user-facing,
+    summary_template="database_logger.tool_summary.update_step_status",
 )
 async def update_step_status(
     plan_id: str,

@@ -448,8 +448,7 @@ def format_preview_result(result: EditPreviewResult, path: str, target: str, rep
     is_state_mutating=True,
     affected_path_keys=["path"],
     summary_template="database_logger.tool_summary.edit_file",
-    result_summary_template="database_logger.tool_summary.file_op_result",
-    name_map={"zh": "编辑文件", "en": "Edit File"}
+    result_summary_template="database_logger.tool_summary.file_op_result"
 )
 async def edit_file(
     path: str | None = None,

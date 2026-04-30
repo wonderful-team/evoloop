@@ -164,14 +164,13 @@ def _get_thread_id(config: Optional[RunnableConfig]) -> str:
 
 @evoloop_tool(
     is_state_mutating=True,
-    summary_template="database_logger.tool_summary.execute_command",
-    name_map={"zh": "执行命令", "en": "Execute Command"}
+    summary_template="database_logger.tool_summary.execute_command"
 )
 async def execute_command(
     command: str,
     background: bool = False,
     timeout: int = 60,
-    config: Annotated[RunnableConfig, InjectedToolArg] = None,
+    config: Annotated[RunnableConfig, InjectedToolArg] = None
 ) -> str:
     """
     Execute a shell command (e.g., 'pytest', 'npm install', 'ls -la', 'git status').
@@ -550,8 +549,7 @@ async def _execute_command_with_timeout(
 @evoloop_tool(
     is_pollable=True,
     is_hidden=True,  # Internal polling for background commands, not user-facing
-    summary_template="database_logger.tool_summary.query_command_status",
-    name_map={"zh": "查询命令状态", "en": "Query Command Status"}
+    summary_template="database_logger.tool_summary.query_command_status"
 )
 async def query_command_status(
     task_id: str,
@@ -633,8 +631,7 @@ async def query_command_status(
 
 @evoloop_tool(
     is_pollable=True,
-    summary_template="database_logger.tool_summary.cancel_command",
-    name_map={"zh": "取消命令", "en": "Cancel Command"}
+    summary_template="database_logger.tool_summary.cancel_command"
 )
 async def cancel_command(
     task_id: str,
@@ -687,8 +684,7 @@ async def cancel_command(
 @evoloop_tool(
     is_pollable=True,
     is_state_mutating=True,
-    summary_template="database_logger.tool_summary.run_macro",
-    name_map={"zh": "执行宏", "en": "Run Macro"}
+    summary_template="database_logger.tool_summary.run_macro"
 )
 async def run_macro(
     skill_name: str | None = None,
