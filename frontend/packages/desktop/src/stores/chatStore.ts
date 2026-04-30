@@ -12,6 +12,7 @@ export interface StepItem {
     id: number
     name: string
     tool?: string              // Original tool identifier (e.g. "search_web")
+    tool_name?: string
     status: "running" | "done" | "failed" | "cancelled"
     type: "node" | "tool" | "ai" | "skill"
     parent_id?: number
@@ -159,7 +160,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
     streamState: {
         events: [],
         currentThinking: null,
-        currentTool: null,
         overallProgress: 0,
     },
 
@@ -512,7 +512,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
             streamState: {
                 events: [],
                 currentThinking: null,
-                currentTool: null,
                 overallProgress: 0,
             },
         })
@@ -619,9 +618,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
             normalizedStatus = "stopped"
         }
 
+        // Phase 3: ActivitySnapshot steps now come from Message table (all historical tool records).
+        // Only adopt running steps for the real-time panel; completed steps are shown via messages[].
+        const allSteps = data.steps || data.tasks || []
+        const activeSteps = allSteps.filter((s: any) => s.status === "running")
+
         set({
             status: normalizedStatus,
-            steps: data.steps || data.tasks || [],
+            steps: activeSteps,
             artifacts: data.artifacts || [], // Generated artifacts
             finalOutcome: data.final_outcome || null, // Session completion outcome
             activeMemories: data.active_memories || [],
@@ -927,78 +931,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
                 })
                 break
 
-            case 'tool_start':
-                set({
-                    streamState: {
-                        ...state,
-                        events: newEvents,
-                        currentTool: {
-                            id: event.data?.toolId || `tool-${Date.now()}`,
-                            toolName: event.data?.toolName || i18n.t("common.tool.defaultName"),
-                            displayName: event.data?.tool_meta?.display_name || event.data?.displayName || event.data?.toolName || i18n.t("common.tool.defaultName"),
-                            status: 'running',
-                            progress: 0,
-                            message: event.message,
-                            startTime: event.timestamp,
-                            params: event.data?.params,
-                        },
-                    }
-                })
-                break
-
-            case 'tool_progress':
-                if (state.currentTool) {
-                    set({
-                        streamState: {
-                            ...state,
-                            events: newEvents,
-                            currentTool: {
-                                ...state.currentTool,
-                                progress: event.progress || state.currentTool.progress,
-                                message: event.message,
-                            },
-                        }
-                    })
-                }
-                break
-
-            case 'tool_complete':
-                if (state.currentTool) {
-                    set({
-                        streamState: {
-                            ...state,
-                            events: newEvents,
-                            currentTool: {
-                                ...state.currentTool,
-                                status: 'complete',
-                                progress: 100,
-                                message: event.message,
-                                endTime: event.timestamp,
-                                result: event.data?.result,
-                            },
-                        }
-                    })
-                }
-                break
-
-            case 'tool_error':
-                if (state.currentTool) {
-                    set({
-                        streamState: {
-                            ...state,
-                            events: newEvents,
-                            currentTool: {
-                                ...state.currentTool,
-                                status: 'error',
-                                message: event.message,
-                                endTime: event.timestamp,
-                                error: event.data?.error,
-                            },
-                        }
-                    })
-                }
-                break
-
             case 'progress':
                 set({
                     streamState: {
@@ -1015,7 +947,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
                         ...state,
                         events: newEvents,
                         currentThinking: null,
-                        currentTool: null,
                         overallProgress: 100,
                     }
                 })

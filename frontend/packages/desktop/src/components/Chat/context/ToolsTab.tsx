@@ -15,27 +15,10 @@ export function ToolsTab() {
   const activeTools = useMemo(() => {
     const toolSet = new Set<string>()
     steps.forEach((step) => {
-      // Check if task is a tool call based on name patterns and running status
-      if (step.name && step.status === "running") {
-        // Common tool call patterns
-        const toolPatterns = [
-          "read_",
-          "write_",
-          "search_",
-          "run_",
-          "manage_",
-          "create_",
-          "delete_",
-          "view_",
-          "list_",
-        ]
-        if (toolPatterns.some((p) => step.name.toLowerCase().includes(p))) {
-          toolSet.add(step.name.toLowerCase())
-        }
-        // Also check details for tool names (e.g. "📄 Read `foo.tsx`")
-        if (step.details) {
-          const match = step.details.match(/`([^`]+)`/)
-          if (match) toolSet.add(match[1].toLowerCase())
+      if (step.status === "running") {
+        const toolId = step.tool || step.tool_name || step.name || ""
+        if (toolId) {
+          toolSet.add(toolId.toLowerCase())
         }
       }
     })

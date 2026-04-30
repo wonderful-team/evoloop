@@ -4,18 +4,19 @@ import {
 import { useTranslation } from "react-i18next"
 import { useState } from "react"
 import { Button } from "@evoloop/shared/components/ui/button"
+import type { StepItem } from "@/stores/chatStore"
 
 // A Group is a collection of steps under a header
 interface StepGroup {
     id: string
     title: string
     status: string
-    steps: any[]
+    steps: StepItem[]
     isImplicit?: boolean
 }
 
 interface AgentProcessProps {
-    steps: any[]
+    steps: StepItem[]
     isStreaming?: boolean
     header?: React.ReactNode
 }
@@ -147,11 +148,11 @@ function summarizeOutput(output: string): { title: string; subtitle?: string; ha
 }
 
 // Grouping logic
-function groupSteps(steps: any[], t: any): StepGroup[] {
+function groupSteps(steps: StepItem[], t: any): StepGroup[] {
     const groups: StepGroup[] = []
-    const headerMap = new Map<string | number, any>()
-    const childrenMap = new Map<string | number, any[]>()
-    const orphans: any[] = []
+    const headerMap = new Map<string | number, StepItem>()
+    const childrenMap = new Map<string | number, StepItem[]>()
+    const orphans: StepItem[] = []
 
     steps.forEach(step => {
         const parentId = step.parent_id
@@ -169,7 +170,7 @@ function groupSteps(steps: any[], t: any): StepGroup[] {
             }
             childrenMap.get(parentId)?.push(step)
         } else {
-            if (displayName.startsWith("►") || step.type === "node") {
+            if (step.type === "node") {
                 headerMap.set(stepId, step)
             } else {
                 orphans.push(step)
@@ -212,7 +213,7 @@ function groupSteps(steps: any[], t: any): StepGroup[] {
 }
 
 // Compact Step component
-function StepRow({ step }: { step: any }) {
+function StepRow({ step }: { step: StepItem }) {
     const { t } = useTranslation()
 
     // Resolve display name from backend metadata

@@ -20,14 +20,10 @@ export function SystemGroupTab({ activeThreadId }: SystemGroupTabProps) {
     const activeTools = useMemo(() => {
         const toolSet = new Set<string>()
         steps.forEach((step) => {
-            if (step.name && step.status === "running") {
-                const toolPatterns = ["read_", "write_", "search_", "run_", "manage_", "create_", "delete_", "view_", "list_"]
-                if (toolPatterns.some((p) => step.name.toLowerCase().includes(p))) {
-                    toolSet.add(step.name.toLowerCase())
-                }
-                if (step.details) {
-                    const match = step.details.match(/`([^`]+)`/)
-                    if (match) toolSet.add(match[1].toLowerCase())
+            if (step.status === "running") {
+                const toolId = step.tool || step.tool_name || step.name || ""
+                if (toolId) {
+                    toolSet.add(toolId.toLowerCase())
                 }
             }
         })

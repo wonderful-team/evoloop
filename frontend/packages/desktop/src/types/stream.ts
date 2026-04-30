@@ -6,15 +6,11 @@
 
 export type StreamEventType =
   | 'thinking'
-  | 'tool_start'
-  | 'tool_progress'
-  | 'tool_complete'
-  | 'tool_error'
-  | 'checkpoint'
   | 'progress'
   | 'complete'
   | 'llm_auth_error'
-  | 'quota_exhausted';
+  | 'quota_exhausted'
+  | 'auth_expired';
 
 export interface StreamEvent {
   type: StreamEventType;
@@ -31,7 +27,6 @@ export interface StreamEvent {
 export interface StreamState {
   events: StreamEvent[];
   currentThinking: string | null;
-  currentTool: ToolExecutionStatus | null;
   overallProgress: number;
 }
 
@@ -42,33 +37,4 @@ export interface ThinkingContent {
   timestamp: number;
 }
 
-// Tool execution status
-export interface ToolExecutionStatus {
-  id: string;
-  toolName: string;
-  displayName: string;
-  status: 'pending' | 'running' | 'complete' | 'error';
-  progress: number;  // 0-100
-  message: string;
-  startTime: number;
-  endTime?: number;
-  params?: Record<string, any>;
-  result?: any;
-  error?: string;
-}
 
-// Checkpoint event data
-export interface CheckpointEventData {
-  checkpointId: string;
-  name: string;
-  fileCount: number;
-  autoCreated: boolean;
-}
-
-// Progress event data
-export interface ProgressEventData {
-  phase: string;
-  current: number;
-  total: number;
-  message: string;
-}
