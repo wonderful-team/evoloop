@@ -181,15 +181,31 @@ class RewindOrchestrator:
 
             if target_message_id:
                 try:
-                    # Handle "msg-{thread_id}-{sequence_number}" format
+                    # Handle "msg-{thread_id}-{sequence_number}" format or raw ID
                     t_seq = target_message_id
                     if t_seq.startswith("msg-"):
                         parts = t_seq.split("-")
                         if len(parts) >= 3:
                             t_seq = parts[-1]
-                    
-                    target_seq = int(t_seq)
-                    logger.info(f"[RewindOrchestrator] Resolved target_sequence: {target_seq} from {target_message_id}")
+                        target_seq = int(t_seq)
+                    else:
+                        # If it's a raw integer string, it might be a database ID
+                        # Let's check if a message exists with this ID first
+                        if t_seq.isdigit():
+                            msg_id = int(t_seq)
+                            id_stmt = select(Message.sequence_number).where(Message.id == msg_id)
+                            id_res = await session.execute(id_stmt)
+                            found_seq = id_res.scalar_one_or_none()
+                            if found_seq is not None:
+                                target_seq = found_seq
+                                logger.info(f"[RewindOrchestrator] Resolved ID {msg_id} to sequence_number {target_seq}")
+                            else:
+                                # Fallback: treat as sequence number
+                                target_seq = int(t_seq)
+                        else:
+                            target_seq = int(t_seq)
+
+                    logger.info(f"[RewindOrchestrator] Using target_sequence: {target_seq} (from {target_message_id})")
                     
                     if include_target:
                         stmt = stmt.where(Message.sequence_number >= target_seq)

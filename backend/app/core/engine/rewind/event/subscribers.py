@@ -307,16 +307,23 @@ class MessageRewind:
                         parts = t_seq.split("-")
                         if len(parts) >= 3:
                             t_seq = parts[-1]
+                        target_seq_int = int(t_seq)
+                        stmt = select(Message).where(Message.thread_id == thread_id, Message.sequence_number == target_seq_int)
+                    elif t_seq.isdigit():
+                        msg_id = int(t_seq)
+                        # Try ID first, then sequence number
+                        stmt = select(Message).where((Message.id == msg_id) | ((Message.thread_id == thread_id) & (Message.sequence_number == msg_id)))
+                    else:
+                        target_seq_int = int(t_seq)
+                        stmt = select(Message).where(Message.thread_id == thread_id, Message.sequence_number == target_seq_int)
                     
-                    target_seq_int = int(t_seq)
-                    stmt = select(Message).where(Message.thread_id == thread_id, Message.sequence_number == target_seq_int)
                     result = await session.execute(stmt)
                     target_msg = result.scalar_one_or_none()
 
                     if not target_msg:
                         raise MessageNotFoundError(f"Target message {target_message_id} not found", thread_id=thread_id)
 
-                    min_id_to_delete = target_msg.id  # Internal DB ID used for later range deletion
+                    min_id_to_delete = target_msg.id
                 except (ValueError, TypeError):
                     logger.error(f"[MessageRewind] Invalid target message ID: {target_message_id}")
                     return []
@@ -651,7 +658,20 @@ class StateRewind:
                     parts = t_seq.split("-")
                     if len(parts) >= 3:
                         t_seq = parts[-1]
-                target_seq = int(t_seq)
+                    target_seq = int(t_seq)
+                elif t_seq.isdigit():
+                    msg_id = int(t_seq)
+                    # Try ID first to get sequence number
+                    id_stmt = select(Message.sequence_number).where(Message.id == msg_id)
+                    id_res = await session.execute(id_stmt)
+                    found_seq = id_res.scalar_one_or_none()
+                    if found_seq is not None:
+                        target_seq = found_seq
+                    else:
+                        target_seq = msg_id
+                else:
+                    target_seq = int(t_seq)
+
                 if include_target:
                     stmt = stmt.where(Message.sequence_number <= target_seq)
                 else:

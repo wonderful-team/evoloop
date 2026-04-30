@@ -90,9 +90,8 @@ def _apply_reasoning_patch() -> None:
                 return payload
             return _get_payload_with_reasoning
 
-        # Apply to both base and adaptive classes
+        # Apply to base class (AdaptiveChatOpenAI will inherit this)
         ChatOpenAI._get_request_payload = _get_payload_with_reasoning_factory(ChatOpenAI._get_request_payload)
-        AdaptiveChatOpenAI._get_request_payload = _get_payload_with_reasoning_factory(AdaptiveChatOpenAI._get_request_payload)
 
         # Patch 3: Final fallback - intercept httpx.AsyncClient.send
         _original_httpx_send = httpx.AsyncClient.send
