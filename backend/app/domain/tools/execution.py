@@ -119,18 +119,24 @@ MAX_OUTPUT_LINES = 1000
 def _format_command_result(stdout: str, stderr: str, returncode: int, command: str = "") -> str:
     """Format command execution result for display."""
     # Output budget check
-    total_lines = stdout.count('\n') + stderr.count('\n')
-    if total_lines > MAX_OUTPUT_LINES:
-        return f"""Error: Command output too large.
+    # total_lines is an estimate for quick decision
+    if stdout.count('\n') + stderr.count('\n') > MAX_OUTPUT_LINES:
+        # Truncate while keeping a bit of both if possible
+        # Simple approach: truncate total string
+        stdout_lines = stdout.split('\n')
+        stderr_lines = stderr.split('\n')
 
-Output is {total_lines} lines, but maximum is {MAX_OUTPUT_LINES} lines per call.
+        # Give stdout more budget (900 lines) and stderr (100 lines) as a heuristic
+        truncated_stdout = '\n'.join(stdout_lines[:900])
+        truncated_stderr = '\n'.join(stderr_lines[:100])
 
-Alternatives:
-1. Redirect to file: `{command} > output.txt` then use read_file
-2. Filter output: `{command} | grep "pattern"`
-3. Use head/tail: `{command} | head -{MAX_OUTPUT_LINES}`
-4. Use background mode for streaming: execute_command(command='{command}', background=True)
-"""
+        status_msg = "Command Completed (Output Truncated)."
+        output_details = f"STDOUT (First 900 lines):\n{truncated_stdout}\n\nSTDERR (First 100 lines):\n{truncated_stderr}"
+
+        warning = f"\n\n⚠️ WARNING: Output truncated to {MAX_OUTPUT_LINES} lines.\n"
+        warning += "Tip: Use redirection (e.g., `cmd > out.txt`) or `grep` to manage large outputs."
+
+        return ControllerResponse.success(status_msg, details=output_details + warning)
 
     status_msg = "Command Succeeded." if returncode == 0 else f"Command Failed (Exit Code {returncode})."
 

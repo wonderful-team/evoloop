@@ -56,22 +56,20 @@ async def _search_by_content(
     # Output budget check
     MAX_MATCHES = 100
     lines = res.stdout.strip().split('\n') if res.stdout else []
+    total_matches = len(lines)
 
-    if len(lines) > MAX_MATCHES:
-        return f"""Error: Too many matches.
+    # Show first N matches
+    output = "\n".join(lines[:MAX_MATCHES])
 
-Found {len(lines)} matches, but maximum is {MAX_MATCHES} per call.
+    if total_matches > MAX_MATCHES:
+        output += f"\n\n... (Showing first {MAX_MATCHES} matches; {total_matches - MAX_MATCHES} more matches not displayed)\n"
+        output += "\nTip: The search results are truncated because there are too many matches."
+        output += "\nPlease refine your search to see more specific results:"
+        output += "\n- Use a more specific pattern"
+        output += "\n- Narrow the scope with 'path' parameter"
+        output += "\n- Use file extension filter with 'scope' parameter"
 
-Please refine your search:
-- Use a more specific pattern
-- Narrow the scope with 'path' parameter
-- Use file extension filter with 'scope' parameter
-
-Example:
-  search_files(pattern="class UserService", path="src/services", scope="*.py")
-"""
-
-    return res.stdout
+    return output
 
 
 async def _search_by_name(

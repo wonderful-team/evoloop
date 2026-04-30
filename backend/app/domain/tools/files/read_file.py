@@ -214,18 +214,21 @@ async def read_file(
 
     # Budget check
     effective_start = s if s is not None else 1
-    effective_end = e if e is not None else (effective_start + MAX_LINES_PER_CALL - 1)
-    requested_lines = effective_end - effective_start + 1
+    default_end = effective_start + MAX_LINES_PER_CALL - 1
 
-    if requested_lines > MAX_LINES_PER_CALL:
-        return f"""Error: Request exceeds maximum output limit.
+    # If user asked for too much, we truncate and warn
+    is_truncated = False
+    if e is not None and (e - effective_start + 1) > MAX_LINES_PER_CALL:
+        effective_end = default_end
+        is_truncated = True
+    else:
+        effective_end = e if e is not None else default_end
 
-You requested {requested_lines} lines (lines {effective_start}-{effective_end}),
-but the maximum is {MAX_LINES_PER_CALL} lines per call.
+    result_str = await handle_read(path, effective_start, effective_end, config=config, include_metadata=include_metadata)
 
-Please split into multiple calls:
-1. read_file(path="{path}", start_line={effective_start}, end_line={effective_start + MAX_LINES_PER_CALL - 1})
-2. read_file(path="{path}", start_line={effective_start + MAX_LINES_PER_CALL}, end_line={effective_end})
-"""
+    if is_truncated:
+        warning = f"\n\n... (Output truncated to {MAX_LINES_PER_CALL} lines)\n"
+        warning += f"Tip: The requested range was too large. Use start_line={effective_end + 1} to read the next segment."
+        return result_str + warning
 
-    return await handle_read(path, effective_start, effective_end, config=config, include_metadata=include_metadata)
+    return result_str
