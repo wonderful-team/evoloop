@@ -77,7 +77,7 @@ class MessageBlock(DynamicBaseModel):
     tool_blocks: list[ToolBlock] | None = None
 
     # === 状态与可见性 ===
-    status: Literal["pending", "streaming", "completed", "failed", "waiting_human"] = "completed"
+    status: Literal["pending", "running", "streaming", "completed", "failed", "waiting_human"] = "completed"
     is_visible: bool = True
 
     # === 时间戳（统一 ISO 8601，时区敏感）===
