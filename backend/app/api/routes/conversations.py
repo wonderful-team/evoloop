@@ -18,7 +18,6 @@ from app.api.schemas.conversations import (
     MessageListResponse,
 )
 from app.core.engine.message.folding import to_base_message, fold_messages
-from app.core.engine.message.schemas import HistoryBlock  # noqa: F401  # 标准化 Block 模型
 from app.core.monitoring.activity import activity_monitor
 from app.infrastructure.database.sql.database import get_db_session
 from app.models import Conversation, FileOperation, Message
@@ -212,22 +211,6 @@ async def get_conversation_messages(
                 else []
             )
 
-            # Convert FoldedMessage steps to tool_blocks for structured display
-            tool_blocks = [
-                {
-                    "id": step.id,
-                    "tool_call_id": step.tool_call_id or step.id,
-                    "tool": step.tool,
-                    "tool_name": step.tool_name,
-                    "input": step.input,
-                    "output": step.output,
-                    "status": step.status,
-                    "duration_ms": int(step.duration * 1000) if step.duration else None,
-                    "tool_meta": step.tool_meta,
-                }
-                for step in (f.steps or [])
-            ] if f.steps else None
-
             item = MessageItem(
                 **f.model_dump(),
                 run_id=db_m.run_id,
@@ -244,7 +227,6 @@ async def get_conversation_messages(
                 sequence_number=db_m.sequence_number,
                 checkpoint_id=db_m.checkpoint_id,
                 is_visible=db_m.is_visible,
-                tool_blocks=tool_blocks,
             )
             
             # Remove raw tool_calls (frontend uses folded steps instead)

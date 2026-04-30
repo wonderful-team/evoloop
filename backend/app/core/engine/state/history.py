@@ -29,10 +29,11 @@ class ToolStep(DynamicBaseModel):
     id: str
     tool: str  # Original tool identifier (e.g., "search_web")
     tool_name: str | None = None  # Display name fallback (currently same as tool identifier)
+    name: str | None = None  # Human-readable display name (from tool_meta or i18n)
 
     input: dict | str | Any = Field(default_factory=dict)
     output: str = ""
-    status: str = "success"  # success, error, pending
+    status: str = "done"  # pending, running, done, failed
     duration: float | None = None
     tool_call_id: str | None = None
     tool_meta: dict[str, Any] | None = None

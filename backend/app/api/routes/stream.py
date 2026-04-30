@@ -30,14 +30,13 @@ async def stream_chat(thread_id: str):
     Uses cache Pub/Sub for real-time event streaming.
     
     Event Types:
-    - activity: Initial full state snapshot (sent once on connect)
-    - step: New step created/updated (incremental)
+    - activity: Initial lightweight state snapshot (sent once on connect)
     - artifact: New artifact created/updated (incremental)
     - status: Status change (incremental)
     - token: Token stream for chat
-    - message: New message (with tool folding)
+    - message: New message (with tool folding via msg.steps)
     - human_request: HITL request
-    - stream: Structured stream events (thinking, tool_progress, etc.)
+    - stream: Structured stream events (thinking, errors, etc.)
     """
 
     async def event_generator():
@@ -55,8 +54,8 @@ async def stream_chat(thread_id: str):
                 activity = await activity_monitor.get_activity(thread_id)
 
             if activity:
-                # activity is an ActivityState Pydantic model. 
-                # model_dump() ensures nested ActivityStep/ActivityArtifact models are serialized to dicts.
+                # activity is an ActivityState Pydantic model.
+                # model_dump() ensures nested models are serialized to dicts.
                 snapshot = activity.model_dump() if hasattr(activity, "model_dump") else activity
                 yield f"event: activity\ndata: {json.dumps(snapshot)}\n\n"
 
@@ -110,10 +109,7 @@ async def stream_chat(thread_id: str):
                         event_type = event_data.get("type", "unknown")
 
                         # Incremental updates: forward events directly without re-fetching
-                        if event_type == "step":
-                            yield f"event: step\ndata: {json.dumps(event_data)}\n\n"
-                        
-                        elif event_type == "artifact":
+                        if event_type == "artifact":
                             yield f"event: artifact\ndata: {json.dumps(event_data)}\n\n"
                         
                         elif event_type == "status":
@@ -134,7 +130,16 @@ async def stream_chat(thread_id: str):
                                 if last_ai_message:
                                     # Deep-copy to avoid mutating the shared reference
                                     folded = dict(last_ai_message)
-                                    MessageFolder.append_tool_event_to_ai_message(folded, msg_data)
+                                    # Map MessageBlock status to ToolStep status
+                                    tool_status_map = {
+                                        'running': 'running',
+                                        'completed': 'done',
+                                        'failed': 'failed',
+                                    }
+                                    tool_status = tool_status_map.get(msg_data.get('status'), 'done')
+                                    MessageFolder.append_tool_event_to_ai_message(
+                                        folded, msg_data, status=tool_status
+                                    )
                                     yield f"event: message\ndata: {json.dumps(folded)}\n\n"
                                 else:
                                     # Orphan tool message — forward as-is so frontend can display it

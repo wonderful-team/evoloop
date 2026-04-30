@@ -63,8 +63,6 @@ class BlockMapper:
                 for ref in msg.references
             ]
 
-        # NOTE: tool_blocks are not stored in DB; they are reconstructed
-        # from FoldedMessage.steps at the API layer.
         return MessageBlock(
             id=f"msg-{msg.thread_id}-{msg.sequence_number}",
             thread_id=msg.thread_id,
@@ -75,7 +73,6 @@ class BlockMapper:
             content=msg.content or "",
             thinking=parse_thinking(msg.thinking),
             tool_calls=msg.tool_calls,
-            tool_blocks=None,
             status=msg.status or "completed",  # type: ignore[arg-type]
             is_visible=msg.is_visible,
             created_at=_format_iso(msg.created_at),
@@ -222,7 +219,7 @@ class BlockMapper:
     @staticmethod
     def from_folded(fm: FoldedMessage, db_msg=None) -> MessageBlock:
         """FoldedMessage → MessageBlock（结合 DB 记录补充元数据）"""
-        tool_blocks = [
+        steps = [
             ToolBlock(
                 id=step.id,
                 tool_call_id=step.tool_call_id or step.id,
@@ -242,7 +239,7 @@ class BlockMapper:
             content=fm.content,
             thinking=fm.thinking,
             tool_calls=fm.tool_calls,
-            tool_blocks=tool_blocks or None,
+            steps=steps or None,
             created_at=_format_iso(fm.created_at),
             metadata=fm.metadata or {},
         )
@@ -333,6 +330,6 @@ def _infer_action_type(msg: MessageBlock) -> str:
     """从 MessageBlock 推断 action_type（兼容旧系统）"""
     if msg.thinking:
         return "thinking"
-    if msg.tool_blocks:
+    if msg.steps:
         return "tool_output"
     return "text"

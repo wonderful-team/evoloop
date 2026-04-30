@@ -4,26 +4,7 @@ import i18n from "@evoloop/shared/i18n"
 import { AgentService, ConversationsService } from "@/client"
 import { ChatConnection } from "@/lib/ChatConnection"
 import type { Message } from "@/components/Chat/ChatMessageItem"
-import type { StreamState, StreamEvent } from "@/types/stream"
 import { llmPlatformService } from "@/services/llmPlatform"
-
-// Step item type for activity tracking
-export interface StepItem {
-    id: number
-    name: string
-    tool?: string              // Original tool identifier (e.g. "search_web")
-    tool_name?: string
-    status: "running" | "done" | "failed" | "cancelled"
-    type: "node" | "tool" | "ai" | "skill"
-    parent_id?: number
-    time: string
-    details?: string
-    input?: any  // Tool input parameters (for real-time steps)
-    tool_meta?: {
-        affected_path_keys?: string[]
-        display_name?: string
-    }
-}
 
 interface ChangesetFile {
     path: string
@@ -61,9 +42,7 @@ interface ChatState {
     | "quota_exhausted"  // LLM quota exhausted state
     | "unauthorized"     // 401 unauthorized
     | "unknown"
-    steps: StepItem[]
     finalOutcome: string | null // Session outcome: SUCCESS | FAILED | INCOMPLETE
-    streamedContent: string // The currently streaming token buffer (for the specific AI task)
     activeMemories: Array<{ id: string; name: string }> // Active memory highlights
     artifacts: Array<{ id: number; name: string; type: string; status: string; path?: string }> // Generated artifacts
     humanRequest: any | null // HITL Request (now includes project_switch, confirm, etc.)
@@ -74,10 +53,7 @@ interface ChatState {
         actionText: string
     } | null
     agentState: { mode: string; task_name: string; task_status: string; details?: any } | null // Current agent state
-    thoughts: any[] // Transient Thoughts history
 
-    // Enhanced Stream State for real-time UI updates
-    streamState: StreamState
 
     isConnected: boolean
     connectionStatus: string
@@ -113,8 +89,7 @@ interface ChatState {
     // internal sse handlers (called by ChatConnection)
     _setConnectionStatus: (connected: boolean, status: string) => void
     _appendToken: (tokens: string) => void
-    _setActivitySnapshot: (snapshot: any) => void  // Initial full snapshot only
-    _addStep: (step: any) => void  // Incremental step update
+    _setActivitySnapshot: (snapshot: any) => void  // Initial full snapshot only (no steps)
     _addArtifact: (artifact: any) => void  // Incremental artifact update
     _updateStatus: (status: any) => void  // Incremental status update
     _setHumanRequest: (request: any) => void
@@ -122,7 +97,7 @@ interface ChatState {
     _appendMessage: (msg: any) => void // Append message to chat
     _truncateMessages: (index: number) => void // Optimistic truncate for rewind
     _setError: (error: string) => void
-    _processStreamEvent: (event: StreamEvent) => void // Handle structured stream events
+    _processStreamEvent: (event: any) => void // Handle structured stream events (quota, auth)
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -145,23 +120,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
     selectedModel: llmPlatformService.getSelectedModel(),
 
     status: "idle",
-    steps: [],
     finalOutcome: null,
-    streamedContent: "",
 
     activeMemories: [],
     artifacts: [],
     humanRequest: null,
     quotaExhaustedInfo: null,
     agentState: null,
-    thoughts: [],
-
-    // Stream State for real-time updates
-    streamState: {
-        events: [],
-        currentThinking: null,
-        overallProgress: 0,
-    },
 
     isConnected: false,
     connectionStatus: "disconnected",
@@ -180,8 +145,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
             ...(currentThreadId !== threadId
                 ? {
                     messages: [],
-                    steps: [],
-                    streamedContent: "",
                     status: "idle",
                     finalOutcome: null,
                     humanRequest: null,
@@ -206,12 +169,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
                 get()._setConnectionStatus(connected, status),
             onToken: (token: string) => get()._appendToken(token),
             onActivity: (snapshot: any) => get()._setActivitySnapshot(snapshot),
-            onStep: (step: any) => get()._addStep(step),
             onArtifact: (artifact: any) => get()._addArtifact(artifact),
             onStatus: (status: any) => get()._updateStatus(status),
             onHumanRequest: (req: any) => get()._setHumanRequest(req),
             onMessage: (msg: any) => get()._appendMessage(msg),
-            onStream: (event: StreamEvent) => get()._processStreamEvent(event),
+            onStream: (event: any) => get()._processStreamEvent(event),
             onError: (error: string) => get()._setError(error),
             onUnauthorized: () => {
                 // SSE连接401未授权，更新状态并让用户知道需要重新登录
@@ -270,7 +232,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
                     content: m.content || "",
                     thinking: m.thinking,
                     timestamp: m.created_at,
-                    steps_snapshot: m.steps_snapshot,
                     steps: m.steps || [],
                     references: m.references || [],
                     has_file_operations: m.has_file_operations || false,
@@ -343,7 +304,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
                     content: m.content || "",
                     thinking: m.thinking,
                     timestamp: m.created_at,
-                    steps_snapshot: m.steps_snapshot,
                     steps: m.steps || [],
                     references: m.references || [],
                     has_file_operations: m.has_file_operations || false,
@@ -384,6 +344,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
         // 1. Optimistic Update
         const tempId = Date.now()
+        const aiPlaceholderId = `streaming-${tempId}`
 
         // Construct display content for local optimistic UI
         // For voice messages, use the content directly (which is the transcript)
@@ -394,11 +355,22 @@ export const useChatStore = create<ChatState>((set, get) => ({
             role: "human",
             content: displayContent,
             attachments: attachments.length > 0 ? attachments : undefined,
+            changeset_count: 0,
+        }
+
+        const aiPlaceholder: Message = {
+            id: aiPlaceholderId,
+            role: "ai",
+            content: "",
+            status: "streaming",
+            changeset_count: 0,
         }
 
         set((state) => ({
-            messages: [...state.messages, newMessage],
-            status: "running", // Assume running immediately
+            messages: [...state.messages, newMessage, aiPlaceholder],
+            status: "running",
+            finalOutcome: null,
+            artifacts: [],
         }))
 
         // 2. Send Request
@@ -432,7 +404,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             console.error(e)
             toast.error(i18n.t("chat.errors.sendMessage"))
             set((state) => ({
-                messages: state.messages.filter((m) => m.id !== tempId), // Revert
+                messages: state.messages.filter((m) => m.id !== tempId && m.id !== aiPlaceholderId), // Revert
                 status: "error",
             }))
         }
@@ -504,16 +476,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
     clearContent: () => {
         set({ 
             messages: [], 
-            steps: [], 
             finalOutcome: null, 
-            streamedContent: "", 
             humanRequest: null,
             quotaExhaustedInfo: null,
-            streamState: {
-                events: [],
-                currentThinking: null,
-                overallProgress: 0,
-            },
         })
     },
 
@@ -540,11 +505,31 @@ export const useChatStore = create<ChatState>((set, get) => ({
         if (!state._flushTimeout) {
             const timeout = setTimeout(() => {
                 const latestBuffer = get()._streamBuffer
-                set((state) => ({
-                    streamedContent: state.streamedContent + latestBuffer,
-                    _streamBuffer: "",
-                    _flushTimeout: null,
-                }))
+                if (!latestBuffer) {
+                    set({ _streamBuffer: "", _flushTimeout: null })
+                    return
+                }
+                set((state) => {
+                    // Find the last AI message that is still streaming
+                    const reversed = [...state.messages].reverse()
+                    const lastAiIndex = reversed.findIndex(
+                        (m) => m.role === "ai" && m.status === "streaming"
+                    )
+                    if (lastAiIndex < 0) {
+                        return { _streamBuffer: "", _flushTimeout: null }
+                    }
+                    const actualIndex = state.messages.length - 1 - lastAiIndex
+                    const newMessages = [...state.messages]
+                    newMessages[actualIndex] = {
+                        ...newMessages[actualIndex],
+                        content: newMessages[actualIndex].content + latestBuffer,
+                    }
+                    return {
+                        messages: newMessages,
+                        _streamBuffer: "",
+                        _flushTimeout: null,
+                    }
+                })
             }, 50)
             set({ _flushTimeout: timeout })
         }
@@ -602,9 +587,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
             newStatus !== "running" &&
             newStatus !== "summarizing"
         ) {
-            // Clear streamed content when execution completes
-            // Note: Messages are updated incrementally via _appendMessage, no need to re-fetch
-            set({ streamedContent: "" })
+            // Finalize any streaming messages
+            set((state) => ({
+                messages: state.messages.map((m) =>
+                    m.status === "streaming" ? { ...m, status: "completed" as const } : m
+                ),
+            }))
         }
 
         // Normalize Backend Status -> Frontend Status
@@ -618,76 +606,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
             normalizedStatus = "stopped"
         }
 
-        // Phase 3: ActivitySnapshot steps now come from Message table (all historical tool records).
-        // Only adopt running steps for the real-time panel; completed steps are shown via messages[].
-        const allSteps = data.steps || data.tasks || []
-        const activeSteps = allSteps.filter((s: any) => s.status === "running")
-
+        // Phase 3 redesign: steps are now part of Message model (msg.steps).
+        // ActivitySnapshot no longer carries step details — only lightweight metadata.
         set({
             status: normalizedStatus,
-            steps: activeSteps,
-            artifacts: data.artifacts || [], // Generated artifacts
-            finalOutcome: data.final_outcome || null, // Session completion outcome
+            artifacts: data.artifacts || [],
+            finalOutcome: data.final_outcome || null,
             activeMemories: data.active_memories || [],
             agentState: data.agent_state || null,
-            humanRequest: data.human_request || null, // Fix: Sync HITL request from activity snapshot
+            humanRequest: data.human_request || null,
         })
 
-        // Extract transient thoughts from agent state
-        if (data.agent_state && data.agent_state.details && data.agent_state.details.type === 'thought') {
-            const newThought = data.agent_state.details
-            const thoughtId = `${Date.now()}-${Math.random()}`
-
-            // Deduplicate: Don't add if we just added this exact title/type recently (e.g. within 2 seconds)
-            const recentThoughts = get().thoughts.slice(-3)
-            const isDuplicate = recentThoughts.some(t =>
-                t.title === (data.agent_state.task_status || "Thinking") &&
-                Date.now() - t.timestamp < 2000
-            )
-
-            if (!isDuplicate) {
-                const thoughtObj = {
-                    id: thoughtId,
-                    type: "thought",
-                    thought_type: newThought.thought_type || "generic",
-                    title: data.agent_state.task_status || i18n.t("chat.status.thinking"),
-                    content: newThought,
-                    confidence: newThought.confidence,
-                    timestamp: Date.now()
-                }
-
-                // Add to thoughts list, keep last 20
-                set(state => ({
-                    thoughts: [...state.thoughts, thoughtObj as any].slice(-20)
-                }))
-            }
-        }
-    },
-
-    // Incremental update handlers (no re-fetch needed)
-    _addStep: (stepEvent: any) => {
-        // Add or update a single step incrementally
-        const stepData = stepEvent.data || stepEvent
-        if (!stepData) return
-
-        // The 'id' is in the event wrapper, not inside data — inject it
-        const mergedData = { ...stepData, id: stepEvent.id }
-
-        set(state => {
-            const existingIndex = state.steps.findIndex(s => s.id === mergedData.id)
-            let newSteps
-
-            if (existingIndex >= 0) {
-                // Update existing step — preserve original name/tool/input from create event
-                newSteps = [...state.steps]
-                newSteps[existingIndex] = { ...newSteps[existingIndex], ...mergedData }
-            } else {
-                // Add new step
-                newSteps = [...state.steps, mergedData]
-            }
-
-            return { steps: newSteps }
-        })
     },
 
     _addArtifact: (artifactEvent: any) => {
@@ -734,10 +663,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
         const prevStatus = get().status
         const currentHumanRequest = get().humanRequest
         
-        // Detect completion - clear streamed content when execution ends
-        // Note: Messages are updated incrementally via _appendMessage, no need to re-fetch
+        // Detect completion - finalize any streaming messages
         if (prevStatus === "running" && normalizedStatus !== "running") {
-            set({ streamedContent: "" })
+            set((state) => ({
+                messages: state.messages.map((m) =>
+                    m.status === "streaming" ? { ...m, status: "completed" as const } : m
+                ),
+            }))
         }
 
         // HITL Safety Net 1: When leaving interrupted state, clear humanRequest
@@ -762,12 +694,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
     },
 
     _setQuotaExhausted: (info: { title: string; message: string; hint: string; actionText: string }) => {
-        set({ 
+        set((state) => ({
             status: "quota_exhausted",
             quotaExhaustedInfo: info,
-            streamedContent: "",
-            steps: [],
-        })
+            messages: state.messages.map((m) =>
+                m.status === "streaming" ? { ...m, status: "completed" as const } : m
+            ),
+        }))
     },
 
     _appendMessage: (rawMsg: any) => {
@@ -794,44 +727,55 @@ export const useChatStore = create<ChatState>((set, get) => ({
             content: rawMsg.content || "",
             thinking: rawMsg.thinking,
             timestamp: rawMsg.created_at || new Date().toISOString(),
-            steps_snapshot: rawMsg.steps_snapshot,
-            tool_calls: rawMsg.tool_calls,
-            steps: rawMsg.steps || [], // Use backend-folded steps if available
+            steps: rawMsg.steps || [],
             references: rawMsg.references || [],
+            changeset_count: rawMsg.changeset_count || 0,
         }
 
         // 2. Check if this is an update to an existing message (e.g., steps added via tool folding)
         const existingIndex = messages.findIndex(m => m.id === newMsg.id)
         
         if (existingIndex >= 0) {
-            // Update existing message - only update fields that changed, don't merge content
+            // Update existing message - only update fields that changed
             const existingMsg = messages[existingIndex]
+            const isStreaming = existingMsg.status === "streaming"
             const updatedMsg: Message = {
                 ...existingMsg,
                 // Update steps if new steps are provided (tool execution updates)
                 steps: (newMsg.steps && newMsg.steps.length > 0) ? newMsg.steps : existingMsg.steps,
-                // Update snapshot if provided
-                steps_snapshot: newMsg.steps_snapshot || existingMsg.steps_snapshot,
-                // Update tool_calls if provided
-                tool_calls: newMsg.tool_calls || existingMsg.tool_calls,
                 // Update thinking if provided
                 thinking: newMsg.thinking || existingMsg.thinking,
-                // Keep original content and timestamp - don't update
-                content: existingMsg.content,
+                // Keep streaming content; for completed messages, accept backend content
+                content: isStreaming ? existingMsg.content : (newMsg.content || existingMsg.content),
                 timestamp: existingMsg.timestamp,
             }
             
             const newMessages = [...messages]
             newMessages[existingIndex] = updatedMsg
-            set({ messages: newMessages, streamedContent: "" })
+            set({ messages: newMessages })
             return
         }
 
-        // 3. Append as new message - NO MERGING with previous messages
-        // Each AI message is displayed independently, matching history message display
+        // 3. New message: check if there's a streaming AI placeholder to replace
+        const streamingIndex = messages.findIndex(m => m.role === "ai" && m.status === "streaming")
+        if (streamingIndex >= 0 && newMsg.role === "ai") {
+            const placeholder = messages[streamingIndex]
+            const newMessages = [...messages]
+            newMessages[streamingIndex] = {
+                ...newMsg,
+                // Preserve accumulated steps if backend hasn't provided them yet
+                steps: (newMsg.steps && newMsg.steps.length > 0) ? newMsg.steps : placeholder.steps,
+                // Preserve accumulated streaming content if backend hasn't provided one yet
+                content: newMsg.content || placeholder.content,
+                status: newMsg.status || "completed",
+            }
+            set({ messages: newMessages })
+            return
+        }
+
+        // 4. Append as new message
         set(state => ({
             messages: [...state.messages, newMsg],
-            streamedContent: "" // Commit the stream
         }))
     },
 
@@ -915,43 +859,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
         }
     },
 
-    _processStreamEvent: (event: StreamEvent) => {
-        const state = get().streamState
-        const MAX_EVENTS = 100
-        const newEvents = [...state.events, event].slice(-MAX_EVENTS)
-
+    _processStreamEvent: (event: any) => {
         switch (event.type) {
-            case 'thinking':
-                set({
-                    streamState: {
-                        ...state,
-                        events: newEvents,
-                        currentThinking: event.message,
-                    }
-                })
-                break
-
-            case 'progress':
-                set({
-                    streamState: {
-                        ...state,
-                        events: newEvents,
-                        overallProgress: event.progress || state.overallProgress,
-                    }
-                })
-                break
-
-            case 'complete':
-                set({
-                    streamState: {
-                        ...state,
-                        events: newEvents,
-                        currentThinking: null,
-                        overallProgress: 100,
-                    }
-                })
-                break
-
             case 'quota_exhausted':
                 // Handle quota exhausted event from backend
                 get()._setQuotaExhausted({
@@ -974,55 +883,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
                     },
                     duration: 10000,
                 })
-                set({
-                    status: 'error',
-                    streamState: {
-                        ...state,
-                        events: newEvents,
-                    }
-                })
+                set({ status: 'error' })
                 break
-
-            case 'auth_expired':
-                // EvoLoop 平台认证过期，清除 token 并跳转到登录页
-                console.warn("[ChatStore] EvoLoop auth expired, clearing token and redirecting to login");
-
-                // 保存当前路径（用于登录后返回）
-                const currentHashPath = window.location.hash
-                if (currentHashPath && currentHashPath !== '#/login') {
-                    localStorage.setItem('redirect_after_login', currentHashPath)
-                }
-
-                // 清除 token
-                localStorage.removeItem("access_token")
-
-                // 显示提示
-                toast.error(event.title || i18n.t("auth.sessionExpired", "登录已过期"), {
-                    description: event.message || i18n.t("auth.pleaseLoginAgain", "EvoLoop 平台认证已过期，请重新登录"),
-                    duration: 5000,
-                })
-
-                set({
-                    status: 'error',
-                    streamState: {
-                        ...state,
-                        events: newEvents,
-                    }
-                })
-
-                // 延迟跳转到登录页
-                setTimeout(() => {
-                    window.location.href = "/login"
-                }, 500)
-                break
-
-            default:
-                set({
-                    streamState: {
-                        ...state,
-                        events: newEvents,
-                    }
-                })
         }
     },
 }))

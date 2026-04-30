@@ -21,7 +21,6 @@ class MessageItem(FoldedMessage):
     checkpoint_id: str | None = None
     is_visible: bool = True
     thinking: list[dict[str, Any]] | None = None
-    tool_blocks: list[dict[str, Any]] | None = None
 
 class ConversationSearchResult(DynamicBaseModel):
     id: int  # Message ID

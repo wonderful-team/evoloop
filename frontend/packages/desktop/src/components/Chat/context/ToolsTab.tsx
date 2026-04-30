@@ -5,44 +5,34 @@ import { useTranslation } from "react-i18next"
 import { ToolsService } from "@/client"
 import { ScrollArea } from "@evoloop/shared/components/ui/scroll-area"
 import { useChatStore } from "@/stores/chatStore"
+import { getActiveTools } from "@/types/toolstep"
 
 export function ToolsTab() {
   const { t } = useTranslation()
-  // Get current steps from chat store
-  const steps = useChatStore((state) => state.steps)
 
-  // Extract actively executing tools from steps
+  // Phase 3 redesign: derive active tools from the current AI message's steps
+  const messages = useChatStore((state) => state.messages)
+  const status = useChatStore((state) => state.status)
+
+  const lastAiMessage = useMemo(() =>
+    [...messages].reverse().find(m => m.role === "ai"),
+    [messages]
+  )
+
   const activeTools = useMemo(() => {
-    const toolSet = new Set<string>()
-    steps.forEach((step) => {
-      if (step.status === "running") {
-        const toolId = step.tool || step.tool_name || step.name || ""
-        if (toolId) {
-          toolSet.add(toolId.toLowerCase())
-        }
-      }
-    })
-    return toolSet
-  }, [steps])
+    if (status !== "running") return new Set<string>()
+    return getActiveTools(lastAiMessage?.steps)
+  }, [lastAiMessage, status])
 
   // Fetch available tools
   const { data: tools, isLoading: isLoadingTools } = useQuery({
     queryKey: ["tools"],
-    queryFn: async () => {
-      return ToolsService.listRuntimeTools()
-    },
+    queryFn: async () => ToolsService.listRuntimeTools(),
   })
 
-  // Check if a tool is currently active
-  const isToolActive = (toolName: string) => {
-    const lowerName = toolName.toLowerCase()
-    return (
-      activeTools.has(lowerName) ||
-      Array.from(activeTools).some(
-        (at) => lowerName.includes(at) || at.includes(lowerName),
-      )
-    )
-  }
+  // Exact match only (no fuzzy includes)
+  const isToolActive = (toolName: string) =>
+    activeTools.has(toolName.toLowerCase())
 
   return (
     <div className="h-full m-0 flex flex-col">

@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next"
 import { PlanningService, ToolsService } from "@/client"
 import { ScrollArea } from "@evoloop/shared/components/ui/scroll-area"
 import { useChatStore } from "@/stores/chatStore"
+import { getActiveTools } from "@/types/toolstep"
 
 interface SystemGroupTabProps {
     activeThreadId?: string
@@ -13,22 +14,19 @@ interface SystemGroupTabProps {
 export function SystemGroupTab({ activeThreadId }: SystemGroupTabProps) {
     const { t } = useTranslation()
 
-    // --- STATE & DATA ---
+    // Phase 3 redesign: derive active tools from the current AI message's steps
+    const messages = useChatStore((state) => state.messages)
+    const status = useChatStore((state) => state.status)
 
-    // 1. TOOLS
-    const steps = useChatStore((state) => state.steps)
+    const lastAiMessage = useMemo(() =>
+        [...messages].reverse().find(m => m.role === "ai"),
+        [messages]
+    )
+
     const activeTools = useMemo(() => {
-        const toolSet = new Set<string>()
-        steps.forEach((step) => {
-            if (step.status === "running") {
-                const toolId = step.tool || step.tool_name || step.name || ""
-                if (toolId) {
-                    toolSet.add(toolId.toLowerCase())
-                }
-            }
-        })
-        return toolSet
-    }, [steps])
+        if (status !== "running") return new Set<string>()
+        return getActiveTools(lastAiMessage?.steps)
+    }, [lastAiMessage, status])
 
     const { data: tools, isLoading: isLoadingTools } = useQuery({
         queryKey: ["tools"],
@@ -46,11 +44,8 @@ export function SystemGroupTab({ activeThreadId }: SystemGroupTabProps) {
     })
     const typedPlanData = planData as any
 
-    // Helpers
-    const isToolActive = (toolName: string) => {
-        const lowerName = toolName.toLowerCase()
-        return activeTools.has(lowerName) || Array.from(activeTools).some(at => lowerName.includes(at) || at.includes(lowerName))
-    }
+    // Helpers — exact match only (no fuzzy includes)
+    const isToolActive = (toolName: string) => activeTools.has(toolName.toLowerCase())
 
     return (
         <ScrollArea className="h-full bg-muted/5">

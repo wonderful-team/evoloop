@@ -125,21 +125,6 @@ class LinkTokenService:
         return data if isinstance(data, str) else None
 
 
-class ActivityStep(DynamicBaseModel):
-    """A single step in the agent activity."""
-    id: int
-    name: str
-    tool: str | None = None          # Original tool identifier (e.g. "search_web")
-    status: str
-    type: str = "node"
-    parent_id: int | None = None
-    start_time: float
-    end_time: float | None = None
-    time: str = "0s"
-    input: dict | None = None
-    details: str | None = None
-
-
 class ActivityArtifact(DynamicBaseModel):
     """An artifact tracked during agent activity."""
     id: int
@@ -151,11 +136,17 @@ class ActivityArtifact(DynamicBaseModel):
 
 
 class ActivityState(DynamicBaseModel):
-    """Full activity state for an agent run."""
+    """Full activity state for an agent run.
+
+    Phase 3 redesign: steps are no longer returned here.
+    Steps are now part of the Message model (msg.steps) and travel
+    via SSE message events. This model only returns lightweight
+    run metadata.
+    """
     status: str
     main_goal: str = ""
     updated_at: float = 0.0
-    steps: list[ActivityStep] = Field(default_factory=list)
+    running_tools_count: int = 0
     artifacts: list[ActivityArtifact] = Field(default_factory=list)
     agent_state: dict = Field(default_factory=dict)
     verification: dict = Field(default_factory=dict)
@@ -217,12 +208,14 @@ class ActivityStateService:
         return await self.get_state(thread_id)
 
     async def get_state(self, thread_id: str) -> ActivityState:
-        """Get full activity state.
+        """Get lightweight activity state.
 
-        Phase 3: steps are now reconstructed from Message table (canonical source)
-        instead of the legacy AgentActivity.steps_json field.
+        Phase 3 redesign: steps are no longer returned here.
+        Steps are now part of the Message model and travel via SSE
+        message events. Callers that need step details should fetch
+        the conversation messages instead.
         """
-        from sqlalchemy import select
+        from sqlalchemy import func, select
         from app.models import AgentActivity, Message
 
         async with self._get_session_scope()() as session:
@@ -231,37 +224,21 @@ class ActivityStateService:
                 return ActivityState(status="idle")
 
             try:
-                # Reconstruct steps from Message table (unified link)
-                stmt = (
-                    select(Message)
+                # Only count running tools (lightweight — no step reconstruction)
+                running_count = await session.scalar(
+                    select(func.count())
+                    .select_from(Message)
                     .where(Message.thread_id == thread_id)
                     .where(Message.role == "tool")
-                    .order_by(Message.sequence_number)
+                    .where(Message.status == "running")
                 )
-                result = await session.execute(stmt)
-                tool_msgs = result.scalars().all()
-
-                steps = []
-                for msg in tool_msgs:
-                    status_map = {"running": "running", "completed": "done", "failed": "failed"}
-                    steps.append(ActivityStep(
-                        id=msg.sequence_number or 0,
-                        name=msg.tool_name or "unknown",
-                        tool=msg.tool_name,
-                        status=status_map.get(msg.status, "done"),
-                        type="tool",
-                        input=msg.meta_data.get("input") if msg.meta_data else None,
-                        details=msg.content,
-                        start_time=msg.created_at.timestamp() if msg.created_at else 0,
-                        time="0s",
-                    ))
 
                 artifacts_raw = json.loads(activity.artifacts_json or "[]")
                 return ActivityState(
                     status=activity.status,
                     main_goal=activity.main_goal,
                     updated_at=activity.updated_at.timestamp() if activity.updated_at else 0,
-                    steps=steps,
+                    running_tools_count=running_count or 0,
                     artifacts=[ActivityArtifact.model_validate(a) for a in artifacts_raw],
                     agent_state=json.loads(activity.agent_state_json or "{}"),
                     verification={},
@@ -283,7 +260,6 @@ class ActivityStateService:
         field_map = {
             "status": "status",
             "main_goal": "main_goal",
-            "steps": "steps_json",
             "artifacts": "artifacts_json",
             "agent_state": "agent_state_json",
             "active_memories": "active_memories_json",
@@ -312,7 +288,6 @@ class ActivityStateService:
         field_map = {
             "status": "status",
             "main_goal": "main_goal",
-            "steps": "steps_json",
             "artifacts": "artifacts_json",
             "agent_state": "agent_state_json",
             "active_memories": "active_memories_json",

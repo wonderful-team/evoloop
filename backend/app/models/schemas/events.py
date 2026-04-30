@@ -2,7 +2,7 @@
 SSE 流式事件 Schema —— 全系统通用事件定义。
 
 职责：
-1. 定义非消息特定的流式事件（StepEvent, ArtifactEvent, TokenEvent 等）
+1. 定义非消息特定的流式事件（ArtifactEvent, TokenEvent 等）
 2. 消息特定事件（BlockEvent, HumanRequestEvent）从消息模块导入
 
 架构位置：
@@ -30,14 +30,6 @@ class StreamEventType(str, Enum):
     LLM_AUTH_ERROR = "llm_auth_error"
     QUOTA_EXHAUSTED = "quota_exhausted"
     AUTH_EXPIRED = "auth_expired"
-
-
-# --- Step Events ---
-class StepEvent(EventBase):
-    type: Literal["step"] = "step"
-    action: Literal["create", "update"] = "create"
-    id: int
-    data: Dict[str, Any]  # Delta or full object
 
 
 # --- Artifact Events ---

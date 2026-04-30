@@ -2,12 +2,10 @@ import { useMemo } from "react"
 import { useTranslation } from "react-i18next"
 import { Loader2 } from "lucide-react"
 import { SmartChatMessageItem, type Message } from "./ChatMessageItem"
-import { PendingMessageItem } from "./PendingMessageItem"
 import { ChatWelcome } from "./ChatWelcome"
 
 interface MessageListProps {
     messages: Message[]
-    isAgentWorking: boolean
     hasMoreHistory?: boolean
     isLoadingHistory?: boolean
     onAddToMemory?: (text: string) => void
@@ -19,7 +17,6 @@ interface MessageListProps {
 
 export function MessageList({
     messages,
-    isAgentWorking,
     hasMoreHistory = false,
     isLoadingHistory = false,
     onAddToMemory,
@@ -123,10 +120,7 @@ export function MessageList({
                     </div>
                 ))}
 
-                {/* Agent Working (Pending Message) */}
-                {isAgentWorking && (
-                    <PendingMessageItem />
-                )}
+
             </div>
         </div>
     )

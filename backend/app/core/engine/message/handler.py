@@ -156,35 +156,14 @@ class MessageHandler:
             metadata={"tool_name": tool_name, "tool_call_id": tool_call_id, "input": input_data, "tool_meta": tool_meta},
         )
 
-        # Push real-time "running" event
+        # Push real-time "running" event (frontend receives via SSE message folding)
         await self._dispatch_block(
             role="tool", content="", category=category.value,
             status="running", sequence_number=seq,
             tool_name=tool_name, tool_call_id=tool_call_id,
+            metadata={"tool_meta": tool_meta, "input": input_data},
             channels={"sse", "mobile"}
         )
-
-        # Publish StepEvent for frontend step tracking (unified link)
-        try:
-            from app.core.engine.message.event_bus import get_event_bus
-            from app.models.schemas.events import StepEvent
-            await get_event_bus().publish(
-                f"chat:{self.thread_id}:events",
-                StepEvent(
-                    action="create",
-                    id=seq,
-                    data={
-                        "name": display_name or tool_name,
-                        "tool": tool_name,
-                        "status": "running",
-                        "input": input_data,
-                        "tool_meta": tool_meta,
-                        "type": "tool",
-                    },
-                ).model_dump_json(),
-            )
-        except Exception:
-            pass
 
         logger.info(f"[MessageHandler] Tool start tracked: {tool_name} (seq={seq})")
         return MessageHandlerResult(
@@ -230,25 +209,6 @@ class MessageHandler:
                         tool_name=persist_data.tool_name, tool_call_id=persist_data.tool_call_id,
                         channels={"mobile"}
                     )
-                # Publish StepEvent update for frontend step tracking (unified link)
-                try:
-                    from app.core.engine.message.event_bus import get_event_bus
-                    from app.models.schemas.events import StepEvent
-                    await get_event_bus().publish(
-                        f"chat:{self.thread_id}:events",
-                        StepEvent(
-                            action="update",
-                            id=sequence_number,
-                            data={
-                                "status": "done",
-                                "details": persist_data.content,
-                                "tool": tool_name,
-                                "type": "tool",
-                            },
-                        ).model_dump_json(),
-                    )
-                except Exception:
-                    pass
         elif persist_data.should_persist:
             # Fallback: INSERT new record (backward compatibility)
             message_id, seq = await self._repository.persist(
@@ -292,32 +252,12 @@ class MessageHandler:
         seq = sequence_number or 0
 
         if sequence_number:
-            updated = await self._repository.update(
+            await self._repository.update(
                 sequence_number=sequence_number,
                 status="failed",
                 content=content,
                 meta_data={"tool_name": tool_name, "tool_call_id": tool_call_id, "error": content},
             )
-            if updated:
-                # Publish StepEvent update for frontend step tracking
-                try:
-                    from app.core.engine.message.event_bus import get_event_bus
-                    from app.models.schemas.events import StepEvent
-                    await get_event_bus().publish(
-                        f"chat:{self.thread_id}:events",
-                        StepEvent(
-                            action="update",
-                            id=sequence_number,
-                            data={
-                                "status": "failed",
-                                "details": content,
-                                "tool": tool_name,
-                                "type": "tool",
-                            },
-                        ).model_dump_json(),
-                    )
-                except Exception:
-                    pass
 
         return MessageHandlerResult(
             category="tool_error", persisted=bool(sequence_number),
@@ -469,11 +409,11 @@ class MessageHandler:
         if not token_buffer or not thread_id:
             return
 
-        from app.core.engine.message.schemas import StreamEvent, StreamEventType
+        from app.core.engine.message.schemas import StreamEvent
         publisher = MessagePublisher(thread_id=thread_id)
         
         # 使用统一的 StreamEvent 协议，不再直接操作 Redis 通道
         await publisher.publish(StreamEvent(
-            type=StreamEventType.TOKEN,
+            type="token",
             data={"content": token_buffer}
         ))

@@ -47,45 +47,58 @@ class MessageFolder:
         return ""
 
     @staticmethod
-    def append_tool_event_to_ai_message(ai_message: dict, tool_event: dict) -> None:
+    def append_tool_event_to_ai_message(
+        ai_message: dict, tool_event: dict, status: str = "done"
+    ) -> None:
         """
-        Append a tool execution event to its parent AI message's steps array.
+        Append or update a tool execution event in its parent AI message's steps array.
         Used by the real-time SSE stream to fold tool messages on the fly.
+
+        Args:
+            ai_message: The parent AI message dict (mutated in place).
+            tool_event: The tool event dict from MessageBlock dispatch.
+            status: ToolStep status — "running" on start, "done" on success, "failed" on error.
         """
         tool_id = tool_event.get('tool_call_id')
-        # tool_name may be stored in metadata for MessageBlock-format events
         tool_name = (
             tool_event.get('tool_name')
             or tool_event.get('metadata', {}).get('tool_name')
             or 'unknown'
         )
-        # Find matching tool call in the parent AI message
-        tool_calls = ai_message.get('tool_calls', []) or []
-        matched_call = next((tc for tc in tool_calls if tc.get('id') == tool_id), None)
-        
-        tool_input = matched_call.get('args', {}) if matched_call else {}
-        
-        step = ToolStep(
-            id=tool_event.get('id') or f"step-{time.monotonic()}",
-            tool=tool_name,
-            tool_name=tool_name,
-            input=tool_input,
-            output=tool_event.get('content', ''),
-            status='success',
-            tool_call_id=tool_id,
-        )
-        
+        tool_meta = tool_event.get('metadata', {}).get('tool_meta', {})
+        tool_input = tool_event.get('metadata', {}).get('input', {})
+
         if 'steps' not in ai_message:
             ai_message['steps'] = []
-            
-        # Avoid duplicate steps if event is re-sent
-        # Guard: only deduplicate when both IDs are non-None to prevent
-        # false collisions between unrelated steps that both lack an ID.
-        if tool_id is not None:
-            if not any(s.get('tool_call_id') == tool_id for s in ai_message['steps']):
-                ai_message['steps'].append(step.model_dump())
+
+        steps: list[dict] = ai_message['steps']
+
+        # Try to find existing step by tool_call_id for update
+        existing_idx = next(
+            (i for i, s in enumerate(steps) if s.get('tool_call_id') == tool_id and tool_id is not None),
+            -1,
+        )
+
+        if existing_idx >= 0:
+            # Update existing step — preserve name/input from create event
+            existing = steps[existing_idx]
+            existing['status'] = status
+            existing['output'] = tool_event.get('content', '')
+            if tool_meta:
+                existing['tool_meta'] = tool_meta
         else:
-            ai_message['steps'].append(step.model_dump())
+            # Create new step
+            step = ToolStep(
+                id=tool_id or f"step-{time.monotonic()}",
+                tool=tool_name,
+                name=tool_meta.get('display_name') or tool_name,
+                input=tool_input,
+                output=tool_event.get('content', ''),
+                status=status,
+                tool_call_id=tool_id,
+                tool_meta=tool_meta,
+            )
+            steps.append(step.model_dump())
 
     @staticmethod
     def to_tool_step(
@@ -118,17 +131,17 @@ class MessageFolder:
                 pass
 
         tool_meta = {
-            "affected_path_keys": getattr(metadata, "affected_path_keys", []),
+            "affected_path_keys": metadata.get("affected_path_keys", []),
             "display_name": tool_name_display,
         }
 
         return ToolStep(
             id=tool_id,
             tool=tool_name_raw,
-            tool_name=tool_name_raw,
+            name=tool_meta.get('display_name') or tool_name_raw,
             input=args,
             output=MessageFolder.get_message_text(tool_msg),
-            status="success",
+            status="done",
             tool_call_id=tool_msg.tool_call_id,
             tool_meta=tool_meta,
         )

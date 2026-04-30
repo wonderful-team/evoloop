@@ -3,13 +3,12 @@ import { OpenAPI } from "@/client/core/OpenAPI";
 export interface ChatConnectionCallbacks {
     onConnectionChange: (connected: boolean, status: string) => void;
     onToken: (token: string) => void;
-    onActivity: (activity: any) => void;  // Initial full snapshot only
-    onStep: (step: any) => void;          // Incremental step update
+    onActivity: (activity: any) => void;  // Lightweight run metadata only (no steps)
     onArtifact: (artifact: any) => void;  // Incremental artifact update
     onStatus: (status: any) => void;      // Incremental status update
     onHumanRequest: (request: any) => void;
-    onMessage: (message: any) => void; // Real-time message sync
-    onStream?: (streamEvent: any) => void; // Enhanced stream events (thinking, tool progress)
+    onMessage: (message: any) => void; // Real-time message sync (includes step updates via msg.steps)
+    onStream?: (streamEvent: any) => void; // Enhanced stream events (thinking, progress, errors)
     onError: (error: string) => void;
     onUnauthorized?: () => void; // 401 未授权回调
 }
@@ -169,15 +168,6 @@ export class ChatConnection {
         });
 
         // Incremental updates (no re-fetch needed)
-        sse.addEventListener("step", (e) => {
-            try {
-                const data = JSON.parse(e.data);
-                this.callbacks?.onStep(data);
-            } catch (err) {
-                console.error("[ChatConnection] Failed to parse step", err);
-            }
-        });
-
         sse.addEventListener("artifact", (e) => {
             try {
                 const data = JSON.parse(e.data);

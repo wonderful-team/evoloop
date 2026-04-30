@@ -40,78 +40,26 @@ import { VoiceMessage } from "./VoiceMessage"
 import { SourcesFooter } from "./SourcesFooter"
 import { AgentProcess } from "./AgentProcess"
 import { AnalysisResultMessage } from "./AnalysisResultMessage"
+import type { ToolStep } from "@/types/toolstep"
 import { useShowThinking } from "../UserSettings/AppearanceSettings"
 import { TTSButton } from "./TTSButton"
 import { useAutoSpeak, useTTS } from "@/hooks/useTTS"
 import { useEffect } from "react"
 import { cn } from "@evoloop/shared/lib/utils"
 
-// Convert legacy StepItem (from backend steps_snapshot) to raw step format.
-// NOTE: steps_snapshot is deprecated; backend now returns folded steps via msg.steps.
-// This converter is kept only for backward compatibility with very old messages.
-function convertStepsToAgentProcess(steps: Array<{
-  id: number
-  name: string
-  status: string
-  type?: string
-  time?: string
-  details?: string
-  input?: any
-}>): any[] {
-  return steps
-    .map((step) => {
-      // Legacy snapshots store the friendly name in 'name' (e.g. "Using read_file")
-      // and sometimes store input in the 'input' field.
-      const name = step.name || ""
-      const rawTool = name.replace("Using ", "") || "unknown"
-
-      // Infer tool ID from friendly name
-      let tool = rawTool
-      if (tool === "unknown" && name) {
-        if (name.includes("正在读取") || name.includes("read_file")) tool = "read_file"
-        else if (name.includes("正在列出") || name.includes("list_directory") || name.includes("list_files")) tool = "list_directory"
-        else if (name.includes("正在查找") || name.includes("search_files")) tool = "search_files"
-        else if (name.includes("搜索网页") || name.includes("search_web")) tool = "search_web"
-        else if (name.includes("执行命令") || name.includes("bash")) tool = "bash_command"
-      }
-
-      // Use explicit 'input' if available; do NOT try to parse it from 'details' (which is output)
-      const input = step.input ?? null
-
-      return {
-        id: `snap-${step.id}`,
-        tool,
-        tool_name: step.name,
-        input,
-        output: step.details || "",
-        status: step.status as "success" | "failure" | "running" | "done" | "failed" | "cancelled",
-        duration: step.time ? parseFloat(step.time) * 1000 : undefined,
-        type: step.type as "node" | "tool" | "ai" | "skill" | undefined,
-      }
-    })
-}
-
-// Unified Tool Execution Section - combines real-time steps and historical snapshot
+// Tool Execution Section — renders steps attached to an AI message.
 function ToolExecutionSection({ msg }: { msg: Message }) {
   const { t } = useTranslation()
   const [isOpen, setIsOpen] = useState(false)
 
-  // Backend now folds tool steps into msg.steps (ToolStep format) server-side.
-  // steps_snapshot is deprecated and no longer returned by the API.
-  const displaySteps: any[] = msg.steps && msg.steps.length > 0
-    ? msg.steps
-    : (msg.steps_snapshot && msg.steps_snapshot.length > 0
-        ? convertStepsToAgentProcess(msg.steps_snapshot)
-        : [])
+  const displaySteps = msg.steps || []
 
   if (displaySteps.length === 0) return null
 
-  const isRealtime = !!(msg.steps && msg.steps.length > 0)
-
   // Calculate status counts
   const runningCount = displaySteps.filter((s) => s.status === "running").length
-  const completedCount = displaySteps.filter((s) => s.status === "done" || s.status === "success").length
-  const failedCount = displaySteps.filter((s) => s.status === "failed" || s.status === "failure").length
+  const completedCount = displaySteps.filter((s) => s.status === "done").length
+  const failedCount = displaySteps.filter((s) => s.status === "failed").length
   const totalCount = displaySteps.length
 
   if (totalCount === 0) return null
@@ -134,7 +82,6 @@ function ToolExecutionSection({ msg }: { msg: Message }) {
       {isOpen ? (
         <AgentProcess
           steps={displaySteps}
-          isStreaming={isRealtime && displaySteps.some((s) => s.status === "running")}
           header={
             <CollapsibleTrigger asChild>
               <Button
@@ -205,18 +152,7 @@ export interface Message {
     }
   }>
   originalRole?: string // Kept for filtering
-  steps_snapshot?: Array<{
-    // Historical task steps
-    id: number
-    name: string
-    status: string
-    type?: string
-    parent_id?: number // Link to parent phase
-    time?: string
-    details?: string
-  }>
-  steps?: any[] // Tool execution steps
-  tool_calls?: any[] // Tool calls for real-time matching
+  steps?: ToolStep[] // Tool execution steps
   has_file_operations?: boolean // Whether this message has associated file operations (for Rewind/Retry)
   status?: "pending" | "streaming" | "completed" | "failed" // Message generation status
   // Changeset related (from backend)
@@ -337,92 +273,105 @@ const ChatMessageItem = memo(
 
           <div className="flex flex-col gap-1 min-w-0">
             {/* 2. Main Response Bubble */}
-            {msg.content && (
+            {(msg.content || msg.status === "streaming") && (
               <div className={`rounded-xl px-4 py-3 text-sm leading-relaxed min-w-0 w-fit max-w-full overflow-hidden border ${msg.role === "human"
                   ? "bg-primary text-primary-foreground border-primary/20 ml-auto shadow-none"
                   : "bg-muted/50 text-foreground border-border/40 mr-auto shadow-none"
                 }`}>
-
-                {(() => {
-                  // Artifact Detection (AI messages only, skip during streaming)
-                  let processedContent = msg.content
-                  if (msg.role === "ai" && msg.status !== "streaming") {
-                    const parts = extractArtifactsFromContent(processedContent)
-                    if (parts.some(p => p.type === 'artifact')) {
-                      // Single artifact with no surrounding text: direct render (backward compatible)
-                      if (parts.length === 1 && parts[0].type === 'artifact') {
-                        const art = parts[0]
-                        if (art.artifactType === "test_report") {
-                          return <TestReportCard data={art.data} />
-                        }
-                        if (art.artifactType === "echarts") {
-                          return <EChartsArtifact data={art.data} />
-                        }
-                        if (art.artifactType === "requirement_analysis") {
-                          return (
-                            <AnalysisResultMessage
-                              analysisId={art.data.analysis_id}
-                              documentId={art.data.document_id}
-                              projectId={art.data.project_id}
-                              data={art.data.analysis}
-                            />
-                          )
-                        }
-                        if (art.artifactType === "map") {
-                          return <MapArtifact data={art.data} />
-                        }
-                      }
-
-                      // Mixed content: render text and artifacts sequentially
-                      return (
-                        <div className="flex flex-col gap-2">
-                          {parts.map((part, idx) => {
-                            if (part.type === 'text') {
-                              return <MessageContent key={idx} content={part.content!} isUser={false} />
+                {msg.content ? (
+                  <>
+                    {(() => {
+                      // Artifact Detection (AI messages only, skip during streaming)
+                      let processedContent = msg.content
+                      if (msg.role === "ai" && msg.status !== "streaming") {
+                        const parts = extractArtifactsFromContent(processedContent)
+                        if (parts.some(p => p.type === 'artifact')) {
+                          // Single artifact with no surrounding text: direct render (backward compatible)
+                          if (parts.length === 1 && parts[0].type === 'artifact') {
+                            const art = parts[0]
+                            if (art.artifactType === "test_report") {
+                              return <TestReportCard data={art.data} />
                             }
-                            if (part.artifactType === "test_report") {
-                              return <TestReportCard key={idx} data={part.data} />
+                            if (art.artifactType === "echarts") {
+                              return <EChartsArtifact data={art.data} />
                             }
-                            if (part.artifactType === "echarts") {
-                              return <EChartsArtifact key={idx} data={part.data} />
-                            }
-                            if (part.artifactType === "requirement_analysis") {
+                            if (art.artifactType === "requirement_analysis") {
                               return (
                                 <AnalysisResultMessage
-                                  key={idx}
-                                  analysisId={part.data.analysis_id}
-                                  documentId={part.data.document_id}
-                                  projectId={part.data.project_id}
-                                  data={part.data.analysis}
+                                  analysisId={art.data.analysis_id}
+                                  documentId={art.data.document_id}
+                                  projectId={art.data.project_id}
+                                  data={art.data.analysis}
                                 />
                               )
                             }
-                            if (part.artifactType === "map") {
-                              return <MapArtifact key={idx} data={part.data} />
+                            if (art.artifactType === "map") {
+                              return <MapArtifact data={art.data} />
                             }
-                            return null
-                          })}
-                        </div>
-                      )
-                    }
-                  }
+                          }
 
-                  // Voice message
-                  const voiceAttachment = msg.attachments?.find(att => att.type === 'audio')
-                  if (voiceAttachment) {
-                    return (
-                      <VoiceMessage
-                        audioUrl={voiceAttachment.url}
-                        duration={voiceAttachment.metadata?.duration || 0}
-                        waveform={voiceAttachment.metadata?.waveform}
-                        transcript={voiceAttachment.metadata?.transcript || msg.content !== '[语音消息]' ? msg.content : undefined}
-                        isUser={msg.role === "human"}
-                      />
-                    )
-                  }
+                          // Mixed content: render text and artifacts sequentially
+                          return (
+                            <div className="flex flex-col gap-2">
+                              {parts.map((part, idx) => {
+                                if (part.type === 'text') {
+                                  return <MessageContent key={idx} content={part.content!} isUser={false} />
+                                }
+                                if (part.artifactType === "test_report") {
+                                  return <TestReportCard key={idx} data={part.data} />
+                                }
+                                if (part.artifactType === "echarts") {
+                                  return <EChartsArtifact key={idx} data={part.data} />
+                                }
+                                if (part.artifactType === "requirement_analysis") {
+                                  return (
+                                    <AnalysisResultMessage
+                                      key={idx}
+                                      analysisId={part.data.analysis_id}
+                                      documentId={part.data.document_id}
+                                      projectId={part.data.project_id}
+                                      data={part.data.analysis}
+                                    />
+                                  )
+                                }
+                                if (part.artifactType === "map") {
+                                  return <MapArtifact key={idx} data={part.data} />
+                                }
+                                return null
+                              })}
+                            </div>
+                          )
+                        }
+                      }
 
-                  return <MessageContent content={processedContent} isUser={msg.role === "human"} />
-                })()}
+                      // Voice message
+                      const voiceAttachment = msg.attachments?.find(att => att.type === 'audio')
+                      if (voiceAttachment) {
+                        return (
+                          <VoiceMessage
+                            audioUrl={voiceAttachment.url}
+                            duration={voiceAttachment.metadata?.duration || 0}
+                            waveform={voiceAttachment.metadata?.waveform}
+                            transcript={voiceAttachment.metadata?.transcript || (msg.content !== '[语音消息]' ? msg.content : undefined)}
+                            isUser={msg.role === "human"}
+                          />
+                        )
+                      }
+
+                      return <MessageContent content={processedContent} isUser={msg.role === "human"} />
+                    })()}
+                    {msg.status === "streaming" && (
+                      <span className="inline-block w-1.5 h-4 ml-1 align-middle bg-primary animate-pulse" />
+                    )}
+                  </>
+                ) : (
+                  <div className="flex flex-col gap-1 w-full min-w-[200px]">
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground italic">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      {t("chat.interface.agentThinking")}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -553,7 +502,8 @@ const ChatMessageItem = memo(
       prevProps.msg.id === nextProps.msg.id &&
       prevProps.msg.content === nextProps.msg.content &&
       prevProps.msg.thinking === nextProps.msg.thinking &&
-      prevProps.msg.steps === nextProps.msg.steps
+      prevProps.msg.steps === nextProps.msg.steps &&
+      prevProps.msg.status === nextProps.msg.status
     )
   },
 )

@@ -37,7 +37,7 @@ class ToolBlock(DynamicBaseModel):
     tool_name: str | None = None                 # 显示名回退（当前与 tool 相同）
     input: dict[str, Any] = Field(default_factory=dict)
     output: str = ""
-    status: Literal["pending", "running", "success", "error"] = "pending"
+    status: Literal["pending", "running", "done", "failed"] = "pending"
     duration_ms: int | None = None
     started_at: datetime | None = None
     finished_at: datetime | None = None
@@ -74,7 +74,7 @@ class MessageBlock(DynamicBaseModel):
 
     # === 工具调用 ===
     tool_calls: list[dict[str, Any]] | None = None
-    tool_blocks: list[ToolBlock] | None = None
+    steps: list[ToolBlock] | None = None  # Folded tool execution steps (replaces tool_blocks)
 
     # === 状态与可见性 ===
     status: Literal["pending", "running", "streaming", "completed", "failed", "waiting_human"] = "completed"

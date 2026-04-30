@@ -4,20 +4,19 @@ import {
 import { useTranslation } from "react-i18next"
 import { useState } from "react"
 import { Button } from "@evoloop/shared/components/ui/button"
-import type { StepItem } from "@/stores/chatStore"
+import type { ToolStep } from "@/types/toolstep"
 
 // A Group is a collection of steps under a header
 interface StepGroup {
     id: string
     title: string
     status: string
-    steps: StepItem[]
+    steps: ToolStep[]
     isImplicit?: boolean
 }
 
 interface AgentProcessProps {
-    steps: StepItem[]
-    isStreaming?: boolean
+    steps: ToolStep[]
     header?: React.ReactNode
 }
 
@@ -147,84 +146,31 @@ function summarizeOutput(output: string): { title: string; subtitle?: string; ha
     }
 }
 
-// Grouping logic
-function groupSteps(steps: StepItem[], t: any): StepGroup[] {
-    const groups: StepGroup[] = []
-    const headerMap = new Map<string | number, StepItem>()
-    const childrenMap = new Map<string | number, StepItem[]>()
-    const orphans: StepItem[] = []
+// Grouping logic — simplified for ToolStep (flat list, no parent_id hierarchy)
+function groupSteps(steps: ToolStep[], t: any): StepGroup[] {
+    if (steps.length === 0) return []
 
-    steps.forEach(step => {
-        const parentId = step.parent_id
-        const stepId = step.id
-
-        const displayName = step.tool_meta?.display_name
-            || step.tool_name
-            || step.name
-            || step.tool
-            || ""
-
-        if (parentId != null) {
-            if (!childrenMap.has(parentId)) {
-                childrenMap.set(parentId, [])
-            }
-            childrenMap.get(parentId)?.push(step)
-        } else {
-            if (step.type === "node") {
-                headerMap.set(stepId, step)
-            } else {
-                orphans.push(step)
-            }
-        }
-    })
-
-    headerMap.forEach((header, id) => {
-        const children = childrenMap.get(id) || []
-        const displayName = header.tool || header.name || ""
-
-        groups.push({
-            id: `g-${header.id}`,
-            title: displayName.replace("► ", "").replace("Phase: ", ""),
-            status: header.status,
-            steps: children,
-            isImplicit: false
-        })
-    })
-
-    if (orphans.length > 0) {
-        groups.push({
-            id: "g-implicit",
-            title: t("chat.steps.execution"),
-            status: orphans.some(s => s.status === "running") ? "running" : "success",
-            steps: orphans,
-            isImplicit: true
-        })
-    }
-
-    groups.sort((a, b) => {
-        const getOrder = (g: StepGroup) => {
-            if (g.isImplicit && g.steps.length > 0) return Number(g.steps[0].id)
-            return Number(g.id.replace("g-", "")) || 999999
-        }
-        return getOrder(a) - getOrder(b)
-    })
-
-    return groups
+    return [{
+        id: "g-steps",
+        title: t("chat.steps.execution"),
+        status: steps.some(s => s.status === "running") ? "running" : "done",
+        steps,
+        isImplicit: true,
+    }]
 }
 
 // Compact Step component
-function StepRow({ step }: { step: StepItem }) {
+function StepRow({ step }: { step: ToolStep }) {
     const { t } = useTranslation()
 
-    // Resolve display name from backend metadata
+    // Resolve display name from backend metadata (canonical source)
     const toolName = step.tool_meta?.display_name
+        || step.name
         || step.tool_name
         || step.tool
-        || step.name
         || t("chat.steps.unknown", "未知工具")
 
-    // Resolve output (handle both 'output' and legacy 'details')
-    const output = step.output !== undefined ? step.output : (step.details || '')
+    const output = step.output || ''
 
     // Only show input params when display_name doesn't already contain them
     const inputInfo = step.tool_meta?.display_name
@@ -233,8 +179,7 @@ function StepRow({ step }: { step: StepItem }) {
     const outputSummary = summarizeOutput(output)
 
     const isRunning = step.status === "running"
-    const isFailed = step.status === "failure" || step.status === "failed"
-    const hasError = output?.includes('"status":"error"')
+    const isFailed = step.status === "failed"
 
     return (
         <div className="group relative flex gap-2 py-2 px-2 rounded-md hover:bg-muted/30 transition-colors animate-in fade-in slide-in-from-left-1">
@@ -242,7 +187,7 @@ function StepRow({ step }: { step: StepItem }) {
             <div className="shrink-0 mt-0.5 text-muted-foreground">
                 {isRunning ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
-                ) : isFailed || hasError ? (
+                ) : isFailed ? (
                     <div className="h-3.5 w-3.5 flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold">!</div>
                 ) : (
                     <div className="h-1.5 w-1.5 rounded-full bg-muted-foreground/40 group-hover:bg-muted-foreground/60 transition-colors" />
@@ -270,7 +215,7 @@ function StepRow({ step }: { step: StepItem }) {
                 {outputSummary.title && (
                     <div className="mt-1 flex min-w-0">
                         <span className="text-[10px] text-muted-foreground/70 truncate flex-1 break-all" title={outputSummary.title}>
-                            {hasError && <span className="text-red-500 mr-1">{t("chat.steps.failed")}:</span>}
+                            {isFailed && <span className="text-red-500 mr-1">{t("chat.steps.failed")}:</span>}
                             {outputSummary.title}
                             {outputSummary.subtitle && (
                                 <span className="text-muted-foreground/50 ml-1">· {outputSummary.subtitle}</span>
