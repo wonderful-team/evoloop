@@ -7,20 +7,21 @@ import { useAutoSpeak } from '@/hooks/useTTS';
 
 interface AutoSpeakHandlerProps {
   speak: (text: string) => Promise<void>;
+  /** 是否启用（SSE 流式过程中应设为 false） */
+  enabled?: boolean;
 }
 
-export function AutoSpeakHandler({ speak }: AutoSpeakHandlerProps) {
+export function AutoSpeakHandler({ speak, enabled = true }: AutoSpeakHandlerProps) {
   const messages = useConversationStore((state) => state.messages);
   const { autoSpeak } = useAutoSpeak();
 
   useEffect(() => {
-    if (autoSpeak && messages.length > 0) {
-      const lastMessage = messages[messages.length - 1];
-      if (lastMessage.role === 'assistant' && lastMessage.isComplete) {
-        speak(lastMessage.content);
-      }
+    if (!enabled || !autoSpeak || messages.length === 0) return;
+    const lastMessage = messages[messages.length - 1];
+    if (lastMessage.role === 'assistant' && lastMessage.isComplete) {
+      speak(lastMessage.content);
     }
-  }, [messages, autoSpeak, speak]);
+  }, [messages, autoSpeak, speak, enabled]);
 
   return null;
 }

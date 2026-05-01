@@ -215,6 +215,148 @@ apiClient.interceptors.response.use(
   }
 );
 
+// SSE 流式请求配置
+export interface SSEOptions {
+  onChunk: (chunk: string) => void;
+  onDone?: () => void;
+  onError?: (error: Error) => void;
+  signal?: AbortSignal;
+  headers?: Record<string, string>;
+}
+
+/**
+ * SSE 流式请求（使用 XMLHttpRequest，React Native 中比 fetch + ReadableStream 更可靠）
+ * 解析 OpenAI 格式的 SSE data: {...} 行
+ */
+async function fetchSSE(url: string, body: any, options: SSEOptions): Promise<void> {
+  const token = useAuthStore.getState().token || await AsyncStorage.getItem('token');
+
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    let receivedLength = 0;
+    let lineBuffer = '';
+
+    xhr.open('POST', `${API_CONFIG.baseURL}${url}`);
+    xhr.setRequestHeader('Content-Type', 'application/json');
+    xhr.setRequestHeader('Accept', 'text/event-stream');
+    if (token) {
+      xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+    }
+    // 透传额外 headers（如 X-Thread-ID, X-Device-Key）
+    if (options.headers) {
+      Object.entries(options.headers).forEach(([key, value]) => {
+        xhr.setRequestHeader(key, value);
+      });
+    }
+
+    // AbortController 支持
+    if (options.signal) {
+      const onAbort = () => {
+        xhr.abort();
+      };
+      if (options.signal.aborted) {
+        onAbort();
+        return;
+      }
+      options.signal.addEventListener('abort', onAbort);
+      xhr.addEventListener('loadend', () => {
+        options.signal?.removeEventListener('abort', onAbort);
+      });
+    }
+
+    // 核心：使用 onprogress 处理流式数据（RN 中比 onreadystatechange 更可靠）
+    const processNewData = () => {
+      const newData = xhr.responseText.slice(receivedLength);
+      receivedLength = xhr.responseText.length;
+      if (!newData) return;
+      console.log('[fetchSSE] onprogress newData length:', newData.length, 'total:', receivedLength);
+
+      lineBuffer += newData;
+
+      // 按行分割，保留未完成的最后一行
+      const lines = lineBuffer.split('\n');
+      lineBuffer = lines.pop() || '';
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed.startsWith('data: ')) continue;
+
+        const data = trimmed.slice(6); // 去掉 'data: ' 前缀
+        if (data === '[DONE]') {
+          options.onDone?.();
+          resolve();
+          return;
+        }
+
+        try {
+          const parsed = JSON.parse(data);
+          const content = parsed.choices?.[0]?.delta?.content;
+          if (content) {
+            console.log('[fetchSSE] onChunk:', content);
+            options.onChunk(content);
+          }
+        } catch {
+          // 忽略无法解析的行
+        }
+      }
+    };
+
+    xhr.onprogress = processNewData;
+
+    xhr.onreadystatechange = () => {
+      if (xhr.readyState === 4) {
+        // 请求完成但状态码错误
+        if (xhr.status < 200 || xhr.status >= 300) {
+          let errMsg = `HTTP ${xhr.status}`;
+          try {
+            const errData = JSON.parse(xhr.responseText);
+            errMsg = errData.message || errData.error?.message || errMsg;
+          } catch {
+            // 非 JSON 错误响应
+          }
+          reject(new Error(errMsg));
+          return;
+        }
+
+        // 处理最后一批数据（onprogress 可能漏掉）
+        processNewData();
+
+        // 处理 buffer 中剩余的内容
+        if (lineBuffer.trim().startsWith('data: ')) {
+          const data = lineBuffer.trim().slice(6);
+          if (data !== '[DONE]') {
+            try {
+              const parsed = JSON.parse(data);
+              const content = parsed.choices?.[0]?.delta?.content;
+              if (content) options.onChunk(content);
+            } catch {
+              // 忽略
+            }
+          }
+        }
+
+        options.onDone?.();
+        resolve();
+      }
+    };
+
+    xhr.onerror = () => {
+      reject(new Error('SSE 请求失败'));
+    };
+
+    xhr.ontimeout = () => {
+      reject(new Error('SSE 请求超时'));
+    };
+
+    xhr.onabort = () => {
+      options.onDone?.();
+      resolve();
+    };
+
+    xhr.send(JSON.stringify(body));
+  });
+}
+
 // 封装请求方法（返回 response.data）
 export const api = {
   get: <T = any>(url: string, config?: AxiosRequestConfig): Promise<T> => {
@@ -236,6 +378,9 @@ export const api = {
   patch: <T = any>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> => {
     return apiClient.patch(url, data, config);
   },
+
+  /** SSE 流式请求 */
+  fetchSSE,
 };
 
 // 原始请求方法（返回完整 AxiosResponse，用于需要 headers/status 的场景）

@@ -141,12 +141,15 @@ export function ThreadList({ projectId, onSelectThread, onNewThread }: ThreadLis
           会话历史
         </Text>
 
-        <IconButton
-          icon="plus"
-          size={24}
-          iconColor={colors.primary}
+        <TouchableOpacity
+          style={[styles.newThreadBtn, { backgroundColor: colors.primary }]}
           onPress={onNewThread}
-        />
+        >
+          <MaterialIcons name="add" size={18} color={colors.onPrimary} />
+          <Text style={{ color: colors.onPrimary, fontSize: 13, marginLeft: 4 }}>
+            新建对话
+          </Text>
+        </TouchableOpacity>
       </View>
 
       {/* 会话列表 */}
@@ -242,6 +245,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: 16,
     marginBottom: 24,
+  },
+  newThreadBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
   },
   newThreadButton: {
     paddingHorizontal: 20,

@@ -42,6 +42,12 @@ interface UseTTSReturn {
   currentVoice: string;
   setCurrentVoice: (voice: string) => void;
   speak: (text: string, options?: TTSOptions) => Promise<void>;
+  /** 加入播放队列（不打断当前播放） */
+  enqueue: (text: string, options?: TTSOptions) => void;
+  /** 清空队列并停止 */
+  clearQueue: () => void;
+  /** 当前队列长度 */
+  queueLength: number;
   stop: () => void;
   fetchVoices: () => Promise<void>;
   setAudioPlayer: (player: AudioPlayerCallback) => void;
@@ -55,6 +61,7 @@ export function useTTS(): UseTTSReturn {
   const [error, setError] = useState<string | null>(null);
   const [voices, setVoices] = useState<TTSVoice[]>(DEFAULT_VOICES);
   const [currentVoice, setCurrentVoiceState] = useState('Cherry');
+  const [queueLength, setQueueLength] = useState(0);
 
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -125,31 +132,28 @@ export function useTTS(): UseTTSReturn {
       RNFS.unlink(path).catch(() => {});
     }
 
+    // 重置处理状态，避免队列卡死
+    isProcessingRef.current = false;
+
     setIsSpeaking(false);
     setIsLoading(false);
   }, []);
 
-  const speak = useCallback(async (text: string, options: TTSOptions = {}) => {
+  // 核心 TTS 合成+播放逻辑（不调用 stop，返回 Promise）
+  const playCore = useCallback(async (text: string, options: TTSOptions = {}): Promise<void> => {
+    console.log('[useTTS] playCore start:', text.slice(0, 30));
     if (!audioPlayerRef.current) {
       console.warn('Audio player not set. Call setAudioPlayer first.');
       return;
     }
-
-    // 停止当前播放
-    stop();
-
     if (!text.trim()) return;
 
-    // Qwen3-TTS 文本长度限制：在句末/标点处截断，避免语义断裂
     const truncatedText = truncateAtSentenceBoundary(text, QWEN_TTS_MAX_TEXT_LENGTH);
-
     setIsLoading(true);
     setError(null);
 
     try {
       const voice = options.voiceId || currentVoice;
-
-      // 1. 调用 DashScope HTTP API 获取音频 URL
       const controller = new AbortController();
       abortControllerRef.current = controller;
 
@@ -176,19 +180,15 @@ export function useTTS(): UseTTSReturn {
           const errData = await apiResponse.json();
           errMsg = errData.message || errData.code || errMsg;
         } catch {
-          // 响应体不是 JSON，用 status text
+          // 忽略
         }
         throw new Error(errMsg);
       }
 
       const data = await apiResponse.json();
       const audioUrl = data?.output?.audio?.url;
+      if (!audioUrl) throw new Error('API 未返回音频 URL');
 
-      if (!audioUrl) {
-        throw new Error('API 未返回音频 URL');
-      }
-
-      // 2. 下载音频文件到本地
       const timestamp = Date.now();
       const localPath = `${RNFS.DocumentDirectoryPath}/qwen_tts_${timestamp}.wav`;
 
@@ -201,9 +201,7 @@ export function useTTS(): UseTTSReturn {
         throw new Error(`下载音频失败: ${downloadRes.statusCode}`);
       }
 
-      // 3. 检查是否已被打断（stop 被调用，controller 已被替换）
       if (abortControllerRef.current !== controller) {
-        // 已被中断，清理刚下载的文件
         RNFS.unlink(localPath).catch(() => {});
         return;
       }
@@ -211,36 +209,31 @@ export function useTTS(): UseTTSReturn {
       currentAudioUriRef.current = localPath;
       setIsSpeaking(true);
       setIsLoading(false);
+      console.log('[useTTS] playCore start playing:', text.slice(0, 30));
 
-      // 4. 调用外部音频播放器播放
-      audioPlayerRef.current(
-        localPath,
-        () => {
-          // 播放完成
-          setIsSpeaking(false);
-          const path = currentAudioUriRef.current;
-          currentAudioUriRef.current = null;
-          if (path) {
-            RNFS.unlink(path).catch(() => {});
+      return new Promise<void>((resolve, reject) => {
+        audioPlayerRef.current!(
+          localPath,
+          () => {
+            setIsSpeaking(false);
+            const path = currentAudioUriRef.current;
+            currentAudioUriRef.current = null;
+            if (path) RNFS.unlink(path).catch(() => {});
+            resolve();
+          },
+          (err) => {
+            setError(t('chat.tts.playbackError', '播放失败'));
+            setIsSpeaking(false);
+            const path = currentAudioUriRef.current;
+            currentAudioUriRef.current = null;
+            if (path) RNFS.unlink(path).catch(() => {});
+            reject(new Error(err));
           }
-        },
-        (err) => {
-          // 播放错误
-          setError(t('chat.tts.playbackError', '播放失败'));
-          setIsSpeaking(false);
-          const path = currentAudioUriRef.current;
-          currentAudioUriRef.current = null;
-          if (path) {
-            RNFS.unlink(path).catch(() => {});
-          }
-        }
-      );
+        );
+      });
 
     } catch (err: unknown) {
-      if (err instanceof Error && err.name === 'AbortError') {
-        return;
-      }
-
+      if (err instanceof Error && err.name === 'AbortError') return;
       const msg = err instanceof Error ? err.message : t('chat.tts.error', '语音合成失败');
       console.error('TTS 合成失败:', msg);
       setError(msg);
@@ -248,11 +241,55 @@ export function useTTS(): UseTTSReturn {
       setIsLoading(false);
       const path = currentAudioUriRef.current;
       currentAudioUriRef.current = null;
-      if (path) {
-        RNFS.unlink(path).catch(() => {});
-      }
+      if (path) RNFS.unlink(path).catch(() => {});
     }
-  }, [currentVoice, stop, t]);
+  }, [currentVoice, t]);
+
+  // 播放队列
+  const queueRef = useRef<Array<{ text: string; options: TTSOptions }>>([]);
+  const isProcessingRef = useRef(false);
+
+  const processQueue = useCallback(async () => {
+    if (isProcessingRef.current || queueRef.current.length === 0) {
+      setQueueLength(queueRef.current.length);
+      return;
+    }
+    isProcessingRef.current = true;
+    setQueueLength(queueRef.current.length);
+    const item = queueRef.current.shift();
+    console.log('[useTTS] processQueue shift:', item?.text.slice(0, 30), 'queue left:', queueRef.current.length);
+    try {
+      if (item) {
+        await playCore(item.text, item.options);
+      }
+    } catch (error) {
+      console.error('[useTTS] playCore error:', error);
+    } finally {
+      isProcessingRef.current = false;
+      setQueueLength(queueRef.current.length);
+      processQueue();
+    }
+  }, [playCore]);
+
+  // 加入队列（不打断当前播放）
+  const enqueue = useCallback((text: string, options: TTSOptions = {}) => {
+    console.log('[useTTS] enqueue:', text.slice(0, 30));
+    queueRef.current.push({ text, options });
+    setQueueLength(queueRef.current.length);
+    processQueue();
+  }, [processQueue]);
+
+  // 清空队列并停止
+  const clearQueue = useCallback(() => {
+    queueRef.current = [];
+    stop();
+  }, [stop]);
+
+  // speak 保持现有行为：停止当前，播放新文本
+  const speak = useCallback(async (text: string, options: TTSOptions = {}) => {
+    clearQueue();
+    await playCore(text, options);
+  }, [clearQueue, playCore]);
 
   const fetchVoices = useCallback(async () => {
     // Qwen3-TTS 音色列表以百炼控制台为准，这里提供预置列表
@@ -267,6 +304,9 @@ export function useTTS(): UseTTSReturn {
     currentVoice,
     setCurrentVoice,
     speak,
+    enqueue,
+    clearQueue,
+    queueLength,
     stop,
     fetchVoices,
     setAudioPlayer,
@@ -336,46 +376,14 @@ export function useAutoSpeak() {
   return { autoSpeak, toggleAutoSpeak, setAutoSpeak };
 }
 
-// 队列式 TTS（用于顺序播放）
+// 队列式 TTS（用于顺序播放）— 复用 useTTS 内部的队列
 export function useTTSQueue() {
-  const { speak, stop, isSpeaking, ...rest } = useTTS();
-  const queueRef = useRef<string[]>([]);
-  const [queueLength, setQueueLength] = useState(0);
-  const isProcessingRef = useRef(false);
-
-  const speakNext = useCallback(async () => {
-    if (isProcessingRef.current || queueRef.current.length === 0) return;
-
-    isProcessingRef.current = true;
-    const text = queueRef.current.shift();
-    setQueueLength(queueRef.current.length);
-
-    if (text) {
-      await speak(text);
-      isProcessingRef.current = false;
-      speakNext();
-    } else {
-      isProcessingRef.current = false;
-    }
-  }, [speak]);
-
-  const enqueue = useCallback((text: string) => {
-    queueRef.current.push(text);
-    setQueueLength(queueRef.current.length);
-    speakNext();
-  }, [speakNext]);
-
-  const clearQueue = useCallback(() => {
-    queueRef.current = [];
-    setQueueLength(0);
-    stop();
-    isProcessingRef.current = false;
-  }, [stop]);
+  const { enqueue, clearQueue, stop, isSpeaking, queueLength, ...rest } = useTTS();
 
   return {
     ...rest,
     isSpeaking,
-    queueLength,
+    queueLength: queueLength || 0,
     enqueue,
     clearQueue,
     stop,

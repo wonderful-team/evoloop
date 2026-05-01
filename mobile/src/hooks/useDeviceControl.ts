@@ -72,6 +72,16 @@ export interface UseDeviceControlOptions {
   }) => void;
 }
 
+export interface SendMessageOptions {
+  conversationId?: string;
+  deviceKey?: string;
+  references?: any[];
+  // 流式回调（仅链路二 / 直连 LLM 生效）
+  onStreamStart?: () => void;
+  onStreamChunk?: (chunk: string, fullText: string) => void;
+  onStreamDone?: (fullText: string) => void;
+}
+
 export interface UseDeviceControlReturn {
   // 连接状态
   state: DeviceControlState;
@@ -90,11 +100,7 @@ export interface UseDeviceControlReturn {
   isQuotaExhausted: boolean;
 
   // 方法
-  sendMessage: (content: MessageContent, options?: {
-    conversationId?: string;
-    deviceKey?: string;
-    references?: any[];
-  }) => Promise<void>;
+  sendMessage: (content: MessageContent, options?: SendMessageOptions) => Promise<void>;
   confirmCommand: (confirmed: boolean) => void;
   respondToHITL: (value: string) => void;
   cancelHITL: (reason?: string) => void;
@@ -200,15 +206,15 @@ export function useDeviceControl(options: UseDeviceControlOptions = {}): UseDevi
 
   /**
    * 链路二：直连 LLM（通过 Gateway /v1/chat/completions）
+   * 支持 SSE 流式输出
    */
   const sendDirectLLM = useCallback(async (
     content: MessageContent,
-    options?: { conversationId?: string; deviceKey?: string; references?: any[] }
+    options?: SendMessageOptions
   ) => {
     if (!token) {
       throw new Error('未登录');
     }
-
 
     // 构建用户消息内容
     let userContent = '';
@@ -217,7 +223,6 @@ export function useDeviceControl(options: UseDeviceControlOptions = {}): UseDevi
         userContent = content.text || '';
         break;
       case 'image':
-        // OpenAI 视觉格式
         userContent = JSON.stringify([
           { type: 'text', text: '请分析这张图片' },
           { type: 'image_url', image_url: { url: content.imageUrl } },
@@ -231,64 +236,57 @@ export function useDeviceControl(options: UseDeviceControlOptions = {}): UseDevi
         break;
     }
 
-    // 构建多轮对话消息上下文（仅包含 user 和 assistant 消息）
-    // 使用 getState() 避免订阅 messages 导致不必要的重渲染
+    // 构建多轮对话消息上下文
     const contextMessages = useConversationStore.getState().messages
       .filter(m => m.role === 'user' || m.role === 'assistant')
       .map(m => ({ role: m.role, content: m.content }));
     contextMessages.push({ role: 'user', content: userContent });
 
-    const data = await api.post('/gateway/v1/chat/completions', {
-      model: '', // 空字符串，让 Gateway 使用配置的默认模型
+    // SSE 流式请求
+    let fullText = '';
+    options?.onStreamStart?.();
+
+    await api.fetchSSE('/gateway/v1/chat/completions', {
+      model: '',
       messages: contextMessages,
-      stream: false,
+      stream: true,
       temperature: 0.7,
     }, {
+      onChunk: (chunk) => {
+        fullText += chunk;
+        console.log('[useDeviceControl] onChunk:', chunk, 'fullText length:', fullText.length);
+        options?.onStreamChunk?.(chunk, fullText);
+      },
+      onDone: () => {
+        options?.onStreamDone?.(fullText);
+        // SSE 流式：消息已在流式过程中实时更新，不再重复添加
+        // 只传递 threadId（用于新会话时设置 currentConversationId）
+        onMessageSent?.({
+          commandId: 0,
+          threadId: options?.conversationId || '',
+          mode: 'direct_llm',
+        });
+      },
+      onError: (error) => {
+        // 配额耗尽检测
+        const rawMsg = error.message || '';
+        if (/quota_exhausted|配额/i.test(rawMsg)) {
+          setQuotaExhaustedInfo({
+            title: '配额已耗尽',
+            message: rawMsg || '您的 LLM 配额已耗尽。',
+            hint: '请联系管理员添加配额，或升级您的订阅计划。',
+          });
+          const quotaError = new Error(rawMsg);
+          (quotaError as any).__quota_exhausted = true;
+          throw quotaError;
+        }
+        throw error;
+      },
       signal: abortControllerRef.current?.signal,
       headers: {
         'X-Thread-ID': options?.conversationId || '',
         'X-Device-Key': options?.deviceKey || '0',
       },
-    });
-
-
-    if (data.error) {
-      const errorCode = data.error?.code || '';
-      const rawMsg = data.error?.message || data.message || '发送失败';
-
-      // 检测配额耗尽错误 (429 + quota_exhausted)
-      if (errorCode === 'quota_exhausted') {
-        setQuotaExhaustedInfo({
-          title: '配额已耗尽',
-          message: rawMsg || '您的 LLM 配额已耗尽。',
-          hint: '请联系管理员添加配额，或升级您的订阅计划。',
-        });
-        const quotaError = new Error(rawMsg);
-        (quotaError as any).__quota_exhausted = true;
-        throw quotaError;
-      }
-
-      // 限流 / 引擎过载
-      if (data.error?.status === 429 || data.error?.status === 503) {
-        const isRateLimit =
-          /rate_limit|too many requests|overloaded|引擎繁忙/i.test(rawMsg);
-        const friendlyMsg = isRateLimit ? '服务繁忙，请稍后再试' : rawMsg;
-        throw new Error(friendlyMsg);
-      }
-
-      // 其他 HTTP 错误生成友好提示
-      const friendlyMsg = getFriendlyErrorMessage(data.error?.status || 500, rawMsg);
-      throw new Error(friendlyMsg);
-    }
-
-    // 提取 AI 回复
-    const aiMessage = data.choices?.[0]?.message?.content;
-
-    onMessageSent?.({
-      commandId: 0,
-      threadId: options?.conversationId || '',
-      aiMessage: aiMessage,
-      mode: 'direct_llm',
     });
   }, [token, onMessageSent]);
 
@@ -297,7 +295,7 @@ export function useDeviceControl(options: UseDeviceControlOptions = {}): UseDevi
    */
   const sendMessage = useCallback(async (
     content: MessageContent,
-    options?: { conversationId?: string; deviceKey?: string; references?: any[] }
+    options?: SendMessageOptions
   ) => {
 
     if (!token) {
@@ -316,7 +314,7 @@ export function useDeviceControl(options: UseDeviceControlOptions = {}): UseDevi
     try {
       // 根据 deviceKey 选择链路
       // - 有 deviceKey 且不为空：链路一（Desktop）
-      // - 无 deviceKey 或为空：链路二（直连 LLM）
+      // - 无 deviceKey 或为空：链路二（直连 LLM，支持 SSE 流式）
       if (options?.deviceKey && options.deviceKey.trim() !== '') {
         await sendToDesktop(content, options);
       } else {
@@ -334,10 +332,7 @@ export function useDeviceControl(options: UseDeviceControlOptions = {}): UseDevi
       if (error.name === 'AbortError') {
         return;
       }
-      // 错误已由 UI 提示，控制台统一降级为 log
       setState('error');
-
-      // 将错误抛给上层（ChatScreen handleSendMessage），由上层统一展示 UI
       throw error;
     }
   }, [token, sendToDesktop, sendDirectLLM]);

@@ -17,6 +17,8 @@ end
 target 'EvoLoopNative' do
   config = use_native_modules!
 
+  pod 'SherpaOnnxASR', :path => './SherpaOnnxASR'
+
   use_react_native!(
     :path => config[:reactNativePath],
     # An absolute path to your application root.

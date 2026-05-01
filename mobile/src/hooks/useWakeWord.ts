@@ -7,6 +7,7 @@ import { WakeWordService } from '@/services/voice/WakeWordService';
 
 export interface UseWakeWordOptions {
   onWake?: (detectedWord: string) => void;
+  onSpeechDetected?: (text: string) => void;
   onError?: (error: Error) => void;
 }
 
@@ -22,7 +23,7 @@ export interface UseWakeWordReturn {
  * 自动根据 settingsStore 中的 enabled 状态启动/停止监听
  */
 export function useWakeWord(options: UseWakeWordOptions = {}): UseWakeWordReturn {
-  const { onWake, onError } = options;
+  const { onWake, onSpeechDetected, onError } = options;
 
   const [isListening, setIsListening] = useState(false);
   const [isWakeWordDetected, setIsWakeWordDetected] = useState(false);
@@ -33,8 +34,6 @@ export function useWakeWord(options: UseWakeWordOptions = {}): UseWakeWordReturn
   const settings = useSettingsStore((state) => state.settings);
   const enabled = settings.wakeWordEnabled;
   const wakeWord = settings.wakeWord;
-  const threshold = settings.wakeWordThreshold;
-  const vadThreshold = settings.wakeWordVadThreshold;
 
   const startListening = useCallback(async () => {
     if (!enabled) {
@@ -54,8 +53,6 @@ export function useWakeWord(options: UseWakeWordOptions = {}): UseWakeWordReturn
     try {
       const service = new WakeWordService({
         wakeWord,
-        threshold,
-        vadThreshold,
         onWake: (text) => {
           setIsWakeWordDetected(true);
           onWake?.(text);
@@ -67,6 +64,9 @@ export function useWakeWord(options: UseWakeWordOptions = {}): UseWakeWordReturn
           wakeWordDetectedTimerRef.current = setTimeout(() => {
             setIsWakeWordDetected(false);
           }, 3000);
+        },
+        onSpeechDetected: (text) => {
+          onSpeechDetected?.(text);
         },
         onError: (error) => {
           console.error('[useWakeWord] 检测错误:', error);
@@ -82,7 +82,7 @@ export function useWakeWord(options: UseWakeWordOptions = {}): UseWakeWordReturn
       console.error('[useWakeWord] 启动监听失败:', error);
       onError?.(error as Error);
     }
-  }, [enabled, wakeWord, threshold, vadThreshold, onWake, onError]);
+  }, [enabled, wakeWord, onWake, onSpeechDetected, onError]);
 
   const stopListening = useCallback(async () => {
     try {
@@ -104,7 +104,6 @@ export function useWakeWord(options: UseWakeWordOptions = {}): UseWakeWordReturn
       stopListening();
     }
 
-
     return () => {
       stopListening();
       if (wakeWordDetectedTimerRef.current) {
@@ -112,7 +111,7 @@ export function useWakeWord(options: UseWakeWordOptions = {}): UseWakeWordReturn
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, wakeWord, threshold, vadThreshold]);
+  }, [enabled, wakeWord]);
 
   return {
     isListening,
@@ -124,7 +123,7 @@ export function useWakeWord(options: UseWakeWordOptions = {}): UseWakeWordReturn
 
 /**
  * 唤醒词设置管理 Hook
- * 统一使用 settingsStore（zustand persist），废弃独立 AsyncStorage
+ * 统一使用 settingsStore（zustand persist）
  */
 export function useWakeWordSettings() {
   const settings = useSettingsStore((state) => state.settings);
@@ -141,28 +140,10 @@ export function useWakeWordSettings() {
     [setSetting]
   );
 
-  const setThreshold = useCallback(
-    (value: number) => {
-      setSetting('wakeWordThreshold', value);
-    },
-    [setSetting]
-  );
-
-  const setVadThreshold = useCallback(
-    (value: number) => {
-      setSetting('wakeWordVadThreshold', value);
-    },
-    [setSetting]
-  );
-
   return {
     enabled: settings.wakeWordEnabled,
     wakeWord: settings.wakeWord,
-    threshold: settings.wakeWordThreshold,
-    vadThreshold: settings.wakeWordVadThreshold,
     toggleWakeWord,
     setWakeWord,
-    setThreshold,
-    setVadThreshold,
   };
 }

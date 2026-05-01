@@ -3,7 +3,7 @@
 // 切断 nlsCurrentText / nlsVolume 的高频变化对 ChatScreen 的影响。
 // ChatScreen 通过 ref 暴露的 startNLS / stopNLS 控制录音启停。
 
-import React, { forwardRef, useImperativeHandle, useRef, useCallback, useMemo } from 'react';
+import React, { forwardRef, useImperativeHandle, useRef, useCallback, useMemo, useEffect } from 'react';
 import { VoiceInput, VoiceInputHandle, InputMode } from './VoiceInput';
 import { useNLS } from '@/hooks/useNLS';
 import { useNLSStore } from '@/stores/nlsStore';
@@ -46,17 +46,24 @@ interface VoiceInputWithNLSProps {
   isWakeWordListening: boolean;
   /** 唤醒词已检测到 */
   isWakeWordDetected: boolean;
+  /** 切换唤醒词开关 */
+  onToggleWakeWord?: () => void;
   /** 录音启动前的前置检查（权限、登录等），返回 false 则取消录音 */
   onBeforeStartRecording?: () => Promise<boolean>;
   /** 语音识别最终结果回调 */
   onFinalResult: (text: string) => void;
   /** 语音识别错误回调 */
   onError?: (error: Error) => void;
+  /** NLS 录音结束回调（无论是否有结果、无论通过何种方式停止） */
+  onRecordingEnd?: () => void;
 }
 
 export const VoiceInputWithNLS = forwardRef<VoiceInputWithNLSHandle, VoiceInputWithNLSProps>((props, ref) => {
   const voiceInputRef = useRef<VoiceInputHandle>(null);
   const accumulatedTextRef = useRef<string>('');
+  const onRecordingEndRef = useRef(props.onRecordingEnd);
+  onRecordingEndRef.current = props.onRecordingEnd;
+  const prevNlsIsRecording = useRef(false);
 
   // NLS Hook：累积识别结果，不在 onResult 中直接发送（避免一句一发）
   const { start, stop } = useNLS({
@@ -72,6 +79,14 @@ export const VoiceInputWithNLS = forwardRef<VoiceInputWithNLSHandle, VoiceInputW
   const nlsIsRecording = useNLSStore((s) => s.isRecording);
   const nlsCurrentText = useNLSStore((s) => s.currentText);
   const nlsVolume = useNLSStore((s) => s.volume);
+
+  // 监听 NLS 录音状态变化：从录音变为停止时，通知外层恢复唤醒词
+  useEffect(() => {
+    if (prevNlsIsRecording.current && !nlsIsRecording) {
+      onRecordingEndRef.current?.();
+    }
+    prevNlsIsRecording.current = nlsIsRecording;
+  }, [nlsIsRecording]);
 
   // 映射 NLS 状态到 VoiceInput 需要的 VoiceSessionState
   const combinedState = useMemo(() => {
@@ -140,6 +155,7 @@ export const VoiceInputWithNLS = forwardRef<VoiceInputWithNLSHandle, VoiceInputW
       wakeWordEnabled={props.wakeWordEnabled}
       isWakeWordListening={props.isWakeWordListening}
       isWakeWordDetected={props.isWakeWordDetected}
+      onToggleWakeWord={props.onToggleWakeWord}
       transcriptionText={nlsCurrentText}
     />
   );

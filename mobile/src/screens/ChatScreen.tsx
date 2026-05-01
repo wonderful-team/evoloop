@@ -69,6 +69,7 @@ export default function ChatScreen() {
   const [hasFileOperations, setHasFileOperations] = useState(false);
   const [pendingForwardContent, setPendingForwardContent] = useState<string | null>(null);
   const [isAgentProcessing, setIsAgentProcessing] = useState(false);
+  const [isStreaming, setIsStreaming] = useState(false);
 
   // TTS 音频播放器引用
   const ttsPlayerRef = useRef<Video | null>(null);
@@ -96,14 +97,88 @@ export default function ChatScreen() {
   const addToMemory = useConversationStore((state) => state.addToMemory);
 
   // TTS
-  const { speak, stop: stopTTS, isSpeaking: isTTSSpeaking, setAudioPlayer, setOnStop } = useTTS();
+  const { speak, enqueue: enqueueTTS, clearQueue: clearTTSQueue, stop: stopTTS, isSpeaking: isTTSSpeaking, setAudioPlayer, setOnStop } = useTTS();
+
+  // SSE 流式状态
+  const streamMessageIdRef = useRef<string | null>(null);
+  const ttsBufferRef = useRef('');
+
+  // 清理 markdown 标记，避免 TTS 朗读 ** * 等符号
+  const cleanForTTS = useCallback((text: string): string => {
+    return text
+      .replace(/\*\*(.+?)\*\*/g, '$1')   // **bold**
+      .replace(/\*(.+?)\*/g, '$1')         // *italic*
+      .replace(/`{1,3}(.+?)`{1,3}/g, '$1') // `code` / ```code```
+      .replace(/[#>\-\[\]\(\)]/g, '')     // markdown 符号
+      .trim();
+  }, []);
+
+  // 流式 TTS：按标点切分句子 + 超过 8 字强制切分
+  const flushTTSBuffer = useCallback(() => {
+    let buffer = ttsBufferRef.current;
+    console.log('[flushTTSBuffer] raw buffer:', buffer);
+
+    const sentences: string[] = [];
+    let lastIndex = 0;
+
+    // 1. 按标点切分（句号/问号/感叹号优先，逗号/分号/换行次之）
+    const punctuationRegex = /(.+?[。！？.!?；;\n]+)/g;
+    let match;
+    while ((match = punctuationRegex.exec(buffer)) !== null) {
+      const cleaned = cleanForTTS(match[1]);
+      if (cleaned.length >= 2) {
+        sentences.push(cleaned);
+      }
+      lastIndex = punctuationRegex.lastIndex;
+    }
+
+    // 2. 逗号切分（积累 ≥ 8 字时遇到逗号就切，避免长列举积压）
+    buffer = buffer.slice(lastIndex);
+    const commaRegex = /(.{8,}?[，,])\s*/g;
+    let commaMatch;
+    while ((commaMatch = commaRegex.exec(buffer)) !== null) {
+      const cleaned = cleanForTTS(commaMatch[1]);
+      if (cleaned.length >= 4) {
+        sentences.push(cleaned);
+      }
+      lastIndex = commaRegex.lastIndex;
+    }
+
+    // 3. 兜底：剩余 buffer 超过 8 个有效字符，强制切分播放
+    buffer = buffer.slice(lastIndex);
+    const cleanedRemaining = cleanForTTS(buffer);
+    if (cleanedRemaining.length >= 8) {
+      sentences.push(cleanedRemaining);
+      lastIndex = ttsBufferRef.current.length;
+      buffer = '';
+    }
+
+    console.log('[flushTTSBuffer] sentences found:', sentences.length, sentences);
+    if (sentences.length > 0) {
+      ttsBufferRef.current = buffer;
+      sentences.forEach((sentence) => {
+        console.log('[flushTTSBuffer] enqueueTTS:', sentence);
+        enqueueTTS(sentence);
+      });
+    }
+  }, [enqueueTTS, cleanForTTS]);
+
+  // 更新指定 ID 的消息内容（流式用）
+  const updateStreamMessage = useCallback((messageId: string, content: string, isComplete?: boolean) => {
+    const { messages } = useConversationStore.getState();
+    const index = messages.findIndex(m => m.id === messageId);
+    if (index === -1) return;
+    const updated = [...messages];
+    updated[index] = { ...updated[index], content, ...(isComplete !== undefined ? { isComplete } : {}) };
+    useConversationStore.setState({ messages: updated });
+  }, []);
 
   // 控制指令（stop / retry / rewind）
   const { stop: stopAgent } = useCommands();
   const { autoSpeak, toggleAutoSpeak } = useAutoSpeak();
 
   // 唤醒词设置
-  const { enabled: wakeWordEnabled } = useWakeWordSettings();
+  const { enabled: wakeWordEnabled, toggleWakeWord } = useWakeWordSettings();
 
   // 设置音频播放器
   useEffect(() => {
@@ -139,15 +214,35 @@ export default function ChatScreen() {
     onWake: (detectedWord: string) => {
       // 1. 停止唤醒词监听（释放麦克风，避免与 NLS 冲突）
       stopWakeWord();
-      // 2. Haptic 震动反馈
+      // 2. 打断当前 TTS 和 Agent 生成（让用户可以直接开始新对话）
+      stopTTS();
+      const currentId = useConversationStore.getState().currentConversationId;
+      if (currentId) {
+        stopAgent(currentId).catch(() => {});
+      }
+      // 3. Haptic 震动反馈
       ReactNativeHapticFeedback.trigger('notificationSuccess', {
         enableVibrateFallback: true,
         ignoreAndroidSystemSettings: false,
       });
-      // 3. 显示提示
+      // 4. 显示提示
       showSnackbar(`已唤醒: 「${detectedWord}」，请说话`);
-      // 4. 自动启动 NLS 语音识别
+      // 5. 自动启动 NLS 语音识别
       voiceInputRef.current?.startNLS();
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    onSpeechDetected: (text: string) => {
+      // TTS 播放时检测到非唤醒词的人声，直接说话打断
+      if (isTTSSpeaking) {
+        console.log('[ChatScreen] 语音打断 TTS:', text);
+        stopTTS();
+        const currentId = useConversationStore.getState().currentConversationId;
+        if (currentId) {
+          stopAgent(currentId).catch(() => {});
+        }
+        showSnackbar('已打断，请说话');
+        voiceInputRef.current?.startNLS();
+      }
     },
   });
 
@@ -169,6 +264,7 @@ export default function ChatScreen() {
     }
 
     // 链路二（直连 LLM）：立即显示 AI 回复
+    // 注意：SSE 流式场景中，aiMessage 为 undefined（消息已在流式过程中实时更新）
     if (result.aiMessage) {
       addMessage({
         id: generateUUID(),
@@ -177,7 +273,7 @@ export default function ChatScreen() {
         timestamp: Date.now(),
         isComplete: true,
       });
-    } else {
+    } else if (result.mode !== 'direct_llm') {
       // 链路一（转发 Desktop）：显示发送成功，等待后台轮询
       showSnackbar('消息已发送');
     }
@@ -293,6 +389,9 @@ export default function ChatScreen() {
     };
     addMessage(userMessage);
 
+    // 清空 TTS buffer（新对话开始）
+    ttsBufferRef.current = '';
+
     // 通过 HTTP 发送消息到 Gateway
     try {
       await sendMessageToDevice({
@@ -302,6 +401,48 @@ export default function ChatScreen() {
         conversationId: conversationId || undefined,
         deviceKey: selectedDevice?.deviceKey,
         references: options?.references,
+        // 流式回调（仅链路二生效）
+        onStreamStart: () => {
+          const msgId = generateUUID();
+          streamMessageIdRef.current = msgId;
+          addMessage({
+            id: msgId,
+            role: 'assistant',
+            content: '',
+            timestamp: Date.now(),
+            isComplete: false,
+            status: 'sending',
+          });
+        },
+        onStreamChunk: (chunk, fullText) => {
+          console.log('[ChatScreen] onStreamChunk:', chunk, 'fullText:', fullText.slice(-20));
+          const msgId = streamMessageIdRef.current;
+          if (msgId) {
+            updateStreamMessage(msgId, fullText);
+          }
+          // 流式 TTS：积累文字，切分完整句子后 enqueue
+          ttsBufferRef.current += chunk;
+          console.log('[ChatScreen] ttsBuffer before flush:', ttsBufferRef.current);
+          flushTTSBuffer();
+          console.log('[ChatScreen] ttsBuffer after flush:', ttsBufferRef.current);
+        },
+        onStreamDone: (fullText) => {
+          console.log('[ChatScreen] onStreamDone, fullText length:', fullText.length);
+          setIsStreaming(false);
+          const msgId = streamMessageIdRef.current;
+          if (msgId) {
+            updateStreamMessage(msgId, fullText, true);
+            streamMessageIdRef.current = null;
+          }
+          // 播放剩余未切分的 buffer
+          flushTTSBuffer();
+          const remaining = cleanForTTS(ttsBufferRef.current);
+          console.log('[ChatScreen] onStreamDone remaining buffer:', remaining);
+          if (remaining.length >= 2) {
+            enqueueTTS(remaining);
+          }
+          ttsBufferRef.current = '';
+        },
       });
 
       // 发送成功：标记为已送达
@@ -325,13 +466,8 @@ export default function ChatScreen() {
       if (!isQuotaError(error)) {
         showSnackbar('发送失败: ' + errorText);
       }
-    } finally {
-      // NLS 语音识别结束后，恢复唤醒词监听
-      if (wakeWordEnabled) {
-        startWakeWord();
-      }
     }
-  }, [currentConversationId, sendMessageToDevice, selectedDevice, addMessage, saveDeviceConversation, updateMessageStatus]);
+  }, [currentConversationId, sendMessageToDevice, selectedDevice, addMessage, saveDeviceConversation, updateMessageStatus, updateStreamMessage, flushTTSBuffer, enqueueTTS, cleanForTTS]);
 
   // 请求麦克风权限
   const requestMicrophonePermission = useCallback(async () => {
@@ -379,6 +515,14 @@ export default function ChatScreen() {
 
     return true;
   }, [isLoggedIn, requestMicrophonePermission, showSnackbar, wakeWordEnabled, stopWakeWord]);
+
+  // 切换自动朗读：如果正在播放，先停止当前 TTS
+  const handleToggleAutoSpeak = useCallback(() => {
+    if (isTTSSpeaking) {
+      stopTTS();
+    }
+    toggleAutoSpeak();
+  }, [isTTSSpeaking, stopTTS, toggleAutoSpeak]);
 
   const handleGoToProfile = useCallback(() => {
     router.push('Profile');
@@ -758,22 +902,28 @@ export default function ChatScreen() {
           onSendText={handleSendMessage}
           onBeforeStartRecording={handleBeforeStartRecording}
           onFinalResult={handleSendMessage}
+          onRecordingEnd={() => {
+            if (wakeWordEnabled) {
+              startWakeWord();
+            }
+          }}
           onError={handleNLSError}
           onInterrupt={handleInterrupt}
           inputMode={inputMode}
           onToggleMode={handleToggleMode}
           autoSpeak={autoSpeak}
-          onToggleAutoSpeak={toggleAutoSpeak}
+          onToggleAutoSpeak={handleToggleAutoSpeak}
           isSpeaking={isTTSSpeaking}
           projectId={currentProject?.id}
           conversationId={currentConversationId || undefined}
           wakeWordEnabled={wakeWordEnabled}
           isWakeWordListening={isWakeWordListening}
           isWakeWordDetected={isWakeWordDetected}
+          onToggleWakeWord={toggleWakeWord}
         />
 
         {/* ===== TTS 自动朗读（副作用组件，自行订阅 messages） ===== */}
-        <AutoSpeakHandler speak={speak} />
+        <AutoSpeakHandler speak={speak} enabled={!isStreaming} />
 
         {/* ===== AI 思考中超时处理（副作用组件） ===== */}
         <AgentProcessingHandler isAgentProcessing={isAgentProcessing} onClear={() => setIsAgentProcessing(false)} />

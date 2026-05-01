@@ -8,8 +8,6 @@ interface Settings {
   autoSpeak: boolean;
   wakeWordEnabled: boolean;
   wakeWord: string;
-  wakeWordThreshold: number;      // 唤醒词匹配阈值 0-1
-  wakeWordVadThreshold: number;   // VAD 音量阈值 0-1
   voiceSpeed: number;
   selectedVoice: string;
   theme: 'light' | 'dark' | 'system';
@@ -28,9 +26,7 @@ interface SettingsState {
 const DEFAULT_SETTINGS: Settings = {
   autoSpeak: false,
   wakeWordEnabled: false,
-  wakeWord: '你好 EvoLoop',
-  wakeWordThreshold: 0.7,
-  wakeWordVadThreshold: 0.12,
+  wakeWord: '木头人',
   voiceSpeed: 1.0,
   selectedVoice: 'zh-CN-XiaoxiaoNeural',
   theme: 'system',

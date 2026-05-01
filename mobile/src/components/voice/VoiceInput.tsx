@@ -53,6 +53,7 @@ interface VoiceInputProps {
   wakeWordEnabled?: boolean;
   isWakeWordListening?: boolean;
   isWakeWordDetected?: boolean;
+  onToggleWakeWord?: () => void;
   // 实时转录文字
   transcriptionText?: string;
 }
@@ -77,6 +78,7 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(({
   wakeWordEnabled = false,
   isWakeWordListening = false,
   isWakeWordDetected = false,
+  onToggleWakeWord,
   // 实时转录文字
   transcriptionText = '',
 }, ref) => {
@@ -380,14 +382,14 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(({
                   variant="bodySmall"
                   style={{ color: autoSpeak ? colors.primary : colors.onSurfaceVariant, marginLeft: 4 }}
                 >
-                  {autoSpeak ? '朗读中' : '朗读关'}
+                  {isSpeaking ? '朗读中' : autoSpeak ? '朗读开' : '朗读关'}
                 </Text>
               </TouchableOpacity>
             )}
 
             {/* 唤醒词状态 */}
-            {wakeWordEnabled && (
-              <View style={[styles.toolbarBtn, { opacity: 0.6 }]}>
+            {onToggleWakeWord && (
+              <TouchableOpacity style={styles.toolbarBtn} onPress={onToggleWakeWord}>
                 <MaterialIcons
                   name={isWakeWordDetected ? 'notifications-active' : isWakeWordListening ? 'hearing' : 'hearing-disabled'}
                   size={20}
@@ -400,9 +402,9 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(({
                     marginLeft: 4,
                   }}
                 >
-                  {isWakeWordDetected ? '已唤醒' : isWakeWordListening ? '监听中' : '待机'}
+                  {isWakeWordDetected ? '已唤醒' : isWakeWordListening ? '我在听' : '待机'}
                 </Text>
-              </View>
+              </TouchableOpacity>
             )}
           </View>
 
