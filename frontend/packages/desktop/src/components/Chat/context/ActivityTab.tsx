@@ -106,6 +106,17 @@ export function ActivityTab({ activeThreadId }: ActivityTabProps) {
     let bufferIsStreaming = false
     let turn = 1
 
+    // Helper to deduplicate steps in the current buffer
+    const deduplicateSteps = (steps: ToolStep[]) => {
+      const seenIds = new Set<string>()
+      return steps.filter(s => {
+        if (!s.id) return true
+        if (seenIds.has(s.id)) return false
+        seenIds.add(s.id)
+        return true
+      })
+    }
+
     // Walk backwards so we can split on human-message boundaries.
     for (let i = messages.length - 1; i >= 0; i--) {
       const m = messages[i]
@@ -116,7 +127,7 @@ export function ActivityTab({ activeThreadId }: ActivityTabProps) {
             turn,
             messageId: bufferAiIds[0] || m.id,
             isStreaming: bufferIsStreaming,
-            steps: [...bufferSteps],
+            steps: deduplicateSteps(bufferSteps),
           })
           turn++
         }
@@ -139,7 +150,7 @@ export function ActivityTab({ activeThreadId }: ActivityTabProps) {
         turn,
         messageId: bufferAiIds[0] || "start",
         isStreaming: bufferIsStreaming,
-        steps: [...bufferSteps],
+        steps: deduplicateSteps(bufferSteps),
       })
     }
 

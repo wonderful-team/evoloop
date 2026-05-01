@@ -51,30 +51,9 @@ export class ChatConnection {
         this.currentThreadId = threadId;
         this.notifyConnectionChange(false, 'connecting');
 
-        let token = "";
-        try {
-            if (typeof OpenAPI.TOKEN === 'function') {
-                const result = (OpenAPI.TOKEN as any)();
-                if (result instanceof Promise) {
-                    token = await result;
-                } else {
-                    token = result as string;
-                }
-            } else {
-                token = (OpenAPI.TOKEN as string) || "";
-            }
-        } catch (e) {
-            console.warn("[ChatConnection] Failed to get token", e);
-        }
-
-        // 检查token是否存在，如果不存在可能已过期
-        if (!token) {
-            console.warn("[ChatConnection] No token available, possibly expired");
-            this.handleUnauthorized();
-            return;
-        }
-
-        const url = `${OpenAPI.BASE}/api/v1/stream/chat/${threadId}?token=${token}`;
+        // Desktop uses Cookie Session managed by Backend.
+        // No need to pass token in query param; Cookie is sent automatically via withCredentials.
+        const url = `${OpenAPI.BASE}/api/v1/stream/chat/${threadId}`;
         console.log(`[ChatConnection] Connecting to ${url}`);
 
         try {
@@ -116,15 +95,7 @@ export class ChatConnection {
 
             // Check readyState
             if (sse.readyState === EventSource.CLOSED) {
-                // 连接被关闭，可能是401未授权
-                // EventSource不会直接给出HTTP状态码，需要通过其他方式检测
-                // 检查token是否还存在
-                const token = localStorage.getItem("access_token");
-                if (!token) {
-                    console.warn("[ChatConnection] Connection closed and no token found, likely 401");
-                    this.handleUnauthorized();
-                    return;
-                }
+                // Desktop uses Cookie Session; auth errors are handled via stream events.
                 this.notifyConnectionChange(false, 'disconnected');
             } else if (sse.readyState === EventSource.CONNECTING) {
                 this.notifyConnectionChange(false, 'reconnecting');

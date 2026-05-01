@@ -277,20 +277,7 @@ export function MessageContent({ content, isUser }: { content: string; isUser?: 
                   className="max-w-full rounded-lg my-2"
                 />
               ),
-              li: ({ children }) => {
-                const text = String(children)
-                const isToolAction = /^(📄|📝|💻|📅|🔍|🔧|📁|📍)/.test(text)
-                if (isToolAction) {
-                  return (
-                    <li className="list-none mb-1.5 last:mb-0">
-                      <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-muted/50 border border-border text-xs font-medium font-mono text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
-                        {children}
-                      </span>
-                    </li>
-                  )
-                }
-                return <li className="mb-0.5">{children}</li>
-              },
+              li: ({ children }) => <li className="mb-0.5">{children}</li>,
             }}
           >
             {processedPart}

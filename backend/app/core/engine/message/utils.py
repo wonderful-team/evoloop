@@ -54,6 +54,11 @@ def to_base_message(msg: Any) -> BaseMessage | None:
         additional_kwargs["created_at"] = created_at
     if thinking_raw:
         additional_kwargs["thinking"] = thinking_raw
+    
+    # Preserve status for folder/mapping logic
+    status = getattr(msg, "status", None)
+    if status:
+        additional_kwargs["status"] = status
 
     try:
         if role == "human":

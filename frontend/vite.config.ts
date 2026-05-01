@@ -6,6 +6,8 @@ import { defineConfig } from "vite"
 
 // https://vitejs.dev/config/
 export default defineConfig({
+  root: path.resolve(__dirname, "packages/desktop"),
+  envDir: __dirname,
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./packages/desktop/src"),
@@ -27,7 +29,6 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: path.resolve(__dirname, "packages/desktop/index.html"),
-        mobile: path.resolve(__dirname, "packages/mobile/index.html"),
       },
     },
   },

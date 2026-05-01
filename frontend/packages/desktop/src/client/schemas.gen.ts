@@ -1013,7 +1013,7 @@ export const ChatRequestSchema = {
         message_id: {
             anyOf: [
                 {
-                    type: 'integer'
+                    type: 'string'
                 },
                 {
                     type: 'null'
@@ -1370,7 +1370,7 @@ export const ConversationListItemSchema = {
 export const ConversationSearchResultSchema = {
     properties: {
         id: {
-            type: 'integer',
+            type: 'string',
             title: 'Id'
         },
         thread_id: {
@@ -3225,7 +3225,14 @@ export const LLMConfigRequestSchema = {
             default: 'openai'
         },
         base_url: {
-            type: 'string',
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
             title: 'Base Url',
             description: 'API Base URL'
         },
@@ -3308,7 +3315,7 @@ export const LLMConfigRequestSchema = {
     },
     additionalProperties: true,
     type: 'object',
-    required: ['provider', 'base_url', 'model'],
+    required: ['provider', 'model'],
     title: 'LLMConfigRequest'
 } as const;
 
@@ -3720,7 +3727,7 @@ export const MessageItemSchema = {
         parent_id: {
             anyOf: [
                 {
-                    type: 'integer'
+                    type: 'string'
                 },
                 {
                     type: 'null'
@@ -3799,21 +3806,6 @@ export const MessageItemSchema = {
             type: 'boolean',
             title: 'Is Visible',
             default: true
-        },
-        tool_blocks: {
-            anyOf: [
-                {
-                    items: {
-                        additionalProperties: true,
-                        type: 'object'
-                    },
-                    type: 'array'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Tool Blocks'
         }
     },
     additionalProperties: true,
@@ -3863,7 +3855,7 @@ export const MessageListResponseSchema = {
         first_id: {
             anyOf: [
                 {
-                    type: 'integer'
+                    type: 'string'
                 },
                 {
                     type: 'null'
@@ -3874,7 +3866,7 @@ export const MessageListResponseSchema = {
         last_id: {
             anyOf: [
                 {
-                    type: 'integer'
+                    type: 'string'
                 },
                 {
                     type: 'null'
@@ -7572,6 +7564,17 @@ export const TodoCreateSchema = {
                 }
             ],
             title: 'Source Message Id'
+        },
+        run_id: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Run Id'
         }
     },
     type: 'object',
@@ -7688,6 +7691,17 @@ export const TodoResponseSchema = {
             ],
             title: 'Source Message Id'
         },
+        run_id: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Run Id'
+        },
         project_id: {
             anyOf: [
                 {
@@ -7701,7 +7715,7 @@ export const TodoResponseSchema = {
         }
     },
     type: 'object',
-    required: ['id', 'title', 'description', 'status', 'priority', 'category', 'due_date', 'source_conversation_id', 'source_message_id', 'project_id'],
+    required: ['id', 'title', 'description', 'status', 'priority', 'category', 'due_date', 'source_conversation_id', 'source_message_id', 'run_id', 'project_id'],
     title: 'TodoResponse',
     description: 'Schema for Todo responses.'
 } as const;
@@ -7885,6 +7899,17 @@ export const ToolStepSchema = {
             ],
             title: 'Tool Name'
         },
+        name: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Name'
+        },
         input: {
             anyOf: [
                 {
@@ -7906,7 +7931,7 @@ export const ToolStepSchema = {
         status: {
             type: 'string',
             title: 'Status',
-            default: 'success'
+            default: 'done'
         },
         duration: {
             anyOf: [
@@ -7929,6 +7954,18 @@ export const ToolStepSchema = {
                 }
             ],
             title: 'Tool Call Id'
+        },
+        tool_meta: {
+            anyOf: [
+                {
+                    additionalProperties: true,
+                    type: 'object'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Tool Meta'
         }
     },
     additionalProperties: true,

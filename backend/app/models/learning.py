@@ -20,45 +20,43 @@ class TraceEvent(Base):
     __tablename__ = "trace_events"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    # Session Tracking
     thread_id: Mapped[str] = mapped_column(String(255), index=True)
-    message_id: Mapped[str | None] = mapped_column(String(36), index=True, nullable=True)
+    session_id: Mapped[str | None] = mapped_column(String(36), index=True, nullable=True) # Unified session/thread ID
     run_id: Mapped[str | None] = mapped_column(String(36), index=True, nullable=True)
     step_number: Mapped[int] = mapped_column(Integer)
 
     # State Context
     node_name: Mapped[str] = mapped_column(String(100))
-    state_snapshot: Mapped[dict] = mapped_column(Text)  # Huge JSON of inputs/scratchpad
+    state_snapshot: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # Unified JSON field
 
-    # Action
-    action_type: Mapped[str] = mapped_column(String(50))  # "node_start", "llm_call", "tool_call", "user_intervention", "user_click", "user_input"
-    action_payload: Mapped[dict] = mapped_column(Text)  # JSON of args/output/message
+    # Action / Event Data
+    event_type: Mapped[str] = mapped_column(String(50), index=True) # Consolidated action_type
+    payload: Mapped[dict] = mapped_column(JSON) # Consolidated action_payload
 
-    # Human/Agent Distinction (Phase 1)
-    is_human_action: Mapped[bool] = mapped_column(default=False)  # True if action was performed by human, not agent
+    # Compatibility Fields (Legacy support for API routes and frontend)
+    action_type: Mapped[str | None] = mapped_column(String(50), index=True, nullable=True)
+    action_payload: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    # Visual Context (Phase 1)
-    screenshot_path: Mapped[str | None] = mapped_column(String(500), nullable=True)  # Path to screenshot taken at this moment
-    ui_element_info: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON: target element selector, text, bounds
+    # Human/Agent Distinction
+    is_human_action: Mapped[bool] = mapped_column(default=False)
+    source: Mapped[str | None] = mapped_column(String(20), nullable=True, default="agent") # "agent", "human", "global"
 
-    # Feedback & Reward
-    reward: Mapped[float | None] = mapped_column(Integer, nullable=True)  # Normalized reward if available
-    user_feedback: Mapped[str | None] = mapped_column(Text, nullable=True)  # User correction/comment
-
-    # Session Tracking
-    recording_session_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)  # Groups events in one recording session
-
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-
-    # New columns for compatibility with new refactors (Nullable)
-    session_id: Mapped[str | None] = mapped_column(String(36), index=True, nullable=True)
-    timestamp: Mapped[float | None] = mapped_column(Float, nullable=True)
-    event_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    # Visual Context
+    screenshot_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
     target_selector: Mapped[str | None] = mapped_column(Text, nullable=True)
     target_text: Mapped[str | None] = mapped_column(Text, nullable=True)
-    payload: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    
+    # Feedback & Reward
+    reward: Mapped[float | None] = mapped_column(Float, nullable=True)
+    user_feedback: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    # NEW: Global Observation Fields (Phase 2)
-    source: Mapped[str | None] = mapped_column(String(20), nullable=True, default="dom")  # "dom", "global"
+    # Legacy / Compatibility Fields (To be removed after full migration)
+    recording_session_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    timestamp: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+    # Metadata
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     # Window Context (Global only)
     window_title: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -103,15 +101,15 @@ class LearnedSkill(Base):
     description: Mapped[str] = mapped_column(Text)
 
     # Matching
-    trigger_patterns: Mapped[str] = mapped_column(Text)  # JSON list of trigger patterns
+    trigger_patterns: Mapped[list[str]] = mapped_column(JSON)  # JSON list of trigger patterns
 
     # Configuration
     namespace: Mapped[str | None] = mapped_column(String(500), nullable=True, index=True) # Physical tree path e.g. "domain/browser/github"
-    parameters: Mapped[str] = mapped_column(Text)  # JSON list of SkillParameter
-    preconditions: Mapped[str] = mapped_column(Text, nullable=True)  # JSON list of preconditions
+    parameters: Mapped[list[dict]] = mapped_column(JSON)  # JSON list of SkillParameter
+    preconditions: Mapped[list[dict] | None] = mapped_column(JSON, nullable=True)  # JSON list of preconditions
     instructions: Mapped[str | None] = mapped_column(Text, nullable=True)  # Phase 5: Markdown Instructions (Replaces 'steps' JSON)
 
-    tools_used: Mapped[str] = mapped_column(Text, nullable=True)  # JSON list of tool names
+    tools_used: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)  # JSON list of tool names
 
     # Source Reference
     source_thread_id: Mapped[str | None] = mapped_column(String(255), nullable=True)

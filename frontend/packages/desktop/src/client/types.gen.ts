@@ -292,7 +292,7 @@ export type ChatRequest = {
     model?: (string | null);
     command_id?: (number | null);
     checkpoint_id?: (string | null);
-    message_id?: (number | null);
+    message_id?: (string | null);
     attachments?: (Array<{
     [key: string]: unknown;
 }> | null);
@@ -391,13 +391,13 @@ export type ConversationListItem = {
 };
 
 export type ConversationSearchResult = {
-    id: number;
+    id: string;
     thread_id: string;
     role: string;
     content: string;
     created_at: string;
     match_snippet?: (string | null);
-    [key: string]: unknown | number | string;
+    [key: string]: unknown | string;
 };
 
 export type CreateFileRequest = {
@@ -934,7 +934,7 @@ export type LLMConfigRequest = {
     /**
      * API Base URL
      */
-    base_url: string;
+    base_url?: (string | null);
     /**
      * Model Name
      */
@@ -1045,7 +1045,7 @@ export type MessageItem = {
         [key: string]: unknown;
     };
     run_id?: (string | null);
-    parent_id?: (number | null);
+    parent_id?: (string | null);
     references?: Array<ReferenceItem>;
     has_file_operations?: boolean;
     changeset_count?: number;
@@ -1055,9 +1055,6 @@ export type MessageItem = {
     sequence_number?: (number | null);
     checkpoint_id?: (string | null);
     is_visible?: boolean;
-    tool_blocks?: (Array<{
-    [key: string]: unknown;
-}> | null);
     [key: string]: unknown | string | ToolStep | ReferenceItem | boolean | number;
 };
 
@@ -1072,8 +1069,8 @@ export type MessageListResponse = {
     page?: number;
     page_size?: number;
     has_more: boolean;
-    first_id?: (number | null);
-    last_id?: (number | null);
+    first_id?: (string | null);
+    last_id?: (string | null);
     total_count?: (number | null);
     [key: string]: unknown | boolean | string | MessageItem | number;
 };
@@ -2052,6 +2049,7 @@ export type TodoCreate = {
     project_id?: (number | null);
     source_conversation_id?: (string | null);
     source_message_id?: (string | null);
+    run_id?: (string | null);
 };
 
 export type TodoPriority = 'low' | 'medium' | 'high';
@@ -2071,6 +2069,7 @@ export type TodoResponse = {
     due_date: (string | null);
     source_conversation_id: (string | null);
     source_message_id: (string | null);
+    run_id: (string | null);
     project_id: (number | null);
 };
 
@@ -2112,6 +2111,7 @@ export type ToolStep = {
     id: string;
     tool: string;
     tool_name?: (string | null);
+    name?: (string | null);
     input?: ({
     [key: string]: unknown;
 } | string | unknown);
@@ -2119,6 +2119,9 @@ export type ToolStep = {
     status?: string;
     duration?: (number | null);
     tool_call_id?: (string | null);
+    tool_meta?: ({
+    [key: string]: unknown;
+} | null);
     [key: string]: unknown | string;
 };
 
@@ -2588,7 +2591,7 @@ export type ConversationsListConversationsData = {
 export type ConversationsListConversationsResponse = (Array<ConversationListItem>);
 
 export type ConversationsGetConversationMessagesData = {
-    beforeId?: (number | null);
+    beforeId?: (string | null);
     limit?: number;
     threadId: string;
 };

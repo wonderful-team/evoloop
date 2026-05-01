@@ -9,13 +9,14 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
 export default defineConfig(({ mode }) => {
-    const env = loadEnv(mode, path.resolve(__dirname, "../"), "")
+    const env = loadEnv(mode, path.resolve(__dirname, "../../"), "")
     return {
         resolve: {
             alias: {
                 "@": path.resolve(__dirname, "./src"),
                 "@evoloop/shared": path.resolve(__dirname, "../shared/src"),
             },
+            dedupe: ["react", "react-dom"],
         },
         plugins: [
             tanstackRouter({
@@ -30,6 +31,9 @@ export default defineConfig(({ mode }) => {
         build: {
             emptyOutDir: true,
             outDir: "dist",
+        },
+        optimizeDeps: {
+            include: ["react", "react-dom", "react-dom/client", "@radix-ui/react-collapsible", "react-resizable-panels"],
         },
         server: {
             port: Number(env.FRONTEND_PORT) || 5173,

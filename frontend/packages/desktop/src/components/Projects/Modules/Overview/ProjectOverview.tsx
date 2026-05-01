@@ -63,11 +63,9 @@ export const ProjectOverview: React.FC = () => {
       if (!projectId) return
       setLoading(true)
       try {
-        const token = localStorage.getItem("access_token")
-        // Fetch stats
+        // Backend identifies user via Cookie Session.
         const statsData = (await ProjectModulesService.getProjectStatistics({
           projectId: parseInt(projectId, 10),
-          authorization: token,
         })) as any
         if (statsData.code === 0) {
           setStats(statsData.data)

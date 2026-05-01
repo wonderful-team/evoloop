@@ -168,22 +168,11 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     const promise = (async () => {
       set({ isLoading: true })
       try {
-        const token = localStorage.getItem("access_token")
-      let rawList: any[] = []
-
-      if (token) {
-        // Logged In: Fetch from Cloud (synced list)
-        // Use OpenAPI client which handles token automatically via OpenAPI.TOKEN
+        // Backend identifies user via Cookie Session; no localStorage token needed.
+        let rawList: any[] = []
         const resp: any = await ProjectsService.getProjects({ filterType })
 
-        // Normalize Cloud Response (ProjectsListProjectsResponse)
-        // The generated type says 'unknown', but usually it's list of projects or { list: [] }
-        // Based on backend: returns List[Project] directly or paginated?
-        // Backend /api/v1/projects return list[Project] usually?
-        // Let's assume it returns { list: [...] } or [...]
-        // The legacy getCloudProjects assumed { list: ... } or { data: { list: ... } }
-
-        // We'll keep the robust normalization
+        // Normalize Response (ProjectsListProjectsResponse)
         if (resp && Array.isArray(resp.list)) {
           rawList = resp.list
         } else if (resp && Array.isArray(resp.data?.list)) {
@@ -193,16 +182,6 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         } else if (Array.isArray(resp)) {
           rawList = resp
         }
-      } else {
-        // Guest / Not Logged In: Scan Local Folders
-        const resp: any = await ProjectsService.getProjects()
-        // Normalize Local Response ({ projects: [...] })
-        if (resp.projects && Array.isArray(resp.projects)) {
-          rawList = resp.projects
-        } else if (Array.isArray(resp)) {
-          rawList = resp
-        }
-      }
 
       const list: Project[] = rawList.map((item: any) => ({
         ...item,

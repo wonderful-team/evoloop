@@ -103,6 +103,7 @@ class MessageFolder:
     @staticmethod
     def to_tool_step(
         tool_msg: ToolMessage, 
+        tc_id: str | None = None,
         tc_name: str | None = None, 
         tc_args: dict | None = None,
         lang: str = "zh"
@@ -112,11 +113,12 @@ class MessageFolder:
         
         Args:
             tool_msg: 工具返回的消息
-            tc_name: 对应的工具调用名称（若无法从 msg 自动获取则手动传入）
+            tc_id: 显式的工具调用 ID
+            tc_name: 对应的工具调用名称
             tc_args: 对应的工具调用参数
-            lang: 语言偏好，用于友好名称解析
+            lang: 语言偏好
         """
-        tool_id = tool_msg.tool_call_id or gen_uuid()
+        tool_id = tc_id or tool_msg.tool_call_id or gen_uuid()
         tool_name_raw = tool_msg.name or tc_name or "unknown"
         args = tc_args or {}
         
@@ -142,13 +144,16 @@ class MessageFolder:
             "display_name": tool_name_display,
         }
 
+        # Use status from message metadata (additional_kwargs) or default to 'done'
+        status = tool_msg.additional_kwargs.get("status", "done")
+
         return ToolStep(
             id=tool_id,
             tool=tool_name_raw,
             name=tool_meta.get('display_name') or tool_name_raw,
             input=args,
             output=MessageFolder.get_message_text(tool_msg),
-            status="done",
+            status=status,
             tool_call_id=tool_msg.tool_call_id,
             tool_meta=tool_meta,
         )
@@ -182,27 +187,42 @@ class MessageFolder:
                     tc_name = tc.get('name') if isinstance(tc, dict) else getattr(tc, 'name', '')
                     current_turn_tcs.append({'id': tc_id, 'name': tc_name, 'raw': tc, 'matched': False})
 
-                # 向后扫描 ToolMessages
+                # 向后扫描 ToolMessages 并进行去重合并
                 j = i + 1
+                step_map: dict[str, ToolStep] = {}
                 while j < len(messages) and isinstance(messages[j], ToolMessage):
                     tool_msg = messages[j]
                     
-                    # 匹配逻辑：优先 ID，次选顺序与名称
-                    matched_tc = next((tc for tc in current_turn_tcs if tc['id'] == tool_msg.tool_call_id), None)
+                    # 匹配逻辑：优先 ID，次选名称（允许同一工具定义被多次匹配以支持状态更新合并）
+                    matched_tc = next((tc for tc in current_turn_tcs if tc['id'] == tool_msg.tool_call_id and tool_msg.tool_call_id), None)
                     if not matched_tc:
-                        matched_tc = next((tc for tc in current_turn_tcs if not tc['matched'] and tc['name'] == tool_msg.name), None)
+                        matched_tc = next((tc for tc in current_turn_tcs if tc['name'] == tool_msg.name), None)
 
                     if matched_tc:
                         matched_tc['matched'] = True
                         tc_info = matched_tc['raw']
+                        tc_id = matched_tc['id']
                         tc_name = tc_info.get("name") if isinstance(tc_info, dict) else getattr(tc_info, "name", "unknown")
                         tc_args = tc_info.get("args") if isinstance(tc_info, dict) else getattr(tc_info, "args", {})
                     else:
+                        tc_id = tool_msg.tool_call_id
                         tc_name = tool_msg.name or "unknown"
                         tc_args = {}
 
-                    steps.append(cls.to_tool_step(tool_msg, tc_name=tc_name, tc_args=tc_args, lang=lang))
+                    new_step = cls.to_tool_step(tool_msg, tc_id=tc_id, tc_name=tc_name, tc_args=tc_args, lang=lang)
+                    tcid = new_step.tool_call_id or new_step.id
+
+                    if tcid in step_map:
+                        # 合并逻辑：如果新步骤有结果或状态是完成/失败，则覆盖旧的 running 状态
+                        existing = step_map[tcid]
+                        if new_step.status in ["completed", "done", "failed"] or existing.status == "running":
+                            existing.status = new_step.status
+                            existing.output = new_step.output
+                    else:
+                        step_map[tcid] = new_step
                     j += 1
+
+                steps = list(step_map.values())
 
                 thinking_content = extract_reasoning_from_message(msg)
 
@@ -215,7 +235,9 @@ class MessageFolder:
                     steps=steps,
                     created_at=created_at
                 ))
-                i = j
+                # Move to next message without skipping the tool messages we just scanned.
+                # This ensures they still appear as independent entries in the main chat.
+                i += 1
 
             elif isinstance(msg, ToolMessage):
                 # 孤立的工具消息

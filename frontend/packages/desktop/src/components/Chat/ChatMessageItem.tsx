@@ -355,8 +355,7 @@ const ChatMessageItem = memo(
                 )
               })()}
 
-              {/* Tool Execution Steps */}
-              <ToolExecutionSection msg={msg} />
+               {/* Tool Execution Steps are now shown as independent messages or in the side panel */}
             </div>
           )}
 

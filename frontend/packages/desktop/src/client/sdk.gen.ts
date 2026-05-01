@@ -703,25 +703,6 @@ export class ConversationsService {
     
     /**
      * Get Conversation Messages
-     * Get message history for a thread from the persistent SQL log.
-     * Supports pagination for infinite scroll.
-     *
-     * Query Logic (simplified):
-     * 1. Query all is_visible=True messages (respecting pagination)
-     * 2. Collect run_ids from visible messages
-     * 3. Query is_visible=False messages with the same run_ids
-     * 4. Merge and return
-     *
-     * Note: is_visible is completely determined by message category.
-     * See MessageCategory.get_visible_categories() for details.
-     *
-     * Args:
-     * thread_id: The conversation thread ID
-     * limit: Number of messages to return (default 50, max 100)
-     * before_id: Cursor for pagination - load messages before this ID
-     *
-     * Returns:
-     * MessageListResponse with items, has_more flag, and cursors
      * @param data The data for the request.
      * @param data.threadId
      * @param data.limit
@@ -748,10 +729,6 @@ export class ConversationsService {
     
     /**
      * Search Conversations
-     * Full-text search on message logs.
-     *
-     * Only searches visible messages (is_visible=True).
-     * Internal messages and errors are excluded from search.
      * @param data The data for the request.
      * @param data.q
      * @param data.projectId
@@ -774,7 +751,6 @@ export class ConversationsService {
     
     /**
      * Rename Conversation
-     * Rename a conversation.
      * @param data The data for the request.
      * @param data.threadId
      * @param data.requestBody
@@ -798,7 +774,6 @@ export class ConversationsService {
     
     /**
      * Delete Conversation
-     * Delete a conversation history and its checkpoints.
      * @param data The data for the request.
      * @param data.threadId
      * @returns unknown Successful Response
@@ -819,7 +794,6 @@ export class ConversationsService {
     
     /**
      * Get Thread Activity
-     * Get real-time activity/status for a thread run.
      * @param data The data for the request.
      * @param data.threadId
      * @returns unknown Successful Response
@@ -840,10 +814,6 @@ export class ConversationsService {
     
     /**
      * Rewind Conversation
-     * Rewind the conversation to the previous state (Undo last step).
-     * Optionally revert file changes made by the Agent.
-     *
-     * Uses the new event-driven RewindOrchestrator for distributed cleanup.
      * @param data The data for the request.
      * @param data.threadId
      * @param data.requestBody
@@ -867,7 +837,6 @@ export class ConversationsService {
     
     /**
      * Get Thread Changeset
-     * Get the cumulative file changeset for a thread, formatted as a tree.
      * @param data The data for the request.
      * @param data.threadId
      * @returns ChangesetNode Successful Response
@@ -3122,6 +3091,9 @@ export class MemoryService {
     /**
      * Search Memory
      * Search memory concepts.
+     *
+     * TODO: `use_vector` is accepted for API compatibility but not yet implemented
+     * in the backend search logic.
      * @param data The data for the request.
      * @param data.q
      * @param data.projectId
@@ -3965,14 +3937,13 @@ export class StreamService {
      * Uses cache Pub/Sub for real-time event streaming.
      *
      * Event Types:
-     * - activity: Initial full state snapshot (sent once on connect)
-     * - step: New step created/updated (incremental)
+     * - activity: Initial lightweight state snapshot (sent once on connect)
      * - artifact: New artifact created/updated (incremental)
      * - status: Status change (incremental)
      * - token: Token stream for chat
-     * - message: New message (with tool folding)
+     * - message: New message (with tool folding via msg.steps)
      * - human_request: HITL request
-     * - stream: Structured stream events (thinking, tool_progress, etc.)
+     * - stream: Structured stream events (thinking, errors, etc.)
      * @param data The data for the request.
      * @param data.threadId
      * @param data.guestId
