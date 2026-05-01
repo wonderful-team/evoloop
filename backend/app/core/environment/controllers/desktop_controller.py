@@ -340,7 +340,7 @@ class DesktopController:
         duration_ms: int = 500,
         role_filter: str | None = None,
         name_filter: str | None = None,
-        max_depth: int = 10,
+        max_depth: int | None = None,
     ) -> str:
         """Execute a desktop action. All business logic lives here."""
         try:
@@ -674,7 +674,20 @@ class DesktopController:
                     elements = await _async_literal_eval(raw_tree.replace("missing value", "None"))
                     if not isinstance(elements, list):
                         return ControllerResponse.error("AX Tree format unexpected.")
+
                     filtered_elements = elements
+                    if max_depth is not None:
+                        def _truncate_depth(nodes, depth=0):
+                            if depth >= max_depth:
+                                return [{k: v for k, v in n.items() if k != "children"} for n in nodes]
+                            result = []
+                            for n in nodes:
+                                item = dict(n)
+                                if "children" in item:
+                                    item["children"] = _truncate_depth(item["children"], depth + 1)
+                                result.append(item)
+                            return result
+                        filtered_elements = _truncate_depth(elements)
                     if role_filter:
                         filtered_elements = [el for el in filtered_elements if role_filter.lower() in str(el.get("role", "")).lower()]
                     if name_filter:
@@ -742,13 +755,17 @@ class DesktopController:
         expected_element: str | None = None,
         expected_role: str | None = None,
         expected_text: str | None = None,
-        timeout_seconds: int = 5,
+        timeout_seconds: int = 0,
     ) -> str:
-        """Verify if a specific UI element or text is present on the screen using AX Tree."""
-        try:
+        """Verify if a specific UI element or text is present on the screen using AX Tree.
+
+        When timeout_seconds is 0 (default), performs a single immediate check.
+        When timeout_seconds > 0, polls every 500ms until the condition is met or timeout.
+        """
+        async def _check_once():
             raw_tree = await asyncio.to_thread(macos_driver.dump_ax_tree)
             if not raw_tree or "Error" in raw_tree:
-                return ControllerResponse.error("Verification Failed: Could not dump AX Tree.", details=str(raw_tree))
+                return None, ControllerResponse.error("Verification Failed: Could not dump AX Tree.", details=str(raw_tree))
             elements = await _async_literal_eval(raw_tree)
             found_element = False
             found_text = False
@@ -761,15 +778,42 @@ class DesktopController:
                         found_element = True
                 if expected_text and (expected_text.lower() in name or expected_text.lower() in value):
                     found_text = True
-            if expected_element and not found_element:
-                return ControllerResponse.error(
-                    f"Verification FAILED: Element '{expected_element}'" +
-                    (f" (role: {expected_role})" if expected_role else "") +
-                    " not found."
-                )
-            if expected_text and not found_text:
-                return ControllerResponse.error(f"Verification FAILED: Text '{expected_text}' not found.")
-            return ControllerResponse.success("Verification SUCCESS: UI state matches expectations.")
+            return (found_element, found_text), None
+
+        try:
+            if timeout_seconds <= 0:
+                # Immediate check — preserves the original default behavior
+                (found_element, found_text), err = await _check_once()
+                if err:
+                    return err
+                if expected_element and not found_element:
+                    return ControllerResponse.error(
+                        f"Verification FAILED: Element '{expected_element}'" +
+                        (f" (role: {expected_role})" if expected_role else "") +
+                        " not found."
+                    )
+                if expected_text and not found_text:
+                    return ControllerResponse.error(f"Verification FAILED: Text '{expected_text}' not found.")
+                return ControllerResponse.success("Verification SUCCESS: UI state matches expectations.")
+
+            # Polling mode — only when timeout is explicitly requested
+            start = asyncio.get_event_loop().time()
+            while True:
+                (found_element, found_text), err = await _check_once()
+                if err:
+                    return err
+                if (not expected_element or found_element) and (not expected_text or found_text):
+                    return ControllerResponse.success("Verification SUCCESS: UI state matches expectations.")
+                if asyncio.get_event_loop().time() - start >= timeout_seconds:
+                    if expected_element and not found_element:
+                        return ControllerResponse.error(
+                            f"Verification FAILED: Element '{expected_element}'" +
+                            (f" (role: {expected_role})" if expected_role else "") +
+                            " not found."
+                        )
+                    if expected_text and not found_text:
+                        return ControllerResponse.error(f"Verification FAILED: Text '{expected_text}' not found.")
+                await asyncio.sleep(0.5)
         except Exception as e:
             return ControllerResponse.error("Verification Error.", details=str(e))
 

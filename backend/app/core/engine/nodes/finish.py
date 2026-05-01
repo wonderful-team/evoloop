@@ -18,9 +18,13 @@ from app.core.engine.routers import RoutingTarget
 from app.core.engine.services.audit_service import AuditService, AuditResult
 from app.core.engine.state import AgentState, StateUpdate
 from app.core.engine.state.blackboard import AuditMeta
+from app.core.engine.context_trimmer import ContextTrimmer, TrimTrigger
 from app.core.events.schemas import SessionCompletedData
 
 logger = logging.getLogger(__name__)
+
+# Module-level singleton — avoids re-instantiation on every FinishNode call
+_trimmer = ContextTrimmer()
 
 
 class FinishNode(BaseNode):
@@ -78,21 +82,18 @@ class FinishNode(BaseNode):
         # here (windowing only, no structural repair) to keep the message list
         # bounded while preserving enough history for summary generation.
         if messages:
-            from app.core.engine.context_trimmer import ContextTrimmer
             model = config.get("configurable", {}).get("model")
             if not model:
                 raise ValueError(
                     "[FinishNode] No model provided in config. "
                     "Please ensure model is passed via config['configurable']['model']."
                 )
-            trimmer = ContextTrimmer()
-            trim_result = trimmer.trim(
+            trim_result = _trimmer.trim(
                 messages=messages,
                 model=model,
                 node_source="finish",
                 stages={"window"},  # Only windowing; preserve message structure
             )
-            from app.core.engine.context_trimmer import TrimTrigger
             if trim_result.trigger != TrimTrigger.NONE:
                 # Trigger PRE_COMPACT hook BEFORE applying the trim to save state
                 from app.core.engine.hooks import HookContext, HookEvent, hook_system

@@ -31,39 +31,34 @@ export function ChangesetInlineHint({
     <div
       onClick={onClick}
       className={cn(
-        "mt-2 inline-flex cursor-pointer items-center gap-2 rounded-lg",
-        "border px-3 py-1.5 text-[11px] transition-all duration-200",
-        isViewed
-          ? "border-border/40 bg-muted/20 text-muted-foreground/60 hover:bg-muted/40"
-          : "border-primary/20 bg-primary/5 text-primary hover:bg-primary/10 shadow-sm",
+        "mt-4 inline-flex cursor-pointer items-center gap-2 py-1 transition-all duration-300 group/changeset",
+        isViewed ? "text-muted-foreground/40" : "text-primary hover:text-primary/80",
         className
       )}
     >
-      <FileDiff
-        className={cn(
-          "h-3.5 w-3.5",
-          isViewed ? "opacity-30" : "opacity-70"
-        )}
-      />
-      <span
-        className={cn(
-          "font-semibold uppercase tracking-tight",
-          isViewed ? "opacity-60" : "opacity-90"
-        )}
-      >
-        {isViewed
-          ? t("chat.changeset.viewed", "已巡检 {{count}} 个文件", { count: fileCount })
-          : t("chat.changeset.newChanges", "本次修改了 {{count}} 个文件", { count: fileCount })}
-      </span>
-      {!isViewed && (
-        <span className="flex items-center gap-1 font-bold ml-1">
-          <span className="opacity-30">·</span>
-          <span className="hover:underline">
-            {t("chat.changeset.viewChanges", "点击审查")}
-          </span>
-          <ChevronRight className="h-3 w-3" />
+      <div className={cn(
+        "p-1.5 rounded-md transition-colors",
+        isViewed ? "bg-muted/10 group-hover/changeset:bg-muted/20" : "bg-primary/5 group-hover/changeset:bg-primary/10"
+      )}>
+        <FileDiff className="h-3.5 w-3.5" />
+      </div>
+      
+      <div className="flex flex-col">
+        <span className="text-[10px] font-bold uppercase tracking-[0.2em] opacity-50">
+           {isViewed ? t("chat.changeset.viewed") : "File Changeset"}
         </span>
-      )}
+        <span className="text-xs font-semibold">
+          {isViewed
+            ? t("chat.changeset.viewed", "已巡检 {{count}} 个文件", { count: fileCount })
+            : t("chat.changeset.newChanges", "本次修改了 {{count}} 个文件", { count: fileCount })}
+          {!isViewed && (
+            <span className="ml-2 inline-flex items-center gap-0.5 opacity-60 group-hover/changeset:opacity-100 transition-opacity">
+               <span className="hover:underline">{t("chat.changeset.viewChanges", "点击审查")}</span>
+               <ChevronRight className="h-3 w-3" />
+            </span>
+          )}
+        </span>
+      </div>
     </div>
   )
 }

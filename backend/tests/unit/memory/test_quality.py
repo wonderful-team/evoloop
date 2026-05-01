@@ -45,7 +45,7 @@ class TestQualityScoresDataclass:
             overall=0.6894,
         )
         
-        d = scores.to_dict()
+        d = scores.model_dump()
         
         assert d["freshness"] == 0.81
         assert d["usage"] == 0.35

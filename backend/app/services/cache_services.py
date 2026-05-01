@@ -182,8 +182,13 @@ class ActivityStateService:
             if activity is None:
                 activity = AgentActivity(thread_id=thread_id)
                 session.add(activity)
+            
+            # Preserve cancellation intent: If status is already 'stopping', 
+            # don't reset it to 'running'. This handles race conditions 
+            # where a user cancels just as the run is starting.
             if activity.status != "stopping":
                 activity.status = "running"
+            
             activity.main_goal = main_goal
             activity.artifacts_json = json.dumps([])
             activity.agent_state_json = json.dumps({})

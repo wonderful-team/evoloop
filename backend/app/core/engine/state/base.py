@@ -35,9 +35,6 @@ class AgentStateBase(DynamicBaseModel):
     is_subtask: bool | None = None
     relevant_sops: list[Any] = Field(default_factory=list)
 
-    # Hydration deduplication marker
-    hydration_marker: str | None = None
-
     # Session-level immutable goal (user's original request)
     session_goal: str | None = None
 
@@ -90,7 +87,7 @@ class AgentState(AgentStateBase):
             "thread_id", "project_id", "current_plan", "structured_plan",
             "execution_artifact", "error", "user_preferences", "situation_analysis",
             "action_plan", "skill_execution_attempted", "active_tool_profile",
-            "hydration_marker", "is_subtask", "session_goal",
+            "is_subtask", "session_goal",
         }
         missing = []
         for field_name, field_info in self.model_fields.items():

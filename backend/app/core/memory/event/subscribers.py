@@ -14,6 +14,7 @@ import shutil
 from datetime import datetime
 from pathlib import Path
 
+from app.core.engine.event.schemas import AgentRunCompletedEvent
 from app.core.engine.rewind.event import RewindEventType, RewindRequestedEvent
 from app.core.events import SystemEventType
 from app.core.events.base import AsyncEventBus
@@ -34,46 +35,62 @@ class MemoryLifecycleHandler:
     - Graceful shutdown of memory container on app stop
     """
 
-    @event_subscribe(SystemEventType.SESSION_COMPLETED)
-    async def on_session_completed(self, event: SessionCompletedEvent):
+    @event_subscribe("agent.run_completed")
+    async def on_agent_run_completed(self, event: AgentRunCompletedEvent):
         """
-        Trigger automatic memory extraction.
+        Trigger automatic memory extraction after each successful run attempt.
         """
-        data = event.data
-        logger.info(f"[Memory] 🧠 Session completed for thread {data.thread_id}. Triggering auto-extraction...")
+        if event.status != "done":
+            return
+            
+        thread_id = event.thread_id
+        project_id = event.project_id
+        run_id = event.payload.get("run_id") or ""
+        
+        logger.info(f"[Memory] 🧠 Run completed for thread {thread_id}. Triggering auto-extraction...")
 
         try:
             from app.core.context.manager import ContextManager, EvoContext
             from app.core.memory.auto_extraction import trigger_auto_extraction
+            from app.core.engine.message.repository import MessageRepository
+
+            # Load history for extraction
+            repo = MessageRepository(thread_id=thread_id, project_id=project_id)
+            messages, _, _ = await repo.get_full_history()
 
             # Create a dedicated context for the background extraction task
             ctx = EvoContext(
-                thread_id=data.thread_id,
-                project_id=data.project_id,
-                user_id=data.user_id,
-                active_model=data.model
+                thread_id=thread_id,
+                project_id=project_id,
+                run_id=run_id
             )
 
             async def _run_extraction_background():
-                # Set context for this specific coroutine
                 token = ContextManager.set(ctx)
                 try:
                     await trigger_auto_extraction(
-                        thread_id=data.thread_id,
-                        messages=data.messages,
-                        project_id=data.project_id,
-                        user_id=data.user_id,
-                        run_id=data.run_id,
-                        force=True
+                        thread_id=thread_id,
+                        messages=messages,
+                        project_id=project_id,
+                        run_id=run_id,
+                        force=False  # Don't force if already extracted for this content
                     )
                 finally:
                     ContextManager.reset(token)
 
-            # Fire and forget auto-extraction in a background task
             asyncio.create_task(_run_extraction_background())
-            logger.debug(f"[Memory] ✓ Auto-extraction background task started for {data.thread_id}")
+            logger.debug(f"[Memory] ✓ Auto-extraction background task started for {thread_id}")
         except Exception as e:
             logger.error(f"[Memory] Failed to trigger auto-extraction: {e}")
+
+    @event_subscribe(SystemEventType.SESSION_COMPLETED)
+    async def on_session_completed(self, event: SessionCompletedEvent):
+        """
+        Handle final session completion archiving if needed.
+        """
+        data = event.data
+        logger.info(f"[Memory] 🏁 Session completed for thread {data.thread_id}.")
+        # Optional: Add final session-level summary or cleanup here
 
     @event_subscribe(SystemEventType.APP_STOPPING)
     async def on_application_stopping(self, event):

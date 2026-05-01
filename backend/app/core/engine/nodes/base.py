@@ -83,11 +83,6 @@ class BaseAgentNode(BaseNode, ABC):
             # Clear potential routing instructions from previous nodes to prevent accidental short-circuits
             state.next_node = None
 
-            # Centralized hydration: all nodes receive context via middleware
-            from app.core.engine.context_hydrator import EvoContextMiddleware
-            state = await EvoContextMiddleware.hydrate(state, config)
-            logger.info(f"[{self.node_name}] Context Hydrated via Middleware")
-
             # 1. State Preparation & Environment Hydration
             # Includes early-exit checks (e.g., Aggregator routing)
             state_update = await self.prepare_state(state, config)

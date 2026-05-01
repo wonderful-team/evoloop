@@ -107,6 +107,7 @@ class LLMErrorHandler:
             is_terminal=is_terminal
         )
 
+
     @staticmethod
     def raise_inference_error(e: Exception) -> None:
         """
@@ -126,3 +127,43 @@ class LLMErrorHandler:
             user_friendly_msg=user_msg,
             raw_error=classification.raw_error
         )
+
+
+import asyncio
+import functools
+from collections.abc import Callable
+from typing import Any, TypeVar
+
+T = TypeVar("T")
+
+def with_llm_retry(max_attempts: int = 3, base_delay: float = 2.0, backoff: float = 2.0):
+    """
+    Standardized retry decorator for LLM API calls.
+    Automatically classifies exceptions via LLMErrorHandler.
+    Bypasses retries for terminal errors (auth, quota, context limit).
+    """
+    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
+        @functools.wraps(func)
+        async def wrapper(*args, **kwargs) -> Any:
+            delay = base_delay
+            for attempt in range(1, max_attempts + 1):
+                try:
+                    return await func(*args, **kwargs)
+                except Exception as e:
+                    # Classify exception to see if it's terminal
+                    classification = LLMErrorHandler.classify_exception(e)
+                    
+                    if classification.is_terminal or attempt == max_attempts:
+                        logger.error(f"[LLMRetry] Terminal error or max attempts reached ({attempt}/{max_attempts}): {classification.error_type}")
+                        raise
+                        
+                    logger.warning(
+                        f"[LLMRetry] Attempt {attempt}/{max_attempts} failed: {classification.error_type}. "
+                        f"Retrying in {delay}s..."
+                    )
+                    await asyncio.sleep(delay)
+                    delay *= backoff
+            
+            raise RuntimeError("Unexpected end of LLM retry loop")
+        return wrapper
+    return decorator

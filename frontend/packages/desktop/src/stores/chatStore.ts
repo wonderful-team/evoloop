@@ -13,6 +13,38 @@ interface ChangesetFile {
     timestamp: string
 }
 
+/** Try to parse a system message's content as a HITL (human-in-the-loop) request.
+ *  Backend stores HITL requests as role="system" messages with JSON content.
+ *  Returns the parsed request object if valid, otherwise null.
+ */
+function tryParseHumanRequest(rawMsg: any): any | null {
+    // Priority 1: Standardized HITL_REQUEST category
+    if (rawMsg.category === "HITL_REQUEST" || rawMsg.category === "INTERRUPT") {
+        try {
+            let parsed = typeof rawMsg.content === "string" ? JSON.parse(rawMsg.content) : rawMsg.content
+            if (parsed && typeof parsed.type === "string" && typeof parsed.prompt === "string") {
+                // Attach message status to the request
+                return { ...parsed, status: rawMsg.status }
+            }
+        } catch (e) {
+            console.error("[ChatStore] Failed to parse HITL_REQUEST content:", e)
+        }
+    }
+
+    // Priority 2: Legacy role="system" with JSON detection
+    if (rawMsg.role === "system" && rawMsg.content) {
+        try {
+            let parsed = typeof rawMsg.content === "string" ? JSON.parse(rawMsg.content) : rawMsg.content
+            if (parsed && typeof parsed.type === "string" && typeof parsed.prompt === "string") {
+                return { ...parsed, status: rawMsg.status }
+            }
+        } catch {
+            // Not a valid HITL message
+        }
+    }
+    return null
+}
+
 interface ChatState {
     // --- Data ---
     threadId: string | null
@@ -151,6 +183,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
                     changeset: [],
                     viewedChanges: new Set(),
                     changesetLastUpdated: null,
+                    // Reset pagination state to prevent "load more" hint from showing
+                    // alongside ChatWelcome during the async fetchHistory window
+                    hasMoreHistory: false,
+                    firstMessageId: null,
+                    totalMessageCount: null,
+                    isLoadingHistory: false,
                 }
                 : {}),
         })
@@ -222,13 +260,34 @@ export const useChatStore = create<ChatState>((set, get) => ({
             
             const rawMessages = response?.data || []
             
-            // Format messages
-            const formatted: Message[] = rawMessages
-                .map((m: any, idx: number) => ({
-                    id: m.id || idx,
-                    // Normalize role: user->human, assistant->ai
-                    role: m.role === "human" || m.role === "user" ? "human" : "ai",
-                    originalRole: m.role,
+            // Format messages.
+            // System messages that carry HITL requests are parsed and attached
+            // to the preceding AI message instead of being displayed as text.
+            const formatted: Message[] = []
+            for (const m of rawMessages) {
+                const humanReq = tryParseHumanRequest(m)
+                if (humanReq) {
+                    // Attach HITL request to the most recent AI message
+                    for (let i = formatted.length - 1; i >= 0; i--) {
+                        if (formatted[i].role === "ai") {
+                            formatted[i] = { ...formatted[i], humanRequest: humanReq }
+                            break
+                        }
+                    }
+                    continue
+                }
+
+                // Only show human/ai messages (tool messages are folded server-side)
+                // Accept both "human" and "user" roles for backward compatibility
+                const originalRole = m.role
+                if (originalRole !== "human" && originalRole !== "user" && originalRole !== "ai" && originalRole !== "assistant") {
+                    continue
+                }
+                const visibleRole = originalRole === "human" || originalRole === "user" ? "human" : "ai"
+                formatted.push({
+                    id: m.id || formatted.length,
+                    role: visibleRole,
+                    originalRole: originalRole,
                     content: m.content || "",
                     thinking: m.thinking,
                     timestamp: m.created_at,
@@ -236,10 +295,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
                     references: m.references || [],
                     has_file_operations: m.has_file_operations || false,
                     changeset_count: m.changeset_count || 0,
-                }))
-                // Filter: only show human/ai messages (tool messages are folded server-side)
-                // Accept both "human" and "user" roles for backward compatibility
-                .filter((m: any) => m.originalRole === "human" || m.originalRole === "user" || m.originalRole === "ai" || m.originalRole === "assistant")
+                    category: m.category,
+                    status: m.status,
+                })
+            }
 
             // Update state with pagination info
             if (get().threadId === threadId) {
@@ -294,13 +353,33 @@ export const useChatStore = create<ChatState>((set, get) => ({
                 return
             }
             
-            // Format new messages
-            const formatted: Message[] = rawMessages
-                .map((m: any, idx: number) => ({
-                    id: m.id || idx,
-                    // Normalize role: user->human, assistant->ai
-                    role: m.role === "human" || m.role === "user" ? "human" : "ai",
-                    originalRole: m.role,
+            // Format new messages.
+            // System messages that carry HITL requests are parsed and attached
+            // to the preceding AI message instead of being displayed as text.
+            const formatted: Message[] = []
+            for (const m of rawMessages) {
+                const humanReq = tryParseHumanRequest(m)
+                if (humanReq) {
+                    for (let i = formatted.length - 1; i >= 0; i--) {
+                        if (formatted[i].role === "ai") {
+                            formatted[i] = { ...formatted[i], humanRequest: humanReq }
+                            break
+                        }
+                    }
+                    continue
+                }
+
+                // Only show human/ai messages (tool messages are folded server-side)
+                // Accept both "human" and "user" roles for backward compatibility
+                const originalRole = m.role
+                if (originalRole !== "human" && originalRole !== "user" && originalRole !== "ai" && originalRole !== "assistant") {
+                    continue
+                }
+                const visibleRole = originalRole === "human" || originalRole === "user" ? "human" : "ai"
+                formatted.push({
+                    id: m.id || formatted.length,
+                    role: visibleRole,
+                    originalRole: originalRole,
                     content: m.content || "",
                     thinking: m.thinking,
                     timestamp: m.created_at,
@@ -308,10 +387,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
                     references: m.references || [],
                     has_file_operations: m.has_file_operations || false,
                     changeset_count: m.changeset_count || 0,
-                }))
-                // Filter: only show human/ai messages (tool messages are folded server-side)
-                // Accept both "human" and "user" roles for backward compatibility
-                .filter((m: any) => m.originalRole === "human" || m.originalRole === "user" || m.originalRole === "ai" || m.originalRole === "assistant")
+                    category: m.category,
+                    status: m.status,
+                })
+            }
             
             // Prepend new messages to existing list
             // Update firstMessageId to the first message of the newly loaded batch
@@ -419,7 +498,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
                 requestBody: { thread_id: threadId, message: "" },
             })
             toast.info(i18n.t("chat.agentStopped"))
-            set({ status: "stopped", humanRequest: null })
+            set((state) => ({
+                status: "stopped",
+                humanRequest: null,
+                messages: state.messages.map((m) =>
+                    m.humanRequest ? { ...m, humanRequest: undefined } : m
+                ),
+            }))
         } catch (_e) {
             toast.error(i18n.t("chat.errors.stopAgent"))
         }
@@ -434,7 +519,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
                 requestBody: { thread_id: threadId, user_input: userInput, model: selectedModel },
             })
             toast.info(i18n.t("chat.status.resuming"))
-            set({ status: "running", humanRequest: null }) // Optimistic clear
+            set((state) => ({
+                status: "running",
+                humanRequest: null,
+                messages: state.messages.map((m) =>
+                    m.humanRequest ? { ...m, humanRequest: undefined } : m
+                ),
+            })) // Optimistic clear
         } catch (_e) {
             toast.error(i18n.t("chat.errors.resumeAgent"))
         }
@@ -449,7 +540,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
         const previousHumanRequest = get().humanRequest
 
         // Optimistic update to idle (consistent with backend clear_human_request)
-        set({ status: "idle", humanRequest: null })
+        set((state) => ({
+            status: "idle",
+            humanRequest: null,
+            messages: state.messages.map((m) =>
+                m.humanRequest ? { ...m, humanRequest: undefined } : m
+            ),
+        }))
 
         try {
             await AgentService.cancelHitlRequest({
@@ -461,7 +558,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
             setTimeout(() => {
                 const current = get()
                 if (current.status === "interrupted" && current.humanRequest) {
-                    set({ status: "idle", humanRequest: null })
+                    set((state) => ({
+                    status: "idle",
+                    humanRequest: null,
+                    messages: state.messages.map((m) =>
+                        m.humanRequest ? { ...m, humanRequest: undefined } : m
+                    ),
+                }))
                     toast.error(i18n.t("chat.errors.cancelFailed"))
                 }
             }, 5000)
@@ -469,7 +572,20 @@ export const useChatStore = create<ChatState>((set, get) => ({
         } catch (error) {
             toast.error(i18n.t("chat.errors.cancelHitl"))
             // Rollback optimistic update
-            set({ status: previousStatus, humanRequest: previousHumanRequest })
+            set((state) => {
+                const msgs = [...state.messages]
+                let targetIdx = -1
+                for (let i = msgs.length - 1; i >= 0; i--) {
+                    if (msgs[i].role === "ai") {
+                        targetIdx = i
+                        break
+                    }
+                }
+                if (targetIdx >= 0 && previousHumanRequest) {
+                    msgs[targetIdx] = { ...msgs[targetIdx], humanRequest: previousHumanRequest }
+                }
+                return { status: previousStatus, humanRequest: previousHumanRequest, messages: msgs }
+            })
         }
     },
 
@@ -538,13 +654,33 @@ export const useChatStore = create<ChatState>((set, get) => ({
     _setHumanRequest: (req: any) => {
         // Handle clear action from ActivityMonitor
         if (req && req.action === "clear") {
-            set({ humanRequest: null, status: "idle" })
+            set((state) => ({
+                humanRequest: null,
+                status: "idle",
+                messages: state.messages.map((m) =>
+                    m.humanRequest ? { ...m, humanRequest: undefined } : m
+                ),
+            }))
             return
         }
 
-        // Handle create/update action
+        // Handle create/update action — attach to the last AI message so
+        // ChatMessageItem can render HumanRequestCard inline.
         const data = req.data || req
-        set({ humanRequest: data, status: "interrupted" })
+        set((state) => {
+            const msgs = [...state.messages]
+            let targetIdx = -1
+            for (let i = msgs.length - 1; i >= 0; i--) {
+                if (msgs[i].role === "ai") {
+                    targetIdx = i
+                    break
+                }
+            }
+            if (targetIdx >= 0) {
+                msgs[targetIdx] = { ...msgs[targetIdx], humanRequest: data }
+            }
+            return { humanRequest: data, status: "interrupted", messages: msgs }
+        })
 
         if (data) {
             // Determine interaction type and show appropriate notification
@@ -608,13 +744,35 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
         // Phase 3 redesign: steps are now part of Message model (msg.steps).
         // ActivitySnapshot no longer carries step details — only lightweight metadata.
-        set({
-            status: normalizedStatus,
-            artifacts: data.artifacts || [],
-            finalOutcome: data.final_outcome || null,
-            activeMemories: data.active_memories || [],
-            agentState: data.agent_state || null,
-            humanRequest: data.human_request || null,
+        const newHumanRequest = data.human_request || null
+        set((state) => {
+            let msgs = state.messages
+            if (newHumanRequest) {
+                msgs = [...msgs]
+                let targetIdx = -1
+                for (let i = msgs.length - 1; i >= 0; i--) {
+                    if (msgs[i].role === "ai") {
+                        targetIdx = i
+                        break
+                    }
+                }
+                if (targetIdx >= 0) {
+                    msgs[targetIdx] = { ...msgs[targetIdx], humanRequest: newHumanRequest }
+                }
+            } else if (state.humanRequest) {
+                msgs = msgs.map((m) =>
+                    m.humanRequest ? { ...m, humanRequest: undefined } : m
+                )
+            }
+            return {
+                status: normalizedStatus,
+                artifacts: data.artifacts || [],
+                finalOutcome: data.final_outcome || null,
+                activeMemories: data.active_memories || [],
+                agentState: data.agent_state || null,
+                humanRequest: newHumanRequest,
+                messages: msgs,
+            }
         })
 
     },
@@ -674,13 +832,25 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
         // HITL Safety Net 1: When leaving interrupted state, clear humanRequest
         if (prevStatus === "interrupted" && normalizedStatus !== "interrupted") {
-            set({ status: normalizedStatus, humanRequest: null })
+            set((state) => ({
+                status: normalizedStatus,
+                humanRequest: null,
+                messages: state.messages.map((m) =>
+                    m.humanRequest ? { ...m, humanRequest: undefined } : m
+                ),
+            }))
             return
         }
-        
+
         // HITL Safety Net 2: If status is not interrupted but humanRequest exists, clear it
         if (normalizedStatus !== "interrupted" && currentHumanRequest) {
-            set({ status: normalizedStatus, humanRequest: null })
+            set((state) => ({
+                status: normalizedStatus,
+                humanRequest: null,
+                messages: state.messages.map((m) =>
+                    m.humanRequest ? { ...m, humanRequest: undefined } : m
+                ),
+            }))
             return
         }
 
@@ -716,6 +886,27 @@ export const useChatStore = create<ChatState>((set, get) => ({
             return
         }
 
+        // Handle system messages that carry HITL requests.
+        // Backend stores HITL requests as role="system" messages with JSON content.
+        const humanReq = tryParseHumanRequest(rawMsg)
+        if (humanReq) {
+            const msgs = [...messages]
+            for (let i = msgs.length - 1; i >= 0; i--) {
+                if (msgs[i].role === "ai") {
+                    msgs[i] = { ...msgs[i], humanRequest: humanReq }
+                    break
+                }
+            }
+            // Also sync global humanRequest state (in case SSE human_request event was missed)
+            set({ messages: msgs, humanRequest: humanReq, status: "interrupted" })
+            return
+        }
+
+        // Drop non-HITL system messages (e.g. system prompts) — they should not appear in chat.
+        if (rawMsg.role === "system") {
+            return
+        }
+
         // 1. Format
         // Use pre-folded steps from backend
         // Normalize role: user->human, assistant->ai
@@ -730,6 +921,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
             steps: rawMsg.steps || [],
             references: rawMsg.references || [],
             changeset_count: rawMsg.changeset_count || 0,
+            category: rawMsg.category,
+            status: rawMsg.status,
         }
 
         // 2. Check if this is an update to an existing message (e.g., steps added via tool folding)
@@ -748,6 +941,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
                 // Keep streaming content; for completed messages, accept backend content
                 content: isStreaming ? existingMsg.content : (newMsg.content || existingMsg.content),
                 timestamp: existingMsg.timestamp,
+                // Preserve humanRequest if already attached (e.g. via system HITL message)
+                humanRequest: existingMsg.humanRequest,
             }
             
             const newMessages = [...messages]
@@ -768,6 +963,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
                 // Preserve accumulated streaming content if backend hasn't provided one yet
                 content: newMsg.content || placeholder.content,
                 status: newMsg.status || "completed",
+                // Preserve humanRequest if already attached (e.g. via system HITL message during streaming)
+                humanRequest: placeholder.humanRequest,
             }
             set({ messages: newMessages })
             return
@@ -861,6 +1058,23 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     _processStreamEvent: (event: any) => {
         switch (event.type) {
+            case 'thinking': {
+                // Real-time thinking stream — update the current streaming AI message
+                const messages = get().messages
+                const streamingIndex = messages.findIndex(
+                    (m) => m.role === "ai" && m.status === "streaming"
+                )
+                if (streamingIndex >= 0 && event.message) {
+                    const newMessages = [...messages]
+                    newMessages[streamingIndex] = {
+                        ...newMessages[streamingIndex],
+                        thinking: event.message,
+                    }
+                    set({ messages: newMessages })
+                }
+                break
+            }
+
             case 'quota_exhausted':
                 // Handle quota exhausted event from backend
                 get()._setQuotaExhausted({

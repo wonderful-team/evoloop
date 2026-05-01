@@ -9,13 +9,10 @@ import {
   User,
   Quote,
   Undo,
-  Terminal,
-  CheckCircle2,
   Loader2,
-  XCircle,
 } from "lucide-react"
 import { ChangesetInlineHint } from "./ChangesetInlineHint"
-import { memo, useState } from "react"
+import { memo } from "react"
 import { motion } from "framer-motion"
 import { useTranslation } from "react-i18next"
 import {
@@ -38,80 +35,84 @@ import { extractArtifactsFromContent } from "./Artifacts/utils"
 import { MessageContent } from "./MessageContent"
 import { VoiceMessage } from "./VoiceMessage"
 import { SourcesFooter } from "./SourcesFooter"
-import { AgentProcess } from "./AgentProcess"
+
 import { AnalysisResultMessage } from "./AnalysisResultMessage"
+import { HumanRequestCard } from "./HumanRequestCard"
 import type { ToolStep } from "@/types/toolstep"
 import { useShowThinking } from "../UserSettings/AppearanceSettings"
 import { TTSButton } from "./TTSButton"
 import { useAutoSpeak, useTTS } from "@/hooks/useTTS"
 import { useEffect } from "react"
-import { cn } from "@evoloop/shared/lib/utils"
 
-// Tool Execution Section — renders steps attached to an AI message.
-function ToolExecutionSection({ msg }: { msg: Message }) {
-  const { t } = useTranslation()
-  const [isOpen, setIsOpen] = useState(false)
 
-  const displaySteps = msg.steps || []
+// Extract human-readable param from a tool step's input.
+function extractStepParam(step: ToolStep): string {
+  const input = step.input
+  if (!input || typeof input !== "object") return ""
 
-  if (displaySteps.length === 0) return null
-
-  // Calculate status counts
-  const runningCount = displaySteps.filter((s) => s.status === "running").length
-  const completedCount = displaySteps.filter((s) => s.status === "done").length
-  const failedCount = displaySteps.filter((s) => s.status === "failed").length
-  const totalCount = displaySteps.length
-
-  if (totalCount === 0) return null
-  let icon = <Terminal className="h-3.5 w-3.5" />
-  let statusText = ""
-
-  if (runningCount > 0) {
-    icon = <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
-    statusText = `${t("chat.steps.executing")} ${runningCount}/${totalCount}...`
-  } else if (failedCount > 0) {
-    icon = <XCircle className="h-3.5 w-3.5 text-destructive" />
-    statusText = `${completedCount}/${totalCount} ${t("chat.steps.completed")}, ${failedCount} ${t("chat.steps.failed")}`
-  } else {
-    icon = <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
-    statusText = `${t("chat.steps.completed")} ${completedCount} ${t("chat.steps.steps")}`
+  // Prefer backend-provided affected_path_keys
+  const keys = step.tool_meta?.affected_path_keys
+  if (keys && keys.length > 0) {
+    for (const key of keys) {
+      const val = (input as Record<string, any>)[key]
+      if (val != null && val !== "") {
+        return String(val)
+      }
+    }
   }
 
+  // Fallback: first meaningful string field
+  const skipFields = ["Mode", "TaskName", "TaskStatus"]
+  for (const [key, val] of Object.entries(input)) {
+    if (skipFields.includes(key)) continue
+    if (typeof val === "string" && val) return val
+    if (typeof val === "number") return String(val)
+  }
+
+  return ""
+}
+
+// Tool Execution Section — inline text summary of steps.
+// Detailed steps are shown in the right-side Activity panel.
+function ToolExecutionSection({ msg }: { msg: Message }) {
+  const { t } = useTranslation()
+  const steps = msg.steps || []
+  if (steps.length === 0) return null
+
   return (
-    <Collapsible open={isOpen} onOpenChange={setIsOpen} className="w-full min-w-0">
-      {isOpen ? (
-        <AgentProcess
-          steps={displaySteps}
-          header={
-            <CollapsibleTrigger asChild>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-8 px-3 text-xs text-muted-foreground hover:text-foreground hover:bg-transparent flex items-center gap-2 w-full justify-start rounded-none"
-              >
-                {icon}
-                <span className="font-medium">{statusText}</span>
-                <ChevronDown className="h-3.5 w-3.5 ml-auto" />
-              </Button>
-            </CollapsibleTrigger>
-          }
-        />
-      ) : (
-        <CollapsibleTrigger asChild>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-9 px-3 text-[11px] text-muted-foreground/80 hover:text-foreground bg-muted/30 hover:bg-muted/50 flex items-center gap-2 w-full justify-start rounded-xl border border-border/5 transition-all duration-300 group"
-          >
-            <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-background/50 group-hover:bg-background transition-colors">
-              {icon}
+    <div className="flex flex-col gap-2 mt-3 mb-1">
+      <div className="flex items-center gap-2 text-[10px] uppercase tracking-widest font-bold text-muted-foreground/30">
+         <div className="h-px flex-1 bg-border/20" />
+         <span>{t("chat.messageList.toolExecution")}</span>
+         <div className="h-px flex-1 bg-border/20" />
+      </div>
+      <div className="flex flex-wrap gap-x-4 gap-y-2 py-1">
+        {steps.map((step) => {
+          const displayName =
+            step.tool_meta?.display_name ||
+            step.name ||
+            step.tool_name ||
+            step.tool ||
+            "unknown"
+          const param = extractStepParam(step)
+
+          return (
+            <div key={step.id} className="inline-flex items-center gap-2 group/step">
+              <div className={`w-1.5 h-1.5 rounded-full ${step.status === 'done' ? 'bg-primary/40' : 'bg-amber-400 animate-pulse'}`} />
+              <span className="text-[11px] font-medium text-muted-foreground/60">{displayName}</span>
+              {param && (
+                <span
+                  className="text-[10px] font-mono text-primary/40 truncate max-w-[150px] bg-primary/5 px-1.5 py-0.5 rounded border border-primary/10"
+                  title={param}
+                >
+                  {param}
+                </span>
+              )}
             </div>
-            <span className="font-semibold tracking-tight">{statusText}</span>
-            <ChevronRight className={cn("h-3.5 w-3.5 ml-auto opacity-40 transition-transform duration-300", isOpen && "rotate-90")} />
-          </Button>
-        </CollapsibleTrigger>
-      )}
-    </Collapsible>
+          )
+        })}
+      </div>
+    </div>
   )
 }
 
@@ -121,7 +122,7 @@ export interface Message {
   role: "human" | "ai" | "tool" | "system"
   content: string
   action_type?: string // Tool output discriminator
-  thinking?: Array<{ type: string; content: string }>
+  thinking?: string
   timestamp?: string // ISO timestamp from backend
   run_id?: string // Deep Linking
   parent_id?: number // Parent message ID for threading
@@ -157,6 +158,17 @@ export interface Message {
   status?: "pending" | "streaming" | "completed" | "failed" // Message generation status
   // Changeset related (from backend)
   changeset_count: number // Number of files changed in this message (backend provided)
+  // HITL request attached to this message
+  humanRequest?: {
+    id: string
+    type: "text" | "choice" | "confirmation" | "approval" | "text_input" | "confirm" | "project_switch"
+    prompt: string
+    options?: string[]
+    context?: string
+    payload?: any
+    status?: "waiting_human" | "completed" | "cancelled"
+  }
+  category?: string
 }
 
 interface ChatMessageItemProps {
@@ -180,28 +192,21 @@ const ChatMessageItem = memo(
       return null
     }
 
-    // Render Tool Output as Collapsible accordion
+    // Render Tool Output as Document Log Block
     if (msg.role === "tool") {
       return (
-        <div className="flex justify-start mb-2 px-4">
-          <Collapsible className="w-full max-w-[85%] sm:max-w-[75%]">
-            <CollapsibleTrigger asChild>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-8 p-0 text-muted-foreground hover:bg-transparent flex items-center gap-2 text-xs w-full justify-start"
-              >
-                <div className="flex items-center gap-2 p-1.5 bg-muted/50 rounded hover:bg-muted transition-colors">
-                  <Bot size={14} className="opacity-70" />
-                  <span className="font-mono">{t("chat.messageList.toolExecution")}</span>
-                  <ChevronDown size={12} className="opacity-50" />
-                </div>
-              </Button>
-            </CollapsibleTrigger>
-            <CollapsibleContent className="mt-2 text-xs font-mono text-muted-foreground bg-muted/30 p-3 rounded-md border-l-2 border-primary/20 overflow-x-auto whitespace-pre-wrap">
-              {msg.action_type === "tool_output" || true ? msg.content : "..."}
-            </CollapsibleContent>
-          </Collapsible>
+        <div className="flex justify-start mb-6 w-full">
+          <div className="w-full max-w-4xl mx-auto pl-12">
+            <div className="rounded-lg bg-muted/20 border border-[var(--doc-border)] overflow-hidden shadow-sm">
+               <div className="px-3 py-1.5 bg-muted/40 border-b border-[var(--doc-border)] flex items-center gap-2 text-[10px] font-mono uppercase tracking-wider text-muted-foreground/70">
+                  <Bot size={12} className="opacity-50" />
+                  {t("chat.messageList.toolExecution")}
+               </div>
+               <div className="p-3 text-xs font-mono text-muted-foreground/80 overflow-x-auto whitespace-pre-wrap leading-relaxed">
+                  {msg.content}
+               </div>
+            </div>
+          </div>
         </div>
       )
     }
@@ -212,54 +217,138 @@ const ChatMessageItem = memo(
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
         data-run-id={msg.run_id}
-        className={`group relative flex gap-3 ${msg.role === "human" ? "justify-end" : "justify-start"} items-start ${isGrouped ? "mb-1" : "mb-2"} chat-timeline-container`}
+        className="group relative flex flex-col w-full mb-4"
       >
-        {/* 含蓄的灰度连线 - 仅 AI 消息且非分组的第一条显示 */}
-        {msg.role === "ai" && showAvatar && (
-          <div className="chat-timeline-line" />
-        )}
+        {/* Document Spine Line */}
+        <div className="chat-timeline-spine" />
 
-        {msg.role === "ai" && (
-          <div className="shrink-0 w-8 flex flex-col items-center relative z-10">
-            {showAvatar ? (
-              <Avatar className="h-8 w-8 mt-1 border-none bg-muted shadow-none">
-                <AvatarImage src="/bot-avatar.png" />
-                <AvatarFallback>
-                  <Bot size={16} />
-                </AvatarFallback>
-              </Avatar>
-            ) : (
-              <div className="w-8" /> // Spacer for alignment
-            )}
+        {/* 1. Header Section */}
+        <div className="flex items-center gap-2 relative z-10 w-full mb-1">
+          <div className="shrink-0 w-10 flex flex-col items-center">
+            <div className={`p-2 rounded-full border transition-colors ${
+              msg.role === "human" 
+                ? "bg-[var(--doc-header-user)] border-primary/20" 
+                : "bg-[var(--doc-header-ai)] border-primary/20"
+            }`}>
+              {msg.role === "human" ? (
+                <User size={18} className="text-primary" />
+              ) : (
+                <Bot size={18} className="text-primary" />
+              )}
+            </div>
           </div>
-        )}
 
-        <div className={`relative flex-1 w-0 max-w-[90%] sm:max-w-[85%] min-w-0 flex flex-col gap-1`}>
+          <div className={`doc-section-header flex-1 flex justify-between items-center transition-colors ${
+            msg.role === "human" ? "bg-[var(--doc-header-user)]/80" : "bg-[var(--doc-header-ai)]/80"
+          }`}>
+            <div className="flex items-center gap-3">
+              <span className="uppercase tracking-[0.15em] text-[10px] font-bold text-foreground/60">
+                {msg.role === "human" ? t("chat.role.user") : t("chat.role.assistant")}
+              </span>
+              {msg.run_id && (
+                <span className="text-[9px] font-mono opacity-20 px-1.5 py-0.5 rounded border border-foreground/10">
+                  {msg.run_id}
+                </span>
+              )}
+            </div>
 
-          {/* 1. Action Stream (Thinking + Steps) - AI ONLY, ABOVE Bubble */}
+            {/* Header Actions - Minimalist */}
+            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+               <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 rounded-md hover:bg-primary/5 text-muted-foreground/60 hover:text-primary transition-colors"
+                onClick={() => navigator.clipboard.writeText(msg.content)}
+                title={t("chat.interface.copy")}
+              >
+                <Copy className="h-3.5 w-3.5" />
+              </Button>
+
+              {msg.role === "human" && onRetry && (
+                 <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 rounded-md hover:bg-primary/5 text-muted-foreground/60 hover:text-primary transition-colors"
+                  onClick={() => onRetry(msg)}
+                  title={t("chat.interface.retry")}
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                </Button>
+              )}
+
+              {msg.role === "human" && onRewind && (
+                 <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 rounded-md hover:bg-primary/5 text-muted-foreground/60 hover:text-primary transition-colors"
+                  onClick={() => onRewind(msg)}
+                  title={t("chat.interface.rewind")}
+                >
+                  <Undo className="h-3.5 w-3.5" />
+                </Button>
+              )}
+              {msg.role === "ai" && msg.content && <TTSButton text={msg.content} size="xs" />}
+              
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-7 w-7 rounded-md text-muted-foreground/60">
+                    <MoreHorizontal className="h-3.5 w-3.5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-40">
+                   {msg.role === "ai" && onAddToMemory && (
+                    <DropdownMenuItem onClick={() => onAddToMemory(msg.content)}>
+                      <Brain className="mr-2 h-4 w-4 opacity-70" /> {t("chat.interface.memorize")}
+                    </DropdownMenuItem>
+                  )}
+                   {onRetry && msg.role === "human" && (
+                    <DropdownMenuItem onClick={() => onRetry(msg)}>
+                      <RotateCcw className="mr-2 h-4 w-4 opacity-70" /> {t("chat.interface.retry")}
+                    </DropdownMenuItem>
+                  )}
+                  {onRewind && msg.role === "human" && (
+                    <DropdownMenuItem onClick={() => onRewind(msg)}>
+                      <Undo className="mr-2 h-4 w-4 opacity-70" /> {t("chat.interface.rewind")}
+                    </DropdownMenuItem>
+                  )}
+                  {onQuote && (
+                    <DropdownMenuItem onClick={() => onQuote()}>
+                      <Quote className="mr-2 h-4 w-4 opacity-70" /> {t("chat.interface.quote")}
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
+        </div>
+
+        {/* 2. Content Section */}
+        <div className="doc-message-content relative z-10 w-full min-w-0">
+          
+          {/* Action Stream (Thinking + Steps) - AI ONLY */}
           {msg.role === "ai" && (
-            <div className="chat-action-stream empty:hidden animate-in fade-in slide-in-from-top-1 duration-500">
-              {/* Reasoning/Thinking Block - Integrated, Always prominent if open */}
+            <div className="chat-action-stream empty:hidden animate-in fade-in slide-in-from-top-2 duration-700">
+              {/* Reasoning/Thinking Block */}
               {showThinking && (() => {
-                const thinkingContent = msg.thinking?.map(b => b.content).join("\n\n") ?? ""
+                const thinkingContent = msg.thinking ?? ""
                 if (!thinkingContent) return null
+                if (msg.status === "streaming") return null
 
                 return (
-                  <Collapsible defaultOpen={true} className="w-full">
+                  <Collapsible defaultOpen={false} className="w-full mb-3 last:mb-0">
                     <CollapsibleTrigger asChild>
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-7 px-2 text-[11px] text-muted-foreground hover:text-foreground hover:bg-muted/50 flex items-center gap-2 w-full justify-start rounded-md"
+                        className="h-6 px-0 text-[10px] text-muted-foreground/60 hover:bg-transparent flex items-center gap-2 w-full justify-start font-mono group/trigger"
                       >
-                        <Brain className="h-3.5 w-3.5 text-primary/70" />
-                        <span className="font-semibold uppercase tracking-wider opacity-70">
+                        <ChevronRight className="h-3 w-3 group-data-[state=open]/trigger:rotate-90 transition-transform opacity-40" />
+                        <span className="uppercase tracking-wider opacity-60 font-bold">
                           {t("chat.interface.thinkingProcess")}
                         </span>
-                        <ChevronRight className="h-3.5 w-3.5 ml-auto opacity-40 group-data-[state=open]:rotate-90 transition-transform" />
                       </Button>
                     </CollapsibleTrigger>
-                    <CollapsibleContent className="text-[11px] leading-relaxed text-muted-foreground/90 bg-primary/5 p-3 rounded-md border-l-2 border-primary/30 whitespace-pre-wrap break-all font-mono mt-1 mb-2">
+                    <CollapsibleContent className="text-[11px] leading-relaxed text-muted-foreground/70 pl-5 border-l border-primary/10 whitespace-pre-wrap break-all font-mono mt-2 mb-2 italic">
                       {thinkingContent}
                     </CollapsibleContent>
                   </Collapsible>
@@ -271,111 +360,81 @@ const ChatMessageItem = memo(
             </div>
           )}
 
-          <div className="flex flex-col gap-1 min-w-0">
-            {/* 2. Main Response Bubble */}
-            {(msg.content || msg.status === "streaming") && (
-              <div className={`rounded-xl px-4 py-3 text-sm leading-relaxed min-w-0 w-fit max-w-full overflow-hidden border ${msg.role === "human"
-                  ? "bg-primary text-primary-foreground border-primary/20 ml-auto shadow-none"
-                  : "bg-muted/50 text-foreground border-border/40 mr-auto shadow-none"
-                }`}>
-                {msg.content ? (
-                  <>
-                    {(() => {
-                      // Artifact Detection (AI messages only, skip during streaming)
-                      let processedContent = msg.content
-                      if (msg.role === "ai" && msg.status !== "streaming") {
-                        const parts = extractArtifactsFromContent(processedContent)
-                        if (parts.some(p => p.type === 'artifact')) {
-                          // Single artifact with no surrounding text: direct render (backward compatible)
-                          if (parts.length === 1 && parts[0].type === 'artifact') {
-                            const art = parts[0]
-                            if (art.artifactType === "test_report") {
-                              return <TestReportCard data={art.data} />
+          {/* Main Body */}
+          <div className="w-full min-w-0">
+            {(msg.content || msg.status === "streaming") ? (
+              <>
+                {(() => {
+                  let processedContent = msg.content
+                  if (msg.role === "ai" && msg.status !== "streaming") {
+                    const parts = extractArtifactsFromContent(processedContent)
+                    if (parts.length > 0) {
+                      return (
+                        <div className="flex flex-col gap-6">
+                          {parts.map((part, idx) => {
+                            if (part.type === 'text') {
+                              return <MessageContent key={idx} content={part.content!} isUser={msg.role === "human"} />
                             }
-                            if (art.artifactType === "echarts") {
-                              return <EChartsArtifact data={art.data} />
+                            if (part.artifactType === "test_report") return <TestReportCard key={idx} data={part.data} />
+                            if (part.artifactType === "echarts") return <EChartsArtifact key={idx} data={part.data} />
+                            if (part.artifactType === "map") return <MapArtifact key={idx} data={part.data} />
+                            if (part.artifactType === "requirement_analysis") {
+                                return (
+                                  <AnalysisResultMessage
+                                    key={idx}
+                                    analysisId={part.data.analysis_id}
+                                    documentId={part.data.document_id}
+                                    projectId={part.data.project_id}
+                                    data={part.data.analysis}
+                                  />
+                                )
                             }
-                            if (art.artifactType === "requirement_analysis") {
-                              return (
-                                <AnalysisResultMessage
-                                  analysisId={art.data.analysis_id}
-                                  documentId={art.data.document_id}
-                                  projectId={art.data.project_id}
-                                  data={art.data.analysis}
-                                />
-                              )
-                            }
-                            if (art.artifactType === "map") {
-                              return <MapArtifact data={art.data} />
-                            }
-                          }
+                            return null
+                          })}
+                        </div>
+                      )
+                    }
+                  }
 
-                          // Mixed content: render text and artifacts sequentially
-                          return (
-                            <div className="flex flex-col gap-2">
-                              {parts.map((part, idx) => {
-                                if (part.type === 'text') {
-                                  return <MessageContent key={idx} content={part.content!} isUser={false} />
-                                }
-                                if (part.artifactType === "test_report") {
-                                  return <TestReportCard key={idx} data={part.data} />
-                                }
-                                if (part.artifactType === "echarts") {
-                                  return <EChartsArtifact key={idx} data={part.data} />
-                                }
-                                if (part.artifactType === "requirement_analysis") {
-                                  return (
-                                    <AnalysisResultMessage
-                                      key={idx}
-                                      analysisId={part.data.analysis_id}
-                                      documentId={part.data.document_id}
-                                      projectId={part.data.project_id}
-                                      data={part.data.analysis}
-                                    />
-                                  )
-                                }
-                                if (part.artifactType === "map") {
-                                  return <MapArtifact key={idx} data={part.data} />
-                                }
-                                return null
-                              })}
-                            </div>
-                          )
-                        }
-                      }
+                  // Voice message
+                  const voiceAttachment = msg.attachments?.find(att => att.type === 'audio')
+                  if (voiceAttachment) {
+                    return (
+                      <VoiceMessage
+                        audioUrl={voiceAttachment.url}
+                        duration={voiceAttachment.metadata?.duration || 0}
+                        waveform={voiceAttachment.metadata?.waveform}
+                        transcript={voiceAttachment.metadata?.transcript || (msg.content !== '[语音消息]' ? msg.content : undefined)}
+                        isUser={msg.role === "human"}
+                      />
+                    )
+                  }
 
-                      // Voice message
-                      const voiceAttachment = msg.attachments?.find(att => att.type === 'audio')
-                      if (voiceAttachment) {
-                        return (
-                          <VoiceMessage
-                            audioUrl={voiceAttachment.url}
-                            duration={voiceAttachment.metadata?.duration || 0}
-                            waveform={voiceAttachment.metadata?.waveform}
-                            transcript={voiceAttachment.metadata?.transcript || (msg.content !== '[语音消息]' ? msg.content : undefined)}
-                            isUser={msg.role === "human"}
-                          />
-                        )
-                      }
-
-                      return <MessageContent content={processedContent} isUser={msg.role === "human"} />
-                    })()}
-                    {msg.status === "streaming" && (
-                      <span className="inline-block w-1.5 h-4 ml-1 align-middle bg-primary animate-pulse" />
-                    )}
-                  </>
-                ) : (
-                  <div className="flex flex-col gap-1 w-full min-w-[200px]">
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground italic">
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                      {t("chat.interface.agentThinking")}
-                    </div>
-                  </div>
+                  return <MessageContent content={processedContent} isUser={msg.role === "human"} />
+                })()}
+                {msg.status === "streaming" && (
+                  <span className="inline-block w-1 h-4 ml-1 align-middle bg-primary/60 animate-pulse rounded-full" />
                 )}
+              </>
+            ) : (
+              <div className="flex items-center gap-3 text-xs text-muted-foreground/40 italic py-4 pl-2">
+                <Loader2 className="h-3.5 w-3.5 animate-spin opacity-50" />
+                {t("chat.interface.agentThinking")}
               </div>
             )}
+          </div>
 
-            {/* 3. Sources Footer */}
+          {/* Post-content blocks */}
+          <div className="mt-2 flex flex-col gap-4">
+            {msg.role === "ai" && msg.humanRequest && (
+              <HumanRequestCard 
+                request={{
+                  ...msg.humanRequest,
+                  status: msg.humanRequest.status || (msg.status as any) // Fallback to message status
+                }} 
+              />
+            )}
+            
             {msg.role === "ai" && msg.references && msg.references.length > 0 && (
               <SourcesFooter
                 references={msg.references.map(ref => ({
@@ -386,102 +445,22 @@ const ChatMessageItem = memo(
               />
             )}
 
-            {/* 4. Changeset Inline Hint */}
             {msg.role === "ai" && !!msg.changeset_count && msg.changeset_count > 0 && (
-              <ChangesetInlineHint
-                fileCount={msg.changeset_count}
-                messageId={msg.id}
-                onClick={onViewChangeset}
-              />
+              <div className="pt-4 border-t border-[var(--doc-border)]">
+                <ChangesetInlineHint
+                  fileCount={msg.changeset_count}
+                  messageId={msg.id}
+                  onClick={onViewChangeset}
+                />
+              </div>
             )}
-          </div>
-
-          {/* Message Actions - Flat Buttons */}
-          <div className={`absolute ${msg.role === "human" ? "right-full mr-2" : "left-full ml-2"} top-0 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col gap-1`}>
-            {/* Exposed Copy Button */}
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 rounded-md bg-background border border-border/40 text-muted-foreground hover:text-foreground"
-              onClick={() => navigator.clipboard.writeText(msg.content)}
-              title={t("chat.interface.copy")}
-            >
-              <Copy className="h-3.5 w-3.5" />
-            </Button>
-
-            {/* TTS Button */}
-            {msg.role === "ai" && msg.content && (
-              <TTSButton text={msg.content} size="sm" />
-            )}
-
-            {/* Exposed Retry Button */}
-            {onRetry && msg.role === "human" && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 rounded-md bg-background border border-border/40 text-muted-foreground hover:text-foreground"
-                onClick={() => onRetry(msg)}
-                title={t("chat.interface.retry")}
-              >
-                <RotateCcw className="h-3.5 w-3.5" />
-              </Button>
-            )}
-
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 rounded-md bg-background border border-border/40"
-                >
-                  <MoreHorizontal className="h-3.5 w-3.5" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align={msg.role === "human" ? "end" : "start"}>
-                {msg.role === "ai" && onAddToMemory && (
-                  <DropdownMenuItem onClick={() => onAddToMemory(msg.content)}>
-                    <Brain className="mr-2 h-4 w-4" />{" "}
-                    {t("chat.interface.memorize")}
-                  </DropdownMenuItem>
-                )}
-                {onRewind && msg.role === "human" && (
-                  <DropdownMenuItem onClick={() => onRewind(msg)}>
-                    <Undo className="mr-2 h-4 w-4" />{" "}
-                    {t("chat.interface.rewind")}
-                  </DropdownMenuItem>
-                )}
-                {onQuote && (
-                  <DropdownMenuItem onClick={() => onQuote()}>
-                    <Quote className="mr-2 h-4 w-4" />{" "}
-                    {t("chat.interface.quote")}
-                  </DropdownMenuItem>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
           </div>
         </div>
 
-        {msg.role === "human" && (
-          <div className="shrink-0 w-8 flex flex-col items-center">
-            {showAvatar ? (
-              <Avatar className="h-8 w-8 mt-1 border-none bg-primary/10">
-                <AvatarFallback>
-                  <User size={16} className="text-primary" />
-                </AvatarFallback>
-              </Avatar>
-            ) : (
-              <div className="w-8" /> // Spacer
-            )}
-          </div>
-        )}
-
-        {/* Timestamp */}
+        {/* Timestamp - Minimalist floating */}
         {msg.timestamp && (
-          <div className={`absolute -bottom-4 ${msg.role === "human" ? "right-12" : "left-12"} text-[10px] text-muted-foreground/40 font-mono`}>
-            {new Date(msg.timestamp).toLocaleTimeString([], {
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
+          <div className="absolute top-2 right-4 text-[9px] text-muted-foreground/20 font-mono opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+            {new Date(msg.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
           </div>
         )}
       </motion.div>

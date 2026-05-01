@@ -16,6 +16,7 @@ from typing import Any, Optional, Protocol, runtime_checkable
 
 from app.infrastructure.schemas import (
     SearchResults,
+    KnowledgeSearchResult,
     SearchSuggestion,
     SearchIndexStats,
     ReindexResult,

@@ -7,7 +7,7 @@ sys.path.insert(0, '/Users/huangjinhuan/项目/develop-assistant.cn/evoloop/back
 from app.core.engine.message.category import MessageCategory
 from app.core.engine.message.classifier import MessageClassifier
 from app.core.engine.message.persistence import MessagePersistencePolicy
-from app.core.engine.message.schemas import ThinkingBlock
+
 from app.core.engine.message.stream import MessageStreamPolicy
 
 
@@ -64,7 +64,7 @@ def test_apply_policy_internal_reasoning():
 
     assert result["should_persist"] is True
     assert result["content"] == ""  # 思考过程 content 为空
-    assert result["thinking"] == [ThinkingBlock(type="reasoning", content=content)]  # 存入 thinking 字段（结构化）
+    assert result["thinking"] == content  # 存入 thinking 字段（字符串）
     assert result["category"] == "internal_reasoning"
 
     print("✅ test_apply_policy_internal_reasoning passed")
@@ -126,7 +126,7 @@ def test_end_to_end_classification_and_policy():
     
     # 验证 PersistencePolicy 正确将 reasoning 存入 thinking 字段
     result = MessagePersistencePolicy.apply_policy(category, content, thinking="分析中...")
-    assert result["thinking"] == [ThinkingBlock(type="reasoning", content="分析中...")]
+    assert result["thinking"] == "分析中..."
     assert result["content"] == content
     
     print("✅ test_end_to_end_classification_and_policy passed")

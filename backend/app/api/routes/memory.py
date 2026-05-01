@@ -136,6 +136,9 @@ async def search_memory(
 ):
     """
     Search memory concepts.
+    
+    TODO: `use_vector` is accepted for API compatibility but not yet implemented
+    in the backend search logic.
     """
     if not q:
         return []

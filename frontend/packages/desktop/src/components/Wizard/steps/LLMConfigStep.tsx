@@ -46,25 +46,38 @@ export function LLMConfigStep() {
   })
 
   const presetModels: PresetModel[] = (presetModelsData as any)?.models || []
+  const selectedModelId = data.selectedModelId || ""
+  const isCustom = selectedModelId === "custom"
+  const selectedPreset = presetModels.find((m) => m.id === selectedModelId)
+  const isPlatformModel = selectedPreset?.type === "platform"
+  const isCustomModel = isCustom || selectedPreset?.type === "custom"
 
   // Initialize with first preset if empty
   useEffect(() => {
     if (!data.llmProvider && presetModels.length > 0) {
       const firstPreset = presetModels[0]
+      const isPlatform = firstPreset.type === "platform"
       setData({
+        selectedModelId: firstPreset.id,
+        defaultModelId: firstPreset.id,
         llmProvider: firstPreset.provider,
         llmBaseUrl: firstPreset.base_url,
         llmModel: firstPreset.model,
         llmVisionModel: firstPreset.vision_model,
-        llmTested: false,
+        llmTested: isPlatform,
       })
     }
   }, [data.llmProvider, presetModels, setData])
 
   // Update canProceed based on test result
   useEffect(() => {
-    setCanProceed(data.llmTested && testResult?.success === true)
-  }, [data.llmTested, testResult, setCanProceed])
+    const isPlatform = selectedPreset?.type === "platform"
+    if (isPlatform) {
+      setCanProceed(true)
+    } else {
+      setCanProceed(data.llmTested && testResult?.success === true)
+    }
+  }, [data.llmTested, testResult, setCanProceed, selectedPreset])
 
   // Sync defaultModelId for custom mode when fields change
   useEffect(() => {
@@ -76,8 +89,6 @@ export function LLMConfigStep() {
     }
   }, [data.llmProvider, data.llmModel, data.defaultModelId, setData])
 
-  const selectedModelId = data.selectedModelId || ""
-  const isCustom = selectedModelId === "custom"
 
   const handleModelSelect = (value: string) => {
     setTestResult(null)
@@ -98,6 +109,7 @@ export function LLMConfigStep() {
     // Apply preset
     const preset = presetModels.find((m) => m.id === value)
     if (preset) {
+      const isPlatform = preset.type === "platform"
       setData({
         selectedModelId: value,
         defaultModelId: value,
@@ -105,7 +117,7 @@ export function LLMConfigStep() {
         llmBaseUrl: preset.base_url,
         llmModel: preset.model,
         llmVisionModel: preset.vision_model,
-        llmTested: false,
+        llmTested: isPlatform,
       })
     }
   }
@@ -155,7 +167,6 @@ export function LLMConfigStep() {
     }
   }
 
-  const selectedPreset = presetModels.find((m) => m.id === selectedModelId)
 
   return (
     <motion.div
@@ -277,65 +288,68 @@ export function LLMConfigStep() {
           </>
         )}
 
-        {/* API Key */}
-        <div className="space-y-2">
-          <Label>{t("wizard.llm.apiKey")}</Label>
-          <div className="relative">
-            <Input
-              type={showApiKey ? "text" : "password"}
-              value={data.llmApiKey || ""}
-              onChange={(e) => {
-                setData({ llmApiKey: e.target.value, llmTested: false })
-                setTestResult(null)
-              }}
-              placeholder="sk-..."
-            />
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="absolute right-0 top-0 h-9 w-9"
-              onClick={() => setShowApiKey(!showApiKey)}
-            >
-              {showApiKey ? (
-                <EyeOff className="h-4 w-4" />
-              ) : (
-                <Eye className="h-4 w-4" />
-              )}
-            </Button>
-          </div>
-        </div>
-
-        {/* Test Connection */}
-        <div className="pt-4">
-          <Button
-            variant="secondary"
-            onClick={handleTestConnection}
-            disabled={testing || !data.llmBaseUrl || !data.llmModel}
-            className="w-full"
-          >
-            {testing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {t("wizard.llm.testConnection")}
-          </Button>
-
-          {testResult && (
-            <div
-              className={`flex items-center gap-2 mt-3 text-sm ${
-                testResult.success ? "text-green-600" : "text-red-600"
-              }`}
-            >
-              {testResult.success ? (
-                <CheckCircle2 className="h-4 w-4" />
-              ) : (
-                <XCircle className="h-4 w-4" />
-              )}
-              {testResult.msg}
+        {/* API Key - Only show for custom configurations */}
+        {isCustomModel && (
+          <div className="space-y-2">
+            <Label>{t("wizard.llm.apiKey")}</Label>
+            <div className="relative">
+              <Input
+                type={showApiKey ? "text" : "password"}
+                value={data.llmApiKey || ""}
+                onChange={(e) => {
+                  setData({ llmApiKey: e.target.value, llmTested: false })
+                  setTestResult(null)
+                }}
+                placeholder="sk-..."
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="absolute right-0 top-0 h-9 w-9"
+                onClick={() => setShowApiKey(!showApiKey)}
+              >
+                {showApiKey ? (
+                  <EyeOff className="h-4 w-4" />
+                ) : (
+                  <Eye className="h-4 w-4" />
+                )}
+              </Button>
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
-        {/* Tip */}
-        {!data.llmTested && (
+        {/* Test Connection - Only show for custom configurations */}
+        {isCustomModel && (
+          <div className="pt-4">
+            <Button
+              variant="secondary"
+              onClick={handleTestConnection}
+              disabled={testing || !data.llmBaseUrl || !data.llmModel}
+              className="w-full"
+            >
+              {testing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {t("wizard.llm.testConnection")}
+            </Button>
+
+            {testResult && (
+              <div
+                className={`flex items-center gap-2 mt-3 text-sm ${testResult.success ? "text-green-600" : "text-red-600"
+                  }`}
+              >
+                {testResult.success ? (
+                  <CheckCircle2 className="h-4 w-4" />
+                ) : (
+                  <XCircle className="h-4 w-4" />
+                )}
+                {testResult.msg}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Tip - Only show for custom configurations if not tested */}
+        {isCustomModel && !data.llmTested && (
           <p className="text-sm text-muted-foreground text-center">
             {t("wizard.llm.testRequired")}
           </p>

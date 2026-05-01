@@ -52,9 +52,6 @@ class SequentialWorkflowNode(BaseAgentNode):
 
     async def __call__(self, state: AgentState, config: RunnableConfig) -> StateUpdate:
         """Execute the next step of the sequential workflow."""
-        from app.core.engine.context_hydrator import EvoContextMiddleware
-        state = await EvoContextMiddleware.hydrate(state, config)
-
         blackboard = state.blackboard
         if not blackboard:
             logger.error("[SequentialWorkflow] Missing blackboard")

@@ -7,8 +7,20 @@ Helper functions for publishing agent-related events.
 
 from app.core.events import system_bus
 
-from .schemas import AgentRunCompletedEvent, WebSocketMessageReceivedEvent
+from .schemas import AgentRunCompletedEvent, AgentSessionStartedEvent, WebSocketMessageReceivedEvent
 
+
+async def publish_agent_session_started(
+    thread_id: str,
+    project_id: int | None = None,
+) -> None:
+    """Publish an event to request context hydration at the start of a session."""
+    await system_bus.publish(
+        AgentSessionStartedEvent(
+            thread_id=thread_id,
+            project_id=project_id,
+        )
+    )
 
 async def publish_agent_run_completed(
     thread_id: str,

@@ -161,10 +161,10 @@ export const SourcesFooter = memo(({ references, maxVisible = 3 }: SourcesFooter
     }
 
     return (
-        <div className="mt-2 pt-2 border-t border-border/50">
-            <div className="flex items-center gap-1 flex-wrap">
-                <span className="text-xs text-muted-foreground shrink-0">
-                    {t("chat.sources.title", "Sources:")}
+        <div className="mt-6 pt-4 border-t border-[var(--doc-border)]/50">
+            <div className="flex items-center gap-3 flex-wrap">
+                <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground/40 shrink-0">
+                    {t("chat.sources.title", "References")}
                 </span>
                 {visibleRefs.map((ref, idx) => {
                     // 图片类型引用使用专门的预览组件
@@ -196,14 +196,14 @@ export const SourcesFooter = memo(({ references, maxVisible = 3 }: SourcesFooter
                         <span
                             key={`${ref.type}-${ref.name}-${idx}`}
                             className={cn(
-                                "inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md",
-                                "bg-muted/50 text-xs text-muted-foreground",
-                                "hover:bg-muted transition-colors cursor-default"
+                                "inline-flex items-center gap-1.5 px-2 py-1 rounded-md transition-colors",
+                                "bg-muted/10 text-[11px] font-medium text-muted-foreground/70",
+                                "hover:bg-muted/20 cursor-default border border-transparent hover:border-border/40"
                             )}
                             title={ref.path || ref.content || ref.name}
                         >
-                            <span>{getIcon(ref.type)}</span>
-                            <span className="max-w-[100px] truncate">{ref.name}</span>
+                            <span className="opacity-70">{getIcon(ref.type)}</span>
+                            <span className="max-w-[120px] truncate">{ref.name}</span>
                         </span>
                     )
                 })}

@@ -1035,9 +1035,7 @@ export type MessageItem = {
     id?: (string | null);
     role: string;
     content?: string;
-    thinking?: (Array<{
-    [key: string]: unknown;
-}> | null);
+    thinking?: (string | null);
     created_at?: (string | null);
     steps?: Array<ToolStep>;
     tool_calls?: (Array<{

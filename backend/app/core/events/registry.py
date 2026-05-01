@@ -23,6 +23,7 @@ class SystemEventType(str, Enum):
     CONTEXT_POLISHING = "system.context_polishing"
 
     # Engine Lifecycle
+    SESSION_STARTED = "system.session_started"
     SESSION_COMPLETED = "system.session_completed"
 
     # Configuration Handlers

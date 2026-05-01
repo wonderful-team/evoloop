@@ -331,7 +331,6 @@ class KeyframeSelector:
         self,
         events: list,
         video_duration: float,
-        video_resolution: tuple[int, int],
         max_frames: int | None = None
     ) -> list["KeyframeCandidate"]:
         """
@@ -340,7 +339,6 @@ class KeyframeSelector:
         Args:
             events: TraceEvent 列表
             video_duration: 视频总时长（秒）
-            video_resolution: 视频分辨率 (width, height)
 
         Returns:
             KeyframeCandidate 列表（按时间排序）

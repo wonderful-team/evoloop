@@ -55,6 +55,7 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
         # Stream tracking
         self._token_filter = TokenFilter()
         self._publisher: MessagePublisher | None = None
+        self._thinking_buffer: str = ""  # Accumulated reasoning content for real-time streaming
 
         # Node-level streaming control: run_id -> metadata mapping
         self._run_metadata: dict[str, dict] = {}
@@ -133,15 +134,16 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
         if not (self.llm_task_id and run_id == str(self.active_llm_run_id)):
             return
 
-        # 1. Extract and stream reasoning_content in real-time (chunk-level)
+        # 1. Extract and stream reasoning_content in real-time (accumulated)
         generation_chunk = kwargs.get("chunk")
         if generation_chunk and hasattr(generation_chunk, "message"):
             msg_chunk = generation_chunk.message
-            reasoning = extract_reasoning_from_kwargs(msg_chunk.additional_kwargs)
-            if reasoning:
+            delta_reasoning = extract_reasoning_from_kwargs(msg_chunk.additional_kwargs)
+            if delta_reasoning:
+                self._thinking_buffer += delta_reasoning
                 await self._publish_stream_event(StreamEvent(
                     type=StreamEventType.THINKING,
-                    message=reasoning,
+                    message=self._thinking_buffer,
                     data={"detail": "reasoning"}
                 ))
 
@@ -176,6 +178,9 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
 
         # FLUSH REMAINING PUBLISH BUFFER
         self._token_filter.flush()
+
+        # Reset accumulated thinking buffer for the next LLM call
+        self._thinking_buffer = ""
 
         # Note: We no longer record "Thinking..." steps, so no update needed
         if run_id == str(self.active_llm_run_id):

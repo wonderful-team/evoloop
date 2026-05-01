@@ -203,39 +203,42 @@ export const MapArtifact: React.FC<MapArtifactProps> = ({ data }) => {
 
   if (error) {
     return (
-      <Card className="w-full my-4 border-destructive/20 bg-destructive/5 overflow-hidden">
-        <CardHeader className="py-3 px-4">
-          <CardTitle className="text-sm font-semibold flex items-center gap-2 text-destructive">
+      <div className="w-full my-6 border border-destructive/20 bg-destructive/5 rounded-xl overflow-hidden">
+          <div className="flex items-center gap-2 px-4 py-3 bg-destructive/10 border-b border-destructive/10 text-destructive text-sm font-bold">
             <AlertCircle className="w-4 h-4" />
             {data.title || t('chat.artifact.mapError', 'Map Error')}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="px-4 pb-4">
-          <p className="text-xs text-muted-foreground">{error}</p>
-        </CardContent>
-      </Card>
+          </div>
+        <div className="p-4">
+          <p className="text-xs text-muted-foreground font-medium">{error}</p>
+        </div>
+      </div>
     );
   }
 
   return (
-    <Card className="w-full my-4 border-primary/10 bg-card/50 backdrop-blur-sm overflow-hidden shadow-lg">
-      <CardHeader className="py-3 px-4 border-b border-border/40 flex flex-row items-center gap-2">
-        <MapPin className="w-4 h-4 text-primary" />
-        <CardTitle className="text-sm font-semibold tracking-tight">
-          {data.title || t('chat.artifact.map', 'Map')}
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="p-0 relative">
+    <div className="w-full my-6 border border-[var(--doc-border)] bg-muted/5 rounded-xl overflow-hidden transition-all duration-500 animate-in fade-in slide-in-from-top-2">
+      <div className="py-3 px-5 border-b border-[var(--doc-border)] bg-muted/10 flex flex-row items-center gap-3 group/map">
+        <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
+            <MapPin className="w-4 h-4" />
+        </div>
+        <div className="flex flex-col">
+            <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary/50 mb-0.5">Geospatial Artifact</span>
+            <h3 className="text-sm font-bold tracking-tight">
+                {data.title || t('chat.artifact.map', 'Location Map')}
+            </h3>
+        </div>
+      </div>
+      <div className="p-0 relative bg-background/40 backdrop-blur-sm">
         {loading && (
-          <div className="absolute inset-0 flex items-center justify-center bg-muted/30 z-10">
-            <div className="flex flex-col items-center gap-2">
-              <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-              <span className="text-xs text-muted-foreground">{t('chat.artifact.loadingMap', 'Loading map...')}</span>
+          <div className="absolute inset-0 flex items-center justify-center bg-muted/30 z-10 backdrop-blur-[2px]">
+            <div className="flex flex-col items-center gap-3">
+              <div className="w-8 h-8 border-3 border-primary/30 border-t-primary rounded-full animate-spin" />
+              <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">{t('chat.artifact.loadingMap', 'Synchronizing Map Data...')}</span>
             </div>
           </div>
         )}
-        <div ref={containerRef} style={{ width: '100%', height: `${height}px` }} />
-      </CardContent>
-    </Card>
+        <div ref={containerRef} style={{ width: '100%', height: `${height}px` }} className="grayscale-[0.2] hover:grayscale-0 transition-all duration-700" />
+      </div>
+    </div>
   );
 };

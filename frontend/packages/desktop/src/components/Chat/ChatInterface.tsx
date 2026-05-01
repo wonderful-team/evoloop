@@ -334,7 +334,7 @@ export function ChatInterface() {
           message: "", // Backend finds the target user message
           project_id: projectId,
           revert_files: revertFiles,
-          message_id: messageId ? parseInt(messageId) : undefined,
+          message_id: messageId,
           model: selectedModel,
         }
       } as any)
@@ -478,7 +478,7 @@ export function ChatInterface() {
           defaultSize={20}
           minSize={15}
           maxSize={40}
-          className="hidden lg:block min-w-[200px]"
+          className="hidden lg:block min-w-[100px]"
         >
           <ChatSidebar
             threads={threads.map(t => ({

@@ -1313,7 +1313,6 @@ async def preview_recording_data(
         keyframes = selector.select_keyframes(
             events=events,
             video_duration=video_info.duration,
-            video_resolution=(video_info.width, video_info.height)
         )
 
         return PreviewRecordingDataResponse(

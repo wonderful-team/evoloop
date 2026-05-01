@@ -110,7 +110,6 @@ class MultimodalSkillSynthesizer:
         keyframes = self.keyframe_selector.select_keyframes(
             events=events,
             video_duration=video_info.duration,
-            video_resolution=(video_info.width, video_info.height)
         )
         logger.info(f"Selected {len(keyframes)} keyframes")
 

@@ -3656,11 +3656,7 @@ export const MessageItemSchema = {
         thinking: {
             anyOf: [
                 {
-                    items: {
-                        additionalProperties: true,
-                        type: 'object'
-                    },
-                    type: 'array'
+                    type: 'string'
                 },
                 {
                     type: 'null'

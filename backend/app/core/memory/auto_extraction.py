@@ -184,8 +184,14 @@ class AutoMemoryExtractor:
             seq = None
             
             # 1. Try to get sequence_number from metadata
-            if last_msg.additional_kwargs:
+            # Handle both LangChain (additional_kwargs) and DB Model (meta_data / sequence_number)
+            if hasattr(last_msg, "additional_kwargs") and last_msg.additional_kwargs:
                 seq = last_msg.additional_kwargs.get("sequence_number")
+            elif hasattr(last_msg, "meta_data") and last_msg.meta_data:
+                seq = (last_msg.meta_data or {}).get("sequence_number")
+            
+            if seq is None and hasattr(last_msg, "sequence_number"):
+                seq = last_msg.sequence_number
             
             # 2. Fallback: If sequence is missing but we have a standardized ID string, parse it
             # This handles cases where LangChain ID was updated but metadata was lost.

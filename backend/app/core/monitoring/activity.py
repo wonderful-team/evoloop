@@ -8,7 +8,8 @@ Uses ActivityStateService for state persistence and Cache for Pub/Sub.
 import json
 import logging
 import time
-from typing import Any
+from contextlib import asynccontextmanager
+from typing import Any, AsyncGenerator
 
 from app.core.engine.message.event_bus import get_event_bus
 from app.core.monitoring.schemas import AgentActivityState, HumanRequestData, SystemLogPayload
@@ -43,6 +44,60 @@ class ActivityMonitor:
         if cls._instance is None:
             cls._instance = cls()
         return cls._instance
+
+    @asynccontextmanager
+    async def run_scope(self, thread_id: str, main_goal: str = "处理用户请求") -> AsyncGenerator[str, None]:
+        """
+        Unified Agent Lifecycle Context Manager.
+        
+        Handles:
+        - start_run / end_run
+        - run_id generation and context injection
+        - Early cancellation check
+        - Global exception handling and status reporting
+        
+        Yields:
+            run_id (str): The unique ID for this execution attempt.
+        """
+        from app.utils.id import gen_uuid
+        from app.core.context.manager import ContextManager
+        from app.core.exceptions import AgentCancelledException, AgentHumanInterruptException
+
+        run_id = f"run-{gen_uuid()[:8]}"
+        
+        # 1. Start Run
+        await self.start_run(thread_id, main_goal)
+        logger.info(f"[ActivityMonitor] 🚀 Starting lifecycle for thread {thread_id} (Run: {run_id})")
+        
+        # 2. Sync Metadata to Context
+        ctx = ContextManager.current()
+        if ctx and ctx.thread_id == thread_id:
+            ctx.run_id = run_id
+            
+        try:
+            # 3. Pre-run cancellation check
+            await self.check_cancellation(thread_id)
+            
+            yield run_id
+            
+            # 4. Success End
+            await self.end_run(thread_id, status="done")
+            
+        except AgentCancelledException:
+            logger.info(f"[ActivityMonitor] 🛑 Run {run_id} cancelled by user")
+            await self.end_run(thread_id, status="cancelled")
+            raise  # Re-raise for upper layers if needed (BackgroundAgent handles it)
+            
+        except AgentHumanInterruptException:
+            logger.info(f"[ActivityMonitor] ⏸️ Run {run_id} interrupted for human input")
+            # status "interrupted" is handled by set_human_request usually, 
+            # but we keep end_run call if appropriate
+            raise
+            
+        except Exception as e:
+            logger.error(f"[ActivityMonitor] ❌ Run {run_id} failed with error: {e}", exc_info=True)
+            await self.end_run(thread_id, status="failed")
+            raise
 
     async def start_run(self, thread_id: str, main_goal: str = "处理用户请求"):
         """Initialize activity state for a new run."""

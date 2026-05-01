@@ -14,7 +14,7 @@ class GraphGarbageCollector:
     3. Older than a certain threshold (to avoid deleting nodes currently being indexed).
     """
 
-    async def cleanup_ghost_nodes(self, project_id: int, grace_period_hours: int = 1):
+    async def cleanup_ghost_nodes(self, project_id: int):
         """
         Delete orphaned nodes for a specific project.
         """
