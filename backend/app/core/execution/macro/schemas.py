@@ -5,12 +5,13 @@ from __future__ import annotations
 import json
 from datetime import datetime
 from enum import Enum
-from typing import Any
-from pydantic import Field
 from typing import Any, Union
+
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+
 from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.utils.yaml import macro_from_yaml, macro_to_yaml
+
 
 # === Classes migrated from schema.py (singular) ===
 

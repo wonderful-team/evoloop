@@ -22,14 +22,14 @@ logger = logging.getLogger(__name__)
 try:
     from huey import SqliteHuey, Huey
     from huey.api import Task
-    from huey.exceptions import HueyException
+
     HUEY_AVAILABLE = True
 except ImportError:
     HUEY_AVAILABLE = False
     SqliteHuey = None
     Huey = None
     Task = None
-    HueyException = Exception
+
 
 from app.infrastructure.queue.base import TaskScheduler, SyncTaskMixin, TaskResult
 

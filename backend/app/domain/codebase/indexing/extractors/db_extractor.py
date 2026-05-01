@@ -6,10 +6,7 @@ Extracts database schema definitions from code files.
 """
 import logging
 
-from pydantic import Field
-
 from app.domain.codebase.indexing.extractors.base_extractor import SemanticExtractorBase
-from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.domain.codebase.schemas import DBTable
 
 logger = logging.getLogger(__name__)

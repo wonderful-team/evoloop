@@ -11,15 +11,14 @@ Import order constraint:
 """
 
 from __future__ import annotations
+
 import json
 import logging
 from typing import Any, Mapping, Type
 
 import httpx
-
 from langchain_core.messages import BaseMessage, AIMessage, AIMessageChunk
 from langchain_openai import ChatOpenAI
-from app.infrastructure.llm.adaptive import AdaptiveChatOpenAI
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +58,7 @@ def _apply_reasoning_patch() -> None:
             def _get_payload_with_reasoning(self: Any, input_: Any, **kwargs: Any) -> dict:
                 # 1. Convert via original logic
                 payload = original_func(self, input_, **kwargs)
-                logger.info(f"[Reasoning] _get_request_payload CALLED for model {getattr(self, 'model_name', 'unknown')}")
+                logger.info(f"[Reasoning] _get_request_payload CALLED for model {self.model_name}")
 
                 # 2. Inject Reasoning from messages back to the final payload
                 try:
@@ -163,7 +162,7 @@ _apply_reasoning_patch()
 
 def extract_reasoning_from_message(message: BaseMessage) -> str | None:
     """从完整的 LangChain 消息中提取推理内容 (支持 Kimi/OpenAI 格式)"""
-    return extract_reasoning_from_kwargs(getattr(message, "additional_kwargs", None))
+    return extract_reasoning_from_kwargs(message.additional_kwargs)
 
 
 def extract_reasoning_from_kwargs(additional_kwargs: dict | None) -> str | None:

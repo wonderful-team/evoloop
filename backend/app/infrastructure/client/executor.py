@@ -198,7 +198,7 @@ class ClientToolWrapper:
         self._tool = tool
         self.name = tool.name
         self.description = tool.description
-        self.args_schema = getattr(tool, "args_schema", None)
+        self.args_schema = tool.args_schema
 
     async def ainvoke(self, input: Any, config: Any = None) -> Any:
         """Execute tool, routing through Client if configured."""

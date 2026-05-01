@@ -29,7 +29,7 @@ from app.core.context.manager import ContextManager, EvoContext
 from app.core.evocloud import evocloud_manager
 from app.domain.project.reference_service import reference_service
 from app.infrastructure.database.sql.database import session_scope
-from app.models import Conversation, Message, MessageReference
+from app.models import Conversation, MessageReference
 
 logger = logging.getLogger(__name__)
 
@@ -192,24 +192,18 @@ async def dispatch_agent_run(
                 )
 
             if not skip_message_persistence:
-                # New message: persist to DB
-                from app.core.engine.message.sequence import SequenceService
-                seq = await SequenceService.next_sequence(thread_id)
-
-                user_msg = Message(
-                    id=str(uuid.uuid4()),
-                    thread_id=thread_id,
-                    project_id=project_id,
+                # New message: persist to DB via Repository to ensure parent_id linkage
+                from app.core.engine.message.repository import MessageRepository
+                repo = MessageRepository(thread_id, project_id)
+                msg_id, seq = await repo.persist(
                     role="human",
                     content=message_content,
-                    thinking=None,
-                    sequence_number=seq,
+                    category="user",
+                    is_visible=True,
                 )
-                session.add(user_msg)
-                await session.flush()
-                persisted_msg_id = user_msg.id
+                persisted_msg_id = msg_id
 
-                logger.info(f"[Dispatch] Persisted user message for {thread_id} (seq={user_msg.sequence_number})")
+                logger.info(f"[Dispatch] Persisted user message for {thread_id} (seq={seq})")
 
                 # Persist references
                 if attachments:
@@ -221,7 +215,7 @@ async def dispatch_agent_run(
 
                         ref = MessageReference(
                             id=str(uuid.uuid4()),
-                            message_id=user_msg.id,
+                            message_id=persisted_msg_id,
                             type=ref_type,
                             target_id=str(target_id),
                             target_name=str(target_name),
@@ -229,7 +223,7 @@ async def dispatch_agent_run(
                         )
                         session.add(ref)
 
-                    logger.info(f"[Dispatch] Persisted {len(attachments)} references for msg {user_msg.id}")
+                    logger.info(f"[Dispatch] Persisted {len(attachments)} references for msg {persisted_msg_id}")
             else:
                 logger.info("[Dispatch] Skipped persistence for retry")
 
@@ -299,25 +293,15 @@ async def persist_user_message(
 
             conversation.updated_at = datetime.now(timezone.utc)
 
-            from app.core.engine.message.sequence import SequenceService
-            seq = await SequenceService.next_sequence(thread_id)
-
-            user_msg = Message(
-                id=str(uuid.uuid4()),
-                thread_id=thread_id,
-                project_id=project_id or conversation.project_id,
+            from app.core.engine.message.repository import MessageRepository
+            repo = MessageRepository(thread_id, project_id or conversation.project_id)
+            msg_id, seq = await repo.persist(
                 role="human",
                 content=content,
-                sequence_number=seq,
+                category="user",
+                is_visible=True,
             )
-            session.add(user_msg)
-            await session.flush()
-
-            logger.info(
-                f"[Dispatch] Persisted user message for {thread_id} "
-                f"(seq={user_msg.sequence_number})"
-            )
-            return user_msg.id
+            return msg_id
 
     except Exception as e:
         logger.error(f"[Dispatch] Failed to persist user message: {e}")

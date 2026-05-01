@@ -11,7 +11,7 @@ from langchain_core.tools import InjectedToolArg
 
 from app.core.tools import evoloop_tool
 from app.domain.todo.schemas import TodoCreate, TodoFilter
-from app.domain.todo.service import TodoServiceSync, TodoNotFoundError
+from app.domain.todo.service import TodoNotFoundError
 from app.domain.todo.utils import parse_due_date
 from app.i18n.service import i18n
 from app.models.todo import TodoStatus

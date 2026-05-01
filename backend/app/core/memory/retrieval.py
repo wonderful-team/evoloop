@@ -29,7 +29,7 @@ import time
 from datetime import datetime
 from typing import Any
 
-from app.core.memory.models import MemoryEntry, MemoryType, PrivacyLevel
+from app.core.memory.models import MemoryEntry, MemoryType
 from app.core.memory.schemas import RetrievalContext
 from app.utils.template import render_template
 
@@ -293,7 +293,7 @@ class MemoryRetriever:
             for mem in filtered_candidates:
                 candidates_for_llm.append({
                     "title": mem.title,
-                    "type": mem.type.value if hasattr(mem.type, 'value') else str(mem.type),
+                    "type": mem.type.value,
                     "description": mem.description,
                     "updated_at": mem.updated_at.isoformat() if mem.updated_at else "Unknown"
                 })

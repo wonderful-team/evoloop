@@ -19,13 +19,13 @@ import logging
 import time
 from typing import Any, Callable
 
-from langchain_core.messages import AIMessage, BaseMessage, SystemMessage, ToolMessage
+from langchain_core.messages import AIMessage, BaseMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 
-from app.infrastructure.llm.factory import LLMFactory
 from app.core.engine.context_trimmer import ContextTrimmer, TrimTrigger
 from app.core.engine.error_handler import LLMErrorHandler
 from app.core.engine.message.reasoning import extract_reasoning_from_message
+from app.infrastructure.llm.factory import LLMFactory
 
 logger = logging.getLogger(__name__)
 
@@ -186,8 +186,8 @@ class InferenceEngine:
                 logger.debug(
                     f"[{name}] 🔍 RAW RESPONSE DIAGNOSTIC:\n"
                     f"  - Content length: {len(response.content)}\n"
-                    f"  - Tool Calls: {getattr(response, 'tool_calls', [])}\n"
-                    f"  - Invalid Tool Calls: {getattr(response, 'invalid_tool_calls', [])}\n"
+                    f"  - Tool Calls: {response.tool_calls}\n"
+                    f"  - Invalid Tool Calls: {response.invalid_tool_calls}\n"
                     f"  - Additional Kwargs: {list(response.additional_kwargs.keys())}\n"
                     f"  - Finish Reason: {response.response_metadata.get('finish_reason')}\n"
                     f"  - Model Metadata: {response.response_metadata}\n"

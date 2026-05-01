@@ -10,7 +10,7 @@ from typing import Any
 
 # Optional Jinja2 import
 try:
-    from jinja2 import BaseLoader, Environment, FileSystemLoader, Template
+    from jinja2 import Environment, FileSystemLoader, Template
     HAS_JINJA2 = True
 except ImportError:
     HAS_JINJA2 = False

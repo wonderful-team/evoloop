@@ -51,7 +51,10 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
         self._last_attributed_step_index: int = 0
 
         # 当前工具名称追踪（LangChain on_tool_end 不传递 name，需要在 on_tool_start 存储）
-        self._tool_info_by_run_id: dict[str, dict[str, str]] = {}
+        self._tool_info_by_run_id: dict[str, dict[str, Any]] = {}
+
+        # 消息父子关系追踪
+        self._last_ai_message_id: str | None = None
 
     async def on_llm_end(self, response: LLMResult, **kwargs: Any) -> Any:
         """
@@ -78,14 +81,14 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
             tool_calls = None
             if hasattr(message, "tool_calls") and message.tool_calls:
                 tool_calls = message.tool_calls
-            elif hasattr(message, "additional_kwargs") and message.additional_kwargs:
+            elif message.additional_kwargs:
                 tool_calls = message.additional_kwargs.get("tool_calls")
 
             # 提取元数据
             metadata = getattr(message, "metadata", None) or {}
 
             # 提取思考内容（native reasoning_content）
-            additional_kwargs = getattr(message, "additional_kwargs", {}) or {}
+            additional_kwargs = message.additional_kwargs or {}
             thinking = extract_reasoning_from_kwargs(additional_kwargs)
             # 传递 reasoning_content 信息，供 handler 正确标记 thinking_type
             if additional_kwargs.get("reasoning_content"):
@@ -97,13 +100,24 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
                 tool_calls=tool_calls,
                 thinking=thinking,
                 metadata=metadata,
+                parent_id=None, # AI messages usually parents of previous turn's last message (resolved in repo)
             )
+
+            # Store the message_id for subsequent tools/HITL in this turn
+            if result.message_id:
+                self._last_ai_message_id = result.message_id
+                from app.core.context.manager import ContextManager
+                try:
+                    ctx = ContextManager.current()
+                    ctx.last_ai_message_id = result.message_id
+                except Exception:
+                    pass
 
             # 重要：将持久化后的 ID 和序列号回填给消息对象，供后续环节（如 MemoryExtractor）使用
             if result.get("message_id"):
                 message.id = str(result["message_id"])
                 # 同时回填 sequence_number 到 additional_kwargs，确保 ID 构造的一致性
-                if not hasattr(message, "additional_kwargs") or message.additional_kwargs is None:
+                if message.additional_kwargs is None:
                     message.additional_kwargs = {}
                 message.additional_kwargs["sequence_number"] = result.get("sequence_number", 0)
 
@@ -213,7 +227,13 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
                 tool_name=tool_name,
                 tool_call_id=tool_call_id,
                 input_data=input_data,
+                parent_id=self._last_ai_message_id,
             )
+
+            # Store in context for HITL tools to access
+            from app.core.context.manager import ContextManager
+            ctx = ContextManager.current()
+            ctx.current_tool_call_id = tool_call_id
 
             # 存储工具详情（支持并行工具）
             self._tool_info_by_run_id[run_id_str] = {

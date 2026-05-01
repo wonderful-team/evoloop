@@ -10,10 +10,12 @@ import logging
 from typing import Any
 
 from pydantic import Field
+from sqlalchemy import select, func
 
 from app.infrastructure.cache import get_cache
 from app.infrastructure.cache.abstract import Cache
 from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.models import AgentActivity, Message
 
 logger = logging.getLogger(__name__)
 
@@ -175,14 +177,13 @@ class ActivityStateService:
 
     async def start_run(self, thread_id: str, main_goal: str = "处理用户请求") -> bool:
         """Initialize activity state for a new run."""
-        from app.models import AgentActivity
-
         async with self._get_session_scope()() as session:
             activity = await session.get(AgentActivity, thread_id)
             if activity is None:
                 activity = AgentActivity(thread_id=thread_id)
                 session.add(activity)
-            activity.status = "running"
+            if activity.status != "stopping":
+                activity.status = "running"
             activity.main_goal = main_goal
             activity.artifacts_json = json.dumps([])
             activity.agent_state_json = json.dumps({})
@@ -193,7 +194,6 @@ class ActivityStateService:
 
     async def end_run(self, thread_id: str, status: str = "done", final_outcome: str | None = None) -> ActivityState:
         """Mark run as ended and return final state."""
-        from app.models import AgentActivity
 
         async with self._get_session_scope()() as session:
             activity = await session.get(AgentActivity, thread_id)
@@ -215,9 +215,6 @@ class ActivityStateService:
         message events. Callers that need step details should fetch
         the conversation messages instead.
         """
-        from sqlalchemy import func, select
-        from app.models import AgentActivity, Message
-
         async with self._get_session_scope()() as session:
             activity = await session.get(AgentActivity, thread_id)
             if activity is None:
@@ -252,8 +249,6 @@ class ActivityStateService:
 
     async def update_field(self, thread_id: str, field: str, value: Any) -> bool:
         """Update a single field in the activity state."""
-        from app.models import AgentActivity
-
         if not isinstance(value, str):
             value = json.dumps(value) if isinstance(value, (dict, list)) else str(value)
 
@@ -283,8 +278,6 @@ class ActivityStateService:
 
     async def get_field(self, thread_id: str, field: str) -> Any | None:
         """Get a single field from activity state."""
-        from app.models import AgentActivity
-
         field_map = {
             "status": "status",
             "main_goal": "main_goal",
@@ -307,8 +300,6 @@ class ActivityStateService:
 
     async def signal_stop(self, thread_id: str) -> bool:
         """Signal a run to stop."""
-        from app.models import AgentActivity
-
         async with self._get_session_scope()() as session:
             activity = await session.get(AgentActivity, thread_id)
             if activity is None:
@@ -318,8 +309,6 @@ class ActivityStateService:
 
     async def check_cancellation(self, thread_id: str) -> bool:
         """Check if run is marked for stopping."""
-        from app.models import AgentActivity
-
         async with self._get_session_scope()() as session:
             activity = await session.get(AgentActivity, thread_id)
             if activity is None:
@@ -328,8 +317,6 @@ class ActivityStateService:
 
     async def set_interrupted(self, thread_id: str, reason: str = "awaiting_human_input") -> bool:
         """Mark run as interrupted."""
-        from app.models import AgentActivity
-
         async with self._get_session_scope()() as session:
             activity = await session.get(AgentActivity, thread_id)
             if activity is None:
@@ -348,8 +335,6 @@ class ActivityStateService:
 
     async def set_human_request(self, thread_id: str, request_data: dict) -> bool:
         """Store structured human request."""
-        from app.models import AgentActivity
-
         async with self._get_session_scope()() as session:
             activity = await session.get(AgentActivity, thread_id)
             if activity is None:
@@ -360,8 +345,6 @@ class ActivityStateService:
 
     async def clear_human_request(self, thread_id: str) -> bool:
         """Clear human request upon resumption."""
-        from app.models import AgentActivity
-
         async with self._get_session_scope()() as session:
             activity = await session.get(AgentActivity, thread_id)
             if activity is None:
@@ -372,8 +355,6 @@ class ActivityStateService:
 
     async def update_agent_state(self, thread_id: str, state: dict) -> bool:
         """Update agent state."""
-        from app.models import AgentActivity
-
         async with self._get_session_scope()() as session:
             activity = await session.get(AgentActivity, thread_id)
             if activity is None:
@@ -384,8 +365,6 @@ class ActivityStateService:
 
     async def add_artifact(self, thread_id: str, name: str, artifact_type: str, status: str = "created", path: str = None) -> bool:
         """Add or update an artifact."""
-        from app.models import AgentActivity
-
         async with self._get_session_scope()() as session:
             activity = await session.get(AgentActivity, thread_id)
             if activity is None:

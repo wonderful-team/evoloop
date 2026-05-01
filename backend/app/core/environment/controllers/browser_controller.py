@@ -60,7 +60,7 @@ async def _run_ocr(filepath: str) -> str:
             return "\n\n" + render_template(
                 "core/vision/ocr_results.prompt.j2",
                 platform="browser",
-                elements=[el.to_dict() for el in ocr_result.elements],
+                elements=[el.model_dump() for el in ocr_result.elements],
                 total_count=len(ocr_result.elements)
             )
         return "\n\n" + ControllerResponse.error("OCR: no text detected")

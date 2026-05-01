@@ -133,7 +133,7 @@ class AgentToolExecutor:
 
             # Capture snapshots BEFORE tool execution (for diff tracking)
             # Only state-mutating tools can produce meaningful diffs
-            if self.enable_diff_tracking and getattr(tool, "metadata", {}).get("is_state_mutating"):
+            if self.enable_diff_tracking and tool.metadata.get("is_state_mutating"):
                 from app.core.tools.registry import get_tool_affected_paths
                 snapshot_paths = get_tool_affected_paths(tool_name, tool_args)
                 for path in snapshot_paths:
@@ -164,7 +164,7 @@ class AgentToolExecutor:
 
             # Diff Tracking (if enabled)
             # Only state-mutating tools can produce meaningful diffs
-            if self.enable_diff_tracking and getattr(tool, "metadata", {}).get("is_state_mutating"):
+            if self.enable_diff_tracking and tool.metadata.get("is_state_mutating"):
                 await self._track_diffs(tool_name, tool_args, thread_id, tool_id)
 
             msg = self._create_tool_message(
@@ -220,7 +220,7 @@ class AgentToolExecutor:
         # Guard: skip if tool is not state-mutating (e.g. read-only tools)
         tool_map = get_tool_map()
         tool_obj = tool_map.get(tool_name)
-        if not tool_obj or not getattr(tool_obj, "metadata", {}).get("is_state_mutating"):
+        if not tool_obj or not tool_obj.metadata.get("is_state_mutating"):
             return
 
         snapshot_paths = get_tool_affected_paths(tool_name, tool_args)

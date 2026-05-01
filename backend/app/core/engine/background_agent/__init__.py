@@ -1,10 +1,9 @@
 import asyncio
-import json
 import logging
 import time
 from typing import Any
 
-from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
+from langchain_core.messages import BaseMessage, HumanMessage
 from pydantic import BaseModel, ConfigDict, Field
 
 # Callbacks
@@ -150,6 +149,12 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
 
         # 3. Config Construction
         run_id = f"run-{gen_uuid()[:8]}"
+        
+        # Sync run_id into current context so it's globally accessible
+        ctx = ContextManager.current()
+        if ctx.request_id != "global-fallback":
+            ctx.run_id = run_id
+            
         config = {
             "configurable": {
                 "thread_id": thread_id,
@@ -243,6 +248,9 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
                 input_payload = await build_resume_command(
                     graph_instance, config, inputs.hitl_resume_response
                 )
+
+            # Check for cancellation before expensive operations
+            await activity_monitor.check_cancellation(thread_id)
 
             # Run Graph
             async for _event in graph_instance.astream(input_payload, config=config):

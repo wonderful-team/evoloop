@@ -121,7 +121,7 @@ async def _query_mcp_servers(params: dict[str, Any]) -> list[McpServerInfo]:
         for name, server in mcp_client_manager._servers.items():
             servers.append(McpServerInfo(
                 name=name,
-                type=server.type.value if hasattr(server.type, 'value') else str(server.type),
+                type=server.type.value,
                 connected=server.connected,
             ))
         return servers

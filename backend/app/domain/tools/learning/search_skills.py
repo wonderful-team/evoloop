@@ -39,7 +39,7 @@ async def search_skills(query: str = "", namespace: str = None, index_mode: bool
     if match and relevant:
         skill_obj = relevant[0]
         tools_req = []
-        if hasattr(skill_obj, "tools_used") and skill_obj.tools_used:
+        if skill_obj.tools_used:
             try:
                 tools_req = json.loads(skill_obj.tools_used)
             except Exception as e:

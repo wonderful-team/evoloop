@@ -11,7 +11,6 @@ import tree_sitter
 
 from app.domain.codebase.indexing.extractors.base_extractor import SemanticExtractorBase
 from app.domain.codebase.indexing.parsers import parser_registry
-from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.domain.codebase.schemas import APIEndpoint
 
 logger = logging.getLogger(__name__)

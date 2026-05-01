@@ -16,8 +16,8 @@ from langchain_core.messages import (
 
 from app.constants import DEFAULT_MAX_CONTEXT_TOKENS
 from app.core.engine.message.utils import estimate_message_tokens
-from app.infrastructure.llm.model_profile import get_profile
 from app.core.engine.schemas import ToolCallInfo, ContextStats
+from app.infrastructure.llm.model_profile import get_profile
 
 # Context usage thresholds (pure ratios, unit-agnostic)
 CONTEXT_WARNING_THRESHOLD = 0.80

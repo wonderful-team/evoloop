@@ -14,10 +14,10 @@ from typing import Any
 from langchain_core.callbacks import AsyncCallbackHandler
 from langchain_core.outputs import LLMResult
 
-from app.core.engine.message.publisher import MessagePublisher
-from app.core.engine.message.schemas import StreamEvent, ThinkingPayload
 from app.core.engine.callbacks.token_filter import TokenFilter
+from app.core.engine.message.publisher import MessagePublisher
 from app.core.engine.message.reasoning import extract_reasoning_from_kwargs
+from app.core.engine.message.schemas import StreamEvent, ThinkingPayload
 from app.core.tools.registry import (
     get_tool_affected_paths,
     get_tool_metadata,
@@ -137,7 +137,7 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
         generation_chunk = kwargs.get("chunk")
         if generation_chunk and hasattr(generation_chunk, "message"):
             msg_chunk = generation_chunk.message
-            reasoning = extract_reasoning_from_kwargs(getattr(msg_chunk, "additional_kwargs", None))
+            reasoning = extract_reasoning_from_kwargs(msg_chunk.additional_kwargs)
             if reasoning:
                 await self._publish_stream_event(StreamEvent(
                     type=StreamEventType.THINKING,

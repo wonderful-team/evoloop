@@ -19,12 +19,11 @@ from typing import Literal
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
 
 from app.core.engine.message.forgetting import apply_forgotten_status
+from app.core.engine.message.utils import count_total_tokens, estimate_message_tokens
 from app.core.engine.message.utils import get_message_text
-from app.core.engine.state.history import ToolCall
 from app.core.memory.tool_output_memory import ToolOutputMemory
 from app.i18n.service import i18n
 from app.infrastructure.llm.model_profile import get_profile
-from app.core.engine.message.utils import count_total_tokens, estimate_message_tokens
 
 logger = logging.getLogger(__name__)
 

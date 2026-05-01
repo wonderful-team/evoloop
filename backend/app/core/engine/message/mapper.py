@@ -14,7 +14,6 @@ BlockMapper —— 各层 ↔ MessageBlock 的标准化转换器。
 3. 不允许在转换中构造裸字典
 """
 
-import json
 import logging
 from datetime import datetime
 from typing import Any
@@ -27,8 +26,8 @@ from langchain_core.messages import (
     ToolMessage,
 )
 
-from app.core.engine.message.schemas import BlockEvent, MessageBlock, ToolBlock
 from app.core.engine.message.reasoning import extract_reasoning_from_message
+from app.core.engine.message.schemas import BlockEvent, MessageBlock, ToolBlock
 from app.core.engine.state.history import FoldedMessage
 
 logger = logging.getLogger(__name__)
@@ -103,7 +102,7 @@ class BlockMapper:
             "sequence_number": msg.sequence_number,
             "run_id": msg.run_id,
             "status": msg.status,
-            "parent_id": int(msg.parent_id) if msg.parent_id else None,
+            "parent_id": msg.parent_id if msg.parent_id else None,
             "tool_call_id": msg.metadata.get("tool_call_id"),
             "tool_name": msg.metadata.get("tool_name"),
             "checkpoint_id": msg.checkpoint_id,
@@ -315,7 +314,7 @@ class BlockMapper:
 
 def _extract_lc_id(msg: BaseMessage) -> str:
     """从 LangChain 消息中提取或生成 ID"""
-    return getattr(msg, "id", None) or msg.additional_kwargs.get("id") or f"lc-{id(msg)}"
+    return msg.id or msg.additional_kwargs.get("id") or f"lc-{id(msg)}"
 
 
 def _format_iso(dt: datetime | str | None) -> str:

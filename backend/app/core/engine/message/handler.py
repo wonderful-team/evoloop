@@ -61,6 +61,7 @@ class MessageHandler:
         tool_calls: list | None = None,
         thinking: str | None = None,
         metadata: dict | None = None,
+        parent_id: str | None = None,
     ) -> MessageHandlerResult:
         """处理 AI 助手消息"""
         category = MessageClassifier.classify_ai_message(
@@ -92,6 +93,7 @@ class MessageHandler:
                 is_visible=category.is_visible_to_user,
                 content_type="text",
                 metadata=metadata,
+                parent_id=parent_id,
             )
             
             # 只有用户可见且不是纯内部思考的消息才推送到 Mobile
@@ -99,7 +101,8 @@ class MessageHandler:
                 await self._dispatch_block(
                     role="ai", content=persist_data.content, thinking=persist_data.thinking,
                     tool_calls=persist_data.tool_calls, category=category.value,
-                    status="completed", sequence_number=seq, channels={"mobile"}
+                    status="completed", sequence_number=seq, channels={"mobile"},
+                    parent_id=parent_id or await self._repository.get_last_message_id(), # Fallback for stream
                 )
 
         if stream_data.should_stream:
@@ -110,7 +113,8 @@ class MessageHandler:
                 thinking=thinking,
                 sequence_number=seq if persist_data.should_persist else 0,
                 status="streaming" if persist_data.should_persist else "completed",
-                channels={"sse"}
+                channels={"sse"},
+                parent_id=parent_id or await self._repository.get_last_message_id(),
             )
 
         return MessageHandlerResult(
@@ -124,6 +128,7 @@ class MessageHandler:
         tool_name: str,
         tool_call_id: str | None = None,
         input_data: dict | None = None,
+        parent_id: str | None = None,
     ) -> MessageHandlerResult:
         """处理工具开始执行 — 预插入 running 状态记录"""
         category = MessageCategory.TOOL_OUTPUT
@@ -153,6 +158,7 @@ class MessageHandler:
             tool_name=tool_name,
             content_type="text",
             metadata={"tool_name": tool_name, "tool_call_id": tool_call_id, "input": input_data, "tool_meta": tool_meta},
+            parent_id=parent_id,
         )
 
         # Push real-time "running" event (frontend receives via SSE message folding)
@@ -270,6 +276,7 @@ class MessageHandler:
             role="human", content=content, category=category.value,
             is_visible=True, content_type="text",
             metadata=metadata,
+            parent_id=None, # User message parent is resolved in repository if None
         )
         await self._dispatch_block(
             role="human", content=content, category=category.value,
@@ -288,24 +295,47 @@ class MessageHandler:
         options: list[str] | None = None,
         context: str | None = None,
         default_value: str | None = None,
+        tool_call_id: str | None = None,
+        tool_name: str | None = None,
+        parent_id: str | None = None,
     ) -> MessageHandlerResult:
         """处理人机交互请求（HITL）"""
+        logger.info(f"[MessageHandler] Handling HITL request: {request_id} (tool={tool_name})")
         content = json.dumps({
             "id": request_id, "type": request_type, "prompt": prompt,
             "options": options, "context": context, "default_value": default_value,
         }, ensure_ascii=False)
 
+        # Generate tool_meta if tool information is provided
+        metadata = {}
+        if tool_name:
+            from app.core.tools.registry import get_tool_metadata
+            from app.i18n.service import i18n
+            tool_meta = get_tool_metadata(tool_name)
+            if tool_meta and tool_meta.summary_template:
+                metadata["tool_meta"] = {
+                    "name": tool_name,
+                    "display_name": i18n.get(tool_meta.summary_template, request_type=request_type, prompt=prompt),
+                }
+
         message_id, seq = await self._repository.persist(
-            role="system", content=content, category="hitl_request",
+            role="system", content=content, category=MessageCategory.HITL_REQUEST.value,
             action_type="human_request", status="waiting_human",
             is_visible=True, content_type="json",
+            tool_call_id=tool_call_id or request_id, # Fallback to request_id
+            tool_name=tool_name,
+            metadata=metadata if metadata else None,
+            parent_id=parent_id,
         )
         await self._dispatch_block(
-            role="system", content=content, category="hitl_request",
+            role="system", content=content, category=MessageCategory.HITL_REQUEST.value,
             status="waiting_human", sequence_number=seq,
-            channels={"sse", "mobile"}
+            tool_name=tool_name, tool_call_id=tool_call_id or request_id,
+            metadata=metadata if metadata else None,
+            channels={"sse", "mobile"},
+            parent_id=parent_id,
         )
-        return MessageHandlerResult(category="hitl_request", persisted=True, streamed=True, message_id=message_id)
+        return MessageHandlerResult(category=MessageCategory.HITL_REQUEST.value, persisted=True, streamed=True, message_id=message_id)
 
     async def handle_error(self, error: Exception) -> MessageHandlerResult:
         """处理异常上报"""
@@ -369,6 +399,7 @@ class MessageHandler:
         tool_call_id: str | None = None,
         metadata: dict | None = None,
         channels: set[str] | None = None,
+        parent_id: str | None = None,
     ) -> None:
         """统一构造 MessageBlock 并分发"""
         if sequence_number == 0:
@@ -388,6 +419,7 @@ class MessageHandler:
             is_visible=True,
             sequence_number=sequence_number,
             created_at=datetime.now().isoformat(),
+            parent_id=parent_id,
             metadata={
                 "tool_name": tool_name,
                 "tool_call_id": tool_call_id,

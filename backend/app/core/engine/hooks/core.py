@@ -141,7 +141,7 @@ class HookSystem:
 
             self._hooks[event].append(func)
             # Sort by priority
-            self._hooks[event].sort(key=lambda h: getattr(h, '_hook_priority', 100))
+            self._hooks[event].sort(key=lambda h: h._hook_priority)
 
             match_str = f" [matcher: {matcher}]" if matcher else ""
             logger.debug(f"[HookSystem] Registered {func.__name__} for {event.name}{match_str}")
@@ -208,7 +208,7 @@ class HookSystem:
         # Filter handlers by matcher
         matching_handlers = []
         for handler in handlers:
-            matcher = getattr(handler, '_hook_matcher', None)
+            matcher = handler._hook_matcher
             if matcher:
                 # Check if tool_name matches the pattern
                 tool_name = context.tool_name or ""
@@ -312,7 +312,7 @@ class HookSystem:
         """
         handlers = self._hooks.get(event, [])
         if matcher:
-            return [h for h in handlers if getattr(h, '_hook_matcher', None) == matcher]
+            return [h for h in handlers if h._hook_matcher == matcher]
         return handlers.copy()
 
     def get_metrics(self, event: HookEvent | None = None) -> dict[str, Any]:

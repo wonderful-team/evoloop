@@ -8,7 +8,6 @@ It produces structured skill configurations that can be registered and executed.
 from __future__ import annotations
 
 import logging
-from typing import Any
 
 import yaml
 from pydantic import Field
@@ -70,10 +69,6 @@ class SynthesizedSkill(DynamicBaseModel):
     def to_yaml(self) -> str:
         """Convert to YAML for storage/display."""
         return yaml.dump(self.model_dump(), default_flow_style=False, allow_unicode=True, sort_keys=False)
-
-    def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary."""
-        return self.model_dump()
 
 
 class WorkflowSynthesizer:

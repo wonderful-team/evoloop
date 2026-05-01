@@ -131,10 +131,6 @@ class MemoryConfig(DynamicBaseModel):
             log_level=getattr(settings, 'MEMORY_LOG_LEVEL', 'INFO'),
         )
 
-    def to_dict(self) -> dict:
-        """Convert configuration to dictionary (legacy support)."""
-        return self.model_dump()
-
     @property
     def is_file_backend(self) -> bool:
         """Check if using file-based backend."""

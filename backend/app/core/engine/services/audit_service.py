@@ -16,18 +16,17 @@ import asyncio
 import logging
 import re
 import time
-from typing import Any
 
-from pydantic import Field
 from langchain_core.messages import AIMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig
+from pydantic import Field
 
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.context.manager import ContextManager
+from app.core.engine.message.reasoning import extract_tool_calls
 from app.core.engine.state import AgentState
 from app.core.engine.state.blackboard import BlackboardState, VerificationStatus
 from app.infrastructure.pydantic_base import DynamicBaseModel
-from app.core.engine.message.reasoning import extract_tool_calls
 
 logger = logging.getLogger(__name__)
 

@@ -57,7 +57,7 @@ class Neo4jAtlasStore(IAtlasStore):
                         bundle_id=atlas_app.bundle_id,
                         state_id=state_id,
                         window_title=state.window_title,
-                        elements_json=json.dumps([e.to_dict() for e in state.elements], ensure_ascii=False),
+                        elements_json=json.dumps([e.model_dump() for e in state.elements], ensure_ascii=False),
                         screenshot_hash=state.screenshot_hash
                     )
 

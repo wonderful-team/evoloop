@@ -414,7 +414,7 @@ class DesktopController:
                             # 转换 OCR 坐标：相对坐标 → 屏幕坐标
                             elements_for_prompt = []
                             for el in ocr_result.elements:
-                                el_dict = el.to_dict()
+                                el_dict = el.model_dump()
                                 # 如果是局部截图，需要加上 region 的偏移量
                                 if region_offset_x or region_offset_y:
                                     el_dict['x'] = el.x + region_offset_x
@@ -491,6 +491,7 @@ class DesktopController:
                 if not (0 <= target_x <= screen_w and 0 <= target_y <= screen_h):
                     return ControllerResponse.error(f"Coordinates ({target_x}, {target_y}) are out of screen bounds ({screen_w}x{screen_h}).")
 
+                if action == "click":
                     await asyncio.to_thread(macos_driver.click, target_x, target_y)
                     await _record("click", {"x": target_x, "y": target_y, "element_name": element_name})
                     return ControllerResponse.tap_result(target_x, target_y, element_name=element_name, success=True)

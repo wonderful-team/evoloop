@@ -69,7 +69,6 @@ async def handle_list(
         if len(lines) > max_entries:
             output += f"\n\n... ({len(lines) - max_entries} more entries hidden)\nTip: Use filter=\"*.ext\" to narrow results, or increase max_entries."
         return output
-        return output
     else:
         # Tree view using core.file
         # For with_symbols=True, fall back to existing tree generator

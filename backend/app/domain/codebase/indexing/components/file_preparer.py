@@ -2,16 +2,15 @@ import logging
 import os
 from datetime import datetime, timezone
 
-from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.file.document_reader import document_reader_service
 from app.domain.codebase.filter import FileFilter
+from app.domain.codebase.schemas import PreparedFile
 from app.models import Repository, SourceFile
 from app.utils.file import get_file_ext
 from app.utils.hash import compute_md5
-from app.domain.codebase.schemas import PreparedFile
 
 logger = logging.getLogger(__name__)
 

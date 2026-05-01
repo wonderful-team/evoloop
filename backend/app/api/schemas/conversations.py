@@ -1,7 +1,6 @@
 """API schemas for conversations routes."""
 
 from datetime import datetime
-from typing import Any
 
 from app.api.schemas.responses import BaseAPIResponse, ListResponse
 from app.core.engine.state.history import FoldedMessage
@@ -22,6 +21,7 @@ class MessageItem(FoldedMessage):
     is_visible: bool = True
     thinking: str | None = None
 
+
 class ConversationSearchResult(DynamicBaseModel):
     id: str  # Message ID
     thread_id: str
@@ -30,8 +30,10 @@ class ConversationSearchResult(DynamicBaseModel):
     created_at: str
     match_snippet: str | None = None
 
+
 class RenameRequest(DynamicBaseModel):
     title: str
+
 
 class ConversationListItem(DynamicBaseModel):
     thread_id: str
@@ -39,6 +41,7 @@ class ConversationListItem(DynamicBaseModel):
     project_id: int | None
     updated_at: datetime | None
     status: str = "idle"
+
 
 class ReferenceItemMetadata(DynamicBaseModel):
     """Metadata for a message reference. Extra fields allowed per reference type."""
@@ -48,12 +51,14 @@ class ReferenceItemMetadata(DynamicBaseModel):
     url: str | None = None
     mime_type: str | None = None
 
+
 class ReferenceItem(DynamicBaseModel):
     id: str
     type: str
     target_id: str
     target_name: str
     metadata: ReferenceItemMetadata | None = None  # Additional metadata (duration, transcript, waveform, etc.)
+
 
 class ChangesetNode(DynamicBaseModel):
     """Hierarchical node for file operation tree."""
@@ -64,24 +69,29 @@ class ChangesetNode(DynamicBaseModel):
     diff: str | None = None
     children: list["ChangesetNode"] = []
 
+
 class RewindResponse(BaseAPIResponse):
     status: str
     thread_id: str
     removed_count: int = 0
     files_reverted: int = 0
 
+
 class ConversationRenameResponse(BaseAPIResponse):
     status: str
     thread_id: str
     title: str
 
+
 class ConversationDeleteResponse(BaseAPIResponse):
     status: str
     thread_id: str
 
+
 class RewindRequest(DynamicBaseModel):
     revert_files: bool = True  # Whether to also revert file changes
     message_id: str | None = None  # Optional: target message to rewind to
+
 
 class MessageListResponse(ListResponse[MessageItem]):
     """Response model for paginated message list."""

@@ -307,10 +307,10 @@ class FinishNode(BaseNode):
         
         # We only return messages that are NOT already in the original state.messages list
         # OR if they are RemoveMessage / placeholder messages.
-        existing_ids = {m.id for m in state.messages if hasattr(m, 'id') and m.id}
+        existing_ids = {m.id for m in state.messages if m.id}
         delta_messages = [
             m for m in messages_to_return 
-            if not hasattr(m, 'id') or not m.id or m.id not in existing_ids or isinstance(m, RemoveMessage)
+            if not m.id or m.id not in existing_ids or isinstance(m, RemoveMessage)
         ]
 
         return StateUpdate(

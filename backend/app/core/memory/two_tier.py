@@ -331,7 +331,7 @@ class TwoTierMemoryManager:
 
             # Tier weight (Strategic = 2.0x boost)
             tier_multiplier = 2.0 if entry.tier == MemoryTier.STRATEGIC else 1.0
-            utility_score = getattr(entry, "utility_score", 0.0)
+            utility_score = entry.utility_score
 
             # Combined score: utility and strategic tier are the primary drivers
             score = (entry.utility_score or confidence) * (1 + access_count * 0.1) * freshness * tier_multiplier
@@ -399,7 +399,7 @@ class TwoTierMemoryManager:
                 "description": entry.description[:100],
                 "score": score,
                 "type": entry.type.value,
-                "tier": entry.tier.value if hasattr(entry, 'tier') else "operational"
+                "tier": entry.tier.value
             })
             seen_titles.add(title_norm)
 

@@ -50,10 +50,10 @@ def apply_forgotten_status(messages: list[BaseMessage], tool_memory: ToolOutputM
                     content=summary_content,
                     tool_call_id=msg.tool_call_id,
                     name=msg.name,
-                    id=msg.id if hasattr(msg, "id") else None,
+                    id=msg.id,
                     # Preserve metadata for tracking
                     additional_kwargs={
-                        **(msg.additional_kwargs if hasattr(msg, "additional_kwargs") and msg.additional_kwargs else {}),
+                        **(msg.additional_kwargs or {}),
                         "forgotten": True,
                         "original_length": record.original_length,
                         "forgotten_reason": record.reason,

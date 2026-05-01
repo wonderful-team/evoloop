@@ -24,7 +24,6 @@ from app.core.engine.schemas import EngineResult, NodeOutcome
 from app.core.engine.signals.registry import get_default_registry
 from app.core.engine.state import AgentState
 from app.core.engine.tools.executor import AgentToolExecutor
-from app.core.exceptions import InferenceError
 from app.core.memory.tool_output_memory import get_tool_memory_from_state
 from app.infrastructure.llm.factory import LLMFactory
 
@@ -107,7 +106,7 @@ class AgentEngine:
             model=model,
             node_source=node_source or name.lower(),
             tool_memory=tool_memory,
-            is_retry=getattr(state, "is_retry", False),
+            is_retry=state.is_retry or False,
         )
         repaired_messages = trim_result.messages
 
@@ -175,7 +174,7 @@ class AgentEngine:
         # 9. Build EngineResult
         # Extract routing_target from last_response metadata if signal is not present
         routing_target = None
-        if not inference_result.get("signal") and last_response and hasattr(last_response, "additional_kwargs"):
+        if not inference_result.get("signal") and last_response and last_response.additional_kwargs is not None:
             routing_target = (last_response.additional_kwargs or {}).get("routing_target")
 
         result = EngineResult(
@@ -191,7 +190,7 @@ class AgentEngine:
         # Add node_source marker to AI messages
         if node_source:
             for msg in inference_result.get("messages", []):
-                if not hasattr(msg, "additional_kwargs") or msg.additional_kwargs is None:
+                if msg.additional_kwargs is None:
                     msg.additional_kwargs = {}
                 msg.additional_kwargs["node_source"] = node_source
 

@@ -27,8 +27,8 @@ from app.core.memory.models import (
     MemoryType,
     PrivacyLevel,
 )
-from app.core.memory.schemas import CheckpointDedupResult, Concept, Episode
 from app.core.memory.retrieval import MemoryRetriever
+from app.core.memory.schemas import CheckpointDedupResult, Concept, Episode
 
 logger = logging.getLogger(__name__)
 
@@ -347,7 +347,7 @@ class MemoryManager:
             'id': r.id,
             'goal': r.title.replace("Episode: ", ""),
             'result': r.content,
-            'timestamp': r.updated_at.isoformat() if hasattr(r, 'updated_at') and r.updated_at else '',
+            'timestamp': r.updated_at.isoformat() if r.updated_at else '',
         } for r in results]
 
     async def retrieve_experience(self, goal: str, project_id: int, top_k: int = 3) -> str:

@@ -12,7 +12,6 @@ import logging
 from app.core.engine.message.category import MessageCategory
 from app.core.engine.message.schemas import PersistencePolicyResult
 
-
 logger = logging.getLogger(__name__)
 
 

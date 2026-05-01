@@ -134,7 +134,7 @@ class ProjectPolisher:
         ctx = event.data.get("ctx")
         topic = event.data.get("topic") or ""
 
-        if ctx is None or not getattr(ctx, "environment_block", None):
+        if ctx is None or not ctx.environment_block:
             return
 
         env_block = ctx.environment_block

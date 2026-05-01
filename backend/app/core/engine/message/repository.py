@@ -3,14 +3,13 @@ MessageRepository — Database persistence and query operations for messages.
 
 Extracted from MessageHandler to separate persistence concerns from orchestration.
 """
-import json
 import logging
 import uuid
 
-from sqlalchemy import desc, select
+from sqlalchemy import desc, func, select
+from sqlalchemy.orm import selectinload
 
 from app.core.engine.message.sequence import SequenceService
-
 from app.infrastructure.database.sql.database import session_scope
 from app.models import Message
 
@@ -43,6 +42,7 @@ class MessageRepository:
         tool_name: str | None = None,
         content_type: str = "text",
         metadata: dict | None = None,
+        parent_id: str | None = None,
     ) -> tuple[str | None, int]:
         """
         Persist a message to the database.
@@ -57,7 +57,13 @@ class MessageRepository:
 
         try:
             seq = await SequenceService.next_sequence(self.thread_id)
-            logger.info(f"[MessageRepository] Persisting {role} message (seq={seq}, cat={category})")
+            
+            # Resolve parent_id if not provided
+            effective_parent_id = parent_id
+            if not effective_parent_id:
+                effective_parent_id = await self.get_last_message_id()
+                
+            logger.info(f"[MessageRepository] Persisting {role} message (seq={seq}, cat={category}, parent={effective_parent_id})")
 
             async with session_scope() as session:
                 log = Message(
@@ -78,6 +84,7 @@ class MessageRepository:
                     tool_call_id=tool_call_id,
                     tool_name=tool_name,
                     meta_data=metadata,
+                    parent_id=effective_parent_id,
                 )
                 session.add(log)
                 await session.flush()
@@ -161,3 +168,105 @@ class MessageRepository:
             logger.error(f"[MessageRepository] resolve_tool_input failed: {e}")
             raise
         return {}
+
+    async def update_status_by_tool_call_id(self, tool_call_id: str, status: str) -> bool:
+        """
+        Update message status by tool_call_id (primarily for HITL closure).
+        """
+        try:
+            async with session_scope() as session:
+                from sqlalchemy import update
+                stmt = (
+                    update(Message)
+                    .where(Message.thread_id == self.thread_id)
+                    .where(Message.tool_call_id == tool_call_id)
+                    .values(status=status)
+                )
+                result = await session.execute(stmt)
+                # No flush needed here as update() returns rowcount directly in some dialects, 
+                # but session.execute with update statement is fine.
+                logger.info(f"[MessageRepository] Updated status to {status} for tool_call_id {tool_call_id}")
+                return result.rowcount > 0
+        except Exception as e:
+            logger.error(f"[MessageRepository] Failed to update status by tool_call_id {tool_call_id}: {e}")
+            raise
+
+    async def get_last_message_id(self) -> str | None:
+        """Get the ID of the most recent message in the thread."""
+        try:
+            async with session_scope() as session:
+                stmt = (
+                    select(Message.id)
+                    .where(Message.thread_id == self.thread_id)
+                    .order_by(desc(Message.sequence_number))
+                    .limit(1)
+                )
+                result = await session.execute(stmt)
+                return result.scalar_one_or_none()
+        except Exception as e:
+            logger.error(f"[MessageRepository] Failed to get last message id: {e}")
+            return None
+
+    async def get_full_history(self, limit: int = 50, before_id: str | None = None) -> tuple[list[Message], bool, int | None]:
+        """
+        Fetches full conversation history including visible and associated invisible messages.
+        Returns (messages, has_more, total_count).
+        """
+        async with session_scope() as session:
+            # 1. Query visible messages with cursor pagination
+            visible_stmt = (
+                select(Message)
+                .where(Message.thread_id == self.thread_id, Message.is_visible == True)
+                .options(selectinload(Message.references))
+                .order_by(Message.sequence_number.desc())
+                .limit(limit + 1)
+            )
+
+            if before_id:
+                before_seq = (await session.execute(
+                    select(Message.sequence_number).where(Message.id == before_id)
+                )).scalar_one_or_none()
+                if before_seq:
+                    visible_stmt = visible_stmt.where(Message.sequence_number < before_seq)
+
+            result = await session.execute(visible_stmt)
+            visible_messages = result.scalars().all()
+
+            has_more = len(visible_messages) > limit
+            if has_more:
+                visible_messages = visible_messages[:limit]
+
+            # 2. Fetch associated invisible messages for these runs
+            run_ids = {m.run_id for m in visible_messages if m.run_id}
+            
+            # Special case: include current active run even if its messages are invisible
+            if not before_id:
+                latest_run_id = (await session.execute(
+                    select(Message.run_id)
+                    .where(Message.thread_id == self.thread_id, Message.run_id.is_not(None))
+                    .order_by(Message.sequence_number.desc())
+                    .limit(1)
+                )).scalar_one_or_none()
+                if latest_run_id:
+                    run_ids.add(latest_run_id)
+
+            all_messages = list(visible_messages)
+            if run_ids:
+                invisible_stmt = (
+                    select(Message)
+                    .where(Message.thread_id == self.thread_id, Message.is_visible == False, Message.run_id.in_(run_ids))
+                    .options(selectinload(Message.references))
+                )
+                invisible_messages = (await session.execute(invisible_stmt)).scalars().all()
+                all_messages.extend(invisible_messages)
+
+            all_messages.sort(key=lambda m: m.sequence_number or 0)
+
+            # 3. Total count for first load
+            total_count = None
+            if not before_id:
+                total_count = (await session.execute(
+                    select(func.count(Message.id)).where(Message.thread_id == self.thread_id, Message.is_visible == True)
+                )).scalar()
+
+            return all_messages, has_more, total_count

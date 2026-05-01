@@ -8,11 +8,11 @@ from langchain_core.tools import StructuredTool
 
 from app.core.mcp.auth.manager import mcp_auth_manager
 from app.core.mcp.config import McpServerConfig
-from app.core.mcp.schemas import McpPromptResult, McpResourceContent
 from app.core.mcp.features.prompts import McpPromptsFeature
 from app.core.mcp.features.resources import McpResourcesFeature
 from app.core.mcp.features.tools import McpToolsFeature
 from app.core.mcp.health import McpHealthChecker
+from app.core.mcp.schemas import McpPromptResult, McpResourceContent
 from app.core.mcp.transport import McpTransport
 
 logger = logging.getLogger(__name__)

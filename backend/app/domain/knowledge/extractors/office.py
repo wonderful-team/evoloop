@@ -53,7 +53,6 @@ class WordExtractor(BaseExtractor):
         """Extract content from Word document."""
         try:
             import docx
-            from docx.shared import Inches
         except ImportError:
             raise ExtractionError(
                 "python-docx not installed. Run: pip install python-docx",
@@ -310,7 +309,7 @@ class PowerPointExtractor(BaseExtractor):
                 lines.append(f"## Slide {i}\n")
                 
                 for shape in slide.shapes:
-                    if hasattr(shape, "text") and shape.text.strip():
+                    if shape.text.strip():
                         lines.append(shape.text.strip())
                         lines.append("")
                 

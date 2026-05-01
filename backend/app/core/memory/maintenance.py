@@ -89,7 +89,7 @@ class MemoryMaintenanceAgent:
                 )
                 await session.commit()
 
-                deleted = result.rowcount if hasattr(result, 'rowcount') else 0
+                deleted = result.rowcount
                 logger.debug(f"[Maintenance] Cleaned {deleted} messages from {self.thread_id}")
 
         except Exception as e:

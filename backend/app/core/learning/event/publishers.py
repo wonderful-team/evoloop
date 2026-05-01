@@ -6,6 +6,7 @@ Helper functions for publishing learning-related events.
 """
 
 from __future__ import annotations
+
 from typing import TYPE_CHECKING
 
 from app.core.events import system_bus

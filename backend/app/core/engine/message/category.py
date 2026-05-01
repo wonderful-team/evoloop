@@ -112,6 +112,7 @@ class MessageCategory(str, Enum):
             MessageCategory.HITL_REQUEST,        # 实时推送交互请求
         }
 
+    @property
     def frontend_type(self) -> str | None:
         """前端显示类型 (human, ai, tool, thought, error, auth_expired, hitl)"""
         mapping = {

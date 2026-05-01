@@ -165,7 +165,7 @@ class MessageFolder:
             msg = messages[i]
 
             # 获取统一 ID 和时间戳
-            msg_id = getattr(msg, "id", None) or msg.additional_kwargs.get("id") or f"msg-{i}"
+            msg_id = msg.id or msg.additional_kwargs.get("id") or f"msg-{i}"
             created_at = getattr(msg, "created_at", None) or msg.additional_kwargs.get("created_at")
             if isinstance(created_at, datetime):
                 created_at = created_at.isoformat()

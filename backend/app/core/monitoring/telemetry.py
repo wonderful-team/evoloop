@@ -2,9 +2,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel, Field
-
-from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.core.monitoring.schemas import PromptStats, UsageMetadata, ResponseStats, InferenceEvent
 
 

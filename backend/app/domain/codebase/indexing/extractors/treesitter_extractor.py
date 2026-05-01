@@ -4,14 +4,14 @@ import tree_sitter
 
 from app.core.file.service import is_test_file
 from app.domain.codebase.indexing.base import BaseExtractor
+from app.domain.codebase.indexing.parsers import parser_registry
+from app.domain.codebase.indexing.queries import TREE_SITTER_QUERIES
 from app.domain.codebase.schemas import (
     Document,
     ExtractedEntity,
     ExtractedRelation,
     ExtractionResult,
 )
-from app.domain.codebase.indexing.parsers import parser_registry
-from app.domain.codebase.indexing.queries import TREE_SITTER_QUERIES
 from app.utils.file import get_file_ext
 
 logger = logging.getLogger(__name__)

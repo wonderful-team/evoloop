@@ -79,6 +79,7 @@ class EvoLoopToolConfig(DynamicBaseModel):
     is_multimodal: bool = False
     is_hidden: bool = False
     handle_tool_error: bool = True
+    is_hitl: bool = False  # If True, this tool triggers a human-in-the-loop request
     required_benefit: str | None = None
 
     def model_post_init(self, __context: Any) -> None:
@@ -127,3 +128,4 @@ class ToolRegistryMetadata(DynamicBaseModel):
     is_hidden: bool = False
     summary_template: str | None = None  # Legacy support for i18n
     is_memory_tool: bool = False
+    is_hitl: bool = False

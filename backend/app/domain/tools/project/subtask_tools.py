@@ -81,7 +81,7 @@ async def create_task_with_subtasks(
         )
         
         # Format response
-        subtask_count = len(task.subtasks) if hasattr(task, 'subtasks') else 0
+        subtask_count = len(task.subtasks)
         
         if subtask_count > 0:
             subtask_list = "\n".join([

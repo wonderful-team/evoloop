@@ -153,12 +153,12 @@ class SqlShortTermMemory(IShortTermMemory):
                 lc_messages.append(SystemMessage(content=msg.content or ""))
             elif msg.role == "ai":
                 kwargs = {"content": msg.content or ""}
-                if getattr(msg, "tool_calls", None):
+                if msg.tool_calls:
                     kwargs["tool_calls"] = msg.tool_calls
                     # Stash them so ToolMessages can claim their IDs
                     pending_tool_calls[msg.id] = list(msg.tool_calls)
                 # Preserve thinking content in additional_kwargs for reasoning models
-                thinking_raw = getattr(msg, "thinking", None)
+                thinking_raw = msg.thinking
                 if thinking_raw:
                     kwargs["additional_kwargs"] = {"thinking": thinking_raw}
                 lc_messages.append(AIMessage(**kwargs))
@@ -257,7 +257,7 @@ class SqlShortTermMemory(IShortTermMemory):
             elif msg.role == "ai":
                 kwargs = {"content": msg.content}
                 # Preserve thinking content in additional_kwargs for reasoning models
-                thinking_raw = getattr(msg, "thinking", None)
+                thinking_raw = msg.thinking
                 if thinking_raw:
                     kwargs["additional_kwargs"] = {"thinking": thinking_raw}
                 lc_messages.append(AIMessage(**kwargs))

@@ -198,7 +198,7 @@ async def list_root_tasks(
                     status=t.status,
                     progress=t.progress,
                     priority=t.task_data.get("priority", "medium"),
-                    has_subtasks=len(t.subtasks) > 0 if hasattr(t, 'subtasks') else False,
+                    has_subtasks=len(t.subtasks) > 0,
                     created_at=t.created_at.isoformat() if t.created_at else None
                 )
                 for t in tasks

@@ -184,12 +184,12 @@ class AutoMemoryExtractor:
             seq = None
             
             # 1. Try to get sequence_number from metadata
-            if hasattr(last_msg, 'additional_kwargs') and last_msg.additional_kwargs:
+            if last_msg.additional_kwargs:
                 seq = last_msg.additional_kwargs.get("sequence_number")
             
             # 2. Fallback: If sequence is missing but we have a standardized ID string, parse it
             # This handles cases where LangChain ID was updated but metadata was lost.
-            if seq is None and hasattr(last_msg, 'id') and last_msg.id:
+            if seq is None and last_msg.id:
                 msg_id_str = str(last_msg.id)
                 if msg_id_str.startswith("msg-"):
                     parts = msg_id_str.split("-")
@@ -201,7 +201,7 @@ class AutoMemoryExtractor:
 
             # 3. Final Fallback: If still missing but we have a UUID, query DB
             # This handles cases where LangGraph state lost all in-memory updates.
-            if seq is None and hasattr(last_msg, 'id') and last_msg.id:
+            if seq is None and last_msg.id:
                 msg_uuid = str(last_msg.id)
                 try:
                     from app.infrastructure.database.sql.database import session_scope
@@ -222,7 +222,7 @@ class AutoMemoryExtractor:
 
             if seq is not None:
                 last_msg_id = f"msg-{thread_id}-{seq}"
-            elif hasattr(last_msg, 'id') and last_msg.id:
+            elif last_msg.id:
                 # Last resort fallback to raw ID
                 last_msg_id = str(last_msg.id)
             
@@ -263,7 +263,7 @@ class AutoMemoryExtractor:
         start_idx = 0
         if last_uuid:
             for i, msg in enumerate(messages):
-                if hasattr(msg, 'id') and str(msg.id) == last_uuid:
+                if str(msg.id) == last_uuid:
                     start_idx = i + 1
                     break
 
@@ -278,7 +278,7 @@ class AutoMemoryExtractor:
                     return True
 
                 # Check tool calls if present
-                if hasattr(msg, 'tool_calls') and msg.tool_calls:
+                if msg.tool_calls:
                     for tc in msg.tool_calls:
                         tool_name = tc.get('name', '') if isinstance(tc, dict) else getattr(tc, 'name', '')
                         if 'remember' in tool_name.lower():

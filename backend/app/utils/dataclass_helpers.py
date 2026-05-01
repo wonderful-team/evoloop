@@ -5,14 +5,14 @@ Dataclass 序列化辅助工具
 
 示例:
     @dataclass
-    class AtlasElement(SerializableMixin):
+    class MyElement(SerializableMixin):
         role: str = ""
         label: str = ""
         
     # 使用
-    element = AtlasElement(role="button", label="Save")
+    element = MyElement(role="button", label="Save")
     data = element.to_dict()
-    restored = AtlasElement.from_dict(data)
+    restored = MyElement.from_dict(data)
 """
 
 from dataclasses import asdict

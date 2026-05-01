@@ -210,10 +210,6 @@ class MemorySearchResult(DynamicBaseModel):
     updated_at: datetime
     confidence: float = 1.0
 
-    def to_dict(self) -> dict:
-        """Legacy compatibility method."""
-        return self.model_dump()
-
 
 class MemoryIndexEntry(DynamicBaseModel):
     """Entry in MEMORY.md index file."""

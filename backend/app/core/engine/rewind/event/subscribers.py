@@ -10,7 +10,7 @@ import logging
 import re
 
 from langchain_core.messages import HumanMessage, RemoveMessage
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, select, update, func
 
 from app.core.engine.rewind.checkpoint_repository import CheckpointRepository
 from app.core.engine.rewind.event import RewindEventType, RewindRequestedEvent
@@ -257,13 +257,22 @@ class MessageRewind:
             self._deleted_count = count
             event.results["messages"] = count
 
+            # 3. Reset sequence counter to maintain continuity
+            from app.core.engine.message.sequence import SequenceService
+            async with session_scope() as session:
+                # Find max sequence remaining in the DB
+                stmt = select(func.max(Message.sequence_number)).where(Message.thread_id == event.thread_id)
+                res = await session.execute(stmt)
+                max_seq = res.scalar() or 0
+                await SequenceService.set_sequence(event.thread_id, max_seq + 1)
+
             from app.core.engine.rewind.event.publishers import publish_messages_cleanup
             await publish_messages_cleanup(
                 thread_id=event.thread_id,
                 message_ids=message_ids,
                 delete_references=True,
             )
-            logger.info(f"[MessageRewind] Deleted {count} messages for thread {event.thread_id}")
+            logger.info(f"[MessageRewind] Deleted {count} messages and reset sequence to {max_seq + 1} for thread {event.thread_id}")
         else:
             logger.info(f"[MessageRewind] No messages to delete for thread {event.thread_id}")
 

@@ -48,7 +48,7 @@ def route_to(
         skill_ids: List of skill IDs for multi-step workflows (executed in order).
         workflow_mode: "single" for one skill, "sequential" for step-by-step execution.
     """
-    target_val = target.value if hasattr(target, "value") else target
+    target_val = target.value
 
     ctx = context or RoutingContext()
     context_dict = ctx.model_dump()

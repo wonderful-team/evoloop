@@ -2,7 +2,6 @@ import logging
 
 from fastapi import APIRouter, HTTPException, Request
 from sqlalchemy import delete, select, func
-from sqlalchemy.orm import selectinload
 
 from app.api.schemas.conversations import (
     MessageItem,
@@ -18,6 +17,7 @@ from app.api.schemas.conversations import (
     MessageListResponse,
 )
 from app.core.engine.message.folder import MessageFolder
+from app.core.engine.message.repository import MessageRepository
 from app.core.engine.message.utils import to_base_message
 from app.core.monitoring.activity import activity_monitor
 from app.infrastructure.database.sql.database import get_db_session
@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-# ToolStep and FoldedMessage are now imported from app.core.engine.state.history
+# Message components are now managed via app.core.engine.message.*
 
 @router.get("/", response_model=list[ConversationListItem])
 async def list_conversations(project_id: int | None = None):
@@ -65,87 +65,10 @@ async def get_conversation_messages(
     before_id: str | None = None,
 ):
     limit = min(max(limit, 1), 100)
+    repo = MessageRepository(thread_id=thread_id)
+    all_messages, has_more, total_count = await repo.get_full_history(limit=limit, before_id=before_id)
 
     async with get_db_session() as session:
-        # Step 1: Query visible messages only
-        # is_visible is determined by category, see MessageCategory.get_visible_categories()
-        visible_stmt = (
-            select(Message)
-            .where(
-                Message.thread_id == thread_id,
-                Message.is_visible == True
-            )
-            .options(selectinload(Message.references))
-            .order_by(Message.sequence_number.desc())
-            .limit(limit + 1)  # Fetch one extra to check has_more
-        )
-
-        # Apply cursor pagination (before_id is the id of the oldest visible message;
-        # we translate it to sequence_number for reliable chronological ordering).
-        if before_id is not None:
-            before_seq = (
-                await session.execute(
-                    select(Message.sequence_number).where(Message.id == before_id)
-                )
-            ).scalar_one_or_none()
-            if before_seq is not None:
-                visible_stmt = visible_stmt.where(Message.sequence_number < before_seq)
-
-        result = await session.execute(visible_stmt)
-        visible_messages = result.scalars().all()
-
-        # Check if there are more visible messages
-        has_more = len(visible_messages) > limit
-        if has_more:
-            visible_messages = visible_messages[:limit]
-
-        # Reverse to chronological order (oldest first)
-        visible_messages = list(reversed(visible_messages))
-
-        # Step 2: Collect all run_ids from visible messages
-        run_ids = {m.run_id for m in visible_messages if m.run_id}
-
-        # To prevent losing the active run if it only has intermediate messages so far
-        if before_id is None:
-            latest_msg_stmt = (
-                select(Message.run_id)
-                .where(Message.thread_id == thread_id, Message.run_id.is_not(None))
-                .order_by(Message.sequence_number.desc())
-                .limit(1)
-            )
-            latest_run_id = (await session.execute(latest_msg_stmt)).scalar_one_or_none()
-            if latest_run_id:
-                run_ids.add(latest_run_id)
-
-        # Step 3: Fetch all invisible messages associated with these runs
-        # These are internal messages (internal_tool_call, internal_system, internal_llm_json, error)
-        invisible_messages = []
-        if run_ids:
-            invisible_stmt = (
-                select(Message)
-                .where(
-                    Message.thread_id == thread_id,
-                    Message.is_visible == False,
-                    Message.run_id.in_(run_ids)
-                )
-                .options(selectinload(Message.references))
-                .order_by(Message.sequence_number.asc())  # Chronological order
-            )
-            invisible_result = await session.execute(invisible_stmt)
-            invisible_messages = invisible_result.scalars().all()
-
-        # Step 4: Merge and sort all messages by sequence_number (chronological order)
-        all_messages = visible_messages + list(invisible_messages)
-        all_messages.sort(key=lambda m: m.sequence_number or 0)
-
-        # Get total count on first load (when before_id is None)
-        total_count = None
-        if before_id is None:
-            count_stmt = select(func.count(Message.id)).where(
-                Message.thread_id == thread_id,
-                Message.is_visible == True
-            )
-            total_count = (await session.execute(count_stmt)).scalar()
 
         # Query file operations: presence set + changeset count in one query
         file_ops_stmt = (
@@ -155,7 +78,7 @@ async def get_conversation_messages(
         )
         file_ops_result = await session.execute(file_ops_stmt)
         file_ops_rows = file_ops_result.all()
-        messages_with_files = set(row.message_id for row in file_ops_rows)
+        messages_with_files = set(str(row.message_id) for row in file_ops_rows)
         message_changeset_counts = {str(row.message_id): row.count for row in file_ops_rows}
 
         # Conversion: Message DB -> LangChain BaseMessage -> FoldedMessage
@@ -195,13 +118,14 @@ async def get_conversation_messages(
                 else []
             )
 
+            msg_id_str = str(db_m.id)
             item = MessageItem(
                 **f.model_dump(),
                 run_id=db_m.run_id,
                 parent_id=db_m.parent_id,
                 references=refs,
-                has_file_operations=bool(db_m.run_id and db_m.run_id in messages_with_files),
-                changeset_count=message_changeset_counts.get(db_m.run_id, 0) if db_m.run_id else 0,
+                has_file_operations=msg_id_str in messages_with_files,
+                changeset_count=message_changeset_counts.get(msg_id_str, 0),
                 category=db_m.category,
                 content_type=db_m.content_type or "text",
                 status=db_m.status,
@@ -215,9 +139,9 @@ async def get_conversation_messages(
             item.tool_calls = None
             final_items.append(item)
 
-        # Build response with cursors (based on visible messages only)
-        first_id = visible_messages[0].id if visible_messages else None
-        last_id = visible_messages[-1].id if visible_messages else None
+        # Build response with cursors
+        first_id = str(all_messages[0].id) if all_messages else None
+        last_id = str(all_messages[-1].id) if all_messages else None
 
         return MessageListResponse(
             data=final_items,

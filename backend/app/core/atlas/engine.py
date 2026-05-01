@@ -119,7 +119,7 @@ class AtlasEngine:
             state_id = self._generate_state_id(bundle_id, window_title)
 
             # Elements are passed as standardized dicts from the event payload
-            elements = [AtlasElement.from_dict(e) for e in elements_data]
+            elements = [AtlasElement.model_validate(e) for e in elements_data]
 
             state = AtlasState(
                 state_id=state_id,
@@ -379,7 +379,7 @@ class AtlasEngine:
             infrastructure_elements = []
 
             for e_data in elements_data:
-                element = AtlasElement.from_dict(e_data)
+                element = AtlasElement.model_validate(e_data)
                 category = self._classify_element_category(element, platform)
                 element.element_category = category
 

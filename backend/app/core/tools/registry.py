@@ -352,7 +352,7 @@ def is_state_mutating_tool(tool_name: str) -> bool:
     if tool_name not in tool_map:
         return False
     # Check custom EvoLoop metadata injected via @evoloop_tool(is_state_mutating=True)
-    return getattr(tool_map[tool_name], "metadata", {}).get("is_state_mutating", False)
+    return tool_map[tool_name].metadata.get("is_state_mutating", False)
 
 
 def is_pollable_tool(tool_name: str) -> bool:
@@ -361,7 +361,19 @@ def is_pollable_tool(tool_name: str) -> bool:
     if tool_name not in tool_map:
         return False
     # Check custom EvoLoop metadata injected via @evoloop_tool(is_pollable=True)
-    return getattr(tool_map[tool_name], "metadata", {}).get("is_pollable", False)
+    return tool_map[tool_name].metadata.get("is_pollable", False)
+
+
+def is_hitl_tool(tool_name: str) -> bool:
+    """Return True if the tool triggers a human-in-the-loop request."""
+    tool_map = get_tool_map()
+    if tool_name not in tool_map:
+        # Check system fallbacks
+        if tool_name in SYSTEM_TOOL_METADATA:
+            return SYSTEM_TOOL_METADATA[tool_name].get("is_hitl", False)
+        return False
+    # Check custom EvoLoop metadata injected via @evoloop_tool(is_hitl=True)
+    return tool_map[tool_name].metadata.get("is_hitl", False)
 
 
 def get_tool_metadata(tool_name: str) -> ToolRegistryMetadata:
@@ -370,7 +382,7 @@ def get_tool_metadata(tool_name: str) -> ToolRegistryMetadata:
     metadata: dict = {}
 
     if tool_name in tool_map:
-        metadata = getattr(tool_map[tool_name], "metadata", {}) or {}
+        metadata = tool_map[tool_name].metadata or {}
 
     # Merge with system fallback if missing key metadata
     if tool_name in SYSTEM_TOOL_METADATA:
@@ -400,7 +412,7 @@ def get_tool_affected_paths(tool_name: str, tool_args: dict) -> list[str]:
             except Exception:
                 pass
 
-        metadata = getattr(tool, "metadata", {})
+        metadata = tool.metadata
         path_keys = metadata.get("affected_path_keys", [])
 
         for key in path_keys:

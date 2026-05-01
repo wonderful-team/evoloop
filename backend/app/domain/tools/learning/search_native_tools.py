@@ -31,8 +31,8 @@ async def search_native_tools(query: str = "") -> dict[str, Any]:
     }
 
     for tool in all_tools:
-        name = getattr(tool, "name", "")
-        desc = getattr(tool, "description", "") or ""
+        name = tool.name
+        desc = tool.description or ""
 
         if query_lower and query_lower not in name.lower() and query_lower not in desc.lower():
             continue

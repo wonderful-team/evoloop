@@ -27,9 +27,9 @@ def restore_std_streams():
     old_stderr = sys.stderr
 
     try:
-        if hasattr(sys, "__stdout__") and sys.__stdout__:
+        if sys.__stdout__:
             sys.stdout = sys.__stdout__
-        if hasattr(sys, "__stderr__") and sys.__stderr__:
+        if sys.__stderr__:
             sys.stderr = sys.__stderr__
         yield
     finally:

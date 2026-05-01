@@ -3,19 +3,15 @@ ContentIndexer: Handles code extraction and embedding generation.
 """
 import logging
 
-from pydantic import BaseModel, ConfigDict
-
-from app.domain.codebase.schemas import (
-    Document,
-    ExtractedEntity,
-    ExtractedRelation,
-)
 from app.domain.codebase.indexing.extractors.treesitter_extractor import (
     TreeSitterExtractor,
 )
+from app.domain.codebase.schemas import (
+    Document,
+)
+from app.domain.codebase.schemas import IndexedContent
 from app.infrastructure.embeddings.base import BaseEmbedder
 from app.infrastructure.embeddings.factory import EmbedderFactory
-from app.domain.codebase.schemas import IndexedContent
 
 logger = logging.getLogger(__name__)
 

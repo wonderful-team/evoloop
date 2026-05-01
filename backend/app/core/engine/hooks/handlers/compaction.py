@@ -103,7 +103,7 @@ async def pre_compact_save_state(context: HookContext) -> HookResult:
         source_message_id = None
         if context.messages:
             last_msg = context.messages[-1]
-            source_message_id = getattr(last_msg, "id", None) or last_msg.additional_kwargs.get("message_id")
+            source_message_id = last_msg.id or last_msg.additional_kwargs.get("message_id")
 
         memory_entry = MemoryEntry(
             id=f"checkpoint_{context.thread_id}_{int(datetime.utcnow().timestamp())}",
@@ -151,7 +151,7 @@ def _extract_task_progress(messages: list[BaseMessage]) -> str:
 
     # Look for the most recent human message
     for msg in reversed(messages):
-        if hasattr(msg, 'type') and msg.type == 'human':
+        if msg.type == 'human':
             return str(msg.content)[:200]
 
     return "Unknown task"
@@ -162,7 +162,7 @@ def _extract_decisions(messages: list[BaseMessage]) -> list[str]:
     decisions = []
 
     for msg in messages:
-        if hasattr(msg, 'type') and msg.type == 'ai':
+        if msg.type == 'ai':
             content = str(msg.content).lower()
             # Look for decision indicators
             if any(keyword in content for keyword in ['decided', 'decision', 'choose', 'selected', 'we will']):
