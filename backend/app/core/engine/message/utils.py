@@ -7,13 +7,150 @@ This module re-exports functions from specialized sub-modules for backward
 compatibility. New code should import directly from the specialized modules.
 """
 
+import json
 import logging
+from typing import Any
 
-from langchain_core.messages import AIMessage, BaseMessage
+from langchain_core.messages import AIMessage, BaseMessage, SystemMessage, ToolMessage, HumanMessage
 
 from app.utils.token import estimate_tokens
 
 logger = logging.getLogger(__name__)
+
+
+# Mapping of tool-specific argument aliases for consistent i18n rendering
+# format: {tool_name: {old_key: new_key}}
+TOOL_ARG_ALIASES = {
+    "search_files": {"pattern": "query"},
+    "search_code": {"pattern": "query"},
+    "search_web": {"pattern": "query"},
+    "list_directory": {"path": "path"},  # Ensure path is always available
+    "read_file": {"path": "path"},
+}
+
+
+def to_base_message(msg: Any) -> BaseMessage | None:
+    """
+    Convert a database Message record or similar object to a LangChain BaseMessage.
+
+    Args:
+        msg: Object with role, content, and optionally tool_calls / tool_call_id
+
+    Returns:
+        A LangChain message object or None if role is unknown
+    """
+    role = getattr(msg, "role", None)
+    # Defensive: content may be None in DB; LangChain v2 rejects None content
+    content = getattr(msg, "content", "") or ""
+
+    # Preserve key metadata that fold_messages and other utilities need
+    msg_id = str(getattr(msg, "id", "")) or None
+    created_at = getattr(msg, "created_at", None)
+    thinking_raw = getattr(msg, "thinking", None)
+
+    # Build additional_kwargs explicitly for clarity and version safety
+    additional_kwargs: dict[str, Any] = {}
+    if created_at:
+        additional_kwargs["created_at"] = created_at
+    if thinking_raw:
+        additional_kwargs["thinking"] = thinking_raw
+
+    try:
+        if role == "human":
+            return HumanMessage(content=content, id=msg_id, additional_kwargs=additional_kwargs)
+        elif role == "ai":
+            tool_calls = normalize_tool_calls(getattr(msg, "tool_calls", []))
+
+            return AIMessage(
+                content=content,
+                id=msg_id,
+                tool_calls=tool_calls,
+                additional_kwargs=additional_kwargs
+            )
+        elif role == "tool":
+            # For database records, name might be stored in 'tool_name' or derived from tool_calls
+            return ToolMessage(
+                content=content,
+                id=msg_id,
+                tool_call_id=getattr(msg, "tool_call_id", "") or "",
+                name=getattr(msg, "tool_name", None),
+                additional_kwargs=additional_kwargs
+            )
+        elif role == "system":
+            return SystemMessage(content=content, id=msg_id, additional_kwargs=additional_kwargs)
+    except Exception as e:
+        logger.warning(f"[to_base_message] Failed to convert msg id={msg_id} role={role}: {e}")
+        return None
+
+    return None
+
+
+def normalize_tool_call(tc: Any) -> dict[str, Any]:
+    """
+    Standardize tool call structure to LangChain format:
+    {"id": "...", "name": "...", "args": {...}}
+
+    Handles:
+    - LangChain normalized dicts
+    - OpenAI raw tool call dicts (with 'function' and 'arguments' string)
+    - Pydantic models (with .model_dump())
+    """
+    if not isinstance(tc, dict):
+        if hasattr(tc, "model_dump"):
+            tc = tc.model_dump()
+        else:
+            return {}
+
+    # 1. Check for standard LangChain format
+    res_id = tc.get("id") or tc.get("tool_call_id") or ""
+    res_name = tc.get("name") or tc.get("tool_name") or ""
+    res_args = tc.get("args") or {}
+
+    # 2. Handle OpenAI legacy format: {"function": {"name": "...", "arguments": "{...}"}}
+    if not res_name or not res_args:
+        fn_info = tc.get("function")
+        if isinstance(fn_info, dict):
+            if not res_name:
+                res_name = fn_info.get("name") or ""
+            if not res_args:
+                args_raw = fn_info.get("arguments")
+                if isinstance(args_raw, str):
+                    try:
+                        res_args = json.loads(args_raw)
+                    except (json.JSONDecodeError, ValueError):
+                        res_args = {}
+                elif isinstance(args_raw, dict):
+                    res_args = args_raw
+
+    # 3. Apply Aliases for i18n consistency
+    if res_name in TOOL_ARG_ALIASES:
+        aliases = TOOL_ARG_ALIASES[res_name]
+        for old_k, new_k in aliases.items():
+            if old_k in res_args and new_k not in res_args:
+                res_args[new_k] = res_args[old_k]
+
+    return {
+        "id": res_id,
+        "name": res_name,
+        "args": res_args,
+    }
+
+
+def normalize_tool_calls(tool_calls: Any) -> list[dict[str, Any]]:
+    """Normalize a list of tool calls."""
+    if not tool_calls:
+        return []
+
+    if isinstance(tool_calls, str):
+        try:
+            tool_calls = json.loads(tool_calls)
+        except (json.JSONDecodeError, ValueError):
+            return []
+
+    if not isinstance(tool_calls, list):
+        return []
+
+    return [normalize_tool_call(tc) for tc in tool_calls]
 
 
 def get_message_text(message) -> str:

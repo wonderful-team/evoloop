@@ -161,11 +161,13 @@ async def persist_system_error(
         return
 
     try:
+        import uuid
         async with session_scope() as session:
             # Get next sequence (atomic)
             seq = await SequenceService.next_sequence(thread_id)
 
             error_msg = Message(
+                id=str(uuid.uuid4()),
                 thread_id=thread_id,
                 project_id=project_id,
                 role="ai",

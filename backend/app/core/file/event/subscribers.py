@@ -52,11 +52,12 @@ class FileRewind:
             return
 
         # Query file operations for this thread
-        target_ids = event.affected_db_message_ids or event.affected_message_ids
+        target_ids = event.affected_message_ids
         if target_ids:
             file_ops = await self._find_file_operations_by_message_ids(
                 thread_id=event.thread_id,
-                message_ids=target_ids
+                message_ids=target_ids,
+                run_ids=event.affected_run_ids
             )
         else:
             file_ops = await self._find_file_operations(
@@ -105,97 +106,85 @@ class FileRewind:
         target_message_id: str | None,
         include_target: bool
     ) -> list[dict]:
-        """
-        Find file operations to revert for the given thread.
-        
-        Args:
-            thread_id: The thread ID
-            target_message_id: The message to rewind to
-            include_target: Whether to include the target message's operations
-            
-        Returns:
-            List of file operation dicts
-        """
+        """Find file operations to revert for the given thread."""
         from sqlalchemy import select
-
         from app.infrastructure.database.sql.database import session_scope
         from app.models.file_operation import FileOperation
+        from app.models import Message
 
         async with session_scope() as session:
-            # Build query to find FileOperations
             stmt = select(FileOperation).where(FileOperation.thread_id == thread_id)
 
             if target_message_id:
-                # Filter by message ID range
-
-                target_id = int(target_message_id)
+                # Resolve sequence from UUID
+                stmt_target = select(Message.sequence_number).where(Message.id == target_message_id)
+                res_target = await session.execute(stmt_target)
+                target_seq = res_target.scalar_one_or_none()
+                
+                if target_seq is None:
+                    logger.warning(f"[FileRewind] Target message {target_message_id} not found")
+                    return []
 
                 if include_target:
-                    # Include operations from target message and after
-                    stmt = stmt.where(FileOperation.message_id >= target_id)
+                    stmt = stmt.where(FileOperation.message_id.in_(
+                        select(Message.id).where(Message.thread_id == thread_id, Message.sequence_number >= target_seq)
+                    ))
                 else:
-                    # Only operations after target message
-                    stmt = stmt.where(FileOperation.message_id > target_id)
+                    stmt = stmt.where(FileOperation.message_id.in_(
+                        select(Message.id).where(Message.thread_id == thread_id, Message.sequence_number > target_seq)
+                    ))
 
             stmt = stmt.order_by(FileOperation.created_at.desc())
-
             result = await session.execute(stmt)
             ops = result.scalars().all()
-
-            # Convert to operation dicts
-            file_operations = []
-            for op in ops:
-                file_operations.append({
-                    "id": op.id,
-                    "message_id": op.message_id,
-                    "path": op.file_path,
-                    "operation": op.operation,  # ADD, EDIT, DELETE
-                    "backup_content": op.original_content,
-                })
-
-            return file_operations
+            
+            return [{
+                "id": op.id,
+                "message_id": op.message_id,
+                "path": op.file_path,
+                "operation": op.operation,
+                "backup_content": op.original_content,
+            } for op in ops]
 
     async def _find_file_operations_by_message_ids(
         self,
         thread_id: str,
-        message_ids: list[str]
+        message_ids: list[str] | None = None,
+        run_ids: list[str] | None = None
     ) -> list[dict]:
-        """
-        Find file operations linked to the given message IDs.
-        Used when RewindOrchestrator has pre-computed the affected messages.
-        """
-        if not message_ids:
+        """Find file operations by message IDs or run IDs."""
+        if not message_ids and not run_ids:
             return []
 
-        int_ids = [int(mid) for mid in message_ids if mid.isdigit()]
-        if not int_ids:
-            return []
-
-        from sqlalchemy import select
-
+        from sqlalchemy import select, or_
         from app.infrastructure.database.sql.database import session_scope
         from app.models.file_operation import FileOperation
 
         async with session_scope() as session:
-            stmt = (
-                select(FileOperation)
-                .where(FileOperation.thread_id == thread_id)
-                .where(FileOperation.message_id.in_(int_ids))
-                .order_by(FileOperation.created_at.desc())
-            )
+            stmt = select(FileOperation).where(FileOperation.thread_id == thread_id)
+            
+            conditions = []
+            if message_ids:
+                conditions.append(FileOperation.message_id.in_(message_ids))
+            if run_ids:
+                conditions.append(FileOperation.run_id.in_(run_ids))
+                
+            if len(conditions) > 1:
+                stmt = stmt.where(or_(*conditions))
+            else:
+                stmt = stmt.where(conditions[0])
+
+            stmt = stmt.order_by(FileOperation.created_at.desc())
             result = await session.execute(stmt)
             ops = result.scalars().all()
 
-            file_operations = []
-            for op in ops:
-                file_operations.append({
-                    "id": op.id,
-                    "message_id": op.message_id,
-                    "path": op.file_path,
-                    "operation": op.operation,
-                    "backup_content": op.original_content,
-                })
-            return file_operations
+            return [{
+                "id": op.id,
+                "message_id": op.message_id,
+                "path": op.file_path,
+                "operation": op.operation,
+                "backup_content": op.original_content,
+            } for op in ops]
 
     async def _revert_files(self, file_operations: list[dict]) -> int:
         """

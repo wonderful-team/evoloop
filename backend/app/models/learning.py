@@ -21,7 +21,8 @@ class TraceEvent(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     thread_id: Mapped[str] = mapped_column(String(255), index=True)
-    message_id: Mapped[int | None] = mapped_column(Integer, index=True, nullable=True)
+    message_id: Mapped[str | None] = mapped_column(String(36), index=True, nullable=True)
+    run_id: Mapped[str | None] = mapped_column(String(36), index=True, nullable=True)
     step_number: Mapped[int] = mapped_column(Integer)
 
     # State Context

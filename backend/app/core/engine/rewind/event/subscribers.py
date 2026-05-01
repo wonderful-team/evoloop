@@ -242,8 +242,8 @@ class MessageRewind:
         Uses event.affected_message_ids (pre-computed by RewindOrchestrator)
         to avoid race conditions with other handlers querying the messages table.
         """
-        # Use pre-computed database IDs if available, otherwise fall back to query
-        message_ids = event.affected_db_message_ids or event.affected_message_ids or await self._find_messages_to_delete(
+        # Use pre-computed message IDs (UUIDs) if available, otherwise fall back to query
+        message_ids = event.affected_message_ids or await self._find_messages_to_delete(
             thread_id=event.thread_id,
             target_message_id=event.target_message_id,
             include_target=event.include_target
@@ -302,21 +302,8 @@ class MessageRewind:
         async with session_scope() as session:
             if target_message_id:
                 try:
-                    t_seq = target_message_id
-                    if t_seq.startswith("msg-"):
-                        parts = t_seq.split("-")
-                        if len(parts) >= 3:
-                            t_seq = parts[-1]
-                        target_seq_int = int(t_seq)
-                        stmt = select(Message).where(Message.thread_id == thread_id, Message.sequence_number == target_seq_int)
-                    elif t_seq.isdigit():
-                        msg_id = int(t_seq)
-                        # Try ID first, then sequence number
-                        stmt = select(Message).where((Message.id == msg_id) | ((Message.thread_id == thread_id) & (Message.sequence_number == msg_id)))
-                    else:
-                        target_seq_int = int(t_seq)
-                        stmt = select(Message).where(Message.thread_id == thread_id, Message.sequence_number == target_seq_int)
-                    
+                    # target_message_id is now a UUID
+                    stmt = select(Message).where(Message.id == target_message_id)
                     result = await session.execute(stmt)
                     target_msg = result.scalar_one_or_none()
 
@@ -376,10 +363,8 @@ class MessageRewind:
         if not message_ids:
             return 0
 
-        # Convert string IDs to integers
-        int_ids = [int(mid) for mid in message_ids if mid.isdigit()]
-
-        if not int_ids:
+        # IDs are now UUID strings
+        if not message_ids:
             return 0
 
         async with session_scope() as session:
@@ -387,7 +372,7 @@ class MessageRewind:
             if delete_references:
                 ref_result = await session.execute(
                     delete(MessageReference)
-                    .where(MessageReference.message_id.in_(int_ids))
+                    .where(MessageReference.message_id.in_(message_ids))
                 )
                 logger.debug(f"[MessageRewind] Deleted {ref_result.rowcount} references")
 
@@ -395,13 +380,13 @@ class MessageRewind:
             # This prevents foreign key constraint issues
             await session.execute(
                 update(Message)
-                .where(Message.parent_id.in_(int_ids))
+                .where(Message.parent_id.in_(message_ids))
                 .values(parent_id=None)
             )
 
             # 3. Delete messages
             msg_result = await session.execute(
-                delete(Message).where(Message.id.in_(int_ids))
+                delete(Message).where(Message.id.in_(message_ids))
             )
 
             deleted_count = msg_result.rowcount
@@ -653,24 +638,15 @@ class StateRewind:
             )
 
             if target_message_id:
-                t_seq = target_message_id
-                if t_seq.startswith("msg-"):
-                    parts = t_seq.split("-")
-                    if len(parts) >= 3:
-                        t_seq = parts[-1]
-                    target_seq = int(t_seq)
-                elif t_seq.isdigit():
-                    msg_id = int(t_seq)
-                    # Try ID first to get sequence number
-                    id_stmt = select(Message.sequence_number).where(Message.id == msg_id)
-                    id_res = await session.execute(id_stmt)
-                    found_seq = id_res.scalar_one_or_none()
-                    if found_seq is not None:
-                        target_seq = found_seq
-                    else:
-                        target_seq = msg_id
-                else:
-                    target_seq = int(t_seq)
+                # Resolve sequence from UUID
+                stmt_target = select(Message.sequence_number).where(Message.id == target_message_id)
+                res_target = await session.execute(stmt_target)
+                target_seq = res_target.scalar_one_or_none()
+                
+                if target_seq is None:
+                    # Fallback or error
+                    logger.warning(f"[StateRewind] Could not resolve sequence for message {target_message_id}")
+                    return []
 
                 if include_target:
                     stmt = stmt.where(Message.sequence_number <= target_seq)

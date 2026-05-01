@@ -153,14 +153,17 @@ class TodoRewind:
         Uses event.affected_message_ids (pre-computed by RewindOrchestrator)
         to avoid race conditions with other handlers querying the messages table.
         """
-        message_ids = event.affected_db_message_ids or event.affected_message_ids or await self._find_message_ids(
+        message_ids = event.affected_message_ids or await self._find_message_ids(
             thread_id=event.thread_id,
             target_message_id=event.target_message_id,
             include_target=event.include_target
         )
         
-        if message_ids:
-            count = await self._delete_todos(message_ids)
+        if message_ids or event.affected_run_ids:
+            count = await self._delete_todos(
+                message_ids=message_ids,
+                run_ids=event.affected_run_ids
+            )
             self._deleted_count = count
             event.results["todos"] = count
 
@@ -168,20 +171,24 @@ class TodoRewind:
             await publish_todo_cleanup(
                 thread_id=event.thread_id,
                 source_message_ids=message_ids,
+                affected_run_ids=event.affected_run_ids
             )
             logger.info(f"[TodoRewind] Deleted {count} todo items for thread {event.thread_id}")
         else:
             logger.debug(f"[TodoRewind] No todo items found to delete for thread {event.thread_id}")
 
     @event_subscribe(RewindEventType.TODO_CLEANUP)
-    async def _handle_todo_cleanup(self, event: TodoCleanupEvent) -> None:
+    async def _handle_todo_cleanup(self, event: "TodoCleanupEvent") -> None:
         """
         Handle specific todo cleanup event.
         
         This performs the actual todo deletion.
         """
         try:
-            count = await self._delete_todos(event.source_message_ids)
+            count = await self._delete_todos(
+                message_ids=event.source_message_ids,
+                run_ids=event.affected_run_ids
+            )
             self._deleted_count = count
             logger.info(f"[TodoRewind] Deleted {count} todo items")
         except Exception as e:
@@ -194,64 +201,66 @@ class TodoRewind:
         target_message_id: str | None,
         include_target: bool
     ) -> list[str]:
-        """
-        Find message IDs to clean up for the given thread.
-        
-        Args:
-            thread_id: The thread ID
-            target_message_id: The message to rewind to
-            include_target: Whether to include the target message
-            
-        Returns:
-            List of message IDs as strings
-        """
+        """Find message IDs to clean up for the given thread."""
         from app.models import Message
         
         async with session_scope() as session:
             stmt = select(Message.id).where(Message.thread_id == thread_id)
             
             if target_message_id:
-                target_id = int(target_message_id)
+                # Resolve sequence from UUID
+                stmt_target = select(Message.sequence_number).where(Message.id == target_message_id)
+                res_target = await session.execute(stmt_target)
+                target_seq = res_target.scalar_one_or_none()
+                
+                if target_seq is None:
+                    logger.warning(f"[TodoRewind] Target message {target_message_id} not found")
+                    return []
+
                 if include_target:
-                    stmt = stmt.where(Message.id >= target_id)
+                    stmt = stmt.where(Message.sequence_number >= target_seq)
                 else:
-                    stmt = stmt.where(Message.id > target_id)
+                    stmt = stmt.where(Message.sequence_number > target_seq)
 
             result = await session.execute(stmt)
             return [str(row[0]) for row in result.all()]
 
-    async def _delete_todos(self, source_message_ids: list[str]) -> int:
+    async def _delete_todos(
+        self,
+        message_ids: list[str],
+        run_ids: list[str] | None = None
+    ) -> int:
         """
-        Delete todo items linked to the given message IDs.
-        
-        Args:
-            source_message_ids: List of source message IDs
-            
-        Returns:
-            Number of todos deleted
+        Delete todo items by message IDs or run IDs.
         """
         from app.models.todo import TodoItem
         
-        if not source_message_ids:
+        if not message_ids and not run_ids:
             return 0
-        
+            
         async with session_scope() as session:
-            # Convert string IDs to integers
-            int_ids = [int(mid) for mid in source_message_ids if mid.isdigit()]
+            stmt = delete(TodoItem)
             
-            if not int_ids:
-                return 0
-            
-            stmt = delete(TodoItem).where(TodoItem.source_message_id.in_(int_ids))
+            conditions = []
+            if message_ids:
+                conditions.append(TodoItem.source_message_id.in_(message_ids))
+            if run_ids:
+                conditions.append(TodoItem.run_id.in_(run_ids))
+                
+            if len(conditions) > 1:
+                from sqlalchemy import or_
+                stmt = stmt.where(or_(*conditions))
+            else:
+                stmt = stmt.where(conditions[0])
+                
             result = await session.execute(stmt)
-            
-            deleted_count = result.rowcount
-            logger.info(f"🗑️ Deleted {deleted_count} TodoItem records")
-            return deleted_count
+            count = result.rowcount
+            logger.info(f"[TodoRewind] Deleted {count} todo items")
+            return count
 
     async def cleanup(self, message_ids: list[str], **kwargs) -> int:
         """Direct cleanup entry point (non-event-driven usage)."""
-        return await self._delete_todos(message_ids)
+        return await self._delete_todos(message_ids=message_ids)
 
     def get_deleted_count(self) -> int:
         """Get the count of todos deleted in the last operation."""

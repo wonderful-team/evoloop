@@ -28,7 +28,7 @@ from langchain_core.messages import (
 )
 
 from app.core.engine.message.schemas import BlockEvent, MessageBlock, ToolBlock
-from app.core.engine.message.reasoning import parse_thinking, serialize_thinking, to_thinking_blocks
+from app.core.engine.message.reasoning import extract_reasoning_from_message
 from app.core.engine.state.history import FoldedMessage
 
 logger = logging.getLogger(__name__)
@@ -71,7 +71,7 @@ class BlockMapper:
             category=msg.category or "",
             content_type=msg.content_type or "text",
             content=msg.content or "",
-            thinking=parse_thinking(msg.thinking),
+            thinking=msg.thinking,
             tool_calls=msg.tool_calls,
             status=msg.status or "completed",  # type: ignore[arg-type]
             is_visible=msg.is_visible,
@@ -95,7 +95,7 @@ class BlockMapper:
             "role": msg.role,
             "content": msg.content,
             "content_type": msg.content_type,
-            "thinking": serialize_thinking(msg.thinking),
+            "thinking": msg.thinking,
             "tool_calls": msg.tool_calls,
             "action_type": _infer_action_type(msg),
             "category": msg.category,
@@ -118,7 +118,7 @@ class BlockMapper:
         """LangChain BaseMessage → MessageBlock"""
         kwargs: dict[str, Any] = {
             "id": _extract_lc_id(msg),
-            "thinking": to_thinking_blocks(msg),
+            "thinking": extract_reasoning_from_message(msg),
             "created_at": _format_iso(msg.additional_kwargs.get("created_at")),
             "thread_id": msg.additional_kwargs.get("thread_id", ""),
             "run_id": msg.additional_kwargs.get("run_id"),
@@ -224,7 +224,8 @@ class BlockMapper:
                 id=step.id,
                 tool_call_id=step.tool_call_id or step.id,
                 tool=step.tool,
-                tool_name=step.tool_name,
+                tool_name=step.tool_name or step.tool,
+                name=step.name,
                 input=step.input,
                 output=step.output,
                 status=step.status,  # type: ignore[arg-type]
@@ -328,7 +329,7 @@ def _format_iso(dt: datetime | str | None) -> str:
 
 def _infer_action_type(msg: MessageBlock) -> str:
     """从 MessageBlock 推断 action_type（兼容旧系统）"""
-    if msg.thinking:
+    if msg.thinking and not msg.content:
         return "thinking"
     if msg.steps:
         return "tool_output"

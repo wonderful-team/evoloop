@@ -124,11 +124,18 @@ class MessageFolder:
         metadata = get_tool_metadata(tool_name_raw) or {}
         summary_template = metadata.get("summary_template")
         tool_name_display = None
-        if summary_template and args:
+        
+        if summary_template:
             try:
+                # Always attempt to get translation, even if args is empty.
+                # i18n.get handles missing placeholders gracefully by returning the template.
                 tool_name_display = i18n.get(summary_template, **args)
-            except (KeyError, TypeError):
+            except Exception:
                 pass
+
+        # Fallback: if no display name from i18n, use Title Case of the raw tool name
+        if not tool_name_display or tool_name_display == summary_template:
+            tool_name_display = tool_name_raw.replace("_", " ").title()
 
         tool_meta = {
             "affected_path_keys": metadata.get("affected_path_keys", []),
@@ -156,7 +163,7 @@ class MessageFolder:
 
         while i < len(messages):
             msg = messages[i]
-            
+
             # 获取统一 ID 和时间戳
             msg_id = getattr(msg, "id", None) or msg.additional_kwargs.get("id") or f"msg-{i}"
             created_at = getattr(msg, "created_at", None) or msg.additional_kwargs.get("created_at")
@@ -197,7 +204,6 @@ class MessageFolder:
                     steps.append(cls.to_tool_step(tool_msg, tc_name=tc_name, tc_args=tc_args, lang=lang))
                     j += 1
 
-                # 读取原生 reasoning_content
                 thinking_content = extract_reasoning_from_message(msg)
 
                 result.append(FoldedMessage(

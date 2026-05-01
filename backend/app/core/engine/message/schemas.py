@@ -35,6 +35,7 @@ class ToolBlock(DynamicBaseModel):
     tool_call_id: str
     tool: str                                    # 原始标识符，如 "read_file"
     tool_name: str | None = None                 # 显示名回退（当前与 tool 相同）
+    name: str | None = None                      # 人类可读显示名（来自 tool_meta 或 i18n）
     input: dict[str, Any] = Field(default_factory=dict)
     output: str = ""
     status: Literal["pending", "running", "done", "failed"] = "pending"
@@ -69,8 +70,8 @@ class MessageBlock(DynamicBaseModel):
     content: str = ""
     content_type: Literal["text", "markdown", "json", "multipart"] = "text"
 
-    # === 思考过程（结构化）===
-    thinking: list[ThinkingBlock] | None = None
+    # === 思考过程 ===
+    thinking: str | None = None
 
     # === 工具调用 ===
     tool_calls: list[dict[str, Any]] | None = None
@@ -167,7 +168,7 @@ class MessageHandlerResult(DynamicBaseModel):
 class PersistencePolicyResult(DynamicBaseModel):
     should_persist: bool
     content: str | None = None
-    thinking: list[ThinkingBlock] | None = None
+    thinking: str | None = None
     tool_calls: list | None = None
     category: str
     tool_call_id: str | None = None

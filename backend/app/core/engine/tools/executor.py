@@ -240,6 +240,7 @@ class AgentToolExecutor:
                             kwargs={
                                 "thread_id": thread_id,
                                 "message_id": str(msg_id),
+                                "run_id": meta.run_id,
                                 "file_path": path,
                                 "operation": operation,
                                 "diff_content": diff,

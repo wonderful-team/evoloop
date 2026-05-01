@@ -18,7 +18,6 @@ async def publish_rewind_requested(
     reset_state: bool = True,
     reason: str = "user_request",
     affected_message_ids: list[str] | None = None,
-    affected_db_message_ids: list[str] | None = None,
     affected_run_ids: list[str] | None = None,
     sequential: bool = False,
     propagate_errors: bool = False,
@@ -32,7 +31,6 @@ async def publish_rewind_requested(
         reset_state=reset_state,
         reason=reason,
         affected_message_ids=affected_message_ids or [],
-        affected_db_message_ids=affected_db_message_ids or [],
         affected_run_ids=affected_run_ids or [],
     )
     await system_bus.publish(event, sequential=sequential, propagate_errors=propagate_errors)

@@ -98,7 +98,7 @@ class RewindOrchestrator:
             # Phase 0: Pre-compute affected message IDs.
             # This prevents race conditions where MessageRewind deletes rows
             # before TodoRewind/TraceRewind/FileRewind can query them.
-            db_ids, msg_ids, affected_run_ids = await self._compute_affected_message_ids(
+            affected_ids, affected_run_ids = await self._compute_affected_message_ids(
                 thread_id=thread_id,
                 target_message_id=target_message_id,
                 include_target=include_target
@@ -116,8 +116,7 @@ class RewindOrchestrator:
                 revert_files=revert_files,
                 reset_state=reset_state,
                 reason=reason,
-                affected_message_ids=msg_ids,
-                affected_db_message_ids=db_ids,
+                affected_message_ids=affected_ids,
                 affected_run_ids=affected_run_ids,
                 sequential=True,
                 propagate_errors=True,
@@ -168,7 +167,7 @@ class RewindOrchestrator:
         thread_id: str,
         target_message_id: str | None,
         include_target: bool
-    ) -> tuple[list[str], list[str], list[str]]:
+    ) -> tuple[list[str], list[str]]:
         """
         Pre-compute the list of message IDs and run IDs that will be affected by this rewind.
         """
@@ -182,29 +181,15 @@ class RewindOrchestrator:
 
             if target_message_id:
                 try:
-                    # Handle "msg-{thread_id}-{sequence_number}" format or raw ID
-                    t_seq = target_message_id
-                    if t_seq.startswith("msg-"):
-                        parts = t_seq.split("-")
-                        if len(parts) >= 3:
-                            t_seq = parts[-1]
-                        target_seq = int(t_seq)
-                    else:
-                        # If it's a raw integer string, it might be a database ID
-                        # Let's check if a message exists with this ID first
-                        if t_seq.isdigit():
-                            msg_id = int(t_seq)
-                            id_stmt = select(Message.sequence_number).where(Message.id == msg_id)
-                            id_res = await session.execute(id_stmt)
-                            found_seq = id_res.scalar_one_or_none()
-                            if found_seq is not None:
-                                target_seq = found_seq
-                                logger.info(f"[RewindOrchestrator] Resolved ID {msg_id} to sequence_number {target_seq}")
-                            else:
-                                # Fallback: treat as sequence number
-                                target_seq = int(t_seq)
-                        else:
-                            target_seq = int(t_seq)
+                    # We now use unified IDs (UUIDs)
+                    # If target_message_id is provided, find its sequence_number
+                    stmt_target = select(Message.sequence_number).where(Message.id == target_message_id)
+                    res_target = await session.execute(stmt_target)
+                    target_seq = res_target.scalar_one_or_none()
+                    
+                    if target_seq is None:
+                        logger.warning(f"[RewindOrchestrator] Target message {target_message_id} not found")
+                        return [], []
 
                     logger.info(f"[RewindOrchestrator] Using target_sequence: {target_seq} (from {target_message_id})")
                     
@@ -212,8 +197,8 @@ class RewindOrchestrator:
                         stmt = stmt.where(Message.sequence_number >= target_seq)
                     else:
                         stmt = stmt.where(Message.sequence_number > target_seq)
-                except (ValueError, TypeError):
-                    logger.warning(f"[RewindOrchestrator] Invalid target_message_id: {target_message_id}")
+                except Exception as e:
+                    logger.warning(f"[RewindOrchestrator] Failed to resolve target_message_id {target_message_id}: {e}")
                     return [], []
             else:
                 # No target specified – find last human message and use it as anchor
@@ -233,9 +218,8 @@ class RewindOrchestrator:
             result = await session.execute(stmt)
             rows = result.all()
             
-            db_message_ids = [str(row.id) for row in rows]
-            message_ids = [f"msg-{thread_id}-{row.sequence_number}" for row in rows]
+            message_ids = [str(row.id) for row in rows]
             run_ids = [row.run_id for row in rows if row.run_id]
             
             # Return unique run_ids
-            return db_message_ids, message_ids, list(set(run_ids))
+            return message_ids, list(set(run_ids))

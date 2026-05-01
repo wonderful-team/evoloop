@@ -11,7 +11,7 @@ import logging
 
 from app.core.engine.message.category import MessageCategory
 from app.core.engine.message.schemas import PersistencePolicyResult
-from app.core.engine.message.reasoning import build_thinking_blocks
+
 
 logger = logging.getLogger(__name__)
 
@@ -88,11 +88,11 @@ class MessagePersistencePolicy:
             result.content = content
             # 正常回复中如果带有思考内容，也一并记录
             if thinking:
-                result.thinking = build_thinking_blocks(thinking)
+                result.thinking = thinking
         elif storage_field == "thinking":
             # 思考过程存入 thinking 字段
             # 优先使用已提取的 thinking，如果没有则取正文 (例如来自隐含标签的内容)
-            result.thinking = build_thinking_blocks(thinking or content)
+            result.thinking = thinking or content
             # 既然是纯思考分类，正文置空以防重复显示
             result.content = ""
 

@@ -40,7 +40,7 @@ class DispatchResult:
 
     status: str                       # "queued" | "failed"
     thread_id: str
-    message_id: int | None = None     # DB persisted message id
+    message_id: str | None = None     # DB persisted message id (UUID)
     inputs: dict[str, Any] | None = None
     error: str | None = None
 
@@ -163,7 +163,7 @@ async def dispatch_agent_run(
     # ------------------------------------------------------------------
     # 4. DB persistence & EvoCloud sync
     # ------------------------------------------------------------------
-    persisted_msg_id: int | None = None
+    persisted_msg_id: str | None = None
 
     try:
         async with session_scope() as session:
@@ -193,18 +193,17 @@ async def dispatch_agent_run(
 
             if not skip_message_persistence:
                 # New message: persist to DB
-                from sqlalchemy import func, select
-
-                stmt = select(func.max(Message.sequence_number)).where(Message.thread_id == thread_id)
-                max_seq = (await session.execute(stmt)).scalar() or 0
+                from app.core.engine.message.sequence import SequenceService
+                seq = await SequenceService.next_sequence(thread_id)
 
                 user_msg = Message(
+                    id=str(uuid.uuid4()),
                     thread_id=thread_id,
                     project_id=project_id,
                     role="human",
                     content=message_content,
                     thinking=None,
-                    sequence_number=max_seq + 1,
+                    sequence_number=seq,
                 )
                 session.add(user_msg)
                 await session.flush()
@@ -281,7 +280,7 @@ async def persist_user_message(
     *,
     project_id: int | None = None,
     command_id: int | None = None,
-) -> int | None:
+) -> str | None:
     """
     Persist a user message to DB and sync to EvoCloud.
 
@@ -304,6 +303,7 @@ async def persist_user_message(
             seq = await SequenceService.next_sequence(thread_id)
 
             user_msg = Message(
+                id=str(uuid.uuid4()),
                 thread_id=thread_id,
                 project_id=project_id or conversation.project_id,
                 role="human",

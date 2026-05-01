@@ -5,11 +5,12 @@ Extracted from MessageHandler to separate persistence concerns from orchestratio
 """
 import json
 import logging
+import uuid
 
 from sqlalchemy import desc, select
 
 from app.core.engine.message.sequence import SequenceService
-from app.core.engine.message.reasoning import wrap_reasoning_for_db
+
 from app.infrastructure.database.sql.database import session_scope
 from app.models import Message
 
@@ -59,20 +60,13 @@ class MessageRepository:
             logger.info(f"[MessageRepository] Persisting {role} message (seq={seq}, cat={category})")
 
             async with session_scope() as session:
-                # Handle both raw string and structured list of blocks
-                thinking_data = thinking
-                if isinstance(thinking, str):
-                    thinking_data = wrap_reasoning_for_db(thinking)
-                elif isinstance(thinking, list):
-                    from app.core.engine.message.reasoning import serialize_thinking
-                    thinking_data = serialize_thinking(thinking)
-
                 log = Message(
+                    id=str(uuid.uuid4()),
                     thread_id=self.thread_id,
                     project_id=self.project_id,
                     role=role,
                     content=content or "",
-                    thinking=thinking_data,
+                    thinking=thinking,
                     sequence_number=seq,
                     run_id=self.run_id,
                     status=status,
@@ -88,8 +82,7 @@ class MessageRepository:
                 session.add(log)
                 await session.flush()
 
-            msg_id = f"msg-{self.thread_id}-{seq}"
-            return msg_id, seq
+            return log.id, seq
 
         except Exception as e:
             logger.error(f"[MessageRepository] Failed to persist message: {e}")
@@ -156,10 +149,10 @@ class MessageRepository:
                 ai_msg = result.scalar_one_or_none()
                 if not ai_msg or not ai_msg.tool_calls:
                     return {}
-                tool_calls = ai_msg.tool_calls
-                if isinstance(tool_calls, str) and tool_calls.strip():
-                    tool_calls = json.loads(tool_calls)
-                for tc in (tool_calls or []):
+                from app.core.engine.message.utils import normalize_tool_calls
+                tool_calls = normalize_tool_calls(ai_msg.tool_calls)
+                
+                for tc in tool_calls:
                     tc_id = tc.get("id")
                     if tc_id == tool_call_id:
                         args = tc.get("args", {})

@@ -8,6 +8,12 @@ for the memory domain.
 import asyncio
 import logging
 
+import json
+import os
+import shutil
+from datetime import datetime
+from pathlib import Path
+
 from app.core.engine.rewind.event import RewindEventType, RewindRequestedEvent
 from app.core.events import SystemEventType
 from app.core.events.base import AsyncEventBus
@@ -128,6 +134,12 @@ class MemoryRewind:
                 )
                 self._deleted_count = count
 
+                # --- NEW: Physical Memory Cleanup ---
+                try:
+                    await self._cleanup_physical_memory(event)
+                except Exception as pe:
+                    logger.warning(f"[MemoryRewind] Physical cleanup warning: {pe}")
+
                 # Report back to the main event
                 event.results["memories"] = count
                 logger.info(f"[MemoryRewind] Successfully purged {count} memories for thread {event.thread_id}")
@@ -165,23 +177,25 @@ class MemoryRewind:
 
         async with session_scope() as session:
             # Use sequence_number for standardized ID construction
-            stmt = select(Message.sequence_number).where(Message.thread_id == thread_id)
+            stmt = select(Message.id).where(Message.thread_id == thread_id)
 
             if target_message_id:
-                t_seq = target_message_id
-                if t_seq.startswith("msg-"):
-                    parts = t_seq.split("-")
-                    if len(parts) >= 3:
-                        t_seq = parts[-1]
-                target_seq = int(t_seq)
+                # Resolve sequence from UUID
+                stmt_target = select(Message.sequence_number).where(Message.id == target_message_id)
+                res_target = await session.execute(stmt_target)
+                target_seq = res_target.scalar_one_or_none()
+                
+                if target_seq is None:
+                    logger.warning(f"[MemoryRewind] Target message {target_message_id} not found")
+                    return []
+
                 if include_target:
                     stmt = stmt.where(Message.sequence_number >= target_seq)
                 else:
                     stmt = stmt.where(Message.sequence_number > target_seq)
 
             result = await session.execute(stmt)
-            # Standardized IDs: msg-{thread_id}-{sequence_number}
-            return [f"msg-{thread_id}-{row.sequence_number}" for row in result.all()]
+            return [str(row.id) for row in result.all()]
 
     async def _delete_memories(
         self,
@@ -252,6 +266,86 @@ class MemoryRewind:
             source_message_ids=message_ids,
             run_ids=run_ids
         )
+
+    async def _cleanup_physical_memory(self, event: RewindRequestedEvent) -> None:
+        """
+        Cleanup physical memory files (MEMORY.md, context/, domain_terms/)
+        based on the target message time.
+        """
+        from app.infrastructure.database.sql.database import session_scope
+        from app.models.conversation import Message
+        from app.core.config import settings
+
+        target_time = None
+        async with session_scope() as session:
+            if event.target_message_id:
+                from sqlalchemy import select
+                stmt = select(Message.created_at).where(Message.id == event.target_message_id)
+                res = await session.execute(stmt)
+                target_time = res.scalar_one_or_none()
+            else:
+                # Fallback to current time if no target (should not happen in targeted rewind)
+                target_time = datetime.utcnow()
+
+        if not target_time:
+            logger.warning("[MemoryRewind] Could not determine target time for physical cleanup")
+            return
+
+        memory_root = Path(settings.BRAIN_MEMORY_ROOT)
+        
+        # 1. Cleanup context snapshots (*.md in context/)
+        context_dir = memory_root / "context"
+        if context_dir.exists():
+            for f in context_dir.glob("*.md"):
+                if datetime.fromtimestamp(f.stat().st_mtime) > target_time:
+                    try:
+                        f.unlink()
+                        logger.debug(f"[MemoryRewind] Deleted stale context file: {f.name}")
+                    except Exception: pass
+
+        # 2. Cleanup domain terms (entries in *.json)
+        terms_dir = memory_root / "domain_terms"
+        if terms_dir.exists():
+            for f in terms_dir.glob("*.json"):
+                try:
+                    with open(f, "r", encoding="utf-8") as jf:
+                        data = json.load(jf)
+                    
+                    if "terms" in data:
+                        original_count = len(data["terms"])
+                        # Filter out terms seen after target_time
+                        new_terms = {}
+                        for k, v in data["terms"].items():
+                            term_time = datetime.fromisoformat(v["last_seen"].replace("Z", "+00:00"))
+                            # Ensure both are UTC or both are naive
+                            if term_time.tzinfo and not target_time.tzinfo:
+                                target_time = target_time.replace(tzinfo=term_time.tzinfo)
+                            
+                            if term_time <= target_time:
+                                new_terms[k] = v
+                            else:
+                                logger.debug(f"[MemoryRewind] Pruning term {k}: {term_time} > {target_time}")
+                        
+                        data["terms"] = new_terms
+                        if len(data["terms"]) < original_count:
+                            with open(f, "w", encoding="utf-8") as jf:
+                                json.dump(data, jf, indent=2, ensure_ascii=False)
+                            logger.debug(f"[MemoryRewind] Pruned {original_count - len(data['terms'])} terms from {f.name}")
+                except Exception as e:
+                    logger.warning(f"[MemoryRewind] Failed to prune terms in {f.name}: {e}")
+
+        # 3. Regenerate MEMORY.md (Tier 1)
+        try:
+            from app.core.memory.lifespan import MemoryLifespanManager
+            if not MemoryLifespanManager.is_initialized():
+                await MemoryLifespanManager.ainitialize()
+            
+            container = MemoryLifespanManager.get_container()
+            # This will pull from the newly cleaned cold memory (Vector DB)
+            await container.memory_manager.regenerate_memory_md()
+            logger.info("[MemoryRewind] MEMORY.md regenerated successfully")
+        except Exception as e:
+            logger.error(f"[MemoryRewind] Failed to regenerate MEMORY.md: {e}")
 
     def get_deleted_count(self) -> int:
         """Get the count of memories deleted in the last operation."""

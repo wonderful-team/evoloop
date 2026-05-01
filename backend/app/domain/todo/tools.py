@@ -72,24 +72,30 @@ async def create_todo(
     # Extract source IDs from config
     source_conversation_id = None
     source_message_id = None
+    run_id = None
     if config:
         source_conversation_id = config.get("configurable", {}).get("thread_id")
         source_message_id = config.get("metadata", {}).get("message_id")
+        run_id = config.get("metadata", {}).get("run_id")
     
     # Create via service layer
-    service = TodoServiceSync()
-    todo = service.create(
-        data=TodoCreate(
-            title=title,
-            description=description,
-            due_date=due_date,  # Service will parse again
-            priority=priority,
-            category=category,
-            project_id=project_id,
-        ),
-        source_conversation_id=source_conversation_id,
-        source_message_id=source_message_id,
-    )
+    from app.infrastructure.database.sql.database import session_scope
+    async with session_scope() as session:
+        from app.domain.todo.service import TodoService
+        service = TodoService(session)
+        todo = await service.create(
+            data=TodoCreate(
+                title=title,
+                description=description,
+                due_date=due_date,  # Service will parse again
+                priority=priority,
+                category=category,
+                project_id=project_id,
+            ),
+            source_conversation_id=source_conversation_id,
+            source_message_id=source_message_id,
+            run_id=run_id,
+        )
     
     return i18n.get(
         "domain_tools.manage_todo.success_add",
@@ -134,8 +140,11 @@ async def list_todos(
     )
     
     # Query via service layer
-    service = TodoServiceSync()
-    todos = service.list_todos(filters)
+    from app.infrastructure.database.sql.database import session_scope
+    async with session_scope() as session:
+        from app.domain.todo.service import TodoService
+        service = TodoService(session)
+        todos = await service.list_todos(filters)
     
     if not todos:
         return i18n.get("domain_tools.manage_todo.no_todos")
@@ -169,16 +178,18 @@ async def complete_todo(todo_id: str) -> str:
     if not todo_id:
         return i18n.get("domain_tools.manage_todo.error_id", action="complete")
     
-    service = TodoServiceSync()
-    
-    try:
-        todo = service.mark_completed(todo_id)
-        return i18n.get(
-            "domain_tools.manage_todo.success_update",
-            id=todo.id
-        ) + f" [{todo.status.value}] {todo.title}"
-    except TodoNotFoundError:
-        return i18n.get("domain_tools.manage_todo.error_not_found", id=todo_id)
+    from app.infrastructure.database.sql.database import session_scope
+    async with session_scope() as session:
+        from app.domain.todo.service import TodoService
+        service = TodoService(session)
+        try:
+            todo = await service.mark_completed(todo_id)
+            return i18n.get(
+                "domain_tools.manage_todo.success_update",
+                id=todo.id
+            ) + f" [{todo.status.value}] {todo.title}"
+        except TodoNotFoundError:
+            return i18n.get("domain_tools.manage_todo.error_not_found", id=todo_id)
 
 
 @evoloop_tool(
@@ -208,16 +219,18 @@ async def cancel_todo(todo_id: str) -> str:
     if not todo_id:
         return i18n.get("domain_tools.manage_todo.error_id", action="cancel")
     
-    service = TodoServiceSync()
-    
-    try:
-        todo = service.mark_cancelled(todo_id)
-        return i18n.get(
-            "domain_tools.manage_todo.success_update",
-            id=todo.id
-        ) + f" [{todo.status.value}] {todo.title}"
-    except TodoNotFoundError:
-        return i18n.get("domain_tools.manage_todo.error_not_found", id=todo_id)
+    from app.infrastructure.database.sql.database import session_scope
+    async with session_scope() as session:
+        from app.domain.todo.service import TodoService
+        service = TodoService(session)
+        try:
+            todo = await service.mark_cancelled(todo_id)
+            return i18n.get(
+                "domain_tools.manage_todo.success_update",
+                id=todo.id
+            ) + f" [{todo.status.value}] {todo.title}"
+        except TodoNotFoundError:
+            return i18n.get("domain_tools.manage_todo.error_not_found", id=todo_id)
 
 
 # =============================================================================

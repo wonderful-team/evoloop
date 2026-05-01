@@ -88,7 +88,10 @@ class I18nService:
                 return value.format(**kwargs)
             except KeyError as e:
                 logger.warning(f"Missing placeholder in i18n string '{key}': {e}")
-                return value
+                # Optional: try to strip the missing placeholder to avoid showing {path} to users
+                import re
+                cleaned_value = re.sub(r'\{' + str(e.args[0]) + r'\}', '...', value)
+                return cleaned_value
             except Exception as e:
                 logger.error(f"Error formatting i18n string '{key}': {e}")
                 return value

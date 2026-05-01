@@ -108,9 +108,10 @@ class MessageClassifier:
         # 2. 识别需存入 thinking 字段的内容（原生推理内容或内部审计标签）
         has_reasoning = (metadata and metadata.get("reasoning_content")) or (content and cls._has_hidden_audit_tags(content))
         
-        # 只有在没有实际回复正文时，才分类为 INTERNAL_REASONING (纯推理消息)
-        # 如果包含正文，则属于正常的 ASSISTANT_RESPONSE，由 PersistencePolicy 负责将 reasoning 存入 thinking 字段
-        if has_reasoning and not (content and content.strip()):
+        # 只有在没有实际回复正文且没有工具调用时，才分类为 INTERNAL_REASONING (纯推理消息)
+        # 如果包含正文或工具调用，则由后续逻辑分类为 ASSISTANT_RESPONSE 或 ASSISTANT_TOOL_CALL，
+        # 并由 PersistencePolicy 负责将 reasoning 存入 thinking 字段
+        if has_reasoning and not (content and content.strip()) and not tool_calls:
             return MessageCategory.INTERNAL_REASONING
 
         # 3. 分析工具调用

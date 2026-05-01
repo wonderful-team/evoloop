@@ -12,7 +12,7 @@ from langchain_core.messages import (
 )
 from sqlalchemy import delete, or_, select
 
-from app.core.engine.message.reasoning import parse_thinking
+
 from app.core.memory.interfaces.short_term import IShortTermMemory
 from app.infrastructure.database.sql.database import session_scope
 from app.models.conversation import Message
@@ -160,9 +160,7 @@ class SqlShortTermMemory(IShortTermMemory):
                 # Preserve thinking content in additional_kwargs for reasoning models
                 thinking_raw = getattr(msg, "thinking", None)
                 if thinking_raw:
-                    parsed = parse_thinking(thinking_raw)
-                    if parsed:
-                        kwargs["additional_kwargs"] = {"thinking": parsed}
+                    kwargs["additional_kwargs"] = {"thinking": thinking_raw}
                 lc_messages.append(AIMessage(**kwargs))
             elif msg.role == "tool":
                 parent_calls = pending_tool_calls.get(msg.parent_id, [])
@@ -261,9 +259,7 @@ class SqlShortTermMemory(IShortTermMemory):
                 # Preserve thinking content in additional_kwargs for reasoning models
                 thinking_raw = getattr(msg, "thinking", None)
                 if thinking_raw:
-                    parsed = parse_thinking(thinking_raw)
-                    if parsed:
-                        kwargs["additional_kwargs"] = {"thinking": parsed}
+                    kwargs["additional_kwargs"] = {"thinking": thinking_raw}
                 lc_messages.append(AIMessage(**kwargs))
             elif msg.role == "system":
                 lc_messages.append(SystemMessage(content=msg.content))

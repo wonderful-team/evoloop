@@ -127,14 +127,17 @@ class TraceRewind:
         Extracts message IDs and publishes a TRACE_CLEANUP event.
         """
         # Use pre-computed database IDs if available, otherwise fall back to query
-        message_ids = event.affected_db_message_ids or event.affected_message_ids or await self._find_message_ids(
+        message_ids = event.affected_message_ids or await self._find_message_ids(
             thread_id=event.thread_id,
             target_message_id=event.target_message_id,
             include_target=event.include_target
         )
 
-        if message_ids:
-            count = await self._delete_traces(source_message_ids=message_ids)
+        if message_ids or event.affected_run_ids:
+            count = await self._delete_traces(
+                source_message_ids=message_ids,
+                run_ids=event.affected_run_ids
+            )
             self._deleted_count = count
             event.results["traces"] = count
 
@@ -142,13 +145,14 @@ class TraceRewind:
             await publish_trace_cleanup(
                 thread_id=event.thread_id,
                 source_message_ids=message_ids,
+                affected_run_ids=event.affected_run_ids
             )
             logger.info(f"[TraceRewind] Deleted {count} trace events for thread {event.thread_id}")
         else:
             logger.debug(f"[TraceRewind] No trace events found to delete for thread {event.thread_id}")
 
     @event_subscribe(RewindEventType.TRACE_CLEANUP)
-    async def _handle_trace_cleanup(self, event: TraceCleanupEvent) -> None:
+    async def _handle_trace_cleanup(self, event: "TraceCleanupEvent") -> None:
         """
         Handle specific trace cleanup event.
         
@@ -170,65 +174,61 @@ class TraceRewind:
         target_message_id: str | None,
         include_target: bool
     ) -> list[str]:
-        """
-        Find message IDs to clean up for the given thread.
-        
-        Args:
-            thread_id: The thread ID
-            target_message_id: The message to rewind to
-            include_target: Whether to include the target message
-            
-        Returns:
-            List of message IDs as strings
-        """
+        """Find message IDs to clean up for the given thread."""
         from app.models import Message
 
         async with session_scope() as session:
             stmt = select(Message.id).where(Message.thread_id == thread_id)
 
             if target_message_id:
-                target_id = int(target_message_id)
+                # Resolve sequence from UUID
+                stmt_target = select(Message.sequence_number).where(Message.id == target_message_id)
+                res_target = await session.execute(stmt_target)
+                target_seq = res_target.scalar_one_or_none()
+                
+                if target_seq is None:
+                    logger.warning(f"[TraceRewind] Target message {target_message_id} not found")
+                    return []
+
                 if include_target:
-                    stmt = stmt.where(Message.id >= target_id)
+                    stmt = stmt.where(Message.sequence_number >= target_seq)
                 else:
-                    stmt = stmt.where(Message.id > target_id)
+                    stmt = stmt.where(Message.sequence_number > target_seq)
 
             result = await session.execute(stmt)
             return [str(row[0]) for row in result.all()]
 
-    async def _delete_traces(self, source_message_ids: list[str]) -> int:
+    async def _delete_traces(
+        self,
+        source_message_ids: list[str],
+        run_ids: list[str] | None = None
+    ) -> int:
         """
-        Delete trace events linked to the given message IDs.
-        
-        Args:
-            source_message_ids: List of source message IDs
-            
-        Returns:
-            Number of trace events deleted
+        Delete trace events by message IDs or run IDs.
         """
         from app.models.learning import TraceEvent
-
-        if not source_message_ids:
+        if not source_message_ids and not run_ids:
             return 0
-
+            
         async with session_scope() as session:
-            # Convert string IDs to integers for message_id column
-            int_ids = [int(mid) for mid in source_message_ids if mid.isdigit()]
-
-            if not int_ids:
-                return 0
-
-            # Delete by message_id or node_name (which may contain message IDs)
-            stmt = delete(TraceEvent).where(
-                (TraceEvent.message_id.in_(int_ids)) |
-                (TraceEvent.node_name.in_(source_message_ids))
-            )
-
+            stmt = delete(TraceEvent)
+            
+            conditions = []
+            if source_message_ids:
+                conditions.append(TraceEvent.message_id.in_(source_message_ids))
+            if run_ids:
+                conditions.append(TraceEvent.run_id.in_(run_ids))
+                
+            if len(conditions) > 1:
+                from sqlalchemy import or_
+                stmt = stmt.where(or_(*conditions))
+            else:
+                stmt = stmt.where(conditions[0])
+                
             result = await session.execute(stmt)
-
-            deleted_count = result.rowcount
-            logger.info(f"🗑️ Deleted {deleted_count} TraceEvent records")
-            return deleted_count
+            count = result.rowcount
+            logger.info(f"[TraceRewind] Deleted {count} trace events")
+            return count
 
     async def cleanup(self, message_ids: list[str], **kwargs) -> int:
         """Direct cleanup entry point (non-event-driven usage)."""

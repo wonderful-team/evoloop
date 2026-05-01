@@ -123,9 +123,10 @@ class TraceCallbackHandler(AsyncCallbackHandler):
     agent node execution.
     """
 
-    def __init__(self, thread_id: str):
+    def __init__(self, thread_id: str, run_id: str | None = None):
         super().__init__()
         self.thread_id = thread_id
+        self.run_id = run_id
         self._step = 0
 
     # ------------------------------------------------------------------
@@ -206,6 +207,7 @@ class TraceCallbackHandler(AsyncCallbackHandler):
             async with session_scope() as session:
                 event = TraceEvent(
                     thread_id=self.thread_id,
+                    run_id=self.run_id,
                     step_number=self._step,
                     action_type=action_type,
                     action_payload=json.dumps(payload, default=str),

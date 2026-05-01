@@ -62,6 +62,10 @@ class MessageCategory(str, Enum):
     ERROR_BUSINESS = "error_business"
     """业务逻辑错误（Worker失败/Aggregation失败等），入库供Agent总结经验"""
 
+    # ========== 交互消息 ==========
+    HITL_REQUEST = "hitl_request"
+    """人机交互请求（如确认、选择等）"""
+
     @property
     def is_visible_to_user(self) -> bool:
         """是否对用户可见
@@ -75,6 +79,7 @@ class MessageCategory(str, Enum):
             MessageCategory.ASSISTANT_TOOL_CALL,
             MessageCategory.TOOL_OUTPUT,
             MessageCategory.INTERNAL_REASONING,  # 思考过程对用户可见
+            MessageCategory.HITL_REQUEST,        # 交互请求必须可见
             # ERROR_SYSTEM 和 ERROR_BUSINESS 不入消息列表
         }
 
@@ -87,7 +92,8 @@ class MessageCategory(str, Enum):
             MessageCategory.ASSISTANT_TOOL_CALL,
             MessageCategory.TOOL_OUTPUT,
             MessageCategory.INTERNAL_REASONING,  # 思考过程存入 thinking 字段
-            MessageCategory.ERROR_BUSINESS,  # 业务错误入库供Agent学习
+            MessageCategory.ERROR_BUSINESS,      # 业务错误入库供Agent学习
+            MessageCategory.HITL_REQUEST,        # 交互请求需要记录状态
             # ERROR_SYSTEM 不入库
         }
 
@@ -103,11 +109,11 @@ class MessageCategory(str, Enum):
             MessageCategory.ERROR_SYSTEM,
             MessageCategory.ERROR_BUSINESS,
             MessageCategory.AUTH_EXPIRED,
+            MessageCategory.HITL_REQUEST,        # 实时推送交互请求
         }
 
-    @property
     def frontend_type(self) -> str | None:
-        """前端显示类型 (human, ai, tool, thought, error, auth_expired)"""
+        """前端显示类型 (human, ai, tool, thought, error, auth_expired, hitl)"""
         mapping = {
             MessageCategory.USER: "human",
             MessageCategory.ASSISTANT_RESPONSE: "ai",
@@ -117,6 +123,7 @@ class MessageCategory(str, Enum):
             MessageCategory.ERROR_SYSTEM: "error",
             MessageCategory.ERROR_BUSINESS: "error",
             MessageCategory.AUTH_EXPIRED: "auth_expired",
+            MessageCategory.HITL_REQUEST: "hitl",
         }
         return mapping.get(self)
 
@@ -137,6 +144,7 @@ class MessageCategory(str, Enum):
             MessageCategory.TOOL_OUTPUT: "content",
             MessageCategory.INTERNAL_REASONING: "thinking",
             MessageCategory.ERROR_BUSINESS: "content",
+            MessageCategory.HITL_REQUEST: "content",
             MessageCategory.ERROR_SYSTEM: None,
             MessageCategory.INTERNAL_TOOL_CALL: None,
             MessageCategory.INTERNAL_SYSTEM: None,
@@ -151,6 +159,8 @@ class MessageCategory(str, Enum):
         return self in {
             MessageCategory.ASSISTANT_RESPONSE,
             MessageCategory.ASSISTANT_TOOL_CALL,
+            MessageCategory.INTERNAL_TOOL_CALL,
+            MessageCategory.INTERNAL_REASONING,
         }
 
     @classmethod

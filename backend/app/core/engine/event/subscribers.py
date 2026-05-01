@@ -245,7 +245,7 @@ class EngineCommandHandler:
                 stmt = (
                     select(Message)
                     .options(selectinload(Message.references))
-                    .where(Message.id == int(message_id))
+                    .where(Message.id == message_id)
                 )
             else:
                 stmt = (
@@ -253,7 +253,7 @@ class EngineCommandHandler:
                     .options(selectinload(Message.references))
                     .where(Message.thread_id == thread_id)
                     .where(Message.role == "human")
-                    .order_by(Message.id.desc())
+                    .order_by(Message.sequence_number.desc())
                     .limit(1)
                 )
             result = await session.execute(stmt)

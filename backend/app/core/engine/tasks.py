@@ -52,13 +52,15 @@ async def persist_file_operation_task(
     file_path: str,
     operation: str,
     diff_content: str,
-    original_content: str | None = None
+    original_content: str | None = None,
+    run_id: str | None = None,
 ):
     """Background task to persist file movement/edit diffs to the database."""
     async with session_scope() as session:
         op = FileOperation(
             thread_id=thread_id,
             message_id=message_id,
+            run_id=run_id,
             file_path=file_path,
             operation=operation,
             diff_content=diff_content,
