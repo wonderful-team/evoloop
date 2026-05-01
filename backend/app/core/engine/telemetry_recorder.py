@@ -25,8 +25,8 @@ def record_inference_telemetry(
             "total_len": len(system_prompt) + sum(len(str(m.content)) for m in loop_messages)
         },
         response_info={
-            "content": response.content,
-            "usage": response.usage_metadata or {},
+            "content": response.content or "",
+            "usage": response.usage_metadata,
             "is_tool_call": bool(response.tool_calls),
             "tool_names": [tc["name"] for tc in response.tool_calls]
         },

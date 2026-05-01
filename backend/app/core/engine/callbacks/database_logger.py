@@ -19,6 +19,7 @@ from langchain_core.messages import AIMessage
 from langchain_core.outputs import LLMResult
 
 from app.core.engine.message import MessageHandler
+from app.core.engine.reasoning import extract_reasoning_from_kwargs
 
 logger = logging.getLogger(__name__)
 
@@ -83,12 +84,17 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
                 tool_calls = message.additional_kwargs.get("tool_calls")
 
             # 提取元数据
-            metadata = getattr(message, "metadata", None)
+            metadata = getattr(message, "metadata", None) or {}
 
             # 提取思考内容
-            thinking = self._extract_thinking(content)
+            # 优先从 additional_kwargs 读取原生 reasoning_content (kimi-k2-thinking-turbo)
+            additional_kwargs = getattr(message, "additional_kwargs", {}) or {}
+            thinking = self._extract_thinking(content, additional_kwargs)
             if thinking:
-                content = self._remove_thinking_tags(content)
+                content = self._remove_thinking_tags(content, additional_kwargs)
+            # 确保 metadata 传递 reasoning_content 信息，供 handler 正确标记 thinking_type
+            if additional_kwargs.get("reasoning_content"):
+                metadata = {**metadata, "reasoning_content": additional_kwargs["reasoning_content"]}
 
             # 委托给统一处理器
             result = await self._handler.handle_ai_message(
@@ -167,70 +173,31 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
 
         return str(content)
 
-    def _extract_thinking(self, content: str) -> str | None:
-        """提取思考内容（<think>、<|channel|>thought、<evoloop_session_audit> 标签）"""
-        if not content:
-            return None
+    def _extract_thinking(self, content: str, additional_kwargs: dict | None = None) -> str | None:
+        """提取思考内容 — 仅支持原生 reasoning_content。"""
+        return extract_reasoning_from_kwargs(additional_kwargs)
 
-        thinking_parts = []
+    def _remove_thinking_tags(self, content: str, additional_kwargs: dict | None = None) -> str:
+        """移除思考标签，保留其他内容。
 
-        # 提取 <think> 内容
-        think_match = re.search(r"<think>(.*?)</think>", content, re.DOTALL | re.IGNORECASE)
-        if think_match:
-            thinking_parts.append(think_match.group(1).strip())
-
-        # 提取 <|channel>thought ... <channel|> (或 <|channel|>thought ... <|channel|>) 内容
-        for pattern in [
-            r"<\|channel>thought(.*?)<channel\|>",
-            r"<\|channel\|>thought(.*?)<\|channel\|>",
-        ]:
-            channel_match = re.search(pattern, content, re.DOTALL | re.IGNORECASE)
-            if channel_match:
-                thinking_parts.append(channel_match.group(1).strip())
-                break
-
-        # 提取 <evoloop_session_audit> 内容
-        audit_match = re.search(
-            r"<evoloop_session_audit>(.*?)</evoloop_session_audit>",
-            content,
-            re.DOTALL | re.IGNORECASE
-        )
-        if audit_match:
-            thinking_parts.append(f"--- Audit ---\n{audit_match.group(1).strip()}")
-
-        return "\n\n".join(thinking_parts) if thinking_parts else None
-
-    def _remove_thinking_tags(self, content: str) -> str:
-        """移除思考标签，保留其他内容"""
+        Native reasoning_content flows outside content, so no tags to strip.
+        Only <evoloop_session_audit> hidden tags may remain (filtered by TokenFilter
+        during streaming, but present in final content from some providers).
+        """
         if not content:
             return ""
 
-        # 移除 <think> 标签
-        content = re.sub(
-            r"<think>.*?</think>",
-            "",
-            content,
-            flags=re.DOTALL | re.IGNORECASE
-        )
+        # Native reasoning_content: content is already clean
+        if additional_kwargs and additional_kwargs.get("reasoning_content"):
+            return content.strip()
 
-        # 移除 <|channel>thought ... <channel|> (或 <|channel|>thought ... <|channel|>) 标签
-        content = re.sub(
-            r"<\|channel\|?>thought.*?<\|?channel\|>",
-            "",
-            content,
-            flags=re.DOTALL | re.IGNORECASE
-        )
-
-        # 移除 <evoloop_session_audit> 标签
+        # Defensive: strip any leftover hidden audit tags
         content = re.sub(
             r"<evoloop_session_audit>.*?</evoloop_session_audit>",
             "",
             content,
             flags=re.DOTALL | re.IGNORECASE
         )
-
-        # 清理残留的空标签
-        content = re.sub(r"<[^>]+>", "", content)
 
         return content.strip()
 

@@ -152,10 +152,14 @@ def process_worker_result(
     preserved_messages = list(engine_result.messages or [])
     if preserved_messages and isinstance(preserved_messages[-1], AIMessage):
         # Overwrite the last AIMessage with the summarised content
+        # Preserve additional_kwargs (including reasoning_content) from the original message
+        original_msg = preserved_messages[-1]
         preserved_messages[-1] = AIMessage(
             content=worker_content,
-            id=preserved_messages[-1].id,
-            metadata=getattr(preserved_messages[-1], "metadata", None),
+            id=original_msg.id,
+            metadata=getattr(original_msg, "metadata", None),
+            additional_kwargs=getattr(original_msg, "additional_kwargs", None) or {},
+            tool_calls=getattr(original_msg, "tool_calls", None),
         )
     else:
         # Append a new summary AIMessage when there is no trailing AI msg

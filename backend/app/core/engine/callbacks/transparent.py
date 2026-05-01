@@ -16,6 +16,7 @@ from langchain_core.outputs import LLMResult
 from pydantic import Field
 
 from app.core.engine.callbacks.token_filter import TokenFilter
+from app.core.engine.reasoning import extract_reasoning_from_kwargs
 from app.core.tools.registry import (
     get_tool_affected_paths,
     get_tool_metadata,
@@ -143,67 +144,80 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
                 pass
 
     async def on_llm_new_token(self, token: str, **kwargs: Any) -> None:
-        """Run on new LLM token."""
-        if self.thread_id and self.monitor:
-            await self.monitor.check_cancellation(self.thread_id)
+        """Run on new LLM token.
 
-            run_id = kwargs.get("run_id")
-            if self.llm_task_id and run_id == self.active_llm_run_id:
-                # Defensive: Handle structured tokens (Anthropic/Kimi sending dicts/lists)
-                if not isinstance(token, str):
-                    if isinstance(token, list):
-                        parts = []
-                        for t in token:
-                            if isinstance(t, dict):
-                                if "partial_json" in t:
-                                    parts.append(t["partial_json"])
-                                elif "text" in t:
-                                    parts.append(t["text"])
-                            else:
-                                parts.append(str(t))
-                        token = "".join(parts)
-                    elif isinstance(token, dict):
-                        token = token.get("partial_json") or token.get("text") or ""
-                    else:
-                        token = str(token)
+        Strategy:
+        - THINKING (reasoning_content): stream per-chunk in real-time
+        - CONTENT: batch through TokenFilter (flush on \n or 50 chars)
+        """
+        if not (self.thread_id and self.monitor):
+            return
 
-                self._current_stream_buffer += token
+        await self.monitor.check_cancellation(self.thread_id)
 
-                filtered, thinking = self._token_filter.process(token)
+        run_id = kwargs.get("run_id")
+        if not (self.llm_task_id and run_id == self.active_llm_run_id):
+            return
 
-                # Stream thinking tokens in real-time
-                if thinking and self.thread_id:
+        # 1. Extract and stream reasoning_content in real-time (chunk-level)
+        generation_chunk = kwargs.get("chunk")
+        if generation_chunk and hasattr(generation_chunk, "message"):
+            msg_chunk = generation_chunk.message
+            reasoning = extract_reasoning_from_kwargs(getattr(msg_chunk, "additional_kwargs", None))
+            if reasoning and self.thread_id:
                     try:
                         await self._publish_stream_event(StreamEvent(
                             type=StreamEventType.THINKING,
-                            message=thinking,
+                            message=reasoning,
                             data={"detail": "reasoning"}
                         ))
                     except Exception:
                         pass
 
-                if filtered is None and thinking is None:
-                    # Inside non-thinking hidden tag — update step but don't publish
-                    return
+        # 2. Defensive: normalize structured tokens
+        if not isinstance(token, str):
+            if isinstance(token, list):
+                parts = []
+                for t in token:
+                    if isinstance(t, dict):
+                        if "partial_json" in t:
+                            parts.append(t["partial_json"])
+                        elif "text" in t:
+                            parts.append(t["text"])
+                    else:
+                        parts.append(str(t))
+                token = "".join(parts)
+            elif isinstance(token, dict):
+                token = token.get("partial_json") or token.get("text") or ""
+            else:
+                token = str(token)
 
-                if self._token_filter.should_flush():
-                    buf = self._token_filter.flush()
-                    if self.thread_id:
-                        try:
-                            from app.core.engine.message.handler import MessageHandler
-                            await MessageHandler.stream_token(self.thread_id, buf)
-                        except Exception:
-                            pass
+        self._current_stream_buffer += token
 
-                    try:
-                        await self.monitor.update_step(
-                            self.thread_id,
-                            self.llm_task_id,
-                            "running",
-                            details=self._current_stream_buffer,
-                        )
-                    except Exception:
-                        pass
+        # 3. Content goes through TokenFilter (hidden-tag suppression + batch flush)
+        filtered, _ = self._token_filter.process(token)
+        if filtered is None:
+            # Inside hidden tag — update step but don't publish
+            return
+
+        if self._token_filter.should_flush():
+            buf = self._token_filter.flush()
+            if buf and self.thread_id:
+                try:
+                    from app.core.engine.message.handler import MessageHandler
+                    await MessageHandler.stream_token(self.thread_id, buf)
+                except Exception:
+                    pass
+
+            try:
+                await self.monitor.update_step(
+                    self.thread_id,
+                    self.llm_task_id,
+                    "running",
+                    details=self._current_stream_buffer,
+                )
+            except Exception:
+                pass
 
     async def on_llm_end(self, response: LLMResult, **kwargs: Any) -> None:
         """Run when LLM ends running."""
@@ -213,18 +227,6 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
             try:
                 from app.core.engine.message.handler import MessageHandler
                 await MessageHandler.stream_token(self.thread_id, buf)
-            except Exception:
-                pass
-
-        # FLUSH REMAINING THINKING BUFFER
-        thinking_buf = self._token_filter.flush_thinking()
-        if thinking_buf and self.thread_id:
-            try:
-                await self._publish_stream_event(StreamEvent(
-                    type=StreamEventType.THINKING,
-                    message=thinking_buf,
-                    data={"detail": "reasoning", "flush": True}
-                ))
             except Exception:
                 pass
 

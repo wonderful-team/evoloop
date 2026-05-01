@@ -148,6 +148,10 @@ class LLMFactory:
         # model_name is guaranteed by the caller (create_llm)
         # Backend always sends OpenAI format to Gateway
         # Gateway handles protocol translation (OpenAI ↔ Anthropic)
+        #
+        # Apply reasoning_content patch before creating any ChatOpenAI instances
+        import app.core.engine.reasoning  # noqa: F401
+
         return AdaptiveChatOpenAI(
             api_key=token,
             base_url=f"{gateway_url}/gateway/v1",
@@ -155,6 +159,10 @@ class LLMFactory:
             temperature=temperature,
             streaming=kwargs.get("streaming", False),
             http_async_client=_HTTP_CLIENT_POOL.get(),
+            model_kwargs={
+                "enable_thinking": True,
+                "return_reasoning": True,
+            },
         )
 
     @staticmethod
@@ -256,6 +264,15 @@ class LLMFactory:
         streaming: bool = False,
     ):
         """Build the actual LLM instance based on provider_type."""
+        # 导入 reasoning 确保对 ChatOpenAI 的 patch 已应用
+        import app.core.engine.reasoning  # noqa: F401
+
+        # 统一的 thinking 配置（对支持 reasoning_content 的模型生效）
+        thinking_kwargs = {
+            "enable_thinking": True,
+            "return_reasoning": True,
+        }
+
         if provider_type == "anthropic":
             from app.infrastructure.llm.anthropic_adapter import CompatibleChatAnthropic
             return CompatibleChatAnthropic(
@@ -275,6 +292,7 @@ class LLMFactory:
                 temperature=temperature,
                 streaming=streaming,
                 http_async_client=_HTTP_CLIENT_POOL.get(),
+                model_kwargs=thinking_kwargs,
             )
 
     @staticmethod

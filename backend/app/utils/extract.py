@@ -100,8 +100,8 @@ def extract_tag_content(text: str, tag: str) -> str | None:
     Examples:
         >>> extract_tag_content("<evoloop_final_report>hello</evoloop_final_report>", "evoloop_final_report")
         'hello'
-        >>> extract_tag_content("<think>\\n  reasoning\\n</think>", "think")
-        'reasoning'
+        >>> extract_tag_content("<audit>\\n  review\\n</audit>", "audit")
+        'review'
     """
     import re
     pattern = rf"<{tag}>(.*?)</{tag}>"

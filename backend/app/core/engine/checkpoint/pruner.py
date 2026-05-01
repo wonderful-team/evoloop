@@ -15,9 +15,6 @@ async def prune_checkpoints(
     max_versions_per_thread: int = 10,
     thread_id: str | None = None
 ):
-    """
-    Prune old checkpoints and blobs to save space.
-    """
     logger.info(f"🚀 Starting checkpoint pruning (thread={thread_id})...")
 
     async with db_resource_manager.get_raw_connection() as conn:
@@ -75,21 +72,17 @@ async def prune_checkpoints(
                 
                 total_pruned += len(ids_to_delete)
 
-            # 3. Cleanup orphaned blobs
-            blob_del_query = """
-                DELETE FROM checkpoint_blobs 
-                WHERE version NOT IN (SELECT checkpoint_id FROM checkpoints)
-            """
-            if not settings.EMBEDDED_MODE:
-                async with conn.cursor() as cur:
-                    await cur.execute(blob_del_query)
-            else:
-                await conn.execute(blob_del_query)
-
-            # 4. Finalize
+            # 3. Finalize
             if settings.EMBEDDED_MODE:
                 await conn.execute("PRAGMA foreign_keys = ON")
                 await conn.commit()
+            else:
+                blob_del_query = """
+                    DELETE FROM checkpoint_blobs 
+                    WHERE version NOT IN (SELECT checkpoint_id FROM checkpoints)
+                """
+                async with conn.cursor() as cur:
+                    await cur.execute(blob_del_query)
 
             logger.info(f"✅ Pruning complete. Removed {total_pruned} old checkpoints.")
 

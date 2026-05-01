@@ -26,6 +26,7 @@ from app.core.engine.message.repository import MessageRepository
 from app.core.engine.message.schemas import MessageBlock
 from app.core.engine.message.schemas import MessageHandlerResult
 from app.core.engine.message.stream import MessageStreamPolicy
+from app.core.engine.reasoning import build_thinking_blocks, infer_thinking_type
 
 logger = logging.getLogger(__name__)
 
@@ -79,6 +80,10 @@ class MessageHandler:
 
         message_id = None
         seq = 0
+
+        # Determine thinking type from metadata
+        thinking_type = infer_thinking_type(metadata)
+
         if persist_data.should_persist:
             message_id, seq = await self._repository.persist(
                 role="ai",
@@ -94,6 +99,7 @@ class MessageHandler:
                     role="ai", content=persist_data.content, thinking=persist_data.thinking,
                     tool_calls=persist_data.tool_calls, category=category.value,
                     status="completed", sequence_number=seq,
+                    thinking_type=thinking_type,
                 )
 
         if stream_data.should_stream:
@@ -102,6 +108,7 @@ class MessageHandler:
                 category=category.value, metadata=metadata,
                 tool_calls=persist_data.tool_calls, thinking=thinking,
                 sequence_number=seq if persist_data.should_persist else 0,
+                thinking_type=thinking_type,
             )
 
         return MessageHandlerResult(
@@ -245,6 +252,7 @@ class MessageHandler:
         tool_calls: list | None = None, category: str = "", action_type: str = "text",
         status: str = "completed", sequence_number: int = 0,
         tool_name: str | None = None, tool_call_id: str | None = None,
+        thinking_type: str = "reasoning",
     ) -> None:
         if role == "human":
             return
@@ -253,7 +261,7 @@ class MessageHandler:
                 id=f"msg-{self.thread_id}-{sequence_number}",
                 thread_id=self.thread_id, run_id=self.run_id, role=role,  # type: ignore[arg-type]
                 category=category, content=content or "",
-                thinking=[{"type": "cot", "content": thinking}] if thinking else None,
+                thinking=build_thinking_blocks(thinking),
                 tool_calls=tool_calls, status=status,  # type: ignore[arg-type]
                 is_visible=True, sequence_number=sequence_number,
                 created_at=datetime.now().isoformat(),
@@ -271,7 +279,7 @@ class MessageHandler:
         metadata: dict | None = None, tool_name: str | None = None,
         tool_call_id: str | None = None, tool_calls: list | None = None,
         thinking: str | None = None, sequence_number: int = 0,
-        content_type: str = "text",
+        content_type: str = "text", thinking_type: str = "reasoning",
     ) -> None:
         role_map = {"human": "human", "ai": "ai", "assistant": "ai", "tool": "tool"}
         role = role_map.get(frontend_type, "system")
@@ -283,7 +291,7 @@ class MessageHandler:
                 id=f"msg-{self.thread_id}-{sequence_number}",
                 thread_id=self.thread_id, run_id=self.run_id, role=role,  # type: ignore[arg-type]
                 category=category, content=content, content_type=content_type,  # type: ignore[arg-type]
-                thinking=[{"type": "cot", "content": thinking}] if thinking else None,
+                thinking=build_thinking_blocks(thinking),
                 tool_calls=tool_calls, status="streaming", is_visible=True,
                 sequence_number=sequence_number, created_at=datetime.now().isoformat(),
                 metadata={"tool_name": tool_name, "tool_call_id": tool_call_id, **(metadata or {})},

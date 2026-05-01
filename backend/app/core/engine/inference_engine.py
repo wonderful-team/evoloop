@@ -25,6 +25,7 @@ from langchain_core.runnables import RunnableConfig
 from app.infrastructure.llm.factory import LLMFactory
 from app.core.engine.context_trimmer import ContextTrimmer, TrimTrigger
 from app.core.engine.error_handler import LLMErrorHandler
+from app.core.engine.reasoning import extract_reasoning_string
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +51,7 @@ class InferenceEngine:
                 return "anthropic"
             if hasattr(llm, "lc_secrets") and "anthropic" in str(llm.lc_secrets).lower():
                 return "anthropic"
-        except (AttributeError, TypeError):
+        except Exception:
             pass
         return "openai"
 
@@ -92,8 +93,8 @@ class InferenceEngine:
             response = AIMessage(
                 content=response.content,
                 additional_kwargs=response.additional_kwargs,
-                tool_calls=response.tool_calls,
-                response_metadata=response.response_metadata,
+                tool_calls=getattr(response, "tool_calls", None),
+                response_metadata=getattr(response, "response_metadata", {}),
             )
 
         return response
@@ -190,22 +191,24 @@ class InferenceEngine:
             # Inject run_id
             run_id = config.get("configurable", {}).get("run_id")
             if run_id:
-                if response.metadata is None:
+                if not hasattr(response, "metadata"):
                     response.metadata = {}
                 response.metadata["run_id"] = run_id
+                if not hasattr(response, "additional_kwargs"):
+                    response.additional_kwargs = {}
                 response.additional_kwargs["run_id"] = run_id
 
             # Parse thinking content for logging / callback
             thinking_content = ""
             content_preview = str(response.content)[:200] if response.content else "(empty)"
-            tool_calls_count = len(response.tool_calls) if response.tool_calls else 0
+            tool_calls_count = len(response.tool_calls) if hasattr(response, "tool_calls") and response.tool_calls else 0
             logger.info(f"[{name}] LLM response: content='{content_preview}...', tool_calls={tool_calls_count}")
 
-            if response.content:
-                thinking_content = response.content
-            elif "thought" in response.additional_kwargs:
-                thinking_content = response.additional_kwargs["thought"]
-                logger.info(f"[{name}] Thinking (from additional_kwargs): {thinking_content[:200]}...")
+            # Extract reasoning_content from additional_kwargs (kimi-k2-thinking-turbo)
+            reasoning = extract_reasoning_string(response)
+            if reasoning:
+                thinking_content = reasoning
+                logger.info(f"[{name}] Reasoning: {thinking_content[:200]}...")
 
             if thinking_content and on_thinking:
                 await on_thinking(thinking_content)
@@ -329,9 +332,11 @@ class InferenceEngine:
         # Inject run_id
         run_id = config.get("configurable", {}).get("run_id")
         if run_id:
-            if response.metadata is None:
+            if not hasattr(response, "metadata"):
                 response.metadata = {}
             response.metadata["run_id"] = run_id
+            if not hasattr(response, "additional_kwargs"):
+                response.additional_kwargs = {}
             response.additional_kwargs["run_id"] = run_id
 
         new_messages = [response]

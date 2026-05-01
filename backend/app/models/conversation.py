@@ -42,7 +42,7 @@ class Message(Base):
     project_id: Mapped[int | None] = mapped_column(Integer, index=True)
     role: Mapped[str] = mapped_column(String(50))  # "human", "ai"
     content: Mapped[str] = mapped_column(Text)
-    thinking: Mapped[str | None] = mapped_column(Text)  # Separate reasoning content
+    thinking: Mapped[str | None] = mapped_column(Text)  # JSON-serialized list[dict]: [{"type": "reasoning", "content": "..."}]
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), onupdate=utcnow, nullable=True)
     sequence_number: Mapped[int | None] = mapped_column(Integer)  # Thread-local ordering

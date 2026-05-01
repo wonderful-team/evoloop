@@ -68,7 +68,7 @@ class FoldedMessage(DynamicBaseModel):
     id: str | None = None
     role: str  # human, ai, system, tool
     content: str = ""
-    thinking: str | None = None
+    thinking: list[dict[str, Any]] | None = None
     created_at: str | datetime | None = None
     steps: list[ToolStep] = Field(default_factory=list)
     tool_calls: list[dict] | None = None
