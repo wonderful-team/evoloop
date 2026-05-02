@@ -11,6 +11,7 @@ import {
   XCircle,
 } from "lucide-react"
 import { useEffect, useMemo, useState } from "react"
+import { MessageContent } from "../MessageContent"
 import { useTranslation } from "react-i18next"
 import { PlanningService } from "@/client"
 import { ScrollArea } from "@evoloop/shared/components/ui/scroll-area"
@@ -74,7 +75,10 @@ export function ActivityTab({ activeThreadId }: ActivityTabProps) {
     () => [...messages].reverse().find((m) => m.role === "ai"),
     [messages],
   )
-  const thinking = lastAiMessage?.thinking
+
+  const persistedThinking = lastAiMessage?.thinking || ""
+  const streamingThinking = useChatStore(state => state.streamingThinking)
+  const thinking = (persistedThinking + streamingThinking).trim()
 
   // ------------------------------------------------------------------
   // Plan — thread-level, persisted in DB
@@ -106,13 +110,13 @@ export function ActivityTab({ activeThreadId }: ActivityTabProps) {
     let bufferIsStreaming = false
     let turn = 1
 
-    // Helper to deduplicate steps in the current buffer
+    // Helper to deduplicate steps
     const deduplicateSteps = (steps: ToolStep[]) => {
       const seenIds = new Set<string>()
       return steps.filter(s => {
-        if (!s.id) return true
-        if (seenIds.has(s.id)) return false
-        seenIds.add(s.id)
+        const id = s.id || `${s.name}-${s.tool_name}`
+        if (seenIds.has(id)) return false
+        seenIds.add(id)
         return true
       })
     }
@@ -134,17 +138,28 @@ export function ActivityTab({ activeThreadId }: ActivityTabProps) {
         bufferSteps = []
         bufferAiIds = []
         bufferIsStreaming = false
+      } else if (m.role === "tool") {
+        // NEW: Handle flat tool messages
+        bufferSteps.unshift({
+          id: m.id as string,
+          name: m.meta_data?.tool_name || m.tool_name || t("chat.messageList.toolExecution"),
+          status: m.status as any,
+          input: m.meta_data?.input || {},
+          output: undefined, // Per user request: Don't show huge output in UI
+          tool_meta: m.meta_data?.tool_meta
+        })
       } else if (m.role === "ai") {
+        // Handle nested steps (compatibility with existing folded messages)
         const s = m.steps || []
         if (s.length > 0) {
-          bufferSteps.unshift(...s) // prepend to keep forward order
+          bufferSteps.unshift(...s)
           bufferAiIds.unshift(m.id)
         }
         if (m.status === "streaming") bufferIsStreaming = true
       }
     }
 
-    // Handle messages that start without a leading human message.
+    // Handle initial messages
     if (bufferSteps.length > 0) {
       groups.unshift({
         turn,
@@ -155,7 +170,7 @@ export function ActivityTab({ activeThreadId }: ActivityTabProps) {
     }
 
     return groups
-  }, [messages])
+  }, [messages, t])
 
   // ------------------------------------------------------------------
   // Collapse state — auto-expand when content exists, collapse when empty
@@ -206,8 +221,8 @@ export function ActivityTab({ activeThreadId }: ActivityTabProps) {
           <CollapsibleContent>
             <div className="p-2">
               {thinking && thinking.trim().length > 0 ? (
-                <div className="text-xs text-muted-foreground whitespace-pre-wrap break-words leading-relaxed pl-5">
-                  {thinking}
+                <div className="text-xs text-muted-foreground break-words leading-relaxed pl-5">
+                  <MessageContent content={thinking} />
                 </div>
               ) : (
                 <div className="text-xs text-muted-foreground italic text-center py-4">

@@ -74,6 +74,7 @@ class FoldedMessage(DynamicBaseModel):
     created_at: str | datetime | None = None
     steps: list[ToolStep] = Field(default_factory=list)
     tool_calls: list[dict] | None = None
+    status: str | None = None
     
     # Metadata for specific message types
-    metadata: dict[str, Any] = Field(default_factory=dict)
+    meta_data: dict[str, Any] = Field(default_factory=dict)

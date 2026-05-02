@@ -51,9 +51,31 @@ export class ChatConnection {
         this.currentThreadId = threadId;
         this.notifyConnectionChange(false, 'connecting');
 
-        // Desktop uses Cookie Session managed by Backend.
-        // No need to pass token in query param; Cookie is sent automatically via withCredentials.
-        const url = `${OpenAPI.BASE}/api/v1/stream/chat/${threadId}`;
+        // Consolidated Token-based Auth for SSE (EventSource doesn't support headers)
+        let token: string | undefined;
+        try {
+            token = typeof OpenAPI.TOKEN === 'function' ? await (OpenAPI.TOKEN as any)() : OpenAPI.TOKEN;
+        } catch (e) {
+            console.warn("[ChatConnection] Failed to retrieve auth token", e);
+        }
+
+        let url = `${OpenAPI.BASE}/api/v1/stream/chat/${threadId}`;
+        const params = new URLSearchParams();
+        if (token) {
+            params.append('token', token);
+        }
+        
+        // Also try to attach guest_id from localStorage if present as fallback
+        const guestId = localStorage.getItem('evoloop-guest-id');
+        if (guestId) {
+            params.append('guest_id', guestId);
+        }
+
+        const queryString = params.toString();
+        if (queryString) {
+            url += `?${queryString}`;
+        }
+
         console.log(`[ChatConnection] Connecting to ${url}`);
 
         try {

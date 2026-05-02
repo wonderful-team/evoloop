@@ -122,7 +122,7 @@ class MessagePublisher:
             status="failed",
             is_visible=True,
             created_at=datetime.now().isoformat(),
-            metadata={
+            meta_data={
                 "title": title,
                 "error_type": error_type,
                 **(metadata or {}),

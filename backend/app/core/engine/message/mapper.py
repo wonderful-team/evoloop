@@ -79,7 +79,7 @@ class BlockMapper:
             parent_id=str(msg.parent_id) if msg.parent_id else None,
             checkpoint_id=msg.checkpoint_id,
             references=references,
-            metadata={
+            meta_data={
                 "tool_call_id": msg.tool_call_id,
                 "tool_name": msg.tool_name,
             },
@@ -90,7 +90,7 @@ class BlockMapper:
         """MessageBlock → 数据库 INSERT 字典（供 ORM 使用）"""
         return {
             "thread_id": msg.thread_id,
-            "project_id": msg.metadata.get("project_id"),
+            "project_id": msg.meta_data.get("project_id"),
             "role": msg.role,
             "content": msg.content,
             "content_type": msg.content_type,
@@ -103,8 +103,8 @@ class BlockMapper:
             "run_id": msg.run_id,
             "status": msg.status,
             "parent_id": msg.parent_id if msg.parent_id else None,
-            "tool_call_id": msg.metadata.get("tool_call_id"),
-            "tool_name": msg.metadata.get("tool_name"),
+            "tool_call_id": msg.meta_data.get("tool_call_id"),
+            "tool_name": msg.meta_data.get("tool_name"),
             "checkpoint_id": msg.checkpoint_id,
         }
 
@@ -148,7 +148,7 @@ class BlockMapper:
                 role="tool",
                 content=str(msg.content or ""),
                 status="completed",
-                metadata={
+                meta_data={
                     "tool_call_id": msg.tool_call_id or "",
                     "tool_name": msg.name or "",
                 },
@@ -200,8 +200,8 @@ class BlockMapper:
         elif msg.role == "tool":
             return ToolMessage(
                 content=msg.content,
-                tool_call_id=msg.metadata.get("tool_call_id", ""),
-                name=msg.metadata.get("tool_name", ""),
+                tool_call_id=msg.meta_data.get("tool_call_id", ""),
+                name=msg.meta_data.get("tool_name", ""),
                 **kwargs,
             )
         elif msg.role == "human":
@@ -241,7 +241,7 @@ class BlockMapper:
             tool_calls=fm.tool_calls,
             steps=steps or None,
             created_at=_format_iso(fm.created_at),
-            metadata=fm.metadata or {},
+            meta_data=fm.meta_data or {},
         )
 
         if db_msg is not None:

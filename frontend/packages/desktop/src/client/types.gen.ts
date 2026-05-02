@@ -1041,6 +1041,7 @@ export type MessageItem = {
     tool_calls?: (Array<{
     [key: string]: unknown;
 }> | null);
+    status?: (string | null);
     metadata?: {
         [key: string]: unknown;
     };
@@ -1051,7 +1052,6 @@ export type MessageItem = {
     changeset_count?: number;
     category?: (string | null);
     content_type?: string;
-    status?: (string | null);
     sequence_number?: (number | null);
     checkpoint_id?: (string | null);
     is_visible?: boolean;

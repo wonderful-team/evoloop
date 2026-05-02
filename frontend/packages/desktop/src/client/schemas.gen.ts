@@ -3708,6 +3708,17 @@ export const MessageItemSchema = {
             ],
             title: 'Tool Calls'
         },
+        status: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Status'
+        },
         metadata: {
             additionalProperties: true,
             type: 'object',
@@ -3768,17 +3779,6 @@ export const MessageItemSchema = {
             type: 'string',
             title: 'Content Type',
             default: 'text'
-        },
-        status: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Status'
         },
         sequence_number: {
             anyOf: [

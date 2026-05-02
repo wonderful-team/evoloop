@@ -32,7 +32,7 @@ async def _notify_file_operation(thread_id: str, message_id: str, file_path: str
         status="completed",
         is_visible=False,
         sequence_number=int(time.time() * 1000),
-        metadata={
+        meta_data={
             "file_path": file_path,
             "operation": operation,
             "message_id": message_id,

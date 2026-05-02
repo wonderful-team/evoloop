@@ -16,9 +16,8 @@ from app.api.schemas.conversations import (
     RewindRequest,
     MessageListResponse,
 )
-from app.core.engine.message.folder import MessageFolder
+from app.core.engine.message.folder import MessageNormalizer
 from app.core.engine.message.repository import MessageRepository
-from app.core.engine.message.utils import to_base_message
 from app.core.monitoring.activity import activity_monitor
 from app.infrastructure.database.sql.database import get_db_session
 from app.models import Conversation, FileOperation, Message
@@ -81,21 +80,15 @@ async def get_conversation_messages(
         messages_with_files = set(str(row.message_id) for row in file_ops_rows)
         message_changeset_counts = {str(row.message_id): row.count for row in file_ops_rows}
 
-        # Conversion: Message DB -> LangChain BaseMessage -> FoldedMessage
-        langchain_messages = []
-        for m in all_messages:
-            bm = to_base_message(m)
-            if bm:
-                langchain_messages.append(bm)
-
-        folded = MessageFolder.fold(langchain_messages)
+        # Conversion: Message DB -> FoldedMessage (Direct Mapping)
+        normalized = MessageNormalizer.normalize(all_messages)
         # Map folded results back to API MessageItem with extra metadata
         # We need to map by ID to keep the extra visibility/changeset data
         # Note: LangChain objects used in fold_messages preserve the 'id' attribute
         db_msg_map = {str(m.id): m for m in all_messages}
         final_items = []
 
-        for f in folded:
+        for f in normalized:
             db_m = db_msg_map.get(str(f.id))
             if not db_m:
                 # Likely a system or generated message not in DB, keep as is
@@ -120,7 +113,7 @@ async def get_conversation_messages(
 
             msg_id_str = str(db_m.id)
             item = MessageItem(
-                **f.model_dump(),
+                **f.model_dump(exclude={"status"}),
                 run_id=db_m.run_id,
                 parent_id=db_m.parent_id,
                 references=refs,

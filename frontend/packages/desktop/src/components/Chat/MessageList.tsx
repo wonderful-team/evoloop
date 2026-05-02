@@ -93,64 +93,48 @@ export function MessageList({
     const { t } = useTranslation()
 
     // Group messages by conversation turn.
-    // A turn = one human message + all consecutive AI messages that follow it.
-    const turns = useMemo(() => {
-        const result: Turn[] = []
-        let currentAi: Message[] = []
-
-        for (const msg of messages) {
-            if (msg.role === "human") {
-                if (currentAi.length > 0) {
-                    if (result.length > 0) {
-                        result[result.length - 1].ai = currentAi
-                    } else {
-                        result.push({ ai: currentAi })
-                    }
-                    currentAi = []
-                }
-                result.push({ human: msg, ai: [] })
-            } else if (msg.role === "ai") {
-                currentAi.push(msg)
-            }
-        }
-
-        if (currentAi.length > 0) {
-            if (result.length > 0) {
-                result[result.length - 1].ai = currentAi
-            } else {
-                result.push({ ai: currentAi })
-            }
-        }
-
-        return result
-    }, [messages])
-
-    // Build render items: each turn produces 1 human bubble + 1 merged AI bubble.
+    // A turn = one human message + all consecutive AI/Tool messages that follow it.
     const renderItems = useMemo(() => {
         const items: (Message & { showDate?: boolean })[] = []
         let prevTimestamp: string | undefined
+        let currentAiGroup: Message[] = []
 
-        for (const turn of turns) {
-            // Human message
-            if (turn.human) {
-                const showDate = !!turn.human.timestamp &&
-                    (!prevTimestamp || new Date(turn.human.timestamp).toDateString() !== new Date(prevTimestamp).toDateString())
-                items.push({ ...turn.human, showDate })
-                prevTimestamp = turn.human.timestamp
-            }
-
-            // Merged AI messages
-            const merged = mergeAiMessages(turn.ai)
-            if (merged) {
-                const showDate = !!merged.timestamp &&
-                    (!prevTimestamp || new Date(merged.timestamp).toDateString() !== new Date(prevTimestamp).toDateString())
-                items.push({ ...merged, showDate })
-                prevTimestamp = merged.timestamp
+        const flushAiGroup = () => {
+            if (currentAiGroup.length > 0) {
+                const merged = mergeAiMessages(currentAiGroup)
+                if (merged) {
+                    const showDate = !!merged.timestamp &&
+                        (!prevTimestamp || new Date(merged.timestamp).toDateString() !== new Date(prevTimestamp).toDateString())
+                    items.push({ ...merged, showDate })
+                    prevTimestamp = merged.timestamp
+                }
+                currentAiGroup = []
             }
         }
 
+        for (const msg of messages) {
+            if (msg.role === "human") {
+                flushAiGroup()
+                const showDate = !!msg.timestamp &&
+                    (!prevTimestamp || new Date(msg.timestamp).toDateString() !== new Date(prevTimestamp).toDateString())
+                items.push({ ...msg, showDate })
+                prevTimestamp = msg.timestamp
+            } else if (msg.role === "ai") {
+                currentAiGroup.push(msg)
+            } else if (msg.role === "tool") {
+                // When we hit a tool message, we flush any AI thinking/content before it,
+                // then render the tool message, then continue.
+                flushAiGroup()
+                const showDate = !!msg.timestamp &&
+                    (!prevTimestamp || new Date(msg.timestamp).toDateString() !== new Date(prevTimestamp).toDateString())
+                items.push({ ...msg, showDate })
+                prevTimestamp = msg.timestamp
+            }
+        }
+
+        flushAiGroup()
         return items
-    }, [turns])
+    }, [messages])
 
     return (
         <div className="min-h-0 min-w-0 relative">

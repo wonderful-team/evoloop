@@ -89,7 +89,7 @@ class MessageBlock(DynamicBaseModel):
     sequence_number: int = 0
     parent_id: str | None = None
     checkpoint_id: str | None = None
-    metadata: dict[str, Any] = Field(default_factory=dict)
+    meta_data: dict[str, Any] = Field(default_factory=dict)
 
     # === 引用（知识/记忆/文件）===
     references: list[dict[str, Any]] | None = None

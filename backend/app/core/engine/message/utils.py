@@ -60,6 +60,11 @@ def to_base_message(msg: Any) -> BaseMessage | None:
     if status:
         additional_kwargs["status"] = status
 
+    # Preserve raw metadata for normalization recovery
+    meta_data = getattr(msg, "meta_data", None)
+    if meta_data:
+        additional_kwargs["metadata"] = meta_data
+
     try:
         if role == "human":
             return HumanMessage(content=content, id=msg_id, additional_kwargs=additional_kwargs)

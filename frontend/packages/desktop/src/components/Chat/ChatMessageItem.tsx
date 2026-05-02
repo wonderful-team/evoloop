@@ -155,7 +155,7 @@ export interface Message {
   originalRole?: string // Kept for filtering
   steps?: ToolStep[] // Tool execution steps
   has_file_operations?: boolean // Whether this message has associated file operations (for Rewind/Retry)
-  status?: "pending" | "streaming" | "completed" | "failed" // Message generation status
+  status?: "pending" | "streaming" | "running" | "completed" | "failed" // Message generation status
   // Changeset related (from backend)
   changeset_count: number // Number of files changed in this message (backend provided)
   // HITL request attached to this message
@@ -169,6 +169,7 @@ export interface Message {
     status?: "waiting_human" | "completed" | "cancelled"
   }
   category?: string
+  meta_data?: Record<string, any> // Message-level metadata (tool_name, input, tool_meta, etc.)
 }
 
 interface ChatMessageItemProps {
@@ -194,17 +195,21 @@ const ChatMessageItem = memo(
 
     // Render Tool Output as Document Log Block
     if (msg.role === "tool") {
+      const displayName = msg.meta_data?.tool_name || msg.tool_name || t("chat.messageList.toolExecution")
       return (
         <div className="flex justify-start mb-6 w-full">
           <div className="w-full max-w-4xl mx-auto pl-12">
             <div className="rounded-lg bg-muted/20 border border-[var(--doc-border)] overflow-hidden shadow-sm">
-               <div className="px-3 py-1.5 bg-muted/40 border-b border-[var(--doc-border)] flex items-center gap-2 text-[10px] font-mono uppercase tracking-wider text-muted-foreground/70">
+               <div className="px-3 py-1.5 bg-muted/40 flex items-center gap-2 text-[10px] font-mono uppercase tracking-wider text-muted-foreground/70">
                   <Bot size={12} className="opacity-50" />
-                  {t("chat.messageList.toolExecution")}
+                  {displayName}
+                  <div className={`ml-auto w-1.5 h-1.5 rounded-full ${msg.status === 'completed' || msg.status === 'done' ? 'bg-primary/40' : 'bg-amber-400 animate-pulse'}`} />
                </div>
-               <div className="p-3 text-xs font-mono text-muted-foreground/80 overflow-x-auto whitespace-pre-wrap leading-relaxed">
-                  {msg.content}
-               </div>
+               {msg.content && (
+                <div className="p-3 text-xs font-mono text-muted-foreground/80 overflow-x-auto whitespace-pre-wrap leading-relaxed border-t border-[var(--doc-border)]">
+                    {msg.content}
+                </div>
+               )}
             </div>
           </div>
         </div>
@@ -348,8 +353,8 @@ const ChatMessageItem = memo(
                         </span>
                       </Button>
                     </CollapsibleTrigger>
-                    <CollapsibleContent className="text-[11px] leading-relaxed text-muted-foreground/70 pl-5 border-l border-primary/10 whitespace-pre-wrap break-all font-mono mt-2 mb-2 italic">
-                      {thinkingContent}
+                    <CollapsibleContent className="text-[11px] leading-relaxed text-muted-foreground/70 pl-5 border-l border-primary/10 break-all mt-2 mb-2">
+                      <MessageContent content={thinkingContent} />
                     </CollapsibleContent>
                   </Collapsible>
                 )

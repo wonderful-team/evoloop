@@ -131,10 +131,13 @@ class MessageHandler:
         parent_id: str | None = None,
     ) -> MessageHandlerResult:
         """处理工具开始执行 — 预插入 running 状态记录"""
-        category = MessageCategory.TOOL_OUTPUT
-
         # Build tool_meta for frontend rendering (canonical source)
         metadata = get_tool_metadata(tool_name) or {}
+        is_hidden = metadata.get("is_hidden", False)
+        
+        # Categorize based on tool visibility
+        category = MessageCategory.INTERNAL_TOOL_CALL if is_hidden else MessageCategory.TOOL_OUTPUT
+
         summary_template = metadata.get("summary_template")
         display_name = None
         if summary_template and input_data:
@@ -147,32 +150,39 @@ class MessageHandler:
             "affected_path_keys": metadata.get("affected_path_keys", []),
         }
 
-        message_id, seq = await self._repository.persist(
-            role="tool",
-            content="",
-            category=category.value,
-            action_type="tool_output",
-            status="running",
-            is_visible=True,
-            tool_call_id=tool_call_id,
-            tool_name=tool_name,
-            content_type="text",
-            metadata={"tool_name": tool_name, "tool_call_id": tool_call_id, "input": input_data, "tool_meta": tool_meta},
-            parent_id=parent_id,
-        )
+        message_id = None
+        seq = 0
+        
+        # Apply persistence policy
+        if category.should_persist_to_db:
+            message_id, seq = await self._repository.persist(
+                role="tool",
+                content="",
+                category=category.value,
+                action_type="tool_output",
+                status="running",
+                is_visible=True,
+                tool_call_id=tool_call_id,
+                tool_name=tool_name,
+                content_type="text",
+                metadata={"tool_name": tool_name, "tool_call_id": tool_call_id, "input": input_data, "tool_meta": tool_meta},
+                parent_id=parent_id,
+            )
 
-        # Push real-time "running" event (frontend receives via SSE message folding)
-        await self._dispatch_block(
-            role="tool", content="", category=category.value,
-            status="running", sequence_number=seq,
-            tool_name=tool_name, tool_call_id=tool_call_id,
-            metadata={"tool_meta": tool_meta, "input": input_data},
-            channels={"sse", "mobile"}
-        )
+        # Push real-time "running" event if visible
+        if category.is_visible_to_user:
+            await self._dispatch_block(
+                role="tool", content="", category=category.value,
+                status="running", sequence_number=seq,
+                tool_name=tool_name, tool_call_id=tool_call_id,
+                metadata={"tool_meta": tool_meta, "input": input_data},
+                channels={"sse", "mobile"}
+            )
 
-        logger.info(f"[MessageHandler] Tool start tracked: {tool_name} (seq={seq})")
+        logger.info(f"[MessageHandler] Tool start tracked: {tool_name} (seq={seq}, hidden={is_hidden})")
         return MessageHandlerResult(
-            category=category.value, persisted=True, streamed=True,
+            category=category.value, persisted=category.should_persist_to_db, 
+            streamed=category.is_visible_to_user,
             message_id=message_id, sequence_number=seq,
         )
 
@@ -185,7 +195,15 @@ class MessageHandler:
         sequence_number: int | None = None,
     ) -> MessageHandlerResult:
         """处理工具输出消息 — 支持 UPDATE 已有 running 记录"""
-        category = MessageClassifier.classify_tool_output(tool_name, output)
+        # Check tool visibility from registry
+        tool_meta_registry = get_tool_metadata(tool_name) or {}
+        is_hidden = tool_meta_registry.get("is_hidden", False)
+        
+        if is_hidden:
+            category = MessageCategory.INTERNAL_TOOL_CALL
+        else:
+            category = MessageClassifier.classify_tool_output(tool_name, output)
+            
         content = str(output) if output else ""
         persist_data = MessagePersistencePolicy.apply_policy(
             category=category, content=content, tool_call_id=tool_call_id, tool_name=tool_name,
@@ -197,7 +215,7 @@ class MessageHandler:
         message_id = None
         seq = sequence_number or 0
 
-        if sequence_number and persist_data.should_persist:
+        if seq and persist_data.should_persist:
             # UPDATE existing running record
             updated = await self._repository.update(
                 sequence_number=sequence_number,
@@ -420,7 +438,7 @@ class MessageHandler:
             sequence_number=sequence_number,
             created_at=datetime.now().isoformat(),
             parent_id=parent_id,
-            metadata={
+            meta_data={
                 "tool_name": tool_name,
                 "tool_call_id": tool_call_id,
                 **(metadata or {}),
