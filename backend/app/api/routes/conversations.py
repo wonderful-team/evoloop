@@ -2,13 +2,22 @@ import logging
 
 from fastapi import APIRouter, HTTPException, Request
 from sqlalchemy import delete, select, func
-from sqlalchemy.orm import selectinload
 
-from app.api.schemas.conversations import MessageItem, ConversationSearchResult, RenameRequest, ConversationListItem, \
-    ReferenceItem, ChangesetNode, RewindResponse, ConversationRenameResponse, ConversationDeleteResponse, RewindRequest, \
-    MessageListResponse
-from app.core.engine.message.folding import to_base_message, fold_messages
-from app.core.engine.message.schemas import HistoryBlock  # noqa: F401  # 标准化 Block 模型
+from app.api.schemas.conversations import (
+    MessageItem,
+    ConversationSearchResult,
+    RenameRequest,
+    ConversationListItem,
+    ReferenceItem,
+    ChangesetNode,
+    RewindResponse,
+    ConversationRenameResponse,
+    ConversationDeleteResponse,
+    RewindRequest,
+    MessageListResponse,
+)
+from app.core.engine.message.folder import MessageNormalizer
+from app.core.engine.message.repository import MessageRepository
 from app.core.monitoring.activity import activity_monitor
 from app.infrastructure.database.sql.database import get_db_session
 from app.models import Conversation, FileOperation, Message
@@ -17,16 +26,8 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-# --- Schemas ---
 
-
-def get_tool_display_name(tool_name: str) -> str | None:
-    """Get friendly display name for a tool from registry."""
-    from app.core.tools.registry import get_tool_friendly_name
-    return get_tool_friendly_name(tool_name, lang="zh")
-
-# ToolStep and FoldedMessage are now imported from app.core.engine.state.history
-
+# Message components are now managed via app.core.engine.message.*
 
 @router.get("/", response_model=list[ConversationListItem])
 async def list_conversations(project_id: int | None = None):
@@ -60,105 +61,13 @@ async def list_conversations(project_id: int | None = None):
 async def get_conversation_messages(
     thread_id: str,
     limit: int = 50,
-    before_id: int | None = None,
+    before_id: str | None = None,
 ):
-    """
-    Get message history for a thread from the persistent SQL log.
-    Supports pagination for infinite scroll.
-    
-    Query Logic (simplified):
-    1. Query all is_visible=True messages (respecting pagination)
-    2. Collect run_ids from visible messages
-    3. Query is_visible=False messages with the same run_ids
-    4. Merge and return
-    
-    Note: is_visible is completely determined by message category.
-    See MessageCategory.get_visible_categories() for details.
-    
-    Args:
-        thread_id: The conversation thread ID
-        limit: Number of messages to return (default 50, max 100)
-        before_id: Cursor for pagination - load messages before this ID
-    
-    Returns:
-        MessageListResponse with items, has_more flag, and cursors
-    """
     limit = min(max(limit, 1), 100)
+    repo = MessageRepository(thread_id=thread_id)
+    all_messages, has_more, total_count = await repo.get_full_history(limit=limit, before_id=before_id)
 
     async with get_db_session() as session:
-        # Step 1: Query visible messages only
-        # is_visible is determined by category, see MessageCategory.get_visible_categories()
-        visible_stmt = (
-            select(Message)
-            .where(
-                Message.thread_id == thread_id,
-                Message.is_visible == True
-            )
-            .options(selectinload(Message.references))
-            .order_by(Message.id.desc())
-            .limit(limit + 1)  # Fetch one extra to check has_more
-        )
-
-        # Apply cursor pagination
-        if before_id is not None:
-            visible_stmt = visible_stmt.where(Message.id < before_id)
-
-        result = await session.execute(visible_stmt)
-        visible_messages = result.scalars().all()
-
-        # Check if there are more visible messages
-        has_more = len(visible_messages) > limit
-        if has_more:
-            visible_messages = visible_messages[:limit]
-
-        # Reverse to chronological order (oldest first)
-        visible_messages = list(reversed(visible_messages))
-
-        # Step 2: Collect all run_ids from visible messages
-        run_ids = {m.run_id for m in visible_messages if m.run_id}
-
-        # To prevent losing the active run if it only has intermediate messages so far
-        if before_id is None:
-            latest_msg_stmt = (
-                select(Message.run_id)
-                .where(Message.thread_id == thread_id, Message.run_id.is_not(None))
-                .order_by(Message.id.desc())
-                .limit(1)
-            )
-            latest_run_id = (await session.execute(latest_msg_stmt)).scalar_one_or_none()
-            if latest_run_id:
-                run_ids.add(latest_run_id)
-
-        # Step 3: Fetch all invisible messages associated with these runs
-        # These are internal messages (internal_tool_call, internal_system, internal_llm_json, error)
-        invisible_messages = []
-        if run_ids:
-            invisible_stmt = (
-                select(Message)
-                .where(
-                    Message.thread_id == thread_id,
-                    Message.is_visible == False,
-                    Message.run_id.in_(run_ids)
-                )
-                .options(selectinload(Message.references))
-                .order_by(Message.id.asc())  # Chronological order
-            )
-            invisible_result = await session.execute(invisible_stmt)
-            invisible_messages = invisible_result.scalars().all()
-
-        # Step 4: Merge and sort all messages by id
-        all_messages = visible_messages + list(invisible_messages)
-        all_messages.sort(key=lambda m: m.id)
-
-        # Get total count on first load (when before_id is None)
-        total_count = None
-        if before_id is None:
-            count_stmt = select(func.count(Message.id)).where(
-                Message.thread_id == thread_id,
-                Message.is_visible == True
-            )
-            total_count = (await session.execute(count_stmt)).scalar()
-
         # Query file operations: presence set + changeset count in one query
         file_ops_stmt = (
             select(FileOperation.message_id, func.count(FileOperation.id).label("count"))
@@ -167,27 +76,18 @@ async def get_conversation_messages(
         )
         file_ops_result = await session.execute(file_ops_stmt)
         file_ops_rows = file_ops_result.all()
-        messages_with_files = set(row.message_id for row in file_ops_rows)
+        messages_with_files = set(str(row.message_id) for row in file_ops_rows)
         message_changeset_counts = {str(row.message_id): row.count for row in file_ops_rows}
 
-        # Conversion: Message DB -> LangChain BaseMessage -> FoldedMessage
-        langchain_messages = []
-        for m in all_messages:
-            bm = to_base_message(m)
-            if bm:
-                langchain_messages.append(bm)
-            else:
-                logger.warning(f"[Conversations] Dropping message with unknown role: id={m.id}, role={m.role}")
-
-        folded = fold_messages(langchain_messages)
-
+        # Conversion: Message DB -> MessageBlock (Direct Mapping)
+        normalized = MessageNormalizer.normalize(all_messages)
         # Map folded results back to API MessageItem with extra metadata
         # We need to map by ID to keep the extra visibility/changeset data
         # Note: LangChain objects used in fold_messages preserve the 'id' attribute
         db_msg_map = {str(m.id): m for m in all_messages}
         final_items = []
 
-        for f in folded:
+        for f in normalized:
             db_m = db_msg_map.get(str(f.id))
             if not db_m:
                 # Likely a system or generated message not in DB, keep as is
@@ -210,39 +110,26 @@ async def get_conversation_messages(
                 else []
             )
 
-            # Convert FoldedMessage steps to tool_blocks for structured display
-            tool_blocks = [
-                {
-                    "id": step.id,
-                    "tool_call_id": step.tool_call_id or step.id,
-                    "tool": step.tool,
-                    "tool_name": step.tool_name,
-                    "tool_name_display": step.tool_name_display,
-                    "input": step.input,
-                    "output": step.output,
-                    "status": step.status,
-                    "duration_ms": int(step.duration * 1000) if step.duration else None,
-                }
-                for step in (f.steps or [])
-            ] if f.steps else None
-
+            msg_id_str = str(db_m.id)
+            # Exclude fields that will be overwritten by DB data
+            base_data = f.model_dump(exclude={
+                "status", "run_id", "parent_id", "references",
+                "category", "content_type", "sequence_number",
+                "checkpoint_id", "is_visible"
+            })
             item = MessageItem(
-                **f.model_dump(),
+                **base_data,
                 run_id=db_m.run_id,
                 parent_id=db_m.parent_id,
                 references=refs,
-                has_file_operations=bool(
-                    db_m.run_id and db_m.run_id in messages_with_files
-                ),
-                changeset_count=message_changeset_counts.get(db_m.run_id, 0) if db_m.run_id else 0,
-                # --- 新增：填充 MessageBlock 对齐字段 ---
+                has_file_operations=msg_id_str in messages_with_files,
+                changeset_count=message_changeset_counts.get(msg_id_str, 0),
                 category=db_m.category,
                 content_type=db_m.content_type or "text",
                 status=db_m.status,
                 sequence_number=db_m.sequence_number,
                 checkpoint_id=db_m.checkpoint_id,
                 is_visible=db_m.is_visible,
-                tool_blocks=tool_blocks,
             )
             
             # Remove raw tool_calls (frontend uses folded steps instead)
@@ -250,9 +137,9 @@ async def get_conversation_messages(
             item.tool_calls = None
             final_items.append(item)
 
-        # Build response with cursors (based on visible messages only)
-        first_id = visible_messages[0].id if visible_messages else None
-        last_id = visible_messages[-1].id if visible_messages else None
+        # Build response with cursors
+        first_id = str(all_messages[0].id) if all_messages else None
+        last_id = str(all_messages[-1].id) if all_messages else None
 
         return MessageListResponse(
             data=final_items,
@@ -265,12 +152,6 @@ async def get_conversation_messages(
 
 @router.get("/search", response_model=list[ConversationSearchResult])
 async def search_conversations(q: str, project_id: int | None = None):
-    """
-    Full-text search on message logs.
-    
-    Only searches visible messages (is_visible=True).
-    Internal messages and errors are excluded from search.
-    """
     if not q or len(q.strip()) < 2:
         return []
 
@@ -311,9 +192,6 @@ async def search_conversations(q: str, project_id: int | None = None):
 
 @router.patch("/{thread_id}")
 async def rename_conversation(thread_id: str, req: RenameRequest):
-    """
-    Rename a conversation.
-    """
     async with get_db_session() as session:
         conversation = await session.get(Conversation, thread_id)
         if not conversation:
@@ -327,13 +205,11 @@ async def rename_conversation(thread_id: str, req: RenameRequest):
 
 @router.get("/{thread_id}/activity")
 async def get_thread_activity(thread_id: str):
-    """Get real-time activity/status for a thread run."""
     return await activity_monitor.get_activity(thread_id)
 
 
 @router.delete("/{thread_id}")
 async def delete_conversation(thread_id: str):
-    """Delete a conversation history and its checkpoints."""
     from app.infrastructure.database.resource_manager import db_resource_manager
     try:
         # 1. Delete Checkpoints via Checkpointer API (supports both Postgres and SQLite)
@@ -369,12 +245,6 @@ async def rewind_conversation(
     req: RewindRequest = RewindRequest(),
     request: Request = None
 ):
-    """
-    Rewind the conversation to the previous state (Undo last step).
-    Optionally revert file changes made by the Agent.
-    
-    Uses the new event-driven RewindOrchestrator for distributed cleanup.
-    """
     from app.core.engine.rewind import RewindOrchestrator
     from app.core.engine.schemas import RewindOperation as RewindReq
     from app.core.engine.rewind.exceptions import MessageNotFoundError, NoHumanMessageError
@@ -436,9 +306,6 @@ async def rewind_conversation(
 
 @router.get("/{thread_id}/changeset", response_model=list[ChangesetNode])
 async def get_thread_changeset(thread_id: str):
-    """
-    Get the cumulative file changeset for a thread, formatted as a tree.
-    """
     async with get_db_session() as session:
         stmt = (
             select(FileOperation)

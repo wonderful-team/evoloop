@@ -5,26 +5,22 @@ Provides real-time state management and event publishing for agent runs.
 Uses ActivityStateService for state persistence and Cache for Pub/Sub.
 """
 
-import asyncio
 import json
 import logging
 import time
-from typing import Any
-
-from pydantic import Field
+from contextlib import asynccontextmanager
+from typing import Any, AsyncGenerator
 
 from app.core.engine.message.event_bus import get_event_bus
+from app.core.monitoring.schemas import AgentActivityState, HumanRequestData, SystemLogPayload
 from app.infrastructure.cache import cache
-from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.models.schemas.events import (
     AgentStateEvent,
     ArtifactEvent,
     HumanRequestEvent,
     StatusEvent,
-    StepEvent,
 )
 from app.services.cache_services import ActivityStateService
-from app.core.monitoring.schemas import AgentActivityState, HumanRequestData, SystemLogPayload
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +44,60 @@ class ActivityMonitor:
         if cls._instance is None:
             cls._instance = cls()
         return cls._instance
+
+    @asynccontextmanager
+    async def run_scope(self, thread_id: str, main_goal: str = "处理用户请求") -> AsyncGenerator[str, None]:
+        """
+        Unified Agent Lifecycle Context Manager.
+        
+        Handles:
+        - start_run / end_run
+        - run_id generation and context injection
+        - Early cancellation check
+        - Global exception handling and status reporting
+        
+        Yields:
+            run_id (str): The unique ID for this execution attempt.
+        """
+        from app.utils.id import gen_uuid
+        from app.core.context.manager import ContextManager
+        from app.core.exceptions import AgentCancelledException, AgentHumanInterruptException
+
+        run_id = f"run-{gen_uuid()[:8]}"
+        
+        # 1. Start Run
+        await self.start_run(thread_id, main_goal)
+        logger.info(f"[ActivityMonitor] 🚀 Starting lifecycle for thread {thread_id} (Run: {run_id})")
+        
+        # 2. Sync Metadata to Context
+        ctx = ContextManager.current()
+        if ctx and ctx.thread_id == thread_id:
+            ctx.run_id = run_id
+            
+        try:
+            # 3. Pre-run cancellation check
+            await self.check_cancellation(thread_id)
+            
+            yield run_id
+            
+            # 4. Success End
+            await self.end_run(thread_id, status="done")
+            
+        except AgentCancelledException:
+            logger.info(f"[ActivityMonitor] 🛑 Run {run_id} cancelled by user")
+            await self.end_run(thread_id, status="cancelled")
+            raise  # Re-raise for upper layers if needed (BackgroundAgent handles it)
+            
+        except AgentHumanInterruptException:
+            logger.info(f"[ActivityMonitor] ⏸️ Run {run_id} interrupted for human input")
+            # status "interrupted" is handled by set_human_request usually, 
+            # but we keep end_run call if appropriate
+            raise
+            
+        except Exception as e:
+            logger.error(f"[ActivityMonitor] ❌ Run {run_id} failed with error: {e}", exc_info=True)
+            await self.end_run(thread_id, status="failed")
+            raise
 
     async def start_run(self, thread_id: str, main_goal: str = "处理用户请求"):
         """Initialize activity state for a new run."""
@@ -198,83 +248,6 @@ class ActivityMonitor:
         if await cache.exists(key):
             await cache.hset(key, "active_memories", json.dumps([]))
 
-    async def add_step(
-        self, thread_id: str, name: str, step_type="node", parent_id: int = None,
-        input_data: dict = None, tool_name_display: str = None
-    ):
-        """Add a new step and return its ID."""
-        step_id = await self._state_service.add_step(thread_id, name, step_type, parent_id, input_data, tool_name_display)
-
-        if step_id:
-            # Publish Event — include tool_name_display so frontend can render parameterized names
-            step_data = {
-                "name": name,
-                "status": "running",
-                "input": input_data,
-                "tool_name_display": tool_name_display,
-            }
-            await get_event_bus().publish(
-                f"chat:{thread_id}:events",
-                StepEvent(action="create", id=step_id, data=step_data).model_dump_json(),
-            )
-
-        return step_id
-
-    async def update_step(
-        self, thread_id: str, step_id: int, status: str, details: str = None
-    ):
-        """Update step status and optionally details.
-
-        Uses distributed locking with retries to mitigate non-atomic
-        read-modify-write on the cached steps JSON array.
-        """
-        key = f"activity:{thread_id}"
-        lock_key = f"lock:{key}"
-        max_retries = 3
-
-        for attempt in range(1, max_retries + 1):
-            try:
-                async with cache.lock(lock_key, timeout=5.0, blocking_timeout=3.0):
-                    steps_json = await cache.hget(key, "steps")
-                    if not steps_json:
-                        return
-
-                    steps = json.loads(steps_json) if isinstance(steps_json, str) else steps_json
-                    modified = False
-
-                    for step in steps:
-                        if step["id"] == step_id:
-                            step["status"] = status
-                            if details:
-                                step["details"] = details
-                            if status in ["done", "failed"]:
-                                duration = time.time() - step["start_time"]
-                                step["time"] = f"{duration:.2f}s"
-                            modified = True
-                            break
-
-                    if modified:
-                        await cache.hset(
-                            key,
-                            mapping={"steps": json.dumps(steps), "updated_at": str(time.time())},
-                        )
-
-                        # Publish Event
-                        update_data = {"status": status}
-                        if details:
-                            update_data["details"] = details
-                        await get_event_bus().publish(
-                            f"chat:{thread_id}:events",
-                            StepEvent(action="update", id=step_id, data=update_data).model_dump_json(),
-                        )
-                    return  # Success — exit retry loop
-            except Exception as e:
-                if attempt < max_retries:
-                    logger.debug(f"[ActivityMonitor] Step update attempt {attempt} failed for {step_id}, retrying: {e}")
-                    await asyncio.sleep(0.1 * attempt)
-                    continue
-                logger.error(f"[ActivityMonitor] Failed to update step {step_id} for thread {thread_id} after {max_retries} attempts: {e}")
-
     async def update_agent_state(
         self, thread_id: str, mode: str, task_name: str, task_status: str, details: dict[str, Any] | None = None
     ):
@@ -291,7 +264,7 @@ class ActivityMonitor:
         # Publish Event
         await get_event_bus().publish(
             f"chat:{thread_id}:events",
-            AgentStateEvent(data=state).model_dump_json()
+            AgentStateEvent(data=state.model_dump()).model_dump_json()
         )
 
     async def log_event(self, event_type: str, data: dict[str, Any], thread_id: str = "system"):

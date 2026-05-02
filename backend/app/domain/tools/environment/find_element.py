@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 @evoloop_tool(
     is_pollable=True,
-    name_map={"zh": "查找元素", "en": "Find Element"}
+    summary_template="database_logger.tool_summary.find_element"
 )
 async def find_element(
     target: str,

@@ -35,7 +35,7 @@ async def _resolve_wiki_project_id() -> int | None:
 
 @evoloop_tool(
     is_pollable=True,
-    name_map={"zh": "列出Wiki页面", "en": "List Wiki Pages"}
+    summary_template="database_logger.tool_summary.list_wiki_pages"
 )
 async def list_wiki_pages(
     config: Annotated[RunnableConfig, InjectedToolArg] = None
@@ -57,7 +57,7 @@ async def list_wiki_pages(
 
 @evoloop_tool(
     is_pollable=True,
-    name_map={"zh": "读取Wiki页面", "en": "Read Wiki Page"}
+    summary_template="database_logger.tool_summary.read_wiki_page"
 )
 async def read_wiki_page(
     slug: str,
@@ -89,8 +89,8 @@ async def read_wiki_page(
 
 @evoloop_tool(
     is_state_mutating=True,
-    name_map={"zh": "写入Wiki页面", "en": "Write Wiki Page"},
-    required_benefit="wiki_generation"
+    required_benefit="wiki_generation",
+    summary_template="database_logger.tool_summary.write_wiki_page"
 )
 async def write_wiki_page(
     title: str,

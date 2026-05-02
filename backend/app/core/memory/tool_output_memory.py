@@ -37,7 +37,6 @@ class ToolOutputMemory:
         self,
         tool_call_id: str,
         current_step: int,
-        safety_window: int = 5,
     ) -> tuple[bool, str]:
         """
         Check if a tool output can be safely forgotten.
@@ -45,7 +44,6 @@ class ToolOutputMemory:
         Args:
             tool_call_id: The tool call ID to check
             current_step: Current message step/index
-            safety_window: Minimum steps ago the tool must have been called
 
         Returns:
             (can_forget, reason)

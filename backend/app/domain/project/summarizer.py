@@ -94,8 +94,8 @@ async def _summarize_project_logic(name: str, path: str):
                 full_p = os.path.join(path, f)
                 if f_filter.should_include(full_p):
                     files.append(f)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"[ProjectSummarizer] Directory scan failed for {path}: {e}")
 
         readme_content = project_context_manager.extract_description_from_readme(path)
 
@@ -125,7 +125,7 @@ async def _summarize_project_logic(name: str, path: str):
         )
 
         parser = JsonOutputParser()
-        result = parser.parse(response.content if hasattr(response, 'content') else str(response))
+        result = parser.parse(response.content)
 
         # 3. Save Result
         meta_dir = os.path.join(path, ".evoloop")

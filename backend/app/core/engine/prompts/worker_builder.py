@@ -54,11 +54,9 @@ class WorkerPromptBuilder:
             if os.path.isfile(profile_path):
                 try:
                     content = file_utils.read_file(profile_path)
-                    if len(content) > 4000:
-                        content = content[:4000] + "\n\n... [PROJECT.md truncated for brevity]"
                     project_profile = content
-                except (OSError, TypeError, ValueError):
-                    pass
+                except Exception as e:
+                    logger.debug(f"[WorkerPrompt] Failed to read PROJECT.md: {e}")
 
         # Static Sys Info (Project identity only)
         sys_info = {
@@ -89,7 +87,7 @@ class WorkerPromptBuilder:
                 has_interactive_charts = await benefit_service.has_benefit(
                     member_id, "interactive_charts", token
                 )
-        except ValueError as e:
+        except Exception as e:
             logger.debug(f"[WorkerPrompt] Benefit check failed: {e}")
 
         template_vars = {
@@ -177,7 +175,7 @@ class WorkerPromptBuilder:
             blocks = [b.strip() for b in rendered.split('\n\n\n') if b.strip()]
             return blocks or [rendered.strip()]
 
-        except (TypeError, ValueError, RuntimeError) as e:
+        except Exception as e:
             logger.error(f"Error rendering Knowledge Blocks: {e}")
             # Fallback: render each skill individually
             blocks = []

@@ -61,6 +61,7 @@ class MemoryEntry(DynamicBaseModel):
     # Source tracking
     source: str = "manual"
     source_message_id: str | None = None
+    run_id: str | None = None
     confidence: float = Field(default=1.0, ge=0.0, le=1.0)
 
     # Versioning
@@ -113,6 +114,7 @@ class MemoryEntry(DynamicBaseModel):
             "tags": self.tags,
             "source": self.source,
             "source_message_id": self.source_message_id,
+            "run_id": self.run_id,
             "confidence": self.confidence,
             "version": self.version,
             "created_at": self.created_at.isoformat(),
@@ -207,10 +209,6 @@ class MemorySearchResult(DynamicBaseModel):
     created_at: datetime
     updated_at: datetime
     confidence: float = 1.0
-
-    def to_dict(self) -> dict:
-        """Legacy compatibility method."""
-        return self.model_dump()
 
 
 class MemoryIndexEntry(DynamicBaseModel):

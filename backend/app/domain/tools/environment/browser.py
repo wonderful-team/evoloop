@@ -16,8 +16,9 @@ logger = logging.getLogger(__name__)
 
 @evoloop_tool(
     is_pollable=True,
-    name_map={"zh": "浏览器控制", "en": "Browser Control"},
     required_benefit="browser_control",
+    summary_template="database_logger.tool_summary.browser_control",
+    affected_path_keys=["url", "file_path"]
 )
 async def browser_control(
     action: Literal[

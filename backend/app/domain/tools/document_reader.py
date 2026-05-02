@@ -85,7 +85,8 @@ def inspect_document(file_path: str) -> str:
 
 @evoloop_tool(
     is_pollable=True,
-    name_map={"zh": "查询Excel", "en": "Query Excel SQL"}
+    summary_template="database_logger.tool_summary.query_excel_sql",
+    affected_path_keys=["file_path"]
 )
 async def query_excel_sql(file_path: str, sql_query: str) -> str:
     """
@@ -321,10 +322,16 @@ def _read_pdf(path: str, start: int | None, end: int | None) -> str:
     reader = PdfReader(path)
     total_pages = len(reader.pages)
 
+    MAX_PAGES = 20
     start_idx = (start - 1) if start else 0
-    end_idx = end if end else total_pages
-    start_idx = max(0, start_idx)
-    end_idx = min(total_pages, end_idx)
+    
+    is_truncated = False
+    if end is None:
+        end_idx = min(start_idx + MAX_PAGES, total_pages)
+        if total_pages > end_idx:
+            is_truncated = True
+    else:
+        end_idx = min(total_pages, end)
 
     try:
         content_blocks = []
@@ -334,6 +341,11 @@ def _read_pdf(path: str, start: int | None, end: int | None) -> str:
                 "content": reader.pages[i].extract_text()
             })
 
+        footer_msg = ""
+        if is_truncated:
+            footer_msg = f"\n\n... (PDF truncated to first {MAX_PAGES} pages)\n"
+            footer_msg += f"Tip: Use `read_file(path='...', start_line={end_idx + 1})` to read more pages."
+
         return render_template(
             "domain/project/document_content.prompt.j2",
             type="document",
@@ -341,7 +353,7 @@ def _read_pdf(path: str, start: int | None, end: int | None) -> str:
             metadata=reader.metadata,
             page_info=f"Pages: {start_idx+1} to {end_idx} (Total {total_pages})",
             content_blocks=content_blocks
-        )
+        ) + footer_msg
     except Exception as e:
         logger.error(f"Failed to render Document template for PDF: {e}")
         # Fallback to simple template
@@ -370,13 +382,26 @@ def _read_docx(path: str) -> str:
 def _read_excel(path: str) -> str:
     xl = pd.ExcelFile(path)
     sheet_names = xl.sheet_names # Get sheet names once
+    MAX_ROWS_PER_SHEET = 100
     try:
         content_blocks = []
         for sheet_name in sheet_names:
-            df = pd.read_excel(path, sheet_name=sheet_name)
+            # Read only first N rows for preview
+            df = pd.read_excel(path, sheet_name=sheet_name, nrows=MAX_ROWS_PER_SHEET + 1)
+            
+            is_truncated = len(df) > MAX_ROWS_PER_SHEET
+            if is_truncated:
+                df = df.head(MAX_ROWS_PER_SHEET)
+            
+            content = df.to_markdown(index=False) if not df.empty else "*Empty Sheet*"
+            
+            if is_truncated:
+                content += f"\n\n... (Sheet '{sheet_name}' truncated to first {MAX_ROWS_PER_SHEET} rows)"
+                content += f"\nTip: This spreadsheet is large. Use `query_excel_sql` to perform precise queries on the data."
+
             content_blocks.append({
                 "title": f"Sheet: {sheet_name}",
-                "content": df.to_markdown(index=False) if not df.empty else "*Empty Sheet*"
+                "content": content
             })
 
         return render_template(
@@ -390,7 +415,7 @@ def _read_excel(path: str) -> str:
         # Fallback to spreadsheet formatter
         sheets = []
         for sheet_name in sheet_names:
-            df = pd.read_excel(path, sheet_name=sheet_name)
+            df = pd.read_excel(path, sheet_name=sheet_name, nrows=MAX_ROWS_PER_SHEET)
             sheets.append({
                 "name": sheet_name,
                 "content": df.to_markdown(index=False) if not df.empty else "*Empty Sheet*",

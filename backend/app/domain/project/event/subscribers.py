@@ -302,3 +302,44 @@ class ProjectMemoryContextProvider:
                 except Exception:
                     continue
         return norms
+
+
+@event_register()
+class ProjectContextHydrator:
+    """
+    Subscribes to session start events to resolve project paths and hydrate EvoContext.
+    """
+
+    @event_subscribe(SystemEventType.SESSION_STARTED)
+    async def on_session_started(self, event) -> None:
+        """Resolve project details and enrich EvoContext."""
+        logger.info(f"[ProjectHydrator] Received SESSION_STARTED event for project_id: {event.data.get('project_id')}")
+        from app.core.context import ContextManager
+        from app.core.evocloud import evocloud_manager
+        
+        ctx = ContextManager.current()
+        if not ctx:
+            return
+
+        project_id = event.data.get("project_id") or ctx.project_id
+        if not project_id or project_id == 0:
+            return
+
+        # We always want to fetch and update if we have a valid project_id
+        # since ctx.working_directory might just be the default fallback root.
+
+        try:
+            project = await evocloud_manager.get_project_by_id(project_id)
+            if project and project.get("path"):
+                working_dir = project["path"]
+                logger.info(f"[ProjectHydrator] Resolved project {project_id} path: {working_dir}")
+                
+                # Update Context
+                ctx.working_directory = working_dir
+                
+                # Update legacy thread_context_store for backward compatibility
+                from app.core.context import thread_context_store
+                thread_context_store.set_working_directory(ctx.thread_id, working_dir)
+                thread_context_store.set_active_project(ctx.thread_id, project_id)
+        except Exception as e:
+            logger.warning(f"[ProjectHydrator] Failed to resolve project {project_id}: {e}")

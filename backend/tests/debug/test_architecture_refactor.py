@@ -42,12 +42,13 @@ class TestMessageClassifier:
         assert result == MessageCategory.INTERNAL_LLM_JSON
     
     def test_classify_reasoning_content(self):
-        """识别包含思考标签的内容"""
+        """识别包含原生 reasoning_content 的内容"""
         from app.core.messaging.classifier import MessageClassifier
         from app.core.messaging.category import MessageCategory
-        
-        content = "<think>This is reasoning</think>\nFinal answer"
-        result = MessageClassifier.classify_ai_message(content)
+
+        result = MessageClassifier.classify_ai_message(
+            content="Final answer", metadata={"reasoning_content": "deep analysis"}
+        )
         assert result == MessageCategory.INTERNAL_REASONING
     
     def test_classify_normal_assistant_response(self):

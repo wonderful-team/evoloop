@@ -17,10 +17,8 @@ from datetime import datetime, timedelta
 from typing import Any, Optional
 
 import httpx
-from pydantic import Field, ConfigDict
 
 from app.core.config import settings
-from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.infrastructure.schemas import ToolRequest
 
 logger = logging.getLogger(__name__)

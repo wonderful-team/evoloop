@@ -151,19 +151,15 @@ class DirectorySummarizer:
             child_summaries=child_summaries
         )
 
-        try:
-            from app.core.llm import InternalLLMService
-            from app.infrastructure.config.service import SystemConfigService
-            model_name = SystemConfigService.get_value("LLM_MODEL")
-            response = await InternalLLMService.invoke(
-                messages=[{"role": "user", "content": prompt_text}],
-                purpose="skill_synthesis",
-                model_name=model or model_name,
-            )
-            return response.content if hasattr(response, 'content') else str(response)
-        except Exception as e:
-            logger.error(f"LLM Summary Failed for {dir_path}: {e}")
-            return "Summary generation failed."
+        from app.core.llm import InternalLLMService
+        from app.infrastructure.config.service import SystemConfigService
+        model_name = SystemConfigService.get_value("LLM_MODEL")
+        response = await InternalLLMService.invoke(
+            messages=[{"role": "user", "content": prompt_text}],
+            purpose="skill_synthesis",
+            model_name=model or model_name,
+        )
+        return response.content
 
 
 # Global Instance

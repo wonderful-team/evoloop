@@ -2,7 +2,7 @@ import logging
 from collections.abc import Generator
 from typing import Annotated
 
-from fastapi import Depends, Header, HTTPException, status
+from fastapi import Depends, Header, HTTPException, Query, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlmodel import Session
 
@@ -87,11 +87,19 @@ async def get_current_user(token: TokenDep) -> User:
 CurrentUser = Annotated[User, Depends(get_current_user)]
 
 
-async def get_current_user_optional(token: TokenDepOptional) -> User | None:
-    if not token:
+async def get_current_user_optional(
+    token: TokenDepOptional,
+    query_token: str | None = Query(None, alias="token")
+) -> User | None:
+    """
+    Get user if token is present in either Header or Query.
+    Useful for SSE (EventSource) which doesn't support custom headers.
+    """
+    effective_token = token or query_token
+    if not effective_token:
         return None
     try:
-        return await get_current_user(token)
+        return await get_current_user(effective_token)
     except Exception:
         return None
 
@@ -218,8 +226,8 @@ def require_benefit(benefit_code: str):
 async def verify_guest_access(
     current_user: CurrentUserOptional,
     x_guest_id: str | None = Header(None),
-    guest_id: str | None = None,  # Added for Query Param support
-    token: str | None = None,  # Added for Query Param Token Support (SSE)
+    guest_id: str | None = Query(None),
+    token: str | None = Query(None),
 ) -> None:
     """
     Middleware-like dependency to verify guest access limits.

@@ -10,7 +10,7 @@ import logging
 import re
 
 from langchain_core.messages import HumanMessage, RemoveMessage
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, select, update, func
 
 from app.core.engine.rewind.checkpoint_repository import CheckpointRepository
 from app.core.engine.rewind.event import RewindEventType, RewindRequestedEvent
@@ -242,7 +242,7 @@ class MessageRewind:
         Uses event.affected_message_ids (pre-computed by RewindOrchestrator)
         to avoid race conditions with other handlers querying the messages table.
         """
-        # Use pre-computed message IDs if available, otherwise fall back to query
+        # Use pre-computed message IDs (UUIDs) if available, otherwise fall back to query
         message_ids = event.affected_message_ids or await self._find_messages_to_delete(
             thread_id=event.thread_id,
             target_message_id=event.target_message_id,
@@ -257,13 +257,22 @@ class MessageRewind:
             self._deleted_count = count
             event.results["messages"] = count
 
+            # 3. Reset sequence counter to maintain continuity
+            from app.core.engine.message.sequence import SequenceService
+            async with session_scope() as session:
+                # Find max sequence remaining in the DB
+                stmt = select(func.max(Message.sequence_number)).where(Message.thread_id == event.thread_id)
+                res = await session.execute(stmt)
+                max_seq = res.scalar() or 0
+                await SequenceService.set_sequence(event.thread_id, max_seq + 1)
+
             from app.core.engine.rewind.event.publishers import publish_messages_cleanup
             await publish_messages_cleanup(
                 thread_id=event.thread_id,
                 message_ids=message_ids,
                 delete_references=True,
             )
-            logger.info(f"[MessageRewind] Deleted {count} messages for thread {event.thread_id}")
+            logger.info(f"[MessageRewind] Deleted {count} messages and reset sequence to {max_seq + 1} for thread {event.thread_id}")
         else:
             logger.info(f"[MessageRewind] No messages to delete for thread {event.thread_id}")
 
@@ -302,14 +311,15 @@ class MessageRewind:
         async with session_scope() as session:
             if target_message_id:
                 try:
-                    msg_id_int = int(target_message_id)
-                    target_msg = await session.get(Message, msg_id_int)
+                    # target_message_id is now a UUID
+                    stmt = select(Message).where(Message.id == target_message_id)
+                    result = await session.execute(stmt)
+                    target_msg = result.scalar_one_or_none()
 
                     if not target_msg:
                         raise MessageNotFoundError(f"Target message {target_message_id} not found", thread_id=thread_id)
 
                     min_id_to_delete = target_msg.id
-
                 except (ValueError, TypeError):
                     logger.error(f"[MessageRewind] Invalid target message ID: {target_message_id}")
                     return []
@@ -362,10 +372,8 @@ class MessageRewind:
         if not message_ids:
             return 0
 
-        # Convert string IDs to integers
-        int_ids = [int(mid) for mid in message_ids if mid.isdigit()]
-
-        if not int_ids:
+        # IDs are now UUID strings
+        if not message_ids:
             return 0
 
         async with session_scope() as session:
@@ -373,7 +381,7 @@ class MessageRewind:
             if delete_references:
                 ref_result = await session.execute(
                     delete(MessageReference)
-                    .where(MessageReference.message_id.in_(int_ids))
+                    .where(MessageReference.message_id.in_(message_ids))
                 )
                 logger.debug(f"[MessageRewind] Deleted {ref_result.rowcount} references")
 
@@ -381,13 +389,13 @@ class MessageRewind:
             # This prevents foreign key constraint issues
             await session.execute(
                 update(Message)
-                .where(Message.parent_id.in_(int_ids))
+                .where(Message.parent_id.in_(message_ids))
                 .values(parent_id=None)
             )
 
             # 3. Delete messages
             msg_result = await session.execute(
-                delete(Message).where(Message.id.in_(int_ids))
+                delete(Message).where(Message.id.in_(message_ids))
             )
 
             deleted_count = msg_result.rowcount
@@ -639,11 +647,20 @@ class StateRewind:
             )
 
             if target_message_id:
-                target_id = int(target_message_id)
+                # Resolve sequence from UUID
+                stmt_target = select(Message.sequence_number).where(Message.id == target_message_id)
+                res_target = await session.execute(stmt_target)
+                target_seq = res_target.scalar_one_or_none()
+                
+                if target_seq is None:
+                    # Fallback or error
+                    logger.warning(f"[StateRewind] Could not resolve sequence for message {target_message_id}")
+                    return []
+
                 if include_target:
-                    stmt = stmt.where(Message.id <= target_id)
+                    stmt = stmt.where(Message.sequence_number <= target_seq)
                 else:
-                    stmt = stmt.where(Message.id < target_id)
+                    stmt = stmt.where(Message.sequence_number < target_seq)
 
             result = await session.execute(stmt)
             messages = result.scalars().all()

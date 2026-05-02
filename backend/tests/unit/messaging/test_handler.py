@@ -7,6 +7,7 @@ sys.path.insert(0, '/Users/huangjinhuan/项目/develop-assistant.cn/evoloop/back
 from app.core.engine.message.category import MessageCategory
 from app.core.engine.message.classifier import MessageClassifier
 from app.core.engine.message.persistence import MessagePersistencePolicy
+
 from app.core.engine.message.stream import MessageStreamPolicy
 
 
@@ -57,15 +58,15 @@ def test_apply_policy_internal_llm_json():
 def test_apply_policy_internal_reasoning():
     """测试思考过程的策略应用"""
     category = MessageCategory.INTERNAL_REASONING
-    content = "<think>这是思考过程</think>"
-    
+    content = "deep analysis reasoning"
+
     result = MessagePersistencePolicy.apply_policy(category, content)
-    
+
     assert result["should_persist"] is True
     assert result["content"] == ""  # 思考过程 content 为空
-    assert result["thinking"] == content  # 存入 thinking 字段
+    assert result["thinking"] == content  # 存入 thinking 字段（字符串）
     assert result["category"] == "internal_reasoning"
-    
+
     print("✅ test_apply_policy_internal_reasoning passed")
 
 
@@ -103,14 +104,30 @@ def test_end_to_end_classification_and_policy():
     assert category.should_persist_to_db is True
     assert category.should_stream_to_frontend is True
     
-    # 场景 3: 思考内容
-    content = "<think>分析中...</think>\n最终结果"
-    category = MessageClassifier.classify_ai_message(content=content)
-    
+    # 场景 3: 原生 reasoning_content（纯推理，无正文）
+    category = MessageClassifier.classify_ai_message(
+        content="", metadata={"reasoning_content": "分析中..."}
+    )
+
     assert category == MessageCategory.INTERNAL_REASONING
     assert category.should_persist_to_db is True
     assert category.should_stream_to_frontend is True
     assert category.storage_field == "thinking"
+
+    # 场景 4: 原生 reasoning_content + 正文 → 应为 ASSISTANT_RESPONSE，thinking 由 PersistencePolicy 处理
+    content = "最终结果"
+    category = MessageClassifier.classify_ai_message(
+        content=content, metadata={"reasoning_content": "分析中..."}
+    )
+
+    assert category == MessageCategory.ASSISTANT_RESPONSE
+    assert category.should_persist_to_db is True
+    assert category.should_stream_to_frontend is True
+    
+    # 验证 PersistencePolicy 正确将 reasoning 存入 thinking 字段
+    result = MessagePersistencePolicy.apply_policy(category, content, thinking="分析中...")
+    assert result["thinking"] == "分析中..."
+    assert result["content"] == content
     
     print("✅ test_end_to_end_classification_and_policy passed")
 

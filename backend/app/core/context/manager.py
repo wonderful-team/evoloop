@@ -34,6 +34,7 @@ class EvoContext(DynamicBaseModel):
     working_directory: str | None = None
     command_id: int | None = None   # For EvoCloud command tracing
     trace_id: str | None = None     # Distributed trace ID
+    run_id: str | None = None       # Current execution run ID
 
     # Feature Flags / Runtime Config
     is_dry_run: bool = False
@@ -50,18 +51,11 @@ class EvoContext(DynamicBaseModel):
     environment_block: str | None = None
     terminal_error: str | None = None  # Side-channel marker for irrecoverable errors
     active_model: str | None = None  # Current model name (propagated from frontend)
+    current_tool_call_id: str | None = None # Track the current tool execution ID
+    last_ai_message_id: str | None = None   # Track the last AI message for parent linkage
 
     # Extra Metadata (Plugins, etc.)
     metadata: ContextMetadata = Field(default_factory=ContextMetadata)
-
-    def to_dict(self) -> dict[str, Any]:
-        """Legacy compatibility method."""
-        return self.model_dump()
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "EvoContext":
-        """Legacy compatibility method."""
-        return cls.model_validate(data)
 
 
 # ==========================================
@@ -194,7 +188,7 @@ class ContextManager:
         try:
             # Map context to flat dictionary for HSET
             # Convert lists/dicts to JSON strings within fields
-            data = ctx.to_dict()
+            data = ctx.model_dump()
             hset_data = {}
             for k, v in data.items():
                 if k == "terminal_error":
@@ -254,7 +248,7 @@ class ContextManager:
                     else:
                         reconstructed[k] = v if v != "" else None
 
-                ctx = EvoContext.from_dict(reconstructed)
+                ctx = EvoContext.model_validate(reconstructed)
                 ContextManager.set(ctx)
                 return ctx
         except Exception as e:

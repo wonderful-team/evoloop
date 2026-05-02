@@ -1,225 +1,198 @@
 """
-MessageFolder - 消息折叠工具类
+MessageNormalizer - 消息规范化工具类
 
-统一处理消息由扁平结构向嵌套结构（FoldedMessage/ToolStep）的转换逻辑。
-解决流式推送与历史加载逻辑不一致的问题。
+统一处理消息由扁平结构（DB/Dict）向规范化结构（MessageBlock）的转换逻辑。
+遵循“即读即显”原则，移除冗余的 LangChain 对象转换层。
 """
 import logging
-import time
 from datetime import datetime
+from typing import Any, Union
 
-from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
-
-from app.core.engine.reasoning import extract_reasoning_string
-from app.core.engine.state.history import FoldedMessage, ToolStep
-from app.core.tools.registry import get_tool_friendly_name, get_tool_metadata
+from app.core.engine.message.schemas import MessageBlock
+from app.core.tools.registry import get_tool_metadata
 from app.i18n.service import i18n
-from app.utils import gen_uuid
 
 logger = logging.getLogger(__name__)
 
 
-class MessageFolder:
+class MessageNormalizer:
     """
-    消息折叠工具集
+    Utility for normalizing messages into a consistent format.
+    Supports SQLAlchemy models, dicts, and LangChain messages.
     """
 
     @staticmethod
-    def get_message_text(message: BaseMessage | str) -> str:
-        """从消息对象中提取文本内容"""
-        if isinstance(message, str):
-            return message
-
-        content = message.content
-        if isinstance(content, str):
-            return content
-
-        if isinstance(content, list):
-            text_parts = []
-            for block in content:
-                if isinstance(block, str):
-                    text_parts.append(block)
-                elif isinstance(block, dict):
-                    if block.get("type") == "text":
-                        text_parts.append(block.get("text", ""))
-            return "\n".join(text_parts)
-
-        return ""
-
-    @staticmethod
-    def append_tool_event_to_ai_message(ai_message: dict, tool_event: dict) -> None:
-        """
-        Append a tool execution event to its parent AI message's steps array.
-        Used by the real-time SSE stream to fold tool messages on the fly.
-        """
-        tool_id = tool_event.get('tool_call_id')
-        tool_name = tool_event.get('tool_name') or 'unknown'
-        tool_name_display = tool_event.get('tool_name_display') or None
-        
-        # Find matching tool call in the parent AI message
-        tool_calls = ai_message.get('tool_calls', []) or []
-        matched_call = next((tc for tc in tool_calls if tc.get('id') == tool_id), None)
-        
-        tool_input = matched_call.get('args', {}) if matched_call else {}
-        
-        step = ToolStep(
-            id=tool_event.get('id') or f"step-{time.monotonic()}",
-            tool=tool_name,
-            tool_name=tool_name,
-            tool_name_display=tool_name_display,
-            input=tool_input,
-            output=tool_event.get('content', ''),
-            status='success',
-            tool_call_id=tool_id,
-        )
-        
-        if 'steps' not in ai_message:
-            ai_message['steps'] = []
-            
-        # Avoid duplicate steps if event is re-sent
-        # Guard: only deduplicate when both IDs are non-None to prevent
-        # false collisions between unrelated steps that both lack an ID.
-        if tool_id is not None:
-            if not any(s.get('tool_call_id') == tool_id for s in ai_message['steps']):
-                ai_message['steps'].append(step.model_dump())
-        else:
-            ai_message['steps'].append(step.model_dump())
-
-    @staticmethod
-    def _build_tool_name_display(tool_name: str, args: dict | None, lang: str = "zh") -> str | None:
-        """
-        使用与 TransparentCallback 相同的 i18n 模板生成带参数的友好名称。
-        例如: read_file + {path: '/foo.py'} → "正在读取 '/foo.py'"
-        """
-        if not args:
-            return None
-        metadata = get_tool_metadata(tool_name) or {}
-        summary_template = metadata.get("summary_template")
-        if not summary_template:
-            return None
-        try:
-            return i18n.get(summary_template, **args)
-        except (KeyError, TypeError):
-            return None
-
-    @staticmethod
-    def to_tool_step(
-        tool_msg: ToolMessage, 
-        tc_name: str | None = None, 
-        tc_args: dict | None = None,
-        lang: str = "zh"
-    ) -> ToolStep:
-        """
-        将单条 ToolMessage 转换为 ToolStep 结构
-        
-        Args:
-            tool_msg: 工具返回的消息
-            tc_name: 对应的工具调用名称（若无法从 msg 自动获取则手动传入）
-            tc_args: 对应的工具调用参数
-            lang: 语言偏好，用于友好名称解析
-        """
-        tool_id = tool_msg.tool_call_id or gen_uuid()
-        tool_name_raw = tool_msg.name or tc_name or "unknown"
-        args = tc_args or {}
-        
-        # 通用友好名称 (e.g. "正在读取文件")
-        friendly_name = get_tool_friendly_name(tool_name_raw, lang=lang) or tool_name_raw
-        
-        # 带参数的显示名 (e.g. "正在读取 '/path/to/file'")
-        tool_name_display = MessageFolder._build_tool_name_display(tool_name_raw, args, lang)
-
-        return ToolStep(
-            id=tool_id,
-            tool=tool_name_raw,
-            tool_name=friendly_name,
-            tool_name_display=tool_name_display,
-            input=args,
-            output=MessageFolder.get_message_text(tool_msg),
-            status="success",
-            tool_call_id=tool_msg.tool_call_id
-        )
+    def _get_val(obj: Any, key: str, default: Any = None) -> Any:
+        """Universal getter for dicts or objects."""
+        if isinstance(obj, dict):
+            return obj.get(key, default)
+        return getattr(obj, key, default)
 
     @classmethod
-    def fold(cls, messages: list[BaseMessage], lang: str = "zh") -> list[FoldedMessage]:
+    def normalize_dict(cls, msg: Union[dict, Any]) -> dict:
         """
-        将扁平的消息列表折叠为嵌套结构
+        Normalizes a single message (as a dict).
+        Self-sufficient normalization based on current message data.
         """
-        result: list[FoldedMessage] = []
-        i = 0
+        # Convert to dict if it's an object, for easier manipulation
+        if not isinstance(msg, dict):
+            meta_data = getattr(msg, "meta_data", None)
+            if not isinstance(meta_data, dict):
+                # Fallback for LangChain messages
+                meta_data = getattr(msg, "metadata", None)
+                if not isinstance(meta_data, dict):
+                    meta_data = {}
+            msg_dict = {
+                "role": getattr(msg, "role", "unknown"),
+                "content": getattr(msg, "content", ""),
+                "tool_name": getattr(msg, "tool_name", None),
+                "tool_call_id": getattr(msg, "tool_call_id", None),
+                "meta_data": meta_data
+            }
+        else:
+            msg_dict = msg
 
-        while i < len(messages):
-            msg = messages[i]
+        role = msg_dict.get("role")
+        
+        if role == "tool":
+            tool_name = msg_dict.get("tool_name")
+            tool_call_id = msg_dict.get("tool_call_id") or msg_dict.get("id")
             
-            # 获取统一 ID 和时间戳
-            msg_id = msg.id or msg.additional_kwargs.get("id") or f"msg-{i}"
-            created_at = getattr(msg, "created_at", None) or msg.additional_kwargs.get("created_at")
+            # Extract arguments
+            meta = msg_dict.get("meta_data") or {}
+            args = msg_dict.get("input") or msg_dict.get("args") or meta.get("input") or {}
+            
+            # Resolve display name via i18n
+            tool_meta_reg = get_tool_metadata(tool_name) or {}
+            summary_template = tool_meta_reg.summary_template if hasattr(tool_meta_reg, "summary_template") else None
+            
+            tool_name_display = None
+            if summary_template:
+                try:
+                    tool_name_display = i18n.get(summary_template, **args)
+                except Exception:
+                    pass
+            
+            if not tool_name_display or tool_name_display == summary_template:
+                tool_name_display = tool_name.replace("_", " ").title() if tool_name else "Unknown Tool"
+
+            tool_meta = {
+                "affected_path_keys": getattr(tool_meta_reg, "affected_path_keys", []),
+                "display_name": tool_name_display,
+            }
+
+            msg_dict.update({
+                "role": "tool",
+                "content": "",
+                "tool_name": tool_name,
+                "tool_call_id": tool_call_id,
+                "input": args,
+                "tool_meta": tool_meta,
+                "meta_data": {
+                    **meta,
+                    "tool_meta": tool_meta,
+                    "input": args
+                }
+            })
+        return msg_dict
+
+    @classmethod
+    def normalize(cls, messages: list[Any]) -> list[MessageBlock]:
+        """
+        Maps a list of raw messages (DB records or dicts) directly to MessageBlock.
+        """
+        result: list[MessageBlock] = []
+
+        for msg in messages:
+            role = cls._get_val(msg, "role")
+            
+            # 1. Filter hidden tools immediately
+            if role == "tool":
+                tool_name = cls._get_val(msg, "tool_name")
+                tool_meta = get_tool_metadata(tool_name)
+                if tool_meta and tool_meta.is_hidden:
+                    continue
+
+            # 2. Extract common fields
+            msg_id = str(cls._get_val(msg, "id"))
+            content = cls._get_val(msg, "content", "")
+            thinking = cls._get_val(msg, "thinking")
+            status = cls._get_val(msg, "status", "completed")
+            created_at = cls._get_val(msg, "created_at")
             if isinstance(created_at, datetime):
                 created_at = created_at.isoformat()
 
-            # --- 动态扫描与匹配 ---
-            if isinstance(msg, AIMessage):
-                steps = []
-                tool_calls = msg.tool_calls or []
-                
-                # 建立当前轮次的工具调用索引
-                current_turn_tcs = []
-                for tc in tool_calls:
-                    tc_id = tc['id'] if isinstance(tc, dict) else tc.id
-                    tc_name = tc.get('name') if isinstance(tc, dict) else getattr(tc, 'name', '')
-                    current_turn_tcs.append({'id': tc_id, 'name': tc_name, 'raw': tc, 'matched': False})
-
-                # 向后扫描 ToolMessages
-                j = i + 1
-                while j < len(messages) and isinstance(messages[j], ToolMessage):
-                    tool_msg = messages[j]
-                    
-                    # 匹配逻辑：优先 ID，次选顺序与名称
-                    matched_tc = next((tc for tc in current_turn_tcs if tc['id'] == tool_msg.tool_call_id), None)
-                    if not matched_tc:
-                        matched_tc = next((tc for tc in current_turn_tcs if not tc['matched'] and tc['name'] == tool_msg.name), None)
-
-                    if matched_tc:
-                        matched_tc['matched'] = True
-                        tc_info = matched_tc['raw']
-                        tc_name = tc_info.get("name") if isinstance(tc_info, dict) else getattr(tc_info, "name", "unknown")
-                        tc_args = tc_info.get("args") if isinstance(tc_info, dict) else getattr(tc_info, "args", {})
+            meta_data = cls._get_val(msg, "meta_data") or {}
+            if not isinstance(meta_data, dict):
+                meta_data = {}
+            
+            # 3. Handle Specific Roles
+            if role == "ai":
+                # Handle tool_calls serialization (ensure it's a list of dicts)
+                raw_tool_calls = cls._get_val(msg, "tool_calls") or []
+                serializable_tool_calls = []
+                for tc in raw_tool_calls:
+                    tc_name = tc.get("name") if isinstance(tc, dict) else getattr(tc, "name", None)
+                    tc_meta = get_tool_metadata(tc_name)
+                    if tc_meta and tc_meta.is_hidden:
+                        continue
+                        
+                    if isinstance(tc, dict):
+                        serializable_tool_calls.append(tc)
+                    elif hasattr(tc, "model_dump"):
+                        serializable_tool_calls.append(tc.model_dump())
+                    elif hasattr(tc, "dict"):
+                        serializable_tool_calls.append(tc.dict())
                     else:
-                        tc_name = tool_msg.name or "unknown"
-                        tc_args = {}
+                        serializable_tool_calls.append(dict(tc))
 
-                    steps.append(cls.to_tool_step(tool_msg, tc_name=tc_name, tc_args=tc_args, lang=lang))
-                    j += 1
-
-                # 读取原生 reasoning_content
-                thinking_content = extract_reasoning_string(msg)
-
-                result.append(FoldedMessage(
+                result.append(MessageBlock(
                     id=msg_id,
                     role="ai",
-                    content=cls.get_message_text(msg),
-                    thinking=thinking_content,
-                    tool_calls=[(tc.model_dump() if hasattr(tc, 'model_dump') else tc) for tc in tool_calls] if tool_calls else None,
-                    steps=steps,
-                    created_at=created_at
+                    content=content,
+                    thinking=thinking,
+                    tool_calls=serializable_tool_calls,
+                    created_at=created_at,
+                    status=status,
+                    meta_data=meta_data,
+                    thread_id=str(cls._get_val(msg, "conversation_id", ""))
                 ))
-                i = j
 
-            elif isinstance(msg, ToolMessage):
-                # 孤立的工具消息
-                result.append(FoldedMessage(
-                    id=f"orphan-{msg.tool_call_id}",
+            elif role == "tool":
+                # Normalize tool data
+                normalized = cls.normalize_dict(msg)
+                result.append(MessageBlock(
+                    id=msg_id,
                     role="tool",
-                    content=cls.get_message_text(msg),
-                    metadata={"tool": msg.name or "unknown", "tool_call_id": msg.tool_call_id, "orphan": True}
+                    content=content,
+                    created_at=created_at,
+                    tool_name=normalized.get("tool_name"),
+                    tool_call_id=normalized.get("tool_call_id"),
+                    input=normalized.get("input"),
+                    tool_meta=normalized.get("tool_meta"),
+                    meta_data=normalized["meta_data"],
+                    thread_id=str(cls._get_val(msg, "conversation_id", ""))
                 ))
-                i += 1
-            elif isinstance(msg, HumanMessage):
-                result.append(FoldedMessage(id=msg_id, role="human", content=cls.get_message_text(msg), created_at=created_at))
-                i += 1
-            elif isinstance(msg, SystemMessage):
-                result.append(FoldedMessage(id=f"system-{i}", role="system", content=cls.get_message_text(msg)))
-                i += 1
-            else:
-                i += 1
+
+            elif role in ("human", "user"):
+                result.append(MessageBlock(
+                    id=msg_id,
+                    role="human",
+                    content=content,
+                    created_at=created_at,
+                    status=status,
+                    meta_data=meta_data,
+                    thread_id=""
+                ))
+
+            elif role == "system":
+                result.append(MessageBlock(
+                    id=msg_id, 
+                    role="system", 
+                    content=content,
+                    created_at=created_at,
+                    meta_data=meta_data,
+                    thread_id=""
+                ))
 
         return result

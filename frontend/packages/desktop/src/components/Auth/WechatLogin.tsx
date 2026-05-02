@@ -9,10 +9,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@evoloop/shared/components/ui/dialog';
-import { AccountService, type Token } from '@/client';
+import { AccountService } from '@/client';
 
 interface WechatLoginProps {
-  onSuccess?: (token: string) => void;
+  onSuccess?: () => void;
   onError?: (error: Error) => void;
 }
 
@@ -113,14 +113,10 @@ function WechatQRCode({ onSuccess, onError }: WechatLoginProps) {
         if (pollingRef.current) clearInterval(pollingRef.current);
         if (countdownRef.current) clearInterval(countdownRef.current);
 
-        // If we have access token, use it directly
-        if (statusData.access_token) {
-          onSuccess?.(statusData.access_token);
-        } else {
-          // Otherwise, call direct login
-          const loginResult = await AccountService.wechatDirectLogin({ key }) as Token;
-          onSuccess?.(loginResult.access_token);
-        }
+        // Always call wechatDirectLogin to ensure Backend session cookie is set.
+        // Frontend no longer stores tokens; session is managed by Backend.
+        await AccountService.wechatDirectLogin({ key });
+        onSuccess?.();
       } else if (statusData.status === 'expired') {
         if (pollingRef.current) clearInterval(pollingRef.current);
         if (countdownRef.current) clearInterval(countdownRef.current);

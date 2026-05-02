@@ -69,7 +69,6 @@ async def handle_list(
         if len(lines) > max_entries:
             output += f"\n\n... ({len(lines) - max_entries} more entries hidden)\nTip: Use filter=\"*.ext\" to narrow results, or increase max_entries."
         return output
-        return output
     else:
         # Tree view using core.file
         # For with_symbols=True, fall back to existing tree generator
@@ -100,8 +99,7 @@ async def handle_list(
     is_pollable=True,
     summary_template="database_logger.tool_summary.list_files",
     affected_path_keys=["path"],
-    result_summary_template="evoloop_logger.list_summary",
-    name_map={"zh": "列出目录", "en": "List Directory"}
+    result_summary_template="evoloop_logger.list_summary"
 )
 async def list_directory(
     path: str,

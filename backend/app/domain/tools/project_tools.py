@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 @evoloop_tool(
     is_state_mutating=True,
-    name_map={"zh": "创建项目任务", "en": "Create Project Task"}
+    summary_template="database_logger.tool_summary.create_project_task"
 )
 async def create_project_task(project_id: int | None = None, task_data: str = "") -> str:
     """

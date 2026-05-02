@@ -84,6 +84,12 @@
   /* Chat Refinement Tokens */
   --chat-timeline-line: oklch(0.85 0 0 / 0.5);
   --chat-action-stream-bg: oklch(0.97 0 0 / 0.8);
+
+  /* Document Layout Tokens */
+  --doc-spine: var(--primary);
+  --doc-header-user: oklch(0.4 0 0 / 0.05);
+  --doc-header-ai: oklch(0.6 0.1 180 / 0.05);
+  --doc-border: oklch(0.9 0 0 / 0.5);
 }
 
 .dark {
@@ -126,19 +132,58 @@
   /* Chat Refinement Tokens */
   --chat-timeline-line: oklch(0.4 0 0 / 0.5);
   --chat-action-stream-bg: oklch(0.18 0 0 / 0.5);
+
+  /* Document Layout Tokens */
+  --doc-spine: var(--primary);
+  --doc-header-user: oklch(1 0 0 / 0.05);
+  --doc-header-ai: oklch(0.6 0.1 180 / 0.1);
+  --doc-border: oklch(1 0 0 / 10%);
 }
 
 @layer components {
   .chat-timeline-container {
-    @apply relative flex gap-3;
+    @apply relative flex gap-4 w-full max-w-4xl mx-auto;
+  }
+
+  .chat-timeline-spine {
+    @apply absolute left-[19px] top-0 bottom-0 w-[1px] bg-gradient-to-b from-[var(--doc-spine)]/40 via-[var(--doc-spine)]/10 to-[var(--doc-spine)]/40 pointer-events-none opacity-50;
   }
 
   .chat-timeline-line {
-    @apply absolute left-[15px] top-9 bottom-0 w-[2px] bg-[var(--chat-timeline-line)] pointer-events-none;
+    @apply hidden; /* Replaced by spine */
   }
 
   .chat-action-stream {
-    @apply rounded-xl bg-[var(--chat-action-stream-bg)] p-1.5 border border-border/10 mb-2 overflow-hidden;
+    @apply rounded-lg bg-[var(--chat-action-stream-bg)] p-3 border border-[var(--doc-border)] mb-4 overflow-hidden shadow-sm;
+  }
+
+  .doc-section-header {
+    @apply flex items-center gap-3 py-2 px-4 rounded-md font-semibold text-sm tracking-tight;
+  }
+
+  .doc-message-content {
+    @apply pl-12 pr-4 py-2 text-[15px] leading-relaxed text-foreground/90;
+  }
+
+  /* Document Typography */
+  .doc-message-content p {
+    @apply mb-4 last:mb-0;
+  }
+
+  .doc-message-content table {
+    @apply w-full border-collapse my-4 rounded-lg overflow-hidden border border-[var(--doc-border)];
+  }
+
+  .doc-message-content th {
+    @apply bg-muted/50 px-4 py-2.5 text-left text-xs font-bold uppercase tracking-wider border-b border-[var(--doc-border)];
+  }
+
+  .doc-message-content td {
+    @apply px-4 py-2 border-b border-[var(--doc-border)] text-sm;
+  }
+
+  .doc-message-content blockquote {
+    @apply border-l-4 border-primary/20 pl-4 py-1 italic text-muted-foreground my-4 bg-primary/5 rounded-r-md;
   }
 }
 

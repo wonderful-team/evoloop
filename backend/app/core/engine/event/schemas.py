@@ -17,6 +17,19 @@ class AgentEvent(BaseEvent):
     source: str = "agent_engine"
 
 
+class AgentSessionStartedEvent(AgentEvent):
+    """Event emitted when an agent session begins, to request context hydration."""
+    event_type: str = "system.session_started"
+    thread_id: str = ""
+    project_id: int | None = None
+    
+    def model_post_init(self, __context: Any) -> None:
+        self.data = {
+            "thread_id": self.thread_id,
+            "project_id": self.project_id
+        }
+
+
 class AgentRunCompletedEvent(AgentEvent):
     """Event emitted when an agent run (thread) finishes successfully."""
     event_type: str = "agent.run_completed"

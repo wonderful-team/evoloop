@@ -113,6 +113,31 @@ class PlatformModel(DynamicBaseModel):
     quota_required: bool = True
 
 
+class LLMConfig(DynamicBaseModel):
+    """LLM 实例化配置"""
+    model_name: str
+    temperature: float = 0.3
+    base_url: str | None = None
+    api_key: str | None = None
+    provider_type: str | None = None
+    streaming: bool = False
+    max_tokens: int | None = None
+    extra_body: dict[str, Any] = Field(default_factory=dict)
+
+
+class ThinkingConfig(DynamicBaseModel):
+    """LLM 推理/思考配置"""
+    enable: bool = True
+    return_reasoning: bool = True
+
+    def to_extra_body(self) -> dict[str, Any]:
+        """转换为 OpenAI SDK 的 extra_body 格式"""
+        return {
+            "enable_thinking": self.enable,
+            "return_reasoning": self.return_reasoning,
+        }
+
+
 class KnowledgeSearchResult(BaseModel):
     """Single search result."""
 

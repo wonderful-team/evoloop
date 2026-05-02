@@ -14,7 +14,7 @@ class ChatRequest(ScopedRequest):
     model: str | None = None
     command_id: int | None = None
     checkpoint_id: str | None = None
-    message_id: int | None = None
+    message_id: str | None = None
     attachments: list[dict[str, Any]] | None = None
     skill_id: int | None = None
     revert_files: bool = True

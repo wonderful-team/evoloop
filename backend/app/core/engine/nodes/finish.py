@@ -18,9 +18,13 @@ from app.core.engine.routers import RoutingTarget
 from app.core.engine.services.audit_service import AuditService, AuditResult
 from app.core.engine.state import AgentState, StateUpdate
 from app.core.engine.state.blackboard import AuditMeta
+from app.core.engine.context_trimmer import ContextTrimmer, TrimTrigger
 from app.core.events.schemas import SessionCompletedData
 
 logger = logging.getLogger(__name__)
+
+# Module-level singleton — avoids re-instantiation on every FinishNode call
+_trimmer = ContextTrimmer()
 
 
 class FinishNode(BaseNode):
@@ -63,6 +67,13 @@ class FinishNode(BaseNode):
         messages = list(state.messages)
         blackboard = state.blackboard
 
+        effective_thread_id = (
+            ctx.thread_id
+            or state.thread_id
+            or config.get("configurable", {}).get("thread_id")
+            or "unknown"
+        )
+
         # Light-weight context trimming before finish processing.
         # FinishNode does not go through engine.run_node(), so it does not
         # benefit from the standard ContextTrimmer at the entry point.
@@ -71,35 +82,39 @@ class FinishNode(BaseNode):
         # here (windowing only, no structural repair) to keep the message list
         # bounded while preserving enough history for summary generation.
         if messages:
-            from app.core.engine.context_trimmer import ContextTrimmer
             model = config.get("configurable", {}).get("model")
             if not model:
                 raise ValueError(
                     "[FinishNode] No model provided in config. "
                     "Please ensure model is passed via config['configurable']['model']."
                 )
-            trimmer = ContextTrimmer()
-            trim_result = trimmer.trim(
+            trim_result = _trimmer.trim(
                 messages=messages,
                 model=model,
                 node_source="finish",
                 stages={"window"},  # Only windowing; preserve message structure
             )
-            from app.core.engine.context_trimmer import TrimTrigger
             if trim_result.trigger != TrimTrigger.NONE:
+                # Trigger PRE_COMPACT hook BEFORE applying the trim to save state
+                from app.core.engine.hooks import HookContext, HookEvent, hook_system
+                await hook_system.trigger(
+                    HookEvent.PRE_COMPACT,
+                    HookContext(
+                        thread_id=effective_thread_id,
+                        run_id=config.get("configurable", {}).get("run_id"),
+                        messages=messages,
+                        project_id=config.get("configurable", {}).get("project_id"),
+                        user_id=config.get("configurable", {}).get("user_id"),
+                        compact_trigger=trim_result.trigger.name.lower(),
+                    )
+                )
+
                 logger.info(
                     f"[Finish] Soft trim before audit: {trim_result.before_count} -> "
                     f"{trim_result.after_count} msgs, {trim_result.before_tokens} -> "
                     f"{trim_result.after_tokens} tokens"
                 )
             messages = trim_result.messages
-
-        effective_thread_id = (
-            ctx.thread_id
-            or state.thread_id
-            or config.get("configurable", {}).get("thread_id")
-            or "unknown"
-        )
 
         # ------------------------------------------------------------
         # 0. Early truncation / replan gate
@@ -108,7 +123,7 @@ class FinishNode(BaseNode):
         # ------------------------------------------------------------
         for msg in reversed(messages):
             if isinstance(msg, AIMessage):
-                meta = getattr(msg, "metadata", None) or {}
+                meta = msg.additional_kwargs
                 if meta.get("is_truncated") and meta.get("requires_replan"):
                     logger.warning(
                         f"[Finish] 🔄 Worker was truncated (max_steps={meta.get('max_steps')}). "
@@ -121,13 +136,8 @@ class FinishNode(BaseNode):
                         blackboard=blackboard,
                     )
 
-        is_shadow_mode = (
-            blackboard.metadata.shadow_audit
-            if blackboard and blackboard.metadata
-            else False
-        ) or False
-
-        tool_history = state.tool_history or []
+        is_shadow_mode = blackboard.metadata.shadow_audit or False
+        tool_history = blackboard.metadata.tool_history
 
         # --------------------------------------------------------------
         # 1. Audit
@@ -169,19 +179,20 @@ class FinishNode(BaseNode):
             blackboard.metadata.final_outcome = final_outcome
             logger.info(f"[Finish] 🎯 Outcome: {final_outcome}")
 
-        # Apply summary for non-comprehensive tiers
-        if audit_tier != "comprehensive":
+        # Apply summary ONLY for comprehensive tiers to avoid technical log pollution
+        if audit_tier == "comprehensive":
             for i in range(len(messages) - 1, -1, -1):
                 m = messages[i]
                 if isinstance(m, AIMessage) and m.content:
-                    # Create a new message to avoid mutating the original state.messages
                     messages[i] = AIMessage(
                         content=summary,
                         id=m.id,
                         name=m.name,
-                        metadata=getattr(m, "metadata", None),
+                        metadata=m.additional_kwargs,
                     )
                     break
+        else:
+            logger.debug(f"[Finish] Silent audit (tier={audit_tier}) - not updating message content.")
 
         # Persist audit metadata
         blackboard.metadata.audit_tier = audit_tier
@@ -237,7 +248,7 @@ class FinishNode(BaseNode):
             project_id=ctx.project_id,
             user_id=ctx.user_id,
             messages=messages,
-            blackboard_dict=blackboard.model_dump() if hasattr(blackboard, "model_dump") else {},
+            blackboard_dict=blackboard.model_dump(),
             summary=summary,
             outcome=final_outcome,
             audit_tier=audit_tier,
@@ -249,6 +260,7 @@ class FinishNode(BaseNode):
         )
 
         from app.core.events.publishers import publish_session_completed
+        logger.info(f"[Finish] 📡 Publishing SessionCompletedEvent for thread {effective_thread_id}...")
         await publish_session_completed(data=event_data)
         logger.info(f"[Finish] 📡 SessionCompletedEvent published for thread {effective_thread_id}")
 
@@ -261,9 +273,8 @@ class FinishNode(BaseNode):
             if isinstance(msg, AIMessage) and msg.content:
                 content = str(msg.content)
                 if "<evoloop_session_audit>" in content and "<evoloop_final_report>" in content:
-                    msg_id = msg.id
-                    if msg_id:
-                        messages_to_return.append(RemoveMessage(id=msg_id))
+                    if msg.id:
+                        messages_to_return.append(RemoveMessage(id=msg.id))
                     else:
                         # The original msg is in state.messages; we must not mutate it.
                         # Instead, append a cleared copy to the return list.
@@ -271,19 +282,40 @@ class FinishNode(BaseNode):
                             content="",
                             id=None,
                             name=msg.name,
-                            metadata=getattr(msg, "metadata", None),
+                            metadata=msg.additional_kwargs,
                         )
                         messages_to_return.append(cleared_copy)
                         cleared_count += 1
                         logger.warning("[Finish] ⚠️ Audit message has no id, cleared copy appended")
 
         # --------------------------------------------------------------
-        # 5. Automatic state pruning (fire-and-forget)
+        # 5. Blackboard Pruning: Clear transient subtask data to prevent bloat
+        # --------------------------------------------------------------
+        blackboard.subtask_results = []
+        blackboard.spawn_plan = None
+        logger.debug(f"[Finish] Blackboard pruned for thread {effective_thread_id}")
+
+        # --------------------------------------------------------------
+        # 6. Automatic state pruning (fire-and-forget)
         # --------------------------------------------------------------
         asyncio.create_task(_safe_prune(effective_thread_id))
 
+        # LangGraph optimization: only return messages that were ADDED or MODIFIED during this node.
+        # Since we modified the original messages list and potentially added RemoveMessage markers,
+        # we return the delta.
+        # NOTE: Returning the full list 'messages_to_return' causes duplication in LangGraph
+        # because it appends everything to the state.
+        
+        # We only return messages that are NOT already in the original state.messages list
+        # OR if they are RemoveMessage / placeholder messages.
+        existing_ids = {m.id for m in state.messages if m.id}
+        delta_messages = [
+            m for m in messages_to_return 
+            if not m.id or m.id not in existing_ids or isinstance(m, RemoveMessage)
+        ]
+
         return StateUpdate(
-            messages=messages_to_return,
+            messages=delta_messages,
             next_node=RoutingTarget.END,
             blackboard=blackboard,
         )

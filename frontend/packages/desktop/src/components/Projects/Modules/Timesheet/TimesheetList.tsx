@@ -53,12 +53,11 @@ export const TimesheetList: React.FC = () => {
     if (!projectId) return
     setIsLoading(true)
     try {
-      const token = localStorage.getItem("access_token")
+      // Backend identifies user via Cookie Session.
       const res: any = await ProjectModulesService.getTimesheetList({
         projectId: parseInt(projectId, 10),
         page: 1,
         pageSize: 50,
-        authorization: token,
       })
       if (res?.list) {
         setEntries(res.list)
@@ -90,7 +89,7 @@ export const TimesheetList: React.FC = () => {
 
     setIsSubmitting(true)
     try {
-      const token = localStorage.getItem("access_token")
+      // Backend identifies user via Cookie Session.
       await ProjectModulesService.quickAddTimesheet({
         requestBody: {
           project_id: parseInt(projectId, 10),
@@ -98,7 +97,6 @@ export const TimesheetList: React.FC = () => {
           description: description,
           work_type: workType,
         },
-        authorization: token,
       })
       toast.success(t("projects.timesheet.success.added"))
       setIsDialogOpen(false)

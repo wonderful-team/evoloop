@@ -62,12 +62,8 @@ export function DiscoverDialog({
   }
 
   const connectStream = (threadId: string) => {
-    const token =
-      typeof OpenAPI.TOKEN === "function"
-        ? (OpenAPI.TOKEN as any)()
-        : (OpenAPI.TOKEN as string) || ""
-
-    const url = `${OpenAPI.BASE}/api/v1/stream/chat/${threadId}?token=${token}`
+    // Desktop uses Cookie Session; Cookie is sent automatically via withCredentials.
+    const url = `${OpenAPI.BASE}/api/v1/stream/chat/${threadId}`
     const es = new EventSource(url, { withCredentials: true })
     eventSourceRef.current = es
 

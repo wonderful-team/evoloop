@@ -9,7 +9,7 @@ import json
 import logging
 from typing import Any
 
-from pydantic import Field
+from pydantic import Field, computed_field
 
 from app.infrastructure.cache import cache
 from app.infrastructure.pydantic_base import DynamicBaseModel
@@ -34,6 +34,7 @@ class InteractionStrategy(DynamicBaseModel):
     success_count: int = 0
     fail_count: int = 0
 
+    @computed_field
     @property
     def reliability_score(self) -> float:
         """Calculate reliability based on historical usage."""
@@ -41,16 +42,6 @@ class InteractionStrategy(DynamicBaseModel):
         if total == 0:
             return 0.5  # Unknown, default to neutral
         return self.success_count / total
-
-    def to_dict(self) -> dict:
-        """Convert to dictionary including computed property."""
-        data = self.model_dump()
-        data["reliability_score"] = self.reliability_score
-        return data
-
-    @classmethod
-    def from_dict(cls, data: dict) -> "InteractionStrategy":
-        return cls.model_validate(data)
 
 
 class AppStrategy(DynamicBaseModel):
@@ -85,13 +76,6 @@ class AppStrategy(DynamicBaseModel):
                 return elem
         return None
 
-    def to_dict(self) -> dict:
-        return self.model_dump()
-
-    @classmethod
-    def from_dict(cls, data: dict) -> "AppStrategy":
-        return cls.model_validate(data)
-
 
 class AtlasStrategyStore:
     """
@@ -111,7 +95,7 @@ class AtlasStrategyStore:
         try:
             data = await cache.get(key)
             if data:
-                return AppStrategy.from_dict(json.loads(data))
+                return AppStrategy.model_validate(json.loads(data))
         except Exception as e:
             logger.warning(f"Failed to load strategy for {bundle_id}: {e}")
         return None
@@ -121,7 +105,7 @@ class AtlasStrategyStore:
         """Save strategy for an app."""
         key = cls._get_key(strategy.bundle_id, strategy.platform)
         try:
-            await cache.set(key, json.dumps(strategy.to_dict()), ex=86400 * 7)  # 7 days
+            await cache.set(key, json.dumps(strategy.model_dump()), ex=86400 * 7)  # 7 days
             return True
         except Exception as e:
             logger.error(f"Failed to save strategy for {strategy.bundle_id}: {e}")

@@ -3,13 +3,12 @@ import { OpenAPI } from "@/client/core/OpenAPI";
 export interface ChatConnectionCallbacks {
     onConnectionChange: (connected: boolean, status: string) => void;
     onToken: (token: string) => void;
-    onActivity: (activity: any) => void;  // Initial full snapshot only
-    onStep: (step: any) => void;          // Incremental step update
+    onActivity: (activity: any) => void;  // Lightweight run metadata only (no steps)
     onArtifact: (artifact: any) => void;  // Incremental artifact update
     onStatus: (status: any) => void;      // Incremental status update
     onHumanRequest: (request: any) => void;
     onMessage: (message: any) => void; // Real-time message sync
-    onStream?: (streamEvent: any) => void; // Enhanced stream events (thinking, tool progress)
+    onStream?: (streamEvent: any) => void; // Enhanced stream events (thinking, progress, errors)
     onError: (error: string) => void;
     onUnauthorized?: () => void; // 401 未授权回调
 }
@@ -52,30 +51,31 @@ export class ChatConnection {
         this.currentThreadId = threadId;
         this.notifyConnectionChange(false, 'connecting');
 
-        let token = "";
+        // Consolidated Token-based Auth for SSE (EventSource doesn't support headers)
+        let token: string | undefined;
         try {
-            if (typeof OpenAPI.TOKEN === 'function') {
-                const result = (OpenAPI.TOKEN as any)();
-                if (result instanceof Promise) {
-                    token = await result;
-                } else {
-                    token = result as string;
-                }
-            } else {
-                token = (OpenAPI.TOKEN as string) || "";
-            }
+            token = typeof OpenAPI.TOKEN === 'function' ? await (OpenAPI.TOKEN as any)() : OpenAPI.TOKEN;
         } catch (e) {
-            console.warn("[ChatConnection] Failed to get token", e);
+            console.warn("[ChatConnection] Failed to retrieve auth token", e);
         }
 
-        // 检查token是否存在，如果不存在可能已过期
-        if (!token) {
-            console.warn("[ChatConnection] No token available, possibly expired");
-            this.handleUnauthorized();
-            return;
+        let url = `${OpenAPI.BASE}/api/v1/stream/chat/${threadId}`;
+        const params = new URLSearchParams();
+        if (token) {
+            params.append('token', token);
+        }
+        
+        // Also try to attach guest_id from localStorage if present as fallback
+        const guestId = localStorage.getItem('evoloop-guest-id');
+        if (guestId) {
+            params.append('guest_id', guestId);
         }
 
-        const url = `${OpenAPI.BASE}/api/v1/stream/chat/${threadId}?token=${token}`;
+        const queryString = params.toString();
+        if (queryString) {
+            url += `?${queryString}`;
+        }
+
         console.log(`[ChatConnection] Connecting to ${url}`);
 
         try {
@@ -117,15 +117,7 @@ export class ChatConnection {
 
             // Check readyState
             if (sse.readyState === EventSource.CLOSED) {
-                // 连接被关闭，可能是401未授权
-                // EventSource不会直接给出HTTP状态码，需要通过其他方式检测
-                // 检查token是否还存在
-                const token = localStorage.getItem("access_token");
-                if (!token) {
-                    console.warn("[ChatConnection] Connection closed and no token found, likely 401");
-                    this.handleUnauthorized();
-                    return;
-                }
+                // Desktop uses Cookie Session; auth errors are handled via stream events.
                 this.notifyConnectionChange(false, 'disconnected');
             } else if (sse.readyState === EventSource.CONNECTING) {
                 this.notifyConnectionChange(false, 'reconnecting');
@@ -169,15 +161,6 @@ export class ChatConnection {
         });
 
         // Incremental updates (no re-fetch needed)
-        sse.addEventListener("step", (e) => {
-            try {
-                const data = JSON.parse(e.data);
-                this.callbacks?.onStep(data);
-            } catch (err) {
-                console.error("[ChatConnection] Failed to parse step", err);
-            }
-        });
-
         sse.addEventListener("artifact", (e) => {
             try {
                 const data = JSON.parse(e.data);

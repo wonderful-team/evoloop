@@ -10,7 +10,7 @@ import logging
 from collections.abc import Awaitable, Callable
 from datetime import datetime
 from enum import Enum
-from typing import Any, Generic, TypeVar
+from typing import Generic, TypeVar
 
 from pydantic import Field
 
@@ -130,12 +130,8 @@ class AsyncEventBus(Generic[E]):
         type_key = event.event_type.value if isinstance(event.event_type, Enum) else event.event_type
 
         handlers = self._handlers.get(type_key, []) + self._global_handlers
-
         if not handlers:
-            logger.debug(f"[{self._name}] No handlers for event: {type_key}")
             return
-
-        logger.info(f"[{self._name}] 📡 Publishing event: {type_key} (sequential={sequential}, propagate={propagate_errors})")
 
         async def safe_handle(handler: EventHandler) -> None:
             await handler(event)

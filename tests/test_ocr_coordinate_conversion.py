@@ -194,7 +194,7 @@ def test_coordinate_conversion():
 
   # OCR 后转换坐标
   for el in ocr_result.elements:
-      el_dict = el.to_dict()
+      el_dict = el.model_dump()
       if region_offset_x or region_offset_y:
           el_dict['x'] = el.x + region_offset_x  # ✅ 转换！
           el_dict['y'] = el.y + region_offset_y

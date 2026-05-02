@@ -95,6 +95,7 @@ class Settings(BaseSettings):
     POSTGRES_PASSWORD: str = ""
     POSTGRES_DB: str = ""
     DB_ECHO: bool = False  # Added for EvoLoop compatibility
+    DB_CONNECT_TIMEOUT: float = 99.5  # Strategic: unified timeout for unstable networks
 
     # --- Vector Database Configuration (PostgreSQL + pgvector, separate instance) ---
     # Defaults to the same server as the main database, but with a different DB name.

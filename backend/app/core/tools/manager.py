@@ -47,7 +47,7 @@ class ToolManager:
         # 2. Handle Progressive Disclosure (Skill-Tool Handshake & Dynamic Requests)
         # Only inject external tools if explicitly requested by the state.
         if state:
-            execution_ticket = state.blackboard.ticket if state.blackboard else None
+            execution_ticket = state.blackboard.ticket
 
             # Agent Config for Dynamic Specialist
             agent_config = execution_ticket.agent_config if execution_ticket else None
@@ -124,11 +124,10 @@ class ToolManager:
         from app.core.mcp import mcp_client_manager
 
         mcp_inventory = []
-        if hasattr(mcp_client_manager, '_server_configs'):
-            for s_name in mcp_client_manager._server_configs.keys():
-                is_connected = s_name in mcp_client_manager.sessions
-                status = "🟢 Connected" if is_connected else "⚪ Available (Inactive)"
-                mcp_inventory.append(f"- **{s_name}** ({status})")
+        for s_name in mcp_client_manager._configs.keys():
+            is_connected = s_name in mcp_client_manager.sessions
+            status = "🟢 Connected" if is_connected else "⚪ Available (Inactive)"
+            mcp_inventory.append(f"- **{s_name}** ({status})")
 
         if not mcp_inventory:
             return ""

@@ -62,7 +62,7 @@ class ProjectDiscoveryConfigUpdateResponse(BaseAPIResponse):
 class LLMConfigRequest(DynamicBaseModel):
     provider: str = Field(..., description="供应商名称: openai, anthropic, moonshot, deepseek")
     provider_type: str = Field(default="openai", description="协议类型: openai | anthropic")
-    base_url: str = Field(..., description="API Base URL")
+    base_url: str | None = Field(None, description="API Base URL")
     model: str = Field(..., description="Model Name")
     vision_model: str | None = Field(None, description="Vision Model Name (e.g. gpt-4o)")
     vision_base_url: str | None = Field(None, description="独立 Vision API Base URL (本地 VLM)")

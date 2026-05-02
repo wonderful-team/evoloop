@@ -24,17 +24,23 @@ class StateLifecycleManager:
     def consume_worker_outcome(state: AgentState) -> str | None:
         """
         Consume and clear blackboard.worker_outcome.
-
-        Returns the outcome value (e.g., 'success', 'failed') or None.
         """
         blackboard = state.blackboard
-        if not blackboard:
-            return None
         outcome = blackboard.worker_outcome
         if outcome is not None:
             blackboard.worker_outcome = None
             logger.debug(f"[Lifecycle] Consumed worker_outcome='{outcome}'")
         return outcome
+
+    @staticmethod
+    def consume_spawn_plan(state: AgentState) -> None:
+        """
+        Consume and clear blackboard.spawn_plan.
+        """
+        blackboard = state.blackboard
+        if blackboard.spawn_plan is not None:
+            blackboard.spawn_plan = None
+            logger.debug("[Lifecycle] Consumed spawn_plan")
 
     @staticmethod
     def consume_next_node(state: AgentState) -> str | None:
@@ -49,12 +55,9 @@ class StateLifecycleManager:
     def clear_aggregation_state(state: AgentState) -> None:
         """Clear all orchestration-related blackboard fields after aggregation."""
         blackboard = state.blackboard
-        if not blackboard:
-            return
         cleared = []
         for field in ("pending_aggregation", "subtask_results", "spawn_plan"):
-            val = getattr(blackboard, field, None)
-            if val is not None:
+            if getattr(blackboard, field) is not None:
                 setattr(blackboard, field, None)
                 cleared.append(field)
         if cleared:
@@ -64,12 +67,9 @@ class StateLifecycleManager:
     def clear_workflow_state(state: AgentState) -> None:
         """Clear sequential workflow state from blackboard."""
         blackboard = state.blackboard
-        if not blackboard:
-            return
         cleared = []
         for field in ("workflow_plan", "workflow_step_index", "workflow_results"):
-            val = getattr(blackboard, field, None)
-            if val is not None:
+            if getattr(blackboard, field) is not None:
                 setattr(blackboard, field, None)
                 cleared.append(field)
         if cleared:
@@ -79,10 +79,17 @@ class StateLifecycleManager:
     def reset_terminal_metadata(state: AgentState) -> None:
         """Reset terminal metadata fields that should not persist across runs."""
         blackboard = state.blackboard
-        if not blackboard or not blackboard.metadata:
-            return
-        for field in ("final_outcome", "shadow_audit"):
-            val = getattr(blackboard.metadata, field, None)
-            if val is not None:
+        for field in ("final_outcome", "shadow_audit", "blocked_by_hook"):
+            if getattr(blackboard.metadata, field) is not None:
                 setattr(blackboard.metadata, field, None)
                 logger.debug(f"[Lifecycle] Reset metadata.{field}")
+
+    @staticmethod
+    def consume_blocked_by_hook(state: AgentState) -> bool:
+        """Consume and clear blocked_by_hook flag."""
+        blackboard = state.blackboard
+        blocked = blackboard.metadata.blocked_by_hook or False
+        if blackboard.metadata.blocked_by_hook is not None:
+            blackboard.metadata.blocked_by_hook = None
+            logger.debug("[Lifecycle] Consumed blocked_by_hook")
+        return blocked

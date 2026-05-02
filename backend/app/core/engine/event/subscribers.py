@@ -97,6 +97,9 @@ class EngineCommandHandler:
         if cmd_type == "hitl_response":
             await self._handle_hitl_response(command)
             return
+        elif cmd_type == "hitl_cancel":
+            await self._handle_hitl_cancel(command)
+            return
 
         # [Normal Chat Message Logic]
         await self._handle_chat_message(command)
@@ -133,6 +136,38 @@ class EngineCommandHandler:
 
         inputs = BackgroundAgentInputs(
             hitl_resume_response=response,
+            command_id=command.get("command_id"),
+            model=model,
+        )
+        asyncio.create_task(run_agent_background(thread_id, inputs))
+
+    async def _handle_hitl_cancel(self, command: RemoteCommand) -> None:
+        """
+        Handle HITL cancellation from Mobile.
+        """
+        thread_id = command.get("thread_id")
+        if not thread_id:
+            logger.warning("[EngineCommand] HITL cancel missing thread_id, skipping")
+            return
+
+        logger.info(f"[EngineCommand] Processing HITL Cancellation for thread {thread_id}")
+
+        # [HITL Closure]: Clear human request from activity monitor
+        from app.core.monitoring.activity import activity_monitor
+        await activity_monitor.clear_human_request(thread_id)
+
+        # Resolve model: prefer existing session model, fallback to system default
+        from app.core.context.manager import ContextManager
+        from app.infrastructure.config.service import SystemConfigService
+        from app.core.engine.background_agent import BackgroundAgentInputs
+
+        loaded_ctx = await ContextManager.load(thread_id)
+        model = loaded_ctx.active_model if loaded_ctx else None
+        if not model:
+            model = SystemConfigService.get_value("LLM_MODEL")
+
+        inputs = BackgroundAgentInputs(
+            hitl_resume_response="CANCELLED",
             command_id=command.get("command_id"),
             model=model,
         )
@@ -189,6 +224,7 @@ class EngineCommandHandler:
             project_id=project_id,
             attachments=attachments,
             command_id=command.get("command_id"),
+            parent_id=content_obj.get("parent_id") or command.get("parent_id"),
             model=None,  # Remote commands don't carry model selection; fallback to default
         )
 
@@ -245,7 +281,7 @@ class EngineCommandHandler:
                 stmt = (
                     select(Message)
                     .options(selectinload(Message.references))
-                    .where(Message.id == int(message_id))
+                    .where(Message.id == message_id)
                 )
             else:
                 stmt = (
@@ -253,7 +289,7 @@ class EngineCommandHandler:
                     .options(selectinload(Message.references))
                     .where(Message.thread_id == thread_id)
                     .where(Message.role == "human")
-                    .order_by(Message.id.desc())
+                    .order_by(Message.sequence_number.desc())
                     .limit(1)
                 )
             result = await session.execute(stmt)

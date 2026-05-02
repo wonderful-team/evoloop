@@ -98,6 +98,13 @@ async def pre_compact_save_state(context: HookContext) -> HookResult:
 
         # Save to memory (ensuring human-readable Unicode)
         save_start = datetime.utcnow()
+        
+        # Extract source_message_id from last message
+        source_message_id = None
+        if context.messages:
+            last_msg = context.messages[-1]
+            source_message_id = last_msg.id or last_msg.additional_kwargs.get("message_id")
+
         memory_entry = MemoryEntry(
             id=f"checkpoint_{context.thread_id}_{int(datetime.utcnow().timestamp())}",
             type=MemoryType.PROJECT,
@@ -107,6 +114,8 @@ async def pre_compact_save_state(context: HookContext) -> HookResult:
             content=yaml.safe_dump(checkpoint, allow_unicode=True, default_flow_style=False, sort_keys=False),
             user_id=context.user_id,
             project_id=context.project_id,
+            source_message_id=source_message_id,
+            run_id=context.run_id,
             tags=["checkpoint", "pre-compact"],
         )
 

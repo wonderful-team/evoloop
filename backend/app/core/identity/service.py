@@ -27,20 +27,35 @@ class IdentityService:
         Saves access token and member_id to secure storage.
         """
         token = cloud_result.get("token")
+        refresh_token = cloud_result.get("refresh_token")
         member_id = cloud_result.get("member_id", 0)
 
         if not token:
             logger.error("Login result missing token")
             return
 
-        self.store.save_access_token(token)
+        self.set_token(token, refresh_token)
         self.store.save_member_id(member_id)
+
+    def set_token(self, token: str, refresh_token: str | None = None) -> None:
+        """Updates the stored access token and optionally the refresh token."""
+        self.store.save_access_token(token)
+        if refresh_token:
+            self.store.save_refresh_token(refresh_token)
+        
+        # Notify subscribers if any (like WebSocket link)
+        if hasattr(self, "_on_token_change_cb") and self._on_token_change_cb:
+            self._on_token_change_cb(token)
+
+    def on_token_change(self, callback):
+        self._on_token_change_cb = callback
 
     def logout(self):
         """
         Clears all local auth state.
         """
         self.store.delete_access_token()
+        self.store.delete_refresh_token()
         _token_member_cache.clear()
 
     def get_access_token(self) -> str | None:
@@ -48,6 +63,12 @@ class IdentityService:
         Retrieves the access token from secure storage.
         """
         return self.store.get_access_token()
+
+    def get_refresh_token(self) -> str | None:
+        """
+        Retrieves the refresh token from secure storage.
+        """
+        return self.store.get_refresh_token()
 
     async def resolve_member_id_from_token(self, token: str) -> int | None:
         """

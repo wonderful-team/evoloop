@@ -6,6 +6,7 @@ Allows for dynamic context injection and potential LLM-specific adaptations.
 """
 import json
 import logging
+import os
 
 from langchain_core.runnables import RunnableConfig
 
@@ -48,6 +49,18 @@ class SupervisorPromptBuilder:
         # 2. Protocol & Sys Info Prep (STATIC parts only)
         is_global_mode = self.project_id == 0 or self.project_id is None
 
+        # Read PROJECT.md if exists (static for the session)
+        project_profile = ""
+        if not is_global_mode and ctx.working_directory:
+            from app.utils import file as file_utils
+            profile_path = os.path.join(ctx.working_directory, "PROJECT.md")
+            if os.path.isfile(profile_path):
+                try:
+                    content = file_utils.read_file(profile_path)
+                    project_profile = content
+                except Exception as e:
+                    logger.debug(f"[SupervisorPrompt] Failed to read PROJECT.md: {e}")
+
         # 3. Prepare Template Variables (STATIC only — no blackboard/memory/telemetry)
         template_vars = {
             "project_id": self.project_id,
@@ -56,8 +69,9 @@ class SupervisorPromptBuilder:
             "sys_info": {
                 "cwd": actual_cwd,
                 "is_global_mode": is_global_mode,
+                "project_profile": project_profile,
             },
-            # Keep static references but NOT the per-turn dynamic data
+            "project_concepts": ctx.metadata.get("project_concepts", ""),
         }
 
         # 4. Render Template
@@ -79,17 +93,14 @@ class SupervisorPromptBuilder:
 
         blackboard = self.context.blackboard
         active_plan_data = self.context.structured_plan
-        if isinstance(active_plan_data, str):
-            try:
-                active_plan_data = json.loads(active_plan_data)
-            except (json.JSONDecodeError, TypeError, ValueError):
-                active_plan_data = None
+        if isinstance(active_plan_data, str) and active_plan_data.strip():
+            active_plan_data = json.loads(active_plan_data)
 
         env_block = ctx.environment_block or ""
         active_skills = ctx.metadata.get("active_skills", [])
 
-        # Extract explicit skill attachment from run metadata (set by /chat endpoint)
-        run_metadata = config.get("metadata", {}) if isinstance(config, dict) else getattr(config, "metadata", {})
+        # Extract explicit skill attachment from run metadata
+        run_metadata = config.get("metadata", {}) if config else {}
         explicit_skill_id = run_metadata.get("explicit_skill_id")
         explicit_skill_name = run_metadata.get("explicit_skill_name")
 
@@ -107,11 +118,11 @@ class SupervisorPromptBuilder:
                 "core_raw": ctx.metadata.get("core_memory_raw", ""),
             },
             "blackboard": {
-                "ticket": blackboard.ticket if blackboard else None,
-                "subtask_results": blackboard.subtask_results if blackboard else [],
-                "visited_nodes": blackboard.visited_nodes if blackboard else [],
-                "verification": blackboard.verification if blackboard else None,
-                "metadata": dict(blackboard.metadata) if blackboard and blackboard.metadata else {},
+                "ticket": blackboard.ticket,
+                "subtask_results": blackboard.subtask_results,
+                "visited_nodes": blackboard.visited_nodes,
+                "verification": blackboard.verification,
+                "metadata": blackboard.metadata.model_dump(),
             },
             "plan": active_plan_data,
             "plan_approved": blackboard.plan_approved,

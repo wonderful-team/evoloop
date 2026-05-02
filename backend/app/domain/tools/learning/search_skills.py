@@ -1,12 +1,15 @@
 import json
+import logging
 from typing import Any
 
 from app.core.tools import evoloop_tool
 
+logger = logging.getLogger(__name__)
+
 
 @evoloop_tool(
     is_pollable=False,
-    name_map={"zh": "搜索技能", "en": "Search Skills"}
+    summary_template="database_logger.tool_summary.search_skills"
 )
 async def search_skills(query: str = "", namespace: str = None, index_mode: bool = False) -> dict[str, Any]:
     """
@@ -36,11 +39,12 @@ async def search_skills(query: str = "", namespace: str = None, index_mode: bool
     if match and relevant:
         skill_obj = relevant[0]
         tools_req = []
-        if hasattr(skill_obj, "tools_used") and skill_obj.tools_used:
+        if skill_obj.tools_used:
             try:
                 tools_req = json.loads(skill_obj.tools_used)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.error(f"[search_skills] Malformed tools_used JSON: {e}")
+                tools_req = []
 
         return {
             "result_type": "match",

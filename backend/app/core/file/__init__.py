@@ -11,7 +11,6 @@ Migration Note:
 
 # Editor (for advanced use)
 from . import editor
-
 # Directory Operations
 from .directory import (
     DirectoryEntry,
@@ -34,7 +33,6 @@ from .directory import (
     list_directory,
     move_path,
 )
-
 # I/O Operations
 from .io import (
     DEFAULT_PAGE_SIZE,
@@ -55,7 +53,6 @@ from .io import (
     # Write operations
     write_file,
 )
-
 # Models
 from .models import (
     FileInfo,
@@ -64,18 +61,16 @@ from .models import (
     ReadResult,
     WriteResult,
 )
-from .schemas import (
-    FileChunk,
-    PaginationInfo,
-)
-
 # Outline extraction (file structure analysis)
 from .outline import (
     OutlineEntry,
     get_file_outline,
     get_large_file_preview,
 )
-
+from .schemas import (
+    FileChunk,
+    PaginationInfo,
+)
 # Legacy service (kept for backward compatibility)
 from .service import (
     filter_code_files,
@@ -85,7 +80,6 @@ from .service import (
     resolve_path,
     walk_tree,
 )
-
 # Verification utilities (safe read/write with hash)
 from .verification import (
     apply_edit_with_verification,
@@ -94,7 +88,6 @@ from .verification import (
     verify_file_hash,
     write_file_with_verification,
 )
-
 # File watching (event system integrated)
 from .watcher import (
     FileWatcher,

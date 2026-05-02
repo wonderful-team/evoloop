@@ -98,7 +98,7 @@ class RewindOrchestrator:
             # Phase 0: Pre-compute affected message IDs.
             # This prevents race conditions where MessageRewind deletes rows
             # before TodoRewind/TraceRewind/FileRewind can query them.
-            affected_ids = await self._compute_affected_message_ids(
+            affected_ids, affected_run_ids = await self._compute_affected_message_ids(
                 thread_id=thread_id,
                 target_message_id=target_message_id,
                 include_target=include_target
@@ -117,6 +117,7 @@ class RewindOrchestrator:
                 reset_state=reset_state,
                 reason=reason,
                 affected_message_ids=affected_ids,
+                affected_run_ids=affected_run_ids,
                 sequential=True,
                 propagate_errors=True,
             )
@@ -166,46 +167,59 @@ class RewindOrchestrator:
         thread_id: str,
         target_message_id: str | None,
         include_target: bool
-    ) -> list[str]:
+    ) -> tuple[list[str], list[str]]:
         """
-        Pre-compute the list of message IDs that will be affected by this rewind.
-        This is done before publishing the rewind event so that all handlers
-        can work from the same snapshot, avoiding race conditions where one
-        handler deletes rows before another handler can query them.
+        Pre-compute the list of message IDs and run IDs that will be affected by this rewind.
         """
         from sqlalchemy import select
         from app.infrastructure.database.sql.database import session_scope
         from app.models import Message
 
         async with session_scope() as session:
-            stmt = select(Message.id).where(Message.thread_id == thread_id)
+            # Query sequence_number and run_id
+            stmt = select(Message.id, Message.sequence_number, Message.run_id).where(Message.thread_id == thread_id)
 
             if target_message_id:
                 try:
-                    target_id = int(target_message_id)
+                    # We now use unified IDs (UUIDs)
+                    # If target_message_id is provided, find its sequence_number
+                    stmt_target = select(Message.sequence_number).where(Message.id == target_message_id)
+                    res_target = await session.execute(stmt_target)
+                    target_seq = res_target.scalar_one_or_none()
+                    
+                    if target_seq is None:
+                        logger.warning(f"[RewindOrchestrator] Target message {target_message_id} not found")
+                        return [], []
+
+                    logger.info(f"[RewindOrchestrator] Using target_sequence: {target_seq} (from {target_message_id})")
+                    
                     if include_target:
-                        stmt = stmt.where(Message.id >= target_id)
+                        stmt = stmt.where(Message.sequence_number >= target_seq)
                     else:
-                        stmt = stmt.where(Message.id > target_id)
-                except (ValueError, TypeError):
-                    logger.warning(
-                        f"[RewindOrchestrator] Invalid target_message_id: {target_message_id}"
-                    )
-                    return []
+                        stmt = stmt.where(Message.sequence_number > target_seq)
+                except Exception as e:
+                    logger.warning(f"[RewindOrchestrator] Failed to resolve target_message_id {target_message_id}: {e}")
+                    return [], []
             else:
                 # No target specified – find last human message and use it as anchor
                 sub = (
-                    select(Message.id)
+                    select(Message.sequence_number)
                     .where(Message.thread_id == thread_id, Message.role == "human")
-                    .order_by(Message.id.desc())
+                    .order_by(Message.sequence_number.desc())
                     .limit(1)
                 )
                 result = await session.execute(sub)
-                last_human = result.scalar_one_or_none()
-                if last_human is not None:
-                    stmt = stmt.where(Message.id >= last_human)
+                last_human_seq = result.scalar_one_or_none()
+                if last_human_seq is not None:
+                    stmt = stmt.where(Message.sequence_number >= last_human_seq)
                 else:
-                    return []
+                    return [], []
 
             result = await session.execute(stmt)
-            return [str(row[0]) for row in result.all()]
+            rows = result.all()
+            
+            message_ids = [str(row.id) for row in rows]
+            run_ids = [row.run_id for row in rows if row.run_id]
+            
+            # Return unique run_ids
+            return message_ids, list(set(run_ids))

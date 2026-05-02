@@ -8,18 +8,16 @@ DatabaseCallbackHandler - 数据库日志回调处理器（重构版）
 
 不再包含复杂的过滤逻辑！
 """
-
+import json
 import logging
-import re
 from typing import Any
 from uuid import UUID
 
 from langchain_core.callbacks import AsyncCallbackHandler
-from langchain_core.messages import AIMessage
 from langchain_core.outputs import LLMResult
 
 from app.core.engine.message import MessageHandler
-from app.core.engine.reasoning import extract_reasoning_from_kwargs
+from app.core.engine.message.reasoning import extract_reasoning_from_kwargs
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +51,10 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
         self._last_attributed_step_index: int = 0
 
         # 当前工具名称追踪（LangChain on_tool_end 不传递 name，需要在 on_tool_start 存储）
-        self._tool_info_by_run_id: dict[str, dict[str, str]] = {}
+        self._tool_info_by_run_id: dict[str, dict[str, Any]] = {}
+
+        # 消息父子关系追踪
+        self._last_ai_message_id: str | None = None
 
     async def on_llm_end(self, response: LLMResult, **kwargs: Any) -> Any:
         """
@@ -78,7 +79,7 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
 
             # 提取工具调用
             tool_calls = None
-            if isinstance(message, AIMessage) and message.tool_calls:
+            if hasattr(message, "tool_calls") and message.tool_calls:
                 tool_calls = message.tool_calls
             elif message.additional_kwargs:
                 tool_calls = message.additional_kwargs.get("tool_calls")
@@ -86,13 +87,10 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
             # 提取元数据
             metadata = getattr(message, "metadata", None) or {}
 
-            # 提取思考内容
-            # 优先从 additional_kwargs 读取原生 reasoning_content (kimi-k2-thinking-turbo)
-            additional_kwargs = getattr(message, "additional_kwargs", {}) or {}
-            thinking = self._extract_thinking(content, additional_kwargs)
-            if thinking:
-                content = self._remove_thinking_tags(content, additional_kwargs)
-            # 确保 metadata 传递 reasoning_content 信息，供 handler 正确标记 thinking_type
+            # 提取思考内容（native reasoning_content）
+            additional_kwargs = message.additional_kwargs or {}
+            thinking = extract_reasoning_from_kwargs(additional_kwargs)
+            # 传递 reasoning_content 信息，供 handler 正确标记 thinking_type
             if additional_kwargs.get("reasoning_content"):
                 metadata = {**metadata, "reasoning_content": additional_kwargs["reasoning_content"]}
 
@@ -102,13 +100,32 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
                 tool_calls=tool_calls,
                 thinking=thinking,
                 metadata=metadata,
+                parent_id=None, # AI messages usually parents of previous turn's last message (resolved in repo)
             )
+
+            # Store the message_id for subsequent tools/HITL in this turn
+            if result.message_id:
+                self._last_ai_message_id = result.message_id
+                from app.core.context.manager import ContextManager
+                try:
+                    ctx = ContextManager.current()
+                    ctx.last_ai_message_id = result.message_id
+                except Exception:
+                    pass
+
+            # 重要：将持久化后的 ID 和序列号回填给消息对象，供后续环节（如 MemoryExtractor）使用
+            if result.get("message_id"):
+                message.id = str(result["message_id"])
+                # 同时回填 sequence_number 到 additional_kwargs，确保 ID 构造的一致性
+                if message.additional_kwargs is None:
+                    message.additional_kwargs = {}
+                message.additional_kwargs["sequence_number"] = result.get("sequence_number", 0)
 
             logger.debug(
                 f"[DatabaseCallback] AI message handled: "
                 f"category={result['category']}, "
                 f"persisted={result['persisted']}, "
-                f"streamed={result['streamed']}"
+                f"id={message.id}, seq={result.get('sequence_number')}"
             )
 
         except Exception as e:
@@ -132,24 +149,31 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
             tool_info = self._tool_info_by_run_id.pop(run_id_str, {})
             tool_name = tool_info.get("name")
             tool_call_id = tool_info.get("tool_call_id")
+            seq = tool_info.get("seq")
 
             if not tool_name:
                 # 回退逻辑
                 tool_name = 'unknown_tool'
                 tool_call_id = run_id_str # 假设 run_id 就是 tool_call_id（符合 Engine 行为）
 
-            # 委托给统一处理器
+            # 委托给统一处理器，传入 sequence_number 以 UPDATE 记录
             result = await self._handler.handle_tool_output(
                 tool_name=tool_name,
                 output=output,
                 tool_call_id=tool_call_id,
+                sequence_number=seq,
             )
+
+            # 注意：on_tool_end 并不直接持有 ToolMessage 对象，因此无法直接回填 ID。
+            # 但由于 handle_tool_output 内部使用了 deduplicator，重复调用会被拦截。
+            # 此外，FinishNode 的增量过滤逻辑也会基于内容进行防御。
 
             logger.debug(
                 f"[DatabaseCallback] Tool output handled: "
                 f"tool={tool_name}, "
                 f"category={result['category']}, "
-                f"persisted={result['persisted']}"
+                f"persisted={result['persisted']}, "
+                f"id={result.get('message_id')}"
             )
 
         except Exception as e:
@@ -173,34 +197,6 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
 
         return str(content)
 
-    def _extract_thinking(self, content: str, additional_kwargs: dict | None = None) -> str | None:
-        """提取思考内容 — 仅支持原生 reasoning_content。"""
-        return extract_reasoning_from_kwargs(additional_kwargs)
-
-    def _remove_thinking_tags(self, content: str, additional_kwargs: dict | None = None) -> str:
-        """移除思考标签，保留其他内容。
-
-        Native reasoning_content flows outside content, so no tags to strip.
-        Only <evoloop_session_audit> hidden tags may remain (filtered by TokenFilter
-        during streaming, but present in final content from some providers).
-        """
-        if not content:
-            return ""
-
-        # Native reasoning_content: content is already clean
-        if additional_kwargs and additional_kwargs.get("reasoning_content"):
-            return content.strip()
-
-        # Defensive: strip any leftover hidden audit tags
-        content = re.sub(
-            r"<evoloop_session_audit>.*?</evoloop_session_audit>",
-            "",
-            content,
-            flags=re.DOTALL | re.IGNORECASE
-        )
-
-        return content.strip()
-
     async def on_tool_start(
         self,
         serialized: dict[str, Any],
@@ -210,23 +206,45 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
         **kwargs: Any,
     ) -> Any:
         """
-        工具执行开始时调用
+        工具执行开始时调用 — 预插入 running 状态记录
         """
         try:
             # 提取工具名称
             tool_name = serialized.get("name") if serialized else "unknown_tool"
             run_id_str = str(run_id)
-            tool_call_id = kwargs.get("tool_call_id") or run_id_str
+            metadata = kwargs.get("metadata") or {}
+            tool_call_id = metadata.get("_evoloop_tool_call_id") or kwargs.get("tool_call_id") or run_id_str
+
+            # Parse input data
+            input_data = None
+            if input_str and input_str.strip().startswith("{"):
+                try:
+                    input_data = json.loads(input_str)
+                except (json.JSONDecodeError, ValueError):
+                    pass
+
+            # Pre-insert running record via MessageHandler
+            result = await self._handler.handle_tool_start(
+                tool_name=tool_name,
+                tool_call_id=tool_call_id,
+                input_data=input_data,
+                parent_id=self._last_ai_message_id,
+            )
+
+            # Store in context for HITL tools to access
+            from app.core.context.manager import ContextManager
+            ctx = ContextManager.current()
+            ctx.current_tool_call_id = tool_call_id
 
             # 存储工具详情（支持并行工具）
             self._tool_info_by_run_id[run_id_str] = {
                 "name": tool_name,
-                "tool_call_id": tool_call_id
+                "tool_call_id": tool_call_id,
+                "seq": result.sequence_number,
             }
-            self._current_tool_name = tool_name
 
-            logger.debug(f"[DatabaseCallback] Tool started: {tool_name} (tool_call_id={tool_call_id})")
-        except (TypeError, ValueError) as e:
+            logger.debug(f"[DatabaseCallback] Tool started: {tool_name} (tool_call_id={tool_call_id}, seq={result.sequence_number})")
+        except Exception as e:
             logger.debug(f"[DatabaseCallback] Failed to track tool start: {e}")
 
     async def on_tool_error(
@@ -236,5 +254,20 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
         run_id: UUID,
         **kwargs: Any,
     ) -> Any:
-        """工具错误，记录日志即可"""
-        logger.warning(f"[DatabaseCallback] Tool error: {error}")
+        """工具错误 — 将 running 记录标记为 failed"""
+        run_id_str = str(run_id)
+        tool_info = self._tool_info_by_run_id.pop(run_id_str, {})
+        tool_name = tool_info.get("name", "unknown_tool")
+        tool_call_id = tool_info.get("tool_call_id", run_id_str)
+        seq = tool_info.get("seq")
+
+        try:
+            await self._handler.handle_tool_error(
+                tool_name=tool_name,
+                error=error,
+                tool_call_id=tool_call_id,
+                sequence_number=seq,
+            )
+            logger.debug(f"[DatabaseCallback] Tool error tracked: {tool_name} (seq={seq})")
+        except Exception as e:
+            logger.debug(f"[DatabaseCallback] Failed to track tool error: {e}")

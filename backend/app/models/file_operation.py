@@ -19,7 +19,8 @@ class FileOperation(Base):
     thread_id: Mapped[str] = mapped_column(String(255), index=True)
 
     # Associate with a specific message or run for traceability
-    message_id: Mapped[str | None] = mapped_column(String(255), index=True, nullable=True)
+    message_id: Mapped[str | None] = mapped_column(String(36), index=True, nullable=True)
+    run_id: Mapped[str | None] = mapped_column(String(36), index=True, nullable=True)
 
     file_path: Mapped[str] = mapped_column(Text)
     operation: Mapped[str] = mapped_column(String(20))  # "ADD", "EDIT", "DELETE"

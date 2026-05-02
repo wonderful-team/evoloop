@@ -47,7 +47,7 @@ async def replay_memory(project_id: int | None = None) -> MemoryContext:
             )
             # Map MemoryEntry to EpisodeSummary directly
             for mem in actual_memories:
-                date_str = mem.created_at.strftime("%Y-%m-%d") if hasattr(mem, "created_at") and mem.created_at else "Unknown"
+                date_str = mem.created_at.strftime("%Y-%m-%d") if mem.created_at else "Unknown"
                 goal_str = mem.title.replace("Episode: ", "").strip()
                 # Content format: "Goal: ...\nOutcome: ..."
                 result_str = mem.description.upper() if mem.description else "SUCCESS"

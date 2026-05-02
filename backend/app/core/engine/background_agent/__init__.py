@@ -1,10 +1,9 @@
 import asyncio
-import json
 import logging
 import time
 from typing import Any
 
-from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
+from langchain_core.messages import BaseMessage, HumanMessage
 from pydantic import BaseModel, ConfigDict, Field
 
 # Callbacks
@@ -14,6 +13,7 @@ from app.core.context.manager import ContextManager, EvoContext
 from app.core.context.thread_store import thread_context_store
 from app.core.engine.callbacks.database_logger import DatabaseCallbackHandler
 from app.core.engine.callbacks.transparent import TransparentCallbackHandler
+from app.core.engine.message.converter import EvoMessageConverter
 from app.core.evocloud import evocloud_manager
 from app.core.exceptions import AgentCancelledException, AgentHumanInterruptException
 # Graph
@@ -48,75 +48,10 @@ class BackgroundAgentInputs(BaseModel):
     working_directory: str | None = None
 
 
-def _deserialize_messages(raw_messages: list[Any]) -> list[BaseMessage]:
-    """Ensure messages are valid LangChain objects."""
-    deserialized = []
-    for m in raw_messages:
-        if isinstance(m, dict):
-            if m.get("type") == "human":
-                deserialized.append(HumanMessage(content=m.get("content", "")))
-            else:
-                deserialized.append(m)  # Assume other dicts are handled or already compatible?
-        else:
-            deserialized.append(m)
-    return deserialized
-
-
-async def _setup_project_context(
-    thread_id: str,
-    project_id: int | None,
-    command_id: int | None = None,
-    loaded_ctx: EvoContext | None = None,
-    model: str | None = None,
-    pre_resolved_dir: str | None = None
-):
-    """Initialize working directory and context vars."""
-    if pre_resolved_dir:
-        working_dir = pre_resolved_dir
-        # Sync to thread store for consistency across system
-        thread_context_store.set_working_directory(thread_id, working_dir)
-    else:
-        # Phase 2 Decoupling: Use API module directly
-        # Note: project_id can be 0 (global mode) or None, both should skip project setup
-        if project_id is not None and project_id != 0:
-            project = await evocloud_manager.get_project_by_id(project_id)
-            if project and project.get("path"):
-                thread_context_store.set_working_directory(thread_id, project["path"])
-
-        working_dir = thread_context_store.get_working_directory(thread_id)
-
-    # Phase 4 Autonomy: Use pre-loaded context from parallel gather
-    ctx = loaded_ctx
-    if not ctx:
-        # Initialize Core Context
-        ctx = EvoContext(
-            request_id=f"bg-{thread_id}-{int(time.time())}",
-            thread_id=thread_id,
-            project_id=project_id,
-            working_directory=working_dir,
-            active_model=model,
-            command_id=command_id
-        )
-        ContextManager.set(ctx)
-    else:
-        # Update ephemeral request-scoped vars
-        ctx.request_id = f"bg-{thread_id}-{int(time.time())}"
-        ctx.working_directory = working_dir
-        ctx.command_id = command_id
-        ctx.active_model = model or ctx.active_model
-        ContextManager.set(ctx)
-
-    return working_dir
-
-
 async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | dict[str, Any]):
     """
     Background Task Logic (FastAPI BackgroundTasks).
     Replaces Celery task. Runs in the main event loop, reusing global resources.
-
-    NOTE: Avoid calling this directly for new user-triggered turns. 
-    Use `app.core.engine.dispatch.dispatch_agent_run` to ensure 
-    DB persistence, context setup, and cloud sync are handled.
     """
     if isinstance(inputs, dict):
         inputs = BackgroundAgentInputs(**inputs)
@@ -126,237 +61,152 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
     if project_id is None:
         project_id = DEFAULT_PROJECT_ID
 
-    try:
-        # 1. Deserialize
-        raw_messages = inputs.messages
-        if raw_messages:
-            raw_messages = _deserialize_messages(raw_messages)
-
-        # 2. Context & DB Preparation
-        evoloop_command_id = inputs.command_id
-
-        # Parallel context load
-        loaded_ctx = await ContextManager.load(thread_id)
-
-        # Project setup (needs result of thread_context_store and potentially loaded_ctx)
-        working_dir = await _setup_project_context(
-            thread_id,
-            project_id,
-            evoloop_command_id,
-            loaded_ctx=loaded_ctx,
-            model=inputs.model,
-            pre_resolved_dir=inputs.working_directory
-        )
-
-        # 3. Config Construction
-        run_id = f"run-{gen_uuid()[:8]}"
-        config = {
-            "configurable": {
-                "thread_id": thread_id,
-                "working_directory": working_dir,
-                "run_id": run_id, # Track the specific run attempt
-                "model": inputs.model,  # User selected model (optional)
-            },
-            "metadata": {
-                "project_id": project_id,
-                "is_retry": inputs.is_retry,
-                **inputs.metadata
-            }
-        }
-        if inputs.checkpoint_id:
-            config["configurable"]["checkpoint_id"] = inputs.checkpoint_id
-
-        # Initialize Handlers
-        callback = TransparentCallbackHandler(thread_id=thread_id)
-        db_callback = DatabaseCallbackHandler(
-            thread_id=thread_id,
-            project_id=project_id,
-            run_id=run_id,
-        )
-
-        # Inject message_handler into config so nodes can report errors (e.g. QuotaExhaustedEvent)
-        config["configurable"]["message_handler"] = db_callback._handler
-
-        # 4. Prepare Workflow Inputs
-        inputs_dict = inputs.model_dump()
-
-        # 5. Execution
-        # Start run with appropriate goal
-        main_goal = inputs.goal
-        await activity_monitor.start_run(thread_id, main_goal)
-        logger.info(f"[BackgroundAgent] Started run for thread {thread_id} with goal: {main_goal}")
-
-        # Memory Injection (Parallelized)
-        from app.core.memory.lifespan import MemoryLifespanManager
-
-        if not MemoryLifespanManager.is_initialized():
-            await MemoryLifespanManager.ainitialize()
-        container = MemoryLifespanManager.get_container()
-        memory_manager = container.memory_manager
-        user_prefs, concepts_text = await asyncio.gather(
-            memory_manager.get_merged_preferences("user_default", project_id=project_id),
-            memory_manager.get_project_concepts(project_id)
-        )
-        inputs_dict["user_preferences"] = user_prefs
-        inputs_dict["project_concepts"] = concepts_text
-
+    # 1. Lifecycle & Context Management
+    async with activity_monitor.run_scope(thread_id, inputs.goal) as run_id:
         try:
-            callbacks = [callback, db_callback]
-            config["callbacks"] = callbacks
+            # 2. Deserialize & Prepare
+            raw_messages = EvoMessageConverter.to_langchain(inputs.messages)
+            evoloop_command_id = inputs.command_id
+
+            # Parallel context load
+            loaded_ctx = await ContextManager.load(thread_id)
+
+            # Setup initial context
+            ctx = loaded_ctx
+            working_dir = inputs.working_directory
+            if not working_dir:
+                from app.core.context.thread_store import thread_context_store
+                working_dir = thread_context_store.get_working_directory(thread_id)
+
+            if not ctx:
+                ctx = EvoContext(
+                    thread_id=thread_id,
+                    project_id=project_id,
+                    working_directory=working_dir,
+                    active_model=inputs.model,
+                    command_id=evoloop_command_id
+                )
+            else:
+                ctx.request_id = f"bg-{thread_id}-{int(time.time())}"
+                ctx.working_directory = working_dir
+                ctx.command_id = evoloop_command_id
+                ctx.active_model = inputs.model or ctx.active_model
+                
+            ContextManager.set(ctx)
+
+            # Trigger Event-Driven Context Hydration
+            from app.core.engine.event.publishers import publish_agent_session_started
+            await publish_agent_session_started(thread_id=thread_id, project_id=project_id)
+            
+            # The hydrator might have updated the working_dir in context
+            ctx = ContextManager.current()
+            working_dir = ctx.working_directory
+
+            # 3. Config Construction
+            config = {
+                "configurable": {
+                    "thread_id": thread_id,
+                    "working_directory": working_dir,
+                    "run_id": run_id,
+                    "model": inputs.model,
+                },
+                "metadata": {
+                    "project_id": project_id,
+                    "is_retry": inputs.is_retry,
+                    **inputs.metadata
+                }
+            }
+            if inputs.checkpoint_id:
+                config["configurable"]["checkpoint_id"] = inputs.checkpoint_id
+
+            # Initialize Handlers
+            callback = TransparentCallbackHandler(thread_id=thread_id)
+            db_callback = DatabaseCallbackHandler(
+                thread_id=thread_id,
+                project_id=project_id,
+                run_id=run_id,
+            )
+            config["configurable"]["message_handler"] = db_callback._handler
+
+            # 4. Prepare Workflow Inputs
+            inputs_dict = inputs.model_dump()
+            
+            # Instantiate Blackboard
+            from app.core.engine.state.blackboard import BlackboardState
+            if "blackboard" not in inputs_dict:
+                inputs_dict["blackboard"] = BlackboardState().model_dump()
+            
+            blackboard = BlackboardState.model_validate(inputs_dict["blackboard"])
+            
+            # Extract last human msg for predictive memory
+            from app.core.engine.message.utils import get_last_human_message
+            last_human_msg = get_last_human_message(raw_messages) or ""
+
+            # Unified Context Hydration (Runs ONCE per session)
+            from app.core.engine.context_hydrator import AgentContextHydrator
+            await AgentContextHydrator.hydrate(
+                ctx=ctx,
+                blackboard=blackboard,
+                config=config,
+                last_human_msg=last_human_msg,
+                is_retry=inputs.is_retry,
+                is_subtask=False,
+                iteration_count=inputs.iteration_count
+            )
+            
+            # Update inputs with hydrated blackboard
+            inputs_dict["blackboard"] = blackboard.model_dump()
+
+            # 5. Execution Setup
+            config["callbacks"] = [callback, db_callback]
             config["recursion_limit"] = settings.RECURSION_LIMIT
 
             graph_instance = get_graph()
             if not graph_instance:
                 raise ValueError("Global Graph not initialized")
 
-            # [HITL Resume Logic]
-            # Check if this is a resume request from Mobile/Background
             input_payload = inputs_dict
-
-            # Ensure session_goal is present for all entry points (chat, retry, resume, webhook).
-            # Prefer the explicitly passed session_goal; fallback to the first human message.
-            if not inputs.session_goal and raw_messages:
-                first_human = next(
-                    (m for m in raw_messages if isinstance(m, HumanMessage)),
-                    None,
-                )
-                if first_human:
-                    raw_goal = first_human.content
-                    if isinstance(raw_goal, list):
-                        texts = [part.get("text", "") for part in raw_goal if isinstance(part, dict) and part.get("text")]
-                        raw_goal = " ".join(texts).strip()
-                    else:
-                        raw_goal = str(raw_goal).strip()
-                    if raw_goal:
-                        # Truncate session_goal to keep it as a concise "Mission Anchor".
-                        distilled_goal = raw_goal[:MAX_GOAL_LENGTH]
-                        if len(raw_goal) > MAX_GOAL_LENGTH:
-                            distilled_goal += "... (Full context available in history)"
-
-                        input_payload["session_goal"] = distilled_goal
-                        logger.info(f"[BackgroundAgent] Derived session_goal from first human message: {distilled_goal[:80]}...")
-            elif inputs.session_goal:
-                input_payload["session_goal"] = inputs.session_goal
+            
+            # 5.5 Authoritative session_goal distillation
+            from app.core.engine.message.goal_distiller import GoalDistiller
+            input_payload["session_goal"] = GoalDistiller.resolve(
+                explicit_goal=inputs.session_goal,
+                messages=raw_messages
+            )
 
             if inputs.hitl_resume_response is not None:
                 from app.core.engine.background_agent.hitl import build_resume_command
-                input_payload = await build_resume_command(
-                    graph_instance, config, inputs.hitl_resume_response
-                )
+                input_payload = await build_resume_command(graph_instance, config, inputs.hitl_resume_response)
 
-            # Run Graph
+            # 6. Run Graph
             async for _event in graph_instance.astream(input_payload, config=config):
                 await activity_monitor.check_cancellation(thread_id)
-                pass
 
-            # [MSG-TRACE] OUTPUT from checkpoint
-            _has_error_in_final_state = False
-            try:
-                final_checkpoint_state = await graph_instance.aget_state(config)
-                if final_checkpoint_state and final_checkpoint_state.values:
-                    _final_msgs = final_checkpoint_state.values.get("messages", [])
-
-                    # Detect LLM errors that were swallowed as AIMessage(metadata={"is_error": True})
-                    error_msgs = [
-                        msg for msg in _final_msgs
-                        if isinstance(msg, AIMessage) and getattr(msg, "metadata", {}).get("is_error")
-                    ]
-                    if error_msgs:
-                        _has_error_in_final_state = True
-                        last_error = error_msgs[-1]
-                        error_content = str(last_error.content)
-                        logger.warning(f"[BackgroundAgent] Graph completed with embedded error: {error_content[:120]}...")
-
-                        # Persist to DB so frontend can display it
-                        from app.core.engine.background_agent.errors import persist_system_error
-                        await persist_system_error(thread_id, project_id, error_content, action_type="warning")
-
-                        # Publish event to EventBus (Web UI)
-                        from app.core.engine.message.event_bus import get_event_bus
-                        await get_event_bus().publish(
-                            f"chat:{thread_id}:events",
-                            json.dumps({
-                                "type": "warning",
-                                "status": "failed",
-                                "title": "请求失败",
-                                "message": error_content,
-                            })
-                        )
-
-                        # Push error to Mobile (统一走 MobileErrorNotifier)
-                        try:
-                            from app.core.engine.message.mobile_notifier import MobileErrorNotifier
-                            from app.core.engine.error_handler import LLMErrorHandler
-                            classification = LLMErrorHandler.classify_exception(Exception(error_content))
-                            await MobileErrorNotifier(db_callback._handler).push(classification)
-                        except Exception as push_e:
-                            logger.warning(f"[BackgroundAgent] Failed to push error to mobile: {push_e}")
-                else:
-                    logger.info("[MSG-TRACE][background] GRAPH_OUTPUT checkpoint: no values")
-            except Exception as e:
-                logger.warning(f"[MSG-TRACE][background] Failed to read final checkpoint: {e}")
-
-            # Phase 4 Autonomy: Persist the subconscious Context Pool to cache before exiting/suspending
+            # 7. Finalize Run
             await ContextManager.save(thread_id)
-            await activity_monitor.end_run(thread_id, "done")
 
-            # Publish AgentRunCompletedEvent for automated learning
+            # Publish AgentRunCompletedEvent for automated learning (Subscribers handle memory)
             from app.core.engine.event.publishers import publish_agent_run_completed
-
             await publish_agent_run_completed(
                 thread_id=thread_id,
                 project_id=project_id,
-                goal="Autonomous Task Execution",  # Simplified goal for event
-                status="done"
+                goal=inputs.goal,
+                status="done",
+                payload={"run_id": run_id}
             )
-            logger.info(f"[BackgroundAgent] 📡 Published AgentRunCompletedEvent for thread {thread_id}")
 
-            # 最终同步：发送所有消息 + command_complete 信号到 Gateway
-            try:
-                from app.core.engine.message.sync_coordinator import get_sync_coordinator
-                coordinator = get_sync_coordinator()
-                await coordinator.sync_final(thread_id, evoloop_command_id)
-            except Exception as sync_e:
-                logger.warning(f"[BackgroundAgent] Final sync failed: {sync_e}")
+            # Final Sync to Gateway
+            from app.core.engine.message.sync_coordinator import get_sync_coordinator
+            await get_sync_coordinator().sync_final(thread_id, evoloop_command_id)
 
         except AgentCancelledException:
-            logger.info(f"Task {thread_id} cancelled by user.")
-            await activity_monitor.end_run(thread_id, "cancelled")
-
+            # Re-raised by run_scope but we can catch here for extra logging if needed
+            raise
         except AgentHumanInterruptException:
-            logger.info(f"[BackgroundAgent] Task {thread_id} interrupted for human input. Run status: interrupted")
-
+            raise
         except Exception as e:
-            err_msg = str(e)
-            if "recursion limit" in err_msg.lower():
-                logger.error(f"Thread {thread_id} hit recursion limit: {e}")
-                await activity_monitor.end_run(thread_id, "failed")
-                from app.core.engine.background_agent.errors import persist_system_error
-                await persist_system_error(thread_id, project_id, "Recursion limit exceeded. The agent may be stuck in a loop.")
-                # Push error to Mobile (统一走 MobileErrorNotifier)
-                try:
-                    from app.core.engine.message.mobile_notifier import MobileErrorNotifier
-                    from app.core.engine.error_handler import LLMErrorHandler
-                    classification = LLMErrorHandler.classify_exception(
-                        Exception("Recursion limit exceeded. The agent may be stuck in a loop.")
-                    )
-                    await MobileErrorNotifier(db_callback._handler).push(classification)
-                except Exception as push_e:
-                    logger.warning(f"[BackgroundAgent] Failed to push recursion error to mobile: {push_e}")
-            else:
-                from app.core.engine.background_agent.errors import handle_task_exception
-                await handle_task_exception(thread_id, project_id, e, handler=db_callback._handler)
-
-    except Exception as e:
-        logger.error(f"Fatal error during agent preparation for {thread_id}: {e}", exc_info=True)
-        await activity_monitor.end_run(thread_id, "failed")
-        from app.core.engine.background_agent.errors import persist_system_error
-        await persist_system_error(thread_id, project_id, f"Preparation failed: {str(e)}")
-        # Push error to Mobile (统一走 MobileErrorNotifier)
-        try:
-            from app.core.engine.message.mobile_notifier import MobileErrorNotifier
-            from app.core.engine.error_handler import LLMErrorHandler
-            classification = LLMErrorHandler.classify_exception(e)
-            await MobileErrorNotifier(db_callback._handler).push(classification)
-        except Exception as push_e:
-            logger.warning(f"[BackgroundAgent] Failed to push preparation error to mobile: {push_e}")
+            # Let handle_task_exception deal with DB/UI reporting
+            # run_scope will mark status as "failed"
+            from app.core.engine.background_agent.errors import handle_task_exception
+            await handle_task_exception(thread_id, project_id, e, handler=db_callback._handler)
+            raise

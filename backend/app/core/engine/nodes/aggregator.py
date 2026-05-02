@@ -25,8 +25,8 @@ class AggregatorNode(BaseNode):
 
     async def __call__(self, state: AgentState, config: RunnableConfig) -> StateUpdate:
         blackboard = state.blackboard
-        subtask_results = blackboard.subtask_results if blackboard else []
-        pending_agg = blackboard.pending_aggregation if blackboard else None
+        subtask_results = blackboard.subtask_results
+        pending_agg = blackboard.pending_aggregation
 
         if not pending_agg:
             logger.warning("[Aggregator] No pending aggregation found")
@@ -47,10 +47,7 @@ class AggregatorNode(BaseNode):
 
         try:
             # Normalize SubtaskResult objects to dicts for the tool schema
-            raw_results = [
-                r.model_dump() if hasattr(r, "model_dump") else r
-                for r in subtask_results
-            ]
+            raw_results = [r.model_dump() for r in subtask_results]
             # Call the aggregation function directly (not an Agent tool)
             agg_result = await self.aggregate_results(
                 aggregation_strategy=strategy,
@@ -68,23 +65,19 @@ class AggregatorNode(BaseNode):
         # Centralized lifecycle cleanup for aggregation state
         from app.core.engine.state.lifecycle import StateLifecycleManager
         StateLifecycleManager.clear_aggregation_state(state)
-        if blackboard:
-            blackboard.worker_outcome = worker_outcome
-            if not blackboard.metadata:
-                from app.core.engine.state.blackboard import BlackboardMetadata
-                blackboard.metadata = BlackboardMetadata()
-            blackboard.metadata.last_aggregation_result = result_text
-            # Reset ticket so Supervisor does not treat itself as a subtask
-            blackboard.ticket = None
+        
+        blackboard.worker_outcome = worker_outcome
+        blackboard.metadata.last_aggregation_result = result_text
+        # Reset ticket so Supervisor does not treat itself as a subtask
+        blackboard.ticket = None
 
-        msg = AIMessage(
+        agg_msg = AIMessage(
             content=f"Aggregation complete. Strategy: {strategy}. Total results: {len(subtask_results)}.",
             metadata={"is_error": is_error, "error_type": "aggregation_failed"} if is_error else None,
         )
 
         return StateUpdate(
-            messages=[msg],
-            next_node=RoutingTarget.SUPERVISOR,
+            messages=[agg_msg],
             blackboard=blackboard,
         )
 
@@ -123,4 +116,5 @@ class AggregatorNode(BaseNode):
             temperature=0.3,
             model_name=model_name,
         )
-        return AggregateResult(status="success", aggregated=response.content)
+        content = response.content
+        return AggregateResult(status="success", aggregated=content)

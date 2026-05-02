@@ -9,8 +9,8 @@ and exceptions. Domain-specific cleanup event classes live in their
 respective modules' event/schemas.py (e.g. FilesCleanupEvent in app.core.file.event.schemas).
 """
 from app.core.engine.rewind.exceptions import PartialRewindError, RewindError
-from app.core.engine.schemas import RewindOperation as RewindRequest, RewindResult
 from app.core.engine.rewind.orchestrator import RewindOrchestrator
+from app.core.engine.schemas import RewindOperation as RewindRequest, RewindResult
 
 __all__ = [
     # Main orchestrator

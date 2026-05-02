@@ -119,7 +119,7 @@ class LayeredContextCache:
         messages = list(state.messages) if state else []
         last_human_msg = ""
         for msg in reversed(messages):
-            if hasattr(msg, "type") and msg.type == "human":
+            if msg.type == "human":
                 last_human_msg = msg.content
                 break
 

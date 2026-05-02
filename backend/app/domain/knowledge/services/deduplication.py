@@ -465,14 +465,12 @@ class DeduplicationService:
     async def delete_duplicates(
         self,
         duplicate_pairs: list[tuple[str, str]],
-        keep_oldest: bool = True
     ) -> DeleteDuplicatesResult:
         """
         Delete duplicate documents, keeping one copy.
         
         Args:
             duplicate_pairs: Pairs of (to_delete, to_keep) or just duplicates
-            keep_oldest: If True, keep oldest document in each pair
         
         Returns:
             Deletion statistics

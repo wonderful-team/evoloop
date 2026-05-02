@@ -6,7 +6,7 @@ from app.core.tools import evoloop_tool
 @evoloop_tool(
     is_pollable=True,
     is_hidden=True,
-    name_map={"zh": "搜索原生工具", "en": "Search Native Tools"}
+    summary_template="database_logger.tool_summary.search_native_tools"
 )
 async def search_native_tools(query: str = "") -> dict[str, Any]:
     """
@@ -31,8 +31,8 @@ async def search_native_tools(query: str = "") -> dict[str, Any]:
     }
 
     for tool in all_tools:
-        name = getattr(tool, "name", "")
-        desc = getattr(tool, "description", "") or ""
+        name = tool.name
+        desc = tool.description or ""
 
         if query_lower and query_lower not in name.lower() and query_lower not in desc.lower():
             continue

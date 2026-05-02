@@ -22,6 +22,7 @@ __all__ = [
     "get_default_engine",
     "set_default_engine",
     "ContextTrimmer",
+    "EvoMessageConverter",
 ]
 
 _import_map = {
@@ -30,6 +31,7 @@ _import_map = {
     "get_default_engine": ("app.core.engine.engine", "get_default_engine"),
     "set_default_engine": ("app.core.engine.engine", "set_default_engine"),
     "ContextTrimmer": ("app.core.engine.context_trimmer", "ContextTrimmer"),
+    "EvoMessageConverter": ("app.core.engine.message.converter", "EvoMessageConverter"),
 }
 
 def __getattr__(name: str):

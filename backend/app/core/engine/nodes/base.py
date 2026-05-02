@@ -2,13 +2,13 @@ import logging
 from abc import ABC, abstractmethod
 from typing import Any
 
-from langchain_core.messages import HumanMessage, AIMessage
+from langchain_core.messages import HumanMessage
 from langchain_core.runnables import RunnableConfig
 
 from app.core.engine import get_default_engine
-from app.core.engine.schemas import EngineResult
 from app.core.engine.nodes.utils import resolve_is_subtask
 from app.core.engine.routers import RoutingTarget
+from app.core.engine.schemas import EngineResult
 from app.core.engine.signals import signal_manager
 from app.core.engine.state import AgentState, StateUpdate, ensure_state
 
@@ -50,25 +50,11 @@ class BaseNode(ABC):
         from app.core.engine.error_handler import LLMErrorHandler
         classification = LLMErrorHandler.classify_exception(error)
 
-        # Terminal errors must propagate to trigger proper end_run handling in background_agent.py
-        if classification.is_terminal:
-            logger.warning(f"[{self.node_name}] 🛑 Terminal error detected. Propagating to outer handler.")
-            raise error
-
-        # 3. Non-terminal error: return error message and route to FINISH
-        #    (routing back to SUPERVISOR causes infinite retry loops)
-        error_msg = AIMessage(
-            content=f"Node '{self.node_name}' failed: {error}",
-            metadata={
-                "is_error": True,
-                "error_type": classification.error_type or "node_execution",
-                "is_terminal": False
-            }
-        )
-        return StateUpdate(
-            messages=[error_msg],
-            next_node=RoutingTarget.FINISH
-        )
+        # 3. Always raise the error to the outer graph runner.
+        #    Defensive "soft-fails" (routing to FINISH with an error message)
+        #    are removed to prevent inconsistent states and infinite loops.
+        logger.error(f"[{self.node_name}] 🛑 Execution failed (terminal={classification.is_terminal}): {error}")
+        raise error
 
 
 class BaseAgentNode(BaseNode, ABC):
@@ -97,11 +83,6 @@ class BaseAgentNode(BaseNode, ABC):
             # Clear potential routing instructions from previous nodes to prevent accidental short-circuits
             state.next_node = None
 
-            # Centralized hydration: all nodes receive context via middleware
-            from app.core.engine.context_hydrator import EvoContextMiddleware
-            state = await EvoContextMiddleware.hydrate(state, config)
-            logger.info(f"[{self.node_name}] Context Hydrated via Middleware")
-
             # 1. State Preparation & Environment Hydration
             # Includes early-exit checks (e.g., Aggregator routing)
             state_update = await self.prepare_state(state, config)
@@ -112,6 +93,8 @@ class BaseAgentNode(BaseNode, ABC):
             # static_prompt: Huge instructions + tools -> goes to generic SystemMessage
             # dynamic_ticket: Small turn-based telemetry -> injected as HumanMessage
             static_system_prompt, dynamic_ticket_text = await self.build_prompt_pair(state, config)
+            print("static_system_prompt=", static_system_prompt)
+            print("dynamic_ticket_text=", dynamic_ticket_text)
             tools = await self.get_tools(state)
 
             # Insert Context Ticket just before the LAST HumanMessage so that
@@ -168,7 +151,7 @@ class BaseAgentNode(BaseNode, ABC):
             logger.info(
                 f"[{self.node_name}] 📤 Outcome RETURN | messages={len(outcome.messages or [])} | "
                 f"types={[type(m).__name__ for m in (outcome.messages or [])]} | "
-                f"next_node={outcome.next_node or 'N/A'}"
+                f"next_node={outcome.next_node}"
             )
             return outcome
 

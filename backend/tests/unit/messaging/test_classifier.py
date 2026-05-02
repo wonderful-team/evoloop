@@ -24,15 +24,24 @@ def test_classify_internal_json():
 
 
 def test_classify_reasoning():
-    """测试思考内容分类"""
-    content = "<think>我需要分析这个问题...</think>\n最终回复"
-    cat = MessageClassifier.classify_ai_message(content=content)
+    """测试思考内容分类 — 原生 reasoning_content 或 hidden audit tags"""
+    # Native reasoning_content via metadata（纯推理，无正文）
+    cat = MessageClassifier.classify_ai_message(
+        content="", metadata={"reasoning_content": "deep analysis"}
+    )
     assert cat == MessageCategory.INTERNAL_REASONING, f"Expected INTERNAL_REASONING, got {cat}"
-    
+
+    # reasoning_content + 正文 → ASSISTANT_RESPONSE（thinking 由 PersistencePolicy 处理）
+    cat = MessageClassifier.classify_ai_message(
+        content="最终回复", metadata={"reasoning_content": "deep analysis"}
+    )
+    assert cat == MessageCategory.ASSISTANT_RESPONSE, f"Expected ASSISTANT_RESPONSE, got {cat}"
+
+    # Hidden audit tags in content（有正文内容，分类为 ASSISTANT_RESPONSE）
     content = "<audit>任务已完成</audit>"
     cat = MessageClassifier.classify_ai_message(content=content)
-    assert cat == MessageCategory.INTERNAL_REASONING, f"Expected INTERNAL_REASONING, got {cat}"
-    
+    assert cat == MessageCategory.ASSISTANT_RESPONSE, f"Expected ASSISTANT_RESPONSE, got {cat}"
+
     print("✅ test_classify_reasoning passed")
 
 
@@ -98,17 +107,16 @@ def test_is_internal_json_response():
     print("✅ test_is_internal_json_response passed")
 
 
-def test_has_thinking_tags():
-    """测试思考标签识别"""
-    assert MessageClassifier._has_thinking_tags("<think>思考内容</think>") is True
-    assert MessageClassifier._has_thinking_tags("<audit>审计内容</audit>") is True
-    assert MessageClassifier._has_thinking_tags("<THINK>大写</THINK>") is True
-    
-    assert MessageClassifier._has_thinking_tags("普通文本") is False
-    assert MessageClassifier._has_thinking_tags("") is False
-    assert MessageClassifier._has_thinking_tags("没有标签") is False
-    
-    print("✅ test_has_thinking_tags passed")
+def test_has_hidden_audit_tags():
+    """测试隐藏审计标签识别"""
+    assert MessageClassifier._has_hidden_audit_tags("<audit>审计内容</audit>") is True
+    assert MessageClassifier._has_hidden_audit_tags("<evoloop_session_audit>审计</evoloop_session_audit>") is True
+
+    assert MessageClassifier._has_hidden_audit_tags("普通文本") is False
+    assert MessageClassifier._has_hidden_audit_tags("") is False
+    assert MessageClassifier._has_hidden_audit_tags("没有标签") is False
+
+    print("✅ test_has_hidden_audit_tags passed")
 
 
 def test_is_system_event():
@@ -131,7 +139,7 @@ if __name__ == "__main__":
     test_classify_with_metadata()
     test_classify_normal_json()
     test_is_internal_json_response()
-    test_has_thinking_tags()
+    test_has_hidden_audit_tags()
     test_is_system_event()
     
     print("\n✅ All classifier tests passed!")

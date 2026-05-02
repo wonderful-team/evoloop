@@ -39,6 +39,7 @@ class HookContext(DynamicBaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     thread_id: str
+    run_id: str | None = None
     project_id: int | None = None
     user_id: str | None = None
     messages: list[BaseMessage] = Field(default_factory=list)

@@ -10,10 +10,12 @@ import logging
 from typing import Any
 
 from pydantic import Field
+from sqlalchemy import select, func
 
 from app.infrastructure.cache import get_cache
 from app.infrastructure.cache.abstract import Cache
 from app.infrastructure.pydantic_base import DynamicBaseModel
+from app.models import AgentActivity, Message
 
 logger = logging.getLogger(__name__)
 
@@ -125,21 +127,6 @@ class LinkTokenService:
         return data if isinstance(data, str) else None
 
 
-class ActivityStep(DynamicBaseModel):
-    """A single step in the agent activity."""
-    id: int
-    name: str
-    status: str
-    type: str = "node"
-    parent_id: int | None = None
-    start_time: float
-    end_time: float | None = None
-    time: str = "0s"
-    input: dict | None = None
-    details: str | None = None
-    tool_name_display: str | None = None
-
-
 class ActivityArtifact(DynamicBaseModel):
     """An artifact tracked during agent activity."""
     id: int
@@ -151,11 +138,16 @@ class ActivityArtifact(DynamicBaseModel):
 
 
 class ActivityState(DynamicBaseModel):
-    """Full activity state for an agent run."""
+    """Full activity state for an agent run.
+
+    Phase 3 redesign: steps are no longer returned here.
+    Tool messages are sent as flat role="tool" messages via SSE.
+    This model only returns lightweight run metadata.
+    """
     status: str
     main_goal: str = ""
     updated_at: float = 0.0
-    steps: list[ActivityStep] = Field(default_factory=list)
+    running_tools_count: int = 0
     artifacts: list[ActivityArtifact] = Field(default_factory=list)
     agent_state: dict = Field(default_factory=dict)
     verification: dict = Field(default_factory=dict)
@@ -184,16 +176,19 @@ class ActivityStateService:
 
     async def start_run(self, thread_id: str, main_goal: str = "处理用户请求") -> bool:
         """Initialize activity state for a new run."""
-        from app.models import AgentActivity
-
         async with self._get_session_scope()() as session:
             activity = await session.get(AgentActivity, thread_id)
             if activity is None:
                 activity = AgentActivity(thread_id=thread_id)
                 session.add(activity)
-            activity.status = "running"
+            
+            # Preserve cancellation intent: If status is already 'stopping', 
+            # don't reset it to 'running'. This handles race conditions 
+            # where a user cancels just as the run is starting.
+            if activity.status != "stopping":
+                activity.status = "running"
+            
             activity.main_goal = main_goal
-            activity.steps_json = json.dumps([])
             activity.artifacts_json = json.dumps([])
             activity.agent_state_json = json.dumps({})
             activity.active_memories_json = json.dumps([])
@@ -203,7 +198,6 @@ class ActivityStateService:
 
     async def end_run(self, thread_id: str, status: str = "done", final_outcome: str | None = None) -> ActivityState:
         """Mark run as ended and return final state."""
-        from app.models import AgentActivity
 
         async with self._get_session_scope()() as session:
             activity = await session.get(AgentActivity, thread_id)
@@ -215,38 +209,37 @@ class ActivityStateService:
             if final_outcome:
                 activity.final_outcome = final_outcome
 
-            # Mark running steps as done/cancelled
-            try:
-                steps = json.loads(activity.steps_json or "[]")
-                modified = False
-                for step in steps:
-                    if step.get("status") == "running":
-                        step["status"] = "cancelled" if final_status == "cancelled" else "done"
-                        modified = True
-                if modified:
-                    activity.steps_json = json.dumps(steps)
-            except (json.JSONDecodeError, TypeError):
-                pass
-
         return await self.get_state(thread_id)
 
     async def get_state(self, thread_id: str) -> ActivityState:
-        """Get full activity state."""
-        from app.models import AgentActivity
+        """Get lightweight activity state.
 
+        Phase 3 redesign: steps are no longer returned here.
+        Steps are now part of the Message model and travel via SSE
+        message events. Callers that need step details should fetch
+        the conversation messages instead.
+        """
         async with self._get_session_scope()() as session:
             activity = await session.get(AgentActivity, thread_id)
             if activity is None:
                 return ActivityState(status="idle")
 
             try:
-                steps_raw = json.loads(activity.steps_json or "[]")
+                # Only count running tools (lightweight — no step reconstruction)
+                running_count = await session.scalar(
+                    select(func.count())
+                    .select_from(Message)
+                    .where(Message.thread_id == thread_id)
+                    .where(Message.role == "tool")
+                    .where(Message.status == "running")
+                )
+
                 artifacts_raw = json.loads(activity.artifacts_json or "[]")
                 return ActivityState(
                     status=activity.status,
                     main_goal=activity.main_goal,
                     updated_at=activity.updated_at.timestamp() if activity.updated_at else 0,
-                    steps=[ActivityStep.model_validate(s) for s in steps_raw],
+                    running_tools_count=running_count or 0,
                     artifacts=[ActivityArtifact.model_validate(a) for a in artifacts_raw],
                     agent_state=json.loads(activity.agent_state_json or "{}"),
                     verification={},
@@ -260,15 +253,12 @@ class ActivityStateService:
 
     async def update_field(self, thread_id: str, field: str, value: Any) -> bool:
         """Update a single field in the activity state."""
-        from app.models import AgentActivity
-
         if not isinstance(value, str):
             value = json.dumps(value) if isinstance(value, (dict, list)) else str(value)
 
         field_map = {
             "status": "status",
             "main_goal": "main_goal",
-            "steps": "steps_json",
             "artifacts": "artifacts_json",
             "agent_state": "agent_state_json",
             "active_memories": "active_memories_json",
@@ -292,12 +282,9 @@ class ActivityStateService:
 
     async def get_field(self, thread_id: str, field: str) -> Any | None:
         """Get a single field from activity state."""
-        from app.models import AgentActivity
-
         field_map = {
             "status": "status",
             "main_goal": "main_goal",
-            "steps": "steps_json",
             "artifacts": "artifacts_json",
             "agent_state": "agent_state_json",
             "active_memories": "active_memories_json",
@@ -317,8 +304,6 @@ class ActivityStateService:
 
     async def signal_stop(self, thread_id: str) -> bool:
         """Signal a run to stop."""
-        from app.models import AgentActivity
-
         async with self._get_session_scope()() as session:
             activity = await session.get(AgentActivity, thread_id)
             if activity is None:
@@ -328,8 +313,6 @@ class ActivityStateService:
 
     async def check_cancellation(self, thread_id: str) -> bool:
         """Check if run is marked for stopping."""
-        from app.models import AgentActivity
-
         async with self._get_session_scope()() as session:
             activity = await session.get(AgentActivity, thread_id)
             if activity is None:
@@ -338,8 +321,6 @@ class ActivityStateService:
 
     async def set_interrupted(self, thread_id: str, reason: str = "awaiting_human_input") -> bool:
         """Mark run as interrupted."""
-        from app.models import AgentActivity
-
         async with self._get_session_scope()() as session:
             activity = await session.get(AgentActivity, thread_id)
             if activity is None:
@@ -358,8 +339,6 @@ class ActivityStateService:
 
     async def set_human_request(self, thread_id: str, request_data: dict) -> bool:
         """Store structured human request."""
-        from app.models import AgentActivity
-
         async with self._get_session_scope()() as session:
             activity = await session.get(AgentActivity, thread_id)
             if activity is None:
@@ -370,8 +349,6 @@ class ActivityStateService:
 
     async def clear_human_request(self, thread_id: str) -> bool:
         """Clear human request upon resumption."""
-        from app.models import AgentActivity
-
         async with self._get_session_scope()() as session:
             activity = await session.get(AgentActivity, thread_id)
             if activity is None:
@@ -380,63 +357,8 @@ class ActivityStateService:
             activity.human_request_json = None
         return True
 
-    async def add_step(self, thread_id: str, name: str, step_type: str = "node", parent_id: int = None, input_data: dict = None, tool_name_display: str = None) -> int | None:
-        """Add a new step to the activity."""
-        import time
-        from app.models import AgentActivity
-
-        async with self._get_session_scope()() as session:
-            activity = await session.get(AgentActivity, thread_id)
-            if activity is None:
-                return None
-
-            steps = json.loads(activity.steps_json or "[]")
-            if not name:
-                return None
-
-            step_id = len(steps) + 1
-            new_step = ActivityStep(
-                id=step_id,
-                name=name,
-                status="running",
-                type=step_type,
-                parent_id=parent_id,
-                start_time=time.time(),
-                time="0s",
-                input=input_data,
-                tool_name_display=tool_name_display,
-            )
-            steps.append(new_step.model_dump())
-            activity.steps_json = json.dumps(steps)
-            return step_id
-
-    async def complete_step(self, thread_id: str, step_id: int) -> bool:
-        """Mark a step as completed."""
-        import time
-        from app.models import AgentActivity
-
-        async with self._get_session_scope()() as session:
-            activity = await session.get(AgentActivity, thread_id)
-            if activity is None:
-                return False
-
-            try:
-                steps = json.loads(activity.steps_json or "[]")
-            except (json.JSONDecodeError, TypeError):
-                return False
-
-            for step in steps:
-                if step.get("id") == step_id:
-                    step["status"] = "done"
-                    step["end_time"] = time.time()
-                    activity.steps_json = json.dumps(steps)
-                    return True
-            return False
-
     async def update_agent_state(self, thread_id: str, state: dict) -> bool:
         """Update agent state."""
-        from app.models import AgentActivity
-
         async with self._get_session_scope()() as session:
             activity = await session.get(AgentActivity, thread_id)
             if activity is None:
@@ -447,8 +369,6 @@ class ActivityStateService:
 
     async def add_artifact(self, thread_id: str, name: str, artifact_type: str, status: str = "created", path: str = None) -> bool:
         """Add or update an artifact."""
-        from app.models import AgentActivity
-
         async with self._get_session_scope()() as session:
             activity = await session.get(AgentActivity, thread_id)
             if activity is None:

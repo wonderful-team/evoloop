@@ -36,6 +36,18 @@ def route_by_next_node(state: AgentState) -> str:
     """Generic router that follows state.next_node if set."""
     target = state.next_node
     if target:
+        # Define the set of allowed targets for general conditional edges
+        # mapping in agent_main.yaml. 
+        allowed_targets = {
+            RoutingTarget.SUPERVISOR,
+            RoutingTarget.SEQUENTIAL_WORKFLOW,
+            RoutingTarget.FINISH,
+            RoutingTarget.END,
+        }
+        if target not in allowed_targets:
+            logger.error(f"[Router] 🚨 Invalid next_node '{target}'. Not in YAML map. Falling back to supervisor.")
+            return RoutingTarget.SUPERVISOR
+            
         logger.info(f"[Router] Dynamic next_node: {target}")
         return target
     return RoutingTarget.SUPERVISOR
@@ -78,12 +90,24 @@ def route_supervisor(state: AgentState) -> str | list[Send]:
         RoutingTarget.SPAWN_SUBTASKS,
         RoutingTarget.SEQUENTIAL_WORKFLOW,
     )
-    if next_node in terminal_nodes:
-        return next_node
-
     if next_node:
-        logger.info(f"[Router] Remapping intelligent target '{next_node}' -> 'worker'")
+        # Define the set of allowed terminal targets for the supervisor's conditional edge
+        # mapping in agent_main.yaml. 
+        terminal_targets = {
+            RoutingTarget.CHAT,
+            RoutingTarget.FINISH,
+            RoutingTarget.SUPERVISOR,
+            RoutingTarget.AGGREGATOR,
+            RoutingTarget.SPAWN_SUBTASKS,
+            RoutingTarget.SEQUENTIAL_WORKFLOW,
+        }
 
+        if next_node in terminal_targets:
+            return next_node
+
+        # If it's an intelligent target (not in terminal_targets), it MUST be handled by worker
+        logger.info(f"[Router] Remapping intelligent target '{next_node}' -> 'worker'")
+        
         # Verify ticket exists in blackboard (set by SignalDispatcher) before routing to worker
         if not blackboard.ticket:
             raise ValueError(
@@ -103,7 +127,7 @@ def route_finish(state: AgentState) -> str:
     # when Supervisor -> Chat -> Finish re-enters Finish after a historic block).
     if state.next_node == RoutingTarget.END:
         return RoutingTarget.END
-    if blackboard and blackboard.metadata and (blackboard.metadata.blocked_by_hook or False):
+    if blackboard and blackboard.metadata and blackboard.metadata.blocked_by_hook:
         logger.info("[Router] Finish blocked by hook. Looping back to supervisor.")
         return RoutingTarget.SUPERVISOR
     return RoutingTarget.END

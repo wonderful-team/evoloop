@@ -37,27 +37,6 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-async def _get_pending_tool_call(graph, config: dict) -> dict | None:
-    """Check if the graph's last message has a pending HITL tool call.
-
-    Returns the tool_call dict if pending (request_approval / request_human_input),
-    else None.  All exceptions are swallowed to avoid breaking the resume path.
-    """
-    try:
-        current_state = await graph.aget_state(config)
-        if not current_state.values or "messages" not in current_state.values:
-            return None
-        history = current_state.values["messages"]
-        if not history:
-            return None
-        last_msg = history[-1]
-        if hasattr(last_msg, "tool_calls") and last_msg.tool_calls:
-            last_tool_call = last_msg.tool_calls[-1]
-            if last_tool_call["name"] in ("request_approval", "request_human_input"):
-                return last_tool_call
-    except Exception:
-        pass
-    return None
 
 # =============================================================================
 # Unified Dispatch Helpers
@@ -336,19 +315,33 @@ async def resume_chat(req: ResumeRequest, bg_tasks: BackgroundTasks):
         )
 
     # [HITL Resume Fix]: Check if we need to auto-complete a Tool Call
-    pending_tool = await _get_pending_tool_call(graph, config)
+    from app.core.engine.hitl import HITLOrchestrator
+    pending_tool = await HITLOrchestrator.get_pending_request(graph, req.thread_id, req.model)
+    
     if pending_tool:
         logger.info(f"Auto-completing tool call {pending_tool['name']} on resume")
+        normalized_input = await HITLOrchestrator.handle_resume(req.thread_id, pending_tool, req.user_input)
+        
         tool_msg = ToolMessage(
             tool_call_id=pending_tool["id"],
-            content=req.user_input or "APPROVED",  # Default to APPROVED if empty
+            content=normalized_input,
         )
+
         if inputs and "messages" in inputs:
-            # Use ToolMessage INSTEAD of HumanMessage
-            # Because HumanMessage would confuse the LLM expecting tool output
             inputs["messages"] = [tool_msg]
         else:
             inputs = {"messages": [tool_msg]}
+
+    # Build Config
+    config = {
+        "configurable": {
+            "thread_id": req.thread_id,
+            "run_id": f"resume-{req.thread_id}-{int(time.time())}"
+        },
+        "metadata": {
+            "project_id": req.project_id
+        }
+    }
 
     # Resume in background (unified resumption loop)
     bg_tasks.add_task(
@@ -368,9 +361,6 @@ async def cancel_hitl_request(req: CancelHITLRequest, bg_tasks: BackgroundTasks)
     Cancel a pending HITL (Human-in-the-Loop) request.
     This will dismiss the confirmation card and resume execution with a cancellation signal.
     """
-    from app.domain.tools.human_input import cancel_request, get_pending_requests_for_thread
-    from app.infrastructure.database.resource_manager import db_resource_manager
-
     graph = get_graph()
     checkpointer = db_resource_manager.checkpointer
 
@@ -379,67 +369,40 @@ async def cancel_hitl_request(req: CancelHITLRequest, bg_tasks: BackgroundTasks)
             status_code=500, detail="Graph or Checkpointer not initialized"
         )
 
-    # Find pending HITL request for this thread
-    pending_requests = await get_pending_requests_for_thread(req.thread_id)
-
-    # [HITL 404 Fix]: Also check activity monitor for transient requests (like project switch)
-    activity_state = await activity_monitor._state_service.get_state(req.thread_id)
-    has_activity_request = activity_state.get("human_request") is not None
-
-    if not pending_requests and not has_activity_request:
-        raise HTTPException(
-            status_code=404, detail="No pending HITL request found for this thread"
-        )
-
-    # If it's a DB-backed request, cancel it there first
-    request_to_cancel = None
-    if pending_requests:
-        # Cancel the most recent pending request
-        request_to_cancel = pending_requests[-1]
-        cancel_success = await cancel_request(request_to_cancel.id)
-
-        if not cancel_success:
-            raise HTTPException(
-                status_code=500, detail="Failed to cancel HITL request"
-            )
-
-    # Always clear the human request from activity monitor
+    # [HITL Cancel Fix]: Send cancellation as ToolMessage instead of HumanMessage
+    from app.core.engine.hitl import HITLOrchestrator
+    pending_tool = await HITLOrchestrator.get_pending_request(graph, req.thread_id, req.model)
+    
+    # [HITL Closure]: Clear human request from activity monitor
     await activity_monitor.clear_human_request(req.thread_id)
 
-    # If this was purely a transient activity request (no DB record), we're done
-    # No need to resume the graph as transient requests don't pause it with a checkpoint
-    if not pending_requests:
+    if not pending_tool:
+        # Check if there was a transient activity request (non-graph)
         return CancelHITLResponse(
             status="cancelled",
             thread_id=req.thread_id,
             request_id=None,
         )
 
-    # Config for resuming from checkpoint
+    logger.info(f"Auto-cancelling tool call {pending_tool['name']} on cancel")
+    await HITLOrchestrator.handle_cancel(req.thread_id, pending_tool)
+
+    tool_msg = ToolMessage(
+        tool_call_id=pending_tool["id"],
+        content="CANCELLED",
+    )
+    inputs = {"messages": [tool_msg]}
+
+    # Build Config
     config = {
         "configurable": {
             "thread_id": req.thread_id,
-            "model": req.model,
-            "run_id": f"run-cancel-{gen_uuid()[:8]}",
+            "run_id": f"cancel-{req.thread_id}-{int(time.time())}"
+        },
+        "metadata": {
+            "project_id": req.project_id
         }
     }
-
-    # Prepare cancellation response
-    cancel_reason = req.reason or "User cancelled the request"
-
-    # [HITL Cancel Fix]: Send cancellation as ToolMessage instead of HumanMessage
-    pending_tool = await _get_pending_tool_call(graph, config)
-    if pending_tool:
-        logger.info(f"Auto-cancelling tool call {pending_tool['name']} on cancel")
-        # Use default_value from DB request if it exists, else "CANCELLED"
-        cancel_response = request_to_cancel.default_value or "CANCELLED"
-        tool_msg = ToolMessage(
-            tool_call_id=pending_tool["id"],
-            content=cancel_response,
-        )
-        inputs = {"messages": [tool_msg]}
-    else:
-        inputs = {"messages": [HumanMessage(content=f"Request cancelled: {cancel_reason}")]}
 
     # Resume in background with cancellation signal (unified resumption loop)
     bg_tasks.add_task(
@@ -453,7 +416,7 @@ async def cancel_hitl_request(req: CancelHITLRequest, bg_tasks: BackgroundTasks)
     return CancelHITLResponse(
         status="cancelled",
         thread_id=req.thread_id,
-        request_id=request_to_cancel.id if request_to_cancel else None,
+        request_id=pending_tool["id"] if pending_tool else None,
     )
 
 

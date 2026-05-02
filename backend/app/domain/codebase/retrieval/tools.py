@@ -12,10 +12,7 @@ from app.utils import render_template
 logger = logging.getLogger(__name__)
 
 
-@evoloop_tool(
-    summary_template="database_logger.tool_summary.search_code",
-    name_map={"zh": "搜索代码库", "en": "Search Codebase"}
-)
+@evoloop_tool(summary_template="database_logger.tool_summary.search_code")
 async def search_codebase(
     query: str,
     operator: Literal["and", "or"],
@@ -106,10 +103,7 @@ async def search_codebase(
         return "Search results processing error."
 
 
-@evoloop_tool(
-    summary_template="database_logger.tool_summary.search_code",
-    name_map={"zh": "自然语言查询图谱", "en": "Query Graph (NL)"}
-)
+@evoloop_tool(summary_template="database_logger.tool_summary.search_code")
 async def query_graph_natural_language(
     question: str,
     project_id: int,

@@ -16,6 +16,16 @@ from typing import Any, Literal
 from pydantic import Field
 
 from app.infrastructure.pydantic_base import DynamicBaseModel, EventBase
+from app.utils.time import format_iso_timestamp
+
+
+class ToolCall(DynamicBaseModel):
+    """
+    工具调用请求 —— AI 发出的执行指令。
+    """
+    id: str
+    name: str
+    args: dict[str, Any] = Field(default_factory=dict)
 
 
 class ToolBlock(DynamicBaseModel):
@@ -25,14 +35,15 @@ class ToolBlock(DynamicBaseModel):
     id: str
     tool_call_id: str
     tool: str                                    # 原始标识符，如 "read_file"
-    tool_name: str | None = None                 # 友好名称，如 "读取文件"
-    tool_name_display: str | None = None         # 带参数的显示名，如 "正在读取 '/foo.py'"
+    tool_name: str | None = None                 # 显示名回退（当前与 tool 相同）
+    name: str | None = None                      # 人类可读显示名（来自 tool_meta 或 i18n）
     input: dict[str, Any] = Field(default_factory=dict)
     output: str = ""
-    status: Literal["pending", "running", "success", "error"] = "pending"
+    status: Literal["pending", "running", "done", "failed"] = "pending"
     duration_ms: int | None = None
     started_at: datetime | None = None
     finished_at: datetime | None = None
+    tool_meta: dict[str, Any] | None = None
 
 
 class MessageBlock(DynamicBaseModel):
@@ -60,15 +71,18 @@ class MessageBlock(DynamicBaseModel):
     content: str = ""
     content_type: Literal["text", "markdown", "json", "multipart"] = "text"
 
-    # === 思考过程（结构化）===
-    thinking: list[dict[str, Any]] | None = None   # [{"type": "reasoning", "content": "..."}]
+    # === 思考过程 ===
+    thinking: str | None = None
 
-    # === 工具调用 ===
+    # === 工具调用与执行 (当 role='tool' 时使用) ===
     tool_calls: list[dict[str, Any]] | None = None
-    tool_blocks: list[ToolBlock] | None = None
+    tool_name: str | None = None
+    tool_call_id: str | None = None
+    input: Any | None = None
+    tool_meta: dict[str, Any] | None = None
 
     # === 状态与可见性 ===
-    status: Literal["pending", "streaming", "completed", "failed", "waiting_human"] = "completed"
+    status: Literal["pending", "running", "streaming", "completed", "failed", "waiting_human"] = "completed"
     is_visible: bool = True
 
     # === 时间戳（统一 ISO 8601，时区敏感）===
@@ -79,7 +93,7 @@ class MessageBlock(DynamicBaseModel):
     sequence_number: int = 0
     parent_id: str | None = None
     checkpoint_id: str | None = None
-    metadata: dict[str, Any] = Field(default_factory=dict)
+    meta_data: dict[str, Any] = Field(default_factory=dict)
 
     # === 引用（知识/记忆/文件）===
     references: list[dict[str, Any]] | None = None
@@ -92,6 +106,31 @@ class BlockEvent(DynamicBaseModel):
     type: Literal["message"] = "message"
     action: Literal["create", "update", "append"] = "create"
     data: MessageBlock
+
+
+class StreamEvent(DynamicBaseModel):
+    """
+    结构化流式事件 —— 用于前端实时交互展示。
+    """
+    type: str                                      # StreamEventType
+    message: str = ""
+    data: dict[str, Any] | DynamicBaseModel | None = None
+    progress: int | None = None
+    timestamp: str = Field(default_factory=lambda: format_iso_timestamp())
+
+    def to_json(self) -> str:
+        """Convert to JSON string for SSE."""
+        return self.model_dump_json(exclude_none=True)
+
+
+class ThinkingPayload(DynamicBaseModel):
+    """思考流事件的 data 负载"""
+    detail: str = "reasoning"
+
+
+class ToolProgressPayload(DynamicBaseModel):
+    """工具进度流事件的 data 负载"""
+    tool: str
 
 
 class HITLBlock(DynamicBaseModel):
@@ -126,13 +165,14 @@ class MessageHandlerResult(DynamicBaseModel):
     persisted: bool
     streamed: bool
     message_id: str | None = None
+    sequence_number: int = 0
     reason: str | None = None
 
 
 class PersistencePolicyResult(DynamicBaseModel):
     should_persist: bool
     content: str | None = None
-    thinking: list[dict[str, Any]] | None = None
+    thinking: str | None = None
     tool_calls: list | None = None
     category: str
     tool_call_id: str | None = None

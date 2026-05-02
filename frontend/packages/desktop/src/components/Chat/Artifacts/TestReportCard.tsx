@@ -39,7 +39,7 @@ export function TestReportCard({ data }: TestReportCardProps) {
   return (
     <div
       className={cn(
-        "rounded-xl border overflow-hidden my-2 max-w-[90%] sm:max-w-[80%] bg-card shadow-sm transition-all duration-300",
+        "rounded-xl border border-[var(--doc-border)] overflow-hidden my-6 w-full bg-muted/5 transition-all duration-300",
         isPass ? "border-green-500/20" : "border-red-500/20",
       )}
     >
@@ -47,38 +47,33 @@ export function TestReportCard({ data }: TestReportCardProps) {
       <button
         type="button"
         className={cn(
-          "flex items-center gap-2 p-3 w-full text-left transition-colors",
+          "flex items-center gap-3 p-4 w-full text-left transition-all group/report",
           isPass
-            ? "bg-green-500/10 hover:bg-green-500/20"
-            : "bg-red-500/10 hover:bg-red-500/20",
+            ? "bg-green-500/5 hover:bg-green-500/10"
+            : "bg-red-500/5 hover:bg-red-500/10",
         )}
         onClick={() => setExpanded(!expanded)}
       >
-        {isPass ? (
-          <CheckCircle2 className="w-5 h-5 text-green-500 shrink-0" />
-        ) : (
-          <XCircle className="w-5 h-5 text-red-500 shrink-0" />
-        )}
-
-        <div className="flex-1 font-medium text-sm">
-          {t("chat.artifacts.testReport", "Test Execution Report")}
+        <div className={cn(
+            "p-2 rounded-lg transition-transform group-hover/report:scale-110",
+            isPass ? "bg-green-500/10 text-green-600" : "bg-red-500/10 text-red-600"
+        )}>
+            {isPass ? <CheckCircle2 className="w-5 h-5" /> : <XCircle className="w-5 h-5" />}
         </div>
 
-        <div
-          className={cn(
-            "text-xs px-2 py-0.5 rounded-full font-bold",
-            isPass
-              ? "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300"
-              : "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300",
-          )}
-        >
-          {data.status}
+        <div className="flex-1">
+          <div className="text-[10px] font-bold uppercase tracking-widest opacity-40 mb-0.5">
+             {t("chat.artifacts.testReport", "Execution Report")}
+          </div>
+          <div className="font-bold text-sm">
+            {data.status === "PASS" ? "Validation Successful" : "Validation Failed"}
+          </div>
         </div>
 
         {expanded ? (
-          <ChevronDown size={16} className="opacity-50" />
+          <ChevronDown size={18} className="opacity-20" />
         ) : (
-          <ChevronRight size={16} className="opacity-50" />
+          <ChevronRight size={18} className="opacity-20" />
         )}
       </button>
 

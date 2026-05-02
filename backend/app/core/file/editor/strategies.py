@@ -275,8 +275,7 @@ def context_aware_replacer(content: str, find: str) -> Generator[str, None, None
                     start_index = sum(len(lines_with_ends[k]) for k in range(i))
                     end_index = start_index + sum(len(lines_with_ends[k]) for k in range(i, j + 1))
                     yield content[start_index:end_index].rstrip("\n")
-                    if True:
-                        return  # Only yield first match per logic
+                    return  # Only yield first match per logic
 
 
 def indentation_flexible_replacer(content: str, find: str) -> Generator[str, None, None]:

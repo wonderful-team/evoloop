@@ -5,8 +5,10 @@ Human-in-the-loop (HITL) resume logic for background agent execution.
 import logging
 from typing import Any
 
-from langchain_core.messages import AIMessage, ToolMessage
+from langchain_core.messages import ToolMessage
 from langgraph.types import Command
+
+from app.core.engine.hitl import get_pending_hitl_call
 
 logger = logging.getLogger(__name__)
 
@@ -18,38 +20,27 @@ async def build_resume_command(
 ) -> Any:
     """
     Build a LangGraph Command for resuming from HITL interrupt.
-
-    Checks the graph state for pending tool calls (request_approval, request_human_input)
-    and auto-completes them with the user response.
-
-    Args:
-        graph_instance: Compiled LangGraph instance
-        config: RunnableConfig dict
-        user_response: The user's response text
-
-    Returns:
-        Command(resume=...) or the raw user_response
     """
-    current_state = await graph_instance.aget_state(config)
-    last_tool_call_id = None
+    from app.core.engine.hitl import HITLOrchestrator
+    thread_id = config.get("configurable", {}).get("thread_id")
 
-    if current_state.values and "messages" in current_state.values:
-        history = current_state.values["messages"]
-        if history:
-            last_msg = history[-1]
-            # Check for pending tool calls
-            if isinstance(last_msg, AIMessage) and last_msg.tool_calls:
-                last_tool_call = last_msg.tool_calls[-1]
-                if last_tool_call["name"] in ["request_approval", "request_human_input"]:
-                    logger.info(f"Background Resume: Auto-completing tool {last_tool_call['name']}")
-                    last_tool_call_id = last_tool_call["id"]
+    # Detect pending tool call via standardized orchestrator
+    pending_tool = await get_pending_hitl_call(graph_instance, config)
 
-    # Construct Command
-    if last_tool_call_id:
+    if pending_tool:
+        logger.info(f"Background Resume: Auto-completing tool {pending_tool['name']}")
+        
+        # Standardized normalization and DB state closure
+        normalized_input = await HITLOrchestrator.handle_resume(
+            thread_id=thread_id,
+            tool_call=pending_tool,
+            user_input=user_response
+        )
+
         # Resume with Tool Message
         tool_msg = ToolMessage(
-            tool_call_id=last_tool_call_id,
-            content=str(user_response),
+            tool_call_id=pending_tool["id"],
+            content=normalized_input,
         )
         return Command(resume=tool_msg)
 

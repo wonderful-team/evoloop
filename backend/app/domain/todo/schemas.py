@@ -38,6 +38,7 @@ class TodoCreate(BaseModel):
     project_id: int | None = None
     source_conversation_id: str | None = None
     source_message_id: str | None = None
+    run_id: str | None = None
 
 
 class TodoCreateInternal(BaseModel):
@@ -50,6 +51,7 @@ class TodoCreateInternal(BaseModel):
     project_id: int | None = None
     source_conversation_id: str | None = None
     source_message_id: str | None = None
+    run_id: str | None = None
 
 
 # ============== Update Schemas ==============
@@ -78,6 +80,7 @@ class TodoResponse(TimestampedEntity):
     due_date: datetime | None
     source_conversation_id: str | None
     source_message_id: str | None
+    run_id: str | None
     project_id: int | None
 
     model_config = ConfigDict(from_attributes=True)

@@ -69,14 +69,6 @@ export type AnnotationResponse = {
     [key: string]: unknown | boolean | string | number;
 };
 
-export type AuthProxyMobileCodeRequest = {
-    mobile: string;
-    captcha_id: string;
-    captcha_code: string;
-    type?: string;
-    [key: string]: unknown | string;
-};
-
 /**
  * Standard API response envelope with success/message.
  */
@@ -255,15 +247,6 @@ export type Body_project_requirements_upload_requirement_document = {
     file: (Blob | File);
 };
 
-/**
- * Response for bulk upload.
- */
-export type BulkUploadResponse = {
-    success?: boolean;
-    message?: string;
-    [key: string]: unknown | boolean | string;
-};
-
 export type CacheInvalidateResponse = {
     code?: number;
     message: string;
@@ -304,12 +287,12 @@ export type ChangesetNode = {
 
 export type ChatRequest = {
     project_id?: (number | null);
-    thread_id?: string;
+    thread_id?: (string | null);
     message: string;
     model?: (string | null);
     command_id?: (number | null);
     checkpoint_id?: (string | null);
-    message_id?: (number | null);
+    message_id?: (string | null);
     attachments?: (Array<{
     [key: string]: unknown;
 }> | null);
@@ -408,13 +391,13 @@ export type ConversationListItem = {
 };
 
 export type ConversationSearchResult = {
-    id: number;
+    id: string;
     thread_id: string;
     role: string;
     content: string;
     created_at: string;
     match_snippet?: (string | null);
-    [key: string]: unknown | number | string;
+    [key: string]: unknown | string;
 };
 
 export type CreateFileRequest = {
@@ -479,19 +462,6 @@ export type DetectedProjectItem = {
     path: (string | null);
     detected_at: (string | null);
     [key: string]: unknown | number | string;
-};
-
-/**
- * Response for detected projects.
- */
-export type DetectedProjectsResponse = {
-    success?: boolean;
-    message?: string;
-    data?: Array<DetectedProjectItem>;
-    total?: number;
-    page?: number;
-    page_size?: number;
-    [key: string]: unknown | boolean | string | DetectedProjectItem | number;
 };
 
 export type DeviceResolutionResponse = {
@@ -607,8 +577,11 @@ export type DocumentSearchItem = {
  */
 export type DocumentSearchResponse = {
     query: string;
-    results: Array<DocumentSearchItem>;
     total: number;
+    results: Array<DocumentSearchItem>;
+    facets?: {
+        [key: string]: unknown;
+    };
 };
 
 /**
@@ -758,8 +731,8 @@ export type FileSearchResult = {
  */
 export type FTSSearchResponse = {
     query: string;
-    results: Array<FTSSearchResult>;
     total: number;
+    results: Array<FTSSearchResult>;
     facets: {
         [key: string]: unknown;
     };
@@ -922,6 +895,26 @@ export type IndexingRunResponse = {
     [key: string]: unknown | boolean | string | number;
 };
 
+export type ListResponse_DetectedProjectItem_ = {
+    success?: boolean;
+    message?: string;
+    data?: Array<DetectedProjectItem>;
+    total?: number;
+    page?: number;
+    page_size?: number;
+    [key: string]: unknown | boolean | string | DetectedProjectItem | number;
+};
+
+export type ListResponse_RequirementListItem_ = {
+    success?: boolean;
+    message?: string;
+    data?: Array<RequirementListItem>;
+    total?: number;
+    page?: number;
+    page_size?: number;
+    [key: string]: unknown | boolean | string | RequirementListItem | number;
+};
+
 export type LLMApplyResponse = {
     success?: boolean;
     message?: string;
@@ -941,7 +934,7 @@ export type LLMConfigRequest = {
     /**
      * API Base URL
      */
-    base_url: string;
+    base_url?: (string | null);
     /**
      * Model Name
      */
@@ -950,6 +943,18 @@ export type LLMConfigRequest = {
      * Vision Model Name (e.g. gpt-4o)
      */
     vision_model?: (string | null);
+    /**
+     * 独立 Vision API Base URL (本地 VLM)
+     */
+    vision_base_url?: (string | null);
+    /**
+     * 独立 Vision API Key
+     */
+    vision_api_key?: (string | null);
+    /**
+     * 独立 Vision 协议类型: openai | anthropic
+     */
+    vision_provider_type?: (string | null);
     api_key?: (string | null);
     /**
      * Selected Default Model ID
@@ -963,13 +968,6 @@ export type LLMTestResponse = {
     message?: string;
     reply?: (string | null);
     [key: string]: unknown | boolean | string;
-};
-
-export type LoginMobileRequest = {
-    mobile: string;
-    key: string;
-    code: string;
-    [key: string]: unknown | string;
 };
 
 /**
@@ -1034,31 +1032,40 @@ export type MemberBenefitsResponse = {
 };
 
 export type MessageItem = {
-    id?: (string | null);
-    role: string;
+    id: string;
+    thread_id: string;
+    run_id?: (string | null);
+    role: 'human' | 'ai' | 'tool' | 'system';
+    category?: (string | null);
     content?: string;
-    thinking?: (Array<{
-        type: string;
-        content: string;
-    }> | null);
-    created_at?: (string | null);
-    steps?: Array<ToolStep>;
+    content_type?: string;
+    thinking?: (string | null);
     tool_calls?: (Array<{
     [key: string]: unknown;
 }> | null);
-    metadata?: {
+    tool_name?: (string | null);
+    tool_call_id?: (string | null);
+    input?: (unknown | null);
+    tool_meta?: ({
+    [key: string]: unknown;
+} | null);
+    status?: (string | null);
+    is_visible?: boolean;
+    created_at?: string;
+    updated_at?: (string | null);
+    sequence_number?: (number | null);
+    parent_id?: (string | null);
+    checkpoint_id?: (string | null);
+    meta_data?: {
         [key: string]: unknown;
     };
-    steps_snapshot?: (Array<{
-    [key: string]: unknown;
-}> | null);
-    run_id?: (string | null);
-    parent_id?: (number | null);
     references?: Array<ReferenceItem>;
     has_file_operations?: boolean;
     changeset_count?: number;
-    [key: string]: unknown | string | ToolStep | ReferenceItem | boolean | number;
+    [key: string]: unknown | string | boolean | ReferenceItem | number;
 };
+
+export type role = 'human' | 'ai' | 'tool' | 'system';
 
 /**
  * Response model for paginated message list.
@@ -1071,16 +1078,10 @@ export type MessageListResponse = {
     page?: number;
     page_size?: number;
     has_more: boolean;
-    first_id?: (number | null);
-    last_id?: (number | null);
+    first_id?: (string | null);
+    last_id?: (string | null);
     total_count?: (number | null);
     [key: string]: unknown | boolean | string | MessageItem | number;
-};
-
-export type MessageResponse = {
-    success?: boolean;
-    message?: string;
-    [key: string]: unknown | boolean | string;
 };
 
 export type MirrorDevicesResponse = {
@@ -1122,6 +1123,7 @@ export type MobileCodeRequest = {
     mobile: string;
     captcha_id?: (string | null);
     captcha_code?: (string | null);
+    type?: string;
     [key: string]: unknown | string;
 };
 
@@ -1445,19 +1447,6 @@ export type RequirementListItem = {
     created_at: (string | null);
     analysis_count: number;
     [key: string]: unknown | string | number;
-};
-
-/**
- * Response for listing requirement documents.
- */
-export type RequirementListResponse = {
-    success?: boolean;
-    message?: string;
-    data?: Array<RequirementListItem>;
-    total?: number;
-    page?: number;
-    page_size?: number;
-    [key: string]: unknown | boolean | string | RequirementListItem | number;
 };
 
 /**
@@ -2003,15 +1992,6 @@ export type TaskProgressUpdate = {
     [key: string]: unknown;
 };
 
-/**
- * Response after updating task progress.
- */
-export type TaskProgressUpdateResponse = {
-    success?: boolean;
-    message?: string;
-    [key: string]: unknown | boolean | string;
-};
-
 export type TaskStatusUpdate = {
     status: number;
     progress?: (number | null);
@@ -2078,6 +2058,7 @@ export type TodoCreate = {
     project_id?: (number | null);
     source_conversation_id?: (string | null);
     source_message_id?: (string | null);
+    run_id?: (string | null);
 };
 
 export type TodoPriority = 'low' | 'medium' | 'high';
@@ -2086,6 +2067,8 @@ export type TodoPriority = 'low' | 'medium' | 'high';
  * Schema for Todo responses.
  */
 export type TodoResponse = {
+    created_at?: (string | null);
+    updated_at?: (string | null);
     id: string;
     title: string;
     description: (string | null);
@@ -2095,9 +2078,8 @@ export type TodoResponse = {
     due_date: (string | null);
     source_conversation_id: (string | null);
     source_message_id: (string | null);
+    run_id: (string | null);
     project_id: (number | null);
-    created_at: string;
-    updated_at: string;
 };
 
 export type TodoStatus = 'pending' | 'completed' | 'cancelled';
@@ -2127,24 +2109,6 @@ export type ToolInfo = {
     [key: string]: unknown;
 } | null);
     is_runtime?: (boolean | null);
-    [key: string]: unknown | string;
-};
-
-/**
- * Standard model for a single tool execution step within an AI message.
- * Used for both persistent history and real-time streaming.
- */
-export type ToolStep = {
-    id: string;
-    tool: string;
-    tool_name?: (string | null);
-    input?: ({
-    [key: string]: unknown;
-} | string | unknown);
-    output?: string;
-    status?: string;
-    duration?: (number | null);
-    tool_call_id?: (string | null);
     [key: string]: unknown | string;
 };
 
@@ -2433,15 +2397,6 @@ export type WikiPageRead = {
     updated_at: string;
 };
 
-/**
- * Response for ZIP import.
- */
-export type ZipImportResponse = {
-    success?: boolean;
-    message?: string;
-    [key: string]: unknown | boolean | string;
-};
-
 export type AccountLoginAccessTokenData = {
     formData: Body_account_login_access_token;
 };
@@ -2581,7 +2536,7 @@ export type AuthGetRegisterConfigResponse = (EvoCloudProxyResponse);
 export type AuthGetRegisterAgreementResponse = (EvoCloudProxyResponse);
 
 export type AuthSendSmsData = {
-    requestBody: AuthProxyMobileCodeRequest;
+    requestBody: MobileCodeRequest;
 };
 
 export type AuthSendSmsResponse = (EvoCloudProxyResponse);
@@ -2599,7 +2554,7 @@ export type AuthRegisterUsernameData = {
 export type AuthRegisterUsernameResponse = (EvoCloudProxyResponse);
 
 export type AuthLoginMobileData = {
-    requestBody: LoginMobileRequest;
+    requestBody: MobileLoginRequest;
 };
 
 export type AuthLoginMobileResponse = (LoginResult);
@@ -2623,7 +2578,7 @@ export type ConversationsListConversationsData = {
 export type ConversationsListConversationsResponse = (Array<ConversationListItem>);
 
 export type ConversationsGetConversationMessagesData = {
-    beforeId?: (number | null);
+    beforeId?: (string | null);
     limit?: number;
     threadId: string;
 };
@@ -2851,13 +2806,13 @@ export type KnowledgeBulkUploadData = {
     formData: Body_knowledge_bulk_upload;
 };
 
-export type KnowledgeBulkUploadResponse = (BulkUploadResponse);
+export type KnowledgeBulkUploadResponse = (BaseAPIResponse);
 
 export type KnowledgeImportZipData = {
     formData: Body_knowledge_import_zip;
 };
 
-export type KnowledgeImportZipResponse = (ZipImportResponse);
+export type KnowledgeImportZipResponse = (BaseAPIResponse);
 
 export type KnowledgeValidateZipData = {
     formData: Body_knowledge_validate_zip;
@@ -3286,7 +3241,7 @@ export type MemberChangePasswordData = {
     requestBody: ChangePasswordRequest;
 };
 
-export type MemberChangePasswordResponse = (MessageResponse);
+export type MemberChangePasswordResponse = (BaseAPIResponse);
 
 export type MemberGetCancellationInfoResponse = (EvoCloudProxyResponse);
 
@@ -3460,7 +3415,7 @@ export type ProjectRequirementsListProjectRequirementsData = {
     projectId: number;
 };
 
-export type ProjectRequirementsListProjectRequirementsResponse = (RequirementListResponse);
+export type ProjectRequirementsListProjectRequirementsResponse = (ListResponse_RequirementListItem_);
 
 export type ProjectRequirementsGetRequirementDetailData = {
     docId: string;
@@ -3526,7 +3481,7 @@ export type ProjectsRunIndexingEndpointData = {
 
 export type ProjectsRunIndexingEndpointResponse = (IndexingRunResponse);
 
-export type ProjectsGetDetectedProjectsResponse = (DetectedProjectsResponse);
+export type ProjectsGetDetectedProjectsResponse = (ListResponse_DetectedProjectItem_);
 
 export type ProjectsImportDetectedProjectData = {
     repoId: number;
@@ -3540,7 +3495,7 @@ export type ProjectsIgnoreDetectedProjectData = {
 
 export type ProjectsIgnoreDetectedProjectResponse = (IgnoreProjectResponse);
 
-export type ProjectsGetIgnoredProjectsResponse = (DetectedProjectsResponse);
+export type ProjectsGetIgnoredProjectsResponse = (ListResponse_DetectedProjectItem_);
 
 export type ProjectsUnignoreProjectData = {
     repoId: number;
@@ -3658,7 +3613,7 @@ export type SubtasksUpdateTaskProgressData = {
     taskId: string;
 };
 
-export type SubtasksUpdateTaskProgressResponse = (TaskProgressUpdateResponse);
+export type SubtasksUpdateTaskProgressResponse = (BaseAPIResponse);
 
 export type SubtasksGetNextExecutableTaskData = {
     projectId: number;

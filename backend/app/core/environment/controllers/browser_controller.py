@@ -60,7 +60,7 @@ async def _run_ocr(filepath: str) -> str:
             return "\n\n" + render_template(
                 "core/vision/ocr_results.prompt.j2",
                 platform="browser",
-                elements=[el.to_dict() for el in ocr_result.elements],
+                elements=[el.model_dump() for el in ocr_result.elements],
                 total_count=len(ocr_result.elements)
             )
         return "\n\n" + ControllerResponse.error("OCR: no text detected")
@@ -293,10 +293,13 @@ class BrowserController:
                 logger.debug(f"[Browser] Typing into locator: {loc} (target={target})")
                 # Log the value being typed (truncated for privacy/length)
                 val_display = str(value)[:50] + ("..." if len(str(value)) > 50 else "")
-                logger.info(f"[Browser] Typing value '{val_display}' into locator: {loc}")
+                logger.info(f"[Browser] Typing value '{val_display}' into locator: {loc} (clear_first={clear_first})")
 
-                await target.fill(value, timeout=timeout_ms)
-                await _record("type_text", {"selector": loc, "value": value})
+                if clear_first:
+                    await target.fill(value, timeout=timeout_ms)
+                else:
+                    await target.press_sequentially(value, timeout=timeout_ms)
+                await _record("type_text", {"selector": loc, "value": value, "clear_first": clear_first})
                 preview = value[:60] + ("…" if len(value) > 60 else "")
                 return ControllerResponse.input_result(
                     field_name=loc,

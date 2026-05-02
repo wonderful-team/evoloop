@@ -85,12 +85,14 @@ class MessagePersistencePolicy:
         # 根据存储字段映射内容
         if storage_field == "content":
             result.content = content
-            # 思考内容单独处理（如果有）
+            # 正常回复中如果带有思考内容，也一并记录
             if thinking:
                 result.thinking = thinking
         elif storage_field == "thinking":
             # 思考过程存入 thinking 字段
-            result.thinking = content
+            # 优先使用已提取的 thinking，如果没有则取正文 (例如来自隐含标签的内容)
+            result.thinking = thinking or content
+            # 既然是纯思考分类，正文置空以防重复显示
             result.content = ""
 
         return result

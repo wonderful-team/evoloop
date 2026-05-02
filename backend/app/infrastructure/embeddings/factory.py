@@ -3,6 +3,7 @@ import logging
 from app.core.config import settings
 from app.infrastructure.config import SystemConfigService
 from app.infrastructure.embeddings.base import BaseEmbedder
+from app.infrastructure.embeddings.noop import NoOpEmbedder
 from app.infrastructure.embeddings.ollama import OllamaEmbedder
 from app.infrastructure.embeddings.openai import GenericOpenAIEmbedder
 
@@ -68,10 +69,10 @@ class EmbedderFactory:
         if not provider:
             # No explicit provider configured and no DB config.
             # Low priority warning instead of error to allow OpenAPI export and setup
-            warning_msg = "Embedding provider not configured. Some features may be disabled until configured via System Settings."
+            warning_msg = "Embedding provider not configured. Vector features will be disabled until configured via System Settings."
             logger.warning(warning_msg)
-            # Return None or a dummy to allow startup
-            return None # type: ignore
+            # Return NoOpEmbedder to allow startup and basic indexing
+            return NoOpEmbedder()
 
         # 2. DB Config Exists
         if provider == "openai" or provider == "generic" or provider == "local":

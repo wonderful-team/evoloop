@@ -79,6 +79,7 @@ class BlackboardMetadata(DynamicBaseModel):
     audit_tier: str | None = None
     audit_meta: AuditMeta | None = None
     blocked_by_hook: bool | None = None
+    tool_history: list[str] = Field(default_factory=list)
 
 
 class WorkflowStepResult(DynamicBaseModel):
@@ -201,8 +202,8 @@ def merge_blackboard(old: Any, new: Any) -> BlackboardState | None:
         policy, dedup_key = _resolve_field_policy(field_name, field_info)
         new_val = getattr(new, field_name, None)
 
-        if new_val is None:
-            # OPTIMIZATION: Do not overwrite with None if the field was already set.
+        if new_val is None and field_name not in new.model_fields_set:
+            # OPTIMIZATION: Do not overwrite with None if the field was not explicitly set.
             # This allows nodes to return StateUpdate objects with missing fields (defaulting to None)
             # without wiping the global blackboard state.
             continue

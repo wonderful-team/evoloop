@@ -24,8 +24,7 @@ class ReadMcpResourceInput(BaseModel):
     "read_mcp_resource",
     args_schema=ReadMcpResourceInput,
     is_state_mutating=False,
-    summary_template="database_logger.tool_summary.read_mcp_resource",
-    name_map={"zh": "读取MCP资源", "en": "Read MCP Resource"}
+    summary_template="database_logger.tool_summary.read_mcp_resource"
 )
 async def read_mcp_resource(server_name: str, uri: str) -> str:
     """

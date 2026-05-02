@@ -127,6 +127,41 @@ class IdentityStore:
             return False
 
     @classmethod
+    def save_refresh_token(cls, token: str) -> bool:
+        if _use_file_token_storage():
+            return _file_storage_set("refresh_token", token)
+        try:
+            _get_keyring().set_password(settings.SERVICE_NAME, "refresh_token", token)
+            return True
+        except Exception as e:
+            logger.error(f"Failed to save refresh token to keychain: {e}")
+            return False
+
+    @classmethod
+    def get_refresh_token(cls) -> str | None:
+        if _use_file_token_storage():
+            return _file_storage_get("refresh_token")
+        try:
+            return _get_keyring().get_password(settings.SERVICE_NAME, "refresh_token")
+        except Exception as e:
+            logger.error(f"Failed to get refresh token from keychain: {e}")
+            return None
+
+    @classmethod
+    def delete_refresh_token(cls) -> bool:
+        if _use_file_token_storage():
+            return _file_storage_delete("refresh_token")
+        try:
+            kr = _get_keyring()
+            kr.delete_password(settings.SERVICE_NAME, "refresh_token")
+            return True
+        except Exception as e:
+            if "PasswordDeleteError" in type(e).__name__ or "not found" in str(e).lower():
+                return True
+            logger.error(f"Failed to delete refresh token from keychain: {e}")
+            return False
+
+    @classmethod
     def save_device_key(cls, key: str) -> bool:
         if _use_file_token_storage():
             return _file_storage_set("device_key", key)

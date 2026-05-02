@@ -57,4 +57,23 @@ class SequenceService:
                     select(ThreadSequence.next_seq).where(ThreadSequence.thread_id == thread_id)
                 )
                 seq = row.scalar() or 1
+            
             return seq
+
+    @staticmethod
+    async def set_sequence(thread_id: str, next_seq: int) -> None:
+        """
+        Manually set the next sequence number for a thread.
+        Used during rewind/reset operations to maintain continuity.
+        """
+        async with session_scope() as session:
+            stmt = text(
+                """
+                INSERT INTO thread_sequences (thread_id, next_seq)
+                VALUES (:thread_id, :next_seq)
+                ON CONFLICT (thread_id) DO UPDATE
+                SET next_seq = :next_seq
+                """
+            )
+            await session.execute(stmt, {"thread_id": thread_id, "next_seq": next_seq})
+            logger.info(f"[SequenceService] Manually set next_seq for {thread_id} to {next_seq}")

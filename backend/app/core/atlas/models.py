@@ -11,23 +11,23 @@ Defines the core data structures that represent an application's UI topology:
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import Field
 
+from app.core.atlas.schemas import AtlasStateMetadata, MenuTree, Rect, ElementMetadata
 from app.infrastructure.pydantic_base import DynamicBaseModel
-from app.core.atlas.schemas import AtlasStateMetadata, MenuItem, MenuTree, Rect, ElementMetadata
+
 
 class AtlasElement(DynamicBaseModel):
     """
     A semantic anchor for a single interactive UI element.
     Platform-agnostic representation.
     """
-    role: str = ""                   # e.g., "BUTTON", "INPUT", "AXButton"
-    label: str = ""                  # e.g., "Save", "File"
-    ax_path: str = ""                # Primary structural path/locator (Legacy/macOS specific)
-    os_identifier: str | None = None # Cross-platform OS identifier
-    ocr_confidence: float | None = None # Vision/OCR confidence score
+    role: str = ""  # e.g., "BUTTON", "INPUT", "AXButton"
+    label: str = ""  # e.g., "Save", "File"
+    ax_path: str = ""  # Primary structural path/locator (Legacy/macOS specific)
+    os_identifier: str | None = None  # Cross-platform OS identifier
+    ocr_confidence: float | None = None  # Vision/OCR confidence score
     shortcut: str | None = None
     visual_hash: str | None = None
     bounds: Rect | None = None
@@ -36,19 +36,10 @@ class AtlasElement(DynamicBaseModel):
 
     # Element classification
     element_category: str = "unknown"  # static | dynamic | container_*
-    is_infrastructure: bool = False     # True for reliable static elements
+    is_infrastructure: bool = False  # True for reliable static elements
     coordinate_confidence: float = 1.0  # 0.0-1.0
-    clickable: bool = False             # Whether element is interactive
+    clickable: bool = False  # Whether element is interactive
     metadata: ElementMetadata = Field(default_factory=ElementMetadata)
-
-    def to_dict(self) -> dict:
-        """Legacy compatibility method."""
-        return self.model_dump(by_alias=True)
-
-    @classmethod
-    def from_dict(cls, data: dict) -> AtlasElement:
-        """Legacy compatibility method."""
-        return cls.model_validate(data)
 
 
 class AtlasState(DynamicBaseModel):
@@ -69,13 +60,6 @@ class AtlasState(DynamicBaseModel):
     def get_element_by_path(self, ax_path: str) -> AtlasElement | None:
         return next((e for e in self.elements if e.ax_path == ax_path), None)
 
-    def to_dict(self) -> dict:
-        return self.model_dump()
-
-    @classmethod
-    def from_dict(cls, data: dict) -> AtlasState:
-        return cls.model_validate(data)
-
 
 class AtlasTransition(DynamicBaseModel):
     """
@@ -86,13 +70,6 @@ class AtlasTransition(DynamicBaseModel):
     to_state: str
     action_type: str = "click"
     success: bool = True
-
-    def to_dict(self) -> dict:
-        return self.model_dump()
-
-    @classmethod
-    def from_dict(cls, data: dict) -> AtlasTransition:
-        return cls.model_validate(data)
 
 
 class AtlasApp(DynamicBaseModel):
@@ -183,17 +160,6 @@ class AtlasApp(DynamicBaseModel):
     def add_state(self, state: AtlasState) -> None:
         """Add a new state to the app model."""
         self.states[state.state_id] = state
-
-    def to_dict(self) -> dict:
-        """Convert to dictionary with proper datetime handling."""
-        data = self.model_dump()
-        data["explored_at"] = self.explored_at.isoformat()
-        return data
-
-    @classmethod
-    def from_dict(cls, data: dict) -> AtlasApp:
-        """Create from dictionary."""
-        return cls.model_validate(data)
 
     def to_json(self) -> str:
         """Export to JSON string."""

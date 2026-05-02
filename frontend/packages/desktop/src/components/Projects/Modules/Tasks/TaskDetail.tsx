@@ -89,10 +89,9 @@ export const TaskDetail: React.FC<TaskDetailProps> = ({
 
     setExecuting(true)
     try {
-      const token = localStorage.getItem("access_token")
+      // Backend identifies user via Cookie Session.
       const res = (await TasksService.executeTask({
         taskId: taskId,
-        authorization: token,
       })) as any
 
       if (res.status === "queued" && res.thread_id) {

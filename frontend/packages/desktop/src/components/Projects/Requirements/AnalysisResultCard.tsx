@@ -142,35 +142,42 @@ export function AnalysisResultCard({
   }) => (
     <button
       onClick={() => toggleSection(section)}
-      className="flex items-center justify-between w-full py-2 px-3 hover:bg-muted/50 rounded-lg transition-colors"
+      className="flex items-center justify-between w-full py-3 px-4 hover:bg-muted/30 rounded-xl transition-all group/header"
     >
-      <div className="flex items-center gap-2">
-        <Icon className="h-4 w-4 text-muted-foreground" />
-        <span className="font-medium text-sm">{title}</span>
+      <div className="flex items-center gap-3">
+        <div className="p-1.5 rounded-lg bg-muted/50 group-hover/header:bg-primary/10 transition-colors">
+            <Icon className="h-4 w-4 text-muted-foreground group-hover/header:text-primary transition-colors" />
+        </div>
+        <span className="font-bold text-sm tracking-tight">{title}</span>
         {count !== undefined && (
-          <Badge variant="secondary" className="text-xs">
+          <span className="text-[10px] bg-muted px-2 py-0.5 rounded-full text-muted-foreground font-bold">
             {count}
-          </Badge>
+          </span>
         )}
       </div>
-      {isExpanded(section) ? (
-        <ChevronUp className="h-4 w-4 text-muted-foreground" />
-      ) : (
-        <ChevronDown className="h-4 w-4 text-muted-foreground" />
-      )}
+      <div className="opacity-30 group-hover/header:opacity-100 transition-opacity">
+        {isExpanded(section) ? (
+            <ChevronUp className="h-4 w-4" />
+        ) : (
+            <ChevronDown className="h-4 w-4" />
+        )}
+      </div>
     </button>
   )
 
   return (
-    <Card className="w-full max-w-3xl border-primary/20">
-      <CardHeader className="pb-3">
-        <div className="flex items-center gap-2 mb-2">
-          <ClipboardList className="h-5 w-5 text-primary" />
-          <Badge variant="outline" className="text-xs">
-            {t("requirements.analysis.badge", "需求分析结果")}
-          </Badge>
+    <div className="w-full max-w-4xl bg-muted/5 border border-[var(--doc-border)] rounded-xl overflow-hidden shadow-sm my-6 animate-in fade-in slide-in-from-top-2 duration-500">
+      <div className="p-6 border-b border-[var(--doc-border)] bg-muted/10">
+        <div className="flex items-center gap-3 mb-3">
+          <div className="p-2 bg-primary/10 rounded-lg">
+             <ClipboardList className="h-5 w-5 text-primary" />
+          </div>
+          <span className="uppercase tracking-[0.2em] text-[10px] font-bold text-primary/60">
+            {t("requirements.analysis.badge", "Requirement Analysis Report")}
+          </span>
         </div>
-        <CardTitle className="text-lg">
+        
+        <h2 className="text-xl font-bold tracking-tight mb-2">
           {isEditing ? (
             <input
               type="text"
@@ -178,248 +185,219 @@ export function AnalysisResultCard({
               onChange={(e) =>
                 setEditData((prev) => ({ ...prev, title: e.target.value }))
               }
-              className="w-full px-2 py-1 border rounded"
+              className="w-full bg-background/50 px-3 py-1.5 border border-primary/20 rounded-md focus:outline-none focus:ring-1 focus:ring-primary/30"
             />
           ) : (
-            data.title || t("requirements.analysis.untitled", "未命名需求")
+            data.title || t("requirements.analysis.untitled", "Untitled Requirement")
           )}
-        </CardTitle>
+        </h2>
+        
         {data.summary && (
-          <CardDescription>
+          <div className="text-sm text-muted-foreground/80 leading-relaxed max-w-3xl">
             {isEditing ? (
               <Textarea
                 value={editData.summary || ""}
                 onChange={(e) =>
                   setEditData((prev) => ({ ...prev, summary: e.target.value }))
                 }
-                className="mt-2"
+                className="mt-2 bg-background/50 border-primary/10"
                 rows={3}
               />
             ) : (
               data.summary
             )}
-          </CardDescription>
+          </div>
         )}
-      </CardHeader>
+      </div>
 
-      <CardContent className="space-y-4">
+      <div className="p-6 space-y-6">
         {/* Functional Requirements */}
         {data.functional_requirements &&
           data.functional_requirements.length > 0 && (
-            <div className="border rounded-lg">
+            <div className="space-y-3">
               <SectionHeader
-                title={t("requirements.analysis.functionalRequirements", "功能需求")}
+                title={t("requirements.analysis.functionalRequirements", "Functional Requirements")}
                 icon={ListTodo}
                 section="functional"
                 count={data.functional_requirements.length}
               />
               {isExpanded("functional") && (
-                <ScrollArea className="max-h-60">
-                  <div className="p-3 space-y-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pl-2">
                     {data.functional_requirements.map((req) => (
                       <div
                         key={req.id}
-                        className="p-3 bg-muted/50 rounded-lg"
+                        className="p-4 bg-background border border-[var(--doc-border)] rounded-xl hover:border-primary/20 transition-all group/req"
                       >
                         <div className="flex items-start justify-between gap-2 mb-2">
-                          <span className="text-sm font-medium">{req.id}</span>
+                          <span className="text-[10px] font-mono font-bold opacity-30 group-hover/req:opacity-100 transition-opacity">{req.id}</span>
                           <Badge
-                            className={cn("text-xs", getPriorityColor(req.priority))}
+                            variant="secondary"
+                            className={cn("text-[10px] font-bold uppercase tracking-tighter px-1.5 py-0", getPriorityColor(req.priority))}
                           >
                             {req.priority}
                           </Badge>
                         </div>
-                        <p className="text-sm mb-2">{req.description}</p>
+                        <p className="text-sm font-medium mb-3">{req.description}</p>
                         {req.acceptance_criteria?.length > 0 && (
-                          <ul className="text-xs text-muted-foreground space-y-1">
+                          <div className="space-y-1.5 border-t border-border/40 pt-3">
                             {req.acceptance_criteria.map((criteria, idx) => (
-                              <li key={idx} className="flex items-start gap-1">
-                                <Check className="h-3 w-3 mt-0.5 flex-shrink-0" />
-                                {criteria}
-                              </li>
+                              <div key={idx} className="flex items-start gap-2 text-[11px] text-muted-foreground/70">
+                                <Check className="h-3 w-3 mt-0.5 text-primary/50 shrink-0" />
+                                <span>{criteria}</span>
+                              </div>
                             ))}
-                          </ul>
+                          </div>
                         )}
                       </div>
                     ))}
-                  </div>
-                </ScrollArea>
+                </div>
               )}
             </div>
           )}
 
         {/* User Stories */}
         {data.user_stories && data.user_stories.length > 0 && (
-          <div className="border rounded-lg">
+          <div className="space-y-3">
             <SectionHeader
-              title={t("requirements.analysis.userStories", "用户故事")}
+              title={t("requirements.analysis.userStories", "User Stories")}
               icon={Users}
               section="stories"
               count={data.user_stories.length}
             />
             {isExpanded("stories") && (
-              <ScrollArea className="max-h-60">
-                <div className="p-3 space-y-3">
+              <div className="space-y-3 pl-2">
                   {data.user_stories.map((story) => (
-                    <div key={story.id} className="p-3 bg-muted/50 rounded-lg">
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="text-sm font-medium">{story.id}</span>
+                    <div key={story.id} className="p-4 bg-background border border-[var(--doc-border)] rounded-xl">
+                      <div className="text-[10px] font-mono font-bold opacity-30 mb-2">{story.id}</div>
+                      <div className="text-[15px] leading-relaxed">
+                        <span className="text-muted-foreground font-medium italic">{t("requirements.analysis.asA", "As a")}</span>{" "}
+                        <span className="font-bold underline decoration-primary/20">{story.role}</span>,{" "}
+                        <span className="text-muted-foreground font-medium italic">{t("requirements.analysis.iWant", "I want to")}</span>{" "}
+                        <span className="font-bold">{story.action}</span>,{" "}
+                        <span className="text-muted-foreground font-medium italic">{t("requirements.analysis.soThat", "so that")}</span>{" "}
+                        <span className="text-muted-foreground">{story.benefit}</span>
                       </div>
-                      <p className="text-sm mb-2">
-                        <span className="text-muted-foreground">{t("requirements.analysis.asA", "作为")}</span>{" "}
-                        {story.role}，
-                        <span className="text-muted-foreground">{t("requirements.analysis.iWant", "我想要")}</span>{" "}
-                        {story.action}，
-                        <span className="text-muted-foreground">{t("requirements.analysis.soThat", "以便")}</span>{" "}
-                        {story.benefit}
-                      </p>
                       {story.acceptance_criteria?.length > 0 && (
-                        <ul className="text-xs text-muted-foreground space-y-1">
+                        <div className="mt-4 flex flex-wrap gap-2">
                           {story.acceptance_criteria.map((criteria, idx) => (
-                            <li key={idx} className="flex items-start gap-1">
-                              <Check className="h-3 w-3 mt-0.5 flex-shrink-0" />
+                            <span key={idx} className="inline-flex items-center gap-1.5 px-2 py-1 rounded bg-muted/30 text-[11px] text-muted-foreground border border-border/40">
+                              <Check className="h-3 w-3 text-primary/40" />
                               {criteria}
-                            </li>
+                            </span>
                           ))}
-                        </ul>
+                        </div>
                       )}
                     </div>
                   ))}
-                </div>
-              </ScrollArea>
-            )}
-          </div>
-        )}
-
-        {/* Technical Suggestions */}
-        {data.technical_suggestions &&
-          data.technical_suggestions.length > 0 && (
-            <div className="border rounded-lg">
-              <SectionHeader
-                title={t("requirements.analysis.technicalSuggestions", "技术建议")}
-                icon={Lightbulb}
-                section="technical"
-                count={data.technical_suggestions.length}
-              />
-              {isExpanded("technical") && (
-                <div className="p-3 space-y-3">
-                  {data.technical_suggestions.map((suggestion, idx) => (
-                    <div key={idx} className="p-3 bg-muted/50 rounded-lg">
-                      <Badge variant="outline" className="mb-2 text-xs">
-                        {suggestion.area}
-                      </Badge>
-                      <p className="text-sm font-medium mb-1">
-                        {suggestion.suggestion}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {suggestion.rationale}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-        {/* Risks */}
-        {data.risks && data.risks.length > 0 && (
-          <div className="border rounded-lg">
-            <SectionHeader
-              title={t("requirements.analysis.risks", "风险与缓解")}
-              icon={ShieldAlert}
-              section="risks"
-              count={data.risks.length}
-            />
-            {isExpanded("risks") && (
-              <div className="p-3 space-y-3">
-                {data.risks.map((risk, idx) => (
-                  <div key={idx} className="p-3 bg-muted/50 rounded-lg">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Badge
-                        className={cn("text-xs", getImpactColor(risk.impact))}
-                      >
-                        {risk.impact}
-                      </Badge>
-                    </div>
-                    <p className="text-sm font-medium mb-1">{risk.description}</p>
-                    <p className="text-xs text-muted-foreground">
-                      <span className="font-medium">{t("requirements.analysis.mitigation", "缓解措施")}:</span>{" "}
-                      {risk.mitigation}
-                    </p>
-                  </div>
-                ))}
               </div>
             )}
           </div>
         )}
 
-        {/* Dependencies */}
-        {data.dependencies && data.dependencies.length > 0 && (
-          <div className="border rounded-lg">
-            <SectionHeader
-              title={t("requirements.analysis.dependencies", "依赖项")}
-              icon={CheckCircle}
-              section="dependencies"
-              count={data.dependencies.length}
-            />
-            {isExpanded("dependencies") && (
-              <div className="p-3">
-                <ul className="text-sm space-y-1">
-                  {data.dependencies.map((dep, idx) => (
-                    <li key={idx} className="flex items-center gap-2">
-                      <span className="text-muted-foreground">•</span>
-                      {dep}
-                    </li>
-                  ))}
-                </ul>
-              </div>
+        {/* Technical Suggestions & Risks */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {data.technical_suggestions && data.technical_suggestions.length > 0 && (
+                <div className="space-y-3">
+                   <SectionHeader
+                        title={t("requirements.analysis.technicalSuggestions", "Technical Suggestions")}
+                        icon={Lightbulb}
+                        section="technical"
+                    />
+                    {isExpanded("technical") && (
+                        <div className="space-y-3 pl-2">
+                        {data.technical_suggestions.map((suggestion, idx) => (
+                            <div key={idx} className="p-3 bg-muted/20 border-l-2 border-primary/20 rounded-r-lg">
+                                <span className="text-[10px] font-bold uppercase tracking-widest text-primary/60 block mb-1">
+                                    {suggestion.area}
+                                </span>
+                                <p className="text-sm font-bold mb-1 leading-snug">
+                                    {suggestion.suggestion}
+                                </p>
+                                <p className="text-xs text-muted-foreground/70 italic">
+                                    {suggestion.rationale}
+                                </p>
+                            </div>
+                        ))}
+                        </div>
+                    )}
+                </div>
             )}
-          </div>
-        )}
+
+            {data.risks && data.risks.length > 0 && (
+                <div className="space-y-3">
+                   <SectionHeader
+                        title={t("requirements.analysis.risks", "Risks & Mitigations")}
+                        icon={ShieldAlert}
+                        section="risks"
+                    />
+                    {isExpanded("risks") && (
+                        <div className="space-y-3 pl-2">
+                        {data.risks.map((risk, idx) => (
+                            <div key={idx} className="p-3 bg-red-500/5 border-l-2 border-red-500/40 rounded-r-lg">
+                                <div className="flex items-center justify-between mb-2">
+                                    <Badge variant="outline" className={cn("text-[9px] font-bold uppercase", getImpactColor(risk.impact))}>
+                                        {risk.impact} Impact
+                                    </Badge>
+                                </div>
+                                <p className="text-sm font-bold mb-1">{risk.description}</p>
+                                <div className="text-xs text-muted-foreground/80 mt-2 bg-background/50 p-2 rounded border border-red-500/10">
+                                    <span className="font-bold text-[9px] uppercase tracking-tighter mr-1">{t("requirements.analysis.mitigation", "Mitigation")}:</span>{" "}
+                                    {risk.mitigation}
+                                </div>
+                            </div>
+                        ))}
+                        </div>
+                    )}
+                </div>
+            )}
+        </div>
 
         {/* Feedback Input */}
         {onRequestChanges && (
-          <div className="pt-4 border-t">
-            <label className="text-sm font-medium mb-2 block">
-              {t("requirements.analysis.feedback", "修改意见")}
+          <div className="pt-8 border-t border-[var(--doc-border)]">
+            <label className="text-[11px] font-bold uppercase tracking-[0.15em] text-muted-foreground/60 mb-3 block">
+              {t("requirements.analysis.feedback", "Revision Feedback")}
             </label>
             <Textarea
               placeholder={t(
                 "requirements.analysis.feedbackPlaceholder",
-                "如有修改意见，请在此输入..."
+                "Enter your feedback here if you need any adjustments..."
               )}
               value={feedback}
               onChange={(e) => setFeedback(e.target.value)}
               rows={3}
+              className="bg-background border-border/60 focus:border-primary/40 focus:ring-primary/10 rounded-xl"
             />
           </div>
         )}
-      </CardContent>
+      </div>
 
-      <CardFooter className="flex justify-between pt-4 border-t">
-        <div className="flex gap-2">
+      <div className="p-6 bg-muted/10 border-t border-[var(--doc-border)] flex flex-wrap justify-between items-center gap-4">
+        <div className="flex gap-3">
           {onRequestChanges && (
             <Button
               variant="outline"
+              size="sm"
               onClick={handleRequestChanges}
               disabled={!feedback.trim()}
+              className="rounded-full px-5 border-red-500/20 text-red-600 hover:bg-red-50 font-bold"
             >
-              {t("requirements.analysis.requestChanges", "请求修改")}
+              {t("requirements.analysis.requestChanges", "Request Changes")}
             </Button>
           )}
-          <Button variant="ghost" onClick={() => setIsEditing(!isEditing)}>
+          <Button variant="ghost" size="sm" onClick={() => setIsEditing(!isEditing)} className="text-muted-foreground hover:text-foreground font-bold">
             {isEditing
-              ? t("common.cancel", "取消编辑")
-              : t("common.edit", "编辑")}
+              ? t("common.cancel", "Cancel Edit")
+              : t("common.edit", "Edit Content")}
           </Button>
         </div>
-        <Button onClick={handleConfirm} className="gap-2">
-          <Check className="h-4 w-4" />
+        <Button onClick={handleConfirm} className="gap-2 rounded-full px-8 font-bold shadow-lg shadow-primary/20">
+          <CheckCircle className="h-4 w-4" />
           {isEditing
-            ? t("requirements.analysis.saveAndConfirm", "保存并确认")
-            : t("requirements.analysis.confirm", "确认分析")}
+            ? t("requirements.analysis.saveAndConfirm", "Save & Confirm")
+            : t("requirements.analysis.confirm", "Confirm Analysis")}
         </Button>
-      </CardFooter>
-    </Card>
+      </div>
+    </div>
   )
 }

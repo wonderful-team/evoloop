@@ -23,17 +23,11 @@ from app.core.engine.state import AgentState
 logger = logging.getLogger(__name__)
 
 
-class EvoContextMiddleware:
+class AgentContextHydrator:
     """
-    Middleware for unified context and state management.
-    Handles hydration of Environment, Project, and Memory before session execution.
-    
-    Optimization:
-    - Layered Caching: Tracks hydrated state via state.hydration_marker.
-    - Single Container: Reused MemoryContainer for all operations.
+    Unified context hydration service.
+    Handles hydration of Environment, Project, and Memory ONCE per session.
     """
-
-    HYDRATION_VERSION = "2024.1"
 
     @classmethod
     async def _get_shared_memory_container(cls) -> Any:
@@ -46,108 +40,57 @@ class EvoContextMiddleware:
         return MemoryLifespanManager.get_container()
 
     @staticmethod
-    async def hydrate(state: AgentState, config: RunnableConfig) -> AgentState:
+    async def hydrate(
+        ctx: EvoContext,
+        blackboard: Any,
+        config: RunnableConfig,
+        last_human_msg: str = "",
+        is_retry: bool = False,
+        is_subtask: bool = False,
+        iteration_count: int = 0
+    ) -> None:
         """
         Layered context hydration with caching and predictive memory loading.
+        Mutates ctx.metadata and blackboard directly.
         """
-        from app.core.engine.state import ensure_state
-        state = ensure_state(state)
-        
-        # 0. Check hydration marker (Deduplication)
-        if state.hydration_marker == EvoContextMiddleware.HYDRATION_VERSION:
-            return state
-
         start_time = time.time()
-        ctx = ContextManager.current()
 
-        # 1. Circuit Breaker: Terminal errors
-        terminal_source = None
-        if ctx.terminal_error:
-            terminal_source = f"context ({ctx.terminal_error})"
-        elif state.messages:
-            last_msg = state.messages[-1]
-            if isinstance(last_msg, AIMessage) and getattr(last_msg, "metadata", None):
-                if last_msg.metadata.get("is_terminal"):
-                    terminal_source = f"history ({last_msg.metadata.get('error_type', 'unknown')})"
+        # 1. Trigger SessionStart Hook
+        session_start_result = await hook_system.trigger(
+            HookEvent.SESSION_START,
+            HookContext(
+                thread_id=ctx.thread_id,
+                project_id=ctx.project_id,
+                user_id=ctx.user_id,
+                blackboard=blackboard,
+            ),
+        )
+        if session_start_result.modified_context:
+            blackboard.update(session_start_result.modified_context.blackboard)
 
-        if terminal_source:
-            logger.warning(f"[Middleware] 🚫 Circuit Breaker: {terminal_source}. Aborting.")
-            from app.core.exceptions import AgentTerminalException
-            raise AgentTerminalException(
-                message=f"Circuit Breaker triggered: {terminal_source}",
-                error_type=ctx.terminal_error or "terminal_error"
-            )
-
-        # 2. Ensure Context exists (strict SSOT)
-        if not ctx or not ctx.thread_id:
-            logger.warning("[Middleware] No active context found during hydration. Creating minimal subtask context.")
-            # Fallback for subtasks or tests that bypass dispatch
-            current_thread_id = state.thread_id or config.get("configurable", {}).get("thread_id", "local-exec")
-            current_model = config.get("configurable", {}).get("model")
-
-            ctx = EvoContext(
-                thread_id=current_thread_id,
-                project_id=state.project_id or config.get("configurable", {}).get("project_id", DEFAULT_PROJECT_ID),
-                active_model=current_model,
-            )
-            ContextManager.set(ctx)
-
-        blackboard = state.blackboard
-
-        # 3. Trigger SessionStart Hook
-        try:
-            session_start_result = await hook_system.trigger(
-                HookEvent.SESSION_START,
-                HookContext(
-                    thread_id=ctx.thread_id,
-                    project_id=ctx.project_id,
-                    user_id=ctx.user_id,
-                    blackboard=blackboard,
-                ),
-            )
-            if session_start_result.modified_context:
-                blackboard.update(session_start_result.modified_context.blackboard)
-        except Exception as e:
-            logger.warning(f"[Middleware] SessionStart hook failed: {e}")
-
-        # 4. Memory Preparation
-        memory_container = await EvoContextMiddleware._get_shared_memory_container()
         memory_data = {}
+        memory_container = await AgentContextHydrator._get_shared_memory_container()
+        memory_manager = memory_container.memory_manager
+        
+        # Tier 1: Hot Memory (High Priority Instructions)
+        hot_memory = await memory_manager.get_hot_memory()
+        if hot_memory:
+            memory_data['hot_memory'] = hot_memory
 
-        # Extract last human message
-        last_human_msg = ""
-        for msg in reversed(state.messages):
-            if msg.type == "human":
-                if isinstance(msg.content, list):
-                    last_human_msg = " ".join([b.get("text", "") for b in msg.content if isinstance(b, dict) and b.get("type") == "text"])
-                else:
-                    last_human_msg = str(msg.content)
-                break
-
-        try:
-            memory_manager = memory_container.memory_manager
+        # Tier 2: Predictive load (Concepts & Episodes - Only for primary turns)
+        if last_human_msg and not is_subtask:
+            concepts, episodes = await __import__("asyncio").gather(
+                memory_manager.search_concepts(last_human_msg, ctx.project_id),
+                memory_manager.search_episodes(last_human_msg, ctx.project_id, limit=3)
+            )
             
-            # Tier 1: Hot Memory (High Priority Instructions)
-            hot_memory = await memory_manager.get_hot_memory()
-            if hot_memory:
-                memory_data['hot_memory'] = hot_memory
-
-            # Tier 2: Predictive load (Concepts & Episodes - Only for primary turns)
-            if last_human_msg and not state.is_subtask:
-                concepts, episodes = await __import__("asyncio").gather(
-                    memory_manager.search_concepts(last_human_msg, ctx.project_id),
-                    memory_manager.search_episodes(last_human_msg, ctx.project_id, limit=3)
-                )
-                
-                if concepts:
-                    memory_data['project_concepts'] = "\n".join([f"- **{c.name}**: {c.description}" for c in concepts[:3]])
-                if episodes:
-                    current_run_id = config.get("configurable", {}).get("run_id")
-                    filtered = [e for e in episodes if e.get("id") != f"ep_{current_run_id}"]
-                    if filtered:
-                        memory_data['episodes'] = "\n".join([f"- **Goal**: {e['goal']}\n  **Result**: {e['result']}" for e in filtered[:2]])
-        except Exception as e:
-            logger.warning(f"[Middleware] Memory hydration failed: {e}")
+            if concepts:
+                memory_data['project_concepts'] = "\n".join([f"- **{c.name}**: {c.description}" for c in concepts[:3]])
+            if episodes:
+                current_run_id = config.get("configurable", {}).get("run_id")
+                filtered = [e for e in episodes if e.get("id") != f"ep_{current_run_id}"]
+                if filtered:
+                    memory_data['episodes'] = "\n".join([f"- **Goal**: {e['goal']}\n  **Result**: {e['result']}" for e in filtered[:2]])
 
         # 5. Static Layer (Skills, Telemetry)
         async def _load_static_data():
@@ -177,56 +120,49 @@ class EvoContextMiddleware:
         ctx.metadata.environment_telemetry = static_layer.environment_telemetry
 
         # 6. Dynamic Layer & Plugins
-        dynamic_layer = LayeredContextCache.get_dynamic_layer(state)
-        ctx.metadata.blackboard = dynamic_layer.blackboard
-        ctx.metadata.execution_ticket = dynamic_layer.execution_ticket
-        ctx.metadata.iteration_count = dynamic_layer.iteration_count
+        # We manually inject the dynamic values since we aren't using the full AgentState here
+        ctx.metadata.blackboard = blackboard
+        ctx.metadata.execution_ticket = blackboard.ticket if hasattr(blackboard, "ticket") else None
+        ctx.metadata.iteration_count = iteration_count
 
         from app.core.context.plugins import plugin_registry
         plugin_registry.hydrate_context(ctx)
 
         # 7. Domain Expert Polishing (Event-Driven)
-        try:
-            from app.core.events.publishers import publish_context_polishing
-            await publish_context_polishing(
-                thread_id=ctx.thread_id,
-                project_id=ctx.project_id,
-                model=ctx.active_model,
-                context={
-                    "ctx": ctx,
-                    "topic": (blackboard.ticket.topic if blackboard.ticket else ""),
-                },
-            )
-        except Exception as e:
-            logger.warning(f"[Middleware] CONTEXT_POLISHING event failed: {e}")
+        from app.core.events.publishers import publish_context_polishing
+        topic = ""
+        if hasattr(blackboard, "ticket") and blackboard.ticket:
+            topic = blackboard.ticket.topic
+        await publish_context_polishing(
+            thread_id=ctx.thread_id,
+            project_id=ctx.project_id,
+            model=ctx.active_model,
+            context={
+                "ctx": ctx,
+                "topic": topic,
+            },
+        )
 
         # 8. Retry Hardening (Metadata Reset)
-        is_retry = config.get("metadata", {}).get("is_retry", False)
-        if (state.is_retry or is_retry) and state.iteration_count == 0 and not state.is_subtask:
-            logger.info("[Middleware] 🔄 Retry detected: Performing blackboard metadata reset.")
-            if not state.is_retry:
-                state.is_retry = True
+        is_config_retry = config.get("metadata", {}).get("is_retry", False)
+        if (is_retry or is_config_retry) and iteration_count == 0 and not is_subtask:
+            logger.info("[AgentContextHydrator] 🔄 Retry detected: Performing blackboard metadata reset.")
 
-            # Reset stale outcomes but preserve the core intent
-            if blackboard.metadata:
+            if hasattr(blackboard, "metadata"):
                 blackboard.metadata.final_outcome = None
                 blackboard.metadata.shadow_audit = None
-            blackboard.verification = None
-            blackboard.route_reason = None
+            if hasattr(blackboard, "verification"):
+                blackboard.verification = None
+            if hasattr(blackboard, "route_reason"):
+                blackboard.route_reason = None
             
             # Invalidate static cache for this session to ensure fresh environment scan on retry
             LayeredContextCache.invalidate_static(session_id)
         else:
-            if blackboard.metadata:
+            if hasattr(blackboard, "metadata"):
                 blackboard.metadata.final_outcome = None
                 blackboard.metadata.shadow_audit = None
 
-        # 9. Final State Update
-        state.blackboard = blackboard
-        state.hydration_marker = EvoContextMiddleware.HYDRATION_VERSION
-
         duration_ms = (time.time() - start_time) * 1000
         if duration_ms > 100:
-            logger.info(f"[Middleware] Hydration completed in {duration_ms:.1f}ms")
-
-        return state
+            logger.info(f"[AgentContextHydrator] Hydration completed in {duration_ms:.1f}ms")

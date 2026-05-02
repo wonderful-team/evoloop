@@ -10,12 +10,12 @@ import logging
 from abc import ABC, abstractmethod
 from typing import Any
 
-from app.core.execution.macro.models import (
+from app.core.execution.macro.schemas import (
     MacroEvolutionRecord,
     StepExecutionStatus,
     StepResult,
+    EvolutionContext,
 )
-from app.core.execution.macro.schemas import EvolutionContext
 
 logger = logging.getLogger(__name__)
 

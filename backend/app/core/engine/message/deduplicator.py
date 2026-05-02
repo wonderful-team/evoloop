@@ -18,7 +18,7 @@ class MessageDeduplicator:
     Simple deduplicator based on content hash and time window.
 
     NOTE: This is instance-local deduplication. For distributed deduplication
-    across multiple workers, consider using a shared cache (Redis/FileCache).
+    across multiple workers, consider using a shared cache (FileCache/Redis).
     """
 
     def __init__(self, window_seconds: float = 2.0):

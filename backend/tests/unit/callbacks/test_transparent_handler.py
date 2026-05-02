@@ -12,8 +12,6 @@ from app.core.context import tool_state_store
 def mock_activity_monitor():
     """Mock activity monitor."""
     monitor = MagicMock()
-    monitor.add_step = AsyncMock(return_value=1)
-    monitor.update_step = AsyncMock()
     monitor.check_cancellation = AsyncMock()
     return monitor
 

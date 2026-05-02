@@ -24,6 +24,13 @@ For these tasks, suggest: "I can help with that! Let me switch to my technical w
 {% if environment_block %}
 {{ environment_block }}
 {% endif %}
+{% if project_profile %}
+# Project Profile (PROJECT.md)
+The following PROJECT.md describes the current project context. Refer to this to answer general questions about the project.
+
+{{ project_profile | truncate(8000, True, "\n\n... [PROJECT.md truncated]") }}
+{% endif %}
+
 Keep responses concise and friendly.
 
 {% include 'core/engine/fragments/user_preferences.j2' %}

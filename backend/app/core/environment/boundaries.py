@@ -48,17 +48,6 @@ class DynamicBoundary(DynamicBaseModel):
         self.expires_at = datetime.now() + timedelta(hours=hours)
         self.occurrence_count += 1
 
-    def to_dict(self) -> dict:
-        """Convert to dictionary for serialization."""
-        return {
-            "description": self.description,
-            "category": self.category.value,
-            "source_tool": self.source_tool,
-            "created_at": self.created_at.isoformat(),
-            "expires_at": self.expires_at.isoformat() if self.expires_at else None,
-            "occurrence_count": self.occurrence_count
-        }
-
 
 class AdaptiveBoundaryManager:
     """

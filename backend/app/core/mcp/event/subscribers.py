@@ -205,7 +205,7 @@ async def reload_mcp_for_workspace_change() -> dict[str, str]:
         from app.core.mcp import mcp_client_manager
 
         # Disconnect existing if connected
-        if "filesystem" in getattr(mcp_client_manager, 'sessions', {}):
+        if "filesystem" in mcp_client_manager.sessions:
             logger.info("Disconnecting existing filesystem MCP...")
             # remove_server handles both disconnect and cleanup
             await mcp_client_manager.remove_server("filesystem")

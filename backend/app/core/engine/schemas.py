@@ -33,6 +33,7 @@ class NodeConfig(DynamicBaseModel):
     id: str
     xpath: str | None = Field(alias="path", default=None)
     type: Literal["function", "generic"] = "function"
+    streaming: bool = True
 
     @property
     def path(self):

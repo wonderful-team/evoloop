@@ -55,8 +55,8 @@ def evoloop_tool(
     is_memory_tool: bool = False,
     is_multimodal: bool = False,
     is_hidden: bool = False,  # Hide from user UI (internal control tools)
-    name_map: dict[str, str] | None = None,  # {"zh": "中文名", "en": "English Name"}
     handle_tool_error: bool = True,  # Allow override for HITL tools
+    is_hitl: bool = False,  # If True, this tool triggers a human-in-the-loop request
     required_benefit: str | None = None,  # 权益编码，如 "desktop_control"
     **kwargs,
 ):
@@ -77,8 +77,8 @@ def evoloop_tool(
             is_memory_tool=is_memory_tool,
             is_multimodal=is_multimodal,
             is_hidden=is_hidden,
-            name_map=name_map or {},
             handle_tool_error=handle_tool_error,
+            is_hitl=is_hitl,
             required_benefit=required_benefit,
         )
 
@@ -156,7 +156,7 @@ def evoloop_tool(
         tool_instance = langchain_tool(*args, **kwargs)(wrapper)
 
         # Inject EvoLoop metadata for engine orchestration
-        if not hasattr(tool_instance, "metadata") or tool_instance.metadata is None:
+        if tool_instance.metadata is None:
             tool_instance.metadata = {}
 
         tool_instance.metadata["is_pollable"] = config.is_pollable
@@ -167,7 +167,7 @@ def evoloop_tool(
         tool_instance.metadata["is_memory_tool"] = config.is_memory_tool
         tool_instance.metadata["is_multimodal"] = config.is_multimodal
         tool_instance.metadata["is_hidden"] = config.is_hidden
-        tool_instance.metadata["name_map"] = config.name_map
+        tool_instance.metadata["is_hitl"] = config.is_hitl
 
         # Enable error handling to return validation errors as text to the Agent
         # Note: HITL tools should set handle_tool_error=False to allow interrupt exceptions to propagate

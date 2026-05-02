@@ -11,7 +11,6 @@ from typing import Any
 
 from app.core.environment.bus import event_bus
 from app.core.events.registry import SystemEventType
-
 from .schemas import (
     AwakenEvent,
     BoundaryLearnedEvent,

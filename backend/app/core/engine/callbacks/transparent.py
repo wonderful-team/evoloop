@@ -13,47 +13,29 @@ from typing import Any
 
 from langchain_core.callbacks import AsyncCallbackHandler
 from langchain_core.outputs import LLMResult
-from pydantic import Field
 
 from app.core.engine.callbacks.token_filter import TokenFilter
-from app.core.engine.reasoning import extract_reasoning_from_kwargs
+from app.core.engine.message.publisher import MessagePublisher
+from app.core.engine.message.reasoning import extract_reasoning_from_kwargs
+from app.core.engine.message.schemas import StreamEvent, ThinkingPayload
 from app.core.tools.registry import (
     get_tool_affected_paths,
     get_tool_metadata,
     is_state_mutating_tool,
 )
-from app.i18n.service import i18n
-from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.models.schemas.events import StreamEventType
-from app.utils.time import format_iso_timestamp
 
 logger = logging.getLogger(__name__)
-
-
-class StreamEvent(DynamicBaseModel):
-    """A structured streaming event for frontend consumption."""
-    type: str
-    message: str
-    data: dict | None = None
-    progress: int | None = None
-    timestamp: str = Field(default_factory=lambda: format_iso_timestamp())
-
-    def to_json(self) -> str:
-        """Convert to JSON string for SSE."""
-        return self.model_dump_json(exclude_none=True)
 
 
 class TransparentCallbackHandler(AsyncCallbackHandler):
     """
     Unified CallbackHandler with structured streaming support.
-    
 
-    Stream event capabilities are now integrated directly into this handler.
-    
     Responsibilities:
     1. LangChain callback handling (on_llm_start, on_tool_end, etc.)
-    2. Activity monitor integration (step tracking)
-    3. Structured stream event publishing (thinking, tool_progress, etc.)
+    2. Cancellation checking and special tool notifications
+    3. Structured stream event publishing (thinking only)
     """
 
     def __init__(self, thread_id: str = None):
@@ -67,14 +49,16 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
 
         # Step tracking
         self.llm_task_id = None
-        self.tool_task_id = None  # Legacy: single tool task (for sync compatibility)
-        self._tool_task_ids: dict[str, int] = {}  # run_id -> task_id mapping for parallel tools
         self.active_llm_run_id = None
         self._tool_names: dict[str, str] = {}  # run_id -> tool_name mapping for parallel tools
 
         # Stream tracking
-        self._current_stream_buffer = ""
         self._token_filter = TokenFilter()
+        self._publisher: MessagePublisher | None = None
+        self._thinking_buffer: str = ""  # Accumulated reasoning content for real-time streaming
+
+        # Node-level streaming control: run_id -> metadata mapping
+        self._run_metadata: dict[str, dict] = {}
 
     # ==============================================================================
     # Structured Stream Event Methods
@@ -83,59 +67,47 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
     async def _publish_stream_event(self, event: StreamEvent):
         """
         Publish a structured stream event to EventBus for frontend SSE consumption.
-        
-        Unified with existing events channel (single channel architecture).
-        All events (tokens, thinking, tool_progress) go through the same channel.
         """
-        if not self.thread_id:
-            return
+        if not self._publisher:
+            self._publisher = MessagePublisher(thread_id=self.thread_id)
+        
+        await self._publisher.publish(event)
 
-        # Unified: Publish to events channel (same as TokenEvent)
-        # Frontend distinguishes by event structure (type field)
-        from app.core.engine.message.event_bus import get_event_bus
-        await get_event_bus().publish(
-            f"chat:{self.thread_id}:events",
-            event.to_json()
-        )
-
-    async def emit_thinking(self, message: str, detail: str | None = None):
+    async def emit_thinking(self, message: str, detail: str = "reasoning"):
         """Emit thinking/reasoning event."""
         await self._publish_stream_event(StreamEvent(
             type=StreamEventType.THINKING,
             message=message,
-            data={"detail": detail} if detail else None
-        ))
-
-    async def emit_tool_progress(self, tool_name: str, message: str, progress: int | None = None):
-        """Emit tool progress update."""
-        await self._publish_stream_event(StreamEvent(
-            type=StreamEventType.TOOL_PROGRESS,
-            message=message,
-            data={"tool": tool_name},
-            progress=progress
-        ))
-
-    async def emit_checkpoint(self, checkpoint_id: int, name: str, file_count: int):
-        """Emit checkpoint creation event."""
-        await self._publish_stream_event(StreamEvent(
-            type=StreamEventType.CHECKPOINT,
-            message=f"Checkpoint created: {name}",
-            data={"checkpoint_id": checkpoint_id, "file_count": file_count}
+            data=ThinkingPayload(detail=detail)
         ))
 
     # ==============================================================================
     # LangChain Callback Methods
     # ==============================================================================
 
+    def _is_streaming_disabled(self, run_id: str) -> bool:
+        """Check if the run's node has streaming disabled via metadata."""
+        metadata = self._run_metadata.get(run_id, {})
+        if metadata.get("streaming") is False:
+            return True
+        return False
+
     async def on_llm_start(self, serialized: dict[str, Any], prompts: list[str], **kwargs: Any) -> None:
         """Run when LLM starts running."""
+        run_id = kwargs.get("run_id")
+        run_id_str = str(run_id)
+        self._run_metadata[run_id_str] = kwargs.get("metadata", {})
+
         if self.thread_id and self.monitor:
             await self.monitor.check_cancellation(self.thread_id)
 
-            run_id = kwargs.get("run_id")
             if self.active_llm_run_id is None:
                 self.active_llm_run_id = run_id
             self.llm_task_id = run_id
+
+            # Skip thinking indicator for nodes with streaming disabled
+            if self._is_streaming_disabled(run_id_str):
+                return
 
             # Emit thinking indicator so frontend shows loading state
             try:
@@ -150,29 +122,30 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
         - THINKING (reasoning_content): stream per-chunk in real-time
         - CONTENT: batch through TokenFilter (flush on \n or 50 chars)
         """
+        run_id = str(kwargs.get("run_id", ""))
+        if self._is_streaming_disabled(run_id):
+            return
+
         if not (self.thread_id and self.monitor):
             return
 
         await self.monitor.check_cancellation(self.thread_id)
 
-        run_id = kwargs.get("run_id")
-        if not (self.llm_task_id and run_id == self.active_llm_run_id):
+        if not (self.llm_task_id and run_id == str(self.active_llm_run_id)):
             return
 
-        # 1. Extract and stream reasoning_content in real-time (chunk-level)
+        # 1. Extract and stream reasoning_content in real-time (accumulated)
         generation_chunk = kwargs.get("chunk")
         if generation_chunk and hasattr(generation_chunk, "message"):
             msg_chunk = generation_chunk.message
-            reasoning = extract_reasoning_from_kwargs(getattr(msg_chunk, "additional_kwargs", None))
-            if reasoning and self.thread_id:
-                    try:
-                        await self._publish_stream_event(StreamEvent(
-                            type=StreamEventType.THINKING,
-                            message=reasoning,
-                            data={"detail": "reasoning"}
-                        ))
-                    except Exception:
-                        pass
+            delta_reasoning = extract_reasoning_from_kwargs(msg_chunk.additional_kwargs)
+            if delta_reasoning:
+                self._thinking_buffer += delta_reasoning
+                await self._publish_stream_event(StreamEvent(
+                    type=StreamEventType.THINKING,
+                    message=self._thinking_buffer,
+                    data={"detail": "reasoning"}
+                ))
 
         # 2. Defensive: normalize structured tokens
         if not isinstance(token, str):
@@ -192,86 +165,66 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
             else:
                 token = str(token)
 
-        self._current_stream_buffer += token
-
-        # 3. Content goes through TokenFilter (hidden-tag suppression + batch flush)
+        # Content goes through TokenFilter (hidden-tag suppression)
         filtered, _ = self._token_filter.process(token)
         if filtered is None:
-            # Inside hidden tag — update step but don't publish
+            # Inside hidden tag — don't publish
             return
-
-        if self._token_filter.should_flush():
-            buf = self._token_filter.flush()
-            if buf and self.thread_id:
-                try:
-                    from app.core.engine.message.handler import MessageHandler
-                    await MessageHandler.stream_token(self.thread_id, buf)
-                except Exception:
-                    pass
-
-            try:
-                await self.monitor.update_step(
-                    self.thread_id,
-                    self.llm_task_id,
-                    "running",
-                    details=self._current_stream_buffer,
-                )
-            except Exception:
-                pass
 
     async def on_llm_end(self, response: LLMResult, **kwargs: Any) -> None:
         """Run when LLM ends running."""
-        # FLUSH REMAINING PUBLISH BUFFER
-        buf = self._token_filter.flush()
-        if buf and self.thread_id:
-            try:
-                from app.core.engine.message.handler import MessageHandler
-                await MessageHandler.stream_token(self.thread_id, buf)
-            except Exception:
-                pass
+        run_id = str(kwargs.get("run_id", ""))
+        self._run_metadata.pop(run_id, None)
 
-        run_id = kwargs.get("run_id")
+        # FLUSH REMAINING PUBLISH BUFFER
+        self._token_filter.flush()
+
+        # Reset accumulated thinking buffer for the next LLM call
+        self._thinking_buffer = ""
+
         # Note: We no longer record "Thinking..." steps, so no update needed
-        if run_id == self.active_llm_run_id:
+        if run_id == str(self.active_llm_run_id):
             self.active_llm_run_id = None
-            self._current_stream_buffer = ""
             self._token_filter.reset()
 
     async def on_llm_error(self, error: BaseException, **kwargs: Any) -> None:
         """Run when LLM errors."""
+        run_id = str(kwargs.get("run_id", ""))
+
         logger.error(f"LLM Error in thread {self.thread_id}: {error}", exc_info=True)
 
-        # Flush any buffered tokens before cleanup so frontend doesn't lose content
-        buf = self._token_filter.flush()
-        if buf and self.thread_id:
-            try:
-                from app.core.engine.message.handler import MessageHandler
-                await MessageHandler.stream_token(self.thread_id, buf)
-            except Exception:
-                pass
+        # Flush any buffered tokens before cleanup
+        self._token_filter.flush()
+        # Note: We no longer stream AI content tokens to support block-based message delivery.
+        #     try:
+        #         from app.core.engine.message.handler import MessageHandler
+        #         await MessageHandler.stream_token(self.thread_id, buf)
+        #     except Exception:
+        #         pass
 
-        run_id = kwargs.get("run_id")
-        if run_id == self.active_llm_run_id:
+        if run_id == str(self.active_llm_run_id):
             self.active_llm_run_id = None
-            self._current_stream_buffer = ""
             self._token_filter.reset()
 
-        try:
-            await self._publish_stream_event(StreamEvent(
-                type=StreamEventType.TOOL_ERROR,
-                message=str(error),
-                data={"source": "llm", "success": False}
-            ))
-            logger.info(f"[TransparentCallback] Published error event for thread {self.thread_id}")
-        except Exception as e:
-            logger.error(f"[TransparentCallback] Failed to publish error event for thread {self.thread_id}: {e}")
+        if self._is_streaming_disabled(run_id):
+            self._run_metadata.pop(run_id, None)
+            return
+
+        self._run_metadata.pop(run_id, None)
+
+        logger.info(f"[LLM Error] {error}")
 
     async def on_tool_start(self, serialized: dict[str, Any], input_str: str, **kwargs: Any) -> None:
         """Run when tool starts running."""
+        run_id = str(kwargs.get("run_id", "default"))
+        self._run_metadata[run_id] = kwargs.get("metadata", {})
+
+        if self._is_streaming_disabled(run_id):
+            return
+
         if self.thread_id and self.monitor:
             await self.monitor.check_cancellation(self.thread_id)
 
-        run_id = str(kwargs.get("run_id", "default"))
         tool_name = serialized.get("name") if serialized else "Unknown Tool"
         self._tool_names[run_id] = tool_name
 
@@ -292,33 +245,7 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
             except (ValueError, SyntaxError):
                 pass
 
-        from app.core.tools.registry import get_tool_friendly_name
-        friendly_name = get_tool_friendly_name(tool_name)
-
-        # Build display name (parameterized, e.g. "正在读取 '/path/to/file'")
-        tool_name_display = None
-        summary_template = metadata.get("summary_template")
-        if summary_template:
-            try:
-                args_dict = data if isinstance(data, dict) else {}
-                tool_name_display = i18n.get(summary_template, **args_dict)
-            except (KeyError, TypeError):
-                pass
-
-        # Skip ActivityMonitor and stream events for hidden (internal) tools
-        run_id = str(kwargs.get("run_id", "default"))
-        step_type = "tool"
-        if not is_hidden and self.thread_id and self.monitor:
-            task_id = await self.monitor.add_step(
-                self.thread_id,
-                friendly_name,
-                step_type,
-                input_data=data,
-                tool_name_display=tool_name_display,
-            )
-            self.tool_task_id = task_id
-            self._tool_task_ids[run_id] = task_id
-
+        # Phase 2-3: Step tracking and StreamEvent removed — StepEvent now driven by MessageHandler
         # Extract path info
         current_tool_path = None
         if data and isinstance(data, dict):
@@ -335,14 +262,6 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
                 arguments=input_str,
                 path=current_tool_path
             )
-
-        # Emit structured stream event — include tool_name_display for frontend
-        if not is_hidden:
-            await self._publish_stream_event(StreamEvent(
-                type=StreamEventType.TOOL_START,
-                message=friendly_name,
-                data={"tool": tool_name, "tool_name_display": tool_name_display, "params": data}
-            ))
 
         logger.info(f"[Tool Start] {tool_name} {'(hidden)' if is_hidden else ''}")
 
@@ -388,77 +307,38 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
     async def on_tool_end(self, output: str, **kwargs: Any) -> None:
         """Run when tool ends running."""
         run_id = str(kwargs.get("run_id", "default"))
+
+        if self._is_streaming_disabled(run_id):
+            self._run_metadata.pop(run_id, None)
+            self._tool_names.pop(run_id, None)
+            return
+
+        self._run_metadata.pop(run_id, None)
+
         tool_name = self._tool_names.pop(run_id, "Unknown Tool")
 
-        # Get the correct task_id for this tool run (support parallel tools)
-        task_id = self._tool_task_ids.pop(run_id, None)
-
-        # Check if tool is hidden (internal)
-        metadata = get_tool_metadata(tool_name) or {}
-        is_hidden = metadata.get("is_hidden", False)
-
         # Get tool state from shared store
-        tool_state = None
         if self.thread_id:
-            tool_state = self._tool_store.end_tool(self.thread_id, run_id)
+            self._tool_store.end_tool(self.thread_id, run_id)
 
-        # Ensure output is string for fallback and logging
-        output_str = str(output) if not isinstance(output, str) else output
-
-        if tool_state:
-            log_output, _ = tool_state.get_summary(output)
-            duration = self._tool_store.get_duration(self.thread_id, run_id) if self.thread_id else None
-        else:
-            # Fallback if state not found
-            log_output = output_str[:500] if len(output_str) > 500 else output_str
-            duration = None
-
-        log_output_str = str(log_output) if not isinstance(log_output, str) else log_output
-
-        if not is_hidden and self.thread_id and task_id:
-            await self.monitor.update_step(self.thread_id, task_id, "done", details=log_output_str)
-            # Clear legacy single tool tracking if it matches
-            if self.tool_task_id == task_id:
-                self.tool_task_id = None
-
-        logger.info(f"[Tool End] {tool_name} {'(hidden)' if is_hidden else ''}")
-
-        if not is_hidden and tool_name:
-            await self._publish_stream_event(StreamEvent(
-                type=StreamEventType.TOOL_COMPLETE,
-                message=log_output_str[:200],
-                data={"tool": tool_name, "duration": duration, "success": True}
-            ))
+        # Phase 2-3: Step tracking and StreamEvent removed — StepEvent now driven by MessageHandler
+        logger.info(f"[Tool End] {tool_name}")
 
     async def on_tool_error(self, error: BaseException, **kwargs: Any) -> None:
         """Run when tool errors."""
         run_id = str(kwargs.get("run_id", "default"))
+
+        if self._is_streaming_disabled(run_id):
+            self._run_metadata.pop(run_id, None)
+            self._tool_names.pop(run_id, None)
+            return
+
+        self._run_metadata.pop(run_id, None)
+
         tool_name = self._tool_names.pop(run_id, "Unknown Tool")
 
-        # Get the correct task_id for this tool run (support parallel tools)
-        task_id = self._tool_task_ids.pop(run_id, None)
-
-        # Check if tool is hidden (internal)
-        metadata = get_tool_metadata(tool_name) or {}
-        is_hidden = metadata.get("is_hidden", False)
-
-        if not is_hidden and self.thread_id and task_id and self.monitor:
-            exc_name = type(error).__name__
-            if "Interrupt" in exc_name or "GraphInterrupt" in exc_name:
-                await self.monitor.update_step(self.thread_id, task_id, "done")
-            else:
-                await self.monitor.update_step(self.thread_id, task_id, "failed", details=str(error))
-
-            # Clear legacy single tool tracking if it matches
-            if self.tool_task_id == task_id:
-                self.tool_task_id = None
-
-        if not is_hidden and tool_name:
-            await self._publish_stream_event(StreamEvent(
-                type=StreamEventType.TOOL_ERROR,
-                message=str(error)[:200],
-                data={"tool": tool_name, "success": False}
-            ))
+        # Phase 2-3: Step tracking and StreamEvent removed — StepEvent now driven by MessageHandler
+        logger.info(f"[Tool Error] {tool_name}: {error}")
 
     async def on_chain_start(self, serialized: dict[str, Any], inputs: dict[str, Any], **kwargs: Any) -> None:
         """Run when chain (node) starts running.
@@ -466,22 +346,24 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
         Note: We no longer record Phase headers ("► Supervisor Phase", etc.) to reduce noise.
         Only actual tool executions are tracked.
         """
-        # Phase headers tracking removed - only track actual tool executions
-        pass
+        run_id = str(kwargs.get("run_id", ""))
+        self._run_metadata[run_id] = kwargs.get("metadata", {})
 
     async def on_chain_end(self, outputs: dict[str, Any], **kwargs: Any) -> None:
         """Run when chain ends running.
         
         Note: Phase headers tracking removed, this is now a no-op.
         """
-        pass
+        run_id = str(kwargs.get("run_id", ""))
+        self._run_metadata.pop(run_id, None)
 
     async def on_chain_error(self, error: BaseException, **kwargs: Any) -> None:
         """Run when chain errors.
         
         Note: Phase headers tracking removed, this is now a no-op.
         """
-        pass
+        run_id = str(kwargs.get("run_id", ""))
+        self._run_metadata.pop(run_id, None)
 
     async def on_text(self, text: str, **kwargs: Any) -> None:
         """Run on arbitrary text."""

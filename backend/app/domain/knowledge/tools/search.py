@@ -19,7 +19,8 @@ logger = logging.getLogger(__name__)
 
 @evoloop_tool(
     is_pollable=True,
-    name_map={"zh": "搜索知识库", "en": "Search Knowledge Base"}
+    summary_template="database_logger.tool_summary.kb_search",
+    affected_path_keys=["path"]
 )
 async def kb_search(
     pattern: Annotated[str, Field(description="Search pattern (FTS5 syntax: 'phrase' for exact, term1 AND term2, etc.)")],

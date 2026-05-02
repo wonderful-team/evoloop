@@ -11,7 +11,7 @@ from langchain_core.tools import InjectedToolArg
 
 from app.core.tools import evoloop_tool
 from app.domain.todo.schemas import TodoCreate, TodoFilter
-from app.domain.todo.service import TodoServiceSync, TodoNotFoundError
+from app.domain.todo.service import TodoNotFoundError
 from app.domain.todo.utils import parse_due_date
 from app.i18n.service import i18n
 from app.models.todo import TodoStatus
@@ -20,8 +20,7 @@ from app.utils import ContentFormatter
 
 @evoloop_tool(
     is_state_mutating=True,
-    summary_template="database_logger.tool_summary.create_todo",
-    name_map={"zh": "创建待办", "en": "Create Todo"}
+    summary_template="database_logger.tool_summary.create_todo"
 )
 async def create_todo(
     title: str,
@@ -73,24 +72,30 @@ async def create_todo(
     # Extract source IDs from config
     source_conversation_id = None
     source_message_id = None
+    run_id = None
     if config:
         source_conversation_id = config.get("configurable", {}).get("thread_id")
         source_message_id = config.get("metadata", {}).get("message_id")
+        run_id = config.get("metadata", {}).get("run_id")
     
     # Create via service layer
-    service = TodoServiceSync()
-    todo = service.create(
-        data=TodoCreate(
-            title=title,
-            description=description,
-            due_date=due_date,  # Service will parse again
-            priority=priority,
-            category=category,
-            project_id=project_id,
-        ),
-        source_conversation_id=source_conversation_id,
-        source_message_id=source_message_id,
-    )
+    from app.infrastructure.database.sql.database import session_scope
+    async with session_scope() as session:
+        from app.domain.todo.service import TodoService
+        service = TodoService(session)
+        todo = await service.create(
+            data=TodoCreate(
+                title=title,
+                description=description,
+                due_date=due_date,  # Service will parse again
+                priority=priority,
+                category=category,
+                project_id=project_id,
+            ),
+            source_conversation_id=source_conversation_id,
+            source_message_id=source_message_id,
+            run_id=run_id,
+        )
     
     return i18n.get(
         "domain_tools.manage_todo.success_add",
@@ -102,8 +107,7 @@ async def create_todo(
 
 @evoloop_tool(
     is_pollable=True,
-    summary_template="database_logger.tool_summary.list_todos",
-    name_map={"zh": "列出现办", "en": "List Todos"}
+    summary_template="database_logger.tool_summary.list_todos"
 )
 async def list_todos(
     status: Literal["pending", "completed", "cancelled"] | None = None,
@@ -136,8 +140,11 @@ async def list_todos(
     )
     
     # Query via service layer
-    service = TodoServiceSync()
-    todos = service.list_todos(filters)
+    from app.infrastructure.database.sql.database import session_scope
+    async with session_scope() as session:
+        from app.domain.todo.service import TodoService
+        service = TodoService(session)
+        todos = await service.list_todos(filters)
     
     if not todos:
         return i18n.get("domain_tools.manage_todo.no_todos")
@@ -147,8 +154,7 @@ async def list_todos(
 
 @evoloop_tool(
     is_state_mutating=True,
-    summary_template="database_logger.tool_summary.complete_todo",
-    name_map={"zh": "完成待办", "en": "Complete Todo"}
+    summary_template="database_logger.tool_summary.complete_todo"
 )
 async def complete_todo(todo_id: str) -> str:
     """
@@ -172,22 +178,23 @@ async def complete_todo(todo_id: str) -> str:
     if not todo_id:
         return i18n.get("domain_tools.manage_todo.error_id", action="complete")
     
-    service = TodoServiceSync()
-    
-    try:
-        todo = service.mark_completed(todo_id)
-        return i18n.get(
-            "domain_tools.manage_todo.success_update",
-            id=todo.id,
-        ) + f" [{todo.status.value}] {todo.title}"
-    except TodoNotFoundError:
-        return i18n.get("domain_tools.manage_todo.error_not_found", id=todo_id)
+    from app.infrastructure.database.sql.database import session_scope
+    async with session_scope() as session:
+        from app.domain.todo.service import TodoService
+        service = TodoService(session)
+        try:
+            todo = await service.mark_completed(todo_id)
+            return i18n.get(
+                "domain_tools.manage_todo.success_update",
+                id=todo.id
+            ) + f" [{todo.status.value}] {todo.title}"
+        except TodoNotFoundError:
+            return i18n.get("domain_tools.manage_todo.error_not_found", id=todo_id)
 
 
 @evoloop_tool(
     is_state_mutating=True,
-    summary_template="database_logger.tool_summary.cancel_todo",
-    name_map={"zh": "取消待办", "en": "Cancel Todo"}
+    summary_template="database_logger.tool_summary.cancel_todo"
 )
 async def cancel_todo(todo_id: str) -> str:
     """
@@ -212,26 +219,25 @@ async def cancel_todo(todo_id: str) -> str:
     if not todo_id:
         return i18n.get("domain_tools.manage_todo.error_id", action="cancel")
     
-    service = TodoServiceSync()
-    
-    try:
-        todo = service.mark_cancelled(todo_id)
-        return i18n.get(
-            "domain_tools.manage_todo.success_update",
-            id=todo.id,
-        ) + f" [{todo.status.value}] {todo.title}"
-    except TodoNotFoundError:
-        return i18n.get("domain_tools.manage_todo.error_not_found", id=todo_id)
+    from app.infrastructure.database.sql.database import session_scope
+    async with session_scope() as session:
+        from app.domain.todo.service import TodoService
+        service = TodoService(session)
+        try:
+            todo = await service.mark_cancelled(todo_id)
+            return i18n.get(
+                "domain_tools.manage_todo.success_update",
+                id=todo.id
+            ) + f" [{todo.status.value}] {todo.title}"
+        except TodoNotFoundError:
+            return i18n.get("domain_tools.manage_todo.error_not_found", id=todo_id)
 
 
 # =============================================================================
 # Future Tools (can be enabled when needed)
 # =============================================================================
 
-# @evoloop_tool(
-#     is_pollable=True,
-#     name_map={"zh": "获取待办", "en": "Get Todo"}
-# )
+# @evoloop_tool(is_pollable=True)
 # async def get_todo(todo_id: str) -> str:
 #     """Get details of a specific Todo."""
 #     service = TodoServiceSync()

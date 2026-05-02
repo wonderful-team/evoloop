@@ -99,10 +99,15 @@ def serialize_message(message: "BaseMessage") -> dict[str, Any]:
     if isinstance(message, ToolMessage):
         data["tool_call_id"] = message.tool_call_id
         data["name"] = message.name
+    elif getattr(message, "type", "") == "tool":
+        data["tool_call_id"] = getattr(message, "tool_call_id", "")
+        data["name"] = getattr(message, "name", "")
 
     # For AIMessage, tool_calls may exist
     if isinstance(message, AIMessage):
         data["tool_calls"] = message.tool_calls
+    elif getattr(message, "type", "") == "ai":
+        data["tool_calls"] = getattr(message, "tool_calls", [])
     
     # Include additional_kwargs
     if message.additional_kwargs:

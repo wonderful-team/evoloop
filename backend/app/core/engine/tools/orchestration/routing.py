@@ -11,9 +11,8 @@ from app.core.tools import evoloop_tool
 
 @evoloop_tool(
     is_state_mutating=True,
-    is_hidden=True,  # Internal routing signal, not user-facing
-    name_map={"zh": "路由到", "en": "Route To"}
-)
+    is_hidden=True,  # Internal routing signal, not user-facing,
+    summary_template="database_logger.tool_summary.route_to")
 def route_to(
     target: RoutingTarget,
     reason: str,
@@ -49,7 +48,7 @@ def route_to(
         skill_ids: List of skill IDs for multi-step workflows (executed in order).
         workflow_mode: "single" for one skill, "sequential" for step-by-step execution.
     """
-    target_val = target.value if hasattr(target, "value") else target
+    target_val = target.value
 
     ctx = context or RoutingContext()
     context_dict = ctx.model_dump()

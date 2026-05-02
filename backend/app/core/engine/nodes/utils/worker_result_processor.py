@@ -11,9 +11,9 @@ import logging
 
 from langchain_core.messages import AIMessage, ToolMessage
 
-from app.core.engine.schemas import EngineResult
 from app.core.engine.message.utils import get_message_text
 from app.core.engine.routers import RoutingTarget
+from app.core.engine.schemas import EngineResult
 from app.core.engine.state import AgentState, StateUpdate
 from app.core.engine.state.blackboard import SubtaskResult, VerificationStatus
 from app.core.engine.state.config import ExecutionTicket
@@ -93,9 +93,6 @@ def process_worker_result(
             timestamp=asyncio.get_event_loop().time(),
         )
 
-        if not blackboard.subtask_results:
-            blackboard.subtask_results = []
-
         blackboard.subtask_results.append(subtask_result)
 
         pending_agg = blackboard.pending_aggregation
@@ -157,9 +154,8 @@ def process_worker_result(
         preserved_messages[-1] = AIMessage(
             content=worker_content,
             id=original_msg.id,
-            metadata=getattr(original_msg, "metadata", None),
-            additional_kwargs=getattr(original_msg, "additional_kwargs", None) or {},
-            tool_calls=getattr(original_msg, "tool_calls", None),
+            additional_kwargs=original_msg.additional_kwargs,
+            tool_calls=original_msg.tool_calls,
         )
     else:
         # Append a new summary AIMessage when there is no trailing AI msg

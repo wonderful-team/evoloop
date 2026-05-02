@@ -42,6 +42,7 @@ from app.core.memory.quality import (
     QualityScores,
 )
 from app.core.memory.retrieval import MemoryRetriever, get_relevant_memories
+from app.core.memory.schemas import CheckpointDedupResult, SectionBudget
 from app.core.memory.state_tracking import (
     MemoryStateTracker,
     filter_unsurfaced_memories,
@@ -49,7 +50,6 @@ from app.core.memory.state_tracking import (
     mark_memories_surfaced,
     memory_tracker,
 )
-from app.core.memory.schemas import CheckpointDedupResult, SectionBudget
 from app.core.memory.two_tier import (
     MemorySection,
     TwoTierMemoryManager,

@@ -1,24 +1,5 @@
-"""Macro verification models package."""
-
-from app.core.execution.macro.schemas import (
-    AdaptationRecord,
-    AIAnalysisResult,
-    AnomalyType,
-    EnvironmentConfig,
-    ExecutionDetail,
-    ExecutionMode,
-    MacroEvolutionRecord,
-    RedundancyCheckResult,
-    RedundancyType,
-    ReportSummary,
-    RoundConfig,
-    RoundReport,
-    StepExecutionStatus,
-    StepResult,
-    VerificationAgentConfig,
-    VerificationIssue,
-    VerificationReport,
-    VerificationRequest,
-    VerificationResponse,
-    VerificationStatus,
-)
+"""
+Legacy Models Compatibility Layer.
+Redirects all imports to app.core.execution.macro.schemas.
+"""
+from ..schemas import *  # noqa: F401,F403

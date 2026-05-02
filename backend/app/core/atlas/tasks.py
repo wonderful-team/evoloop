@@ -3,8 +3,6 @@ import logging
 import os
 
 from app.core.atlas.models import AtlasApp
-from app.core.environment.event import UiTreeObservedEvent
-from app.core.environment.bus import event_bus
 from app.infrastructure.drivers.adb import adb_driver
 from app.infrastructure.drivers.macos import macos_driver
 # Unified task queue (Huey in embedded mode, Celery in full mode)

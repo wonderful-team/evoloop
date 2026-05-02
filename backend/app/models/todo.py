@@ -33,7 +33,8 @@ class TodoItem(Base):
     due_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     source_conversation_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    source_message_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    source_message_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    run_id: Mapped[str | None] = mapped_column(String(36), index=True, nullable=True)
 
     # Project Context
     project_id: Mapped[int | None] = mapped_column(Integer, nullable=True)

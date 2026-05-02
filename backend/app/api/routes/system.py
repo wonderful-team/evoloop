@@ -116,7 +116,7 @@ async def apply_llm_config(req: LLMConfigRequest) -> LLMApplyResponse:
     # Save provider details (used for Custom mode)
     SystemConfigService.set_value("LLM_PROVIDER", req.provider)
     SystemConfigService.set_value("LLM_PROVIDER_TYPE", req.provider_type)
-    SystemConfigService.set_value("LLM_BASE_URL", req.base_url)
+    SystemConfigService.set_value("LLM_BASE_URL", req.base_url or "")
     
     # Save the Default Model ID
     default_id = req.default_model_id or req.model

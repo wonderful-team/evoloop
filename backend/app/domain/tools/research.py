@@ -189,7 +189,7 @@ async def _fetch_wikipedia_summary(title: str, lang: str = "en") -> str | None:
 
 @evoloop_tool(
     is_pollable=False,
-    name_map={"zh": "搜索网页", "en": "Search Web"}
+    summary_template="database_logger.tool_summary.search_web"
 )
 async def search_web(query: str) -> str:
     """

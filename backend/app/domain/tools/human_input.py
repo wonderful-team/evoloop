@@ -153,8 +153,8 @@ async def cancel_request(request_id: str) -> bool:
     "ask_human",
     args_schema=RequestHumanInputArgs,
     is_pollable=True,
+    is_hitl=True,
     summary_template="database_logger.tool_summary.ask_user",
-    name_map={"zh": "询问用户", "en": "Ask Human"},
     handle_tool_error=False,  # HITL must propagate interrupt exception
 )
 async def ask_human(
@@ -266,6 +266,9 @@ async def ask_human(
             options=options,
             context=context,
             default_value=default_value,
+            tool_call_id=ctx.current_tool_call_id,
+            tool_name="ask_human",
+            parent_id=ctx.last_ai_message_id,
         ))
     except Exception as e:
         logger.warning(f"Failed to initiate HITL request via MessageHandler: {e}")
@@ -279,8 +282,8 @@ async def ask_human(
     "ask_confirm",
     args_schema=RequestApprovalArgs,
     is_pollable=True,
+    is_hitl=True,
     summary_template="database_logger.tool_summary.ask_user",
-    name_map={"zh": "确认操作", "en": "Ask Confirm"},
     handle_tool_error=False,  # HITL must propagate interrupt exception
 )
 async def ask_confirm(
@@ -383,6 +386,9 @@ async def ask_confirm(
             options=None,
             context=approval_context,
             default_value="REJECTED",
+            tool_call_id=ctx.current_tool_call_id,
+            tool_name="ask_confirm",
+            parent_id=ctx.last_ai_message_id,
         ))
     except Exception as e:
         logger.warning(f"Failed to initiate HITL approval via MessageHandler: {e}")

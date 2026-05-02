@@ -8,14 +8,13 @@ It produces structured skill configurations that can be registered and executed.
 from __future__ import annotations
 
 import logging
-from typing import Any
 
 import yaml
 from pydantic import Field
 from sqlalchemy import select
 
 from app.core.config import settings
-from app.core.execution.macro.models import VerificationResponse
+from app.core.execution.macro.schemas import VerificationResponse
 from app.core.learning.prompts import prompt_builder
 from app.core.learning.schemas import SkillParameter
 from app.core.learning.synthesizer_utils import (
@@ -70,10 +69,6 @@ class SynthesizedSkill(DynamicBaseModel):
     def to_yaml(self) -> str:
         """Convert to YAML for storage/display."""
         return yaml.dump(self.model_dump(), default_flow_style=False, allow_unicode=True, sort_keys=False)
-
-    def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary."""
-        return self.model_dump()
 
 
 class WorkflowSynthesizer:
@@ -234,7 +229,7 @@ class WorkflowSynthesizer:
             purpose="skill_synthesis",
             model_name=model_name,
         )
-        content = response.content if hasattr(response, 'content') else str(response)
+        content = response.content
 
         logger.info(f"--- [Skill Synthesis Response Start] ---\n{content}\n--- [Skill Synthesis Response End] ---")
 

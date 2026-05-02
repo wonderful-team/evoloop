@@ -36,12 +36,13 @@ class MobileErrorNotifier:
         try:
             seq = await self._next_sequence()
             error_plain = f"{classification.title}\n\n{classification.message}"
-            await self._handler._push_to_mobile(
+            await self._handler._dispatch_block(
                 role="ai",
                 content=f"请求失败: {error_plain}",
                 category="error_business",
                 status="failed",
                 sequence_number=seq,
+                channels={"mobile"},
             )
         except Exception as e:
             logger.warning(f"[MobileErrorNotifier] Failed to push error to mobile: {e}")

@@ -107,8 +107,12 @@ class DatabaseResourceManager:
                     future=True,
                     pool_size=50,
                     max_overflow=100,
+                    connect_args={"connect_timeout": settings.DB_CONNECT_TIMEOUT},
                 )
-                self._sync_engine = create_sync_engine(sync_db_uri)
+                self._sync_engine = create_sync_engine(
+                    sync_db_uri,
+                    connect_args={"connect_timeout": settings.DB_CONNECT_TIMEOUT},
+                )
 
             self._session_factory = async_sessionmaker(
                 bind=self._engine,
@@ -176,7 +180,7 @@ class DatabaseResourceManager:
             self._db_pool = AsyncConnectionPool(
                 conninfo=str(settings.SQLALCHEMY_DATABASE_URI).replace("+psycopg", ""),
                 max_size=20,
-                kwargs={"autocommit": True},
+                kwargs={"autocommit": True, "connect_timeout": settings.DB_CONNECT_TIMEOUT},
                 open=False
             )
             await self._db_pool.open()

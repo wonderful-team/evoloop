@@ -121,10 +121,8 @@ function FilesPage() {
 
       if (fileType === "docx") {
         try {
-          const token = localStorage.getItem("access_token")
-          const res = await fetch(rawUrl, {
-            headers: { Authorization: `Bearer ${token}` },
-          })
+          // Cookie Session is sent automatically by fetch.
+          const res = await fetch(rawUrl)
           if (!res.ok) throw new Error("Failed to load file")
           const blob = await res.blob()
           await renderAsync(blob, containerRef.current!)
@@ -134,10 +132,8 @@ function FilesPage() {
         }
       } else if (fileType === "xlsx") {
         try {
-          const token = localStorage.getItem("access_token")
-          const res = await fetch(rawUrl, {
-            headers: { Authorization: `Bearer ${token}` },
-          })
+          // Cookie Session is sent automatically by fetch.
+          const res = await fetch(rawUrl)
           if (!res.ok) throw new Error("Failed to load file")
           const blob = await res.blob()
           const buffer = await blob.arrayBuffer()

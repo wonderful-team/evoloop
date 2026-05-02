@@ -138,7 +138,20 @@ async def discover_profile(
         logger.warning("[ProjectProfiles] Project Discovery skill not found; falling back to generic mission.")
 
     # Concise mission — the Skill SOP (injected into Worker system prompt) owns the detailed flow
-    message = "Create a comprehensive PROJECT.md at the project root to document this codebase for AI assistants."
+    secrets_instruction = (
+        "Please identify and record sensitive information (secrets, keys) in the document."
+        if req.record_secrets else
+        "DO NOT record any sensitive information"
+    )
+    message = (
+        "**Mission Goal**: Analyze the project at {target_path}. You MUST:\n"
+        "1. Identify the tech stack and project type.\n"
+        "2. **Infrastructure Discovery**: Check for `docker-compose.yml`, `nginx.conf`, or database requirements. **Attempt to start/install them** (e.g., `docker-compose up -d`, `brew install`).\n"
+        "3. **Deployment**: Identify all components and attempt to **start and verify** them. For PHP/Nginx projects, specifically check for correct pathinfo/proxy configuration.\n"
+        "4. **Deep Verification**: Use `browser_control` to verify access and diagnose any 403/404/500 errors.\n"
+        "5. **Documentation**: Generate a `PROJECT.md` at the root that summarizes the above, including an 'Infrastructure & Middleware' section. Redact secrets: {redact_secrets}.\n"
+        "6. Stop and report once `PROJECT.md` is written."
+    ).format(target_path=path, redact_secrets=secrets_instruction)
 
     # Pre-set working directory so Agent executes in the correct path
     from app.core.context import thread_context_store

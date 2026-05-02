@@ -14,28 +14,6 @@ from app.core.execution.macro.evolution_engine import (
     MacroEvolutionEngine,
     StepTransformer,
 )
-from app.core.execution.macro.models import (
-    AdaptationRecord,
-    AIAnalysisResult,
-    AnomalyType,
-    EnvironmentConfig,
-    ExecutionDetail,
-    ExecutionMode,
-    MacroEvolutionRecord,
-    RedundancyCheckResult,
-    RedundancyType,
-    ReportSummary,
-    RoundConfig,
-    RoundReport,
-    StepExecutionStatus,
-    StepResult,
-    VerificationAgentConfig,
-    VerificationIssue,
-    VerificationReport,
-    VerificationRequest,
-    VerificationResponse,
-    VerificationStatus,
-)
 from app.core.execution.macro.schemas import EvolutionRule
 from app.core.execution.macro.round_orchestrator import (
     BaselineStrategy,

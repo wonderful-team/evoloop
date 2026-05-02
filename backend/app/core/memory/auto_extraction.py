@@ -19,6 +19,12 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMe
 
 from app.core.config import settings
 from app.core.memory.models import MemoryEntry, MemoryType, PrivacyLevel
+from app.core.memory.sentiment_markers import (
+    ACTION_MARKERS,
+    VAGUE_MARKERS,
+    _ACTION_PATTERN_EN,
+    _VAGUE_PATTERN_EN,
+)
 from app.utils import render_template
 
 logger = logging.getLogger(__name__)
@@ -47,6 +53,7 @@ class AutoMemoryExtractor:
         extraction_interval: int = None,
         max_turns: int = 5,
         min_messages: int = None,
+        term_bank=None,
     ):
         """
         Initialize auto memory extractor.
@@ -60,6 +67,7 @@ class AutoMemoryExtractor:
         """
         self._memory_manager = memory_manager
         self._config = config
+        self._term_bank = term_bank
 
         # Get values from config if provided, otherwise use settings
         if config is not None:
@@ -89,6 +97,8 @@ class AutoMemoryExtractor:
         project_id: int | None = None,
         user_id: str | None = None,
         summary: str | None = None,
+        run_id: str | None = None,
+        force: bool = False
     ) -> list[MemoryEntry] | None:
         """
         Conditionally trigger memory extraction.
@@ -102,6 +112,7 @@ class AutoMemoryExtractor:
             project_id: Associated project ID
             user_id: User ID
             summary: Optional conversation summary
+            force: Whether to bypass gating logic
             
         Returns:
             List of extracted memories, or None if skipped
@@ -114,7 +125,7 @@ class AutoMemoryExtractor:
 
         async with lock:
             return await self._extract_with_gates(
-                thread_id, messages, project_id, user_id, summary
+                thread_id, messages, project_id, user_id, summary, run_id, force
             )
 
     async def _extract_with_gates(
@@ -124,11 +135,13 @@ class AutoMemoryExtractor:
         project_id: int | None,
         user_id: str | None,
         summary: str | None,
+        run_id: str | None = None,
+        force: bool = False
     ) -> list[MemoryEntry] | None:
         """Run extraction with all gating logic."""
 
         # Gate 1: Minimum message count
-        if len(messages) < self.min_messages:
+        if not force and len(messages) < self.min_messages:
             logger.debug(f"[AutoExtract] Skip: only {len(messages)} messages (< {self.min_messages})")
             return None
 
@@ -136,14 +149,23 @@ class AutoMemoryExtractor:
         turns_count = self._turns_since_extraction.get(thread_id, 0) + 1
         self._turns_since_extraction[thread_id] = turns_count
 
-        if turns_count < self.extraction_interval:
+        if not force and turns_count < self.extraction_interval:
             logger.debug(f"[AutoExtract] Skip: throttled ({turns_count}/{self.extraction_interval})")
             return None
 
         self._turns_since_extraction[thread_id] = 0
 
+        # Discover terms from raw messages regardless of extraction gates
+        if self._term_bank and project_id:
+            try:
+                combined_text = "\n".join([str(m.content) for m in messages])
+                # We use a neutral confidence for raw interaction discovery
+                await self._term_bank.discover(combined_text, project_id=project_id, memory_confidence=0.5)
+            except Exception as e:
+                logger.debug(f"[AutoExtract] Raw message discovery failed: {e}")
+
         # Gate 3: Skip if main agent already wrote memories this turn
-        if self._has_memory_writes(messages, thread_id):
+        if not force and self._has_memory_writes(messages, thread_id):
             logger.info("[AutoExtract] Skip: main agent already wrote memories")
             return None
 
@@ -155,18 +177,73 @@ class AutoMemoryExtractor:
         logger.info(f"[AutoExtract] Starting extraction for thread {thread_id}")
 
         try:
+            # Standardize source_message_id using msg-{thread_id}-{sequence_number}
+            # This is critical for atomic cleanup during session rewinds.
+            last_msg = messages[-1]
+            last_msg_id = None
+            seq = None
+            
+            # 1. Try to get sequence_number from metadata
+            # Handle both LangChain (additional_kwargs) and DB Model (meta_data / sequence_number)
+            if hasattr(last_msg, "additional_kwargs") and last_msg.additional_kwargs:
+                seq = last_msg.additional_kwargs.get("sequence_number")
+            elif hasattr(last_msg, "meta_data") and last_msg.meta_data:
+                seq = (last_msg.meta_data or {}).get("sequence_number")
+            
+            if seq is None and hasattr(last_msg, "sequence_number"):
+                seq = last_msg.sequence_number
+            
+            # 2. Fallback: If sequence is missing but we have a standardized ID string, parse it
+            # This handles cases where LangChain ID was updated but metadata was lost.
+            if seq is None and last_msg.id:
+                msg_id_str = str(last_msg.id)
+                if msg_id_str.startswith("msg-"):
+                    parts = msg_id_str.split("-")
+                    if len(parts) >= 3:
+                        try:
+                            seq = int(parts[-1])
+                        except (ValueError, TypeError):
+                            pass
+
+            # 3. Final Fallback: If still missing but we have a UUID, query DB
+            # This handles cases where LangGraph state lost all in-memory updates.
+            if seq is None and last_msg.id:
+                msg_uuid = str(last_msg.id)
+                try:
+                    from app.infrastructure.database.sql.database import session_scope
+                    from app.models import Message
+                    from sqlalchemy import select
+                    async with session_scope() as session:
+                        stmt = select(Message.sequence_number).where(Message.thread_id == thread_id)
+                        if msg_uuid.isdigit():
+                            stmt = stmt.where(Message.id == int(msg_uuid))
+                        
+                        result = await session.execute(stmt.order_by(Message.sequence_number.desc()).limit(1))
+                        db_seq = result.scalar_one_or_none()
+                        if db_seq is not None:
+                            seq = db_seq
+                            logger.debug(f"[AutoExtract] Resolved sequence {seq} from DB for message {msg_uuid}")
+                except Exception as db_err:
+                    logger.debug(f"[AutoExtract] DB sequence lookup failed: {db_err}")
+
+            if seq is not None:
+                last_msg_id = f"msg-{thread_id}-{seq}"
+            elif last_msg.id:
+                # Last resort fallback to raw ID
+                last_msg_id = str(last_msg.id)
+            
+            if last_msg_id:
+                self._last_message_uuid[thread_id] = last_msg_id
+
             extracted = await self._run_extraction(
                 thread_id=thread_id,
                 messages=messages,
                 project_id=project_id,
                 user_id=user_id,
                 summary=summary,
+                source_message_id=last_msg_id,
+                run_id=run_id
             )
-
-            # Update cursor position
-            last_msg = messages[-1]
-            if hasattr(last_msg, 'id') and last_msg.id:
-                self._last_message_uuid[thread_id] = str(last_msg.id)
 
             return extracted
 
@@ -192,7 +269,7 @@ class AutoMemoryExtractor:
         start_idx = 0
         if last_uuid:
             for i, msg in enumerate(messages):
-                if hasattr(msg, 'id') and str(msg.id) == last_uuid:
+                if str(msg.id) == last_uuid:
                     start_idx = i + 1
                     break
 
@@ -207,7 +284,7 @@ class AutoMemoryExtractor:
                     return True
 
                 # Check tool calls if present
-                if hasattr(msg, 'tool_calls') and msg.tool_calls:
+                if msg.tool_calls:
                     for tc in msg.tool_calls:
                         tool_name = tc.get('name', '') if isinstance(tc, dict) else getattr(tc, 'name', '')
                         if 'remember' in tool_name.lower():
@@ -225,20 +302,32 @@ class AutoMemoryExtractor:
         project_id: int | None = None,
         user_id: str | None = None,
         summary: str | None = None,
+        source_message_id: str | None = None,
+        run_id: str | None = None,
     ) -> list[MemoryEntry]:
         """
         Run extraction logic using a forked agent pattern.
         """
         # Gather multi-source context
         multi_source_context = await self._gather_multi_source_context(project_id)
-        
+        logger.info(f"[AutoExtract] Multi-source context length: {len(multi_source_context)}")
         # Build extraction prompt using standardized builder
         from app.core.memory.prompts import MemoryExtractionPromptBuilder
-        
+
         # Extract metadata from multi-source context
         readme_summary = multi_source_context.split("### README.md")[-1].split("###")[0].strip() if "### README.md" in multi_source_context else "None"
         pending_todos = multi_source_context.split("### Pending TODOs")[-1].split("###")[0].strip() if "### Pending TODOs" in multi_source_context else "None"
         existing_memories = await self._get_existing_memory_manifest()
+
+        # Inject discovered domain terms so LLM knows project vocabulary
+        domain_terms = []
+        if self._term_bank is not None:
+            try:
+                domain_terms = await self._term_bank.get_top_terms(
+                    project_id, limit=20
+                )
+            except Exception as e:
+                logger.debug(f"[AutoExtract] Failed to load domain terms: {e}")
 
         builder = MemoryExtractionPromptBuilder(
             readme_summary=readme_summary,
@@ -246,7 +335,8 @@ class AutoMemoryExtractor:
             existing_memories=existing_memories,
             multi_source_context=multi_source_context,
             messages_text=self._format_messages(messages[-15:]),
-            summary=summary
+            summary=summary,
+            domain_terms=domain_terms,
         )
 
         extraction_messages = await builder.build()
@@ -260,11 +350,19 @@ class AutoMemoryExtractor:
                 messages=extraction_messages,
                 purpose="memory_extraction",
                 model_name=model_name,
+                max_tokens=4000,
             )
 
             # Parse extracted memories
-            content = response.content if hasattr(response, 'content') else str(response)
-            extracted = await self._parse_extraction_response(content, project_id, user_id)
+            content = response.content
+            logger.debug(f"[AutoExtract] Raw LLM response: {content[:500]}...")
+            extracted = await self._parse_extraction_response(
+                content, 
+                project_id, 
+                user_id,
+                source_message_id=source_message_id,
+                run_id=run_id
+            )
 
             # Save extracted memories
             saved_count = 0
@@ -301,17 +399,33 @@ class AutoMemoryExtractor:
             elif isinstance(msg, ToolMessage):
                 role = f"Tool ({getattr(msg, 'name', 'output')})"
 
-            content_raw = str(msg.content)
+            content_raw = ""
+            if isinstance(msg.content, str):
+                content_raw = msg.content
+            elif isinstance(msg.content, list):
+                text_parts = []
+                for block in msg.content:
+                    if isinstance(block, dict) and block.get("type") == "text":
+                        text_parts.append(block.get("text", ""))
+                    elif isinstance(block, str):
+                        text_parts.append(block)
+                content_raw = " ".join(text_parts)
+            else:
+                content_raw = str(msg.content)
             
-            # Smart Truncation: Head (300) + Tail (200) for very long messages
+            # Smart Truncation: Head (400) + Tail (300) for very long messages
             if len(content_raw) > 800:
                 content = content_raw[:400] + "\n... [TRUNCATED] ...\n" + content_raw[-300:]
             else:
                 content = content_raw
 
-            lines.append(f"{role}: {content}")
+            msg_line = f"{role}: {content}"
+            logger.info(f"[AutoExtract] Message {len(lines)}: {msg_line[:100]}...")
+            lines.append(msg_line)
 
-        return "\n\n".join(lines)
+        formatted = "\n\n".join(lines)
+        logger.info(f"[AutoExtract] Formatted {len(lines)} messages for LLM (len: {len(formatted)})")
+        return formatted
 
     async def _get_existing_memory_manifest(self) -> str:
         """Get a summary of existing memories to avoid duplicates."""
@@ -331,67 +445,103 @@ class AutoMemoryExtractor:
             logger.warning(f"[AutoExtract] Failed to get memory manifest: {e}")
             return "Could not load existing memories."
 
-    def _calculate_confidence(self, content: str, item: dict) -> float:
+    # ── Domain-agnostic scoring regexes (pre-compiled) ──────────────────
+    _RESOURCE_PATH_RE = re.compile(
+        r'\b(?:[\w\-]+/)+[\w\-]+(?:\.[\w\-]+)+\b'
+    )
+    _DATE_RE = re.compile(
+        r'\b(?:19|20)\d{2}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01])\b'
+    )
+    _VERSION_RE = re.compile(
+        r'\bv\d+\.\d+(?:\.\d+)?(?:[-+.]?[a-zA-Z0-9]+)*\b'
+    )
+    _LIST_RE = re.compile(
+        r'^\s*(?:[-*]|\d+\.)\s+\S', re.MULTILINE
+    )
+    _NUMBER_RE = re.compile(r'\b\d+(?:\.\d+)?\b')
+
+    # (sentiment markers are module-level imports: _ACTION_PATTERN_EN, _VAGUE_PATTERN_EN)
+
+    async def _calculate_confidence(
+        self,
+        content: str,
+        llm_confidence: float | None = None,
+        project_id: int | None = None,
+    ) -> float:
         """Calculate confidence score based on content quality.
-        
-        Factors:
-        - Content length (50-500 chars is ideal)
-        - Specific indicators (file paths, dates, technical terms)
-        - Clear structure (bullet points, numbered lists)
-        - Actionability (clear instructions vs vague statements)
+
+        Uses tiered mutually-exclusive scoring:
+        - Tier A (+0.25): high domain-term density or resource paths
+        - Tier B (+0.15): medium domain-term density or specific indicators
+        - Tier C (+0.05): structural / actionable quality
+
+        LLM confidence acts as a trust ceiling, not a blended average.
         """
         score = 0.5  # Base score
 
-        # Length factor (ideal: 100-500 chars)
+        # ── Length scoring (continuous trapezoid) ───────────────────────
         content_len = len(content)
         if 100 <= content_len <= 500:
             score += 0.2
         elif 50 <= content_len < 100:
-            score += 0.1
-        elif content_len > 1000:  # Too long, might be noisy
+            # Linear ramp from 50 to 100
+            score += 0.1 + 0.1 * (content_len - 50) / 50
+        elif 500 < content_len <= 1000:
+            # Linear decay from 500 to 1000
+            score += 0.2 * (1000 - content_len) / 500
+        elif content_len > 1000:
             score -= 0.1
-        elif content_len < 30:  # Too short
-            score -= 0.2
-
-        # Specific indicators
-        # File paths
-        if re.search(r'[\w\-./]+\.(py|js|ts|java|go|rs|cpp|c|h|md|txt|json|yaml|yml)', content):
-            score += 0.1
-
-        # Dates or versions
-        if re.search(r'\d{4}-\d{2}-\d{2}|v?\d+\.\d+', content):
+        elif content_len < 30:
+            score -= 0.15
+        else:  # 30-50
             score += 0.05
 
-        # Technical terms
-        tech_terms = ['function', 'class', 'method', 'api', 'database', 'config',
-                     'server', 'client', 'request', 'response', 'error', 'bug']
-        if any(term in content.lower() for term in tech_terms):
-            score += 0.05
+        # ── Vague-word penalty (capped) ────────────────────────────────
+        content_lower = content.lower()
+        # Vagueness: English via word-boundary regex, Chinese via substring
+        vague_count = len(_VAGUE_PATTERN_EN.findall(content))
+        if vague_count < 3:
+            vague_count += sum(
+                1 for word in VAGUE_MARKERS["zh"] if word in content
+            )
+            vague_count = min(vague_count, 3)  # Re-apply cap after both langs
+        score -= min(vague_count, 3) * 0.05
 
-        # Clear structure indicators
-        if re.search(r'^[\s]*[-*\d]\s+', content, re.MULTILINE):  # List items
-            score += 0.05
+        # ── Domain-term density (async lookup) ─────────────────────────
+        term_density = 0
+        if self._term_bank is not None:
+            matched = await self._term_bank.match(content, project_id)
+            term_density = len(matched)
 
-        # Actionability indicators
-        action_words = ['should', 'must', 'need to', 'use', 'prefer', 'always', 'never']
-        if any(word in content.lower() for word in action_words):
-            score += 0.05
+        # ── Specific indicators ────────────────────────────────────────
+        has_resource_path = bool(self._RESOURCE_PATH_RE.search(content))
+        has_date = bool(self._DATE_RE.search(content))
+        has_version = bool(self._VERSION_RE.search(content))
+        has_number = bool(self._NUMBER_RE.search(content))
+        has_list = bool(self._LIST_RE.search(content))
+        # Actionability: English via word-boundary regex, Chinese via substring
+        has_actionable = bool(_ACTION_PATTERN_EN.search(content))
+        if not has_actionable:
+            has_actionable = any(w in content for w in ACTION_MARKERS["zh"])
 
-        # Vague indicators (penalty)
-        vague_words = ['maybe', 'perhaps', 'something', 'somehow', 'might', 'could be']
-        vague_count = sum(1 for word in vague_words if word in content.lower())
-        score -= vague_count * 0.05
+        # ── Tiered scoring (mutually exclusive) ────────────────────────
+        if term_density >= 3 or has_resource_path:
+            score += 0.25  # Tier A
+        elif term_density >= 1 or has_date or has_version or has_number:
+            score += 0.15  # Tier B
+        elif has_list or has_actionable:
+            score += 0.05  # Tier C
 
-        # LLM-provided confidence (if available)
-        if "confidence" in item:
-            try:
-                llm_conf = float(item["confidence"])
-                # Blend with our calculation
-                score = (score + llm_conf) / 2
-            except (ValueError, TypeError):
-                pass
+        # ── LLM confidence: trust ceiling ──────────────────────────────
+        if llm_confidence is not None:
+            if llm_confidence < 0.3:
+                # LLM doesn't trust it → cap regardless of local signals
+                score = min(score, 0.6)
+            elif llm_confidence > 0.8:
+                # LLM is very confident → allow slight boost
+                score = min(score * 1.1, 1.0)
 
-        return max(0.1, min(1.0, score))  # Clamp between 0.1 and 1.0
+        return max(0.1, min(1.0, score))
 
     def _generate_title(self, content: str) -> str:
         """Generate a meaningful title from content.
@@ -427,6 +577,8 @@ class AutoMemoryExtractor:
         response: str,
         project_id: int | None,
         user_id: str | None,
+        source_message_id: str | None = None,
+        run_id: str | None = None,
     ) -> list[MemoryEntry]:
         """Parse LLM extraction response into memory entries."""
         entries = []
@@ -434,6 +586,11 @@ class AutoMemoryExtractor:
 
         # Try to extract JSON from response
         try:
+            response = response.strip()
+            if not response:
+                logger.info("[AutoExtract] Empty response from LLM, assuming no extractions.")
+                return []
+
             # Find JSON block
             json_match = re.search(r'```(?:json)?\s*(\[.*?\])\s*```', response, re.DOTALL)
             if json_match:
@@ -483,11 +640,21 @@ class AutoMemoryExtractor:
                 privacy = PrivacyLevel.PRIVATE if mem_type in (MemoryType.USER, MemoryType.FEEDBACK) else PrivacyLevel.TEAM
 
                 # Calculate dynamic confidence based on content quality
-                confidence = self._calculate_confidence(content, item)
+                llm_conf = item.get("confidence")
+                try:
+                    llm_confidence = float(llm_conf) if llm_conf is not None else None
+                except (ValueError, TypeError):
+                    llm_confidence = None
+
+                confidence = await self._calculate_confidence(
+                    content,
+                    llm_confidence=llm_confidence,
+                    project_id=project_id,
+                )
 
                 # Skip low-confidence extractions
-                if confidence < 0.4:
-                    logger.debug(f"[AutoExtract] Skipping low-confidence ({confidence:.2f}): {content[:40]}...")
+                if confidence < 0.35:  # Lowered threshold from 0.4
+                    logger.info(f"[AutoExtract] ❌ Rejecting low-confidence ({confidence:.2f}): {content[:60]}...")
                     continue
 
                 # Generate meaningful title or use provided one
@@ -504,6 +671,7 @@ class AutoMemoryExtractor:
                 utility_score = float(item.get("utility_score", 0.0))
                 rationale = item.get("rationale", "")
 
+                logger.info(f"[AutoExtract] Creating memory '{title}' with source_msg={source_message_id}, run_id={run_id}")
                 entry = MemoryEntry(
                     id=f"auto_{mem_type.value}_{uuid.uuid4().hex[:8]}",
                     type=mem_type,
@@ -516,6 +684,8 @@ class AutoMemoryExtractor:
                     description=content[:200],
                     project_id=project_id,
                     user_id=user_id,
+                    source_message_id=source_message_id,
+                    run_id=run_id,
                     tags=["auto_extracted"],
                     source="auto_extraction",
                     confidence=confidence,
@@ -529,6 +699,15 @@ class AutoMemoryExtractor:
                 )
 
                 entries.append(entry)
+
+                # Discover domain terms from accepted high-confidence memories
+                if self._term_bank is not None:
+                    try:
+                        await self._term_bank.discover(
+                            content, project_id=project_id, memory_confidence=confidence
+                        )
+                    except Exception as e:
+                        logger.debug(f"[AutoExtract] Term discovery failed: {e}")
 
         except json.JSONDecodeError as e:
             logger.warning(f"[AutoExtract] Failed to parse JSON: {e}")
@@ -558,6 +737,8 @@ async def trigger_auto_extraction(
     messages: list[BaseMessage],
     project_id: int | None = None,
     user_id: str | None = None,
+    run_id: str | None = None,
+    force: bool = False,
 ) -> list[MemoryEntry] | None:
     """
     Convenience function to trigger auto-extraction.
@@ -572,4 +753,6 @@ async def trigger_auto_extraction(
         messages=messages,
         project_id=project_id,
         user_id=user_id,
+        run_id=run_id,
+        force=force
     )

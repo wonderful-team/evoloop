@@ -25,6 +25,10 @@ import { LoadingButton } from "@evoloop/shared/components/ui/loading-button"
 import { PasswordInput } from "@evoloop/shared/components/ui/password-input"
 import useAuth, { isLoggedIn } from "@/hooks/useAuth"
 
+const searchSchema = z.object({
+  session_expired: z.string().optional().catch(undefined),
+})
+
 // Schema needs to be inside or passed t function, but for simplicity we can move it inside component or use a function creator.
 // Moving schema inside component is safer for i18n
 const createSchema = (t: any) =>
@@ -40,8 +44,11 @@ type FormData = z.infer<ReturnType<typeof createSchema>>
 
 export const Route = createFileRoute("/login")({
   component: Login,
-  beforeLoad: async () => {
-    if (isLoggedIn()) {
+  validateSearch: searchSchema,
+  beforeLoad: async ({ search }) => {
+    // Allow access to /login when session_expired is set (from 401 handler)
+    // to avoid redirect loops when the backend session is invalid but cookie remains.
+    if (isLoggedIn() && !search.session_expired) {
       throw redirect({
         to: "/",
       })
@@ -107,7 +114,8 @@ function Login() {
         return
       }
     }
-    navigate({ to: "/" })
+    // Strip session_expired param on successful login
+    navigate({ to: "/", search: {} })
   }
 
   const onSubmit = (data: FormData) => {
@@ -119,10 +127,9 @@ function Login() {
     })
   }
 
-  const handleThirdPartyLoginSuccess = (token?: string) => {
-    if (token) {
-      localStorage.setItem("access_token", token)
-    }
+  const handleThirdPartyLoginSuccess = () => {
+    // Backend sets session cookie for all login flows.
+    // Frontend no longer stores tokens in localStorage.
     handlePostLoginRedirect()
   }
 
@@ -218,7 +225,7 @@ function Login() {
         </div>
 
         {/* WeChat Login */}
-        <WechatLoginButton onSuccess={(token) => handleThirdPartyLoginSuccess(token)} />
+        <WechatLoginButton onSuccess={handleThirdPartyLoginSuccess} />
 
         <div className="text-center text-sm">
           {t("auth.login.noAccount")}{" "}

@@ -9,7 +9,7 @@ export class AccountService {
     /**
      * Login Access Token
      * Passthrough login to Member Center using username and password.
-     * Returns a thin local token based on the Cloud member_id.
+     * Returns the access token directly.
      * @param data The data for the request.
      * @param data.formData
      * @returns Token Successful Response
@@ -116,7 +116,7 @@ export class AccountService {
     
     /**
      * Wechat Direct Login
-     * Exchanges the Member Center token for a local JWT after successful WeChat scan.
+     * Returns the cloud access token directly after successful WeChat scan.
      * @param data The data for the request.
      * @param data.key The unique key from QR code generation
      * @returns Token Successful Response
@@ -162,7 +162,7 @@ export class AccountService {
     
     /**
      * Logout
-     * Clear local session and cloud tokens.
+     * Clear local session and access tokens.
      * @returns LogoutResponse Successful Response
      * @throws ApiError
      */
@@ -703,25 +703,6 @@ export class ConversationsService {
     
     /**
      * Get Conversation Messages
-     * Get message history for a thread from the persistent SQL log.
-     * Supports pagination for infinite scroll.
-     *
-     * Query Logic (simplified):
-     * 1. Query all is_visible=True messages (respecting pagination)
-     * 2. Collect run_ids from visible messages
-     * 3. Query is_visible=False messages with the same run_ids
-     * 4. Merge and return
-     *
-     * Note: is_visible is completely determined by message category.
-     * See MessageCategory.get_visible_categories() for details.
-     *
-     * Args:
-     * thread_id: The conversation thread ID
-     * limit: Number of messages to return (default 50, max 100)
-     * before_id: Cursor for pagination - load messages before this ID
-     *
-     * Returns:
-     * MessageListResponse with items, has_more flag, and cursors
      * @param data The data for the request.
      * @param data.threadId
      * @param data.limit
@@ -748,10 +729,6 @@ export class ConversationsService {
     
     /**
      * Search Conversations
-     * Full-text search on message logs.
-     *
-     * Only searches visible messages (is_visible=True).
-     * Internal messages and errors are excluded from search.
      * @param data The data for the request.
      * @param data.q
      * @param data.projectId
@@ -774,7 +751,6 @@ export class ConversationsService {
     
     /**
      * Rename Conversation
-     * Rename a conversation.
      * @param data The data for the request.
      * @param data.threadId
      * @param data.requestBody
@@ -798,7 +774,6 @@ export class ConversationsService {
     
     /**
      * Delete Conversation
-     * Delete a conversation history and its checkpoints.
      * @param data The data for the request.
      * @param data.threadId
      * @returns unknown Successful Response
@@ -819,7 +794,6 @@ export class ConversationsService {
     
     /**
      * Get Thread Activity
-     * Get real-time activity/status for a thread run.
      * @param data The data for the request.
      * @param data.threadId
      * @returns unknown Successful Response
@@ -840,10 +814,6 @@ export class ConversationsService {
     
     /**
      * Rewind Conversation
-     * Rewind the conversation to the previous state (Undo last step).
-     * Optionally revert file changes made by the Agent.
-     *
-     * Uses the new event-driven RewindOrchestrator for distributed cleanup.
      * @param data The data for the request.
      * @param data.threadId
      * @param data.requestBody
@@ -867,7 +837,6 @@ export class ConversationsService {
     
     /**
      * Get Thread Changeset
-     * Get the cumulative file changeset for a thread, formatted as a tree.
      * @param data The data for the request.
      * @param data.threadId
      * @returns ChangesetNode Successful Response
@@ -1452,7 +1421,7 @@ export class KnowledgeService {
      * Each file is processed independently.
      * @param data The data for the request.
      * @param data.formData
-     * @returns BulkUploadResponse Successful Response
+     * @returns BaseAPIResponse Successful Response
      * @throws ApiError
      */
     public static bulkUpload(data: KnowledgeBulkUploadData): CancelablePromise<KnowledgeBulkUploadResponse> {
@@ -1475,7 +1444,7 @@ export class KnowledgeService {
      * Directory structure can be preserved or flattened.
      * @param data The data for the request.
      * @param data.formData
-     * @returns ZipImportResponse Successful Response
+     * @returns BaseAPIResponse Successful Response
      * @throws ApiError
      */
     public static importZip(data: KnowledgeImportZipData): CancelablePromise<KnowledgeImportZipResponse> {
@@ -1813,7 +1782,7 @@ export class KnowledgeService {
     
     /**
      * List Maintenance Reports
-     * List recent maintenance reports from SQLite.
+     * List recent maintenance reports from database.
      * @param data The data for the request.
      * @param data.limit Number of recent reports
      * @returns unknown Successful Response
@@ -2861,7 +2830,7 @@ export class MemberService {
      * Change current user's password (Transparent Proxy).
      * @param data The data for the request.
      * @param data.requestBody
-     * @returns MessageResponse Successful Response
+     * @returns BaseAPIResponse Successful Response
      * @throws ApiError
      */
     public static changePassword(data: MemberChangePasswordData): CancelablePromise<MemberChangePasswordResponse> {
@@ -3122,6 +3091,9 @@ export class MemoryService {
     /**
      * Search Memory
      * Search memory concepts.
+     *
+     * TODO: `use_vector` is accepted for API compatibility but not yet implemented
+     * in the backend search logic.
      * @param data The data for the request.
      * @param data.q
      * @param data.projectId
@@ -3417,10 +3389,11 @@ export class ProjectModulesService {
 export class ProjectProfilesService {
     /**
      * Discover Profile
-     * Trigger Agent-driven project discovery.
+     * Trigger Agent-driven project discovery via the Skill system.
      *
-     * Dispatches an Agent Mission to explore the project, set up the environment,
-     * and generate PROJECT.md. Returns a thread_id for SSE streaming.
+     * The API resolves the skill, builds an ExecutionTicket with ``skill_id``,
+     * and lets the Skill SOP guide the Worker. No template-level step-by-step
+     * instructions are needed — the SKILL.md owns the execution flow.
      * @param data The data for the request.
      * @param data.projectId
      * @param data.requestBody
@@ -3500,7 +3473,7 @@ export class ProjectRequirementsService {
      * Get all requirement documents for a project.
      * @param data The data for the request.
      * @param data.projectId
-     * @returns RequirementListResponse Successful Response
+     * @returns ListResponse_RequirementListItem_ Successful Response
      * @throws ApiError
      */
     public static listProjectRequirements(data: ProjectRequirementsListProjectRequirementsData): CancelablePromise<ProjectRequirementsListProjectRequirementsResponse> {
@@ -3745,7 +3718,7 @@ export class ProjectsService {
      * Returns projects with sync_status="DETECTED" that need to be imported or ignored.
      *
      * Note: Returns empty list if project discovery is disabled via configuration.
-     * @returns DetectedProjectsResponse Successful Response
+     * @returns ListResponse_DetectedProjectItem_ Successful Response
      * @throws ApiError
      */
     public static getDetectedProjects(): CancelablePromise<ProjectsGetDetectedProjectsResponse> {
@@ -3809,7 +3782,7 @@ export class ProjectsService {
      * Get all ignored projects.
      *
      * These projects can be restored (un-ignored) later.
-     * @returns DetectedProjectsResponse Successful Response
+     * @returns ListResponse_DetectedProjectItem_ Successful Response
      * @throws ApiError
      */
     public static getIgnoredProjects(): CancelablePromise<ProjectsGetIgnoredProjectsResponse> {
@@ -3964,14 +3937,13 @@ export class StreamService {
      * Uses cache Pub/Sub for real-time event streaming.
      *
      * Event Types:
-     * - activity: Initial full state snapshot (sent once on connect)
-     * - step: New step created/updated (incremental)
+     * - activity: Initial lightweight state snapshot (sent once on connect)
      * - artifact: New artifact created/updated (incremental)
      * - status: Status change (incremental)
      * - token: Token stream for chat
-     * - message: New message (with tool folding)
+     * - message: New message (with tool folding via msg.steps)
      * - human_request: HITL request
-     * - stream: Structured stream events (thinking, tool_progress, etc.)
+     * - stream: Structured stream events (thinking, errors, etc.)
      * @param data The data for the request.
      * @param data.threadId
      * @param data.guestId
@@ -4275,7 +4247,7 @@ export class SubtasksService {
      * @param data.projectId
      * @param data.taskId
      * @param data.requestBody
-     * @returns TaskProgressUpdateResponse Successful Response
+     * @returns BaseAPIResponse Successful Response
      * @throws ApiError
      */
     public static updateTaskProgress(data: SubtasksUpdateTaskProgressData): CancelablePromise<SubtasksUpdateTaskProgressResponse> {

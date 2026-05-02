@@ -26,7 +26,8 @@ from app.core.engine.message.repository import MessageRepository
 from app.core.engine.message.schemas import MessageBlock
 from app.core.engine.message.schemas import MessageHandlerResult
 from app.core.engine.message.stream import MessageStreamPolicy
-from app.core.engine.reasoning import build_thinking_blocks, infer_thinking_type
+from app.core.tools.registry import get_tool_metadata
+from app.i18n.service import i18n
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +61,7 @@ class MessageHandler:
         tool_calls: list | None = None,
         thinking: str | None = None,
         metadata: dict | None = None,
+        parent_id: str | None = None,
     ) -> MessageHandlerResult:
         """处理 AI 助手消息"""
         category = MessageClassifier.classify_ai_message(
@@ -81,9 +83,6 @@ class MessageHandler:
         message_id = None
         seq = 0
 
-        # Determine thinking type from metadata
-        thinking_type = infer_thinking_type(metadata)
-
         if persist_data.should_persist:
             message_id, seq = await self._repository.persist(
                 role="ai",
@@ -93,27 +92,98 @@ class MessageHandler:
                 category=category.value,
                 is_visible=category.is_visible_to_user,
                 content_type="text",
+                metadata=metadata,
+                parent_id=parent_id,
             )
+            
+            # 只有用户可见且不是纯内部思考的消息才推送到 Mobile
             if message_id and category.is_visible_to_user and category != MessageCategory.INTERNAL_REASONING:
-                await self._push_to_mobile(
+                await self._dispatch_block(
                     role="ai", content=persist_data.content, thinking=persist_data.thinking,
                     tool_calls=persist_data.tool_calls, category=category.value,
-                    status="completed", sequence_number=seq,
-                    thinking_type=thinking_type,
+                    status="completed", sequence_number=seq, channels={"mobile"},
+                    parent_id=parent_id or await self._repository.get_last_message_id(), # Fallback for stream
                 )
 
         if stream_data.should_stream:
-            await self._stream_to_frontend(
-                content=stream_data.content, frontend_type=stream_data.frontend_type,
+            await self._dispatch_block(
+                role="ai", content=stream_data.content,
                 category=category.value, metadata=metadata,
-                tool_calls=persist_data.tool_calls, thinking=thinking,
+                tool_calls=persist_data.tool_calls, 
+                thinking=thinking,
                 sequence_number=seq if persist_data.should_persist else 0,
-                thinking_type=thinking_type,
+                status="streaming" if persist_data.should_persist else "completed",
+                channels={"sse"},
+                parent_id=parent_id or await self._repository.get_last_message_id(),
             )
 
         return MessageHandlerResult(
             category=category.value, persisted=persist_data.should_persist,
             streamed=stream_data.should_stream, message_id=message_id,
+            sequence_number=seq,
+        )
+
+    async def handle_tool_start(
+        self,
+        tool_name: str,
+        tool_call_id: str | None = None,
+        input_data: dict | None = None,
+        parent_id: str | None = None,
+    ) -> MessageHandlerResult:
+        """处理工具开始执行 — 预插入 running 状态记录"""
+        # Build tool_meta for frontend rendering (canonical source)
+        metadata = get_tool_metadata(tool_name) or {}
+        is_hidden = metadata.get("is_hidden", False)
+        
+        # Categorize based on tool visibility
+        category = MessageCategory.INTERNAL_TOOL_CALL if is_hidden else MessageCategory.TOOL_OUTPUT
+
+        summary_template = metadata.get("summary_template")
+        display_name = None
+        if summary_template and input_data:
+            try:
+                display_name = i18n.get(summary_template, **input_data)
+            except (KeyError, TypeError):
+                pass
+        tool_meta = {
+            "display_name": display_name,
+            "affected_path_keys": metadata.get("affected_path_keys", []),
+        }
+
+        message_id = None
+        seq = 0
+        
+        # Apply persistence policy
+        if category.should_persist_to_db:
+            message_id, seq = await self._repository.persist(
+                role="tool",
+                content="",
+                category=category.value,
+                action_type="tool_output",
+                status="running",
+                is_visible=True,
+                tool_call_id=tool_call_id,
+                tool_name=tool_name,
+                content_type="text",
+                metadata={"tool_name": tool_name, "tool_call_id": tool_call_id, "input": input_data, "tool_meta": tool_meta},
+                parent_id=parent_id,
+            )
+
+        # Push real-time "running" event if visible
+        if category.is_visible_to_user:
+            await self._dispatch_block(
+                role="tool", content="", category=category.value,
+                status="running", sequence_number=seq,
+                tool_name=tool_name, tool_call_id=tool_call_id,
+                metadata={"tool_meta": tool_meta, "input": input_data},
+                channels={"sse", "mobile"}
+            )
+
+        logger.info(f"[MessageHandler] Tool start tracked: {tool_name} (seq={seq}, hidden={is_hidden})")
+        return MessageHandlerResult(
+            category=category.value, persisted=category.should_persist_to_db, 
+            streamed=category.is_visible_to_user,
+            message_id=message_id, sequence_number=seq,
         )
 
     async def handle_tool_output(
@@ -122,9 +192,18 @@ class MessageHandler:
         output: Any,
         tool_call_id: str | None = None,
         run_id: str | None = None,
+        sequence_number: int | None = None,
     ) -> MessageHandlerResult:
-        """处理工具输出消息"""
-        category = MessageClassifier.classify_tool_output(tool_name, output)
+        """处理工具输出消息 — 支持 UPDATE 已有 running 记录"""
+        # Check tool visibility from registry
+        tool_meta_registry = get_tool_metadata(tool_name) or {}
+        is_hidden = tool_meta_registry.get("is_hidden", False)
+        
+        if is_hidden:
+            category = MessageCategory.INTERNAL_TOOL_CALL
+        else:
+            category = MessageClassifier.classify_tool_output(tool_name, output)
+            
         content = str(output) if output else ""
         persist_data = MessagePersistencePolicy.apply_policy(
             category=category, content=content, tool_call_id=tool_call_id, tool_name=tool_name,
@@ -134,31 +213,78 @@ class MessageHandler:
         logger.info(f"[MessageHandler] Tool {tool_name} output classified as: {category.value}, persist={persist_data.should_persist}")
 
         message_id = None
-        seq = 0
-        if persist_data.should_persist:
+        seq = sequence_number or 0
+
+        if seq and persist_data.should_persist:
+            # UPDATE existing running record
+            updated = await self._repository.update(
+                sequence_number=sequence_number,
+                status="completed",
+                content=persist_data.content,
+                meta_data={"tool_name": tool_name, "tool_call_id": tool_call_id, "output": output},
+            )
+            if updated:
+                message_id = f"msg-{self.thread_id}-{sequence_number}"
+                if category.is_visible_to_user:
+                    await self._dispatch_block(
+                        role="tool", content=persist_data.content, category=category.value,
+                        status="completed", sequence_number=sequence_number,
+                        tool_name=persist_data.tool_name, tool_call_id=persist_data.tool_call_id,
+                        channels={"mobile"}
+                    )
+        elif persist_data.should_persist:
+            # Fallback: INSERT new record (backward compatibility)
             message_id, seq = await self._repository.persist(
                 role="tool", content=persist_data.content, category=category.value,
                 action_type="tool_output", is_visible=category.is_visible_to_user,
                 tool_call_id=persist_data.tool_call_id, tool_name=persist_data.tool_name,
                 content_type="text",
+                metadata={"tool_name": tool_name, "tool_call_id": tool_call_id},
             )
             if message_id and category.is_visible_to_user:
-                await self._push_to_mobile(
+                await self._dispatch_block(
                     role="tool", content=persist_data.content, category=category.value,
-                    action_type="tool_output", status="completed", sequence_number=seq,
+                    status="completed", sequence_number=seq,
                     tool_name=persist_data.tool_name, tool_call_id=persist_data.tool_call_id,
+                    channels={"mobile"}
                 )
 
         if stream_data.should_stream:
-            await self._stream_to_frontend(
-                content=content, frontend_type=stream_data.frontend_type,
-                category=category.value, tool_name=tool_name, tool_call_id=tool_call_id,
+            await self._dispatch_block(
+                role="tool", content=content, category=category.value,
+                tool_name=tool_name, tool_call_id=tool_call_id,
                 sequence_number=seq if persist_data.should_persist else 0,
+                channels={"sse"}
             )
 
         return MessageHandlerResult(
             category=category.value, persisted=persist_data.should_persist,
             streamed=stream_data.should_stream, message_id=message_id,
+            sequence_number=seq,
+        )
+
+    async def handle_tool_error(
+        self,
+        tool_name: str,
+        error: Exception,
+        tool_call_id: str | None = None,
+        sequence_number: int | None = None,
+    ) -> MessageHandlerResult:
+        """处理工具执行错误 — 将 running 记录标记为 failed"""
+        content = str(error) if error else "Tool execution failed"
+        seq = sequence_number or 0
+
+        if sequence_number:
+            await self._repository.update(
+                sequence_number=sequence_number,
+                status="failed",
+                content=content,
+                meta_data={"tool_name": tool_name, "tool_call_id": tool_call_id, "error": content},
+            )
+
+        return MessageHandlerResult(
+            category="tool_error", persisted=bool(sequence_number),
+            streamed=False, message_id=None, sequence_number=seq,
         )
 
     async def handle_user_message(self, content: str, metadata: dict | None = None) -> MessageHandlerResult:
@@ -167,12 +293,17 @@ class MessageHandler:
         message_id, seq = await self._repository.persist(
             role="human", content=content, category=category.value,
             is_visible=True, content_type="text",
+            metadata=metadata,
+            parent_id=None, # User message parent is resolved in repository if None
         )
-        await self._stream_to_frontend(
-            content=content, frontend_type="human",
-            category=category.value, sequence_number=seq,
+        await self._dispatch_block(
+            role="human", content=content, category=category.value,
+            sequence_number=seq, channels={"sse"}
         )
-        return MessageHandlerResult(category=category.value, persisted=True, streamed=True, message_id=message_id)
+        return MessageHandlerResult(
+            category=category.value, persisted=True, streamed=True, 
+            message_id=message_id, sequence_number=seq
+        )
 
     async def handle_hitl_request(
         self,
@@ -182,23 +313,47 @@ class MessageHandler:
         options: list[str] | None = None,
         context: str | None = None,
         default_value: str | None = None,
+        tool_call_id: str | None = None,
+        tool_name: str | None = None,
+        parent_id: str | None = None,
     ) -> MessageHandlerResult:
         """处理人机交互请求（HITL）"""
+        logger.info(f"[MessageHandler] Handling HITL request: {request_id} (tool={tool_name})")
         content = json.dumps({
             "id": request_id, "type": request_type, "prompt": prompt,
             "options": options, "context": context, "default_value": default_value,
         }, ensure_ascii=False)
 
+        # Generate tool_meta if tool information is provided
+        metadata = {}
+        if tool_name:
+            from app.core.tools.registry import get_tool_metadata
+            from app.i18n.service import i18n
+            tool_meta = get_tool_metadata(tool_name)
+            if tool_meta and tool_meta.summary_template:
+                metadata["tool_meta"] = {
+                    "name": tool_name,
+                    "display_name": i18n.get(tool_meta.summary_template, request_type=request_type, prompt=prompt),
+                }
+
         message_id, seq = await self._repository.persist(
-            role="system", content=content, category="hitl_request",
+            role="system", content=content, category=MessageCategory.HITL_REQUEST.value,
             action_type="human_request", status="waiting_human",
             is_visible=True, content_type="json",
+            tool_call_id=tool_call_id or request_id, # Fallback to request_id
+            tool_name=tool_name,
+            metadata=metadata if metadata else None,
+            parent_id=parent_id,
         )
-        await self._push_to_mobile(
-            role="system", content=content, category="hitl_request",
-            action_type="human_request", status="waiting_human", sequence_number=seq,
+        await self._dispatch_block(
+            role="system", content=content, category=MessageCategory.HITL_REQUEST.value,
+            status="waiting_human", sequence_number=seq,
+            tool_name=tool_name, tool_call_id=tool_call_id or request_id,
+            metadata=metadata if metadata else None,
+            channels={"sse", "mobile"},
+            parent_id=parent_id,
         )
-        return MessageHandlerResult(category="hitl_request", persisted=True, streamed=True, message_id=message_id)
+        return MessageHandlerResult(category=MessageCategory.HITL_REQUEST.value, persisted=True, streamed=True, message_id=message_id)
 
     async def handle_error(self, error: Exception) -> MessageHandlerResult:
         """处理异常上报"""
@@ -221,22 +376,24 @@ class MessageHandler:
         await MobileErrorNotifier(self).push(classification)
 
         if classification.error_type == "quota_exhausted":
-            try:
-                from app.models.schemas.events import QuotaExhaustedEvent
-                from app.core.engine.message.event_bus import get_event_bus
-                await get_event_bus().publish(
-                    f"chat:{self.thread_id}:events",
-                    QuotaExhaustedEvent(
-                        title=classification.title, message=classification.message, hint=classification.hint
-                    ).model_dump_json()
-                )
-            except Exception as e:
-                logger.error(f"[MessageHandler] Failed to publish QuotaExhaustedEvent: {e}")
+            from app.models.schemas.events import QuotaExhaustedEvent
+            from app.core.engine.message.event_bus import get_event_bus
+            await get_event_bus().publish(
+                f"chat:{self.thread_id}:events",
+                QuotaExhaustedEvent(
+                    title=classification.title, message=classification.message, hint=classification.hint
+                ).model_dump_json()
+            )
 
-        await self._stream_to_frontend(
-            content=f"**{classification.title}**\n{classification.message}",
-            frontend_type="error", category=category.value,
-            metadata={"error_type": classification.error_type, "hint": classification.hint, "is_terminal": classification.is_terminal},
+        await self._dispatch_block(
+            role="system", content=f"**{classification.title}**\n{classification.message}",
+            category=category.value,
+            metadata={
+                "error_type": classification.error_type,
+                "hint": classification.hint,
+                "is_terminal": classification.is_terminal
+            },
+            channels={"sse"}
         )
         return MessageHandlerResult(
             category=category.value, persisted=category == MessageCategory.ERROR_BUSINESS,
@@ -247,79 +404,65 @@ class MessageHandler:
     # Private helpers
     # ------------------------------------------------------------------
 
-    async def _push_to_mobile(
-        self, role: str, content: str | None, thinking: str | None = None,
-        tool_calls: list | None = None, category: str = "", action_type: str = "text",
-        status: str = "completed", sequence_number: int = 0,
-        tool_name: str | None = None, tool_call_id: str | None = None,
-        thinking_type: str = "reasoning",
+    async def _dispatch_block(
+        self,
+        role: str,
+        content: str | None,
+        thinking: str | None = None,
+        tool_calls: list | None = None,
+        category: str = "",
+        status: str = "completed",
+        sequence_number: int = 0,
+        tool_name: str | None = None,
+        tool_call_id: str | None = None,
+        metadata: dict | None = None,
+        channels: set[str] | None = None,
+        parent_id: str | None = None,
     ) -> None:
-        if role == "human":
-            return
-        try:
-            block = MessageBlock(
-                id=f"msg-{self.thread_id}-{sequence_number}",
-                thread_id=self.thread_id, run_id=self.run_id, role=role,  # type: ignore[arg-type]
-                category=category, content=content or "",
-                thinking=build_thinking_blocks(thinking),
-                tool_calls=tool_calls, status=status,  # type: ignore[arg-type]
-                is_visible=True, sequence_number=sequence_number,
-                created_at=datetime.now().isoformat(),
-                metadata={"tool_name": tool_name, "tool_call_id": tool_call_id, "action_type": action_type},
-            )
-            if not self._publisher:
-                self._publisher = MessagePublisher(thread_id=self.thread_id, project_id=self.project_id)
-            await self._publisher.publish(block, channels={"mobile"})
-            logger.info(f"[MessageHandler] Pushed to mobile: seq={sequence_number}, role={role}")
-        except Exception as e:
-            logger.warning(f"[MessageHandler] Failed to push to mobile: {e}")
-
-    async def _stream_to_frontend(
-        self, content: str, frontend_type: str, category: str,
-        metadata: dict | None = None, tool_name: str | None = None,
-        tool_call_id: str | None = None, tool_calls: list | None = None,
-        thinking: str | None = None, sequence_number: int = 0,
-        content_type: str = "text", thinking_type: str = "reasoning",
-    ) -> None:
-        role_map = {"human": "human", "ai": "ai", "assistant": "ai", "tool": "tool"}
-        role = role_map.get(frontend_type, "system")
+        """统一构造 MessageBlock 并分发"""
         if sequence_number == 0:
             self._stream_seq += 1
             sequence_number = self._stream_seq
-        try:
-            block = MessageBlock(
-                id=f"msg-{self.thread_id}-{sequence_number}",
-                thread_id=self.thread_id, run_id=self.run_id, role=role,  # type: ignore[arg-type]
-                category=category, content=content, content_type=content_type,  # type: ignore[arg-type]
-                thinking=build_thinking_blocks(thinking),
-                tool_calls=tool_calls, status="streaming", is_visible=True,
-                sequence_number=sequence_number, created_at=datetime.now().isoformat(),
-                metadata={"tool_name": tool_name, "tool_call_id": tool_call_id, **(metadata or {})},
-            )
-            if not self._publisher:
-                self._publisher = MessagePublisher(thread_id=self.thread_id, project_id=self.project_id)
-            await self._publisher.publish(block, channels={"sse"})
-        except Exception as e:
-            logger.warning(f"[MessageHandler] Failed to stream message: {e}")
+
+        block = MessageBlock(
+            id=f"msg-{self.thread_id}-{sequence_number}",
+            thread_id=self.thread_id,
+            run_id=self.run_id,
+            role=role,  # type: ignore[arg-type]
+            category=category,
+            content=content or "",
+            thinking=thinking,
+            tool_calls=tool_calls,
+            status=status,  # type: ignore[arg-type]
+            is_visible=True,
+            sequence_number=sequence_number,
+            created_at=datetime.now().isoformat(),
+            parent_id=parent_id,
+            meta_data={
+                "tool_name": tool_name,
+                "tool_call_id": tool_call_id,
+                **(metadata or {}),
+            },
+        )
+        
+        if not self._publisher:
+            self._publisher = MessagePublisher(thread_id=self.thread_id, project_id=self.project_id)
+        
+        await self._publisher.publish(block, channels=channels)
 
     @staticmethod
     async def stream_token(thread_id: str, token_buffer: str) -> None:
         """
-        Stream a token buffer to the frontend via SSE.
-
-        This is the unified entry point for token streaming,
-        replacing direct cache.publish() calls in TransparentCallbackHandler.
-        Preserves TokenEvent format for frontend compatibility.
+        Stream a token buffer via unified MessagePublisher.
         """
         if not token_buffer or not thread_id:
             return
-        try:
-            from app.core.engine.message.event_bus import get_event_bus
-            from app.models.schemas.events import TokenEvent
-            bus = get_event_bus()
-            await bus.publish(
-                f"chat:{thread_id}:events",
-                TokenEvent(content=token_buffer).json(),
-            )
-        except Exception as e:
-            logger.warning(f"[MessageHandler] Failed to stream token: {e}")
+
+        from app.core.engine.message.schemas import StreamEvent
+        publisher = MessagePublisher(thread_id=thread_id)
+        
+        # 使用统一的 StreamEvent 协议，不再直接操作底层 Pub/Sub 通道
+        await publisher.publish(StreamEvent(
+            type="token",
+            data={"content": token_buffer}
+        ))

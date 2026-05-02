@@ -147,7 +147,8 @@ async def create_plan(title: str, steps: list[str], config: RunnableConfig) -> s
 
 
 @evoloop_tool(
-    is_hidden=True,  # Internal plan step tracking, not user-facing
+    is_hidden=True,  # Internal plan step tracking, not user-facing,
+    summary_template="database_logger.tool_summary.update_step_status",
 )
 async def update_step_status(
     plan_id: str,
@@ -245,7 +246,7 @@ async def analyze_feasibility(proposed_plan: str, config: RunnableConfig) -> str
         
         # Use simple invoke with prepared text
         response = await llm.ainvoke(prompt_text, config=config)
-        report = response.content if hasattr(response, 'content') else str(response)
+        report = response.content
 
         return report
 

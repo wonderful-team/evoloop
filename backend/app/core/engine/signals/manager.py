@@ -6,7 +6,7 @@ from langchain_core.runnables import RunnableConfig
 from app.core.engine.signals.base import SignalHandler
 from app.core.engine.signals.schemas import AgentSignal
 from app.core.engine.state import AgentState, StateUpdate
-from app.core.engine.state.history import ToolCall
+from app.core.engine.message.schemas import ToolCall
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +53,7 @@ class SignalManager:
                 return signal
             except Exception as e:
                 logger.error(f"Failed to create signal from tool '{tool_call.name}': {e}")
-                return None
+                raise
         return None
 
     def detect_post_execution_signal(self, tool_name: str, result: Any) -> Optional[AgentSignal]:
@@ -66,7 +66,7 @@ class SignalManager:
             from .schemas import SpawnSubtasksSignal
             return SpawnSubtasksSignal(plan=result.spawn_plan)
         
-        # Generic protocol: result has _signal attribute or dict key
+        # Generic protocol: result has _signal attribute
         if isinstance(getattr(result, "_signal", None), AgentSignal):
             return result._signal
             

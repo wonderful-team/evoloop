@@ -129,7 +129,7 @@ Respond in this exact JSON format:
                 temperature=0.3,
                 model_name=model_name,
             )
-            response_text = response.content if hasattr(response, 'content') else str(response)
+            response_text = response.content
             
             # Parse JSON response
             try:

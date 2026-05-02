@@ -699,7 +699,7 @@ async def execute_macro_with_fallback(
         message_content=fallback_msg,
         project_id=project_id,
         goal_prefix="[Self-Healing] ",
-        model=skill.active_model if hasattr(skill, 'active_model') else None,
+        model=skill.active_model,
     )
 
     if result.status == "failed":
@@ -1313,7 +1313,6 @@ async def preview_recording_data(
         keyframes = selector.select_keyframes(
             events=events,
             video_duration=video_info.duration,
-            video_resolution=(video_info.width, video_info.height)
         )
 
         return PreviewRecordingDataResponse(

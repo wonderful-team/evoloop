@@ -8,6 +8,13 @@ for the memory domain.
 import asyncio
 import logging
 
+import json
+import os
+import shutil
+from datetime import datetime
+from pathlib import Path
+
+from app.core.engine.event.schemas import AgentRunCompletedEvent
 from app.core.engine.rewind.event import RewindEventType, RewindRequestedEvent
 from app.core.events import SystemEventType
 from app.core.events.base import AsyncEventBus
@@ -28,44 +35,62 @@ class MemoryLifecycleHandler:
     - Graceful shutdown of memory container on app stop
     """
 
-    @event_subscribe(SystemEventType.SESSION_COMPLETED)
-    async def on_session_completed(self, event: SessionCompletedEvent):
+    @event_subscribe("agent.run_completed")
+    async def on_agent_run_completed(self, event: AgentRunCompletedEvent):
         """
-        Trigger automatic memory extraction.
+        Trigger automatic memory extraction after each successful run attempt.
         """
-        data = event.data
-        logger.info(f"[Memory] 🧠 Session completed for thread {data.thread_id}. Triggering auto-extraction...")
+        if event.status != "done":
+            return
+            
+        thread_id = event.thread_id
+        project_id = event.project_id
+        run_id = event.payload.get("run_id") or ""
+        
+        logger.info(f"[Memory] 🧠 Run completed for thread {thread_id}. Triggering auto-extraction...")
 
         try:
             from app.core.context.manager import ContextManager, EvoContext
             from app.core.memory.auto_extraction import trigger_auto_extraction
+            from app.core.engine.message.repository import MessageRepository
+
+            # Load history for extraction
+            repo = MessageRepository(thread_id=thread_id, project_id=project_id)
+            messages, _, _ = await repo.get_full_history()
 
             # Create a dedicated context for the background extraction task
             ctx = EvoContext(
-                thread_id=data.thread_id,
-                project_id=data.project_id,
-                user_id=data.user_id,
-                active_model=data.model
+                thread_id=thread_id,
+                project_id=project_id,
+                run_id=run_id
             )
 
             async def _run_extraction_background():
-                # Set context for this specific coroutine
                 token = ContextManager.set(ctx)
                 try:
                     await trigger_auto_extraction(
-                        thread_id=data.thread_id,
-                        messages=data.messages,
-                        project_id=data.project_id,
-                        user_id=data.user_id
+                        thread_id=thread_id,
+                        messages=messages,
+                        project_id=project_id,
+                        run_id=run_id,
+                        force=False  # Don't force if already extracted for this content
                     )
                 finally:
                     ContextManager.reset(token)
 
-            # Fire and forget auto-extraction in a background task
             asyncio.create_task(_run_extraction_background())
-            logger.debug(f"[Memory] ✓ Auto-extraction background task started for {data.thread_id}")
+            logger.debug(f"[Memory] ✓ Auto-extraction background task started for {thread_id}")
         except Exception as e:
             logger.error(f"[Memory] Failed to trigger auto-extraction: {e}")
+
+    @event_subscribe(SystemEventType.SESSION_COMPLETED)
+    async def on_session_completed(self, event: SessionCompletedEvent):
+        """
+        Handle final session completion archiving if needed.
+        """
+        data = event.data
+        logger.info(f"[Memory] 🏁 Session completed for thread {data.thread_id}.")
+        # Optional: Add final session-level summary or cleanup here
 
     @event_subscribe(SystemEventType.APP_STOPPING)
     async def on_application_stopping(self, event):
@@ -104,10 +129,8 @@ class MemoryRewind:
     async def _handle_rewind_requested(self, event: RewindRequestedEvent) -> None:
         """
         Handle main rewind event - prepare memory cleanup.
-        
-        This extracts message IDs and run IDs from the rewind request
-        and publishes a MEMORY_CLEANUP event.
         """
+        logger.info(f"[MemoryRewind] 🔄 Rewind requested for thread {event.thread_id}, affected msgs: {len(event.affected_message_ids)}")
         try:
             # Get message IDs to clean up
             # Prefer pre-computed affected_message_ids to avoid execution-order
@@ -118,26 +141,27 @@ class MemoryRewind:
                 include_target=event.include_target
             )
 
-            if message_ids:
+            if message_ids or event.affected_run_ids:
+                logger.info(f"[MemoryRewind] Identified {len(message_ids)} affected messages and {len(event.affected_run_ids)} run_ids for thread {event.thread_id}")
+                
                 # Perform deletion directly to capture count for aggregation
                 count = await self._delete_memories(
                     source_message_ids=message_ids,
-                    run_ids=[]
+                    run_ids=event.affected_run_ids
                 )
                 self._deleted_count = count
 
+                # --- NEW: Physical Memory Cleanup ---
+                try:
+                    await self._cleanup_physical_memory(event)
+                except Exception as pe:
+                    logger.warning(f"[MemoryRewind] Physical cleanup warning: {pe}")
+
                 # Report back to the main event
                 event.results["memories"] = count
-
-                # Still publish specific cleanup event for other potential listeners
-                from app.core.memory.event.publishers import publish_memory_cleanup
-                await publish_memory_cleanup(
-                    thread_id=event.thread_id,
-                    source_message_ids=message_ids,
-                )
-                logger.info(f"[MemoryRewind] Deleted {count} memories for thread {event.thread_id}")
+                logger.info(f"[MemoryRewind] Successfully purged {count} memories for thread {event.thread_id}")
             else:
-                logger.debug(f"[MemoryRewind] No memories found to delete for thread {event.thread_id}")
+                logger.debug(f"[MemoryRewind] No affected messages identified for thread {event.thread_id}")
 
         except Exception as e:
             error_msg = f"Memory cleanup failed: {e}"
@@ -145,23 +169,6 @@ class MemoryRewind:
             event.errors.append(error_msg)
             event.success = False
 
-    @event_subscribe(RewindEventType.MEMORY_CLEANUP)
-    async def _handle_memory_cleanup(self, event: MemoryCleanupEvent) -> None:
-        """
-        Handle specific memory cleanup event.
-        
-        This performs the actual memory deletion.
-        """
-        try:
-            count = await self._delete_memories(
-                source_message_ids=event.source_message_ids,
-                run_ids=event.run_ids
-            )
-            self._deleted_count = count
-            logger.info(f"[MemoryRewind] Deleted {count} memories")
-        except Exception as e:
-            logger.error(f"[MemoryRewind] Memory cleanup failed: {e}")
-            raise
 
     async def _find_message_ids(
         self,
@@ -186,18 +193,26 @@ class MemoryRewind:
         from app.models import Message
 
         async with session_scope() as session:
+            # Use sequence_number for standardized ID construction
             stmt = select(Message.id).where(Message.thread_id == thread_id)
 
             if target_message_id:
-                target_id = int(target_message_id)
+                # Resolve sequence from UUID
+                stmt_target = select(Message.sequence_number).where(Message.id == target_message_id)
+                res_target = await session.execute(stmt_target)
+                target_seq = res_target.scalar_one_or_none()
+                
+                if target_seq is None:
+                    logger.warning(f"[MemoryRewind] Target message {target_message_id} not found")
+                    return []
+
                 if include_target:
-                    stmt = stmt.where(Message.id >= target_id)
+                    stmt = stmt.where(Message.sequence_number >= target_seq)
                 else:
-                    stmt = stmt.where(Message.id > target_id)
+                    stmt = stmt.where(Message.sequence_number > target_seq)
 
             result = await session.execute(stmt)
-            # Convert to strings for consistency
-            return [str(row[0]) for row in result.all()]
+            return [str(row.id) for row in result.all()]
 
     async def _delete_memories(
         self,
@@ -229,7 +244,6 @@ class MemoryRewind:
             # Delete by source message ID
             for msg_id in source_message_ids:
                 try:
-                    # Use structured filters for precise metadata matching
                     results = await memory_manager.search_memories(
                         query="",
                         filters={"source_message_id": msg_id},
@@ -243,8 +257,19 @@ class MemoryRewind:
                 except Exception as e:
                     logger.warning(f"[MemoryRewind] Failed to delete memories for msg {msg_id}: {e}")
 
-            # TODO: Delete by run_id if memory system supports it
-            # This would require the memory system to index by run_id
+            # Delete by run_id
+            for run_id in run_ids:
+                try:
+                    results = await memory_manager.search_memories(
+                        query="",
+                        filters={"run_id": run_id},
+                        limit=100
+                    )
+                    for mem in results:
+                        if await memory_manager.delete_memory(mem.id):
+                            count += 1
+                except Exception as e:
+                    logger.warning(f"[MemoryRewind] Failed to delete memories for run {run_id}: {e}")
 
         except Exception as e:
             logger.error(f"[MemoryRewind] Memory manager initialization failed: {e}")
@@ -258,6 +283,86 @@ class MemoryRewind:
             source_message_ids=message_ids,
             run_ids=run_ids
         )
+
+    async def _cleanup_physical_memory(self, event: RewindRequestedEvent) -> None:
+        """
+        Cleanup physical memory files (MEMORY.md, context/, domain_terms/)
+        based on the target message time.
+        """
+        from app.infrastructure.database.sql.database import session_scope
+        from app.models.conversation import Message
+        from app.core.config import settings
+
+        target_time = None
+        async with session_scope() as session:
+            if event.target_message_id:
+                from sqlalchemy import select
+                stmt = select(Message.created_at).where(Message.id == event.target_message_id)
+                res = await session.execute(stmt)
+                target_time = res.scalar_one_or_none()
+            else:
+                # Fallback to current time if no target (should not happen in targeted rewind)
+                target_time = datetime.utcnow()
+
+        if not target_time:
+            logger.warning("[MemoryRewind] Could not determine target time for physical cleanup")
+            return
+
+        memory_root = Path(settings.BRAIN_MEMORY_ROOT)
+        
+        # 1. Cleanup context snapshots (*.md in context/)
+        context_dir = memory_root / "context"
+        if context_dir.exists():
+            for f in context_dir.glob("*.md"):
+                if datetime.fromtimestamp(f.stat().st_mtime) > target_time:
+                    try:
+                        f.unlink()
+                        logger.debug(f"[MemoryRewind] Deleted stale context file: {f.name}")
+                    except Exception: pass
+
+        # 2. Cleanup domain terms (entries in *.json)
+        terms_dir = memory_root / "domain_terms"
+        if terms_dir.exists():
+            for f in terms_dir.glob("*.json"):
+                try:
+                    with open(f, "r", encoding="utf-8") as jf:
+                        data = json.load(jf)
+                    
+                    if "terms" in data:
+                        original_count = len(data["terms"])
+                        # Filter out terms seen after target_time
+                        new_terms = {}
+                        for k, v in data["terms"].items():
+                            term_time = datetime.fromisoformat(v["last_seen"].replace("Z", "+00:00"))
+                            # Ensure both are UTC or both are naive
+                            if term_time.tzinfo and not target_time.tzinfo:
+                                target_time = target_time.replace(tzinfo=term_time.tzinfo)
+                            
+                            if term_time <= target_time:
+                                new_terms[k] = v
+                            else:
+                                logger.debug(f"[MemoryRewind] Pruning term {k}: {term_time} > {target_time}")
+                        
+                        data["terms"] = new_terms
+                        if len(data["terms"]) < original_count:
+                            with open(f, "w", encoding="utf-8") as jf:
+                                json.dump(data, jf, indent=2, ensure_ascii=False)
+                            logger.debug(f"[MemoryRewind] Pruned {original_count - len(data['terms'])} terms from {f.name}")
+                except Exception as e:
+                    logger.warning(f"[MemoryRewind] Failed to prune terms in {f.name}: {e}")
+
+        # 3. Regenerate MEMORY.md (Tier 1)
+        try:
+            from app.core.memory.lifespan import MemoryLifespanManager
+            if not MemoryLifespanManager.is_initialized():
+                await MemoryLifespanManager.ainitialize()
+            
+            container = MemoryLifespanManager.get_container()
+            # This will pull from the newly cleaned cold memory (Vector DB)
+            await container.memory_manager.regenerate_memory_md()
+            logger.info("[MemoryRewind] MEMORY.md regenerated successfully")
+        except Exception as e:
+            logger.error(f"[MemoryRewind] Failed to regenerate MEMORY.md: {e}")
 
     def get_deleted_count(self) -> int:
         """Get the count of memories deleted in the last operation."""

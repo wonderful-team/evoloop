@@ -81,6 +81,13 @@ class AgentToolExecutor:
 
         logger.info(f"[{self.name}] 🛠️ Call: {tool_name} | Args: {json.dumps(tool_args)}")
 
+        # Inject run context into EvoContext if available
+        from app.core.context.manager import ContextManager
+        ctx = ContextManager.current()
+        if run_id and ctx.run_id != run_id:
+            ctx.run_id = run_id
+            logger.debug(f"[{self.name}] Injected run_id={run_id} into context")
+
         tool = self.tool_map.get(tool_name)
         if not tool:
             msg = self._create_tool_message(
@@ -126,14 +133,18 @@ class AgentToolExecutor:
 
             # Capture snapshots BEFORE tool execution (for diff tracking)
             # Only state-mutating tools can produce meaningful diffs
-            if self.enable_diff_tracking and getattr(tool, "metadata", {}).get("is_state_mutating"):
+            if self.enable_diff_tracking and tool.metadata.get("is_state_mutating"):
                 from app.core.tools.registry import get_tool_affected_paths
                 snapshot_paths = get_tool_affected_paths(tool_name, tool_args)
                 for path in snapshot_paths:
                     diff_tracker.capture_snapshot(path, thread_id)
 
             # Execute Tool
-            content = await self._tool_executor.execute(tool, tool_args, config=self.config)
+            # Pass real tool_call_id via RunnableConfig metadata so callbacks can correlate
+            config = {**(self.config or {})}
+            existing_metadata = config.get("metadata") or {}
+            config["metadata"] = {**existing_metadata, "_evoloop_tool_call_id": tool_id}
+            content = await self._tool_executor.execute(tool, tool_args, config=config)
 
             # === HOOK: PostToolUse ===
             post_ctx = HookContext(
@@ -157,7 +168,7 @@ class AgentToolExecutor:
 
             # Diff Tracking (if enabled)
             # Only state-mutating tools can produce meaningful diffs
-            if self.enable_diff_tracking and getattr(tool, "metadata", {}).get("is_state_mutating"):
+            if self.enable_diff_tracking and tool.metadata.get("is_state_mutating"):
                 await self._track_diffs(tool_name, tool_args, thread_id, tool_id)
 
             msg = self._create_tool_message(
@@ -213,7 +224,7 @@ class AgentToolExecutor:
         # Guard: skip if tool is not state-mutating (e.g. read-only tools)
         tool_map = get_tool_map()
         tool_obj = tool_map.get(tool_name)
-        if not tool_obj or not getattr(tool_obj, "metadata", {}).get("is_state_mutating"):
+        if not tool_obj or not tool_obj.metadata.get("is_state_mutating"):
             return
 
         snapshot_paths = get_tool_affected_paths(tool_name, tool_args)
@@ -233,6 +244,7 @@ class AgentToolExecutor:
                             kwargs={
                                 "thread_id": thread_id,
                                 "message_id": str(msg_id),
+                                "run_id": meta.run_id,
                                 "file_path": path,
                                 "operation": operation,
                                 "diff_content": diff,
@@ -261,23 +273,35 @@ class AgentToolExecutor:
         Returns:
             List of ToolMessage results
         """
-        async def _run_one(tc: dict) -> ToolMessage:
+        async def _run_one(tc: dict) -> tuple[ToolMessage, Any]:
             result = await self.execute_tool(
                 tool_name=tc["name"],
                 tool_args=tc["args"],
                 tool_id=tc["id"],
                 local_tool_history=local_tool_history,
             )
-            return result.message
+            return result.message, result.raw_result
+
+        from app.core.engine.signals import signal_manager
+        pending_signal = None
+        results = []
 
         if parallel:
-            results = await asyncio.gather(*[_run_one(tc) for tc in tool_calls])
-            return list(results)
+            batch_results = await asyncio.gather(*[_run_one(tc) for tc in tool_calls])
+            for msg, raw in batch_results:
+                results.append(msg)
+                # Detect signal from raw result
+                if not pending_signal:
+                    tool_name = next(tc["name"] for tc in tool_calls if tc["id"] == msg.tool_call_id)
+                    pending_signal = signal_manager.detect_post_execution_signal(tool_name, raw)
         else:
-            results = []
             for tc in tool_calls:
-                results.append(await _run_one(tc))
-            return results
+                msg, raw = await _run_one(tc)
+                results.append(msg)
+                if not pending_signal:
+                    pending_signal = signal_manager.detect_post_execution_signal(tc["name"], raw)
+
+        return results, pending_signal
 
     def _create_tool_message(
         self,

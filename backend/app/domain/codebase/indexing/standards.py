@@ -54,7 +54,7 @@ class ProjectStandardsAnalyst:
                 temperature=0.1,
                 model_name=model_name,
             )
-            standards_report = response.content if hasattr(response, 'content') else str(response)
+            standards_report = response.content
 
             logger.info("[StandardsAnalyst] Analysis Complete. Saving to Memory.")
 

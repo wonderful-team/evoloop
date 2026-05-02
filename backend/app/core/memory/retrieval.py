@@ -29,7 +29,7 @@ import time
 from datetime import datetime
 from typing import Any
 
-from app.core.memory.models import MemoryEntry, MemoryType, PrivacyLevel
+from app.core.memory.models import MemoryEntry, MemoryType
 from app.core.memory.schemas import RetrievalContext
 from app.utils.template import render_template
 
@@ -196,86 +196,32 @@ class MemoryRetriever:
 
     async def _get_candidates(self, ctx: RetrievalContext) -> list[MemoryEntry]:
         """
-        Stage 1: Get candidate memories using keyword search.
+        Stage 1: Get candidate memories using high-performance storage search.
 
-        Strategy:
-        1. Search all accessible memories
-        2. Filter by privacy and project
-        3. Score by keyword match + freshness
-        4. Return top N candidates
+        Now uses the storage backend's search() method which is backed by 
+        SQLite indices and Vector search (LanceDB).
         """
         start_time = time.time()
-        logger.debug(f"[_get_candidates] Starting with max_candidates={self.max_candidates}")
+        logger.debug(f"[_get_candidates] Querying storage with query='{ctx.query[:50]}'")
 
-        # Get all memories
-        list_start = time.time()
-        all_memories = await self._storage.list_all()
+        # 1. High-performance search from storage backend
+        # Note: We request more than max_candidates to allow for local Stage 1 scoring/filtering
+        candidates = await self._storage.search(
+            query=ctx.query,
+            project_id=ctx.project_id,
+            limit=self.max_candidates * 2
+        )
 
-        # Filter out already surfaced first (before batch loading)
-        ids_to_load = [
-            mem_summary.id for mem_summary in all_memories
-            if mem_summary.id not in ctx.already_surfaced
-        ]
-        filtered_count = len(all_memories) - len(ids_to_load)
-
-        # Batch load all entries in one operation (optimized for file storage)
-        entries_map = await self._storage.get_multi(ids_to_load)
-
-        list_elapsed = (time.time() - list_start) * 1000
-        logger.debug(f"[_get_candidates] storage.list_all(): {len(all_memories)} summaries in {list_elapsed:.1f}ms")
-
-        # Load full entries and filter
-        candidates = []
-        cache_misses = 0
-        privacy_filtered = 0
-        project_filtered = 0
-        surfaced_skipped = 0
-
-        for mem_summary in all_memories:
-            # Skip if already surfaced
-            if mem_summary.id in ctx.already_surfaced:
-                surfaced_skipped += 1
-                continue
-
-            # Use batch-loaded entry first
-            entry = entries_map.get(mem_summary.id)
-            if not entry:
-                # Fallback for cache miss (rare)
-                cache_misses += 1
-                entry = await self._storage.get(mem_summary.id)
-
-            if not entry:
-                logger.debug(f"[_get_candidates] Failed to load entry: {mem_summary.id}")
-                continue
-
-            # Privacy filter
-            if entry.privacy == PrivacyLevel.PRIVATE and entry.user_id != ctx.user_id:
-                privacy_filtered += 1
-                continue
-
-            # Project filter
-            if entry.project_id is not None and entry.project_id != ctx.project_id:
-                project_filtered += 1
-                continue
-
-            candidates.append(entry)
-
-        if cache_misses:
-            logger.debug(f"[_get_candidates] Batch cache misses: {cache_misses}")
-
-        logger.debug(f"[_get_candidates] Filtering stats: surfaced_skipped={surfaced_skipped}, privacy_filtered={privacy_filtered}, project_filtered={project_filtered}, final_candidates={len(candidates)}")
-
-        # Score and rank
-        score_start = time.time()
+        # 2. Local Stage 1 Scoring (Combines vector similarity with freshness/type priority)
+        # storage.search already returns hydrated MemoryEntry objects
         scored = [(c, self._score_candidate(c, ctx)) for c in candidates]
         scored.sort(key=lambda x: x[1], reverse=True)
-        score_elapsed = (time.time() - score_start) * 1000
-        logger.debug(f"[_get_candidates] Scoring {len(candidates)} candidates took {score_elapsed:.1f}ms")
-
-        # Return top candidates
+        
+        # 3. Return top candidates
         result = [entry for entry, score in scored[:self.max_candidates]]
-        total_elapsed = (time.time() - start_time) * 1000
-        logger.debug(f"[_get_candidates] Completed: returning {len(result)}/{len(candidates)} candidates in {total_elapsed:.1f}ms")
+        
+        elapsed = (time.time() - start_time) * 1000
+        logger.debug(f"[_get_candidates] Found {len(candidates)} candidates, ranked top {len(result)} in {elapsed:.1f}ms")
 
         return result
 
@@ -347,7 +293,7 @@ class MemoryRetriever:
             for mem in filtered_candidates:
                 candidates_for_llm.append({
                     "title": mem.title,
-                    "type": mem.type.value if hasattr(mem.type, 'value') else str(mem.type),
+                    "type": mem.type.value,
                     "description": mem.description,
                     "updated_at": mem.updated_at.isoformat() if mem.updated_at else "Unknown"
                 })
@@ -380,7 +326,7 @@ class MemoryRetriever:
 
             # Parse selection
             parse_start = time.time()
-            content = response.content if hasattr(response, 'content') else str(response)
+            content = response.content
             content_preview = content if content else "(empty)"
             logger.debug(f"[_llm_select] Response content preview: {content_preview}...")
 

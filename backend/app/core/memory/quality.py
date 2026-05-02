@@ -15,7 +15,7 @@ import re
 from collections import defaultdict
 from datetime import datetime
 
-from pydantic import Field
+from pydantic import Field, field_serializer
 
 from app.core.memory.models import MemoryEntry
 from app.infrastructure.pydantic_base import DynamicBaseModel
@@ -31,14 +31,9 @@ class QualityScores(DynamicBaseModel):
     actionability: float  # 0-1, how actionable
     overall: float  # Weighted average
 
-    def to_dict(self) -> dict[str, float]:
-        return {
-            "freshness": round(self.freshness, 2),
-            "usage": round(self.usage, 2),
-            "specificity": round(self.specificity, 2),
-            "actionability": round(self.actionability, 2),
-            "overall": round(self.overall, 2),
-        }
+    @field_serializer("freshness", "usage", "specificity", "actionability", "overall")
+    def serialize_floats(self, value: float) -> float:
+        return round(value, 2)
 
 
 class CleanupRecommendation(DynamicBaseModel):

@@ -324,7 +324,7 @@ class AtlasE2ETest:
                 'screenshot_hash': '',
                 'version_hash': ''
             },
-            'elements': [e.to_dict() for e in elements[:10]]  # 前10个元素
+            'elements': [e.model_dump() for e in elements[:10]]  # 前10个元素
         })()
 
         await atlas_engine.on_ui_tree_observed(event)

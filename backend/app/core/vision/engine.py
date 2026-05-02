@@ -60,7 +60,7 @@ class VisionEngine:
                     platform="macos",
                     bundle_id=app_info.get("bundle_id", "unknown"),
                     window_title=app_info.get("title", "unknown"),
-                    elements=[e.to_dict() for e in elements],
+                    elements=[e.model_dump() for e in elements],
                     screenshot_hash="",
                 )
                 logger.debug(f"[VisionEngine] Emitted UiTreeObservedEvent for {app_info.get('bundle_id')}")

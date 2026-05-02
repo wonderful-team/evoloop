@@ -2,11 +2,11 @@
 EventBus — Unified event publishing abstraction.
 
 Provides a single interface for all real-time event publishing,
-enabling future migration to persistent message queues (Redis Streams,
+enabling future migration to persistent message queues (e.g. Redis Streams,
 RabbitMQ, etc.) without changing caller code.
 
 Current implementation: InMemoryEventBus (wraps SimplePubSubBus)
-Future implementations: RedisStreamEventBus, SQLiteEventBus, etc.
+Future implementations: RedisStreamEventBus, SQLiteEventBus, etc. (production only)
 """
 
 import logging
@@ -27,11 +27,11 @@ class EventBus(ABC):
         ...
 
 
-class InMemoryEventBus(EventBus):
+class LocalEventBus(EventBus):
     """
-    In-process event bus using SimplePubSubBus.
-
-    Thread-safe for embedded mode. Messages are lost on process restart.
+    In-process event bus for single-process deployments (Embedded Mode).
+    Fast and requires no external dependencies, but messages are not 
+    shared across different processes.
     """
 
     async def publish(self, channel: str, message: Any) -> int:
@@ -39,7 +39,24 @@ class InMemoryEventBus(EventBus):
             in_memory_bus.publish(channel, message)
             return 1
         except Exception as e:
-            logger.warning(f"[InMemoryEventBus] Publish failed: {e}")
+            logger.warning(f"[LocalEventBus] Publish failed: {e}")
+            return 0
+
+
+class DistributedEventBus(EventBus):
+    """
+    Cross-process event bus for distributed deployments (Production Mode).
+    Uses a centralized message broker to sync events 
+    across API servers, workers, and background agents.
+    """
+
+    async def publish(self, channel: str, message: Any) -> int:
+        try:
+            # Use the configured cache infrastructure as the message broker
+            from app.infrastructure.cache import cache
+            return await cache.publish(channel, message)
+        except Exception as e:
+            logger.error(f"[DistributedEventBus] Publish failed to channel {channel}: {e}")
             return 0
 
 
@@ -48,10 +65,24 @@ _event_bus: EventBus | None = None
 
 
 def get_event_bus() -> EventBus:
-    """Get the global event bus instance."""
+    """
+    Get the global event bus instance.
+    
+    Selects implementation based on the system's operating mode:
+    - EMBEDDED_MODE=true  -> LocalEventBus (Standalone/Desktop)
+    - EMBEDDED_MODE=false -> DistributedEventBus (Cloud/Production)
+    """
     global _event_bus
     if _event_bus is None:
-        _event_bus = InMemoryEventBus()
+        from app.core.config import settings
+        
+        if settings.EMBEDDED_MODE:
+            logger.info("[EventBus] Initializing LocalEventBus (Embedded Mode)")
+            _event_bus = LocalEventBus()
+        else:
+            logger.info("[EventBus] Initializing DistributedEventBus (Production Mode)")
+            _event_bus = DistributedEventBus()
+            
     return _event_bus
 
 

@@ -40,12 +40,8 @@ export function ChangesetTreeSection({ activeThreadId, onSelectFile, defaultExpa
         queryKey: ["threadChangeset", activeThreadId],
         queryFn: async () => {
             if (!activeThreadId) return []
-            const token = typeof OpenAPI.TOKEN === 'function' ? await (OpenAPI.TOKEN as any)() : OpenAPI.TOKEN;
-            const res = await fetch(`${OpenAPI.BASE}/api/v1/conversations/${activeThreadId}/changeset`, {
-                headers: {
-                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-                }
-            })
+            // Cookie Session is sent automatically by fetch.
+            const res = await fetch(`${OpenAPI.BASE}/api/v1/conversations/${activeThreadId}/changeset`)
             if (!res.ok) throw new Error("Failed to fetch changeset")
             return res.json()
         },

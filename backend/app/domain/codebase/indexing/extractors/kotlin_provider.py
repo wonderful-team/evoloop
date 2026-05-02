@@ -56,8 +56,8 @@ class KotlinSemanticProvider(LanguageSemanticProvider):
         if annotation:
             ann_text = annotation.text.decode() if annotation else ""
             if ann_text in rest_annotations:
-                path_text = path.text.decode().strip("\"") if path and hasattr(path, "text") else "/"
-                handler_text = handler.text.decode() if handler and hasattr(handler, "text") else "handler"
+                path_text = path.text.decode().strip("\"") if path else "/"
+                handler_text = handler.text.decode() if handler else "handler"
 
                 endpoints.append(APIEndpoint(
                     method=rest_annotations[ann_text],

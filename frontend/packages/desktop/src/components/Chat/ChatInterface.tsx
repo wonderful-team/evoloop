@@ -60,8 +60,6 @@ export function ChatInterface() {
   const activeThreadId = useChatStore((s) => s.threadId)
   const messages = useChatStore((s) => s.messages)
   const status = useChatStore((s) => s.status)
-  const steps = useChatStore((s) => s.steps)
-  const streamedContent = useChatStore((s) => s.streamedContent)
   // Pagination state
   const hasMoreHistory = useChatStore((s) => s.hasMoreHistory)
   const isLoadingHistory = useChatStore((s) => s.isLoadingHistory)
@@ -336,7 +334,7 @@ export function ChatInterface() {
           message: "", // Backend finds the target user message
           project_id: projectId,
           revert_files: revertFiles,
-          message_id: messageId ? parseInt(messageId) : undefined,
+          message_id: messageId,
           model: selectedModel,
         }
       } as any)
@@ -429,7 +427,7 @@ export function ChatInterface() {
     if (!isUserScrolled) {
       scrollToBottom()
     }
-  }, [isUserScrolled, scrollToBottom, messages, streamedContent, steps]) // Trigger on content updates
+  }, [isUserScrolled, scrollToBottom, messages]) // Trigger on content updates
 
   useEffect(() => {
     setIsUserScrolled(false)
@@ -480,7 +478,7 @@ export function ChatInterface() {
           defaultSize={20}
           minSize={15}
           maxSize={40}
-          className="hidden lg:block min-w-[200px]"
+          className="hidden lg:block min-w-[100px]"
         >
           <ChatSidebar
             threads={threads.map(t => ({
@@ -539,7 +537,6 @@ export function ChatInterface() {
               <div className="space-y-6 px-4 sm:px-6 lg:px-8 pb-1 pt-4 min-w-0">
                 <MessageList
                   messages={messages}
-                  isAgentWorking={status === "running" || status === "interrupted" || status === "summarizing" || status === "quota_exhausted"}
                   hasMoreHistory={hasMoreHistory}
                   isLoadingHistory={isLoadingHistory}
                   onAddToMemory={(txt) => {

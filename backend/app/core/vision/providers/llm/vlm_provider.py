@@ -68,7 +68,7 @@ class MultimodalVLMProvider(VisionProvider):
         result = VisionResult(
             task=task,
             success=True,
-            summary=response.content if hasattr(response, 'content') else str(response),
+            summary=response.content,
             raw_output=response,
             screenshot_path=image_source,
             latency_ms=(time.time() - start_time) * 1000,

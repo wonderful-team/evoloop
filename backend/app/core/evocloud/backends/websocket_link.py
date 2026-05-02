@@ -313,6 +313,22 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
         logger.info(f"[EvoCloud] command_ack sent: cmd_id={cmd_id}")
         return True
 
+    async def _on_error_protocol(self, payload: dict) -> bool:
+        """Handle error messages from Gateway (e.g. invalid_token)."""
+        code = payload.get("code")
+        message = payload.get("message")
+        logger.warning(f"[EvoCloud] WS ERROR RECV: code={code}, message={message}")
+
+        if code == "invalid_token":
+            logger.info("[EvoCloud] WS received invalid_token, triggering immediate token refresh...")
+            # Use current token as failed_token to leverage the Double-Check Lock in HTTP client
+            current_token = self.api.get_token()
+            asyncio.create_task(self.api.refresh_access_token(failed_token=current_token))
+            # No need to manually reconnect here; the on_token_change callback 
+            # (which triggers _force_reconnect) will be fired when refresh succeeds.
+            return False  # Do not publish as business event
+        return True
+
     async def _on_init_protocol(self, payload: dict) -> bool:
         """Update client_id from init handshake."""
         client_id = payload.get("client_id")
@@ -323,6 +339,7 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
     _LINK_LAYER_HANDLERS: dict[str, Callable[["EvoCloudWebSocketLink", dict], Awaitable[bool]]] = {
         "new_command": _on_new_command_protocol,
         "init": _on_init_protocol,
+        "error": _on_error_protocol,
     }
 
     async def _handle_ws_message(self, message: str):
@@ -339,7 +356,8 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
         try:
             raw = json.loads(message)
             msg_type = raw.get("type")
-            payload = raw.get("data", {})
+            # Gateway 'error' messages put info in 'error' key, others in 'data'
+            payload = raw.get("error") if msg_type == "error" else raw.get("data", {})
 
             # --- Link-layer protocol (infrastructure only) ---
             handler = self._LINK_LAYER_HANDLERS.get(msg_type)

@@ -6,11 +6,11 @@ from langchain_core.runnables import RunnableConfig
 
 from app.constants import DEFAULT_PROJECT_ID
 from app.core.config import settings
-from app.core.engine.schemas import EngineResult
 from app.core.engine.message.utils import get_last_human_message
 from app.core.engine.nodes.base import BaseAgentNode
 from app.core.engine.prompts import SupervisorContext, SupervisorPromptBuilder
 from app.core.engine.routers import RoutingTarget
+from app.core.engine.schemas import EngineResult
 from app.core.engine.state import AgentState, StateUpdate
 from app.core.tools.manager import tool_manager
 from app.i18n.service import i18n
@@ -38,9 +38,11 @@ class SupervisorNode(BaseAgentNode):
         # uniformly by ContextTrimmer in engine.run_node(). SupervisorNode should
         # not perform ad-hoc message manipulation here.
 
-        # Consume stale routing from previous turns
+        # Consume stale routing and plans from previous turns
         from app.core.engine.state.lifecycle import StateLifecycleManager
         StateLifecycleManager.consume_next_node(state)
+        StateLifecycleManager.consume_spawn_plan(state)
+        StateLifecycleManager.consume_blocked_by_hook(state)
 
         # Optional: Emit initial status
         await self._emit_status(config, i18n.get("supervisor.status_analyzing"))
@@ -125,8 +127,7 @@ class SupervisorNode(BaseAgentNode):
 
         # Check for infrastructure errors
         has_error_msg = any(
-            getattr(msg, "metadata", {}).get("is_error") for msg in new_messages
-            if getattr(msg, "metadata", None)
+            msg.additional_kwargs.get("is_error") for msg in new_messages
         )
         if has_error_msg:
             return StateUpdate(
@@ -138,18 +139,31 @@ class SupervisorNode(BaseAgentNode):
 
         # Handle "Silent" Protocol Violation - fallback to CHAT if there is content
         ai_content = ""
-        if new_messages and isinstance(new_messages[-1], AIMessage):
-            ai_content = str(new_messages[-1].content).strip()
+        last_msg = new_messages[-1] if new_messages else None
+        
+        if isinstance(last_msg, AIMessage):
+            ai_content = str(last_msg.content).strip()
 
         if ai_content:
+            # P1 Improvement: Direct response is now allowed. Route to FINISH.
             return StateUpdate(
-                next_node=RoutingTarget.CHAT,
+                messages=new_messages,
+                next_node=RoutingTarget.FINISH,
                 blackboard=blackboard,
                 iteration_count=new_iter_count,
             )
 
-        logger.error("[Supervisor] 🛑 Stop: No routing signal and no content.")
+        # Diagnostic: Why are we stopping?
+        logger.error(
+            f"[Supervisor] 🛑 Stop: No routing signal and no content. "
+            f"Last message type: {type(last_msg).__name__ if last_msg else 'None'}. "
+            f"Content length: {len(ai_content)}. "
+            f"Has tool_calls: {bool(getattr(last_msg, 'tool_calls', []))}. "
+            f"Additional Kwargs Keys: {list(last_msg.additional_kwargs.keys()) if hasattr(last_msg, 'additional_kwargs') else 'N/A'}"
+        )
+        
         return StateUpdate(
+            messages=new_messages,
             next_node=RoutingTarget.FINISH,
             blackboard=blackboard,
             iteration_count=new_iter_count
@@ -166,8 +180,8 @@ class SupervisorNode(BaseAgentNode):
                 task_name="Supervisor Decision",
                 task_status=status,
             )
-        except Exception:
-            logger.debug("[Supervisor] Status emit failed, continuing")
+        except Exception as e:
+            logger.warning(f"[Supervisor] Failed to emit status update: {e}")
 
     async def _build_context(
         self, state: AgentState, config: RunnableConfig, messages: list, project_id: int

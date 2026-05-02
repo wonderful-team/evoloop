@@ -2,12 +2,10 @@ import { useMemo } from "react"
 import { useTranslation } from "react-i18next"
 import { Loader2 } from "lucide-react"
 import { SmartChatMessageItem, type Message } from "./ChatMessageItem"
-import { PendingMessageItem } from "./PendingMessageItem"
 import { ChatWelcome } from "./ChatWelcome"
 
 interface MessageListProps {
     messages: Message[]
-    isAgentWorking: boolean
     hasMoreHistory?: boolean
     isLoadingHistory?: boolean
     onAddToMemory?: (text: string) => void
@@ -17,9 +15,35 @@ interface MessageListProps {
     onViewChangeset?: () => void // Callback when user clicks to view changeset
 }
 
+interface Turn {
+    human?: Message
+    ai: Message[]
+}
+
+/** Merge multiple AI messages from the same turn into a single message. */
+function mergeAiMessages(msgs: Message[]): Message | null {
+    if (msgs.length === 0) return null
+    const first = msgs[0]
+    const last = msgs[msgs.length - 1]
+
+    const paragraphs = msgs
+        .map((m) => m.content?.trim())
+        .filter(Boolean)
+
+    return {
+        ...first,
+        content: paragraphs.join("\n\n"),
+        thinking: msgs.map((m) => m.thinking).filter(Boolean).join("\n\n") || undefined,
+        status: msgs.some((m) => m.status === "streaming") ? "streaming" : (last.status || "completed"),
+        changeset_count: msgs.reduce((sum, m) => sum + (m.changeset_count || 0), 0),
+        has_file_operations: msgs.some((m) => m.has_file_operations),
+        timestamp: last.timestamp || first.timestamp,
+        humanRequest: msgs.find((m) => m.humanRequest)?.humanRequest,
+    }
+}
+
 export function MessageList({
     messages,
-    isAgentWorking,
     hasMoreHistory = false,
     isLoadingHistory = false,
     onAddToMemory,
@@ -29,53 +53,54 @@ export function MessageList({
     onViewChangeset,
 }: MessageListProps) {
     const { t } = useTranslation()
-    // Note: Scroll state is now managed by the parent ChatInterface component
 
-    // Grouping Logic
-    const groupedMessages = useMemo(() => {
-        const groups: (Message & { showDate?: boolean; isGrouped?: boolean; showAvatar?: boolean })[] = []
+    // Group messages by conversation turn.
+    // A turn = one human message + all consecutive AI/Tool messages that follow it.
+    const renderItems = useMemo(() => {
+        const items: (Message & { showDate?: boolean })[] = []
+        let prevTimestamp: string | undefined
+        let currentAiGroup: Message[] = []
 
-        messages.forEach((msg, index) => {
-            const prevMsg = messages[index - 1]
-
-            // Date Separator Logic
-            let showDate = false
-            if (msg.timestamp) {
-                const date = new Date(msg.timestamp).toDateString()
-                const prevDate = prevMsg?.timestamp ? new Date(prevMsg.timestamp).toDateString() : null
-                if (date !== prevDate) {
-                    showDate = true
+        const flushAiGroup = () => {
+            if (currentAiGroup.length > 0) {
+                const merged = mergeAiMessages(currentAiGroup)
+                if (merged) {
+                    const showDate = !!merged.timestamp &&
+                        (!prevTimestamp || new Date(merged.timestamp).toDateString() !== new Date(prevTimestamp).toDateString())
+                    items.push({ ...merged, showDate })
+                    prevTimestamp = merged.timestamp
                 }
+                currentAiGroup = []
             }
+        }
 
-            // Grouping Logic (Same Role, < 5 mins diff)
-            const isGrouped = prevMsg &&
-                prevMsg.role === msg.role &&
-                !showDate &&
-                // check time diff 
-                (msg.timestamp && prevMsg.timestamp ? (new Date(msg.timestamp).getTime() - new Date(prevMsg.timestamp).getTime() < 5 * 60 * 1000) : true)
+        for (const msg of messages) {
+            if (msg.role === "human") {
+                flushAiGroup()
+                const showDate = !!msg.timestamp &&
+                    (!prevTimestamp || new Date(msg.timestamp).toDateString() !== new Date(prevTimestamp).toDateString())
+                items.push({ ...msg, showDate })
+                prevTimestamp = msg.timestamp
+            } else if (msg.role === "ai") {
+                currentAiGroup.push(msg)
+            } else if (msg.role === "tool") {
+                // When we hit a tool message, we flush any AI thinking/content before it,
+                // then render the tool message, then continue.
+                flushAiGroup()
+                const showDate = !!msg.timestamp &&
+                    (!prevTimestamp || new Date(msg.timestamp).toDateString() !== new Date(prevTimestamp).toDateString())
+                items.push({ ...msg, showDate })
+                prevTimestamp = msg.timestamp
+            }
+        }
 
-            // First message of a group gets the avatar
-            const showAvatar = !isGrouped
-
-            groups.push({
-                ...msg,
-                showDate,
-                isGrouped,
-                showAvatar
-            })
-        })
-        return groups
+        flushAiGroup()
+        return items
     }, [messages])
 
-    // Note: Scroll handling (infinite scroll & auto-scroll) is now managed by the parent ChatInterface component
-
     return (
-        <div 
-            className="min-h-0 min-w-0 relative" 
-        >
+        <div className="min-h-0 min-w-0 relative">
             <div className="space-y-6 px-4 sm:px-6 lg:px-8 pb-4 min-w-0">
-                
                 {/* Loading Indicator at Top */}
                 {isLoadingHistory && (
                     <div className="py-4 text-center text-muted-foreground">
@@ -84,8 +109,8 @@ export function MessageList({
                     </div>
                 )}
 
-                {/* Load More Hint - shown when there are more messages to load */}
-                {hasMoreHistory && !isLoadingHistory && (
+                {/* Load More Hint */}
+                {hasMoreHistory && !isLoadingHistory && messages.length > 0 && (
                     <div className="py-3 text-center text-muted-foreground/50 text-xs">
                         {t("chat.scrollToLoadMore")}
                     </div>
@@ -97,23 +122,12 @@ export function MessageList({
                 )}
 
                 {/* Message List */}
-                {groupedMessages.map((msg, index) => (
-                    <div key={msg.id || index}>
-                        {/* Date Separator */}
-                        {msg.showDate && msg.timestamp && (
-                            <div className="flex items-center gap-4 my-6">
-                                <div className="h-px bg-border flex-1" />
-                                <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
-                                    {new Date(msg.timestamp).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
-                                </span>
-                                <div className="h-px bg-border flex-1" />
-                            </div>
-                        )}
-
+                {renderItems.map((msg, index) => (
+                    <div key={`${msg.id}-${index}`}>
                         <SmartChatMessageItem
                             msg={msg}
-                            isGrouped={msg.isGrouped}
-                            showAvatar={msg.showAvatar}
+                            isGrouped={false}
+                            showAvatar={true}
                             onAddToMemory={onAddToMemory ? (txt) => onAddToMemory(txt) : undefined}
                             onRewind={onRewind ? () => onRewind(msg) : undefined}
                             onRetry={onRetry ? () => onRetry(msg) : undefined}
@@ -122,11 +136,6 @@ export function MessageList({
                         />
                     </div>
                 ))}
-
-                {/* Agent Working (Pending Message) */}
-                {isAgentWorking && (
-                    <PendingMessageItem />
-                )}
             </div>
         </div>
     )

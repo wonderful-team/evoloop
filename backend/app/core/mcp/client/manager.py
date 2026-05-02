@@ -18,11 +18,11 @@ from app.core.mcp.config import (
     TransportType,
     is_sse_url,
 )
-from app.core.mcp.schemas import McpPromptResult, McpResourceContent
 from app.core.mcp.features.prompts import McpPromptsFeature
 from app.core.mcp.features.resources import McpResourcesFeature
 from app.core.mcp.features.tools import McpToolsFeature
 from app.core.mcp.health import HealthStatus, McpHealthChecker
+from app.core.mcp.schemas import McpPromptResult, McpResourceContent
 from app.core.mcp.schemas import McpResource, McpPromptArgument, McpPrompt, McpServerSummary
 from app.core.mcp.transport import McpTransport
 from app.infrastructure.database.sql.database import session_scope

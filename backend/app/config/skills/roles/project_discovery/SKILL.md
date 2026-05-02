@@ -23,24 +23,34 @@ Create `PROJECT.md` at the project root that documents this project for AI assis
 
 ## 🛠 Execution Flow
 
-1. **Initial Survey**:
-   - Call `list_directory(path=".", tree=False)` once to see top-level files and directories.
-   - Do NOT use `tree=True` — flat listing is sufficient and preserves context.
+0. **Project Identification & Infrastructure Setup**:
+   - Call `list_directory(path=".", tree=False)` once to see top-level files.
+   - Determine project type and technology stack.
+   - **Infrastructure Discovery & Provisioning**:
+     - **REQUIRED ACTION (Docker)**: If `docker-compose.yml` or `docker-stack.yml` exists, you **MUST EXECUTE** `execute_command("docker-compose up -d")` immediately before proceeding to other survey steps.
+     - **Middleware Verification**: Check if required services (e.g., Redis on 6379, MySQL on 3306) are running. If not, and no Docker exists, attempt `brew install` or `apt-get install`.
+     - **Verification**: Call `execute_command("lsof -i :<port>")` to confirm the service is actually listening.
+     - **Action**: Perform language-level initialization (e.g., `npm install`).
 
-2. **Read Key Configs**:
-   - Use `read_file` to read the most important configuration files:
-     - `composer.json` / `package.json` / `pom.xml` / `build.gradle` / `Cargo.toml` / `go.mod` / `requirements.txt` / `pyproject.toml`
-     - `README.md` or `readme.md`
-     - Any framework-specific config (e.g., `.env.example`, `phpunit.xml`, `vite.config.*`)
-   - Read at most 5 files. Choose the ones most indicative of the project's identity.
+1. **Conditional Deployment & Startup**:
+   - **Software Projects**: Identify **ALL** core components (e.g., Frontend, Backend, Database, API).
+     - For **EACH** component, identify its entry point (e.g., `npm run dev`, `php -S`, `python main.py`).
+     - Attempt to deploy and start **ALL** identified services.
+     - **Nginx/Proxy Check**: If the project requires specific routing (PHP/Nginx), verify if the proxy/pathinfo configuration is active.
+     - Verify startup success for each service by checking logs or port availability.
+     - **Deep Verification**: Use `browser_control` to verify UI rendering and detect 403/404/500 errors.
+     - Note the access URLs, process IDs, and status for **all** started services.
+   - **Non-Software Projects**: If it's a documentation, asset, or data project, SKIP this step.
+
+2. **Initial Survey & Analysis**:
+   - Analyze the directory structure and read at most 5 key configuration/README files.
+   - **Secrets Check**: Follow security guidelines regarding credentials in `.env` or config files.
 
 3. **Analyze & Synthesize**:
-   - Extract: project name, purpose, tech stack, framework, key dependencies, directory structure conventions.
-   - Do NOT mechanically copy file contents. Summarize and interpret.
+   - Extract: name, purpose, tech stack, environment state, and **Running Status**.
 
 4. **Write PROJECT.md**:
    - Call `write_file(path="PROJECT.md", content="...")` as your **FINAL action**.
-   - The content should follow the format below.
 
 ## 📝 PROJECT.md Format
 
@@ -50,28 +60,31 @@ Create `PROJECT.md` at the project root that documents this project for AI assis
 ## Overview
 Brief description of what this project does and its primary purpose.
 
-## Tech Stack
-- **Language**: e.g., PHP 8.2
-- **Framework**: e.g., ThinkPHP 6 / Laravel / React / Vue
-- **Key Dependencies**: List major packages/libraries from composer.json/package.json
-- **Database**: e.g., MySQL 8.0
-- **Server**: e.g., Nginx + PHP-FPM
+## Tech Stack & Environment
+- **Type**: e.g., Next.js Web App / PHP Backend
+- **Language/Framework**: e.g., PHP 7.4, TypeScript
+- **Environment State**: e.g., "Initialized (node_modules/vendor present)"
+
+## Infrastructure & Middleware
+- **Services Detected**: e.g., MySQL, Redis, Nginx
+- **Status**: e.g., "Running (Docker)", "Missing (Needs setup)"
+- **Action Taken**: e.g., "Executed docker-compose up", "None"
 
 ## Directory Structure
 Top-level layout and what each major directory contains.
 
-## Key Files
-- `composer.json` — Dependency management
-- `README.md` — Human-readable project intro
-- ...
+## Security & Secrets (Optional)
+*Only include if explicitly requested in mission guidelines.*
+- Keys/Tokens found or placeholder locations.
 
 ## Development Notes
-Any important conventions, build steps, or gotchas.
+Build steps, conventions, or initialization commands.
 ```
 
 ## ⚠️ Critical Rules
 
-- **ONE listing only**: Call `list_directory` exactly once. Never re-list the same directory.
-- **NO redundant reads**: Do not read files whose content you already have in context.
-- **FINAL action must be `write_file`**: After reading files, proceed DIRECTLY to writing `PROJECT.md`. Do NOT output a text summary instead of calling `write_file`.
-- **Be concise**: The final document should be 800–1500 characters. Focus on what an AI assistant needs to know.
+- **ONE listing only**: Call `list_directory` exactly once.
+- **Secrets Handling**: Strictly follow the "Security Guideline" in the mission message. If forbidden, omit all credentials.
+- **Non-Code Projects**: If no source code exists, document the project as a documentation/resource repository.
+- **FINAL action must be `write_file`**: Always end by creating `PROJECT.md`.
+- **Be concise**: Keep the final document under 1500 characters.

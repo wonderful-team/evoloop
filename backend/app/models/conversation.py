@@ -37,12 +37,13 @@ class Message(Base):
         Index("ix_messages_content", "content"),
     )
 
-    id: Mapped[int] = mapped_column(primary_key=True)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
     thread_id: Mapped[str] = mapped_column(String(255), index=True)
     project_id: Mapped[int | None] = mapped_column(Integer, index=True)
     role: Mapped[str] = mapped_column(String(50))  # "human", "ai"
     content: Mapped[str] = mapped_column(Text)
-    thinking: Mapped[str | None] = mapped_column(Text)  # JSON-serialized list[dict]: [{"type": "reasoning", "content": "..."}]
+    thinking: Mapped[str | None] = mapped_column(Text)  # Raw reasoning content string
+    meta_data: Mapped[dict | None] = mapped_column(JSON) # Silent audit & state metadata
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), onupdate=utcnow, nullable=True)
     sequence_number: Mapped[int | None] = mapped_column(Integer)  # Thread-local ordering
@@ -74,7 +75,7 @@ class Message(Base):
     status: Mapped[str | None] = mapped_column(String(50))  # pending, streaming, completed, failed, waiting_human
 
     # Threading support for message branching
-    parent_id: Mapped[int | None] = mapped_column(ForeignKey("messages.id"), nullable=True)
+    parent_id: Mapped[str | None] = mapped_column(ForeignKey("messages.id"), nullable=True)
     
     # Tool execution attribution
     tool_call_id: Mapped[str | None] = mapped_column(String(255), index=True)
@@ -105,7 +106,7 @@ class MessageReference(Base):
     __tablename__ = "message_references"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)  # UUID
-    message_id: Mapped[int] = mapped_column(ForeignKey("messages.id"), index=True)
+    message_id: Mapped[str] = mapped_column(ForeignKey("messages.id"), index=True)
     type: Mapped[str] = mapped_column(String(50))  # memory, tool, knowledge, file, audio, image
     target_id: Mapped[str] = mapped_column(String(255))  # ID or Name of the item (URL for audio/images)
     target_name: Mapped[str] = mapped_column(String(255))  # Human readable name
@@ -158,7 +159,6 @@ class AgentActivity(Base):
     thread_id: Mapped[str] = mapped_column(String(255), primary_key=True)
     status: Mapped[str] = mapped_column(String(50), default="idle")
     main_goal: Mapped[str] = mapped_column(Text, default="")
-    steps_json: Mapped[str] = mapped_column(Text, default="[]")
     artifacts_json: Mapped[str] = mapped_column(Text, default="[]")
     agent_state_json: Mapped[str] = mapped_column(Text, default="{}")
     active_memories_json: Mapped[str] = mapped_column(Text, default="[]")

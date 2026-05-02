@@ -12,7 +12,7 @@ import time
 from typing import Any
 
 from app.core.execution.macro.evolution_engine import MacroEvolutionEngine
-from app.core.execution.macro.models import (
+from app.core.execution.macro.schemas import (
     AdaptationRecord,
     AnomalyType,
     ExecutionDetail,

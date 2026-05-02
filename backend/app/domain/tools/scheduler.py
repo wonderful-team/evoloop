@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 @evoloop_tool(
     is_hidden=True,
-    name_map={"zh": "委托周期性意图", "en": "Delegate Periodic Intent"}
+    summary_template="database_logger.tool_summary.delegate_periodic_intent"
 )
 async def delegate_periodic_intent(
     intent: str,
@@ -65,9 +65,7 @@ async def delegate_periodic_intent(
         return ControllerResponse.error("Failed to delegate intent", details=str(e))
 
 
-@evoloop_tool(
-    name_map={"zh": "检查任务健康", "en": "Inspect Task Health"}
-)
+@evoloop_tool(summary_template="database_logger.tool_summary.inspect_task_health")
 async def inspect_task_health(task_id: int) -> str:
     """
     Inspect the health and execution history of an autonomous task.
@@ -97,9 +95,7 @@ async def inspect_task_health(task_id: int) -> str:
         return f"Error: Failed to inspect task health. {str(e)}"
 
 
-@evoloop_tool(
-    name_map={"zh": "列出自主任务", "en": "List Autonomous Tasks"}
-)
+@evoloop_tool(summary_template="database_logger.tool_summary.list_autonomous_tasks")
 async def list_autonomous_tasks(project_id: Optional[int] = None) -> str:
     """
     List all autonomous tasks managed by the agent.

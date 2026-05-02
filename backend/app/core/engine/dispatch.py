@@ -29,7 +29,7 @@ from app.core.context.manager import ContextManager, EvoContext
 from app.core.evocloud import evocloud_manager
 from app.domain.project.reference_service import reference_service
 from app.infrastructure.database.sql.database import session_scope
-from app.models import Conversation, Message, MessageReference
+from app.models import Conversation, MessageReference
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +40,7 @@ class DispatchResult:
 
     status: str                       # "queued" | "failed"
     thread_id: str
-    message_id: int | None = None     # DB persisted message id
+    message_id: str | None = None     # DB persisted message id (UUID)
     inputs: dict[str, Any] | None = None
     error: str | None = None
 
@@ -87,22 +87,11 @@ async def dispatch_agent_run(
             )
 
     # ------------------------------------------------------------------
-    # 1. Resolve Environment (Project Path)
+    # 1. Prepare minimal Context (working_dir will be hydrated later via events)
     # ------------------------------------------------------------------
     working_directory = None
-    if project_id and project_id != 0:
-        try:
-            project = await evocloud_manager.get_project_by_id(project_id)
-            if project and project.get("path"):
-                working_directory = project["path"]
-                logger.info(f"[Dispatch] Resolved project {project_id} path: {working_directory}")
-        except Exception as e:
-            logger.warning(f"[Dispatch] Failed to resolve project path for {project_id}: {e}")
-
-    # If not resolved via project, fall back to thread context store (for global mode or manual overrides)
-    if not working_directory:
-        from app.core.context.thread_store import thread_context_store
-        working_directory = thread_context_store.get_working_directory(thread_id)
+    from app.core.context.thread_store import thread_context_store
+    working_directory = thread_context_store.get_working_directory(thread_id)
 
     if context is None:
         context = EvoContext(
@@ -113,13 +102,14 @@ async def dispatch_agent_run(
             working_directory=working_directory,
         )
     else:
-        # Ensure active_model and working_directory are synchronized
+        # Ensure active_model is synchronized
         update_data = {"active_model": active_model}
         if working_directory:
             update_data["working_directory"] = working_directory
         context = context.model_copy(update=update_data)
     
     ContextManager.set(context)
+    await ContextManager.save(thread_id)
 
     # ------------------------------------------------------------------
     # 2. Process references (images, files, skills)
@@ -151,27 +141,33 @@ async def dispatch_agent_run(
             break
 
     # ------------------------------------------------------------------
-    # 3. Build goal for activity monitor
+    # 3. Build goal for activity monitor and session tracking
     # ------------------------------------------------------------------
-    goal = message_content[:200] + "..." if len(message_content) > 200 else message_content
+    from app.core.engine.message.goal_distiller import GoalDistiller
+    
+    # Authoritative session_goal (full or long-truncated)
+    session_goal = GoalDistiller.from_explicit(message_content)
+    # Display-optimized goal for activity monitor (shorter)
+    display_goal = GoalDistiller.for_display(session_goal)
+    
     if attachments:
-        goal = f"[Image] {goal}"
+        display_goal = f"[Image] {display_goal}"
     if goal_prefix:
-        goal = f"{goal_prefix}{goal}"
+        display_goal = f"{goal_prefix}{display_goal}"
+
+    # ... (rest of the code logic remains same, but using display_goal for persistence where appropriate)
+    # Actually, the existing code used 'goal' for inputs and persistence.
+    # Let's keep the naming but use the new distiller.
 
     # ------------------------------------------------------------------
     # 4. DB persistence & EvoCloud sync
     # ------------------------------------------------------------------
-    persisted_msg_id: int | None = None
+    persisted_msg_id: str | None = None
 
     try:
         async with session_scope() as session:
             # Upsert Conversation
             conversation = await session.get(Conversation, thread_id)
-            logger.info(
-                f"[Dispatch][DIAG] session.get(Conversation, {thread_id!r}) returned: "
-                f"{conversation!r} (type={type(conversation).__name__})"
-            )
             if not conversation:
                 conversation = Conversation(
                     id=thread_id,
@@ -179,71 +175,24 @@ async def dispatch_agent_run(
                     title=message_content[:50],
                 )
                 session.add(conversation)
-                logger.info(
-                    f"[Dispatch][DIAG] Adding new Conversation: id={thread_id!r}, "
-                    f"project_id={project_id}, title={message_content[:50]!r}"
-                )
             else:
                 conversation.updated_at = datetime.now(timezone.utc)
-                logger.info(
-                    f"[Dispatch][DIAG] Found existing Conversation: id={conversation.id!r}, "
-                    f"project_id={conversation.project_id}, updated_at will be refreshed"
-                )
 
             if not skip_message_persistence:
-                # New message: persist to DB
-                from sqlalchemy import func, select
-
-                stmt = select(func.max(Message.sequence_number)).where(Message.thread_id == thread_id)
-                max_seq = (await session.execute(stmt)).scalar() or 0
-
-                user_msg = Message(
-                    thread_id=thread_id,
-                    project_id=project_id,
+                # New message: persist to DB via Repository to ensure parent_id linkage
+                from app.core.engine.message.repository import MessageRepository
+                repo = MessageRepository(thread_id, project_id)
+                msg_id, seq = await repo.persist(
                     role="human",
                     content=message_content,
-                    thinking=None,
-                    sequence_number=max_seq + 1,
+                    category="user",
+                    is_visible=True,
                 )
-                session.add(user_msg)
-                await session.flush()
-                persisted_msg_id = user_msg.id
-
-                logger.info(f"[Dispatch] Persisted user message for {thread_id} (seq={user_msg.sequence_number})")
-
-                # Persist references
-                if attachments:
-                    for att in attachments:
-                        ref_type = att.get("type", "file")
-                        target_id = att.get("url") or att.get("id") or "unknown"
-                        target_name = att.get("name") or target_id
-                        metadata = att.get("metadata")
-
-                        ref = MessageReference(
-                            id=str(uuid.uuid4()),
-                            message_id=user_msg.id,
-                            type=ref_type,
-                            target_id=str(target_id),
-                            target_name=str(target_name),
-                            metadata=metadata,
-                        )
-                        session.add(ref)
-
-                    logger.info(f"[Dispatch] Persisted {len(attachments)} references for msg {user_msg.id}")
-            else:
-                logger.info("[Dispatch] Skipped persistence for retry")
+                persisted_msg_id = msg_id
 
     except Exception as e:
-        logger.error(
-            f"[Dispatch][DIAG] Failed to persist for thread_id={thread_id!r}: "
-            f"{type(e).__name__}: {e}",
-            exc_info=True,
-        )
-        return DispatchResult(
-            status="failed",
-            thread_id=thread_id,
-            error=f"Failed to save message: {e}",
-        )
+        logger.error(f"[Dispatch] Failed to persist: {e}", exc_info=True)
+        return DispatchResult(status="failed", thread_id=thread_id, error=str(e))
 
     # ------------------------------------------------------------------
     # 5. Build BackgroundAgentInputs
@@ -255,8 +204,8 @@ async def dispatch_agent_run(
         "command_id": str(command_id) if command_id else None,
         "checkpoint_id": checkpoint_id,
         "is_retry": is_retry,
-        "goal": goal,
-        "session_goal": message_content.strip(),
+        "goal": display_goal,
+        "session_goal": session_goal,
         "model": active_model,
         "working_directory": working_directory,
         "metadata": metadata or {},
@@ -280,7 +229,7 @@ async def persist_user_message(
     *,
     project_id: int | None = None,
     command_id: int | None = None,
-) -> int | None:
+) -> str | None:
     """
     Persist a user message to DB and sync to EvoCloud.
 
@@ -299,26 +248,15 @@ async def persist_user_message(
 
             conversation.updated_at = datetime.now(timezone.utc)
 
-            from sqlalchemy import func, select
-
-            stmt = select(func.max(Message.sequence_number)).where(Message.thread_id == thread_id)
-            max_seq = (await session.execute(stmt)).scalar() or 0
-
-            user_msg = Message(
-                thread_id=thread_id,
-                project_id=project_id or conversation.project_id,
+            from app.core.engine.message.repository import MessageRepository
+            repo = MessageRepository(thread_id, project_id or conversation.project_id)
+            msg_id, seq = await repo.persist(
                 role="human",
                 content=content,
-                sequence_number=max_seq + 1,
+                category="user",
+                is_visible=True,
             )
-            session.add(user_msg)
-            await session.flush()
-
-            logger.info(
-                f"[Dispatch] Persisted user message for {thread_id} "
-                f"(seq={user_msg.sequence_number})"
-            )
-            return user_msg.id
+            return msg_id
 
     except Exception as e:
         logger.error(f"[Dispatch] Failed to persist user message: {e}")

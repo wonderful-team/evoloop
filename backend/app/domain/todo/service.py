@@ -60,6 +60,7 @@ class TodoService:
         data: TodoCreate,
         source_conversation_id: str | None = None,
         source_message_id: str | None = None,
+        run_id: str | None = None,
     ) -> TodoResponse:
         """
         Create a new Todo.
@@ -101,6 +102,7 @@ class TodoService:
             project_id=data.project_id,
             source_conversation_id=source_conversation_id or data.source_conversation_id,
             source_message_id=source_message_id or data.source_message_id,
+            run_id=run_id or data.run_id,
         )
         
         todo = await self.repository.create(internal_data)
@@ -307,6 +309,7 @@ class TodoServiceSync:
         data: TodoCreate,
         source_conversation_id: str | None = None,
         source_message_id: str | None = None,
+        run_id: str | None = None,
     ) -> TodoItem:
         """Create a new Todo (sync version)."""
         if not data.title or not data.title.strip():
@@ -328,6 +331,7 @@ class TodoServiceSync:
             project_id=data.project_id,
             source_conversation_id=source_conversation_id or data.source_conversation_id,
             source_message_id=source_message_id or data.source_message_id,
+            run_id=run_id or data.run_id,
         )
         
         return self.repository.create_sync(internal_data)

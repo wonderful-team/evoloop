@@ -6,8 +6,31 @@ from langchain_core.outputs import ChatResult
 from langchain_openai import ChatOpenAI
 
 from app.i18n.service import i18n
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 logger = logging.getLogger(__name__)
+
+
+class AdaptiveRetryState(DynamicBaseModel):
+    """Encapsulates the state and logic for an adaptive retry attempt."""
+    attempt: int = 0
+    max_retries: int = 3
+    current_max_tokens: int
+    current_temperature: float
+    
+    def next_state(self) -> "AdaptiveRetryState":
+        """Calculates the next state with decayed parameters."""
+        decay = 0.8 if self.attempt == 0 else (0.6 if self.attempt == 1 else 0.5)
+        return AdaptiveRetryState(
+            attempt=self.attempt + 1,
+            max_retries=self.max_retries,
+            current_max_tokens=int(self.current_max_tokens * decay),
+            current_temperature=max(self.current_temperature - 0.2, 0.0)
+        )
+    
+    @property
+    def can_retry(self) -> bool:
+        return self.attempt < self.max_retries
 
 
 class AdaptiveChatOpenAI(ChatOpenAI):
@@ -31,69 +54,42 @@ class AdaptiveChatOpenAI(ChatOpenAI):
         **kwargs: Any,
     ) -> ChatResult:
         """
-        Override _agenerate to implement the adaptive retry loop.
-        Note: We override _agenerate because it's the core method called by ainvoke/invoke.
+        Model-driven adaptive generation.
         """
-        # --- 1. Initial Configuration ---
-        # Ensure we have a starting point for current tokens and temperature
-        current_max_tokens = self.max_tokens or self.retry_max_tokens_base
-        current_temp = self.temperature if self.temperature is not None else 0.7
+        state = AdaptiveRetryState(
+            current_max_tokens=self.max_tokens or self.retry_max_tokens_base,
+            current_temperature=self.temperature if self.temperature is not None else 0.7,
+            max_retries=self.adaptive_retries
+        )
 
-        for attempt in range(self.adaptive_retries + 1):
+        while True:
             try:
-                # Update params for this specific attempt
-                request_kwargs = kwargs.copy()
-                request_kwargs["max_tokens"] = current_max_tokens
-                request_kwargs["temperature"] = current_temp
+                request_kwargs = {
+                    **kwargs,
+                    "max_tokens": state.current_max_tokens,
+                    "temperature": state.current_temperature
+                }
 
-                if attempt > 0:
-                    logger.info(
-                        f"🔄 Adaptive Retry {attempt}/{self.adaptive_retries}: "
-                        f"max_tokens={current_max_tokens}, temp={current_temp:.2f}"
-                    )
+                if state.attempt > 0:
+                    logger.info(f"🔄 Adaptive Retry {state.attempt}/{state.max_retries}: {state}")
 
-                # Call Parent Logic (ChatOpenAI._agenerate)
                 return await super()._agenerate(messages, stop, run_manager, **request_kwargs)
 
             except Exception as e:
-                error_str = str(e).lower()
+                # 只有在可重试且属于 Context 或 Resource 限制时才进行适配
+                if state.can_retry and self._is_retryable_error(e):
+                    old_state = state
+                    state = state.next_state()
+                    logger.warning(f"⚠️ Context Error. Adapting: {old_state} -> {state}")
+                    continue
+                
+                raise e
 
-                # Detect Context Window or common Resource errors
-                # These are the errors where 'shrinking' the output might help.
-                is_context_error = any(kw in error_str for kw in [
-                    "context_length_exceeded",
-                    "maximum context length",
-                    "prompt is too long",
-                    "string too long",
-                    "too many tokens"
-                ])
-
-                if not is_context_error:
-                    # For other errors (Auth, Network, etc.), we don't adapt, just re-raise
-                    raise e
-
-                if attempt == self.adaptive_retries:
-                    logger.error(f"❌ Adaptive Retry Exhausted. Final Error: {e}")
-                    raise e
-
-                # --- 2. Adaptive Logic: Decay Parameters ---
-                # Strategy: Reduce output space to make room for input, 
-                # and decrease temperature for more deterministic/stable output.
-                decay_factor = 1.0
-                if attempt == 0:
-                    decay_factor = 0.8  # First drop is significant
-                elif attempt == 1:
-                    decay_factor = 0.6  # Second drop more aggressive
-                else:
-                    decay_factor = 0.5  # Final attempt half of initial
-
-                current_max_tokens = int(current_max_tokens * decay_factor)
-                current_temp = max(current_temp - 0.2, 0.0) # Reduce temp jitter
-
-                logger.warning(
-                    f"⚠️ LLM Context Error detected. Adjusting params: "
-                    f"factor={decay_factor}, new_max={current_max_tokens}, new_temp={current_temp:.2f}"
-                )
+    def _is_retryable_error(self, e: Exception) -> bool:
+        """Determines if the error warrants an adaptive retry (token/context limit)."""
+        error_str = str(e).lower()
+        retryable_keywords = ("context_length_exceeded", "maximum context length", "prompt is too long", "too many tokens")
+        return any(kw in error_str for kw in retryable_keywords)
 
     async def summarize(self, text: str) -> str:
         """

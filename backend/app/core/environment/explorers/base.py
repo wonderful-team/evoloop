@@ -49,7 +49,7 @@ class BaseExplorer(ABC):
                 model_name=model_name,
             )
 
-            content = response.content.strip() if hasattr(response, 'content') else str(response).strip()
+            content = response.content.strip()
             if "```json" in content:
                 content = content.split("```json")[1].split("```")[0].strip()
 

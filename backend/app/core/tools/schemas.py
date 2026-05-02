@@ -78,15 +78,13 @@ class EvoLoopToolConfig(DynamicBaseModel):
     is_memory_tool: bool = False
     is_multimodal: bool = False
     is_hidden: bool = False
-    name_map: dict[str, str] = Field(default_factory=dict)
     handle_tool_error: bool = True
+    is_hitl: bool = False  # If True, this tool triggers a human-in-the-loop request
     required_benefit: str | None = None
 
     def model_post_init(self, __context: Any) -> None:
         if self.affected_path_keys is None:
             self.affected_path_keys = []
-        if self.name_map is None:
-            self.name_map = {}
 
 
 class CacheKey(BaseModel):
@@ -128,6 +126,6 @@ class ToolRegistryMetadata(DynamicBaseModel):
     is_pollable: bool = False
     description: str = ""
     is_hidden: bool = False
-    name_map: dict[str, str] = Field(default_factory=dict)
     summary_template: str | None = None  # Legacy support for i18n
     is_memory_tool: bool = False
+    is_hitl: bool = False

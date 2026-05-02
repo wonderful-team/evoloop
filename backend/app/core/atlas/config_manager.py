@@ -172,7 +172,7 @@ class AtlasConfigManager:
             from app.core.atlas.strategy import AtlasStrategyStore
             strategy = await AtlasStrategyStore.get_strategy(bundle_id, platform)
             if strategy:
-                return strategy.to_dict()
+                return strategy.model_dump()
         except Exception as e:
             logger.debug(f"[AtlasConfig] Failed to get strategy: {e}")
         return None
@@ -182,7 +182,7 @@ class AtlasConfigManager:
         """Set default strategy for an app on a specific platform."""
         try:
             from app.core.atlas.strategy import AppStrategy, AtlasStrategyStore
-            app_strategy = AppStrategy.from_dict(strategy)
+            app_strategy = AppStrategy.model_validate(strategy)
             await AtlasStrategyStore.save_strategy(app_strategy)
             logger.info(f"[AtlasConfig] Set strategy for '{platform}:{bundle_id}'")
         except Exception as e:

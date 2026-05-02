@@ -5,7 +5,7 @@
 ## Project Context
 The following PROJECT.md describes the current project. Use this context to understand the project's structure, conventions, and setup.
 
-{{ sys_info.project_profile }}
+{{ sys_info.project_profile | truncate(8000, True, "\n\n... [PROJECT.md truncated for brevity]") }}
 {% endif %}
 
 ### System Safety Rules
