@@ -149,13 +149,8 @@ export function ActivityTab({ activeThreadId }: ActivityTabProps) {
           tool_meta: m.meta_data?.tool_meta
         })
       } else if (m.role === "ai") {
-        // Handle nested steps (compatibility with existing folded messages)
-        const s = m.steps || []
-        if (s.length > 0) {
-          bufferSteps.unshift(...s)
-          bufferAiIds.unshift(m.id)
-        }
         if (m.status === "streaming") bufferIsStreaming = true
+        if (m.id) bufferAiIds.unshift(m.id)
       }
     }
 

@@ -7,7 +7,7 @@ export interface ChatConnectionCallbacks {
     onArtifact: (artifact: any) => void;  // Incremental artifact update
     onStatus: (status: any) => void;      // Incremental status update
     onHumanRequest: (request: any) => void;
-    onMessage: (message: any) => void; // Real-time message sync (includes step updates via msg.steps)
+    onMessage: (message: any) => void; // Real-time message sync
     onStream?: (streamEvent: any) => void; // Enhanced stream events (thinking, progress, errors)
     onError: (error: string) => void;
     onUnauthorized?: () => void; // 401 未授权回调

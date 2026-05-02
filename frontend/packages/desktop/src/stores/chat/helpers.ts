@@ -35,13 +35,20 @@ export function normalizeMessage(rawMsg: any): any {
         content: rawMsg.content || "",
         thinking: rawMsg.thinking,
         timestamp: rawMsg.created_at || new Date().toISOString(),
-        steps: rawMsg.steps || [],
         references: rawMsg.references || [],
         changeset_count: rawMsg.changeset_count || 0,
         category: rawMsg.category,
         status: rawMsg.status,
         node_source: rawMsg.node_source,
         run_id: rawMsg.run_id,
+        parent_id: rawMsg.parent_id,
+        
+        // Flattened Tool Fields
+        tool_name: rawMsg.tool_name,
+        tool_call_id: rawMsg.tool_call_id,
+        input: rawMsg.input,
+        tool_meta: rawMsg.tool_meta,
+
         meta_data: rawMsg.meta_data || {},
     }
 }

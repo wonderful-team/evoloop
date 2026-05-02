@@ -38,83 +38,10 @@ import { SourcesFooter } from "./SourcesFooter"
 
 import { AnalysisResultMessage } from "./AnalysisResultMessage"
 import { HumanRequestCard } from "./HumanRequestCard"
-import type { ToolStep } from "@/types/toolstep"
 import { useShowThinking } from "../UserSettings/AppearanceSettings"
 import { TTSButton } from "./TTSButton"
 import { useAutoSpeak, useTTS } from "@/hooks/useTTS"
 import { useEffect } from "react"
-
-
-// Extract human-readable param from a tool step's input.
-function extractStepParam(step: ToolStep): string {
-  const input = step.input
-  if (!input || typeof input !== "object") return ""
-
-  // Prefer backend-provided affected_path_keys
-  const keys = step.tool_meta?.affected_path_keys
-  if (keys && keys.length > 0) {
-    for (const key of keys) {
-      const val = (input as Record<string, any>)[key]
-      if (val != null && val !== "") {
-        return String(val)
-      }
-    }
-  }
-
-  // Fallback: first meaningful string field
-  const skipFields = ["Mode", "TaskName", "TaskStatus"]
-  for (const [key, val] of Object.entries(input)) {
-    if (skipFields.includes(key)) continue
-    if (typeof val === "string" && val) return val
-    if (typeof val === "number") return String(val)
-  }
-
-  return ""
-}
-
-// Tool Execution Section — inline text summary of steps.
-// Detailed steps are shown in the right-side Activity panel.
-function ToolExecutionSection({ msg }: { msg: Message }) {
-  const { t } = useTranslation()
-  const steps = msg.steps || []
-  if (steps.length === 0) return null
-
-  return (
-    <div className="flex flex-col gap-2 mt-3 mb-1">
-      <div className="flex items-center gap-2 text-[10px] uppercase tracking-widest font-bold text-muted-foreground/30">
-         <div className="h-px flex-1 bg-border/20" />
-         <span>{t("chat.messageList.toolExecution")}</span>
-         <div className="h-px flex-1 bg-border/20" />
-      </div>
-      <div className="flex flex-wrap gap-x-4 gap-y-2 py-1">
-        {steps.map((step) => {
-          const displayName =
-            step.tool_meta?.display_name ||
-            step.name ||
-            step.tool_name ||
-            step.tool ||
-            "unknown"
-          const param = extractStepParam(step)
-
-          return (
-            <div key={step.id} className="inline-flex items-center gap-2 group/step">
-              <div className={`w-1.5 h-1.5 rounded-full ${step.status === 'done' ? 'bg-primary/40' : 'bg-amber-400 animate-pulse'}`} />
-              <span className="text-[11px] font-medium text-muted-foreground/60">{displayName}</span>
-              {param && (
-                <span
-                  className="text-[10px] font-mono text-primary/40 truncate max-w-[150px] bg-primary/5 px-1.5 py-0.5 rounded border border-primary/10"
-                  title={param}
-                >
-                  {param}
-                </span>
-              )}
-            </div>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
 
 
 export interface Message {
@@ -122,11 +49,22 @@ export interface Message {
   role: "human" | "ai" | "tool" | "system"
   content: string
   action_type?: string // Tool output discriminator
-  thinking?: string
+  thinking?: string | any[]
   timestamp?: string // ISO timestamp from backend
   run_id?: string // Deep Linking
-  parent_id?: number // Parent message ID for threading
+  parent_id?: string // Parent message ID for threading
   node_source?: "chat" | "finish" | "worker" | "supervisor" | "aggregator" | string // 👈 Agent 节点来源，用于语音播报过滤
+  
+  // Flattened Tool Fields (from backend MessageBlock)
+  tool_name?: string
+  tool_call_id?: string
+  input?: any
+  tool_meta?: {
+    display_name?: string
+    affected_path_keys?: string[]
+    [key: string]: any
+  }
+
   references?: Array<{ // Persistent message references
     id: string
     type: string // memory, file, knowledge, image, audio
@@ -153,7 +91,6 @@ export interface Message {
     }
   }>
   originalRole?: string // Kept for filtering
-  steps?: ToolStep[] // Tool execution steps
   has_file_operations?: boolean // Whether this message has associated file operations (for Rewind/Retry)
   status?: "pending" | "streaming" | "running" | "completed" | "failed" // Message generation status
   // Changeset related (from backend)
@@ -195,7 +132,9 @@ const ChatMessageItem = memo(
 
     // Render Tool Output as Document Log Block
     if (msg.role === "tool") {
-      const displayName = msg.meta_data?.tool_name || msg.tool_name || t("chat.messageList.toolExecution")
+      const displayName = msg.tool_meta?.display_name || msg.meta_data?.tool_name || msg.tool_name || t("chat.messageList.toolExecution")
+      const toolInput = msg.input || msg.meta_data?.input
+      
       return (
         <div className="flex justify-start mb-6 w-full">
           <div className="w-full max-w-4xl mx-auto pl-12">
@@ -205,8 +144,16 @@ const ChatMessageItem = memo(
                   {displayName}
                   <div className={`ml-auto w-1.5 h-1.5 rounded-full ${msg.status === 'completed' || msg.status === 'done' ? 'bg-primary/40' : 'bg-amber-400 animate-pulse'}`} />
                </div>
+               
+               {/* Tool Input (Params) - Subtle display */}
+               {toolInput && (
+                 <div className="px-3 py-2 text-[10px] text-muted-foreground/60 bg-muted/10 border-b border-[var(--doc-border)] italic truncate hover:whitespace-normal hover:break-all transition-all cursor-default">
+                    {typeof toolInput === 'string' ? toolInput : JSON.stringify(toolInput)}
+                 </div>
+               )}
+
                {msg.content && (
-                <div className="p-3 text-xs font-mono text-muted-foreground/80 overflow-x-auto whitespace-pre-wrap leading-relaxed border-t border-[var(--doc-border)]">
+                <div className="p-3 text-xs font-mono text-muted-foreground/80 overflow-x-auto whitespace-pre-wrap leading-relaxed">
                     {msg.content}
                 </div>
                )}
@@ -485,7 +432,7 @@ const ChatMessageItem = memo(
       prevProps.msg.id === nextProps.msg.id &&
       prevProps.msg.content === nextProps.msg.content &&
       prevProps.msg.thinking === nextProps.msg.thinking &&
-      prevProps.msg.steps === nextProps.msg.steps &&
+      prevProps.msg.meta_data === nextProps.msg.meta_data &&
       prevProps.msg.status === nextProps.msg.status
     )
   },

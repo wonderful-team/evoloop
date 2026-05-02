@@ -440,7 +440,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
                 const ex = msgs[existIdx]
                 msgs[existIdx] = { 
                     ...ex, 
-                    steps: msg.steps?.length ? msg.steps : ex.steps,
                     thinking: msg.thinking || ex.thinking,
                     content: (ex.status === "streaming") ? ex.content : (msg.content || ex.content),
                     status: msg.status || ex.status

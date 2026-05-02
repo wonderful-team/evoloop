@@ -1032,31 +1032,40 @@ export type MemberBenefitsResponse = {
 };
 
 export type MessageItem = {
-    id?: (string | null);
-    role: string;
+    id: string;
+    thread_id: string;
+    run_id?: (string | null);
+    role: 'human' | 'ai' | 'tool' | 'system';
+    category?: (string | null);
     content?: string;
+    content_type?: string;
     thinking?: (string | null);
-    created_at?: (string | null);
-    steps?: Array<ToolStep>;
     tool_calls?: (Array<{
     [key: string]: unknown;
 }> | null);
+    tool_name?: (string | null);
+    tool_call_id?: (string | null);
+    input?: (unknown | null);
+    tool_meta?: ({
+    [key: string]: unknown;
+} | null);
     status?: (string | null);
-    metadata?: {
+    is_visible?: boolean;
+    created_at?: string;
+    updated_at?: (string | null);
+    sequence_number?: (number | null);
+    parent_id?: (string | null);
+    checkpoint_id?: (string | null);
+    meta_data?: {
         [key: string]: unknown;
     };
-    run_id?: (string | null);
-    parent_id?: (string | null);
     references?: Array<ReferenceItem>;
     has_file_operations?: boolean;
     changeset_count?: number;
-    category?: (string | null);
-    content_type?: string;
-    sequence_number?: (number | null);
-    checkpoint_id?: (string | null);
-    is_visible?: boolean;
-    [key: string]: unknown | string | ToolStep | ReferenceItem | boolean | number;
+    [key: string]: unknown | string | boolean | ReferenceItem | number;
 };
+
+export type role = 'human' | 'ai' | 'tool' | 'system';
 
 /**
  * Response model for paginated message list.
@@ -2100,28 +2109,6 @@ export type ToolInfo = {
     [key: string]: unknown;
 } | null);
     is_runtime?: (boolean | null);
-    [key: string]: unknown | string;
-};
-
-/**
- * Standard model for a single tool execution step within an AI message.
- * Used for both persistent history and real-time streaming.
- */
-export type ToolStep = {
-    id: string;
-    tool: string;
-    tool_name?: (string | null);
-    name?: (string | null);
-    input?: ({
-    [key: string]: unknown;
-} | string | unknown);
-    output?: string;
-    status?: string;
-    duration?: (number | null);
-    tool_call_id?: (string | null);
-    tool_meta?: ({
-    [key: string]: unknown;
-} | null);
     [key: string]: unknown | string;
 };
 

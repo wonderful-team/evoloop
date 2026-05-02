@@ -3641,6 +3641,14 @@ export const MemberBenefitsResponseSchema = {
 export const MessageItemSchema = {
     properties: {
         id: {
+            type: 'string',
+            title: 'Id'
+        },
+        thread_id: {
+            type: 'string',
+            title: 'Thread Id'
+        },
+        run_id: {
             anyOf: [
                 {
                     type: 'string'
@@ -3649,16 +3657,33 @@ export const MessageItemSchema = {
                     type: 'null'
                 }
             ],
-            title: 'Id'
+            title: 'Run Id'
         },
         role: {
             type: 'string',
+            enum: ['human', 'ai', 'tool', 'system'],
             title: 'Role'
+        },
+        category: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Category'
         },
         content: {
             type: 'string',
             title: 'Content',
             default: ''
+        },
+        content_type: {
+            type: 'string',
+            title: 'Content Type',
+            default: 'text'
         },
         thinking: {
             anyOf: [
@@ -3670,28 +3695,6 @@ export const MessageItemSchema = {
                 }
             ],
             title: 'Thinking'
-        },
-        created_at: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'string',
-                    format: 'date-time'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Created At'
-        },
-        steps: {
-            items: {
-                '$ref': '#/components/schemas/ToolStep'
-            },
-            type: 'array',
-            title: 'Steps'
         },
         tool_calls: {
             anyOf: [
@@ -3708,6 +3711,49 @@ export const MessageItemSchema = {
             ],
             title: 'Tool Calls'
         },
+        tool_name: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Tool Name'
+        },
+        tool_call_id: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Tool Call Id'
+        },
+        input: {
+            anyOf: [
+                {},
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Input'
+        },
+        tool_meta: {
+            anyOf: [
+                {
+                    additionalProperties: true,
+                    type: 'object'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Tool Meta'
+        },
         status: {
             anyOf: [
                 {
@@ -3719,12 +3765,17 @@ export const MessageItemSchema = {
             ],
             title: 'Status'
         },
-        metadata: {
-            additionalProperties: true,
-            type: 'object',
-            title: 'Metadata'
+        is_visible: {
+            type: 'boolean',
+            title: 'Is Visible',
+            default: true
         },
-        run_id: {
+        created_at: {
+            type: 'string',
+            title: 'Created At',
+            default: ''
+        },
+        updated_at: {
             anyOf: [
                 {
                     type: 'string'
@@ -3733,7 +3784,18 @@ export const MessageItemSchema = {
                     type: 'null'
                 }
             ],
-            title: 'Run Id'
+            title: 'Updated At'
+        },
+        sequence_number: {
+            anyOf: [
+                {
+                    type: 'integer'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Sequence Number'
         },
         parent_id: {
             anyOf: [
@@ -3745,6 +3807,22 @@ export const MessageItemSchema = {
                 }
             ],
             title: 'Parent Id'
+        },
+        checkpoint_id: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Checkpoint Id'
+        },
+        meta_data: {
+            additionalProperties: true,
+            type: 'object',
+            title: 'Meta Data'
         },
         references: {
             items: {
@@ -3763,54 +3841,11 @@ export const MessageItemSchema = {
             type: 'integer',
             title: 'Changeset Count',
             default: 0
-        },
-        category: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Category'
-        },
-        content_type: {
-            type: 'string',
-            title: 'Content Type',
-            default: 'text'
-        },
-        sequence_number: {
-            anyOf: [
-                {
-                    type: 'integer'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Sequence Number'
-        },
-        checkpoint_id: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Checkpoint Id'
-        },
-        is_visible: {
-            type: 'boolean',
-            title: 'Is Visible',
-            default: true
         }
     },
     additionalProperties: true,
     type: 'object',
-    required: ['role'],
+    required: ['id', 'thread_id', 'role'],
     title: 'MessageItem'
 } as const;
 
@@ -7876,104 +7911,6 @@ export const ToolInfoSchema = {
     type: 'object',
     required: ['name', 'description'],
     title: 'ToolInfo'
-} as const;
-
-export const ToolStepSchema = {
-    properties: {
-        id: {
-            type: 'string',
-            title: 'Id'
-        },
-        tool: {
-            type: 'string',
-            title: 'Tool'
-        },
-        tool_name: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Tool Name'
-        },
-        name: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Name'
-        },
-        input: {
-            anyOf: [
-                {
-                    additionalProperties: true,
-                    type: 'object'
-                },
-                {
-                    type: 'string'
-                },
-                {}
-            ],
-            title: 'Input'
-        },
-        output: {
-            type: 'string',
-            title: 'Output',
-            default: ''
-        },
-        status: {
-            type: 'string',
-            title: 'Status',
-            default: 'done'
-        },
-        duration: {
-            anyOf: [
-                {
-                    type: 'number'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Duration'
-        },
-        tool_call_id: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Tool Call Id'
-        },
-        tool_meta: {
-            anyOf: [
-                {
-                    additionalProperties: true,
-                    type: 'object'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Tool Meta'
-        }
-    },
-    additionalProperties: true,
-    type: 'object',
-    required: ['id', 'tool'],
-    title: 'ToolStep',
-    description: `Standard model for a single tool execution step within an AI message.
-Used for both persistent history and real-time streaming.`
 } as const;
 
 export const TranscriptionResponseSchema = {

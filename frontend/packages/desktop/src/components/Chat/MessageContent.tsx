@@ -52,7 +52,7 @@ export function MessageContent({ content, isUser }: { content: string; isUser?: 
 
   if (typeof content !== "string") {
     return (
-      <div className="whitespace-pre-wrap">
+      <div className="whitespace-pre-wrap text-xs font-mono opacity-60">
         {JSON.stringify(content, null, 2)}
       </div>
     )

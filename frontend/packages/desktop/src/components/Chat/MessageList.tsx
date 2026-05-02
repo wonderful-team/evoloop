@@ -2,7 +2,6 @@ import { useMemo } from "react"
 import { useTranslation } from "react-i18next"
 import { Loader2 } from "lucide-react"
 import { SmartChatMessageItem, type Message } from "./ChatMessageItem"
-import type { ToolStep } from "@/types/toolstep"
 import { ChatWelcome } from "./ChatWelcome"
 
 interface MessageListProps {
@@ -21,43 +20,7 @@ interface Turn {
     ai: Message[]
 }
 
-/** Extract a human-readable param from a tool step's input. */
-function extractStepParam(step: ToolStep): string {
-    const input = step.input
-    if (!input || typeof input !== "object") return ""
-    const keys = step.tool_meta?.affected_path_keys
-    if (keys && keys.length > 0) {
-        for (const key of keys) {
-            const val = (input as Record<string, any>)[key]
-            if (val != null && val !== "") return String(val)
-        }
-    }
-    const skipFields = ["Mode", "TaskName", "TaskStatus"]
-    for (const [key, val] of Object.entries(input)) {
-        if (skipFields.includes(key)) continue
-        if (typeof val === "string" && val) return val
-        if (typeof val === "number") return String(val)
-    }
-    return ""
-}
-
-/** Format steps into a plain-text summary line. */
-function formatStepSummary(steps: ToolStep[]): string {
-    if (!steps || steps.length === 0) return ""
-    return steps
-        .map((step) => {
-            const name = step.tool_meta?.display_name || step.name || step.tool_name || step.tool || ""
-            const param = extractStepParam(step)
-            return param ? `${name}：${param}` : name
-        })
-        .filter(Boolean)
-        .join("，")
-}
-
-/** Merge multiple AI messages from the same turn into a single message.
- *  Each AI message's content is followed by its step summary inline.
- *  Steps are cleared after embedding to avoid duplicate rendering.
- */
+/** Merge multiple AI messages from the same turn into a single message. */
 function mergeAiMessages(msgs: Message[]): Message | null {
     if (msgs.length === 0) return null
     const first = msgs[0]
@@ -70,7 +33,6 @@ function mergeAiMessages(msgs: Message[]): Message | null {
     return {
         ...first,
         content: paragraphs.join("\n\n"),
-        steps: msgs.flatMap((m) => m.steps || []), // Preserve all steps for structured rendering
         thinking: msgs.map((m) => m.thinking).filter(Boolean).join("\n\n") || undefined,
         status: msgs.some((m) => m.status === "streaming") ? "streaming" : (last.status || "completed"),
         changeset_count: msgs.reduce((sum, m) => sum + (m.changeset_count || 0), 0),
