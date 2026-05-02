@@ -1,14 +1,14 @@
 """
 MessageNormalizer - 消息规范化工具类
 
-统一处理消息由扁平结构（DB/Dict）向规范化结构（FoldedMessage）的转换逻辑。
+统一处理消息由扁平结构（DB/Dict）向规范化结构（MessageBlock）的转换逻辑。
 遵循“即读即显”原则，移除冗余的 LangChain 对象转换层。
 """
 import logging
 from datetime import datetime
 from typing import Any, Union
 
-from app.core.engine.state.history import FoldedMessage
+from app.core.engine.message.schemas import MessageBlock
 from app.core.tools.registry import get_tool_metadata
 from app.i18n.service import i18n
 
@@ -94,15 +94,14 @@ class MessageNormalizer:
                     "input": args
                 }
             })
-
         return msg_dict
 
     @classmethod
-    def normalize(cls, messages: list[Any]) -> list[FoldedMessage]:
+    def normalize(cls, messages: list[Any]) -> list[MessageBlock]:
         """
-        Maps a list of raw messages (DB records or dicts) directly to FoldedMessage.
+        Maps a list of raw messages (DB records or dicts) directly to MessageBlock.
         """
-        result: list[FoldedMessage] = []
+        result: list[MessageBlock] = []
 
         for msg in messages:
             role = cls._get_val(msg, "role")
@@ -147,46 +146,53 @@ class MessageNormalizer:
                     else:
                         serializable_tool_calls.append(dict(tc))
 
-                result.append(FoldedMessage(
+                result.append(MessageBlock(
                     id=msg_id,
                     role="ai",
                     content=content,
                     thinking=thinking,
                     tool_calls=serializable_tool_calls,
-                    steps=[],
                     created_at=created_at,
                     status=status,
-                    meta_data=meta_data
+                    meta_data=meta_data,
+                    thread_id=str(cls._get_val(msg, "conversation_id", ""))
                 ))
 
             elif role == "tool":
                 # Normalize tool data
                 normalized = cls.normalize_dict(msg)
-                result.append(FoldedMessage(
+                result.append(MessageBlock(
                     id=msg_id,
                     role="tool",
-                    content="",
+                    content=content,
                     created_at=created_at,
-                    meta_data=normalized["meta_data"]
+                    tool_name=normalized.get("tool_name"),
+                    tool_call_id=normalized.get("tool_call_id"),
+                    input=normalized.get("input"),
+                    tool_meta=normalized.get("tool_meta"),
+                    meta_data=normalized["meta_data"],
+                    thread_id=str(cls._get_val(msg, "conversation_id", ""))
                 ))
 
             elif role in ("human", "user"):
-                result.append(FoldedMessage(
+                result.append(MessageBlock(
                     id=msg_id,
                     role="human",
                     content=content,
                     created_at=created_at,
                     status=status,
-                    meta_data=meta_data
+                    meta_data=meta_data,
+                    thread_id=""
                 ))
 
             elif role == "system":
-                result.append(FoldedMessage(
+                result.append(MessageBlock(
                     id=msg_id, 
                     role="system", 
                     content=content,
                     created_at=created_at,
-                    meta_data=meta_data
+                    meta_data=meta_data,
+                    thread_id=""
                 ))
 
         return result

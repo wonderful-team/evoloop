@@ -34,7 +34,7 @@ async def stream_chat(thread_id: str):
     - artifact: New artifact created/updated (incremental)
     - status: Status change (incremental)
     - token: Token stream for chat
-    - message: New message (with tool folding via msg.steps)
+    - message: New message (flat message sync)
     - human_request: HITL request
     - stream: Structured stream events (thinking, errors, etc.)
     """

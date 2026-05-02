@@ -19,12 +19,13 @@ from app.infrastructure.pydantic_base import DynamicBaseModel, EventBase
 from app.utils.time import format_iso_timestamp
 
 
-class ThinkingBlock(DynamicBaseModel):
+class ToolCall(DynamicBaseModel):
     """
-    思考过程块 —— 结构化推理内容。
+    工具调用请求 —— AI 发出的执行指令。
     """
-    type: Literal["reasoning", "audit"] = "reasoning"
-    content: str
+    id: str
+    name: str
+    args: dict[str, Any] = Field(default_factory=dict)
 
 
 class ToolBlock(DynamicBaseModel):
@@ -73,9 +74,12 @@ class MessageBlock(DynamicBaseModel):
     # === 思考过程 ===
     thinking: str | None = None
 
-    # === 工具调用 ===
+    # === 工具调用与执行 (当 role='tool' 时使用) ===
     tool_calls: list[dict[str, Any]] | None = None
-    steps: list[ToolBlock] | None = None  # Folded tool execution steps (replaces tool_blocks)
+    tool_name: str | None = None
+    tool_call_id: str | None = None
+    input: Any | None = None
+    tool_meta: dict[str, Any] | None = None
 
     # === 状态与可见性 ===
     status: Literal["pending", "running", "streaming", "completed", "failed", "waiting_human"] = "completed"

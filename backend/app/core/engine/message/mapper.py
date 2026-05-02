@@ -4,9 +4,8 @@ BlockMapper —— 各层 ↔ MessageBlock 的标准化转换器。
 职责：
 1. DB ORM ↔ MessageBlock
 2. LangChain BaseMessage ↔ MessageBlock
-3. FoldedMessage ↔ MessageBlock
-4. MessageBlock → SSE BlockEvent
-5. MessageBlock → Mobile 推送字典
+3. MessageBlock → SSE BlockEvent
+4. MessageBlock → Mobile 推送字典
 
 规则：
 1. 所有转换必须是单向纯函数（无副作用）
@@ -28,7 +27,6 @@ from langchain_core.messages import (
 
 from app.core.engine.message.reasoning import extract_reasoning_from_message
 from app.core.engine.message.schemas import BlockEvent, MessageBlock, ToolBlock
-from app.core.engine.state.history import FoldedMessage
 
 logger = logging.getLogger(__name__)
 
@@ -212,52 +210,6 @@ class BlockMapper:
             raise ValueError(f"Unknown role: {msg.role}")
 
     # ------------------------------------------------------------------
-    # FoldedMessage ↔ MessageBlock
-    # ------------------------------------------------------------------
-
-    @staticmethod
-    def from_folded(fm: FoldedMessage, db_msg=None) -> MessageBlock:
-        """FoldedMessage → MessageBlock（结合 DB 记录补充元数据）"""
-        steps = [
-            ToolBlock(
-                id=step.id,
-                tool_call_id=step.tool_call_id or step.id,
-                tool=step.tool,
-                tool_name=step.tool_name or step.tool,
-                name=step.name,
-                input=step.input,
-                output=step.output,
-                status=step.status,  # type: ignore[arg-type]
-                tool_meta=step.tool_meta,
-            )
-            for step in (fm.steps or [])
-        ]
-
-        block = MessageBlock(
-            id=fm.id or f"folded-{id(fm)}",
-            role=fm.role,  # type: ignore[arg-type]
-            content=fm.content,
-            thinking=fm.thinking,
-            tool_calls=fm.tool_calls,
-            steps=steps or None,
-            created_at=_format_iso(fm.created_at),
-            meta_data=fm.meta_data or {},
-        )
-
-        if db_msg is not None:
-            block.run_id = db_msg.run_id
-            block.sequence_number = db_msg.sequence_number or 0
-            block.created_at = _format_iso(db_msg.created_at)
-            block.category = db_msg.category or ""
-            block.content_type = db_msg.content_type or "text"
-            block.status = db_msg.status or "completed"
-            block.is_visible = db_msg.is_visible
-            block.checkpoint_id = db_msg.checkpoint_id
-            block.parent_id = str(db_msg.parent_id) if db_msg.parent_id else None
-
-        return block
-
-    # ------------------------------------------------------------------
     # MessageBlock → 各通道格式
     # ------------------------------------------------------------------
 
@@ -330,6 +282,6 @@ def _infer_action_type(msg: MessageBlock) -> str:
     """从 MessageBlock 推断 action_type（兼容旧系统）"""
     if msg.thinking and not msg.content:
         return "thinking"
-    if msg.steps:
+    if msg.role == "tool":
         return "tool_output"
     return "text"

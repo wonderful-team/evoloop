@@ -6,7 +6,7 @@ from langchain_core.runnables import RunnableConfig
 from app.core.engine.signals.base import SignalHandler
 from app.core.engine.signals.schemas import AgentSignal
 from app.core.engine.state import AgentState, StateUpdate
-from app.core.engine.state.history import ToolCall
+from app.core.engine.message.schemas import ToolCall
 
 logger = logging.getLogger(__name__)
 

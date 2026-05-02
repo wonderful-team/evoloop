@@ -68,7 +68,6 @@ async def get_conversation_messages(
     all_messages, has_more, total_count = await repo.get_full_history(limit=limit, before_id=before_id)
 
     async with get_db_session() as session:
-
         # Query file operations: presence set + changeset count in one query
         file_ops_stmt = (
             select(FileOperation.message_id, func.count(FileOperation.id).label("count"))
@@ -80,7 +79,7 @@ async def get_conversation_messages(
         messages_with_files = set(str(row.message_id) for row in file_ops_rows)
         message_changeset_counts = {str(row.message_id): row.count for row in file_ops_rows}
 
-        # Conversion: Message DB -> FoldedMessage (Direct Mapping)
+        # Conversion: Message DB -> MessageBlock (Direct Mapping)
         normalized = MessageNormalizer.normalize(all_messages)
         # Map folded results back to API MessageItem with extra metadata
         # We need to map by ID to keep the extra visibility/changeset data
@@ -112,8 +111,14 @@ async def get_conversation_messages(
             )
 
             msg_id_str = str(db_m.id)
+            # Exclude fields that will be overwritten by DB data
+            base_data = f.model_dump(exclude={
+                "status", "run_id", "parent_id", "references",
+                "category", "content_type", "sequence_number",
+                "checkpoint_id", "is_visible"
+            })
             item = MessageItem(
-                **f.model_dump(exclude={"status"}),
+                **base_data,
                 run_id=db_m.run_id,
                 parent_id=db_m.parent_id,
                 references=refs,

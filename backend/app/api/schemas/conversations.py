@@ -3,11 +3,11 @@
 from datetime import datetime
 
 from app.api.schemas.responses import BaseAPIResponse, ListResponse
-from app.core.engine.state.history import FoldedMessage
+from app.core.engine.message.schemas import MessageBlock
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 
-class MessageItem(FoldedMessage):
+class MessageItem(MessageBlock):
     run_id: str | None = None
     parent_id: str | None = None
     references: list["ReferenceItem"] = []

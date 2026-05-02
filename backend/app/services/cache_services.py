@@ -141,9 +141,8 @@ class ActivityState(DynamicBaseModel):
     """Full activity state for an agent run.
 
     Phase 3 redesign: steps are no longer returned here.
-    Steps are now part of the Message model (msg.steps) and travel
-    via SSE message events. This model only returns lightweight
-    run metadata.
+    Tool messages are sent as flat role="tool" messages via SSE.
+    This model only returns lightweight run metadata.
     """
     status: str
     main_goal: str = ""
