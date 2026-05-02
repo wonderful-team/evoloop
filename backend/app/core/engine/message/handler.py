@@ -461,7 +461,7 @@ class MessageHandler:
         from app.core.engine.message.schemas import StreamEvent
         publisher = MessagePublisher(thread_id=thread_id)
         
-        # 使用统一的 StreamEvent 协议，不再直接操作 Redis 通道
+        # 使用统一的 StreamEvent 协议，不再直接操作底层 Pub/Sub 通道
         await publisher.publish(StreamEvent(
             type="token",
             data={"content": token_buffer}

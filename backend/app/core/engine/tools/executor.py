@@ -140,7 +140,11 @@ class AgentToolExecutor:
                     diff_tracker.capture_snapshot(path, thread_id)
 
             # Execute Tool
-            content = await self._tool_executor.execute(tool, tool_args, config=self.config)
+            # Pass real tool_call_id via RunnableConfig metadata so callbacks can correlate
+            config = {**(self.config or {})}
+            existing_metadata = config.get("metadata") or {}
+            config["metadata"] = {**existing_metadata, "_evoloop_tool_call_id": tool_id}
+            content = await self._tool_executor.execute(tool, tool_args, config=config)
 
             # === HOOK: PostToolUse ===
             post_ctx = HookContext(

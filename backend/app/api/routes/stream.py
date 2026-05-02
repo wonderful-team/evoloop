@@ -67,7 +67,7 @@ async def stream_chat(thread_id: str):
             pubsub = cache.pubsub()
             channel = f"chat:{thread_id}:events"
             await pubsub.subscribe(channel)
-            logger.info(f"[SSE] Subscribed to Redis channel: {channel}")
+            logger.info(f"[SSE] Subscribed to Pub/Sub channel: {channel}")
 
             # 3. Stream Events (incremental)
             reconnect_attempts = 0
@@ -118,11 +118,12 @@ async def stream_chat(thread_id: str):
 
                 if message and message["type"] == "message":
                     raw_data = message["data"]
-                    logger.debug(f"[SSE] Received Redis message for {thread_id}: {raw_data[:100]}...")
+                    logger.info(f"[SSE] Raw Pub/Sub message received for {thread_id}: len={len(raw_data)}, preview={raw_data[:150]}...")
 
                     try:
                         event_data = json.loads(raw_data)
                         event_type = event_data.get("type", "unknown")
+                        logger.info(f"[SSE] Parsed event_type={event_type}, keys={list(event_data.keys())}")
 
                         # Incremental updates: forward events directly without re-fetching
                         if event_type == "artifact":
@@ -139,21 +140,16 @@ async def stream_chat(thread_id: str):
                         elif event_type == "message":
                             msg_data = event_data.get('data', {})
                             msg_role = msg_data.get('role', '')
-                            
-                            # TRUNCATION & NORMALIZATION: 
-                            # Ensure i18n translation and metadata enrichment for streaming messages
+                            logger.info(f"[SSE] YIELDING message event: role={msg_role}, content_len={len(msg_data.get('content',''))}")
                             msg_data = MessageNormalizer.normalize_dict(msg_data)
 
                             yield f"event: message\ndata: {json.dumps(msg_data)}\n\n"
                         
                         elif event_type == "human_request":
                             yield f"event: human_request\ndata: {json.dumps(event_data.get('data'))}\n\n"
-                        
-                        # Enhanced Stream Events (thinking, tool progress, errors, etc.)
-                        # Also includes error events that need user notification
+
                         elif event_type in _STREAM_EVENT_TYPE_VALUES:
                             yield f"event: stream\ndata: {json.dumps(event_data)}\n\n"
-                            logger.debug(f"[SSE] Dispatched stream event: {event_type}")
 
                     except Exception as e:
                         logger.error(f"[SSE] Error processing pubsub message for {thread_id}: {e}")

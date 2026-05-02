@@ -212,7 +212,8 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
             # 提取工具名称
             tool_name = serialized.get("name") if serialized else "unknown_tool"
             run_id_str = str(run_id)
-            tool_call_id = kwargs.get("tool_call_id") or run_id_str
+            metadata = kwargs.get("metadata") or {}
+            tool_call_id = metadata.get("_evoloop_tool_call_id") or kwargs.get("tool_call_id") or run_id_str
 
             # Parse input data
             input_data = None

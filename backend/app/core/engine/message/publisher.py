@@ -3,7 +3,7 @@ MessagePublisher —— 统一消息分发器。
 
 职责：
 1. 将 MessageBlock 分发到所有前端通道（SSE + Mobile + 内部事件总线）
-2. 屏蔽底层传输细节（Redis Pub/Sub / WebSocket / EvoCloud）
+2. 屏蔽底层传输细节（Pub/Sub / WebSocket / EvoCloud）
 3. 支持消息去重和批量缓冲
 
 使用示例：

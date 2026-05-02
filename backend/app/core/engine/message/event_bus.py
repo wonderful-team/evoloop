@@ -2,11 +2,11 @@
 EventBus — Unified event publishing abstraction.
 
 Provides a single interface for all real-time event publishing,
-enabling future migration to persistent message queues (Redis Streams,
+enabling future migration to persistent message queues (e.g. Redis Streams,
 RabbitMQ, etc.) without changing caller code.
 
 Current implementation: InMemoryEventBus (wraps SimplePubSubBus)
-Future implementations: RedisStreamEventBus, SQLiteEventBus, etc.
+Future implementations: RedisStreamEventBus, SQLiteEventBus, etc. (production only)
 """
 
 import logging
@@ -46,7 +46,7 @@ class LocalEventBus(EventBus):
 class DistributedEventBus(EventBus):
     """
     Cross-process event bus for distributed deployments (Production Mode).
-    Uses a centralized message broker (like Redis) to sync events 
+    Uses a centralized message broker to sync events 
     across API servers, workers, and background agents.
     """
 
