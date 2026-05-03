@@ -97,6 +97,89 @@ export function ChatInterface() {
     }
   }, [isGlobalMode, currentProject])
 
+  // Auto-show context panel when agent starts working
+  useEffect(() => {
+    if (status === "running" && !showContextPanel) {
+      setShowContextPanel(true)
+    }
+  }, [status, showContextPanel])
+
+  // --- MOCK DATA FOR UI REVIEW ---
+  // To trigger this, you can uncomment the call below or I'll just auto-run it once
+  useEffect(() => {
+    // Only run if we are in a 'demo' mode or manually triggered
+    const params = new URLSearchParams(window.location.search)
+    if (params.get("demo") === "true") {
+      const mockMessages: any[] = [
+        {
+          id: "m1",
+          role: "human",
+          content: "Hello! Can you help me analyze this project and make some changes to the codebase? I've attached some files.",
+          timestamp: new Date().toISOString(),
+          status: "completed",
+          attachments: [
+            { id: "a1", name: "architecture.png", type: "image", url: "https://placehold.co/600x400" },
+            { id: "a2", name: "config.json", type: "file", url: "/mock/config.json" }
+          ]
+        },
+        {
+          id: "m2",
+          role: "ai",
+          thinking: "I will first analyze the architecture diagram, then look into the configuration files to understand the project structure. After that, I will propose a plan to optimize the data flow.",
+          content: "",
+          status: "streaming",
+          timestamp: new Date().toISOString()
+        },
+        {
+          id: "m3",
+          role: "tool",
+          tool_name: "read_file",
+          status: "completed",
+          meta_data: { input: { path: "src/main.py" }, tool_meta: { display_name: "Read Main File" } },
+          timestamp: new Date().toISOString()
+        },
+        {
+          id: "m4",
+          role: "tool",
+          tool_name: "search_code",
+          status: "completed",
+          meta_data: { input: { query: "class DataManager" }, tool_meta: { display_name: "Search DataManager" } },
+          timestamp: new Date().toISOString()
+        },
+        {
+          id: "m5",
+          role: "tool",
+          tool_name: "apply_edit",
+          status: "running",
+          meta_data: { input: { path: "src/utils/helpers.py", diff: "..." }, tool_meta: { display_name: "Applying Refactor" } },
+          timestamp: new Date().toISOString()
+        },
+        {
+          id: "m6",
+          role: "ai",
+          content: "Based on my analysis, I have performed the following steps:\n\n1.  **Analyzed** the main entry point.\n2.  **Identified** a bottleneck in `DataManager`.\n3.  **Refactored** the helper functions for better performance.\n\n```python\ndef optimize_flow(data):\n    # New optimized logic\n    return data.map(x => x * 2)\n```\n\nYou can see the file changes in the sidebar.",
+          status: "completed",
+          changeset_count: 3,
+          has_file_operations: true,
+          timestamp: new Date().toISOString()
+        }
+      ]
+
+      const mockChangeset = [
+        { path: "src/main.py", operation: "modified", status: "applied" },
+        { path: "src/utils/helpers.py", operation: "modified", status: "applied" },
+        { path: "src/models/new_model.py", operation: "added", status: "applied" }
+      ]
+
+      useChatStore.setState({ 
+        messages: mockMessages, 
+        status: "running",
+        changeset: mockChangeset as any,
+        streamingThinking: "Finalizing the refactoring logic and checking for side effects..."
+      })
+    }
+  }, [])
+
   // Persist manual close action
   const handleCloseContextPanel = () => {
     localStorage.setItem("chat.contextPanel.hidden", "true")

@@ -10,6 +10,7 @@ import {
   Quote,
   Undo,
   Loader2,
+  FileText,
 } from "lucide-react"
 import { ChangesetInlineHint } from "./ChangesetInlineHint"
 import { memo } from "react"
@@ -126,41 +127,8 @@ const ChatMessageItem = memo(
     const { showThinking } = useShowThinking()
 
     // Hide system prompts from main chat
-    if (msg.role === "system") {
+    if (msg.role === "system" || msg.role === "tool") {
       return null
-    }
-
-    // Render Tool Output as Document Log Block
-    if (msg.role === "tool") {
-      const displayName = msg.tool_meta?.display_name || msg.meta_data?.tool_name || msg.tool_name || t("chat.messageList.toolExecution")
-      const toolInput = msg.input || msg.meta_data?.input
-      
-      return (
-        <div className="flex justify-start mb-6 w-full">
-          <div className="w-full max-w-4xl mx-auto pl-12">
-            <div className="rounded-lg bg-muted/20 border border-[var(--doc-border)] overflow-hidden shadow-sm">
-               <div className="px-3 py-1.5 bg-muted/40 flex items-center gap-2 text-[10px] font-mono uppercase tracking-wider text-muted-foreground/70">
-                  <Bot size={12} className="opacity-50" />
-                  {displayName}
-                  <div className={`ml-auto w-1.5 h-1.5 rounded-full ${msg.status === 'completed' || msg.status === 'done' ? 'bg-primary/40' : 'bg-amber-400 animate-pulse'}`} />
-               </div>
-               
-               {/* Tool Input (Params) - Subtle display */}
-               {toolInput && (
-                 <div className="px-3 py-2 text-[10px] text-muted-foreground/60 bg-muted/10 border-b border-[var(--doc-border)] italic truncate hover:whitespace-normal hover:break-all transition-all cursor-default">
-                    {typeof toolInput === 'string' ? toolInput : JSON.stringify(toolInput)}
-                 </div>
-               )}
-
-               {msg.content && (
-                <div className="p-3 text-xs font-mono text-muted-foreground/80 overflow-x-auto whitespace-pre-wrap leading-relaxed">
-                    {msg.content}
-                </div>
-               )}
-            </div>
-          </div>
-        </div>
-      )
     }
 
     return (
@@ -376,7 +344,53 @@ const ChatMessageItem = memo(
           </div>
 
           {/* Post-content blocks */}
-          <div className="mt-2 flex flex-col gap-4">
+          <div className="mt-3 flex flex-col gap-4">
+            {/* Attachment Grid (Images & Files) */}
+            {msg.attachments && msg.attachments.length > 0 && (
+              <div className="flex flex-wrap gap-3 mb-2">
+                {msg.attachments.map((att) => {
+                  const isImage = att.type === 'image' || att.name.match(/\.(jpg|jpeg|png|gif|webp)$/i);
+                  if (isImage) {
+                    return (
+                      <motion.div 
+                        key={att.id}
+                        whileHover={{ scale: 1.02, y: -2 }}
+                        className="relative group/att cursor-zoom-in w-40 h-28 rounded-xl overflow-hidden border border-border/40 shadow-sm"
+                        onClick={() => window.open(att.url, '_blank')}
+                      >
+                        <img src={att.url} alt={att.name} className="w-full h-full object-cover transition-transform group-hover/att:scale-110" />
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/att:opacity-100 transition-opacity flex items-center justify-center">
+                          <span className="text-[10px] text-white font-bold uppercase tracking-widest">{t('common.view')}</span>
+                        </div>
+                      </motion.div>
+                    );
+                  }
+                  
+                  // Skip audio here as it's handled separately as VoiceMessage
+                  if (att.type === 'audio') return null;
+
+                  return (
+                    <motion.div 
+                      key={att.id}
+                      whileHover={{ y: -2, backgroundColor: "rgba(var(--primary-rgb), 0.08)" }}
+                      className="flex items-center gap-3 p-3 rounded-xl bg-muted/40 border border-border/40 min-w-[200px] max-w-sm cursor-pointer transition-all shadow-sm group/file"
+                      onClick={() => window.open(att.url, '_blank')}
+                    >
+                      <div className="w-10 h-10 rounded-lg bg-background flex items-center justify-center text-primary/60 group-hover/file:text-primary transition-colors shadow-inner">
+                        <FileText size={20} />
+                      </div>
+                      <div className="flex flex-col min-w-0 pr-2">
+                        <span className="text-xs font-bold truncate tracking-tight">{att.name}</span>
+                        <span className="text-[9px] uppercase font-black text-muted-foreground/40 tracking-widest mt-0.5">
+                          {att.metadata?.size || t('chat.interface.fileAttachment')}
+                        </span>
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            )}
+
             {msg.role === "ai" && msg.humanRequest && (
               <HumanRequestCard 
                 request={{
@@ -397,7 +411,7 @@ const ChatMessageItem = memo(
             )}
 
             {msg.role === "ai" && !!msg.changeset_count && msg.changeset_count > 0 && (
-              <div className="pt-4 border-t border-[var(--doc-border)]">
+              <div className="pt-4 border-t border-border/40">
                 <ChangesetInlineHint
                   fileCount={msg.changeset_count}
                   messageId={msg.id}

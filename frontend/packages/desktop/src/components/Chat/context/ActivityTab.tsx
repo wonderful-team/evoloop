@@ -1,16 +1,15 @@
-import { useQuery } from "@tanstack/react-query"
+import { useEffect, useMemo, useState } from "react"
+import { motion, AnimatePresence } from "framer-motion"
 import {
   BrainCircuit,
   CheckCircle2,
   ChevronDown,
   ChevronRight,
   ChevronUp,
-  Circle,
   Loader2,
   Map as MapIcon,
   XCircle,
 } from "lucide-react"
-import { useEffect, useMemo, useState } from "react"
 import { MessageContent } from "../MessageContent"
 import { useTranslation } from "react-i18next"
 import { PlanningService } from "@/client"
@@ -22,6 +21,7 @@ import {
 } from "@evoloop/shared/components/ui/collapsible"
 import { useChatStore } from "@/stores/chatStore"
 import type { ToolStep } from "@/types/toolstep"
+import { useQuery } from "@tanstack/react-query"
 
 interface PlanStep {
   id: string
@@ -199,44 +199,7 @@ export function ActivityTab({ activeThreadId }: ActivityTabProps) {
   return (
     <ScrollArea className="h-full bg-muted/5">
       <div className="flex flex-col">
-        {/* === BLOCK 1: THINKING === */}
-        <Collapsible open={thinkingOpen} onOpenChange={setThinkingOpen}>
-          <CollapsibleTrigger asChild>
-            <div className="flex items-center gap-2 p-2 cursor-pointer hover:bg-muted/50 transition-colors border-b">
-              {thinkingOpen ? (
-                <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-              ) : (
-                <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
-              )}
-              <BrainCircuit className="h-3.5 w-3.5 text-primary/70" />
-              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex-1">
-                {t("chat.thinkingTitle")}
-              </span>
-              {thinking && thinking.trim().length > 0 && isAgentActive && (
-                <span className="text-[10px] text-primary animate-pulse">
-                  {t("chat.thinkingActive")}
-                </span>
-              )}
-            </div>
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            <div className="p-2">
-              {thinking && thinking.trim().length > 0 ? (
-                <div className="text-xs text-muted-foreground break-words leading-relaxed pl-5">
-                  <MessageContent content={thinking} />
-                </div>
-              ) : (
-                <div className="text-xs text-muted-foreground italic text-center py-4">
-                  {isAgentActive
-                    ? t("chat.thinkingWaiting")
-                    : t("chat.noThinking")}
-                </div>
-              )}
-            </div>
-          </CollapsibleContent>
-        </Collapsible>
-
-        {/* === BLOCK 2: PLAN === */}
+        {/* === BLOCK 1: PLAN (Thread-level) === */}
         <Collapsible open={planOpen} onOpenChange={setPlanOpen}>
           <CollapsibleTrigger asChild>
             <div className="flex items-center gap-2 p-2 cursor-pointer hover:bg-muted/50 transition-colors border-b bg-muted/20">
@@ -325,7 +288,44 @@ export function ActivityTab({ activeThreadId }: ActivityTabProps) {
           </CollapsibleContent>
         </Collapsible>
 
-        {/* === BLOCK 3: EXECUTION STEPS (grouped by turn) === */}
+        {/* === BLOCK 2: THINKING (Real-time AI) === */}
+        <Collapsible open={thinkingOpen} onOpenChange={setThinkingOpen}>
+          <CollapsibleTrigger asChild>
+            <div className="flex items-center gap-2 p-2 cursor-pointer hover:bg-muted/50 transition-colors border-b">
+              {thinkingOpen ? (
+                <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+              ) : (
+                <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+              )}
+              <BrainCircuit className="h-3.5 w-3.5 text-primary/70" />
+              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex-1">
+                {t("chat.thinkingTitle")}
+              </span>
+              {thinking && thinking.trim().length > 0 && isAgentActive && (
+                <span className="text-[10px] text-primary animate-pulse">
+                  {t("chat.thinkingActive")}
+                </span>
+              )}
+            </div>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <div className="p-2">
+              {thinking && thinking.trim().length > 0 ? (
+                <div className="text-xs text-muted-foreground break-words leading-relaxed pl-5">
+                  <MessageContent content={thinking} />
+                </div>
+              ) : (
+                <div className="text-xs text-muted-foreground italic text-center py-4">
+                  {isAgentActive
+                    ? t("chat.thinkingWaiting")
+                    : t("chat.noThinking")}
+                </div>
+              )}
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
+
+        {/* === BLOCK 3: EXECUTION STEPS (Grouped by turn) === */}
         <Collapsible open={stepsOpen} onOpenChange={setStepsOpen}>
           <CollapsibleTrigger asChild>
             <div className="flex items-center gap-2 p-2 cursor-pointer hover:bg-muted/50 transition-colors border-b bg-muted/20">
@@ -372,123 +372,129 @@ export function ActivityTab({ activeThreadId }: ActivityTabProps) {
 
 function StepGroup({ group }: { group: MessageGroup }) {
   const { t } = useTranslation()
-  // Expand the group if it is currently streaming; otherwise collapse.
+  // Auto-expand the group if it's currently active/streaming
   const [expanded, setExpanded] = useState(group.isStreaming)
 
+  useEffect(() => {
+    if (group.isStreaming) setExpanded(true)
+  }, [group.isStreaming])
+
   const runningCount = group.steps.filter((s) => s.status === "running").length
-  const doneCount = group.steps.filter((s) => s.status === "done").length
+  const doneCount = group.steps.filter((s) => s.status === "done" || s.status === "completed").length
   const failedCount = group.steps.filter((s) => s.status === "failed").length
 
   return (
-    <div className="border-b border-border/30">
+    <div className="border-b border-border/30 last:border-0 overflow-hidden">
       <button
-        className="w-full flex items-center justify-between py-2"
+        className="w-full flex items-center justify-between py-2.5 px-1 hover:bg-muted/30 transition-colors rounded-sm"
         onClick={() => setExpanded((v) => !v)}
       >
         <div className="flex items-center gap-2">
           {group.isStreaming ? (
-            <Loader2 className="h-3 w-3 animate-spin text-yellow-500" />
+            <div className="relative">
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+              <div className="absolute inset-0 rounded-full bg-primary/20 animate-ping" />
+            </div>
           ) : failedCount > 0 ? (
-            <XCircle className="h-3 w-3 text-red-500" />
+            <XCircle className="h-3.5 w-3.5 text-red-500" />
           ) : (
-            <CheckCircle2 className="h-3 w-3 text-primary" />
+            <CheckCircle2 className="h-3.5 w-3.5 text-primary/60" />
           )}
-          <span className="text-xs font-medium">
+          <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
             {t("chat.turnLabel", { turn: group.turn })}
           </span>
-          <span className="text-[10px] text-muted-foreground">
+          <span className="text-[9px] text-muted-foreground/50 font-mono">
             {group.isStreaming
-              ? t("chat.turnRunning", { running: runningCount, total: group.steps.length })
-              : t("chat.turnDone", { done: doneCount, failed: failedCount, total: group.steps.length })}
+              ? `${runningCount} RUNNING`
+              : `${doneCount} DONE`}
           </span>
         </div>
-        {expanded ? (
-          <ChevronUp className="h-3 w-3 text-muted-foreground" />
-        ) : (
-          <ChevronDown className="h-3 w-3 text-muted-foreground" />
-        )}
+        <ChevronRight className={`h-3 w-3 text-muted-foreground/30 transition-transform duration-200 ${expanded ? 'rotate-90' : ''}`} />
       </button>
-      {expanded && (
-        <div className="p-2 space-y-2">
-          {group.steps.map((step, i) => (
-            <StepRow key={step.id || i} step={step} />
-          ))}
-        </div>
-      )}
+      
+      <AnimatePresence initial={false}>
+        {expanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.3, ease: "easeInOut" }}
+            className="overflow-hidden"
+          >
+            <div className="pb-3 space-y-1">
+              {group.steps.map((step, i) => (
+                <StepRow key={step.id || i} step={step} />
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
 
 function StepRow({ step }: { step: ToolStep }) {
-  const [expanded, setExpanded] = useState(false)
-  const displayName = step.name || step.tool_name || step.tool || "unknown"
+  const { t } = useTranslation()
+  const isRunning = step.status === "running"
+  const isFailed = step.status === "failed"
+  const isCompleted = step.status === "completed" || step.status === "done"
 
-  const statusConfig = {
-    running: {
-      icon: <Loader2 className="h-3 w-3 animate-spin text-yellow-500" />,
-      bg: "bg-yellow-500/10 border-yellow-500/30",
-      text: "text-yellow-600",
-    },
-    done: {
-      icon: <CheckCircle2 className="h-3 w-3 text-primary" />,
-      bg: "bg-primary/5 border-primary/20",
-      text: "text-primary",
-    },
-    failed: {
-      icon: <XCircle className="h-3 w-3 text-red-500" />,
-      bg: "bg-red-500/10 border-red-500/30",
-      text: "text-red-600",
-    },
-    pending: {
-      icon: <Circle className="h-3 w-3 text-muted-foreground" />,
-      bg: "bg-muted/10 border-muted",
-      text: "text-muted-foreground",
-    },
-  }
+  // Smart state: Auto-expand when running, collapse when done
+  const [isOpen, setIsOpen] = useState(isRunning)
 
-  const config =
-    statusConfig[step.status as keyof typeof statusConfig] || statusConfig.pending
+  useEffect(() => {
+    if (isRunning) setIsOpen(true)
+    if (isCompleted) setIsOpen(false)
+  }, [isRunning, isCompleted])
 
   return (
-    <div className={`p-2 transition-colors ${config.bg}`}>
-      <button
-        className="w-full flex items-center gap-2"
-        onClick={() => setExpanded((v) => !v)}
+    <motion.div 
+      initial={{ opacity: 0, x: -10 }}
+      animate={{ opacity: 1, x: 0 }}
+      className="relative pl-6 py-2 group border-l border-transparent hover:border-primary/10 transition-colors"
+    >
+      {/* Timeline rail connector */}
+      <div className="absolute left-[-1.5px] top-0 bottom-0 w-[1px] bg-border/20 group-hover:bg-primary/20" />
+      <div className={`absolute left-[-4.5px] top-4 w-2 h-2 rounded-full border-2 border-background z-10 transition-colors ${
+        isRunning ? 'bg-primary' : isFailed ? 'bg-red-500' : isCompleted ? 'bg-primary/40' : 'bg-muted'
+      }`} />
+
+      <div 
+        className="flex items-center gap-2 cursor-pointer select-none"
+        onClick={() => setIsOpen(!isOpen)}
       >
-        {config.icon}
-        <span className={`text-xs font-medium flex-1 text-left ${config.text}`}>
-          {displayName}
+        <span className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-tight flex-1 truncate font-mono">
+          {step.name || step.tool_name || t("chat.messageList.toolExecution")}
         </span>
-        {expanded ? (
-          <ChevronUp className="h-3 w-3 text-muted-foreground" />
-        ) : (
-          <ChevronDown className="h-3 w-3 text-muted-foreground" />
-        )}
-      </button>
-      {expanded && (
-        <div className="mt-2 space-y-1.5 pl-5">
-          {step.input && Object.keys(step.input).length > 0 && (
-            <div>
-              <div className="text-[10px] font-semibold text-muted-foreground uppercase">
-                Input
-              </div>
-              <div className="text-[10px] font-mono bg-muted/40 p-1.5 rounded break-all">
-                {JSON.stringify(step.input, null, 2)}
-              </div>
-            </div>
+        <div className="flex items-center gap-2">
+          {isRunning ? (
+            <Loader2 className="h-3 w-3 animate-spin text-primary" />
+          ) : isFailed ? (
+            <XCircle className="h-3 w-3 text-red-500/50" />
+          ) : (
+            <CheckCircle2 className="h-3 w-3 text-primary/30" />
           )}
-          {step.output && (
-            <div>
-              <div className="text-[10px] font-semibold text-muted-foreground uppercase">
-                Output
-              </div>
-              <div className="text-[10px] text-muted-foreground bg-muted/40 p-1.5 rounded whitespace-pre-wrap break-words max-h-[120px] overflow-y-auto">
-                {step.output}
-              </div>
-            </div>
-          )}
+          <ChevronRight className={`h-3 w-3 text-muted-foreground/20 transition-transform ${isOpen ? 'rotate-90' : ''}`} />
         </div>
-      )}
-    </div>
+      </div>
+
+      <AnimatePresence>
+        {isOpen && step.input && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden"
+          >
+            <div className="mt-1.5 p-2 bg-muted/20 rounded-sm text-[10px] font-mono text-muted-foreground/70 break-all border border-border/10 leading-relaxed shadow-inner">
+              {typeof step.input === "string" 
+                ? step.input 
+                : JSON.stringify(step.input, null, 2)}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
   )
 }

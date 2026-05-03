@@ -50,6 +50,13 @@ export const ContextPanel = memo(
       }
     }, [autoSwitchToTab])
 
+    // Auto-switch to activity tab when running
+    useEffect(() => {
+      if (status === "running") {
+        setActiveTab("activity")
+      }
+    }, [status])
+
     // Global mode
     if (isGlobalMode) {
       return (

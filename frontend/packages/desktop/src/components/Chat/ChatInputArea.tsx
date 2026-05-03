@@ -358,7 +358,24 @@ export const ChatInputArea = memo(
             </div>
           )}
 
-          <div className="bg-background rounded-2xl border border-input focus-within:border-primary/50 transition-all focus-within:ring-4 focus-within:ring-primary/5 ring-offset-0 overflow-hidden relative z-50">
+          <div className={cn(
+            "bg-background/80 backdrop-blur-xl rounded-2xl border transition-all duration-300 overflow-hidden relative z-50 shadow-sm",
+            "border-input hover:border-primary/30",
+            "focus-within:border-primary/60 focus-within:shadow-[0_0_25px_-5px_rgba(var(--primary-rgb),0.2)] focus-within:ring-1 focus-within:ring-primary/20",
+            isAgentWorking && "border-primary/40 shadow-[0_0_15px_-3px_rgba(var(--primary-rgb),0.1)]"
+          )}>
+            {/* Working Pulse Line (Top) */}
+            <AnimatePresence>
+              {isAgentWorking && (
+                <motion.div 
+                  initial={{ x: "-100%" }}
+                  animate={{ x: "100%" }}
+                  transition={{ repeat: Infinity, duration: 1.5, ease: "linear" }}
+                  className="absolute top-0 left-0 h-[1.5px] w-full bg-gradient-to-r from-transparent via-primary to-transparent z-10"
+                />
+              )}
+            </AnimatePresence>
+
             {/* Top: Attachment Preview */}
             <AttachmentPreview
               attachments={attachments}
@@ -369,9 +386,9 @@ export const ChatInputArea = memo(
 
             {/* Wake Word Indicator */}
             {showWakeWordIndicator && (
-              <div className="px-4 py-2 bg-green-500/10 border-b border-green-500/20 flex items-center gap-2">
-                <Ear className="h-4 w-4 text-green-600 animate-pulse" />
-                <span className="text-sm text-green-700 dark:text-green-400">
+              <div className="px-4 py-2 bg-green-500/5 border-b border-green-500/10 flex items-center gap-2">
+                <Ear className="h-4 w-4 text-green-500 animate-pulse" />
+                <span className="text-[11px] font-bold text-green-600/80 uppercase tracking-tight">
                   {t('chat.voice.wakeWordActive', '唤醒词已激活，请说话...')}
                 </span>
               </div>
@@ -379,7 +396,7 @@ export const ChatInputArea = memo(
 
             {/* Middle: Text Area or Voice Recorder */}
             {inputMode === 'text' ? (
-              <div className="px-3 py-2">
+              <div className="px-4 py-3">
                 <textarea
                   ref={textareaRef}
                   value={inputValue}
@@ -397,11 +414,10 @@ export const ChatInputArea = memo(
                           : t("chat.interface.selectProject")
                   }
                   disabled={(!currentProject && !isGlobalMode) || disabled}
-                  className="flex w-full bg-transparent border-none focus:ring-0 text-sm placeholder:text-muted-foreground resize-none focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 min-h-[50px] max-h-[300px]"
+                  className="flex w-full bg-transparent border-none focus:ring-0 text-sm placeholder:text-muted-foreground/50 resize-none focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 min-h-[52px] max-h-[300px] leading-relaxed scrollbar-none"
                   rows={1}
-                  style={{ height: "auto", minHeight: "50px" }}
+                  style={{ height: "auto", minHeight: "52px" }}
                   onInput={(e) => {
-                    // Auto-grow hack
                     const target = e.target as HTMLTextAreaElement
                     target.style.height = "auto"
                     target.style.height = `${Math.min(target.scrollHeight, 500)}px`
@@ -409,7 +425,7 @@ export const ChatInputArea = memo(
                 />
               </div>
             ) : (
-              <div className="px-3 py-2 flex items-center justify-center min-h-[80px]">
+              <div className="px-3 py-4 flex items-center justify-center min-h-[100px]">
                 <VoiceRecorderButton
                   onVoiceRecorded={handleVoiceRecorded}
                   disabled={isSending || !currentProject}
@@ -419,28 +435,27 @@ export const ChatInputArea = memo(
 
             {/* Transcribing indicator */}
             {isTranscribing && (
-              <div className="px-4 py-1 flex items-center gap-2 text-xs text-muted-foreground">
+              <div className="px-4 py-1.5 flex items-center gap-2 text-[10px] font-bold text-primary/60 uppercase tracking-widest bg-primary/5 border-t border-primary/10">
                 <Loader2 className="h-3 w-3 animate-spin" />
                 {t('chat.voice.transcribing', '转文字中...')}
               </div>
             )}
 
             {/* Bottom: Toolbar */}
-            <div className="relative flex items-center justify-between border-t border-border/40 bg-muted/20 p-2">
+            <div className="relative flex items-center justify-between border-t border-border/10 bg-muted/30 p-2.5">
               {/* Hint Text (Centered) */}
-              <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 select-none text-[10px] text-muted-foreground/50 whitespace-nowrap hidden sm:block">
+              <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 select-none text-[9px] font-black uppercase tracking-tighter text-muted-foreground/30 whitespace-nowrap hidden sm:block">
                 {t("chat.interface.inputHint")}
               </div>
 
               {/* Left Group: Tools */}
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1.5">
                 {activeThreadId && (
                   <>
                     <SkillLibraryDialog
                       threadId={activeThreadId}
                       projectId={currentProject?.id}
                       onSelectSkill={(skill) => {
-                        // Attach skill as reference
                         const newAtt: Attachment = {
                           id: crypto.randomUUID(),
                           url: skill.id,
@@ -455,52 +470,41 @@ export const ChatInputArea = memo(
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                          className="h-8 w-8 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-all"
                           title={t("learning.skillLibrary")}
                         >
-                          <BookOpen size={16} />
+                          <BookOpen size={17} />
                         </Button>
                       }
                     />
-                    <div className="h-8 flex items-center justify-center">
-                      <RecordingButton
-                        threadId={activeThreadId}
-                        enabled={true}
-                      />
-                    </div>
+                    <RecordingButton
+                      threadId={activeThreadId}
+                      enabled={true}
+                    />
                   </>
                 )}
-                {/* Model Selector */}
+                <div className="h-6 w-px bg-border/40 mx-0.5" />
                 <ModelSelectorWrapper isSending={isSending} />
               </div>
 
               {/* Right Group: Action */}
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
                 {/* Wake word listening indicator */}
                 {wakeWordEnabled && inputMode === 'voice' && (
-                  <TooltipProvider delayDuration={100}>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <div className={cn(
-                          "flex items-center gap-1.5 px-2 py-1 rounded-md text-xs",
-                          isWakeWordListening 
-                            ? "bg-green-500/10 text-green-600" 
-                            : "bg-muted text-muted-foreground"
-                        )}>
-                          <Ear className={cn("h-3.5 w-3.5", isWakeWordListening && "animate-pulse")} />
-                          <span className="hidden sm:inline">
-                            {isWakeWordListening ? t('chat.voice.listening', '监听中') : t('chat.voice.standby', '待机')}
-                          </span>
-                        </div>
-                      </TooltipTrigger>
-                      <TooltipContent side="top">
-                        {t('chat.voice.wakeWordStatus', '唤醒词: "{{word}}"', { word: wakeWord })}
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
+                  <div className={cn(
+                    "flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10px] font-bold uppercase tracking-tight",
+                    isWakeWordListening 
+                      ? "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20" 
+                      : "bg-muted/50 text-muted-foreground/50 border border-border/20"
+                  )}>
+                    <Ear className={cn("h-3 w-3", isWakeWordListening && "animate-pulse")} />
+                    <span className="hidden sm:inline">
+                      {isWakeWordListening ? t('chat.voice.listening') : t('chat.voice.standby')}
+                    </span>
+                  </div>
                 )}
 
-                {/* File upload hidden in global mode */}
+                {/* File upload */}
                 {!isGlobalMode && (
                   <>
                     <input
@@ -513,7 +517,7 @@ export const ChatInputArea = memo(
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                      className="h-8 w-8 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-all"
                       onClick={() =>
                         document.getElementById("chat-file-upload")?.click()
                       }
@@ -529,59 +533,25 @@ export const ChatInputArea = memo(
                   </>
                 )}
 
-                {/* Voice controls */}
-                <Separator orientation="vertical" className="h-4 mx-1" />
                 {/* Voice mode toggle */}
-                <TooltipProvider delayDuration={100}>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant={inputMode === 'voice' ? 'secondary' : 'ghost'}
-                        size="icon"
-                        onClick={toggleInputMode}
-                        disabled={isSending}
-                        className="h-8 w-8"
-                      >
-                        {inputMode === 'voice' ? (
-                          <Keyboard className="h-4 w-4" />
-                        ) : (
-                          <Mic className="h-4 w-4" />
-                        )}
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="top">
-                      {inputMode === 'voice'
-                        ? t('chat.voice.switchToText', '切换到文字输入')
-                        : t('chat.voice.switchToVoice', '切换到语音输入')}
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-                {/* Auto Speak Toggle */}
-                <TooltipProvider delayDuration={100}>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant={autoSpeak ? 'secondary' : 'ghost'}
-                        size="icon"
-                        onClick={toggleAutoSpeak}
-                        className="h-8 w-8"
-                      >
-                        {autoSpeak ? (
-                          <Volume2 className="h-4 w-4 text-primary" />
-                        ) : (
-                          <VolumeX className="h-4 w-4 text-muted-foreground" />
-                        )}
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="top">
-                      {autoSpeak
-                        ? t('chat.tts.autoSpeakOn', '自动朗读已开启')
-                        : t('chat.tts.autoSpeakOff', '自动朗读已关闭')}
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+                <Button
+                  variant={inputMode === 'voice' ? 'secondary' : 'ghost'}
+                  size="icon"
+                  onClick={toggleInputMode}
+                  disabled={isSending}
+                  className={cn(
+                    "h-8 w-8 rounded-lg transition-all",
+                    inputMode === 'voice' ? "bg-primary/10 text-primary hover:bg-primary/20" : "text-muted-foreground hover:text-primary hover:bg-primary/10"
+                  )}
+                >
+                  {inputMode === 'voice' ? (
+                    <Keyboard className="h-4 w-4" />
+                  ) : (
+                    <Mic className="h-4 w-4" />
+                  )}
+                </Button>
 
-                <div className="w-px h-6 bg-border mx-1" />
+                <Separator orientation="vertical" className="h-4 mx-0.5 opacity-40" />
 
                 <Button
                   onClick={() => (isAgentWorking ? onStop() : handleSend())}
@@ -595,7 +565,12 @@ export const ChatInputArea = memo(
                     isUploading
                   }
                   size="sm"
-                  className={`h-8 px-3 rounded-lg transition-all ${isAgentWorking ? "bg-red-500 hover:bg-red-600 text-white shadow-red-500/20 shadow-lg animate-pulse" : "shadow-primary/20 shadow-md"}`}
+                  className={cn(
+                    "h-8 px-4 rounded-xl transition-all font-bold text-xs shadow-lg",
+                    isAgentWorking 
+                      ? "bg-red-500 hover:bg-red-600 text-white shadow-red-500/20" 
+                      : "bg-primary hover:bg-primary/90 text-white shadow-primary/20"
+                  )}
                 >
                   {isAgentWorking || isStopPending ? (
                     <span className="flex items-center gap-2">
@@ -604,16 +579,12 @@ export const ChatInputArea = memo(
                       ) : (
                         <Square size={14} fill="currentColor" />
                       )}
-                      <span className="text-xs font-medium">
-                        {t("common.stop", "Stop")}
-                      </span>
+                      <span>{t("common.stop")}</span>
                     </span>
                   ) : (
                     <span className="flex items-center gap-2">
-                      <Send size={14} />
-                      <span className="text-xs font-bold">
-                        {t("common.send", "Send")}
-                      </span>
+                      <Send size={14} className={cn("transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5")} />
+                      <span>{t("common.send")}</span>
                     </span>
                   )}
                 </Button>

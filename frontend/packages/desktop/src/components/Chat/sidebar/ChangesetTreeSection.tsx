@@ -98,40 +98,67 @@ export function ChangesetTreeSection({ activeThreadId, onSelectFile, defaultExpa
             <div className="select-none">
                 <div
                     className={cn(
-                        "flex items-center py-1.5 px-2 cursor-pointer hover:bg-muted/50 rounded-sm text-xs transition-colors group",
-                        isViewed && !node.is_dir && "text-muted-foreground"
+                        "flex items-center py-2 px-3 cursor-pointer hover:bg-primary/5 rounded-lg text-xs transition-all group/node relative",
+                        isViewed && !node.is_dir && "opacity-60"
                     )}
-                    style={{ paddingLeft: `${level * 12 + 8}px` }}
+                    style={{ paddingLeft: `${level * 16 + 12}px` }}
                     onClick={handleSelect}
                 >
+                    {/* Activity Indicator (for unviewed) */}
+                    {!node.is_dir && !isViewed && (
+                        <div className="absolute left-1 top-1/2 -translate-y-1/2 w-1 h-4 bg-primary rounded-full" />
+                    )}
+
                     {node.is_dir ? (
-                        <span onClick={handleToggle} className="p-0.5 hover:bg-background rounded mr-1">
-                            {isOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                        <span onClick={handleToggle} className="p-0.5 hover:bg-background rounded mr-1.5 transition-transform group-hover/node:scale-110">
+                            {isOpen ? <ChevronDown className="h-3 w-3 opacity-40" /> : <ChevronRight className="h-3 w-3 opacity-40" />}
                         </span>
                     ) : (
-                        <div className="w-4 mr-1" />
+                        <div className="w-4 mr-1.5" />
                     )}
 
                     {node.is_dir ? (
-                        <Folder className="h-3.5 w-3.5 mr-1.5 text-blue-400" />
+                        <Folder className="h-4 w-4 mr-2 text-primary/60" />
                     ) : (
-                        <FileCode className={cn("h-3.5 w-3.5 mr-1.5", isViewed ? "text-muted-foreground" : "text-muted-foreground")} />
+                        <FileCode className={cn("h-4 w-4 mr-2", isViewed ? "text-muted-foreground" : "text-primary/70")} />
                     )}
 
-                    <span className={cn("truncate flex-1", isViewed && !node.is_dir && "line-through opacity-60")}>{node.name}</span>
+                    <span className={cn(
+                        "truncate flex-1 font-medium tracking-tight", 
+                        isViewed && !node.is_dir && "text-muted-foreground"
+                    )}>
+                        {node.name}
+                    </span>
 
                     {!node.is_dir && (
-                        <span className="ml-2 flex items-center gap-1">
-                            {node.operation === "ADD" && !isViewed && <PlusSquare className="h-3 w-3 text-green-500" />}
-                            {node.operation === "EDIT" && !isViewed && <Edit className="h-3 w-3 text-amber-500" />}
-                            {node.operation === "DELETE" && !isViewed && <Trash2 className="h-3 w-3 text-red-500" />}
-                            {isViewed && <Check className="h-3 w-3 text-muted-foreground" />}
-                        </span>
+                        <div className="ml-2 flex items-center gap-1.5">
+                            {node.operation === "ADD" && (
+                                <span className="px-1.5 py-0.5 rounded-[4px] bg-emerald-500/10 text-emerald-600 text-[9px] font-black uppercase tracking-tighter border border-emerald-500/20">
+                                    ADD
+                                </span>
+                            )}
+                            {node.operation === "EDIT" && (
+                                <span className="px-1.5 py-0.5 rounded-[4px] bg-amber-500/10 text-amber-600 text-[9px] font-black uppercase tracking-tighter border border-amber-500/20">
+                                    MOD
+                                </span>
+                            )}
+                            {node.operation === "DELETE" && (
+                                <span className="px-1.5 py-0.5 rounded-[4px] bg-red-500/10 text-red-600 text-[9px] font-black uppercase tracking-tighter border border-red-500/20">
+                                    DEL
+                                </span>
+                            )}
+                            {isViewed && <Check className="h-3 w-3 text-emerald-500" />}
+                        </div>
                     )}
                 </div>
 
                 {node.is_dir && isOpen && (
-                    <div className="mt-0.5">
+                    <div className="mt-0.5 relative">
+                        {/* Vertical Guide Line */}
+                        <div 
+                            className="absolute left-[18px] top-0 bottom-0 w-px bg-border/40" 
+                            style={{ left: `${level * 16 + 18}px` }}
+                        />
                         {node.children.map((child) => (
                             <TreeNode key={child.path} node={child} level={level + 1} />
                         ))}

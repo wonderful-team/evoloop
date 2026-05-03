@@ -442,13 +442,18 @@ class MessageHandler:
             self._stream_seq += 1
             sequence_number = self._stream_seq
 
+        # Prune content for tool messages on SSE to save bandwidth as frontend doesn't need it
+        dispatch_content = content or ""
+        if role == "tool" and channels and "sse" in channels:
+            dispatch_content = ""
+
         block = MessageBlock(
             id=f"msg-{self.thread_id}-{sequence_number}",
             thread_id=self.thread_id,
             run_id=self.run_id,
             role=role,  # type: ignore[arg-type]
             category=category,
-            content=content or "",
+            content=dispatch_content,
             thinking=thinking,
             tool_calls=tool_calls,
             status=status,  # type: ignore[arg-type]

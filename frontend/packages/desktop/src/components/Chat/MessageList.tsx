@@ -1,8 +1,10 @@
 import { useMemo } from "react"
 import { useTranslation } from "react-i18next"
 import { Loader2 } from "lucide-react"
+import { motion, AnimatePresence } from "framer-motion"
 import { SmartChatMessageItem, type Message } from "./ChatMessageItem"
 import { ChatWelcome } from "./ChatWelcome"
+import { ToolExecutionGroup } from "./ToolExecutionGroup"
 
 interface MessageListProps {
     messages: Message[]
@@ -12,13 +14,12 @@ interface MessageListProps {
     onRewind?: (msg: Message) => void
     onRetry?: (msg: Message) => void
     onQuote?: (msg: Message) => void
-    onViewChangeset?: () => void // Callback when user clicks to view changeset
+    onViewChangeset?: () => void
 }
 
-interface Turn {
-    human?: Message
-    ai: Message[]
-}
+type RenderItem = 
+    | { type: "message"; data: Message & { showDate?: boolean } }
+    | { type: "tool_group"; data: { steps: Message[]; showDate?: boolean; id: string } }
 
 /** Merge multiple AI messages from the same turn into a single message. */
 function mergeAiMessages(msgs: Message[]): Message | null {
@@ -54,12 +55,11 @@ export function MessageList({
 }: MessageListProps) {
     const { t } = useTranslation()
 
-    // Group messages by conversation turn.
-    // A turn = one human message + all consecutive AI/Tool messages that follow it.
     const renderItems = useMemo(() => {
-        const items: (Message & { showDate?: boolean })[] = []
+        const items: RenderItem[] = []
         let prevTimestamp: string | undefined
         let currentAiGroup: Message[] = []
+        let currentToolGroup: Message[] = []
 
         const flushAiGroup = () => {
             if (currentAiGroup.length > 0) {
@@ -67,75 +67,117 @@ export function MessageList({
                 if (merged) {
                     const showDate = !!merged.timestamp &&
                         (!prevTimestamp || new Date(merged.timestamp).toDateString() !== new Date(prevTimestamp).toDateString())
-                    items.push({ ...merged, showDate })
+                    items.push({ type: "message", data: { ...merged, showDate } })
                     prevTimestamp = merged.timestamp
                 }
                 currentAiGroup = []
             }
         }
 
+        const flushToolGroup = () => {
+            if (currentToolGroup.length > 0) {
+                const first = currentToolGroup[0]
+                const showDate = !!first.timestamp &&
+                    (!prevTimestamp || new Date(first.timestamp).toDateString() !== new Date(prevTimestamp).toDateString())
+                
+                items.push({ 
+                    type: "tool_group", 
+                    data: { 
+                        steps: [...currentToolGroup], 
+                        showDate,
+                        id: `group-${first.id}`
+                    } 
+                })
+                prevTimestamp = first.timestamp
+                currentToolGroup = []
+            }
+        }
+
         for (const msg of messages) {
             if (msg.role === "human") {
                 flushAiGroup()
+                flushToolGroup()
                 const showDate = !!msg.timestamp &&
                     (!prevTimestamp || new Date(msg.timestamp).toDateString() !== new Date(prevTimestamp).toDateString())
-                items.push({ ...msg, showDate })
+                items.push({ type: "message", data: { ...msg, showDate } })
                 prevTimestamp = msg.timestamp
             } else if (msg.role === "ai") {
+                flushToolGroup()
                 currentAiGroup.push(msg)
             } else if (msg.role === "tool") {
-                // When we hit a tool message, we flush any AI thinking/content before it,
-                // then render the tool message, then continue.
                 flushAiGroup()
-                const showDate = !!msg.timestamp &&
-                    (!prevTimestamp || new Date(msg.timestamp).toDateString() !== new Date(prevTimestamp).toDateString())
-                items.push({ ...msg, showDate })
-                prevTimestamp = msg.timestamp
+                currentToolGroup.push(msg)
             }
         }
 
         flushAiGroup()
+        flushToolGroup()
         return items
     }, [messages])
 
     return (
         <div className="min-h-0 min-w-0 relative">
             <div className="space-y-6 px-4 sm:px-6 lg:px-8 pb-4 min-w-0">
-                {/* Loading Indicator at Top */}
                 {isLoadingHistory && (
-                    <div className="py-4 text-center text-muted-foreground">
+                    <motion.div 
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        className="py-4 text-center text-muted-foreground"
+                    >
                         <Loader2 className="w-5 h-5 animate-spin mx-auto mb-2" />
                         <span className="text-xs">{t("chat.loadingHistory")}</span>
-                    </div>
+                    </motion.div>
                 )}
 
-                {/* Load More Hint */}
                 {hasMoreHistory && !isLoadingHistory && messages.length > 0 && (
                     <div className="py-3 text-center text-muted-foreground/50 text-xs">
                         {t("chat.scrollToLoadMore")}
                     </div>
                 )}
 
-                {/* Empty State */}
                 {messages.length === 0 && !isLoadingHistory && (
                     <ChatWelcome />
                 )}
 
-                {/* Message List */}
-                {renderItems.map((msg, index) => (
-                    <div key={`${msg.id}-${index}`}>
-                        <SmartChatMessageItem
-                            msg={msg}
-                            isGrouped={false}
-                            showAvatar={true}
-                            onAddToMemory={onAddToMemory ? (txt) => onAddToMemory(txt) : undefined}
-                            onRewind={onRewind ? () => onRewind(msg) : undefined}
-                            onRetry={onRetry ? () => onRetry(msg) : undefined}
-                            onQuote={() => onQuote?.(msg)}
-                            onViewChangeset={onViewChangeset}
-                        />
-                    </div>
-                ))}
+                <AnimatePresence initial={false} mode="popLayout">
+                    {renderItems.map((item, index) => {
+                        if (item.type === "message") {
+                            return (
+                                <motion.div 
+                                    key={`${item.data.id}-${index}`}
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                                    layout="position"
+                                >
+                                    <SmartChatMessageItem
+                                        msg={item.data}
+                                        isGrouped={false}
+                                        showAvatar={true}
+                                        onAddToMemory={onAddToMemory ? (txt) => onAddToMemory(txt) : undefined}
+                                        onRewind={onRewind ? () => onRewind(item.data) : undefined}
+                                        onRetry={onRetry ? () => onRetry(item.data) : undefined}
+                                        onQuote={() => onQuote?.(item.data)}
+                                        onViewChangeset={onViewChangeset}
+                                    />
+                                </motion.div>
+                            )
+                        } else {
+                            return (
+                                <motion.div 
+                                    key={`${item.data.id}-${index}`}
+                                    initial={{ opacity: 0, scale: 0.98 }}
+                                    animate={{ opacity: 1, scale: 1 }}
+                                    layout="position"
+                                >
+                                    <ToolExecutionGroup 
+                                        steps={item.data.steps} 
+                                    />
+                                </motion.div>
+                            )
+                        }
+                    })}
+                </AnimatePresence>
             </div>
         </div>
     )
