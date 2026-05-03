@@ -11,7 +11,7 @@ Message System Core Schema —— 全链路标准化消息结构。
 """
 
 from datetime import datetime
-from typing import Any, Literal
+from typing import Any, Dict, Literal, Optional
 
 from pydantic import Field
 
@@ -26,6 +26,8 @@ class ToolCall(DynamicBaseModel):
     id: str
     name: str
     args: dict[str, Any] = Field(default_factory=dict)
+    type: Literal["tool_call"] = "tool_call"
+    index: int | None = None
 
 
 class ToolBlock(DynamicBaseModel):
@@ -75,7 +77,7 @@ class MessageBlock(DynamicBaseModel):
     thinking: str | None = None
 
     # === 工具调用与执行 (当 role='tool' 时使用) ===
-    tool_calls: list[dict[str, Any]] | None = None
+    tool_calls: list[ToolCall] | None = None
     tool_name: str | None = None
     tool_call_id: str | None = None
     input: Any | None = None
@@ -97,40 +99,6 @@ class MessageBlock(DynamicBaseModel):
 
     # === 引用（知识/记忆/文件）===
     references: list[dict[str, Any]] | None = None
-
-
-class BlockEvent(DynamicBaseModel):
-    """
-    SSE 流式事件 —— 替代 MessageEvent 中的裸字典 data。
-    """
-    type: Literal["message"] = "message"
-    action: Literal["create", "update", "append"] = "create"
-    data: MessageBlock
-
-
-class StreamEvent(DynamicBaseModel):
-    """
-    结构化流式事件 —— 用于前端实时交互展示。
-    """
-    type: str                                      # StreamEventType
-    message: str = ""
-    data: dict[str, Any] | DynamicBaseModel | None = None
-    progress: int | None = None
-    timestamp: str = Field(default_factory=lambda: format_iso_timestamp())
-
-    def to_json(self) -> str:
-        """Convert to JSON string for SSE."""
-        return self.model_dump_json(exclude_none=True)
-
-
-class ThinkingPayload(DynamicBaseModel):
-    """思考流事件的 data 负载"""
-    detail: str = "reasoning"
-
-
-class ToolProgressPayload(DynamicBaseModel):
-    """工具进度流事件的 data 负载"""
-    tool: str
 
 
 class HITLBlock(DynamicBaseModel):
@@ -187,14 +155,8 @@ class StreamPolicyResult(DynamicBaseModel):
     metadata: dict = {}
 
 
-class HumanRequestEvent(EventBase):
-    """
-    人机交互请求事件。
-
-    数据字段使用 HITLBlock，与消息系统共享同一套结构。
-    保留此模型以便现有代码平滑迁移。
-    新代码建议使用 BlockEvent 包装 HITLBlock 替代。
-    """
-    type: Literal["human_request"] = "human_request"
-    action: Literal["create", "update", "clear"] = "create"
-    data: HITLBlock | dict[str, Any]
+class MessageHandlerResult(DynamicBaseModel):
+    category: str
+    persisted: bool
+    streamed: bool
+    message_id: str | None = None

@@ -23,7 +23,9 @@ from typing import Any
 
 from app.core.engine.message.event_bus import get_event_bus
 from app.core.engine.message.mapper import BlockMapper
-from app.core.engine.message.schemas import MessageBlock, StreamEvent
+from app.core.engine.message.schemas import MessageBlock
+from app.models.schemas.events import BaseStreamEvent
+from app.infrastructure.pydantic_base import EventBase
 from app.core.evocloud import evocloud_manager
 
 logger = logging.getLogger(__name__)
@@ -38,7 +40,7 @@ class MessagePublisher:
 
     async def publish(
         self, 
-        payload: MessageBlock | StreamEvent, 
+        payload: MessageBlock | BaseStreamEvent | EventBase, 
         channels: set[str] | None = None, 
         action: str = "create"
     ) -> None:
@@ -46,12 +48,12 @@ class MessagePublisher:
         统一分发入口：将数据（块或流）分发到注册的前端通道。
 
         Args:
-            payload: MessageBlock (持久化消息块) 或 StreamEvent (流式交互事件)
+            payload: MessageBlock (持久化消息块) 或 BaseStreamEvent (标准化流式事件)
             channels: 指定通道，默认根据 payload 类型自动决定
             action: 仅针对 MessageBlock 的 SSE 动作 (create/update/append)
         """
         if channels is None:
-            # 默认：MessageBlock 发往双端，StreamEvent 仅发往 SSE
+            # 默认：MessageBlock 发往双端，BaseStreamEvent 仅发往 SSE
             channels = {"sse", "mobile"} if isinstance(payload, MessageBlock) else {"sse"}
 
         if "sse" in channels:
@@ -60,7 +62,7 @@ class MessagePublisher:
         if "mobile" in channels and isinstance(payload, MessageBlock):
             await self._publish_mobile(payload)
 
-    async def _send_to_sse(self, payload: MessageBlock | StreamEvent, action: str = "create") -> None:
+    async def _send_to_sse(self, payload: MessageBlock | BaseStreamEvent, action: str = "create") -> None:
         """推送数据到 Web UI (SSE)"""
         try:
             channel = f"chat:{self.thread_id}:events"
@@ -68,9 +70,13 @@ class MessagePublisher:
             if isinstance(payload, MessageBlock):
                 event = BlockMapper.to_sse(payload, action=action)
                 data_json = event.model_dump_json()
-            else:
-                # StreamEvent 自带 to_json() 逻辑
+            elif isinstance(payload, BaseStreamEvent):
+                # 调用统一的平铺序列化逻辑
                 data_json = payload.to_json()
+            elif hasattr(payload, "model_dump_json"):
+                data_json = payload.model_dump_json(exclude_none=True)
+            else:
+                data_json = str(payload)
 
             bus = get_event_bus()
             await bus.publish(channel, data_json)

@@ -155,9 +155,9 @@ class MessageClassifier:
         # 延迟导入，避免循环依赖
         from app.core.tools.registry import get_tool_metadata
 
-        metadata = get_tool_metadata(tool_name) or {}
+        metadata = get_tool_metadata(tool_name)
 
-        if metadata.get("is_hidden", False):
+        if metadata.is_hidden:
             return MessageCategory.INTERNAL_TOOL_CALL
 
         return MessageCategory.TOOL_OUTPUT

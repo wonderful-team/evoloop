@@ -114,7 +114,8 @@ export function ActivityTab({ activeThreadId }: ActivityTabProps) {
     const deduplicateSteps = (steps: ToolStep[]) => {
       const seenIds = new Set<string>()
       return steps.filter(s => {
-        const id = s.id || `${s.name}-${s.tool_name}`
+        // 优先使用 tool_call_id 进行去重，这是最可靠的业务标识符
+        const id = s.tool_call_id || s.id || `${s.name}-${s.tool_name}`
         if (seenIds.has(id)) return false
         seenIds.add(id)
         return true
@@ -140,12 +141,14 @@ export function ActivityTab({ activeThreadId }: ActivityTabProps) {
         bufferIsStreaming = false
       } else if (m.role === "tool") {
         // NEW: Handle flat tool messages
+        const toolCallId = m.tool_call_id || m.meta_data?.tool_call_id
         bufferSteps.unshift({
-          id: m.id as string,
+          id: (toolCallId || m.id) as string, // 优先用 tool_call_id，回退到消息 ID
+          tool_call_id: toolCallId as string,
           name: m.meta_data?.tool_name || m.tool_name || t("chat.messageList.toolExecution"),
           status: m.status as any,
           input: m.meta_data?.input || {},
-          output: undefined, // Per user request: Don't show huge output in UI
+          output: undefined,
           tool_meta: m.meta_data?.tool_meta
         })
       } else if (m.role === "ai") {
@@ -175,12 +178,15 @@ export function ActivityTab({ activeThreadId }: ActivityTabProps) {
   const [stepsOpen, setStepsOpen] = useState(false)
 
   useEffect(() => {
-    if (lastAiMessage?.status === "streaming") {
-      setThinkingOpen(!!(thinking && thinking.trim().length > 0))
+    // 自动折叠逻辑：
+    // 1. 如果正在接收流式推理内容 (streamingThinking 有值)，则展开
+    // 2. 一旦推理流停止（可能开始发 token 了），则折叠
+    if (lastAiMessage?.status === "streaming" && streamingThinking && streamingThinking.trim().length > 0) {
+      setThinkingOpen(true)
     } else {
       setThinkingOpen(false)
     }
-  }, [thinking, lastAiMessage?.status])
+  }, [streamingThinking, lastAiMessage?.status])
 
   useEffect(() => {
     setPlanOpen(!!plan)

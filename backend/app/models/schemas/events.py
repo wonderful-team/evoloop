@@ -13,65 +13,149 @@ SSE 流式事件 Schema —— 全系统通用事件定义。
 from enum import Enum
 from typing import Any, Dict, Literal, Optional, Union
 
-# Re-export message-specific events that downstream code expects from this module
-from app.core.engine.message.schemas import HumanRequestEvent  # noqa: F401
 from app.infrastructure.pydantic_base import EventBase
 
 
-class StreamEventType(str, Enum):
-    """Canonical stream event types for real-time UI updates.
-
-    Includes all values from app.core.engine.callbacks.transparent.StreamEventType
-    plus additional error/auth types used in the SSE stream endpoint.
-    """
-    THINKING = "thinking"
-    PROGRESS = "progress"
-    COMPLETE = "complete"
-    LLM_AUTH_ERROR = "llm_auth_error"
-    QUOTA_EXHAUSTED = "quota_exhausted"
-    AUTH_EXPIRED = "auth_expired"
+# --- Base Class for all SSE/Stream Events ---
+class BaseStreamEvent(EventBase):
+    """全系统流式协议基类：统一字段、平铺结构、高性能序列化"""
+    type: str
+    thread_id: Optional[str] = None
+    
+    def to_json(self) -> str:
+        """高性能序列化入口"""
+        return self.model_dump_json(exclude_none=True)
 
 
-# --- Artifact Events ---
-class ArtifactPayload(EventBase):
-    name: str
-    artifact_type: str  # "code", "design", "log"
-    path: Optional[str] = None
-    content: Optional[str] = None
-    metadata: Dict[str, Any] = {}
-
-
-class ArtifactEvent(EventBase):
-    type: Literal["artifact"] = "artifact"
-    action: Literal["create", "update"] = "create"
-    name: str = ""
-    data: Union[ArtifactPayload, Dict[str, Any]]
-
-
-# --- Agent State Events ---
-class AgentStateEvent(EventBase):
-    type: Literal["state"] = "state"
-    action: Literal["update"] = "update"
-    data: Dict[str, Any]
-
-
-# --- Token Events ---
-class TokenEvent(EventBase):
+# --- 1. 高频文本流：LLM Tokens ---
+class TokenEvent(BaseStreamEvent):
     type: Literal["token"] = "token"
     content: str
 
 
-# --- Error/Status Events ---
-class StatusEvent(EventBase):
+# --- 2. 思考过程流：Reasoning/Thinking ---
+class ThinkingEvent(BaseStreamEvent):
+    type: Literal["thinking"] = "thinking"
+    content: str
+    is_delta: bool = True
+
+
+# --- 3. 进度与工具执行流 ---
+class ProgressEvent(BaseStreamEvent):
+    type: Literal["progress"] = "progress"
+    status: Literal["running", "success", "failed", "interrupted"] = "running"
+    message: str = ""                                # 给用户看的显示文案
+    progress: Optional[int] = None                   # 0-100
+    metadata: Dict[str, Any] = {}                    # 扩展信息：如 tool_name, call_id
+
+
+# --- 4. 状态同步流：通用 UI 状态更新 ---
+class StatusEvent(BaseStreamEvent):
     type: Literal["status"] = "status"
-    status: str
-    message: Optional[str] = None
+    status: str                                      # 内部状态码
+    message: Optional[str] = None                    # 显示消息
 
 
-# --- Quota Exhausted Event ---
-class QuotaExhaustedEvent(EventBase):
+# --- 5. 资源流：Artifacts (Files, Shell, etc.) ---
+class ArtifactEvent(BaseStreamEvent):
+    type: Literal["artifact"] = "artifact"
+    id: str
+    name: str
+    kind: str                                        # file, shell, terminal
+    status: str                                      # pending, success, failed
+    path: Optional[str] = None
+    content: Optional[str] = None
+
+# --- 6. 智能体全局状态流 ---
+class AgentStateEvent(BaseStreamEvent):
+    type: Literal["agent_state"] = "agent_state"
+    mode: str                                        # PLANNING, EXECUTING
+    task_name: Optional[str] = None
+    task_status: Optional[str] = None
+
+
+# --- 7. 消息块同步流：同步全量 MessageBlock ---
+class MessageSyncEvent(BaseStreamEvent):
+    type: Literal["message"] = "message"
+    action: Literal["create", "update", "append"] = "create"
+    data: "MessageBlock"                             # Forward ref to avoid circular import
+
+    def to_json(self) -> str:
+        # Special handling for MessageBlock which might need exclude_none on its data field
+        return self.model_dump_json(exclude_none=True)
+
+
+# --- 8. 人机交互请求事件 ---
+class HumanRequestEvent(BaseStreamEvent):
+    type: Literal["human_request"] = "human_request"
+    action: str                                      # create, clear, update
+    prompt: Optional[str] = None
+    request_type: Optional[str] = None
+    allow_cancel: bool = True
+    payload: Dict[str, Any] = {}
+
+
+# --- 9. 异常与资源事件 ---
+class QuotaExhaustedEvent(BaseStreamEvent):
     type: Literal["quota_exhausted"] = "quota_exhausted"
     title: str = "Quota Exhausted"
     message: str = "Your LLM quota has been exhausted."
     hint: str = "Please contact the administrator to add more quota."
-    action_text: str = "Check Quota"
+
+
+class AuthExpiredEvent(BaseStreamEvent):
+    type: Literal["auth_expired"] = "auth_expired"
+    message: str = "Session expired, please login again."
+
+
+class LLMAuthErrorEvent(BaseStreamEvent):
+    type: Literal["llm_auth_error"] = "llm_auth_error"
+    title: str = "LLM Auth Failed"
+    message: str = "Invalid API Key or expired."
+
+
+# --- 10. 运行生命周期流 ---
+class RunStartEvent(BaseStreamEvent):
+    type: Literal["run_start"] = "run_start"
+    run_id: Optional[str] = None
+    goal: Optional[str] = None
+
+
+class RunEndEvent(BaseStreamEvent):
+    type: Literal["run_end"] = "run_end"
+    run_id: Optional[str] = None
+    status: Literal["done", "failed", "cancelled", "interrupted"]
+    final_outcome: Optional[str] = None
+
+
+# Type alias for all possible stream events
+StreamEvent = Union[
+    TokenEvent,
+    ThinkingEvent,
+    ProgressEvent,
+    ArtifactEvent,
+    AgentStateEvent,
+    MessageSyncEvent,
+    HumanRequestEvent,
+    QuotaExhaustedEvent,
+    AuthExpiredEvent,
+    LLMAuthErrorEvent,
+    RunStartEvent,
+    RunEndEvent
+]
+
+# Type-safe import of MessageBlock for type checking
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from app.core.engine.message.schemas import MessageBlock
+
+# Rebuild models that use forward references
+def rebuild_event_models():
+    from app.core.engine.message.schemas import MessageBlock  # noqa: F401
+    MessageSyncEvent.model_rebuild()
+
+try:
+    rebuild_event_models()
+except ImportError:
+    # This might happen during initialization if schemas.py is not yet available
+    pass

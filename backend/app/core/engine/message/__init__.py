@@ -31,7 +31,7 @@ from app.core.engine.message.handler import MessageHandler
 from app.core.engine.message.mapper import BlockMapper
 from app.core.engine.message.persistence import MessagePersistencePolicy
 from app.core.engine.message.publisher import MessagePublisher
-from app.core.engine.message.schemas import MessageBlock, ToolBlock, BlockEvent, HumanRequestEvent
+from app.core.engine.message.schemas import MessageBlock, ToolBlock
 from app.core.engine.message.stream import MessageStreamPolicy
 
 __all__ = [
@@ -43,7 +43,5 @@ __all__ = [
     "MessagePublisher",
     "MessageBlock",
     "ToolBlock",
-    "BlockEvent",
-    "HumanRequestEvent",
     "BlockMapper",
 ]

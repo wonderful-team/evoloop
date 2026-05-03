@@ -139,11 +139,20 @@ def normalize_tool_call(tc: Any) -> dict[str, Any]:
             if old_k in res_args and new_k not in res_args:
                 res_args[new_k] = res_args[old_k]
 
-    return {
+    # 4. Final structure (standard LangChain format)
+    result = {
         "id": res_id,
         "name": res_name,
         "args": res_args,
     }
+    
+    # Preserve type and index if present
+    if "type" in tc:
+        result["type"] = tc["type"]
+    if "index" in tc:
+        result["index"] = tc["index"]
+        
+    return result
 
 
 def normalize_tool_calls(tool_calls: Any) -> list[dict[str, Any]]:

@@ -141,8 +141,7 @@ class DatabaseResourceManager:
     async def _ensure_tables_exist(self):
         """Execute metadata.create_all and handle extensions."""
         from app.infrastructure.database.sql.database import Base
-        from app import models  # noqa: F401 - Register all models
-        from app.domain.project.requirements import models as _req_models  # noqa: F401
+        from app.models import conversation, checkpoint, codebase, learning  # noqa: F401
 
         logger.info("[ResourceManager] Ensuring tables exist...")
         async with self._engine.begin() as conn:
@@ -151,6 +150,7 @@ class DatabaseResourceManager:
 
             await conn.run_sync(Base.metadata.create_all)
             await conn.run_sync(SQLModel.metadata.create_all)
+
         logger.info("[ResourceManager] Tables and extensions verified")
 
     async def _init_checkpointer(self):
@@ -216,6 +216,22 @@ class DatabaseResourceManager:
 
         if self._sqlite_conn:
             await self._sqlite_conn.close()
+
+        self._initialized = False
+
+    async def close(self):
+        """Close all database resources."""
+        with self._init_lock:
+            if self._engine:
+                await self._engine.dispose()
+            self._engine = None
+            self._session_factory = None
+            self._initialized = False
+            logger.info("🔌 Database resources closed and reset.")
+
+    async def reset(self):
+        """Alias for close() to match testing patterns."""
+        await self.close()
 
         self._initialized = False
 

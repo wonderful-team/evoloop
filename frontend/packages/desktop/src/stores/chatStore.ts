@@ -76,7 +76,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
                 onStatus: store._updateStatus,
                 onHumanRequest: store._setHumanRequest,
                 onMessage: store._appendMessage,
-                onStream: store._processStreamEvent,
+                onThinking: (ev) => store._appendThinking(ev.content),
+                onProgress: (ev) => store._updateProgress(ev),
+                onAgentState: (ev) => store._setAgentState(ev),
+                onQuotaExhausted: store._setQuotaExhausted,
+                onLLMAuthError: store._setLLMAuthError,
+                onRunStart: store._handleRunStart,
+                onRunEnd: store._handleRunEnd,
+                onAuthExpired: (ev) => toast.error(ev.message),
                 onError: store._setError,
                 onUnauthorized: () => {
                     set({ status: 'unauthorized' })
@@ -328,18 +335,64 @@ export const useChatStore = create<ChatState>((set, get) => ({
     // --- Internal Handlers ---
     _setConnectionStatus: (connected, status) => set({ isConnected: connected, connectionStatus: status }),
 
-    _appendThinking: (text) => set((state) => ({ streamingThinking: (state.streamingThinking || "") + text })),
+    _appendThinking: (text) => {
+        set((state) => {
+            const msgs = [...state.messages]
+            let last = msgs[msgs.length - 1]
+            
+            // Auto-create AI placeholder if not present
+            if (last?.role !== "ai") {
+                const placeholder: Message = {
+                    id: `streaming-${Date.now()}`,
+                    role: "ai",
+                    content: "",
+                    thinking: text,
+                    status: "streaming",
+                    timestamp: new Date().toISOString(),
+                    changeset_count: 0
+                }
+                msgs.push(placeholder)
+            } else {
+                last.thinking = (last.thinking || "") + text
+                last.status = "streaming"
+            }
+            
+            return { 
+                messages: msgs,
+                streamingThinking: (state.streamingThinking || "") + text 
+            }
+        })
+    },
 
     _appendToken: (tokens) => {
         set((state) => {
             const msgs = [...state.messages]
-            const last = msgs[msgs.length - 1]
-            if (last?.role === "ai") {
-                if (state.streamingThinking) last.thinking = (last.thinking || "") + state.streamingThinking
+            let last = msgs[msgs.length - 1]
+            
+            // Auto-create AI placeholder if not present
+            if (last?.role !== "ai") {
+                const placeholder: Message = {
+                    id: `streaming-${Date.now()}`,
+                    role: "ai",
+                    content: tokens,
+                    thinking: state.streamingThinking || "",
+                    status: "streaming",
+                    timestamp: new Date().toISOString(),
+                    changeset_count: 0
+                }
+                msgs.push(placeholder)
+            } else {
+                if (state.streamingThinking) {
+                    last.thinking = (last.thinking || "") + state.streamingThinking
+                }
                 last.content = (last.content || "") + tokens
                 last.status = "streaming"
             }
-            return { messages: msgs, streamingThinking: "" }
+            
+            return { 
+                messages: msgs, 
+                streamingThinking: "" 
+            }
         })
     },
 
@@ -360,7 +413,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             if (lastAi) lastAi.humanRequest = data
             return { humanRequest: data, status: "interrupted", messages: msgs }
         })
-        const type = req.type || "text_input"
+        const type = req.request_type || req.type || "text_input"
         const title = i18n.t(`chat.interrupted.${type}Title`, { defaultValue: i18n.t("chat.request.title") })
         toast.error(title, { description: req.prompt, duration: Infinity })
     },
@@ -405,6 +458,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
             activeMemories: ev.active_memories || state.activeMemories,
             agentState: ev.agent_state || state.agentState
         }
+        if (normalized === "idle") {
+            Object.assign(updates, commitThinkingBuffer(state))
+        }
         if (state.status === "running" && normalized !== "running") {
             updates.messages = state.messages.map(m => m.status === "streaming" ? { ...m, status: "completed" } : m)
         }
@@ -415,10 +471,45 @@ export const useChatStore = create<ChatState>((set, get) => ({
         set(updates)
     },
 
-    _setQuotaExhausted: (info) => set({ status: "quota_exhausted", quotaExhaustedInfo: info }),
+    _setQuotaExhausted: (info) => set({ 
+        status: "quota_exhausted", 
+        quotaExhaustedInfo: {
+            title: info.title || i18n.t("chat.quotaExhausted.title"),
+            message: info.message || i18n.t("chat.quotaExhausted.message"),
+            hint: info.hint || i18n.t("chat.quotaExhausted.hint"),
+            actionText: info.actionText || i18n.t("chat.quotaExhausted.action")
+        } 
+    }),
+
+    _setLLMAuthError: (ev) => {
+        toast.error(ev.title || i18n.t("chat.llmAuthError", "LLM API 认证失败"), {
+            description: ev.message || i18n.t("chat.llmAuthErrorDesc", "API 密钥无效或已过期"),
+            action: { 
+                label: i18n.t("chat.goToSettings", "去设置"), 
+                onClick: () => { window.location.hash = '#/settings' } 
+            },
+            duration: 10000,
+        })
+        set({ status: 'error' })
+    },
+
+    _setAgentState: (ev) => set({
+        agentState: {
+            mode: ev.mode,
+            task_name: ev.task_name,
+            task_status: ev.task_status
+        }
+    }),
+
+    _updateProgress: (ev) => set(state => ({ 
+        agentState: state.agentState 
+            ? { ...state.agentState, task_status: ev.message } 
+            : { mode: "PLANNING", task_name: "Agent Running", task_status: ev.message } 
+    })),
 
     _appendMessage: (raw) => {
         const { threadId, messages } = get()
+        set(commitThinkingBuffer)
         const humanReq = tryParseHumanRequest(raw)
         if (!threadId || (raw.role === "system" && !humanReq)) return
 
@@ -453,7 +544,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
         if (streamIdx >= 0 && msg.role === "ai") {
             set(state => {
                 const msgs = [...state.messages]
-                msgs[streamIdx] = { ...msg, content: msg.content || msgs[streamIdx].content, status: msg.status || "completed" }
+                msgs[streamIdx] = { 
+                    ...msg, 
+                    content: msg.content || msgs[streamIdx].content,
+                    thinking: msg.thinking || msgs[streamIdx].thinking,
+                    status: msg.status || "completed" 
+                }
                 return { messages: msgs }
             })
             return
@@ -467,28 +563,34 @@ export const useChatStore = create<ChatState>((set, get) => ({
     },
 
     _truncateMessages: (idx) => set(state => ({ messages: state.messages.slice(0, idx) })),
-    _setError: (err) => toast.error(i18n.t("chat.errors.connection", { error: err })),
+    _handleRunStart: (ev) => {
+        set({ 
+            status: "running", 
+            streamingThinking: "", 
+            _streamBuffer: "",
+            finalOutcome: null 
+        })
+        console.log(`[ChatStore] Run started: ${ev.run_id}`)
+    },
 
-    _processStreamEvent: (ev) => {
-        const { _appendToken, _appendThinking, _appendMessage, _updateStatus, _setHumanRequest, _setError, _setQuotaExhausted } = get()
-        switch (ev.type) {
-            case "token": _appendToken(ev.content); break
-            case "thinking": _appendThinking(ev.content); break
-            case "message": set(commitThinkingBuffer); _appendMessage(ev.data); break
-            case "status": _updateStatus(ev.data); break
-            case "progress": set(state => ({ agentState: state.agentState ? { ...state.agentState, task_status: ev.message } : { mode: "PLANNING", task_name: "Agent Running", task_status: ev.message } })); break
-            case "complete": set(commitThinkingBuffer); set({ status: "idle" }); break
-            case "error": _setError(ev.message); set({ status: "error" }); break
-            case "human_request": _setHumanRequest(ev.data); break
-            case "quota_exhausted": _setQuotaExhausted({ title: i18n.t("chat.quotaExhausted.title"), message: i18n.t("chat.quotaExhausted.message"), hint: i18n.t("chat.quotaExhausted.hint"), actionText: i18n.t("chat.quotaExhausted.action") }); break
-            case "llm_auth_error":
-                toast.error(ev.title || i18n.t("chat.llmAuthError", "LLM API 认证失败"), {
-                    description: ev.message || i18n.t("chat.llmAuthErrorDesc", "API 密钥无效或已过期"),
-                    action: { label: i18n.t("chat.goToSettings", "去设置"), onClick: () => { window.location.hash = '#/settings' } },
-                    duration: 10000,
-                })
-                set({ status: 'error' })
-                break
+    _handleRunEnd: (ev) => {
+        const state = get()
+        const normalized = (ev.status === "done" || ev.status === "failed" || ev.status === "cancelled") ? "idle" : (ev.status as any || "idle")
+        
+        const updates: Partial<ChatState> = { 
+            status: normalized,
+            finalOutcome: ev.final_outcome || state.finalOutcome
         }
+        
+        // Finalize any lingering streaming messages
+        updates.messages = state.messages.map(m => m.status === "streaming" ? { ...m, status: "completed" } : m)
+        
+        set(updates)
+        console.log(`[ChatStore] Run ended: ${ev.run_id}, status: ${ev.status}`)
+    },
+
+    _setError: (err) => {
+        toast.error(i18n.t("chat.errors.connection", { error: err }))
+        set({ status: "error" })
     },
 }))

@@ -26,7 +26,7 @@ from langchain_core.messages import (
 )
 
 from app.core.engine.message.reasoning import extract_reasoning_from_message
-from app.core.engine.message.schemas import BlockEvent, MessageBlock, ToolBlock
+from app.core.engine.message.schemas import MessageBlock, ToolBlock
 
 logger = logging.getLogger(__name__)
 
@@ -214,9 +214,11 @@ class BlockMapper:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def to_sse(msg: MessageBlock, action: str = "create") -> BlockEvent:
-        """MessageBlock → SSE 流式事件（替代裸字典构造）"""
-        return BlockEvent(
+    def to_sse(msg: MessageBlock, action: str = "create") -> "MessageSyncEvent":
+        """MessageBlock → SSE 流式事件（使用统一协议）"""
+        from app.models.schemas.events import MessageSyncEvent
+        return MessageSyncEvent(
+            thread_id=msg.thread_id,
             action=action,  # type: ignore[arg-type]
             data=msg,
         )

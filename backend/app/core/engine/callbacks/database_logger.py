@@ -10,7 +10,7 @@ DatabaseCallbackHandler - 数据库日志回调处理器（重构版）
 """
 import json
 import logging
-from typing import Any
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from langchain_core.callbacks import AsyncCallbackHandler
@@ -199,12 +199,15 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
 
     async def on_tool_start(
         self,
-        serialized: dict[str, Any],
+        serialized: Dict[str, Any],
         input_str: str,
         *,
         run_id: UUID,
+        parent_run_id: Optional[UUID] = None,
+        tags: Optional[List[str]] = None,
+        metadata: Optional[Dict[str, Any]] = None,
         **kwargs: Any,
-    ) -> Any:
+    ) -> None:
         """
         工具执行开始时调用 — 预插入 running 状态记录
         """

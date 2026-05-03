@@ -42,8 +42,8 @@ class Message(Base):
     project_id: Mapped[int | None] = mapped_column(Integer, index=True)
     role: Mapped[str] = mapped_column(String(50))  # "human", "ai"
     content: Mapped[str] = mapped_column(Text)
-    thinking: Mapped[str | None] = mapped_column(Text)  # Raw reasoning content string
-    meta_data: Mapped[dict | None] = mapped_column(JSON) # Silent audit & state metadata
+    meta_data: Mapped[dict | None] = mapped_column(JSON, nullable=True) # Silent audit & state metadata
+    thinking: Mapped[str | None] = mapped_column(Text, nullable=True)  # Raw reasoning content string
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), onupdate=utcnow, nullable=True)
     sequence_number: Mapped[int | None] = mapped_column(Integer)  # Thread-local ordering
@@ -52,7 +52,7 @@ class Message(Base):
     checkpoint_id: Mapped[str | None] = mapped_column(String(255))
 
     # Tool calls storage (for AI messages that trigger tools)
-    tool_calls: Mapped[list[dict] | None] = mapped_column(JSON)
+    tool_calls: Mapped[list[dict] | None] = mapped_column(JSON, nullable=True)
 
     # Action Type Discriminator
     # values: 'text' (default), 'tool_output', 'thinking', 'system'

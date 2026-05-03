@@ -7,10 +7,17 @@ export interface ChatConnectionCallbacks {
     onArtifact: (artifact: any) => void;  // Incremental artifact update
     onStatus: (status: any) => void;      // Incremental status update
     onHumanRequest: (request: any) => void;
-    onMessage: (message: any) => void; // Real-time message sync
-    onStream?: (streamEvent: any) => void; // Enhanced stream events (thinking, progress, errors)
+    onMessage: (message: any) => void;
+    onThinking: (event: any) => void;
+    onProgress: (event: any) => void;
+    onAgentState: (event: any) => void;
+    onQuotaExhausted: (event: any) => void;
+    onLLMAuthError: (event: any) => void;
+    onAuthExpired: (event: any) => void;
+    onRunStart: (event: any) => void;
+    onRunEnd: (event: any) => void;
     onError: (error: string) => void;
-    onUnauthorized?: () => void; // 401 未授权回调
+    onUnauthorized?: () => void;
 }
 
 export class ChatConnection {
@@ -129,8 +136,9 @@ export class ChatConnection {
             try {
                 const data = JSON.parse(e.data);
                 // Backend sends structured token events
-                if (data && typeof data.content === 'string') {
-                    this.callbacks?.onToken(data.content);
+                const content = data?.content;
+                if (typeof content === 'string') {
+                    this.callbacks?.onToken(content);
                 } else if (typeof data === 'string') {
                     // Fallback for raw legacy
                     this.callbacks?.onToken(data);
@@ -189,19 +197,77 @@ export class ChatConnection {
             }
         });
 
-        // Enhanced Stream Events (thinking, tool_start, tool_progress, etc.)
-        sse.addEventListener("stream", (e) => {
+        sse.addEventListener("thinking", (e) => {
             try {
                 const data = JSON.parse(e.data);
-                // 检测 EvoLoop 平台认证过期事件，直接触发 401 处理
-                if (data.type === 'auth_expired') {
-                    console.warn("[ChatConnection] Received auth_expired event");
-                    this.handleUnauthorized();
-                    return;
-                }
-                this.callbacks?.onStream?.(data);
+                this.callbacks?.onThinking(data);
             } catch (err) {
-                console.error("[ChatConnection] Failed to parse stream event", err);
+                console.error("[ChatConnection] Failed to parse thinking event", err);
+            }
+        });
+
+        sse.addEventListener("progress", (e) => {
+            try {
+                const data = JSON.parse(e.data);
+                this.callbacks?.onProgress(data);
+            } catch (err) {
+                console.error("[ChatConnection] Failed to parse progress event", err);
+            }
+        });
+
+        sse.addEventListener("agent_state", (e) => {
+            try {
+                const data = JSON.parse(e.data);
+                this.callbacks?.onAgentState(data);
+            } catch (err) {
+                console.error("[ChatConnection] Failed to parse agent_state event", err);
+            }
+        });
+
+        sse.addEventListener("quota_exhausted", (e) => {
+            try {
+                const data = JSON.parse(e.data);
+                this.callbacks?.onQuotaExhausted(data);
+            } catch (err) {
+                console.error("[ChatConnection] Failed to parse quota_exhausted event", err);
+            }
+        });
+
+        sse.addEventListener("llm_auth_error", (e) => {
+            try {
+                const data = JSON.parse(e.data);
+                this.callbacks?.onLLMAuthError(data);
+            } catch (err) {
+                console.error("[ChatConnection] Failed to parse llm_auth_error event", err);
+            }
+        });
+
+        sse.addEventListener("run_start", (e) => {
+            try {
+                const data = JSON.parse(e.data);
+                this.callbacks?.onRunStart(data);
+            } catch (err) {
+                console.error("[ChatConnection] Failed to parse run_start event", err);
+            }
+        });
+
+        sse.addEventListener("run_end", (e) => {
+            try {
+                const data = JSON.parse(e.data);
+                this.callbacks?.onRunEnd(data);
+            } catch (err) {
+                console.error("[ChatConnection] Failed to parse run_end event", err);
+            }
+        });
+
+        sse.addEventListener("auth_expired", (e) => {
+            try {
+                const data = JSON.parse(e.data);
+                console.warn("[ChatConnection] Received auth_expired event");
+                this.callbacks?.onAuthExpired(data);
+                this.handleUnauthorized();
+            } catch (err) {
+                console.error("[ChatConnection] Failed to parse auth_expired event", err);
             }
         });
 

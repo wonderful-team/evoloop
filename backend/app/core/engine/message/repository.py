@@ -5,6 +5,7 @@ Extracted from MessageHandler to separate persistence concerns from orchestratio
 """
 import logging
 import uuid
+import json
 
 from sqlalchemy import desc, func, select
 from sqlalchemy.orm import selectinload

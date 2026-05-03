@@ -74,14 +74,14 @@ class DeviceEventHandler:
     """Handles device connection/disconnection events"""
 
     @event_subscribe(EventType.DEVICE_CONNECTED)
-    async def on_device_connected(self, event: AwakenEvent) -> None:
+    async def on_device_connected(self, event: "DeviceConnectedEvent") -> None:
         """
         Handle device connection - refresh state and probe new apps.
 
         Triggered when a new Android device is connected via ADB.
         """
-        device_id = event.data.get("device_id")
-        device_type = event.data.get("device_type", "android")
+        device_id = event.device_id
+        device_type = event.device_type
 
         logger.info(f"🔌 Device connected: {device_id} ({device_type})")
 
@@ -106,13 +106,13 @@ class DeviceEventHandler:
                         logger.warning(f"Failed to probe device {device_id}: {e}")
 
     @event_subscribe(EventType.DEVICE_DISCONNECTED)
-    async def on_device_disconnected(self, event: AwakenEvent) -> None:
+    async def on_device_disconnected(self, event: "DeviceDisconnectedEvent") -> None:
         """
         Handle device disconnection - refresh state.
 
         Triggered when an Android device disconnects.
         """
-        device_id = event.data.get("device_id")
+        device_id = event.device_id
         logger.info(f"🔌 Device disconnected: {device_id}")
 
         from app.core.environment import _refresh_state

@@ -17,13 +17,11 @@ from langchain_core.outputs import LLMResult
 from app.core.engine.callbacks.token_filter import TokenFilter
 from app.core.engine.message.publisher import MessagePublisher
 from app.core.engine.message.reasoning import extract_reasoning_from_kwargs
-from app.core.engine.message.schemas import StreamEvent, ThinkingPayload
 from app.core.tools.registry import (
     get_tool_affected_paths,
     get_tool_metadata,
     is_state_mutating_tool,
 )
-from app.models.schemas.events import StreamEventType
 
 logger = logging.getLogger(__name__)
 
@@ -64,22 +62,18 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
     # Structured Stream Event Methods
     # ==============================================================================
 
-    async def _publish_stream_event(self, event: StreamEvent):
-        """
-        Publish a structured stream event to EventBus for frontend SSE consumption.
-        """
-        if not self._publisher:
-            self._publisher = MessagePublisher(thread_id=self.thread_id)
-        
-        await self._publisher.publish(event)
+    # --------------------------------------------------------------------------
+    # Streaming Helpers
+    # --------------------------------------------------------------------------
 
-    async def emit_thinking(self, message: str, detail: str = "reasoning"):
-        """Emit thinking/reasoning event."""
-        await self._publish_stream_event(StreamEvent(
-            type=StreamEventType.THINKING,
-            message=message,
-            data=ThinkingPayload(detail=detail)
-        ))
+    async def emit_thinking(self, content: str):
+        """发送 AI 思考过程片段"""
+        if not self.thread_id: return
+        try:
+            from app.core.engine.message.handler import MessageHandler
+            await MessageHandler.stream_thinking(self.thread_id, content)
+        except Exception:
+            pass
 
     # ==============================================================================
     # LangChain Callback Methods
@@ -111,7 +105,7 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
 
             # Emit thinking indicator so frontend shows loading state
             try:
-                await self.emit_thinking(" reasoning...", detail="AI is analyzing the request")
+                await self.emit_thinking("thinking...")
             except Exception:
                 pass
 
@@ -141,11 +135,8 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
             delta_reasoning = extract_reasoning_from_kwargs(msg_chunk.additional_kwargs)
             if delta_reasoning:
                 self._thinking_buffer += delta_reasoning
-                await self._publish_stream_event(StreamEvent(
-                    type=StreamEventType.THINKING,
-                    message=self._thinking_buffer,
-                    data={"detail": "reasoning"}
-                ))
+                # 直接通过 Handler 流式推送思考片段
+                await self.emit_thinking(delta_reasoning)
 
         # 2. Defensive: normalize structured tokens
         if not isinstance(token, str):
@@ -170,6 +161,14 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
         if filtered is None:
             # Inside hidden tag — don't publish
             return
+
+        # NEW: Publish the filtered token to the frontend
+        if filtered:
+            try:
+                from app.core.engine.message.handler import MessageHandler
+                await MessageHandler.stream_token(self.thread_id, filtered)
+            except Exception as e:
+                logger.warning(f"Failed to stream token: {e}")
 
     async def on_llm_end(self, response: LLMResult, **kwargs: Any) -> None:
         """Run when LLM ends running."""
@@ -265,6 +264,18 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
 
         logger.info(f"[Tool Start] {tool_name} {'(hidden)' if is_hidden else ''}")
 
+        # Stream real-time progress for visible tools
+        if self.thread_id and not is_hidden:
+            try:
+                from app.core.engine.message.handler import MessageHandler
+                await MessageHandler.stream_progress(
+                    self.thread_id, 
+                    message=f"Executing {tool_name}...",
+                    metadata={"tool_name": tool_name}
+                )
+            except Exception:
+                pass
+
         # Handle special tool types (only applies to visible tools)
         if self.thread_id:
             if tool_name == "task_boundary":
@@ -323,6 +334,17 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
 
         # Phase 2-3: Step tracking and StreamEvent removed — StepEvent now driven by MessageHandler
         logger.info(f"[Tool End] {tool_name}")
+        
+        if self.thread_id:
+            try:
+                from app.core.engine.message.handler import MessageHandler
+                await MessageHandler.stream_progress(
+                    self.thread_id, 
+                    message=f"Completed {tool_name}",
+                    status="success"
+                )
+            except Exception:
+                pass
 
     async def on_tool_error(self, error: BaseException, **kwargs: Any) -> None:
         """Run when tool errors."""
@@ -339,6 +361,17 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
 
         # Phase 2-3: Step tracking and StreamEvent removed — StepEvent now driven by MessageHandler
         logger.info(f"[Tool Error] {tool_name}: {error}")
+
+        if self.thread_id:
+            try:
+                from app.core.engine.message.handler import MessageHandler
+                await MessageHandler.stream_progress(
+                    self.thread_id, 
+                    message=f"Failed {tool_name}: {str(error)}",
+                    status="failed"
+                )
+            except Exception:
+                pass
 
     async def on_chain_start(self, serialized: dict[str, Any], inputs: dict[str, Any], **kwargs: Any) -> None:
         """Run when chain (node) starts running.

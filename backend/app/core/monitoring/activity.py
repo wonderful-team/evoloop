@@ -19,6 +19,8 @@ from app.models.schemas.events import (
     ArtifactEvent,
     HumanRequestEvent,
     StatusEvent,
+    RunStartEvent,
+    RunEndEvent,
 )
 from app.services.cache_services import ActivityStateService
 
@@ -66,7 +68,7 @@ class ActivityMonitor:
         run_id = f"run-{gen_uuid()[:8]}"
         
         # 1. Start Run
-        await self.start_run(thread_id, main_goal)
+        await self.start_run(thread_id, main_goal, run_id=run_id)
         logger.info(f"[ActivityMonitor] 🚀 Starting lifecycle for thread {thread_id} (Run: {run_id})")
         
         # 2. Sync Metadata to Context
@@ -81,11 +83,11 @@ class ActivityMonitor:
             yield run_id
             
             # 4. Success End
-            await self.end_run(thread_id, status="done")
+            await self.end_run(thread_id, status="done", run_id=run_id)
             
         except AgentCancelledException:
             logger.info(f"[ActivityMonitor] 🛑 Run {run_id} cancelled by user")
-            await self.end_run(thread_id, status="cancelled")
+            await self.end_run(thread_id, status="cancelled", run_id=run_id)
             raise  # Re-raise for upper layers if needed (BackgroundAgent handles it)
             
         except AgentHumanInterruptException:
@@ -96,18 +98,35 @@ class ActivityMonitor:
             
         except Exception as e:
             logger.error(f"[ActivityMonitor] ❌ Run {run_id} failed with error: {e}", exc_info=True)
-            await self.end_run(thread_id, status="failed")
+            await self.end_run(thread_id, status="failed", run_id=run_id)
             raise
 
-    async def start_run(self, thread_id: str, main_goal: str = "处理用户请求"):
+    async def start_run(self, thread_id: str, main_goal: str = "处理用户请求", run_id: str = None):
         """Initialize activity state for a new run."""
         await self._state_service.start_run(thread_id, main_goal)
+        
+        # Publish RunStartEvent
+        await get_event_bus().publish(
+            f"chat:{thread_id}:events",
+            RunStartEvent(thread_id=thread_id, run_id=run_id, goal=main_goal).to_json()
+        )
 
-    async def end_run(self, thread_id: str, status="done", final_outcome: str = None):
+    async def end_run(self, thread_id: str, status="done", final_outcome: str = None, run_id: str = None):
         """Mark run as ended and publish status change."""
         result = await self._state_service.end_run(thread_id, status, final_outcome)
 
-        # Publish final status
+        # Publish RunEndEvent
+        await get_event_bus().publish(
+            f"chat:{thread_id}:events",
+            RunEndEvent(
+                thread_id=thread_id, 
+                run_id=run_id, 
+                status=status, 
+                final_outcome=final_outcome
+            ).to_json()
+        )
+
+        # Also publish legacy StatusEvent for backward compatibility
         await get_event_bus().publish(
             f"chat:{thread_id}:events",
             StatusEvent(status=result.get("status", status)).model_dump_json()
@@ -144,13 +163,19 @@ class ActivityMonitor:
             # Publish Event
             await get_event_bus().publish(
                 f"chat:{thread_id}:events",
-                HumanRequestEvent(action="create", data=request_dict).model_dump_json(),
+                HumanRequestEvent(
+                    action="create", 
+                    prompt=request_dict.get("prompt"),
+                    request_type=request_dict.get("type"),
+                    allow_cancel=request_dict.get("allow_cancel", True),
+                    payload=request_dict.get("payload", {})
+                ).model_dump_json(exclude_none=True),
             )
 
             # [HITL FIX] Also publish StatusEvent so UI knows we are interrupted
             await get_event_bus().publish(
                 f"chat:{thread_id}:events",
-                StatusEvent(status="interrupted").model_dump_json()
+                StatusEvent(thread_id=thread_id, status="interrupted").to_json()
             )
 
     async def clear_human_request(self, thread_id: str):
@@ -161,12 +186,11 @@ class ActivityMonitor:
             # Publish Event
             await get_event_bus().publish(
                 f"chat:{thread_id}:events",
-                HumanRequestEvent(action="clear", data={}).model_dump_json(),
+                HumanRequestEvent(thread_id=thread_id, action="clear").model_dump_json(exclude_none=True),
             )
-            # [UI Sync Fix]: Also publish StatusEvent to unlock input and hide card
             await get_event_bus().publish(
                 f"chat:{thread_id}:events",
-                StatusEvent(status="idle").model_dump_json()
+                StatusEvent(thread_id=thread_id, status="idle").to_json()
             )
 
     async def request_human_interaction(
@@ -211,13 +235,20 @@ class ActivityMonitor:
             # Publish Event
             await get_event_bus().publish(
                 f"chat:{thread_id}:events",
-                HumanRequestEvent(action="create", data=request_data).model_dump_json(),
+                HumanRequestEvent(
+                    thread_id=thread_id,
+                    action="create", 
+                    prompt=request_data.prompt,
+                    request_type=request_data.type,
+                    allow_cancel=request_data.allow_cancel,
+                    payload=request_data.payload
+                ).model_dump_json(exclude_none=True),
             )
 
             # [HITL FIX] Also publish StatusEvent
             await get_event_bus().publish(
                 f"chat:{thread_id}:events",
-                StatusEvent(status="interrupted").model_dump_json()
+                StatusEvent(thread_id=thread_id, status="interrupted").to_json()
             )
 
             logger.info(f"[ActivityMonitor] Requested '{request_type}' interaction for thread {thread_id}")
@@ -264,7 +295,12 @@ class ActivityMonitor:
         # Publish Event
         await get_event_bus().publish(
             f"chat:{thread_id}:events",
-            AgentStateEvent(data=state.model_dump()).model_dump_json()
+            AgentStateEvent(
+                thread_id=thread_id,
+                mode=mode,
+                task_name=task_name,
+                task_status=task_status
+            ).to_json()
         )
 
     async def log_event(self, event_type: str, data: dict[str, Any], thread_id: str = "system"):
@@ -309,10 +345,16 @@ class ActivityMonitor:
         target_art = next((a for a in artifacts if a["name"] == name), None)
 
         if target_art:
-            action = "update" if status == "modified" else "create"
             await get_event_bus().publish(
                 f"chat:{thread_id}:events",
-                ArtifactEvent(action=action, name=name, data=target_art).model_dump_json(),
+                ArtifactEvent(
+                    thread_id=thread_id,
+                    id=target_art.get("id", ""),
+                    name=target_art.get("name", ""),
+                    kind=target_art.get("kind", ""),
+                    status=target_art.get("status", "pending"),
+                    path=target_art.get("path")
+                ).to_json()
             )
 
     async def get_activity(self, thread_id: str):

@@ -14,14 +14,12 @@ from app.api.deps import verify_guest_access
 from app.core.engine.message.folder import MessageNormalizer
 from app.core.monitoring.activity import activity_monitor
 from app.infrastructure.cache import cache
-from app.models.schemas.events import StreamEventType
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/stream", tags=["stream"])
 
-# Pre-compute set of all stream event type values for fast membership testing
-_STREAM_EVENT_TYPE_VALUES = {e.value for e in StreamEventType}
 
+# Pre-compute set of all stream event type values for fast membership testing
 
 @router.get("/chat/{thread_id}", dependencies=[Depends(verify_guest_access)])
 async def stream_chat(thread_id: str):
@@ -123,33 +121,18 @@ async def stream_chat(thread_id: str):
                     try:
                         event_data = json.loads(raw_data)
                         event_type = event_data.get("type", "unknown")
-                        logger.info(f"[SSE] Parsed event_type={event_type}, keys={list(event_data.keys())}")
+                        logger.info(f"[SSE] Received {event_type} event")
 
-                        # Incremental updates: forward events directly without re-fetching
-                        if event_type == "artifact":
-                            yield f"event: artifact\ndata: {json.dumps(event_data)}\n\n"
-                        
-                        elif event_type == "status":
-                            yield f"event: status\ndata: {json.dumps(event_data)}\n\n"
-                        
-                        elif event_type == "token":
-                            content = event_data.get("content")
-                            if content:
-                                yield f"event: token\ndata: {json.dumps({'content': content})}\n\n"
-                        
-                        elif event_type == "message":
+                        # 1. 核心消息同步 (需通过 Normalizer 保证跨端一致性)
+                        if event_type == "message":
                             msg_data = event_data.get('data', {})
-                            msg_role = msg_data.get('role', '')
-                            logger.info(f"[SSE] YIELDING message event: role={msg_role}, content_len={len(msg_data.get('content',''))}")
                             msg_data = MessageNormalizer.normalize_dict(msg_data)
-
                             yield f"event: message\ndata: {json.dumps(msg_data)}\n\n"
                         
-                        elif event_type == "human_request":
-                            yield f"event: human_request\ndata: {json.dumps(event_data.get('data'))}\n\n"
-
-                        elif event_type in _STREAM_EVENT_TYPE_VALUES:
-                            yield f"event: stream\ndata: {json.dumps(event_data)}\n\n"
+                        # 2. 标准化流式事件 (Token, Thinking, Progress, Status, etc.)
+                        # 所有继承自 BaseStreamEvent 的事件直接透传，其 type 即为 SSE event 名
+                        else:
+                            yield f"event: {event_type}\ndata: {raw_data}\n\n"
 
                     except Exception as e:
                         logger.error(f"[SSE] Error processing pubsub message for {thread_id}: {e}")

@@ -132,13 +132,13 @@ class MessageHandler:
     ) -> MessageHandlerResult:
         """处理工具开始执行 — 预插入 running 状态记录"""
         # Build tool_meta for frontend rendering (canonical source)
-        metadata = get_tool_metadata(tool_name) or {}
-        is_hidden = metadata.get("is_hidden", False)
+        metadata = get_tool_metadata(tool_name)
+        is_hidden = metadata.is_hidden
         
         # Categorize based on tool visibility
         category = MessageCategory.INTERNAL_TOOL_CALL if is_hidden else MessageCategory.TOOL_OUTPUT
 
-        summary_template = metadata.get("summary_template")
+        summary_template = metadata.summary_template
         display_name = None
         if summary_template and input_data:
             try:
@@ -147,7 +147,7 @@ class MessageHandler:
                 pass
         tool_meta = {
             "display_name": display_name,
-            "affected_path_keys": metadata.get("affected_path_keys", []),
+            "affected_path_keys": metadata.affected_path_keys,
         }
 
         message_id = None
@@ -196,8 +196,8 @@ class MessageHandler:
     ) -> MessageHandlerResult:
         """处理工具输出消息 — 支持 UPDATE 已有 running 记录"""
         # Check tool visibility from registry
-        tool_meta_registry = get_tool_metadata(tool_name) or {}
-        is_hidden = tool_meta_registry.get("is_hidden", False)
+        tool_meta_registry = get_tool_metadata(tool_name)
+        is_hidden = tool_meta_registry.is_hidden
         
         if is_hidden:
             category = MessageCategory.INTERNAL_TOOL_CALL
@@ -377,13 +377,24 @@ class MessageHandler:
 
         if classification.error_type == "quota_exhausted":
             from app.models.schemas.events import QuotaExhaustedEvent
-            from app.core.engine.message.event_bus import get_event_bus
-            await get_event_bus().publish(
-                f"chat:{self.thread_id}:events",
-                QuotaExhaustedEvent(
-                    title=classification.title, message=classification.message, hint=classification.hint
-                ).model_dump_json()
-            )
+            if not self._publisher:
+                self._publisher = MessagePublisher(thread_id=self.thread_id, project_id=self.project_id)
+            await self._publisher.publish(QuotaExhaustedEvent(
+                thread_id=self.thread_id,
+                title=classification.title,
+                message=classification.message,
+                hint=classification.hint
+            ))
+        
+        elif classification.error_type == "llm_auth":
+            from app.models.schemas.events import LLMAuthErrorEvent
+            if not self._publisher:
+                self._publisher = MessagePublisher(thread_id=self.thread_id, project_id=self.project_id)
+            await self._publisher.publish(LLMAuthErrorEvent(
+                thread_id=self.thread_id,
+                title=classification.title,
+                message=classification.message
+            ))
 
         await self._dispatch_block(
             role="system", content=f"**{classification.title}**\n{classification.message}",
@@ -395,6 +406,13 @@ class MessageHandler:
             },
             channels={"sse"}
         )
+
+        # [STATUS FIX] Ensure frontend transitions to error state
+        from app.models.schemas.events import StatusEvent
+        if not self._publisher:
+            self._publisher = MessagePublisher(thread_id=self.thread_id, project_id=self.project_id)
+        await self._publisher.publish(StatusEvent(thread_id=self.thread_id, status="error"))
+
         return MessageHandlerResult(
             category=category.value, persisted=category == MessageCategory.ERROR_BUSINESS,
             streamed=True, message_id=message_id,
@@ -452,17 +470,35 @@ class MessageHandler:
 
     @staticmethod
     async def stream_token(thread_id: str, token_buffer: str) -> None:
-        """
-        Stream a token buffer via unified MessagePublisher.
-        """
-        if not token_buffer or not thread_id:
-            return
-
-        from app.core.engine.message.schemas import StreamEvent
+        """分发 LLM Token 片段"""
+        if not token_buffer: return
+        from app.models.schemas.events import TokenEvent
         publisher = MessagePublisher(thread_id=thread_id)
-        
-        # 使用统一的 StreamEvent 协议，不再直接操作底层 Pub/Sub 通道
-        await publisher.publish(StreamEvent(
-            type="token",
-            data={"content": token_buffer}
+        await publisher.publish(TokenEvent(thread_id=thread_id, content=token_buffer))
+
+    @staticmethod
+    async def stream_thinking(thread_id: str, thinking_delta: str) -> None:
+        """分发 AI 思考过程片段"""
+        if not thinking_delta: return
+        from app.models.schemas.events import ThinkingEvent
+        publisher = MessagePublisher(thread_id=thread_id)
+        await publisher.publish(ThinkingEvent(thread_id=thread_id, content=thinking_delta))
+
+    @staticmethod
+    async def stream_progress(
+        thread_id: str, 
+        message: str, 
+        progress: int | None = None, 
+        status: str = "running",
+        metadata: dict | None = None
+    ) -> None:
+        """分发任务/工具执行进度"""
+        from app.models.schemas.events import ProgressEvent
+        publisher = MessagePublisher(thread_id=thread_id)
+        await publisher.publish(ProgressEvent(
+            thread_id=thread_id,
+            status=status, # type: ignore
+            message=message,
+            progress=progress,
+            metadata=metadata or {}
         ))

@@ -107,8 +107,12 @@ export interface ChatState {
     _updateStatus: (status: any) => void
     _setHumanRequest: (request: any) => void
     _setQuotaExhausted: (info: { title: string; message: string; hint: string; actionText: string }) => void
+    _setLLMAuthError: (ev: any) => void
     _appendMessage: (msg: any) => void
+    _updateProgress: (ev: any) => void
+    _setAgentState: (ev: any) => void
     _truncateMessages: (index: number) => void
+    _handleRunStart: (ev: any) => void
+    _handleRunEnd: (ev: any) => void
     _setError: (error: string) => void
-    _processStreamEvent: (event: any) => void
 }

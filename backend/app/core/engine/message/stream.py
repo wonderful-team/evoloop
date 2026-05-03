@@ -88,6 +88,6 @@ class MessageStreamPolicy:
     def get_streamed_categories(cls) -> list[MessageCategory]:
         """获取会推送到前端的分类列表"""
         return [
-            cat for cat in cls._RULES.keys()
+            cat for cat in MessageCategory
             if cls.should_stream(cat)
         ]

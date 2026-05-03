@@ -284,7 +284,7 @@ const ChatMessageItem = memo(
               {showThinking && (() => {
                 const thinkingContent = msg.thinking ?? ""
                 if (!thinkingContent) return null
-                if (msg.status === "streaming") return null
+                if (msg.status === "streaming" && !msg.content) return null
 
                 return (
                   <Collapsible defaultOpen={false} className="w-full mb-3 last:mb-0">
