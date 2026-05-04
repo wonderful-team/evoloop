@@ -40,6 +40,13 @@ class ProjectSyncService:
         try:
             from app.core.context import thread_context_store
             from app.domain.codebase.indexing.manager import indexing_manager
+            from app.infrastructure.config.service import SystemConfigService
+
+            # Check if WORKSPACE_ROOT is configured
+            workspace_root = SystemConfigService.get_value("WORKSPACE_ROOT")
+            if not workspace_root:
+                logger.info("[ProjectSync] WORKSPACE_ROOT not configured. Skipping cloud project sync.")
+                return
 
             res = await evocloud_manager.api.get_current_project()
             if res.get("code") != 0:

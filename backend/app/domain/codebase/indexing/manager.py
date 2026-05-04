@@ -6,6 +6,7 @@ from sqlalchemy import select
 
 from app.domain.codebase.indexing.service import IndexingService
 from app.domain.watchers import RepoWatcher
+from app.infrastructure.config.service import SystemConfigService
 from app.infrastructure.database.sql.database import AsyncSessionLocal
 from app.models import Repository
 from app.utils.async_utils import LoopBoundResource
@@ -38,6 +39,19 @@ class IndexingManager:
         Start watching a directory. Idempotent.
         """
         async with self._lock_pool.get():
+            # Check if WORKSPACE_ROOT is configured
+            workspace_root = SystemConfigService.get_value("WORKSPACE_ROOT")
+            if not workspace_root:
+                logger.warning(f"[IndexingManager] WORKSPACE_ROOT not configured. Skipping watch for: {path}")
+                return
+            
+            # Ensure path is within WORKSPACE_ROOT
+            abs_path = os.path.abspath(path)
+            abs_root = os.path.abspath(workspace_root)
+            if not abs_path.startswith(abs_root):
+                logger.warning(f"[IndexingManager] Path {path} is outside WORKSPACE_ROOT ({workspace_root}). Skipping watch.")
+                return
+
             if path in self._watchers:
                 logger.debug(f"Already watching {path}")
                 return
