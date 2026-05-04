@@ -1031,6 +1031,12 @@ export type MemberBenefitsResponse = {
     [key: string]: unknown | number;
 };
 
+export type MessageChangesetFile = {
+    path: string;
+    operation: string;
+    [key: string]: unknown | string;
+};
+
 export type MessageItem = {
     id: string;
     thread_id: string;
@@ -1040,9 +1046,7 @@ export type MessageItem = {
     content?: string;
     content_type?: string;
     thinking?: (string | null);
-    tool_calls?: (Array<{
-    [key: string]: unknown;
-}> | null);
+    tool_calls?: (Array<ToolCall> | null);
     tool_name?: (string | null);
     tool_call_id?: (string | null);
     input?: (unknown | null);
@@ -1062,7 +1066,8 @@ export type MessageItem = {
     references?: Array<ReferenceItem>;
     has_file_operations?: boolean;
     changeset_count?: number;
-    [key: string]: unknown | string | boolean | ReferenceItem | number;
+    changeset_files?: Array<MessageChangesetFile>;
+    [key: string]: unknown | string | boolean | ReferenceItem | number | MessageChangesetFile;
 };
 
 export type role = 'human' | 'ai' | 'tool' | 'system';
@@ -2100,6 +2105,20 @@ export type TodoUpdate = {
 export type Token = {
     access_token: string;
     token_type?: string;
+};
+
+/**
+ * 工具调用请求 —— AI 发出的执行指令。
+ */
+export type ToolCall = {
+    id: string;
+    name: string;
+    args?: {
+        [key: string]: unknown;
+    };
+    type?: "tool_call";
+    index?: (number | null);
+    [key: string]: unknown | string | "tool_call";
 };
 
 export type ToolInfo = {

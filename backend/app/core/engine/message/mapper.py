@@ -15,7 +15,10 @@ BlockMapper —— 各层 ↔ MessageBlock 的标准化转换器。
 
 import logging
 from datetime import datetime
-from typing import Any
+from typing import Any, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from app.models.schemas.events import MessageSyncEvent
 
 from langchain_core.messages import (
     AIMessage,

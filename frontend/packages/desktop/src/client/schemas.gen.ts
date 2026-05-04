@@ -3638,6 +3638,23 @@ export const MemberBenefitsResponseSchema = {
     title: 'MemberBenefitsResponse'
 } as const;
 
+export const MessageChangesetFileSchema = {
+    properties: {
+        path: {
+            type: 'string',
+            title: 'Path'
+        },
+        operation: {
+            type: 'string',
+            title: 'Operation'
+        }
+    },
+    additionalProperties: true,
+    type: 'object',
+    required: ['path', 'operation'],
+    title: 'MessageChangesetFile'
+} as const;
+
 export const MessageItemSchema = {
     properties: {
         id: {
@@ -3700,8 +3717,7 @@ export const MessageItemSchema = {
             anyOf: [
                 {
                     items: {
-                        additionalProperties: true,
-                        type: 'object'
+                        '$ref': '#/components/schemas/ToolCall'
                     },
                     type: 'array'
                 },
@@ -3841,6 +3857,14 @@ export const MessageItemSchema = {
             type: 'integer',
             title: 'Changeset Count',
             default: 0
+        },
+        changeset_files: {
+            items: {
+                '$ref': '#/components/schemas/MessageChangesetFile'
+            },
+            type: 'array',
+            title: 'Changeset Files',
+            default: []
         }
     },
     additionalProperties: true,
@@ -7871,6 +7895,46 @@ export const TokenSchema = {
     type: 'object',
     required: ['access_token'],
     title: 'Token'
+} as const;
+
+export const ToolCallSchema = {
+    properties: {
+        id: {
+            type: 'string',
+            title: 'Id'
+        },
+        name: {
+            type: 'string',
+            title: 'Name'
+        },
+        args: {
+            additionalProperties: true,
+            type: 'object',
+            title: 'Args'
+        },
+        type: {
+            type: 'string',
+            const: 'tool_call',
+            title: 'Type',
+            default: 'tool_call'
+        },
+        index: {
+            anyOf: [
+                {
+                    type: 'integer'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Index'
+        }
+    },
+    additionalProperties: true,
+    type: 'object',
+    required: ['id', 'name'],
+    title: 'ToolCall',
+    description: '工具调用请求 —— AI 发出的执行指令。'
 } as const;
 
 export const ToolInfoSchema = {

@@ -8,7 +8,11 @@ Event subscribers for the Awakening/Environment domain.
 import logging
 
 from app.core.environment.bus import event_bus
-from app.core.environment.event.schemas import AwakenEvent
+from app.core.environment.event.schemas import (
+    AwakenEvent,
+    DeviceConnectedEvent,
+    DeviceDisconnectedEvent,
+)
 from app.core.environment.event.types import EventType
 from app.core.events.decorators import event_register, event_register_with_bus, event_subscribe
 from app.core.events.registry import SystemEventType

@@ -10,7 +10,7 @@ import { cn } from "@evoloop/shared/lib/utils"
 import { type Attachment, AttachmentPreview } from "./AttachmentPreview"
 import { ReferencePicker, type ReferenceItem } from "./ReferencePicker"
 import { RecordingButton } from "./RecordingButton"
-import { VoiceRecorderButton } from "./VoiceRecorderButton"
+import { VoiceRecorderButton, type VoiceRecorderButtonHandle } from "./VoiceRecorderButton"
 import { ModelSelector } from "./ModelSelector"
 import { useAutoSpeak, useTTS } from "@/hooks/useTTS"
 import { useWakeWord, useWakeWordSettings } from "@/hooks/useWakeWord"
@@ -75,6 +75,8 @@ export const ChatInputArea = memo(
 
     // Tauri voice shortcut settings
     const { shortcutEnabled } = useTauriVoiceShortcutSettings()
+    const [isRecordingFromShortcut, setIsRecordingFromShortcut] = useState(false)
+    const voiceRecorderRef = useRef<VoiceRecorderButtonHandle>(null)
 
     const handleSend = () => {
       if ((!inputValue.trim() && attachments.length === 0) || isSending) return
@@ -165,7 +167,7 @@ export const ChatInputArea = memo(
         const isImage = file.type.startsWith("image/")
         const isAudio = file.type.startsWith("audio/")
         const newAtt: Attachment = {
-          id: crypto.randomUUID(),
+          id: Math.random().toString(36).substring(2, 15),
           url: url,
           name: file.name,
           type: isImage ? "image" : isAudio ? "audio" : "file",
@@ -204,7 +206,7 @@ export const ChatInputArea = memo(
 
         // Add to attachments
         const newAtt: Attachment = {
-          id: crypto.randomUUID(),
+          id: Math.random().toString(36).substring(2, 15),
           url: item.id,
           name: item.name,
           type: item.type === 'file' ? 'file' : 'reference',
@@ -252,11 +254,21 @@ export const ChatInputArea = memo(
         if (isSpeaking) {
           stopTTS()
         }
+        
+        setIsRecordingFromShortcut(true)
         if (inputMode !== 'voice') {
           setInputMode('voice')
         }
+        
+        // 触发录音按钮开始录音
+        setTimeout(() => {
+          voiceRecorderRef.current?.start()
+        }, 50)
       },
       onShortcutEnd: () => {
+        voiceRecorderRef.current?.stop().then(() => {
+           setIsRecordingFromShortcut(false)
+        })
       }
     }), [isSpeaking, stopTTS, inputMode])
 
@@ -267,7 +279,7 @@ export const ChatInputArea = memo(
 
     // Handle voice recording
     const handleVoiceRecorded = async ({ blob, duration, waveform }: { blob: Blob; url: string; path: string; duration: number; waveform: number[] }) => {
-      if (!currentProject) {
+      if (!currentProject && !isGlobalMode) {
         toast.error(t('chat.voice.noProject', '请先选择项目'))
         return
       }
@@ -275,23 +287,28 @@ export const ChatInputArea = memo(
       try {
         const file = new File([blob], `voice_${Date.now()}.webm`, { type: 'audio/webm' })
         
-        // Upload voice file
-        const res: any = await FilesService.uploadFile({
-          projectId: currentProject.id!,
-          formData: { file },
-        })
-        const url = res.url
+        let audioUrl = ""
+        let newAtt: Attachment | null = null
 
-        // Add audio attachment
-        const newAtt: Attachment = {
-          id: crypto.randomUUID(),
-          url: url,
-          name: file.name,
-          type: 'audio',
-          metadata: { duration, waveform },
+        // If we have a project, upload the file as an attachment
+        if (currentProject?.id) {
+          const res: any = await FilesService.uploadFile({
+            projectId: currentProject.id!,
+            formData: { file },
+          })
+          audioUrl = res.url
+
+          // Add audio attachment
+          newAtt = {
+            id: Math.random().toString(36).substring(2, 15),
+            url: audioUrl,
+            name: file.name,
+            type: 'audio',
+            metadata: { duration, waveform },
+          }
+          setAttachments((prev) => [...prev, newAtt!])
+          toast.success(t('chat.voice.sentSuccess', '语音已添加'))
         }
-        setAttachments((prev) => [...prev, newAtt])
-        toast.success(t('chat.voice.sentSuccess', '语音已添加'))
 
         // Auto transcribe if enabled
         if (autoTranscribe) {
@@ -307,7 +324,15 @@ export const ChatInputArea = memo(
 
             if (response.data.text) {
               const transcript = response.data.text
-              setInputValue(prev => prev ? `${prev}\n${transcript}` : transcript)
+              
+              // 如果是快捷键录音，转写完成后直接发送
+              if (isRecordingFromShortcut) {
+                 onSend(transcript, newAtt ? [newAtt] : [])
+                 setInputValue("")
+                 setAttachments([]) // Clear for next message
+              } else {
+                 setInputValue(prev => prev ? `${prev}\n${transcript}` : transcript)
+              }
             }
           } catch (error) {
             console.error('Transcription failed:', error)
@@ -428,8 +453,9 @@ export const ChatInputArea = memo(
             ) : (
               <div className="px-3 py-4 flex items-center justify-center min-h-[100px]">
                 <VoiceRecorderButton
+                  ref={voiceRecorderRef}
                   onVoiceRecorded={handleVoiceRecorded}
-                  disabled={isSending || !currentProject}
+                  disabled={isSending || isAgentWorking}
                 />
               </div>
             )}
@@ -458,7 +484,7 @@ export const ChatInputArea = memo(
                       projectId={currentProject?.id}
                       onSelectSkill={(skill) => {
                         const newAtt: Attachment = {
-                          id: crypto.randomUUID(),
+                          id: Math.random().toString(36).substring(2, 15),
                           url: skill.id,
                           name: skill.name,
                           type: 'skill',

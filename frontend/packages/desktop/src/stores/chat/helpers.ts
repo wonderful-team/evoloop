@@ -1,5 +1,4 @@
 import { ChatState } from "./types"
-import type { Message } from "@/components/Chat/ChatMessageItem"
 
 /**
  * Commits current streaming thinking buffer to the last AI message

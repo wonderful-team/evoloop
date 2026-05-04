@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, forwardRef, useImperativeHandle } from 'react'
 import { Mic, Square, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@evoloop/shared/components/ui/button'
@@ -20,12 +20,18 @@ interface VoiceRecorderButtonProps {
   disabled?: boolean
 }
 
+export interface VoiceRecorderButtonHandle {
+  start: () => Promise<void>
+  stop: () => Promise<void>
+  cancel: () => void
+}
+
 // VoiceRecorderButton - 语音录音按钮
 // 注意：前端不做权限控制，后端返回 403 时会由拦截器处理并显示升级提示
-export function VoiceRecorderButton({ 
+export const VoiceRecorderButton = forwardRef<VoiceRecorderButtonHandle, VoiceRecorderButtonProps>(({ 
   onVoiceRecorded, 
   disabled = false 
-}: VoiceRecorderButtonProps) {
+}, ref) => {
   const { t } = useTranslation()
   const [isPressing, setIsPressing] = useState(false)
   const [showCancel, setShowCancel] = useState(false)
@@ -116,6 +122,17 @@ export function VoiceRecorderButton({
       setShowCancel(false)
     }
   }, [isRecording, isProcessing, showCancel, stopRecording, cancelRecording, onVoiceRecorded, t])
+
+  // 暴露给外部调用的方法
+  useImperativeHandle(ref, () => ({
+    start: () => handleStart(0, 0),
+    stop: () => handleEnd(),
+    cancel: () => {
+      cancelRecording()
+      setIsPressing(false)
+      setIsProcessing(false)
+    }
+  }))
 
   // 处理移动（上滑取消）
   const handleMove = useCallback((clientY: number, clientX: number) => {
@@ -275,4 +292,4 @@ export function VoiceRecorderButton({
       </Button>
     </div>
   )
-}
+})
