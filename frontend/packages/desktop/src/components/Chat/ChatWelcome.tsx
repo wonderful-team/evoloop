@@ -16,7 +16,8 @@ import {
   Activity,
   History
 } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
+import { cn } from "@evoloop/shared/lib/utils";
 import { Button } from "@evoloop/shared/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@evoloop/shared/components/ui/card";
 import { Badge } from "@evoloop/shared/components/ui/badge";

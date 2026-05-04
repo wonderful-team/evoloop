@@ -68,11 +68,8 @@ class MessageNormalizer:
             
             tool_name_display = None
             if summary_template:
-                try:
-                    tool_name_display = i18n.get(summary_template, **args)
-                except Exception:
-                    pass
-            
+                tool_name_display = i18n.get(summary_template, **args)
+
             if not tool_name_display or tool_name_display == summary_template:
                 tool_name_display = tool_name.replace("_", " ").title() if tool_name else "Unknown Tool"
 

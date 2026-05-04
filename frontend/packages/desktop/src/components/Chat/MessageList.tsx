@@ -4,7 +4,6 @@ import { Loader2 } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 import { SmartChatMessageItem, type Message } from "./ChatMessageItem"
 import { ChatWelcome } from "./ChatWelcome"
-import { ToolExecutionGroup } from "./ToolExecutionGroup"
 
 interface MessageListProps {
     messages: Message[]
@@ -14,7 +13,7 @@ interface MessageListProps {
     onRewind?: (msg: Message) => void
     onRetry?: (msg: Message) => void
     onQuote?: (msg: Message) => void
-    onViewChangeset?: () => void
+    onViewChangeset?: (messageId: string | number, path?: string) => void
 }
 
 type RenderItem = 
@@ -37,6 +36,7 @@ function mergeAiMessages(msgs: Message[]): Message | null {
         thinking: msgs.map((m) => m.thinking).filter(Boolean).join("\n\n") || undefined,
         status: msgs.some((m) => m.status === "streaming") ? "streaming" : (last.status || "completed"),
         changeset_count: msgs.reduce((sum, m) => sum + (m.changeset_count || 0), 0),
+        changeset_files: msgs.reduce((all, m) => [...all, ...(m.changeset_files || [])], [] as any[]),
         has_file_operations: msgs.some((m) => m.has_file_operations),
         timestamp: last.timestamp || first.timestamp,
         humanRequest: msgs.find((m) => m.humanRequest)?.humanRequest,
@@ -59,7 +59,6 @@ export function MessageList({
         const items: RenderItem[] = []
         let prevTimestamp: string | undefined
         let currentAiGroup: Message[] = []
-        let currentToolGroup: Message[] = []
 
         const flushAiGroup = () => {
             if (currentAiGroup.length > 0) {
@@ -74,44 +73,49 @@ export function MessageList({
             }
         }
 
-        const flushToolGroup = () => {
-            if (currentToolGroup.length > 0) {
-                const first = currentToolGroup[0]
-                const showDate = !!first.timestamp &&
-                    (!prevTimestamp || new Date(first.timestamp).toDateString() !== new Date(prevTimestamp).toDateString())
-                
-                items.push({ 
-                    type: "tool_group", 
-                    data: { 
-                        steps: [...currentToolGroup], 
-                        showDate,
-                        id: `group-${first.id}`
-                    } 
-                })
-                prevTimestamp = first.timestamp
-                currentToolGroup = []
-            }
-        }
+        let isNewAiTurn = true
 
-        for (const msg of messages) {
+        for (let i = 0; i < messages.length; i++) {
+            const msg = messages[i]
+            
             if (msg.role === "human") {
                 flushAiGroup()
-                flushToolGroup()
                 const showDate = !!msg.timestamp &&
                     (!prevTimestamp || new Date(msg.timestamp).toDateString() !== new Date(prevTimestamp).toDateString())
                 items.push({ type: "message", data: { ...msg, showDate } })
                 prevTimestamp = msg.timestamp
+                isNewAiTurn = true
             } else if (msg.role === "ai") {
-                flushToolGroup()
                 currentAiGroup.push(msg)
+                const nextMsg = messages[i+1]
+                if (!nextMsg || nextMsg.role !== "ai") {
+                    const merged = mergeAiMessages(currentAiGroup)
+                    if (merged) {
+                        const showDate = !!merged.timestamp &&
+                            (!prevTimestamp || new Date(merged.timestamp).toDateString() !== new Date(prevTimestamp).toDateString())
+                        items.push({ 
+                            type: "message", 
+                            data: { ...merged, showDate, isFirstInTurn: isNewAiTurn } as any 
+                        })
+                        prevTimestamp = merged.timestamp
+                        isNewAiTurn = false
+                    }
+                    currentAiGroup = []
+                }
             } else if (msg.role === "tool") {
                 flushAiGroup()
-                currentToolGroup.push(msg)
+                const showDate = !!msg.timestamp &&
+                    (!prevTimestamp || new Date(msg.timestamp).toDateString() !== new Date(prevTimestamp).toDateString())
+                items.push({ 
+                    type: "message", 
+                    data: { ...msg, showDate, isFirstInTurn: isNewAiTurn } as any 
+                })
+                prevTimestamp = msg.timestamp
+                isNewAiTurn = false
             }
         }
-
+        
         flushAiGroup()
-        flushToolGroup()
         return items
     }, [messages])
 
@@ -140,11 +144,11 @@ export function MessageList({
                 )}
 
                 <AnimatePresence initial={false} mode="popLayout">
-                    {renderItems.map((item, index) => {
+                    {renderItems.map((item) => {
                         if (item.type === "message") {
                             return (
                                 <motion.div 
-                                    key={`${item.data.id}-${index}`}
+                                    key={item.data.id}
                                     initial={{ opacity: 0, y: 10 }}
                                     animate={{ opacity: 1, y: 0 }}
                                     transition={{ type: "spring", stiffness: 400, damping: 30 }}
@@ -152,8 +156,8 @@ export function MessageList({
                                 >
                                     <SmartChatMessageItem
                                         msg={item.data}
-                                        isGrouped={false}
-                                        showAvatar={true}
+                                        isGrouped={!(item.data as any).isFirstInTurn && item.data.role !== "human"}
+                                        showAvatar={item.data.role === "human" || (item.data as any).isFirstInTurn}
                                         onAddToMemory={onAddToMemory ? (txt) => onAddToMemory(txt) : undefined}
                                         onRewind={onRewind ? () => onRewind(item.data) : undefined}
                                         onRetry={onRetry ? () => onRetry(item.data) : undefined}
@@ -162,20 +166,8 @@ export function MessageList({
                                     />
                                 </motion.div>
                             )
-                        } else {
-                            return (
-                                <motion.div 
-                                    key={`${item.data.id}-${index}`}
-                                    initial={{ opacity: 0, scale: 0.98 }}
-                                    animate={{ opacity: 1, scale: 1 }}
-                                    layout="position"
-                                >
-                                    <ToolExecutionGroup 
-                                        steps={item.data.steps} 
-                                    />
-                                </motion.div>
-                            )
                         }
+                        return null
                     })}
                 </AnimatePresence>
             </div>

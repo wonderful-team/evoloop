@@ -141,10 +141,8 @@ class MessageHandler:
         summary_template = metadata.summary_template
         display_name = None
         if summary_template and input_data:
-            try:
-                display_name = i18n.get(summary_template, **input_data)
-            except (KeyError, TypeError):
-                pass
+            display_name = i18n.get(summary_template, **input_data)
+
         tool_meta = {
             "display_name": display_name,
             "affected_path_keys": metadata.affected_path_keys,
@@ -195,11 +193,20 @@ class MessageHandler:
         sequence_number: int | None = None,
     ) -> MessageHandlerResult:
         """处理工具输出消息 — 支持 UPDATE 已有 running 记录"""
-        # Check tool visibility from registry
-        tool_meta_registry = get_tool_metadata(tool_name)
-        is_hidden = tool_meta_registry.is_hidden
+        # Fetch tool metadata and input to rebuild tool_meta
+        metadata_registry = get_tool_metadata(tool_name)
+        input_data = await self._repository.resolve_tool_input(tool_call_id, tool_name=tool_name)
         
-        if is_hidden:
+        display_name = None
+        if metadata_registry.summary_template and input_data:
+            display_name = i18n.get(metadata_registry.summary_template, **input_data)
+
+        tool_meta = {
+            "display_name": display_name,
+            "affected_path_keys": metadata_registry.affected_path_keys,
+        }
+
+        if metadata_registry.is_hidden:
             category = MessageCategory.INTERNAL_TOOL_CALL
         else:
             category = MessageClassifier.classify_tool_output(tool_name, output)
@@ -215,13 +222,22 @@ class MessageHandler:
         message_id = None
         seq = sequence_number or 0
 
+        metadata = {
+            "tool_name": tool_name, 
+            "tool_call_id": tool_call_id, 
+            "input": input_data,
+            "output": output,
+            "tool_meta": tool_meta
+        }
+
         if seq and persist_data.should_persist:
             # UPDATE existing running record
             updated = await self._repository.update(
                 sequence_number=sequence_number,
                 status="completed",
                 content=persist_data.content,
-                meta_data={"tool_name": tool_name, "tool_call_id": tool_call_id, "output": output},
+                # We overwrite meta_data with the full set to ensure it's complete
+                meta_data=metadata,
             )
             if updated:
                 message_id = f"msg-{self.thread_id}-{sequence_number}"
@@ -230,6 +246,7 @@ class MessageHandler:
                         role="tool", content=persist_data.content, category=category.value,
                         status="completed", sequence_number=sequence_number,
                         tool_name=persist_data.tool_name, tool_call_id=persist_data.tool_call_id,
+                        metadata=metadata,
                         channels={"mobile"}
                     )
         elif persist_data.should_persist:
@@ -239,13 +256,14 @@ class MessageHandler:
                 action_type="tool_output", is_visible=category.is_visible_to_user,
                 tool_call_id=persist_data.tool_call_id, tool_name=persist_data.tool_name,
                 content_type="text",
-                metadata={"tool_name": tool_name, "tool_call_id": tool_call_id},
+                metadata=metadata,
             )
             if message_id and category.is_visible_to_user:
                 await self._dispatch_block(
                     role="tool", content=persist_data.content, category=category.value,
                     status="completed", sequence_number=seq,
                     tool_name=persist_data.tool_name, tool_call_id=persist_data.tool_call_id,
+                    metadata=metadata,
                     channels={"mobile"}
                 )
 
@@ -254,6 +272,7 @@ class MessageHandler:
                 role="tool", content=content, category=category.value,
                 tool_name=tool_name, tool_call_id=tool_call_id,
                 sequence_number=seq if persist_data.should_persist else 0,
+                metadata=metadata,
                 channels={"sse"}
             )
 
@@ -274,12 +293,27 @@ class MessageHandler:
         content = str(error) if error else "Tool execution failed"
         seq = sequence_number or 0
 
+        # Rebuild metadata even on error to keep UI consistent
+        metadata_registry = get_tool_metadata(tool_name)
+        input_data = await self._repository.resolve_tool_input(tool_call_id, tool_name=tool_name)
+        display_name = None
+        if metadata_registry.summary_template and input_data:
+            display_name = i18n.get(metadata_registry.summary_template, **input_data)
+        
+        metadata = {
+            "tool_name": tool_name, 
+            "tool_call_id": tool_call_id, 
+            "input": input_data,
+            "error": content,
+            "tool_meta": {"display_name": display_name}
+        }
+
         if sequence_number:
             await self._repository.update(
                 sequence_number=sequence_number,
                 status="failed",
                 content=content,
-                meta_data={"tool_name": tool_name, "tool_call_id": tool_call_id, "error": content},
+                meta_data=metadata,
             )
 
         return MessageHandlerResult(
@@ -461,10 +495,12 @@ class MessageHandler:
             sequence_number=sequence_number,
             created_at=datetime.now().isoformat(),
             parent_id=parent_id,
+            input=metadata.get("input") if metadata else None,
+            tool_meta=metadata.get("tool_meta") if metadata else None,
             meta_data={
                 "tool_name": tool_name,
                 "tool_call_id": tool_call_id,
-                **(metadata or {}),
+                **{k: v for k, v in (metadata or {}).items() if k not in ["input", "tool_meta"]},
             },
         )
         

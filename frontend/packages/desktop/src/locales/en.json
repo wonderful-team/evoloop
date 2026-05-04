@@ -156,6 +156,11 @@
       "title": "Agent Workstation",
       "viewAllMemories": "View all {{count}} memories"
     },
+    "changeset": {
+      "filesChanged": "{{count}} files changed",
+      "viewAll": "View All",
+      "moreFiles": "more files"
+    },
     "diff": {
       "tip": "Tip: Red lines are deletions, green lines are additions."
     },

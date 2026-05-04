@@ -134,8 +134,7 @@ Use `read_file(path='{path}', start_line=N, end_line=M)` to read specific line r
             start = start_line or 1
             end = min(start + lines_read - 1, result.metadata.total_lines)
 
-            meta_str = f"""
-[File: {path} | Lines {start}-{end} of {result.metadata.total_lines} | Hash: {result.metadata.content_hash}]
+            meta_str = f"""[File: {path} | Lines {start}-{end} of {result.metadata.total_lines} | Hash: {result.metadata.content_hash}]
 """
             if end < result.metadata.total_lines:
                 meta_str += f"[Use start_line={end + 1} to read more]\n"

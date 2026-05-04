@@ -1,4 +1,5 @@
-import { BookOpen, Loader2, Paperclip, Send, Square, Mic, Keyboard, Volume2, VolumeX, Ear } from "lucide-react"
+import { BookOpen, Loader2, Paperclip, Send, Square, Mic, Keyboard, Ear } from "lucide-react"
+import { motion, AnimatePresence } from "framer-motion"
 import { memo, useState, useRef, forwardRef, useImperativeHandle, useCallback, useMemo } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
@@ -14,7 +15,6 @@ import { ModelSelector } from "./ModelSelector"
 import { useAutoSpeak, useTTS } from "@/hooks/useTTS"
 import { useWakeWord, useWakeWordSettings } from "@/hooks/useWakeWord"
 import { useTauriVoiceShortcut, useTauriVoiceShortcutSettings } from "@/hooks/useTauriVoiceShortcut"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@evoloop/shared/components/ui/tooltip"
 import { Separator } from "@evoloop/shared/components/ui/separator"
 import { useChatStore } from "@/stores/chatStore"
 import axios from "axios"
@@ -34,6 +34,7 @@ interface ChatInputAreaProps {
 export interface ChatInputAreaHandle {
   addReference: (item: ReferenceItem) => void
   setInput: (text: string) => void
+  focus: () => void
 }
 
 export const ChatInputArea = memo(
@@ -65,7 +66,7 @@ export const ChatInputArea = memo(
     const [inputMode, setInputMode] = useState<'text' | 'voice'>('text')
     const [autoTranscribe] = useState(true)
     const [isTranscribing, setIsTranscribing] = useState(false)
-    const { autoSpeak, toggleAutoSpeak } = useAutoSpeak()
+    useAutoSpeak()
     const { stop: stopTTS, isSpeaking } = useTTS()
 
     // Wake word settings
@@ -74,7 +75,6 @@ export const ChatInputArea = memo(
 
     // Tauri voice shortcut settings
     const { shortcutEnabled } = useTauriVoiceShortcutSettings()
-    const [, setIsRecordingFromShortcut] = useState(false)
 
     const handleSend = () => {
       if ((!inputValue.trim() && attachments.length === 0) || isSending) return
@@ -252,13 +252,11 @@ export const ChatInputArea = memo(
         if (isSpeaking) {
           stopTTS()
         }
-        setIsRecordingFromShortcut(true)
         if (inputMode !== 'voice') {
           setInputMode('voice')
         }
       },
       onShortcutEnd: () => {
-        setIsRecordingFromShortcut(false)
       }
     }), [isSpeaking, stopTTS, inputMode])
 
@@ -333,6 +331,9 @@ export const ChatInputArea = memo(
       },
       setInput: (text: string) => {
         setInputValue(text)
+      },
+      focus: () => {
+        textareaRef.current?.focus()
       }
     }))
 

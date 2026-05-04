@@ -163,7 +163,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     },
 
     rewindToMessage: async (messageId) => {
-        const { threadId, projectId } = get()
+        const { threadId } = get()
         if (!threadId) return
         try {
             set({ status: "running" })

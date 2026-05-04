@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { motion, AnimatePresence } from "framer-motion"
 import { ArrowDown, Brain } from "lucide-react"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
@@ -69,6 +70,7 @@ export function ChatInterface() {
   const sendMessage = useChatStore((s) => s.sendMessage)
   const stopAgent = useChatStore((s) => s.stopAgent)
   const _truncateMessages = useChatStore((s) => s._truncateMessages)
+  const markChangeAsViewed = useChatStore((s) => s.markChangeAsViewed)
   const markAllChangesAsViewed = useChatStore((s) => s.markAllChangesAsViewed)
   const selectedModel = useChatStore((s) => s.selectedModel)
 
@@ -97,92 +99,27 @@ export function ChatInterface() {
     }
   }, [isGlobalMode, currentProject])
 
+  // Track if user manually closed context panel during the CURRENT run
+  const hasManuallyClosedInCurrentRun = useRef(false)
+
+  // Reset the manual close flag when agent finishes or starts a fresh run
+  useEffect(() => {
+    if (status !== "running") {
+      hasManuallyClosedInCurrentRun.current = false
+    }
+  }, [status])
+
   // Auto-show context panel when agent starts working
   useEffect(() => {
-    if (status === "running" && !showContextPanel) {
+    if (status === "running" && !showContextPanel && !hasManuallyClosedInCurrentRun.current) {
       setShowContextPanel(true)
     }
   }, [status, showContextPanel])
 
-  // --- MOCK DATA FOR UI REVIEW ---
-  // To trigger this, you can uncomment the call below or I'll just auto-run it once
-  useEffect(() => {
-    // Only run if we are in a 'demo' mode or manually triggered
-    const params = new URLSearchParams(window.location.search)
-    if (params.get("demo") === "true") {
-      const mockMessages: any[] = [
-        {
-          id: "m1",
-          role: "human",
-          content: "Hello! Can you help me analyze this project and make some changes to the codebase? I've attached some files.",
-          timestamp: new Date().toISOString(),
-          status: "completed",
-          attachments: [
-            { id: "a1", name: "architecture.png", type: "image", url: "https://placehold.co/600x400" },
-            { id: "a2", name: "config.json", type: "file", url: "/mock/config.json" }
-          ]
-        },
-        {
-          id: "m2",
-          role: "ai",
-          thinking: "I will first analyze the architecture diagram, then look into the configuration files to understand the project structure. After that, I will propose a plan to optimize the data flow.",
-          content: "",
-          status: "streaming",
-          timestamp: new Date().toISOString()
-        },
-        {
-          id: "m3",
-          role: "tool",
-          tool_name: "read_file",
-          status: "completed",
-          meta_data: { input: { path: "src/main.py" }, tool_meta: { display_name: "Read Main File" } },
-          timestamp: new Date().toISOString()
-        },
-        {
-          id: "m4",
-          role: "tool",
-          tool_name: "search_code",
-          status: "completed",
-          meta_data: { input: { query: "class DataManager" }, tool_meta: { display_name: "Search DataManager" } },
-          timestamp: new Date().toISOString()
-        },
-        {
-          id: "m5",
-          role: "tool",
-          tool_name: "apply_edit",
-          status: "running",
-          meta_data: { input: { path: "src/utils/helpers.py", diff: "..." }, tool_meta: { display_name: "Applying Refactor" } },
-          timestamp: new Date().toISOString()
-        },
-        {
-          id: "m6",
-          role: "ai",
-          content: "Based on my analysis, I have performed the following steps:\n\n1.  **Analyzed** the main entry point.\n2.  **Identified** a bottleneck in `DataManager`.\n3.  **Refactored** the helper functions for better performance.\n\n```python\ndef optimize_flow(data):\n    # New optimized logic\n    return data.map(x => x * 2)\n```\n\nYou can see the file changes in the sidebar.",
-          status: "completed",
-          changeset_count: 3,
-          has_file_operations: true,
-          timestamp: new Date().toISOString()
-        }
-      ]
-
-      const mockChangeset = [
-        { path: "src/main.py", operation: "modified", status: "applied" },
-        { path: "src/utils/helpers.py", operation: "modified", status: "applied" },
-        { path: "src/models/new_model.py", operation: "added", status: "applied" }
-      ]
-
-      useChatStore.setState({ 
-        messages: mockMessages, 
-        status: "running",
-        changeset: mockChangeset as any,
-        streamingThinking: "Finalizing the refactoring logic and checking for side effects..."
-      })
-    }
-  }, [])
-
   // Persist manual close action
   const handleCloseContextPanel = () => {
     localStorage.setItem("chat.contextPanel.hidden", "true")
+    hasManuallyClosedInCurrentRun.current = true // Mark as manually closed for this run
     setShowContextPanel(false)
   }
 
@@ -470,14 +407,26 @@ export function ChatInterface() {
     })
   }
 
-  // Handle view changeset from message inline hint
-  const handleViewChangeset = () => {
+  // Handle view changeset from message snapshot
+  const handleViewChangeset = (_messageId?: string | number, path?: string) => {
     // Switch to files tab
     setSidebarActiveTab("files")
     // Expand Agent Changes panel
     setExpandAgentChanges(true)
-    // Mark all as viewed
-    markAllChangesAsViewed()
+
+    if (path) {
+      // Find the file in the changeset and trigger diff
+      const file = useChatStore.getState().changeset.find(f => f.path === path)
+      if (file) {
+        setSelectedDiff({ path: file.path, diff: file.diff || "" })
+        setIsDrawerOpen(true)
+        // Mark as viewed
+        markChangeAsViewed(path)
+      }
+    } else {
+      // Mark all as viewed
+      markAllChangesAsViewed()
+    }
   }
 
   // --- Auto Scroll Logic ---
@@ -516,6 +465,13 @@ export function ChatInterface() {
     setIsUserScrolled(false)
     scrollToBottom()
   }, [scrollToBottom])
+
+  // Auto-focus input when agent finishes
+  useEffect(() => {
+    if (status === "idle" || status === "interrupted") {
+      chatInputRef.current?.focus()
+    }
+  }, [status])
 
   // Deep Linking Listener
   useEffect(() => {
@@ -670,18 +626,26 @@ export function ChatInterface() {
             </div>
 
             {/* Scroll to Bottom Button */}
-            {isUserScrolled && (
-              <div className="absolute bottom-4 right-4 z-10 animate-in fade-in slide-in-from-bottom-2">
-                <Button
-                  size="icon"
-                  variant="secondary"
-                  className="rounded-full shadow-md bg-background/80 backdrop-blur border"
-                  onClick={() => scrollToBottom()}
+            <AnimatePresence>
+              {isUserScrolled && (
+                <motion.div 
+                  initial={{ opacity: 0, scale: 0.5, y: 20 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.5, y: 20 }}
+                  transition={{ type: "spring", stiffness: 400, damping: 25 }}
+                  className="absolute bottom-4 right-4 z-10"
                 >
-                  <ArrowDown className="h-4 w-4" />
-                </Button>
-              </div>
-            )}
+                  <Button
+                    size="icon"
+                    variant="secondary"
+                    className="rounded-full shadow-lg bg-background/80 backdrop-blur border border-primary/10 hover:bg-primary/10 transition-colors"
+                    onClick={() => scrollToBottom(true)}
+                  >
+                    <ArrowDown className="h-4 w-4" />
+                  </Button>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             {/* HumanRequestCard moved to AgentCanvas */}
 

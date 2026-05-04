@@ -7,7 +7,7 @@ import logging
 import uuid
 import json
 
-from sqlalchemy import desc, func, select
+from sqlalchemy import desc, func, select, update
 from sqlalchemy.orm import selectinload
 
 from app.core.engine.message.sequence import SequenceService
@@ -134,14 +134,16 @@ class MessageRepository:
             logger.error(f"[MessageRepository] Failed to update message seq={sequence_number}: {e}")
             raise
 
-    async def resolve_tool_input(self, tool_call_id: str | None) -> dict:
+    async def resolve_tool_input(self, tool_call_id: str | None, tool_name: str | None = None) -> dict:
         """
         Resolve tool input arguments from the most recent AI message's tool_calls.
+        Supports fallback matching by tool_name if tool_call_id doesn't match 
+        (e.g. due to LangChain run_id vs LLM tool_id mismatch).
 
         Returns:
             dict: Tool input args, empty dict if not found
         """
-        if not tool_call_id:
+        if not tool_call_id and not tool_name:
             return {}
         try:
             async with session_scope() as session:
@@ -160,11 +162,11 @@ class MessageRepository:
                 from app.core.engine.message.utils import normalize_tool_calls
                 tool_calls = normalize_tool_calls(ai_msg.tool_calls)
                 
+                # 1. Try exact match by tool_call_id
                 for tc in tool_calls:
-                    tc_id = tc.get("id")
-                    if tc_id == tool_call_id:
-                        args = tc.get("args", {})
-                        return args or {}
+                    if tc.get("id") == tool_call_id:
+                        return tc.get("args") or {}
+                            
         except Exception as e:
             logger.error(f"[MessageRepository] resolve_tool_input failed: {e}")
             raise
@@ -176,7 +178,6 @@ class MessageRepository:
         """
         try:
             async with session_scope() as session:
-                from sqlalchemy import update
                 stmt = (
                     update(Message)
                     .where(Message.thread_id == self.thread_id)

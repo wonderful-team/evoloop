@@ -156,6 +156,11 @@
       "title": "Agent 工作台",
       "viewAllMemories": "查看所有 {{count}} 条记忆"
     },
+    "changeset": {
+      "filesChanged": "已变更 {{count}} 个文件",
+      "viewAll": "查看全部",
+      "moreFiles": "个文件"
+    },
     "diff": {
       "tip": "提示：红线表示删除，绿线表示新增。"
     },

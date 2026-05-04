@@ -68,32 +68,37 @@ async def get_conversation_messages(
     all_messages, has_more, total_count = await repo.get_full_history(limit=limit, before_id=before_id)
 
     async with get_db_session() as session:
-        # Query file operations: presence set + changeset count in one query
+        # Query file operations: fetch detailed ops for message summary
         file_ops_stmt = (
-            select(FileOperation.message_id, func.count(FileOperation.id).label("count"))
+            select(FileOperation)
             .where(FileOperation.thread_id == thread_id)
-            .group_by(FileOperation.message_id)
         )
         file_ops_result = await session.execute(file_ops_stmt)
-        file_ops_rows = file_ops_result.all()
-        messages_with_files = set(str(row.message_id) for row in file_ops_rows)
-        message_changeset_counts = {str(row.message_id): row.count for row in file_ops_rows}
+        all_file_ops = file_ops_result.scalars().all()
+        
+        # Map ops to messages
+        from collections import defaultdict
+        message_ops_map = defaultdict(list)
+        for op in all_file_ops:
+            message_ops_map[str(op.message_id)].append({
+                "path": op.file_path,
+                "operation": op.operation.lower()
+            })
 
         # Conversion: Message DB -> MessageBlock (Direct Mapping)
         normalized = MessageNormalizer.normalize(all_messages)
-        # Map folded results back to API MessageItem with extra metadata
-        # We need to map by ID to keep the extra visibility/changeset data
-        # Note: LangChain objects used in fold_messages preserve the 'id' attribute
         db_msg_map = {str(m.id): m for m in all_messages}
         final_items = []
 
         for f in normalized:
             db_m = db_msg_map.get(str(f.id))
             if not db_m:
-                # Likely a system or generated message not in DB, keep as is
                 final_items.append(MessageItem(**f.model_dump()))
                 continue
 
+            msg_id_str = str(db_m.id)
+            ops = message_ops_map.get(msg_id_str, [])
+            
             # Parse References
             refs = (
                 [
@@ -110,20 +115,18 @@ async def get_conversation_messages(
                 else []
             )
 
-            msg_id_str = str(db_m.id)
-            # Exclude fields that will be overwritten by DB data
-            base_data = f.model_dump(exclude={
-                "status", "run_id", "parent_id", "references",
-                "category", "content_type", "sequence_number",
-                "checkpoint_id", "is_visible"
-            })
             item = MessageItem(
-                **base_data,
+                **f.model_dump(exclude={
+                    "status", "run_id", "parent_id", "references",
+                    "category", "content_type", "sequence_number",
+                    "checkpoint_id", "is_visible"
+                }),
                 run_id=db_m.run_id,
                 parent_id=db_m.parent_id,
                 references=refs,
-                has_file_operations=msg_id_str in messages_with_files,
-                changeset_count=message_changeset_counts.get(msg_id_str, 0),
+                has_file_operations=len(ops) > 0,
+                changeset_count=len(ops),
+                changeset_files=ops,
                 category=db_m.category,
                 content_type=db_m.content_type or "text",
                 status=db_m.status,
@@ -133,7 +136,6 @@ async def get_conversation_messages(
             )
             
             # Remove raw tool_calls (frontend uses folded steps instead)
-            # Note: step.output is preserved in full — frontend needs it to display results
             item.tool_calls = None
             final_items.append(item)
 

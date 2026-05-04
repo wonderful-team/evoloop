@@ -7,12 +7,18 @@ from app.core.engine.message.schemas import MessageBlock
 from app.infrastructure.pydantic_base import DynamicBaseModel
 
 
+class MessageChangesetFile(DynamicBaseModel):
+    path: str
+    operation: str  # ADD, EDIT, DELETE
+
+
 class MessageItem(MessageBlock):
     run_id: str | None = None
     parent_id: str | None = None
     references: list["ReferenceItem"] = []
     has_file_operations: bool = False
     changeset_count: int = 0
+    changeset_files: list[MessageChangesetFile] = []
     category: str | None = None
     content_type: str = "text"
     status: str | None = None
