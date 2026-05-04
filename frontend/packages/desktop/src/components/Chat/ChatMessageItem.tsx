@@ -19,9 +19,9 @@ import {
 } from "@evoloop/shared/components/ui/collapsible"
 import { Badge } from "@evoloop/shared/components/ui/badge"
 import { cn } from "@evoloop/shared/lib/utils"
-import { MessageContent } from "@/components/Chat/MessageContent"
-import { ChangesetSnapshot } from "@/components/Chat/ChangesetSnapshot"
-import { TTSButton } from "@/components/Chat/TTSButton"
+import { MessageContent } from "./MessageContent"
+import { ChangesetSnapshot } from "./ChangesetSnapshotView"
+import { TTSButton } from "./TTSButton"
 import { useTTS, useAutoSpeak } from "@/hooks/useTTS"
 
 export interface Message {
