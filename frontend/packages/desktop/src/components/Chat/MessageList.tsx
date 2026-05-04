@@ -16,7 +16,7 @@ interface MessageListProps {
     onViewChangeset?: (messageId: string | number, path?: string) => void
 }
 
-type RenderItem = 
+type RenderItem =
     | { type: "message"; data: Message & { showDate?: boolean } }
     | { type: "tool_group"; data: { steps: Message[]; showDate?: boolean; id: string } }
 
@@ -77,7 +77,7 @@ export function MessageList({
 
         for (let i = 0; i < messages.length; i++) {
             const msg = messages[i]
-            
+
             if (msg.role === "human") {
                 flushAiGroup()
                 const showDate = !!msg.timestamp &&
@@ -87,15 +87,15 @@ export function MessageList({
                 isNewAiTurn = true
             } else if (msg.role === "ai") {
                 currentAiGroup.push(msg)
-                const nextMsg = messages[i+1]
+                const nextMsg = messages[i + 1]
                 if (!nextMsg || nextMsg.role !== "ai") {
                     const merged = mergeAiMessages(currentAiGroup)
                     if (merged) {
                         const showDate = !!merged.timestamp &&
                             (!prevTimestamp || new Date(merged.timestamp).toDateString() !== new Date(prevTimestamp).toDateString())
-                        items.push({ 
-                            type: "message", 
-                            data: { ...merged, showDate, isFirstInTurn: isNewAiTurn } as any 
+                        items.push({
+                            type: "message",
+                            data: { ...merged, showDate, isFirstInTurn: isNewAiTurn } as any
                         })
                         prevTimestamp = merged.timestamp
                         isNewAiTurn = false
@@ -106,24 +106,24 @@ export function MessageList({
                 flushAiGroup()
                 const showDate = !!msg.timestamp &&
                     (!prevTimestamp || new Date(msg.timestamp).toDateString() !== new Date(prevTimestamp).toDateString())
-                items.push({ 
-                    type: "message", 
-                    data: { ...msg, showDate, isFirstInTurn: isNewAiTurn } as any 
+                items.push({
+                    type: "message",
+                    data: { ...msg, showDate, isFirstInTurn: isNewAiTurn } as any
                 })
                 prevTimestamp = msg.timestamp
                 isNewAiTurn = false
             }
         }
-        
+
         flushAiGroup()
         return items
     }, [messages])
 
     return (
         <div className="min-h-0 min-w-0 relative">
-            <div className="space-y-6 px-4 sm:px-6 lg:px-8 pb-4 min-w-0">
+            <div className="px-4 pb-4 min-w-0">
                 {isLoadingHistory && (
-                    <motion.div 
+                    <motion.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         className="py-4 text-center text-muted-foreground"
@@ -147,7 +147,7 @@ export function MessageList({
                     {renderItems.map((item) => {
                         if (item.type === "message") {
                             return (
-                                <motion.div 
+                                <motion.div
                                     key={item.data.id}
                                     initial={{ opacity: 0, y: 10 }}
                                     animate={{ opacity: 1, y: 0 }}

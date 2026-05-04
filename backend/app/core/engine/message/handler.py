@@ -83,6 +83,8 @@ class MessageHandler:
         message_id = None
         seq = 0
 
+        effective_parent_id = parent_id or await self._repository.get_last_message_id()
+
         if persist_data.should_persist:
             message_id, seq = await self._repository.persist(
                 role="ai",
@@ -93,7 +95,7 @@ class MessageHandler:
                 is_visible=category.is_visible_to_user,
                 content_type="text",
                 metadata=metadata,
-                parent_id=parent_id,
+                parent_id=effective_parent_id,
             )
             
             # 只有用户可见且不是纯内部思考的消息才推送到 Mobile
@@ -102,7 +104,7 @@ class MessageHandler:
                     role="ai", content=persist_data.content, thinking=persist_data.thinking,
                     tool_calls=persist_data.tool_calls, category=category.value,
                     status="completed", sequence_number=seq, channels={"mobile"},
-                    parent_id=parent_id or await self._repository.get_last_message_id(), # Fallback for stream
+                    parent_id=effective_parent_id,
                 )
 
         if stream_data.should_stream:
@@ -114,7 +116,7 @@ class MessageHandler:
                 sequence_number=seq if persist_data.should_persist else 0,
                 status="streaming" if persist_data.should_persist else "completed",
                 channels={"sse"},
-                parent_id=parent_id or await self._repository.get_last_message_id(),
+                parent_id=effective_parent_id,
             )
 
         return MessageHandlerResult(
@@ -151,6 +153,8 @@ class MessageHandler:
         message_id = None
         seq = 0
         
+        effective_parent_id = parent_id or await self._repository.get_last_message_id()
+
         # Apply persistence policy
         if category.should_persist_to_db:
             message_id, seq = await self._repository.persist(
@@ -164,7 +168,7 @@ class MessageHandler:
                 tool_name=tool_name,
                 content_type="text",
                 metadata={"tool_name": tool_name, "tool_call_id": tool_call_id, "input": input_data, "tool_meta": tool_meta},
-                parent_id=parent_id,
+                parent_id=effective_parent_id,
             )
 
         # Push real-time "running" event if visible
@@ -174,7 +178,8 @@ class MessageHandler:
                 status="running", sequence_number=seq,
                 tool_name=tool_name, tool_call_id=tool_call_id,
                 metadata={"tool_meta": tool_meta, "input": input_data},
-                channels={"sse", "mobile"}
+                channels={"sse", "mobile"},
+                parent_id=effective_parent_id,
             )
 
         logger.info(f"[MessageHandler] Tool start tracked: {tool_name} (seq={seq}, hidden={is_hidden})")
@@ -370,6 +375,8 @@ class MessageHandler:
                     "display_name": i18n.get(tool_meta.summary_template, request_type=request_type, prompt=prompt),
                 }
 
+        effective_parent_id = parent_id or await self._repository.get_last_message_id()
+
         message_id, seq = await self._repository.persist(
             role="system", content=content, category=MessageCategory.HITL_REQUEST.value,
             action_type="human_request", status="waiting_human",
@@ -377,7 +384,7 @@ class MessageHandler:
             tool_call_id=tool_call_id or request_id, # Fallback to request_id
             tool_name=tool_name,
             metadata=metadata if metadata else None,
-            parent_id=parent_id,
+            parent_id=effective_parent_id,
         )
         await self._dispatch_block(
             role="system", content=content, category=MessageCategory.HITL_REQUEST.value,
@@ -385,7 +392,7 @@ class MessageHandler:
             tool_name=tool_name, tool_call_id=tool_call_id or request_id,
             metadata=metadata if metadata else None,
             channels={"sse", "mobile"},
-            parent_id=parent_id,
+            parent_id=effective_parent_id,
         )
         return MessageHandlerResult(category=MessageCategory.HITL_REQUEST.value, persisted=True, streamed=True, message_id=message_id)
 

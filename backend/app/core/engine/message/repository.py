@@ -209,9 +209,11 @@ class MessageRepository:
             logger.error(f"[MessageRepository] Failed to get last message id: {e}")
             return None
 
-    async def get_full_history(self, limit: int = 50, before_id: str | None = None) -> tuple[list[Message], bool, int | None]:
+    async def get_full_history(self, limit: int = 50, before_id: str | None = None, include_invisible: bool = True) -> tuple[list[Message], bool, int | None]:
         """
-        Fetches full conversation history including visible and associated invisible messages.
+        Fetches conversation history.
+        If include_invisible is True, fetches both visible and associated invisible messages.
+        If False, only fetches visible messages (standard UI history).
         Returns (messages, has_more, total_count).
         """
         async with session_scope() as session:
@@ -253,7 +255,7 @@ class MessageRepository:
                     run_ids.add(latest_run_id)
 
             all_messages = list(visible_messages)
-            if run_ids:
+            if include_invisible and run_ids:
                 invisible_stmt = (
                     select(Message)
                     .where(Message.thread_id == self.thread_id, Message.is_visible == False, Message.run_id.in_(run_ids))

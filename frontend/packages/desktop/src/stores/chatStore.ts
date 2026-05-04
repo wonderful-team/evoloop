@@ -340,8 +340,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
             const msgs = [...state.messages]
             let last = msgs[msgs.length - 1]
             
-            // Auto-create AI placeholder if not present
-            if (last?.role !== "ai") {
+            // Auto-create AI placeholder if not present or not currently streaming
+            if (!last || (last.role !== "ai" && last.status !== "streaming")) {
                 const placeholder: Message = {
                     id: `streaming-${Date.now()}`,
                     role: "ai",
@@ -369,8 +369,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
             const msgs = [...state.messages]
             let last = msgs[msgs.length - 1]
             
-            // Auto-create AI placeholder if not present
-            if (last?.role !== "ai") {
+            // Auto-create AI placeholder if not present or not currently streaming
+            if (!last || (last.role !== "ai" && last.status !== "streaming")) {
                 const placeholder: Message = {
                     id: `streaming-${Date.now()}`,
                     role: "ai",
@@ -540,8 +540,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
             return
         }
 
-        const streamIdx = messages.findIndex(m => m.role === "ai" && m.status === "streaming")
-        if (streamIdx >= 0 && msg.role === "ai") {
+        let streamIdx = -1;
+        for (let i = messages.length - 1; i >= 0; i--) {
+            if (messages[i].role === msg.role && messages[i].status === "streaming") {
+                streamIdx = i;
+                break;
+            }
+        }
+
+        if (streamIdx >= 0) {
             set(state => {
                 const msgs = [...state.messages]
                 msgs[streamIdx] = { 

@@ -85,16 +85,15 @@ class MessageCategory(str, Enum):
 
     @property
     def should_persist_to_db(self) -> bool:
-        """是否应该持久化到数据库"""
-        return self in {
-            MessageCategory.USER,
-            MessageCategory.ASSISTANT_RESPONSE,
-            MessageCategory.ASSISTANT_TOOL_CALL,
-            MessageCategory.TOOL_OUTPUT,
-            MessageCategory.INTERNAL_REASONING,  # 思考过程存入 thinking 字段
-            MessageCategory.ERROR_BUSINESS,      # 业务错误入库供Agent学习
-            MessageCategory.HITL_REQUEST,        # 交互请求需要记录状态
-            # ERROR_SYSTEM 不入库
+        """是否应该持久化到数据库
+        
+        原则：除了纯瞬态系统事件外，所有结构化对话和内部操作记录均需入库，以供后续推理使用。
+        """
+        return self not in {
+            MessageCategory.INTERNAL_SYSTEM,
+            MessageCategory.ERROR_SYSTEM,
+            MessageCategory.AUTH_EXPIRED,
+            MessageCategory.INTERNAL_LLM_JSON,
         }
 
     @property
@@ -190,20 +189,12 @@ class MessageCategory(str, Enum):
     def get_persisted_categories(cls) -> set:
         """获取所有入库的类别集合"""
         return {
-            cls.USER,
-            cls.ASSISTANT_RESPONSE,
-            cls.ASSISTANT_TOOL_CALL,
-            cls.TOOL_OUTPUT,
-            cls.INTERNAL_REASONING,
-            cls.ERROR_BUSINESS,  # 业务错误入库供Agent学习
+            cat for cat in cls if cat.should_persist_to_db
         }
 
     @classmethod
     def get_non_persisted_categories(cls) -> set:
         """获取所有不入库的类别集合"""
         return {
-            cls.INTERNAL_TOOL_CALL,
-            cls.INTERNAL_SYSTEM,
-            cls.INTERNAL_LLM_JSON,
-            cls.ERROR_SYSTEM,  # 系统错误不入库
+            cat for cat in cls if not cat.should_persist_to_db
         }

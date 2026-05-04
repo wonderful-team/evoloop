@@ -65,7 +65,7 @@ async def get_conversation_messages(
 ):
     limit = min(max(limit, 1), 100)
     repo = MessageRepository(thread_id=thread_id)
-    all_messages, has_more, total_count = await repo.get_full_history(limit=limit, before_id=before_id)
+    all_messages, has_more, total_count = await repo.get_full_history(limit=limit, before_id=before_id, include_invisible=False)
 
     async with get_db_session() as session:
         # Query file operations: fetch detailed ops for message summary

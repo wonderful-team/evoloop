@@ -1,21 +1,21 @@
 import { memo, useEffect } from "react"
 import { motion } from "framer-motion"
-import { 
-  Bot, User, Copy, RotateCcw, Undo, MoreHorizontal, 
-  Brain, Quote, ChevronRight, Loader2 
+import {
+  Bot, User, Copy, RotateCcw, Undo, MoreHorizontal,
+  Brain, Quote, ChevronRight, Loader2
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { Button } from "@evoloop/shared/components/ui/button"
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
-  DropdownMenuTrigger 
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger
 } from "@evoloop/shared/components/ui/dropdown-menu"
-import { 
-  Collapsible, 
-  CollapsibleContent, 
-  CollapsibleTrigger 
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger
 } from "@evoloop/shared/components/ui/collapsible"
 import { Badge } from "@evoloop/shared/components/ui/badge"
 import { cn } from "@evoloop/shared/lib/utils"
@@ -84,15 +84,15 @@ const ChatMessageItem = memo(
       const truncatedInput = toolInput?.length > 100 ? toolInput.slice(0, 100) + "..." : toolInput
 
       return (
-        <motion.div 
-          className="group relative flex gap-4 w-full px-4 sm:px-6 lg:px-8 py-1 transition-colors hover:bg-muted/5"
+        <motion.div
+          className="group relative flex gap-2 w-full py-1 transition-colors hover:bg-muted/5"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
         >
           {/* Spine Column */}
           <div className="shrink-0 w-10 flex flex-col items-center relative">
-             <div className="absolute top-0 bottom-0 w-[1px] bg-border/40 group-hover:bg-primary/20 transition-colors" />
-             <div className="w-2 h-2 rounded-full bg-border mt-3 group-hover:bg-primary/40 transition-colors z-10" />
+            <div className="absolute top-0 bottom-0 w-[1px] bg-border/40 group-hover:bg-primary/20 transition-colors" />
+            <div className="w-2 h-2 rounded-full bg-border mt-3 group-hover:bg-primary/40 transition-colors z-10" />
           </div>
 
           <div className="flex-1 min-w-0 flex items-center gap-3 py-1 border-b border-border/5">
@@ -102,9 +102,9 @@ const ChatMessageItem = memo(
             <span className="text-[11px] text-muted-foreground/40 truncate font-mono bg-muted/20 px-1.5 py-0.5 rounded max-w-[400px]">
               {truncatedInput}
             </span>
-            
+
             {msg.status === "running" && <Loader2 className="h-3 w-3 animate-spin text-primary/40 ml-2" />}
-            {msg.changeset_count && msg.changeset_count > 0 && (
+            {msg.changeset_count !== undefined && msg.changeset_count > 0 && (
               <Badge variant="secondary" className="h-4 px-1.5 text-[9px] bg-primary/10 text-primary border-none ml-auto">
                 {msg.changeset_count} FILES
               </Badge>
@@ -118,13 +118,13 @@ const ChatMessageItem = memo(
       <motion.div
         className={cn(
           "group relative flex flex-col w-full transition-all",
-          isGrouped ? "mt-1" : "mt-8"
+          isGrouped ? "mt-1" : "mt-4"
         )}
         data-run-id={msg.run_id}
       >
         {/* 1. Header & Avatar */}
         {showAvatar && (
-          <div className="flex items-center gap-4 px-4 sm:px-6 lg:px-8 mb-2">
+          <div className="flex items-center gap-2 mb-2">
             <div className="shrink-0 w-10 flex flex-col items-center relative">
               {msg.role !== "human" && (
                 <div className="absolute top-10 bottom-[-20px] w-[1px] bg-border/40 group-hover:bg-primary/20 transition-colors" />
@@ -149,7 +149,7 @@ const ChatMessageItem = memo(
 
               <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
                 {msg.role === "ai" && msg.content && <TTSButton text={msg.content} size="sm" />}
-                
+
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button
@@ -196,35 +196,29 @@ const ChatMessageItem = memo(
         )}
 
         {/* 2. Content Section */}
-        <div className="flex gap-4 px-4 sm:px-6 lg:px-8">
+        <div className="flex gap-2">
           {/* Continued Spine */}
           <div className="shrink-0 w-10 flex flex-col items-center relative">
-             {msg.role !== "human" && (
-               <>
-                 {!showAvatar && <div className="absolute top-[-20px] bottom-0 w-[1px] bg-border/40 group-hover:bg-primary/20 transition-colors" />}
-                 {showAvatar && <div className="absolute top-0 bottom-0 w-[1px] bg-border/40" />}
-               </>
-             )}
+            {msg.role !== "human" && (
+              <>
+                {!showAvatar && <div className="absolute top-[-20px] bottom-0 w-[1px] bg-border/40 group-hover:bg-primary/20 transition-colors" />}
+                {showAvatar && <div className="absolute top-0 bottom-0 w-[1px] bg-border/40" />}
+              </>
+            )}
           </div>
 
-          <motion.div 
-            className={cn(
-              "flex-1 min-w-0 pb-2 transition-all",
-              !showAvatar ? "pt-0" : "pt-1"
-            )}
-            layout
-          >
+          <motion.div className="flex-1 min-w-0 transition-all" layout>
             {/* Thinking / Reasoning */}
             {msg.thinking && (
-              <Collapsible className="mb-4 bg-muted/5 rounded-lg border border-border/40 overflow-hidden max-w-4xl">
+              <Collapsible className="bg-muted/5 rounded-lg border border-border/40 overflow-hidden">
                 <CollapsibleTrigger asChild>
-                   <Button variant="ghost" size="sm" className="w-full flex items-center justify-between px-3 h-8 text-[11px] font-semibold text-muted-foreground hover:bg-muted/10">
-                     <div className="flex items-center gap-2">
-                       <Brain className="h-3.5 w-3.5 text-primary/60" />
-                       {t("chat.interface.thinkingProcess")}
-                     </div>
-                     <ChevronRight className="h-3.5 w-3.5 transition-transform group-data-[state=open]:rotate-90" />
-                   </Button>
+                  <Button variant="ghost" size="sm" className="w-full flex items-center justify-between px-3 h-8 text-[11px] font-semibold text-muted-foreground hover:bg-muted/10">
+                    <div className="flex items-center gap-2">
+                      <Brain className="h-3.5 w-3.5 text-primary/60" />
+                      {t("chat.interface.thinkingProcess")}
+                    </div>
+                    <ChevronRight className="h-3.5 w-3.5 transition-transform group-data-[state=open]:rotate-90" />
+                  </Button>
                 </CollapsibleTrigger>
                 <CollapsibleContent className="px-4 py-3 text-[13px] text-muted-foreground/70 italic bg-muted/5 leading-relaxed border-t border-border/10">
                   <MessageContent content={typeof msg.thinking === 'string' ? msg.thinking : JSON.stringify(msg.thinking, null, 2)} />
@@ -233,21 +227,21 @@ const ChatMessageItem = memo(
             )}
 
             {msg.content && (
-              <div className="doc-message-content w-full prose-compact transition-opacity max-w-4xl">
+              <div className="doc-message-content w-full prose-compact transition-opacity">
                 <MessageContent content={msg.content} />
               </div>
             )}
 
             {/* Artifacts / Interactive Elements */}
-            <div className="space-y-4 mt-2 max-w-4xl">
-              {msg.changeset_count && msg.changeset_count > 0 && (
+            {msg.changeset_count !== undefined && msg.changeset_count > 0 && (
+              <div className="space-y-4 mt-2">
                 <ChangesetSnapshot
                   files={msg.changeset_files || []}
                   totalCount={msg.changeset_count}
                   onViewDetails={(path) => onViewChangeset?.(msg.id, path)}
                 />
-              )}
-            </div>
+              </div>
+            )}
           </motion.div>
         </div>
 
