@@ -237,7 +237,7 @@ export function WoodenRobot({ primaryColor = '#109C8F', mood = 'neutral' }: Wood
               display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 1,
             }}>
               {/* finger: w:2.5 h:4 bg:#8B7355 borderRadius:1 border:0.5 #6B4423 */}
-              {[0,1,2].map(i => (
+              {[0, 1, 2].map(i => (
                 <div key={i} style={{ width: 2.5, height: 4, backgroundColor: '#8B7355', borderRadius: 1, border: '0.5px solid #6B4423' }} />
               ))}
             </div>
@@ -286,7 +286,7 @@ export function WoodenRobot({ primaryColor = '#109C8F', mood = 'neutral' }: Wood
               border: '1.5px solid #6B4423', marginTop: -3,
               display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 1,
             }}>
-              {[0,1,2].map(i => (
+              {[0, 1, 2].map(i => (
                 <div key={i} style={{ width: 2.5, height: 4, backgroundColor: '#8B7355', borderRadius: 1, border: '0.5px solid #6B4423' }} />
               ))}
             </div>
@@ -325,12 +325,12 @@ export const ChatWelcome: React.FC = () => {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
       >
-      {/* Title — headlineSmall(24px) + fontWeight:bold + marginTop:16 + primary color */}
+        {/* Title — headlineSmall(24px) + fontWeight:bold + marginTop:16 + primary color */}
         <h1 style={{ fontSize: 24, fontWeight: 'bold', marginTop: 16, lineHeight: '32px' }} className="text-primary text-center">
           EvoLoop AI
         </h1>
         {/* Subtitle — bodyMedium base + fontSize:16 + fontWeight:500 + onSurfaceVariant */}
-        <p style={{ fontSize: 16, fontWeight: 200, marginTop: 16 }} className="text-muted-foreground text-center">
+        <p style={{ fontSize: 16, fontWeight: 250, marginTop: 16 }} className="text-muted-foreground text-center">
           {t('chat.welcome.mobileSubtitle')}
         </p>
         {/* Hint — bodySmall(12px) + marginTop:4 + opacity:0.6 + onSurfaceVariant */}

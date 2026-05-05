@@ -111,7 +111,9 @@ export function MessageList({
                     data: { ...msg, showDate, isFirstInTurn: isNewAiTurn } as any
                 })
                 prevTimestamp = msg.timestamp
-                isNewAiTurn = false
+                // Tool messages do NOT reset isNewAiTurn — the following AI message
+                // should still be treated as the start of a new AI turn so its
+                // header and action buttons remain visible.
             }
         }
 

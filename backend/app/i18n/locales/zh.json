@@ -135,7 +135,7 @@
         "analysis": "\n**分析：** {analysis}",
         "tool_summary": {
             "read_file": "读取文件 '{path}'[[ ({start_line}-{end_line} 行) ]]",
-            "read_file_result": "已读取 {lines} 行。",
+            "read_file_result": "已读取 '{path}'[[ ({start_line}-{end_line} 行) ]]",
             "write_file": "写入文件 '{path}'",
             "file_op_result": "文件操作成功。",
             "plan_created": "计划已创建 ({count} 步)",

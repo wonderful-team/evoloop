@@ -141,11 +141,11 @@ const ChatMessageItem = memo(
             </div>
 
             <div className={cn(
-              "doc-section-header flex-1 flex justify-between items-center rounded-lg px-3 py-1.5 transition-colors border border-border",
+              "doc-section-header flex-1 flex justify-between items-center rounded-lg px-3 py-3 transition-colors border border-border",
               msg.role === "human" ? "bg-muted/40" : "bg-primary/5"
             )}>
               <div className="flex items-center gap-3">
-                <span className="text-[10px] font-bold text-foreground/60">
+                <span className="text-[12px] font-bold text-foreground/60">
                   {msg.role === "human" ? userName : deviceName}
                 </span>
               </div>
@@ -161,7 +161,7 @@ const ChatMessageItem = memo(
 
                 {/* Hover: Action Buttons */}
                 <div className="absolute right-0 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-transparent">
-                  {msg.role === "ai" && msg.content && <TTSButton text={msg.content} size="sm" />}
+                  {msg.role === "ai" && msg.content && <TTSButton text={msg.content} size="sm" className="h-7 w-7 rounded-md hover:bg-primary/5 text-muted-foreground/60 hover:text-primary transition-colors" />}
 
                   {/* Copy */}
                   <Button

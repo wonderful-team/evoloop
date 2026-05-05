@@ -93,8 +93,8 @@ class BaseAgentNode(BaseNode, ABC):
             # static_prompt: Huge instructions + tools -> goes to generic SystemMessage
             # dynamic_ticket: Small turn-based telemetry -> injected as HumanMessage
             static_system_prompt, dynamic_ticket_text = await self.build_prompt_pair(state, config)
-            print("static_system_prompt=", static_system_prompt)
-            print("dynamic_ticket_text=", dynamic_ticket_text)
+            # print("static_system_prompt=", static_system_prompt)
+            # print("dynamic_ticket_text=", dynamic_ticket_text)
             tools = await self.get_tools(state)
 
             # Insert Context Ticket just before the LAST HumanMessage so that

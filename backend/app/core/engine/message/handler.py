@@ -198,7 +198,25 @@ class MessageHandler:
         metadata_registry = get_tool_metadata(tool_name)
         input_data = await self._repository.resolve_tool_input(tool_call_id, tool_name=tool_name)
         
-        display_name = metadata_registry.get_display_name(tool_name, input_data)
+        # Try to extract result metadata from tool output (e.g. count, lines)
+        # This ensures the display_name is fully resolved with all placeholders
+        result_meta = {}
+        output_str = str(output) if output else ""
+        if output_str.strip().startswith("{"):
+            try:
+                import json as _json
+                parsed = _json.loads(output_str)
+                if isinstance(parsed, dict):
+                    result_meta = {k.lower(): v for k, v in parsed.items()}
+            except (ValueError, Exception):
+                pass
+        elif isinstance(output, dict):
+            result_meta = {k.lower(): v for k, v in output.items()}
+        
+        # Merge input args with result meta for complete template rendering
+        summary_args = {**input_data, **result_meta}
+        
+        display_name = metadata_registry.get_display_name(tool_name, summary_args, status="completed")
         tool_meta = {
             "display_name": display_name,
             "affected_path_keys": metadata_registry.affected_path_keys,
