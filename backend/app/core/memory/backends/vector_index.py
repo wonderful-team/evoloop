@@ -118,8 +118,8 @@ class VectorMemoryIndex:
             return
 
         vector = await self._get_embedding(text)
-        if vector is None:
-            logger.debug("[VectorIndex] Skipping vector update (embedder not available)")
+        if vector is None or len(vector) == 0:
+            logger.debug("[VectorIndex] Skipping vector update (embedder not available or zero-dim)")
             return
 
         data = [{
@@ -152,7 +152,8 @@ class VectorMemoryIndex:
         # Get query embedding
         query_vector = await self._get_embedding(query)
         
-        if query_vector is None:
+        if query_vector is None or len(query_vector) == 0:
+            logger.debug("[VectorIndex] Skipping search (embedder not available or zero-dim)")
             return []
             
         # Build filter string for LanceDB

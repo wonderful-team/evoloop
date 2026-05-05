@@ -520,6 +520,10 @@
       "teachMe": "教导 Agent 新技能",
       "topApps": "高频上下文应用",
       "totalSkills": "{{count}} 项活跃技能"
+    },
+    "role": {
+      "assistant": "EvoLoop",
+      "user": "用户"
     }
   },
   "common": {

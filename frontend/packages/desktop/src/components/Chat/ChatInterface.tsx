@@ -85,10 +85,12 @@ export function ChatInterface() {
     return !isGlobalMode
   })
   const scrollRef = useRef<HTMLDivElement>(null)
+  const contentRef = useRef<HTMLDivElement>(null)
   const chatInputRef = useRef<ChatInputAreaHandle | null>(null)
 
   // Smart Scroll State
   const [isUserScrolled, setIsUserScrolled] = useState(false)
+  const isInitialLoad = useRef(true)
 
   // Auto-show context panel when switching from global to project mode
   // But only if user hasn't manually closed it
@@ -383,16 +385,12 @@ export function ChatInterface() {
   })
 
   const handleQuoteMessage = (msg: any) => {
+    if (!msg || !msg.id) return
+    
     // Construct reference item
-    // Used for quoting/referencing a historical message
     chatInputRef.current?.addReference({
       type: 'message',
-      id: msg.id.toString(), // Message ID or Thread ID? Usually ID for direct quote.
-      // Actually for message reference we might want the thread ID if we want to search ctx?
-      // But here we are referencing a specific message content.
-      // The ReferencePicker used thread_id for search results because searchConversations returns threads/snippets.
-      // The backend MessageReference stores target_id.
-      // Let's use message ID.
+      id: msg.id.toString(),
       name: msg.content.slice(0, 50) + (msg.content.length > 50 ? "..." : ""),
       detail: msg.role
     })
@@ -436,8 +434,13 @@ export function ChatInterface() {
   const handleScroll = useCallback(() => {
     if (!scrollRef.current) return
     const { scrollTop, scrollHeight, clientHeight } = scrollRef.current
-    // If user is not at the bottom (threshold 50px), mark as user scrolled
-    const isAtBottom = scrollHeight - scrollTop - clientHeight < 100
+    
+    // During initial load protection, we don't update isUserScrolled 
+    // to avoid layout shifts marking user as 'scrolled up'
+    if (isInitialLoad.current) return
+
+    // If user is not at the bottom (tighter threshold), mark as user scrolled
+    const isAtBottom = scrollHeight - scrollTop - clientHeight < 20
     setIsUserScrolled(!isAtBottom)
 
     // Trigger load more history when near top
@@ -454,17 +457,62 @@ export function ChatInterface() {
     })
   }, [])
 
+  // --- ResizeObserver to keep anchored to bottom ---
   useEffect(() => {
-    // Only auto-scroll if user hasn't scrolled up
-    if (!isUserScrolled) {
-      scrollToBottom()
-    }
-  }, [isUserScrolled, scrollToBottom, messages]) // Trigger on content updates
+    if (!contentRef.current || !scrollRef.current) return
 
+    const resizeObserver = new ResizeObserver(() => {
+      // Whenever content height changes, stay at bottom if:
+      // 1. It's the initial load of a thread
+      // 2. Or the user hasn't manually scrolled up
+      if (isInitialLoad.current || !isUserScrolled) {
+        scrollToBottom(false)
+      }
+    })
+
+    resizeObserver.observe(contentRef.current)
+    return () => resizeObserver.disconnect()
+  }, [isUserScrolled, scrollToBottom])
+
+  // 1. Initial Jump & Reset on Thread Switch
   useEffect(() => {
-    setIsUserScrolled(false)
-    scrollToBottom()
-  }, [scrollToBottom])
+    if (activeThreadId) {
+      setIsUserScrolled(false)
+      isInitialLoad.current = true
+      
+      // Use requestAnimationFrame to ensure the container is ready
+      requestAnimationFrame(() => {
+        scrollToBottom(false)
+      })
+
+      // After a short period, we allow user scroll detection again
+      const timer = setTimeout(() => {
+        isInitialLoad.current = false
+      }, 1000) // 1s protection period for initial rendering/animations
+      return () => clearTimeout(timer)
+    }
+  }, [activeThreadId, scrollToBottom])
+
+  // 2. Content-driven scrolling (on messages or loading state change)
+  useEffect(() => {
+    // Only auto-scroll if user hasn't manually scrolled up
+    if (!isUserScrolled && messages.length > 0) {
+      // Small delay to account for potential rendering of images/markdown
+      const timer = setTimeout(() => {
+        scrollToBottom(false) // Use auto for content updates to feel responsive
+      }, 50)
+      return () => clearTimeout(timer)
+    }
+  }, [messages, isLoadingHistory, isUserScrolled, scrollToBottom])
+
+  // 3. Post-Loading stabilization
+  useEffect(() => {
+    if (!isLoadingHistory && messages.length > 0 && !isUserScrolled) {
+      requestAnimationFrame(() => {
+        scrollToBottom(false)
+      })
+    }
+  }, [isLoadingHistory, messages.length, isUserScrolled, scrollToBottom])
 
   // Auto-focus input when agent finishes
   useEffect(() => {
@@ -573,7 +621,10 @@ export function ChatInterface() {
               onScroll={handleScroll}
               data-tour="chat-messages"
             >
-              <div className="space-y-6 px-4 sm:px-6 lg:px-8 pb-1 pt-4 min-w-0">
+              <div 
+                ref={contentRef}
+                className="space-y-6 px-4 sm:px-6 lg:px-8 pb-1 pt-4 min-w-0"
+              >
                 <MessageList
                   messages={messages}
                   hasMoreHistory={hasMoreHistory}

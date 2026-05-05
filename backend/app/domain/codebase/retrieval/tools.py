@@ -92,15 +92,20 @@ async def search_codebase(
     except Exception as e:
         logger.error(f"RAG search failed: {e}")
 
+    count = len(rag_results)
+    if graph_data:
+        count += 1 # Symbol found
+        
     try:
-        return render_template(
+        content = render_template(
             "domain/codebase/codebase_retrieval.prompt.j2",
             graph_result=graph_data,
             rag_results=rag_results
         )
+        return {"content": content, "count": count, "pattern": query}
     except Exception as e:
         logger.error(f"Failed to render Codebase Retrieval template: {e}")
-        return "Search results processing error."
+        return {"content": "Search results processing error.", "count": 0}
 
 
 @evoloop_tool(summary_template="database_logger.tool_summary.search_code")

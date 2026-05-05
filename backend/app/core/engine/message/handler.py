@@ -139,12 +139,8 @@ class MessageHandler:
         
         # Categorize based on tool visibility
         category = MessageCategory.INTERNAL_TOOL_CALL if is_hidden else MessageCategory.TOOL_OUTPUT
-
-        summary_template = metadata.summary_template
-        display_name = None
-        if summary_template and input_data:
-            display_name = i18n.get(summary_template, **input_data)
-
+        
+        display_name = metadata.get_display_name(tool_name, input_data)
         tool_meta = {
             "display_name": display_name,
             "affected_path_keys": metadata.affected_path_keys,
@@ -202,10 +198,7 @@ class MessageHandler:
         metadata_registry = get_tool_metadata(tool_name)
         input_data = await self._repository.resolve_tool_input(tool_call_id, tool_name=tool_name)
         
-        display_name = None
-        if metadata_registry.summary_template and input_data:
-            display_name = i18n.get(metadata_registry.summary_template, **input_data)
-
+        display_name = metadata_registry.get_display_name(tool_name, input_data)
         tool_meta = {
             "display_name": display_name,
             "affected_path_keys": metadata_registry.affected_path_keys,
@@ -488,27 +481,21 @@ class MessageHandler:
         if role == "tool" and channels and "sse" in channels:
             dispatch_content = ""
 
-        block = MessageBlock(
-            id=f"msg-{self.thread_id}-{sequence_number}",
+        from app.core.engine.message.factory import MessageBlockFactory
+        block = MessageBlockFactory.from_event(
             thread_id=self.thread_id,
-            run_id=self.run_id,
-            role=role,  # type: ignore[arg-type]
-            category=category,
+            sequence_number=sequence_number,
+            role=role,
             content=dispatch_content,
             thinking=thinking,
             tool_calls=tool_calls,
-            status=status,  # type: ignore[arg-type]
-            is_visible=True,
-            sequence_number=sequence_number,
-            created_at=datetime.now().isoformat(),
+            category=category,
+            status=status,
+            tool_name=tool_name,
+            tool_call_id=tool_call_id,
+            metadata=metadata,
             parent_id=parent_id,
-            input=metadata.get("input") if metadata else None,
-            tool_meta=metadata.get("tool_meta") if metadata else None,
-            meta_data={
-                "tool_name": tool_name,
-                "tool_call_id": tool_call_id,
-                **{k: v for k, v in (metadata or {}).items() if k not in ["input", "tool_meta"]},
-            },
+            run_id=self.run_id,
         )
         
         if not self._publisher:

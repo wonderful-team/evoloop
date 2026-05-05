@@ -1,7 +1,7 @@
 """PostgreSQL implementation of short-term memory using Message table."""
-import json
+# import json was unused
 import logging
-from typing import Any
+from typing import Any  # noqa: F401
 
 from langchain_core.messages import (
     AIMessage,
@@ -75,7 +75,9 @@ class SqlShortTermMemory(IShortTermMemory):
             next_seq = (last_seq or 0) + 1
 
             # Create new message
+            import uuid
             new_message = Message(
+                id=str(uuid.uuid4()),
                 thread_id=thread_id,
                 role=role,
                 content=message.content if isinstance(message.content, str) else str(message.content),

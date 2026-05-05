@@ -584,11 +584,10 @@ async def get_relevant_memories(
     """
     container = await _get_global_memory_container()
 
-    retriever = MemoryRetriever(
-        storage=container.storage,
-        config=container.config,
-        max_results=max_results,
-    )
+    # Reuse the singleton retriever from the container so that
+    # _selection_cache is actually shared across calls.
+    retriever = container.retrieval_service
+    retriever.max_results = max_results
 
     ctx = context or {}
     ctx.update({

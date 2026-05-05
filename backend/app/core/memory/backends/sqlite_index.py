@@ -127,8 +127,15 @@ class SqliteMemoryIndex:
         query = "SELECT * FROM memory_index WHERE 1=1"
         params = []
         
+        # Whitelist allowed filter columns to prevent SQL injection via key names
+        ALLOWED_COLUMNS = {
+            "id", "type", "tier", "privacy", "title", "description", "path",
+            "project_id", "user_id", "source", "source_message_id", "run_id",
+            "content_hash", "confidence", "utility_score", "version",
+            "created_at", "updated_at",
+        }
         for key, value in filters.items():
-            if value is not None:
+            if value is not None and key in ALLOWED_COLUMNS:
                 query += f" AND {key} = ?"
                 params.append(value)
         

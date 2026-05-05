@@ -80,8 +80,6 @@ class MessagePublisher:
 
             bus = get_event_bus()
             await bus.publish(channel, data_json)
-            # logger.debug(f"[Publisher] SSE sent: type={getattr(payload, 'type', 'message')}")
-
         except Exception as e:
             logger.warning(f"[Publisher] SSE send failed: {e}")
 

@@ -1,5 +1,5 @@
 import { FileText, X, Music } from "lucide-react"
-import { useState } from "react"
+import { memo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import ReactMarkdown from "react-markdown"
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
@@ -46,13 +46,13 @@ function ImageViewer({
   )
 }
 
-export function MessageContent({ content, isUser }: { content: string; isUser?: boolean }) {
+export const MessageContent = memo(({ content, isUser }: { content: string; isUser?: boolean }) => {
   const { t } = useTranslation()
   const [viewerImage, setViewerImage] = useState<string | null>(null)
 
   if (typeof content !== "string") {
     return (
-      <div className="whitespace-pre-wrap text-xs font-mono opacity-60">
+      <div className="whitespace-pre-wrap text-xs font-mono opacity-60 break-all overflow-hidden">
         {JSON.stringify(content, null, 2)}
       </div>
     )
@@ -89,7 +89,7 @@ export function MessageContent({ content, isUser }: { content: string; isUser?: 
   }
 
   return (
-    <div className="leading-relaxed w-full max-w-full overflow-hidden break-words">
+    <div className="leading-relaxed w-full max-w-full overflow-hidden break-words [word-break:break-word]">
       {parts.map((part, index) => {
         const imageMatch = part.match(/^\[Image:\s*([^\]]+)\]$/)
         const fileMatch = part.match(/^\[File:\s*([^\]]+)\]$/)
@@ -292,4 +292,6 @@ export function MessageContent({ content, isUser }: { content: string; isUser?: 
       />
     </div>
   )
-}
+})
+
+MessageContent.displayName = "MessageContent"

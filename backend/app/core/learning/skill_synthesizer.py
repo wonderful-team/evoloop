@@ -11,9 +11,12 @@ import logging
 
 import yaml
 from pydantic import Field
-from sqlalchemy import select
+from typing import TYPE_CHECKING, Any
 
 from app.core.config import settings
+
+if TYPE_CHECKING:
+    from app.core.execution.macro.schemas import MacroScript
 from app.core.execution.macro.schemas import VerificationResponse
 from app.core.learning.prompts import prompt_builder
 from app.core.learning.schemas import SkillParameter
@@ -23,9 +26,7 @@ from app.core.learning.synthesizer_utils import (
 )
 from app.core.learning.trace_parser import TraceParser, TraceSequence
 from app.i18n.service import i18n
-from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.pydantic_base import DynamicBaseModel
-from app.models import Message
 
 logger = logging.getLogger(__name__)
 
@@ -91,85 +92,65 @@ class WorkflowSynthesizer:
         if not sequence.steps:
             raise ValueError(f"No trace data found for thread {self.thread_id}")
 
-        # [NEW] Step 1.5: Trigger Alignment - Fetch first user message
-        first_user_msg = ""
-        try:
-            async with session_scope() as db:
-                stmt = select(Message).where(
-                    Message.thread_id == self.thread_id,
-                    Message.role == "human"
-                ).order_by(Message.created_at).limit(1)
-                res = await db.execute(stmt)
-                msg = res.scalar_one_or_none()
-                if msg:
-                    first_user_msg = msg.content
-        except Exception as e:
-            logger.warning(f"[Synthesizer] Failed to fetch first human msg: {e}")
-
         # Step 2: Convert to narrative for LLM
         narrative = self.parser.to_narrative(sequence)
         summary = sequence.summarize()
 
         # Step 3: Call LLM to synthesize skill
-        # Pass first_user_msg to help align triggers
-        yaml_output = await self._generate_skill_yaml(narrative, summary, first_user_msg)
+        # Use initial_intent captured by the parser to align triggers
+        yaml_output = await self._generate_skill_yaml(narrative, summary, sequence.initial_intent or "")
 
-        # Step 4.2: Compile raw trace into deterministic macro JSON
-        macro_script = self._compile_macro_script(sequence)
+        # Step 4.2: Compile raw trace into structured MacroScript
+        macro_script_obj = self._compile_macro_script(sequence)
+        macro_script_yaml = macro_script_obj.to_yaml()
 
         # [Phase 5] Step 4.3: Agent-based Macro Verification
-        # We verify and evolve the macro BEFORE calling the expensive LLM
-        verification = await self.verify_macro(macro_script)
+        # We verify and evolve the macro BEFORE calling the expensive LLM (if needed)
+        verification = await self.verify_macro(macro_script_yaml)
 
         # Use evolved macro if available
         if verification.success and verification.evolved_macro:
-            evolved_steps = verification.evolved_macro
-            # Count lines/steps in original YAML for comparison
-            original_steps = yaml.safe_load(macro_script) if macro_script else []
-            original_count = len(original_steps)
-            evolved_count = len(evolved_steps)
-            # Convert evolved steps back to YAML string
-            macro_script = yaml.dump(evolved_steps, default_flow_style=False, allow_unicode=True, sort_keys=False)
+            from app.core.execution.macro.schemas import MacroScript
+            evolved_script = MacroScript(steps=verification.evolved_macro)
+            macro_script_yaml = evolved_script.to_yaml()
+            
             logger.info(
-                f"[{self.thread_id}] Using evolved macro: {original_count} -> {evolved_count} steps, "
-                f"mode={verification.execution_mode.value if verification.execution_mode else 'unknown'}"
+                f"[{self.thread_id}] Using evolved macro: {len(macro_script_obj.steps)} -> {len(evolved_script.steps)} steps, "
+                f"mode={verification.execution_mode if verification.execution_mode else 'unknown'}"
             )
         elif not verification.success:
             logger.warning(
                 f"[{self.thread_id}] ⚠️ Verification failed: {verification.error_message or 'Unknown error'}. "
                 f"Proceeding with unverified macro."
             )
-            # Don't abort - let the LLM have a chance to fix it
 
         # Step 4.5: Parse YAML to SynthesizedSkill and inject macro
         skill = self._parse_skill_yaml(yaml_output, sequence)
 
         # Prefer the evolved/compiled macro over LLM's version for reliability
-        if not skill.macro_script:
-            skill.macro_script = macro_script
-            logger.info(f"[{self.thread_id}] Using compiled/evolved macro (No LLM macro found)")
-        elif verification.status == "success":
-            # Use evolved macro which is more robust
-            skill.macro_script = macro_script
-            logger.info(f"[{self.thread_id}] Using evolved macro over LLM version for reliability")
-        else:
-            logger.info(f"[{self.thread_id}] Using LLM-synthesized smart macro script")
+        if not skill.macro_script or verification.success:
+            skill.macro_script = macro_script_yaml
+            logger.info(f"[{self.thread_id}] Finalizing skill with verified/compiled macro")
 
         # Set execution mode based on verification results
         if verification.success:
-            # Use the verified execution mode
-            skill.execution_mode = verification.execution_mode.value if verification.execution_mode else "deterministic"
+            # Ensure it's a string for DB/YAML consistency
+            mode = verification.execution_mode
+            if hasattr(mode, "value"):
+                skill.execution_mode = str(mode.value)
+            else:
+                skill.execution_mode = str(mode) if mode else "deterministic"
+            
             confidence = verification.confidence_score or 0
             logger.info(
                 f"[{self.thread_id}] Verified execution mode for {skill.name}: "
                 f"{skill.execution_mode} (confidence: {confidence:.2%})"
             )
         else:
-            # Fall back to agentic mode if verification failed
             skill.execution_mode = "agentic"
             logger.warning(f"[{self.thread_id}] Using 'agentic' mode due to verification failure")
 
-        # [NEW] Step 5: Physical File Export (Phase 5)
+        # Step 5: Physical File Export (Phase 5)
         self._export_physical_skill(skill)
 
         return skill
@@ -220,7 +201,7 @@ class WorkflowSynthesizer:
         # Use InternalLLMService to prevent internal synthesis from being logged to chat
         from app.core.llm import InternalLLMService
         from app.infrastructure.config.service import SystemConfigService
-        model_name = SystemConfigService.get_value("LLM_MODEL")
+        model_name = SystemConfigService.get_value("LLM_MODEL", "gpt-4o")
         response = await InternalLLMService.invoke(
             messages=[
                 {"role": "system", "content": prompt},
@@ -241,168 +222,111 @@ class WorkflowSynthesizer:
 
         return content
 
-    def _compile_macro_script(self, sequence: TraceSequence) -> str:
-        """Compile raw TraceSteps into a clean deterministic macro YAML format."""
-        macro = []
+    def _compile_macro_script(self, sequence: TraceSequence) -> MacroScript:
+        """Compile raw TraceSteps into a clean structured MacroScript."""
+        from app.core.execution.macro.schemas import MacroScript, MacroStep, MacroStepType, MacroSource, MacroActionType
+        
+        steps = []
         has_extract = False
         last_package = None
 
         for step in sequence.steps:
-            # [Phase 13] Explicitly skip agentic bridge events early
+            # Skip non-UI/agentic control events
             if step.action_type in ("node_start", "llm_output", "tool_result", "macro_thought"):
                 continue
 
-            # Identify if this was a global (OS/Android) or DOM action
-            source_type = "dom"
-            current_package = step.state_context.app_name or step.node_name
+            # Determine source
+            source_type = MacroSource.DOM
+            current_package = step.state_context.get("app_name") or step.node_name
 
             if step.action_name == "mobile_control":
-                source_type = "mobile"
+                source_type = MacroSource.MOBILE
             elif step.action_name == "desktop_control":
-                source_type = "desktop"
+                source_type = MacroSource.DESKTOP
             elif step.node_name in ("global_observation", "mobile_interaction"):
-                if step.state_context.is_mirrored:
-                    source_type = "mobile"
-                else:
-                    source_type = "desktop"
+                source_type = MacroSource.MOBILE if step.state_context.get("is_mirrored") else MacroSource.DESKTOP
 
-            # Detect App Transition (Cross-App Support)
-            # Only for mobile/desktop where app switching is a distinct action
-            if source_type in ("mobile", "desktop") and current_package not in ("global_observation", "mobile_interaction", "unknown"):
+            # Detect App Transition
+            if source_type in (MacroSource.MOBILE, MacroSource.DESKTOP) and current_package not in ("global_observation", "mobile_interaction", "unknown"):
                 if last_package and current_package != last_package:
-                    # Generic prefix logic (e.g. android, com.android.launcher are ignored)
-                    system_apps = (settings.SERVICE_NAME, "com.android.launcher", "com.android.systemui", "android", "scrcpy", "com.android.settings")
-
-                    # IGNORE system noise during transitions
-                    # Note: We keep "com.android.settings" in case the user actually wants to automate settings,
-                    # but usually it's noise if it's just a quick toggle. For now we treat it as a target if it's a switch.
-
-                    is_current_system = any(current_package.startswith(sys) for sys in system_apps)
-
-                    if not is_current_system:
+                    system_apps = (settings.SERVICE_NAME, "com.android.launcher", "com.android.systemui", "android", "scrcpy")
+                    if not any(current_package.startswith(sys) for sys in system_apps):
                         logger.info(f"[Synthesizer] App transition detected: {last_package} -> {current_package}")
-                        macro.append({
-                            "step_number": len(macro) + 1,
-                            "type": "action",
-                            "event_type": "open_app" if source_type == "mobile" else "launch_app",
-                            "source": source_type,
-                            "payload": {"package_name": current_package}
-                        })
-                        # IMPORTANT: Add a stability wait after app switch to allow cold start/animation
-                        macro.append({
-                            "step_number": len(macro) + 1,
-                            "type": "action",
-                            "event_type": "wait",
-                            "source": source_type,
-                            "payload": {"duration_ms": 1500}
-                        })
+                        steps.append(MacroStep(
+                            type=MacroStepType.ACTION,
+                            event_type=MacroActionType.OPEN_APP if source_type == MacroSource.MOBILE else MacroActionType.LAUNCH_APP,
+                            source=source_type,
+                            payload={"package_name": current_package}
+                        ))
+                        # Stability wait
+                        steps.append(MacroStep(
+                            type=MacroStepType.ACTION,
+                            event_type=MacroActionType.WAIT,
+                            source=source_type,
+                            payload={"duration_ms": 1500}
+                        ))
 
-                # Update last_package only if the current one is NOT a system app or launcher noise
-                # This ensures that if we briefly go to Launcher and back to App A, it's not a transition.
-                system_noise = ("com.android.launcher", "com.android.systemui", "android", "scrcpy")
-                if not any(current_package.startswith(sys) for sys in system_noise):
+                if not any(current_package.startswith(sys) for sys in ("com.android.launcher", "com.android.systemui", "android")):
                     last_package = current_package
 
-            # Filter out noisy standalone modifier keys from macro
+            # Filter noisy keys
             if step.action_type == "key_press" and step.action_args.get("key") in ("Alt", "Shift", "Control", "Command", "Meta"):
                 continue
 
             event_type = step.action_type
             payload = dict(step.action_args)
 
-            # Ensure package_name is in payload for all steps
             if current_package and current_package not in ("global_observation", "mobile_interaction", "unknown"):
                 payload["package_name"] = current_package
 
-            # Agent LangChain tool inputs...
-            if "raw" in payload and isinstance(payload["raw"], str):
-                import ast
-                try:
-                    parsed = ast.literal_eval(payload["raw"])
-                    if isinstance(parsed, dict):
-                        payload = parsed
-                except Exception:
-                    pass
-
-            action_name = payload.get("action")
-
-            # Map generic tool_call from Agents back to explicit macro events
+            # Tool Call Normalization
             if event_type == "tool_call":
+                action_name = payload.get("action")
                 if action_name:
-                    event_type = action_name  # e.g. "click", "wait_for", "type_text"
-                    if event_type == "navigate":
-                        event_type = "goto"
-                    elif event_type == "type_text":
-                        event_type = "input"
+                    event_type = action_name
+                    if event_type == "navigate": event_type = "goto"
+                    elif event_type == "type_text": event_type = "input"
                 else:
                     tool_invoked = step.action_name
                     if tool_invoked == "wait_for":
                         event_type = "wait"
                         payload["duration_ms"] = float(payload.get("seconds", 1)) * 1000
-                    elif tool_invoked == "memorize_concepts":
-                        continue
-                    elif tool_invoked in ("request_human_input", "research", "manage_todo", "document_reader"):
-                        continue
                     else:
                         continue
 
             if event_type not in ALLOWED_UI_ACTIONS:
-                logger.debug(f"[{self.thread_id}] Skipping non-UI action during synthesis: {event_type}")
                 continue
 
             target_selector = step.ui_context.element_selector if step.ui_context else None
 
-            # Automatic Extractor Nodes mapping
-            is_extract = False
-            if event_type in ("get_text", "get_html", "get_attribute"):
-                macro_step = {
-                    "step_number": len(macro) + 1,
-                    "type": "extract",
-                    "extract_type": action_name,
-                    "key": f"data_{step.step_number}",
-                    "source": "dom",
-                    "target_selector": payload.get("selector") or target_selector,
-                    "payload": payload
-                }
-                is_extract = True
-            elif event_type == "tool_call" and step.action_name == "mobile_control" and action_name == "dump_ui":
-                macro_step = {
-                    "step_number": len(macro) + 1,
-                    "type": "extract",
-                    "extract_type": "dump_ui",
-                    "key": f"data_{step.step_number}",
-                    "source": source_type,
-                    "target_selector": target_selector,
-                    "payload": payload
-                }
-                is_extract = True
-            else:
-                macro_step = {
-                    "step_number": len(macro) + 1,
-                    "type": "action",
-                    "event_type": event_type,
-                    "source": source_type,
-                    "target_selector": target_selector,
-                    "payload": payload
-                }
-
-            if is_extract:
+            # Map to MacroStep
+            if event_type in ("get_text", "get_html", "get_attribute") or (step.action_name == "mobile_control" and payload.get("action") == "dump_ui"):
                 has_extract = True
+                macro_step = MacroStep(
+                    type=MacroStepType.EXTRACT,
+                    extract_type=payload.get("action") or event_type,
+                    key=f"data_{step.step_number}",
+                    source=source_type,
+                    target_selector=payload.get("selector") or target_selector,
+                    payload=payload
+                )
+            else:
+                macro_step = MacroStep(
+                    type=MacroStepType.ACTION,
+                    event_type=event_type,
+                    source=source_type,
+                    target_selector=target_selector,
+                    payload=payload
+                )
 
-            macro.append(macro_step)
+            steps.append(macro_step)
 
-        # Append Dump Data Sink if any extraction occurred
         if has_extract:
-            macro.append({
-                "step_number": len(macro) + 1,
-                "type": "dump",
-                "payload": {}
-            })
+            steps.append(MacroStep(type=MacroStepType.DUMP))
 
-        # Macro optimization is now handled via MacroService in the main synthesize flow
-        steps = self._cleanup_macro(macro)[0]
-        # Convert to YAML string for storage
-        return yaml.dump(steps, default_flow_style=False, allow_unicode=True, sort_keys=False)
+        # Final cleanup and indexing
+        clean_steps = self._cleanup_macro([s.model_dump(exclude_none=True) for s in steps])[0]
+        return MacroScript(steps=clean_steps)
 
     @classmethod
     def _cleanup_macro(cls, steps: list[dict], start_index: int = 1) -> tuple[list[dict], int]:
@@ -435,6 +359,16 @@ class WorkflowSynthesizer:
                     )
                 )
 
+        # Handle macro script from LLM output if present
+        macro_script = ""
+        raw_macro = data.get("macro_script")
+        if raw_macro:
+            from app.core.execution.macro.schemas import MacroScript
+            if isinstance(raw_macro, list):
+                macro_script = MacroScript(steps=raw_macro).to_yaml()
+            else:
+                macro_script = str(raw_macro)
+
         return SynthesizedSkill(
             name=data.get("name", "unnamed_skill"),
             description=data.get("description", ""),
@@ -446,7 +380,7 @@ class WorkflowSynthesizer:
             source_thread_id=self.thread_id,
             source_session_id=self.session_id,
             tools_used=list(set(sequence.tools_used)),
-            macro_script=yaml.dump(data.get("macro_script", []), default_flow_style=False, allow_unicode=True, sort_keys=False) if data.get("macro_script") else "",
+            macro_script=macro_script,
         )
 
     def _export_physical_skill(self, skill: SynthesizedSkill) -> None:

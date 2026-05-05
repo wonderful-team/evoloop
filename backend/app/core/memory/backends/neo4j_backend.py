@@ -210,6 +210,7 @@ class Neo4jMemoryStorage(IMemoryStorage):
                 m.tags = $tags,
                 m.source = $source,
                 m.source_message_id = $source_message_id,
+                m.content_hash = $content_hash,
                 m.confidence = $confidence,
                 m.version = $version,
                 m.created_at = $created_at,
@@ -230,6 +231,7 @@ class Neo4jMemoryStorage(IMemoryStorage):
                 tags=entry.tags,
                 source=entry.source,
                 source_message_id=entry.source_message_id,
+                content_hash=entry.content_hash,
                 confidence=entry.confidence,
                 version=entry.version,
                 created_at=entry.created_at.isoformat(),
@@ -593,23 +595,6 @@ class Neo4jMemoryStorage(IMemoryStorage):
             """
             await session.run(query, concept_name=concept_name, episode_id=episode_id)
             logger.info(f"[Neo4jStorage] Linked concept '{concept_name}' to episode {episode_id}")
-
-    async def get_recent(self, count: int = 5) -> list[MemoryEntry]:
-        """Get most recently updated memories from Neo4j."""
-        if not self._driver:
-            return []
-            
-        async with self._driver.session() as session:
-            query = """
-            MATCH (m:Memory)
-            RETURN m
-            ORDER BY m.updated_at DESC
-            LIMIT $limit
-            """
-            result = await session.run(query, limit=count)
-            records = await result.data()
-            
-            return [self._node_to_entry(r["m"]) for r in records if r["m"]]
 
     async def find_episodes_by_concept(self, concept_name: str, limit: int = 10) -> list[dict]:
         """Find episodes linked to a concept via relationships."""

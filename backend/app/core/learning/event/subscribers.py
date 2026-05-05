@@ -16,6 +16,7 @@ from app.core.events.decorators import event_register, event_subscribe, register
 from app.core.events.schemas import SessionCompletedEvent
 from app.core.learning.event.schemas import TraceCleanupEvent
 from app.infrastructure.database.sql.database import session_scope
+from app.models import Message
 
 logger = logging.getLogger(__name__)
 
@@ -160,7 +161,8 @@ class TraceRewind:
         """
         try:
             count = await self._delete_traces(
-                source_message_ids=event.source_message_ids
+                source_message_ids=event.source_message_ids,
+                run_ids=event.affected_run_ids
             )
             self._deleted_count = count
             logger.info(f"[TraceRewind] Deleted {count} trace events")
@@ -207,27 +209,24 @@ class TraceRewind:
         Delete trace events by message IDs or run IDs.
         """
         from app.models.learning import TraceEvent
-        if not source_message_ids and not run_ids:
-            return 0
-            
+
+        final_run_ids = list(run_ids or [])
+
         async with session_scope() as session:
-            stmt = delete(TraceEvent)
+            # If no run_ids but we have message_ids, resolve them
+            if not final_run_ids and source_message_ids:
+                stmt_msg = select(Message.run_id).where(Message.id.in_(source_message_ids))
+                res_msg = await session.execute(stmt_msg)
+                final_run_ids = [r[0] for r in res_msg.all() if r[0]]
             
-            conditions = []
-            if source_message_ids:
-                conditions.append(TraceEvent.message_id.in_(source_message_ids))
-            if run_ids:
-                conditions.append(TraceEvent.run_id.in_(run_ids))
-                
-            if len(conditions) > 1:
-                from sqlalchemy import or_
-                stmt = stmt.where(or_(*conditions))
-            else:
-                stmt = stmt.where(conditions[0])
-                
+            if not final_run_ids:
+                return 0
+
+            # Perform deletion by run_id
+            stmt = delete(TraceEvent).where(TraceEvent.run_id.in_(final_run_ids))
             result = await session.execute(stmt)
             count = result.rowcount
-            logger.info(f"[TraceRewind] Deleted {count} trace events")
+            logger.info(f"[TraceRewind] Deleted {count} trace events for {len(final_run_ids)} runs")
             return count
 
     async def cleanup(self, message_ids: list[str], **kwargs) -> int:

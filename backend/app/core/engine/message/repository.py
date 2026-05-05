@@ -121,6 +121,8 @@ class MessageRepository:
                     return False
 
                 for key, value in fields.items():
+                    if key == "content" and value is None:
+                        value = ""
                     if hasattr(msg, key):
                         setattr(msg, key, value)
                     else:
@@ -136,18 +138,34 @@ class MessageRepository:
 
     async def resolve_tool_input(self, tool_call_id: str | None, tool_name: str | None = None) -> dict:
         """
-        Resolve tool input arguments from the most recent AI message's tool_calls.
-        Supports fallback matching by tool_name if tool_call_id doesn't match 
-        (e.g. due to LangChain run_id vs LLM tool_id mismatch).
-
-        Returns:
-            dict: Tool input args, empty dict if not found
+        Resolve tool input arguments.
+        Prioritizes the actual tool message (if pre-inserted by handler), 
+        falling back to the most recent AI message's tool_calls.
         """
         if not tool_call_id and not tool_name:
             return {}
+            
         try:
             async with session_scope() as session:
-                stmt = (
+                # 1. Try to find the pre-inserted tool message itself first (Best for exact matches)
+                if tool_call_id:
+                    stmt_tool = (
+                        select(Message)
+                        .where(Message.thread_id == self.thread_id)
+                        .where(Message.role == "tool")
+                        .where(Message.tool_call_id == tool_call_id)
+                        .order_by(desc(Message.sequence_number))
+                        .limit(1)
+                    )
+                    result_tool = await session.execute(stmt_tool)
+                    tool_msg = result_tool.scalar_one_or_none()
+                    if tool_msg and tool_msg.meta_data and isinstance(tool_msg.meta_data, dict):
+                        input_data = tool_msg.meta_data.get("input")
+                        if isinstance(input_data, dict) and input_data:
+                            return input_data
+
+                # 2. Fallback: Try matching from AI message tool_calls
+                stmt_ai = (
                     select(Message)
                     .where(Message.thread_id == self.thread_id)
                     .where(Message.role == "ai")
@@ -155,14 +173,14 @@ class MessageRepository:
                     .order_by(desc(Message.sequence_number))
                     .limit(1)
                 )
-                result = await session.execute(stmt)
-                ai_msg = result.scalar_one_or_none()
+                result_ai = await session.execute(stmt_ai)
+                ai_msg = result_ai.scalar_one_or_none()
                 if not ai_msg or not ai_msg.tool_calls:
                     return {}
+                    
                 from app.core.engine.message.utils import normalize_tool_calls
                 tool_calls = normalize_tool_calls(ai_msg.tool_calls)
                 
-                # 1. Try exact match by tool_call_id
                 for tc in tool_calls:
                     if tc.get("id") == tool_call_id:
                         return tc.get("args") or {}

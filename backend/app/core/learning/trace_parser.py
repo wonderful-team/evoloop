@@ -14,8 +14,9 @@ import json
 import logging
 
 from pydantic import Field
-from sqlalchemy import select
+from sqlalchemy import select, or_
 
+from app.core.learning.constants import TOOL_CATEGORY_MAP, EVENT_CATEGORY_MAP
 from app.core.learning.schemas import (
     ActionCategory,
     ActionSource,
@@ -25,7 +26,7 @@ from app.core.learning.schemas import (
 )
 from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.pydantic_base import DynamicBaseModel
-from app.models import TraceEvent
+from app.models import TraceEvent, Message
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +39,7 @@ class TraceSequence(DynamicBaseModel):
     thread_id: str
     session_id: str | None = None
     task_name: str | None = None
+    initial_intent: str | None = None # Captured from the first human message
 
     steps: list[TraceStep] = Field(default_factory=list)
 
@@ -64,31 +66,6 @@ class TraceParser:
     Parses raw TraceEvent records into structured TraceSequence.
     """
 
-    # Mapping of action types to categories
-    CATEGORY_MAP = {
-        "tool_call": ActionCategory.QUERY,  # Default, refined below
-        "click": ActionCategory.INTERACTION,
-        "input": ActionCategory.INTERACTION,
-        "node_start": ActionCategory.OTHER,
-        "llm_output": ActionCategory.DECISION,
-    }
-
-    # Tool-specific category overrides (Phase 18: Added atomic file tools)
-    TOOL_CATEGORY_MAP = {
-        "read_file": ActionCategory.QUERY,
-        "write_file": ActionCategory.EDIT,
-        "edit_file": ActionCategory.EDIT,
-        "search_files": ActionCategory.QUERY,
-        "list_directory": ActionCategory.QUERY,
-        "search_codebase": ActionCategory.QUERY,
-        "search_web": ActionCategory.QUERY,
-        "execute_command": ActionCategory.COMMAND,
-        "git_operations": ActionCategory.COMMAND,
-        "navigate_directory": ActionCategory.NAVIGATION,
-        "mobile_control": ActionCategory.SYSTEM_INTERACTION,
-        "desktop_control": ActionCategory.SYSTEM_INTERACTION,
-    }
-
     def __init__(self, thread_id: str, session_id: str | None = None):
         self.thread_id = thread_id
         self.session_id = session_id
@@ -98,7 +75,10 @@ class TraceParser:
         Fetch TraceEvents and convert to TraceSequence.
         """
         events = await self._fetch_events()
-        return self._convert_to_sequence(events)
+        intent = await self._fetch_initial_intent()
+        sequence = self._convert_to_sequence(events)
+        sequence.initial_intent = intent
+        return sequence
 
     async def _fetch_events(self) -> list[TraceEvent]:
         """Fetch trace events from database."""
@@ -111,10 +91,25 @@ class TraceParser:
 
             # Optionally filter by session
             if self.session_id:
-                stmt = stmt.where(TraceEvent.recording_session_id == self.session_id)
+                # Use unified session_id or legacy recording_session_id
+                stmt = stmt.where(or_(
+                    TraceEvent.session_id == self.session_id,
+                    TraceEvent.recording_session_id == self.session_id
+                ))
 
             result = await session.execute(stmt)
             return list(result.scalars().all())
+
+    async def _fetch_initial_intent(self) -> str | None:
+        """Fetch the first human message in the thread as the initial intent."""
+        async with session_scope() as session:
+            stmt = select(Message).where(
+                Message.thread_id == self.thread_id,
+                Message.role == "human"
+            ).order_by(Message.created_at).limit(1)
+            result = await session.execute(stmt)
+            msg = result.scalar_one_or_none()
+            return msg.content if msg else None
 
     def _convert_to_sequence(self, events: list[TraceEvent]) -> TraceSequence:
         """Convert raw events to structured sequence."""
@@ -151,12 +146,11 @@ class TraceParser:
         }
 
         # Check for Mirror (scrcpy) interactions
-        # If the click happens inside the scrcpy window, we convert it to a mobile_control action
         is_mirror = event.window_title and ("EvoLoop Mirror" in event.window_title or "scrcpy" in event.window_title.lower())
 
         # Construct meaningful action name
         app_prefix = f"[{event.app_name}] " if event.app_name else ""
-        action_name = f"{app_prefix}{action_mapping.get(event.action_type, event.action_type)}"
+        action_name = f"{app_prefix}{action_mapping.get(event.event_type, event.event_type)}"
 
         # Build args
         action_args = {}
@@ -170,14 +164,10 @@ class TraceParser:
         # Mirror Normalization Logic
         if is_mirror:
             window_bounds = None
-            if event.action_payload:
-                try:
-                    payload = event.action_payload if isinstance(event.action_payload, dict) else json.loads(event.action_payload)
-                    window_bounds = payload.get("window_bounds")
-                except (json.JSONDecodeError, TypeError, ValueError):
-                    pass
+            if event.payload:
+                window_bounds = event.payload.get("window_bounds")
 
-            if window_bounds and len(window_bounds) == 4 and event.action_type in ("mouse_click", "click"):
+            if window_bounds and len(window_bounds) == 4 and event.event_type in ("mouse_click", "click"):
                 wx, wy, ww, wh = window_bounds
                 if ww > 0 and wh > 0:
                     nx = (event.mouse_x - wx) / ww
@@ -200,12 +190,12 @@ class TraceParser:
                             timestamp=event.timestamp or 0.0
                         )
 
-        mapped_action_type = action_mapping.get(event.action_type, event.action_type)
+        mapped_event_type = action_mapping.get(event.event_type, event.event_type)
         return TraceStep(
             step_number=event.step_number,
             source=ActionSource.HUMAN,
             category=ActionCategory.SYSTEM_INTERACTION,
-            action_type=mapped_action_type,
+            action_type=mapped_event_type,
             action_name=action_name,
             action_args=action_args,
             node_name="global_observation",
@@ -222,56 +212,40 @@ class TraceParser:
             # Determine source
             source = ActionSource.HUMAN if event.is_human_action else ActionSource.AGENT
 
-            # Parse payload
-            payload = event.action_payload if isinstance(event.action_payload, dict) else (json.loads(event.action_payload) if event.action_payload else {})
+            # Payload is now a dict (from JSON column)
+            payload = event.payload or {}
 
             # Determine action name and args
-            action_name = event.action_type
+            action_name = event.event_type
             action_args = {}
 
-            if event.action_type == "tool_call":
+            if event.event_type == "tool_call":
                 action_name = payload.get("name", "unknown_tool")
                 action_args = payload.get("args", {})
-            elif event.action_type in ["click", "input"]:
+            elif event.event_type in ["click", "input"]:
                 action_args = payload
 
             # Determine category
-            category = self._categorize_action(event.action_type, action_name)
+            category = self._categorize_action(event.event_type, action_name)
 
             # Build UI context if available
             ui_context = None
-            if (
-                event.ui_element_info
-                or event.screenshot_path
-                or event.target_selector
-                or event.target_text
-            ):
-                ui_info = (
-                    event.ui_element_info if isinstance(event.ui_element_info, dict) else (json.loads(event.ui_element_info) if event.ui_element_info else {})
-                )
+            if event.screenshot_path or event.target_selector or event.target_text:
                 ui_context = UIContext(
                     screenshot_path=event.screenshot_path,
-                    element_selector=event.target_selector or ui_info.get("selector"),
-                    element_text=event.target_text or ui_info.get("text"),
+                    element_selector=event.target_selector,
+                    element_text=event.target_text,
                 )
-
-            # Parse state context (simplified for synthesis)
-            state_context = {}
-            if event.state_snapshot:
-                try:
-                    state_context = event.state_snapshot if isinstance(event.state_snapshot, dict) else json.loads(event.state_snapshot)
-                except Exception:
-                    pass
 
             return TraceStep(
                 step_number=event.step_number,
                 source=source,
                 category=category,
-                action_type=event.action_type,
+                action_type=event.event_type,
                 action_name=action_name,
                 action_args=action_args,
                 node_name=event.node_name,
-                state_context=state_context,
+                state_context=event.state_snapshot or {},
                 ui_context=ui_context,
                 user_feedback=event.user_feedback,
             )
@@ -280,14 +254,14 @@ class TraceParser:
             logger.error(f"Failed to parse event {event.id}: {e}")
             return None
 
-    def _categorize_action(self, action_type: str, action_name: str) -> ActionCategory:
+    def _categorize_action(self, event_type: str, action_name: str) -> ActionCategory:
         """Determine the category of an action."""
         # Check tool-specific first
-        if action_name in self.TOOL_CATEGORY_MAP:
-            return self.TOOL_CATEGORY_MAP[action_name]
+        if action_name in TOOL_CATEGORY_MAP:
+            return TOOL_CATEGORY_MAP[action_name]
 
         # Fall back to action type
-        return self.CATEGORY_MAP.get(action_type, ActionCategory.OTHER)
+        return EVENT_CATEGORY_MAP.get(event_type, ActionCategory.OTHER)
 
     def to_narrative(self, sequence: TraceSequence) -> str:
         """
@@ -304,5 +278,4 @@ class TraceParser:
             )
         except Exception as e:
             logger.error(f"Failed to render Trace narrative: {e}")
-            # Minimal fallback
             return f"Trace Narrative for {sequence.thread_id} (Error rendering template)"

@@ -10,7 +10,7 @@
 ### Step {{ step.step_number }} {{"👤" if step.source.value == 'human' else "🤖"}} [{{ step.category.value }}]
 - **Action**: `{{ step.action_name }}`
 {% if step.action_args %}
-- **Args**: `{{ step.action_args|tojson }}`
+- **Args**: `{{ step.action_args }}`
 {% endif %}
 {% if step.state_context %}
 {% set app = step.state_context.get('app_name') %}

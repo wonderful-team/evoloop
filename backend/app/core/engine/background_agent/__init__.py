@@ -200,10 +200,12 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
             await get_sync_coordinator().sync_final(thread_id, evoloop_command_id)
 
         except AgentCancelledException:
-            # Re-raised by run_scope but we can catch here for extra logging if needed
-            raise
+            # Expected control flow: user stopped the run. 
+            # run_scope has already handled cleanup/logging.
+            return
         except AgentHumanInterruptException:
-            raise
+            # Expected control flow: agent is waiting for human input.
+            return
         except Exception as e:
             # Let handle_task_exception deal with DB/UI reporting
             # run_scope will mark status as "failed"

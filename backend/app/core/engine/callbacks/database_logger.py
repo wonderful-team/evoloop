@@ -224,12 +224,8 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
             )
 
             # Parse input data
-            input_data = None
-            if input_str and input_str.strip().startswith("{"):
-                try:
-                    input_data = json.loads(input_str)
-                except (json.JSONDecodeError, ValueError):
-                    pass
+            from app.core.engine.message.utils import parse_tool_input
+            input_data = parse_tool_input(input_str)
 
             # Pre-insert running record via MessageHandler
             result = await self._handler.handle_tool_start(

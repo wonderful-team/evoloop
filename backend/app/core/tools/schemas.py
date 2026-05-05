@@ -129,3 +129,33 @@ class ToolRegistryMetadata(DynamicBaseModel):
     summary_template: str | None = None  # Legacy support for i18n
     is_memory_tool: bool = False
     is_hitl: bool = False
+
+    def get_display_name(self, tool_name: str, args: dict | None = None, status: str = "running") -> str:
+        """
+        Unified logic to generate a localized display name for the tool.
+        The format is strictly controlled by the 'summary_template' in i18n files.
+        """
+        from app.i18n.service import i18n
+        
+        args = (args or {}).copy()
+        
+        # Normalize all keys to lowercase for template consistency (handle both StartLine and start_line)
+        args = {k.lower(): v for k, v in args.items()}
+        
+        # Normalize common path keys to 'path' for template simplicity
+        if "path" not in args:
+            args["path"] = args.get("file_path") or args.get("target_file") or args.get("targetfile") or "unknown"
+
+        # Choose template based on status
+        template = self.summary_template
+        if status == "completed" and self.result_summary_template:
+            template = self.result_summary_template
+        
+        if template:
+            # i18n.get now supports optional blocks like [[ (L{StartLine}-{EndLine}) ]]
+            display_name = i18n.get(template, **args)
+        else:
+            # Fallback for tools without templates
+            display_name = tool_name.replace("_", " ").title()
+            
+        return display_name

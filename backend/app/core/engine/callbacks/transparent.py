@@ -103,12 +103,6 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
             if self._is_streaming_disabled(run_id_str):
                 return
 
-            # Emit thinking indicator so frontend shows loading state
-            try:
-                await self.emit_thinking("thinking...")
-            except Exception:
-                pass
-
     async def on_llm_new_token(self, token: str, **kwargs: Any) -> None:
         """Run on new LLM token.
 

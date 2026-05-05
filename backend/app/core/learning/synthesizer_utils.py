@@ -10,11 +10,13 @@ import os
 from typing import Any
 
 import yaml
+from pydantic import Field
 
 from app.core.config import settings
 from app.core.learning.schemas import MacroVerificationResult
 from app.utils.extract import extract_section as _extract_section
 from app.utils.extract import extract_yaml_block as _extract_yaml_block
+from app.infrastructure.pydantic_base import DynamicBaseModel
 from app.utils.path import ensure_dir
 from app.utils.time import normalize_timestamp_ms_to_sec as _normalize_timestamp
 
@@ -159,46 +161,85 @@ def cleanup_macro_steps(
     return clean_steps, current_idx
 
 
+class SkillExportModel(DynamicBaseModel):
+    name: str
+    namespace: str = "misc"
+    description: str = ""
+    trigger_patterns: list[str] = Field(default_factory=list)
+    parameters: list[Any] = Field(default_factory=list)
+    preconditions: list[Any] = Field(default_factory=list)
+    instructions: str | None = None
+    macro_script: str | None = None
+
+
 def export_skill_to_filesystem(skill_data: Any) -> str | None:
     """
-    导出技能到文件系统
-
-    将合成的技能保存为物理文件（SKILL.md）。
-
-    Args:
-        skill_data: 技能数据对象，包含 name, namespace, description,
-                   trigger_patterns, parameters, preconditions, instructions
-
-    Returns:
-        str | None: 导出的文件路径，失败返回 None
+    导出技能到文件系统 (SKILL.md)
     """
     try:
+        # Convert to a standard export model to avoid getattr/Any mess
+        if not isinstance(skill_data, dict):
+            # Try model_dump if it's a Pydantic model
+            if hasattr(skill_data, "model_dump"):
+                data = skill_data.model_dump()
+            else:
+                # Fallback for other objects
+                data = {
+                    "name": getattr(skill_data, "name", "unnamed_skill"),
+                    "namespace": getattr(skill_data, "namespace", "misc"),
+                    "description": getattr(skill_data, "description", ""),
+                    "trigger_patterns": getattr(skill_data, "trigger_patterns", []),
+                    "parameters": getattr(skill_data, "parameters", []),
+                    "preconditions": getattr(skill_data, "preconditions", []),
+                    "instructions": getattr(skill_data, "instructions", None),
+                    "macro_script": getattr(skill_data, "macro_script", None),
+                }
+        else:
+            data = skill_data
+
+        export = SkillExportModel(**data)
+        
         base_dir = settings.SKILLS_DIR
-        namespace = getattr(skill_data, "namespace", None) or "misc"
-        name = getattr(skill_data, "name", "unnamed_skill")
-        namespace_path = os.path.join(base_dir, namespace, name)
+        namespace_path = os.path.join(base_dir, export.namespace, export.name)
 
         ensure_dir(namespace_path)
         skill_md_path = os.path.join(namespace_path, "SKILL.md")
 
         # 构建 frontmatter
+        parameters = []
+        for p in export.parameters:
+            parameters.append(p.model_dump() if hasattr(p, "model_dump") else p)
+
+        preconditions = []
+        for p in export.preconditions:
+            preconditions.append(p.model_dump() if hasattr(p, "model_dump") else p)
+
         frontmatter = {
-            "name": name,
-            "description": getattr(skill_data, "description", "") or "",
-            "trigger_patterns": getattr(skill_data, "trigger_patterns", []) or [],
-            "parameters": getattr(skill_data, "parameters", []) or [],
-            "preconditions": getattr(skill_data, "preconditions", []) or [],
+            "name": export.name,
+            "description": export.description,
+            "trigger_patterns": export.trigger_patterns,
+            "parameters": parameters,
+            "preconditions": preconditions,
         }
 
-        instructions = getattr(skill_data, "instructions", "") or ""
-        content = (
-            f"---\n{yaml.dump(frontmatter, sort_keys=False)}---\n\n{instructions}"
-        )
+        # 生成 Markdown 内容
+        content = "---\n"
+        content += yaml.dump(frontmatter, default_flow_style=False, allow_unicode=True, sort_keys=False)
+        content += "---\n\n"
+
+        if export.instructions:
+            content += f"## Instructions\n\n{export.instructions}\n\n"
+
+        if export.macro_script:
+            content += "## Macro Script\n\n"
+            content += "```yaml\n"
+            content += export.macro_script
+            content += "\n```\n"
 
         with open(skill_md_path, "w", encoding="utf-8") as f:
             f.write(content)
 
-        logger.info(f"Exported physical skill {name} to {skill_md_path}")
+        logger.info(f"Exported physical skill {export.name} to {skill_md_path}")
         return skill_md_path
 
     except Exception as e:

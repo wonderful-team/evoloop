@@ -69,7 +69,7 @@ async def _search_by_content(
         output += "\n- Narrow the scope with 'path' parameter"
         output += "\n- Use file extension filter with 'scope' parameter"
 
-    return output
+    return {"content": output, "count": total_matches}
 
 
 async def _search_by_name(
@@ -201,7 +201,7 @@ async def _search_by_name(
         "If none of these look right, refine your search pattern or scope."
     )
 
-    return header + "\n\n".join(entries) + footer
+    return {"content": header + "\n\n".join(entries) + footer, "count": total_files}
 
 
 async def search_files_internal(
@@ -232,7 +232,7 @@ async def search_files_internal(
     is_pollable=True,
     affected_path_keys=["path"],
     summary_template="database_logger.tool_summary.search_code",
-    result_summary_template="database_logger.tool_summary.file_op_result"
+    result_summary_template="database_logger.tool_summary.search_result"
 )
 async def search_files(
     pattern: str,

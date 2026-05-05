@@ -20,7 +20,6 @@ from app.core.events import SystemEventType
 from app.core.events.base import AsyncEventBus
 from app.core.events.decorators import event_register, event_subscribe, register_instance_handlers
 from app.core.events.schemas import SessionCompletedEvent
-from app.core.memory.event.schemas import MemoryCleanupEvent
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +34,10 @@ class MemoryLifecycleHandler:
     - Graceful shutdown of memory container on app stop
     """
 
+    # Track in-flight extractions to avoid spawning duplicate background tasks
+    # for the same thread_id. Complements the per-thread lock in AutoMemoryExtractor.
+    _inflight_tasks: set[str] = set()
+
     @event_subscribe("agent.run_completed")
     async def on_agent_run_completed(self, event: AgentRunCompletedEvent):
         """
@@ -47,6 +50,11 @@ class MemoryLifecycleHandler:
         project_id = event.project_id
         run_id = event.payload.get("run_id") or ""
         
+        # Skip if an extraction is already in flight for this thread
+        if thread_id in self._inflight_tasks:
+            logger.debug(f"[Memory] Extraction already in flight for {thread_id}, skipping")
+            return
+        
         logger.info(f"[Memory] 🧠 Run completed for thread {thread_id}. Triggering auto-extraction...")
 
         try:
@@ -56,7 +64,10 @@ class MemoryLifecycleHandler:
 
             # Load history for extraction
             repo = MessageRepository(thread_id=thread_id, project_id=project_id)
-            messages, _, _ = await repo.get_full_history()
+            db_messages, _, _ = await repo.get_full_history()
+            # Convert ORM Message objects to LangChain BaseMessage for the extractor
+            from app.core.engine.message.converter import EvoMessageConverter
+            messages = EvoMessageConverter.to_langchain(db_messages)
 
             # Create a dedicated context for the background extraction task
             ctx = EvoContext(
@@ -65,22 +76,37 @@ class MemoryLifecycleHandler:
                 run_id=run_id
             )
 
-            async def _run_extraction_background():
-                token = ContextManager.set(ctx)
-                try:
-                    await trigger_auto_extraction(
-                        thread_id=thread_id,
-                        messages=messages,
-                        project_id=project_id,
-                        run_id=run_id,
-                        force=False  # Don't force if already extracted for this content
-                    )
-                finally:
-                    ContextManager.reset(token)
+            self._inflight_tasks.add(thread_id)
 
-            asyncio.create_task(_run_extraction_background())
+            async def _run_extraction_background():
+                try:
+                    token = ContextManager.set(ctx)
+                    try:
+                        await trigger_auto_extraction(
+                            thread_id=thread_id,
+                            messages=messages,
+                            project_id=project_id,
+                            run_id=run_id,
+                            force=False  # Don't force if already extracted for this content
+                        )
+                    finally:
+                        ContextManager.reset(token)
+                finally:
+                    self._inflight_tasks.discard(thread_id)
+
+            task = asyncio.create_task(_run_extraction_background())
+            # Attach a done callback to catch unhandled exceptions and ensure cleanup
+            def _on_task_done(t):
+                self._inflight_tasks.discard(thread_id)
+                if t.cancelled():
+                    return
+                exc = t.exception()
+                if exc:
+                    logger.error(f"[Memory] Auto-extraction task failed for {thread_id}: {exc}")
+            task.add_done_callback(_on_task_done)
             logger.debug(f"[Memory] ✓ Auto-extraction background task started for {thread_id}")
         except Exception as e:
+            self._inflight_tasks.discard(thread_id)
             logger.error(f"[Memory] Failed to trigger auto-extraction: {e}")
 
     @event_subscribe(SystemEventType.SESSION_COMPLETED)
@@ -308,6 +334,10 @@ class MemoryRewind:
             logger.warning("[MemoryRewind] Could not determine target time for physical cleanup")
             return
 
+        # Normalize target_time to naive UTC for consistent comparison with file mtimes
+        if target_time.tzinfo:
+            target_time = target_time.replace(tzinfo=None)
+
         memory_root = Path(settings.BRAIN_MEMORY_ROOT)
         
         # 1. Cleanup context snapshots (*.md in context/)
@@ -318,7 +348,8 @@ class MemoryRewind:
                     try:
                         f.unlink()
                         logger.debug(f"[MemoryRewind] Deleted stale context file: {f.name}")
-                    except Exception: pass
+                    except Exception as exc:
+                        logger.debug(f"[MemoryRewind] Failed to delete {f.name}: {exc}")
 
         # 2. Cleanup domain terms (entries in *.json)
         terms_dir = memory_root / "domain_terms"

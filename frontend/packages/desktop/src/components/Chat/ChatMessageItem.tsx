@@ -88,27 +88,22 @@ const ChatMessageItem = memo(
 
     // Render Tool Message (Flat & Compact)
     if (msg.role === "tool") {
-      const toolInput = typeof msg.input === 'string' ? msg.input : JSON.stringify(msg.input)
-      const truncatedInput = toolInput?.length > 100 ? toolInput.slice(0, 100) + "..." : toolInput
-
       return (
         <motion.div
           className="group relative flex gap-2 w-full py-1 transition-colors hover:bg-muted/5"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
+          transition={{ duration: 0.1 }}
         >
           {/* Spine Column */}
           <div className="shrink-0 w-10 flex flex-col items-center relative">
             <div className="absolute top-0 bottom-0 w-[1px] bg-border/40 group-hover:bg-primary/20 transition-colors" />
-            <div className="w-2 h-2 rounded-full bg-border mt-3 group-hover:bg-primary/40 transition-colors z-10" />
+            <div className="w-2 h-2 rounded-full bg-border mt-2 group-hover:bg-primary/40 transition-colors z-10" />
           </div>
 
-          <div className="flex-1 min-w-0 flex items-center gap-3 py-1 border-b border-border/5">
-            <span className="text-[11px] font-bold text-foreground/60 whitespace-nowrap shrink-0">
+          <div className="flex-1 min-w-0 flex items-center gap-3 py-1 border-b border-border/5 overflow-hidden">
+            <span className="text-[12px] text-foreground/60 truncate" title={msg.tool_meta?.display_name || msg.tool_name || "TOOL"}>
               {msg.tool_meta?.display_name || msg.tool_name || "TOOL"}
-            </span>
-            <span className="text-[11px] text-muted-foreground/40 truncate font-mono bg-muted/20 px-1.5 py-0.5 rounded max-w-[400px]">
-              {truncatedInput}
             </span>
 
             {msg.status === "running" && <Loader2 className="h-3 w-3 animate-spin text-primary/40 ml-2" />}
@@ -150,7 +145,7 @@ const ChatMessageItem = memo(
               msg.role === "human" ? "bg-[var(--doc-header-user)]/40" : "bg-[var(--doc-header-ai)]/40"
             )}>
               <div className="flex items-center gap-3">
-                <span className="uppercase tracking-[0.15em] text-[10px] font-bold text-foreground/60">
+                <span className="text-[10px] font-bold text-foreground/60">
                   {msg.role === "human" ? userName : deviceName}
                 </span>
               </div>
@@ -167,7 +162,7 @@ const ChatMessageItem = memo(
                 {/* Hover: Action Buttons */}
                 <div className="absolute right-0 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-transparent">
                   {msg.role === "ai" && msg.content && <TTSButton text={msg.content} size="sm" />}
-                  
+
                   {/* Copy */}
                   <Button
                     variant="ghost"
@@ -249,10 +244,10 @@ const ChatMessageItem = memo(
             )}
           </div>
 
-          <motion.div className="flex-1 min-w-0 transition-all" layout>
+          <div className="flex-1 min-w-0 transition-all">
             {/* Thinking / Reasoning */}
             {msg.thinking && (
-              <Collapsible className="mb-2 overflow-hidden border-l-2 border-primary/10 pl-2">
+              <Collapsible className="mb-2 overflow-hidden border-l-1 border-primary/10 pl-2">
                 <CollapsibleTrigger asChild>
                   <Button variant="ghost" size="sm" className="h-7 px-2 text-[11px] font-semibold text-muted-foreground/60 hover:text-primary transition-colors flex items-center gap-2">
                     <Brain className="h-3 w-3" />
@@ -260,7 +255,7 @@ const ChatMessageItem = memo(
                     <ChevronRight className="h-3 w-3 transition-transform group-data-[state=open]:rotate-90" />
                   </Button>
                 </CollapsibleTrigger>
-                <CollapsibleContent className="py-2 text-[12.5px] text-muted-foreground/60 italic leading-relaxed">
+                <CollapsibleContent className="py-2 text-[11px] text-muted-foreground/60 italic leading-relaxed">
                   <MessageContent content={typeof msg.thinking === 'string' ? msg.thinking : JSON.stringify(msg.thinking, null, 2)} />
                 </CollapsibleContent>
               </Collapsible>
@@ -282,7 +277,7 @@ const ChatMessageItem = memo(
                 />
               </div>
             )}
-          </motion.div>
+          </div>
         </div>
 
 
@@ -306,7 +301,7 @@ ChatMessageItem.displayName = "ChatMessageItem"
 const globalSpokenMessageIds = new Set<string | number>()
 const pageLoadTime = Date.now()
 
-function SmartChatMessageItem(props: ChatMessageItemProps) {
+const SmartChatMessageItem = memo((props: ChatMessageItemProps) => {
   const { msg } = props
   const { autoSpeak } = useAutoSpeak()
   const { speak, isSpeaking } = useTTS()
@@ -336,6 +331,6 @@ function SmartChatMessageItem(props: ChatMessageItemProps) {
   }, [autoSpeak, msg.role, msg.content, msg.status, isSpeaking, speak, msg.node_source, msg.id, msg.timestamp])
 
   return <ChatMessageItem {...props} />
-}
+})
 
 export { ChatMessageItem, SmartChatMessageItem }

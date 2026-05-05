@@ -289,7 +289,9 @@ class ProjectMemoryContextProvider:
     def _scan_norm_files_sync(self, project_path: str) -> list[tuple[str, str]]:
         """Synchronous norm file scanner (runs in thread pool).
 
-        Returns list of (filename, first_500_chars) tuples.
+        Returns list of (filename, content_preview) tuples.
+        PROJECT.md receives a larger quota because it is the primary project
+        identity document used for domain-term extraction.
         """
         norms = []
         for norm_file in PROJECT_NORM_FILES:
@@ -297,7 +299,9 @@ class ProjectMemoryContextProvider:
             if os.path.exists(path) and os.path.isfile(path):
                 try:
                     with open(path, "r", encoding="utf-8") as f:
-                        content = f.read(500)
+                        # PROJECT.md is the canonical project profile; give it more space
+                        quota = 5000 if norm_file == "PROJECT.md" else 1000
+                        content = f.read(quota)
                         norms.append((norm_file, content))
                 except Exception:
                     continue

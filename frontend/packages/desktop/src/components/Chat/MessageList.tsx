@@ -143,24 +143,23 @@ export function MessageList({
                     <ChatWelcome />
                 )}
 
-                <AnimatePresence initial={false} mode="popLayout">
+                <AnimatePresence initial={false}>
                     {renderItems.map((item) => {
                         if (item.type === "message") {
                             return (
                                 <motion.div
                                     key={item.data.id}
-                                    initial={{ opacity: 0, y: 10 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    transition={{ type: "spring", stiffness: 400, damping: 30 }}
-                                    layout="position"
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    transition={{ duration: 0.2 }}
                                 >
                                     <SmartChatMessageItem
                                         msg={item.data}
                                         isGrouped={!(item.data as any).isFirstInTurn && item.data.role !== "human"}
                                         showAvatar={item.data.role === "human" || (item.data as any).isFirstInTurn}
-                                        onAddToMemory={onAddToMemory ? (txt) => onAddToMemory(txt) : undefined}
-                                        onRewind={onRewind ? () => onRewind(item.data) : undefined}
-                                        onRetry={onRetry ? () => onRetry(item.data) : undefined}
+                                        onAddToMemory={onAddToMemory}
+                                        onRewind={() => onRewind?.(item.data)}
+                                        onRetry={() => onRetry?.(item.data)}
                                         onQuote={() => onQuote?.(item.data)}
                                         onViewChangeset={onViewChangeset}
                                     />

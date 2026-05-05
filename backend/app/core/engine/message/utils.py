@@ -9,6 +9,7 @@ compatibility. New code should import directly from the specialized modules.
 
 import json
 import logging
+import ast
 from typing import Any
 
 from langchain_core.messages import AIMessage, BaseMessage, SystemMessage, ToolMessage, HumanMessage
@@ -18,15 +19,36 @@ from app.utils.token import estimate_tokens
 logger = logging.getLogger(__name__)
 
 
-# Mapping of tool-specific argument aliases for consistent i18n rendering
-# format: {tool_name: {old_key: new_key}}
-TOOL_ARG_ALIASES = {
-    "search_files": {"pattern": "query"},
-    "search_code": {"pattern": "query"},
-    "search_web": {"pattern": "query"},
-    "list_directory": {"path": "path"},  # Ensure path is always available
-    "read_file": {"path": "path"},
-}
+
+
+
+def parse_tool_input(input_str: str | None) -> dict:
+    """
+    Robustly parse tool input string into a dictionary.
+    Handles both standard JSON and LangChain's single-quoted Python dict strings.
+    """
+    if not input_str or not input_str.strip():
+        return {}
+        
+    input_str = input_str.strip()
+    if not input_str.startswith("{"):
+        return {}
+
+    # 1. Try standard JSON
+    try:
+        return json.loads(input_str)
+    except (json.JSONDecodeError, ValueError):
+        pass
+
+    # 2. Try Python literal eval (for single-quoted strings from LangChain)
+    try:
+        result = ast.literal_eval(input_str)
+        if isinstance(result, dict):
+            return result
+    except (ValueError, SyntaxError):
+        pass
+
+    return {}
 
 
 def to_base_message(msg: Any) -> BaseMessage | None:
@@ -132,12 +154,7 @@ def normalize_tool_call(tc: Any) -> dict[str, Any]:
                 elif isinstance(args_raw, dict):
                     res_args = args_raw
 
-    # 3. Apply Aliases for i18n consistency
-    if res_name in TOOL_ARG_ALIASES:
-        aliases = TOOL_ARG_ALIASES[res_name]
-        for old_k, new_k in aliases.items():
-            if old_k in res_args and new_k not in res_args:
-                res_args[new_k] = res_args[old_k]
+
 
     # 4. Final structure (standard LangChain format)
     result = {

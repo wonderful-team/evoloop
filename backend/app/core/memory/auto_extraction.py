@@ -155,12 +155,23 @@ class AutoMemoryExtractor:
 
         self._turns_since_extraction[thread_id] = 0
 
+        # Gather project context for term extraction
+        project_context = ""
+        if project_id:
+            try:
+                project_context = await self._gather_multi_source_context(project_id)
+            except Exception as e:
+                logger.debug(f"[AutoExtract] Failed to gather project context: {e}")
+
         # Discover terms from raw messages regardless of extraction gates
         if self._term_bank and project_id:
             try:
                 combined_text = "\n".join([str(m.content) for m in messages])
-                # We use a neutral confidence for raw interaction discovery
-                await self._term_bank.discover(combined_text, project_id=project_id, memory_confidence=0.5)
+                await self._term_bank.discover(
+                    combined_text,
+                    project_id=project_id,
+                    project_context=project_context,
+                )
             except Exception as e:
                 logger.debug(f"[AutoExtract] Raw message discovery failed: {e}")
 
@@ -242,7 +253,8 @@ class AutoMemoryExtractor:
                 user_id=user_id,
                 summary=summary,
                 source_message_id=last_msg_id,
-                run_id=run_id
+                run_id=run_id,
+                project_context=project_context,
             )
 
             return extracted
@@ -304,12 +316,15 @@ class AutoMemoryExtractor:
         summary: str | None = None,
         source_message_id: str | None = None,
         run_id: str | None = None,
+        project_context: str = "",
     ) -> list[MemoryEntry]:
         """
         Run extraction logic using a forked agent pattern.
         """
-        # Gather multi-source context
-        multi_source_context = await self._gather_multi_source_context(project_id)
+        # Use provided context or gather fresh
+        multi_source_context = project_context
+        if not multi_source_context:
+            multi_source_context = await self._gather_multi_source_context(project_id)
         logger.info(f"[AutoExtract] Multi-source context length: {len(multi_source_context)}")
         # Build extraction prompt using standardized builder
         from app.core.memory.prompts import MemoryExtractionPromptBuilder
@@ -357,11 +372,12 @@ class AutoMemoryExtractor:
             content = response.content
             logger.debug(f"[AutoExtract] Raw LLM response: {content[:500]}...")
             extracted = await self._parse_extraction_response(
-                content, 
-                project_id, 
+                content,
+                project_id,
                 user_id,
                 source_message_id=source_message_id,
-                run_id=run_id
+                run_id=run_id,
+                project_context=project_context,
             )
 
             # Save extracted memories
@@ -579,6 +595,7 @@ class AutoMemoryExtractor:
         user_id: str | None,
         source_message_id: str | None = None,
         run_id: str | None = None,
+        project_context: str = "",
     ) -> list[MemoryEntry]:
         """Parse LLM extraction response into memory entries."""
         entries = []
@@ -704,7 +721,9 @@ class AutoMemoryExtractor:
                 if self._term_bank is not None:
                     try:
                         await self._term_bank.discover(
-                            content, project_id=project_id, memory_confidence=confidence
+                            content,
+                            project_id=project_id,
+                            project_context=project_context,
                         )
                     except Exception as e:
                         logger.debug(f"[AutoExtract] Term discovery failed: {e}")

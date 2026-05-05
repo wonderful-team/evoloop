@@ -154,11 +154,7 @@ class HookSystem:
             # Used as function
             return decorator(handler)
 
-    def register_prompt(
-        self,
-        event: HookEvent,
-        prompt: str,
-    ) -> None:
+    def register_prompt(self, event: HookEvent, prompt: str) -> None:
         """
         Register a prompt to be injected at the event.
         
@@ -229,9 +225,7 @@ class HookSystem:
 
                 # If blocking and handler says block, stop immediately
                 if blocking and result.block:
-                    logger.warning(
-                        f"[HookSystem] {event.name} blocked by {handler.__name__}: {result.message}"
-                    )
+                    logger.warning(f"[HookSystem] {event.name} blocked by {handler.__name__}: {result.message}")
                     return result
 
                 # If PermissionDenied and retry requested
@@ -272,8 +266,7 @@ class HookSystem:
             modified_context=context,
             data=merged_data,
         )
-
-        logger.debug(f"[HookSystem] {event.name} triggered {len(matching_handlers)} handlers in {elapsed:.3f}s")
+        # logger.debug(f"[HookSystem] {event.name} triggered {len(matching_handlers)} handlers in {elapsed:.3f}s")
         return final_result
 
     def get_prompts(self, event: HookEvent) -> list[str]:

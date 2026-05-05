@@ -521,6 +521,10 @@
       "teachMe": "Teach Me a New Skill",
       "topApps": "High-Context Apps",
       "totalSkills": "{{count}} Active Skills"
+    },
+    "role": {
+      "assistant": "Assistant",
+      "user": "User"
     }
   },
   "common": {

@@ -85,13 +85,31 @@ class I18nService:
         # 5. Format strings
         if isinstance(value, str):
             try:
-                return value.format(**kwargs)
-            except KeyError as e:
-                logger.warning(f"Missing placeholder in i18n string '{key}': {e}")
-                # Optional: try to strip the missing placeholder to avoid showing {path} to users
+                # Support optional blocks: [[ prefix {key} suffix ]]
+                # This only renders the block if {key} is present and non-empty in kwargs
+                def replace_optional(match):
+                    content = match.group(1)
+                    # Find all placeholders in this block
+                    placeholders = re.findall(r'\{(\w+)\}', content)
+                    if not placeholders:
+                        return content
+                    
+                    # If all placeholders in this block are present, render it
+                    if all(kwargs.get(p) is not None for p in placeholders):
+                        return content.format(**kwargs)
+                    return ""
+
                 import re
-                cleaned_value = re.sub(r'\{' + str(e.args[0]) + r'\}', '...', value)
-                return cleaned_value
+                value = re.sub(r'\[\[(.*?)\]\]', replace_optional, value)
+                
+                # Standard format for the remaining string
+                # We use a custom formatter that ignores missing keys instead of erroring
+                class SafeFormatter(dict):
+                    def __missing__(self, key):
+                        return "{" + key + "}"
+                
+                return value.format_map(SafeFormatter(**kwargs))
+                
             except Exception as e:
                 logger.error(f"Error formatting i18n string '{key}': {e}")
                 return value

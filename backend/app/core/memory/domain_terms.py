@@ -1,23 +1,19 @@
 """
 Domain Term Bank — Agent self-maintained per-project terminology.
 
-No external NLP dependencies. Uses simple regex tokenization + frequency tracking.
-Terms are stored as independent JSON files (not MemoryEntry) for lightweight R/W.
-
-Storage structure (v2, simplified):
+Storage structure (v3 — LLM-driven extraction, no regex/n-gram):
     {
       "terms": {
-        "心室颤动": {"freq": 5, "last_seen": "2026-04-29T14:32:28", "confidence": 0.8234},
-        "api gateway": {"freq": 3, "last_seen": "2026-04-29T14:32:28", "confidence": 0.7123}
+        "心室颤动": {"freq": 5, "last_seen": "2026-04-29T14:32:28"},
+        "api gateway": {"freq": 3, "last_seen": "2026-04-29T14:32:28"}
       }
     }
 
-Admission policy:
-- freq >= 2 before persisting (first sight kept in memory cache only)
-- Chinese: whole phrase 2-6 chars; n-grams 2-4 chars, no stopwords inside
-- English: single words >=3 chars, exclude common generic verbs;
-           multi-word proper nouns kept as-is
-- All confidence values rounded to 4 decimals on save
+Design principles:
+- Term extraction is performed by LLM, not regex/n-gram heuristics
+- No admission gates, no staging cache, no stopword filters
+- Terms are persisted immediately upon LLM extraction
+- Confidence is computed at runtime from freq + temporal decay
 """
 
 import asyncio
@@ -28,104 +24,32 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path
 
-from app.core.memory.stopwords import ALL_STOPWORDS
+from app.utils import render_template
 
 logger = logging.getLogger(__name__)
 
-# ── Tokenization regexes ──────────────────────────────────────────────
-_EN_WORD_RE = re.compile(r"\b[a-zA-Z]{2,}\b")
-_ZH_WORD_RE = re.compile(r"[\u4e00-\u9fff]{2,}")
-_EN_PROPER_RE = re.compile(r"\b[A-Z][a-zA-Z]*(?:\s+[A-Z][a-zA-Z]*)+\b")
-_PURE_NUM_RE = re.compile(r"^\d+$")
-
-# Common generic English verbs — too frequent to be domain-specific terms
-_EN_GENERIC_VERBS: set[str] = {
-    "use", "used", "using", "get", "gets", "got", "gotten", "set", "sets",
-    "put", "puts", "call", "calls", "called", "make", "makes", "made",
-    "take", "takes", "took", "taken", "have", "has", "had", "do", "does",
-    "did", "done", "go", "goes", "went", "gone", "come", "comes", "came",
-    "work", "works", "worked", "try", "tries", "tried", "need", "needs",
-    "needed", "want", "wants", "wanted", "like", "likes", "liked", "look",
-    "looks", "looked", "see", "sees", "saw", "seen", "know", "knows", "knew",
-    "find", "finds", "found", "give", "gives", "gave", "given", "tell",
-    "tells", "told", "say", "says", "said", "ask", "asks", "asked", "show",
-    "shows", "showed", "shown", "run", "runs", "ran", "move", "moves", "moved",
-    "help", "helps", "helped", "start", "starts", "started", "turn", "turns",
-    "turned", "play", "plays", "played", "live", "lives", "lived", "believe",
-    "believes", "believed", "bring", "brings", "brought", "happen", "happens",
-    "happened", "write", "writes", "wrote", "written", "provide", "provides",
-    "provided", "sit", "sits", "sat", "stand", "stands", "stood", "lose",
-    "loses", "lost", "pay", "pays", "paid", "meet", "meets", "met", "include",
-    "includes", "included", "continue", "continues", "continued", "change",
-    "changes", "changed", "follow", "follows", "followed", "stop", "stops",
-    "stopped", "create", "creates", "created", "speak", "speaks", "spoke",
-    "read", "reads", "allow", "allows", "allowed", "add", "adds", "added",
-    "spend", "spends", "spent", "grow", "grows", "grew", "grown", "open",
-    "opens", "opened", "walk", "walks", "walked", "win", "wins", "won",
-    "offer", "offers", "offered", "remember", "remembers", "remembered",
-    "love", "loves", "loved", "consider", "considers", "considered",
-    "appear", "appears", "appeared", "buy", "buys", "bought", "wait",
-    "waits", "waited", "serve", "serves", "served", "die", "dies", "died",
-    "send", "sends", "sent", "expect", "expects", "expected", "build",
-    "builds", "built", "stay", "stays", "stayed", "fall", "falls", "fell",
-    "fallen", "cut", "cuts", "reach", "reaches", "reached", "kill", "kills",
-    "killed", "remain", "remains", "remained", "suggest", "suggests",
-    "suggested", "raise", "raises", "raised", "pass", "passes", "passed",
-    "sell", "sells", "sold", "require", "requires", "required", "report",
-    "reports", "reported", "decide", "decides", "decided", "pull", "pulls",
-    "pulled", "explain", "explains", "explained", "carry", "carries",
-    "carried", "develop", "develops", "developed", "hope", "hopes", "hoped",
-    "drive", "drives", "drove", "driven", "break", "breaks", "broke",
-    "broken", "receive", "receives", "received", "agree", "agrees", "agreed",
-    "support", "supports", "supported", "remove", "removes", "removed",
-    "leave", "leaves", "left", "enter", "enters", "entered", "check",
-    "checks", "checked", "feel", "feels", "felt", "seem", "seems", "seemed",
-}
-
-# Admission thresholds
-_MIN_FREQ_TO_PERSIST = 2
+# Runtime confidence params
 _MIN_TERM_CONFIDENCE = 0.15
-_DISCOVERY_BOOST = 0.05
 _MAX_TERM_CONFIDENCE = 1.0
-
-# Length limits
-_ZH_WHOLE_PHRASE_MAX = 6   # Whole Chinese phrases >6 chars are likely sentences
-_ZH_NGRAM_MAX = 4
-_EN_WORD_MIN = 3
-_EN_WORD_MAX = 20
-_EN_PROPER_MAX = 30
-
-
-def _is_generic_verb(word: str) -> bool:
-    """Check if word (or a common inflection of it) is a generic verb."""
-    if word in _EN_GENERIC_VERBS:
-        return True
-    # Check common inflections: handles -> handle, handled -> handle, handling -> handle
-    for suffix, restore_e in (("s", False), ("es", False), ("ed", False), ("ing", True)):
-        if word.endswith(suffix):
-            stem = word[:-len(suffix)]
-            if stem in _EN_GENERIC_VERBS:
-                return True
-            if restore_e and stem + "e" in _EN_GENERIC_VERBS:
-                return True
-    return False
+_MAX_TERMS_PER_EXTRACTION = 5
 
 
 class TermMeta:
-    """Lightweight metadata for a single domain term. No Pydantic — plain object."""
+    """Lightweight metadata for a single domain term.
 
-    __slots__ = ("freq", "last_seen", "confidence")
+    v3: only freq + last_seen persisted; confidence computed at runtime.
+    """
 
-    def __init__(self, freq: int = 0, last_seen: datetime | None = None, confidence: float = 1.0):
+    __slots__ = ("freq", "last_seen")
+
+    def __init__(self, freq: int = 0, last_seen: datetime | None = None):
         self.freq = freq
         self.last_seen = last_seen or datetime.now(timezone.utc)
-        self.confidence = confidence
 
     def to_dict(self) -> dict:
         return {
             "freq": self.freq,
             "last_seen": self.last_seen.isoformat(),
-            "confidence": round(self.confidence, 4),
         }
 
     @classmethod
@@ -133,13 +57,12 @@ class TermMeta:
         return cls(
             freq=d.get("freq", 0),
             last_seen=datetime.fromisoformat(d["last_seen"]),
-            confidence=d.get("confidence", 1.0),
         )
 
 
 class DomainTermBank:
     """
-    Per-project terminology library that Agent maintains automatically.
+    Per-project terminology library maintained by LLM extraction.
 
     Storage layout:
         ~/.evoloop/memory/domain_terms/
@@ -148,7 +71,7 @@ class DomainTermBank:
 
     Usage:
         bank = DomainTermBank("/path/to/memory/domain_terms")
-        await bank.discover(content, project_id=42, memory_confidence=0.8)
+        await bank.discover(content, project_id=42, project_context="...")
         matched = await bank.match(content, project_id=42)
         top = await bank.get_top_terms(project_id=42, limit=20)
     """
@@ -158,9 +81,6 @@ class DomainTermBank:
         self._base_path.mkdir(parents=True, exist_ok=True)
         self._global_path = self._base_path / "_global.json"
         self._lock = asyncio.Lock()
-        # In-memory staging: terms seen only once are held here, not persisted.
-        # Key: (project_id, token) -> count
-        self._staging: dict[tuple[int | None, str], int] = {}
 
     # ── Internal helpers ──────────────────────────────────────────────
 
@@ -188,9 +108,7 @@ class DomainTermBank:
 
     async def _save(self, project_id: int | None, terms: dict[str, TermMeta]) -> None:
         path = self._project_path(project_id)
-        payload = {
-            "terms": {k: v.to_dict() for k, v in terms.items()},
-        }
+        payload = {"terms": {k: v.to_dict() for k, v in terms.items()}}
         loop = asyncio.get_event_loop()
         try:
             await loop.run_in_executor(
@@ -204,58 +122,78 @@ class DomainTermBank:
             logger.warning(f"[TermBank] Failed to save {path}: {e}")
 
     @staticmethod
-    def _extract_tokens(content: str) -> dict[str, int]:
-        """Extract candidate term tokens from content with frequency counts."""
-        counts: dict[str, int] = {}
+    def _compute_confidence(
+        freq: int,
+        last_seen: datetime,
+        half_life_days: int = 30,
+    ) -> float:
+        """Compute term confidence from frequency and temporal decay."""
+        days = (datetime.now(timezone.utc) - last_seen).total_seconds() / 86400
+        decay = 0.5 ** (days / half_life_days)
+        base = min(0.3 + freq * 0.05, 0.95)
+        return round(base * decay, 4)
 
-        # 1. English words (>=3 chars, exclude generic verbs & stopwords)
-        for w in _EN_WORD_RE.findall(content):
-            w_lower = w.lower()
-            if (
-                len(w_lower) < _EN_WORD_MIN
-                or len(w_lower) > _EN_WORD_MAX
-                or w_lower in ALL_STOPWORDS
-                or _is_generic_verb(w_lower)
-                or _PURE_NUM_RE.match(w_lower)
-            ):
-                continue
-            counts[w_lower] = counts.get(w_lower, 0) + 1
+    @staticmethod
+    def _parse_llm_response(content: str) -> list[str]:
+        """Extract JSON array of terms from LLM response."""
+        # Try to find JSON array in the response
+        match = re.search(r'\[.*?\]', content, re.DOTALL)
+        if not match:
+            return []
+        try:
+            terms = json.loads(match.group())
+            if isinstance(terms, list):
+                # Filter: strings only, non-empty, reasonable length
+                return [
+                    str(t).strip()
+                    for t in terms
+                    if isinstance(t, (str,)) and str(t).strip()
+                ]
+        except json.JSONDecodeError:
+            logger.debug(f"[TermBank] Failed to parse LLM response: {content[:200]}")
+        return []
 
-        # 2. Chinese phrases
-        for phrase in _ZH_WORD_RE.findall(content):
-            # 2a. Whole phrase — keep only if 2-6 chars and not a stopword
-            if 2 <= len(phrase) <= _ZH_WHOLE_PHRASE_MAX and phrase not in ALL_STOPWORDS:
-                counts[phrase] = counts.get(phrase, 0) + 1
+    async def _extract_with_llm(
+        self,
+        content: str,
+        project_context: str,
+        max_terms: int = _MAX_TERMS_PER_EXTRACTION,
+    ) -> list[str]:
+        """Call LLM to extract domain terms from content."""
+        from app.infrastructure.config.service import SystemConfigService
+        from app.core.llm import InternalLLMService
 
-            # 2b. N-grams (2-4 chars)
-            if len(phrase) >= 2:
-                max_n = min(_ZH_NGRAM_MAX + 1, len(phrase) + 1)
-                for n in range(2, max_n):
-                    for i in range(len(phrase) - n + 1):
-                        sub = phrase[i:i + n]
-                        if sub in ALL_STOPWORDS:
-                            continue
-                        if n == 2:
-                            # Bigrams: strict — any stopword inside → reject
-                            if any(ch in ALL_STOPWORDS for ch in sub):
-                                continue
-                        else:
-                            # 3+ grams: reject only if BOTH ends are stopwords
-                            # (allows terms like "不可抗力" where "不" is a stopword)
-                            if sub[0] in ALL_STOPWORDS and sub[-1] in ALL_STOPWORDS:
-                                continue
-                        counts[sub] = counts.get(sub, 0) + 1
+        model_name = SystemConfigService.get_value("LLM_MODEL")
+        if not model_name:
+            logger.warning("[TermBank] No LLM model configured, skipping term extraction")
+            return []
 
-        # 3. English proper noun phrases (API Gateway, Data Model, ...)
-        for phrase in _EN_PROPER_RE.findall(content):
-            words = phrase.lower().split()
-            words = [w for w in words if w not in ALL_STOPWORDS and w not in _EN_GENERIC_VERBS]
-            if len(words) >= 2:
-                normalized = " ".join(words)
-                if len(normalized) <= _EN_PROPER_MAX:
-                    counts[normalized] = counts.get(normalized, 0) + 1
+        prompt = render_template(
+            "core/memory/term_extraction.prompt.j2",
+            content=content,
+            project_context=project_context,
+            max_terms=max_terms,
+        )
 
-        return counts
+        messages = [
+            {"role": "system", "content": "You are a precise domain terminology extractor."},
+            {"role": "user", "content": prompt},
+        ]
+
+        try:
+            response = await InternalLLMService.invoke(
+                messages=messages,
+                purpose="domain_term_extraction",
+                temperature=0.3,
+                max_tokens=300,
+                model_name=model_name,
+            )
+            terms = self._parse_llm_response(response.content)
+            logger.debug(f"[TermBank] LLM extracted {len(terms)} terms: {terms}")
+            return terms
+        except Exception as e:
+            logger.warning(f"[TermBank] LLM term extraction failed: {e}")
+            return []
 
     # ── Public API ────────────────────────────────────────────────────
 
@@ -286,65 +224,34 @@ class DomainTermBank:
         self,
         content: str,
         project_id: int | None,
-        memory_confidence: float = 0.5,
-    ) -> None:
+        project_context: str = "",
+    ) -> list[str]:
         """
-        Extract candidate terms from content and update the term bank.
+        Extract domain terms from content via LLM and update the term bank.
 
-        Only terms from memories with confidence >= 0.5 are considered reliable
-        enough to contribute to the bank.
-
-        Terms are persisted only after they have been seen >= _MIN_FREQ_TO_PERSIST
-        times (first sightings are kept in a memory-only staging cache).
+        Terms are persisted immediately (no staging, no frequency threshold).
+        project_context should contain PROJECT.md or other project background.
         """
-        if memory_confidence < 0.5:
-            return
+        if not content or not content.strip():
+            return []
 
-        tokens = self._extract_tokens(content)
-        if not tokens:
-            return
+        terms = await self._extract_with_llm(content, project_context)
+        if not terms:
+            return []
 
         now = datetime.now(timezone.utc)
-        staging_key = project_id
 
         async with self._lock:
             persisted = await self._load(project_id)
-            newly_promoted: list[str] = []
-
-            for token, count in tokens.items():
-                if token in persisted:
-                    # Already persisted — just boost
-                    meta = persisted[token]
-                    meta.freq += count
-                    meta.last_seen = now
-                    meta.confidence = min(
-                        meta.confidence + _DISCOVERY_BOOST * memory_confidence,
-                        _MAX_TERM_CONFIDENCE,
-                    )
+            for term in terms:
+                if term in persisted:
+                    persisted[term].freq += 1
+                    persisted[term].last_seen = now
                 else:
-                    # Staging: accumulate in memory until threshold
-                    key = (staging_key, token)
-                    self._staging[key] = self._staging.get(key, 0) + count
-                    if self._staging[key] >= _MIN_FREQ_TO_PERSIST:
-                        # Promote to persisted
-                        persisted[token] = TermMeta(
-                            freq=self._staging[key],
-                            last_seen=now,
-                            confidence=min(
-                                _DISCOVERY_BOOST * memory_confidence + 0.3,
-                                _MAX_TERM_CONFIDENCE,
-                            ),
-                        )
-                        newly_promoted.append(token)
-                        del self._staging[key]
-
-            if newly_promoted:
-                logger.debug(
-                    f"[TermBank] Promoted {len(newly_promoted)} terms to persistence "
-                    f"for project={project_id}"
-                )
-
+                    persisted[term] = TermMeta(freq=1, last_seen=now)
             await self._save(project_id, persisted)
+
+        return terms
 
     async def decay(
         self,
@@ -354,6 +261,7 @@ class DomainTermBank:
         """
         Apply temporal decay to all terms. Terms falling below threshold are removed.
 
+        Confidence is computed at runtime from freq and last_seen.
         Returns list of removed term strings.
         """
         async with self._lock:
@@ -361,16 +269,14 @@ class DomainTermBank:
             if not terms:
                 return []
 
-            now = datetime.now(timezone.utc)
             removed: list[str] = []
             survivors: dict[str, TermMeta] = {}
 
             for token, meta in terms.items():
-                days = (now - meta.last_seen).total_seconds() / 86400
-                # Exponential decay
-                meta.confidence *= 0.5 ** (days / half_life_days)
-
-                if meta.confidence < _MIN_TERM_CONFIDENCE:
+                confidence = self._compute_confidence(
+                    meta.freq, meta.last_seen, half_life_days
+                )
+                if confidence < _MIN_TERM_CONFIDENCE:
                     removed.append(token)
                 else:
                     survivors[token] = meta
@@ -393,14 +299,16 @@ class DomainTermBank:
         """Return top-N terms sorted by confidence * log(freq).
 
         Falls back to global terms if project-specific bank is empty.
+        Confidence is computed at runtime from freq and last_seen.
         """
         terms = await self.get_terms(project_id)
         if not terms:
             terms = await self.get_terms(project_id=None)
-        scored = [
-            (token, meta.confidence * (1 + math.log(meta.freq + 1)))
-            for token, meta in terms.items()
-            if meta.confidence >= min_confidence
-        ]
+        scored = []
+        for token, meta in terms.items():
+            confidence = self._compute_confidence(meta.freq, meta.last_seen)
+            if confidence >= min_confidence:
+                score = confidence * (1 + math.log(meta.freq + 1))
+                scored.append((token, score))
         scored.sort(key=lambda x: x[1], reverse=True)
         return [token for token, _ in scored[:limit]]

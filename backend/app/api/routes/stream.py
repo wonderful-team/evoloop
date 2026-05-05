@@ -39,8 +39,7 @@ async def stream_chat(thread_id: str):
 
     async def event_generator():
         pubsub = None
-        logger.info(f"[SSE] New connection request for thread: {thread_id}")
-        
+
         try:
             # 1. Bootstrap: Send Initial Full State (once)
             try:
@@ -80,7 +79,6 @@ async def stream_chat(thread_id: str):
                     if now - last_heartbeat > 15.0:
                         yield ": ping\n\n"
                         last_heartbeat = now
-                        logger.debug(f"[SSE] Sent keep-alive ping for {thread_id}")
 
                     message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
                     # Reset backoff on successful read
@@ -92,7 +90,6 @@ async def stream_chat(thread_id: str):
                         
                     reconnect_attempts += 1
                     if reconnect_attempts > MAX_RECONNECT_ATTEMPTS:
-                        logger.error(f"[SSE] PubSub max reconnect attempts ({MAX_RECONNECT_ATTEMPTS}) exceeded for {thread_id}. Aborting.")
                         yield f"event: error\ndata: {json.dumps({'error': 'Stream connection lost after maximum retries'})}\n\n"
                         break
                     backoff = min(BASE_BACKOFF * (2 ** (reconnect_attempts - 1)), 30.0)
@@ -116,12 +113,10 @@ async def stream_chat(thread_id: str):
 
                 if message and message["type"] == "message":
                     raw_data = message["data"]
-                    logger.info(f"[SSE] Raw Pub/Sub message received for {thread_id}: len={len(raw_data)}, preview={raw_data[:150]}...")
 
                     try:
                         event_data = json.loads(raw_data)
                         event_type = event_data.get("type", "unknown")
-                        logger.info(f"[SSE] Received {event_type} event")
 
                         # 1. 核心消息同步 (需通过 Normalizer 保证跨端一致性)
                         if event_type == "message":
@@ -135,8 +130,6 @@ async def stream_chat(thread_id: str):
                             yield f"event: {event_type}\ndata: {raw_data}\n\n"
 
                     except Exception as e:
-                        logger.error(f"[SSE] Error processing pubsub message for {thread_id}: {e}")
-                        # Notify client that an event was lost
                         yield f"event: error\ndata: {json.dumps({'error': 'Failed to process server event', 'details': str(e)})}\n\n"
 
                 await asyncio.sleep(0.01)

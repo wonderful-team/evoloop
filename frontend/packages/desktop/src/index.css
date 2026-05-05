@@ -171,8 +171,12 @@
     @apply mb-2 last:mb-0;
   }
 
+  .doc-message-content hr {
+    @apply mt-4 mb-4;
+  }
+
   .doc-message-content table {
-    @apply w-full border-collapse my-4 rounded-lg overflow-hidden border border-[var(--doc-border)];
+    @apply w-full border-collapse rounded-lg overflow-hidden border border-[var(--doc-border)];
   }
 
   .doc-message-content th {

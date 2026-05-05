@@ -104,6 +104,7 @@ class MemoryManager:
         self.retrieval = MemoryRetriever(self._storage, config=self.config)
         self.quality = MemoryQualityAnalyzer(self._storage, config=self.config)
         self._term_bank_maintenance = TermBankMaintenanceService(term_bank) if term_bank else None
+        self._two_tier = None
 
     async def initialize(self) -> None:
         """Initialize all memory components."""
@@ -386,14 +387,20 @@ class MemoryManager:
     async def save_memory(self, entry: MemoryEntry) -> None:
         """Save a memory entry and discover potential domain terms."""
         await self._storage.save(entry)
-        
+
         # Trigger term discovery if bank is available
         if self.extraction._term_bank and entry.content and entry.project_id:
             try:
+                project_context = ""
+                if entry.project_id:
+                    try:
+                        project_context = await self.extraction._gather_multi_source_context(entry.project_id)
+                    except Exception as exc:
+                        logger.debug(f"[MemoryManager] Failed to gather project context for term discovery: {exc}")
                 await self.extraction._term_bank.discover(
                     content=entry.content,
                     project_id=entry.project_id,
-                    memory_confidence=entry.confidence
+                    project_context=project_context,
                 )
             except Exception as e:
                 logger.warning(f"Failed to discover terms from memory {entry.id}: {e}")
@@ -417,18 +424,6 @@ class MemoryManager:
             Memory entry or None if not found
         """
         return await self._storage.get(entry_id)
-
-    async def delete_memory(self, entry_id: str) -> bool:
-        """
-        Delete a memory entry.
-        
-        Args:
-            entry_id: Memory entry ID to delete
-            
-        Returns:
-            True if deleted, False if not found
-        """
-        return await self._storage.delete(entry_id)
 
     async def search_memories(
         self,
@@ -489,13 +484,14 @@ class MemoryManager:
         Returns:
             MEMORY.md content (truncated if exceeds limits)
         """
-        from app.core.memory.two_tier import TwoTierMemoryManager
-        two_tier = TwoTierMemoryManager(
-            storage=self._storage,
-            config=self.config,
-            analyzer=self.quality
-        )
-        return await two_tier.get_hot_memory()
+        if self._two_tier is None:
+            from app.core.memory.two_tier import TwoTierMemoryManager
+            self._two_tier = TwoTierMemoryManager(
+                storage=self._storage,
+                config=self.config,
+                analyzer=self.quality
+            )
+        return await self._two_tier.get_hot_memory()
 
     async def search_cold_memory(
         self,
@@ -515,13 +511,14 @@ class MemoryManager:
         Returns:
             List of relevant memory entries
         """
-        from app.core.memory.two_tier import TwoTierMemoryManager
-        two_tier = TwoTierMemoryManager(
-            storage=self._storage,
-            config=self.config,
-            analyzer=self.quality
-        )
-        return await two_tier.search_cold_memory(query, max_results)
+        if self._two_tier is None:
+            from app.core.memory.two_tier import TwoTierMemoryManager
+            self._two_tier = TwoTierMemoryManager(
+                storage=self._storage,
+                config=self.config,
+                analyzer=self.quality
+            )
+        return await self._two_tier.search_cold_memory(query, max_results)
 
     async def regenerate_memory_md(self) -> None:
         """
@@ -530,13 +527,14 @@ class MemoryManager:
         This updates the hot memory (Tier 1) based on the current
         state of cold memory (Tier 2), applying budgets and rankings.
         """
-        from app.core.memory.two_tier import TwoTierMemoryManager
-        two_tier = TwoTierMemoryManager(
-            storage=self._storage,
-            config=self.config,
-            analyzer=self.quality
-        )
-        await two_tier.regenerate_memory_md()
+        if self._two_tier is None:
+            from app.core.memory.two_tier import TwoTierMemoryManager
+            self._two_tier = TwoTierMemoryManager(
+                storage=self._storage,
+                config=self.config,
+                analyzer=self.quality
+            )
+        await self._two_tier.regenerate_memory_md()
 
     async def list_memories(
         self,

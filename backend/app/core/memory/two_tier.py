@@ -75,7 +75,10 @@ class MemorySection(DynamicBaseModel):
         lines = [f"## {self.title}", ""]
 
         for entry in self.entries[:max_lines]:
-            lines.append(f"- **{entry['title']}**: {entry['description']}")
+            # Support both dict and MemorySectionEntry objects
+            title = entry.get("title") if isinstance(entry, dict) else getattr(entry, "title", "")
+            description = entry.get("description") if isinstance(entry, dict) else getattr(entry, "description", "")
+            lines.append(f"- **{title}**: {description}")
 
         # Overflow indicator
         if len(self.entries) > max_lines:
@@ -136,6 +139,7 @@ class TwoTierMemoryManager:
         self._storage = storage
         self._config = config
         self._analyzer = analyzer
+        self._retriever = None
 
         if config is not None:
             self.root = config.memory_root
@@ -175,12 +179,14 @@ class TwoTierMemoryManager:
         Returns:
             List of relevant memory entries
         """
-        retriever = MemoryRetriever(
-            self._storage,
-            config=self._config,
-            max_results=max_results,
-        )
-        return await retriever.find_relevant(query)
+        if self._retriever is None:
+            self._retriever = MemoryRetriever(
+                self._storage,
+                config=self._config,
+                max_results=max_results,
+            )
+        self._retriever.max_results = max_results
+        return await self._retriever.find_relevant(query)
 
     async def regenerate_memory_md(self) -> None:
         """

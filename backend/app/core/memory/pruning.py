@@ -54,9 +54,8 @@ class MemoryPruningService:
             return []
 
         # 2. Strategy: Task Fulfillment (Simple & Data-driven)
-        if self.todo_service:
-            todo_logs = await self._prune_fulfilled_tasks(memories, project_id)
-            audit_log.extend(todo_logs)
+        todo_logs = await self._prune_fulfilled_tasks(memories, project_id)
+        audit_log.extend(todo_logs)
 
         # 3. Strategy: Consolidation (Merging related memories)
         # We consolidate every N sessions or when memory grows
@@ -65,11 +64,10 @@ class MemoryPruningService:
         audit_log.extend(consolidation_logs)
 
         # 4. Strategy: Redundancy & Staleness (LLM-assisted)
-        if self.project_context:
-            # Refresh memories list after consolidation
-            updated_memories = [m for m in memories if m.id not in [l['id'] for l in audit_log if l['action'] == 'DELETED']]
-            semantic_logs = await self._prune_semantically(updated_memories, project_id)
-            audit_log.extend(semantic_logs)
+        # Refresh memories list after consolidation
+        updated_memories = [m for m in memories if m.id not in [l['id'] for l in audit_log if l['action'] == 'DELETED']]
+        semantic_logs = await self._prune_semantically(updated_memories, project_id)
+        audit_log.extend(semantic_logs)
 
         return audit_log
 
@@ -79,12 +77,20 @@ class MemoryPruningService:
         # Filter for memories that look like tasks or have 'todo' tags
         task_memories = [m for m in memories if m.type == MemoryType.PROJECT and ("todo" in m.tags or "task" in m.tags or "fix" in m.title.lower())]
         
-        if not task_memories:
+        if not task_memories or not project_id:
             return logs
 
         # Get current pending todos from service
         try:
-            pending_todos = await self.todo_service.list_pending_by_project(project_id) if project_id else []
+            if self.todo_service:
+                pending_todos = await self.todo_service.list_pending_by_project(project_id)
+            else:
+                from app.domain.todo.service import TodoService
+                from app.infrastructure.database.sql.database import session_scope
+                async with session_scope() as session:
+                    todo_service = TodoService(session)
+                    pending_todos = await todo_service.list_pending_by_project(project_id)
+
             pending_titles = {t.title.lower() for t in pending_todos}
 
             for mem in task_memories:
@@ -112,9 +118,18 @@ class MemoryPruningService:
         if not memories:
             return []
 
-        # Gather context
-        project_root = await self.project_context.get_project_structure(project_id) if project_id else "No project root found"
-        readme = await self.project_context.extract_description_from_readme(project_id) if project_id else ""
+        # Gather context (lazy-load project_context if not injected)
+        try:
+            project_context = self.project_context
+            if project_context is None:
+                from app.domain.project.service import project_context_manager
+                project_context = project_context_manager
+
+            project_root = await project_context.get_project_structure(project_id) if project_id else "No project root found"
+            readme = await project_context.extract_description_from_readme(project_id) if project_id else ""
+        except Exception as e:
+            logger.warning(f"[Pruning] Failed to gather project context for semantic pruning: {e}")
+            return []
         
         # Batch evaluation
         batch = memories[:20]

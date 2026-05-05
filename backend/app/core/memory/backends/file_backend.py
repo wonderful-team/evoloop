@@ -127,7 +127,9 @@ class FileMemoryStorage(IMemoryStorage):
                         id_idx[entry.id] = (path, category)
                         if entry.content_hash:
                             hash_idx[entry.content_hash] = entry.id
-                    except Exception: continue
+                    except Exception as exc:
+                        logger.debug(f"[FileStorage] Skipping corrupted file {path.name}: {exc}")
+                        continue
             return id_idx, hash_idx
 
         self._id_index, self._hash_index = await loop.run_in_executor(None, _scan)
@@ -321,7 +323,8 @@ class FileMemoryStorage(IMemoryStorage):
             else:
                 rows = await self.index_db.search(sql_filters, limit=limit)
             
-            return [await self.get(row["id"]) for row in rows if row["id"]]
+            entries = [await self.get(row["id"]) for row in rows if row["id"]]
+            return [e for e in entries if e is not None]
 
         # 2. Semantic Search (with vector-level filters)
         v_filters = {"project_id": project_id} if project_id is not None else {}
@@ -331,6 +334,35 @@ class FileMemoryStorage(IMemoryStorage):
         
         # 3. Rehydrate and apply final filters
         results = []
+        
+        # Fallback to metadata + keyword search if vector search is unavailable
+        if not v_results:
+            logger.debug("[FileStorage] Vector search unavailable, falling back to metadata keyword search")
+            sql_filters = filters.copy() if filters else {}
+            if project_id is not None:
+                sql_filters["project_id"] = project_id
+            if privacy:
+                sql_filters["privacy"] = privacy.value
+            
+            type_values = [t.value for t in types] if types else []
+            query_lower = query.lower()
+            
+            # Fetch more candidates from SQLite for local keyword filtering
+            rows = await self.index_db.search(sql_filters, limit=limit * 5)
+            for row in rows:
+                if len(results) >= limit:
+                    break
+                entry = await self.get(row["id"])
+                if not entry:
+                    continue
+                if type_values and entry.type.value not in type_values:
+                    continue
+                # Simple keyword match on title/description/content
+                text = f"{entry.title} {entry.description} {entry.content}".lower()
+                if query_lower in text:
+                    results.append(entry)
+            return results
+        
         for v in v_results:
             if len(results) >= limit: break
             entry = await self.get(v["id"])
@@ -384,7 +416,8 @@ class FileMemoryStorage(IMemoryStorage):
         results = []
         for row in rows:
             entry = await self.get(row["id"])
-            if entry: results.append(entry)
+            if entry is not None:
+                results.append(entry)
         return results
 
     async def find_by_hash(self, content_hash: str, project_id: Optional[int] = None) -> MemoryEntry | None:
@@ -450,7 +483,8 @@ class FileMemoryStorage(IMemoryStorage):
         from collections import defaultdict
         groups = defaultdict(list)
         for cp in checkpoints:
-            thread_id = cp.id.split("_")[1] if "_" in cp.id else "general"
+            parts = cp.id.split("_")
+            thread_id = parts[1] if len(parts) > 1 else "general"
             groups[thread_id].append(cp)
 
         total_removed = 0
