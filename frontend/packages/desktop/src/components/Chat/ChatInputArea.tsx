@@ -363,10 +363,7 @@ export const ChatInputArea = memo(
     }))
 
     return (
-      <div
-        className="shrink-0 p-4 pt-2 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60"
-        data-tour="chat-input"
-      >
+      <div className="shrink-0 p-4 pt-2 bg-background" data-tour="chat-input">
         <div className="w-full px-4 sm:px-6 lg:px-8 relative">
           {/* Reference Picker Popover - Hidden in global mode */}
           {showPicker && currentProject && !isGlobalMode && (
@@ -385,10 +382,10 @@ export const ChatInputArea = memo(
           )}
 
           <div className={cn(
-            "bg-background/80 backdrop-blur-xl rounded-2xl border transition-all duration-300 overflow-hidden relative z-50 shadow-sm",
-            "border-input hover:border-primary/30",
-            "focus-within:border-primary/60 focus-within:shadow-[0_0_25px_-5px_rgba(var(--primary-rgb),0.2)] focus-within:ring-1 focus-within:ring-primary/20",
-            isAgentWorking && "border-primary/40 shadow-[0_0_15px_-3px_rgba(var(--primary-rgb),0.1)]"
+            "bg-background rounded-xl border transition-all duration-200 overflow-hidden relative z-50",
+            "border-border hover:border-border/80",
+            "focus-within:border-primary/40 focus-within:ring-0",
+            isAgentWorking && "border-primary/40"
           )}>
             {/* Working Pulse Line (Top) */}
             <AnimatePresence>
@@ -593,10 +590,10 @@ export const ChatInputArea = memo(
                   }
                   size="sm"
                   className={cn(
-                    "h-8 px-4 rounded-xl transition-all font-bold text-xs shadow-lg",
+                    "h-8 px-4 rounded-lg transition-all font-bold text-xs",
                     isAgentWorking 
-                      ? "bg-red-500 hover:bg-red-600 text-white shadow-red-500/20" 
-                      : "bg-primary hover:bg-primary/90 text-white shadow-primary/20"
+                      ? "bg-red-500 hover:bg-red-600 text-white" 
+                      : "bg-primary hover:bg-primary/90 text-white"
                   )}
                 >
                   {isAgentWorking || isStopPending ? (

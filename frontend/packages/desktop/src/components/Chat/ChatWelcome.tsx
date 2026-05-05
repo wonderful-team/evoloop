@@ -1,286 +1,391 @@
-import React from 'react';
-import { useTranslation } from 'react-i18next';
-import { 
-  Bot, 
-  Cpu, 
-  Smartphone, 
-  Zap, 
-  Brain, 
-  LayoutGrid, 
-  Dna, 
-  Wand2, 
-  PlusCircle, 
-  Search, 
-  ListTodo, 
-  ArrowRight,
-  Activity,
-  History
-} from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { cn } from "@evoloop/shared/lib/utils";
-import { Button } from "@evoloop/shared/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@evoloop/shared/components/ui/card";
-import { Badge } from "@evoloop/shared/components/ui/badge";
-import { useProjectStore } from '@/stores/projectStore';
-import { useQuery } from '@tanstack/react-query';
-import { useNavigate } from '@tanstack/react-router';
-import { DevicesService, LearningService, SystemService } from '@/client';
-import { isLoggedIn } from '@/hooks/useAuth';
+// 3D 木头机器人组件 - 精确移植自移动端 WoodenRobot.tsx
+// React Native StyleSheet → CSS 内联样式，数值 1:1 对应
 
-interface ChatWelcomeProps {
-  // onStarterClick removed as prompts are replaced by nav
+import React, { useRef, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { motion, useAnimationControls } from 'framer-motion';
+import {
+  LayoutGrid,
+  ListTodo,
+  Brain,
+  Wand2,
+  ArrowRight
+} from 'lucide-react';
+import { cn } from "@evoloop/shared/lib/utils";
+import { useNavigate } from '@tanstack/react-router';
+
+// ─────────────────────────────────────────────
+// WoodenRobot — 1:1 port from mobile
+// ─────────────────────────────────────────────
+
+interface WoodenRobotProps {
+  primaryColor?: string;
+  mood?: 'neutral' | 'speaking';
 }
 
-export const ChatWelcome: React.FC<ChatWelcomeProps> = () => {
-  const { t } = useTranslation();
-  const { currentProject } = useProjectStore();
-  const navigate = useNavigate();
+function EyeWithBlink({ primaryColor, blinkScaleY }: { primaryColor: string; blinkScaleY: number }) {
+  // eyeContainer: width:22, height:22
+  // eyeWhite: width:20, height:20, borderRadius:10, bg:#FFF, borderWidth:2, shadow
+  // eyeBall: width:13, height:13, borderRadius:6.5
+  // eyeShineMain: absolute top:2 right:2 w:5 h:5 r:2.5 bg:#FFF opacity:0.9
+  // eyeShineSmall: absolute bottom:2 left:2 w:2.5 h:2.5 r:1.25 bg:#FFF opacity:0.7
+  return (
+    <div style={{ width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{
+        width: 20, height: 20, borderRadius: 10, backgroundColor: '#FFFFFF',
+        border: `2px solid ${primaryColor}`,
+        boxShadow: '0 1px 1px rgba(0,0,0,0.15)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        transform: `scaleY(${blinkScaleY})`,
+        transition: 'transform 0.08s ease',
+      }}>
+        <div style={{
+          width: 13, height: 13, borderRadius: 6.5, backgroundColor: primaryColor,
+          position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <div style={{ position: 'absolute', top: 2, right: 2, width: 5, height: 5, borderRadius: 2.5, backgroundColor: '#FFFFFF', opacity: 0.9 }} />
+          <div style={{ position: 'absolute', bottom: 2, left: 2, width: 2.5, height: 2.5, borderRadius: 1.25, backgroundColor: '#FFFFFF', opacity: 0.7 }} />
+        </div>
+      </div>
+    </div>
+  );
+}
 
-  // Fetch Devices Status (only when logged in)
-  const { data: devices } = useQuery({
-    queryKey: ['devices'],
-    queryFn: () => DevicesService.getDevices(),
-    refetchInterval: 10000,
-    enabled: isLoggedIn(),
-  });
+function EyeOpen({ primaryColor }: { primaryColor: string }) {
+  // eyeWhiteLarge: width:24, height:24, borderRadius:12
+  // eyeBallLarge: width:16, height:16, borderRadius:8
+  // eyeShineMainLarge: top:2 right:3 w:6 h:6 r:3
+  // eyeShineSmallLarge: bottom:2 left:3 w:3 h:3 r:1.5
+  return (
+    <div style={{ width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{
+        width: 24, height: 24, borderRadius: 12, backgroundColor: '#FFFFFF',
+        border: `2px solid ${primaryColor}`,
+        boxShadow: '0 1px 1px rgba(0,0,0,0.15)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}>
+        <div style={{
+          width: 16, height: 16, borderRadius: 8, backgroundColor: primaryColor,
+          position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <div style={{ position: 'absolute', top: 2, right: 3, width: 6, height: 6, borderRadius: 3, backgroundColor: '#FFFFFF', opacity: 0.9 }} />
+          <div style={{ position: 'absolute', bottom: 2, left: 3, width: 3, height: 3, borderRadius: 1.5, backgroundColor: '#FFFFFF', opacity: 0.7 }} />
+        </div>
+      </div>
+    </div>
+  );
+}
 
-  // Fetch Skills Stats (only when logged in)
-  const { data: skills } = useQuery({
-    queryKey: ['learnedSkills'],
-    queryFn: () => LearningService.listSkills({ pageSize: 4 }),
-    enabled: isLoggedIn(),
-  });
+export function WoodenRobot({ primaryColor = '#109C8F', mood = 'neutral' }: WoodenRobotProps) {
+  // Blink logic (mirrors scheduleBlink / doBlink)
+  const [blinkScaleY, setBlinkScaleY] = useState(1);
+  const blinkingRef = useRef(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Fetch System Status (only when logged in)
-  const { data: systemStatus } = useQuery({
-    queryKey: ['systemStatus'],
-    queryFn: () => SystemService.getSystemStatus(),
-    refetchInterval: 5000,
-    enabled: isLoggedIn(),
-  });
+  useEffect(() => {
+    const doBlink = () => {
+      if (blinkingRef.current) return;
+      blinkingRef.current = true;
+      setBlinkScaleY(0.1);
+      setTimeout(() => {
+        setBlinkScaleY(1);
+        setTimeout(() => { blinkingRef.current = false; }, 100);
+      }, 80);
+    };
+    const scheduleBlink = () => {
+      const delay = 6000 + Math.random() * 8000;
+      timerRef.current = setTimeout(() => { doBlink(); scheduleBlink(); }, delay);
+    };
+    scheduleBlink();
+    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
+  }, []);
 
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.08,
-        delayChildren: 0.2
-      }
+  const renderExpression = () => {
+    if (mood === 'speaking') {
+      return (
+        <>
+          {/* eyesRow: flexDirection:row, gap:8, marginBottom:4 */}
+          <div style={{ display: 'flex', flexDirection: 'row', gap: 8, marginBottom: 4, alignItems: 'center' }}>
+            <EyeOpen primaryColor={primaryColor} />
+            <EyeOpen primaryColor={primaryColor} />
+          </div>
+          {/* mouthSpeaking: w:16 h:8 bg:#6B4423 borderRadius:4 overflow:hidden */}
+          <div style={{ width: 16, height: 8, backgroundColor: '#6B4423', borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+            {/* mouthSpeakingInner: w:8 h:3 bg:#D4A5A5 r:1.5 */}
+            <div style={{ width: 8, height: 3, backgroundColor: '#D4A5A5', borderRadius: 1.5 }} />
+          </div>
+        </>
+      );
     }
-  };
-
-  const itemVariants = {
-    hidden: { y: 20, opacity: 0, scale: 0.98 },
-    visible: { 
-      y: 0, 
-      opacity: 1, 
-      scale: 1,
-      transition: { type: "spring", stiffness: 100, damping: 20 }
-    }
-  };
-
-  const cardHover = {
-    y: -5,
-    transition: { type: "spring", stiffness: 400, damping: 10 }
+    return (
+      <>
+        {/* eyesRow */}
+        <div style={{ display: 'flex', flexDirection: 'row', gap: 8, marginBottom: 4, alignItems: 'center' }}>
+          <EyeWithBlink primaryColor={primaryColor} blinkScaleY={blinkScaleY} />
+          <EyeWithBlink primaryColor={primaryColor} blinkScaleY={blinkScaleY} />
+        </div>
+        {/* mouthNeutral: w:16 h:4 borderBottom:2 borderLeft:0.5 borderRight:0.5 borderTop:0
+            borderBottomLeftRadius:4 borderBottomRightRadius:4 borderColor:#6B4423 marginTop:3 */}
+        <div style={{
+          width: 16, height: 4,
+          borderBottom: '2px solid #6B4423',
+          borderLeft: '0.5px solid #6B4423',
+          borderRight: '0.5px solid #6B4423',
+          borderTop: 'none',
+          borderBottomLeftRadius: 4,
+          borderBottomRightRadius: 4,
+          marginTop: 3,
+        }} />
+      </>
+    );
   };
 
   return (
-    <motion.div 
-      className="flex flex-col items-center justify-center min-h-[500px] py-10 px-4 max-w-6xl mx-auto relative"
-      initial="hidden"
-      animate="visible"
-      variants={containerVariants}
+    // robotContainer: width:160 height:180 alignItems:center justifyContent:center
+    // floatAnim: translateY 0 → -8 → 0, duration 2000ms each
+    <motion.div
+      style={{ width: 160, height: 180, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}
+      animate={{ y: [0, -8, 0] }}
+      transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
     >
-      {/* Background Decorative Glows */}
-      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-primary/5 rounded-full blur-[120px] -z-10 animate-pulse" />
-      <div className="absolute bottom-1/4 left-1/4 w-[300px] h-[300px] bg-purple-500/5 rounded-full blur-[100px] -z-10" />
+      {/* robotGlow: position:absolute w:140 h:140 borderRadius:70 top:10 */}
+      <div style={{
+        position: 'absolute', width: 140, height: 140, borderRadius: 70,
+        top: 10, backgroundColor: `${primaryColor}1A`,
+      }} />
 
-      {/* Hero Section */}
-      <motion.div className="text-center mb-12" variants={itemVariants}>
-        <motion.div 
-          className="inline-flex items-center justify-center p-3 mb-6 rounded-2xl bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20 shadow-xl shadow-primary/5"
-          whileHover={{ rotate: [0, -5, 5, 0], transition: { duration: 0.5 } }}
-        >
-          <Bot size={40} className="text-primary" />
-        </motion.div>
-        <h1 className="text-3xl md:text-5xl font-bold tracking-tight mb-4 bg-clip-text text-transparent bg-gradient-to-b from-foreground via-foreground/90 to-foreground/40 pb-2">
-          {currentProject?.id !== 0 
-            ? t('chat.welcome.projectReady', { name: currentProject?.name }) 
-            : t('chat.welcome.globalReady')}
+      {/* robotBody: alignItems:center */}
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+
+        {/* robotHead: w:80 h:70 bg:#C4A574 borderRadius:12
+            border:3 borderColor:#8B6914 borderBottom:4 borderRight:4
+            shadow: 0 3 6 rgba(0,0,0,0.25) elevation:6 zIndex:10 */}
+        <div style={{
+          width: 80, height: 70, backgroundColor: '#C4A574', borderRadius: 12,
+          borderTop: '3px solid #8B6914', borderLeft: '3px solid #8B6914',
+          borderBottom: '4px solid #8B6914', borderRight: '4px solid #8B6914',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          position: 'relative', zIndex: 10,
+          boxShadow: '0 3px 6px rgba(0,0,0,0.25)',
+        }}>
+          {/* woodTexture: absoluteFill opacity:0.2 borderRadius:9 */}
+          <div style={{ position: 'absolute', inset: 0, opacity: 0.2, borderRadius: 9, pointerEvents: 'none' }} />
+
+          {/* antenna: position:absolute top:-14 w:4 h:14 bg:#8B7355 border:1 #6B4423 */}
+          <div style={{
+            position: 'absolute', top: -14, width: 4, height: 14,
+            backgroundColor: '#8B7355', border: '1px solid #6B4423',
+          }}>
+            {/* antennaBall: absolute top:-7 left:-4 w:12 h:12 borderRadius:6 */}
+            <div style={{
+              position: 'absolute', top: -7, left: -4, width: 12, height: 12,
+              borderRadius: 6, backgroundColor: primaryColor,
+              boxShadow: '0 1px 2px rgba(0,0,0,0.4)',
+            }} />
+          </div>
+
+          {/* screwTop: absolute top:6 w:8 h:8 borderRadius:4 bg:#6B4423 */}
+          <div style={{
+            position: 'absolute', top: 6, width: 8, height: 8,
+            borderRadius: 4, backgroundColor: '#6B4423',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            {/* screwSlot: w:5 h:2 bg:#3D2914 */}
+            <div style={{ width: 5, height: 2, backgroundColor: '#3D2914' }} />
+          </div>
+
+          {/* faceContainer: alignItems:center marginTop:8 */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: 8 }}>
+            {renderExpression()}
+          </div>
+
+          {/* sideScrew left:6 — absolute top:50% marginTop:-3 w:5 h:5 borderRadius:2.5 bg:#6B4423 */}
+          <div style={{ position: 'absolute', top: '50%', marginTop: -3, left: 6, width: 5, height: 5, borderRadius: 2.5, backgroundColor: '#6B4423' }} />
+          <div style={{ position: 'absolute', top: '50%', marginTop: -3, right: 6, width: 5, height: 5, borderRadius: 2.5, backgroundColor: '#6B4423' }} />
+
+          {/* cheek — absolute top:58% w:8 h:5 borderRadius:2.5 bg:#D4A5A5 opacity:0.5 */}
+          <div style={{ position: 'absolute', top: '58%', left: 6, width: 8, height: 5, borderRadius: 2.5, backgroundColor: '#D4A5A5', opacity: 0.5 }} />
+          <div style={{ position: 'absolute', top: '58%', right: 6, width: 8, height: 5, borderRadius: 2.5, backgroundColor: '#D4A5A5', opacity: 0.5 }} />
+        </div>
+
+        {/* robotNeck: marginTop:-2 zIndex:5 */}
+        <div style={{ marginTop: -2, zIndex: 5 }}>
+          {/* neckRing: w:24 h:6 bg:#8B7355 borderRadius:3 border:1.5 #6B4423 */}
+          <div style={{ width: 24, height: 6, backgroundColor: '#8B7355', borderRadius: 3, border: '1.5px solid #6B4423' }} />
+        </div>
+
+        {/* torsoWithArms: flexDirection:row alignItems:flex-start marginTop:-8 zIndex:5 */}
+        <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'center', marginTop: -8, zIndex: 5 }}>
+
+          {/* armLeft: arm + armLeft — marginTop:2, marginRight:-4, rotate(50deg) */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: 2, marginRight: -4, transform: 'rotate(50deg)' }}>
+            {/* armWood: w:14 h:32 bg:#B8956A borderRadius:7
+                border:2 #8B6914 borderBottom:2.5 borderRight:2.5 overflow:hidden */}
+            <div style={{
+              width: 14, height: 32, backgroundColor: '#B8956A', borderRadius: 7,
+              borderTop: '2px solid #8B6914', borderLeft: '2px solid #8B6914',
+              borderBottom: '2.5px solid #8B6914', borderRight: '2.5px solid #8B6914',
+              position: 'relative', overflow: 'hidden',
+            }}>
+              {/* armWoodGrain: absoluteFill opacity:0.15 */}
+              <div style={{ position: 'absolute', inset: 0, opacity: 0.15, pointerEvents: 'none' }} />
+            </div>
+            {/* hand: w:16 h:10 bg:#A0826D borderRadius:5 border:1.5 #6B4423 marginTop:-3 gap:1 */}
+            <div style={{
+              width: 16, height: 10, backgroundColor: '#A0826D', borderRadius: 5,
+              border: '1.5px solid #6B4423', marginTop: -3,
+              display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 1,
+            }}>
+              {/* finger: w:2.5 h:4 bg:#8B7355 borderRadius:1 border:0.5 #6B4423 */}
+              {[0,1,2].map(i => (
+                <div key={i} style={{ width: 2.5, height: 4, backgroundColor: '#8B7355', borderRadius: 1, border: '0.5px solid #6B4423' }} />
+              ))}
+            </div>
+          </div>
+
+          {/* robotTorso: w:50 h:42 bg:#B8956A borderRadius:6
+              border:2.5 #8B6914 borderBottom:3 borderRight:3
+              shadow: 0 3 4 rgba(0,0,0,0.25) elevation:4 zIndex:10 */}
+          <div style={{
+            width: 50, height: 42, backgroundColor: '#B8956A', borderRadius: 6,
+            borderTop: '2.5px solid #8B6914', borderLeft: '2.5px solid #8B6914',
+            borderBottom: '3px solid #8B6914', borderRight: '3px solid #8B6914',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            position: 'relative', zIndex: 10,
+            boxShadow: '0 3px 4px rgba(0,0,0,0.25)',
+          }}>
+            {/* chestPanel: w:34 h:28 bg:#A0826D borderRadius:4 border:1.5 #6B4423 */}
+            <div style={{
+              width: 34, height: 28, backgroundColor: '#A0826D', borderRadius: 4,
+              border: '1.5px solid #6B4423',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              {/* coreLight: w:14 h:14 borderRadius:7 + pulse */}
+              <motion.div
+                style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: primaryColor }}
+                animate={{ opacity: [0.6, 1, 0.6] }}
+                transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+              />
+            </div>
+            {/* torsoWoodGrain: absoluteFill opacity:0.2 borderRadius:4 */}
+            <div style={{ position: 'absolute', inset: 0, opacity: 0.2, borderRadius: 4, pointerEvents: 'none' }} />
+          </div>
+
+          {/* armRight: arm + armRight — marginTop:2, marginLeft:-4, rotate(-50deg) */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: 2, marginLeft: -4, transform: 'rotate(-50deg)' }}>
+            <div style={{
+              width: 14, height: 32, backgroundColor: '#B8956A', borderRadius: 7,
+              borderTop: '2px solid #8B6914', borderLeft: '2px solid #8B6914',
+              borderBottom: '2.5px solid #8B6914', borderRight: '2.5px solid #8B6914',
+              position: 'relative', overflow: 'hidden',
+            }}>
+              <div style={{ position: 'absolute', inset: 0, opacity: 0.15, pointerEvents: 'none' }} />
+            </div>
+            <div style={{
+              width: 16, height: 10, backgroundColor: '#A0826D', borderRadius: 5,
+              border: '1.5px solid #6B4423', marginTop: -3,
+              display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 1,
+            }}>
+              {[0,1,2].map(i => (
+                <div key={i} style={{ width: 2.5, height: 4, backgroundColor: '#8B7355', borderRadius: 1, border: '0.5px solid #6B4423' }} />
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// ChatWelcome Page
+// ─────────────────────────────────────────────
+
+export const ChatWelcome: React.FC = () => {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  // Mirror mobile WelcomeView exactly:
+  // mood cycles through 'neutral' | 'happy' | 'thinking' — all fall into
+  // WoodenRobot's `default` branch (eyeWithBlink + mouthNeutral). 'speaking' is never used here.
+  const [mood, setMood] = useState<'neutral' | 'speaking'>('neutral');
+
+  useEffect(() => {
+    const moods: Array<'neutral' | 'speaking'> = ['neutral', 'neutral', 'neutral'];
+    const interval = setInterval(() => {
+      setMood(moods[Math.floor(Math.random() * moods.length)]);
+    }, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <div className="flex flex-col items-center justify-between min-h-[600px] py-20 px-4 max-w-4xl mx-auto text-center h-full">
+      {/* Top: Title & Subtitle */}
+      <motion.div
+        initial={{ opacity: 0, y: -16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+      >
+      {/* Title — headlineSmall(24px) + fontWeight:bold + marginTop:16 + primary color */}
+        <h1 style={{ fontSize: 24, fontWeight: 'bold', marginTop: 16, lineHeight: '32px' }} className="text-primary text-center">
+          EvoLoop AI
         </h1>
-        <p className="text-muted-foreground/60 text-lg max-w-2xl mx-auto leading-relaxed">
-          {t('chat.welcome.subtitle')}
+        {/* Subtitle — bodyMedium base + fontSize:16 + fontWeight:500 + onSurfaceVariant */}
+        <p style={{ fontSize: 16, fontWeight: 200, marginTop: 16 }} className="text-muted-foreground text-center">
+          {t('chat.welcome.mobileSubtitle')}
+        </p>
+        {/* Hint — bodySmall(12px) + marginTop:4 + opacity:0.6 + onSurfaceVariant */}
+        <p style={{ fontSize: 12, marginTop: 12, opacity: 0.6 }} className="text-muted-foreground text-center">
+          {t('chat.welcome.mobileHint')}
         </p>
       </motion.div>
 
-      {/* Main Command Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full mb-16">
-        {/* System Awareness Widget */}
-        <motion.div variants={itemVariants} whileHover={cardHover}>
-          <Card className="h-full bg-background/40 backdrop-blur-md border-primary/10 hover:border-primary/30 transition-all group overflow-hidden relative shadow-lg">
-             <div className="absolute top-0 right-0 p-4 opacity-[0.03] group-hover:opacity-[0.08] transition-opacity">
-                <Cpu size={80} />
-             </div>
-             <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-sm font-bold text-muted-foreground/90 tracking-tight">
-                  <Activity size={16} className="text-primary/60" />
-                  {t('chat.welcome.systemAwareness')}
-                </CardTitle>
-             </CardHeader>
-             <CardContent className="space-y-5">
-                <div className="space-y-2">
-                  <div className="flex justify-between text-[10px] uppercase font-black tracking-widest text-muted-foreground/40">
-                    <span>{t('chat.welcome.health')}</span>
-                    <span className="text-emerald-500">{systemStatus?.status === 'ok' ? 'OPTIMAL' : '--'}</span>
-                  </div>
-                  <div className="h-1.5 w-full bg-muted/30 rounded-full overflow-hidden">
-                    <motion.div 
-                      className="h-full bg-gradient-to-r from-primary/60 to-primary" 
-                      initial={{ width: 0 }} 
-                      animate={{ width: systemStatus?.status === 'ok' ? '98%' : '0%' }} 
-                      transition={{ duration: 1.5, ease: "easeOut" }}
-                    />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-3 pt-1">
-                  <div className="p-3 rounded-xl bg-muted/30 border border-white/5 shadow-inner">
-                    <div className="text-[10px] font-bold text-muted-foreground/50 uppercase mb-1">{t('common.cpu')}</div>
-                    <div className="text-lg font-black tracking-tighter">{systemStatus ? `${Math.round(systemStatus.cpu_percent)}%` : '--'}</div>
-                  </div>
-                  <div className="p-3 rounded-xl bg-muted/30 border border-white/5 shadow-inner">
-                    <div className="text-[10px] font-bold text-muted-foreground/50 uppercase mb-1">{t('common.ram')}</div>
-                    <div className="text-lg font-black tracking-tighter">{systemStatus ? `${systemStatus.ram_used_gb}G` : '--'}</div>
-                  </div>
-                </div>
-             </CardContent>
-          </Card>
-        </motion.div>
+      {/* Middle: Robot */}
+      <motion.div
+        initial={{ opacity: 0, scale: 0.85 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ delay: 0.2, duration: 0.5 }}
+        className="flex-1 flex items-center justify-center py-20"
+      >
+        <WoodenRobot mood={mood} />
+      </motion.div>
 
-        {/* Device Bridge Widget */}
-        <motion.div variants={itemVariants} whileHover={cardHover}>
-          <Card className="h-full bg-background/40 backdrop-blur-md border-primary/10 hover:border-primary/30 transition-all group overflow-hidden relative shadow-lg">
-             <div className="absolute top-0 right-0 p-4 opacity-[0.03] group-hover:opacity-[0.08] transition-opacity">
-                <Smartphone size={80} />
-             </div>
-             <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-sm font-bold text-muted-foreground/90 tracking-tight">
-                  <Dna size={16} className="text-primary/60" />
-                  {t('chat.welcome.deviceBridge')}
-                </CardTitle>
-             </CardHeader>
-              <CardContent className="flex flex-col items-center justify-center pt-2 pb-6 space-y-5">
-                {devices && (devices as any).length > 0 ? (
-                  (() => {
-                    const primaryDevice = (devices as any)[0];
-                    return (
-                      <>
-                        <div className="relative pt-2">
-                          <div className={`w-16 h-24 rounded-2xl border-2 ${primaryDevice.status === 'online' ? 'border-primary/40' : 'border-muted/30'} flex flex-col items-center justify-center bg-muted/20 shadow-2xl group-hover:border-primary transition-colors`}>
-                            <Smartphone size={32} className={primaryDevice.status === 'online' ? 'text-primary' : 'text-muted-foreground/40'} />
-                            {primaryDevice.status === 'online' && (
-                              <div className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full border-2 border-background shadow-lg animate-pulse" />
-                            )}
-                          </div>
-                        </div>
-                        <div className="text-center">
-                           <div className="text-sm font-black truncate max-w-[140px] uppercase tracking-tight">{primaryDevice.model || 'Unknown'}</div>
-                           <div className="text-[9px] font-bold text-muted-foreground/50 uppercase tracking-widest mt-1">
-                              {primaryDevice.connection_type === 'adb' 
-                                ? t('chat.welcome.connectedViaAdb') 
-                                : t('chat.welcome.cloudSynced')}
-                           </div>
-                        </div>
-                      </>
-                    );
-                  })()
-                ) : (
-                  <div className="text-center py-6 opacity-40">
-                    <Smartphone size={48} className="mx-auto mb-2 opacity-10" />
-                    <p className="text-[10px] font-bold uppercase tracking-widest">{t('chat.welcome.noDevices')}</p>
-                  </div>
-                )}
-                <Button variant="ghost" size="sm" className="w-full text-[10px] font-bold border border-dashed border-primary/20 hover:bg-primary/5 h-9 rounded-xl">
-                  {t('chat.welcome.syncDevice')}
-                </Button>
-             </CardContent>
-          </Card>
-        </motion.div>
-
-        {/* Skill Evolution Widget */}
-        <motion.div variants={itemVariants} whileHover={cardHover}>
-          <Card className="h-full bg-background/40 backdrop-blur-md border-primary/10 hover:border-primary/30 transition-all group overflow-hidden relative shadow-lg">
-             <div className="absolute top-0 right-0 p-4 opacity-[0.03] group-hover:opacity-[0.08] transition-opacity">
-                <Wand2 size={80} />
-             </div>
-             <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-sm font-bold text-muted-foreground/90 tracking-tight">
-                  <History size={16} className="text-primary/60" />
-                  {t('chat.welcome.skillEvolution')}
-                </CardTitle>
-             </CardHeader>
-             <CardContent className="space-y-4">
-                <div className="space-y-2">
-                   <div className="flex items-center justify-between p-2.5 rounded-xl bg-muted/30 border border-white/5 hover:bg-muted/50 transition-all cursor-pointer group/skill">
-                    <div className="flex items-center gap-2 overflow-hidden">
-                       <div className="p-1.5 rounded-lg bg-background text-primary/60 shadow-sm"><Wand2 size={12} /></div>
-                       <div className="truncate text-xs font-bold text-muted-foreground/80">File Organizer</div>
-                    </div>
-                    <Badge variant="outline" className="text-[9px] px-1.5 h-4 border-primary/20 bg-primary/5 text-primary/70">v2.1</Badge>
-                  </div>
-                  <div className="flex items-center justify-between p-2.5 rounded-xl bg-muted/30 border border-white/5 hover:bg-muted/50 transition-all cursor-pointer group/skill">
-                    <div className="flex items-center gap-2 overflow-hidden">
-                       <div className="p-1.5 rounded-lg bg-background text-primary/60 shadow-sm"><Search size={12} /></div>
-                       <div className="truncate text-xs font-bold text-muted-foreground/80">Web Researcher</div>
-                    </div>
-                    <Badge variant="outline" className="text-[9px] px-1.5 h-4 border-primary/20 bg-primary/5 text-primary/70">v1.4</Badge>
-                  </div>
-                </div>
-                <Button 
-                  className="w-full h-9 text-[11px] font-black rounded-xl shadow-lg shadow-primary/20" 
-                  size="sm"
-                  onClick={() => navigate({ to: '/learning' })}
-                >
-                  <PlusCircle size={14} className="mr-2" />
-                  {t('chat.welcome.teachMe')}
-                </Button>
-             </CardContent>
-          </Card>
-        </motion.div>
-      </div>
-
-      {/* Navigation Grid */}
-      <motion.div variants={itemVariants} className="w-full">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 w-full">
+      {/* Bottom: Navigation Cards */}
+      <motion.div
+        className="w-full pt-12"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.4 }}
+      >
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 w-full">
           {[
-            { to: '/projects', icon: <LayoutGrid size={20} />, label: t("chat.welcome.nav.projects"), desc: t("chat.welcome.nav.projectsDesc"), color: "text-primary" },
-            { to: '/todos', icon: <ListTodo size={20} />, label: t("chat.welcome.nav.todos"), desc: t("chat.welcome.nav.todosDesc"), color: "text-emerald-500" },
-            { to: '/knowledge', icon: <Brain size={20} />, label: t("chat.welcome.nav.knowledge"), desc: t("chat.welcome.nav.knowledgeDesc"), color: "text-amber-500" },
-            { to: '/learning', icon: <Wand2 size={20} />, label: t("chat.welcome.nav.skills"), desc: t("chat.welcome.nav.skillsDesc"), color: "text-purple-500" }
+            { to: '/projects', icon: <LayoutGrid size={16} />, label: t("chat.welcome.nav.projects"), desc: t("chat.welcome.nav.projectsDesc"), color: "text-primary" },
+            { to: '/todos', icon: <ListTodo size={16} />, label: t("chat.welcome.nav.todos"), desc: t("chat.welcome.nav.todosDesc"), color: "text-emerald-500" },
+            { to: '/knowledge', icon: <Brain size={16} />, label: t("chat.welcome.nav.knowledge"), desc: t("chat.welcome.nav.knowledgeDesc"), color: "text-amber-500" },
+            { to: '/learning', icon: <Wand2 size={16} />, label: t("chat.welcome.nav.skills"), desc: t("chat.welcome.nav.skillsDesc"), color: "text-purple-500" }
           ].map((nav, idx) => (
-            <motion.div 
+            <motion.div
               key={idx}
               whileHover={{ scale: 1.02, y: -2 }}
               whileTap={{ scale: 0.98 }}
               onClick={() => navigate({ to: nav.to as any })}
-              className="group cursor-pointer p-5 rounded-2xl bg-background/40 backdrop-blur-sm border border-border/40 hover:border-primary/20 hover:bg-muted/20 transition-all flex flex-col gap-4 shadow-sm"
+              className="group cursor-pointer p-3 rounded-xl bg-background border border-border hover:border-primary/20 hover:bg-muted/5 transition-all flex flex-col gap-1.5 text-left"
             >
-              <div className={cn("w-10 h-10 rounded-xl bg-muted/50 flex items-center justify-center group-hover:scale-110 transition-transform shadow-inner", nav.color)}>
-                {nav.icon}
+              <div className="flex items-center gap-2 mb-0.5">
+                <div className={cn("w-7 h-7 rounded-lg bg-muted flex items-center justify-center group-hover:scale-110 transition-transform flex-shrink-0", nav.color)}>
+                  {nav.icon}
+                </div>
+                <h3 className="text-[13px] font-medium uppercase tracking-tight line-clamp-1">{nav.label}</h3>
               </div>
-              <div>
-                <h3 className="text-xs font-black mb-1 uppercase tracking-tight">{nav.label}</h3>
-                <p className="text-[10px] text-muted-foreground/60 leading-relaxed line-clamp-2">{nav.desc}</p>
-              </div>
-              <div className="flex items-center justify-end">
-                <div className="w-6 h-6 rounded-full bg-muted/30 flex items-center justify-center group-hover:bg-primary group-hover:text-white transition-all">
-                  <ArrowRight size={12} />
+              <p className="text-[11px] text-muted-foreground/60 leading-relaxed line-clamp-2">{nav.desc}</p>
+              <div className="flex items-center justify-end mt-auto pt-1">
+                <div className="w-5 h-5 rounded-full bg-muted/50 flex items-center justify-center group-hover:bg-primary group-hover:text-white transition-all">
+                  <ArrowRight size={10} />
                 </div>
               </div>
             </motion.div>
           ))}
         </div>
       </motion.div>
-    </motion.div>
+    </div>
   );
 };

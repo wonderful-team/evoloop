@@ -511,6 +511,8 @@
         "todos": "待办事项",
         "todosDesc": "追踪任务进展与自动化记录"
       },
+      "mobileHint": "点击下方输入框开始对话",
+      "mobileSubtitle": "你好！我是你的木头机器人助手",
       "noDevices": "未发现同步设备",
       "projectReady": "项目 [{{name}}] 已就绪，准备好进行下一轮进化了吗？",
       "skillEvolution": "进化中的技能库",

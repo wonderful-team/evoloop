@@ -141,8 +141,8 @@ const ChatMessageItem = memo(
             </div>
 
             <div className={cn(
-              "doc-section-header flex-1 flex justify-between items-center rounded-lg px-3 py-1.5 transition-colors border border-border/5",
-              msg.role === "human" ? "bg-[var(--doc-header-user)]/40" : "bg-[var(--doc-header-ai)]/40"
+              "doc-section-header flex-1 flex justify-between items-center rounded-lg px-3 py-1.5 transition-colors border border-border",
+              msg.role === "human" ? "bg-muted/40" : "bg-primary/5"
             )}>
               <div className="flex items-center gap-3">
                 <span className="text-[10px] font-bold text-foreground/60">

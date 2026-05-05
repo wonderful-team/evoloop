@@ -512,6 +512,8 @@
         "todos": "To-do Items",
         "todosDesc": "Track progress and automations"
       },
+      "mobileHint": "Click the input box below to start a conversation",
+      "mobileSubtitle": "Hello! I am your Wooden Robot assistant",
       "noDevices": "No devices found",
       "projectReady": "Project [{{name}}] is ready. Ready to Evolve?",
       "skillEvolution": "Skill Evolution",

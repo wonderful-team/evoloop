@@ -562,7 +562,7 @@ export function ChatInterface() {
       <ResizablePanelGroup direction="horizontal" className="h-full w-full">
         {/* Left Sidebar Panel */}
         <ResizablePanel
-          defaultSize={20}
+          defaultSize={16}
           minSize={15}
           maxSize={40}
           className="hidden lg:block min-w-[100px]"
@@ -689,7 +689,7 @@ export function ChatInterface() {
                   <Button
                     size="icon"
                     variant="secondary"
-                    className="rounded-full shadow-lg bg-background/80 backdrop-blur border border-primary/10 hover:bg-primary/10 transition-colors"
+                    className="rounded-full bg-background border border-border hover:bg-muted transition-colors"
                     onClick={() => scrollToBottom(true)}
                   >
                     <ArrowDown className="h-4 w-4" />
