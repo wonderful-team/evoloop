@@ -25,3 +25,4 @@ export { HistoryDrawer } from './HistoryDrawer';
 export { AutoSpeakHandler } from './AutoSpeakHandler';
 export { AgentProcessingHandler } from './AgentProcessingHandler';
 export { RecognizingBanner } from './RecognizingBanner';
+export { ChatWelcome } from './ChatWelcome';

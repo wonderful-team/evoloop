@@ -27,7 +27,7 @@ import {
   InputMode,
 } from '@/components/voice';
 import { HITLBanner, HumanRequestCard } from '@/components/hitl';
-import { QuotaExhaustedBanner, QuotaExhaustedCard, HistoryDrawer, AutoSpeakHandler, AgentProcessingHandler, RecognizingBanner } from '@/components/chat';
+import { QuotaExhaustedBanner, QuotaExhaustedCard, HistoryDrawer, AutoSpeakHandler, AgentProcessingHandler, RecognizingBanner, ChatWelcome } from '@/components/chat';
 // useNLS 已移到 VoiceInputWithNLS 内部，ChatScreen 不再直接订阅 NLS 高频状态
 import { useDeviceControl } from '@/hooks/useDeviceControl';
 import { useCommands } from '@/hooks/useCommands';
@@ -77,12 +77,10 @@ export default function ChatScreen() {
   const ttsOnEndRef = useRef<(() => void) | null>(null);
   const ttsOnErrorRef = useRef<((error: any) => void) | null>(null);
 
-  // Store
-  // 状态字段 - 使用 selector 避免不必要重渲染
-  // ❌ 不再订阅 messages：由 MessageList 和独立 Handler 组件自行订阅
-  //    避免 ChatScreen 因消息增加而整页重渲染，导致语音按钮卡顿
+  // Store 状态订阅
   const conversations = useConversationStore((state) => state.conversations);
   const currentConversationId = useConversationStore((state) => state.currentConversationId);
+  const hasMessages = useConversationStore((state) => state.messages.length > 0);
 
   // 方法 - Zustand action 引用稳定，单独 selector
   const loadConversations = useConversationStore((state) => state.loadConversations);
@@ -865,17 +863,21 @@ export default function ChatScreen() {
           />
         )}
 
-        {/* ===== 消息列表（核心区域） ===== */}
+        {/* ===== 消息列表 / 欢迎界面（核心区域） ===== */}
         <View style={styles.messagesArea}>
-          <MessageList
-            onRewind={handleRewind}
-            onRetry={handleRetry}
-            onQuote={handleQuote}
-            onForward={handleForward}
-            onAddToMemory={handleAddToMemory}
-            onResend={handleResend}
-            isTyping={isAgentProcessing}
-          />
+          {!hasMessages ? (
+            <ChatWelcome />
+          ) : (
+            <MessageList
+              onRewind={handleRewind}
+              onRetry={handleRetry}
+              onQuote={handleQuote}
+              onForward={handleForward}
+              onAddToMemory={handleAddToMemory}
+              onResend={handleResend}
+              isTyping={isAgentProcessing}
+            />
+          )}
           {isQuotaExhausted && (
             <QuotaExhaustedCard
               info={quotaExhaustedInfo}

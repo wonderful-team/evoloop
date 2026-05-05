@@ -14,7 +14,6 @@ import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { ChatMessage } from '@/types/conversation';
 import { useTheme } from '@/theme';
 import { MessageContent } from '@/components/chat/MessageContent';
-import { WoodenRobot } from '@/components/WoodenRobot';
 import { useConversationStore } from '@/stores/conversationStore';
 import { shareChatMessage } from '@/utils/share';
 import Clipboard from '@react-native-clipboard/clipboard';
@@ -200,34 +199,6 @@ const MessageItem = React.memo(function MessageItem({
     prev.colors === next.colors;
 });
 
-// 将 WelcomeView 提取到组件外部，避免每次 MessageList 重渲染时重新创建组件定义
-function WelcomeView({ colors }: { colors: any }) {
-  const [mood, setMood] = useState<'neutral' | 'happy' | 'thinking'>('happy');
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const moods: Array<'neutral' | 'happy' | 'thinking'> = ['neutral', 'happy', 'thinking'];
-      setMood(moods[Math.floor(Math.random() * moods.length)]);
-    }, 5000);
-    return () => clearInterval(interval);
-  }, []);
-
-  return (
-    <View style={styles.welcomeContainer}>
-      <WoodenRobot primaryColor={colors.primary} mood={mood} />
-      <Text variant="headlineSmall" style={[styles.welcomeTitle, { color: colors.primary }]}>
-        EvoLoop AI
-      </Text>
-      <Text variant="bodyMedium" style={[styles.welcomeSubtitle, { color: colors.onSurfaceVariant }]}>
-        你好！我是你的木头机器人助手
-      </Text>
-      <Text variant="bodySmall" style={[styles.welcomeHint, { color: colors.onSurfaceVariant }]}>
-        点击麦克风开始语音对话
-      </Text>
-    </View>
-  );
-}
-
 export const MessageList = React.memo(function MessageList({
   onRewind, onRetry, onQuote, onForward, onAddToMemory, onResend, isTyping
 }: MessageListProps) {
@@ -325,7 +296,7 @@ export const MessageList = React.memo(function MessageList({
       renderItem={({ item, index }) => renderMessage(item, index)}
       onScroll={handleScroll}
       scrollEventThrottle={200}
-      ListEmptyComponent={<WelcomeView colors={colors} />}
+      ListEmptyComponent={null}
       ListFooterComponent={
         isTyping ? (
           <View style={styles.typingContainer}>
@@ -367,25 +338,6 @@ const styles = StyleSheet.create({
   },
   messageList: {
     paddingVertical: 4,
-  },
-  welcomeContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 32,
-    gap: 16,
-  },
-  welcomeTitle: {
-    fontWeight: 'bold',
-    marginTop: 16,
-  },
-  welcomeSubtitle: {
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  welcomeHint: {
-    marginTop: 4,
-    opacity: 0.6,
   },
   // 单条消息
   messageItem: {

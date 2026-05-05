@@ -111,16 +111,16 @@
     "context": {
       "starter": {
         "analyzeLabel": "分析",
-        "analyzeDesc": "代码库架构",
+        "analyzeDesc": "深度代码库架构分析",
         "analyze": "分析当前代码库结构",
         "planLabel": "计划",
-        "planDesc": "起草路线图",
+        "planDesc": "起草项目路线图与设计",
         "plan": "创建一个新的实施计划",
         "tasksLabel": "任务",
-        "tasksDesc": "待办事项",
+        "tasksDesc": "追踪当前进度与待办",
         "tasks": "目前有哪些待办任务？",
         "helpLabel": "帮助",
-        "helpDesc": "获取指导",
+        "helpDesc": "获取操作指导与手册",
         "help": "帮我了解这个项目"
       }
     },

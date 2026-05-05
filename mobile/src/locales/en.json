@@ -111,16 +111,16 @@
     "context": {
       "starter": {
         "analyzeLabel": "Analyze",
-        "analyzeDesc": "Codebase architecture",
+        "analyzeDesc": "Deep codebase architecture",
         "analyze": "Analyze current codebase structure",
         "planLabel": "Plan",
-        "planDesc": "Draft roadmap",
+        "planDesc": "Draft roadmap and design",
         "plan": "Create a new implementation plan",
         "tasksLabel": "Tasks",
-        "tasksDesc": "Pending items",
+        "tasksDesc": "Track current progress",
         "tasks": "What tasks are currently pending?",
         "helpLabel": "Help",
-        "helpDesc": "Get guidance",
+        "helpDesc": "Get manual and guidance",
         "help": "Help me understand this project"
       }
     },
