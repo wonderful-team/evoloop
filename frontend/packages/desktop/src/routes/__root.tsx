@@ -6,6 +6,8 @@ import StartupScreen from "@/components/Startup/StartupScreen"
 import { DetectedProjectAlert } from "@/components/Projects/Import"
 import { SetupWizardProvider } from "@/components/Wizard"
 
+import { BenefitRequirementDialog } from "@/components/Subscription/BenefitRequirementDialog"
+
 export const Route = createRootRoute({
   component: RootComponent,
   notFoundComponent: () => <NotFound />,
@@ -24,6 +26,7 @@ function RootComponent() {
       <HeadContent />
       <Outlet />
       <DetectedProjectAlert />
+      <BenefitRequirementDialog />
     </SetupWizardProvider>
   )
 }

@@ -2,14 +2,7 @@ import { toast } from 'sonner'
 import { OpenAPI } from '@/client/core/OpenAPI.ts'
 import type { AxiosResponse, AxiosError } from 'axios'
 import i18n from '@evoloop/shared/i18n'
-
-// 订阅方案映射到 i18n key
-const PLAN_KEY_MAP: Record<string, string> = {
-  '创作者版': 'creator',
-  '极客版': 'geek',
-  '专家版': 'expert',
-  '企业版': 'enterprise',
-}
+import { useBenefitStore } from '@/stores/benefitStore'
 
 /**
  * 初始化 API 拦截器
@@ -61,31 +54,14 @@ function handleBenefitError(data: any): boolean {
   // 提取错误信息
   const info = extractBenefitInfo(data)
 
-  // 转换 benefit name
-  const benefitName = i18n.t(`subscription.benefits.${info.feature}`, {
-    defaultValue: info.featureName || info.feature || i18n.t('subscription.errors.featureFallback', '此功能')
+  // [v4] 使用全局 Store 打开沉浸式对话框，不再使用右下角 Toast
+  useBenefitStore.getState().openDialog({
+    feature: info.feature,
+    featureName: info.featureName,
+    requiredPlan: info.requiredPlan,
+    message: info.message,
+    upgradeUrl: info.upgradeUrl
   })
-
-  // 转换 plan name
-  const planKey = PLAN_KEY_MAP[info.requiredPlan || ''] || info.requiredPlan
-  const planName = i18n.t(`subscription.plans.${planKey}`, {
-    defaultValue: info.requiredPlan || i18n.t('subscription.plans.higher', '更高等级')
-  })
-
-  // 显示升级提示（只在这里显示一次）
-  toast.error(
-    i18n.t('subscription.errors.benefitRequired', { plan: planName, defaultValue: `需要${planName}订阅` }),
-    {
-      description: i18n.t('subscription.errors.benefitDescription', { feature: benefitName, defaultValue: `「${benefitName}」功能需要升级订阅才能使用` }),
-      action: {
-        label: i18n.t('subscription.errors.upgradeAction', '立即升级'),
-        onClick: () => {
-          window.location.hash = '#/subscription'
-        }
-      },
-      duration: 5000,
-    }
-  )
 
   return true
 }

@@ -179,9 +179,10 @@ def raise_benefit_required(benefit_code: str, current_level: str | None = None):
     """
     抛出统一的权益不足异常
     """
+    detail_model = create_benefit_error_detail(benefit_code, current_level)
     raise HTTPException(
         status_code=status.HTTP_403_FORBIDDEN,
-        detail=create_benefit_error_detail(benefit_code, current_level)
+        detail=detail_model.model_dump()
     )
 
 

@@ -593,7 +593,7 @@ export function ChatInterface() {
         <ResizableHandle withHandle />
 
         {/* Center Chat Panel */}
-        <ResizablePanel defaultSize={showContextPanel ? 60 : 80} minSize={20} className="min-w-0">
+        <ResizablePanel defaultSize={showContextPanel ? 64 : 84} minSize={20} className="min-w-0">
           <div className="flex flex-col h-full relative min-h-0 min-w-0">
             {/* Top Right Controls */}
             <div className="absolute top-4 right-4 z-20 flex items-center gap-2">

@@ -10,6 +10,7 @@ import { listen, emit } from "@tauri-apps/api/event"
 import { invoke } from "@tauri-apps/api/core"
 import { getCurrentWindow } from "@tauri-apps/api/window"
 import { useNavigate } from "@tanstack/react-router"
+import { handleApiError } from "@/interceptors"
 
 export function GlobalRecorderManager() {
     const { t, i18n } = useTranslation()
@@ -118,8 +119,8 @@ export function GlobalRecorderManager() {
     // [v3 Unified] All recordings now use real-time persistence to backend
     // Events are sent via /global/events and /dom/events APIs
     const domRecorder = useActionRecorder({
-        threadId: activeThreadId || "",
-        enabled: isDesktopSource && !!activeThreadId,
+        threadId: activeThreadId || "global",
+        enabled: isDesktopSource,
         scope: isGlobalMode ? "both" : "dom",
         autoFlushInterval: 500,  // 500ms batch flush
         batchSize: 50
@@ -139,7 +140,7 @@ export function GlobalRecorderManager() {
     }, []);
 
     const globalRecorder = useGlobalRecorder({
-        threadId: activeThreadId || "",
+        threadId: activeThreadId || "global",
         sessionId: isDesktopSource ? domRecorder.sessionId : recordingSourceSessionId,
         enabled: (isDesktopSource && isGlobalMode) || (!isDesktopSource && isRecording),
         autoFlushInterval: 500,  // 500ms batch flush
@@ -288,7 +289,11 @@ export function GlobalRecorderManager() {
                         }
                     } catch (e) {
                         console.error("Failed to start recording", e)
-                        toast.error(t("learning.recordingFailed"))
+                        // If it's a benefit error (403), the global interceptor already showed a Modal/Toast.
+                        // We only show the generic "Recording failed" if it's NOT a benefit error.
+                        if (!handleApiError(e)) {
+                            toast.error(t("learning.recordingFailed"))
+                        }
                         stopRecording()
                     } finally {
                         busyRef.current = false

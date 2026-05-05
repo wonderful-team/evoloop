@@ -233,7 +233,7 @@ export function useActionRecorder(
       console.error("[ActionRecorder] Failed to start recording:", error)
       setIsRecording(false)
       isRecordingRef.current = false
-      return null
+      throw error
     }
   }, [threadId, taskName, isRecording, autoFlushInterval, flushEvents])
 

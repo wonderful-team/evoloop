@@ -7,6 +7,7 @@ import { Button } from "@evoloop/shared/components/ui/button"
 import {
   Tooltip,
   TooltipContent,
+  TooltipProvider,
   TooltipTrigger,
 } from "@evoloop/shared/components/ui/tooltip"
 import { useRecordingStore } from "@/stores/recordingStore"
@@ -77,7 +78,27 @@ export function RecordingButton({
     }
   }
 
-  if (!enabled) return null
+  if (!enabled) {
+    return (
+      <TooltipProvider delayDuration={100}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled
+              className="h-8 px-2 text-muted-foreground/30 cursor-not-allowed"
+            >
+              <Circle className="h-4 w-4 fill-current" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            {t("learning.recordingRequiresThread", "请先选择或创建一个对话")}
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    )
+  }
 
   return (
     <div className="flex items-center gap-1">

@@ -1800,6 +1800,7 @@
     "errors": {
       "benefitDescription": "「{{feature}}」功能需要升级订阅才能使用",
       "benefitRequired": "需要 {{plan}} 订阅",
+      "dialogTitle": "解锁「{{feature}}」功能",
       "featureFallback": "此功能",
       "insufficientPermission": "权限不足",
       "upgradeAction": "立即升级"
@@ -1866,7 +1867,12 @@
     },
     "plans": {
       "desc": "选择适合您的计划",
-      "title": "计划"
+      "title": "计划",
+      "creator": "创作者版",
+      "geek": "极客版",
+      "expert": "专家版",
+      "enterprise": "企业版",
+      "higher": "更高等级"
     },
     "privilege": {
       "advancedModels": "高级 AI 模型",
@@ -1889,6 +1895,7 @@
     },
     "requiredPlan": "所需套餐",
     "status": {
+      "locked": "功能已锁定",
       "active": "有效",
       "autoRenewOn": "自动续费已开启",
       "daysRemaining": "（{{days}} 天）",
