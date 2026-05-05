@@ -155,7 +155,7 @@
   }
 
   .chat-action-stream {
-    @apply rounded-lg bg-[var(--chat-action-stream-bg)] p-3 border border-[var(--doc-border)] mb-4 overflow-hidden shadow-sm;
+    @apply rounded-lg bg-[var(--chat-action-stream-bg)] p-3 border border-[var(--doc-border)] mb-4 overflow-hidden;
   }
 
   .doc-section-header {
@@ -163,7 +163,7 @@
   }
 
   .doc-message-content {
-    @apply pl-1 pr-1 py-2 text-[15px] leading-relaxed text-foreground/90;
+    @apply pl-1 pr-1 py-2 text-[14px] leading-relaxed text-foreground/90;
   }
 
   /* Document Typography */

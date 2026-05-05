@@ -5,6 +5,7 @@ import {
   Brain, Quote, ChevronRight, Loader2
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
+import { toast } from "sonner"
 import { Button } from "@evoloop/shared/components/ui/button"
 import {
   DropdownMenu,
@@ -23,6 +24,8 @@ import { MessageContent } from "./MessageContent"
 import { ChangesetSnapshot } from "./ChangesetSnapshotView"
 import { TTSButton } from "./TTSButton"
 import { useTTS, useAutoSpeak } from "@/hooks/useTTS"
+import { useAuth } from "@/hooks/useAuth"
+import { useSystemConfig } from "@/hooks/useSystemConfig"
 
 export interface Message {
   id: string | number
@@ -72,11 +75,16 @@ interface ChatMessageItemProps {
 const ChatMessageItem = memo(
   ({ msg, isGrouped, showAvatar, onAddToMemory, onRewind, onRetry, onQuote, onViewChangeset }: ChatMessageItemProps) => {
     const { t } = useTranslation()
+    const { user } = useAuth()
+    const { data: config } = useSystemConfig()
 
     // Hide system prompts from main chat
     if (msg.role === "system") {
       return null
     }
+
+    const userName = user?.nickname || user?.username || t("chat.role.user")
+    const deviceName = config?.EVOCLOUD_DEVICE_NAME || t("chat.role.assistant")
 
     // Render Tool Message (Flat & Compact)
     if (msg.role === "tool") {
@@ -138,58 +146,92 @@ const ChatMessageItem = memo(
             </div>
 
             <div className={cn(
-              "doc-section-header flex-1 flex justify-between items-center rounded-lg px-3 py-1.5 transition-colors shadow-sm",
+              "doc-section-header flex-1 flex justify-between items-center rounded-lg px-3 py-1.5 transition-colors border border-border/5",
               msg.role === "human" ? "bg-[var(--doc-header-user)]/40" : "bg-[var(--doc-header-ai)]/40"
             )}>
               <div className="flex items-center gap-3">
                 <span className="uppercase tracking-[0.15em] text-[10px] font-bold text-foreground/60">
-                  {msg.role === "human" ? t("chat.role.user") : t("chat.role.assistant")}
+                  {msg.role === "human" ? userName : deviceName}
                 </span>
               </div>
 
-              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                {msg.role === "ai" && msg.content && <TTSButton text={msg.content} size="sm" />}
+              {/* Right Side: Timestamp or Action Buttons */}
+              <div className="relative flex items-center justify-end min-w-[60px]">
+                {/* Default: Timestamp */}
+                {msg.timestamp && (
+                  <div className="text-[10px] text-muted-foreground/30 font-mono opacity-100 group-hover:opacity-0 transition-opacity duration-200 whitespace-nowrap pointer-events-none">
+                    {new Date(msg.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                  </div>
+                )}
 
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
+                {/* Hover: Action Buttons */}
+                <div className="absolute right-0 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-transparent">
+                  {msg.role === "ai" && msg.content && <TTSButton text={msg.content} size="sm" />}
+                  
+                  {/* Copy */}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 rounded-md hover:bg-primary/5 text-muted-foreground/60 hover:text-primary transition-colors"
+                    onClick={() => {
+                      navigator.clipboard.writeText(msg.content)
+                      toast.success(t("chat.interface.copied"))
+                    }}
+                    title={t("chat.interface.copy")}
+                  >
+                    <Copy className="h-3.5 w-3.5" />
+                  </Button>
+
+                  {/* Quote */}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 rounded-md hover:bg-primary/5 text-muted-foreground/60 hover:text-primary transition-colors"
+                    onClick={onQuote}
+                    title={t("chat.interface.quote")}
+                  >
+                    <Quote className="h-3.5 w-3.5" />
+                  </Button>
+
+                  {/* Memorize */}
+                  {onAddToMemory && msg.content && (
                     <Button
                       variant="ghost"
                       size="icon"
                       className="h-7 w-7 rounded-md hover:bg-primary/5 text-muted-foreground/60 hover:text-primary transition-colors"
+                      onClick={() => onAddToMemory(msg.content)}
+                      title={t("chat.interface.memorize")}
                     >
-                      <MoreHorizontal className="h-3.5 w-3.5" />
+                      <Brain className="h-3.5 w-3.5" />
                     </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-40 shadow-xl border-primary/10 bg-background/95 backdrop-blur-md">
-                    <DropdownMenuItem onClick={() => navigator.clipboard.writeText(msg.content)} className="text-xs">
-                      <Copy className="mr-2 h-3.5 w-3.5 opacity-60" />
-                      <span>{t("chat.interface.copy")}</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={onQuote} className="text-xs">
-                      <Quote className="mr-2 h-3.5 w-3.5 opacity-60" />
-                      <span>{t("chat.interface.quote")}</span>
-                    </DropdownMenuItem>
-                    {onAddToMemory && msg.content && (
-                      <DropdownMenuItem onClick={() => onAddToMemory(msg.content)} className="text-xs">
-                        <Brain className="mr-2 h-3.5 w-3.5 opacity-60" />
-                        <span>{t("chat.interface.memorize")}</span>
-                      </DropdownMenuItem>
-                    )}
-                    <div className="h-[1px] bg-border/40 my-1" />
-                    {onRewind && (
-                      <DropdownMenuItem onClick={() => onRewind(msg)} className="text-xs text-orange-500/80 focus:text-orange-500">
-                        <Undo className="mr-2 h-3.5 w-3.5 opacity-60" />
-                        <span>{t("chat.interface.rewind")}</span>
-                      </DropdownMenuItem>
-                    )}
-                    {onRetry && msg.role === "ai" && (
-                      <DropdownMenuItem onClick={() => onRetry(msg)} className="text-xs text-primary/80 focus:text-primary">
-                        <RotateCcw className="mr-2 h-3.5 w-3.5 opacity-60" />
-                        <span>{t("chat.interface.retry")}</span>
-                      </DropdownMenuItem>
-                    )}
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                  )}
+
+                  {/* Rewind (User Only) */}
+                  {onRewind && msg.role === "human" && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 rounded-md hover:bg-orange-500/5 text-muted-foreground/60 hover:text-orange-500 transition-colors"
+                      onClick={() => onRewind(msg)}
+                      title={t("chat.interface.rewind")}
+                    >
+                      <Undo className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
+
+                  {/* Retry (User Only) */}
+                  {onRetry && msg.role === "human" && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 rounded-md hover:bg-primary/5 text-muted-foreground/60 hover:text-primary transition-colors"
+                      onClick={() => onRetry(msg)}
+                      title={t("chat.interface.retry")}
+                    >
+                      <RotateCcw className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -210,17 +252,15 @@ const ChatMessageItem = memo(
           <motion.div className="flex-1 min-w-0 transition-all" layout>
             {/* Thinking / Reasoning */}
             {msg.thinking && (
-              <Collapsible className="bg-muted/5 rounded-lg border border-border/40 overflow-hidden">
+              <Collapsible className="mb-2 overflow-hidden border-l-2 border-primary/10 pl-2">
                 <CollapsibleTrigger asChild>
-                  <Button variant="ghost" size="sm" className="w-full flex items-center justify-between px-3 h-8 text-[11px] font-semibold text-muted-foreground hover:bg-muted/10">
-                    <div className="flex items-center gap-2">
-                      <Brain className="h-3.5 w-3.5 text-primary/60" />
-                      {t("chat.interface.thinkingProcess")}
-                    </div>
-                    <ChevronRight className="h-3.5 w-3.5 transition-transform group-data-[state=open]:rotate-90" />
+                  <Button variant="ghost" size="sm" className="h-7 px-2 text-[11px] font-semibold text-muted-foreground/60 hover:text-primary transition-colors flex items-center gap-2">
+                    <Brain className="h-3 w-3" />
+                    {t("chat.interface.thinkingProcess")}
+                    <ChevronRight className="h-3 w-3 transition-transform group-data-[state=open]:rotate-90" />
                   </Button>
                 </CollapsibleTrigger>
-                <CollapsibleContent className="px-4 py-3 text-[13px] text-muted-foreground/70 italic bg-muted/5 leading-relaxed border-t border-border/10">
+                <CollapsibleContent className="py-2 text-[12.5px] text-muted-foreground/60 italic leading-relaxed">
                   <MessageContent content={typeof msg.thinking === 'string' ? msg.thinking : JSON.stringify(msg.thinking, null, 2)} />
                 </CollapsibleContent>
               </Collapsible>
@@ -245,12 +285,7 @@ const ChatMessageItem = memo(
           </motion.div>
         </div>
 
-        {/* Timestamp */}
-        {msg.timestamp && showAvatar && (
-          <div className="absolute top-2 right-4 text-[9px] text-muted-foreground/20 font-mono opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-            {new Date(msg.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-          </div>
-        )}
+
       </motion.div>
     )
   },

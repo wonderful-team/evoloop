@@ -35,7 +35,7 @@ export function HumanRequestCard({ request }: HumanRequestCardProps) {
     const setProject = useProjectStore((s) => s.setProject)
     const [input, setInput] = useState("")
     const [isSubmitting, setIsSubmitting] = useState(false)
-    
+
     // Project switch state
     const [showProjectSwitcher, setShowProjectSwitcher] = useState(false)
     const [selectedProject, setSelectedProject] = useState<Project | null>(null)
@@ -48,16 +48,16 @@ export function HumanRequestCard({ request }: HumanRequestCardProps) {
             setIsSubmitting(false)
         }
     }
-    
+
     const handleProjectSelect = async (project: Project) => {
         setSelectedProject(project)
         setShowProjectSwitcher(false)
-        
+
         setIsSubmitting(true)
         try {
             // Check if this is a temporary project switch (Scheme C)
             const isTemporary = request.payload?.temporary === true
-            
+
             if (isTemporary) {
                 // Scheme C: Pass project info via JSON
                 const tempContext = {
@@ -113,7 +113,7 @@ export function HumanRequestCard({ request }: HumanRequestCardProps) {
                 )}
 
                 {/* Interactive Inputs */}
-                <div className="bg-background border border-[var(--doc-border)] rounded-xl p-6 shadow-sm">
+                <div className="bg-background border border-[var(--doc-border)] rounded-xl p-6">
                     {/* Inputs based on Type */}
                     <div className="mb-6">
                         {/* Text Input */}
@@ -137,7 +137,7 @@ export function HumanRequestCard({ request }: HumanRequestCardProps) {
                                 ))}
                             </RadioGroup>
                         )}
-                        
+
                         {/* Project Switch Input */}
                         {request.type === "project_switch" && (
                             <div className="space-y-4">
@@ -152,7 +152,7 @@ export function HumanRequestCard({ request }: HumanRequestCardProps) {
                                             <FolderGit2 className="h-5 w-5 text-primary/60" />
                                             <span className="font-semibold">{t("chat.interrupted.selectProject", "Select Project")}</span>
                                         </Button>
-                                        <ProjectSwitcher 
+                                        <ProjectSwitcher
                                             open={showProjectSwitcher}
                                             onOpenChange={setShowProjectSwitcher}
                                             onSelect={handleProjectSelect}
@@ -201,7 +201,7 @@ export function HumanRequestCard({ request }: HumanRequestCardProps) {
                                             onClick={() => handleResponse(input)}
                                             disabled={isSubmitting || !input.trim()}
                                             size="sm"
-                                            className="px-6 rounded-full font-bold shadow-lg shadow-primary/20"
+                                            className="px-6 rounded-full font-bold"
                                         >
                                             <Play className="mr-2 h-3.5 w-3.5" />
                                             {t("common.submit", "Submit")}
@@ -225,7 +225,7 @@ export function HumanRequestCard({ request }: HumanRequestCardProps) {
                                                 size="sm"
                                                 onClick={() => handleResponse("yes")}
                                                 disabled={isSubmitting}
-                                                className="rounded-full px-6 shadow-lg shadow-primary/20 font-bold"
+                                                className="rounded-full px-6 font-bold"
                                             >
                                                 <CheckCircle2 className="mr-2 h-3.5 w-3.5" />
                                                 {request.type === "approval" ? t("common.approve", "Approve") : t("common.yes", "Yes")}
@@ -235,11 +235,10 @@ export function HumanRequestCard({ request }: HumanRequestCardProps) {
                                 </div>
                             </>
                         ) : (
-                            <div className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest ${
-                                request.status === "completed" 
-                                    ? "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20" 
+                            <div className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest ${request.status === "completed"
+                                    ? "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20"
                                     : "bg-destructive/10 text-destructive border border-destructive/20"
-                            }`}>
+                                }`}>
                                 {request.status === "completed" ? (
                                     <>
                                         <CheckCircle2 className="h-3 w-3" />

@@ -89,7 +89,7 @@ export function MessageContent({ content, isUser }: { content: string; isUser?: 
   }
 
   return (
-    <div className="text-sm leading-relaxed w-full max-w-full overflow-hidden break-words">
+    <div className="leading-relaxed w-full max-w-full overflow-hidden break-words">
       {parts.map((part, index) => {
         const imageMatch = part.match(/^\[Image:\s*([^\]]+)\]$/)
         const fileMatch = part.match(/^\[File:\s*([^\]]+)\]$/)
