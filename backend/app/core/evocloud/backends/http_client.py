@@ -526,12 +526,6 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
     async def send_heartbeat(self, device_key: str):
         await self.request("POST", f"/api/v1/devices/{device_key}/heartbeat")
 
-    async def update_command_status(self, command_id, status, result=None):
-        data = {"command_id": command_id, "status": status}
-        if result:
-            data["result"] = result
-        await self.request("POST", "/api/v1/command/status", data=data)
-
     # ==================== Subscription APIs ====================
 
     async def get_subscription_status(self) -> dict:

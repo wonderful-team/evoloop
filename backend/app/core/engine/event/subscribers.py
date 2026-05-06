@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 @event_register()
-class EngineCommandHandler:
+class EngineCommandSubscriber:
     """
     处理来自 WebSocket 的远程命令（new_command）。
 
@@ -35,17 +35,27 @@ class EngineCommandHandler:
     async def on_ws_message(self, event: WebSocketMessageReceivedEvent) -> None:
         if event.msg_type != "new_command":
             return
+
+        # EPv2: 尽早识别 action，以便在进入信号量保护区之前过滤掉无关指令
+        # 消息格式: type='new_command', data={command_id: 1001, action: '...', payload: {...}}
+        # event.payload 对应的是网关发来的 'data' 字典
+        raw_cmd = event.payload
+        action = raw_cmd.get("action") or raw_cmd.get("type") or "chat_message"
+
+        # 引擎域仅处理以下核心指令，其余指令（如 project_switch）由各自域的订阅者认领
+        ENGINE_ACTIONS = {"chat", "chat_message", "stop", "retry", "rewind", "hitl_response", "hitl_cancel"}
+        if action not in ENGINE_ACTIONS:
+            return
+
         await self._execute_with_guardrails(event.payload)
 
     async def _execute_with_guardrails(self, cmd_data: dict) -> None:
         """
         命令执行的完整保障链路。
 
-        包括并发控制（semaphore）、状态上报（Running/Completed/Failed）、
-        超时处理。业务逻辑最终委托给 ``_handle_command()``。
+        包括并发控制（semaphore）与超时处理。业务逻辑最终委托给 ``_handle_command()``。
         """
         link = evocloud_manager.link
-        api = evocloud_manager.api if link else None
         cmd_id = cmd_data.get("command_id")
 
         async def _run() -> None:
@@ -54,59 +64,45 @@ class EngineCommandHandler:
                 return
 
             async with link._command_semaphore:
-                if api:
-                    await api.update_command_status(cmd_id, 2)  # Running
                 try:
                     cmd = RemoteCommand.model_validate(cmd_data)
                     await self._handle_command(cmd)
-                    if api:
-                        await api.update_command_status(cmd_id, 3)  # Completed
                     logger.info(f"[EngineCommand] Command execution SUCCESS: cmd_id={cmd_id}")
                 except Exception as e:
                     logger.error(f"[EngineCommand] Command execution FAILED: cmd_id={cmd_id}, error={e}")
-                    if api:
-                        await api.update_command_status(cmd_id, 4, str(e))  # Failed
 
         try:
             await asyncio.wait_for(_run(), timeout=30.0)
         except asyncio.TimeoutError:
             logger.error(f"[EngineCommand] Command execution TIMEOUT: cmd_id={cmd_id}")
-            if api:
-                try:
-                    await api.update_command_status(cmd_id, 4, "execution timeout")
-                except Exception as e:
-                    logger.error(f"[EngineCommand] Failed to update timeout status: {e}")
             if link:
                 await link._force_reconnect()
 
     async def _handle_command(self, command: RemoteCommand) -> None:
-        cmd_type = command.get("type") or "chat_message"
+        action = command.get_action()
 
         # [Control Commands]
-        if cmd_type == "stop":
+        if action == "stop":
             await self._handle_stop(command)
-            return
-        elif cmd_type == "retry":
+        elif action == "retry":
             await self._handle_retry(command)
-            return
-        elif cmd_type == "rewind":
+        elif action == "rewind":
             await self._handle_rewind(command)
-            return
-
         # [HITL Inbound Logic]
-        if cmd_type == "hitl_response":
+        elif action == "hitl_response":
             await self._handle_hitl_response(command)
-            return
-        elif cmd_type == "hitl_cancel":
+        elif action == "hitl_cancel":
             await self._handle_hitl_cancel(command)
-            return
-
         # [Normal Chat Message Logic]
-        await self._handle_chat_message(command)
+        elif action in {"chat", "chat_message"}:
+            await self._handle_chat_message(command)
+        else:
+            logger.debug(f"[EngineCommand] Skipping action {action} in engine domain")
 
     async def _handle_hitl_response(self, command: RemoteCommand) -> None:
         thread_id = command.get("thread_id")
-        response = (command.get("content") or {}).get("response")
+        payload = command.get_payload()
+        response = payload.get("response")
 
         if not thread_id or response is None:
             logger.debug("[EngineCommand] HITL response missing thread_id or response, skipping")
@@ -175,26 +171,15 @@ class EngineCommandHandler:
 
     async def _handle_chat_message(self, command: RemoteCommand) -> None:
         # Support both nested 'content' (legacy/cloud) and flat 'message' (mobile/local) structures
-        content_obj = command.get("content") or {}
-        params_obj = content_obj.get("params", {})
+        """Handle normal chat message from Mobile."""
+        payload = command.get_payload()
+        
+        # EPv2: 使用标准化字段
+        message = payload.get("message") or payload.get("content") or ""
+        attachments = payload.get("attachments") or []
 
-        message = (
-            command.get("message")
-            or content_obj.get("text")
-            or content_obj.get("message")
-            or params_obj.get("message")
-        )
-
-        attachments = (
-            command.get("attachments")
-            or content_obj.get("attachments")
-            or params_obj.get("attachments")
-            or []
-        )
-
-        # Mobile 通过 content.references 发送的消息引用（引用历史消息 / 文件等）
-        # 将其合并到 attachments 中，由 reference_service.process_references() 统一处理
-        references = content_obj.get("references") or []
+        # Mobile 通过 payload.references 发送的消息引用
+        references = payload.get("references") or []
         if references:
             attachments = list(attachments) + list(references)
 
@@ -259,9 +244,9 @@ class EngineCommandHandler:
             logger.warning("[EngineCommand] Retry/Rewind command missing thread_id, skipping")
             return
 
-        content_obj = command.get("content") or {}
-        message_id = content_obj.get("message_id")
-        revert_files = content_obj.get("revert_files", True)
+        payload = command.get_payload()
+        message_id = payload.get("message_id")
+        revert_files = payload.get("revert_files", True)
         action = "retry" if should_redispatch else "rewind"
 
         logger.info(f"[EngineCommand] Processing {action} for thread {thread_id}, target={message_id}")

@@ -53,12 +53,22 @@ class SyncMessage(DynamicBaseModel):
 
 class RemoteCommand(DynamicBaseModel):
     command_id: str | int | None = None
-    type: str = "chat_message"
-    content: dict[str, Any] | None = None
+    type: str = "chat_message"        # 旧版指令类型
+    action: str | None = None         # EPv2 指令动作 (chat/project_switch等)
+    content: dict[str, Any] | None = None # 旧版负载
+    payload: dict[str, Any] | None = None # EPv2 负载
     message: str | None = None
     attachments: list[dict[str, Any]] = []
     thread_id: str | None = None
     project_id: int | None = None
+
+    def get_action(self) -> str:
+        """获取标准化的指令动作名称"""
+        return self.action or self.type or "chat_message"
+
+    def get_payload(self) -> dict[str, Any]:
+        """获取标准化的业务数据负载"""
+        return self.payload or self.content or {}
 
 
 class QueryResponse(DynamicBaseModel):

@@ -208,13 +208,6 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
         except Exception as e:
             # Let handle_task_exception deal with DB/UI reporting
             # run_scope will mark status as "failed"
-            _final_status = "failed"
             from app.core.engine.background_agent.errors import handle_task_exception
             await handle_task_exception(thread_id, project_id, e, handler=db_callback._handler)
             raise
-        finally:
-            # Always release the Gateway Busy lock by sending command_complete,
-            # EXCEPT when waiting for human input (task is paused, not finished).
-            # AgentHumanInterruptException returns early above, so we never reach here.
-            from app.core.engine.message.sync_coordinator import get_sync_coordinator
-            await get_sync_coordinator().sync_final(thread_id, evoloop_command_id, status=_final_status)

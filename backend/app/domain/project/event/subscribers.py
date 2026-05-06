@@ -36,31 +36,53 @@ class ProjectSwitchWebSocketHandler:
     Handles ``project_switch`` messages from the WebSocket transport layer.
 
     This class bridges the WebSocket generic event (``WebSocketMessageReceivedEvent``)
-    to the domain-specific ``ProjectSwitchedEvent``.  The transport layer does NOT
-    know about domain events — it only publishes a generic message-received event.
+    to the domain-specific ``ProjectSwitchedEvent``.
     """
 
     @event_subscribe("websocket.message_received")
     async def on_ws_message(self, event: WebSocketMessageReceivedEvent) -> None:
-        if event.msg_type != "project_switch":
-            return
-
+        # 1. 使用标准化模型解析 (兼容 payload/content 各种嵌套)
         try:
-            switch_data = ProjectSwitchedEvent.model_validate(event.payload)
+            from app.core.evocloud.schemas import RemoteCommand
+            cmd = RemoteCommand.model_validate(event.payload)
+            action = cmd.get_action()
+            payload = cmd.get_payload()
         except Exception as e:
-            logger.error(f"[ProjectSwitchWS] Invalid project_switch payload: {e}")
+            logger.error(f"[ProjectSwitchWS] Failed to parse message: {e}")
             return
 
+        if action != "project_switch":
+            return
+
+        # 2. 提取信息
+        project_id = payload.get("project_id") or cmd.project_id
+        project_name = payload.get("project_name") or ""
+        path = payload.get("path")
+
+        # 3. 路径解析/补全逻辑
+        if project_id and (not path or not project_name):
+            from app.core.evocloud import evocloud_manager
+            try:
+                project = await evocloud_manager.get_project_by_id(project_id)
+                if project:
+                    path = path or project.path
+                    project_name = project_name or project.name
+                    logger.info(f"[ProjectSwitchWS] Auto-resolved project {project_id} -> {path} (Name: {project_name})")
+            except Exception as e:
+                logger.error(f"[ProjectSwitchWS] Failed to resolve project {project_id}: {e}")
+
+        if not path:
+            logger.warning(f"[ProjectSwitchWS] Project switch ignored: project_id={project_id} (payload={payload}) has no resolvable path")
+            return
+
+        # 4. 发布领域事件
         from app.domain.project.event.publishers import publish_project_switched
         await publish_project_switched(
-            project_id=switch_data.project_id or 0,
-            project_name=switch_data.project_name or "",
-            path=switch_data.path or "",
+            project_id=project_id or 0,
+            project_name=project_name,
+            path=path,
         )
-        logger.info(
-            f"[ProjectSwitchWS] Bridged project_switch -> ProjectSwitchedEvent: "
-            f"id={switch_data.project_id}, path={switch_data.path}"
-        )
+        logger.info(f"[ProjectSwitchWS] SUCCESSFULLY triggered project switch: id={project_id}, path={path}")
 
 
 @event_register()
