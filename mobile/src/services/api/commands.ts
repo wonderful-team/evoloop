@@ -131,9 +131,12 @@ export async function sendChatMessage(
  * 停止 Agent 执行
  */
 export async function stopExecution(
-  threadId: string
+  threadId: string,
+  deviceKey?: string
 ): Promise<ExecuteCommandResponse> {
-  return api.post(`/gateway/api/v1/conversations/${threadId}/stop`, {});
+  return api.post(`/gateway/api/v1/conversations/${threadId}/stop`, {}, {
+    params: { device_key: deviceKey }
+  });
 }
 
 /**
@@ -141,9 +144,12 @@ export async function stopExecution(
  */
 export async function rewindThread(
   threadId: string,
-  payload: RewindPayload = {}
+  payload: RewindPayload = {},
+  deviceKey?: string
 ): Promise<ExecuteCommandResponse> {
-  return api.post(`/gateway/api/v1/conversations/${threadId}/rewind`, payload);
+  return api.post(`/gateway/api/v1/conversations/${threadId}/rewind`, payload, {
+    params: { device_key: deviceKey }
+  });
 }
 
 /**
@@ -151,9 +157,12 @@ export async function rewindThread(
  */
 export async function retryThread(
   threadId: string,
-  payload: RetryPayload = {}
+  payload: RetryPayload = {},
+  deviceKey?: string
 ): Promise<ExecuteCommandResponse> {
-  return api.post(`/gateway/api/v1/conversations/${threadId}/retry`, payload);
+  return api.post(`/gateway/api/v1/conversations/${threadId}/retry`, payload, {
+    params: { device_key: deviceKey }
+  });
 }
 
 // ========== HITL 交互 API ==========

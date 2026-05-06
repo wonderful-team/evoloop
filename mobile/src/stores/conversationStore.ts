@@ -6,7 +6,7 @@ import { ChatMessage } from '@/types/conversation';
 import { AgentSyncMessage } from '@/services/gateway/agentMessage';
 import * as conversationApi from '@/services/api/conversations';
 import { isAuthError } from '@/utils/error';
-import { adaptAgentMessages, deduplicateMessages } from '@/utils/messageAdapter';
+import { adaptAgentMessages, adaptHistoryMessage, deduplicateMessages } from '@/utils/messageAdapter';
 
 interface ConversationState {
   // 会话列表
@@ -15,6 +15,10 @@ interface ConversationState {
   isLoadingConversations: boolean;
   hasMoreConversations: boolean;
   conversationsPage: number;
+
+  // 当前激活的筛选条件（用于分页时保持一致）
+  activeDeviceKey: string | undefined;
+  activeProjectId: number | undefined;
 
   // 当前会话消息
   messages: ChatMessage[];
@@ -25,7 +29,7 @@ interface ConversationState {
   // 操作
   setCurrentConversation: (id: string | null, skipLoadMessages?: boolean) => void;
   loadConversations: (projectId?: number, refresh?: boolean, deviceKey?: string) => Promise<void>;
-  loadMoreConversations: (projectId?: number, deviceKey?: string) => Promise<void>;
+  loadMoreConversations: () => Promise<void>;
   createConversation: (projectId?: number, initialMessage?: string) => Promise<string>;
   deleteConversation: (id: string) => Promise<void>;
   loadMessages: (conversationId: string, refresh?: boolean) => Promise<void>;
@@ -51,6 +55,10 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
   isLoadingConversations: false,
   hasMoreConversations: true,
   conversationsPage: 1,
+
+  // 当前筛选条件初始为空，首次 loadConversations 时写入
+  activeDeviceKey: undefined,
+  activeProjectId: undefined,
 
   messages: [],
   isLoadingMessages: false,
@@ -78,15 +86,36 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
   },
 
   // 加载会话列表
-  loadConversations: async (projectId, refresh = false, deviceKey?: string) => {
+  // - refresh=true 时：重置页码并记录新的筛选条件
+  // - refresh=false 时（加载更多）：沿用已记录的 activeDeviceKey/activeProjectId
+  loadConversations: async (projectId, refresh = false, deviceKey) => {
     set({ isLoadingConversations: true });
 
+    // 筛选条件是否发生了变化
+    const { activeDeviceKey, activeProjectId, conversationsPage } = get();
+    const filterChanged =
+      deviceKey !== activeDeviceKey || projectId !== activeProjectId;
+
+    // 有新筛选条件时强制 refresh，防止带旧页码混合数据
+    const shouldRefresh = refresh || filterChanged;
+    const page = shouldRefresh ? 1 : conversationsPage;
+
+    // 写入当前筛选条件（refresh 时更新，保持 loadMore 与其一致）
+    if (shouldRefresh) {
+      set({
+        activeDeviceKey: deviceKey,
+        activeProjectId: projectId,
+        conversations: [],
+        conversationsPage: 1,
+        hasMoreConversations: true,
+      });
+    }
+
     try {
-      const page = refresh ? 1 : get().conversationsPage;
       const response = await conversationApi.getConversations(projectId, page, 20, deviceKey);
 
       set({
-        conversations: refresh
+        conversations: shouldRefresh
           ? response.conversations
           : [...get().conversations, ...response.conversations],
         hasMoreConversations: response.conversations.length === 20,
@@ -102,10 +131,11 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
     }
   },
 
-  // 加载更多会话
-  loadMoreConversations: async (projectId, deviceKey?: string) => {
+  // 加载更多会话——自动沿用 activeDeviceKey / activeProjectId，无需调用方传参
+  loadMoreConversations: async () => {
     if (!get().hasMoreConversations || get().isLoadingConversations) return;
-    await get().loadConversations(projectId, false, deviceKey);
+    const { activeProjectId, activeDeviceKey } = get();
+    await get().loadConversations(activeProjectId, false, activeDeviceKey);
   },
 
   // 创建新会话
@@ -115,8 +145,9 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
       initial_message: initialMessage,
     });
 
-    // 刷新会话列表
-    await get().loadConversations(projectId, true);
+    // 刷新会话列表（保持当前筛选条件）
+    const { activeDeviceKey, activeProjectId } = get();
+    await get().loadConversations(activeProjectId, true, activeDeviceKey);
 
     // 设置为当前会话
     set({ currentConversationId: response.conversation_id });
@@ -153,11 +184,13 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
       const beforeMessageId = refresh ? undefined : get().firstMessageId || undefined;
       const response = await conversationApi.getConversationHistory(
         conversationId,
+        get().activeProjectId || 0,
         beforeMessageId,
-        20
+        50
       );
 
-      const newMessages = response.messages;
+      const rawMessages: Record<string, any>[] = response.messages || [];
+      const newMessages = rawMessages.map(adaptHistoryMessage);
 
       set({
         messages: refresh
@@ -239,6 +272,8 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
       messages: [],
       hasMoreConversations: true,
       conversationsPage: 1,
+      activeDeviceKey: undefined,
+      activeProjectId: undefined,
       hasMoreMessages: true,
       firstMessageId: null,
     });
@@ -246,7 +281,8 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
 
   // Rewind 回退
   rewindConversation: async (conversationId, request) => {
-    const result = await conversationApi.rewindConversation(conversationId, request);
+    const activeDeviceKey = get().activeDeviceKey;
+    const result = await conversationApi.rewindConversation(conversationId, request, activeDeviceKey);
     // 刷新消息列表
     await get().loadMessages(conversationId, true);
     return result;
@@ -254,7 +290,8 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
 
   // Retry 重试
   retryConversation: async (conversationId, request) => {
-    const result = await conversationApi.retryConversation(conversationId, request);
+    const activeDeviceKey = get().activeDeviceKey;
+    const result = await conversationApi.retryConversation(conversationId, request, activeDeviceKey);
     // 刷新消息列表
     await get().loadMessages(conversationId, true);
     return result;

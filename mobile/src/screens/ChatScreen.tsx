@@ -80,6 +80,7 @@ export default function ChatScreen() {
   // Store 状态订阅
   const conversations = useConversationStore((state) => state.conversations);
   const currentConversationId = useConversationStore((state) => state.currentConversationId);
+  const activeDeviceKey = useConversationStore((state) => state.activeDeviceKey);
   const hasMessages = useConversationStore((state) => state.messages.length > 0);
 
   // 方法 - Zustand action 引用稳定，单独 selector
@@ -216,7 +217,7 @@ export default function ChatScreen() {
       stopTTS();
       const currentId = useConversationStore.getState().currentConversationId;
       if (currentId) {
-        stopAgent(currentId).catch(() => {});
+        stopAgent(currentId, activeDeviceKey).catch(() => {});
       }
       // 3. Haptic 震动反馈
       ReactNativeHapticFeedback.trigger('notificationSuccess', {
@@ -236,7 +237,7 @@ export default function ChatScreen() {
         stopTTS();
         const currentId = useConversationStore.getState().currentConversationId;
         if (currentId) {
-          stopAgent(currentId).catch(() => {});
+          stopAgent(currentId, activeDeviceKey).catch(() => {});
         }
         showSnackbar('已打断，请说话');
         voiceInputRef.current?.startNLS();
@@ -320,9 +321,9 @@ export default function ChatScreen() {
 
   useEffect(() => {
     if (isLoggedIn) {
-      loadConversations(undefined, true);
+      loadConversations(currentProject?.id || 0, true);
     }
-  }, [isLoggedIn]);
+  }, [isLoggedIn, currentProject?.id, loadConversations]);
 
   // 重发失败消息
   const handleResend = useCallback(async (message: ChatMessage) => {
@@ -585,7 +586,7 @@ export default function ChatScreen() {
   const handleNewThread = useCallback(() => {
     // 转发模式：创建新会话并发送待转发内容
     if (pendingForwardContent) {
-      createConversation(currentProject?.id, pendingForwardContent)
+      createConversation(currentProject?.id || 0, pendingForwardContent)
         .then((newId) => {
           sendMessageToDevice({ type: 'text', text: pendingForwardContent }, { conversationId: newId, deviceKey: selectedDevice?.deviceKey })
             .then(() => showSnackbar('转发成功'))
@@ -1001,6 +1002,7 @@ export default function ChatScreen() {
         visible={showHistoryDrawer}
         onClose={() => setShowHistoryDrawer(false)}
         projectId={currentProject?.id}
+        deviceKey={selectedDevice?.deviceKey}
         onSelectThread={handleSelectThread}
         onNewThread={handleNewThread}
       />

@@ -28,9 +28,9 @@ interface UseCommandsReturn {
   // 核心指令方法
   execute: (type: CommandType, payload: Record<string, any>, threadId?: string, deviceKey?: string) => Promise<ExecuteCommandResponse>;
   sendMessage: (threadId: string, content: string, options?: Partial<ChatPayload> & { deviceKey?: string }) => Promise<ExecuteCommandResponse>;
-  stop: (threadId: string) => Promise<ExecuteCommandResponse>;
-  rewind: (threadId: string, payload?: RewindPayload) => Promise<ExecuteCommandResponse>;
-  retry: (threadId: string, payload?: RetryPayload) => Promise<ExecuteCommandResponse>;
+  stop: (threadId: string, deviceKey?: string) => Promise<ExecuteCommandResponse>;
+  rewind: (threadId: string, payload?: RewindPayload, deviceKey?: string) => Promise<ExecuteCommandResponse>;
+  retry: (threadId: string, payload?: RetryPayload, deviceKey?: string) => Promise<ExecuteCommandResponse>;
   
   // HITL 方法
   hitlConfirm: (requestId: string, response: string, data?: Record<string, any>) => Promise<ExecuteCommandResponse>;
@@ -193,12 +193,15 @@ export function useCommands(): UseCommandsReturn {
   /**
    * 停止执行
    */
-  const stop = useCallback(async (threadId: string): Promise<ExecuteCommandResponse> => {
+  const stop = useCallback(async (
+    threadId: string,
+    deviceKey?: string
+  ): Promise<ExecuteCommandResponse> => {
     setIsLoading(true);
     setError(null);
     
     try {
-      const response = await commandApi.stopExecution(threadId);
+      const response = await commandApi.stopExecution(threadId, deviceKey);
       
       setStatus(response.code === 0 ? 'completed' : 'failed');
       
@@ -222,13 +225,14 @@ export function useCommands(): UseCommandsReturn {
    */
   const rewind = useCallback(async (
     threadId: string,
-    payload?: RewindPayload
+    payload?: RewindPayload,
+    deviceKey?: string
   ): Promise<ExecuteCommandResponse> => {
     setIsLoading(true);
     setError(null);
     
     try {
-      const response = await commandApi.rewindThread(threadId, payload);
+      const response = await commandApi.rewindThread(threadId, payload, deviceKey);
       
       setStatus(response.code === 0 ? 'completed' : 'failed');
       
@@ -252,13 +256,14 @@ export function useCommands(): UseCommandsReturn {
    */
   const retry = useCallback(async (
     threadId: string,
-    payload?: RetryPayload
+    payload?: RetryPayload,
+    deviceKey?: string
   ): Promise<ExecuteCommandResponse> => {
     setIsLoading(true);
     setError(null);
     
     try {
-      const response = await commandApi.retryThread(threadId, payload);
+      const response = await commandApi.retryThread(threadId, payload, deviceKey);
       
       setStatus(response.code === 0 ? 'completed' : 'failed');
       

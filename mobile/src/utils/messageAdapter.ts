@@ -3,6 +3,10 @@
  *
  * 将原来内嵌在 conversationStore.ts 和 ChatScreen.tsx 中的
  * 消息转换、去重、HITL 解析逻辑提取为纯函数，便于复用和测试。
+ *
+ * 时间戳规范化策略（统一以 Python Backend 为准）：
+ * - WS 推送 (AgentSyncMessage)：created_at 为 ISO 8601 字符串 → 解析为毫秒
+ * - HTTP 拉取 (PHP API)：create_time 为 Unix 秒级整数 → 乘以 1000 转为毫秒
  */
 
 import { ChatMessage } from '@/types/conversation';
@@ -10,7 +14,31 @@ import { HumanRequest } from '@/types/hitl';
 import { AgentSyncMessage } from '@/services/gateway/agentMessage';
 
 /**
+ * 统一时间戳规范化。
+ * 兼容三种来源：
+ *   1. ISO 8601 字符串 (Python WS 推送)："2024-01-15T10:30:00+08:00"
+ *   2. Unix 秒级整数 (PHP HTTP 拉取)：1705284600
+ *   3. 毫秒级整数（已规范化，直接使用）
+ */
+export function normalizeTimestamp(value: string | number | null | undefined): number {
+  if (!value) return Date.now();
+
+  if (typeof value === 'string') {
+    // ISO 8601 → parse → milliseconds
+    const ms = Date.parse(value);
+    return isNaN(ms) ? Date.now() : ms;
+  }
+
+  // Number: 秒级 (10位) → 乘以1000; 毫秒级 (13位) → 直接使用
+  if (value < 1e12) {
+    return value * 1000;
+  }
+  return value;
+}
+
+/**
  * 将 Agent 推送的单条消息转换为 Mobile ChatMessage
+ * 对齐 Python MessageBlock 的完整字段。
  */
 export function adaptAgentMessage(raw: AgentSyncMessage): ChatMessage {
   return {
@@ -22,8 +50,69 @@ export function adaptAgentMessage(raw: AgentSyncMessage): ChatMessage {
           ? 'assistant'
           : 'system',
     content: raw.content || '',
-    timestamp: (raw.created_at || 0) * 1000, // Agent 秒级 → Mobile 毫秒级
-    isComplete: raw.status === 'completed' || raw.status === 'done',
+    thinking: raw.thinking ?? undefined,
+    timestamp: normalizeTimestamp(raw.created_at),  // ISO 8601 → ms
+    isComplete:
+      raw.status === 'completed' ||
+      raw.status === 'failed' ||
+      raw.status === 'waiting_human',
+    status:
+      raw.status === 'failed'
+        ? 'failed'
+        : raw.status === 'running' || raw.status === 'streaming' || raw.status === 'pending'
+          ? 'sending'
+          : 'sent',
+    // 工具消息专属字段
+    tool_name: raw.tool_name ?? undefined,
+    tool_call_id: raw.tool_call_id ?? undefined,
+    tool_meta: raw.tool_meta ?? raw.meta_data?.tool_meta ?? undefined,
+    tool_calls: raw.tool_calls ?? undefined,
+    // 元数据透传
+    category: raw.category ?? undefined,
+    sequence_number: raw.sequence_number,
+    references: raw.references ?? undefined,
+  };
+}
+
+/**
+ * 规范化 PHP API 返回的历史消息（HTTP 拉取路径）
+ * 处理 create_time（秒级 Unix）→ timestamp（毫秒级）
+ */
+export function adaptHistoryMessage(raw: Record<string, any>): ChatMessage {
+  return {
+    id: String(raw.id || raw.sequence_number || Date.now()),
+    role:
+      raw.role === 'human'
+        ? 'user'
+        : raw.role === 'ai'
+          ? 'assistant'
+          : 'system',
+    content: raw.content || '',
+    thinking: raw.thinking ?? undefined,
+    // PHP 返回 create_time (Unix 秒) 或 created_at (ISO 8601 字符串)，统一处理
+    timestamp: normalizeTimestamp(raw.created_at || raw.create_time),
+    isComplete: raw.status === 'completed' || !raw.status,
+    status: raw.status === 'failed' ? 'failed' : 'sent',
+    tool_name: raw.tool_name ?? undefined,
+    tool_calls: Array.isArray(raw.tool_calls)
+      ? raw.tool_calls
+      : (raw.tool_calls ? JSON.parse(raw.tool_calls) : undefined),
+    tool_meta: (() => {
+      if (raw.tool_meta) return typeof raw.tool_meta === 'string' ? JSON.parse(raw.tool_meta) : raw.tool_meta;
+      if (raw.meta_data) {
+        try {
+          const meta = typeof raw.meta_data === 'string' ? JSON.parse(raw.meta_data) : raw.meta_data;
+          return meta.tool_meta;
+        } catch (e) {
+          console.warn('[MessageAdapter] Failed to parse meta_data:', e);
+        }
+      }
+      return undefined;
+    })(),
+    has_file_operations: raw.has_file_operations ?? false,
+    references: raw.references ?? undefined,
+    category: raw.category ?? undefined,
+    sequence_number: raw.sequence_number ?? undefined,
   };
 }
 
@@ -78,3 +167,4 @@ export function adaptAgentMessages(
     .filter((m) => m.is_visible !== 0)
     .map(adaptAgentMessage);
 }
+

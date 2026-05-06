@@ -105,15 +105,17 @@ export async function deleteConversation(conversationId: string): Promise<void> 
  * 获取会话历史消息
  * GET /evolooplink/api/conversation/messages (MC 存储)
  * 
- * MC 响应格式: { code: 0, data: { conversation: {...}, messages: [...] }, message: 'success' }
+ * MC 响应格式: { code: 0, data: { messages, has_more, first_id, last_id, total_count, conversation } }
  */
 export async function getConversationHistory(
   conversationId: string,
+  projectId: number = 0,
   beforeMessageId?: string,
-  limit = 20
+  limit = 50
 ): Promise<ConversationHistoryResponse> {
   const params = new URLSearchParams();
   params.append('conversation_id', conversationId);
+  params.append('project_id', projectId.toString());
   if (beforeMessageId) params.append('before_message_id', beforeMessageId);
   params.append('limit', limit.toString());
   
@@ -126,9 +128,9 @@ export async function getConversationHistory(
   const data = response.data || {};
   return {
     messages: data.messages || [],
-    has_more: (data.messages || []).length === limit,
-    first_message_id: data.messages?.[0]?.id,
-    total_count: data.total || 0,
+    has_more: data.has_more ?? false,
+    first_message_id: data.first_id ?? null,
+    total_count: data.total_count ?? 0,
   };
 }
 
@@ -136,8 +138,10 @@ export async function getConversationHistory(
  * 停止 Agent (指令类 → Gateway → Desktop)
  * POST /gateway/api/v1/conversations/:id/stop
  */
-export async function stopAgent(conversationId: string): Promise<void> {
-  const response = await api.post(`/gateway/api/v1/conversations/${conversationId}/stop`, {});
+export async function stopAgent(conversationId: string, deviceKey?: string): Promise<void> {
+  const response = await api.post(`/gateway/api/v1/conversations/${conversationId}/stop`, {}, {
+    params: { device_key: deviceKey }
+  });
   
   if (response.code !== 0) {
     throw new Error(response.message || '停止失败');
@@ -150,11 +154,13 @@ export async function stopAgent(conversationId: string): Promise<void> {
  */
 export async function rewindConversation(
   conversationId: string,
-  request: RewindRequest
+  request: RewindRequest,
+  deviceKey?: string
 ): Promise<RewindResponse> {
   const response = await api.post(
     `/gateway/api/v1/conversations/${conversationId}/rewind`,
-    request
+    request,
+    { params: { device_key: deviceKey } }
   );
   
   if (response.code !== 0) {
@@ -170,11 +176,13 @@ export async function rewindConversation(
  */
 export async function retryConversation(
   conversationId: string,
-  request: RetryRequest
+  request: RetryRequest,
+  deviceKey?: string
 ): Promise<RetryResponse> {
   const response = await api.post(
     `/gateway/api/v1/conversations/${conversationId}/retry`,
-    request
+    request,
+    { params: { device_key: deviceKey } }
   );
   
   if (response.code !== 0) {

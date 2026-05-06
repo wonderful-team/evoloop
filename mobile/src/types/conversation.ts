@@ -52,19 +52,35 @@ export interface MessageAttachment {
 
 export interface ChatMessage {
   id: string;
-  role: 'user' | 'assistant' | 'system';
+  role: 'user' | 'assistant' | 'tool' | 'system';
   content: string;
   timestamp: number;
   isComplete?: boolean;
   isFinal?: boolean;
   attachments?: MessageAttachment[];
-  references?: MessageReference[];
+  references?: Array<Record<string, any>>;
   has_file_operations?: boolean;
   steps?: any[];
-  steps_snapshot?: any[];
-  /** 消息发送状态：sending=发送中, sent=已送达, failed=发送失败 */
+  /** 消息发送状态：sending=发送中/运行中, sent=已完成, failed=失败 */
   status?: 'sending' | 'sent' | 'failed';
+
+  // === 对齐 Python MessageBlock 的扩展字段 ===
+  /** AI 思考过程 (extended thinking) */
+  thinking?: string;
+  /** 工具名称 (role='tool' 时) */
+  tool_name?: string;
+  /** 工具调用 ID */
+  tool_call_id?: string;
+  /** 工具元信息：display_name 等前端展示数据 */
+  tool_meta?: { display_name?: string; affected_path_keys?: string[] };
+  /** AI 发出的工具调用列表 */
+  tool_calls?: Array<Record<string, any>>;
+  /** 消息分类标签 (MessageCategory.value) */
+  category?: string;
+  /** 全局序列号，用于去重和排序 */
+  sequence_number?: number;
 }
+
 
 export interface ConversationHistoryResponse {
   messages: ChatMessage[];

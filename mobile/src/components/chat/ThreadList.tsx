@@ -19,11 +19,12 @@ import { formatDate } from '@/utils/format';
 
 interface ThreadListProps {
   projectId?: number;
+  deviceKey?: string;
   onSelectThread?: (threadId: string) => void;
   onNewThread?: () => void;
 }
 
-export function ThreadList({ projectId, onSelectThread, onNewThread }: ThreadListProps) {
+export function ThreadList({ projectId, deviceKey, onSelectThread, onNewThread }: ThreadListProps) {
   const { colors } = useTheme();
   const { isLoggedIn } = useAuthStore();
   const {
@@ -37,14 +38,14 @@ export function ThreadList({ projectId, onSelectThread, onNewThread }: ThreadLis
     setCurrentConversation,
   } = useConversationStore();
 
-  // 加载会话列表（仅在登录时）
+  // 加载会话列表（仅在登录时，projectId 或 deviceKey 变化时刷新）
   useEffect(() => {
     if (isLoggedIn) {
-      loadConversations(projectId, true).catch(() => {
+      loadConversations(projectId, true, deviceKey).catch(() => {
         // 静默处理错误，不显示代码级错误，由调用方决定是否提示用户
       });
     }
-  }, [projectId, isLoggedIn]);
+  }, [projectId, deviceKey, isLoggedIn]);
 
   // 选择会话
   const handleSelectThread = useCallback((conversation: Conversation) => {
@@ -126,10 +127,17 @@ export function ThreadList({ projectId, onSelectThread, onNewThread }: ThreadLis
     );
   };
 
+  // 下拉刷新
+  const handleRefresh = () => {
+    if (isLoggedIn) {
+      loadConversations(projectId, true, deviceKey);
+    }
+  };
+
   // 加载更多
   const handleLoadMore = () => {
     if (hasMoreConversations && !isLoadingConversations) {
-      loadMoreConversations(projectId);
+      loadMoreConversations();
     }
   };
 
@@ -163,7 +171,7 @@ export function ThreadList({ projectId, onSelectThread, onNewThread }: ThreadLis
         refreshControl={
           <RefreshControl
             refreshing={isLoadingConversations}
-            onRefresh={() => isLoggedIn && loadConversations(projectId, true)}
+            onRefresh={handleRefresh}
             colors={[colors.primary]}
           />
         }

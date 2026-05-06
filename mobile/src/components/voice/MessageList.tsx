@@ -77,6 +77,7 @@ const MessageItem = React.memo(function MessageItem({
   hasFileOperations: boolean;
 }) {
   const [menuVisible, setMenuVisible] = useState(false);
+  const [thinkingExpanded, setThinkingExpanded] = useState(false);
 
   const handleCopy = useCallback(() => {
     Clipboard.setString(message.content);
@@ -117,6 +118,37 @@ const MessageItem = React.memo(function MessageItem({
   const roleIcon = getRoleIcon(message.role);
   const roleColor = getRoleColor(message.role, colors);
 
+  // ── 工具消息：紧凑单行（对齐桌面端设计）
+  if (message.role === 'tool') {
+    const toolLabel = (message as any).tool_meta?.display_name || (message as any).tool_name || 'TOOL';
+    const isRunning = (message as any).status === 'running';
+    return (
+      <View style={styles.toolRow}>
+        <View style={[styles.toolSpine, { backgroundColor: colors.outline }]} />
+        <View style={[styles.toolDot, { backgroundColor: colors.outline }]} />
+        <View style={styles.toolContent}>
+          <MaterialCommunityIcons name="wrench-outline" size={12} color={colors.onSurfaceVariant} style={{ opacity: 0.6 }} />
+          <Text
+            numberOfLines={1}
+            style={[styles.toolLabel, { color: colors.onSurfaceVariant }]}
+          >
+            {toolLabel}
+          </Text>
+          {isRunning && (
+            <ActivityIndicator size={10} color={colors.primary} style={{ marginLeft: 4, opacity: 0.6 }} />
+          )}
+          {(message as any).changeset_count > 0 && (
+            <View style={[styles.changesetBadge, { backgroundColor: colors.primaryContainer }]}>
+              <Text style={[styles.changesetBadgeText, { color: colors.primary }]}>
+                {(message as any).changeset_count} FILES
+              </Text>
+            </View>
+          )}
+        </View>
+      </View>
+    );
+  }
+
   return (
     <Menu
       visible={menuVisible}
@@ -142,7 +174,47 @@ const MessageItem = React.memo(function MessageItem({
 
             {/* 消息内容 */}
             <View style={styles.messageBody}>
+              {/* Thinking 折叠区域（对齐桌面端 Collapsible Brain 设计） */}
+              {!isUser && !!(message as any).thinking && (
+                <TouchableOpacity
+                  onPress={() => setThinkingExpanded(v => !v)}
+                  style={styles.thinkingHeader}
+                  activeOpacity={0.7}
+                >
+                  <MaterialIcons name="psychology" size={13} color={colors.onSurfaceVariant} style={{ opacity: 0.7 }} />
+                  <Text style={[styles.thinkingHeaderText, { color: colors.onSurfaceVariant }]}>
+                    思考过程
+                  </Text>
+                  <MaterialIcons
+                    name={thinkingExpanded ? 'expand-less' : 'expand-more'}
+                    size={14}
+                    color={colors.onSurfaceVariant}
+                    style={{ opacity: 0.7 }}
+                  />
+                </TouchableOpacity>
+              )}
+              {!isUser && thinkingExpanded && !!(message as any).thinking && (
+                <View style={[styles.thinkingBody, { borderLeftColor: colors.outline }]}>
+                  <MessageContent
+                    content={(message as any).thinking}
+                    isUser={false}
+                  />
+                </View>
+              )}
+
               <MessageContent content={message.content} isUser={isUser} />
+
+              {/* 文件变更徽章 */}
+              {!isUser && (message as any).changeset_count > 0 && (
+                <View style={styles.changesetRow}>
+                  <View style={[styles.changesetBadge, { backgroundColor: colors.primaryContainer }]}>
+                    <MaterialCommunityIcons name="file-multiple-outline" size={11} color={colors.primary} />
+                    <Text style={[styles.changesetBadgeText, { color: colors.primary }]}>
+                      {(message as any).changeset_count} 个文件变更
+                    </Text>
+                  </View>
+                </View>
+              )}
             </View>
 
             {/* 发送状态指示器 */}
@@ -376,6 +448,80 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
+  // 工具消息：紧凑单行
+  toolRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 5,
+    paddingHorizontal: 12,
+    position: 'relative',
+    minHeight: 28,
+  },
+  toolSpine: {
+    position: 'absolute',
+    left: 19,
+    top: 0,
+    bottom: 0,
+    width: 1,
+    opacity: 0.3,
+  },
+  toolDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    marginRight: 8,
+    opacity: 0.5,
+    zIndex: 1,
+  },
+  toolContent: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  toolLabel: {
+    flex: 1,
+    fontSize: 12,
+    opacity: 0.65,
+  },
+  // Thinking 折叠
+  thinkingHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 4,
+    marginBottom: 4,
+  },
+  thinkingHeaderText: {
+    flex: 1,
+    fontSize: 11,
+    fontWeight: '600',
+    opacity: 0.65,
+  },
+  thinkingBody: {
+    borderLeftWidth: 2,
+    paddingLeft: 8,
+    marginBottom: 8,
+    opacity: 0.7,
+  },
+  // 文件变更徽章
+  changesetRow: {
+    marginTop: 8,
+    flexDirection: 'row',
+  },
+  changesetBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+  },
+  changesetBadgeText: {
+    fontSize: 10,
+    fontWeight: '600',
+  },
+
   typingContainer: {
     paddingHorizontal: 16,
     paddingVertical: 12,

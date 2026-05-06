@@ -10,11 +10,12 @@ import { isAuthError } from '@/utils/error';
 
 interface UseConversationsOptions {
   projectId?: number;
+  deviceKey?: string;
   pageSize?: number;
 }
 
 export function useConversations(options: UseConversationsOptions = {}) {
-  const { projectId, pageSize = 20 } = options;
+  const { projectId, deviceKey, pageSize = 20 } = options;
   const toast = useToast();
   
   // 会话列表状态
@@ -22,6 +23,9 @@ export function useConversations(options: UseConversationsOptions = {}) {
   const [isLoadingConversations, setIsLoadingConversations] = useState(false);
   const [hasMoreConversations, setHasMoreConversations] = useState(true);
   const conversationsPageRef = useRef(1);
+  // 当前生效的筛选条件（用于 loadMore 时保持一致）
+  const activeProjectIdRef = useRef<number | undefined>(projectId);
+  const activeDeviceKeyRef = useRef<string | undefined>(deviceKey);
   
   // 消息状态
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -35,19 +39,35 @@ export function useConversations(options: UseConversationsOptions = {}) {
   /**
    * 加载会话列表
    */
-  const loadConversations = useCallback(async (refresh = false) => {
+  const loadConversations = useCallback(async (refresh = false, overrideDeviceKey?: string, overrideProjectId?: number) => {
     if (isLoadingConversations) return;
+
+    // 确定本次使用的筛选条件
+    const resolvedProjectId = overrideProjectId !== undefined ? overrideProjectId : activeProjectIdRef.current;
+    const resolvedDeviceKey = overrideDeviceKey !== undefined ? overrideDeviceKey : activeDeviceKeyRef.current;
+
+    // 筛选条件发生变化时强制 refresh
+    const filterChanged =
+      resolvedProjectId !== activeProjectIdRef.current ||
+      resolvedDeviceKey !== activeDeviceKeyRef.current;
+    const shouldRefresh = refresh || filterChanged;
+
+    if (shouldRefresh) {
+      activeProjectIdRef.current = resolvedProjectId;
+      activeDeviceKeyRef.current = resolvedDeviceKey;
+      conversationsPageRef.current = 1;
+    }
     
     setIsLoadingConversations(true);
     
     try {
-      const page = refresh ? 1 : conversationsPageRef.current;
-      const response = await conversationApi.getConversations(projectId, page, pageSize);
+      const page = shouldRefresh ? 1 : conversationsPageRef.current;
+      const response = await conversationApi.getConversations(resolvedProjectId, page, pageSize, resolvedDeviceKey);
       
-      const newConversations = response.list || [];
+      const newConversations = response.conversations || [];
       
       setConversations(prev => 
-        refresh ? newConversations : [...prev, ...newConversations]
+        shouldRefresh ? newConversations : [...prev, ...newConversations]
       );
       setHasMoreConversations(newConversations.length === pageSize);
       conversationsPageRef.current = page + 1;
@@ -59,11 +79,12 @@ export function useConversations(options: UseConversationsOptions = {}) {
     } finally {
       setIsLoadingConversations(false);
     }
-  }, [projectId, pageSize, toast]);
+  }, [isLoadingConversations, pageSize, toast]);
 
   /**
    * 加载更多会话
    */
+  // 加载更多会话——自动氺用已记录的筛选条件
   const loadMoreConversations = useCallback(async () => {
     if (!hasMoreConversations || isLoadingConversations) return;
     await loadConversations(false);
@@ -215,7 +236,7 @@ export function useConversations(options: UseConversationsOptions = {}) {
    */
   const stopAgent = useCallback(async (conversationId: string) => {
     try {
-      await conversationApi.stopAgent(conversationId);
+      await conversationApi.stopAgent(conversationId, activeDeviceKeyRef.current);
       toast.show('已停止生成', 'success');
     } catch (error: any) {
       if (!isAuthError(error)) {

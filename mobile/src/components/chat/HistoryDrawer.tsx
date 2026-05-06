@@ -14,6 +14,7 @@ interface HistoryDrawerProps {
   visible: boolean;
   onClose: () => void;
   projectId?: number;
+  deviceKey?: string;
   onSelectThread: (threadId: string) => void;
   onNewThread: () => void;
 }
@@ -22,6 +23,7 @@ export function HistoryDrawer({
   visible,
   onClose,
   projectId,
+  deviceKey,
   onSelectThread,
   onNewThread,
 }: HistoryDrawerProps) {
@@ -59,6 +61,7 @@ export function HistoryDrawer({
         >
           <ThreadList
             projectId={projectId}
+            deviceKey={deviceKey}
             onSelectThread={onSelectThread}
             onNewThread={onNewThread}
           />
