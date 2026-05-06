@@ -45,6 +45,9 @@ export enum GatewayMessageType {
   HUMAN_RESPONSE = 'human_response',
   HUMAN_TIMEOUT = 'human_timeout',
   HUMAN_CANCEL = 'human_cancel',
+
+  // Agent 运行状态
+  AGENT_RUN_COMPLETED = 'agent_run_completed',
 }
 
 // 基础消息接口

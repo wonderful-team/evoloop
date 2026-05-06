@@ -30,12 +30,3 @@ export interface AgentSyncMessage {
   tool_name?: string;
   tool_call_id?: string;
 }
-
-/**
- * Agent 运行完成信号
- */
-export interface AgentCommandComplete {
-  thread_id: string;
-  command_id?: number | string;
-  status?: 'done' | 'failed' | 'cancelled';
-}
