@@ -155,8 +155,7 @@ class StreamPolicyResult(DynamicBaseModel):
     metadata: dict = {}
 
 
-class MessageHandlerResult(DynamicBaseModel):
-    category: str
-    persisted: bool
-    streamed: bool
-    message_id: str | None = None
+class ReferenceContext(DynamicBaseModel):
+    content_blocks: list[dict[str, Any]]
+    reference_notes: list[str]
+    injected_message: str

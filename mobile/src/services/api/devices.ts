@@ -102,10 +102,10 @@ export const deviceApi = {
     await api.post(`/member/evolooplink/api/device/default?device_key=${deviceKey}`);
   },
 
-  // 发送设备指令 (通过 Gateway 执行)
+  // 发送设备指令 (直接通过 Go Gateway 执行，绕过 PHP 业务网关)
   sendCommand: async (data: DeviceCommandRequest): Promise<any> => {
     const response = await api.post<ApiResponse<any>>(
-      `/member/evolooplink/api/command/send`,
+      `/gateway/api/v1/command/send`,
       {
         device_key: data.deviceKey,
         command_type: data.command.type,

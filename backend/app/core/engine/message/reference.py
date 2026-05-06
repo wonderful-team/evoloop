@@ -2,21 +2,15 @@ import logging
 import os
 from typing import Any
 
-from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.constants import BINARY_EXTENSIONS
+from app.core.engine.message.schemas import ReferenceContext
 from app.core.file.document_reader import document_reader_service
 from app.models.conversation import Message
 from app.utils import render_template
 
 logger = logging.getLogger(__name__)
-
-
-class ReferenceContext(BaseModel):
-    content_blocks: list[dict[str, Any]]
-    reference_notes: list[str]
-    injected_message: str
 
 
 class ReferenceService:
@@ -30,23 +24,15 @@ class ReferenceService:
         message_text: str,
         attachments: list[dict[str, Any]],
         session: AsyncSession,
-        project_id: int | None = None
+        root_path: str | None = None
     ) -> ReferenceContext:
         """
         Process a list of attachments and inject them into the communication context.
+        接收 root_path 进行解耦，不再内部依赖 evocloud_manager 获取项目路径。
         """
-        from app.core.evocloud import evocloud_manager
-
         content_blocks = []
         reference_notes = []
         updated_message = message_text
-
-        # Get project root if project_id is provided (allow 0 for global mode)
-        root_path = None
-        if project_id is not None:
-            project = await evocloud_manager.get_project_by_id(project_id)
-            if project:
-                root_path = project.get("path")
 
         quotes_data = []
         for att in attachments:
@@ -83,8 +69,6 @@ class ReferenceService:
 
             # 4. Audio Attachments
             elif att_type == "audio":
-                # Audio is rendered as a link/placeholder in content
-                # Frontend will parse [Audio: name](url) and render player
                 content_blocks.append({
                     "type": "text",
                     "text": f"[Audio: {att_name}]({att_id})"
@@ -96,9 +80,7 @@ class ReferenceService:
                 metadata = att.get("metadata", {})
                 skill_id = metadata.get("skill_id") or att_id
                 skill_name = metadata.get("skill_name") or att_name
-                # Add skill as a reference note for the LLM
                 reference_notes.append(f"Skill: {skill_name} (ID: {skill_id})")
-                # Also add to quotes data for template rendering
                 quotes_data.append({
                     "type": "Skill",
                     "name": skill_name,
@@ -111,6 +93,7 @@ class ReferenceService:
         # Render quotes using template
         if quotes_data:
             try:
+                # 模板路径保持不变，或者后续根据需要迁移模板
                 quoted_block = render_template("domain/project/project_management.prompt.j2", quotes=quotes_data)
                 updated_message = f"{message_text}\n\n{quoted_block}"
             except Exception as e:
@@ -138,15 +121,12 @@ class ReferenceService:
 
     async def _handle_message_reference(self, msg_id_str: str, name: str, session: AsyncSession) -> tuple[str | None, str | None]:
         try:
-            msg_id = int(msg_id_str)
-            ref_msg = await session.get(Message, msg_id)
+            ref_msg = await session.get(Message, msg_id_str)
             if ref_msg and ref_msg.content:
                 snippet = ref_msg.content[:500]
                 if len(ref_msg.content) > 500:
                     snippet += "..."
                 return snippet, f"Quoted Message: {name}"
-        except (ValueError, TypeError):
-            logger.warning(f"Invalid message reference ID: {msg_id_str}")
         except Exception as e:
             logger.error(f"Error fetching message reference {msg_id_str}: {e}")
 

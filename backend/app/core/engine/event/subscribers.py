@@ -80,7 +80,7 @@ class EngineCommandHandler:
                 await link._force_reconnect()
 
     async def _handle_command(self, command: RemoteCommand) -> None:
-        cmd_type = command.get("type", "chat_message")
+        cmd_type = command.get("type") or "chat_message"
 
         # [Control Commands]
         if cmd_type == "stop":
@@ -224,7 +224,6 @@ class EngineCommandHandler:
             project_id=project_id,
             attachments=attachments,
             command_id=command.get("command_id"),
-            parent_id=content_obj.get("parent_id") or command.get("parent_id"),
             model=None,  # Remote commands don't carry model selection; fallback to default
         )
 

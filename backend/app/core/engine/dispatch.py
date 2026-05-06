@@ -27,7 +27,7 @@ from typing import Any
 
 from app.core.context.manager import ContextManager, EvoContext
 from app.core.evocloud import evocloud_manager
-from app.domain.project.reference_service import reference_service
+from app.core.engine.message.reference import reference_service
 from app.infrastructure.database.sql.database import session_scope
 from app.models import Conversation, MessageReference
 
@@ -115,12 +115,19 @@ async def dispatch_agent_run(
     # 2. Process references (images, files, skills)
     # ------------------------------------------------------------------
     try:
+        # Resolve project root path for file references
+        root_path = None
+        if project_id:
+            project = await evocloud_manager.get_project_by_id(project_id)
+            if project:
+                root_path = project.get("path")
+
         async with session_scope() as session:
             ref_context = await reference_service.process_references(
                 message_text=message_content,
                 attachments=attachments or [],
                 session=session,
-                project_id=project_id,
+                root_path=root_path,
             )
         content_blocks = ref_context.content_blocks
     except Exception as e:
