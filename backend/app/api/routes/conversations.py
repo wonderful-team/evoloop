@@ -137,6 +137,13 @@ async def get_conversation_messages(
             
             # Remove raw tool_calls (frontend uses folded steps instead)
             item.tool_calls = None
+            
+            # Tools often have huge output (e.g. file content, search results).
+            # The frontend UI only shows the tool_meta.display_name, so we can
+            # safely clear the content to save bandwidth and prevent memory bloat.
+            if item.role == "tool":
+                item.content = ""
+                
             final_items.append(item)
 
         # Build response with cursors

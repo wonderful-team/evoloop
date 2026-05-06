@@ -17,12 +17,17 @@ logger = logging.getLogger(__name__)
 class MessageSyncCoordinator:
     """仅负责发送 Agent 运行完成信号"""
 
-    async def sync_final(self, thread_id: str, command_id: str | int | None = None) -> None:
+    async def sync_final(self, thread_id: str, command_id: str | int | None = None, status: str = "done") -> None:
         """
         Agent 运行完成信号：发送 command_complete，不附带消息数据。
 
         消息已在 Agent 运行过程中通过 _push_to_mobile() 即时推送到 Mobile，
-        此处仅表示"本轮处理已结束"。
+        此处仅表示"本轮处理已结束"，并携带最终状态（done/failed/cancelled）。
+
+        Args:
+            thread_id: 对话线程 ID
+            command_id: 指令 ID
+            status: 最终状态 ("done" | "failed" | "cancelled")
         """
         try:
             if evocloud_manager.link and evocloud_manager.link.is_connected():
@@ -32,10 +37,10 @@ class MessageSyncCoordinator:
                     "data": {
                         "thread_id": thread_id,
                         "command_id": cmd_id,
-                        "status": "done",
+                        "status": status,
                     },
                 })
-                logger.info(f"[SyncCoordinator] Sent command_complete: thread={thread_id}, command_id={command_id}")
+                logger.info(f"[SyncCoordinator] Sent command_complete: thread={thread_id}, command_id={command_id}, status={status}")
         except Exception as e:
             logger.error(f"[SyncCoordinator] Failed to send command_complete: {e}")
 

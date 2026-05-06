@@ -44,9 +44,9 @@ class MessageBlockFactory:
             created_at = created_at.isoformat()
 
         thread_id = str(cls._get_val(msg, "thread_id", ""))
-        
-        # We also need to check "conversation_id" fallback as used in older folder.py?
-        # The schema uses thread_id. Let's try thread_id first.
+
+        # 兼容旧版数据：部分遗留记录使用 conversation_id 而非 thread_id
+        # 新数据统一使用 thread_id (MessageBlock 标准字段)
         if not thread_id:
             thread_id = str(cls._get_val(msg, "conversation_id", ""))
 

@@ -63,6 +63,7 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
 
     # 1. Lifecycle & Context Management
     async with activity_monitor.run_scope(thread_id, inputs.goal) as run_id:
+        _final_status = "done"  # Track final status for command_complete signal
         try:
             # 2. Deserialize & Prepare
             raw_messages = EvoMessageConverter.to_langchain(inputs.messages)
@@ -195,20 +196,25 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
                 payload={"run_id": run_id}
             )
 
-            # Final Sync to Gateway
-            from app.core.engine.message.sync_coordinator import get_sync_coordinator
-            await get_sync_coordinator().sync_final(thread_id, evoloop_command_id)
-
         except AgentCancelledException:
-            # Expected control flow: user stopped the run. 
+            # Expected control flow: user stopped the run.
             # run_scope has already handled cleanup/logging.
+            _final_status = "cancelled"
             return
         except AgentHumanInterruptException:
             # Expected control flow: agent is waiting for human input.
+            # Do NOT send command_complete — the task is paused, not finished.
             return
         except Exception as e:
             # Let handle_task_exception deal with DB/UI reporting
             # run_scope will mark status as "failed"
+            _final_status = "failed"
             from app.core.engine.background_agent.errors import handle_task_exception
             await handle_task_exception(thread_id, project_id, e, handler=db_callback._handler)
             raise
+        finally:
+            # Always release the Gateway Busy lock by sending command_complete,
+            # EXCEPT when waiting for human input (task is paused, not finished).
+            # AgentHumanInterruptException returns early above, so we never reach here.
+            from app.core.engine.message.sync_coordinator import get_sync_coordinator
+            await get_sync_coordinator().sync_final(thread_id, evoloop_command_id, status=_final_status)
