@@ -86,13 +86,3 @@ export interface AgentSyncMessage {
   // 兼容旧协议字段
   project_id?: number;
 }
-
-/**
- * Agent 运行完成信号 — 对齐 sync_coordinator.py command_complete
- */
-export interface AgentCommandComplete {
-  thread_id: string;
-  command_id?: number | string;
-  status?: 'done' | 'failed' | 'cancelled';
-}
-

@@ -4,16 +4,17 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { getGatewayClient } from '@/services/gateway/GatewayClient';
 import { GatewayMessageType, ConnectionState } from '@/services/gateway/types';
-import { AgentSyncMessage, AgentCommandComplete } from '@/services/gateway/agentMessage';
+import { AgentSyncMessage } from '@/services/gateway/agentMessage';
 import { parseHITLRequest } from '@/utils/messageAdapter';
 import { useHITLStore } from '@/stores/hitlStore';
 
 interface UseChatGatewayOptions {
   isLoggedIn: boolean;
   syncMessages: (messages: AgentSyncMessage[]) => void;
+  onAgentRunCompleted?: (threadId: string) => void;
 }
 
-export function useChatGateway({ isLoggedIn, syncMessages }: UseChatGatewayOptions) {
+export function useChatGateway({ isLoggedIn, syncMessages, onAgentRunCompleted }: UseChatGatewayOptions) {
   const [gatewayConnectionState, setGatewayConnectionState] = useState<ConnectionState>(ConnectionState.DISCONNECTED);
   const currentConversationIdRef = useRef<string | null>(null);
   const setHitlRequest = useHITLStore((state) => state.setCurrentRequest);
@@ -41,11 +42,10 @@ export function useChatGateway({ isLoggedIn, syncMessages }: UseChatGatewayOptio
       syncMessages([msg]);
     };
 
-    const handleCommandComplete = (message: { data: AgentCommandComplete }) => {
-      const payload = message.data;
-      const threadId = payload?.thread_id;
+    const handleAgentRunCompleted = (message: { thread_id: string }) => {
+      const threadId = message?.thread_id;
       if (threadId && threadId === currentConversationIdRef.current) {
-        // Agent 已完成，消息已通过 message_sync 同步
+        onAgentRunCompleted?.(threadId);
       }
     };
 
@@ -55,14 +55,14 @@ export function useChatGateway({ isLoggedIn, syncMessages }: UseChatGatewayOptio
 
     client.on('stateChange', handleStateChange);
     client.on(GatewayMessageType.MESSAGE_SYNC || 'message_sync', handleMessageSync);
-    client.on('command_complete', handleCommandComplete);
+    client.on(GatewayMessageType.AGENT_RUN_COMPLETED, handleAgentRunCompleted);
 
-    client.connect().catch(() => {});
+    client.connect().catch(() => { });
 
     return () => {
       client.off('stateChange', handleStateChange);
       client.off(GatewayMessageType.MESSAGE_SYNC || 'message_sync', handleMessageSync);
-      client.off('command_complete', handleCommandComplete);
+      client.off(GatewayMessageType.AGENT_RUN_COMPLETED, handleAgentRunCompleted);
       client.disconnect();
     };
   }, [isLoggedIn, syncMessages, setHitlRequest]);

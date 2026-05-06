@@ -302,7 +302,13 @@ export default function ChatScreen() {
   const { currentDevice: selectedDevice } = useDeviceStore();
 
   // Gateway WebSocket 连接与设备-对话同步（提取为自定义 hooks）
-  const { gatewayConnectionState, setCurrentConversationId } = useChatGateway({ isLoggedIn, syncMessages });
+  const { gatewayConnectionState, setCurrentConversationId } = useChatGateway({
+    isLoggedIn,
+    syncMessages,
+    onAgentRunCompleted: () => {
+      setIsAgentProcessing(false);
+    }
+  });
   const { deviceConversationMap, saveDeviceConversation } = useChatDeviceSync({
     isLoggedIn,
     selectedDeviceKey: selectedDevice?.deviceKey,
