@@ -46,7 +46,7 @@ export const projectApi = {
       {
         device_key: data.deviceKey,
         command_type: 'project_switch',
-        content: { project_id: data.projectId },
+        payload: { project_id: data.projectId },
       }
     );
     return response.data;
