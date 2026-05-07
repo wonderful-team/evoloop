@@ -6,7 +6,6 @@ from fastapi.testclient import TestClient
 
 # Mock Environment
 os.environ["EMBEDDED_MODE"] = "true"
-os.environ["EVOLOOP_TOKEN_STORAGE"] = "file"
 
 from app.main import app
 from app.infrastructure.database.sql.database import session_scope
