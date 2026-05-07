@@ -7,9 +7,10 @@ import BackgroundFetch from 'react-native-background-fetch';
 import { api } from '@/services/api/client';
 
 const LAST_CHECK_TIME_KEY = '@evoloop_last_check_time';
-const LAST_MESSAGE_ID_KEY = '@evoloop_last_message_id';
 const CHECK_INTERVAL_NORMAL = 2 * 60 * 1000; // 2分钟
 const CHECK_INTERVAL_BACKGROUND = 5 * 60 * 1000; // 5分钟
+
+import { syncMessages } from '@/services/api/conversations';
 
 // 检查新消息
 async function checkNewMessages(): Promise<boolean> {
@@ -20,54 +21,46 @@ async function checkNewMessages(): Promise<boolean> {
       return false;
     }
 
-    // 获取上次检查的消息ID
-    const lastMessageId = await AsyncStorage.getItem(LAST_MESSAGE_ID_KEY);
-
-    // 获取最新的对话列表
-    let data: any;
-    try {
-      data = await api.get('/member/evolooplink/api/conversation/list?page=1&page_size=1');
-    } catch (error) {
-      console.log('[BackgroundTask] Failed to fetch conversations:', error);
-      return false;
-    }
-    if (data.code !== 0 || !data.data?.list?.length) {
-      return false;
+    // 获取上次检查的时间 (秒级)
+    const lastCheckStr = await AsyncStorage.getItem(LAST_CHECK_TIME_KEY);
+    let lastTime = 0;
+    if (lastCheckStr) {
+      // 存储的是毫秒级，转为秒级
+      lastTime = Math.floor(parseInt(lastCheckStr, 10) / 1000);
+    } else {
+      // 首次运行，默认只查过去 10 分钟
+      lastTime = Math.floor(Date.now() / 1000) - 600;
     }
 
-    const latestConversation = data.data.list[0];
-    // API 返回字段是 id，不是 conversation_id
-    const conversationId = latestConversation.id || latestConversation.conversation_id;
+    const { messages, serverTime } = await syncMessages(lastTime);
 
-    // 获取该对话的最新消息
-    let messagesData: any;
-    try {
-      messagesData = await api.get(`/member/evolooplink/api/conversation/messages?conversation_id=${conversationId}&limit=1`);
-    } catch (error) {
-      return false;
-    }
-    if (messagesData.code !== 0 || !messagesData.data?.length) {
-      return false;
-    }
-
-    const latestMessage = messagesData.data[0];
-    const currentMessageId = String(latestMessage.message_id || latestMessage.id);
-
-    // 检查是否是新消息
-    if (lastMessageId && currentMessageId !== lastMessageId) {
-      // 有新消息
-      if (latestMessage.role === 'assistant') {
-        // 显示本地通知
-        await showNotification(
-          'EvoLoop AI',
-          latestMessage.content?.substring(0, 100) || '收到新消息'
-        );
-        return true;
+    if (messages && messages.length > 0) {
+      // 由于后端已经过滤了 role = 'assistant' 和 last_read_time，这些都是有效的新消息
+      // 为了防骚扰，只弹最新的一条消息内容，提示有 N 条新消息
+      const latestMessage = messages[0]; // 后端是按 create_time desc 返回的
+      
+      let title = 'EvoLoop AI';
+      if (messages.length > 1) {
+          title = `EvoLoop AI (${messages.length}条新消息)`;
       }
+
+      await showNotification(
+        title,
+        latestMessage.content?.substring(0, 100) || '收到新消息'
+      );
+      
+      // 获取所有新消息中最大的时间戳
+      const maxTime = Math.max(...messages.map((m: any) => m.create_time));
+      
+      // 更新最后检查时间 (使用消息中的最大时间，或者服务端时间)
+      // 使用毫秒级存储以保持一致
+      await AsyncStorage.setItem(LAST_CHECK_TIME_KEY, String(maxTime * 1000));
+      
+      return true;
     }
 
-    // 更新最后检查的消息ID
-    await AsyncStorage.setItem(LAST_MESSAGE_ID_KEY, currentMessageId);
+    // 如果没有新消息，更新检查时间为服务端当前时间 (秒转毫秒)
+    await AsyncStorage.setItem(LAST_CHECK_TIME_KEY, String(serverTime * 1000));
     return false;
 
   } catch (error) {
@@ -176,9 +169,4 @@ export async function stopBackgroundTask(): Promise<void> {
 // 手动触发检查（用于前台手动刷新）
 export async function manualCheck(): Promise<boolean> {
   return checkNewMessages();
-}
-
-// 设置最后检查的消息ID（发送消息后调用）
-export async function setLastMessageId(messageId: string): Promise<void> {
-  await AsyncStorage.setItem(LAST_MESSAGE_ID_KEY, messageId);
 }
