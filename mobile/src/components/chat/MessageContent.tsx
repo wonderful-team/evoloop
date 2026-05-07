@@ -196,10 +196,31 @@ export function MessageContent({ content, isUser = false }: MessageContentProps)
     return { displayContent, parts };
   }, [content]);
 
-  const { displayContent, parts } = parsedContent;
+  const { parts } = parsedContent;
 
-  // 检查是否包含表格
-  const hasTable = displayContent.includes('|') && displayContent.includes('\n');
+  // 获取 Markdown 样式
+  const markdownStyles = useMemo(() => getMarkdownTheme(isUser, colors), [isUser, colors]);
+
+  // 定义 Markdown 渲染规则
+  const markdownRules = useMemo(() => ({
+    // 处理代码块
+    fence: (node: any) => (
+      <CodeBlock
+        key={node.key}
+        code={node.content?.trim() || ''}
+        language={node.attributes?.lang || 'text'}
+      />
+    ),
+    code_block: (node: any) => (
+      <CodeBlock
+        key={node.key}
+        code={node.content?.trim() || ''}
+        language={node.attributes?.lang || 'text'}
+      />
+    ),
+    // 禁用默认表格规则，我们目前使用手动解析和自定义组件
+    table: () => null,
+  }), []);
 
   return (
     <View style={styles.container}>
@@ -262,68 +283,12 @@ export function MessageContent({ content, isUser = false }: MessageContentProps)
                       );
                     }
 
-                    // 检查是否包含代码块
-                    if (mermaidPart.content.includes('```')) {
-                      return renderContentWithCodeBlocks(mermaidPart.content, isUser, colors, `cb-${mIndex}`);
-                    }
-
-                    // 普通 Markdown 渲染
+                    // 统一使用 Markdown 渲染
                     return (
                       <Markdown
                         key={mIndex}
-                        style={{
-                          body: {
-                            color: isUser ? colors.onPrimaryContainer : colors.onSurface,
-                            fontSize: 15,
-                            lineHeight: 22,
-                          },
-                          paragraph: {
-                            marginVertical: 4,
-                          },
-                          code_inline: {
-                            backgroundColor: isUser ? 'rgba(0,0,0,0.1)' : colors.surfaceVariant,
-                            paddingHorizontal: 4,
-                            paddingVertical: 2,
-                            borderRadius: 4,
-                            fontFamily: 'monospace',
-                            fontSize: 13,
-                          },
-                          link: {
-                            color: colors.primary,
-                            textDecorationLine: 'underline',
-                          },
-                          list_item: {
-                            marginVertical: 2,
-                          },
-                          bullet_list: {
-                            marginVertical: 4,
-                          },
-                          ordered_list: {
-                            marginVertical: 4,
-                          },
-                          blockquote: {
-                            borderLeftWidth: 4,
-                            borderLeftColor: colors.primary,
-                            paddingLeft: 12,
-                            marginVertical: 8,
-                            fontStyle: 'italic',
-                          },
-                          hr: {
-                            backgroundColor: colors.outline,
-                            height: 1,
-                            marginVertical: 12,
-                          },
-                          strong: {
-                            fontWeight: 'bold',
-                          },
-                          em: {
-                            fontStyle: 'italic',
-                          },
-                        }}
-                        rules={{
-                          // 禁用表格规则，使用自定义表格组件
-                          table: () => null,
-                        }}
+                        style={markdownStyles}
+                        rules={markdownRules}
                       >
                         {mermaidPart.content}
                       </Markdown>
@@ -342,62 +307,128 @@ export function MessageContent({ content, isUser = false }: MessageContentProps)
   );
 }
 
-// 渲染带代码块的内容
-function renderContentWithCodeBlocks(content: string, isUser: boolean, colors: any, keyPrefix: string) {
-  const codeBlockRegex = /```(\w*)\n([\s\S]*?)```/g;
-  const parts: React.ReactNode[] = [];
-  let lastIndex = 0;
-  let match;
+// 获取 Markdown 主题样式
+function getMarkdownTheme(isUser: boolean, colors: any) {
+  const textColor = isUser ? colors.onPrimaryContainer : colors.onSurface;
 
-  while ((match = codeBlockRegex.exec(content)) !== null) {
-    // 添加前面的普通文本
-    if (match.index > lastIndex) {
-      const textBefore = content.slice(lastIndex, match.index);
-      parts.push(
-        <Markdown
-          key={`${keyPrefix}-text-${lastIndex}`}
-          style={{
-            body: {
-              color: isUser ? colors.onPrimaryContainer : colors.onSurface,
-              fontSize: 15,
-              lineHeight: 22,
-            },
-          }}
-        >
-          {textBefore}
-        </Markdown>
-      );
-    }
-
-    // 添加代码块
-    const language = match[1] || 'text';
-    const code = match[2].trim();
-    parts.push(
-      <CodeBlock key={`${keyPrefix}-code-${match.index}`} code={code} language={language} />
-    );
-
-    lastIndex = match.index + match[0].length;
-  }
-
-  // 添加剩余文本
-  if (lastIndex < content.length) {
-    parts.push(
-      <Markdown
-        key={`${keyPrefix}-text-end`}
-        style={{
-          body: {
-            color: isUser ? colors.onPrimaryContainer : colors.onSurface,
-            fontSize: 15,
-            lineHeight: 22,
-          },
-        }}
-      >
-        {content.slice(lastIndex)}
-      </Markdown>
-    );
-  }
-
-  return <View key={keyPrefix}>{parts}</View>;
+  return {
+    body: {
+      color: textColor,
+      fontSize: 15,
+      lineHeight: 24, // 稍微增加行高提升可读性
+    },
+    // 标题样式
+    heading1: {
+      color: textColor,
+      fontSize: 24,
+      fontWeight: '700',
+      marginTop: 16,
+      marginBottom: 8,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.outlineVariant,
+      paddingBottom: 4,
+    },
+    heading2: {
+      color: textColor,
+      fontSize: 20,
+      fontWeight: '700',
+      marginTop: 14,
+      marginBottom: 6,
+    },
+    heading3: {
+      color: textColor,
+      fontSize: 18,
+      fontWeight: '600',
+      marginTop: 12,
+      marginBottom: 4,
+    },
+    heading4: {
+      color: textColor,
+      fontSize: 16,
+      fontWeight: '600',
+      marginTop: 10,
+      marginBottom: 2,
+    },
+    paragraph: {
+      marginVertical: 6, // 增加段落间距
+    },
+    code_inline: {
+      backgroundColor: isUser ? 'rgba(0,0,0,0.1)' : colors.surfaceVariant,
+      paddingHorizontal: 4,
+      paddingVertical: 2,
+      borderRadius: 4,
+      fontFamily: 'monospace',
+      fontSize: 13,
+      color: isUser ? colors.onPrimaryContainer : colors.primary,
+    },
+    link: {
+      color: colors.primary,
+      textDecorationLine: 'underline',
+    },
+    // 列表样式
+    list_item: {
+      marginVertical: 3,
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+    },
+    bullet_list: {
+      marginVertical: 6,
+    },
+    ordered_list: {
+      marginVertical: 6,
+    },
+    bullet_list_icon: {
+      color: colors.primary,
+      fontSize: 15,
+      marginRight: 8,
+      fontWeight: 'bold',
+    },
+    ordered_list_icon: {
+      color: colors.primary,
+      fontSize: 15,
+      marginRight: 8,
+      fontWeight: 'bold',
+    },
+    // 引用样式
+    blockquote: {
+      borderLeftWidth: 4,
+      borderLeftColor: colors.primary + '80',
+      backgroundColor: colors.surfaceVariant + '40',
+      paddingLeft: 12,
+      paddingVertical: 4,
+      marginVertical: 8,
+      borderRadius: 4,
+    },
+    // 分割线样式
+    hr: {
+      backgroundColor: colors.outlineVariant,
+      height: 1,
+      marginVertical: 16,
+    },
+    strong: {
+      fontWeight: 'bold',
+      color: isUser ? colors.onPrimaryContainer : colors.primary,
+    },
+    em: {
+      fontStyle: 'italic',
+    },
+    // 基础表格样式（作为 fallback）
+    table: {
+      borderWidth: 1,
+      borderColor: colors.outlineVariant,
+      borderRadius: 4,
+      marginVertical: 8,
+    },
+    th: {
+      backgroundColor: colors.surfaceVariant,
+      padding: 8,
+    },
+    td: {
+      padding: 8,
+      borderTopWidth: 1,
+      borderTopColor: colors.outlineVariant,
+    },
+  };
 }
 
 // 解析 Markdown 表格

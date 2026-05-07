@@ -257,3 +257,34 @@ export async function sendMessage(
   
   return response.data;
 }
+
+/**
+ * 同步新消息 (用于后台轮询)
+ * GET /evolooplink/api/conversation/sync
+ */
+export async function syncMessages(lastTime: number): Promise<{ messages: any[], serverTime: number }> {
+  const response = await api.get(`/member/evolooplink/api/conversation/sync?last_time=${lastTime}`);
+  
+  if (response.code !== 0) {
+    throw new Error(response.message || '同步消息失败');
+  }
+  
+  return {
+    messages: response.data || [],
+    serverTime: response.timestamp || Math.floor(Date.now() / 1000)
+  };
+}
+
+/**
+ * 标记会话为已读
+ * POST /evolooplink/api/conversation/read
+ */
+export async function markAsRead(conversationId: string): Promise<void> {
+  const response = await api.post(`/member/evolooplink/api/conversation/read`, {
+    conversation_id: conversationId
+  });
+  
+  if (response.code !== 0) {
+    throw new Error(response.message || '标记已读失败');
+  }
+}

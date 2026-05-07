@@ -90,13 +90,16 @@ export function useConversations(options: UseConversationsOptions = {}) {
     await loadConversations(false);
   }, [hasMoreConversations, isLoadingConversations, loadConversations]);
 
-  /**
-   * 获取会话详情
-   */
   const getConversationDetail = useCallback(async (conversationId: string) => {
     try {
       const conversation = await conversationApi.getConversation(conversationId);
       setCurrentConversation(conversation);
+      
+      // 标记为已读，消除跨端未读红点和后台提醒
+      conversationApi.markAsRead(conversationId).catch(err => {
+        console.log('[useConversations] markAsRead fail:', err);
+      });
+      
       return conversation;
     } catch (error: any) {
       if (!isAuthError(error)) {
