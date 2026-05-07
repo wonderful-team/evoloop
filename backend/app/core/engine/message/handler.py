@@ -198,25 +198,19 @@ class MessageHandler:
         metadata_registry = get_tool_metadata(tool_name)
         input_data = await self._repository.resolve_tool_input(tool_call_id, tool_name=tool_name)
         
-        # Try to extract result metadata from tool output (e.g. count, lines)
-        # This ensures the display_name is fully resolved with all placeholders
+        # 从 ToolResult 中读取 display_name 和 result_meta（evoloop_tool 装饰器已渲染）
         result_meta = {}
-        output_str = str(output) if output else ""
-        if output_str.strip().startswith("{"):
-            try:
-                import json as _json
-                parsed = _json.loads(output_str)
-                if isinstance(parsed, dict):
-                    result_meta = {k.lower(): v for k, v in parsed.items()}
-            except (ValueError, Exception):
-                pass
-        elif isinstance(output, dict):
-            result_meta = {k.lower(): v for k, v in output.items()}
+        display_name = ""
+        if hasattr(output, "meta") and isinstance(output.meta, dict):
+            result_meta = {k.lower(): v for k, v in output.meta.items()}
+        if hasattr(output, "display_name"):
+            display_name = output.display_name
         
-        # Merge input args with result meta for complete template rendering
-        summary_args = {**input_data, **result_meta}
+        # 兜底：如果装饰器没有渲染 display_name，自行渲染
+        if not display_name and metadata_registry.summary_template:
+            summary_args = {**input_data, **result_meta}
+            display_name = metadata_registry.get_display_name(tool_name, summary_args)
         
-        display_name = metadata_registry.get_display_name(tool_name, summary_args, status="completed")
         tool_meta = {
             "display_name": display_name,
             "affected_path_keys": metadata_registry.affected_path_keys,

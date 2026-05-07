@@ -155,7 +155,6 @@ MAX_LINES_PER_CALL = 1000
     is_pollable=True,
     summary_template="database_logger.tool_summary.read_file",
     affected_path_keys=["path"],
-    result_summary_template="database_logger.tool_summary.read_file_result"
 )
 async def read_file(
     path: str | None = None,

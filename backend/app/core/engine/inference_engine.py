@@ -160,7 +160,7 @@ class InferenceEngine:
         is_single_shot: bool = False,
         sys_hash: str | None = None,
     ) -> AIMessage:
-        """Executes LLM call, records telemetry, and extracts reasoning."""
+        """Executes LLM call and extracts reasoning."""
         try:
             start_perf = time.perf_counter()
             response = await self._stream_llm_response(llm_with_tools, loop_messages, config)
@@ -180,16 +180,6 @@ class InferenceEngine:
                 f"  - Model Metadata: {response.response_metadata}\n"
             )
 
-            from app.core.engine.telemetry_recorder import record_inference_telemetry
-            
-            telemetry_name = f"{name}_subtask" if is_single_shot else name
-            metadata = {"is_single_shot": True} if is_single_shot else {"max_steps": max_steps}
-
-            record_inference_telemetry(
-                name=telemetry_name, turn_id=turn_id, system_prompt=system_prompt,
-                history_messages=history_messages, loop_messages=loop_messages,
-                response=response, latency=latency, metadata=metadata
-            )
         except Exception as e:
             LLMErrorHandler.raise_inference_error(e)
 

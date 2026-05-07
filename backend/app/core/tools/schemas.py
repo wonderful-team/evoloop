@@ -74,7 +74,6 @@ class EvoLoopToolConfig(DynamicBaseModel):
     is_state_mutating: bool = False
     affected_path_keys: list[str] = Field(default_factory=list)
     summary_template: str | None = None
-    result_summary_template: str | None = None
     is_memory_tool: bool = False
     is_multimodal: bool = False
     is_hidden: bool = False
@@ -121,7 +120,6 @@ class CacheStats(DynamicBaseModel):
 class ToolRegistryMetadata(DynamicBaseModel):
     """Metadata for a tool, merging registry and system fallback data."""
     affected_path_keys: list[str] = Field(default_factory=list)
-    result_summary_template: str | None = None
     is_state_mutating: bool = False
     is_pollable: bool = False
     description: str = ""
@@ -130,7 +128,7 @@ class ToolRegistryMetadata(DynamicBaseModel):
     is_memory_tool: bool = False
     is_hitl: bool = False
 
-    def get_display_name(self, tool_name: str, args: dict | None = None, status: str = "running") -> str:
+    def get_display_name(self, tool_name: str, args: dict | None = None) -> str:
         """
         Unified logic to generate a localized display name for the tool.
         The format is strictly controlled by the 'summary_template' in i18n files.
@@ -139,21 +137,30 @@ class ToolRegistryMetadata(DynamicBaseModel):
         
         args = (args or {}).copy()
         
-        # Normalize all keys to lowercase for template consistency (handle both StartLine and start_line)
+        # Normalize all keys to lowercase for template consistency
         args = {k.lower(): v for k, v in args.items()}
         
         # Normalize common path keys to 'path' for template simplicity
         if "path" not in args:
             args["path"] = args.get("file_path") or args.get("target_file") or args.get("targetfile") or "unknown"
-
-        # Choose template based on status
-        template = self.summary_template
-        if status == "completed" and self.result_summary_template:
-            template = self.result_summary_template
         
-        if template:
-            # i18n.get now supports optional blocks like [[ (L{StartLine}-{EndLine}) ]]
-            display_name = i18n.get(template, **args)
+        # Normalize common prompt keys to 'prompt' for template simplicity
+        if "prompt" not in args:
+            args["prompt"] = args.get("action_description") or args.get("message") or ""
+        
+        # Normalize common search pattern keys to 'pattern' for template simplicity
+        if "pattern" not in args:
+            args["pattern"] = args.get("query") or args.get("name") or args.get("question") or ""
+        
+        # Infer 'count' from list parameters for templates like plan_created
+        if "count" not in args:
+            if isinstance(args.get("steps"), list):
+                args["count"] = len(args["steps"])
+            elif isinstance(args.get("edits"), list):
+                args["count"] = len(args["edits"])
+        
+        if self.summary_template:
+            display_name = i18n.get(self.summary_template, context=args)
         else:
             # Fallback for tools without templates
             display_name = tool_name.replace("_", " ").title()

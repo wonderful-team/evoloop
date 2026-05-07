@@ -22,7 +22,9 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-@evoloop_tool
+@evoloop_tool(
+    summary_template="database_logger.tool_summary.analyze_requirement",
+)
 async def analyze_project_requirement_document(
     document_id: str,
     focus_areas: list[str] | None = None,
@@ -115,7 +117,9 @@ async def analyze_project_requirement_document(
             })
 
 
-@evoloop_tool
+@evoloop_tool(
+    summary_template="database_logger.tool_summary.confirm_requirement",
+)
 async def confirm_project_requirement_analysis(
     analysis_id: str,
     modifications: dict | None = None,

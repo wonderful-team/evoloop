@@ -60,7 +60,9 @@ class PlanningTool(BaseTool):
         raise NotImplementedError("Async not implemented")
 
 
-@evoloop_tool
+@evoloop_tool(
+    summary_template="database_logger.tool_summary.plan_created",
+)
 async def create_plan(title: str, steps: list[str], config: RunnableConfig) -> str:
     """
     Create a detailed plan for the task and persist it to the database.
@@ -198,7 +200,9 @@ async def update_step_status(
         return json.dumps({"error": str(e)})
 
 
-@evoloop_tool
+@evoloop_tool(
+    summary_template="database_logger.tool_summary.analyze_feasibility",
+)
 async def analyze_feasibility(proposed_plan: str, config: RunnableConfig) -> str:
     """
     Analyze the technical feasibility of a proposed development plan.
@@ -217,7 +221,7 @@ async def analyze_feasibility(proposed_plan: str, config: RunnableConfig) -> str
 
         # Retrieval
         retrieval_service = RetrievalService()
-        search_results = await retrieval_service.search(proposed_plan, project_id=project_id, limit=5)
+        search_results = await retrieval_service.search(proposed_plan, operator="or", project_id=project_id, limit=5)
 
         context_str = "\n".join([f"File: {r['file_path']}\nSnippet: {r['content'][:500]}..." for r in search_results])
 

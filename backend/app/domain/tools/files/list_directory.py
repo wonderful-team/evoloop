@@ -65,11 +65,10 @@ async def handle_list(
                 size_str = f"  {_format_size(e.size)}" if stats else ""
                 lines.append(f"{e.name}{size_str}")
 
-        total_count = len(lines)
         output = '\n'.join(lines[:max_entries])
         if len(lines) > max_entries:
             output += f"\n\n... ({len(lines) - max_entries} more entries hidden)\nTip: Use filter=\"*.ext\" to narrow results, or increase max_entries."
-        return json.dumps({"content": output, "count": total_count})
+        return output, {"count": len(lines)}
     else:
         # Tree view using core.file
         # For with_symbols=True, fall back to existing tree generator
@@ -83,9 +82,7 @@ async def handle_list(
                     file_limit=50,
                 )
                 tree_output = await generator.generate()
-                # Count lines as a proxy for entries in tree mode
-                tree_count = len([l for l in tree_output.splitlines() if l.strip()])
-                return json.dumps({"content": tree_output, "count": tree_count})
+                return tree_output, {"count": tree_count}
             except Exception as e:
                 return f"Error generating annotated tree: {e}"
         else:
@@ -97,14 +94,13 @@ async def handle_list(
                 with_stats=stats,
             )
             tree_count = len([l for l in tree_output.splitlines() if l.strip()])
-            return json.dumps({"content": tree_output, "count": tree_count})
+            return tree_output, {"count": tree_count}
 
 
 @evoloop_tool(
     is_pollable=True,
-    summary_template="database_logger.tool_summary.list_files",
+    summary_template="evoloop_logger.list_summary",
     affected_path_keys=["path"],
-    result_summary_template="evoloop_logger.list_summary"
 )
 async def list_directory(
     path: str,

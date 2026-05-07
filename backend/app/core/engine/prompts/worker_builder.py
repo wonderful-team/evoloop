@@ -80,7 +80,7 @@ class WorkerPromptBuilder:
         try:
             from app.core.evocloud import evocloud_manager
             from app.services.benefit_service import benefit_service
-            token = evocloud_manager.get_token()
+            token = await evocloud_manager.get_token()
             member_id_str = ctx.user_id
             if token and member_id_str:
                 member_id = int(member_id_str)

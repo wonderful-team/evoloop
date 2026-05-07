@@ -190,8 +190,8 @@ class EvoCloudManager:
                 await self.link.start()  # Auto start link on login
         return res
 
-    def get_token(self) -> str | None:
-        return self.api.get_token() if self._api_pool else None
+    async def get_token(self) -> str | None:
+        return await self.api.get_token() if self._api_pool else None
 
     # --- Properties ---
 

@@ -3,6 +3,7 @@
 import asyncio
 import base64
 import hashlib
+import json
 import logging
 import secrets
 import time
@@ -11,7 +12,7 @@ from urllib.parse import parse_qs, urlencode, urlparse
 
 import aiohttp
 
-from app.core.identity.store import IdentityStore
+from app.infrastructure.cache import cache
 from app.core.mcp.auth.base import AuthConfig, AuthHandler, AuthMethod, AuthToken
 
 logger = logging.getLogger(__name__)
@@ -57,14 +58,12 @@ class OAuthAuthorizationCodeHandler(AuthHandler):
         return f"mcp_{self.server_name}_oauth_refresh"
 
     async def load_stored_token(self) -> AuthToken | None:
-        """Load token from secure storage if available."""
-        # Try to get from IdentityStore
-        token_data = IdentityStore._file_storage_get(self._get_storage_key())
+        """Load token from cache-backed storage if available."""
+        token_data = await cache.get(self._get_storage_key())
         if not token_data:
             return None
 
         try:
-            import json
             data = json.loads(token_data)
             token = AuthToken.model_validate(data)
 
@@ -78,10 +77,9 @@ class OAuthAuthorizationCodeHandler(AuthHandler):
             logger.error(f"Failed to load stored token: {e}")
             return None
 
-    def _store_token(self, token: AuthToken) -> None:
-        """Store token in secure storage."""
+    async def _store_token(self, token: AuthToken) -> None:
+        """Store token in cache-backed storage."""
         try:
-            import json
             token_data = json.dumps({
                 "access_token": token.access_token,
                 "token_type": token.token_type,
@@ -89,14 +87,11 @@ class OAuthAuthorizationCodeHandler(AuthHandler):
                 "refresh_token": token.refresh_token,
                 "scope": token.scope,
             })
-            IdentityStore._file_storage_set(self._get_storage_key(), token_data)
+            await cache.set(self._get_storage_key(), token_data)
 
             # Also store refresh token separately for safety
             if token.refresh_token:
-                IdentityStore._file_storage_set(
-                    self._get_refresh_key(),
-                    token.refresh_token
-                )
+                await cache.set(self._get_refresh_key(), token.refresh_token)
         except Exception as e:
             logger.error(f"Failed to store token: {e}")
 
@@ -131,7 +126,7 @@ class OAuthAuthorizationCodeHandler(AuthHandler):
         token = await self._exchange_code(code)
 
         # Store token
-        self._store_token(token)
+        await self._store_token(token)
 
         return token
 
@@ -266,7 +261,7 @@ class OAuthAuthorizationCodeHandler(AuthHandler):
                 )
 
                 # Store new token
-                self._store_token(new_token)
+                await self._store_token(new_token)
 
                 return new_token
 
@@ -381,8 +376,7 @@ class OAuthDeviceCodeHandler(AuthHandler):
                         )
 
                         # Store token
-                        import json
-                        IdentityStore._file_storage_set(
+                        await cache.set(
                             self._get_storage_key(),
                             json.dumps({
                                 "access_token": token.access_token,
@@ -448,8 +442,7 @@ class OAuthDeviceCodeHandler(AuthHandler):
                 )
 
                 # Store new token
-                import json
-                IdentityStore._file_storage_set(
+                await cache.set(
                     self._get_storage_key(),
                     json.dumps({
                         "access_token": new_token.access_token,

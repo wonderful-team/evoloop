@@ -64,7 +64,7 @@ async def remember(content: str, context: str = "", is_user_preference: bool = F
         entry_id = f"mem_{uuid.uuid4().hex[:12]}"
 
         # Ensure IDs are types that MemoryEntry expects (support mocks in tests)
-        project_id = int(ctx.project_id) if ctx else None
+        project_id = int(ctx.project_id) if ctx and ctx.project_id is not None else None
 
         run_id = ctx.run_id if ctx else None
         

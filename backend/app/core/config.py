@@ -61,10 +61,6 @@ class Settings(BaseSettings):
     # Embedded Mode (No external dependencies)
     EMBEDDED_MODE: bool = False  # True: Use SQLite + LanceDB + LocalCelery, False: Use Postgres + Neo4j + Redis
 
-    # Desktop App / PyInstaller Build Settings
-    EVOLOOP_BUNDLED_APP: bool = False  # True: Running as PyInstaller bundled desktop app
-    EVOLOOP_TOKEN_STORAGE: Literal["keyring", "file"] = "keyring"  # keyring: OS keychain, file: local JSON file
-
     # Memory System Settings
     AUTO_MEMORY_EXTRACTION: bool = True  # Enable automatic memory extraction at conversation end
     AUTO_MEMORY_EXTRACTION_INTERVAL: int = 1  # Extract every N turns (1 = every turn, 2 = every other turn, etc.)

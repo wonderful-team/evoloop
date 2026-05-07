@@ -293,10 +293,11 @@ async def handle_multi_edit(path: str, edits: list[FileEditOperation], expected_
 
             template_context["diagnostics"] = diagnostics
 
-        return render_template("domain/tools/multi_edit_success.prompt.j2", **template_context)
+        output = render_template("domain/tools/multi_edit_success.prompt.j2", **template_context)
+        return output, {"count": len(edits)}
 
     except Exception as e:
-        return i18n.get("domain_tools.files.edit_error", error=str(e))
+        return i18n.get("domain_tools.files.edit_error", error=str(e)), {}
 
 
 async def handle_edit(request: EditFileRequest) -> str:
@@ -448,7 +449,6 @@ def format_preview_result(result: EditPreviewResult, path: str, target: str, rep
     is_state_mutating=True,
     affected_path_keys=["path"],
     summary_template="database_logger.tool_summary.edit_file",
-    result_summary_template="database_logger.tool_summary.file_op_result"
 )
 async def edit_file(
     path: str | None = None,

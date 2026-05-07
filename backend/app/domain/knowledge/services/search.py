@@ -27,7 +27,12 @@ class FTSService:
     """Deprecated: use app.infrastructure.search.get_search_backend() instead."""
 
     def __init__(self, db_path: Optional[Path] = None, pool=None):
-        self._backend = get_search_backend()
+        if db_path is not None:
+            # Create an isolated backend for testing
+            from app.infrastructure.search.sqlite_fts import SQLiteFTSBackend
+            self._backend = SQLiteFTSBackend(db_path=db_path)
+        else:
+            self._backend = get_search_backend()
         # Expose pool for backward compat (only SQLiteFTSBackend has it)
         self.pool = getattr(self._backend, "pool", None)
 

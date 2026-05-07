@@ -11,6 +11,16 @@ from app.core.tools.schemas import EvoLoopToolConfig
 logger = logging.getLogger(__name__)
 
 
+class ToolResult(str):
+    """工具返回值封装：给 Agent 的是纯文本 str，但附带元数据和渲染好的 display_name。"""
+
+    def __new__(cls, text: str, meta: dict | None = None, display_name: str = ""):
+        obj = super().__new__(cls, text)
+        obj.meta = meta or {}
+        obj.display_name = display_name
+        return obj
+
+
 def get_working_directory(config: RunnableConfig | None = None) -> str:
     """
     Extracts the working directory from the context or configuration.
@@ -44,6 +54,22 @@ def get_working_directory(config: RunnableConfig | None = None) -> str:
     return os.getcwd()
 
 
+def _render_display_name(template: str | None, input_data: dict, result_meta: dict) -> str:
+    """在装饰器内渲染 display_name，替代 MessageHandler 中的逻辑。"""
+    if not template:
+        return ""
+
+    from app.i18n.service import i18n
+
+    args = {**input_data, **result_meta}
+    args = {k.lower(): v for k, v in args.items()}
+
+    if "path" not in args:
+        args["path"] = args.get("file_path") or args.get("target_file") or args.get("targetfile") or "unknown"
+
+    return i18n.get(template, context=args)
+
+
 def evoloop_tool(
     *args,
     config: EvoLoopToolConfig | None = None,
@@ -51,18 +77,21 @@ def evoloop_tool(
     is_state_mutating: bool = False,
     affected_path_keys: list[str] | None = None,
     summary_template: str | None = None,
-    result_summary_template: str | None = None,
     is_memory_tool: bool = False,
     is_multimodal: bool = False,
-    is_hidden: bool = False,  # Hide from user UI (internal control tools)
-    handle_tool_error: bool = True,  # Allow override for HITL tools
-    is_hitl: bool = False,  # If True, this tool triggers a human-in-the-loop request
-    required_benefit: str | None = None,  # 权益编码，如 "desktop_control"
+    is_hidden: bool = False,
+    handle_tool_error: bool = True,
+    is_hitl: bool = False,
+    required_benefit: str | None = None,
     **kwargs,
 ):
     """
     Decorator that applies standard EvoLoop tool behaviors.
     Can be used as @evoloop_tool or @evoloop_tool(name="...", is_pollable=True, ...).
+
+    Supports tuple return values from tools: (text, meta_dict)
+    - text: pure text content shown to the Agent
+    - meta_dict: metadata like {"count": 5} for display_name rendering
     """
     import inspect
 
@@ -73,7 +102,6 @@ def evoloop_tool(
             is_state_mutating=is_state_mutating,
             affected_path_keys=affected_path_keys or [],
             summary_template=summary_template,
-            result_summary_template=result_summary_template,
             is_memory_tool=is_memory_tool,
             is_multimodal=is_multimodal,
             is_hidden=is_hidden,
@@ -96,10 +124,10 @@ def evoloop_tool(
                     try:
                         from app.services.benefit_service import benefit_service
 
-                        member_id = identity_service.get_member_id()
+                        member_id = await identity_service.get_member_id()
                         if not member_id:
                             # Fallback: try resolving from stored access token
-                            access_token = identity_service.get_access_token()
+                            access_token = await identity_service.get_access_token()
                             if access_token:
                                 member_id = await identity_service.resolve_member_id_from_token(access_token)
                         if not member_id:
@@ -130,8 +158,28 @@ def evoloop_tool(
                             "message": f"权限检查失败: {str(e)}"
                         }, ensure_ascii=False)
 
+                # 提取 input_data 用于 display_name 渲染
+                input_data = {k: v for k, v in kwargs_f.items() if k != "config" and not k.startswith("_")}
+
                 try:
-                    return await func(*args_f, **kwargs_f)
+                    result = await func(*args_f, **kwargs_f)
+
+                    # 支持 tuple 返回值：(text, meta)
+                    result_meta = {}
+                    if isinstance(result, tuple) and len(result) == 2:
+                        text, meta = result
+                        if isinstance(meta, dict):
+                            result_meta = meta
+                        result = text
+
+                    # 渲染 display_name（在装饰器内完成，内聚）
+                    display_name = _render_display_name(config.summary_template, input_data, result_meta)
+
+                    # 封装成 ToolResult，附带元数据和 display_name
+                    if isinstance(result, str):
+                        result = ToolResult(result, meta=result_meta, display_name=display_name)
+
+                    return result
                 except Exception as e:
                     return f"Error: {str(e)}"
         else:
@@ -142,8 +190,27 @@ def evoloop_tool(
                 if config.required_benefit:
                     return f"Error: {func.__name__} requires benefit {config.required_benefit} but sync tools don't support permission checks"
 
+                # 提取 input_data 用于 display_name 渲染
+                input_data = {k: v for k, v in kwargs_f.items() if k != "config" and not k.startswith("_")}
+
                 try:
-                    return func(*args_f, **kwargs_f)
+                    result = func(*args_f, **kwargs_f)
+
+                    # 支持 tuple 返回值：(text, meta)
+                    result_meta = {}
+                    if isinstance(result, tuple) and len(result) == 2:
+                        text, meta = result
+                        if isinstance(meta, dict):
+                            result_meta = meta
+                        result = text
+
+                    # 渲染 display_name
+                    display_name = _render_display_name(config.summary_template, input_data, result_meta)
+
+                    if isinstance(result, str):
+                        result = ToolResult(result, meta=result_meta, display_name=display_name)
+
+                    return result
                 except Exception as e:
                     # Log error
                     return f"Error: {str(e)}"
@@ -163,7 +230,6 @@ def evoloop_tool(
         tool_instance.metadata["is_state_mutating"] = config.is_state_mutating
         tool_instance.metadata["affected_path_keys"] = config.affected_path_keys
         tool_instance.metadata["summary_template"] = config.summary_template
-        tool_instance.metadata["result_summary_template"] = config.result_summary_template
         tool_instance.metadata["is_memory_tool"] = config.is_memory_tool
         tool_instance.metadata["is_multimodal"] = config.is_multimodal
         tool_instance.metadata["is_hidden"] = config.is_hidden

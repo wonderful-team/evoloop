@@ -19,6 +19,7 @@ from app.models.system import SystemConfig
 
 router = APIRouter(prefix="/system", tags=["system"])
 
+
 @router.get("/status", dependencies=[Depends(get_current_user)])
 def get_system_status() -> SystemStatusResponse:
     """
@@ -35,9 +36,11 @@ def get_system_status() -> SystemStatusResponse:
         status="ok"
     )
 
+
 @router.get("/config", dependencies=[Depends(get_current_user)])
 def get_system_config() -> list[SystemConfig]:
     return SystemConfigService.get_all()
+
 
 @router.get("/health")
 def health_check() -> HealthCheckResponse:
@@ -46,10 +49,12 @@ def health_check() -> HealthCheckResponse:
     """
     return HealthCheckResponse(status="ok", service="evoloop-backend")
 
+
 @router.post("/config", dependencies=[Depends(get_current_user)])
 async def update_system_config(config: SystemConfig) -> SystemConfig:
     """Update system configuration and trigger side effects if needed."""
     return await SystemConfigService.set_value_async(config.key, config.value, config.description)
+
 
 @router.post("/embedding/test", dependencies=[Depends(get_current_user)])
 async def test_embedding_connection(req: EmbeddingConfigRequest) -> EmbeddingTestResponse:
@@ -63,6 +68,7 @@ async def test_embedding_connection(req: EmbeddingConfigRequest) -> EmbeddingTes
         api_key=req.api_key,
     )
     return EmbeddingTestResponse(success=success, dimensions=dim)
+
 
 @router.post("/embedding/apply", dependencies=[Depends(get_current_user)])
 async def apply_embedding_config(req: EmbeddingConfigRequest) -> EmbeddingApplyResponse:
@@ -93,6 +99,7 @@ async def apply_embedding_config(req: EmbeddingConfigRequest) -> EmbeddingApplyR
         message="Embedding model switched. Re-indexing triggered.",
     )
 
+
 # --- LLM Config ---
 
 @router.post("/llm/test", dependencies=[Depends(get_current_user)])
@@ -107,6 +114,7 @@ async def test_llm_connection(req: LLMConfigRequest) -> LLMTestResponse:
         api_key=req.api_key,
     )
     return LLMTestResponse(success=success, reply=reply)
+
 
 @router.post("/llm/apply", dependencies=[Depends(get_current_user)])
 async def apply_llm_config(req: LLMConfigRequest) -> LLMApplyResponse:
@@ -142,6 +150,7 @@ async def apply_llm_config(req: LLMConfigRequest) -> LLMApplyResponse:
 
     return LLMApplyResponse(status="applied", message="LLM Configuration applied successfully.")
 
+
 @router.post("/reset-knowledge", dependencies=[Depends(get_current_user)])
 async def reset_knowledge_base() -> ResetKnowledgeResponse:
     """
@@ -152,6 +161,7 @@ async def reset_knowledge_base() -> ResetKnowledgeResponse:
     await wipe_knowledge_base()
     return ResetKnowledgeResponse(status="success", message="Knowledge Base Wiped.")
 
+
 @router.get("/cloud-status")
 async def get_cloud_status() -> CloudStatusResponse:
     """
@@ -159,13 +169,15 @@ async def get_cloud_status() -> CloudStatusResponse:
     """
     from app.core.evocloud import evocloud_manager
 
+    token = await evocloud_manager.get_token()
     return CloudStatusResponse(
-        is_logged_in=bool(evocloud_manager.get_token()),
+        is_logged_in=bool(token),
         device_key=evocloud_manager.link.device_key if evocloud_manager.link else None,
         is_linked=evocloud_manager.link.is_connected() if evocloud_manager.link else False,
         device_name=evocloud_manager.link.device_name if evocloud_manager.link else "Unknown",
         api_url=evocloud_manager.api.base_url if evocloud_manager.api else "Unknown",
     )
+
 
 @router.get("/llm/models")
 async def get_llm_models(config_type: str = None) -> ModelsListResponse:
@@ -187,6 +199,7 @@ async def get_llm_models(config_type: str = None) -> ModelsListResponse:
         last_updated=time.strftime("%Y-%m-%d")
     )
 
+
 @router.get("/embedding/models")
 async def get_embedding_models() -> ModelsListResponse:
     """
@@ -197,6 +210,7 @@ async def get_embedding_models() -> ModelsListResponse:
         models=models,
         last_updated=time.strftime("%Y-%m-%d")
     )
+
 
 # --- Project Discovery Config ---
 
@@ -217,6 +231,7 @@ async def get_project_discovery_config():
     
     # Default: enabled
     return ProjectDiscoveryConfigResponse(enabled=True, source="default")
+
 
 @router.post("/project-discovery/config", dependencies=[Depends(get_current_user)])
 async def set_project_discovery_config(req: ProjectDiscoveryConfigRequest) -> ProjectDiscoveryConfigUpdateResponse:

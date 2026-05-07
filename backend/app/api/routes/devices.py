@@ -10,7 +10,6 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-# --- Schemas (Basic) ---
 
 @router.get("/")
 async def get_devices(token: TokenDep):
@@ -68,6 +67,7 @@ async def get_devices(token: TokenDep):
 
     return devices
 
+
 @router.post("/{device_key}/command", dependencies=[Depends(require_benefit("mobile_control"))])
 async def send_command(device_key: str, req: SendCommandRequest, token: TokenDep):
     """Send remote command"""
@@ -75,6 +75,7 @@ async def send_command(device_key: str, req: SendCommandRequest, token: TokenDep
     if res.get("code") != 0:
         raise HTTPException(500, res.get("message"))
     return res.get("data")
+
 
 @router.get("/{device_key}/logs")
 async def get_recent_logs(
@@ -88,6 +89,7 @@ async def get_recent_logs(
     if res.get("code") != 0:
         raise HTTPException(500, res.get("message"))
     return res.get("data", [])
+
 
 @router.get("/{device_key}/logs/search")
 async def search_logs(
@@ -103,6 +105,7 @@ async def search_logs(
         raise HTTPException(500, res.get("message"))
     return res.get("data", [])
 
+
 @router.post("/{device_key}/bind", response_model=BindResponse)
 async def bind_client(device_key: str, req: BindClientRequest, _token: TokenDep):
     """Bind mobile client to device"""
@@ -110,6 +113,7 @@ async def bind_client(device_key: str, req: BindClientRequest, _token: TokenDep)
     # Or specifically, it binds the client_id to the device in EvoCloud.
     res = await evocloud_manager.api.bind_client_id(device_key, req.client_id)
     return BindResponse(status="success", data=res)
+
 
 @router.post("/bind", response_model=BindResponse)
 async def bind_current_device(req: BindClientRequest, _token: TokenDep):
@@ -119,12 +123,15 @@ async def bind_current_device(req: BindClientRequest, _token: TokenDep):
         return BindResponse(status="success")
     return BindResponse(status="error", message="Device not registered on cloud")
 
+
 @router.get("/debug/status", response_model=DebugStatusResponse)
 async def get_debug_status(_token: TokenDep):
     """Debug endpoint to check EvoCloud client state"""
+    token = await evocloud_manager.get_token()
     return DebugStatusResponse(
-        is_logged_in=bool(evocloud_manager.get_token()),
-        token_prefix=(evocloud_manager.get_token()[:10] + "...") if evocloud_manager.get_token() else None,
+        token=token,
+        is_logged_in=bool(token),
+        token_prefix=(token[:10] + "...") if token else None,
         device_key=evocloud_manager.link.device_key if evocloud_manager.link else None,
         device_name=evocloud_manager.link.device_name if evocloud_manager.link else "Unknown",
         is_connected=evocloud_manager.link.is_connected() if evocloud_manager.link else False,

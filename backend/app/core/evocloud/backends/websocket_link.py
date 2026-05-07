@@ -64,11 +64,21 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
 
     @property
     def device_key(self) -> str:
-        return self._get_or_create_device_key()
+        # Note: _get_or_create_device_key is now async, but device_key is used
+        # synchronously in some places. Use an async method for new code.
+        # For backward compatibility, we keep the property but it may return
+        # an empty string if not yet loaded. Call ensure_device_key() in async context.
+        return getattr(self, "_device_key", "") or ""
 
-    def _get_or_create_device_key(self) -> str:
-        # 1. Try secure storage first
-        dk = identity_service.store.get_device_key()
+    async def ensure_device_key(self) -> str:
+        """Async initialization of device_key. Must be called before using device_key in async context."""
+        if not getattr(self, "_device_key", ""):
+            self._device_key = await self._get_or_create_device_key()
+        return self._device_key
+
+    async def _get_or_create_device_key(self) -> str:
+        # 1. Try cache-backed storage first
+        dk = await identity_service.store.get_device_key()
         if dk:
             return dk
 
@@ -82,24 +92,25 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
 
         if os.path.exists(key_file):
             dk = file_utils.read_file(key_file).strip()
-            # Migrate to Keychain
-            identity_service.store.save_device_key(dk)
+            # Migrate to cache
+            await identity_service.store.save_device_key(dk)
             try:
                 os.remove(key_file)
-                logger.info(f"Migrated device key from {key_file} to secure storage")
+                logger.info(f"Migrated device key from {key_file} to cache-backed storage")
             except Exception as e:
                 logger.warning(f"Failed to remove legacy key file: {e}")
             return dk
 
         # 3. Create New
         dk = gen_uuid()
-        identity_service.store.save_device_key(dk)
+        await identity_service.store.save_device_key(dk)
         return dk
 
     async def bind_client_id(self, client_id: str):
         """Bind a mobile client to this device via HTTP API."""
-        if self.device_key is not None:
-            await self.api.bind_client_id(self.device_key, client_id)
+        dk = await self.ensure_device_key()
+        if dk:
+            await self.api.bind_client_id(dk, client_id)
         else:
             logger.warning("[EvoCloud] Cannot bind client: device_key not available")
 
@@ -146,10 +157,11 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
         if self._running:
             return
 
-        if not self.api.get_token():
+        if not await self.api.get_token():
             logger.warning("[EvoCloud] Cannot start Device Link: No Token")
             return
 
+        await self.ensure_device_key()
         self._running = True
 
         logger.info(f"[EvoCloud] Starting Device Link (device_key={self.device_key})...")
@@ -257,7 +269,7 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
                     handshake = WebSocketHandshake(payload={
                         "device_type": "agent",
                         "device_key": self.device_key,
-                        "token": self.api.get_token()
+                        "token": await self.api.get_token()
                     })
                     await ws.send(json.dumps(handshake.model_dump()))
 
@@ -322,7 +334,7 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
         if code == "invalid_token":
             logger.info("[EvoCloud] WS received invalid_token, triggering immediate token refresh...")
             # Use current token as failed_token to leverage the Double-Check Lock in HTTP client
-            current_token = self.api.get_token()
+            current_token = await self.api.get_token()
             asyncio.create_task(self.api.refresh_access_token(failed_token=current_token))
             # No need to manually reconnect here; the on_token_change callback 
             # (which triggers _force_reconnect) will be fired when refresh succeeds.

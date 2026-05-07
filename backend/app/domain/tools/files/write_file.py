@@ -59,7 +59,6 @@ async def handle_write(
     is_state_mutating=True,
     affected_path_keys=["path"],
     summary_template="database_logger.tool_summary.write_file",
-    result_summary_template="database_logger.tool_summary.file_op_result"
 )
 async def write_file(
     path: str | None = None,

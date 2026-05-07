@@ -43,18 +43,21 @@ class I18nService:
 
         self._loaded = True
 
-    def get(self, key: str, **kwargs) -> Any:
+    def get(self, key: str, default=None, context=None, **kwargs) -> Any:
         """
         Get localized value by key (dot notation).
         Example: i18n.get("tasks.objective", title="Foo")
 
         Use `default` kwarg to specify a fallback value when key is not found.
+        Use `context` dict to pass template variables safely (avoids keyword
+        conflicts with parameter names like `key` or `lang`).
         """
         if not self._loaded:
             self.load_locales()
 
-        # Extract default value before processing
-        default = kwargs.pop("default", None)
+        # Merge context dict into kwargs to avoid keyword argument conflicts
+        if context:
+            kwargs = {**context, **kwargs}
 
         # 1. Determine Language
         lang = kwargs.get("lang")

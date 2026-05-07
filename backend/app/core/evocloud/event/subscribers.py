@@ -59,7 +59,7 @@ class EvoCloudLifecycleHandler:
         """
         logger.info("[EvoCloud] Application started, initializing...")
         try:
-            if evocloud_manager.api and evocloud_manager.api.get_token():
+            if evocloud_manager.api and await evocloud_manager.api.get_token():
                 logger.info("[EvoCloud] Found persisted token, registering handlers and starting services...")
                 from app.core.evocloud.bridge.query_handler import handle_query_request
                 evocloud_manager.set_query_handler(handle_query_request)

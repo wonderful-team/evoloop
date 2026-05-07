@@ -71,7 +71,7 @@ class EvoCloudPlatformAuth(httpx.Auth):
 
         # 2. Always inject the LATEST token from identity_service
         # This ensures we are not stuck with an old token even if the LLM instance is cached.
-        token = evocloud_manager.get_token()
+        token = await evocloud_manager.get_token()
         if token:
             request.headers["Authorization"] = f"Bearer {token}"
         
@@ -197,7 +197,7 @@ class LLMFactory:
         # Use the current token for initialization.
         # Note: EvoCloudPlatformAuth will automatically replace it with 
         # the latest token at request-time if it changes in the background.
-        token = evocloud_manager.get_token() or ""
+        token = await evocloud_manager.get_token() or ""
 
         return AdaptiveChatOpenAI(
             api_key=token,

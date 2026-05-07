@@ -18,7 +18,6 @@ from .edit_file import handle_multi_edit, FileEditOperation
     is_state_mutating=True,
     affected_path_keys=["path"],
     summary_template="database_logger.tool_summary.multiedit_file",
-    result_summary_template="database_logger.tool_summary.file_op_result"
 )
 async def multiedit_file(
     path: str | None = None,
@@ -95,12 +94,17 @@ async def multiedit_file(
             elif isinstance(e, dict):
                 edit_models.append(FileEditOperation.model_validate(e))
             else:
-                return f"Edit #{i+1} is not a valid edit operation. Each edit must be a dict or FileEditOperation."
+                return f"Edit #{i+1} is not a valid edit operation. Each edit must be a dict or FileEditOperation.", {"count": 0}
 
-    return await handle_multi_edit(
+    result = await handle_multi_edit(
         path=path,
         edits=edit_models,
         expected_hash=expected_hash,
         verify_types=verify_types,
         config=config,
     )
+    # handle_multi_edit 在成功时已返回 (text, {"count": N}) tuple
+    if isinstance(result, tuple) and len(result) == 2:
+        return result
+    # 错误情况：返回字符串，装饰器会包装为 ToolResult（无 meta）
+    return result

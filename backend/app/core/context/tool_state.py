@@ -60,8 +60,8 @@ class ToolState(DynamicBaseModel):
         affected_keys = self.metadata.get("affected_path_keys", [])
         is_file_content = len(affected_keys) > 0
 
-        # Try to use result summary template from metadata
-        summary_template = self.metadata.get("result_summary_template")
+        # Try to use summary template from metadata
+        summary_template = self.metadata.get("summary_template")
 
         # Ensure output is string for processing
         output_str = str(output) if not isinstance(output, str) else output
