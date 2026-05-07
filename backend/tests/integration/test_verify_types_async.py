@@ -70,9 +70,7 @@ class TestVerifyTypesAsync:
             # If verify_types=False, no background task should be created
             mock_create_task.assert_not_called()
 
-    @pytest.mark.asyncio
-    async def test_async_diagnostics_delivered(self, sample_file):
-        """Verify that background type check results are published somehow."""
-        # This test is framework-dependent. We'll check for event publication
-        # or websocket push after implementation.
-        pytest.skip("To be implemented with actual event bus mechanism")
+    # Note: Event bus mechanism not yet implemented, skipping this test for now.
+    # @pytest.mark.asyncio
+    # async def test_async_diagnostics_delivered(self, sample_file):
+    #     pass

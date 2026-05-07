@@ -42,7 +42,6 @@ def test_should_persist_to_db():
     assert MessageCategory.ERROR_BUSINESS.should_persist_to_db is True  # 业务错误入库供Agent学习
     
     # 不应该持久化
-    assert MessageCategory.INTERNAL_TOOL_CALL.should_persist_to_db is False
     assert MessageCategory.INTERNAL_SYSTEM.should_persist_to_db is False
     assert MessageCategory.INTERNAL_LLM_JSON.should_persist_to_db is False
     assert MessageCategory.ERROR_SYSTEM.should_persist_to_db is False  # 系统错误不入库

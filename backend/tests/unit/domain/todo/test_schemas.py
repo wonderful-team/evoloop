@@ -161,6 +161,7 @@ class TestTodoResponse:
             due_date=None,
             source_conversation_id=None,
             source_message_id=None,
+            run_id=None,
             project_id=None,
             created_at=now,
             updated_at=now,

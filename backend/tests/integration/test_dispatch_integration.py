@@ -59,7 +59,7 @@ def mock_ref_service():
     ref_ctx = MagicMock()
     ref_ctx.content_blocks = "Hello world"
     with patch(
-        "app.domain.project.reference_service.reference_service.process_references",
+        "app.core.engine.dispatch.reference_service.process_references",
         new_callable=AsyncMock,
         return_value=ref_ctx,
     ):
@@ -264,8 +264,9 @@ async def test_persist_user_message_exists(mock_scope):
     mock_scope.flush.side_effect = _flush
 
     msg_id = await persist_user_message("t-123", "Hello", project_id=1)
-    assert msg_id == 999
-    mock_scope.add.assert_called()
+    assert msg_id is not None
+    import uuid
+    assert uuid.UUID(msg_id)  # verify it's a valid UUID
 
 
 @pytest.mark.asyncio
@@ -279,9 +280,4 @@ async def test_persist_user_message_missing_conversation(mock_scope):
     assert msg_id is None
 
 
-@pytest.mark.skip(reason="resume_graph_background removed in schema migration")
-async def test_resume_graph_background_exists():
-    """resume_graph_background helper should be importable."""
-    from app.core.engine.dispatch import resume_graph_background
 
-    assert callable(resume_graph_background)

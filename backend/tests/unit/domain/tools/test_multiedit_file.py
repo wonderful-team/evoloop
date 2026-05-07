@@ -12,6 +12,17 @@ from app.core.tools import get_working_directory
 from app.domain.tools.files.multiedit_file import multiedit_file
 
 
+def _extract_text(result):
+    """multiedit_file returns nested tuple ((text, meta), meta). Extract the text."""
+    if isinstance(result, tuple) and len(result) == 2:
+        inner, _ = result
+        if isinstance(inner, tuple) and len(inner) == 2:
+            text, _ = inner
+            return text
+        return inner
+    return result
+
+
 class TestMultiEditFile:
     """Validate multiedit_file behavior."""
 
@@ -43,7 +54,8 @@ def baz():
             {"target": "def bar():\n    return 2", "replacement": "def bar():\n    return 20"},
         ]
         result = await multiedit_file.ainvoke({"path": sample_file, "edits": edits})
-        assert "success" in result.lower() or "✅" in result
+        text = _extract_text(result)
+        assert "success" in text.lower() or "✅" in text
 
         with open(sample_file) as f:
             content = f.read()
@@ -63,7 +75,8 @@ def baz():
             {"target": "this does not exist", "replacement": "should fail"},
         ]
         result = await multiedit_file.ainvoke({"path": sample_file, "edits": edits})
-        assert "fail" in result.lower() or "error" in result.lower()
+        text = _extract_text(result)
+        assert "fail" in text.lower() or "error" in text.lower()
 
         # File must be unchanged
         with open(sample_file, 'rb') as f:
@@ -78,7 +91,8 @@ def baz():
             {"target": "def foo():\n    return 99", "replacement": "def foo():\n    return 42"},
         ]
         result = await multiedit_file.ainvoke({"path": sample_file, "edits": edits})
-        assert "success" in result.lower() or "✅" in result
+        text = _extract_text(result)
+        assert "success" in text.lower() or "✅" in text
 
         with open(sample_file) as f:
             content = f.read()
@@ -93,7 +107,8 @@ def baz():
     async def test_multiedit_empty_edits(self, sample_file):
         result = await multiedit_file.ainvoke({"path": sample_file, "edits": []})
         # Empty edits list is valid and results in 0 changes
-        assert "success" in result.lower() or "applied 0" in result.lower()
+        text = _extract_text(result)
+        assert "success" in text.lower() or "applied 0" in text.lower()
 
     @pytest.mark.asyncio
     async def test_multiedit_single_edit_equivalent(self, sample_file):
@@ -101,7 +116,8 @@ def baz():
             {"target": "def foo():\n    return 1", "replacement": "def foo():\n    return 99"},
         ]
         result = await multiedit_file.ainvoke({"path": sample_file, "edits": edits})
-        assert "success" in result.lower() or "✅" in result
+        text = _extract_text(result)
+        assert "success" in text.lower() or "✅" in text
 
         with open(sample_file) as f:
             content = f.read()

@@ -474,10 +474,12 @@ async def test_empty_and_whitespace_query():
     ]
 
     with patch("app.domain.tools.research._search_duckduckgo", new_callable=AsyncMock) as mock_ddg, \
-         patch("app.domain.tools.research._search_baidu", new_callable=AsyncMock) as mock_baidu:
+         patch("app.domain.tools.research._search_baidu", new_callable=AsyncMock) as mock_baidu, \
+         patch("app.domain.tools.research._search_wikipedia", new_callable=AsyncMock) as mock_wiki:
 
         mock_ddg.return_value = None
         mock_baidu.return_value = None
+        mock_wiki.return_value = None
 
         all_passed = True
         for label, query in edge_queries:

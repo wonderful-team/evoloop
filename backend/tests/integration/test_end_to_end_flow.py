@@ -62,7 +62,7 @@ async def test_http_chat_full_flow(fake_session):
          patch("app.api.routes.agent.run_agent_background") as mock_bg, \
          patch("app.api.routes.agent.session_scope", scope), \
          patch("app.core.monitoring.activity.activity_monitor.start_run", new_callable=AsyncMock), \
-         patch("app.domain.project.reference_service.reference_service.process_references", new_callable=AsyncMock) as mock_refs:
+         patch("app.core.engine.dispatch.reference_service.process_references", new_callable=AsyncMock) as mock_refs:
 
         mock_refs.return_value = MagicMock(content_blocks="Hello")
         mock_dispatch.return_value = MagicMock(
@@ -106,7 +106,7 @@ async def test_websocket_chat_full_flow(fake_session):
     E2E: WebSocket remote command → handle_remote_command → dispatch_agent_run.
     Verifies model fallback and inputs construction.
     """
-    from app.core.engine.event.subscribers import EngineCommandHandler
+    from app.core.engine.event.subscribers import EngineCommandSubscriber
     from app.core.evocloud.schemas import RemoteCommand
     from app.core.engine.background_agent import BackgroundAgentInputs
     # Model fallback uses SystemConfigService.get_value("LLM_MODEL") in production
@@ -117,7 +117,7 @@ async def test_websocket_chat_full_flow(fake_session):
          patch("app.core.engine.event.subscribers.run_agent_background") as mock_bg, \
          patch("app.core.engine.dispatch.session_scope", scope), \
          patch("app.core.monitoring.activity.activity_monitor.start_run", new_callable=AsyncMock), \
-         patch("app.domain.project.reference_service.reference_service.process_references", new_callable=AsyncMock) as mock_refs:
+         patch("app.core.engine.dispatch.reference_service.process_references", new_callable=AsyncMock) as mock_refs:
 
         mock_refs.return_value = MagicMock(content_blocks="WS message")
         mock_dispatch.return_value = MagicMock(
@@ -134,11 +134,13 @@ async def test_websocket_chat_full_flow(fake_session):
         command = {
             "type": "chat_message",
             "thread_id": "ws-e2e",
-            "message": "WS message",
+            "payload": {
+                "message": "WS message",
+            },
             "project_id": 1,
         }
 
-        handler = EngineCommandHandler()
+        handler = EngineCommandSubscriber()
         await handler._handle_command(RemoteCommand.model_validate(command))
 
         mock_dispatch.assert_awaited_once()
@@ -199,7 +201,7 @@ async def test_retry_flow_preserves_original_message(fake_session):
         req = ChatRequest(
             thread_id="t-retry",
             message="",
-            message_id=77,
+            message_id="77",
         )
         bg_tasks = MagicMock()
         bg_tasks.add_task = MagicMock()
@@ -266,7 +268,7 @@ async def test_unified_inputs_structure_across_all_entrypoints(fake_session):
     produce BackgroundAgentInputs with the same required keys.
     """
     from app.api.routes.agent import chat_endpoint, ChatRequest
-    from app.core.engine.event.subscribers import EngineCommandHandler
+    from app.core.engine.event.subscribers import EngineCommandSubscriber
     from app.core.evocloud.schemas import RemoteCommand
     from app.core.engine.dispatch import dispatch_agent_run
 
@@ -275,7 +277,7 @@ async def test_unified_inputs_structure_across_all_entrypoints(fake_session):
 
     with patch("app.core.engine.dispatch.session_scope", scope), \
          patch("app.core.monitoring.activity.activity_monitor.start_run", new_callable=AsyncMock), \
-         patch("app.domain.project.reference_service.reference_service.process_references", new_callable=AsyncMock) as mock_refs, \
+         patch("app.core.engine.dispatch.reference_service.process_references", new_callable=AsyncMock) as mock_refs, \
          patch("app.infrastructure.config.service.SystemConfigService.get_value", return_value="gpt-4o"):
 
         mock_refs.return_value = MagicMock(content_blocks="test")

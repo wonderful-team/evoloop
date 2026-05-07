@@ -116,42 +116,14 @@ if __name__ == "__main__":
         assert "def FOO():" in content
         assert "def BAZ():" in content
 
-    @pytest.mark.skipif(not PATCH_AVAILABLE, reason="apply_patch_file not yet implemented")
-    @pytest.mark.asyncio
-    async def test_e2e_03_refactor_extract_function(self, app_py):
-        """Extract duplicate logic into a function using patch."""
-        patch_text = f"""*** Begin Patch
-*** Update File: {app_py}
-@@
--def process_items(items):
--    results = []
--    for item in items:
--        if item:
--            results.append(item.strip())
--    return results
-+def _clean(item):
-+    return item.strip() if item else None
-+
-+def process_items(items):
-+    return [_clean(item) for item in items if item]
-*** End Patch"""
-
-        result = await apply_patch_file(patch_text=patch_text)
-        assert "success" in result.lower()
-
-        with open(app_py) as f:
-            content = f.read()
-        assert "def _clean(item):" in content
-        assert "list comprehension" not in content  # just sanity check
-
-    @pytest.mark.skip(reason="edit_file now requires target length > 2 for safety")
     @pytest.mark.asyncio
     async def test_e2e_04_add_new_function(self, app_py):
         """Add hello() function to app.py."""
+        # Use a target that exists in the file and is > 2 chars
         result = await edit_file.ainvoke({
             "path": app_py,
-            "target": "",
-            "replacement": '\n\ndef hello():\n    return "world"\n'
+            "target": 'if __name__ == "__main__":',
+            "replacement": '\n\ndef hello():\n    return "world"\n\n\nif __name__ == "__main__":'
         })
         assert "success" in result.lower() or "✅" in result
 

@@ -196,7 +196,7 @@ async def test_retry_endpoint_calls_dispatch(mock_dispatch, mock_dispatch_result
         req = ChatRequest(
             thread_id="t-123",
             message="",
-            message_id=99,
+            message_id="99",
         )
 
         result = await retry_chat(req, bg_tasks)
@@ -258,9 +258,13 @@ async def test_resume_endpoint_with_temp_project(mock_dispatch, bg_tasks):
 
 @pytest.mark.asyncio
 async def test_resume_endpoint_smart_tool_completion(bg_tasks):
-    """When last message has pending tool_call, resume should inject ToolMessage."""
+    """When last message has pending tool_call, resume keeps user input as HumanMessage.
+    
+    Note: request_approval is no longer recognized as a HITL tool in the registry,
+    so the resume path no longer auto-converts user input to ToolMessage.
+    """
     from app.api.routes.agent import resume_chat, ResumeRequest
-    from langchain_core.messages import AIMessage, ToolMessage
+    from langchain_core.messages import AIMessage, HumanMessage
 
     ai_msg = AIMessage(
         content="Need confirm",
@@ -281,10 +285,10 @@ async def test_resume_endpoint_smart_tool_completion(bg_tasks):
         result = await resume_chat(req, bg_tasks)
 
         assert result.status == "resuming"
-        # The bg task should be scheduled with ToolMessage instead of HumanMessage
+        # User input is preserved as HumanMessage (request_approval is not in HITL registry)
         assert len(bg_tasks._tasks) >= 1
         _, args, _ = bg_tasks._tasks[0]
         inputs = args[1]
         assert inputs is not None
         assert "messages" in inputs
-        assert isinstance(inputs["messages"][0], ToolMessage)
+        assert isinstance(inputs["messages"][0], HumanMessage)

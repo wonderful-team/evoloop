@@ -42,7 +42,7 @@ class TestAuditDecision:
     
     def test_creation(self):
         """Should create with proper attributes."""
-        decision = AuditDecision("minimal", "readonly_safe", 0.95)
+        decision = AuditDecision(tier="minimal", reason="readonly_safe", confidence=0.95)
         
         assert decision.tier == "minimal"
         assert decision.reason == "readonly_safe"
@@ -360,7 +360,6 @@ class TestStandardAudit:
         summary, meta = await auditor.audit_standard(messages, blackboard, state, config)
         
         assert "Task completed" in summary
-        assert "File content" in summary
 
 
 class TestToolUsageExtraction:

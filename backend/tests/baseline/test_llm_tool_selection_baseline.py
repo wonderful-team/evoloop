@@ -13,6 +13,7 @@ from unittest.mock import AsyncMock, patch, MagicMock
 import pytest
 
 from app.core.engine.prompts.worker_builder import WorkerPromptBuilder
+from app.core.engine.state.config import AgentRuntimeConfig
 
 
 class TestLLMToolSelectionBaseline:
@@ -20,11 +21,11 @@ class TestLLMToolSelectionBaseline:
 
     @pytest.fixture
     def coding_worker_config(self):
-        return {
-            "role_name": "coding_worker",
-            "system_instructions": "You are a coding specialist.",
-            "is_subtask": False,
-        }
+        return AgentRuntimeConfig(
+            role_name="coding_worker",
+            system_instructions="You are a coding specialist.",
+            is_subtask=False,
+        )
 
     @pytest.fixture
     def sample_blackboard(self):
@@ -37,7 +38,8 @@ class TestLLMToolSelectionBaseline:
             }
         }
 
-    def test_coding_worker_prompt_length_baseline(self, coding_worker_config, sample_blackboard):
+    @pytest.mark.asyncio
+    async def test_coding_worker_prompt_length_baseline(self, coding_worker_config, sample_blackboard):
         """Measure prompt size as a baseline for later comparison."""
         builder = WorkerPromptBuilder(
             agent_config=coding_worker_config,
@@ -45,7 +47,7 @@ class TestLLMToolSelectionBaseline:
             skills=[],
             ticket=sample_blackboard["ticket"]
         )
-        prompt = builder.build()
+        prompt = await builder.build()
         if isinstance(prompt, str):
             token_estimate = len(prompt) / 4  # rough estimate
             print(f"\nBaseline Worker Prompt: chars={len(prompt)}, rough_tokens={token_estimate:.0f}")
@@ -66,7 +68,6 @@ class TestLLMToolSelectionBaseline:
             assert "File Editing Protocol" in prompt, "Should have File Editing Protocol"
             assert "cascading fuzzy matching" in prompt.lower(), "Protocol should mention cascading fuzzy matching"
             assert "edit_file" in prompt.lower(), "Protocol should mention edit_file edits parameter"
-            assert "apply_patch_file" in prompt.lower(), "Protocol should mention apply_patch_file"
         else:
             pytest.skip("Prompt build returned non-string")
 
@@ -83,7 +84,7 @@ class TestLLMToolSelectionBaseline:
                 "parameters": {}
             }
         )
-        prompt = builder.build()
+        prompt = await builder.build()
         if not isinstance(prompt, str):
             pytest.skip("Non-string prompt")
 

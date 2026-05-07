@@ -4,8 +4,9 @@ Integration Tests for Todo Domain
 Tests the full workflow: tools -> service -> repository
 """
 import pytest
+from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
-from unittest.mock import Mock, patch, AsyncMock
+from unittest.mock import Mock, patch, AsyncMock, MagicMock
 
 from app.domain.todo import (
     create_todo,
@@ -17,6 +18,15 @@ from app.domain.todo import (
     TodoFilter,
 )
 from app.models.todo import TodoItem, TodoStatus, TodoPriority
+
+
+def _mock_session_scope():
+    """Helper to patch session_scope for todo tools."""
+    session = MagicMock()
+    @asynccontextmanager
+    async def _fake():
+        yield session
+    return patch('app.infrastructure.database.sql.database.session_scope', side_effect=_fake)
 
 
 class TestTodoWorkflow:
@@ -33,11 +43,11 @@ class TestTodoWorkflow:
         mock_todo.priority = TodoPriority.HIGH
         mock_todo.status = TodoStatus.COMPLETED
         
-        with patch('app.domain.todo.tools.TodoServiceSync') as MockService:
+        with _mock_session_scope(), patch('app.domain.todo.service.TodoService') as MockService:
             mock_service = MockService.return_value
-            mock_service.create = Mock(return_value=mock_todo)
-            mock_service.list_todos = Mock(return_value=[mock_todo])
-            mock_service.mark_completed = Mock(return_value=mock_todo)
+            mock_service.create = AsyncMock(return_value=mock_todo)
+            mock_service.list_todos = AsyncMock(return_value=[mock_todo])
+            mock_service.mark_completed = AsyncMock(return_value=mock_todo)
             
             # Step 1: Create a todo
             result = await create_todo.ainvoke({
@@ -49,12 +59,12 @@ class TestTodoWorkflow:
             mock_service.create.assert_called_once()
             
             # Step 2: List todos
-            todos = mock_service.list_todos(TodoFilter())
+            todos = await mock_service.list_todos(TodoFilter())
             assert len(todos) == 1
             
             # Step 3: Complete the todo
             mock_todo.status = TodoStatus.COMPLETED
-            completed = mock_service.mark_completed("workflow-test-id")
+            completed = await mock_service.mark_completed("workflow-test-id")
             assert completed.status == TodoStatus.COMPLETED
     
     @pytest.mark.asyncio
@@ -67,10 +77,10 @@ class TestTodoWorkflow:
         mock_todo.priority = TodoPriority.MEDIUM
         mock_todo.status = TodoStatus.CANCELLED
         
-        with patch('app.domain.todo.tools.TodoServiceSync') as MockService:
+        with _mock_session_scope(), patch('app.domain.todo.service.TodoService') as MockService:
             mock_service = MockService.return_value
-            mock_service.create = Mock(return_value=mock_todo)
-            mock_service.mark_cancelled = Mock(return_value=mock_todo)
+            mock_service.create = AsyncMock(return_value=mock_todo)
+            mock_service.mark_cancelled = AsyncMock(return_value=mock_todo)
             
             # Create
             result = await create_todo.ainvoke({"title": "Cancel Test"})
@@ -78,7 +88,7 @@ class TestTodoWorkflow:
             
             # Cancel
             mock_todo.status = TodoStatus.CANCELLED
-            cancelled = mock_service.mark_cancelled("cancel-test-id")
+            cancelled = await mock_service.mark_cancelled("cancel-test-id")
             assert cancelled.status == TodoStatus.CANCELLED
     
     @pytest.mark.asyncio
@@ -90,10 +100,10 @@ class TestTodoWorkflow:
             Mock(spec=TodoItem, status=TodoStatus.COMPLETED, project_id=1),
         ]
         
-        with patch('app.domain.todo.tools.TodoServiceSync') as MockService:
+        with _mock_session_scope(), patch('app.domain.todo.service.TodoService') as MockService:
             mock_service = MockService.return_value
-            mock_service.list_todos = Mock(return_value=mock_todos)
-            mock_service.format_todo_list = Mock(return_value="2 todos found")
+            mock_service.list_todos = AsyncMock(return_value=mock_todos)
+            mock_service.format_todo_list = AsyncMock(return_value="2 todos found")
             
             result = await list_todos.ainvoke({"status": "pending", "project_id": 1, "limit": 10})
             
@@ -116,9 +126,9 @@ class TestTodoToolsErrorHandling:
     @pytest.mark.asyncio
     async def test_complete_nonexistent_todo(self):
         """Test completing non-existent todo."""
-        with patch('app.domain.todo.tools.TodoServiceSync') as MockService:
+        with _mock_session_scope(), patch('app.domain.todo.service.TodoService') as MockService:
             mock_service = MockService.return_value
-            mock_service.mark_completed = Mock(side_effect=Exception("Not found"))
+            mock_service.mark_completed = AsyncMock(side_effect=Exception("Not found"))
             
             result = await complete_todo.ainvoke({"todo_id": "non-existent"})
             # Should handle error gracefully
@@ -127,10 +137,10 @@ class TestTodoToolsErrorHandling:
     @pytest.mark.asyncio
     async def test_cancel_nonexistent_todo(self):
         """Test cancelling non-existent todo."""
-        with patch('app.domain.todo.tools.TodoServiceSync') as MockService:
+        with _mock_session_scope(), patch('app.domain.todo.service.TodoService') as MockService:
             mock_service = MockService.return_value
             from app.domain.todo import TodoNotFoundError
-            mock_service.mark_cancelled = Mock(side_effect=TodoNotFoundError("Not found"))
+            mock_service.mark_cancelled = AsyncMock(side_effect=TodoNotFoundError("Not found"))
             
             result = await cancel_todo.ainvoke({"todo_id": "non-existent"})
             assert "non-existent" in result or "not found" in result.lower() or "未找到" in result
@@ -147,9 +157,9 @@ class TestTodoDateParsingIntegration:
         mock_todo.title = "Date Test"
         mock_todo.priority = TodoPriority.MEDIUM
         
-        with patch('app.domain.todo.tools.TodoServiceSync') as MockService:
+        with _mock_session_scope(), patch('app.domain.todo.service.TodoService') as MockService:
             mock_service = MockService.return_value
-            mock_service.create = Mock(return_value=mock_todo)
+            mock_service.create = AsyncMock(return_value=mock_todo)
             
             # Various date formats
             for date_str in ["1 hour", "30 mins", "tomorrow", "2 days", "明天"]:

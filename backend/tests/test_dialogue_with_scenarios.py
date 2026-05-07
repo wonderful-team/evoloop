@@ -26,61 +26,6 @@ from tests.monitoring.test_dialogue_scenarios import (
 )
 
 
-class TestCodeGenerationDialogue:
-    """测试代码生成对话场景"""
-
-    @pytest.mark.skip(reason="chat_node function removed, use ChatNode class instead")
-    @pytest.mark.parametrize("scenario", CODE_GENERATION_SCENARIOS[:4])  # 取前4条测试
-    async def test_code_generation_request(self, scenario):
-        """测试代码生成请求处理流程"""
-        user_input = scenario["cn"]  # 使用中文话术
-        
-        # Mock 数据库会话
-        mock_session = AsyncMock()
-        
-        # Mock LLM 响应
-        mock_llm_response = MagicMock()
-        mock_llm_response.content = f"这是为您生成的代码：\n```python\n# 响应：{user_input[:20]}...\n```"
-        mock_llm_response.tool_calls = []
-        
-        with patch("app.infrastructure.database.sql.database.get_db_session") as mock_db, \
-             patch("app.infrastructure.llm.factory.LLMFactory.create_llm") as mock_llm:
-            
-            mock_db.return_value.__aenter__ = AsyncMock(return_value=mock_session)
-            mock_db.return_value.__aexit__ = AsyncMock(return_value=False)
-            
-            mock_llm_instance = MagicMock()
-            mock_llm_instance.bind_tools.return_value = mock_llm_instance
-            mock_llm_instance.ainvoke = AsyncMock(return_value=mock_llm_response)
-            mock_llm.return_value = mock_llm_instance
-            
-            # 模拟对话处理流程
-            from app.core.engine.nodes.chat import ChatNode
-            from app.core.engine.state import AgentState
-            
-            state = AgentState(
-                messages=[{"role": "human", "content": user_input}],
-                project_id=1,
-                thread_id="test-thread",
-                blackboard=None,
-            )
-            
-            config = {"configurable": {"thread_id": "test-thread"}}
-            
-            # 执行测试
-            try:
-                chat = ChatNode()
-                result = await chat(state, config)
-                
-                # 验证结果
-                assert result is not None
-                assert hasattr(result, "messages") or (isinstance(result, dict) and "messages" in result)
-                
-            except Exception as e:
-                # 如果 chat_node 有复杂依赖，可能需要在 Mock 中处理
-                pytest.skip(f"需要更多 Mock 设置: {e}")
-
-
 class TestFileOperationDialogue:
     """测试文件操作对话场景"""
 
@@ -182,34 +127,6 @@ class TestMultiLanguageSupport:
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_real_chat_api():
-    """
-    真实接口测试 - 需要运行中的后端
-    用于验证完整链路，但不作为常规测试运行
-    """
-    try:
-        from httpx import AsyncClient
-        
-        async with AsyncClient(base_url="http://localhost:8000") as client:
-            # 1. 创建对话
-            conv_response = await client.post("/api/conversations/")
-            assert conv_response.status_code in [200, 201]
-            thread_id = conv_response.json().get("thread_id", "test-123")
-            
-            # 2. 发送消息（使用场景话术）
-            message = CODE_GENERATION_SCENARIOS[0]["cn"]
-            msg_response = await client.post(
-                f"/api/conversations/{thread_id}/messages",
-                json={"content": message}
-            )
-            
-            # 验证响应
-            assert msg_response.status_code in [200, 202]
-            
-    except Exception as e:
-        pytest.skip(f"需要运行中的后端服务: {e}")
-
-
 # ==================== 测试统计 ====================
 
 def test_scenario_coverage():

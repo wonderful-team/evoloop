@@ -23,6 +23,17 @@ from app.domain.tools.files.multiedit_file import multiedit_file
 from app.domain.tools.files.read_file import read_file
 
 
+def _extract_text(result):
+    """multiedit_file returns nested tuple ((text, meta), meta). Extract the text."""
+    if isinstance(result, tuple) and len(result) == 2:
+        inner, _ = result
+        if isinstance(inner, tuple) and len(inner) == 2:
+            text, _ = inner
+            return text
+        return inner
+    return result
+
+
 class TestMultiEditFileComplex:
     """Complex scenarios for multiedit_file."""
 
@@ -128,7 +139,7 @@ class UserManager:
             "path": complex_class_file,
             "edits": edits
         })
-        assert "success" in result.lower(), f"Failed: {result}"
+        assert "success" in _extract_text(result).lower(), f"Failed: {result}"
         
         with open(complex_class_file) as f:
             content = f.read()
@@ -167,7 +178,7 @@ class UserManager:
                 "path": bulk_file,
                 "edits": edits
             })
-            assert "success" in result.lower(), f"Failed: {result}"
+            assert "success" in _extract_text(result).lower(), f"Failed: {result}"
             
             with open(bulk_file) as f:
                 content = f.read()
@@ -231,7 +242,7 @@ def main():
                 "path": chain_file,
                 "edits": edits
             })
-            assert "success" in result.lower(), f"Failed: {result}"
+            assert "success" in _extract_text(result).lower(), f"Failed: {result}"
             
             with open(chain_file) as f:
                 final_content = f.read()
@@ -284,7 +295,7 @@ def main():
             })
             
             # Should fail
-            assert "fail" in result.lower() or "error" in result.lower()
+            assert "fail" in _extract_text(result).lower() or "error" in _extract_text(result).lower()
             
             # Verify file unchanged (atomic rollback)
             with open(atomic_file, 'rb') as f:
@@ -348,7 +359,7 @@ class TestMultiEditFileRealWorldScenarios:
                 "path": types_file,
                 "edits": edits
             })
-            assert "success" in result.lower(), f"Failed: {result}"
+            assert "success" in _extract_text(result).lower(), f"Failed: {result}"
             
             with open(types_file) as f:
                 content = f.read()
@@ -420,7 +431,7 @@ class TestMultiEditFileRealWorldScenarios:
                 "path": extract_file,
                 "edits": edits
             })
-            assert "success" in result.lower(), f"Failed: {result}"
+            assert "success" in _extract_text(result).lower(), f"Failed: {result}"
             
             with open(extract_file) as f:
                 content = f.read()
@@ -471,7 +482,7 @@ def process():
                 "path": import_file,
                 "edits": edits
             })
-            assert "success" in result.lower(), f"Failed: {result}"
+            assert "success" in _extract_text(result).lower(), f"Failed: {result}"
             
             with open(import_file) as f:
                 content = f.read()
@@ -519,7 +530,7 @@ class TestMultiEditFilePerformance:
             })
             elapsed = (time.perf_counter() - start) * 1000
             
-            assert "success" in result.lower(), f"Failed: {result}"
+            assert "success" in _extract_text(result).lower(), f"Failed: {result}"
             print(f"\n10 edits on 1000-line file: {elapsed:.1f}ms")
             
             # Verify one change
@@ -558,7 +569,7 @@ class TestMultiEditFilePerformance:
             })
             multiedit_time = (time.perf_counter() - start) * 1000
             
-            assert "success" in result.lower()
+            assert "success" in _extract_text(result).lower()
             print(f"\nmultiedit 5 edits: {multiedit_time:.1f}ms")
             
             # Verify all changes

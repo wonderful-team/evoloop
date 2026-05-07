@@ -15,6 +15,7 @@
 
 import sys
 import asyncio
+import json
 from unittest.mock import patch, AsyncMock, MagicMock
 
 sys.path.insert(0, ".")
@@ -24,6 +25,15 @@ from app.core.learning.discovery import skill_discovery
 
 _ensure_scanned()
 search_skills_tool = REGISTRY.get_tool_map()["search_skills"]
+
+
+def _extract_data(result):
+    """从 ToolResult 中提取 JSON 数据字典。"""
+    text = str(result)
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        return {}
 
 
 def print_section(title):
@@ -85,17 +95,18 @@ async def test_index_mode():
             "namespace": "android",
             "index_mode": True,
         })
+        data = _extract_data(result)
 
         passed = (
-            result.get("result_type") == "index"
-            and result.get("namespace") == "android"
-            and len(result.get("skills", [])) == 3
-            and result["skills"][0]["name"] == "android_click"
+            data.get("result_type") == "index"
+            and data.get("namespace") == "android"
+            and len(data.get("skills", [])) == 3
+            and data["skills"][0]["name"] == "android_click"
         )
-        print_result("result_type 为 index", result.get("result_type") == "index")
-        print_result("namespace 正确", result.get("namespace") == "android")
-        print_result("返回 3 个技能", len(result.get("skills", [])) == 3)
-        print_result("包含 instruction", "instruction" in result)
+        print_result("result_type 为 index", data.get("result_type") == "index")
+        print_result("namespace 正确", data.get("namespace") == "android")
+        print_result("返回 3 个技能", len(data.get("skills", [])) == 3)
+        print_result("包含 instruction", "instruction" in data)
         print_result("TEST 1 整体", passed)
         return passed
 
@@ -115,22 +126,23 @@ async def test_search_mode_match():
             "namespace": "web",
             "index_mode": False,
         })
+        data = _extract_data(result)
 
         passed = (
-            result.get("result_type") == "match"
-            and result.get("skill_name") == "click_save_button"
-            and result.get("skill_id") == 42
-            and result.get("confidence") == 0.92
-            and "browser_control" in result.get("tools_required", [])
-            and "markdown_sop" in result
-            and "instruction" in result
+            data.get("result_type") == "match"
+            and data.get("skill_name") == "click_save_button"
+            and data.get("skill_id") == 42
+            and data.get("confidence") == 0.92
+            and "browser_control" in data.get("tools_required", [])
+            and "markdown_sop" in data
+            and "instruction" in data
         )
-        print_result("result_type 为 match", result.get("result_type") == "match")
-        print_result("skill_name 正确", result.get("skill_name") == "click_save_button")
-        print_result("skill_id 正确", result.get("skill_id") == 42)
-        print_result("confidence 正确", result.get("confidence") == 0.92)
-        print_result("tools_required 包含 browser_control", "browser_control" in result.get("tools_required", []))
-        print_result("包含 markdown_sop", "markdown_sop" in result)
+        print_result("result_type 为 match", data.get("result_type") == "match")
+        print_result("skill_name 正确", data.get("skill_name") == "click_save_button")
+        print_result("skill_id 正确", data.get("skill_id") == 42)
+        print_result("confidence 正确", data.get("confidence") == 0.92)
+        print_result("tools_required 包含 browser_control", "browser_control" in data.get("tools_required", []))
+        print_result("包含 markdown_sop", "markdown_sop" in data)
         print_result("TEST 2 整体", passed)
         return passed
 
@@ -152,16 +164,17 @@ async def test_search_mode_suggestions():
             "query": "authenticate user",
             "namespace": "web",
         })
+        data = _extract_data(result)
 
         passed = (
-            result.get("result_type") == "suggestions"
-            and len(result.get("suggestions", [])) == 3
-            and result["suggestions"][0]["name"] == "web_login"
-            and "instruction" in result
+            data.get("result_type") == "suggestions"
+            and len(data.get("suggestions", [])) == 3
+            and data["suggestions"][0]["name"] == "web_login"
+            and "instruction" in data
         )
-        print_result("result_type 为 suggestions", result.get("result_type") == "suggestions")
-        print_result("返回 3 个建议", len(result.get("suggestions", [])) == 3)
-        print_result("建议包含 name/id/description", "name" in result["suggestions"][0] if result.get("suggestions") else False)
+        print_result("result_type 为 suggestions", data.get("result_type") == "suggestions")
+        print_result("返回 3 个建议", len(data.get("suggestions", [])) == 3)
+        print_result("建议包含 name/id/description", "name" in data["suggestions"][0] if data.get("suggestions") else False)
         print_result("TEST 3 整体", passed)
         return passed
 
@@ -176,15 +189,16 @@ async def test_search_mode_no_match():
         result = await search_skills_tool.ainvoke({
             "query": "fly to the moon",
         })
+        data = _extract_data(result)
 
         passed = (
-            result.get("result_type") == "no_match"
-            and "fly to the moon" in result.get("instruction", "")
-            and "Divergence Tip" in result.get("instruction", "")
+            data.get("result_type") == "no_match"
+            and "fly to the moon" in data.get("instruction", "")
+            and "Divergence Tip" in data.get("instruction", "")
         )
-        print_result("result_type 为 no_match", result.get("result_type") == "no_match")
-        print_result("instruction 包含查询词", "fly to the moon" in result.get("instruction", ""))
-        print_result("instruction 包含 Divergence Tip", "Divergence Tip" in result.get("instruction", ""))
+        print_result("result_type 为 no_match", data.get("result_type") == "no_match")
+        print_result("instruction 包含查询词", "fly to the moon" in data.get("instruction", ""))
+        print_result("instruction 包含 Divergence Tip", "Divergence Tip" in data.get("instruction", ""))
         print_result("TEST 4 整体", passed)
         return passed
 
@@ -294,13 +308,14 @@ async def test_tools_used_json_parse_error():
         mock_search.return_value = (mock_match, [mock_skill], "match")
 
         result = await search_skills_tool.ainvoke({"query": "test"})
+        data = _extract_data(result)
 
         passed = (
-            result.get("result_type") == "match"
-            and result.get("tools_required") == []
+            data.get("result_type") == "match"
+            and data.get("tools_required") == []
         )
-        print_result("result_type 为 match", result.get("result_type") == "match")
-        print_result("tools_required 为空列表（容错）", result.get("tools_required") == [])
+        print_result("result_type 为 match", data.get("result_type") == "match")
+        print_result("tools_required 为空列表（容错）", data.get("tools_required") == [])
         print_result("未崩溃", "Error:" not in str(result))
         print_result("TEST 9 整体", passed)
         return passed
@@ -321,7 +336,8 @@ async def test_real_search():
             print("  ⚠️ 真实搜索失败或返回错误，跳过")
             return True
 
-        result_type = result.get("result_type", "unknown")
+        data = _extract_data(result)
+        result_type = data.get("result_type", "unknown")
         print_result(f"返回类型: {result_type}", True)
         print_result("结果非空", bool(result))
         print_result("TEST 10 整体", True)

@@ -300,8 +300,7 @@ async def test_engine_layer():
     return results
 
 
-@pytest.mark.skip(reason="Requires DB initialization via main()")
-async def test_api_layer():
+async def _test_api_layer():
     """测试 API 层: /chat/resume 和 /hitl/cancel"""
     logger.info("\n" + "="*60)
     logger.info("🌐 测试 API 层: resume & cancel 端点")
@@ -424,7 +423,7 @@ async def main():
     all_results = []
     all_results.extend(await test_tool_layer())
     all_results.extend(await test_engine_layer())
-    all_results.extend(await test_api_layer())
+    all_results.extend(await _test_api_layer())
 
     success = await print_summary(all_results)
     

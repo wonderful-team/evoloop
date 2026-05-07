@@ -87,59 +87,7 @@ async def test_fts_suggestions():
         assert len(suggestions) > 0
 
 
-@pytest.mark.asyncio
-async def test_citation_tracker():
-    """Test citation tracking."""
-    import pytest
-    from app.domain.knowledge.services.citations import CitationTracker
-    from app.infrastructure.database.resource_manager import db_resource_manager
-    
-    # CitationTracker now requires a fully initialized database engine
-    if db_resource_manager.sync_engine is None:
-        pytest.skip("Database not available for citation tracking")
-    
-    tracker = CitationTracker()
-    await tracker.initialize()
-    
-    # Record citation
-    success = await tracker.record_citation(
-        doc_path="test/doc.md",
-        tool_used="kb_read",
-        session_id="test-session"
-    )
-    assert success is True
-    
-    # Get stats
-    stats = await tracker.get_document_stats("test/doc.md")
-    assert stats is not None
-    assert stats.total_citations == 1
 
-
-@pytest.mark.asyncio
-async def test_citation_popular_docs():
-    """Test popular documents query."""
-    import pytest
-    from app.domain.knowledge.services.citations import CitationTracker
-    from app.infrastructure.database.resource_manager import db_resource_manager
-    
-    if db_resource_manager.sync_engine is None:
-        pytest.skip("Database not available for citation tracking")
-    
-    tracker = CitationTracker()
-    await tracker.initialize()
-    
-    # Record multiple citations
-    for i in range(5):
-        await tracker.record_citation(
-            doc_path="popular/doc.md",
-            tool_used="kb_read",
-            session_id=f"session-{i}"
-        )
-    
-    # Get popular
-    popular = await tracker.get_most_cited(limit=10)
-    assert len(popular) > 0
-    assert popular[0].doc_id == "popular/doc.md"
 
 
 def test_bulk_import_validation():

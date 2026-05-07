@@ -217,6 +217,27 @@ except ImportError:
     _MOCKS = _create_mock_modules()
 
 
+import pytest
+import logging
+
+@pytest.fixture(autouse=True)
+def preserve_logging_handlers():
+    """Prevent tests from breaking caplog by calling basicConfig()."""
+    root = logging.getLogger()
+    original_handlers = list(root.handlers)
+    yield
+    # Remove any new handlers added during the test
+    for handler in list(root.handlers):
+        if handler not in original_handlers:
+            root.removeHandler(handler)
+    # Restore any original handlers that were removed
+    for handler in original_handlers:
+        if handler not in root.handlers:
+            root.addHandler(handler)
+    # Always reset root level to NOTSET so caplog can capture all levels
+    root.setLevel(logging.NOTSET)
+
+
 def pytest_configure(config):
     """Configure pytest before test collection."""
     # Ensure mocks are in place

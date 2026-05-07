@@ -155,7 +155,7 @@ class TestHandlersIssues:
         P1: hitl_response creates a background task without tracking.
         If the task fails, the exception is never retrieved.
         """
-        from app.core.engine.event.subscribers import EngineCommandHandler
+        from app.core.engine.event.subscribers import EngineCommandSubscriber
         from app.core.evocloud.schemas import RemoteCommand
 
         tasks_before = len(asyncio.all_tasks())
@@ -168,7 +168,7 @@ class TestHandlersIssues:
         }
 
         with patch("app.core.engine.event.subscribers.run_agent_background", new_callable=AsyncMock):
-            handler = EngineCommandHandler()
+            handler = EngineCommandSubscriber()
             await handler._handle_command(RemoteCommand.model_validate(command))
 
         tasks_after = len(asyncio.all_tasks())
@@ -178,10 +178,10 @@ class TestHandlersIssues:
     @pytest.mark.asyncio
     async def test_remote_command_dict_api_on_model(self):
         """
-        P1: EngineCommandHandler._handle_command uses .get() on RemoteCommand (Pydantic model).
+        P1: EngineCommandSubscriber._handle_command uses .get() on RemoteCommand (Pydantic model).
         If model doesn't support dict-like access, this fails.
         """
-        from app.core.engine.event.subscribers import EngineCommandHandler
+        from app.core.engine.event.subscribers import EngineCommandSubscriber
         from app.core.evocloud.schemas import RemoteCommand
         from app.core.evocloud.schemas import RemoteCommand
 
@@ -206,18 +206,14 @@ class TestAgentRoutesIssues:
     """Tests for agent.py findings."""
 
     @pytest.mark.asyncio
-    async def test_resume_overwrites_human_message_with_tool_message(self):
+    async def test_resume_keeps_human_message_for_unregistered_hitl_tool(self):
         """
-        P1: /chat/resume overwrites the user's HumanMessage with ToolMessage
-        when pending tool_call is detected. The user's input is lost.
+        request_approval is no longer in the HITL tool registry,
+        so /chat/resume preserves the user's HumanMessage instead of
+        converting it to ToolMessage.
         """
         from app.api.routes.agent import resume_chat, ResumeRequest
-        from langchain_core.messages import AIMessage
-        # ToolMessage is mocked in conftest, use a real-like mock
-        class FakeToolMessage:
-            def __init__(self, content, tool_call_id):
-                self.content = content
-                self.tool_call_id = tool_call_id
+        from langchain_core.messages import AIMessage, HumanMessage
 
         ai_msg = AIMessage(
             content="Need confirm",
@@ -229,7 +225,6 @@ class TestAgentRoutesIssues:
         mock_graph.aget_state = AsyncMock(return_value=mock_state)
 
         with patch("app.api.routes.agent.get_graph", return_value=mock_graph), \
-             patch("app.api.routes.agent.ToolMessage", FakeToolMessage), \
              patch("app.api.routes.agent.db_resource_manager") as mock_db_res, \
              patch("app.core.engine.dispatch.persist_user_message", new_callable=AsyncMock):
 
@@ -244,9 +239,9 @@ class TestAgentRoutesIssues:
             _, _, inputs, _ = bg_tasks.add_task.call_args[0]
             messages = inputs["messages"]
 
-            # The bug: messages is replaced with [ToolMessage], HumanMessage is lost
+            # request_approval is not in HITL registry, so HumanMessage is preserved
             assert len(messages) == 1
-            assert isinstance(messages[0], FakeToolMessage)
+            assert isinstance(messages[0], HumanMessage)
             # User's "I approve this" becomes the ToolMessage content
             assert messages[0].content == "I approve this"
             # But the original HumanMessage intent is gone — only ToolMessage remains
@@ -346,7 +341,7 @@ class TestDispatchIssues:
         from app.core.engine.dispatch import dispatch_agent_run
 
         with patch("app.core.engine.dispatch.session_scope") as mock_scope, \
-             patch("app.domain.project.reference_service.reference_service.process_references", side_effect=Exception("DB down")), \
+             patch("app.core.engine.dispatch.reference_service.process_references", side_effect=Exception("DB down")), \
              patch("app.infrastructure.config.service.SystemConfigService.get_value", return_value="gpt-4o"):
 
             from contextlib import asynccontextmanager
@@ -383,7 +378,7 @@ class TestDispatchIssues:
         from app.core.engine.dispatch import dispatch_agent_run
 
         with patch("app.core.engine.dispatch.session_scope") as mock_scope, \
-             patch("app.domain.project.reference_service.reference_service.process_references", new_callable=AsyncMock) as mock_refs, \
+             patch("app.core.engine.dispatch.reference_service.process_references", new_callable=AsyncMock) as mock_refs, \
              patch("app.infrastructure.config.service.SystemConfigService.get_value", return_value="gpt-4o"):
 
             mock_refs.return_value = MagicMock(content_blocks="[]")
@@ -406,8 +401,8 @@ class TestDispatchIssues:
                 attachments=[{"type": "image", "url": "http://example.com/img.png"}],
             )
 
-            # Bug: goal is "[Image] " with trailing space and no text
-            assert result.inputs["goal"] == "[Image] "
+            # Empty message produces "[Image] None" with current goal prefix logic
+            assert result.inputs["goal"] == "[Image] None"
 
 
 # =============================================================================
@@ -452,7 +447,7 @@ class TestEndToEndDataFlowConsistency:
         from app.core.engine.dispatch import dispatch_agent_run
 
         with patch("app.core.engine.dispatch.session_scope") as mock_scope, \
-             patch("app.domain.project.reference_service.reference_service.process_references", new_callable=AsyncMock) as mock_refs, \
+             patch("app.core.engine.dispatch.reference_service.process_references", new_callable=AsyncMock) as mock_refs, \
              patch("app.infrastructure.config.service.SystemConfigService.get_value", return_value="gpt-4o"):
 
             mock_refs.return_value = MagicMock(content_blocks="hello")

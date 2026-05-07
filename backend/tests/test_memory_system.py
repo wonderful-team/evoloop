@@ -221,90 +221,80 @@ except Exception as e:
 
 # Test 6: Preference adapter
 print("\n[6/8] Testing Preference adapter...")
-try:
+
+async def test_prefs():
+    """Test preference save and search."""
     with tempfile.TemporaryDirectory() as tmpdir:
         storage = FileMemoryStorage(tmpdir)
         
-        async def test_prefs():
-            # Simulate setting a preference
-            entry = MemoryEntry(
-                id="pref_user_default_test_key",
-                type=MT.USER,
-                privacy=PL.PRIVATE,
-                title="Preference: test_key",
-                content="test_key: test_value\n\nTest preference",
-                description="test_key = test_value",
-                user_id="user_default",
-                tags=["preference", "test_key"],
-            )
-            await storage.save(entry)
-            
-            # Search for preferences
-            results = await storage.search("preference", types=[MT.USER])
-            assert len(results) > 0
-            print("✅ Preference save/search works")
-            
-            # Get merged preferences (simulated)
-            prefs_text = "No specific preferences recorded."
-            if results:
-                lines = ["**User Preferences:**"]
-                for r in results:
-                    if "preference" in r.tags:
-                        lines.append(f"- {r.description}")
-                if len(lines) > 1:
-                    prefs_text = "\n".join(lines)
-            
-            assert "test_key" in prefs_text
-            print("✅ get_merged_preferences works")
+        # Simulate setting a preference
+        entry = MemoryEntry(
+            id="pref_user_default_test_key",
+            type=MT.USER,
+            privacy=PL.PRIVATE,
+            title="Preference: test_key",
+            content="test_key: test_value\n\nTest preference",
+            description="test_key = test_value",
+            user_id="user_default",
+            tags=["preference", "test_key"],
+        )
+        await storage.save(entry)
         
-        asyncio.run(test_prefs())
+        # Search for preferences
+        results = await storage.search("preference", types=[MT.USER])
+        assert len(results) > 0
         
-except Exception as e:
-    print(f"❌ Preference test failed: {e}")
+        # Get merged preferences (simulated)
+        prefs_text = "No specific preferences recorded."
+        if results:
+            lines = ["**User Preferences:**"]
+            for r in results:
+                if "preference" in r.tags:
+                    lines.append(f"- {r.description}")
+            if len(lines) > 1:
+                prefs_text = "\n".join(lines)
+        
+        assert "test_key" in prefs_text
+        print("✅ Preference save/search works")
+        print("✅ get_merged_preferences works")
 
 # Test 7: Long-term adapter
 print("\n[7/8] Testing LongTerm adapter...")
-try:
+
+async def test_longterm():
+    """Test long-term concept storage."""
     with tempfile.TemporaryDirectory() as tmpdir:
         storage = FileMemoryStorage(tmpdir)
         
-        async def test_longterm():
-            # Test store_concept simulation
-            concept = Concept(
-                name="TestConcept",
-                description="A test concept",
-                project_id=1,
-                related_files=["test.py"]
-            )
-            
-            entry = MemoryEntry(
-                id=f"concept_{concept.name}",
-                type=MT.PROJECT,
-                privacy=PL.TEAM,
-                title=concept.name,
-                content=concept.description,
-                project_id=concept.project_id,
-                tags=["concept"] + concept.related_files,
-            )
-            await storage.save(entry)
-            print("✅ store_concept simulation works")
-            
-            # Test search_concepts simulation
-            results = await storage.search("TestConcept", types=[MT.PROJECT])
-            assert len(results) > 0
-            print("✅ search_concepts simulation works")
-            
-            # Test list_concepts simulation
-            all_concepts = await storage.list_all(type_filter=MT.PROJECT)
-            assert len(all_concepts) > 0
-            print(f"✅ list_concepts simulation works ({len(all_concepts)} concepts)")
+        # Test store_concept simulation
+        concept = Concept(
+            name="TestConcept",
+            description="A test concept",
+            project_id=1,
+            related_files=["test.py"]
+        )
         
-        asyncio.run(test_longterm())
-
-except Exception as e:
-    print(f"❌ LongTerm test failed: {e}")
-    import traceback
-    traceback.print_exc()
+        entry = MemoryEntry(
+            id=f"concept_{concept.name}",
+            type=MT.PROJECT,
+            privacy=PL.TEAM,
+            title=concept.name,
+            content=concept.description,
+            project_id=concept.project_id,
+            tags=["concept"] + concept.related_files,
+        )
+        await storage.save(entry)
+        print("✅ store_concept simulation works")
+        
+        # Test search_concepts simulation
+        results = await storage.search("TestConcept", types=[MT.PROJECT])
+        assert len(results) > 0
+        print("✅ search_concepts simulation works")
+        
+        # Test list_concepts simulation
+        all_concepts = await storage.list_all(type_filter=MT.PROJECT)
+        assert len(all_concepts) > 0
+        print(f"✅ list_concepts simulation works ({len(all_concepts)} concepts)")
 
 # Test 8: Template rendering
 print("\n[8/8] Testing Jinja2 templates...")

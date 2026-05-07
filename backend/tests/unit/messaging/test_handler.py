@@ -13,16 +13,18 @@ from app.core.engine.message.stream import MessageStreamPolicy
 
 def test_persist_policy_for_internal_messages():
     """测试内部消息的持久化策略"""
-    # 内部消息不应该持久化
+    # 纯瞬态系统事件不应该持久化
     assert MessagePersistencePolicy.should_persist(MessageCategory.INTERNAL_LLM_JSON) is False
-    assert MessagePersistencePolicy.should_persist(MessageCategory.INTERNAL_TOOL_CALL) is False
     assert MessagePersistencePolicy.should_persist(MessageCategory.INTERNAL_SYSTEM) is False
-    
+
+    # 内部工具调用需要持久化（供后续推理使用）
+    assert MessagePersistencePolicy.should_persist(MessageCategory.INTERNAL_TOOL_CALL) is True
+
     # 用户可见消息应该持久化
     assert MessagePersistencePolicy.should_persist(MessageCategory.USER) is True
     assert MessagePersistencePolicy.should_persist(MessageCategory.ASSISTANT_RESPONSE) is True
     assert MessagePersistencePolicy.should_persist(MessageCategory.TOOL_OUTPUT) is True
-    
+
     print("✅ test_persist_policy_for_internal_messages passed")
 
 

@@ -78,7 +78,6 @@ class TestImageOCRExtractorRobustness:
         except Exception:
             pass
     
-    @pytest.mark.skip(reason="ScreenshotExtractor.supports behavior changed")
     def test_screenshot_detector(self):
         """Test screenshot detection."""
         extractor = ScreenshotExtractor()
@@ -87,7 +86,8 @@ class TestImageOCRExtractorRobustness:
         assert extractor.supports("image/png", "Screenshot 2024-01-01.png") is True
         assert extractor.supports("image/png", "Screen Shot 2024.png") is True
         assert extractor.supports("image/png", "截屏2024.png") is True
-        assert extractor.supports("image/png", "random.png") is False
+        # All PNGs are supported by parent ImageOCRExtractor (via extension match)
+        assert extractor.supports("image/png", "random.png") is True
 
 
 class TestImageFormats:
@@ -102,14 +102,14 @@ class TestImageFormats:
         assert extractor.supports("image/jpeg", "test.jpeg") is True
         assert extractor.supports("image/jpg", "test.jpg") is True
     
-    @pytest.mark.skip(reason="ImageOCRExtractor.supports behavior changed")
     def test_unsupported_formats(self):
         """Test unsupported image formats."""
         extractor = ImageOCRExtractor()
 
-        # These should not be supported
-        assert extractor.supports("image/svg+xml", "test.svg") is False
-        assert extractor.supports("image/x-icon", "test.ico") is False
+        # ImageOCRExtractor now supports any image/* mime_type and common image extensions
+        assert extractor.supports("image/svg+xml", "test.svg") is True  # image/* matches
+        assert extractor.supports("image/x-icon", "test.ico") is True   # image/* matches
+        # PDF is not an image
         assert extractor.supports("application/pdf", "test.pdf") is False
     
     @pytest.mark.asyncio
