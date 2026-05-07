@@ -80,13 +80,13 @@ async def full_sync_task(device_key: str, data: dict) -> dict:
         await asyncio.sleep(2.0)
 
         # Step 2: Sync remaining messages in batches
-        valid_conv_ids = {c.get("id") for c in conversations}
+        valid_thread_ids = {c.get("id") for c in conversations}
         orphaned_thread_ids = set()
 
         filtered_messages = []
         for m in messages:
             tid = m.get("thread_id")
-            if tid in valid_conv_ids:
+            if tid in valid_thread_ids:
                 if m.get("id") not in seed_message_ids:
                     filtered_messages.append(m)
             else:
@@ -138,11 +138,11 @@ async def full_sync_task(device_key: str, data: dict) -> dict:
 
         # Update sync status for everything
         async with get_db_session() as db:
-            conv_ids = [c.get("id") for c in conversations if c.get("id")]
-            if conv_ids:
+            thread_ids = [c.get("id") for c in conversations if c.get("id")]
+            if thread_ids:
                 await db.execute(
                     update(ConversationModel)
-                    .where(ConversationModel.id.in_(conv_ids))
+                    .where(ConversationModel.id.in_(thread_ids))
                     .values(sync_status="synced", last_synced_at=datetime.now(timezone.utc))
                 )
 
@@ -172,13 +172,13 @@ async def full_sync_task(device_key: str, data: dict) -> dict:
     retries=2,
     retry_delay=10,
 )
-async def incremental_sync_task(device_key: str, conversation_ids: list[str]) -> dict:
+async def incremental_sync_task(device_key: str, thread_ids: list[str]) -> dict:
     """
     增量同步指定会话。
 
     Args:
         device_key: 设备标识
-        conversation_ids: 需要同步的会话ID列表
+        thread_ids: 需要同步的会话ID列表
 
     Returns:
         API 响应结果
@@ -190,11 +190,11 @@ async def incremental_sync_task(device_key: str, conversation_ids: list[str]) ->
 
     try:
         async with get_db_session() as db:
-            for conv_id in conversation_ids:
+            for thread_id in thread_ids:
                 try:
                     result = await db.execute(
                         select(ConversationModel).where(
-                            ConversationModel.id == conv_id
+                            ConversationModel.id == thread_id
                         )
                     )
                     conv = result.scalar_one_or_none()
@@ -214,20 +214,20 @@ async def incremental_sync_task(device_key: str, conversation_ids: list[str]) ->
                             # Update local sync status
                             await db.execute(
                                 update(ConversationModel)
-                                .where(ConversationModel.id == conv_id)
+                                .where(ConversationModel.id == thread_id)
                                 .values(sync_status="synced", last_synced_at=datetime.now(timezone.utc))
                             )
 
                             # Also check for unsynced messages in this conversation
                             msg_result = await db.execute(
                                 select(MessageModel).where(
-                                    MessageModel.thread_id == conv_id,
+                                    MessageModel.thread_id == thread_id,
                                     MessageModel.sync_status != "synced"
                                 )
                             )
                             unsynced_msgs = msg_result.scalars().all()
                             if unsynced_msgs:
-                                logger.info(f"[SyncTask] Found {len(unsynced_msgs)} unsynced messages in thread {conv_id}")
+                                logger.info(f"[SyncTask] Found {len(unsynced_msgs)} unsynced messages in thread {thread_id}")
                                 formatted_msgs = []
                                 for m in unsynced_msgs:
                                     sm = SyncMessage(
@@ -250,26 +250,26 @@ async def incremental_sync_task(device_key: str, conversation_ids: list[str]) ->
                                     )
                                     formatted_msgs.append(sm.model_dump())
 
-                                msg_api_result = await api.sync_messages(device_key, str(conv_id), formatted_msgs)
+                                msg_api_result = await api.sync_messages(device_key, str(thread_id), formatted_msgs)
                                 if msg_api_result.get("code") == 0:
                                     await db.execute(
                                         update(MessageModel)
                                         .where(MessageModel.id.in_([m.id for m in unsynced_msgs]))
                                         .values(sync_status="synced", last_synced_at=datetime.now(timezone.utc))
                                     )
-                                    logger.info(f"[SyncTask] Synced {len(unsynced_msgs)} backlogged messages for {conv_id}")
+                                    logger.info(f"[SyncTask] Synced {len(unsynced_msgs)} backlogged messages for thread {thread_id}")
 
                             await db.commit()
                         else:
                             results["failed"] += 1
                             logger.warning(
-                                f"[SyncTask] Failed to sync conversation {conv_id}: "
+                                f"[SyncTask] Failed to sync thread {thread_id}: "
                                 f"{api_result.get('message')}"
                             )
 
                 except Exception as e:
                     results["failed"] += 1
-                    logger.error(f"[SyncTask] Error syncing conversation {conv_id}: {e}")
+                    logger.error(f"[SyncTask] Error syncing thread {thread_id}: {e}")
 
         logger.info(
             f"[SyncTask] Incremental sync completed: "
