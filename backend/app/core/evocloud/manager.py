@@ -13,9 +13,6 @@ from app.utils.async_utils import LoopBoundResource
 
 logger = logging.getLogger(__name__)
 
-# Conversation sync manager
-_conversation_sync_manager = None
-
 
 class EvoCloudManager:
     """
@@ -31,12 +28,13 @@ class EvoCloudManager:
         self._initialized = False
         self._config: EvoCloudConfig | None = None
         self._api_pool: LoopBoundResource[EvoCloudHTTPClient] | None = None
-        self._link: EvoCloudWebSocketLink | None = None
+        self._link_pool: LoopBoundResource[EvoCloudWebSocketLink] | None = None
         # Project cache with TTL
         self._projects_cache: list[EvoCloudProjectSummary] | None = None
         self._projects_cache_time: float = 0.0
         self._projects_cache_ttl: int = 60  # 60 seconds TTL
         self._projects_cache_lock = False  # Simple lock for cache refresh
+        self._init_lock = False  # Simple lock for thread-safe initialization
 
     def initialize(self, config: EvoCloudConfig | None = None) -> None:
         """
@@ -46,42 +44,59 @@ class EvoCloudManager:
         if self._initialized:
             return
 
-        if config is None:
-            # Fallback to loading from global settings
-            config = EvoCloudConfig(
-                api_url=str(settings.EVOCLOUD_API_URL),
-                ws_url=str(settings.EVOCLOUD_WS_URL),
-                api_key=settings.EVOCLOUD_API_KEY,
-                api_secret=settings.EVOCLOUD_API_SECRET,
-                device_name=settings.EVOCLOUD_DEVICE_NAME,
-                access_token=settings.EVOCLOUD_ACCESS_TOKEN,
-                app_data_dir=str(settings.APP_DATA_DIR),
-                ssl_verify=getattr(settings, 'EVOCLOUD_SSL_VERIFY', True)
+        self._init_lock = True
+        
+        try:
+            if config is None:
+                from app.core.config import settings
+                config = EvoCloudConfig(
+                    api_url=str(settings.EVOCLOUD_API_URL),
+                    ws_url=str(settings.EVOCLOUD_WS_URL),
+                    api_key=settings.EVOCLOUD_API_KEY,
+                    api_secret=settings.EVOCLOUD_API_SECRET,
+                    device_name=settings.EVOCLOUD_DEVICE_NAME,
+                    access_token=settings.EVOCLOUD_ACCESS_TOKEN,
+                    app_data_dir=str(settings.APP_DATA_DIR),
+                    ssl_verify=getattr(settings, 'EVOCLOUD_SSL_VERIFY', True)
+                )
+
+            self._config = config
+
+            async def cleanup_api(api):
+                await api.close()
+
+            async def cleanup_link(link):
+                await link.stop()
+
+            self._api_pool = LoopBoundResource(
+                factory=lambda: EvoCloudHTTPClient(self._config),
+                cleanup=cleanup_api
             )
 
-        self._config = config
+            # Link is now also loop-bound to prevent cross-loop contamination
+            def link_factory():
+                link = EvoCloudWebSocketLink(self._config, self.api)
+                if hasattr(self, '_query_handler') and self._query_handler:
+                    link.set_query_handler(self._query_handler)
+                return link
 
-        async def cleanup_api(api):
-            await api.close()
+            self._link_pool = LoopBoundResource(
+                factory=link_factory,
+                cleanup=cleanup_link
+            )
 
-        self._api_pool = LoopBoundResource(
-            factory=lambda: EvoCloudHTTPClient(self._config),
-            cleanup=cleanup_api
-        )
-
-        self._link = EvoCloudWebSocketLink(self._config, self._api_pool.get())
-        if hasattr(self, '_query_handler') and self._query_handler:
-            self._link.set_query_handler(self._query_handler)
-
-        self._initialized = True
-        logger.info("EvoCloudManager: Initialized")
+            self._initialized = True
+            logger.info("EvoCloudManager: Initialized with loop-bound resources")
+        finally:
+            self._init_lock = False
 
     # --- Lifecycle ---
 
     async def start(self) -> None:
         """Start background services (Link) for the current loop."""
-        if self.link:
-            await self.link.start()
+        link = self.link
+        if link:
+            await link.start()
 
         # Start conversation sync to MC
         await self._start_conversation_sync()
@@ -91,43 +106,35 @@ class EvoCloudManager:
         # Stop conversation sync
         await self._stop_conversation_sync()
 
-        if self._link:
-            await self._link.stop()
+        # Flush all loop-bound resources (triggers cleanup for both API and Link)
+        if self._link_pool:
+            await self._link_pool.flush_all()
         if self._api_pool:
             await self._api_pool.flush_all()
 
     async def _start_conversation_sync(self):
         """Start conversation history sync to Member Center"""
-        global _conversation_sync_manager
-
         try:
-            from app.core.evocloud.bridge.conversation_sync import ConversationSyncManager
-
-            if _conversation_sync_manager is None:
-                # Get device_key from link (it's generated in WebSocketLink)
-                device_key = self.link.device_key if self.link else ""
-                _conversation_sync_manager = ConversationSyncManager(
-                    api_client=self.api,
-                    device_key=device_key,
-                )
-                logger.info(f"[EvoCloud] ConversationSyncManager created with device_key={device_key}")
-
-            await _conversation_sync_manager.start()
-            logger.info("[EvoCloud] Conversation sync started")
+            from app.core.evocloud.bridge.conversation_sync import start_conversation_sync
+            
+            # Get device_key from link (it's generated in WebSocketLink)
+            device_key = self.link.device_key if self.link else ""
+            await start_conversation_sync(
+                api_client=self.api,
+                device_key=device_key,
+            )
+            logger.info("[EvoCloud] Conversation sync started via bridge")
         except Exception as e:
             logger.error(f"[EvoCloud] Failed to start conversation sync: {e}")
 
     async def _stop_conversation_sync(self):
         """Stop conversation history sync"""
-        global _conversation_sync_manager
-
-        if _conversation_sync_manager:
-            try:
-                await _conversation_sync_manager.stop()
-                _conversation_sync_manager = None
-                logger.info("[EvoCloud] Conversation sync stopped")
-            except Exception as e:
-                logger.error(f"[EvoCloud] Error stopping conversation sync: {e}")
+        try:
+            from app.core.evocloud.bridge.conversation_sync import stop_conversation_sync
+            await stop_conversation_sync()
+            logger.info("[EvoCloud] Conversation sync stopped via bridge")
+        except Exception as e:
+            logger.error(f"[EvoCloud] Error stopping conversation sync: {e}")
 
     # --- Callbacks / Bridge ---
 
@@ -204,7 +211,13 @@ class EvoCloudManager:
     def link(self) -> EvoCloudWebSocketLink:
         if not self._initialized:
             self.initialize()
-        return self._link
+        return self._link_pool.get()
+
+    @property
+    def sync_manager(self):
+        """Access the global conversation sync manager."""
+        from app.core.evocloud.bridge.conversation_sync import _conversation_sync_manager
+        return _conversation_sync_manager
 
     async def scan_projects(self) -> list[EvoCloudProjectSummary]:
         """

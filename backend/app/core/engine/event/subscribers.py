@@ -9,6 +9,9 @@ and agent dispatch.
 import asyncio
 import logging
 
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
+
 from app.core.context import thread_context_store
 from app.core.engine.background_agent import run_agent_background
 from app.core.engine.dispatch import dispatch_agent_run
@@ -16,8 +19,13 @@ from app.core.engine.event.schemas import WebSocketMessageReceivedEvent
 from app.core.events.decorators import event_register, event_subscribe
 from app.core.evocloud.manager import evocloud_manager
 from app.core.evocloud.schemas import RemoteCommand
+from app.infrastructure.database.sql.database import session_scope
+from app.models import Message
 
 logger = logging.getLogger(__name__)
+
+# 引擎域仅处理以下核心指令，其余指令（如 project_switch）由各自域的订阅者认领
+ENGINE_ACTIONS = {"chat", "chat_message", "stop", "retry", "rewind", "hitl_response", "hitl_cancel"}
 
 
 @event_register()
@@ -36,14 +44,8 @@ class EngineCommandSubscriber:
         if event.msg_type != "new_command":
             return
 
-        # EPv2: 尽早识别 action，以便在进入信号量保护区之前过滤掉无关指令
-        # 消息格式: type='new_command', data={command_id: 1001, action: '...', payload: {...}}
-        # event.payload 对应的是网关发来的 'data' 字典
         raw_cmd = event.payload
         action = raw_cmd.get("action") or raw_cmd.get("type") or "chat_message"
-
-        # 引擎域仅处理以下核心指令，其余指令（如 project_switch）由各自域的订阅者认领
-        ENGINE_ACTIONS = {"chat", "chat_message", "stop", "retry", "rewind", "hitl_response", "hitl_cancel"}
         if action not in ENGINE_ACTIONS:
             return
 
@@ -200,7 +202,7 @@ class EngineCommandSubscriber:
         # Resolve Project ID
         pid_from_payload = command.get("project_id")
         pid_from_context = thread_context_store.get_active_project("remote-default")
-        project_id = pid_from_payload or pid_from_context or 1
+        project_id = pid_from_payload or pid_from_context or 0
 
         # Unified dispatch preparation (DB persistence, EvoCloud sync, model fallback)
         result = await dispatch_agent_run(
@@ -251,10 +253,6 @@ class EngineCommandSubscriber:
 
         logger.info(f"[EngineCommand] Processing {action} for thread {thread_id}, target={message_id}")
 
-        from sqlalchemy import select
-        from sqlalchemy.orm import selectinload
-        from app.infrastructure.database.sql.database import session_scope
-        from app.models import Message
         from app.core.engine.rewind import RewindOrchestrator
         from app.core.engine.rewind.exceptions import RewindError
         from app.core.events import system_bus

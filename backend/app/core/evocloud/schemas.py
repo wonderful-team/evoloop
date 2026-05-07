@@ -49,6 +49,10 @@ class SyncMessage(DynamicBaseModel):
     status: str = "completed"
     parent_id: int | str = 0
     category: str = ""
+    tool_call_id: str = ""
+    tool_name: str = ""
+    meta_data: Any | None = None
+    content_type: str = "text"
 
 
 class RemoteCommand(DynamicBaseModel):

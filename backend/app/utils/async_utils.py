@@ -81,6 +81,7 @@ class LoopBoundResource(Generic[R]):
                     logger.warning(f"Error cleaning up loop-bound resource during flush_all: {e}")
         self._resources.clear()
 
+
 async def flush_loop_bound_resources() -> None:
     """
     Call this at the end of an isolated async task (like a Celery worker task)

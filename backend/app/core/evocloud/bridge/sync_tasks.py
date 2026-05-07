@@ -234,7 +234,19 @@ async def incremental_sync_task(device_key: str, conversation_ids: list[str]) ->
                                         id=m.id, thread_id=m.thread_id, project_id=m.project_id or 0,
                                         role=m.role, content=m.content, thinking=m.thinking,
                                         created_at=int(m.created_at.timestamp()) if m.created_at else 0,
-                                        sequence_number=m.sequence_number or 0, category=m.category or ""
+                                        sequence_number=m.sequence_number or 0,
+                                        checkpoint_id=m.checkpoint_id or "",
+                                        tool_calls=m.tool_calls,
+                                        action_type=m.action_type or "text",
+                                        is_visible=1 if m.is_visible else 0,
+                                        run_id=m.run_id or "",
+                                        status=m.status or "completed",
+                                        parent_id=m.parent_id or 0,
+                                        category=m.category or "",
+                                        tool_call_id=m.tool_call_id or "",
+                                        tool_name=m.tool_name or "",
+                                        meta_data=m.meta_data,
+                                        content_type=m.content_type or "text"
                                     )
                                     formatted_msgs.append(sm.model_dump())
 

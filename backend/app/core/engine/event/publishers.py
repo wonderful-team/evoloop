@@ -22,6 +22,7 @@ async def publish_agent_session_started(
         )
     )
 
+
 async def publish_agent_run_completed(
     thread_id: str,
     project_id: int = 1,

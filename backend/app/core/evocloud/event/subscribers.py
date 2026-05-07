@@ -103,32 +103,27 @@ class EvoCloudSyncHandler:
         Immediately schedules an incremental sync so messages
         don't wait for the next 5-minute polling cycle.
         """
-        from app.core.evocloud.bridge.conversation_sync import _conversation_sync_manager
-
-        if _conversation_sync_manager is None:
+        sync_manager = evocloud_manager.sync_manager
+        if sync_manager is None:
             logger.debug("[EvoCloudSync] No sync manager active, skipping")
             return
 
-        try:
-            # 1. 触发增量数据库同步（同步到 MC）
-            await _conversation_sync_manager._schedule_incremental_sync()
-            logger.info(
-                f"[EvoCloudSync] Incremental sync triggered by run completion "
-                f"for thread {getattr(event, 'thread_id', 'unknown')}"
-            )
+        # 1. 触发增量数据库同步（同步到 MC）
+        await sync_manager._schedule_incremental_sync()
+        logger.info(
+            f"[EvoCloudSync] Incremental sync triggered by run completion "
+            f"for thread {getattr(event, 'thread_id', 'unknown')}"
+        )
 
-            # 2. 通过 WebSocket 实时通知 Gateway/Mobile 任务已完成
-            link = evocloud_manager.link
-            if link and link.is_connected():
-                await link.send_message({
-                    "type": "agent_run_completed",
-                    "thread_id": getattr(event, 'thread_id', ''),
-                    "status": getattr(event, 'status', 'done'),
-                })
-                logger.debug(f"[EvoCloudSync] Completion signal sent via WebSocket for thread {getattr(event, 'thread_id', '')}")
-
-        except Exception as e:
-            logger.warning(f"[EvoCloudSync] Failed to handle run completion: {e}")
+        # 2. 通过 WebSocket 实时通知 Gateway/Mobile 任务已完成
+        link = evocloud_manager.link
+        if link and link.is_connected():
+            await link.send_message({
+                "type": "agent_run_completed",
+                "thread_id": getattr(event, 'thread_id', ''),
+                "status": getattr(event, 'status', 'done'),
+            })
+            logger.debug(f"[EvoCloudSync] Completion signal sent via WebSocket for thread {getattr(event, 'thread_id', '')}")
 
 
 # =============================================================================

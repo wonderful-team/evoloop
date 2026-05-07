@@ -133,12 +133,21 @@ class ConversationSyncManager:
             from app.core.evocloud.bridge.sync_tasks import incremental_sync_task
 
             async with get_db_session() as db:
-                # 获取未同步的会话ID
+                # 1. 获取未同步的会话ID
                 result = await db.execute(
                     select(ConversationModel.id).where(ConversationModel.sync_status != 'synced')
                 )
-                conversation_ids = [str(r[0]) for r in result.all()]
+                conv_ids = {str(r[0]) for r in result.all()}
 
+                # 2. 获取包含未同步消息的会话ID
+                msg_result = await db.execute(
+                    select(MessageModel.thread_id).where(MessageModel.sync_status != 'synced').distinct()
+                )
+                msg_thread_ids = {str(r[0]) for r in msg_result.all() if r[0]}
+                
+                # 合并（并集）
+                conversation_ids = list(conv_ids | msg_thread_ids)
+                
                 if not conversation_ids:
                     return
 
@@ -208,6 +217,10 @@ class ConversationSyncManager:
             status=msg.status or "completed",
             parent_id=msg.parent_id or 0,
             category=msg.category or "",
+            tool_call_id=msg.tool_call_id or "",
+            tool_name=msg.tool_name or "",
+            meta_data=msg.meta_data,
+            content_type=msg.content_type or "text",
         )
 
 

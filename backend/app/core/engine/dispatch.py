@@ -89,7 +89,6 @@ async def dispatch_agent_run(
     # ------------------------------------------------------------------
     # 1. Prepare minimal Context (working_dir will be hydrated later via events)
     # ------------------------------------------------------------------
-    working_directory = None
     from app.core.context.thread_store import thread_context_store
     working_directory = thread_context_store.get_working_directory(thread_id)
 
@@ -208,7 +207,7 @@ async def dispatch_agent_run(
     inputs = {
         "messages": messages,
         "project_id": project_id,
-        "command_id": str(command_id) if command_id else None,
+        "command_id": command_id,
         "checkpoint_id": checkpoint_id,
         "is_retry": is_retry,
         "goal": display_goal,

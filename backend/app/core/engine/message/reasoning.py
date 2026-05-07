@@ -58,7 +58,6 @@ def _apply_reasoning_patch() -> None:
             def _get_payload_with_reasoning(self: Any, input_: Any, **kwargs: Any) -> dict:
                 # 1. Convert via original logic
                 payload = original_func(self, input_, **kwargs)
-                logger.info(f"[Reasoning] _get_request_payload CALLED for model {self.model_name}")
 
                 # 2. Inject Reasoning from messages back to the final payload
                 try:
@@ -74,13 +73,9 @@ def _apply_reasoning_patch() -> None:
                                 if isinstance(msg, AIMessage) and "reasoning_content" in msg.additional_kwargs:
                                     reasoning = msg.additional_kwargs["reasoning_content"]
                                     msg_dict["reasoning_content"] = reasoning
-                                    logger.info(f"[Reasoning] Injected reasoning_content ({len(str(reasoning))} chars) for message index {i}")
                                 elif msg_dict.get("role") == "assistant" and ("tool_calls" in msg_dict or "function_call" in msg_dict):
                                     if "reasoning_content" not in msg_dict:
                                         msg_dict["reasoning_content"] = ""
-                                        logger.info(f"[Reasoning] Injected EMPTY reasoning_content for message index {i} (tool call safety)")
-                        else:
-                            logger.debug(f"[Reasoning] Message count mismatch: payload={len(payload_msgs)}, source={len(messages)}")
                 except Exception as e:
                     logger.debug(f"[Reasoning] Payload injection failed: {e}")
 
