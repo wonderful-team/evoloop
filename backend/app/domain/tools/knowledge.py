@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 @evoloop_tool(
     is_state_mutating=True,
     is_hidden=True,  # Internal knowledge management, not user-facing
-    summary_template="database_logger.tool_summary.save_concepts"
+    summary_template="evoloop.tool_summary.save_concepts"
 )
 async def save_concepts(
     concepts: list[ExtractedConcept],

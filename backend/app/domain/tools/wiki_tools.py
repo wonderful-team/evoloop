@@ -35,7 +35,7 @@ async def _resolve_wiki_project_id() -> int | None:
 
 @evoloop_tool(
     is_pollable=True,
-    summary_template="database_logger.tool_summary.list_wiki_pages"
+    summary_template="evoloop.tool_summary.list_wiki_pages"
 )
 async def list_wiki_pages(
     config: Annotated[RunnableConfig, InjectedToolArg] = None
@@ -57,7 +57,7 @@ async def list_wiki_pages(
 
 @evoloop_tool(
     is_pollable=True,
-    summary_template="database_logger.tool_summary.read_wiki_page"
+    summary_template="evoloop.tool_summary.read_wiki_page"
 )
 async def read_wiki_page(
     slug: str,
@@ -90,7 +90,7 @@ async def read_wiki_page(
 @evoloop_tool(
     is_state_mutating=True,
     required_benefit="wiki_generation",
-    summary_template="database_logger.tool_summary.write_wiki_page"
+    summary_template="evoloop.tool_summary.write_wiki_page"
 )
 async def write_wiki_page(
     title: str,

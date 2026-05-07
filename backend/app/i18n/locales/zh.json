@@ -121,25 +121,22 @@
         "header_template": "# 任务追踪：{name}\n\n**线程 ID**: {thread_id}\n**总步骤数**: {total_steps}\n**人工干预**: {has_human}\n\n## 执行步骤\n",
         "step_template": "### 步骤 {number} {icon} [{category}]\n- **动作**: `{action_name}`\n{args_section}{ui_section}{feedback_section}\n"
     },
-    "evoloop_logger": {
-        "thinking": "思考中...",
-        "unknown_tool": "未知工具",
-        "running_tool": "正在运行 {tool}...\n输入：{input}",
-        "file_output": "文件：{path} (行数：{count})",
-        "truncated_output": "{preview}\n...\n[已截断 {lines} 行 / {chars} 字符]",
-        "read_summary": "已读取 {path} ({count} 行)",
-        "list_summary": "已列出 {path} ({count} 项)"
-    },
-    "database_logger": {
-        "decision": "**决策：** 路由至 `{node}`",
-        "analysis": "\n**分析：** {analysis}",
+    "evoloop": {
         "tool_summary": {
+            "thinking": "思考中...",
+            "unknown_tool": "未知工具",
+            "running_tool": "正在运行 {tool}...\n输入：{input}",
+            "file_output": "文件：{path} (行数：{count})",
+            "truncated_output": "{preview}\n...\n[已截断 {lines} 行 / {chars} 字符]",
             "read_file": "读取文件 '{path}'[[ ({start_line}-{end_line} 行) ]]",
             "read_file_result": "已读取 '{path}'[[ ({start_line}-{end_line} 行) ]]",
             "write_file": "写入文件 '{path}'",
             "file_op_result": "文件操作成功。",
             "plan_created": "计划已创建 ({count} 步)",
-            "search_result": "搜索完成，找到 {count} 个结果[[ ({pattern}) ]]",
+            "analyze_feasibility": "分析计划可行性",
+            "analyze_requirement": "分析需求文档 '{document_id}'",
+            "confirm_requirement": "确认需求分析 '{analysis_id}'",
+            "search_result": "搜索完成[[，找到 {count} 个结果]][[ ({pattern}) ]]",
             "edit_file": "编辑文件 '{path}'[[ ({start_line}-{end_line} 行) ]]",
             "list_files": "列出目录 '{path}'[[ (递归: {recursive}) ]]",
             "operate_file": "{action} '{path}'[[ (参数: {args}) ]]",
@@ -213,10 +210,12 @@
             "multiedit_file": "批量编辑 '{path}'[[ ({count} 处变更) ]]",
             "query_command_status": "查询命令状态 '{task_id}'",
             "read_mcp_resource": "读取 MCP 资源 '{uri}'[[ (元数据: {metadata}) ]]",
-"default": "正在运行 {tool}"
-        },
-        "ref_search": "搜索：{query}",
-        "ref_memory": "记忆项"
+            "default": "正在运行 {tool}"
+        }
+    },
+    "database_logger": {
+        "decision": "**决策：** 路由至 `{node}`",
+        "analysis": "\n**分析：** {analysis}"
     },
     "actions": {
         "navigate": {"label": "导航", "desc": "导航到指定 URL"},

@@ -448,7 +448,7 @@ def format_preview_result(result: EditPreviewResult, path: str, target: str, rep
 @evoloop_tool(
     is_state_mutating=True,
     affected_path_keys=["path"],
-    summary_template="database_logger.tool_summary.edit_file",
+    summary_template="evoloop.tool_summary.edit_file",
 )
 async def edit_file(
     path: str | None = None,

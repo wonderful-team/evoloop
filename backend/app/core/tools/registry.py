@@ -29,25 +29,25 @@ DEFAULT_CONFIG_PATH = Path(__file__).parent.parent / "engine" / "config" / "agen
 # Used for tools that are not decorated with @evoloop_tool or are external (MCP/Built-in)
 SYSTEM_TOOL_METADATA = {
     "execute_command": {
-        "summary_template": "database_logger.tool_summary.execute_command",
+        "summary_template": "evoloop.tool_summary.execute_command",
         "is_state_mutating": True,
     },
     "task_boundary": {
-        "summary_template": "database_logger.tool_summary.task_boundary",
+        "summary_template": "evoloop.tool_summary.task_boundary",
         "is_pollable": True,
     },
     "write_to_file": {
-        "summary_template": "database_logger.tool_summary.write_file",
+        "summary_template": "evoloop.tool_summary.write_file",
         "affected_path_keys": ["TargetFile"],
         "is_state_mutating": True,
     },
     "replace_file_content": {
-        "summary_template": "database_logger.tool_summary.edit_file",
+        "summary_template": "evoloop.tool_summary.edit_file",
         "affected_path_keys": ["TargetFile"],
         "is_state_mutating": True,
     },
     "multi_replace_file_content": {
-        "summary_template": "database_logger.tool_summary.edit_file",
+        "summary_template": "evoloop.tool_summary.edit_file",
         "affected_path_keys": ["TargetFile"],
         "is_state_mutating": True,
     },

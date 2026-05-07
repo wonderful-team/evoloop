@@ -54,22 +54,6 @@ def get_working_directory(config: RunnableConfig | None = None) -> str:
     return os.getcwd()
 
 
-def _render_display_name(template: str | None, input_data: dict, result_meta: dict) -> str:
-    """在装饰器内渲染 display_name，替代 MessageHandler 中的逻辑。"""
-    if not template:
-        return ""
-
-    from app.i18n.service import i18n
-
-    args = {**input_data, **result_meta}
-    args = {k.lower(): v for k, v in args.items()}
-
-    if "path" not in args:
-        args["path"] = args.get("file_path") or args.get("target_file") or args.get("targetfile") or "unknown"
-
-    return i18n.get(template, context=args)
-
-
 def evoloop_tool(
     *args,
     config: EvoLoopToolConfig | None = None,
@@ -172,8 +156,10 @@ def evoloop_tool(
                             result_meta = meta
                         result = text
 
-                    # 渲染 display_name（在装饰器内完成，内聚）
-                    display_name = _render_display_name(config.summary_template, input_data, result_meta)
+                    # 渲染 display_name（使用统一的 metadata 渲染器）
+                    from app.core.tools.schemas import ToolRegistryMetadata
+                    metadata = ToolRegistryMetadata(summary_template=config.summary_template)
+                    display_name = metadata.get_display_name(func.__name__, args={**input_data, **result_meta})
 
                     # 封装成 ToolResult，附带元数据和 display_name
                     if isinstance(result, str):
@@ -205,7 +191,9 @@ def evoloop_tool(
                         result = text
 
                     # 渲染 display_name
-                    display_name = _render_display_name(config.summary_template, input_data, result_meta)
+                    from app.core.tools.schemas import ToolRegistryMetadata
+                    metadata = ToolRegistryMetadata(summary_template=config.summary_template)
+                    display_name = metadata.get_display_name(func.__name__, args={**input_data, **result_meta})
 
                     if isinstance(result, str):
                         result = ToolResult(result, meta=result_meta, display_name=display_name)

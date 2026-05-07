@@ -12,7 +12,7 @@ from app.utils import SystemToolsFormatter
 logger = logging.getLogger(__name__)
 
 
-@evoloop_tool(summary_template="database_logger.tool_summary.get_app_usage_ranker")
+@evoloop_tool(summary_template="evoloop.tool_summary.get_app_usage_ranker")
 async def get_app_usage_ranker(
     platform: Literal["macos", "android"] = "macos",
     top_n: int = 10

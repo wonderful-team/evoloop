@@ -120,24 +120,21 @@
         "header_template": "# Task Trace: {name}\n\n**Thread ID**: {thread_id}\n**Total Steps**: {total_steps}\n**Human Intervention**: {has_human}\n\n## Steps\n",
         "step_template": "### Step {number} {icon} [{category}]\n- **Action**: `{action_name}`\n{args_section}{ui_section}{feedback_section}\n"
     },
-    "evoloop_logger": {
-        "thinking": "Thinking...",
-        "unknown_tool": "Unknown Tool",
-        "running_tool": "Running {tool}...\nInput: {input}",
-        "file_output": "File: {path} (Lines: {count})",
-        "truncated_output": "{preview}\n...\n[Truncated {lines} lines / {chars} chars]",
-        "read_summary": "Read {path} ({count} lines)",
-        "list_summary": "Listed {path} ({count} items)"
-    },
-    "database_logger": {
-        "decision": "**Decision:** Route to `{node}`",
-        "analysis": "\n**Analysis:** {analysis}",
+    "evoloop": {
         "tool_summary": {
+            "thinking": "Thinking...",
+            "unknown_tool": "Unknown Tool",
+            "running_tool": "Running {tool}...\nInput: {input}",
+            "file_output": "File: {path} (Lines: {count})",
+            "truncated_output": "{preview}\n...\n[Truncated {lines} lines / {chars} chars]",
             "read_file": "Read file '{path}'",
             "read_file_result": "Read {lines} lines.",
             "write_file": "Write file '{path}'",
             "file_op_result": "File operation successful.",
             "plan_created": "Plan created ({count} steps)",
+            "analyze_feasibility": "Analyzing plan feasibility",
+            "analyze_requirement": "Analyzing requirement document '{document_id}'",
+            "confirm_requirement": "Confirming requirement analysis '{analysis_id}'",
             "edit_file": "Edit file '{path}'",
             "list_files": "List directory '{path}'",
             "operate_file": "{action} '{path}'",
@@ -212,9 +209,11 @@
             "query_command_status": "Querying command status '{task_id}'",
             "read_mcp_resource": "Reading MCP resource '{uri}'",
             "default": "Running {tool}"
-        },
-        "ref_search": "Search: {query}",
-        "ref_memory": "Memory Item"
+        }
+    },
+    "database_logger": {
+        "decision": "**Decision:** Route to `{node}`",
+        "analysis": "\n**Analysis:** {analysis}"
     },
     "actions": {
         "navigate": {

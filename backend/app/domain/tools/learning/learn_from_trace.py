@@ -13,7 +13,7 @@ from app.models.learning import LearnedSkill
 @evoloop_tool(
     is_state_mutating=True,
     required_benefit="skill_learning",
-    summary_template="database_logger.tool_summary.learn_from_trace"
+    summary_template="evoloop.tool_summary.learn_from_trace"
 )
 async def learn_from_trace(thread_id: str, session_id: str | None = None) -> str:
     """

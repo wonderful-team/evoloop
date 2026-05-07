@@ -6,7 +6,7 @@ from app.core.tools import evoloop_tool
 @evoloop_tool(
     is_pollable=True,
     is_hidden=True,
-    summary_template="database_logger.tool_summary.search_native_tools"
+    summary_template="evoloop.tool_summary.search_native_tools"
 )
 async def search_native_tools(query: str = "") -> dict[str, Any]:
     """

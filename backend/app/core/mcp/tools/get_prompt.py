@@ -29,7 +29,7 @@ class GetMcpPromptInput(BaseModel):
     "get_mcp_prompt",
     args_schema=GetMcpPromptInput,
     is_state_mutating=False,
-    summary_template="database_logger.tool_summary.get_mcp_prompt"
+    summary_template="evoloop.tool_summary.get_mcp_prompt"
 )
 async def get_mcp_prompt(server_name: str, prompt_name: str, arguments: str = "{}") -> str:
     """

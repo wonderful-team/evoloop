@@ -85,7 +85,7 @@ def inspect_document(file_path: str) -> str:
 
 @evoloop_tool(
     is_pollable=True,
-    summary_template="database_logger.tool_summary.query_excel_sql",
+    summary_template="evoloop.tool_summary.query_excel_sql",
     affected_path_keys=["file_path"]
 )
 async def query_excel_sql(file_path: str, sql_query: str) -> str:

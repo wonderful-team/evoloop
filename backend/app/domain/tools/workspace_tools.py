@@ -3,10 +3,10 @@ from typing import Any
 from app.core.tools import evoloop_tool
 
 
-@evoloop_tool(
-    is_state_mutating=True,
-    summary_template="database_logger.tool_summary.stash_to_clipboard"
-)
+# @evoloop_tool(
+#     is_state_mutating=True,
+#     summary_template="evoloop.tool_summary.stash_to_clipboard"
+# )
 async def stash_to_clipboard(content: Any, mime_type: str = "text/plain", metadata: dict = None) -> str:
     """
     Stash information (text, image path, UI element bounds) into the agent's short-term workspace clipboard.
@@ -23,10 +23,10 @@ async def stash_to_clipboard(content: Any, mime_type: str = "text/plain", metada
     return f"Successfully stashed {mime_type} to workspace clipboard."
 
 
-@evoloop_tool(
-    is_pollable=True,
-    summary_template="database_logger.tool_summary.retrieve_from_clipboard"
-)
+# @evoloop_tool(
+#     is_pollable=True,
+#     summary_template="evoloop.tool_summary.retrieve_from_clipboard"
+# )
 async def retrieve_from_clipboard() -> str:
     """
     Retrieve all items currently in the workspace clipboard.

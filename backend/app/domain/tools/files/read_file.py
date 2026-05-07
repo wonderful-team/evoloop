@@ -153,7 +153,7 @@ MAX_LINES_PER_CALL = 1000
 
 @evoloop_tool(
     is_pollable=True,
-    summary_template="database_logger.tool_summary.read_file",
+    summary_template="evoloop.tool_summary.read_file",
     affected_path_keys=["path"],
 )
 async def read_file(

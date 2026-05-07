@@ -21,7 +21,7 @@ class ListMcpResourcesInput(BaseModel):
     "list_mcp_resources",
     args_schema=ListMcpResourcesInput,
     is_state_mutating=False,
-    summary_template="database_logger.tool_summary.list_mcp_resources"
+    summary_template="evoloop.tool_summary.list_mcp_resources"
 )
 async def list_mcp_resources(server_name: str) -> str:
     """

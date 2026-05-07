@@ -21,7 +21,7 @@ class ListMcpPromptsInput(BaseModel):
     "list_mcp_prompts",
     args_schema=ListMcpPromptsInput,
     is_state_mutating=False,
-    summary_template="database_logger.tool_summary.list_mcp_prompts"
+    summary_template="evoloop.tool_summary.list_mcp_prompts"
 )
 async def list_mcp_prompts(server_name: str) -> str:
     """

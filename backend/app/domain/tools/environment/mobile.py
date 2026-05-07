@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 @evoloop_tool(
     is_pollable=True,
     required_benefit="mobile_control",
-    summary_template="database_logger.tool_summary.mobile_control",
+    summary_template="evoloop.tool_summary.mobile_control",
     affected_path_keys=["local_path", "remote_path"]
 )
 async def mobile_control(

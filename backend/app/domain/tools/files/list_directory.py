@@ -99,7 +99,7 @@ async def handle_list(
 
 @evoloop_tool(
     is_pollable=True,
-    summary_template="evoloop_logger.list_summary",
+    summary_template="evoloop.tool_summary.list_files",
     affected_path_keys=["path"],
 )
 async def list_directory(

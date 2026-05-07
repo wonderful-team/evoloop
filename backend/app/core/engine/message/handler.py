@@ -198,16 +198,16 @@ class MessageHandler:
         metadata_registry = get_tool_metadata(tool_name)
         input_data = await self._repository.resolve_tool_input(tool_call_id, tool_name=tool_name)
         
-        # 从 ToolResult 中读取 display_name 和 result_meta（evoloop_tool 装饰器已渲染）
+        # 从 ToolResult 中读取 result_meta（evoloop_tool 装饰器已渲染）
         result_meta = {}
         display_name = ""
         if hasattr(output, "meta") and isinstance(output.meta, dict):
-            result_meta = {k.lower(): v for k, v in output.meta.items()}
+            result_meta = output.meta
         if hasattr(output, "display_name"):
             display_name = output.display_name
         
-        # 兜底：如果装饰器没有渲染 display_name，自行渲染
-        if not display_name and metadata_registry.summary_template:
+        # 兜底与归一化渲染：如果装饰器没有渲染，或我们需要最新的摘要
+        if not display_name or result_meta:
             summary_args = {**input_data, **result_meta}
             display_name = metadata_registry.get_display_name(tool_name, summary_args)
         
@@ -308,7 +308,7 @@ class MessageHandler:
         input_data = await self._repository.resolve_tool_input(tool_call_id, tool_name=tool_name)
         display_name = None
         if metadata_registry.summary_template and input_data:
-            display_name = i18n.get(metadata_registry.summary_template, **input_data)
+            display_name = metadata_registry.get_display_name(tool_name, input_data)
         
         metadata = {
             "tool_name": tool_name, 
@@ -372,12 +372,11 @@ class MessageHandler:
         metadata = {}
         if tool_name:
             from app.core.tools.registry import get_tool_metadata
-            from app.i18n.service import i18n
             tool_meta = get_tool_metadata(tool_name)
             if tool_meta and tool_meta.summary_template:
                 metadata["tool_meta"] = {
                     "name": tool_name,
-                    "display_name": i18n.get(tool_meta.summary_template, request_type=request_type, prompt=prompt),
+                    "display_name": tool_meta.get_display_name(tool_name, {"request_type": request_type, "prompt": prompt}),
                 }
 
         effective_parent_id = parent_id or await self._repository.get_last_message_id()

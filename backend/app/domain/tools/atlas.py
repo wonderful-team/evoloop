@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 @evoloop_tool(
     is_pollable=True,
     is_hidden=True,
-    summary_template="database_logger.tool_summary.query_app_atlas"
+    summary_template="evoloop.tool_summary.query_app_atlas"
 )
 async def query_app_atlas(bundle_ids: str | list[str]) -> str:
     """
@@ -34,7 +34,7 @@ async def query_app_atlas(bundle_ids: str | list[str]) -> str:
 @evoloop_tool(
     is_pollable=True,
     is_hidden=True,
-    summary_template="database_logger.tool_summary.list_app_atlas"
+    summary_template="evoloop.tool_summary.list_app_atlas"
 )
 async def list_app_atlas() -> str:
     """

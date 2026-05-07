@@ -8,7 +8,7 @@ from app.core.tools import evoloop_tool
 from app.i18n.service import i18n
 
 
-@evoloop_tool(summary_template="database_logger.tool_summary.auto_harvest_from_git")
+@evoloop_tool(summary_template="evoloop.tool_summary.auto_harvest_from_git")
 async def auto_harvest_from_git():
     """
     Analyze uncommitted changes (working directory) to extract and save new Knowledge Concepts.

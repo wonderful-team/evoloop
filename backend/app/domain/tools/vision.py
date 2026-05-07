@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 
 @evoloop_tool(
-    summary_template="database_logger.tool_summary.analyze_image",
+    summary_template="evoloop.tool_summary.analyze_image",
     affected_path_keys=["image_source"]
 )
 async def analyze_image(

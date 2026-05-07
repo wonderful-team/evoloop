@@ -58,7 +58,7 @@ async def handle_write(
 @evoloop_tool(
     is_state_mutating=True,
     affected_path_keys=["path"],
-    summary_template="database_logger.tool_summary.write_file",
+    summary_template="evoloop.tool_summary.write_file",
 )
 async def write_file(
     path: str | None = None,

@@ -6,7 +6,7 @@ from app.core.tools.base import evoloop_tool
 logger = logging.getLogger(__name__)
 
 
-@evoloop_tool(summary_template="database_logger.tool_summary.reconcile_skill")
+@evoloop_tool(summary_template="evoloop.tool_summary.reconcile_skill")
 async def reconcile_skill(skill_id: int, thread_id: str) -> str:
     """
     Self-heal a skill by reconciling its broken macro with a successful execution trace.

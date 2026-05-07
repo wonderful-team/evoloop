@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 @evoloop_tool(
     is_pollable=True,
-    summary_template="database_logger.tool_summary.kb_read",
+    summary_template="evoloop.tool_summary.kb_read",
     affected_path_keys=["path"]
 )
 async def kb_read(

@@ -17,7 +17,7 @@ class UseMcpServerSchema(BaseModel):
     args_schema=UseMcpServerSchema,
     is_state_mutating=True,
     is_hidden=True,
-    summary_template="database_logger.tool_summary.use_mcp"
+    summary_template="evoloop.tool_summary.use_mcp"
 )
 async def use_mcp_server(server_name: str) -> str:
     """

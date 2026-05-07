@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 @evoloop_tool(
     is_pollable=True,
-    summary_template="database_logger.tool_summary.find_element"
+    summary_template="evoloop.tool_summary.find_element"
 )
 async def find_element(
     target: str,

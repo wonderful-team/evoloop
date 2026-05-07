@@ -231,7 +231,7 @@ async def search_files_internal(
 @evoloop_tool(
     is_pollable=True,
     affected_path_keys=["path"],
-    summary_template="database_logger.tool_summary.search_result",
+    summary_template="evoloop.tool_summary.search_result",
 )
 async def search_files(
     pattern: str,

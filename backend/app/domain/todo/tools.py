@@ -20,7 +20,7 @@ from app.utils import ContentFormatter
 
 @evoloop_tool(
     is_state_mutating=True,
-    summary_template="database_logger.tool_summary.create_todo"
+    summary_template="evoloop.tool_summary.create_todo"
 )
 async def create_todo(
     title: str,
@@ -107,7 +107,7 @@ async def create_todo(
 
 @evoloop_tool(
     is_pollable=True,
-    summary_template="database_logger.tool_summary.list_todos"
+    summary_template="evoloop.tool_summary.list_todos"
 )
 async def list_todos(
     status: Literal["pending", "completed", "cancelled"] | None = None,
@@ -154,7 +154,7 @@ async def list_todos(
 
 @evoloop_tool(
     is_state_mutating=True,
-    summary_template="database_logger.tool_summary.complete_todo"
+    summary_template="evoloop.tool_summary.complete_todo"
 )
 async def complete_todo(todo_id: str) -> str:
     """
@@ -194,7 +194,7 @@ async def complete_todo(todo_id: str) -> str:
 
 @evoloop_tool(
     is_state_mutating=True,
-    summary_template="database_logger.tool_summary.cancel_todo"
+    summary_template="evoloop.tool_summary.cancel_todo"
 )
 async def cancel_todo(todo_id: str) -> str:
     """

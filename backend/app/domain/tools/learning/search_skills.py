@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 @evoloop_tool(
     is_pollable=False,
-    summary_template="database_logger.tool_summary.search_skills"
+    summary_template="evoloop.tool_summary.search_skills"
 )
 async def search_skills(query: str = "", namespace: str = None, index_mode: bool = False) -> dict[str, Any]:
     """
@@ -46,7 +46,7 @@ async def search_skills(query: str = "", namespace: str = None, index_mode: bool
                 logger.error(f"[search_skills] Malformed tools_used JSON: {e}")
                 tools_req = []
 
-        return {
+        data = {
             "result_type": "match",
             "skill_name": match.skill_name,
             "skill_id": match.skill_id,

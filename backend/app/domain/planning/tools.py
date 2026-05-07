@@ -61,7 +61,7 @@ class PlanningTool(BaseTool):
 
 
 @evoloop_tool(
-    summary_template="database_logger.tool_summary.plan_created",
+    summary_template="evoloop.tool_summary.plan_created",
 )
 async def create_plan(title: str, steps: list[str], config: RunnableConfig) -> str:
     """
@@ -150,7 +150,7 @@ async def create_plan(title: str, steps: list[str], config: RunnableConfig) -> s
 
 @evoloop_tool(
     is_hidden=True,  # Internal plan step tracking, not user-facing,
-    summary_template="database_logger.tool_summary.update_step_status",
+    summary_template="evoloop.tool_summary.update_step_status",
 )
 async def update_step_status(
     plan_id: str,
@@ -201,7 +201,7 @@ async def update_step_status(
 
 
 @evoloop_tool(
-    summary_template="database_logger.tool_summary.analyze_feasibility",
+    summary_template="evoloop.tool_summary.analyze_feasibility",
 )
 async def analyze_feasibility(proposed_plan: str, config: RunnableConfig) -> str:
     """

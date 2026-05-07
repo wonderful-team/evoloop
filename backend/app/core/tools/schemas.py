@@ -142,15 +142,33 @@ class ToolRegistryMetadata(DynamicBaseModel):
         
         # Normalize common path keys to 'path' for template simplicity
         if "path" not in args:
-            args["path"] = args.get("file_path") or args.get("target_file") or args.get("targetfile") or "unknown"
+            args["path"] = (
+                args.get("file_path") or 
+                args.get("target_file") or 
+                args.get("targetfile") or 
+                args.get("dest") or
+                args.get("src") or
+                "unknown"
+            )
         
         # Normalize common prompt keys to 'prompt' for template simplicity
         if "prompt" not in args:
-            args["prompt"] = args.get("action_description") or args.get("message") or ""
+            args["prompt"] = (
+                args.get("action_description") or 
+                args.get("message") or 
+                args.get("intent") or
+                ""
+            )
         
         # Normalize common search pattern keys to 'pattern' for template simplicity
         if "pattern" not in args:
-            args["pattern"] = args.get("query") or args.get("name") or args.get("question") or ""
+            args["pattern"] = (
+                args.get("query") or 
+                args.get("name") or 
+                args.get("question") or 
+                args.get("target") or
+                ""
+            )
         
         # Infer 'count' from list parameters for templates like plan_created
         if "count" not in args:
@@ -158,6 +176,8 @@ class ToolRegistryMetadata(DynamicBaseModel):
                 args["count"] = len(args["steps"])
             elif isinstance(args.get("edits"), list):
                 args["count"] = len(args["edits"])
+            elif isinstance(args.get("files"), list):
+                args["count"] = len(args["files"])
         
         if self.summary_template:
             display_name = i18n.get(self.summary_template, context=args)
