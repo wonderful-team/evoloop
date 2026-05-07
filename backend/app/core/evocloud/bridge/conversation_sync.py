@@ -137,34 +137,34 @@ class ConversationSyncManager:
                 result = await db.execute(
                     select(ConversationModel.id).where(ConversationModel.sync_status != 'synced')
                 )
-                conv_ids = {str(r[0]) for r in result.all()}
+                pending_thread_ids = {str(r[0]) for r in result.all()}
 
                 # 2. 获取包含未同步消息的会话ID
                 msg_result = await db.execute(
                     select(MessageModel.thread_id).where(MessageModel.sync_status != 'synced').distinct()
                 )
                 msg_thread_ids = {str(r[0]) for r in msg_result.all() if r[0]}
-                
+
                 # 合并（并集）
-                conversation_ids = list(conv_ids | msg_thread_ids)
-                
-                if not conversation_ids:
+                thread_ids = list(pending_thread_ids | msg_thread_ids)
+
+                if not thread_ids:
                     return
 
                 # 分批提交（每批100个会话）
                 batch_size = 100
-                for i in range(0, len(conversation_ids), batch_size):
-                    batch = conversation_ids[i:i + batch_size]
+                for i in range(0, len(thread_ids), batch_size):
+                    batch = thread_ids[i:i + batch_size]
                     result = incremental_sync_task.delay(self.device_key, batch)
                     logger.debug(
                         f"[ConversationSync] Incremental sync batch scheduled: "
-                        f"{len(batch)} conversations, task_id={result.id}"
+                        f"{len(batch)} threads, task_id={result.id}"
                     )
 
                 logger.info(
                     f"[ConversationSync] Incremental sync scheduled: "
-                    f"{len(conversation_ids)} conversations in "
-                    f"{(len(conversation_ids) + batch_size - 1) // batch_size} batches"
+                    f"{len(thread_ids)} threads in "
+                    f"{(len(thread_ids) + batch_size - 1) // batch_size} batches"
                 )
 
         except Exception as e:
