@@ -48,7 +48,7 @@ async def run_test():
 
     logger.info(f"Authentic PHP Token captured, setting to client natively: {token[:20]}...")
     client.set_token(token)
-    identity_service.store.save_member_id(real_member_id)
+    await identity_service.store.save_member_id(real_member_id)
         
     
     # Fetch identity from Gateway to handle local sqlite missing state

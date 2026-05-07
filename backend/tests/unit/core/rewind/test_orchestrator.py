@@ -12,7 +12,6 @@ from app.core.engine.rewind.event.schemas import (
     RewindRequestedEvent,
 )
 from app.core.file.event.schemas import FilesCleanupEvent
-from app.core.memory.event.schemas import MemoryCleanupEvent
 from app.core.engine.rewind.orchestrator import RewindOrchestrator
 from app.core.engine.rewind.exceptions import RewindError
 

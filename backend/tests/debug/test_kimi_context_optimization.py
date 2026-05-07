@@ -104,7 +104,7 @@ async def login_and_get_token() -> tuple[str, int] | None:
     
     # 设置 token 和 member_id
     client.set_token(token)
-    identity_service.store.save_member_id(real_member_id)
+    await identity_service.store.save_member_id(real_member_id)
     
     return token, real_member_id
 

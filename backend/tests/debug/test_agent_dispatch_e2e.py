@@ -29,7 +29,6 @@ for noisy in [
     "app.infrastructure.queue.huey_queue",
     "app.domain.project.service",
     "app.core.vision.pipeline.manager",
-    "app.core.engine.telemetry_recorder",
     "app.infrastructure.embeddings.factory",
     "app.core.memory.backends.file_backend",
     "app.core.context.cache",
