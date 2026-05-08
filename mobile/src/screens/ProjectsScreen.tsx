@@ -230,7 +230,7 @@ const ProjectsContent = () => {
                       style={[styles.activeChip, { backgroundColor: colors.primaryContainer }]}
                       textStyle={{ color: colors.primary }}
                     >
-                      当前
+                      {t('projects.current')}
                     </Chip>
                   )}
                 </View>

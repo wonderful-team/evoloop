@@ -2,7 +2,7 @@
 
 import React, { useCallback } from 'react';
 import { View, StyleSheet, FlatList, RefreshControl } from 'react-native';
-import { Text, Button, Snackbar } from 'react-native-paper';
+import { Text, Button, Snackbar, Card, Chip } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { router } from '@/utils/navigation';
@@ -146,6 +146,45 @@ const DevicesContent = () => {
           renderItem={renderItem}
           keyExtractor={(item) => item.deviceKey}
           contentContainerStyle={styles.list}
+          ListHeaderComponent={
+            <Card
+              style={[
+                styles.card,
+                styles.cloudCard,
+                !currentDevice && [styles.activeCard, { borderColor: colors.primary }]
+              ]}
+              onPress={() => {
+                setCurrentDevice(null);
+                router.back();
+              }}
+            >
+              <Card.Content>
+                <View style={styles.itemHeader}>
+                  <View style={[styles.iconContainer, { backgroundColor: '#E3F2FD' }]}>
+                    <MaterialIcons name="cloud" size={28} color="#1976D2" />
+                  </View>
+                  <View style={styles.info}>
+                    <Text variant="titleMedium" style={styles.name}>
+                      {t('devices.cloudModeTitle')}
+                    </Text>
+                    <Text variant="bodySmall" style={styles.path}>
+                      {t('devices.cloudModeDesc')}
+                    </Text>
+                  </View>
+                  {!currentDevice && (
+                    <Chip
+                      icon="check-circle"
+                      compact
+                      style={[styles.activeChip, { backgroundColor: colors.primaryContainer }]}
+                      textStyle={{ color: colors.primary }}
+                    >
+                      {t('projects.current')}
+                    </Chip>
+                  )}
+                </View>
+              </Card.Content>
+            </Card>
+          }
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
           }
@@ -203,7 +242,43 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   list: {
-    paddingVertical: 8,
+    padding: 8,
+  },
+  card: {
+    marginHorizontal: 8,
+    marginVertical: 6,
+  },
+  activeCard: {
+    borderWidth: 2,
+  },
+  cloudCard: {
+    marginBottom: 12,
+    backgroundColor: '#FAFBFC',
+  },
+  itemHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  iconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  info: {
+    flex: 1,
+  },
+  name: {
+    fontWeight: '600',
+  },
+  path: {
+    opacity: 0.6,
+    marginTop: 2,
+  },
+  activeChip: {
+    backgroundColor: 'transparent',
   },
   centerContent: {
     flex: 1,

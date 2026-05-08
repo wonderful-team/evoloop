@@ -17,6 +17,7 @@ import {
 import { useTheme } from '@/theme';
 import Clipboard from '@react-native-clipboard/clipboard';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
+import { useTranslation } from 'react-i18next';
 
 interface MessageActionsProps {
   messageId: string;
@@ -45,6 +46,7 @@ export function MessageActions({
   onFavorite,
   children,
 }: MessageActionsProps) {
+  const { t } = useTranslation();
   const { colors } = useTheme();
   const [menuVisible, setMenuVisible] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -95,11 +97,11 @@ export function MessageActions({
 
   // 生成操作项
   const actionItems: ActionItem[] = [
-    { icon: 'content-copy', label: copied ? '已复制' : '复制', onPress: handleCopy },
-    { icon: 'share', label: '分享', onPress: handleShare },
-    ...(onForward ? [{ icon: 'reply' as const, label: '转发', onPress: handleForward }] : []),
-    ...(onFavorite ? [{ icon: 'star-border' as const, label: '收藏', onPress: handleFavorite }] : []),
-    ...(onDelete ? [{ icon: 'delete' as const, label: '删除', onPress: handleDelete, destructive: true }] : []),
+    { icon: 'content-copy', label: copied ? t('chat.messageActions.copied') : t('chat.messageActions.copy'), onPress: handleCopy },
+    { icon: 'share', label: t('chat.messageActions.share'), onPress: handleShare },
+    ...(onForward ? [{ icon: 'reply' as const, label: t('chat.messageActions.forward'), onPress: handleForward }] : []),
+    ...(onFavorite ? [{ icon: 'star-border' as const, label: t('chat.messageActions.favorite'), onPress: handleFavorite }] : []),
+    ...(onDelete ? [{ icon: 'delete' as const, label: t('chat.messageActions.delete'), onPress: handleDelete, destructive: true }] : []),
   ];
 
   return (
@@ -138,14 +140,14 @@ export function MessageActions({
           visible={showDeleteConfirm}
           onDismiss={() => setShowDeleteConfirm(false)}
         >
-          <Dialog.Title>删除消息</Dialog.Title>
+          <Dialog.Title>{t('chat.messageActions.deleteConfirmTitle')}</Dialog.Title>
           <Dialog.Content>
-            <Text>确定要删除这条消息吗？此操作无法撤销。</Text>
+            <Text>{t('chat.messageActions.deleteConfirmDesc')}</Text>
           </Dialog.Content>
           <Dialog.Actions>
-            <Button onPress={() => setShowDeleteConfirm(false)}>取消</Button>
+            <Button onPress={() => setShowDeleteConfirm(false)}>{t('common.cancel')}</Button>
             <Button onPress={confirmDelete} textColor={colors.error}>
-              删除
+              {t('chat.messageActions.delete')}
             </Button>
           </Dialog.Actions>
         </Dialog>
@@ -170,6 +172,7 @@ export function MessageActionBar({
   onDelete,
   showRetry,
 }: MessageActionBarProps) {
+  const { t } = useTranslation();
   const { colors } = useTheme();
   const [copied, setCopied] = useState(false);
 
@@ -192,7 +195,7 @@ export function MessageActionBar({
           color={copied ? colors.primary : colors.onSurfaceVariant}
         />
         <Text style={[styles.actionText, { color: copied ? colors.primary : colors.onSurfaceVariant }]}>
-          {copied ? '已复制' : '复制'}
+          {copied ? t('chat.messageActions.copied') : t('chat.messageActions.copy')}
         </Text>
       </TouchableOpacity>
 
@@ -202,7 +205,7 @@ export function MessageActionBar({
           onPress={onRetry}
         >
           <MaterialIcons name="refresh" size={16} color={colors.onSurfaceVariant} />
-          <Text style={[styles.actionText, { color: colors.onSurfaceVariant }]}>重试</Text>
+          <Text style={[styles.actionText, { color: colors.onSurfaceVariant }]}>{t('chat.messageActions.retry')}</Text>
         </TouchableOpacity>
       )}
 
@@ -212,7 +215,7 @@ export function MessageActionBar({
           onPress={onDelete}
         >
           <MaterialIcons name="delete-outline" size={16} color={colors.error} />
-          <Text style={[styles.actionText, { color: colors.error }]}>删除</Text>
+          <Text style={[styles.actionText, { color: colors.error }]}>{t('chat.messageActions.delete')}</Text>
         </TouchableOpacity>
       )}
     </View>

@@ -10,6 +10,7 @@ import {
 import { Text, Button, Card, Divider, TextInput } from 'react-native-paper';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { useTheme } from '@/theme';
+import { useTranslation } from 'react-i18next';
 import { useNLS } from '@/hooks/useNLS';
 import { nlsTokenManager } from '@/services/nls';
 import {GATEWAY_BASE_URL, NLS_CONFIG} from "@/constants/config";
@@ -23,6 +24,7 @@ interface LogEntry {
 
 export function NLSTestPanel() {
   const { colors } = useTheme();
+  const { t } = useTranslation();
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [testText, setTestText] = useState('');
   const [tokenInfo, setTokenInfo] = useState<string>('');
@@ -50,48 +52,48 @@ export function NLSTestPanel() {
       addLog(isFinal ? 'success' : 'info', `${isFinal ? '🎤' : '📝'} ${text}`);
     },
     onError: (error) => {
-      addLog('error', `❌ 错误: ${error.message}`);
+      addLog('error', `❌ ${t('debug.errorPrefix')} ${error.message}`);
     },
     onStateChange: (newState) => {
-      addLog('info', `📊 状态变更: ${newState}`);
+      addLog('info', `📊 ${t('debug.stateChange', { state: newState })}`);
     },
   });
 
   // 测试 Token 获取
   const testToken = async () => {
-    addLog('info', '🔑 开始测试 Token 获取...');
+    addLog('info', `🔑 ${t('debug.startTestToken')}`);
     try {
       const token = await nlsTokenManager.getValidToken();
       const expireTime = nlsTokenManager.getExpireTime();
       const expireDate = new Date(expireTime).toLocaleString();
 
-      setTokenInfo(`Token: ${token.substring(0, 20)}...\n过期时间: ${expireDate}`);
-      addLog('success', `✅ Token 获取成功，过期时间: ${expireDate}`);
+      setTokenInfo(`Token: ${token.substring(0, 20)}...\n${t('debug.tokenExpireTime', { expireDate })}`);
+      addLog('success', `✅ ${t('debug.tokenSuccess', { expireDate })}`);
     } catch (error: any) {
-      addLog('error', `❌ Token 获取失败: ${error.message}`);
+      addLog('error', `❌ ${t('debug.tokenFailed', { message: error.message })}`);
     }
   };
 
   // 测试录音权限
   const testPermission = async () => {
-    addLog('info', '🔒 检查录音权限...');
+    addLog('info', `🔒 ${t('debug.checkMicPermission')}`);
     // 权限检查会在 useNLS 中自动进行
-    addLog('info', '✅ 权限检查完成（请确保已授予麦克风权限）');
+    addLog('info', `✅ ${t('debug.permissionCheckDone')}`);
   };
 
   // 开始/停止录音
   const toggleRecording = async () => {
     if (isRecording) {
-      addLog('info', '⏹️ 停止录音...');
+      addLog('info', `⏹️ ${t('debug.stopRecording')}`);
       await stop();
-      addLog('success', '✅ 录音已停止');
+      addLog('success', `✅ ${t('debug.recordingStopped')}`);
     } else {
-      addLog('info', '🎙️ 开始录音...');
+      addLog('info', `🎙️ ${t('debug.startRecordingLog')}`);
       try {
         await start();
-        addLog('success', '✅ 录音已开始');
+        addLog('success', `✅ ${t('debug.recordingStarted')}`);
       } catch (error: any) {
-        addLog('error', `❌ 启动失败: ${error.message}`);
+        addLog('error', `❌ ${t('debug.startFailed', { message: error.message })}`);
       }
     }
   };
@@ -99,7 +101,7 @@ export function NLSTestPanel() {
   // 清空日志
   const clearLogs = () => {
     setLogs([]);
-    addLog('info', '🗑️ 日志已清空');
+    addLog('info', `🗑️ ${t('debug.logsCleared')}`);
   };
 
   const getLevelColor = (level: LogEntry['level']) => {
@@ -117,8 +119,8 @@ export function NLSTestPanel() {
       {/* 状态卡片 */}
       <Card style={styles.card}>
         <Card.Title
-          title="NLS 实时语音识别"
-          subtitle={`当前状态: ${state}`}
+          title={t('debug.nlsRealtimeTitle')}
+          subtitle={`${t('debug.currentStatus', { state })}`}
           left={(props) => (
             <MaterialIcons
               {...props}
@@ -131,7 +133,7 @@ export function NLSTestPanel() {
         <Card.Content>
           {/* 音量指示器 */}
           <View style={styles.volumeContainer}>
-            <Text variant="bodySmall">音量: {Math.round(volume * 100)}%</Text>
+            <Text variant="bodySmall">{t('debug.volume', { volume: Math.round(volume * 100) })}</Text>
             <View style={[styles.volumeBar, { backgroundColor: colors.surfaceVariant }]}>
               <View
                 style={[
@@ -148,7 +150,7 @@ export function NLSTestPanel() {
           {/* 当前识别文本 */}
           <View style={[styles.textContainer, { backgroundColor: colors.surfaceVariant }]}>
             <Text variant="bodyMedium" style={{ color: colors.onSurface }}>
-              {currentText || '等待语音输入...'}
+              {currentText || t('debug.waitingForVoice')}
             </Text>
           </View>
         </Card.Content>
@@ -160,7 +162,7 @@ export function NLSTestPanel() {
             buttonColor={isRecording ? colors.error : undefined}
             textColor={isRecording ? '#fff' : undefined}
           >
-            {isRecording ? '停止' : '开始录音'}
+            {isRecording ? t('debug.stop') : t('debug.startRecording')}
           </Button>
         </Card.Actions>
       </Card>
@@ -168,8 +170,8 @@ export function NLSTestPanel() {
       {/* Token 测试卡片 */}
       <Card style={styles.card}>
         <Card.Title
-          title="Token 测试"
-          subtitle="测试 NLS Token 获取"
+          title={t('debug.tokenTest')}
+          subtitle={t('debug.tokenTestSubtitle')}
           left={(props) => <MaterialIcons {...props} name="vpn-key" size={24} />}
         />
         <Card.Content>
@@ -179,16 +181,16 @@ export function NLSTestPanel() {
             </Text>
           ) : (
             <Text variant="bodySmall" style={{ color: colors.onSurfaceVariant }}>
-              点击按钮测试 Token 获取
+              {t('debug.clickToTestToken')}
             </Text>
           )}
         </Card.Content>
         <Card.Actions>
           <Button onPress={testToken} icon="refresh">
-            获取 Token
+            {t('debug.getToken')}
           </Button>
           <Button onPress={testPermission} icon="shield-check">
-            检查权限
+            {t('debug.checkPermission')}
           </Button>
         </Card.Actions>
       </Card>
@@ -196,17 +198,17 @@ export function NLSTestPanel() {
       {/* 环境配置卡片 */}
       <Card style={styles.card}>
         <Card.Title
-          title="环境配置"
-          subtitle="当前 NLS 配置"
+          title={t('debug.envConfig')}
+          subtitle={t('debug.envConfigSubtitle')}
           left={(props) => <MaterialIcons {...props} name="settings" size={24} />}
         />
         <Card.Content>
           <Text variant="bodySmall" style={{ color: colors.onSurfaceVariant }}>
-            AppKey: {NLS_CONFIG.appKey ? '✅ 已配置' : '❌ 未配置'}
+            AppKey: {NLS_CONFIG.appKey ? `✅ ${t('debug.configured')}` : `❌ ${t('debug.notConfigured')}`}
             {'\n'}
-            Gateway: {GATEWAY_BASE_URL || '使用默认地址'}
+            Gateway: {GATEWAY_BASE_URL || t('debug.useDefaultAddress')}
             {'\n'}
-            开发模式: {__DEV__ ? '是' : '否'}
+            {t('debug.devMode')}: {__DEV__ ? t('debug.yes') : t('debug.no')}
           </Text>
         </Card.Content>
       </Card>
@@ -214,8 +216,8 @@ export function NLSTestPanel() {
       {/* 日志面板 */}
       <Card style={styles.card}>
         <Card.Title
-          title="运行日志"
-          subtitle={`共 ${logs.length} 条日志`}
+          title={t('debug.runtimeLogs')}
+          subtitle={t('debug.logCount', { count: logs.length })}
           left={(props) => <MaterialIcons {...props} name="list" size={24} />}
           right={(props) => (
             <TouchableOpacity onPress={clearLogs} {...props}>
@@ -240,7 +242,7 @@ export function NLSTestPanel() {
             ))}
             {logs.length === 0 && (
               <Text variant="bodySmall" style={{ color: colors.onSurfaceVariant, textAlign: 'center' }}>
-                暂无日志
+                {t('debug.noLogs')}
               </Text>
             )}
           </ScrollView>

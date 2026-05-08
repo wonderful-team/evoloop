@@ -84,20 +84,21 @@ export function EmptyState({
 
 // 错误状态
 export function ErrorState({
-  title = '出错了',
-  description = '请检查网络连接后重试',
+  title,
+  description,
   onRetry,
 }: {
   title?: string;
   description?: string;
   onRetry?: () => void;
 }) {
+  const { t } = useTranslation();
   return (
     <EmptyState
       icon="alert-circle"
-      title={title}
-      description={description}
-      actionLabel={onRetry ? '重试' : undefined}
+      title={title || t('emptyState.errorTitle')}
+      description={description || t('emptyState.errorDesc')}
+      actionLabel={onRetry ? t('common.retry') : undefined}
       onAction={onRetry}
     />
   );
@@ -105,12 +106,13 @@ export function ErrorState({
 
 // 网络错误状态
 export function NetworkErrorState({ onRetry }: { onRetry?: () => void }) {
+  const { t } = useTranslation();
   return (
     <EmptyState
       icon="wifi-off"
-      title="网络连接失败"
-      description="请检查您的网络连接后重试"
-      actionLabel={onRetry ? '重试' : undefined}
+      title={t('emptyState.networkErrorTitle')}
+      description={t('emptyState.networkErrorDesc')}
+      actionLabel={onRetry ? t('common.retry') : undefined}
       onAction={onRetry}
     />
   );
@@ -124,12 +126,13 @@ export function NoResultsState({
   keyword?: string;
   onClear?: () => void;
 }) {
+  const { t } = useTranslation();
   return (
     <EmptyState
       icon="magnify"
-      title={keyword ? `未找到 "${keyword}" 相关结果` : '暂无结果'}
-      description="请尝试其他关键词或筛选条件"
-      actionLabel={onClear ? '清除筛选' : undefined}
+      title={keyword ? t('emptyState.noResultsFor', { keyword }) : t('emptyState.noResults')}
+      description={t('emptyState.tryOtherKeywords')}
+      actionLabel={onClear ? t('emptyState.clearFilters') : undefined}
       onAction={onClear}
     />
   );
@@ -137,12 +140,13 @@ export function NoResultsState({
 
 // 需要登录状态
 export function NeedLoginState({ onLogin }: { onLogin?: () => void }) {
+  const { t } = useTranslation();
   return (
     <EmptyState
       icon="account-lock"
-      title="需要登录"
-      description="登录后可以查看更多内容"
-      actionLabel={onLogin ? '立即登录' : undefined}
+      title={t('emptyState.loginRequiredTitle')}
+      description={t('emptyState.loginRequiredDesc')}
+      actionLabel={onLogin ? t('emptyState.loginNow') : undefined}
       onAction={onLogin}
     />
   );

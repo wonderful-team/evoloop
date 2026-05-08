@@ -5,6 +5,7 @@ import { View, Image, TouchableOpacity, StyleSheet } from 'react-native';
 import { Text } from 'react-native-paper';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { useTheme } from '@/theme';
+import { useTranslation } from 'react-i18next';
 
 interface CaptchaImageProps {
   captchaId?: string;
@@ -20,6 +21,7 @@ export function CaptchaImage({
   isLoading = false,
 }: CaptchaImageProps) {
   const { colors } = useTheme();
+  const { t } = useTranslation();
 
   return (
     <TouchableOpacity
@@ -37,7 +39,7 @@ export function CaptchaImage({
         <View style={[styles.placeholder, { backgroundColor: colors.surfaceVariant }]}>
           <MaterialIcons name="refresh" size={24} color={colors.text.secondary} />
           <Text variant="bodySmall" style={{ color: colors.text.secondary }}>
-            点击刷新
+            {t('settings.account.refreshCaptcha')}
           </Text>
         </View>
       )}

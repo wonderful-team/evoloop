@@ -8,9 +8,11 @@ import Animated, {
 } from 'react-native-reanimated';
 import { WoodenRobot } from '@/components/WoodenRobot';
 import { useTheme } from '@/theme';
+import { useTranslation } from 'react-i18next';
 
 export const ChatWelcome: React.FC = () => {
   const { colors } = useTheme();
+  const { t } = useTranslation();
   
   // 找回原版情绪循环逻辑
   const [mood, setMood] = useState<'neutral' | 'happy' | 'thinking'>('happy');
@@ -44,11 +46,11 @@ export const ChatWelcome: React.FC = () => {
       
       {/* 找回原版文案 */}
       <Text variant="bodyMedium" style={[styles.welcomeSubtitle, { color: colors.onSurfaceVariant }]}>
-        你好！我是你的木头机器人助手
+        {t('chatWelcome.title')}
       </Text>
       
       <Text variant="bodySmall" style={[styles.welcomeHint, { color: colors.onSurfaceVariant }]}>
-        点击麦克风开始语音对话
+        {t('chatWelcome.subtitle')}
       </Text>
     </Animated.View>
   );

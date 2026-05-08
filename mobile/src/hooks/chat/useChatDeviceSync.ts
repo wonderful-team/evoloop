@@ -76,8 +76,7 @@ export function useChatDeviceSync({
       // 立即重置当前会话，避免加载过程中看到上一个项目/设备的消息
       setCurrentConversation(null);
       
-      setGlobalMode(true);
-      // 加载该设备在当前项目下的会话列表
+      // 加载该设备在当前项目（如果有的话）下的会话列表
       await loadConversations(projectId || 0, true, selectedDeviceKey);
 
       const { conversations: latestConversations } = useConversationStore.getState();

@@ -27,13 +27,17 @@
   },
   "help": {
     "faq": {
-      "a3": "支持。在聊天输入框左侧点击麦克风图标即可开始说话。支持中文和英文指令。",
+      "a3": "支持。点击麦克风图标即可开始说话，支持中文和英文指令。",
       "q2": "云端与本地模式的区别？",
-      "a1": "需要在您的 Mac/Windows 电脑上下载并安装 EvoLoop 客户端，并登录相同的账号。连接成功后，它会自动出现在“Devices”列表中。",
-      "a2": "<bold>云端模式 (Cloud)</bold>：与运行在服务器上的 AI 交互，不依赖您的电脑。<br /><bold>本地模式 (Local)</bold>：通过 AI 直接操作您的电脑。可以读取本地文件、运行终端命令。",
+      "a1": "在您的 Mac/Windows 电脑上下载并安装 EvoLoop 客户端，登录相同账号后即可自动连接。",
+      "a2": "云端模式与运行在服务器上的 AI 交互，不依赖您的电脑。本地模式通过 AI 直接操作您的电脑，可以读取本地文件、运行终端命令。",
       "title": "常见问题",
       "q1": "如何连接我的电脑？",
-      "q3": "支持语音输入吗？"
+      "q3": "支持语音输入吗？",
+      "q4": "如何切换项目？",
+      "a4": "在首页点击项目名称，或进入项目列表页面选择要切换的项目。",
+      "q5": "语音对话如何使用？",
+      "a5": "进入语音页面后，点击麦克风按钮开始录音，说话后松开即可发送语音。AI 会自动识别并回复。"
     },
     "capabilities": {
       "cloud": {
@@ -57,12 +61,26 @@
       },
       "title": "高级技巧"
     },
-    "title": "用户手册",
+    "title": "帮助中心",
     "intro": {
       "desc": "EvoLoop 是您的随身通用智能体。通过简单的左右滑动，您可以在 <bold>云端智能</bold> 和 <bold>本地设备</bold> 之间无缝切换。",
       "title": "快速入门"
     },
-    "replayParams": "重播新手引导"
+    "replayParams": "重播新手引导",
+    "quickActions": {
+      "needHelp": "需要帮助？",
+      "email": "邮件联系",
+      "helpCenter": "帮助中心"
+    },
+    "feedback": {
+      "sectionTitle": "反馈建议",
+      "submit": "提交反馈",
+      "description": "告诉我们您的建议或遇到的问题",
+      "title": "提交反馈",
+      "label": "您的建议或问题",
+      "cancel": "取消",
+      "confirm": "提交"
+    }
   },
   "chat": {
     "messageList": {
@@ -71,7 +89,13 @@
       "offlineDesc": "远程设备当前未连接。",
       "imageViewer": "图片查看器",
       "clickToOpen": "点击打开",
-      "copy": "复制"
+      "copy": "复制",
+      "me": "我",
+      "thinkingProcess": "思考过程",
+      "fileChanges": "{{count}} 个文件变更",
+      "sending": "发送中",
+      "sendFailedRetry": "发送失败，点击重试",
+      "aiThinking": "AI 思考中..."
     },
     "header": {
       "deviceFallback": "设备 #{{id}}",
@@ -144,7 +168,87 @@
         "continue": "继续"
       },
       "continuePrompt": "继续"
+    },
+    "attachments": {
+      "maxLimit": "最多只能添加 5 个附件"
+    },
+    "attachmentLabel": "附件: {{name}}",
+    "threadList": {
+      "newConversation": "新对话"
+    },
+    "rewindConfirm": {
+      "rewindTitle": "确认撤回",
+      "retryTitle": "确认重试",
+      "rewindDesc": "将删除此消息及其后的所有内容。此操作不可撤销。",
+      "retryDesc": "将删除后续内容并重新尝试执行。",
+      "revertFiles": "同时恢复 Agent 修改过的文件内容",
+      "revertToPrevious": "恢复到修改前的状态",
+      "cancel": "取消",
+      "confirmRewind": "确认撤回",
+      "confirmRetry": "确认重试"
+    },
+    "messageActions": {
+      "copy": "复制",
+      "copied": "已复制",
+      "share": "分享",
+      "forward": "转发",
+      "favorite": "收藏",
+      "delete": "删除",
+      "retry": "重试",
+      "deleteConfirmTitle": "删除消息",
+      "deleteConfirmDesc": "确定要删除这条消息吗？此操作无法撤销。",
+      "rewind": "撤回",
+      "quote": "引用",
+      "addToMemory": "添加到记忆"
+    },
+    "quote": {
+      "message": "消息",
+      "file": "文件",
+      "skill": "技能",
+      "memory": "记忆",
+      "reference": "引用"
     }
+  },
+  "messageContent": {
+    "clickToOpen": "点击打开"
+  },
+  "echartsChart": {
+    "renderFailed": "图表渲染失败",
+    "rendering": "正在渲染图表...",
+    "clickToEnlarge": "点击查看大图"
+  },
+  "mermaidChart": {
+    "renderFailed": "图表渲染失败",
+    "title": "Mermaid 图表",
+    "rendering": "正在渲染图表...",
+    "clickToEnlarge": "点击查看大图"
+  },
+  "artifactCard": {
+    "passRate": "通过率",
+    "clickForDetails": "点击查看详情",
+    "view": "查看",
+    "download": "下载"
+  },
+  "chatWelcome": {
+    "title": "你好！我是你的木头机器人助手",
+    "subtitle": "点击麦克风开始语音对话"
+  },
+  "stepsIndicator": {
+    "title": "执行步骤",
+    "input": "输入:"
+  },
+  "referencePicker": {
+    "noMemory": "暂无记忆",
+    "noResults": "未找到相关内容",
+    "quoteContent": "引用内容",
+    "searchPlaceholder": "搜索...",
+    "historyMessages": "历史消息",
+    "projectFiles": "项目文件",
+    "memory": "记忆"
+  },
+  "codeBlock": {
+    "lines": "行",
+    "copied": "已复制"
   },
   "conversation": {
     "new": "新建",
@@ -154,6 +258,9 @@
     "untitled": "未命名"
   },
   "auth": {
+    "countdownLabel": "{{seconds}}s后重试",
+    "wechatLogin": "微信一键登录",
+    "agree": "我已阅读并同意",
     "errors": {
       "loadConfigFailed": "加载配置失败",
       "captchaRequired": "请输入图形验证码",
@@ -212,7 +319,11 @@
       "policy": "《服务协议 & 隐私政策》",
       "usernamePlaceholder": "用户名 (字母/数字)",
       "getCode": "获取验证码"
-    }
+    },
+    "termsOfService": "《服务协议》",
+    "privacyPolicy": "《隐私政策》",
+    "and": "和",
+    "pleaseAgreeFirst": "请先阅读并同意"
   },
   "search": {
     "deviceLabel": "设备 #{{id}}",
@@ -342,7 +453,9 @@
       "minutes": "{{count}}分钟前",
       "hours": "{{count}}小时前",
       "days": "{{count}}天前"
-    }
+    },
+    "cloudModeTitle": "云端智能 (Cloud Mode)",
+    "cloudModeDesc": "不连接本地设备，直接使用云端 AI 进行对话"
   },
   "index": {
     "placeholder": "输入指令或问题...",
@@ -398,12 +511,50 @@
       "cancel": "取消",
       "pending": "待确认",
       "device": "设备",
-      "action": "动作"
+      "action": "动作",
+      "unknownDevice": "未知设备",
+      "actionMap": {
+        "turnOn": "打开",
+        "turnOff": "关闭",
+        "setBrightness": "设置亮度",
+        "setColor": "设置颜色",
+        "setTemperature": "设置温度",
+        "lock": "上锁",
+        "unlock": "解锁",
+        "open": "打开",
+        "close": "关闭",
+        "start": "开始",
+        "stop": "停止",
+        "pause": "暂停"
+      },
+      "paramMap": {
+        "brightness": "亮度",
+        "color": "颜色",
+        "temperature": "温度",
+        "mode": "模式",
+        "speed": "速度",
+        "duration": "时长",
+        "delay": "延迟"
+      },
+      "second": "秒"
     },
     "input": {
       "placeholder": "输入消息...",
       "voiceMode": "按住说话",
-      "textMode": "键盘输入"
+      "textMode": "键盘输入",
+      "uploadFailed": "文件上传失败",
+      "uploadErrorTitle": "上传失败",
+      "quoteMessage": "引用消息/文件",
+      "quote": "引用",
+      "speaking": "朗读中",
+      "speakOn": "朗读开",
+      "speakOff": "朗读关",
+      "awakened": "已唤醒",
+      "listening": "我在听",
+      "standby": "待机",
+      "releaseToSend": "松开发送",
+      "holdToSpeak": "按住说话",
+      "listeningPanel": "正在聆听..."
     },
     "empty": "开始语音对话，或输入文字消息",
     "permission": {
@@ -454,7 +605,23 @@
       "stopTest": "停止测试",
       "detected": "检测到: 「{{word}}」",
       "errorPrefix": "错误:",
-      "startFailedPrefix": "启动失败:"
+      "startFailedPrefix": "启动失败:",
+      "langZhCN": "中文（普通话）",
+      "langZhHK": "中文（粤语）",
+      "langJaJP": "日本語",
+      "modelConfigTitle": "模型文件配置",
+      "modelConfigDesc": "唤醒词使用 Sherpa-ONNX 流式 ASR 引擎，模型文件需打包到 App 中：",
+      "downloadModel": "1. 下载模型",
+      "modelSize": "约 25MB（int8 量化）",
+      "putInProject": "2. 放入项目",
+      "androidPath": "Android: 放入 android/app/src/main/assets/sherpa-asr/",
+      "iosPath": "iOS: 拖入 Xcode → Build Phases → Copy Bundle Resources",
+      "quickScript": "3. 快捷脚本",
+      "backgroundListenTitle": "后台监听",
+      "backgroundListenDesc": "开启后，即使 App 退到后台也能监听唤醒词。",
+      "iosNote": "退到后台后自动继续监听。",
+      "androidNote": "退到后台后会显示通知栏提示。",
+      "batteryWarning": "注意：后台监听会增加电量消耗。如果不需要后台唤醒，建议关闭此功能。"
     },
     "account": {
       "title": "账号与安全",
@@ -519,6 +686,32 @@
       "bareWorkflow": "Bare Workflow (Native)"
     }
   },
+  "plans": {
+    "free": "免费",
+    "unlimited": "无限",
+    "aiQuota": "AI 调用: {{quota}}",
+    "timesPerMonth": "次/月",
+    "projectCount": "项目数量: {{limit}}",
+    "projectUnit": "个",
+    "advancedModels": "高级模型 (GPT-4, Claude等)",
+    "voiceChat": "语音对话",
+    "ganttChart": "甘特图",
+    "timesheet": "工时表",
+    "currentPlan": "当前方案",
+    "downgradeInfo": "当前等级更高",
+    "downgradeSub": "到期后可购买此方案",
+    "subscribeNow": "立即订阅",
+    "recommended": "推荐",
+    "cannotDowngrade": "无法降级",
+    "day": "天",
+    "period": "/{{days}}天",
+    "loading": "加载中...",
+    "title": "选择会员方案",
+    "unlockMore": "解锁更多 AI 能力，提升开发效率",
+    "currentSubscription": "当前订阅: {{name}} (剩余 {{days}} 天)",
+    "noPlans": "暂无可用套餐",
+    "autoRenewal": "订阅会自动续费，可随时取消。购买后不支持退款。"
+  },
   "common": {
     "back": "返回",
     "routeNotFound": "页面未找到",
@@ -548,6 +741,148 @@
       "defaultName": "工具"
     },
     "retry": "重试",
-    "close": "关闭"
+    "close": "关闭",
+    "cameraPermissionTitle": "相机权限",
+    "cameraPermissionMessage": "需要相机权限才能拍照",
+    "later": "稍后询问",
+    "permissionDenied": "权限不足",
+    "albumPermissionTitle": "相册权限",
+    "albumPermissionMessage": "需要访问相册权限才能选择图片",
+    "albumPermissionRequired": "需要访问相册权限才能选择媒体文件",
+    "cameraPermissionRequired": "需要相机权限才能拍照",
+    "mediaPickError": "选择媒体失败，请重试",
+    "cameraError": "拍照失败，请重试",
+    "maxAttachments": "最多只能选择 {{count}} 个媒体文件",
+    "videoPermissionRequired": "需要相机权限才能录制视频",
+    "videoError": "录制视频失败，请重试"
+  },
+  "payConfirm": {
+    "payAmount": "支付金额",
+    "upgradePayAmount": "升级支付金额",
+    "planName": "EvoLoop {{name}} - {{days}}天",
+    "newAmount": "新购金额",
+    "refundAmount": "退还金额",
+    "actualAmount": "实付金额",
+    "downgradeWarning": "无法降级购买，当前等级更高",
+    "selectPayment": "选择支付方式",
+    "wechatPay": "微信支付",
+    "benefits": "包含权益",
+    "aiQuota": "AI 调用: {{quota}}",
+    "unlimited": "无限",
+    "timesPerMonth": " 次/月",
+    "projectCount": "项目数量: {{count}}",
+    "projectUnit": " 个",
+    "advancedModels": "高级模型 (GPT-4, Claude)",
+    "voiceChat": "语音对话",
+    "agreement": "点击支付即表示您同意《服务协议》和《隐私政策》",
+    "payNow": "立即支付",
+    "confirmUpgrade": "确认升级",
+    "cannotPurchase": "无法购买",
+    "cannotPurchaseDesc": "当前等级更高，到期后可购买此方案",
+    "invalidPlan": "无效的套餐",
+    "orderFailed": "创建订单失败",
+    "paymentParamError": "支付参数错误",
+    "paymentParamErrorDesc": "无法获取支付信息，请稍后重试",
+    "paymentCancelled": "支付取消",
+    "paymentCancelledDesc": "您已取消支付，可重新发起支付",
+    "paymentFailed": "支付失败",
+    "retryLater": "请稍后重试",
+    "loading": "加载中..."
+  },
+  "errorBoundary": {
+    "title": "出错了",
+    "description": "应用遇到了一些问题，请尝试重新加载"
+  },
+  "mapChart": {
+    "loadFailed": "地图加载失败",
+    "defaultTitle": "地图",
+    "loading": "正在加载地图...",
+    "clickToEnlarge": "点击查看大图"
+  },
+  "emptyState": {
+    "errorTitle": "出错了",
+    "errorDesc": "请检查网络连接后重试",
+    "networkErrorTitle": "网络连接失败",
+    "networkErrorDesc": "请检查您的网络连接后重试",
+    "noResultsFor": "未找到 \"{{keyword}}\" 相关结果",
+    "noResults": "暂无结果",
+    "tryOtherKeywords": "请尝试其他关键词或筛选条件",
+    "clearFilters": "清除筛选",
+    "loginRequiredTitle": "需要登录",
+    "loginRequiredDesc": "登录后可以查看更多内容",
+    "loginNow": "立即登录"
+  },
+  "mediaPicker": {
+    "camera": "拍照",
+    "video": "录视频",
+    "album": "相册",
+    "file": "文件",
+    "permissionDenied": "权限不足",
+    "cameraPermission": "需要相机权限才能拍照",
+    "videoPermission": "需要相机权限才能录制视频",
+    "albumPermission": "需要访问相册权限才能选择媒体",
+    "cameraError": "拍照失败，请重试",
+    "videoError": "录制视频失败，请重试",
+    "albumError": "选择媒体失败，请重试",
+    "fileUploadTitle": "文件上传",
+    "fileUploadMessage": "文件上传需要安装 react-native-document-picker 依赖。\n\n请运行:\nnpm install react-native-document-picker\n\n或:\nyarn add react-native-document-picker",
+    "fileError": "文件选择失败",
+    "selectMedia": "选择图片或视频",
+    "fromAlbum": "从相册选择",
+    "takePhoto": "拍照",
+    "recordVideo": "录制视频"
+  },
+  "payResult": {
+    "success": "支付成功",
+    "failed": "支付失败",
+    "subscribed": "您已成功订阅",
+    "subscribedPlan": "您已成功订阅 {{planName}}",
+    "errorMessage": "支付遇到问题，请重试或联系客服",
+    "viewBenefits": "查看权益",
+    "backToHome": "返回首页"
+  },
+  "threadList": {
+    "messageCount": "{{count}} 条消息",
+    "title": "会话历史",
+    "empty": "暂无会话记录",
+    "startNew": "开始新对话"
+  },
+  "debug": {
+    "nlsRealtimeTitle": "NLS 实时语音识别",
+    "currentStatus": "当前状态: {{state}}",
+    "volume": "音量: {{volume}}%",
+    "waitingForVoice": "等待语音输入...",
+    "stop": "停止",
+    "startRecording": "开始录音",
+    "tokenTest": "Token 测试",
+    "tokenTestSubtitle": "测试 NLS Token 获取",
+    "clickToTestToken": "点击按钮测试 Token 获取",
+    "getToken": "获取 Token",
+    "checkPermission": "检查权限",
+    "envConfig": "环境配置",
+    "envConfigSubtitle": "当前 NLS 配置",
+    "configured": "已配置",
+    "notConfigured": "未配置",
+    "useDefaultAddress": "使用默认地址",
+    "startTestToken": "开始测试 Token 获取...",
+    "tokenSuccess": "Token 获取成功，过期时间: {{expireDate}}",
+    "tokenFailed": "Token 获取失败: {{message}}",
+    "checkMicPermission": "检查录音权限...",
+    "permissionCheckDone": "权限检查完成（请确保已授予麦克风权限）",
+    "stopRecording": "停止录音...",
+    "recordingStopped": "录音已停止",
+    "startRecordingLog": "开始录音...",
+    "stateChange": "状态变更: {{state}}",
+    "errorPrefix": "错误:",
+    "tokenExpireTime": "过期时间: {{expireDate}}",
+    "recordingStarted": "录音已开始",
+    "startFailed": "启动失败: {{message}}",
+    "logsCleared": "日志已清空",
+    "devMode": "开发模式",
+    "yes": "是",
+    "no": "否",
+    "runtimeLogs": "运行日志",
+    "logCount": "共 {{count}} 条日志",
+    "noLogs": "暂无日志"
   }
 }

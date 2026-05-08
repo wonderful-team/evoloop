@@ -14,6 +14,7 @@ import { VoiceInputReferencesBar } from './VoiceInputReferencesBar';
 import { MessageReference } from '@/types/conversation';
 import { ReferencePicker } from '@/components/chat/ReferencePicker';
 import { VoiceInputVoicePanel } from './VoiceInputVoicePanel';
+import { useTranslation } from 'react-i18next';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MediaPickerModal } from '@/components/common/MediaPickerModal';
 
@@ -66,7 +67,7 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(({
   onPressIn,
   onPressOut,
   disabled = false,
-  placeholder = '输入消息...',
+  placeholder = '',
   inputMode: externalInputMode,
   onToggleMode,
   nlsVolume,
@@ -83,6 +84,7 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(({
   transcriptionText = '',
 }, ref) => {
   const { colors } = useTheme();
+  const { t } = useTranslation();
   const [text, setText] = useState('');
   const [internalInputMode, setInternalInputMode] = useState<InputMode>(InputMode.VOICE);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
@@ -220,7 +222,7 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(({
   // 底部媒体面板
   const openMediaPicker = useCallback(() => {
     if (attachments.length >= 5) {
-      Alert.alert('提示', '最多只能添加 5 个附件');
+      Alert.alert(t('common.tip'), t('chat.attachments.maxLimit'));
       return;
     }
     setShowMediaPicker(true);
@@ -251,8 +253,8 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(({
         const uploaded = await uploadChatFile(file.uri, file.name);
         newAtts.push(uploaded);
       } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : '文件上传失败';
-        Alert.alert('上传失败', msg);
+        const msg = err instanceof Error ? err.message : t('voice.input.uploadFailed');
+        Alert.alert(t('voice.input.uploadErrorTitle'), msg);
       }
     }
     if (newAtts.length > 0) {
@@ -288,7 +290,7 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(({
               style={[styles.textInput, { color: colors.onSurface }]}
               value={text}
               onChangeText={handleTextChange}
-              placeholder={placeholder}
+              placeholder={placeholder || t('voice.input.placeholder')}
               placeholderTextColor={colors.onSurfaceVariant}
               multiline
               maxLength={500}
@@ -306,7 +308,7 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(({
               >
                 <MaterialIcons name="alternate-email" size={16} color={colors.primary} />
                 <Text variant="bodySmall" style={{ color: colors.primary, marginLeft: 4 }}>
-                  引用消息/文件
+                  {t('voice.input.quoteMessage')}
                 </Text>
               </TouchableOpacity>
             )}
@@ -363,7 +365,7 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(({
             >
               <MaterialIcons name="alternate-email" size={20} color={colors.primary} />
               <Text variant="bodySmall" style={{ color: colors.primary, marginLeft: 4 }}>
-                引用
+                {t('voice.input.quote')}
               </Text>
             </TouchableOpacity>
 
@@ -382,7 +384,7 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(({
                   variant="bodySmall"
                   style={{ color: autoSpeak ? colors.primary : colors.onSurfaceVariant, marginLeft: 4 }}
                 >
-                  {isSpeaking ? '朗读中' : autoSpeak ? '朗读开' : '朗读关'}
+                  {isSpeaking ? t('voice.input.speaking') : autoSpeak ? t('voice.input.speakOn') : t('voice.input.speakOff')}
                 </Text>
               </TouchableOpacity>
             )}
@@ -402,7 +404,7 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(({
                     marginLeft: 4,
                   }}
                 >
-                  {isWakeWordDetected ? '已唤醒' : isWakeWordListening ? '我在听' : '待机'}
+                  {isWakeWordDetected ? t('voice.input.awakened') : isWakeWordListening ? t('voice.input.listening') : t('voice.input.standby')}
                 </Text>
               </TouchableOpacity>
             )}
@@ -447,7 +449,7 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(({
           </View>
 
           <Text variant="bodySmall" style={[styles.hint, { color: colors.onSurfaceVariant }]}>
-            {isListening ? '松开发送' : '按住说话'}
+            {isListening ? t('voice.input.releaseToSend') : t('voice.input.holdToSpeak')}
           </Text>
         </View>
       )}

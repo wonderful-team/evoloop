@@ -6,6 +6,7 @@ import { Text, IconButton } from 'react-native-paper';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { useTheme } from '@/theme';
 import { MessageReference } from '@/types/conversation';
+import { useTranslation } from 'react-i18next';
 
 interface MessageQuoteProps {
   reference: MessageReference;
@@ -14,6 +15,7 @@ interface MessageQuoteProps {
 }
 
 export function MessageQuote({ reference, onRemove, compact = false }: MessageQuoteProps) {
+  const { t } = useTranslation();
   const { colors } = useTheme();
 
   const getIcon = () => {
@@ -34,15 +36,15 @@ export function MessageQuote({ reference, onRemove, compact = false }: MessageQu
   const getTypeLabel = () => {
     switch (reference.type) {
       case 'message':
-        return '消息';
+        return t('chat.quote.message');
       case 'file':
-        return '文件';
+        return t('chat.quote.file');
       case 'skill':
-        return '技能';
+        return t('chat.quote.skill');
       case 'memory':
-        return '记忆';
+        return t('chat.quote.memory');
       default:
-        return '引用';
+        return t('chat.quote.reference');
     }
   };
 

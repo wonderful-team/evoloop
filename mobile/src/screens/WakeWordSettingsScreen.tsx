@@ -61,7 +61,7 @@ export default function WakeWordSettingsScreen() {
         }, 3000);
       },
       onError: (error) => {
-        setTestDetectedWord(`错误: ${error.message}`);
+        setTestDetectedWord(`${t('settings.voice.errorPrefix')} ${error.message}`);
         setTestState('idle');
       },
     });
@@ -79,7 +79,7 @@ export default function WakeWordSettingsScreen() {
         }
       }, 10000);
     } catch (error: any) {
-      setTestDetectedWord(`启动失败: ${error.message}`);
+      setTestDetectedWord(`${t('settings.voice.startFailedPrefix')} ${error.message}`);
       setTestState('idle');
     }
   }, [testState, testService, wakeWord]);
@@ -159,22 +159,22 @@ export default function WakeWordSettingsScreen() {
         {/* 模型文件说明 */}
         <View style={styles.section}>
           <Text variant="titleMedium" style={{ color: colors.onSurface, marginBottom: 8 }}>
-            模型文件配置
+            {t('settings.voice.modelConfigTitle')}
           </Text>
           <Text variant="bodySmall" style={{ color: colors.onSurfaceVariant }}>
-            唤醒词使用 Sherpa-ONNX 流式 ASR 引擎，模型文件需打包到 App 中：{'\n\n'}
-            <Text style={{ fontWeight: 'bold' }}>1. 下载模型</Text>{'\n'}
+            {t('settings.voice.modelConfigDesc')}{'\n\n'}
+            <Text style={{ fontWeight: 'bold' }}>{t('settings.voice.downloadModel')}</Text>{'\n'}
             <Text
               style={{ color: colors.primary, textDecorationLine: 'underline' }}
               onPress={() => Linking.openURL('https://github.com/k2-fsa/sherpa-onnx/releases/tag/asr-models')}
             >
               sherpa-onnx-streaming-zipformer-zh-14M-2023-02-23
             </Text>{'\n'}
-            约 25MB（int8 量化）{'\n\n'}
-            <Text style={{ fontWeight: 'bold' }}>2. 放入项目</Text>{'\n'}
-            Android: 放入 android/app/src/main/assets/sherpa-asr/{'\n'}
-            iOS: 拖入 Xcode → Build Phases → Copy Bundle Resources{'\n\n'}
-            <Text style={{ fontWeight: 'bold' }}>3. 快捷脚本</Text>{'\n'}
+            {t('settings.voice.modelSize')}{'\n\n'}
+            <Text style={{ fontWeight: 'bold' }}>{t('settings.voice.putInProject')}</Text>{'\n'}
+            {t('settings.voice.androidPath')}{'\n'}
+            {t('settings.voice.iosPath')}{'\n\n'}
+            <Text style={{ fontWeight: 'bold' }}>{t('settings.voice.quickScript')}</Text>{'\n'}
             <Text style={{ fontFamily: 'monospace', fontSize: 11 }}>
               bash scripts/download-sherpa-asr-model.sh
             </Text>
@@ -186,15 +186,15 @@ export default function WakeWordSettingsScreen() {
         {/* 后台监听说明 */}
         <View style={styles.section}>
           <Text variant="titleMedium" style={{ color: colors.onSurface, marginBottom: 8 }}>
-            后台监听
+            {t('settings.voice.backgroundListenTitle')}
           </Text>
           <Text variant="bodySmall" style={{ color: colors.onSurfaceVariant }}>
-            开启后，即使 App 退到后台也能监听唤醒词。{'\n'}
+            {t('settings.voice.backgroundListenDesc')}{'\n'}
             {'\n'}
-            <Text style={{ fontWeight: 'bold' }}>iOS:</Text> 退到后台后自动继续监听。{'\n'}
-            <Text style={{ fontWeight: 'bold' }}>Android:</Text> 退到后台后会显示通知栏提示。{'\n'}
+            <Text style={{ fontWeight: 'bold' }}>iOS:</Text> {t('settings.voice.iosNote')}{'\n'}
+            <Text style={{ fontWeight: 'bold' }}>Android:</Text> {t('settings.voice.androidNote')}{'\n'}
             {'\n'}
-            注意：后台监听会增加电量消耗。如果不需要后台唤醒，建议关闭此功能。
+            {t('settings.voice.batteryWarning')}
           </Text>
         </View>
 

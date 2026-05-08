@@ -12,6 +12,7 @@ import {
 } from 'react-native-paper';
 import { useTheme } from '@/theme';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
+import { useTranslation } from 'react-i18next';
 
 interface RewindConfirmDialogProps {
   visible: boolean;
@@ -28,13 +29,14 @@ export function RewindConfirmDialog({
   mode = 'rewind',
   hasFileOperations = false,
 }: RewindConfirmDialogProps) {
+  const { t } = useTranslation();
   const { colors } = useTheme();
   const [revertFiles, setRevertFiles] = useState(true);
 
-  const title = mode === 'rewind' ? '确认撤回' : '确认重试';
+  const title = mode === 'rewind' ? t('chat.rewindConfirm.rewindTitle') : t('chat.rewindConfirm.retryTitle');
   const description = mode === 'rewind'
-    ? '将删除此消息及其后的所有内容。此操作不可撤销。'
-    : '将删除后续内容并重新尝试执行。';
+    ? t('chat.rewindConfirm.rewindDesc')
+    : t('chat.rewindConfirm.retryDesc');
 
   const handleConfirm = () => {
     onConfirm(revertFiles);
@@ -75,10 +77,10 @@ export function RewindConfirmDialog({
                 />
                 <View style={styles.checkboxLabel}>
                   <Text style={{ color: colors.onSurface, fontWeight: '500' }}>
-                    同时恢复 Agent 修改过的文件内容
+                    {t('chat.rewindConfirm.revertFiles')}
                   </Text>
                   <Text style={{ color: colors.onSurfaceVariant, fontSize: 12, marginTop: 2 }}>
-                    恢复到修改前的状态
+                    {t('chat.rewindConfirm.revertToPrevious')}
                   </Text>
                 </View>
               </View>
@@ -91,7 +93,7 @@ export function RewindConfirmDialog({
             onPress={onDismiss}
             textColor={colors.onSurfaceVariant}
           >
-            取消
+            {t('chat.rewindConfirm.cancel')}
           </Button>
           <Button
             mode="contained"
@@ -99,7 +101,7 @@ export function RewindConfirmDialog({
             buttonColor={mode === 'rewind' ? colors.error : colors.primary}
             textColor={colors.onError}
           >
-            {mode === 'rewind' ? '确认撤回' : '确认重试'}
+            {mode === 'rewind' ? t('chat.rewindConfirm.confirmRewind') : t('chat.rewindConfirm.confirmRetry')}
           </Button>
         </Dialog.Actions>
       </Dialog>

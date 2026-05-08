@@ -135,7 +135,7 @@ export default function LoginScreen() {
   // 登录页面描述
   const getLoginDesc = (): string => {
     if (registerConfig?.wap_desc) return registerConfig.wap_desc;
-    return t('auth.login.subtitle') || '登录您的 EvoLoop 账号';
+    return t('auth.login.subtitle');
   };
 
   // 加载验证码配置
@@ -177,12 +177,12 @@ export default function LoginScreen() {
 
       if (!captcha) {
         console.error('验证码响应为空');
-        throw new Error('获取验证码失败，请重试');
+        throw new Error(t('auth.errors.getCaptchaFailed'));
       }
 
       if (!captcha.img) {
         console.error('验证码数据不完整:', captcha);
-        throw new Error('验证码数据不完整');
+        throw new Error(t('auth.errors.captchaDataIncomplete'));
       }
 
       setCaptchaId(captcha.id);
@@ -192,7 +192,7 @@ export default function LoginScreen() {
       // 如果验证码服务不可用，禁用验证码功能
       setNeedCaptcha(false);
       setFormErrors({
-        captchaCode: error.message || '验证码服务暂时不可用'
+        captchaCode: error.message || t('auth.errors.captchaUnavailable')
       });
       throw error;
     }
@@ -202,14 +202,14 @@ export default function LoginScreen() {
   const handleSendMobileCode = async () => {
     // 验证手机号
     if (!validate.mobile(mobile)) {
-      setFormErrors({ mobile: '请输入正确的手机号' });
-      Alert.alert('提示', '请输入正确的手机号');
+      setFormErrors({ mobile: t('auth.errors.enterCorrectMobile') });
+      Alert.alert(t('common.tip'), t('auth.errors.enterCorrectMobile'));
       return false;
     }
 
     // 如果需要图形验证码
     if (needCaptcha && !captchaCode) {
-      setFormErrors({ captchaCode: '请输入图形验证码' });
+      setFormErrors({ captchaCode: t('auth.errors.enterCaptcha') });
       return false;
     }
 
@@ -222,7 +222,7 @@ export default function LoginScreen() {
       }
     } catch (error: any) {
       setFormErrors({
-        mobile: error.message || '发送验证码失败',
+        mobile: error.message || t('auth.errors.sendCodeFailed'),
       });
       // 刷新验证码
       if (needCaptcha) {
@@ -238,13 +238,13 @@ export default function LoginScreen() {
     const errors: Record<string, string> = {};
 
     if (!validate.mobile(mobile)) {
-      errors.mobile = '请输入正确的手机号';
+      errors.mobile = t('auth.errors.enterCorrectMobile');
     }
     if (!mobileCode) {
-      errors.mobileCode = '请输入验证码';
+      errors.mobileCode = t('auth.errors.codeRequired');
     }
     if (needCaptcha && !captchaCode) {
-      errors.captchaCode = '请输入图形验证码';
+      errors.captchaCode = t('auth.errors.enterCaptcha');
     }
     if (showAgreement() && !agreedToTerms) {
       setShowTermsDialog(true);
@@ -271,13 +271,13 @@ export default function LoginScreen() {
     const errors: Record<string, string> = {};
 
     if (!username.trim()) {
-      errors.username = '请输入账号';
+      errors.username = t('auth.errors.enterUsername');
     }
     if (!password) {
-      errors.password = '请输入密码';
+      errors.password = t('auth.errors.enterPassword');
     }
     if (needCaptcha && !captchaCode) {
-      errors.captchaCode = '请输入图形验证码';
+      errors.captchaCode = t('auth.errors.enterCaptcha');
     }
     if (showAgreement() && !agreedToTerms) {
       setShowTermsDialog(true);
@@ -332,7 +332,7 @@ export default function LoginScreen() {
       console.error('微信登录失败:', error);
       // 显示错误提示
       setFormErrors({
-        global: error.message || '微信登录失败，请重试'
+        global: error.message || t('auth.errors.wechatLoginFailed')
       });
     }
   };
@@ -374,7 +374,7 @@ export default function LoginScreen() {
           <View style={styles.header}>
             <Logo variant="icon" asLink={false} size={72} style={styles.logo} />
             <Text variant="headlineLarge" style={[styles.title, { color: colors.onSurface }]}>
-              {t('auth.login.title') || '欢迎回来'}
+              {t('auth.login.welcomeBack')}
             </Text>
           </View>
 
@@ -392,7 +392,7 @@ export default function LoginScreen() {
                   variant="labelLarge"
                   style={{ color: loginType === 'mobile' ? colors.onSurface : colors.text.secondary }}
                 >
-                  手机号登录
+                  {t('auth.login.mobileLogin')}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -406,7 +406,7 @@ export default function LoginScreen() {
                   variant="labelLarge"
                   style={{ color: loginType === 'account' ? colors.onSurface : colors.text.secondary }}
                 >
-                  账号密码
+                  {t('auth.login.tabAccount')}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -416,7 +416,7 @@ export default function LoginScreen() {
           {(!isLoginMethodEnabled('mobile') || !isLoginMethodEnabled('username')) && (
             <View style={styles.singleLoginTitle}>
               <Text variant="titleMedium" style={{ color: colors.onSurface }}>
-                {isLoginMethodEnabled('mobile') ? '手机号登录' : '账号密码登录'}
+                {isLoginMethodEnabled('mobile') ? t('auth.login.mobileLogin') : t('auth.login.accountLogin')}
               </Text>
             </View>
           )}
@@ -426,7 +426,7 @@ export default function LoginScreen() {
             <View style={styles.form}>
               <View>
                 <TextInput
-                  label="手机号"
+                  label={t('auth.login.mobilePlaceholder')}
                   value={mobile}
                   onChangeText={(text) => {
                     setMobile(text);
@@ -434,7 +434,7 @@ export default function LoginScreen() {
                       setFormErrors((prev) => ({ ...prev, mobile: '' }));
                     }
                   }}
-                  placeholder="请输入手机号"
+                  placeholder={t('auth.login.mobilePlaceholder')}
                   keyboardType="phone-pad"
                   maxLength={11}
                   error={!!formErrors.mobile}
@@ -452,7 +452,7 @@ export default function LoginScreen() {
                 <View>
                   <View style={styles.captchaContainer}>
                     <TextInput
-                      label="图形验证码"
+                      label={t('auth.login.captchaLabel')}
                       value={captchaCode}
                       onChangeText={setCaptchaCode}
                       error={!!formErrors.captchaCode}
@@ -475,7 +475,7 @@ export default function LoginScreen() {
               <View>
                 <View style={styles.codeContainer}>
                   <TextInput
-                    label="短信验证码"
+                    label={t('auth.login.smsCodeLabel')}
                     value={mobileCode}
                     onChangeText={(text) => {
                       setMobileCode(text);
@@ -507,7 +507,7 @@ export default function LoginScreen() {
             <View style={styles.form}>
               <View>
                 <TextInput
-                  label="账号/手机号/邮箱"
+                  label={t('auth.login.usernameLabel')}
                   value={username}
                   onChangeText={(text) => {
                     setUsername(text);
@@ -528,7 +528,7 @@ export default function LoginScreen() {
 
               <View>
                 <TextInput
-                  label="密码"
+                  label={t('auth.login.passwordLabel')}
                   value={password}
                   onChangeText={(text) => {
                     setPassword(text);
@@ -558,7 +558,7 @@ export default function LoginScreen() {
                 <View>
                   <View style={styles.captchaContainer}>
                     <TextInput
-                      label="图形验证码"
+                      label={t('auth.login.captchaLabel')}
                       value={captchaCode}
                       onChangeText={setCaptchaCode}
                       error={!!formErrors.captchaCode}
@@ -580,7 +580,7 @@ export default function LoginScreen() {
 
               <TouchableOpacity onPress={goToForgotPassword} style={styles.forgotPassword}>
                 <Text style={[styles.forgotPasswordText, { color: colors.text.secondary }]}>
-                  忘记密码?
+                  {t('auth.login.forgotPassword')}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -611,18 +611,18 @@ export default function LoginScreen() {
             style={styles.loginButton}
             contentStyle={styles.loginButtonContent}
           >
-            登录
+            {t('auth.login.submit')}
           </Button>
 
           {/* 注册链接 - 根据配置显示 */}
           {registerConfig?.register !== '' && (
             <View style={styles.registerContainer}>
               <Text style={[styles.registerText, { color: colors.text.secondary }]}>
-                还没有账号?
+                {t('auth.login.noAccount')}
               </Text>
               <TouchableOpacity onPress={goToRegister}>
                 <Text style={[styles.registerText, { color: colors.primary, fontWeight: '600' }]}>
-                  立即注册
+                  {t('auth.login.registerNow')}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -645,12 +645,12 @@ export default function LoginScreen() {
       {/* 协议提示弹窗 */}
       <Portal>
         <Dialog visible={showTermsDialog} onDismiss={() => setShowTermsDialog(false)}>
-          <Dialog.Title>提示</Dialog.Title>
+          <Dialog.Title>{t('common.tip')}</Dialog.Title>
           <Dialog.Content>
             <UserAgreementText />
           </Dialog.Content>
           <Dialog.Actions>
-            <Button onPress={() => setShowTermsDialog(false)}>知道了</Button>
+            <Button onPress={() => setShowTermsDialog(false)}>{t('common.gotIt')}</Button>
           </Dialog.Actions>
         </Dialog>
       </Portal>

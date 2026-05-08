@@ -4,9 +4,11 @@ import { View, StyleSheet } from 'react-native';
 import { Text, Button, Avatar, useTheme } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from '@/utils/navigation';
+import { useTranslation } from 'react-i18next';
 import { useRoute } from '@react-navigation/native';
 
 export default function PayResultScreen() {
+  const { t } = useTranslation();
   const route = useRoute<any>();
   const { colors } = useTheme();
   const params = route.params || {};
@@ -24,7 +26,7 @@ export default function PayResultScreen() {
         />
 
         <Text variant="headlineMedium" style={styles.title}>
-          {success ? '支付成功' : '支付失败'}
+          {success ? t('payResult.success') : t('payResult.failed')}
         </Text>
 
         {success ? (
@@ -35,12 +37,12 @@ export default function PayResultScreen() {
               </Text>
             )}
             <Text variant="bodyMedium" style={styles.message}>
-              {planName ? `您已成功订阅 ${planName}` : '您已成功订阅'}
+              {planName ? t('payResult.subscribedPlan', { planName }) : t('payResult.subscribed')}
             </Text>
           </>
         ) : (
           <Text variant="bodyMedium" style={styles.message}>
-            支付遇到问题，请重试或联系客服
+            {t('payResult.errorMessage')}
           </Text>
         )}
 
@@ -50,14 +52,14 @@ export default function PayResultScreen() {
             onPress={() => router.replace('Main', { screen: 'profile' })}
             style={styles.button}
           >
-            查看权益
+            {t('payResult.viewBenefits')}
           </Button>
           <Button
             mode="outlined"
             onPress={() => router.replace('Main')}
             style={styles.button}
           >
-            返回首页
+            {t('payResult.backToHome')}
           </Button>
         </View>
       </View>

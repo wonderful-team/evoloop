@@ -30,7 +30,7 @@ export function WechatLoginButton({
       buttonColor="#07C160"
       textColor="#FFFFFF"
     >
-      微信一键登录
+      {t('auth.wechatLogin')}
     </Button>
   );
 }

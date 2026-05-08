@@ -4,6 +4,7 @@ import React from 'react';
 import { View, StyleSheet, Animated } from 'react-native';
 import { Text, IconButton } from 'react-native-paper';
 import { useTheme } from '@/theme';
+import { useTranslation } from 'react-i18next';
 import { AgentStep } from '@/types/agent';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 
@@ -15,6 +16,7 @@ interface StepsIndicatorProps {
 
 export function StepsIndicator({ steps, currentStepId, compact = false }: StepsIndicatorProps) {
   const { colors } = useTheme();
+  const { t } = useTranslation();
 
   if (steps.length === 0) return null;
 
@@ -88,7 +90,7 @@ export function StepsIndicator({ steps, currentStepId, compact = false }: StepsI
 
   return (
     <View style={[styles.container, { backgroundColor: colors.surfaceVariant }]}>
-      <Text style={[styles.title, { color: colors.onSurface }]}>执行步骤</Text>
+      <Text style={[styles.title, { color: colors.onSurface }]}>{t('stepsIndicator.title')}</Text>
       
       {recentSteps.map((step, index) => {
         const isCurrent = step.id === currentStepId;
@@ -143,7 +145,7 @@ export function StepsIndicator({ steps, currentStepId, compact = false }: StepsI
 
               {step.input && (
                 <Text style={[styles.stepInput, { color: colors.onSurfaceVariant }]} numberOfLines={1}>
-                  输入: {JSON.stringify(step.input).slice(0, 50)}
+                  {t('stepsIndicator.input')} {JSON.stringify(step.input).slice(0, 50)}
                 </Text>
               )}
 

@@ -12,6 +12,7 @@ import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { useTheme } from '@/theme';
 import { handleBenefitError } from '@/utils/subscriptionErrors';
 import { WechatPay } from '@/services/payment/WechatPay';
+import { useTranslation } from 'react-i18next';
 
 // 支付方式类型
  type PaymentMethod = 'wechat';
@@ -20,6 +21,7 @@ export default function PayConfirmScreen() {
   const route = useRoute<any>();
   const { theme } = useTheme();
   const colors = theme.colors;
+  const { t } = useTranslation();
   const params = route.params || {};
   const levelId = parseInt(params.level_id as string) || 0;
   
@@ -61,12 +63,12 @@ export default function PayConfirmScreen() {
   // 处理支付
   const handlePay = useCallback(async () => {
     if (!levelId) {
-      Alert.alert('错误', '无效的套餐');
+      Alert.alert(t('common.error.title'), t('payConfirm.invalidPlan'));
       return;
     }
     
     if (isDowngrade) {
-      Alert.alert('无法购买', '当前等级更高，到期后可购买此方案');
+      Alert.alert(t('payConfirm.cannotPurchase'), t('payConfirm.cannotPurchaseDesc'));
       return;
     }
     
@@ -79,13 +81,13 @@ export default function PayConfirmScreen() {
       });
       
       if (!orderResult) {
-        Alert.alert('创建订单失败', '请稍后重试');
+        Alert.alert(t('payConfirm.orderFailed'), t('payConfirm.retryLater'));
         return;
       }
       
       // 2. 检查是否有支付数据
       if (!orderResult.pay_data) {
-        Alert.alert('支付参数错误', '无法获取支付信息，请稍后重试');
+        Alert.alert(t('payConfirm.paymentParamError'), t('payConfirm.paymentParamErrorDesc'));
         return;
       }
       
@@ -104,10 +106,10 @@ export default function PayConfirmScreen() {
         // 支付失败或取消
         if (payResult.errCode === -2) {
           // 用户取消，停留在当前页
-          Alert.alert('支付取消', '您已取消支付，可重新发起支付');
+          Alert.alert(t('payConfirm.paymentCancelled'), t('payConfirm.paymentCancelledDesc'));
         } else {
           // 支付失败
-          Alert.alert('支付失败', payResult.errStr || '请稍后重试');
+          Alert.alert(t('payConfirm.paymentFailed'), payResult.errStr || t('payConfirm.retryLater'));
         }
       }
     } catch (error: any) {
@@ -122,20 +124,20 @@ export default function PayConfirmScreen() {
       
       // 降级购买错误
       if (error?.message?.includes('降级') || error?.message?.includes('到期')) {
-        Alert.alert('无法购买', error.message || '当前等级更高，到期后可购买此方案');
+        Alert.alert(t('payConfirm.cannotPurchase'), error.message || t('payConfirm.cannotPurchaseDesc'));
         return;
       }
       
-      Alert.alert('创建订单失败', error?.message || '请稍后重试');
+      Alert.alert(t('payConfirm.orderFailed'), error?.message || t('payConfirm.retryLater'));
     }
-  }, [levelId, isDowngrade, createOrder]);
+  }, [levelId, isDowngrade, createOrder, t, selectedPlan, payAmount]);
   
   // 加载中
   if (isLoadingPlans || !selectedPlan) {
     return (
       <SafeAreaView style={[styles.container, styles.center]}>
         <ActivityIndicator size="large" color="#109C8F" />
-        <Text style={styles.loadingText}>加载中...</Text>
+        <Text style={styles.loadingText}>{t('payConfirm.loading')}</Text>
       </SafeAreaView>
     );
   }
@@ -147,28 +149,28 @@ export default function PayConfirmScreen() {
         <Card style={styles.amountCard}>
           <Card.Content style={styles.amountContent}>
             <Text variant="bodyMedium" style={styles.amountLabel}>
-              {isUpgrade ? '升级支付金额' : '支付金额'}
+              {isUpgrade ? t('payConfirm.upgradePayAmount') : t('payConfirm.payAmount')}
             </Text>
             <Text variant="displayLarge" style={styles.amount}>
               ¥{payAmount.toFixed(2)}
             </Text>
             <Text variant="bodyMedium" style={styles.planName}>
-              EvoLoop {selectedPlan.level_name} - {selectedPlan.subscription_quota || 30}天
+              {t('payConfirm.planName', { name: selectedPlan.level_name, days: selectedPlan.subscription_quota || 30 })}
             </Text>
             
             {/* 升级信息 */}
             {isUpgrade && priceInfo && (
               <View style={styles.upgradeInfo}>
                 <View style={styles.upgradeRow}>
-                  <Text style={styles.upgradeLabel}>新购金额</Text>
+                  <Text style={styles.upgradeLabel}>{t('payConfirm.newAmount')}</Text>
                   <Text style={styles.upgradeValue}>¥{priceInfo.pay_amount}</Text>
                 </View>
                 <View style={styles.upgradeRow}>
-                  <Text style={styles.upgradeLabel}>退还金额</Text>
+                  <Text style={styles.upgradeLabel}>{t('payConfirm.refundAmount')}</Text>
                   <Text style={[styles.upgradeValue, styles.refundValue]}>-¥{priceInfo.refund_amount}</Text>
                 </View>
                 <View style={[styles.upgradeRow, styles.netRow]}>
-                  <Text style={styles.upgradeLabel}>实付金额</Text>
+                  <Text style={styles.upgradeLabel}>{t('payConfirm.actualAmount')}</Text>
                   <Text style={[styles.upgradeValue, styles.netValue]}>¥{priceInfo.net_amount}</Text>
                 </View>
               </View>
@@ -179,7 +181,7 @@ export default function PayConfirmScreen() {
               <View style={styles.downgradeWarning}>
                 <MaterialIcons name="warning" size={20} color="#EF4444" />
                 <Text style={styles.downgradeText}>
-                  无法降级购买，当前等级更高
+                  {t('payConfirm.downgradeWarning')}
                 </Text>
               </View>
             )}
@@ -190,7 +192,7 @@ export default function PayConfirmScreen() {
         <Card style={styles.paymentCard}>
           <Card.Content>
             <Text variant="titleMedium" style={styles.sectionTitle}>
-              选择支付方式
+              {t('payConfirm.selectPayment')}
             </Text>
             
             <RadioButton.Group
@@ -198,7 +200,7 @@ export default function PayConfirmScreen() {
               value={paymentMethod}
             >
               <RadioButton.Item
-                label="微信支付"
+                label={t('payConfirm.wechatPay')}
                 value="wechat"
                 disabled={isDowngrade}
                 left={() => (
@@ -215,13 +217,17 @@ export default function PayConfirmScreen() {
         <Card style={styles.benefitsCard}>
           <Card.Content>
             <Text variant="titleMedium" style={styles.sectionTitle}>
-              包含权益
+              {t('payConfirm.benefits')}
             </Text>
             {selectedPlan.benefits?.ai_quota !== undefined && (
               <View style={styles.benefitItem}>
                 <MaterialIcons name="chat" size={18} color="#109C8F" />
                 <Text style={styles.benefitText}>
-                  AI 调用: {selectedPlan.benefits.ai_quota === -1 ? '无限' : `${selectedPlan.benefits.ai_quota} 次/月`}
+                  {t('payConfirm.aiQuota', { 
+                    quota: selectedPlan.benefits.ai_quota === -1 
+                      ? t('payConfirm.unlimited') 
+                      : `${selectedPlan.benefits.ai_quota}${t('payConfirm.timesPerMonth')}` 
+                  })}
                 </Text>
               </View>
             )}
@@ -229,20 +235,24 @@ export default function PayConfirmScreen() {
               <View style={styles.benefitItem}>
                 <MaterialIcons name="folder" size={18} color="#109C8F" />
                 <Text style={styles.benefitText}>
-                  项目数量: {selectedPlan.benefits.project_limit === -1 ? '无限' : `${selectedPlan.benefits.project_limit} 个`}
+                  {t('payConfirm.projectCount', { 
+                    count: selectedPlan.benefits.project_limit === -1 
+                      ? t('payConfirm.unlimited') 
+                      : `${selectedPlan.benefits.project_limit}${t('payConfirm.projectUnit')}` 
+                  })}
                 </Text>
               </View>
             )}
             {selectedPlan.benefits?.ai_advanced && (
               <View style={styles.benefitItem}>
                 <MaterialIcons name="auto-awesome" size={18} color="#109C8F" />
-                <Text style={styles.benefitText}>高级模型 (GPT-4, Claude)</Text>
+                <Text style={styles.benefitText}>{t('payConfirm.advancedModels')}</Text>
               </View>
             )}
             {selectedPlan.benefits?.voice && (
               <View style={styles.benefitItem}>
                 <MaterialIcons name="mic" size={18} color="#109C8F" />
-                <Text style={styles.benefitText}>语音对话</Text>
+                <Text style={styles.benefitText}>{t('payConfirm.voiceChat')}</Text>
               </View>
             )}
           </Card.Content>
@@ -251,7 +261,7 @@ export default function PayConfirmScreen() {
         {/* 底部按钮 */}
         <View style={styles.footer}>
           <Text variant="bodySmall" style={styles.agreement}>
-            点击支付即表示您同意《服务协议》和《隐私政策》
+            {t('payConfirm.agreement')}
           </Text>
           <Button
             mode="contained"
@@ -262,7 +272,7 @@ export default function PayConfirmScreen() {
             contentStyle={styles.payButtonContent}
             buttonColor={isDowngrade ? '#9CA3AF' : '#109C8F'}
           >
-            {isDowngrade ? '无法购买' : isUpgrade ? '确认升级' : '立即支付'}
+            {isDowngrade ? t('payConfirm.cannotPurchase') : isUpgrade ? t('payConfirm.confirmUpgrade') : t('payConfirm.payNow')}
           </Button>
         </View>
       </View>

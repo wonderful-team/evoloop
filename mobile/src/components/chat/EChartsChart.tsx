@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 import { Text, IconButton, ActivityIndicator } from 'react-native-paper';
 import { useTheme } from '@/theme';
+import { useTranslation } from 'react-i18next';
 import { WebView } from 'react-native-webview';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 
@@ -120,7 +121,7 @@ export const EChartsChart = memo(function EChartsChart({ data }: EChartsChartPro
         <View style={styles.errorHeader}>
           <MaterialIcons name="error-outline" size={20} color={colors.error} />
           <Text style={[styles.errorTitle, { color: colors.error }]}>
-            图表渲染失败
+            {t('echartsChart.renderFailed')}
           </Text>
         </View>
         <View style={[styles.codeBlock, { backgroundColor: colors.background }]}>
@@ -146,7 +147,7 @@ export const EChartsChart = memo(function EChartsChart({ data }: EChartsChartPro
           <View style={styles.headerLeft}>
             <MaterialIcons name="bar-chart" size={18} color={colors.primary} />
             <Text style={[styles.title, { color: colors.primary }]}>
-              {data.title || 'ECharts 图表'}
+              {data.title || t('chat.codeBlock.echartsChart')}
             </Text>
           </View>
           <MaterialIcons name="fullscreen" size={20} color={colors.onSurfaceVariant} />
@@ -158,7 +159,7 @@ export const EChartsChart = memo(function EChartsChart({ data }: EChartsChartPro
             <View style={styles.loadingOverlay}>
               <ActivityIndicator size="large" color={colors.primary} />
               <Text style={[styles.loadingText, { color: colors.onSurfaceVariant }]}>
-                正在渲染图表...
+                {t('echartsChart.rendering')}
               </Text>
             </View>
           )}
@@ -176,7 +177,7 @@ export const EChartsChart = memo(function EChartsChart({ data }: EChartsChartPro
 
         {/* 提示文字 */}
         <Text style={[styles.hint, { color: colors.onSurfaceVariant }]}>
-          点击查看大图
+          {t('echartsChart.clickToEnlarge')}
         </Text>
       </TouchableOpacity>
 

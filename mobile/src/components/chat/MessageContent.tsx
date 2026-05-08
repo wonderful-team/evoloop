@@ -113,7 +113,7 @@ function FileMessage({ url }: { url: string }) {
           {filename}
         </Text>
         <Text style={[styles.fileHint, { color: colors.onSurfaceVariant }]}>
-          点击打开
+          {t('messageContent.clickToOpen')}
         </Text>
       </View>
     </TouchableOpacity>

@@ -31,15 +31,15 @@ const DEFAULT_SETTINGS: VoiceSettings = {
   language: 'zh-CN',
 };
 
-const LANGUAGE_OPTIONS = [
-  { value: 'zh-CN', label: '中文（普通话）' },
-  { value: 'en-US', label: 'English (US)' },
-  { value: 'zh-HK', label: '中文（粤语）' },
-  { value: 'ja-JP', label: '日本語' },
-];
-
 export default function VoiceSettingsScreen() {
   const { t } = useTranslation();
+
+  const LANGUAGE_OPTIONS = [
+    { value: 'zh-CN', label: t('settings.voice.langZhCN') },
+    { value: 'en-US', label: 'English (US)' },
+    { value: 'zh-HK', label: t('settings.voice.langZhHK') },
+    { value: 'ja-JP', label: t('settings.voice.langJaJP') },
+  ];
   const { theme } = useTheme();
   const colors = theme.colors;
   const [settings, setSettings] = useState<VoiceSettings>(DEFAULT_SETTINGS);

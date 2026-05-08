@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 import { Text, IconButton, ActivityIndicator } from 'react-native-paper';
 import { useTheme } from '@/theme';
+import { useTranslation } from 'react-i18next';
 import { WebView } from 'react-native-webview';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { AMAP_CONFIG } from '@/constants/config';
@@ -203,7 +204,7 @@ export const MapChart = memo(function MapChart({ data }: MapChartProps) {
         <View style={styles.errorHeader}>
           <MaterialIcons name="error-outline" size={20} color={colors.error} />
           <Text style={[styles.errorTitle, { color: colors.error }]}>
-            地图加载失败
+            {t('mapChart.loadFailed')}
           </Text>
         </View>
         <View style={[styles.codeBlock, { backgroundColor: colors.background }]}>
@@ -230,7 +231,7 @@ export const MapChart = memo(function MapChart({ data }: MapChartProps) {
           <View style={styles.headerLeft}>
             <MaterialIcons name="map" size={18} color={colors.primary} />
             <Text style={[styles.title, { color: colors.primary }]}>
-              {data.title || '地图'}
+              {data.title || t('mapChart.defaultTitle')}
             </Text>
           </View>
           <MaterialIcons name="fullscreen" size={20} color={colors.onSurfaceVariant} />
@@ -242,7 +243,7 @@ export const MapChart = memo(function MapChart({ data }: MapChartProps) {
             <View style={styles.loadingOverlay}>
               <ActivityIndicator size="large" color={colors.primary} />
               <Text style={[styles.loadingText, { color: colors.onSurfaceVariant }]}>
-                正在加载地图...
+                {t('mapChart.loading')}
               </Text>
             </View>
           )}
@@ -260,7 +261,7 @@ export const MapChart = memo(function MapChart({ data }: MapChartProps) {
 
         {/* 提示文字 */}
         <Text style={[styles.hint, { color: colors.onSurfaceVariant }]}>
-          点击查看大图
+          {t('mapChart.clickToEnlarge')}
         </Text>
       </TouchableOpacity>
 

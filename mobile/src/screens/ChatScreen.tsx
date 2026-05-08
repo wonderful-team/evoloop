@@ -54,7 +54,8 @@ export default function ChatScreen() {
   const isLoggedIn = useAuthStore((state) => state.isLoggedIn);
 
   // 从 MC 拉取项目列表（登录后才请求）
-  const { currentProject, setGlobalMode } = useProjects({ autoFetch: isLoggedIn });
+  // 从 MC 拉取项目列表（登录后才请求）
+  const { currentProject, isGlobalMode, setCurrentProject, setGlobalMode } = useProjects({ autoFetch: isLoggedIn });
 
   // 输入模式
   const [inputMode, setInputMode] = useState<InputMode>(InputMode.VOICE);
@@ -225,7 +226,7 @@ export default function ChatScreen() {
         ignoreAndroidSystemSettings: false,
       });
       // 4. 显示提示
-      showSnackbar(`已唤醒: 「${detectedWord}」，请说话`);
+      showSnackbar(t('chat.wakeWordDetected', { word: detectedWord }));
       // 5. 自动启动 NLS 语音识别
       voiceInputRef.current?.startNLS();
     },
@@ -239,7 +240,7 @@ export default function ChatScreen() {
         if (currentId) {
           stopAgent(currentId, activeDeviceKey).catch(() => {});
         }
-        showSnackbar('已打断，请说话');
+        showSnackbar(t('chat.interrupted'));
         voiceInputRef.current?.startNLS();
       }
     },
@@ -248,7 +249,7 @@ export default function ChatScreen() {
   // ========== 设备控制（HTTP 版本） ==========
   // 使用 useCallback 稳定回调引用，避免 ChatScreen 重渲染导致 useDeviceControl 内部重建
   const handleDeviceError = useCallback((error: any) => {
-    showSnackbar('发送失败: ' + error.message);
+    showSnackbar(t('chat.sendFailed') + error.message);
   }, [showSnackbar]);
 
   const handleMessageSent = useCallback((result: any) => {
@@ -274,7 +275,7 @@ export default function ChatScreen() {
       });
     } else if (result.mode !== 'direct_llm') {
       // 链路一（转发 Desktop）：显示发送成功，等待后台轮询
-      showSnackbar('消息已发送');
+      showSnackbar(t('chat.messageSent'));
     }
   }, [setCurrentConversation, addMessage, showSnackbar]);
 
@@ -330,10 +331,13 @@ export default function ChatScreen() {
     // 只有在未选择设备（全局 AI 模式）时，项目切换才触发这里的列表加载
     // 已选择设备时，由 useChatDeviceSync 内部处理级联加载
     if (isLoggedIn && !selectedDevice?.deviceKey) {
+      if (currentProject) {
+        setCurrentProject(null); // 清除具体的项目选择，变为“选择项目”占位状态
+      }
       setCurrentConversation(null); // 立即重置
-      loadConversations(currentProject?.id || 0, true);
+      loadConversations(0, true); // 强制请求 0+0 数据
     }
-  }, [isLoggedIn, currentProject?.id, selectedDevice?.deviceKey, loadConversations]);
+  }, [isLoggedIn, currentProject?.id, currentProject?.isGlobal, selectedDevice?.deviceKey, loadConversations, setGlobalMode]);
 
   // 重发失败消息
   const handleResend = useCallback(async (message: ChatMessage) => {
@@ -352,7 +356,7 @@ export default function ChatScreen() {
       updateMessageStatus(message.id, 'failed');
       const errorText = getErrorMessage(error);
       if (!isQuotaError(error)) {
-        showSnackbar('发送失败: ' + errorText);
+        showSnackbar(t('chat.sendFailed') + errorText);
       }
     }
   }, [currentConversationId, sendMessageToDevice, selectedDevice, updateMessageStatus]);
@@ -382,7 +386,7 @@ export default function ChatScreen() {
         if (att.type === 'image' || att.type === 'video') {
           return `![${att.name}](${att.url})`;
         }
-        return `[附件: ${att.name}](${att.url})`;
+        return `[${t('chat.attachmentLabel', { name: att.name })}](${att.url})`;
       }).join('\n');
       finalText = finalText ? `${finalText}\n\n${attachmentTexts}` : attachmentTexts;
     }
@@ -473,7 +477,7 @@ export default function ChatScreen() {
       const errorText = getErrorMessage(error);
       // 配额耗尽由专门的 UI 卡片提示，其他错误用 snackbar
       if (!isQuotaError(error)) {
-        showSnackbar('发送失败: ' + errorText);
+        showSnackbar(t('chat.sendFailed') + errorText);
       }
     }
   }, [currentConversationId, sendMessageToDevice, selectedDevice, addMessage, saveDeviceConversation, updateMessageStatus, updateStreamMessage, flushTTSBuffer, enqueueTTS, cleanForTTS]);
@@ -485,10 +489,10 @@ export default function ChatScreen() {
         const granted = await PermissionsAndroid.request(
           PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
           {
-            title: '需要录音权限',
-            message: '语音对话需要使用麦克风，请允许访问。',
-            buttonPositive: '允许',
-            buttonNegative: '拒绝',
+            title: t('chat.micPermission.title'),
+            message: t('chat.micPermission.message'),
+            buttonPositive: t('chat.micPermission.allow'),
+            buttonNegative: t('chat.micPermission.deny'),
           }
         );
         return granted === PermissionsAndroid.RESULTS.GRANTED;
@@ -505,7 +509,7 @@ export default function ChatScreen() {
   const handleBeforeStartRecording = useCallback(async (): Promise<boolean> => {
     // 未登录时提示并跳转登录页
     if (!isLoggedIn) {
-      showSnackbar('语音功能需要登录');
+      showSnackbar(t('chat.voiceLoginRequired'));
       router.push('Auth');
       return false;
     }
@@ -513,7 +517,7 @@ export default function ChatScreen() {
     // 请求录音权限
     const hasPermission = await requestMicrophonePermission();
     if (!hasPermission) {
-      showSnackbar('没有录音权限，无法使用语音功能');
+      showSnackbar(t('chat.voicePermissionDenied'));
       return false;
     }
 
@@ -559,10 +563,10 @@ export default function ChatScreen() {
   const handleNLSError = useCallback((error: Error) => {
     const errorMsg = error?.message || '';
     if (errorMsg.includes('登录') || errorMsg.includes('authorization') || errorMsg.includes('401')) {
-      showSnackbar('语音功能需要登录');
+      showSnackbar(t('chat.voiceLoginRequired'));
       router.push('Auth');
     } else {
-      showSnackbar('语音识别错误: ' + errorMsg);
+      showSnackbar(t('chat.voiceRecognitionError') + errorMsg);
     }
   }, [showSnackbar]);
 
@@ -572,11 +576,11 @@ export default function ChatScreen() {
     if (pendingForwardContent) {
       sendMessageToDevice({ type: 'text', text: pendingForwardContent }, { conversationId: threadId, deviceKey: selectedDevice?.deviceKey })
         .then(() => {
-          showSnackbar('转发成功');
+          showSnackbar(t('chat.forwardSuccess'));
           setPendingForwardContent(null);
         })
         .catch(() => {
-          showSnackbar('转发失败');
+          showSnackbar(t('chat.forwardFailed'));
           setPendingForwardContent(null);
         });
       setShowHistoryDrawer(false);
@@ -599,12 +603,12 @@ export default function ChatScreen() {
       createConversation(currentProject?.id || 0, pendingForwardContent)
         .then((newId) => {
           sendMessageToDevice({ type: 'text', text: pendingForwardContent }, { conversationId: newId, deviceKey: selectedDevice?.deviceKey })
-            .then(() => showSnackbar('转发成功'))
-            .catch(() => showSnackbar('转发失败'));
+            .then(() => showSnackbar(t('chat.forwardSuccess')))
+            .catch(() => showSnackbar(t('chat.forwardFailed')));
           setPendingForwardContent(null);
         })
         .catch(() => {
-          showSnackbar('创建会话失败');
+          showSnackbar(t('chat.createThreadFailed'));
           setPendingForwardContent(null);
         });
       setShowHistoryDrawer(false);
@@ -665,10 +669,10 @@ export default function ChatScreen() {
         revert_files: revertFiles,
       });
 
-      showSnackbar(`已回退到指定位置${result.files_reverted ? ` (${result.files_reverted} 个文件已恢复)` : ''}`);
+      showSnackbar(t('chat.rewindSuccess') + (result.files_reverted ? ` (${t('chat.filesReverted', { count: result.files_reverted })})` : ''));
       setShowRewindDialog(false);
     } catch (error: unknown) {
-      showSnackbar('回退失败: ' + getErrorMessage(error));
+      showSnackbar(t('chat.rewindFailed') + getErrorMessage(error));
     }
   }, [currentConversationId, rewindConversation]);
 
@@ -682,32 +686,32 @@ export default function ChatScreen() {
         revert_files: revertFiles,
       });
 
-      showSnackbar(`正在重试${result.files_reverted ? ` (${result.files_reverted} 个文件已恢复)` : ''}`);
+      showSnackbar(t('chat.retrying') + (result.files_reverted ? ` (${t('chat.filesReverted', { count: result.files_reverted })})` : ''));
       setShowRewindDialog(false);
     } catch (error: unknown) {
-      showSnackbar('重试失败: ' + getErrorMessage(error));
+      showSnackbar(t('chat.retryFailed') + getErrorMessage(error));
     }
   }, [currentConversationId, retryConversation]);
 
   // 添加到记忆
   const handleAddToMemory = useCallback(async (text: string) => {
     if (!currentProject) {
-      showSnackbar('请先选择项目');
+      showSnackbar(t('chat.input.noProject'));
       return;
     }
     if (currentProject.isGlobal) {
-      showSnackbar('全局模式下无法添加记忆');
+      showSnackbar(t('chat.globalModeNoMemory'));
       return;
     }
 
     try {
       await addToMemory(currentProject.id, {
-        name: '从对话学习',
+        name: t('chat.learnFromConversation'),
         description: text,
       });
-      showSnackbar('已添加到记忆');
+      showSnackbar(t('chat.addedToMemory'));
     } catch (error: unknown) {
-      showSnackbar('添加记忆失败: ' + getErrorMessage(error));
+      showSnackbar(t('chat.addMemoryFailed') + getErrorMessage(error));
     }
   }, [currentProject, addToMemory]);
 
@@ -720,7 +724,7 @@ export default function ChatScreen() {
     voiceInputRef.current?.addReference({
       type: 'message',
       id: String(message.id),
-      name: message.content?.slice(0, 30) || '消息',
+      name: message.content?.slice(0, 30) || t('chat.fallbackMessage'),
     });
   }, []);
 
@@ -767,7 +771,7 @@ export default function ChatScreen() {
                 style={[styles.projectName, { color: selectedDevice ? colors.success : colors.onSurfaceVariant }]}
                 numberOfLines={1}
               >
-                {selectedDevice?.name || '选择设备'}
+                {selectedDevice?.name || t('chat.selectDevice')}
               </Text>
               <MaterialIcons name="chevron-right" size={20} color={colors.onSurfaceVariant} />
             </TouchableOpacity>
@@ -793,7 +797,7 @@ export default function ChatScreen() {
                 style={[styles.projectName, { color: colors.onSurface }]}
                 numberOfLines={1}
               >
-                {currentProject?.name || '全局模式'}
+                {currentProject?.name || (isGlobalMode ? t('projects.currentGlobalMode') : t('projects.selectProject'))}
               </Text>
               <MaterialIcons name="chevron-right" size={20} color={colors.onSurfaceVariant} />
             </TouchableOpacity>
@@ -816,7 +820,7 @@ export default function ChatScreen() {
           >
             <MaterialIcons name="info" size={16} color={colors.primary} />
             <Text variant="bodySmall" style={{ color: colors.primary, marginLeft: 8 }}>
-              游客模式 - 点击登录
+              {t('chat.guestMode')}
             </Text>
           </TouchableOpacity>
         )}
@@ -852,10 +856,10 @@ export default function ChatScreen() {
                   '#757575',
               }}
             >
-              {gatewayConnectionState === ConnectionState.CONNECTING ? '连接中...' :
-               gatewayConnectionState === ConnectionState.RECONNECTING ? '重连中...' :
-               gatewayConnectionState === ConnectionState.ERROR ? '连接失败' :
-               'Gateway 已断开'}
+              {gatewayConnectionState === ConnectionState.CONNECTING ? t('chat.connection.connecting') :
+               gatewayConnectionState === ConnectionState.RECONNECTING ? t('chat.connection.reconnecting') :
+               gatewayConnectionState === ConnectionState.ERROR ? t('chat.connection.error') :
+               t('chat.connection.disconnected')}
             </Text>
           </View>
         )}
@@ -894,7 +898,7 @@ export default function ChatScreen() {
               info={quotaExhaustedInfo}
               onContinue={() => {
                 clearQuotaExhausted();
-                handleSendMessage(t('chat.quota.continuePrompt') || '继续');
+                handleSendMessage(t('chat.quota.continuePrompt'));
               }}
             />
           )}
@@ -969,10 +973,10 @@ export default function ChatScreen() {
       {/* ===== Rewind/Retry 确认对话框 ===== */}
       <Portal>
         <Dialog visible={showRewindDialog} onDismiss={() => setShowRewindDialog(false)}>
-          <Dialog.Title>确认操作</Dialog.Title>
+          <Dialog.Title>{t('chat.rewindDialog.title')}</Dialog.Title>
           <Dialog.Content>
             <Text variant="bodyMedium">
-              此操作将回退后续的文件修改。是否同时恢复文件到之前的状态？
+              {t('chat.rewindDialog.description')}
             </Text>
           </Dialog.Content>
           <Dialog.Actions>
@@ -983,7 +987,7 @@ export default function ChatScreen() {
                 executeRetry(pendingRetryMessageId, false);
               }
             }}>
-              保留文件
+              {t('chat.rewindDialog.keepFiles')}
             </Button>
             <Button onPress={() => {
               if (pendingRewindMessageId) {
@@ -992,7 +996,7 @@ export default function ChatScreen() {
                 executeRetry(pendingRetryMessageId, true);
               }
             }} mode="contained">
-              恢复文件
+              {t('chat.rewindDialog.restoreFiles')}
             </Button>
           </Dialog.Actions>
         </Dialog>

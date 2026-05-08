@@ -19,6 +19,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRoute } from '@react-navigation/native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
+import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/theme';
 import { AuthManager } from '@/services/auth/AuthManager';
 import { api } from '@/services/api/client';
@@ -31,6 +32,7 @@ export default function BindMobileScreen() {
   const route = useRoute<any>();
   const { colors } = useTheme();
   const { login } = useAuthStore();
+  const { t } = useTranslation();
 
   // 微信授权信息（从路由参数传入）
   const wxOpenid = route.params?.wx_openid || '';
@@ -70,7 +72,7 @@ export default function BindMobileScreen() {
       }
 
       if (!captcha || !captcha.img) {
-        throw new Error('获取验证码失败');
+        throw new Error(t('auth.errors.getCaptchaFailed'));
       }
 
       setCaptchaId(captcha.id);
@@ -79,7 +81,7 @@ export default function BindMobileScreen() {
       console.error('获取图形验证码失败:', error);
       setFormErrors((prev) => ({
         ...prev,
-        captchaCode: error.message || '验证码服务暂时不可用',
+        captchaCode: error.message || t('auth.errors.captchaUnavailable'),
       }));
       throw error;
     }
@@ -88,12 +90,12 @@ export default function BindMobileScreen() {
   // 发送短信动态码
   const handleSendMobileCode = async () => {
     if (!validate.mobile(mobile)) {
-      setFormErrors((prev) => ({ ...prev, mobile: '请输入正确的手机号' }));
+      setFormErrors((prev) => ({ ...prev, mobile: t('auth.errors.enterCorrectMobile') }));
       return false;
     }
 
     if (!captchaCode) {
-      setFormErrors((prev) => ({ ...prev, captchaCode: '请输入图形验证码' }));
+      setFormErrors((prev) => ({ ...prev, captchaCode: t('auth.errors.enterCaptcha') }));
       return false;
     }
 
@@ -112,7 +114,7 @@ export default function BindMobileScreen() {
     } catch (error: any) {
       setFormErrors((prev) => ({
         ...prev,
-        mobile: error.message || '发送验证码失败',
+        mobile: error.message || t('auth.errors.sendCodeFailed'),
       }));
       refreshCaptcha();
     }
@@ -124,13 +126,13 @@ export default function BindMobileScreen() {
     const errors: Record<string, string> = {};
 
     if (!validate.mobile(mobile)) {
-      errors.mobile = '请输入正确的手机号';
+      errors.mobile = t('auth.errors.enterCorrectMobile');
     }
     if (!captchaCode) {
-      errors.captchaCode = '请输入图形验证码';
+      errors.captchaCode = t('auth.errors.enterCaptcha');
     }
     if (!dynaCode) {
-      errors.dynaCode = '请输入短信动态码';
+      errors.dynaCode = t('auth.errors.enterDynaCode');
     }
 
     if (Object.keys(errors).length > 0) {
@@ -164,12 +166,12 @@ export default function BindMobileScreen() {
         await login(result.token, userInfo);
         router.replace('Main');
       } else {
-        setFormErrors({ global: '绑定失败，请重试' });
+        setFormErrors({ global: t('auth.bindMobile.bindFailed') });
       }
     } catch (error: any) {
       console.error('绑定手机号失败:', error);
       setFormErrors({
-        global: error.message || '绑定失败，请重试',
+        global: error.message || t('auth.bindMobile.bindFailed'),
       });
       refreshCaptcha();
     } finally {
@@ -208,13 +210,13 @@ export default function BindMobileScreen() {
               <Avatar.Icon size={64} icon="account" style={styles.avatar} />
             )}
             <Text variant="headlineSmall" style={[styles.title, { color: colors.onSurface }]}>
-              绑定手机号
+              {t('auth.bindMobile.title')}
             </Text>
             <Text variant="bodyMedium" style={{ color: colors.text.secondary }}>
-              {nickname ? `你好，${nickname}` : '检测到您还未绑定手机号'}
+              {nickname ? t('auth.bindMobile.greeting', { nickname }) : t('auth.bindMobile.greetingFallback')}
             </Text>
             <Text variant="bodySmall" style={[styles.tip, { color: colors.text.secondary }]}>
-              为了方便您接收订单等信息，需要绑定手机号
+              {t('auth.bindMobile.hint')}
             </Text>
           </View>
 
@@ -223,7 +225,7 @@ export default function BindMobileScreen() {
             {/* 手机号 */}
             <View>
               <TextInput
-                label="手机号"
+                label={t('auth.login.mobilePlaceholder')}
                 value={mobile}
                 onChangeText={(text) => {
                   setMobile(text);
@@ -247,7 +249,7 @@ export default function BindMobileScreen() {
             <View>
               <View style={styles.captchaContainer}>
                 <TextInput
-                  label="图形验证码"
+                  label={t('auth.login.captchaLabel')}
                   value={captchaCode}
                   onChangeText={(text) => {
                     setCaptchaCode(text);
@@ -275,7 +277,7 @@ export default function BindMobileScreen() {
             <View>
               <View style={styles.codeContainer}>
                 <TextInput
-                  label="短信动态码"
+                  label={t('auth.bindMobile.dynaCodeLabel')}
                   value={dynaCode}
                   onChangeText={(text) => {
                     setDynaCode(text);
@@ -317,7 +319,7 @@ export default function BindMobileScreen() {
             style={styles.saveButton}
             contentStyle={styles.saveButtonContent}
           >
-            保存
+            {t('auth.bindMobile.save')}
           </Button>
 
           {/* 取消按钮 */}
@@ -327,7 +329,7 @@ export default function BindMobileScreen() {
             disabled={isLoading}
             style={styles.cancelButton}
           >
-            暂不绑定，返回登录
+            {t('auth.bindMobile.skip')}
           </Button>
         </ScrollView>
       </KeyboardAvoidingView>

@@ -13,6 +13,7 @@ import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityI
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { ChatMessage } from '@/types/conversation';
 import { useTheme } from '@/theme';
+import { useTranslation } from 'react-i18next';
 import { MessageContent } from '@/components/chat/MessageContent';
 import { useConversationStore } from '@/stores/conversationStore';
 import { shareChatMessage } from '@/utils/share';
@@ -110,7 +111,7 @@ const MessageItem = React.memo(function MessageItem({
   }, [message, onForward]);
 
   const handleShare = useCallback(async () => {
-    const sender = isUser ? '我' : 'AI';
+    const sender = isUser ? t('chat.messageList.me') : 'AI';
     await shareChatMessage(message.content, sender);
     setMenuVisible(false);
   }, [message.content, isUser]);
@@ -175,7 +176,7 @@ const MessageItem = React.memo(function MessageItem({
                 >
                   <MaterialIcons name="psychology" size={13} color={colors.onSurfaceVariant} style={{ opacity: 0.7 }} />
                   <Text style={[styles.thinkingHeaderText, { color: colors.onSurfaceVariant }]}>
-                    思考过程
+                    {t('chat.messageList.thinkingProcess')}
                   </Text>
                   <MaterialIcons
                     name={thinkingExpanded ? 'expand-less' : 'expand-more'}
@@ -202,7 +203,7 @@ const MessageItem = React.memo(function MessageItem({
                   <View style={[styles.changesetBadge, { backgroundColor: colors.primaryContainer }]}>
                     <MaterialCommunityIcons name="file-multiple-outline" size={11} color={colors.primary} />
                     <Text style={[styles.changesetBadgeText, { color: colors.primary }]}>
-                      {(message as any).changeset_count} 个文件变更
+                      {t('chat.messageList.fileChanges', { count: (message as any).changeset_count })}
                     </Text>
                   </View>
                 </View>
@@ -216,7 +217,7 @@ const MessageItem = React.memo(function MessageItem({
                   <>
                     <ActivityIndicator size={12} color={colors.onSurfaceVariant} />
                     <Text variant="bodySmall" style={{ marginLeft: 4, color: colors.onSurfaceVariant }}>
-                      发送中
+                      {t('chat.messageList.sending')}
                     </Text>
                   </>
                 )}
@@ -227,7 +228,7 @@ const MessageItem = React.memo(function MessageItem({
                   >
                     <MaterialIcons name="error-outline" size={14} color={colors.error} />
                     <Text variant="bodySmall" style={{ marginLeft: 4, color: colors.error }}>
-                      发送失败，点击重试
+                      {t('chat.messageList.sendFailedRetry')}
                     </Text>
                   </TouchableOpacity>
                 )}
@@ -237,22 +238,22 @@ const MessageItem = React.memo(function MessageItem({
         </TouchableOpacity>
       }
     >
-      <Menu.Item onPress={handleCopy} title="复制" leadingIcon="content-copy" />
+      <Menu.Item onPress={handleCopy} title={t('chat.messageActions.copy')} leadingIcon="content-copy" />
       {isUser && onRewind && (
-        <Menu.Item onPress={handleRewind} title="撤回" leadingIcon="undo" />
+        <Menu.Item onPress={handleRewind} title={t('chat.messageActions.rewind')} leadingIcon="undo" />
       )}
       {isUser && onRetry && (
-        <Menu.Item onPress={handleRetry} title="重试" leadingIcon="refresh" />
+        <Menu.Item onPress={handleRetry} title={t('chat.messageActions.retry')} leadingIcon="refresh" />
       )}
       {onQuote && (
-        <Menu.Item onPress={handleQuote} title="引用" leadingIcon="format-quote-close" />
+        <Menu.Item onPress={handleQuote} title={t('chat.messageActions.quote')} leadingIcon="format-quote-close" />
       )}
       {onForward && (
-        <Menu.Item onPress={handleForward} title="转发" leadingIcon="share-variant" />
+        <Menu.Item onPress={handleForward} title={t('chat.messageActions.forward')} leadingIcon="share-variant" />
       )}
-      <Menu.Item onPress={handleShare} title="分享" leadingIcon="export-variant" />
+      <Menu.Item onPress={handleShare} title={t('chat.messageActions.share')} leadingIcon="export-variant" />
       {!isUser && onAddToMemory && (
-        <Menu.Item onPress={handleAddToMemory} title="添加到记忆" leadingIcon="brain" />
+        <Menu.Item onPress={handleAddToMemory} title={t('chat.messageActions.addToMemory')} leadingIcon="brain" />
       )}
     </Menu>
   );
@@ -268,6 +269,7 @@ export const MessageList = React.memo(function MessageList({
 }: MessageListProps) {
   const messages = useConversationStore((state) => state.messages);
   const { colors } = useTheme();
+  const { t } = useTranslation();
   const flatListRef = useRef<FlatList>(null);
   const isUserAtBottomRef = useRef(true);
   const lastMessageCountRef = useRef(messages.length);
@@ -363,7 +365,7 @@ export const MessageList = React.memo(function MessageList({
               <View style={[styles.typingDot, { backgroundColor: colors.primary }]} />
             </View>
             <Text variant="bodySmall" style={{ color: colors.onSurfaceVariant, marginTop: 4 }}>
-              AI 思考中...
+              {t('chat.messageList.aiThinking')}
             </Text>
           </View>
         ) : null

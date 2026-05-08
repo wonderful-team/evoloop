@@ -3,6 +3,7 @@
 import React from 'react';
 import { View, StyleSheet, Modal, ActivityIndicator } from 'react-native';
 import { Text } from 'react-native-paper';
+import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/theme';
 
 interface FullScreenLoaderProps {
@@ -17,6 +18,7 @@ export function FullScreenLoader({
   transparent = true,
 }: FullScreenLoaderProps) {
   const { colors } = useTheme();
+  const { t } = useTranslation();
 
   return (
     <Modal
@@ -100,7 +102,7 @@ export function LoadMoreFooter({
     return (
       <View style={styles.loadMoreFooter}>
         <Text variant="bodySmall" style={{ color: colors.text.tertiary }}>
-          已经到底了
+          {t('common.endReached')}
         </Text>
       </View>
     );

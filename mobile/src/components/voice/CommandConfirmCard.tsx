@@ -5,6 +5,7 @@ import { View, StyleSheet } from 'react-native';
 import { Card, Text, Button, Divider } from 'react-native-paper';
 import { TaskCommand } from '@/types/voice';
 import { useTheme } from '@/theme';
+import { useTranslation } from 'react-i18next';
 
 interface CommandConfirmCardProps {
   command: TaskCommand;
@@ -18,24 +19,16 @@ export function CommandConfirmCard({
   onCancel,
 }: CommandConfirmCardProps) {
   const { colors } = useTheme();
+  const { t } = useTranslation();
 
   // 获取动作显示文本
   const getActionText = (action: string) => {
-    const actionMap: Record<string, string> = {
-      turnOn: '打开',
-      turnOff: '关闭',
-      setBrightness: '设置亮度',
-      setColor: '设置颜色',
-      setTemperature: '设置温度',
-      lock: '上锁',
-      unlock: '解锁',
-      open: '打开',
-      close: '关闭',
-      start: '开始',
-      stop: '停止',
-      pause: '暂停',
-    };
-    return actionMap[action] || action;
+    return t(`voice.command.actionMap.${action}`, { defaultValue: action });
+  };
+
+  // 翻译参数名
+  const translateParameterKey = (key: string): string => {
+    return t(`voice.command.paramMap.${key}`, { defaultValue: key });
   };
 
   // 获取参数显示文本
@@ -58,7 +51,7 @@ export function CommandConfirmCard({
               variant="bodyMedium"
               style={[styles.parameterValue, { color: colors.text.primary }]}
             >
-              {formatParameterValue(key, value)}
+              {formatParameterValue(key, value, t('voice.command.second'))}
             </Text>
           </View>
         ))}
@@ -86,7 +79,7 @@ export function CommandConfirmCard({
         {/* 标题 */}
         <View style={styles.header}>
           <Text variant="titleMedium" style={{ color: colors.onWarningContainer }}>
-            确认执行指令
+            {t('voice.command.title')}
           </Text>
           <View
             style={[
@@ -95,7 +88,7 @@ export function CommandConfirmCard({
             ]}
           >
             <Text variant="labelSmall" style={{ color: colors.onWarning }}>
-              待确认
+              {t('voice.command.pending')}
             </Text>
           </View>
         </View>
@@ -108,10 +101,10 @@ export function CommandConfirmCard({
             variant="bodySmall"
             style={[styles.label, { color: colors.text.tertiary }]}
           >
-            设备
+            {t('voice.command.device')}
           </Text>
           <Text variant="bodyLarge" style={{ color: colors.onWarningContainer }}>
-            {command.deviceName || '未知设备'}
+            {command.deviceName || t('voice.command.unknownDevice')}
           </Text>
         </View>
 
@@ -121,7 +114,7 @@ export function CommandConfirmCard({
             variant="bodySmall"
             style={[styles.label, { color: colors.text.tertiary }]}
           >
-            动作
+            {t('voice.command.action')}
           </Text>
           <Text variant="bodyLarge" style={{ color: colors.onWarningContainer }}>
             {getActionText(command.action)}
@@ -140,7 +133,7 @@ export function CommandConfirmCard({
           style={styles.button}
           textColor={colors.onWarningContainer}
         >
-          取消
+          {t('voice.command.cancel')}
         </Button>
         <Button
           mode="contained"
@@ -148,29 +141,15 @@ export function CommandConfirmCard({
           style={[styles.button, { backgroundColor: colors.warning }]}
           textColor={colors.onWarning}
         >
-          确认执行
+          {t('voice.command.confirm')}
         </Button>
       </Card.Actions>
     </Card>
   );
 }
 
-// 翻译参数名
-function translateParameterKey(key: string): string {
-  const keyMap: Record<string, string> = {
-    brightness: '亮度',
-    color: '颜色',
-    temperature: '温度',
-    mode: '模式',
-    speed: '速度',
-    duration: '时长',
-    delay: '延迟',
-  };
-  return keyMap[key] || key;
-}
-
 // 格式化参数值
-function formatParameterValue(key: string, value: any): string {
+function formatParameterValue(key: string, value: any, secondLabel: string): string {
   if (key === 'brightness') {
     return `${value}%`;
   }
@@ -178,7 +157,7 @@ function formatParameterValue(key: string, value: any): string {
     return `${value}°C`;
   }
   if (key === 'duration' || key === 'delay') {
-    return `${value}秒`;
+    return `${value}${secondLabel}`;
   }
   return String(value);
 }

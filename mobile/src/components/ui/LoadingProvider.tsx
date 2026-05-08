@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import { View, StyleSheet, ActivityIndicator } from 'react-native';
 import { Portal, Modal, useTheme } from 'react-native-paper';
+import { useTranslation } from 'react-i18next';
 
 interface LoadingContextType {
   showLoading: (message?: string) => void;
@@ -24,8 +25,9 @@ interface LoadingProviderProps {
 
 export function LoadingProvider({ children }: LoadingProviderProps) {
   const { colors } = useTheme();
+  const { t } = useTranslation();
   const [isLoading, setIsLoading] = useState(false);
-  const [message, setMessage] = useState<string>('加载中...');
+  const [message, setMessage] = useState<string>(t('common.loading'));
 
   const showLoading = useCallback((msg?: string) => {
     if (msg) setMessage(msg);
@@ -34,7 +36,7 @@ export function LoadingProvider({ children }: LoadingProviderProps) {
 
   const hideLoading = useCallback(() => {
     setIsLoading(false);
-    setMessage('加载中...');
+    setMessage(t('common.loading'));
   }, []);
 
   return (
