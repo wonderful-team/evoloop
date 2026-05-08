@@ -14,6 +14,7 @@ def test_git_harvest_task_logic():
     # Mock dependencies
     # We mock inside the function scope because of the local imports
     with patch("subprocess.run") as mock_run, \
+         patch("os.path.exists", return_value=True), \
          patch("app.infrastructure.config.service.SystemConfigService") as mock_config, \
          patch("app.utils.render_template") as mock_render, \
          patch("app.core.memory.lifespan.MemoryLifespanManager") as mock_memory_container, \

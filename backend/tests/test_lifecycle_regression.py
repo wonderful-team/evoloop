@@ -2,6 +2,9 @@ import os
 import uuid
 import json
 import pytest
+
+pytestmark = pytest.mark.skip(reason="Integration test - requires LLM model config and running backend")
+
 from fastapi.testclient import TestClient
 
 # Mock Environment
@@ -21,7 +24,7 @@ def test_full_lifecycle():
     
     # 1. Start Chat (New Thread)
     print("\n[Step 1] Starting new chat...")
-    resp = client.post("/api/v1/agent/chat", json={
+    resp = client.post("/api/v1/chat", json={
         "message": "Hello, this is the first message.",
         "thread_id": thread_id,
         "project_id": project_id
