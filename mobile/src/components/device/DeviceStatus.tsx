@@ -3,6 +3,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
+import { useTranslation } from 'react-i18next';
 
 interface DeviceStatusProps {
   online: number;
@@ -10,6 +11,7 @@ interface DeviceStatusProps {
 }
 
 export function DeviceStatus({ online, total }: DeviceStatusProps) {
+  const { t } = useTranslation();
   const offline = total - online;
 
   return (
@@ -17,19 +19,19 @@ export function DeviceStatus({ online, total }: DeviceStatusProps) {
       <View style={[styles.statCard, { backgroundColor: '#DCFCE7' }]}>
         <View style={[styles.dot, { backgroundColor: '#22C55E', shadowColor: '#22C55E', shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.5, shadowRadius: 3, elevation: 2 }]} />
         <Text style={[styles.statNumber, { color: '#166534' }]}>{online}</Text>
-        <Text style={[styles.statLabel, { color: '#166534' }]}>在线</Text>
+        <Text style={[styles.statLabel, { color: '#166534' }]}>{t('devices.online')}</Text>
       </View>
 
       <View style={[styles.statCard, { backgroundColor: '#F3F4F6' }]}>
         <View style={[styles.dot, { backgroundColor: '#9CA3AF' }]} />
         <Text style={[styles.statNumber, { color: '#4B5563' }]}>{offline}</Text>
-        <Text style={[styles.statLabel, { color: '#4B5563' }]}>离线</Text>
+        <Text style={[styles.statLabel, { color: '#4B5563' }]}>{t('devices.offline')}</Text>
       </View>
 
       <View style={[styles.statCard, { backgroundColor: '#EFF6FF' }]}>
         <MaterialIcons name="devices" size={16} color="#2563EB" />
         <Text style={[styles.statNumber, { color: '#1E40AF' }]}>{total}</Text>
-        <Text style={[styles.statLabel, { color: '#1E40AF' }]}>总计</Text>
+        <Text style={[styles.statLabel, { color: '#1E40AF' }]}>{t('devices.total')}</Text>
       </View>
     </View>
   );

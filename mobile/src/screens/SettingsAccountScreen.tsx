@@ -20,26 +20,26 @@ function parseConfigValue(value: string | undefined): string[] {
 }
 
 // 根据 pwd_complexity 校验密码
-function validatePasswordComplexity(password: string, complexity: string): string | null {
+function validatePasswordComplexity(password: string, complexity: string, t: any): string | null {
   if (!complexity) return null;
   const requirements = parseConfigValue(complexity);
   const errors: string[] = [];
 
   if (requirements.includes('number') && !/\d/.test(password)) {
-    errors.push('数字');
+    errors.push(t('settings.account.number'));
   }
   if (requirements.includes('letter') && !/[a-z]/.test(password)) {
-    errors.push('小写字母');
+    errors.push(t('settings.account.lowercase'));
   }
   if (requirements.includes('upper_case') && !/[A-Z]/.test(password)) {
-    errors.push('大写字母');
+    errors.push(t('settings.account.uppercase'));
   }
   if (requirements.includes('symbol') && !/[!@#$%^&*()_+\-=\[\]{};'"\\|,.<>\/?]/.test(password)) {
-    errors.push('特殊字符');
+    errors.push(t('settings.account.specialChar'));
   }
 
   if (errors.length > 0) {
-    return `密码需包含${errors.join('、')}`;
+    return `${t('settings.account.passwordComplexityPrefix')}${errors.join('、')}`;
   }
   return null;
 }
@@ -118,21 +118,21 @@ export default function AccountSettingsScreen() {
     const minPwdLen = getMinPasswordLength();
 
     if (newPassword.length < minPwdLen) {
-      Alert.alert('错误', `密码长度至少为${minPwdLen}位`);
+      Alert.alert(t('common.error.title'), t('settings.account.passwordLengthError', { min: minPwdLen }));
       return;
     }
 
     // 密码复杂度校验
     if (registerConfig?.pwd_complexity) {
-      const complexityError = validatePasswordComplexity(newPassword, registerConfig.pwd_complexity);
+      const complexityError = validatePasswordComplexity(newPassword, registerConfig.pwd_complexity, t);
       if (complexityError) {
-        Alert.alert('错误', complexityError);
+        Alert.alert(t('common.error.title'), complexityError);
         return;
       }
     }
 
     if (newPassword !== confirmPassword) {
-      Alert.alert('错误', '两次输入的密码不一致');
+      Alert.alert(t('common.error.title'), t('auth.errors.passwordMismatch'));
       return;
     }
 
@@ -142,13 +142,13 @@ export default function AccountSettingsScreen() {
         old_password: currentPassword,
         new_password: newPassword,
       });
-      Alert.alert('成功', '密码已修改');
+      Alert.alert(t('common.success'), t('settings.account.passwordChanged'));
       setShowPasswordDialog(false);
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
     } catch (error: any) {
-      Alert.alert('错误', error.message || '密码修改失败，请检查当前密码');
+      Alert.alert(t('common.error.title'), error.message || t('settings.account.passwordChangeFailed'));
     } finally {
       setIsLoading(false);
     }
@@ -157,12 +157,12 @@ export default function AccountSettingsScreen() {
   // 发送验证码
   const sendVerificationCode = async () => {
     if (!newPhone || newPhone.length !== 11) {
-      Alert.alert('错误', '请输入正确的手机号');
+      Alert.alert(t('common.error.title'), t('auth.errors.invalidMobile'));
       return;
     }
 
     if (!captchaCode) {
-      Alert.alert('错误', '请输入图形验证码');
+      Alert.alert(t('common.error.title'), t('auth.errors.captchaRequired'));
       return;
     }
 
@@ -187,7 +187,7 @@ export default function AccountSettingsScreen() {
         });
       }, 1000);
     } catch (error: any) {
-      Alert.alert('错误', error.message || '发送验证码失败');
+      Alert.alert(t('common.error.title'), error.message || t('settings.account.sendCodeFailed'));
       refreshCaptcha();
     } finally {
       setIsLoading(false);
@@ -197,7 +197,7 @@ export default function AccountSettingsScreen() {
   // 绑定手机
   const handleBindPhone = async () => {
     if (!smsCode || smsCode.length !== 6) {
-      Alert.alert('错误', '请输入6位验证码');
+      Alert.alert(t('common.error.title'), t('settings.account.enter6DigitCode'));
       return;
     }
 
@@ -208,13 +208,13 @@ export default function AccountSettingsScreen() {
         code: smsCode,
         key: smsKey,
       });
-      Alert.alert('成功', '手机号绑定成功');
+      Alert.alert(t('common.success'), t('settings.account.phoneBound'));
       setShowPhoneDialog(false);
       setNewPhone('');
       setSmsCode('');
       setCaptchaCode('');
     } catch (error: any) {
-      Alert.alert('错误', error.message || '绑定失败，请检查验证码');
+      Alert.alert(t('common.error.title'), error.message || t('settings.account.phoneBindFailed'));
     } finally {
       setIsLoading(false);
     }
@@ -222,19 +222,19 @@ export default function AccountSettingsScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      <Header title="账号与安全" showBack />
+      <Header title={t('settings.account.title')} showBack />
       <ScrollView>
         {/* 账号信息 */}
       <List.Section>
-        <List.Subheader>账号信息</List.Subheader>
+        <List.Subheader>{t('settings.account.info')}</List.Subheader>
         <List.Item
-          title="用户名"
-          description={userInfo?.nickname || '未设置'}
+          title={t('settings.account.userName')}
+          description={userInfo?.nickname || t('settings.account.notSet')}
           left={(props) => <List.Icon {...props} icon="account" />}
         />
         <List.Item
-          title="手机号"
-          description={userInfo?.mobile || '未绑定'}
+          title={t('settings.account.phoneNumber')}
+          description={userInfo?.mobile || t('settings.account.notBound')}
           left={(props) => <List.Icon {...props} icon="phone" />}
           right={(props) => (
             <Button
@@ -242,13 +242,13 @@ export default function AccountSettingsScreen() {
               onPress={() => setShowPhoneDialog(true)}
               disabled={!!userInfo?.mobile}
             >
-              {userInfo?.mobile ? '已绑定' : '绑定'}
+              {userInfo?.mobile ? t('settings.account.bound') : t('settings.account.bind')}
             </Button>
           )}
         />
         <List.Item
-          title="邮箱"
-          description={userInfo?.email || '未绑定'}
+          title={t('settings.account.email')}
+          description={userInfo?.email || t('settings.account.notBound')}
           left={(props) => <List.Icon {...props} icon="email" />}
         />
       </List.Section>
@@ -257,20 +257,20 @@ export default function AccountSettingsScreen() {
 
       {/* 安全设置 */}
       <List.Section>
-        <List.Subheader>安全</List.Subheader>
+        <List.Subheader>{t('settings.account.security')}</List.Subheader>
         <List.Item
-          title="修改密码"
-          description="定期更换密码保护账号安全"
+          title={t('settings.account.changePassword')}
+          description={t('settings.account.changePasswordDesc')}
           left={(props) => <List.Icon {...props} icon="lock" />}
           right={(props) => <List.Icon {...props} icon="chevron-right" />}
           onPress={() => setShowPasswordDialog(true)}
         />
         <List.Item
-          title="登录设备管理"
-          description="查看和管理已登录的设备"
+          title={t('settings.account.deviceManagement')}
+          description={t('settings.account.deviceManagementDesc')}
           left={(props) => <List.Icon {...props} icon="devices" />}
           right={(props) => <List.Icon {...props} icon="chevron-right" />}
-          onPress={() => Alert.alert('提示', '功能开发中')}
+          onPress={() => Alert.alert(t('settings.account.tip'), t('settings.account.comingSoon'))}
         />
       </List.Section>
 
@@ -278,21 +278,21 @@ export default function AccountSettingsScreen() {
 
       {/* 危险操作 */}
       <List.Section>
-        <List.Subheader>危险操作</List.Subheader>
+        <List.Subheader>{t('settings.account.dangerZone')}</List.Subheader>
         <List.Item
-          title="注销账号"
+          title={t('settings.account.deleteAccount')}
           titleStyle={{ color: colors.error }}
-          description="永久删除账号及所有数据"
+          description={t('settings.account.deleteAccountDesc')}
           left={(props) => (
             <List.Icon {...props} icon="delete-forever" color={colors.error} />
           )}
           onPress={() => {
             Alert.alert(
-              '确认注销',
-              '注销账号将永久删除您的所有数据，此操作无法撤销。是否继续？',
+              t('settings.account.confirmDeleteAccount'),
+              t('settings.account.deleteAccountWarning'),
               [
-                { text: '取消', style: 'cancel' },
-                { text: '确认注销', style: 'destructive', onPress: () => {} },
+                { text: t('common.cancel'), style: 'cancel' },
+                { text: t('settings.account.confirmDelete'), style: 'destructive', onPress: () => {} },
               ]
             );
           }}
@@ -302,24 +302,24 @@ export default function AccountSettingsScreen() {
       {/* 修改密码对话框 */}
       <Portal>
         <Dialog visible={showPasswordDialog} onDismiss={() => setShowPasswordDialog(false)}>
-          <Dialog.Title>修改密码</Dialog.Title>
+          <Dialog.Title>{t('settings.account.changePassword')}</Dialog.Title>
           <Dialog.Content>
             <TextInput
-              label="当前密码"
+              label={t('settings.account.currentPassword')}
               value={currentPassword}
               onChangeText={setCurrentPassword}
               secureTextEntry
               style={styles.input}
             />
             <TextInput
-              label="新密码"
+              label={t('settings.account.newPassword')}
               value={newPassword}
               onChangeText={setNewPassword}
               secureTextEntry
               style={styles.input}
             />
             <TextInput
-              label="确认新密码"
+              label={t('settings.account.confirmNewPassword')}
               value={confirmPassword}
               onChangeText={setConfirmPassword}
               secureTextEntry
@@ -327,9 +327,9 @@ export default function AccountSettingsScreen() {
             />
           </Dialog.Content>
           <Dialog.Actions>
-            <Button onPress={() => setShowPasswordDialog(false)}>取消</Button>
+            <Button onPress={() => setShowPasswordDialog(false)}>{t('common.cancel')}</Button>
             <Button onPress={handleChangePassword} loading={isLoading}>
-              确认
+              {t('common.confirm')}
             </Button>
           </Dialog.Actions>
         </Dialog>
@@ -338,10 +338,10 @@ export default function AccountSettingsScreen() {
       {/* 绑定手机对话框 */}
       <Portal>
         <Dialog visible={showPhoneDialog} onDismiss={() => setShowPhoneDialog(false)}>
-          <Dialog.Title>绑定手机号</Dialog.Title>
+          <Dialog.Title>{t('settings.account.bindPhoneTitle')}</Dialog.Title>
           <Dialog.Content>
             <TextInput
-              label="手机号"
+              label={t('settings.account.mobileLabel')}
               value={newPhone}
               onChangeText={setNewPhone}
               keyboardType="phone-pad"
@@ -352,7 +352,7 @@ export default function AccountSettingsScreen() {
             {/* 图形验证码 — 与 mobile_uniapp 一致，始终显示 */}
             <View style={styles.captchaContainer}>
               <TextInput
-                label="图形验证码"
+                label={t('settings.account.captchaLabel')}
                 value={captchaCode}
                 onChangeText={setCaptchaCode}
                 style={[styles.input, styles.captchaInput]}
@@ -365,14 +365,14 @@ export default function AccountSettingsScreen() {
                     resizeMode="cover"
                   />
                 ) : (
-                  <Text style={{ color: colors.onSurfaceVariant }}>点击刷新</Text>
+                  <Text style={{ color: colors.onSurfaceVariant }}>{t('settings.account.refreshCaptcha')}</Text>
                 )}
               </TouchableOpacity>
             </View>
 
             <View style={styles.codeInputContainer}>
               <TextInput
-                label="验证码"
+                label={t('settings.account.verificationCode')}
                 value={smsCode}
                 onChangeText={setSmsCode}
                 keyboardType="number-pad"
@@ -385,14 +385,14 @@ export default function AccountSettingsScreen() {
                 disabled={countdown > 0 || isLoading || !captchaCode}
                 style={styles.sendCodeButton}
               >
-                {countdown > 0 ? `${countdown}s` : '获取验证码'}
+                {countdown > 0 ? `${countdown}s` : t('settings.account.getCode')}
               </Button>
             </View>
           </Dialog.Content>
           <Dialog.Actions>
-            <Button onPress={() => setShowPhoneDialog(false)}>取消</Button>
+            <Button onPress={() => setShowPhoneDialog(false)}>{t('common.cancel')}</Button>
             <Button onPress={handleBindPhone} loading={isLoading}>
-              绑定
+              {t('settings.account.bind')}
             </Button>
           </Dialog.Actions>
         </Dialog>

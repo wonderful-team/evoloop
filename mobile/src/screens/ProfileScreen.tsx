@@ -228,7 +228,7 @@ function GuestProfile() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      <Header title={t('profile.title') || '个人中心'} showBack />
+      <Header title={t('profile.title')} showBack />
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* 头部 */}
         <View style={styles.guestHeader}>
@@ -347,7 +347,7 @@ function UserProfile() {
       await deleteAccount();
       Alert.alert(t('common.success'), t('profile.deleteAccountSuccess'));
     } catch (error: any) {
-      Alert.alert(t('common.error.title') || '错误', error.message || t('profile.deleteAccountFailed'));
+      Alert.alert(t('common.error.title'), error.message || t('profile.deleteAccountFailed'));
     }
   }, [deleteAccount, t]);
 
@@ -364,8 +364,8 @@ function UserProfile() {
     const image = images[0] as Image;
     if (!image?.data) {
       Alert.alert(
-        t('common.error.title') || '错误',
-        t('profile.avatarImageError') || '无法获取图片数据'
+        t('common.error.title'),
+        t('profile.avatarImageError')
       );
       return;
     }
@@ -379,13 +379,13 @@ function UserProfile() {
       await executeUpload(authApi.modifyHeadimg(picPath));
       const { updateUserInfo } = useAuthStore.getState();
       updateUserInfo({ avatar: picPath });
-      Alert.alert(t('common.success') || '成功', t('profile.avatarUpdated') || '头像已更新');
+      Alert.alert(t('common.success'), t('profile.avatarUpdated'));
     } catch (error: any) {
       console.error('Avatar upload error:', error);
       if (error.code !== 'E_PICKER_CANCELLED' && error.code !== 'E_USER_CANCELLED') {
         Alert.alert(
-          t('common.error.title') || '错误',
-          error.message || t('profile.avatarUpdateFailed') || '头像更新失败，请重试'
+          t('common.error.title'),
+          error.message || t('profile.avatarUpdateFailed')
         );
       }
     } finally {
@@ -398,7 +398,7 @@ function UserProfile() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      <Header title={t('profile.title') || '个人中心'} showBack />
+      <Header title={t('profile.title')} showBack />
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* 用户信息头部 - 左右排列 */}
         <View style={styles.userHeader}>

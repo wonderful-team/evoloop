@@ -86,21 +86,21 @@ export default function WakeWordSettingsScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      <Header title="唤醒词设置" showBack />
+      <Header title={t('settings.voice.wakeWordSettingsTitle')} showBack />
       <ScrollView>
         {/* 唤醒词文本输入 */}
         <View style={styles.section}>
           <Text variant="titleMedium" style={{ color: colors.onSurface, marginBottom: 8 }}>
-            唤醒词文本
+            {t('settings.voice.wakeWordText')}
           </Text>
           <Text variant="bodySmall" style={{ color: colors.onSurfaceVariant, marginBottom: 12 }}>
-            说出以下词语即可唤醒语音助手（2-4 个字效果最好）
+            {t('settings.voice.wakeWordHint')}
           </Text>
           <TextInput
             mode="outlined"
             value={wakeWord}
             onChangeText={(text) => setSetting('wakeWord', text)}
-            placeholder="输入唤醒词"
+            placeholder={t('settings.voice.wakeWordPlaceholder')}
             style={{ backgroundColor: colors.surface }}
           />
 
@@ -130,7 +130,7 @@ export default function WakeWordSettingsScreen() {
         {/* 测试唤醒词 */}
         <View style={styles.section}>
           <Text variant="titleMedium" style={{ color: colors.onSurface, marginBottom: 8 }}>
-            测试唤醒词
+            {t('settings.voice.wakeWordTest')}
           </Text>
           <Button
             mode={testState === 'idle' ? 'contained' : 'outlined'}
@@ -138,18 +138,18 @@ export default function WakeWordSettingsScreen() {
             icon={testState === 'idle' ? 'microphone' : 'stop'}
             loading={testState === 'listening'}
           >
-            {testState === 'idle' && '开始测试'}
-            {testState === 'listening' && '监听中... (10秒)'}
-            {testState === 'detected' && '停止测试'}
+            {testState === 'idle' && t('settings.voice.startTest')}
+            {testState === 'listening' && t('settings.voice.listening')}
+            {testState === 'detected' && t('settings.voice.stopTest')}
           </Button>
           {testDetectedWord ? (
             <Text
               variant="bodyMedium"
               style={{ color: colors.primary, marginTop: 12, textAlign: 'center' }}
             >
-              {testDetectedWord.startsWith('错误:') || testDetectedWord.startsWith('启动失败:')
+              {testDetectedWord.startsWith(t('settings.voice.errorPrefix')) || testDetectedWord.startsWith(t('settings.voice.startFailedPrefix'))
                 ? testDetectedWord
-                : `检测到: 「${testDetectedWord}」`}
+                : t('settings.voice.detected', { word: testDetectedWord })}
             </Text>
           ) : null}
         </View>

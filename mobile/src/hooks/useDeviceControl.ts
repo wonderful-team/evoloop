@@ -238,9 +238,9 @@ export function useDeviceControl(options: UseDeviceControlOptions = {}): UseDevi
 
     // 构建多轮对话消息上下文
     const contextMessages = useConversationStore.getState().messages
-      .filter(m => m.role === 'user' || m.role === 'assistant')
+      .filter(m => m.role === 'human' || m.role === 'ai')
       .map(m => ({ role: m.role, content: m.content }));
-    contextMessages.push({ role: 'user', content: userContent });
+    contextMessages.push({ role: 'human', content: userContent });
 
     // SSE 流式请求
     let fullText = '';

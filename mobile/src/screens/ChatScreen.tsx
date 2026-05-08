@@ -267,7 +267,7 @@ export default function ChatScreen() {
     if (result.aiMessage) {
       addMessage({
         id: generateUUID(),
-        role: 'assistant',
+        role: 'ai',
         content: result.aiMessage,
         timestamp: Date.now(),
         isComplete: true,
@@ -312,6 +312,7 @@ export default function ChatScreen() {
   const { deviceConversationMap, saveDeviceConversation } = useChatDeviceSync({
     isLoggedIn,
     selectedDeviceKey: selectedDevice?.deviceKey,
+    projectId: currentProject?.id,
     setGlobalMode,
     loadConversations,
   });
@@ -326,10 +327,13 @@ export default function ChatScreen() {
   }, []);
 
   useEffect(() => {
-    if (isLoggedIn) {
+    // 只有在未选择设备（全局 AI 模式）时，项目切换才触发这里的列表加载
+    // 已选择设备时，由 useChatDeviceSync 内部处理级联加载
+    if (isLoggedIn && !selectedDevice?.deviceKey) {
+      setCurrentConversation(null); // 立即重置
       loadConversations(currentProject?.id || 0, true);
     }
-  }, [isLoggedIn, currentProject?.id, loadConversations]);
+  }, [isLoggedIn, currentProject?.id, selectedDevice?.deviceKey, loadConversations]);
 
   // 重发失败消息
   const handleResend = useCallback(async (message: ChatMessage) => {
@@ -386,11 +390,11 @@ export default function ChatScreen() {
     // 立即将用户消息添加到本地消息列表（乐观更新）
     const userMessage: ChatMessage = {
       id: generateUUID(),
-      role: 'user',
+      role: 'human',
       content: finalText,
       timestamp: Date.now(),
       isComplete: true,
-      status: 'sending',
+      status: 'running',
     };
     addMessage(userMessage);
 
@@ -412,11 +416,11 @@ export default function ChatScreen() {
           streamMessageIdRef.current = msgId;
           addMessage({
             id: msgId,
-            role: 'assistant',
+            role: 'ai',
             content: '',
             timestamp: Date.now(),
             isComplete: false,
-            status: 'sending',
+            status: 'running',
           });
         },
         onStreamChunk: (chunk, fullText) => {

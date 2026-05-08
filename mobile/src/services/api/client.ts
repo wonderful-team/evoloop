@@ -110,9 +110,10 @@ apiClient.interceptors.response.use(
         originalRequest._retry = true;
         isRefreshing = true;
 
-        // 清除登录状态，由页面根据 isLoggedIn 状态自行更新 UI
+        // 清除登录状态并提示用户
         useAuthStore.getState().logout();
         isRefreshing = false;
+        showGlobalToast('登录已过期，请重新登录', 'error');
 
         // 返回 rejected promise，让调用方捕获错误
         return Promise.reject(new Error('登录已过期，请重新登录'));
@@ -132,7 +133,7 @@ apiClient.interceptors.response.use(
 
     console.error('API Error:', error.response?.status, error.response?.data);
 
-    // 401 错误处理（不显示 Toast，不强制跳转，由页面根据 isLoggedIn 状态自行更新 UI）
+    // 401 错误处理（清除状态并提示用户，由页面根据 isLoggedIn 状态自行更新 UI）
     console.log('[API] Response error:', error.response?.status, error.response?.data);
     if (error.response?.status === 401 && !originalRequest._retry) {
       if (isRefreshing) {
@@ -161,12 +162,14 @@ apiClient.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        // 清除登录状态，由页面根据 isLoggedIn 状态自行更新 UI
+        // 清除登录状态并提示用户
         useAuthStore.getState().logout();
+        showGlobalToast('登录已过期，请重新登录', 'error');
         const appError = handleApiError(error);
         return Promise.reject(appError);
       } catch (refreshError) {
         useAuthStore.getState().logout();
+        showGlobalToast('登录已过期，请重新登录', 'error');
         return Promise.reject(handleApiError(refreshError));
       } finally {
         isRefreshing = false;

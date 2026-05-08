@@ -32,8 +32,8 @@ interface MessageListProps {
 // 获取角色图标名
 function getRoleIcon(role: string): string {
   switch (role) {
-    case 'user': return 'account';
-    case 'assistant': return 'robot';
+    case 'human': return 'account';
+    case 'ai': return 'robot';
     case 'system': return 'information';
     case 'tool': return 'wrench';
     default: return 'help-circle';
@@ -43,8 +43,8 @@ function getRoleIcon(role: string): string {
 // 获取角色颜色
 function getRoleColor(role: string, colors: any): string {
   switch (role) {
-    case 'user': return colors.primary;
-    case 'assistant': return colors.secondary || '#7C4DFF';
+    case 'human': return colors.primary;
+    case 'ai': return colors.secondary || '#7C4DFF';
     case 'system': return colors.onSurfaceVariant;
     case 'tool': return colors.tertiary || '#00BCD4';
     default: return colors.onSurfaceVariant;
@@ -120,14 +120,13 @@ const MessageItem = React.memo(function MessageItem({
 
   // ── 工具消息：紧凑单行（对齐桌面端设计）
   if (message.role === 'tool') {
-    const toolLabel = (message as any).tool_meta?.display_name || (message as any).tool_name || 'TOOL';
-    const isRunning = (message as any).status === 'running';
+    const toolLabel = message.tool_meta?.display_name || message.tool_name || 'TOOL';
+    const isRunning = message.status === 'running';
     return (
       <View style={styles.toolRow}>
         <View style={[styles.toolSpine, { backgroundColor: colors.outline }]} />
         <View style={[styles.toolDot, { backgroundColor: colors.outline }]} />
         <View style={styles.toolContent}>
-          <MaterialCommunityIcons name="wrench-outline" size={12} color={colors.onSurfaceVariant} style={{ opacity: 0.6 }} />
           <Text
             numberOfLines={1}
             style={[styles.toolLabel, { color: colors.onSurfaceVariant }]}
@@ -136,13 +135,6 @@ const MessageItem = React.memo(function MessageItem({
           </Text>
           {isRunning && (
             <ActivityIndicator size={10} color={colors.primary} style={{ marginLeft: 4, opacity: 0.6 }} />
-          )}
-          {(message as any).changeset_count > 0 && (
-            <View style={[styles.changesetBadge, { backgroundColor: colors.primaryContainer }]}>
-              <Text style={[styles.changesetBadgeText, { color: colors.primary }]}>
-                {(message as any).changeset_count} FILES
-              </Text>
-            </View>
           )}
         </View>
       </View>
@@ -220,7 +212,7 @@ const MessageItem = React.memo(function MessageItem({
             {/* 发送状态指示器 */}
             {isUser && message.status && message.status !== 'sent' && (
               <View style={styles.statusRow}>
-                {message.status === 'sending' && (
+                {(message.status === 'running' || message.status === 'streaming' || message.status === 'pending') && (
                   <>
                     <ActivityIndicator size={12} color={colors.onSurfaceVariant} />
                     <Text variant="bodySmall" style={{ marginLeft: 4, color: colors.onSurfaceVariant }}>
@@ -320,18 +312,11 @@ export const MessageList = React.memo(function MessageList({
   // 使用 useCallback 稳定 renderItem 引用，避免 FlatList 在 MessageList 重渲染时
   // 因 renderItem 引用变化而重新渲染所有可见项
   const renderMessage = useCallback((message: ChatMessage, index: number) => {
-    const isUser = message.role === 'user';
-    const isSystem = message.role === 'system';
+    const isUser = message.role === 'human';
 
-    // 系统消息简洁显示
-    if (isSystem) {
-      return (
-        <View key={message.id} style={styles.systemMessageContainer}>
-          <Text variant="bodySmall" style={[styles.systemText, { color: colors.onSurfaceVariant }]}>
-            {message.content}
-          </Text>
-        </View>
-      );
+    // 系统消息隐藏（对齐桌面端）
+    if (message.role === 'system') {
+      return null;
     }
 
     const hasFileOps = hasFileOperationsAfter(index);

@@ -27,24 +27,24 @@ function GuestLoginPrompt() {
       <View style={styles.guestContainer}>
         <MaterialIcons name="folder" size={64} color="#9CA3AF" />
         <Text variant="headlineMedium" style={styles.guestTitle}>
-          项目管理
+          {t('projects.managementTitle')}
         </Text>
         <Text variant="bodyMedium" style={styles.guestText}>
-          登录后可以管理多个项目，同步到您的所有设备
+          {t('projects.guestDesc')}
         </Text>
         <Button
           mode="contained"
           style={styles.loginButton}
           onPress={() => router.push('Auth')}
         >
-          立即登录
+          {t('auth.login.submit')}
         </Button>
         <Button
           mode="text"
           style={styles.backButton}
           onPress={() => router.back()}
         >
-          返回首页
+          {t('projects.backToHome')}
         </Button>
       </View>
     </SafeAreaView>
@@ -104,6 +104,8 @@ const ProjectsContent = () => {
         await switchProject(selectedProject.id);
       }
       setDialogVisible(false);
+      // 成功切换后返回聊天页面
+      router.back();
     } finally {
       setSwitching(false);
     }
@@ -137,7 +139,7 @@ const ProjectsContent = () => {
               style={[styles.activeChip, { backgroundColor: colors.primaryContainer }]}
               textStyle={{ color: colors.primary }}
             >
-              当前
+              {t('projects.current')}
             </Chip>
           )}
         </View>
@@ -164,21 +166,21 @@ const ProjectsContent = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <Header title={t('projects.title') || '项目管理'} showBack />
+      <Header title={t('projects.title')} showBack />
 
       <View style={styles.pageHeader}>
         <Text variant="bodySmall" style={{ opacity: 0.6 }}>
-          {isGlobalMode ? '当前为全局模式' : currentProject ? `当前项目: ${currentProject.name}` : '请选择项目'}
+          {isGlobalMode ? t('projects.currentGlobalMode') : currentProject ? `${t('projects.currentProjectPrefix')}${currentProject.name}` : t('projects.pleaseSelectProject')}
         </Text>
       </View>
 
       {error ? (
         <View style={styles.centerContent}>
           <Text style={styles.errorText}>
-            加载失败: {error.message}
+            {t('projects.loadFailed')}{error.message}
           </Text>
           <Button onPress={refresh} mode="contained" style={styles.retryButton}>
-            重试
+            {t('common.retry')}
           </Button>
         </View>
       ) : projects.length === 0 ? (
@@ -215,10 +217,10 @@ const ProjectsContent = () => {
                   </View>
                   <View style={styles.info}>
                     <Text variant="titleMedium" style={styles.name}>
-                      全局模式
+                      {t('projects.globalMode')}
                     </Text>
                     <Text variant="bodySmall" style={styles.path}>
-                      跨项目对话与一般问答
+                      {t('projects.globalModeDesc')}
                     </Text>
                   </View>
                   {isGlobalMode && (
@@ -244,21 +246,21 @@ const ProjectsContent = () => {
           <Dialog.Content>
             <Text variant="bodyMedium">
               {selectedProject?.isGlobal
-                ? '切换到全局模式？在此模式下可进行跨项目对话与一般问答。'
+                ? t('projects.switchToGlobalConfirm')
                 : currentDevice
-                  ? `切换到此项目？该项目将在设备「${currentDevice.name}」上激活。`
-                  : '请先选择设备，再切换项目。'}
+                  ? t('projects.switchToProjectConfirm', { deviceName: currentDevice.name })
+                  : t('projects.selectDeviceFirst')}
             </Text>
           </Dialog.Content>
           <Dialog.Actions>
-            <Button onPress={() => setDialogVisible(false)}>取消</Button>
+            <Button onPress={() => setDialogVisible(false)}>{t('common.cancel')}</Button>
             <Button
               onPress={handleSwitch}
               loading={switching}
               disabled={switching}
               mode="contained"
             >
-              切换
+              {t('projects.switch')}
             </Button>
           </Dialog.Actions>
         </Dialog>

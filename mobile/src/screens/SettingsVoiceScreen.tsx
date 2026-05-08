@@ -97,12 +97,12 @@ export default function VoiceSettingsScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      <Header title="语音设置" showBack />
+      <Header title={t('settings.voice.title')} showBack />
       <ScrollView>
         {/* 权限状态 */}
       <View style={styles.permissionCard}>
         <Text variant="titleMedium" style={{ color: colors.onSurface }}>
-          麦克风权限
+          {t('settings.voice.micPermission')}
         </Text>
         <Text
           variant="bodyMedium"
@@ -112,14 +112,14 @@ export default function VoiceSettingsScreen() {
           ]}
         >
           {hasPermission === null
-            ? '检查中...'
+            ? t('settings.voice.checking')
             : hasPermission
-            ? '已授权'
-            : '未授权'}
+            ? t('settings.voice.authorized')
+            : t('settings.voice.notAuthorized')}
         </Text>
         {!hasPermission && (
           <Button mode="contained" onPress={requestPermission} style={styles.permissionButton}>
-            请求权限
+            {t('settings.voice.requestPermission')}
           </Button>
         )}
       </View>
@@ -128,10 +128,10 @@ export default function VoiceSettingsScreen() {
 
       {/* 基本设置 */}
       <List.Section>
-        <List.Subheader>基本设置</List.Subheader>
+        <List.Subheader>{t('settings.voice.basicSettings')}</List.Subheader>
         <List.Item
-          title="自动启动语音"
-          description="进入语音页面时自动开始监听"
+          title={t('settings.voice.autoStart')}
+          description={t('settings.voice.autoStartDesc')}
           right={() => (
             <Switch
               value={settings.autoStart}
@@ -140,8 +140,8 @@ export default function VoiceSettingsScreen() {
           )}
         />
         <List.Item
-          title="连续对话"
-          description="AI 回复后自动继续监听"
+          title={t('settings.voice.continuousListening')}
+          description={t('settings.voice.continuousListeningDesc')}
           right={() => (
             <Switch
               value={settings.continuousListening}
@@ -150,8 +150,8 @@ export default function VoiceSettingsScreen() {
           )}
         />
         <List.Item
-          title="唤醒词"
-          description={`说出「${wakeWord}」唤醒`}
+          title={t('settings.voice.wakeWord')}
+          description={t('settings.voice.wakeWordDesc', { wakeWord })}
           right={() => (
             <Switch
               value={wakeWordEnabled}
@@ -160,8 +160,8 @@ export default function VoiceSettingsScreen() {
           )}
         />
         <List.Item
-          title="唤醒词设置"
-          description="修改唤醒词文本和灵敏度"
+          title={t('settings.voice.wakeWordSettingsTitle')}
+          description={t('settings.voice.wakeWordSettingsDesc')}
           right={(props) => <List.Icon {...props} icon="chevron-right" />}
           onPress={() => router.push('SettingsWakeWord')}
         />
@@ -171,9 +171,9 @@ export default function VoiceSettingsScreen() {
 
       {/* 语音识别设置 */}
       <List.Section>
-        <List.Subheader>语音识别</List.Subheader>
+        <List.Subheader>{t('settings.voice.speechRecognition')}</List.Subheader>
         <List.Item
-          title="识别语言"
+          title={t('settings.voice.language')}
           description={LANGUAGE_OPTIONS.find((l) => l.value === settings.language)?.label}
           right={(props) => <List.Icon {...props} icon="chevron-right" />}
           onPress={() => setShowLanguageDialog(true)}
@@ -184,7 +184,7 @@ export default function VoiceSettingsScreen() {
 
       {/* TTS 语音合成设置 */}
       <List.Section>
-        <List.Subheader>语音朗读</List.Subheader>
+        <List.Subheader>{t('settings.voice.tts')}</List.Subheader>
         {DEFAULT_VOICES.map((voice) => (
           <List.Item
             key={voice.id}
@@ -204,11 +204,11 @@ export default function VoiceSettingsScreen() {
 
       {/* VAD 设置 */}
       <List.Section>
-        <List.Subheader>语音检测 (VAD)</List.Subheader>
+        <List.Subheader>{t('settings.voice.vad')}</List.Subheader>
         <View style={styles.sliderContainer}>
           <View style={styles.sliderHeader}>
             <Text variant="bodyMedium" style={{ color: colors.onSurface }}>
-              灵敏度
+              {t('settings.voice.vadThreshold')}
             </Text>
             <Text variant="bodySmall" style={{ color: colors.onSurfaceVariant }}>
               {Math.round(settings.vadThreshold * 100)}%
@@ -238,14 +238,14 @@ export default function VoiceSettingsScreen() {
             />
           </View>
           <Text variant="bodySmall" style={{ color: colors.onSurfaceVariant }}>
-            较高的值会降低误触发，但可能漏掉轻声说话
+            {t('settings.voice.sensitivityDesc')}
           </Text>
         </View>
 
         <View style={styles.sliderContainer}>
           <View style={styles.sliderHeader}>
             <Text variant="bodyMedium" style={{ color: colors.onSurface }}>
-              静音超时
+              {t('settings.voice.silenceTimeout')}
             </Text>
             <Text variant="bodySmall" style={{ color: colors.onSurfaceVariant }}>
               {settings.silenceTimeout}ms
@@ -275,7 +275,7 @@ export default function VoiceSettingsScreen() {
             />
           </View>
           <Text variant="bodySmall" style={{ color: colors.onSurfaceVariant }}>
-            检测到静音后多久结束录音
+            {t('settings.voice.silenceTimeoutDesc')}
           </Text>
         </View>
       </List.Section>
@@ -291,7 +291,7 @@ export default function VoiceSettingsScreen() {
             AsyncStorage.setItem('voice_settings', JSON.stringify(DEFAULT_SETTINGS));
           }}
         >
-          恢复默认设置
+          {t('settings.voice.reset')}
         </Button>
       </View>
 

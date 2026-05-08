@@ -43,12 +43,7 @@ export function normalizeTimestamp(value: string | number | null | undefined): n
 export function adaptAgentMessage(raw: AgentSyncMessage): ChatMessage {
   return {
     id: String(raw.id || raw.sequence_number || Date.now()),
-    role:
-      raw.role === 'human'
-        ? 'user'
-        : raw.role === 'ai'
-          ? 'assistant'
-          : 'system',
+    role: raw.role === 'human' || raw.role === 'ai' || raw.role === 'tool' || raw.role === 'system' ? raw.role : 'system',
     content: raw.content || '',
     thinking: raw.thinking ?? undefined,
     timestamp: normalizeTimestamp(raw.created_at),  // ISO 8601 → ms
@@ -56,12 +51,7 @@ export function adaptAgentMessage(raw: AgentSyncMessage): ChatMessage {
       raw.status === 'completed' ||
       raw.status === 'failed' ||
       raw.status === 'waiting_human',
-    status:
-      raw.status === 'failed'
-        ? 'failed'
-        : raw.status === 'running' || raw.status === 'streaming' || raw.status === 'pending'
-          ? 'sending'
-          : 'sent',
+    status: raw.status ?? 'completed',
     // 工具消息专属字段
     tool_name: raw.tool_name ?? undefined,
     tool_call_id: raw.tool_call_id ?? undefined,
@@ -81,18 +71,13 @@ export function adaptAgentMessage(raw: AgentSyncMessage): ChatMessage {
 export function adaptHistoryMessage(raw: Record<string, any>): ChatMessage {
   return {
     id: String(raw.id || raw.sequence_number || Date.now()),
-    role:
-      raw.role === 'human'
-        ? 'user'
-        : raw.role === 'ai'
-          ? 'assistant'
-          : 'system',
+    role: raw.role === 'human' || raw.role === 'ai' || raw.role === 'tool' || raw.role === 'system' ? raw.role : 'system',
     content: raw.content || '',
     thinking: raw.thinking ?? undefined,
     // PHP 返回 create_time (Unix 秒) 或 created_at (ISO 8601 字符串)，统一处理
     timestamp: normalizeTimestamp(raw.created_at || raw.create_time),
     isComplete: raw.status === 'completed' || !raw.status,
-    status: raw.status === 'failed' ? 'failed' : 'sent',
+    status: raw.status ?? 'completed',
     tool_name: raw.tool_name ?? undefined,
     tool_calls: Array.isArray(raw.tool_calls)
       ? raw.tool_calls
