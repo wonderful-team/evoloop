@@ -13,28 +13,28 @@ export type FeatureCode =
   | "timesheet"
 
 const FEATURE_PLAN_MAP: Record<FeatureCode, string> = {
-  wiki_generation: "创作者版",
-  browser_control: "极客版",
-  voice: "极客版",
-  skill_learning: "极客版",
-  knowledge_base: "极客版",
-  desktop_control: "专家版",
-  mobile_control: "专家版",
-  gantt: "企业版",
-  timesheet: "企业版",
+  wiki_generation: "creator",
+  browser_control: "geek",
+  voice: "geek",
+  skill_learning: "geek",
+  knowledge_base: "geek",
+  desktop_control: "expert",
+  mobile_control: "expert",
+  gantt: "enterprise",
+  timesheet: "enterprise",
 }
 
-// 权益中文名称映射
+// 权益标识映射（使用 i18n key，UI 层通过 t(`features.${key}`) 翻译）
 const FEATURE_NAME_MAP: Record<FeatureCode, string> = {
-  browser_control: "浏览器控制",
-  desktop_control: "桌面控制",
-  mobile_control: "手机控制",
-  voice: "语音交互",
-  skill_learning: "技能学习",
-  wiki_generation: "Wiki生成",
-  knowledge_base: "知识库",
-  gantt: "甘特图",
-  timesheet: "工时表",
+  browser_control: "browserControl",
+  desktop_control: "desktopControl",
+  mobile_control: "mobileControl",
+  voice: "voice",
+  skill_learning: "skillLearning",
+  wiki_generation: "wikiGeneration",
+  knowledge_base: "knowledgeBase",
+  gantt: "gantt",
+  timesheet: "timesheet",
 }
 
 export interface FeatureAccessResult {
@@ -200,7 +200,7 @@ export function getFeatureName(feature: FeatureCode): string {
  * 获取权益所需套餐名称
  */
 export function getFeatureRequiredPlan(feature: FeatureCode): string {
-  return FEATURE_PLAN_MAP[feature] || "更高等级订阅"
+  return FEATURE_PLAN_MAP[feature] || "higher"
 }
 
 /**

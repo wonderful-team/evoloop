@@ -7,6 +7,7 @@
  */
 
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { X, Download, AlertCircle, Sparkles, ChevronDown, ChevronUp } from 'lucide-react';
 import { updateService } from '@/services/updateService';
 import type { UpdateCheckResult } from '@/hooks/useVersion';
@@ -22,6 +23,7 @@ export const UpdateNotification: React.FC<UpdateNotificationProps> = ({
   onClose,
   onUpdate,
 }) => {
+  const { t } = useTranslation();
   const [isExpanded, setIsExpanded] = useState(false);
 
   if (!updateInfo.hasUpdate) return null;
@@ -85,14 +87,14 @@ export const UpdateNotification: React.FC<UpdateNotificationProps> = ({
             fontWeight: 'bold',
             color: '#111827',
           }}>
-            重要更新可用
+            {t('updateNotification.forceUpdate.title')}
           </h2>
           <p style={{
             marginBottom: '24px',
             textAlign: 'center',
             color: '#6b7280',
           }}>
-            版本 {latestVersion} 包含重要修复，请立即更新以继续使用
+            {t('updateNotification.forceUpdate.desc', { version: latestVersion })}
           </p>
 
           {updateInfo.releaseNotes && (
@@ -131,7 +133,7 @@ export const UpdateNotification: React.FC<UpdateNotificationProps> = ({
             }}
           >
             <Download style={{ width: '20px', height: '20px' }} />
-            立即更新
+            {t('updateNotification.forceUpdate.updateNow')}
           </button>
         </div>
       </div>
@@ -182,13 +184,13 @@ export const UpdateNotification: React.FC<UpdateNotificationProps> = ({
               color: '#111827',
               marginBottom: '4px',
             }}>
-              发现新版本 {latestVersion}
+              {t('updateNotification.normal.title', { version: latestVersion })}
             </h3>
             <p style={{
               fontSize: '14px',
               color: '#6b7280',
             }}>
-              有新版本可用，是否立即更新？
+              {t('updateNotification.normal.desc')}
             </p>
           </div>
 
@@ -249,7 +251,7 @@ export const UpdateNotification: React.FC<UpdateNotificationProps> = ({
             }}
           >
             {isExpanded ? <ChevronUp style={{ width: '16px', height: '16px' }} /> : <ChevronDown style={{ width: '16px', height: '16px' }} />}
-            {isExpanded ? '收起' : '查看详情'}
+            {isExpanded ? t('updateNotification.normal.collapse') : t('updateNotification.normal.expand')}
           </button>
 
           <div style={{ flex: 1 }} />
@@ -267,7 +269,7 @@ export const UpdateNotification: React.FC<UpdateNotificationProps> = ({
               cursor: 'pointer',
             }}
           >
-            稍后提醒
+            {t('updateNotification.normal.remindLater')}
           </button>
 
           <button
@@ -287,7 +289,7 @@ export const UpdateNotification: React.FC<UpdateNotificationProps> = ({
             }}
           >
             <Download style={{ width: '16px', height: '16px' }} />
-            立即更新
+            {t('updateNotification.normal.updateNow')}
           </button>
         </div>
       </div>

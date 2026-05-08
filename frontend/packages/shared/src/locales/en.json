@@ -1,142 +1,107 @@
 {
-  "sidebar": {
-    "toggle": "Toggle Sidebar",
-    "collapse": "Collapse Sidebar",
-    "open": "Open Sidebar",
-    "mobileDescription": "Displays the mobile sidebar.",
-    "mobileTitle": "Sidebar"
-  },
   "common": {
-    "themes": {
-      "toggle": "Toggle theme",
-      "appearance": "Appearance",
-      "dark": "Dark",
-      "light": "Light",
-      "system": "System"
-    },
-    "notFound": {
-      "title": "404",
-      "goBack": "Go Back",
-      "message": "The page you are looking for was not found.",
-      "oops": "Oops!"
-    },
+    "actions": "Actions",
+    "add": "Add",
+    "apply": "Apply",
+    "approve": "Approve",
+    "back": "Back",
+    "cancel": "Cancel",
+    "close": "Close",
+    "confirm": "Confirm",
+    "copyCode": "Copy Code",
+    "delete": "Delete",
+    "deleting": "Deleting...",
+    "discard": "Discard",
+    "done": "Done",
+    "edit": "Edit",
     "error": {
       "goHome": "Go Home",
       "message": "Something went wrong. Please try again.",
       "oops": "Oops!",
-      "title": "Error"
+      "title": "Error",
+      "unknown": "Unknown error"
     },
-    "reject": "Reject",
-    "cancel": "Cancel",
-    "close": "Close",
-    "morePages": "More pages",
-    "submit": "Submit",
-    "previous": "Previous",
-    "approve": "Approve",
-    "next": "Next",
+    "fullView": "Full view",
+    "ignore": "Ignore",
+    "import": "Import",
+    "keep": "Keep",
+    "later": "Later",
     "loading": "Loading...",
     "manage": "Manage",
-    "apply": "Apply"
-  },
-  "auth": {
-    "register": {
-      "login": "Login",
-      "submit": "Sign Up",
-      "hasAccount": "Already have an account?"
-    },
-    "login": {
-      "passwordPlaceholder": "Password",
-      "submit": "Login",
-      "signUp": "Sign Up",
-      "forgotPassword": "Forgot Password?",
-      "noAccount": "Don't have an account?"
-    },
-    "errors": {
-      "usernameRequired": "Username or Email is required",
-      "passwordRequired": "Password is required"
-    }
-  },
-  "chat": {
-    "messageList": {
-      "toolExecution": "Tool Execution",
-      "clickToOpen": "Click to open",
-      "imageViewer": "Image Viewer",
-      "copy": "Copy"
-    }
-  },
-  "projects": {
-    "title": "Projects",
-    "noProjects": "No projects found."
-  },
-  "tour": {
-    "prev": "Previous",
+    "morePages": "More pages",
+    "name": "Name",
     "next": "Next",
-    "finish": "Get Started"
-  },
-  "voice": {
-    "webSpeechNotSupported": "Web Speech API not supported in this browser.",
-    "notSupported": "Speech recognition not supported on this device.",
-    "micError": "Mic Error: "
-  },
-  "table": {
-    "sr": {
-      "next": "Go to next page",
-      "last": "Go to last page",
-      "first": "Go to first page",
-      "previous": "Go to previous page"
+    "no": "No",
+    "none": "None",
+    "notFound": {
+      "goBack": "Go Back",
+      "message": "The page you are looking for was not found.",
+      "oops": "Oops!",
+      "title": "404"
     },
-    "noResults": "No results found.",
-    "page": "Page",
-    "rowsPerPage": "Rows per page",
-    "of": "of",
-    "showing": "Showing {{start}} to {{end}} of {{total}} entries"
-  },
-  "projectSwitcher": {
-    "select": "Select",
-    "title": "Switch Project",
-    "noProjects": "No projects found."
-  },
-  "toast": {
-    "success": "Success!",
-    "error": "Something went wrong!"
+    "ok": "OK",
+    "openContextPanel": "Open Context Panel",
+    "openMenu": "Open menu",
+    "preview": "Preview",
+    "previous": "Previous",
+    "processing": "Processing...",
+    "reject": "Reject",
+    "run": "Run",
+    "save": "Save",
+    "saveAndClose": "Save & Close",
+    "saved": "Saved",
+    "selectFile": "Select File",
+    "send": "Send",
+    "split": "Split",
+    "status": {
+      "active": "ACTIVE",
+      "idle": "IDLE",
+      "running": "RUNNING",
+      "title": "Status"
+    },
+    "stop": "Stop",
+    "submit": "Submit",
+    "success": "Success",
+    "themes": {
+      "appearance": "Appearance",
+      "dark": "Dark",
+      "light": "Light",
+      "system": "System",
+      "toggle": "Toggle theme"
+    },
+    "time": {
+      "hoursAgo": "{{count}}h ago",
+      "justNow": "Just now",
+      "minutesAgo": "{{count}}m ago",
+      "unknown": "Unknown time"
+    },
+    "upload": "Upload",
+    "uploading": "Uploading...",
+    "url": "URL",
+    "yes": "Yes"
   },
   "footer": {
     "copyright": "Copyright © 2025 EvoLoop. All rights reserved."
   },
-  "wiki": {
-    "topic": {
-      "full_documentation": "Full Documentation"
-    },
-    "toast": {
-      "start": "Wiki generation started",
-      "error": "Wiki generation failed"
-    },
-    "generate": "Generate Wiki",
-    "regenerate": "Regenerate",
-    "regenerate_action": "Regenerate Wiki",
-    "pageList": "Page List",
-    "noDocs": "No documentation yet",
-    "selectPage": "Select a page to view details",
-    "lastUpdated": "Last updated"
+  "sidebar": {
+    "chat": "Chat",
+    "collapse": "Collapse Sidebar",
+    "csvPreviewError": "Failed to render CSV table.",
+    "excelPreviewError": "Failed to render Excel preview.",
+    "knowledge": "Knowledge Base",
+    "learning": "Learning Center",
+    "mobileDescription": "Displays the mobile sidebar.",
+    "mobileTitle": "Sidebar",
+    "open": "Open Sidebar",
+    "openInSystemApp": "Open in System App",
+    "projects": "Projects",
+    "searchFilesPlaceholder": "Search project files...",
+    "settings": "System Settings",
+    "todos": "Todos",
+    "toggle": "Toggle Sidebar"
   },
-  "learning": {
-    "recordingStarted": "Recording started. Your actions are being captured.",
-    "recordingFailed": "Failed to start recording",
-    "recordingStopped": "Recording stopped. {{count}} events captured.",
-    "stopRecording": "Stop Recording",
-    "startRecording": "Start Recording",
-    "globalMode": "System Monitoring Active (Global)",
-    "domMode": "App Only (DOM)",
-    "permissionRequired": "Permission required for global recording",
-    "synthesisSuccess": "Skill created successfully!",
-    "synthesisFailed": "Failed to create skill",
-    "synthesisError": "An error occurred during synthesis",
-    "skillCreated": "Skill Created!",
-    "createSkill": "Create Skill?",
-    "skillCreatedDesc": "The skill has been added to your library.",
-    "createSkillDesc": "Analyze the recorded actions to create a reusable skill.",
-    "skillName": "Skill Name",
-    "synthesisPrompt": "This will use AI to analyze your actions and generate a parameterized skill that can be used later.",
-    "synthesize": "Synthesize Skill"
+  "toast": {
+    "error": "Something went wrong!",
+    "success": "Success!"
   }
 }

@@ -13,16 +13,19 @@ interface ProjectImportState {
   ignoredProjects: DetectedProject[]
   isLoading: boolean
   hasNewDetected: boolean
+  isManualMode: boolean // Whether the user manually triggered the import dialog
   dismissedProjectIds: Set<number> // 用户已处理（忽略/稍后）的项目ID
   isDiscoveryEnabled: boolean | null // 项目发现是否启用（null = 尚未检查）
 
-  fetchDetected: () => Promise<void>
+  fetchDetected: (force?: boolean) => Promise<void>
+  scanProjects: () => Promise<void>
   fetchIgnored: () => Promise<void>
   checkDiscoveryEnabled: () => Promise<boolean>
   importProject: (id: number) => Promise<void>
   ignoreProject: (id: number) => Promise<void>
   unignoreProject: (id: number) => Promise<void>
   clearNewDetectedFlag: () => void
+  setManualMode: (enabled: boolean) => void
   dismissProject: (id: number) => void // 标记单个项目为已处理
   dismissAllProjects: () => void // 标记所有当前项目为已处理
 
@@ -35,6 +38,7 @@ export const useProjectImportStore = create<ProjectImportState>((set, get) => ({
   ignoredProjects: [],
   isLoading: false,
   hasNewDetected: false,
+  isManualMode: false,
   dismissedProjectIds: new Set<number>(),
   isDiscoveryEnabled: null,
 
@@ -52,15 +56,37 @@ export const useProjectImportStore = create<ProjectImportState>((set, get) => ({
     }
   },
 
-  fetchDetected: async () => {
+  scanProjects: async () => {
+    set({ isLoading: true })
+    try {
+      const res = await ProjectsService.scanWorkspaceProjectsEndpoint()
+      const items = (res.data || []).map((item: any) => ({
+        ...item,
+        detected_at: item.detected_at ? new Date(item.detected_at).getTime() : 0,
+      }))
+
+      set({
+        detectedProjects: items,
+        hasNewDetected: items.length > 0,
+        isManualMode: items.length > 0
+      })
+    } catch (error) {
+      console.error("[ProjectImport] Failed to scan projects:", error)
+      throw error
+    } finally {
+      set({ isLoading: false })
+    }
+  },
+
+  fetchDetected: async (force: boolean = false) => {
     // Check discovery config first (if not already checked)
     let { isDiscoveryEnabled } = get()
     if (isDiscoveryEnabled === null) {
       isDiscoveryEnabled = await get().checkDiscoveryEnabled()
     }
     
-    // Skip fetching if discovery is disabled
-    if (!isDiscoveryEnabled) {
+    // Skip fetching if discovery is disabled, unless forced
+    if (!isDiscoveryEnabled && !force) {
       console.debug("[ProjectImport] Discovery disabled, skipping fetch")
       set({ detectedProjects: [], hasNewDetected: false })
       return
@@ -68,7 +94,7 @@ export const useProjectImportStore = create<ProjectImportState>((set, get) => ({
 
     try {
       // Use ProjectsService.getDetectedProjects() which uses generated SDK
-      const res: any = await ProjectsService.getDetectedProjects()
+      const res: any = await ProjectsService.getDetectedProjects({ force })
 
       const items = (res.data || []).map((item: any) => ({
         ...item,
@@ -166,6 +192,10 @@ export const useProjectImportStore = create<ProjectImportState>((set, get) => ({
 
   clearNewDetectedFlag: () => {
     set({ hasNewDetected: false })
+  },
+
+  setManualMode: (enabled: boolean) => {
+    set({ isManualMode: enabled })
   },
 
   dismissProject: (id: number) => {

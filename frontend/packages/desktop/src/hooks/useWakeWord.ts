@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 
 interface UseWakeWordOptions {
   wakeWord?: string
@@ -17,6 +18,7 @@ interface UseWakeWordReturn {
 }
 
 export function useWakeWord(options: UseWakeWordOptions = {}): UseWakeWordReturn {
+  const { t } = useTranslation()
   const {
     wakeWord = '你好 Evo',
     onWake,
@@ -39,7 +41,7 @@ export function useWakeWord(options: UseWakeWordOptions = {}): UseWakeWordReturn
     // Check browser support
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
     if (!SpeechRecognition) {
-      setError('浏览器不支持语音识别')
+      setError(t('voice.notSupported'))
       return
     }
 
@@ -73,7 +75,7 @@ export function useWakeWord(options: UseWakeWordOptions = {}): UseWakeWordReturn
         // Ignore no-speech errors
         return
       }
-      setError(`识别错误: ${event.error}`)
+      setError(`${t('voice.recognitionError')}: ${event.error}`)
       setIsListening(false)
     }
 

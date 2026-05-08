@@ -1,12 +1,14 @@
 import { Appearance } from "@/components/Common/Appearance"
 import { Footer } from "./Footer"
 import icon from "/assets/images/evoloop-icon.svg"
+import { useTranslation } from "react-i18next"
 
 interface AuthLayoutProps {
   children: React.ReactNode
 }
 
 export function AuthLayout({ children }: AuthLayoutProps) {
+  const { t } = useTranslation()
   return (
     <div className="grid min-h-svh lg:grid-cols-2">
       <div className="bg-muted dark:bg-zinc-900 relative hidden lg:flex flex-col lg:items-center lg:justify-center gap-6">
@@ -19,7 +21,7 @@ export function AuthLayout({ children }: AuthLayoutProps) {
         </div>
         {/* Tagline */}
         <p className="text-lg font-medium text-gray-600 dark:text-gray-400 tracking-wide">
-          拥有属于你的AI数字员工
+          {t("auth.tagline")}
         </p>
       </div>
       <div className="flex flex-col gap-4 p-6 md:p-10">

@@ -1,9 +1,8 @@
 import { useQuery } from "@tanstack/react-query"
-// import { ScrollArea } from "@evoloop/shared/components/ui/scroll-area"
 import { FileCode, Folder, FolderOpen, Loader2 } from "lucide-react"
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
-import { FilesService } from "../../client"
+import { FilesService } from "@/client"
 
 // Types matching backend
 interface FileNode {
@@ -57,6 +56,7 @@ function FileTree({
   onSelect: (p: string) => void
   selectedPath: string | null
 }) {
+  const { t } = useTranslation()
   const {
     data: files,
     isLoading,
@@ -106,6 +106,7 @@ function FileTreeNode({
   selectedPath: string | null
   level: number
 }) {
+  const { t } = useTranslation()
   const [isOpen, setIsOpen] = useState(false)
   const isFolder = node.type === "directory"
 
@@ -177,6 +178,7 @@ function FileContentV({
   projectId: number
   path: string
 }) {
+  const { t } = useTranslation()
   const { data: content, isLoading } = useQuery({
     queryKey: ["fileContent", projectId, path],
     queryFn: () => FilesService.getFileContent({ projectId, path }),

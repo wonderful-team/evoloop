@@ -96,13 +96,13 @@ export const PaymentDialog = ({
     if (seconds >= 3600) {
       const hours = Math.floor(seconds / 3600)
       const mins = Math.floor((seconds % 3600) / 60)
-      return `${hours}小时${mins}分后失效`
+      return t('subscription.payment.expiresInHours', { hours, mins })
     } else if (seconds >= 60) {
       const mins = Math.floor(seconds / 60)
       const secs = seconds % 60
-      return `${mins}分${secs}秒后失效`
+      return t('subscription.payment.expiresInMinutes', { mins, secs })
     } else {
-      return `${seconds}秒后失效`
+      return t('subscription.payment.expiresInSeconds', { seconds })
     }
   }
 
@@ -138,7 +138,7 @@ export const PaymentDialog = ({
             {isUpgrade && upgradeInfo && parseFloat(upgradeInfo.refund_amount) > 0 && (
               <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-center w-full">
                 <p className="text-sm text-green-700">
-                  ¥{upgradeInfo.refund_amount} 已退还到您的账户余额
+                  {t('subscription.payment.refunded', { amount: upgradeInfo.refund_amount })}
                 </p>
               </div>
             )}
@@ -177,7 +177,7 @@ export const PaymentDialog = ({
                   {isQrExpired && (
                     <div className="absolute inset-0 bg-background/80 backdrop-blur-sm rounded-xl flex flex-col items-center justify-center gap-2">
                       <Timer className="h-8 w-8 text-muted-foreground" />
-                      <span className="text-xs text-muted-foreground">二维码已过期</span>
+                      <span className="text-xs text-muted-foreground">{t('subscription.payment.qrExpired')}</span>
                       <Button 
                         size="sm" 
                         variant="outline" 
@@ -185,7 +185,7 @@ export const PaymentDialog = ({
                         disabled={isPending}
                       >
                         <RefreshCw className="h-3 w-3 mr-1" />
-                        重新获取
+                        {t('subscription.payment.refresh')}
                       </Button>
                     </div>
                   )}
@@ -197,14 +197,14 @@ export const PaymentDialog = ({
               )}
               {!isQrExpired && (
                 <p className={`text-[11px] ${qrCountdown <= 60 ? 'text-destructive font-medium' : 'text-muted-foreground'}`}>
-                  {qrCountdown > 0 ? formatCountdown(qrCountdown) : '二维码已失效'}
+                  {qrCountdown > 0 ? formatCountdown(qrCountdown) : t('subscription.payment.qrInvalid')}
                 </p>
               )}
             </div>
             
             <div className="px-6 pb-6 space-y-4">
               <div className="flex items-center justify-between pb-3 border-b border-border">
-                <span className="text-sm font-medium">微信扫码支付</span>
+                <span className="text-sm font-medium">{t('subscription.payment.wechatPay')}</span>
                 <span className="text-xl font-bold">¥{isUpgrade && upgradeInfo ? upgradeInfo.net_amount || "0.00" : orderData?.order?.order_money || "0.00"}</span>
               </div>
               
@@ -213,53 +213,53 @@ export const PaymentDialog = ({
                   <>
                     <li className="flex gap-2">
                       <span className="text-primary">•</span>
-                      <span>升级补差价：新套餐 ¥{upgradeInfo.pay_amount} - 原套餐剩余 ¥{upgradeInfo.refund_amount}</span>
+                      <span>{t('subscription.payment.upgradeDiff', { newPrice: upgradeInfo.pay_amount, refund: upgradeInfo.refund_amount })}</span>
                     </li>
                     <li className="flex gap-2">
                       <span className="text-primary">•</span>
-                      <span>原套餐剩余¥{upgradeInfo.refund_amount}将在支付成功后退还到余额</span>
+                      <span>{t('subscription.payment.refundToBalance', { amount: upgradeInfo.refund_amount })}</span>
                     </li>
                     <li className="flex gap-2">
                       <span className="text-primary">•</span>
-                      <span>升级后套餐期限累加，额外配额自动补差</span>
+                      <span>{t('subscription.payment.upgradeNote')}</span>
                     </li>
                   </>
                 ) : isRenewalMode ? (
                   <>
                     <li className="flex gap-2">
                       <span className="text-primary">•</span>
-                      <span>续费 ¥{orderData?.order?.order_money || "0"}/月</span>
+                      <span>{t('subscription.payment.renewPrice', { price: orderData?.order?.order_money || "0" })}</span>
                     </li>
                     <li className="flex gap-2">
                       <span className="text-primary">•</span>
-                      <span>续费后有效期延长，额度叠加</span>
+                      <span>{t('subscription.payment.renewNote1')}</span>
                     </li>
                     <li className="flex gap-2">
                       <span className="text-primary">•</span>
-                      <span>原剩余有效期将累加，不会浪费</span>
+                      <span>{t('subscription.payment.renewNote2')}</span>
                     </li>
                   </>
                 ) : (
                   <>
                     <li className="flex gap-2">
                       <span className="text-primary">•</span>
-                      <span>开通会员订阅：¥{orderData?.order?.order_money || "0"}/月</span>
+                      <span>{t('subscription.payment.subscribePrice', { price: orderData?.order?.order_money || "0" })}</span>
                     </li>
                     <li className="flex gap-2">
                       <span className="text-primary">•</span>
-                      <span>有效期自支付成功日起计算</span>
+                      <span>{t('subscription.payment.validityNote')}</span>
                     </li>
                   </>
                 )}
                 <li className="flex gap-2">
                   <span className="text-primary">•</span>
-                  <span>会员服务属于虚拟商品，一经支付无法退款，请你谅解</span>
+                  <span>{t('subscription.payment.noRefund')}</span>
                 </li>
               </ul>
               
               <div className="pt-2 flex items-center justify-center gap-2 text-xs text-muted-foreground">
                 <Loader2 className="h-3 w-3 animate-spin text-primary" />
-                <span>正在等待支付结果...</span>
+                <span>{t('subscription.payment.waiting')}</span>
               </div>
             </div>
           </div>

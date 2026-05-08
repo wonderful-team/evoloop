@@ -9,6 +9,7 @@
  */
 
 import React, { useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Copy, Check, Info, GitBranch } from 'lucide-react';
 import versionInfo from '@/version.json';
 
@@ -32,6 +33,7 @@ export const VersionDisplay: React.FC<VersionDisplayProps> = ({
   className = '',
   onClick,
 }) => {
+  const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
 
   const handleCopy = useCallback(async (e: React.MouseEvent) => {
@@ -120,7 +122,7 @@ export const VersionDisplay: React.FC<VersionDisplayProps> = ({
             <button
               onClick={handleCopy}
               className="p-1.5 rounded-md hover:bg-accent transition-colors"
-              title="复制版本信息"
+              title={t('versionDisplay.copyTitle')}
             >
               {copied ? (
                 <Check className="w-4 h-4 text-green-500" />
@@ -183,6 +185,7 @@ export const VersionDialog: React.FC<{
   open: boolean;
   onClose: () => void;
 }> = ({ open, onClose }) => {
+  const { t } = useTranslation();
   if (!open) return null;
 
   const formatBuildTime = (timeStr: string): string => {
@@ -196,19 +199,19 @@ export const VersionDialog: React.FC<{
   };
 
   const versionDetails = [
-    { label: '版本号', value: versionInfo.version },
-    { label: '构建号', value: versionInfo.buildNumber },
-    { label: '版本阶段', value: versionInfo.stage },
+    { label: t('versionDisplay.version'), value: versionInfo.version },
+    { label: t('versionDisplay.buildNumber'), value: versionInfo.buildNumber },
+    { label: t('versionDisplay.stage'), value: versionInfo.stage },
     { label: 'Git Commit', value: versionInfo.gitCommit },
-    { label: '构建时间', value: formatBuildTime(versionInfo.buildTime) },
-    { label: '完整版本', value: versionInfo.fullVersion },
+    { label: t('versionDisplay.buildTime'), value: formatBuildTime(versionInfo.buildTime) },
+    { label: t('versionDisplay.fullVersion'), value: versionInfo.fullVersion },
   ];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
       <div className="w-full max-w-md p-6 rounded-xl bg-card border shadow-2xl">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold">关于 EvoLoop</h3>
+          <h3 className="text-lg font-semibold">{t('versionDisplay.aboutTitle')}</h3>
           <button
             onClick={onClose}
             className="p-1 rounded-md hover:bg-accent transition-colors"
@@ -236,11 +239,11 @@ export const VersionDialog: React.FC<{
           <p>© 2024 EvoLoop. All rights reserved.</p>
           <p className="mt-1">
             <a href="https://evoloop.cn" target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors">
-              访问官网
+              {t('versionDisplay.visitWebsite')}
             </a>
             {' • '}
             <a href="https://docs.evoloop.cn" target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors">
-              帮助文档
+              {t('versionDisplay.helpDocs')}
             </a>
           </p>
         </div>

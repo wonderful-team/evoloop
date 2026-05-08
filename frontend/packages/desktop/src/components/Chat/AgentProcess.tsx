@@ -96,7 +96,7 @@ function parseToolOutput(output: string): { type: 'text' | 'json' | 'list' | 'er
 
 // Extract human-readable summary from tool output.
 // Fully generic — no tool-specific logic.
-function summarizeOutput(output: string): { title: string; subtitle?: string; hasMore: boolean } {
+function summarizeOutput(output: string, t: (key: string, options?: any) => string): { title: string; subtitle?: string; hasMore: boolean } {
     if (!output) return { title: "", hasMore: false }
 
     const MAX_LENGTH = 120
@@ -112,17 +112,17 @@ function summarizeOutput(output: string): { title: string; subtitle?: string; ha
 
     if (parsed.type === 'list' && Array.isArray(parsed.data)) {
         const count = parsed.data.length
-        if (count === 0) return { title: "无结果", hasMore: false }
+        if (count === 0) return { title: t("chat.process.noResults"), hasMore: false }
 
         const firstItem = parsed.data[0]
         if (typeof firstItem === 'string') {
-            return { title: `${count} 项结果`, subtitle: firstItem.slice(0, 50), hasMore: true }
+            return { title: t("chat.process.resultCount", { count }), subtitle: firstItem.slice(0, 50), hasMore: true }
         }
         if (typeof firstItem === 'object' && firstItem !== null) {
             const title = firstItem.title || firstItem.name || firstItem.path || firstItem.url || ''
-            return { title: `${count} 项结果`, subtitle: title.slice(0, 50), hasMore: true }
+            return { title: t("chat.process.resultCount", { count }), subtitle: title.slice(0, 50), hasMore: true }
         }
-        return { title: `${count} 项结果`, hasMore: true }
+        return { title: t("chat.process.resultCount", { count }), hasMore: true }
     }
 
     if (parsed.type === 'json' && typeof parsed.data === 'object') {
@@ -168,7 +168,7 @@ function StepRow({ step }: { step: ToolStep }) {
         || step.name
         || step.tool_name
         || step.tool
-        || t("chat.steps.unknown", "未知工具")
+        || t("chat.steps.unknown")
 
     const output = step.output || ''
 
@@ -176,7 +176,7 @@ function StepRow({ step }: { step: ToolStep }) {
     const inputInfo = step.tool_meta?.display_name
         ? null
         : formatToolInput(step.input, step.tool_meta, t)
-    const outputSummary = summarizeOutput(output)
+    const outputSummary = summarizeOutput(output, t)
 
     const isRunning = step.status === "running"
     const isFailed = step.status === "failed"
@@ -283,7 +283,7 @@ export function AgentProcess({ steps, header }: AgentProcessProps) {
                     onClick={() => setIsFullyExpanded(true)}
                 >
                     <PlusCircle className="h-3 w-3 mr-1" />
-                    {t("chat.steps.showMore", "查看更多执行步骤")} ({steps.length - MAX_VISIBLE_STEPS}+)
+                    {t("chat.steps.showMore")} ({steps.length - MAX_VISIBLE_STEPS}+)
                 </Button>
             )}
         </div>

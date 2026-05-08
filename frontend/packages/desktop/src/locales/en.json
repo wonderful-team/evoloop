@@ -1,4 +1,44 @@
 {
+  "about": {
+    "legal": {
+      "openSource": "Open Source",
+      "privacy": "Privacy",
+      "title": "Title",
+      "userAgreement": "User Agreement"
+    },
+    "links": {
+      "desc": "Desc",
+      "github": "Github",
+      "githubDesc": "Github Desc",
+      "help": "Help",
+      "helpDesc": "Help Desc",
+      "official": "Official",
+      "officialDesc": "Official Desc",
+      "title": "Title"
+    },
+    "title": "Title",
+    "toast": {
+      "checkFailed": "Check Failed",
+      "downloadUnavailable": "Download Unavailable",
+      "newVersion": "New Version",
+      "openingDownload": "Opening Download",
+      "skipped": "Skipped",
+      "upToDate": "Up To Date"
+    },
+    "update": {
+      "checkUpdate": "Check Update",
+      "checking": "Checking",
+      "forceUpdateWarning": "Force Update Warning",
+      "newVersion": "New Version",
+      "remindLater": "Remind Later",
+      "title": "Title",
+      "updateNow": "Update Now"
+    },
+    "versionInfo": {
+      "desc": "Desc",
+      "title": "Title"
+    }
+  },
   "app": {
     "name": "EvoLoop"
   },
@@ -98,6 +138,15 @@
     "addLink": "Add Link",
     "addLinkTitle": "Add External Link",
     "agentStopped": "Chat stopped",
+    "artifact": {
+      "chart": "Chart",
+      "chartError": "Chart Error",
+      "invalidChartOption": "Invalid Chart Option",
+      "loadingMap": "Loading Map",
+      "map": "Map",
+      "mapError": "Map Error",
+      "saveImage": "Save Image"
+    },
     "artifacts": {
       "fixSuggestion": "Suggested Fix",
       "rootCause": "Root Cause Analysis",
@@ -106,6 +155,14 @@
     },
     "attachSkill": "Attach Skill",
     "autoSend": "Auto Send",
+    "changeset": {
+      "filesChanged": "{{count}} files changed",
+      "moreFiles": "more files",
+      "newChanges": "Modified {{count}} files",
+      "viewAll": "View All",
+      "viewChanges": "Click to Review",
+      "viewed": "{{count}} files reviewed"
+    },
     "context": {
       "addMemory": {
         "desc": "Description",
@@ -170,6 +227,7 @@
       "connection": "Connection Error: {{error}}",
       "loadHistory": "Failed to load chat history",
       "resumeAgent": "Failed to resume agent",
+      "sendFailed": "Send failed",
       "sendMessage": "Failed to send message",
       "stopAgent": "Failed to stop agent"
     },
@@ -187,6 +245,7 @@
       "conceptName": "Concept Name",
       "conceptPlaceholder": "e.g. Project Architecture",
       "contentLabel": "Content",
+      "copied": "Copied",
       "copy": "Copy",
       "deleteChatError": "Failed to delete chat",
       "filesReverted": "{{count}} files reverted",
@@ -215,6 +274,7 @@
       "stop": "Stop Generation",
       "stopAgentSuccess": "Stopped",
       "thinkingProcess": "Reasoning Process",
+      "toolExecutionSteps": "Tool Execution Steps",
       "uploadError": "Upload failed",
       "uploadFile": "Upload File",
       "uploadSuccess": "File uploaded successfully",
@@ -243,6 +303,7 @@
     "linkFailed": "Failed to add link",
     "linkNamePlaceholder": "e.g. API Docs",
     "linkUrlPlaceholder": "https://...",
+    "liveStepsTitle": "Execution Steps",
     "llmAuthError": "LLM API Authentication Failed",
     "llmAuthErrorDesc": "API key is invalid or expired, please check LLM settings",
     "loadingHistory": "Loading history...",
@@ -267,6 +328,8 @@
     },
     "noLinks": "No links",
     "noPinnedFiles": "Right click files in file explorer to pin them here.",
+    "noSteps": "No execution steps yet.",
+    "noThinking": "No thinking recorded.",
     "noTools": "No runtime tools found.",
     "notification": {
       "prefix": "EvoLoop: "
@@ -344,7 +407,9 @@
         "verify_ui_state": "Verifying UI State",
         "write_file": "Writing File",
         "write_wiki_page": "Writing Wiki Page"
-      }
+      },
+      "noResults": "No results",
+      "resultCount": "Found {{count}} results"
     },
     "quota": {
       "banner": {
@@ -364,6 +429,12 @@
       "continuePrompt": "Continue",
       "title": "Quota Exhausted"
     },
+    "quotaExhausted": {
+      "action": "View Subscription",
+      "hint": "Upgrade for more AI quota",
+      "message": "Your AI quota has been exhausted",
+      "title": "Insufficient Quota"
+    },
     "reference": {
       "files": "Files",
       "messages": "Messages",
@@ -372,6 +443,8 @@
       "typeToSearch": "Type to search..."
     },
     "request": {
+      "cancelled": "Cancelled",
+      "completed": "Completed",
       "placeholder": "Enter your response...",
       "title": "Action Required"
     },
@@ -387,6 +460,10 @@
       "confirmTitle": "Confirm Rewind",
       "revertFiles": "Also restore files modified by Agent",
       "revertFilesHint": "(restore to pre-modification state)"
+    },
+    "role": {
+      "assistant": "Assistant",
+      "user": "User"
     },
     "scrollToLoadMore": "Scroll up to load more history",
     "sidebar": {
@@ -428,6 +505,7 @@
       "userCancelled": "User cancelled",
       "working": "Working..."
     },
+    "stepGroupsCount": "{{count}} turns",
     "steps": {
       "completed": "Completed",
       "executing": "Executing",
@@ -471,6 +549,9 @@
       "stop": "Stop",
       "voice": "Voice"
     },
+    "turnDone": "{{done}} done {{failed}} failed",
+    "turnLabel": "Turn {{turn}}",
+    "turnRunning": "{{running}}/{{total}} running",
     "voice": {
       "cancelled": "Recording cancelled",
       "expand": "Expand",
@@ -496,12 +577,15 @@
       "wakeWordDetected": "Wake word detected, starting recording...",
       "wakeWordStatus": "Wake word: \"{{word}}\""
     },
+    "waitingForSteps": "Waiting for agent to start...",
     "welcome": {
       "cloudSynced": "Cloud Synced",
       "connectedViaAdb": "Connected via ADB",
       "deviceBridge": "Device Bridge",
       "globalReady": "Global Mode is active. Ready to start exploring?",
       "health": "Environment Health",
+      "mobileHint": "Click the input box below to start a conversation",
+      "mobileSubtitle": "Hello! I am your Wooden Robot assistant",
       "nav": {
         "knowledge": "Knowledge Base",
         "knowledgeDesc": "Access memory, docs & assets",
@@ -512,8 +596,6 @@
         "todos": "To-do Items",
         "todosDesc": "Track progress and automations"
       },
-      "mobileHint": "Click the input box below to start a conversation",
-      "mobileSubtitle": "Hello! I am your Wooden Robot assistant",
       "noDevices": "No devices found",
       "projectReady": "Project [{{name}}] is ready. Ready to Evolve?",
       "skillEvolution": "Skill Evolution",
@@ -612,7 +694,11 @@
     "uploading": "Uploading...",
     "url": "URL",
     "viewAll": "View All",
-    "yes": "Yes"
+    "yes": "Yes",
+    "continue": "Continue"
+  },
+  "context": {
+    "noDescription": "No Description"
   },
   "deleteAccount": {
     "cancel": "Cancel",
@@ -661,6 +747,7 @@
     "searchResults": "Search Results",
     "selectFileToView": "Select a file to view",
     "selectPrompt": "Select a file to view content",
+    "system": "System",
     "text": "TEXT",
     "title": "Files"
   },
@@ -704,6 +791,8 @@
     "noPopularDocsHint": "Most frequently used documents will appear here after using the knowledge base.",
     "noProjectDocs": "No project documents",
     "noProjectDocsHint": "This project has no associated documents yet. You can upload and categorize them in the global Knowledge Base.",
+    "noSearchResults": "No search results",
+    "noSearchResultsHint": "Try different keywords",
     "noTags": "No tags available",
     "popular": "Popular",
     "popularRankingInfo": "Ordered by citations (last 30 days)",
@@ -729,6 +818,7 @@
     "totalSize": "Total Size",
     "tree": "Tree",
     "treeViewComingSoon": "Tree view coming soon",
+    "tryDifferentQuery": "Try a different query",
     "upload": "Upload",
     "uploadBulk": "Bulk Upload",
     "uploadError": "Upload failed",
@@ -906,6 +996,7 @@
     "recordingFailed": "Failed to start recording",
     "recordingHint": "Click the button above to stop and synthesize",
     "recordingInProgress": "Recording in progress...",
+    "recordingRequiresThread": "Please select or create a conversation first",
     "recordingStarted": "Recording started",
     "recordingStopped": "Recording stopped, {{count}} events captured",
     "regionAnnotations": "Region Annotations",
@@ -1164,7 +1255,17 @@
     "title": "External Tools"
   },
   "mermaid": {
-    "renderError": "Failed to render diagram"
+    "renderError": "Failed to render diagram",
+    "renderingPartial": "Rendering Partial"
+  },
+  "overlay": {
+    "dragToSelect": "Drag To Select",
+    "errorDeviceInfo": "Error Device Info",
+    "errorMirrorWindow": "Error Mirror Window",
+    "escToCancel": "Esc To Cancel",
+    "hint": "Hint",
+    "marked": "Marked",
+    "regionsCount": "Regions Count"
   },
   "pending": {
     "actions": "Actions",
@@ -1240,9 +1341,12 @@
     "details": {
       "created": "Created",
       "description": "Description",
+      "noDescription": "No Description",
       "tabs": {
         "ai": "AI Analysis",
-        "discussion": "Discussion"
+        "details": "Details",
+        "discussion": "Discussion",
+        "subtasks": "Subtasks"
       }
     },
     "emptyState": "No projects found. Try scanning or creating one.",
@@ -1273,11 +1377,14 @@
       "importFailed": "Failed to import project",
       "importSuccess": "Project imported successfully",
       "loading": "Loading detected projects...",
+      "manualImport": "Import Projects",
       "newProjectsDetected": "New Projects Detected",
       "noDetected": "No projects waiting to be imported",
       "noDetectedDesc": "New folders in your projects directory will appear here",
       "noIgnored": "No ignored projects",
       "noIgnoredDesc": "Ignored projects can be restored from here",
+      "scanComplete": "Scan complete",
+      "scanFailed": "Scan failed",
       "selectAll": "Select All",
       "subtitle": "Manage detected and ignored projects",
       "tabDetected": "To Import",
@@ -1305,16 +1412,26 @@
       "discoverDescription": "Analyze the project structure and generate a PROJECT.md configuration file.",
       "discoverTitle": "Discover Project Profile",
       "discovering": "Discovering...",
+      "discoveryCompleted": "Discovery completed",
       "discoveryFailed": "Discovery failed",
       "discoveryStarted": "Discovery started",
       "notFound": "No profile found",
       "notFoundDescription": "This project doesn't have a PROJECT.md yet. Click Discover to generate one.",
+      "phase": {
+        "completed": "Completed",
+        "error": "Error",
+        "exploring": "Exploring project",
+        "generating": "Generating document",
+        "installing": "Installing environment",
+        "starting": "Starting"
+      },
       "recordSecrets": "Record sensitive configuration values",
       "recordSecretsDescNew": "Include actual secret values from .env files directly into PROJECT.md. Secrets will be stored in plaintext.",
       "rediscover": "Rediscover",
       "setupEnvironment": "Auto-setup environment",
       "setupEnvironmentDesc": "Detect and install missing infrastructure services (Docker, Redis, DB, etc.) and build/start the project.",
       "startDiscovery": "Start Discovery",
+      "startingDiscovery": "Starting discovery...",
       "stream": {
         "connected": "Connected"
       },
@@ -1358,6 +1475,7 @@
     "tabs": {
       "files": "Files",
       "gantt": "Gantt",
+      "knowledge": "Knowledge",
       "overview": "Overview",
       "profile": "Profile",
       "reports": "Reports",
@@ -1406,6 +1524,7 @@
       },
       "subtasks": "subtasks",
       "subtasksWillAppear": "Subtasks will appear here when created",
+      "techDifficulty": "Tech Difficulty",
       "title": "Tasks",
       "totalProgress": "total progress",
       "unassigned": "Unassigned"
@@ -1413,9 +1532,12 @@
     "timesheet": {
       "dialog": {
         "desc": "Record your hours for this project log.",
+        "descPlaceholder": "What did you work on?",
         "description": "Description",
         "hours": "Hours",
+        "hoursPlaceholder": "0.0",
         "save": "Save Log",
+        "selectType": "Select Type",
         "title": "Log Work Time",
         "type": "Type"
       },
@@ -1571,6 +1693,7 @@
       "description": "Configure the embedding model used for Code Search and Memory.",
       "error_connection": "Connection Error",
       "error_update": "Failed to update embedding model",
+      "loadError": "Load Error",
       "selectProvider": "Select a provider",
       "select_active_model": "Select Active Embedding Model",
       "select_default_placeholder": "Select default model...",
@@ -1589,6 +1712,7 @@
       "description": "Configure global system preferences and paths.",
       "deviceName": "Device Name",
       "deviceNameDesc": "This name identifies this device in the EvoLoop network.",
+      "deviceNamePlaceholder": "Device Name Placeholder",
       "error": "Failed to save settings",
       "language": "Language",
       "languageOptions": {
@@ -1623,6 +1747,7 @@
       "default_model": "1. Default LLM Model",
       "default_model_desc": "Select the default generation model when no specific model is requested.",
       "description": "Configure the Language Model used by the Agent.",
+      "loadError": "Load Error",
       "provider_placeholder": "Select a provider",
       "save_failed": "Failed to save configuration",
       "saved": "LLM Configuration Saved",
@@ -1684,6 +1809,8 @@
     "tts": {
       "autoSpeak": "Auto-speak AI responses",
       "autoSpeakDesc": "Automatically read AI messages aloud when they arrive",
+      "autoSpeakOff": "Auto Speak Off",
+      "autoSpeakOn": "Auto Speak On",
       "description": "Configure AI voice output settings",
       "fast": "Fast",
       "normal": "Normal",
@@ -1692,7 +1819,27 @@
       "speechRate": "Speech Rate",
       "title": "Text-to-Speech",
       "voice": "Voice Selection",
-      "voiceDesc": "Choose your preferred AI voice"
+      "voiceDesc": "Choose your preferred AI voice",
+      "voiceNames": {
+        "zhCNXiaoxiaoNeural": "Xiaoxiao",
+        "zhCNXiaoyiNeural": "Xiaoyi",
+        "zhCNYunjianNeural": "Yunjian",
+        "zhCNYunxiNeural": "Yunxi"
+      },
+      "voices": {
+        "enUSAriaNeural": "En U S Aria Neural",
+        "enUSGuyNeural": "En U S Guy Neural",
+        "jaJPNanamiNeural": "Ja J P Nanami Neural",
+        "koKRSunHiNeural": "Ko K R Sun Hi Neural",
+        "zhCNXiaohanNeural": "Zh C N Xiaohan Neural",
+        "zhCNXiaoxiaoNeural": "Gentle and natural, highly recommended",
+        "zhCNXiaoyiNeural": "Lively and young",
+        "zhCNYunjianNeural": "News broadcasting style",
+        "zhCNYunxiNeural": "Young and sunny, highly recommended",
+        "zhCNYunyangNeural": "Zh C N Yunyang Neural",
+        "zhHKHiuMaanNeural": "Zh H K Hiu Maan Neural",
+        "zhTWHsiaoChenNeural": "Zh T W Hsiao Chen Neural"
+      }
     },
     "voice": {
       "sttTitle": "STT Engine Configuration",
@@ -1710,6 +1857,7 @@
       "enableDoubleClickDesc": "Double-click shortcut to start recording, single click to end",
       "enableLongPressDesc": "Long-press shortcut to start recording, release to end",
       "enableShortcut": "Enable Shortcut",
+      "enableWakeWord": "Enable Wake Word",
       "enableWakeWordDesc": "Continuously listen to microphone, automatically start recording when wake word is detected",
       "fast": "Fast",
       "heard": "Heard",
@@ -1718,8 +1866,11 @@
       "longPressHint": "Recommended: Long-press F1-F12 function keys or Meta(Command/Windows) key",
       "longPressInstruction": "Long-press {key} to start recording",
       "normal": "Normal",
+      "notSupported": "Your browser does not support speech recognition. Please use Chrome, Edge, or Safari.",
       "pressDuration": "Long-press Duration",
       "recording": "Recording...",
+      "selectSttDevice": "Select execution device...",
+      "selectSttModel": "Select recognition model...",
       "shortcutDesc": "Set double-click or long-press shortcut to quickly activate voice input",
       "shortcutDisabled": "Shortcut disabled",
       "shortcutEnabled": "Shortcut enabled",
@@ -1730,6 +1881,12 @@
       "slow": "Slow",
       "startListening": "Start Listening",
       "stopListening": "Stop Listening",
+      "sttConfigError": "Failed to save STT configuration",
+      "sttConfigSaved": "STT configuration saved",
+      "sttDesc": "Configure the model and acceleration device for the local speech-to-text engine.",
+      "sttDevice": "Execution Device",
+      "sttModel": "Recognition Model",
+      "sttTitle": "STT Engine Configuration",
       "tauriOnly": "This feature requires running in EvoLoop desktop app. System shortcuts are not available in browser.",
       "tauriRequired": "Shortcut feature requires Tauri app",
       "testShortcut": "Test Shortcut",
@@ -1800,9 +1957,11 @@
     "errors": {
       "benefitDescription": "The \"{{feature}}\" feature requires a plan upgrade.",
       "benefitRequired": "{{plan}} Subscription Required",
+      "dialogTitle": "Unlock {{feature}}",
       "featureFallback": "this feature",
       "insufficientPermission": "Insufficient Permission",
-      "upgradeAction": "Upgrade Now"
+      "upgradeAction": "Upgrade Now",
+      "subscriptionRequired": "Subscription Required"
     },
     "expired": {
       "description": "Your subscription has expired, please renew to continue using this feature",
@@ -1821,15 +1980,23 @@
       "durationHint": "Plan duration will be accumulated after upgrade, and additional quota will be automatically adjusted",
       "error": "Payment failed",
       "expiredHint": "QR code has expired",
+      "expiresInHours": "Expires In Hours",
+      "expiresInMinutes": "Expires In Minutes",
+      "expiresInSeconds": "Expires In Seconds",
+      "noRefund": "No Refund",
       "noRefundHint": "Membership service is a virtual product; no refunds once paid. Thank you for your understanding.",
       "pollNotice": "Processing payment...",
       "qrExpired": "QR Code Expired",
+      "qrInvalid": "Qr Invalid",
       "refresh": "Refresh",
       "refundHint": "Remaining ¥{{refundAmount}} from old plan will be refunded to your balance after payment",
       "refundToBalance": "¥{{amount}} has been refunded to your account balance",
+      "refunded": "Refunded",
       "renewDesc": "Validity period will be extended after renewal",
       "renewExtension": "Validity period extended and quota stacked after renewal",
       "renewNoWaste": "Remaining validity will be accumulated, no loss",
+      "renewNote1": "Renew Note1",
+      "renewNote2": "Renew Note2",
       "renewPrice": "Renewal ¥{{price}}/mo",
       "renewTitle": "Renew {{name}}",
       "subscribePrice": "Subscribe: ¥{{price}}/mo",
@@ -1840,6 +2007,8 @@
       "thankYou": "Thank you!",
       "title": "Payment",
       "upgradeDiff": "Upgrade difference: New plan ¥{{payAmount}} - Old plan balance ¥{{refundAmount}}",
+      "upgradeNote": "Upgrade Note",
+      "validityNote": "Validity Note",
       "waiting": "Waiting for payment result...",
       "wechatPay": "Pay with WeChat"
     },
@@ -1865,7 +2034,13 @@
       "upgradeRefund": "Upgrade with price difference refund"
     },
     "plans": {
+      "creator": "Creator",
       "desc": "Choose the plan that fits your needs",
+      "enterprise": "Enterprise",
+      "expert": "Expert",
+      "free": "Free",
+      "geek": "Geek",
+      "higher": "Higher Tier",
       "title": "Plans"
     },
     "privilege": {
@@ -1882,7 +2057,10 @@
       "unlimited": "Unlimited",
       "usedPercent": "{{percent}}% used"
     },
-    "renew": "Renew Now",
+    "renew": {
+      "reminder": "Will expire in {{days}} days",
+      "urgent": "Only {{days}} days left. Renew now to avoid interruption."
+    },
     "renewalNotice": {
       "reminder": "Your subscription has {{days}} days remaining.",
       "urgent": "Your subscription will expire in {{days}} days. Please renew now."
@@ -1898,6 +2076,7 @@
       "expiringSoon": "Expiring Soon",
       "freeDesc": "You are currently on the free tier, upgrade for more features",
       "freeTitle": "Free Plan",
+      "locked": "Feature Locked",
       "manage": "Manage",
       "renew": "Renew",
       "renewNow": "Renew Now",
@@ -1910,7 +2089,8 @@
       "help": "Use this feature immediately after upgrading",
       "title": "Upgrade Required"
     },
-    "upgradeNow": "Upgrade Now"
+    "upgradeNow": "Upgrade Now",
+    "upgradeRequired": "Upgrade Required"
   },
   "system": {
     "initializationDesc": "Please configure the following system settings to proceed.",
@@ -2032,6 +2212,21 @@
       "title": "Input Area"
     }
   },
+  "updateNotification": {
+    "forceUpdate": {
+      "desc": "Desc",
+      "title": "Title",
+      "updateNow": "Update Now"
+    },
+    "normal": {
+      "collapse": "Collapse",
+      "desc": "Desc",
+      "expand": "Expand",
+      "remindLater": "Remind Later",
+      "title": "Title",
+      "updateNow": "Update Now"
+    }
+  },
   "user": {
     "contactSupport": "Contact Support",
     "defaultName": "User",
@@ -2041,6 +2236,23 @@
     "manageSubscription": "Manage Subscription",
     "settings": "User Settings",
     "upgradeToPro": "Upgrade to PRO"
+  },
+  "versionDisplay": {
+    "aboutTitle": "About Title",
+    "buildNumber": "Build Number",
+    "buildTime": "Build Time",
+    "copyTitle": "Copy Title",
+    "fullVersion": "Full Version",
+    "helpDocs": "Help Docs",
+    "stage": "Stage",
+    "version": "Version",
+    "visitWebsite": "Visit Website"
+  },
+  "voice": {
+    "micError": "Mic Error: ",
+    "notSupported": "Speech recognition not supported on this device.",
+    "recognitionError": "Recognition error",
+    "webSpeechNotSupported": "Web Speech API not supported in this browser."
   },
   "wiki": {
     "generate": "Generate Wiki",

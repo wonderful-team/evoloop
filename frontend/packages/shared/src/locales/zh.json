@@ -1,142 +1,107 @@
 {
-  "sidebar": {
-    "toggle": "切换侧边栏",
-    "collapse": "收起侧边栏",
-    "open": "展开侧边栏",
-    "mobileDescription": "显示移动端侧边栏。",
-    "mobileTitle": "侧边栏"
-  },
   "common": {
-    "themes": {
-      "toggle": "切换主题",
-      "appearance": "外观",
-      "dark": "深色",
-      "light": "浅色",
-      "system": "跟随系统"
-    },
-    "notFound": {
-      "title": "404",
-      "goBack": "返回",
-      "message": "未找到您寻找的页面。",
-      "oops": "哎呀!"
-    },
+    "actions": "操作",
+    "add": "添加",
+    "apply": "应用",
+    "approve": "批准",
+    "back": "返回",
+    "cancel": "取消",
+    "close": "关闭",
+    "confirm": "确认",
+    "copyCode": "复制代码",
+    "delete": "删除",
+    "deleting": "删除中...",
+    "discard": "放弃",
+    "done": "完成",
+    "edit": "编辑",
     "error": {
       "goHome": "返回首页",
       "message": "出错了。请重试。",
       "oops": "哎呀!",
-      "title": "错误"
+      "title": "错误",
+      "unknown": "未知错误"
     },
-    "reject": "拒绝",
-    "cancel": "取消",
-    "close": "关闭",
-    "morePages": "更多页面",
-    "submit": "提交",
-    "previous": "上一页",
-    "approve": "批准",
-    "next": "下一页",
+    "fullView": "完整视图",
+    "ignore": "忽略",
+    "import": "导入",
+    "keep": "保留",
+    "later": "稍后",
     "loading": "加载中...",
     "manage": "管理",
-    "apply": "应用"
-  },
-  "auth": {
-    "register": {
-      "login": "登录",
-      "submit": "注册",
-      "hasAccount": "已有账号？"
+    "morePages": "更多页面",
+    "name": "名称",
+    "next": "下一页",
+    "no": "否",
+    "none": "无",
+    "notFound": {
+      "goBack": "返回",
+      "message": "未找到您寻找的页面。",
+      "oops": "哎呀!",
+      "title": "404"
     },
-    "login": {
-      "passwordPlaceholder": "密码",
-      "submit": "登录",
-      "signUp": "立即注册",
-      "forgotPassword": "忘记密码？",
-      "noAccount": "还没有账号？"
+    "ok": "确定",
+    "openContextPanel": "打开上下文面板",
+    "openMenu": "打开菜单",
+    "preview": "预览",
+    "previous": "上一页",
+    "processing": "处理中...",
+    "reject": "拒绝",
+    "run": "运行",
+    "save": "保存",
+    "saveAndClose": "保存并关闭",
+    "saved": "已保存",
+    "selectFile": "选择文件",
+    "send": "发送",
+    "split": "分屏",
+    "status": {
+      "active": "运行中",
+      "idle": "空闲",
+      "running": "运行中",
+      "title": "状态"
     },
-    "errors": {
-      "usernameRequired": "用户名或邮箱不能为空",
-      "passwordRequired": "请输入密码"
-    }
-  },
-  "chat": {
-    "messageList": {
-      "toolExecution": "工具执行",
-      "clickToOpen": "点击打开",
-      "imageViewer": "图片查看器",
-      "copy": "复制"
-    }
-  },
-  "projects": {
-    "title": "项目",
-    "noProjects": "未找到项目。"
-  },
-  "tour": {
-    "prev": "上一步",
-    "next": "下一步",
-    "finish": "开始使用"
-  },
-  "voice": {
-    "webSpeechNotSupported": "此浏览器不支持 Web Speech API。",
-    "notSupported": "此设备不支持语音识别。",
-    "micError": "麦克风错误："
-  },
-  "table": {
-    "sr": {
-      "next": "下一页",
-      "last": "跳转到最后一页",
-      "first": "跳转到第一页",
-      "previous": "上一页"
+    "stop": "停止",
+    "submit": "提交",
+    "success": "成功",
+    "themes": {
+      "appearance": "外观",
+      "dark": "深色",
+      "light": "浅色",
+      "system": "跟随系统",
+      "toggle": "切换主题"
     },
-    "noResults": "未找到结果。",
-    "page": "第",
-    "rowsPerPage": "每页行数",
-    "of": "页，共",
-    "showing": "显示第 {{start}} 到 {{end}} 条，共 {{total}} 条"
-  },
-  "projectSwitcher": {
-    "select": "选择",
-    "title": "切换项目",
-    "noProjects": "暂无项目。"
-  },
-  "toast": {
-    "success": "成功!",
-    "error": "出错了!"
+    "time": {
+      "hoursAgo": "{{count}} 小时前",
+      "justNow": "刚刚",
+      "minutesAgo": "{{count}} 分钟前",
+      "unknown": "未知时间"
+    },
+    "upload": "上传",
+    "uploading": "上传中...",
+    "url": "网址",
+    "yes": "是"
   },
   "footer": {
     "copyright": "Copyright © 2025 EvoLoop. All rights reserved."
   },
-  "wiki": {
-    "topic": {
-      "full_documentation": "项目完整文档"
-    },
-    "toast": {
-      "start": "Wiki 生成已开始",
-      "error": "Wiki 生成失败"
-    },
-    "generate": "生成 Wiki",
-    "regenerate": "重新生成",
-    "regenerate_action": "重新生成 Wiki",
-    "pageList": "页面列表",
-    "noDocs": "暂无文档",
-    "selectPage": "选择一个页面以查看详情",
-    "lastUpdated": "最后更新"
+  "sidebar": {
+    "chat": "对话",
+    "collapse": "收起侧边栏",
+    "csvPreviewError": "无法渲染 CSV 表格。",
+    "excelPreviewError": "无法渲染 Excel 预览。",
+    "knowledge": "知识库",
+    "learning": "学习中心",
+    "mobileDescription": "显示移动端侧边栏。",
+    "mobileTitle": "侧边栏",
+    "open": "展开侧边栏",
+    "openInSystemApp": "在系统应用中打开",
+    "projects": "项目",
+    "searchFilesPlaceholder": "搜索项目文件...",
+    "settings": "设置",
+    "todos": "待办",
+    "toggle": "切换侧边栏"
   },
-  "learning": {
-    "recordingStarted": "录制已开始。正在捕获您的操作。",
-    "recordingFailed": "启动录制失败",
-    "recordingStopped": "录制已停止。共捕获 {{count}} 个事件。",
-    "stopRecording": "停止录制",
-    "startRecording": "技能录制",
-    "globalMode": "系统监控已激活 (全局)",
-    "domMode": "仅应用内 (DOM)",
-    "permissionRequired": "全局录制需要权限",
-    "synthesisSuccess": "技能创建成功！",
-    "synthesisFailed": "创建技能失败",
-    "synthesisError": "合成过程中发生错误",
-    "skillCreated": "技能已创建！",
-    "createSkill": "创建技能？",
-    "skillCreatedDesc": "该技能已添加到您的库中。",
-    "createSkillDesc": "分析录制的操作以创建可重用的技能。",
-    "skillName": "技能名称",
-    "synthesisPrompt": "这将使用 AI 分析您的操作并生成可供稍后使用的参数化技能。",
-    "synthesize": "合成技能"
+  "toast": {
+    "error": "出错了!",
+    "success": "成功!"
   }
 }

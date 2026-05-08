@@ -75,7 +75,7 @@ export function useMultimodalSynthesis(options: UseMultimodalSynthesisOptions = 
                 onSuccess?.(result as SynthesisResult)
                 return result as SynthesisResult
             } else {
-                throw new Error(result.error || "合成失败")
+                throw new Error(result.error || t("learning.synthesisFailed"))
             }
         } catch (error) {
             const err = error instanceof Error ? error : new Error(String(error))

@@ -29,7 +29,7 @@ import {
 import { useProjectStore } from "@/stores/projectStore"
 import { DiscoverDialog } from "./DiscoverDialog"
 
-// import { Avatar, AvatarFallback, AvatarImage } from "@evoloop/shared/components/ui/avatar"
+// import { Avatar, AvatarFallback, AvatarImage } from "@shared/components/ui/avatar"
 
 interface ProjectStats {
   total_tasks: number

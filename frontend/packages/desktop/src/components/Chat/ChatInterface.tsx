@@ -299,7 +299,7 @@ export function ChatInterface() {
 
   const addToMemoryMutation = useMutation({
     mutationFn: async ({ text, name }: { text: string; name: string }) => {
-      if (!projectId) throw new Error("No project")
+      if (projectId === undefined || projectId === null) throw new Error("No project")
       return MemoryService.addConcept({
         projectId,
         requestBody: {

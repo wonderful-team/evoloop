@@ -47,18 +47,18 @@ export function TTSSettings() {
   }
 
   const voiceDescriptions: Record<string, string> = {
-    'zh-CN-XiaoxiaoNeural': '温柔自然的女声，适合大多数场景（推荐）',
-    'zh-CN-YunxiNeural': '年轻阳光的男声，清晰自然（推荐）',
-    'zh-CN-YunjianNeural': '沉稳的男声，适合新闻播报风格',
-    'zh-CN-YunyangNeural': '磁性沉稳的男声，成熟稳重',
-    'zh-CN-XiaoyiNeural': '活泼年轻的女声，轻松愉快',
-    'zh-CN-XiaohanNeural': '甜美可爱的女声，亲切友好',
-    'zh-TW-HsiaoChenNeural': '台湾女声，温柔亲切',
-    'zh-HK-HiuMaanNeural': '香港粤语女声，地道自然',
-    'en-US-AriaNeural': '美式英语女声，标准清晰',
-    'en-US-GuyNeural': '美式英语男声，自然流畅',
-    'ja-JP-NanamiNeural': '日语女声，标准自然',
-    'ko-KR-SunHiNeural': '韩语女声，温柔亲切',
+    'zh-CN-XiaoxiaoNeural': t('settings.tts.voices.zhCNXiaoxiaoNeural'),
+    'zh-CN-YunxiNeural': t('settings.tts.voices.zhCNYunxiNeural'),
+    'zh-CN-YunjianNeural': t('settings.tts.voices.zhCNYunjianNeural'),
+    'zh-CN-YunyangNeural': t('settings.tts.voices.zhCNYunyangNeural'),
+    'zh-CN-XiaoyiNeural': t('settings.tts.voices.zhCNXiaoyiNeural'),
+    'zh-CN-XiaohanNeural': t('settings.tts.voices.zhCNXiaohanNeural'),
+    'zh-TW-HsiaoChenNeural': t('settings.tts.voices.zhTWHsiaoChenNeural'),
+    'zh-HK-HiuMaanNeural': t('settings.tts.voices.zhHKHiuMaanNeural'),
+    'en-US-AriaNeural': t('settings.tts.voices.enUSAriaNeural'),
+    'en-US-GuyNeural': t('settings.tts.voices.enUSGuyNeural'),
+    'ja-JP-NanamiNeural': t('settings.tts.voices.jaJPNanamiNeural'),
+    'ko-KR-SunHiNeural': t('settings.tts.voices.koKRSunHiNeural'),
   }
 
   return (

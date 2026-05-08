@@ -1,10 +1,12 @@
 import { useNavigate } from "@tanstack/react-router"
-import { BookOpen, CheckCircle2, Clock, FolderOpen, Layers, ListTodo, RefreshCw, XCircle } from "lucide-react"
-import { useEffect } from "react"
+import { BookOpen, CheckCircle2, Clock, FolderOpen, FolderPlus, Layers, ListTodo, RefreshCw, XCircle } from "lucide-react"
+import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useProjectStore } from "@/stores/projectStore"
+import { useProjectImportStore } from "@/stores/projectImportStore"
 import { Badge } from "@evoloop/shared/components/ui/badge"
 import { Button } from "@evoloop/shared/components/ui/button"
+import { toast } from "sonner"
 import {
   Card,
   CardContent,
@@ -65,8 +67,11 @@ function getIndexingStatusDisplay(project: Project, t: (key: string) => string) 
 export function ProjectList() {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const { projects, fetchProjects, setProject, currentProject, isLoading } =
+  const { projects, fetchProjects, setProject, currentProject, isLoading: isListLoading } =
     useProjectStore()
+  
+  const { scanProjects, isLoading: isScanLoading } = useProjectImportStore()
+  const [isScanning, setIsScanning] = useState(false)
 
   // Trigger fetch on mount
   useEffect(() => {
@@ -77,12 +82,26 @@ export function ProjectList() {
     fetchProjects()
   }
 
+  const handleScan = async () => {
+    setIsScanning(true)
+    try {
+      await scanProjects()
+      toast.success(t("projects.import.scanComplete", "Scan complete"))
+    } catch (error) {
+      toast.error(t("projects.import.scanFailed", "Scan failed"))
+    } finally {
+      setIsScanning(false)
+    }
+  }
+
   const handleSelect = (proj: any) => {
     setProject(proj)
     navigate({ to: `/projects/${proj.id}/tasks` })
   }
 
-  if (isLoading && projects.length === 0) {
+  const isLoading = isListLoading || isScanning
+
+  if (isListLoading && projects.length === 0) {
     return <div className="p-8">{t("projects.loading")}</div>
   }
 
@@ -102,10 +121,22 @@ export function ProjectList() {
             disabled={isLoading}
           >
             <RefreshCw
-              className={`mr-2 h-4 w-4 ${isLoading ? "animate-spin" : ""}`}
+              className={`mr-2 h-4 w-4 ${isListLoading ? "animate-spin" : ""}`}
             />
             {t("projects.refresh")}
           </Button>
+          
+          <Button
+            variant="outline"
+            onClick={handleScan}
+            disabled={isLoading}
+          >
+            <FolderPlus
+              className={`mr-2 h-4 w-4 ${isScanning ? "animate-spin" : ""}`}
+            />
+            {t("projects.import.manualImport", "Import Local")}
+          </Button>
+
           <AddProject />
         </div>
       </div>
@@ -139,7 +170,7 @@ export function ProjectList() {
                 {(proj.summarization_status === "running" ||
                   proj.summarization_status === "summarizing") && (
                     <Badge variant="secondary" className="bg-purple-100 text-purple-700 hover:bg-purple-200 border-purple-200 gap-1">
-                      <ListTodo className="h-3 w-3 animate-pulse" /> Analyzing
+                      <ListTodo className="h-3 w-3 animate-pulse" /> {t("projects.status.analyzing")}
                     </Badge>
                   )}
                 {proj.wiki_status === "running" && (

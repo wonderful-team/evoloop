@@ -29,7 +29,7 @@ export function QuotaExhaustedCard() {
         // Send a "continue" message via normal chat flow
         // If quota is still exhausted, backend will return error and card will reappear
         const prompt = t("chat.quota.continuePrompt")
-        await sendMessage(prompt || "继续")
+        await sendMessage(prompt || t("common.continue"))
     }
 
     return (

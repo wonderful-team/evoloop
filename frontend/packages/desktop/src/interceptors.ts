@@ -122,7 +122,7 @@ export class BenefitRequiredError extends Error {
   public info: BenefitErrorInfo
 
   constructor(info: BenefitErrorInfo) {
-    super(info.message || '需要订阅才能使用此功能')
+    super(info.message || i18n.t('subscription.errors.subscriptionRequired'))
     this.name = 'BenefitRequiredError'
     this.info = info
   }

@@ -1,4 +1,44 @@
 {
+  "about": {
+    "legal": {
+      "openSource": "Open Source",
+      "privacy": "Privacy",
+      "title": "Title",
+      "userAgreement": "User Agreement"
+    },
+    "links": {
+      "desc": "Desc",
+      "github": "Github",
+      "githubDesc": "Github Desc",
+      "help": "Help",
+      "helpDesc": "Help Desc",
+      "official": "Official",
+      "officialDesc": "Official Desc",
+      "title": "Title"
+    },
+    "title": "Title",
+    "toast": {
+      "checkFailed": "Check Failed",
+      "downloadUnavailable": "Download Unavailable",
+      "newVersion": "New Version",
+      "openingDownload": "Opening Download",
+      "skipped": "Skipped",
+      "upToDate": "Up To Date"
+    },
+    "update": {
+      "checkUpdate": "Check Update",
+      "checking": "Checking",
+      "forceUpdateWarning": "Force Update Warning",
+      "newVersion": "New Version",
+      "remindLater": "Remind Later",
+      "title": "Title",
+      "updateNow": "Update Now"
+    },
+    "versionInfo": {
+      "desc": "Desc",
+      "title": "Title"
+    }
+  },
   "app": {
     "name": "EvoLoop"
   },
@@ -98,6 +138,15 @@
     "addLink": "添加链接",
     "addLinkTitle": "添加外部链接",
     "agentStopped": "对话已停止",
+    "artifact": {
+      "chart": "Chart",
+      "chartError": "Chart Error",
+      "invalidChartOption": "Invalid Chart Option",
+      "loadingMap": "Loading Map",
+      "map": "Map",
+      "mapError": "Map Error",
+      "saveImage": "Save Image"
+    },
     "artifacts": {
       "fixSuggestion": "修复建议",
       "rootCause": "根本原因分析",
@@ -106,6 +155,14 @@
     },
     "attachSkill": "挂载技能",
     "autoSend": "自动发送",
+    "changeset": {
+      "filesChanged": "已变更 {{count}} 个文件",
+      "moreFiles": "个文件",
+      "newChanges": "本次修改了 {{count}} 个文件",
+      "viewAll": "查看全部",
+      "viewChanges": "点击审查",
+      "viewed": "已巡检 {{count}} 个文件"
+    },
     "context": {
       "addMemory": {
         "desc": "描述",
@@ -170,6 +227,7 @@
       "connection": "连接错误: {{error}}",
       "loadHistory": "加载对话历史失败",
       "resumeAgent": "恢复智能体失败",
+      "sendFailed": "发送失败",
       "sendMessage": "发送消息失败",
       "stopAgent": "停止智能体失败"
     },
@@ -187,6 +245,7 @@
       "conceptName": "概念名称",
       "conceptPlaceholder": "例如：项目架构",
       "contentLabel": "内容",
+      "copied": "已复制",
       "copy": "复制",
       "deleteChatError": "删除对话失败",
       "filesReverted": "{{count}} 个文件已恢复",
@@ -215,6 +274,7 @@
       "stop": "停止生成",
       "stopAgentSuccess": "已停止",
       "thinkingProcess": "推理过程",
+      "toolExecutionSteps": "Tool Execution Steps",
       "uploadError": "上传失败",
       "uploadFile": "上传文件",
       "uploadSuccess": "文件上传成功",
@@ -243,6 +303,7 @@
     "linkFailed": "添加链接失败",
     "linkNamePlaceholder": "例如：API 文档",
     "linkUrlPlaceholder": "https://...",
+    "liveStepsTitle": "执行步骤",
     "llmAuthError": "LLM API 认证失败",
     "llmAuthErrorDesc": "API 密钥无效或已过期，请检查 LLM 设置",
     "loadingHistory": "加载历史消息...",
@@ -256,6 +317,7 @@
     "modelSelector": {
       "customModels": "自定义模型",
       "default": "默认模型",
+      "fetchFailed": "获取模型列表失败",
       "noModels": "暂无可用模型",
       "placeholder": "选择模型",
       "platformModels": "平台模型",
@@ -266,6 +328,8 @@
     },
     "noLinks": "没有链接",
     "noPinnedFiles": "在文件浏览器中右键点击文件可将其置顶至此。",
+    "noSteps": "暂无执行步骤",
+    "noThinking": "暂无思考记录",
     "noTools": "未发现运行时工具。",
     "notification": {
       "prefix": "EvoLoop: "
@@ -343,7 +407,9 @@
         "verify_ui_state": "验证 UI 状态",
         "write_file": "写入文件",
         "write_wiki_page": "写入 Wiki 页面"
-      }
+      },
+      "noResults": "暂无结果",
+      "resultCount": "找到 {{count}} 个结果"
     },
     "quota": {
       "banner": {
@@ -363,6 +429,12 @@
       "continuePrompt": "继续",
       "title": "配额已耗尽"
     },
+    "quotaExhausted": {
+      "action": "查看订阅",
+      "hint": "升级会员以获取更多 AI 额度",
+      "message": "您的 AI 额度已用完",
+      "title": "额度不足"
+    },
     "reference": {
       "files": "文件",
       "messages": "消息",
@@ -371,6 +443,8 @@
       "typeToSearch": "输入以搜索..."
     },
     "request": {
+      "cancelled": "Cancelled",
+      "completed": "Completed",
       "placeholder": "请输入您的回复...",
       "title": "需要操作"
     },
@@ -386,6 +460,10 @@
       "confirmTitle": "确认撤回",
       "revertFiles": "同时恢复 Agent 修改过的文件内容",
       "revertFilesHint": "（恢复到修改前的状态）"
+    },
+    "role": {
+      "assistant": "EvoLoop",
+      "user": "用户"
     },
     "scrollToLoadMore": "向上滚动加载更多历史消息",
     "sidebar": {
@@ -427,6 +505,7 @@
       "userCancelled": "用户已取消",
       "working": "工作中..."
     },
+    "stepGroupsCount": "{{count}} 轮执行",
     "steps": {
       "completed": "已完成",
       "executing": "正在执行",
@@ -442,6 +521,11 @@
       "tools": "个工具",
       "unknown": "未知工具"
     },
+    "stepsRunning": "{{running}}/{{total}} 运行中",
+    "stepsTotal": "{{count}} 个步骤",
+    "thinkingActive": "思考中...",
+    "thinkingTitle": "思考过程",
+    "thinkingWaiting": "等待思考...",
     "toolsActive": "{{count}} 个活跃",
     "toolsDynamic": "动态加载",
     "thinkingTitle": "思考过程",
@@ -470,6 +554,9 @@
       "stop": "停止",
       "voice": "语音"
     },
+    "turnDone": "{{done}} 完成 {{failed}} 失败",
+    "turnLabel": "第 {{turn}} 轮",
+    "turnRunning": "{{running}}/{{total}} 运行中",
     "voice": {
       "cancelled": "录制已取消",
       "expand": "展开",
@@ -495,12 +582,15 @@
       "wakeWordDetected": "检测到唤醒词，开始录音",
       "wakeWordStatus": "唤醒词: \"{{word}}\""
     },
+    "waitingForSteps": "等待 Agent 开始执行...",
     "welcome": {
       "cloudSynced": "云端已同步",
       "connectedViaAdb": "已通过 ADB 连接",
       "deviceBridge": "跨端设备联动",
       "globalReady": "全局模式已就绪，准备好开启智能探索了吗？",
       "health": "环境健康度",
+      "mobileHint": "点击下方输入框开始对话",
+      "mobileSubtitle": "你好！我是你的木头机器人助手",
       "nav": {
         "knowledge": "知识库",
         "knowledgeDesc": "查阅记忆、文档与技术沉淀",
@@ -511,8 +601,6 @@
         "todos": "待办事项",
         "todosDesc": "追踪任务进展与自动化记录"
       },
-      "mobileHint": "点击下方输入框开始对话",
-      "mobileSubtitle": "你好！我是你的木头机器人助手",
       "noDevices": "未发现同步设备",
       "projectReady": "项目 [{{name}}] 已就绪，准备好进行下一轮进化了吗？",
       "skillEvolution": "进化中的技能库",
@@ -614,7 +702,11 @@
     "uploading": "上传中...",
     "url": "网址",
     "viewAll": "查看全部",
-    "yes": "是"
+    "yes": "是",
+    "continue": "继续"
+  },
+  "context": {
+    "noDescription": "No Description"
   },
   "deleteAccount": {
     "cancel": "取消",
@@ -704,6 +796,8 @@
     "noPopularDocsHint": "使用知识库后，这里会显示最常用的文档",
     "noProjectDocs": "暂无项目文档",
     "noProjectDocsHint": "此项目尚未关联任何文档。您可以在全局知识库中上传并分类。",
+    "noSearchResults": "无搜索结果",
+    "noSearchResultsHint": "尝试不同的关键词",
     "noTags": "暂无标签",
     "popular": "热门",
     "popularRankingInfo": "基于引用次数排序 (最近 30 天)",
@@ -729,6 +823,7 @@
     "totalSize": "总大小",
     "tree": "树形",
     "treeViewComingSoon": "树形视图即将推出",
+    "tryDifferentQuery": "尝试不同的查询",
     "upload": "上传",
     "uploadBulk": "批量上传",
     "uploadError": "上传失败",
@@ -906,6 +1001,7 @@
     "recordingFailed": "录制启动失败",
     "recordingHint": "点击上方按钮停止并合成",
     "recordingInProgress": "正在录制...",
+    "recordingRequiresThread": "请先选择或创建一个对话",
     "recordingStarted": "录制已开始",
     "recordingStopped": "录制已停止，捕捉到 {{count}} 个操作",
     "regionAnnotations": "区域标注",
@@ -1163,7 +1259,17 @@
     "title": "外部工具连接"
   },
   "mermaid": {
-    "renderError": "图表渲染失败"
+    "renderError": "图表渲染失败",
+    "renderingPartial": "Rendering Partial"
+  },
+  "overlay": {
+    "dragToSelect": "Drag To Select",
+    "errorDeviceInfo": "Error Device Info",
+    "errorMirrorWindow": "Error Mirror Window",
+    "escToCancel": "Esc To Cancel",
+    "hint": "Hint",
+    "marked": "Marked",
+    "regionsCount": "Regions Count"
   },
   "pending": {
     "actions": "操作",
@@ -1239,9 +1345,12 @@
     "details": {
       "created": "创建时间",
       "description": "描述",
+      "noDescription": "No Description",
       "tabs": {
         "ai": "AI 分析",
-        "discussion": "讨论"
+        "details": "详情",
+        "discussion": "讨论",
+        "subtasks": "子任务"
       }
     },
     "emptyState": "未找到项目。请尝试扫描或创建一个新项目。",
@@ -1272,11 +1381,14 @@
       "importFailed": "导入项目失败",
       "importSuccess": "项目导入成功",
       "loading": "正在加载检测到的项目...",
+      "manualImport": "导入项目",
       "newProjectsDetected": "检测到新项目",
       "noDetected": "暂无待导入项目",
       "noDetectedDesc": "项目目录中的新文件夹将显示在此处",
       "noIgnored": "暂无已忽略项目",
       "noIgnoredDesc": "已忽略的项目可以在此处恢复",
+      "scanComplete": "扫描完成",
+      "scanFailed": "扫描失败",
       "selectAll": "全选",
       "subtitle": "管理检测到的项目和已忽略的项目",
       "tabDetected": "待导入",
@@ -1304,21 +1416,29 @@
       "discoverDescription": "分析项目结构并生成 PROJECT.md 配置文件。",
       "discoverTitle": "发现项目配置",
       "discovering": "正在发现...",
+      "discoveryCompleted": "发现完成",
       "discoveryFailed": "发现失败",
       "discoveryStarted": "发现任务已启动",
       "notFound": "未找到配置",
       "notFoundDescription": "此项目还没有 PROJECT.md。点击「发现」按钮生成一个。",
+      "phase": {
+        "completed": "已完成",
+        "error": "出错",
+        "exploring": "正在探索项目",
+        "generating": "正在生成文档",
+        "installing": "正在安装环境",
+        "starting": "正在启动"
+      },
       "recordSecrets": "记录敏感配置值",
       "recordSecretsDescNew": "将 .env 文件中的实际敏感值直接写入 PROJECT.md。敏感信息将以明文形式存储。",
       "rediscover": "重新发现",
       "setupEnvironment": "自动配置环境",
       "setupEnvironmentDesc": "检测并安装缺失的基础设施服务（Docker、Redis、数据库等），并构建/启动项目。",
       "startDiscovery": "开始发现",
+      "startingDiscovery": "正在启动发现...",
       "stream": {
         "connected": "已连接"
       },
-      "discoveryCompleted": "发现完成",
-      "startingDiscovery": "正在启动发现...",
       "threadCreated": "任务线程已创建",
       "phase": {
         "starting": "正在启动",
@@ -1357,6 +1477,7 @@
     "tabs": {
       "files": "文件",
       "gantt": "甘特图",
+      "knowledge": "知识库",
       "overview": "概览",
       "profile": "项目配置",
       "reports": "报表",
@@ -1405,6 +1526,7 @@
       },
       "subtasks": "个子任务",
       "subtasksWillAppear": "创建后子任务将显示在这里",
+      "techDifficulty": "Tech Difficulty",
       "title": "任务管理",
       "totalProgress": "总进度",
       "unassigned": "未分配"
@@ -1412,9 +1534,12 @@
     "timesheet": {
       "dialog": {
         "desc": "记录您在此项目上的工作时长。",
+        "descPlaceholder": "做了什么工作？",
         "description": "描述",
         "hours": "时长 (小时)",
+        "hoursPlaceholder": "0.0",
         "save": "保存记录",
+        "selectType": "选择类型",
         "title": "记录工作时间",
         "type": "类型"
       },
@@ -1570,6 +1695,7 @@
       "description": "配置用于代码搜索和记忆的 Embedding 模型。",
       "error_connection": "连接错误",
       "error_update": "更新 Embedding 模型失败",
+      "loadError": "Load Error",
       "selectProvider": "选择提供商",
       "select_active_model": "选择当前使用的 Embedding 模型",
       "select_default_placeholder": "请选择默认模型...",
@@ -1586,6 +1712,7 @@
       "description": "配置全局系统偏好设置和路径。",
       "deviceName": "设备名称",
       "deviceNameDesc": "此名称用于在 EvoLoop 网络中标识此设备。",
+      "deviceNamePlaceholder": "Device Name Placeholder",
       "error": "保存设置失败",
       "language": "语言",
       "languageOptions": {
@@ -1620,6 +1747,7 @@
       "default_model": "1. 默认 LLM 模型",
       "default_model_desc": "选择系统在未明确指定模型时的默认生成模型。",
       "description": "配置智能体使用的大语言模型。",
+      "loadError": "Load Error",
       "provider_placeholder": "选择提供商",
       "save_failed": "保存配置失败",
       "saved": "LLM 配置已保存",
@@ -1691,7 +1819,27 @@
       "speechRate": "语速",
       "title": "语音合成 (TTS)",
       "voice": "语音选择",
-      "voiceDesc": "选择您偏好的 AI 语音"
+      "voiceDesc": "选择您偏好的 AI 语音",
+      "voiceNames": {
+        "zhCNXiaoxiaoNeural": "晓晓",
+        "zhCNXiaoyiNeural": "小艺",
+        "zhCNYunjianNeural": "云健",
+        "zhCNYunxiNeural": "云希"
+      },
+      "voices": {
+        "enUSAriaNeural": "En U S Aria Neural",
+        "enUSGuyNeural": "En U S Guy Neural",
+        "jaJPNanamiNeural": "Ja J P Nanami Neural",
+        "koKRSunHiNeural": "Ko K R Sun Hi Neural",
+        "zhCNXiaohanNeural": "Zh C N Xiaohan Neural",
+        "zhCNXiaoxiaoNeural": "温柔自然，最推荐",
+        "zhCNXiaoyiNeural": "活泼年轻",
+        "zhCNYunjianNeural": "新闻播报风格",
+        "zhCNYunxiNeural": "年轻阳光，最推荐",
+        "zhCNYunyangNeural": "Zh C N Yunyang Neural",
+        "zhHKHiuMaanNeural": "Zh H K Hiu Maan Neural",
+        "zhTWHsiaoChenNeural": "Zh T W Hsiao Chen Neural"
+      }
     },
     "voice": {
       "sttTitle": "语音识别 (STT) 引擎配置",
@@ -1721,6 +1869,8 @@
       "notSupported": "您的浏览器不支持语音识别功能。请使用 Chrome、Edge 或 Safari 浏览器。",
       "pressDuration": "长按持续时间",
       "recording": "正在录音...",
+      "selectSttDevice": "请选择运行设备...",
+      "selectSttModel": "请选择识别模型...",
       "shortcutDesc": "设置双击或长按快捷键快速激活语音输入",
       "shortcutDisabled": "快捷键已禁用",
       "shortcutEnabled": "快捷键已启用",
@@ -1731,6 +1881,12 @@
       "slow": "慢",
       "startListening": "开始监听",
       "stopListening": "停止监听",
+      "sttConfigError": "保存语音识别配置失败",
+      "sttConfigSaved": "语音识别配置已保存",
+      "sttDesc": "配置本地语音识别引擎的模型和加速设备。",
+      "sttDevice": "运行设备",
+      "sttModel": "识别模型",
+      "sttTitle": "语音识别 (STT) 引擎配置",
       "tauriOnly": "此功能需要在 EvoLoop 桌面应用中运行，浏览器中无法使用系统级快捷键。",
       "tauriRequired": "快捷键功能需要在 Tauri 应用中运行",
       "testShortcut": "测试快捷键",
@@ -1803,7 +1959,8 @@
       "dialogTitle": "解锁「{{feature}}」功能",
       "featureFallback": "此功能",
       "insufficientPermission": "权限不足",
-      "upgradeAction": "立即升级"
+      "upgradeAction": "立即升级",
+      "subscriptionRequired": "需要订阅"
     },
     "expired": {
       "description": "您的订阅已过期，请续费以继续使用此功能",
@@ -1822,15 +1979,23 @@
       "durationHint": "升级后套餐期限累加，额外配额自动补差",
       "error": "支付失败",
       "expiredHint": "二维码已失效",
+      "expiresInHours": "Expires In Hours",
+      "expiresInMinutes": "Expires In Minutes",
+      "expiresInSeconds": "Expires In Seconds",
+      "noRefund": "No Refund",
       "noRefundHint": "会员服务属于虚拟商品，一经支付无法退款，请你谅解",
       "pollNotice": "正在处理支付...",
       "qrExpired": "二维码已过期",
+      "qrInvalid": "Qr Invalid",
       "refresh": "重新获取",
       "refundHint": "原套餐剩余¥{{refundAmount}}将在支付成功后退还到余额",
       "refundToBalance": "¥{{amount}} 已退还到您的账户余额",
+      "refunded": "Refunded",
       "renewDesc": "续费后有效期将延长",
       "renewExtension": "续费后有效期延长，额度叠加",
       "renewNoWaste": "原剩余有效期将累加，不会浪费",
+      "renewNote1": "Renew Note1",
+      "renewNote2": "Renew Note2",
       "renewPrice": "续费 ¥{{price}}/月",
       "renewTitle": "续费 {{name}}",
       "subscribePrice": "开通会员订阅：¥{{price}}/月",
@@ -1841,6 +2006,8 @@
       "thankYou": "感谢您！",
       "title": "支付",
       "upgradeDiff": "升级补差价：新套餐 ¥{{payAmount}} - 原套餐剩余 ¥{{refundAmount}}",
+      "upgradeNote": "Upgrade Note",
+      "validityNote": "Validity Note",
       "waiting": "正在等待支付结果...",
       "wechatPay": "微信扫码支付"
     },
@@ -1866,13 +2033,14 @@
       "upgradeRefund": "支持升级退差价"
     },
     "plans": {
-      "desc": "选择适合您的计划",
-      "title": "计划",
       "creator": "创作者版",
-      "geek": "极客版",
-      "expert": "专家版",
+      "desc": "选择适合您的计划",
       "enterprise": "企业版",
-      "higher": "更高等级"
+      "expert": "专家版",
+      "free": "Free",
+      "geek": "极客版",
+      "higher": "更高等级",
+      "title": "计划"
     },
     "privilege": {
       "advancedModels": "高级 AI 模型",
@@ -1888,14 +2056,16 @@
       "unlimited": "无限",
       "usedPercent": "{{percent}}% 已使用"
     },
-    "renew": "立即续费",
+    "renew": {
+      "reminder": "将在 {{days}} 天后到期",
+      "urgent": "仅剩 {{days}} 天，建议立即续费"
+    },
     "renewalNotice": {
       "reminder": "您的订阅还有 {{days}} 天到期",
       "urgent": "您的订阅将在 {{days}} 天内到期，请及时续费"
     },
     "requiredPlan": "所需套餐",
     "status": {
-      "locked": "功能已锁定",
       "active": "有效",
       "autoRenewOn": "自动续费已开启",
       "daysRemaining": "（{{days}} 天）",
@@ -1905,6 +2075,7 @@
       "expiringSoon": "即将过期",
       "freeDesc": "您目前正在使用免费版，升级以获取更多能力",
       "freeTitle": "免费版",
+      "locked": "功能已锁定",
       "manage": "管理",
       "renew": "续费",
       "renewNow": "立即续费",
@@ -1917,7 +2088,8 @@
       "help": "升级后可立即使用此功能",
       "title": "需要升级订阅"
     },
-    "upgradeNow": "立即升级"
+    "upgradeNow": "立即升级",
+    "upgradeRequired": "Upgrade Required"
   },
   "system": {
     "initializationDesc": "请配置以下系统设置以继续。",
@@ -2039,6 +2211,21 @@
       "title": "输入区域"
     }
   },
+  "updateNotification": {
+    "forceUpdate": {
+      "desc": "Desc",
+      "title": "Title",
+      "updateNow": "Update Now"
+    },
+    "normal": {
+      "collapse": "Collapse",
+      "desc": "Desc",
+      "expand": "Expand",
+      "remindLater": "Remind Later",
+      "title": "Title",
+      "updateNow": "Update Now"
+    }
+  },
   "user": {
     "contactSupport": "联系客服",
     "defaultName": "用户",
@@ -2048,6 +2235,23 @@
     "manageSubscription": "管理订阅",
     "settings": "用户设置",
     "upgradeToPro": "升级到专业版"
+  },
+  "versionDisplay": {
+    "aboutTitle": "About Title",
+    "buildNumber": "Build Number",
+    "buildTime": "Build Time",
+    "copyTitle": "Copy Title",
+    "fullVersion": "Full Version",
+    "helpDocs": "Help Docs",
+    "stage": "Stage",
+    "version": "Version",
+    "visitWebsite": "Visit Website"
+  },
+  "voice": {
+    "micError": "麦克风错误：",
+    "notSupported": "此设备不支持语音识别。",
+    "recognitionError": "识别错误",
+    "webSpeechNotSupported": "此浏览器不支持 Web Speech API。"
   },
   "wiki": {
     "generate": "生成百科",

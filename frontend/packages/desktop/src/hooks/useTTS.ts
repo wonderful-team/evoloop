@@ -34,10 +34,10 @@ export function useTTS(): UseTTSReturn {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [voices, setVoices] = useState<TTSVoice[]>([
-    { id: 'zh-CN-XiaoxiaoNeural', name: '晓晓', gender: 'female', description: '温柔自然，最推荐' },
-    { id: 'zh-CN-YunxiNeural', name: '云希', gender: 'male', description: '年轻阳光，最推荐' },
-    { id: 'zh-CN-YunjianNeural', name: '云健', gender: 'male', description: '新闻播报风格' },
-    { id: 'zh-CN-XiaoyiNeural', name: '小艺', gender: 'female', description: '活泼年轻' },
+    { id: 'zh-CN-XiaoxiaoNeural', name: 'Xiaoxiao', gender: 'female', description: 'Gentle and natural, highly recommended' },
+    { id: 'zh-CN-YunxiNeural', name: 'Yunxi', gender: 'male', description: 'Young and sunny, highly recommended' },
+    { id: 'zh-CN-YunjianNeural', name: 'Yunjian', gender: 'male', description: 'News broadcasting style' },
+    { id: 'zh-CN-XiaoyiNeural', name: 'Xiaoyi', gender: 'female', description: 'Lively and young' },
   ])
   const [currentVoice, setCurrentVoice] = useState('zh-CN-XiaoxiaoNeural')
   

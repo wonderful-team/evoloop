@@ -3500,6 +3500,12 @@ export type ProjectsRunIndexingEndpointData = {
 
 export type ProjectsRunIndexingEndpointResponse = (IndexingRunResponse);
 
+export type ProjectsScanWorkspaceProjectsEndpointResponse = (ListResponse_DetectedProjectItem_);
+
+export type ProjectsGetDetectedProjectsData = {
+    force?: boolean;
+};
+
 export type ProjectsGetDetectedProjectsResponse = (ListResponse_DetectedProjectItem_);
 
 export type ProjectsImportDetectedProjectData = {

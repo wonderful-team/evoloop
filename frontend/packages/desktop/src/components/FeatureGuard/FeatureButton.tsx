@@ -45,12 +45,12 @@ export function FeatureButton({
         onClick={() => {
           window.location.href = "/subscription"
         }}
-        title={t('subscription.upgradeRequired', `需要${requiredPlan}订阅`)}
+        title={t('subscription.upgradeRequired', { plan: t(`plans.${requiredPlan}`) })}
       >
         {showLockIcon && <Lock className="h-3.5 w-3.5 mr-1" />}
         {children}
         <span className="ml-1 text-xs text-muted-foreground opacity-70">
-          ({requiredPlan})
+          ({t(`plans.${requiredPlan}`)})
         </span>
       </Button>
     )

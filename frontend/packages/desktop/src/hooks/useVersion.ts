@@ -8,6 +8,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import versionInfo from '@/version.json';
 
 /** 版本信息接口 */
@@ -77,6 +78,7 @@ export function getVersionDisplayString(info: VersionInfo = localVersion): strin
  * 版本信息 Hook
  */
 export function useVersion() {
+  const { t } = useTranslation();
   const [updateInfo, setUpdateInfo] = useState<UpdateCheckResult | null>(null);
   const [isChecking, setIsChecking] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -108,7 +110,7 @@ export function useVersion() {
       });
 
       if (!response.ok) {
-        throw new Error(`检查更新失败: ${response.status}`);
+        throw new Error(`${t('about.toast.checkFailed')}: ${response.status}`);
       }
 
       const result = await response.json();
@@ -124,7 +126,7 @@ export function useVersion() {
       setUpdateInfo(updateResult);
       return updateResult;
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : '检查更新失败';
+      const errorMsg = err instanceof Error ? err.message : t('about.toast.checkFailed');
       setError(errorMsg);
       
       // 返回无更新的结果

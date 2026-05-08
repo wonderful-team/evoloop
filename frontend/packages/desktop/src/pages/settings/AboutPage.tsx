@@ -5,6 +5,7 @@
  */
 
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { 
   Info, 
   Github, 
@@ -27,6 +28,7 @@ import { updateService } from '@/services/updateService';
  * 关于页面组件
  */
 export const AboutPage: React.FC = () => {
+  const { t } = useTranslation();
   const [showVersionDialog, setShowVersionDialog] = useState(false);
   const { 
     version, 
@@ -49,12 +51,12 @@ export const AboutPage: React.FC = () => {
     try {
       const result = await checkForUpdates();
       if (result.hasUpdate) {
-        showToast(`发现新版本: ${result.latestVersion}`, 'success');
+        showToast(t('about.toast.newVersion', { version: result.latestVersion }), 'success');
       } else {
-        showToast('当前已是最新版本', 'success');
+        showToast(t('about.toast.upToDate'), 'success');
       }
     } catch (error) {
-      showToast('检查更新失败，请稍后重试', 'error');
+      showToast(t('about.toast.checkFailed'), 'error');
     }
   };
 
@@ -65,9 +67,9 @@ export const AboutPage: React.FC = () => {
       
       if (updateInfo.downloadUrl) {
         window.open(updateInfo.downloadUrl, '_blank');
-        showToast('正在打开下载页面...', 'info');
+        showToast(t('about.toast.openingDownload'), 'info');
       } else {
-        showToast('下载链接不可用', 'error');
+        showToast(t('about.toast.downloadUnavailable'), 'error');
       }
     }
   };
@@ -76,7 +78,7 @@ export const AboutPage: React.FC = () => {
   const handleSkipVersion = () => {
     if (updateInfo?.latestVersion) {
       updateService.skipVersion(updateInfo.latestVersion);
-      showToast('已跳过此版本，将在下次更新时提醒', 'info');
+      showToast(t('about.toast.skipped'), 'info');
     }
   };
 
@@ -84,29 +86,29 @@ export const AboutPage: React.FC = () => {
   const externalLinks = [
     {
       icon: Globe,
-      label: '官方网站',
+      label: t('about.links.official'),
       href: 'https://evoloop.cn',
-      description: '访问 EvoLoop 官网',
+      description: t('about.links.officialDesc'),
     },
     {
       icon: FileText,
-      label: '帮助文档',
+      label: t('about.links.help'),
       href: 'https://docs.evoloop.cn',
-      description: '查看使用文档和教程',
+      description: t('about.links.helpDesc'),
     },
     {
       icon: Github,
-      label: 'GitHub',
+      label: t('about.links.github'),
       href: 'https://github.com/evoloop',
-      description: '开源代码仓库',
+      description: t('about.links.githubDesc'),
     },
   ];
 
   // 法律信息
   const legalLinks = [
-    { label: '用户协议', href: '#' },
-    { label: '隐私政策', href: '#' },
-    { label: '开源许可', href: '#' },
+    { label: t('about.legal.userAgreement'), href: '#' },
+    { label: t('about.legal.privacy'), href: '#' },
+    { label: t('about.legal.openSource'), href: '#' },
   ];
 
   return (
@@ -135,7 +137,7 @@ export const AboutPage: React.FC = () => {
       {/* 页面标题 */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
         <Info style={{ width: '24px', height: '24px', color: '#2563eb' }} />
-        <h1 style={{ fontSize: '24px', fontWeight: 'bold' }}>关于</h1>
+        <h1 style={{ fontSize: '24px', fontWeight: 'bold' }}>{t('about.title')}</h1>
       </div>
 
       {/* 版本信息卡片 */}
@@ -149,8 +151,8 @@ export const AboutPage: React.FC = () => {
         <div style={{ padding: '24px', borderBottom: '1px solid #f3f4f6' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div>
-              <h2 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '4px' }}>版本信息</h2>
-              <p style={{ fontSize: '14px', color: '#6b7280' }}>当前应用版本和构建信息</p>
+              <h2 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '4px' }}>{t('about.versionInfo.title')}</h2>
+              <p style={{ fontSize: '14px', color: '#6b7280' }}>{t('about.versionInfo.desc')}</p>
             </div>
             <div style={{
               width: '48px',
@@ -184,10 +186,10 @@ export const AboutPage: React.FC = () => {
           {/* 更新检查按钮 */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div>
-              <p style={{ fontSize: '14px', fontWeight: '500' }}>软件更新</p>
+              <p style={{ fontSize: '14px', fontWeight: '500' }}>{t('about.update.title')}</p>
               <p style={{ fontSize: '12px', color: '#6b7280' }}>
                 {updateInfo?.hasUpdate 
-                  ? `发现新版本: ${updateInfo.latestVersion}` 
+                  ? t('about.update.newVersion', { version: updateInfo.latestVersion })
                   : versionString}
               </p>
             </div>
@@ -212,7 +214,7 @@ export const AboutPage: React.FC = () => {
                 height: '16px', 
                 animation: isChecking ? 'spin 1s linear infinite' : undefined 
               }} />
-              {isChecking ? '检查中...' : '检查更新'}
+              {isChecking ? t('about.update.checking') : t('about.update.checkUpdate')}
             </button>
           </div>
 
@@ -229,11 +231,11 @@ export const AboutPage: React.FC = () => {
                 <RefreshCw style={{ width: '20px', height: '20px', color: '#2563eb', marginTop: '2px' }} />
                 <div style={{ flex: 1 }}>
                   <p style={{ fontSize: '14px', fontWeight: '500', color: '#2563eb' }}>
-                    发现新版本 {updateInfo.latestVersion}
+                    {t('about.update.newVersion', { version: updateInfo.latestVersion })}
                   </p>
                   {updateInfo.isForceUpdate && (
                     <p style={{ fontSize: '12px', color: '#ea580c', marginTop: '4px' }}>
-                      ⚠️ 此版本包含重要安全更新，建议立即升级
+                      {t('about.update.forceUpdateWarning')}
                     </p>
                   )}
                   {updateInfo.releaseNotes && (
@@ -258,7 +260,7 @@ export const AboutPage: React.FC = () => {
                       }}
                     >
                       <Download style={{ width: '16px', height: '16px' }} />
-                      立即更新
+                      {t('about.update.updateNow')}
                     </button>
                     {!updateInfo.isForceUpdate && (
                       <button
@@ -277,7 +279,7 @@ export const AboutPage: React.FC = () => {
                         }}
                       >
                         <Clock style={{ width: '16px', height: '16px' }} />
-                        稍后提醒
+                        {t('about.update.remindLater')}
                       </button>
                     )}
                   </div>
@@ -297,8 +299,8 @@ export const AboutPage: React.FC = () => {
         overflow: 'hidden',
       }}>
         <div style={{ padding: '24px', borderBottom: '1px solid #f3f4f6' }}>
-          <h2 style={{ fontSize: '18px', fontWeight: '600' }}>相关链接</h2>
-          <p style={{ fontSize: '14px', color: '#6b7280' }}>访问官网、文档和社区</p>
+          <h2 style={{ fontSize: '18px', fontWeight: '600' }}>{t('about.links.title')}</h2>
+          <p style={{ fontSize: '14px', color: '#6b7280' }}>{t('about.links.desc')}</p>
         </div>
 
         {externalLinks.map((link, index) => (
@@ -350,7 +352,7 @@ export const AboutPage: React.FC = () => {
         <div style={{ padding: '24px', borderBottom: '1px solid #f3f4f6' }}>
           <h2 style={{ fontSize: '18px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Shield style={{ width: '20px', height: '20px' }} />
-            法律信息
+            {t('about.legal.title')}
           </h2>
         </div>
 

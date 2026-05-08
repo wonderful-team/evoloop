@@ -1,4 +1,4 @@
-import { Play, XCircle, CheckCircle2, MessageCircleQuestion, Ban, FolderGit2 } from "lucide-react"
+import { Play, XCircle, CheckCircle2, MessageCircleQuestion, Ban, FolderGit2, BookOpen } from "lucide-react"
 import { useState } from "react"
 import { MessageContent } from "./MessageContent"
 import { useTranslation } from "react-i18next"

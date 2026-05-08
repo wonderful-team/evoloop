@@ -37,6 +37,8 @@ export function UpgradePrompt({
     timesheet: t("features.timesheet"),
   }
 
+  const planName = t(`plans.${requiredPlan}`)
+
   const handleUpgrade = () => {
     window.location.href = "/subscription"
   }
@@ -49,41 +51,41 @@ export function UpgradePrompt({
         </div>
         <CardTitle>
           {isExpired
-            ? t("subscription.expired.title")
-            : t("subscription.upgrade.title")}
+            ? t("subscription.status.expired")
+            : t("subscription.status.upgradeNow")}
         </CardTitle>
         <CardDescription>
           {isExpired
-            ? t("subscription.expired.description")
-            : t("subscription.upgrade.description")}
+            ? t("subscription.notice.desc")
+            : t("subscription.plans.desc")}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
           <span className="text-sm text-muted-foreground">
-            {t("subscription.feature")}
+            {t("subscription.plans.title")}
           </span>
           <span className="font-medium">{featureNames[feature]}</span>
         </div>
 
         <div className="flex items-center justify-between p-3 bg-primary/5 rounded-lg border border-primary/20">
           <span className="text-sm text-muted-foreground">
-            {t("subscription.requiredPlan")}
+            {t("subscription.quota.aiQuota")}
           </span>
           <span className="font-medium text-primary flex items-center gap-1">
             <Star className="h-4 w-4 fill-primary" />
-            {requiredPlan}
+            {planName}
           </span>
         </div>
 
         <Button onClick={handleUpgrade} className="w-full">
           {isExpired
-            ? t("subscription.renew")
-            : t("subscription.upgradeNow")}
+            ? t("subscription.status.renew")
+            : t("subscription.status.upgradeNow")}
         </Button>
 
         <p className="text-xs text-center text-muted-foreground">
-          {t("subscription.upgrade.help")}
+          {t("subscription.notice.benefits")}
         </p>
       </CardContent>
     </Card>

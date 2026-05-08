@@ -174,9 +174,11 @@ export function TTSControls({ className }: TTSControlsProps) {
             onClick={() => setCurrentVoice(voice.id)}
           >
             <div className="flex flex-col">
-              <span className="font-medium">{voice.name}</span>
+              <span className="font-medium">
+                {t(`settings.tts.voiceNames.${voice.id.replace(/-/g, '')}`, voice.name)}
+              </span>
               <span className="text-xs text-muted-foreground">
-                {t(`chat.tts.gender.${voice.gender}`, voice.gender)} · {voice.description}
+                {t(`chat.tts.gender.${voice.gender}`, voice.gender)} · {t(`settings.tts.voices.${voice.id.replace(/-/g, '')}`, voice.description)}
               </span>
             </div>
             <Button

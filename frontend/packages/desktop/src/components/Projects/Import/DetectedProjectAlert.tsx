@@ -25,6 +25,7 @@ export function DetectedProjectAlert() {
   const {
     detectedProjects,
     hasNewDetected,
+    isManualMode,
     dismissedProjectIds,
     isLoading,
     isDiscoveryEnabled,
@@ -34,6 +35,7 @@ export function DetectedProjectAlert() {
     dismissProject,
     dismissAllProjects,
     checkDiscoveryEnabled,
+    setManualMode,
   } = useProjectImportStore()
 
   // Check discovery config on mount (only when logged in)
@@ -65,18 +67,17 @@ export function DetectedProjectAlert() {
     return () => clearInterval(interval)
   }, [fetchDetected, isDiscoveryEnabled])
 
-  // Close dialog when discovery is disabled
+  // Close dialog when discovery is disabled AND not in manual mode
   useEffect(() => {
-    if (isDiscoveryEnabled === false && isOpen) {
+    if (isDiscoveryEnabled === false && isOpen && !isManualMode) {
       setIsOpen(false)
     }
-  }, [isDiscoveryEnabled, isOpen])
+  }, [isDiscoveryEnabled, isOpen, isManualMode])
 
-  // Show dialog when new projects detected (only when logged in and discovery enabled)
-  // Suppressed if setup wizard is open (it has higher priority)
+  // Show dialog when new projects detected or manual mode enabled
   useEffect(() => {
-    // Don't show if discovery is disabled
-    if (isDiscoveryEnabled === false) {
+    // Don't show automatically if discovery is disabled, unless in manual mode
+    if (isDiscoveryEnabled === false && !isManualMode) {
       setIsOpen(false)
       return
     }
@@ -92,14 +93,15 @@ export function DetectedProjectAlert() {
       return
     }
     
-    if (hasNewDetected && detectedProjects.length > 0 && !isOpen) {
+    // Show if there are new projects OR manual mode is active
+    if ((hasNewDetected || isManualMode) && detectedProjects.length > 0 && !isOpen) {
       // Small delay to not interrupt user immediately
       const timer = setTimeout(() => {
         setIsOpen(true)
-      }, 1000)
+      }, 100) // Shorter delay for manual mode
       return () => clearTimeout(timer)
     }
-  }, [hasNewDetected, detectedProjects.length, isOpen, shouldSuppressOtherDialogs, isDiscoveryEnabled])
+  }, [hasNewDetected, isManualMode, detectedProjects.length, isOpen, shouldSuppressOtherDialogs, isDiscoveryEnabled])
 
   // 过滤掉已处理的项目
   const visibleProjects = detectedProjects.filter((p) => !dismissedProjectIds.has(p.id))
@@ -108,7 +110,9 @@ export function DetectedProjectAlert() {
     setIsOpen(false)
     // 将所有当前项目标记为已处理，这样稍后不会再弹出
     dismissAllProjects()
-  }, [dismissAllProjects])
+    // 重置手动模式
+    setManualMode(false)
+  }, [dismissAllProjects, setManualMode])
 
   const handleImport = async (id: number) => {
     setImportingIds((prev) => new Set(prev).add(id))
