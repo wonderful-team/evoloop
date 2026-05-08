@@ -169,6 +169,16 @@ class Neo4jManager:
         return cls._use_neo4j
 
 
+def is_graph_enabled() -> bool:
+    """
+    Check if graph features are enabled (regardless of backend implementation).
+
+    Use this instead of Neo4jManager.is_enabled() in business logic to avoid
+    hard-coding dependency on a specific graph backend.
+    """
+    return Neo4jManager.is_enabled()
+
+
 async def get_graph_db():
     """Get graph database driver (Neo4j or NoOp)."""
     driver = Neo4jManager.get_driver()
@@ -176,4 +186,4 @@ async def get_graph_db():
 
 
 # Export for compatibility
-__all__ = ["Neo4jManager", "get_graph_db", "NoOpGraphDriver", "FileGraphDriver"]
+__all__ = ["Neo4jManager", "get_graph_db", "is_graph_enabled", "NoOpGraphDriver", "FileGraphDriver"]

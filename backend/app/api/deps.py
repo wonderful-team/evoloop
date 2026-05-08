@@ -60,48 +60,55 @@ TokenDep = Annotated[str, Depends(oauth2_scheme)]
 TokenDepOptional = Annotated[str | None, Depends(oauth2_scheme_optional)]
 
 
-async def get_current_user(token: TokenDep) -> User:
+async def _get_authenticated_user(token: str | None = None) -> User | None:
     """
-    Identify the current user from the access token.
-    Validates against Member Center with local caching.
+    Core authentication logic:
+    1. Check backend local session.
+    2. Check provided token.
     """
     try:
-        member_id = await identity_service.resolve_member_id_from_token(token)
-        if member_id is None:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid or expired session",
-            )
+        # 1. Try resolving from the backend's own session store first (Source of Truth)
+        member_id = await identity_service.get_member_id()
+        if member_id:
+            active_token = await identity_service.get_access_token()
+            if active_token:
+                return User(id=member_id, is_active=True)
 
-        return User(id=member_id, is_active=True)
-    except HTTPException as e:
-        raise e
+        # 2. Fallback to token from frontend (if backend store is empty)
+        if token:
+            member_id = await identity_service.resolve_member_id_from_token(token)
+            if member_id:
+                return User(id=member_id, is_active=True)
+
+        return None
     except Exception as e:
-        logger.error(f"Auth error: {str(e)}", exc_info=True)
+        logger.error(f"Auth error during user resolution: {str(e)}", exc_info=True)
+        return None
+
+
+async def get_current_user(token: TokenDepOptional = None) -> User:
+    """
+    Identify the current user. Raises 401 if not found.
+    """
+    user = await _get_authenticated_user(token)
+    if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication failed",
+            detail="Invalid or expired session",
         )
+    return user
 
 
 CurrentUser = Annotated[User, Depends(get_current_user)]
 
 
 async def get_current_user_optional(
-    token: TokenDepOptional,
-    query_token: str | None = Query(None, alias="token")
+    token: TokenDepOptional = None
 ) -> User | None:
     """
-    Get user if token is present in either Header or Query.
-    Useful for SSE (EventSource) which doesn't support custom headers.
+    Get user if session or token is present, otherwise return None.
     """
-    effective_token = token or query_token
-    if not effective_token:
-        return None
-    try:
-        return await get_current_user(effective_token)
-    except Exception:
-        return None
+    return await _get_authenticated_user(token)
 
 
 CurrentUserOptional = Annotated[User | None, Depends(get_current_user_optional)]

@@ -207,19 +207,21 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
                 resp_json.get("message") == "TOKEN_EXPIRE"
             )
             if is_token_expired and _retry_count < 1:
-                logger.warning(f"[EvoCloud] Token expired during request to {endpoint} (code: {resp_json.get('code')}), attempting refresh...")
-                new_token = await self.refresh_access_token(failed_token=active_token)
-                if new_token:
-                    # Retry once with new token
-                    return await self.request(
-                        method=method,
-                        endpoint=endpoint,
-                        params=params,
-                        data=data,
-                        token=new_token,
-                        headers=headers,
-                        _retry_count=_retry_count + 1
-                    )
+                stored_token = await self.get_token()
+                if token is None or token == "" or token == stored_token:
+                    logger.warning(f"[EvoCloud] Token expired during request to {endpoint} (code: {resp_json.get('code')}), attempting refresh...")
+                    new_token = await self.refresh_access_token(failed_token=active_token)
+                    if new_token:
+                        # Retry once with new token
+                        return await self.request(
+                            method=method,
+                            endpoint=endpoint,
+                            params=params,
+                            data=data,
+                            token=new_token,
+                            headers=headers,
+                            _retry_count=_retry_count + 1
+                        )
 
             if resp.status_code >= 400:
                 logger.error(f"API Error {resp.status_code}: {resp.text[:200]}")

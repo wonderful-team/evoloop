@@ -236,7 +236,6 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
                     # Send ping via WebSocket
                     ping_msg = WebSocketPing(timestamp=int(asyncio.get_running_loop().time()))
                     await self.ws.send(json.dumps(ping_msg.model_dump()))
-                    logger.debug("[EvoCloud] WebSocket ping sent")
                 except Exception as e:
                     logger.debug(f"[EvoCloud] WebSocket ping failed: {e}")
             await asyncio.sleep(30)
@@ -335,9 +334,13 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
             logger.info("[EvoCloud] WS received invalid_token, triggering immediate token refresh...")
             # Use current token as failed_token to leverage the Double-Check Lock in HTTP client
             current_token = await self.api.get_token()
-            asyncio.create_task(self.api.refresh_access_token(failed_token=current_token))
-            # No need to manually reconnect here; the on_token_change callback 
-            # (which triggers _force_reconnect) will be fired when refresh succeeds.
+            new_token = await self.api.refresh_access_token(failed_token=current_token)
+            if not new_token:
+                logger.warning("[EvoCloud] Token refresh failed (refresh_token expired), clearing session and stopping link...")
+                from app.core.identity import identity_service
+                await identity_service.logout()
+                await self.stop()
+            # If refresh succeeds, on_token_change callback will trigger _force_reconnect.
             return False  # Do not publish as business event
         return True
 

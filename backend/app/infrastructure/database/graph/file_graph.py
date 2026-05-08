@@ -105,6 +105,9 @@ class FileGraphSession:
             return FileGraphResult([])
 
         parameters = parameters or {}
+        # Merge kwargs into parameters (Neo4j-style positional params)
+        if kwargs:
+            parameters = {**parameters, **kwargs}
         query = query.strip()
 
         try:
@@ -148,14 +151,16 @@ class FileGraphSession:
         G = self.driver._graph
         results = []
 
-        # Simple pattern matching
-        if "OPTIONAL MATCH" in query and "DETACH DELETE" in query:
-            # This is a delete query - handled in merge
-            return FileGraphResult([])
+        # Detect delete operations
+        is_delete = "DETACH DELETE" in query.upper()
+        has_optional_delete = "OPTIONAL MATCH" in query and "DETACH DELETE" in query
 
         # Find by property
         name = parameters.get('name')
         pid = parameters.get('pid') or parameters.get('project_id')
+        path = parameters.get('path')
+
+        matched_nodes = []
 
         for node_id, attrs in G.nodes(data=True):
             match = True
@@ -163,14 +168,35 @@ class FileGraphSession:
                 match = False
             if pid and attrs.get('project_id') != pid:
                 match = False
+            if path and attrs.get('path') != path:
+                match = False
 
             if match:
-                results.append({
-                    "full_name": attrs.get('full_name', node_id),
-                    "type": attrs.get('type', 'unknown'),
-                    "file_path": attrs.get('path', ''),
-                    "score": attrs.get('score', 0),
-                })
+                if is_delete:
+                    matched_nodes.append(node_id)
+                    # If OPTIONAL MATCH + DETACH DELETE, also remove successor nodes
+                    # to simulate deleting related entities (e.g., File -> CONTAINS -> entities)
+                    if has_optional_delete:
+                        for succ in list(G.successors(node_id)):
+                            if succ not in matched_nodes:
+                                matched_nodes.append(succ)
+                else:
+                    results.append({
+                        "full_name": attrs.get('full_name', node_id),
+                        "type": attrs.get('type', 'unknown'),
+                        "file_path": attrs.get('path', ''),
+                        "score": attrs.get('score', 0),
+                    })
+
+        if is_delete:
+            deleted_count = 0
+            for node_id in matched_nodes:
+                if node_id in G:
+                    G.remove_node(node_id)
+                    deleted_count += 1
+            if deleted_count > 0:
+                self._modified = True
+            return FileGraphResult([{"deleted_count": deleted_count}])
 
         return FileGraphResult(results)
 

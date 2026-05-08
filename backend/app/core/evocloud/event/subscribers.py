@@ -116,7 +116,7 @@ class EvoCloudSyncHandler:
         """
         Triggered when an agent run finishes.
         Immediately schedules an incremental sync so messages
-        don't wait for the next 5-minute polling cycle.
+        don't wait for the next 30-minute polling cycle.
         """
         sync_manager = evocloud_manager.sync_manager
         if sync_manager is None:

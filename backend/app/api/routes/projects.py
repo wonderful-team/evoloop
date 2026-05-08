@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import os
@@ -7,9 +8,21 @@ from sqlalchemy import select
 
 from app.api.deps import TokenDep, TokenDepOptional
 from app.api.responses import ListResponse
-from app.api.schemas.projects import IndexingRequest, CreateProjectRequest, ProjectStatusActivity, \
-    ProjectStatusResponse, ProjectDeleteResponse, IndexingRunResponse, DetectedProjectItem, ImportProjectResponse, \
-    IgnoreProjectResponse, UnignoreProjectResponse, BatchResultItem, BatchImportResponse, BatchImportRequest
+from app.api.schemas.projects import (
+    IndexingRequest,
+    CreateProjectRequest,
+    ProjectStatusActivity,
+    ProjectStatusResponse,
+    ProjectDeleteResponse,
+    IndexingRunResponse,
+    DetectedProjectItem,
+    ImportProjectResponse,
+    IgnoreProjectResponse,
+    UnignoreProjectResponse,
+    BatchResultItem,
+    BatchImportResponse,
+    BatchImportRequest,
+)
 from app.core.evocloud import evocloud_manager
 from app.domain.codebase.indexing.manager import indexing_manager
 from app.infrastructure.config.service import SystemConfigService
@@ -482,18 +495,80 @@ async def get_project_status(project_id: int):
 
 @router.delete("/{project_id}", response_model=ProjectDeleteResponse)
 async def delete_project(project_id: int):
-    """Delete a project (Unlink from Member Center)."""
+    """Delete a project from Cloud and clean up all local associated data."""
     try:
+        # 1. Delete from Cloud
         res = await evocloud_manager.api.delete_project(project_id)
-        if res.get("code") == 0:
-            # Invalidate cache to ensure fresh data on next request
-            evocloud_manager.invalidate_projects_cache()
-            return ProjectDeleteResponse(status="success", id=project_id)
-        else:
+        if res.get("code") != 0:
             raise HTTPException(500, f"Failed to delete project: {res.get('message')}")
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Failed to delete project: {e}")
+        logger.error(f"Failed to delete project from cloud: {e}")
         raise HTTPException(500, str(e))
+
+    # 2. Clean up local data (best effort - don't fail the API if cleanup fails)
+    try:
+        async with AsyncSessionLocal() as session:
+            stmt = select(Repository).where(Repository.project_id == project_id)
+            result = await session.execute(stmt)
+            repo = result.scalars().first()
+
+            if repo:
+                # Stop file watching
+                if repo.local_path:
+                    await indexing_manager.stop_watching(repo.local_path)
+
+                # Clear Redis cache
+                try:
+                    from app.infrastructure.cache import cache
+                    pipe = cache.pipeline()
+                    pipe.delete(f"sys:{project_id}:indexing")
+                    pipe.delete(f"sys:{project_id}:summarization")
+                    pipe.delete(f"sys:{project_id}:wiki")
+                    await pipe.execute()
+                except Exception as e:
+                    logger.warning(f"[ProjectsAPI] Failed to clear Redis cache for project {project_id}: {e}")
+
+                # Clean up graph data (if enabled)
+                from app.infrastructure.database.graph.driver import get_graph_db, is_graph_enabled
+                if is_graph_enabled():
+                    try:
+                        driver = await get_graph_db()
+                        async with driver.session() as graph_session:
+                            await graph_session.run(
+                                """
+                                MATCH (f:File {project_id: $pid})
+                                OPTIONAL MATCH (f)-[:CONTAINS]->(e)
+                                DETACH DELETE e
+                                DETACH DELETE f
+                                """,
+                                pid=project_id,
+                            )
+                    except Exception as e:
+                        logger.warning(f"[ProjectsAPI] Failed to cleanup graph data for project {project_id}: {e}")
+
+                # Clean up vector store data (if enabled)
+                try:
+                    from app.infrastructure.database.vector import get_vector_store
+                    vector_store = get_vector_store()
+                    # Delete all chunks for this repository
+                    await asyncio.to_thread(vector_store.delete_by_repository, str(repo.id))
+                except Exception as e:
+                    logger.warning(f"[ProjectsAPI] Failed to cleanup vector store for project {project_id}: {e}")
+
+                # Delete Repository (cascade deletes SourceFile, CodeChunk, CodeEntity, CodeRelation)
+                await session.delete(repo)
+                await session.commit()
+                logger.info(f"[ProjectsAPI] Deleted local repository and all associated data for project {project_id}")
+            else:
+                logger.info(f"[ProjectsAPI] No local repository found for project {project_id}")
+    except Exception as e:
+        logger.error(f"[ProjectsAPI] Failed to cleanup local data for project {project_id}: {e}")
+        # Don't raise - cloud deletion succeeded, local cleanup is best effort
+
+    evocloud_manager.invalidate_projects_cache()
+    return ProjectDeleteResponse(status="success", id=project_id)
 
 
 @router.post("/indexing/run", response_model=IndexingRunResponse)
@@ -509,23 +584,60 @@ async def run_indexing_endpoint(req: IndexingRequest):
 # Project Import Management Endpoints
 # ============================================================================
 
+@router.post("/scan", response_model=ListResponse[DetectedProjectItem])
+async def scan_workspace_projects_endpoint(_token: TokenDep):
+    """
+    Manually scan WORKSPACE_ROOT for new projects.
+    Forces reconciliation even if automatic discovery is disabled.
+    """
+    from app.domain.project.sync_service import project_sync_service
+    from app.infrastructure.config.service import SystemConfigService
+
+    workspace_root = SystemConfigService.get_value("WORKSPACE_ROOT")
+    if not workspace_root:
+        raise HTTPException(400, "WORKSPACE_ROOT not configured. Please set it in Settings.")
+
+    try:
+        # Force reconciliation to find new projects
+        await project_sync_service.reconcile_projects(workspace_root, force=True)
+        
+        # Return currently detected projects
+        repos = await project_sync_service.get_detected_projects()
+        return ListResponse[DetectedProjectItem](
+            data=[
+                DetectedProjectItem(
+                    id=r.id,
+                    name=r.name,
+                    path=r.local_path,
+                    detected_at=r.detected_at.isoformat() if r.detected_at else None,
+                )
+                for r in repos
+            ]
+        )
+    except Exception as e:
+        logger.error(f"Failed to scan workspace: {e}")
+        raise HTTPException(500, f"Scan failed: {str(e)}")
+
+
 @router.get("/detected", response_model=ListResponse[DetectedProjectItem])
-async def get_detected_projects(_token: TokenDepOptional = None):
+async def get_detected_projects(force: bool = False, _token: TokenDepOptional = None):
     """
     Get all newly detected projects awaiting user confirmation.
 
     Returns projects with sync_status="DETECTED" that need to be imported or ignored.
 
-    Note: Returns empty list if project discovery is disabled via configuration.
+    Note: Returns empty list if project discovery is disabled via configuration, 
+    unless force=True is specified.
     """
     from app.domain.project.sync_service import project_sync_service
     from app.infrastructure.config.service import SystemConfigService
 
-    # Check if project discovery is enabled via System Config (DB)
-    config_value = SystemConfigService.get_value("PROJECT_DISCOVERY_ENABLED")
-    if config_value is not None and config_value.lower() not in ("true", "1", "yes", "on"):
-        logger.debug("[ProjectsAPI] Project discovery disabled by system config, returning empty detected list")
-        return {"data": []}
+    if not force:
+        # Check if project discovery is enabled via System Config (DB)
+        config_value = SystemConfigService.get_value("PROJECT_DISCOVERY_ENABLED")
+        if config_value is not None and config_value.lower() not in ("true", "1", "yes", "on"):
+            logger.debug("[ProjectsAPI] Project discovery disabled by system config, returning empty detected list")
+            return {"data": []}
 
     try:
         repos = await project_sync_service.get_detected_projects()

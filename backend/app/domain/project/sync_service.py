@@ -236,8 +236,8 @@ class ProjectSyncService:
 
         This method:
         1. Updates Repository status to PENDING_CREATION
-        2. Publishes ProjectCreatedEvent to trigger indexing
-        3. Dispatches cloud sync task
+        2. Syncs project to Cloud synchronously (blocks until cloud project is created)
+        3. Publishes ProjectCreatedEvent to trigger indexing
 
         Args:
             repo_id: The Repository ID to import
@@ -259,14 +259,32 @@ class ProjectSyncService:
 
             # Update status
             repo.sync_status = "PENDING_CREATION"
-            repo.indexing_status = "pending"  # Mark as pending for indexing
+            repo.indexing_status = "pending"
             repo.imported_at = utcnow()
             await session.commit()
 
             logger.info(f"[ProjectSync] Project '{repo.name}' imported by user (ID: {repo_id})")
 
+            # Sync to Cloud synchronously
+            try:
+                res = await evocloud_manager.api.create_project(
+                    name=repo.name,
+                    description=f"Imported from {repo.local_path}",
+                    path=repo.local_path,
+                )
+                if res.get("code") == 0:
+                    new_pid = res["data"]["project_id"]
+                    repo.project_id = new_pid
+                    repo.sync_status = "SYNCED"
+                    await session.commit()
+                    evocloud_manager.invalidate_projects_cache()
+                    logger.info(f"[ProjectSync] Project '{repo.name}' synced to cloud (ID: {new_pid})")
+                else:
+                    logger.warning(f"[ProjectSync] Cloud create failed: {res.get('message')}")
+            except Exception as e:
+                logger.error(f"[ProjectSync] Cloud sync failed: {e}")
+
         # Publish ProjectCreatedEvent to trigger indexing
-        # IndexingManager subscribes to this event
         try:
             from app.domain.project.event.publishers import publish_project_created
 
@@ -279,11 +297,6 @@ class ProjectSyncService:
             logger.info(f"[ProjectSync] Published ProjectCreatedEvent for {repo.name}")
         except Exception as e:
             logger.error(f"[ProjectSync] Failed to publish ProjectCreatedEvent: {e}")
-
-        # Dispatch cloud sync task
-        from app.domain.project.sync_tasks import sync_project_to_cloud_task
-        sync_project_to_cloud_task.delay(repo.id)
-        logger.info(f"[ProjectSync] Cloud sync task queued for Repo ID {repo.id}")
 
         return repo
 
@@ -511,13 +524,13 @@ class ProjectSyncService:
             pass
         return None
 
-    async def reconcile_projects(self, root_path: str):
+    async def reconcile_projects(self, root_path: str, force: bool = False):
         """
         Reconcile local filesystem projects with system state (DB/Cloud).
         Handles creation/deletion that occurred while service was offline.
 
         Modified: Only starts indexing for already-imported projects.
-        Newly detected projects are created with DETECTED status (if discovery enabled).
+        Newly detected projects are created with DETECTED status (if discovery enabled or force=True).
         Respects user's ignored project choices.
         """
         if not root_path or not os.path.exists(root_path):
@@ -527,10 +540,13 @@ class ProjectSyncService:
         # Check if project discovery is enabled
         from app.infrastructure.config.service import SystemConfigService
         discovery_config = SystemConfigService.get_value("PROJECT_DISCOVERY_ENABLED")
-        is_discovery_enabled = discovery_config is None or discovery_config.lower() in ("true", "1", "yes", "on")
+        is_discovery_enabled = force or discovery_config is None or discovery_config.lower() in ("true", "1", "yes", "on")
         
         if not is_discovery_enabled:
             logger.info(f"[ProjectSync] Project discovery is disabled. Skipping new project detection.")
+        
+        if force:
+            logger.info(f"[ProjectSync] Forced reconciliation triggered. Ignoring discovery config.")
         
         logger.info(f"[ProjectSync] Starting Reconciliation on {root_path}...")
 

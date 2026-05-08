@@ -146,9 +146,9 @@ async def get_conversation_messages(
                 
             final_items.append(item)
 
-        # Build response with cursors
-        first_id = str(all_messages[0].id) if all_messages else None
-        last_id = str(all_messages[-1].id) if all_messages else None
+        # Build response with cursors (based on filtered final_items)
+        first_id = str(final_items[0].id) if final_items else None
+        last_id = str(final_items[-1].id) if final_items else None
 
         return MessageListResponse(
             data=final_items,

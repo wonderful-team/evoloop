@@ -11,7 +11,7 @@ from app.domain.codebase.indexing.components.file_preparer import FilePreparer
 from app.domain.codebase.indexing.components.graph_syncer import GraphSyncer
 from app.domain.codebase.indexing.components.sql_persister import SQLPersister
 from app.domain.codebase.indexing.extractors.treesitter_extractor import TreeSitterExtractor
-from app.infrastructure.database.graph.driver import get_graph_db, Neo4jManager
+from app.infrastructure.database.graph.driver import get_graph_db, is_graph_enabled
 from app.infrastructure.database.sql.database import AsyncSessionLocal
 from app.infrastructure.embeddings.base import BaseEmbedder
 from app.infrastructure.embeddings.factory import EmbedderFactory
@@ -164,8 +164,8 @@ class IndexingService:
                 else:
                     logger.warning(f"Skipping vector upsert for {prepared.rel_path}: No embeddings generated (provider might be unconfigured).")
 
-                # 4. Sync Graph (only if Neo4j is enabled)
-                if Neo4jManager.is_enabled():
+                # 4. Sync Graph (only if graph is enabled)
+                if is_graph_enabled():
                     line_count = prepared.content.count("\n") + 1
                     await self.graph_syncer.sync(
                         prepared,
@@ -175,7 +175,7 @@ class IndexingService:
                         entity_pg_ids=name_to_id
                     )
                 else:
-                    logger.debug(f"[IndexingService] Graph sync skipped (Neo4j disabled in embedded mode)")
+                    logger.debug(f"[IndexingService] Graph sync skipped (graph disabled in embedded mode)")
 
             except Exception as e:
                 logger.error(f"Error indexing file {file_path}: {e}")
@@ -204,12 +204,12 @@ class IndexingService:
                     await session.commit()
                     logger.info(f"Removed {rel_path} from SQL Index")
 
-                # 2. Neo4j Cleanup (only if enabled)
-                if Neo4jManager.is_enabled():
+                # 2. Graph Cleanup (only if enabled)
+                if is_graph_enabled():
                     driver = await get_graph_db()
-                    async with driver.session() as n4j:
+                    async with driver.session() as graph_session:
                         project_id = repo.project_id
-                        await n4j.run(
+                        await graph_session.run(
                             """
                             MATCH (f:File {path: $path, project_id: $pid})
                             OPTIONAL MATCH (f)-[:CONTAINS]->(e)
@@ -221,7 +221,7 @@ class IndexingService:
                         )
                         logger.info(f"Removed {rel_path} from Graph Index")
                 else:
-                    logger.debug(f"[IndexingService] Graph cleanup skipped (Neo4j disabled in embedded mode)")
+                    logger.debug(f"[IndexingService] Graph cleanup skipped (graph disabled in embedded mode)")
 
             except Exception as e:
                 logger.error(f"Error removing file {file_path}: {e}")

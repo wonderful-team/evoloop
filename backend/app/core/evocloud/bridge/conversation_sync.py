@@ -21,7 +21,7 @@ class ConversationSyncManager:
 
     触发方式:
     1. 事件驱动: AgentRunCompletedEvent 触发后立即执行增量同步
-    2. 兜底轮询: 每 60 秒扫描一次未同步的会话
+    2. 兜底轮询: 每 30 分钟扫描一次未同步的会话
     3. 全量同步: 首次启动时自动执行（通过 Huey 后台执行）
 
     同步粒度:
@@ -70,7 +70,7 @@ class ConversationSyncManager:
         """后台同步循环（兜底轮询）"""
         try:
             while self._running:
-                await asyncio.sleep(60)
+                await asyncio.sleep(1800)  # 30 分钟兜底轮询
 
                 if not self._running:
                     break

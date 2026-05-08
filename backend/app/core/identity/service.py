@@ -98,9 +98,13 @@ class IdentityService:
                         for i in range(len(sorted_items) // 2):
                             del _token_member_cache[sorted_items[i][0]]
 
-                    # Sync to store only if token changed (avoid redundant writes)
-                    stored_token = await self.store.get_access_token()
-                    if stored_token != token:
+                    # Sync to store only if user changed (e.g. login on another device/client)
+                    # or if the store is currently empty.
+                    # DO NOT sync if it's the same user to avoid overwriting a newly
+                    # refreshed backend session with an older token from the frontend.
+                    stored_mid = await self.store.get_member_id()
+                    if stored_mid is None or stored_mid != mid:
+                        logger.info(f"[Identity] Syncing session to store for new/different user (mid: {mid})")
                         await self.store.save_access_token(token)
                         await self.store.save_member_id(mid)
                     return mid
