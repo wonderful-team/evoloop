@@ -34,6 +34,10 @@ class SystemEventType(str, Enum):
     STATE_REFRESHED = "system.state_refreshed"
     BOUNDARY_LEARNED = "system.boundary_learned"
 
+    # Authentication Events
+    USER_LOGGED_IN = "system.user_logged_in"
+    USER_LOGGED_OUT = "system.user_logged_out"
+
 
 # Note: Module-specific event types are defined in their respective modules:
 # - AgentEventType -> app.core.engine.event.types

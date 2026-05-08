@@ -436,7 +436,6 @@ class AutoMemoryExtractor:
                 content = content_raw
 
             msg_line = f"{role}: {content}"
-            logger.info(f"[AutoExtract] Message {len(lines)}: {msg_line[:100]}...")
             lines.append(msg_line)
 
         formatted = "\n\n".join(lines)

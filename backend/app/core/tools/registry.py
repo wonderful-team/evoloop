@@ -146,7 +146,7 @@ _scan_lock = threading.Lock()
 
 
 # Critical tools that MUST be present after scanning
-_CRITICAL_TOOLS = ["route_to", "manage_session_metadata", "decompose_task"]
+_CRITICAL_TOOLS = ["route_to", "decompose_task"]
 
 
 def _validate_critical_tools():

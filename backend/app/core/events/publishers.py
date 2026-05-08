@@ -80,3 +80,25 @@ async def publish_embedding_updated(repo_id: int, project_id: int) -> None:
             data={"repo_id": repo_id, "project_id": project_id},
         )
     )
+
+
+async def publish_user_logged_in(token: str, member_id: int | None = None) -> None:
+    """Publish the user logged in event. Subscribers should start user-specific services."""
+    await system_bus.publish(
+        BaseEvent(
+            event_type=SystemEventType.USER_LOGGED_IN,
+            source="auth",
+            data={"token": token, "member_id": member_id},
+        )
+    )
+
+
+async def publish_user_logged_out() -> None:
+    """Publish the user logged out event. Subscribers should clean up user-specific services."""
+    await system_bus.publish(
+        BaseEvent(
+            event_type=SystemEventType.USER_LOGGED_OUT,
+            source="auth",
+            data={},
+        )
+    )

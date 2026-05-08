@@ -179,15 +179,10 @@ class EvoCloudManager:
 
     # Auth
     async def login(self, username, password) -> LoginResult:
+        """Login to Member Center. Token storage and service startup are handled by event subscribers."""
         res = await self.api.login(username, password)
-        if res.get("success") and self.link:
-            # Token is auto-saved by API backend, but maybe we want to trigger link start here?
-            # Existing login.py does that manually. Let's keep it manual or handle it here?
-            # To be safe and compatible with existing flow, we primarily return result.
-            # But we can also ensure token is updated in memory if needed.
-            if res.get("token"):
-                self.api.set_token(res.get("token"))
-                await self.link.start()  # Auto start link on login
+        if res.get("success") and res.get("token"):
+            await self.api.set_token(res.get("token"))
         return res
 
     async def get_token(self) -> str | None:

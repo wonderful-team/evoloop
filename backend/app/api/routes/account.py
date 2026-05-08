@@ -7,6 +7,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from app.api.schemas.account import MobileCodeRequest, MobileLoginRequest, MobileCodeResponse, WeChatConfigResponse, \
     WeChatQRResponse, WeChatStatusResponse, LogoutResponse
 from app.core.evocloud import evocloud_manager
+from app.core.events.publishers import publish_user_logged_in, publish_user_logged_out
 from app.core.identity import identity_service
 from app.models import Token
 from app.models.schemas.auth import EvoCloudProxyResponse
@@ -14,6 +15,7 @@ from app.models.schemas.auth import EvoCloudProxyResponse
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["account"])
+
 
 # --- Request / Response Schemas ---
 
@@ -47,7 +49,10 @@ async def login_access_token(form_data: Annotated[OAuth2PasswordRequestForm, Dep
 
     # Save access token and member_id to local store
     await identity_service.login_with_cloud_result(result)
-    
+
+    # Notify all modules that user has logged in
+    await publish_user_logged_in(token=token, member_id=member_id)
+
     return Token(access_token=token, token_type="bearer")
 
 
@@ -101,7 +106,10 @@ async def login_mobile(req: MobileLoginRequest):
 
     # Save access token to local store
     await identity_service.login_with_cloud_result(result)
-    
+
+    # Notify all modules that user has logged in
+    await publish_user_logged_in(token=token, member_id=result.get("member_id"))
+
     return Token(access_token=token, token_type="bearer")
 
 
@@ -268,5 +276,6 @@ async def logout() -> LogoutResponse:
     """
     Clear local session and access tokens.
     """
-    identity_service.logout()
+    await identity_service.logout()
+    await publish_user_logged_out()
     return LogoutResponse(code=0, message="Logged out successfully")

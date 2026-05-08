@@ -29,7 +29,8 @@ from langchain_core.messages import (
 )
 
 from app.core.engine.message.reasoning import extract_reasoning_from_message
-from app.core.engine.message.schemas import MessageBlock, ToolBlock
+from app.core.engine.message.schemas import MessageBlock, ToolCall
+from app.core.engine.message.utils import normalize_tool_calls
 
 logger = logging.getLogger(__name__)
 

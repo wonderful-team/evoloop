@@ -43,32 +43,47 @@ class EvoCloudLifecycleHandler:
         except Exception as e:
             logger.warning(f"[EvoCloud] Cache warming failed: {e}")
 
+    async def _start_services(self):
+        """Start EvoCloud services (WebSocket link + query handler + cache warming)."""
+        from app.core.evocloud.bridge.query_handler import handle_query_request
+        evocloud_manager.set_query_handler(handle_query_request)
+        await evocloud_manager.start()
+        asyncio.create_task(self._warm_evocloud_cache())
+
     @event_subscribe(SystemEventType.APP_STARTED)
     async def on_application_started(self, event):
         """
         Initialize EvoCloud services when application starts.
-
-        Responsibilities (transport layer only):
-        - Register query handler
-        - Start WebSocket link
-        - Warm EvoCloud projects cache
-
-        Project sync (setting working directory, repo creation, indexing)
-        is handled by ``ProjectDomainHandler.on_application_started`` in
-        the domain layer.
+        If a persisted token exists (e.g. service restart), auto-start services.
         """
         logger.info("[EvoCloud] Application started, initializing...")
         try:
             if evocloud_manager.api and await evocloud_manager.api.get_token():
-                logger.info("[EvoCloud] Found persisted token, registering handlers and starting services...")
-                from app.core.evocloud.bridge.query_handler import handle_query_request
-                evocloud_manager.set_query_handler(handle_query_request)
-                await evocloud_manager.start()
-                asyncio.create_task(self._warm_evocloud_cache())
+                logger.info("[EvoCloud] Found persisted token, starting services...")
+                await self._start_services()
             else:
-                logger.info("[EvoCloud] No token found, skipping auto-start")
+                logger.info("[EvoCloud] No token found, skipping auto-start. Will start on USER_LOGGED_IN.")
         except Exception as e:
             logger.error(f"[EvoCloud] Failed to start services: {e}")
+
+    @event_subscribe(SystemEventType.USER_LOGGED_IN)
+    async def on_user_logged_in(self, event):
+        """Start EvoCloud services when user logs in."""
+        logger.info("[EvoCloud] User logged in, starting services...")
+        try:
+            await self._start_services()
+        except Exception as e:
+            logger.error(f"[EvoCloud] Failed to start services on login: {e}")
+
+    @event_subscribe(SystemEventType.USER_LOGGED_OUT)
+    async def on_user_logged_out(self, event):
+        """Stop EvoCloud services when user logs out."""
+        logger.info("[EvoCloud] User logged out, stopping services...")
+        try:
+            await evocloud_manager.stop()
+            logger.info("[EvoCloud] Services stopped successfully")
+        except Exception as e:
+            logger.error(f"[EvoCloud] Error during logout shutdown: {e}")
 
     @event_subscribe(SystemEventType.APP_STOPPING)
     async def on_application_stopping(self, event):

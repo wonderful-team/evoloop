@@ -8,9 +8,9 @@ import logging
 from datetime import datetime
 from typing import Any, Union
 
-from app.core.engine.message.schemas import MessageBlock
+from app.core.engine.message.schemas import MessageBlock, ToolCall
+from app.core.engine.message.utils import normalize_tool_calls
 from app.core.tools.registry import get_tool_metadata
-from app.i18n.service import i18n
 
 logger = logging.getLogger(__name__)
 
@@ -58,20 +58,20 @@ class MessageBlockFactory:
         if role == "ai":
             raw_tool_calls = cls._get_val(msg, "tool_calls") or []
             serializable_tool_calls = []
-            for tc in raw_tool_calls:
-                tc_name = tc.get("name") if isinstance(tc, dict) else getattr(tc, "name", None)
+
+            # Normalize and filter hidden tool calls
+            for tc in normalize_tool_calls(raw_tool_calls):
+                tc_name = tc.get("name")
                 tc_meta = get_tool_metadata(tc_name) if tc_name else None
                 if tc_meta and tc_meta.is_hidden:
                     continue
-                    
-                if isinstance(tc, dict):
-                    serializable_tool_calls.append(tc)
-                elif hasattr(tc, "model_dump"):
-                    serializable_tool_calls.append(tc.model_dump())
-                elif hasattr(tc, "dict"):
-                    serializable_tool_calls.append(tc.dict())
-                else:
-                    serializable_tool_calls.append(dict(tc))
+
+                try:
+                    # Convert to ToolCall model to ensure strict validation and correct serialization
+                    serializable_tool_calls.append(ToolCall(**tc))
+                except Exception as e:
+                    logger.warning(f"[MessageBlockFactory] Failed to validate tool call: {e}")
+                    serializable_tool_calls.append(tc) # Fallback to dict
 
             return MessageBlock(
                 id=msg_id,
@@ -115,7 +115,7 @@ class MessageBlockFactory:
             summary_args = {**input_args, **result_meta}
 
             metadata_registry = get_tool_metadata(tool_name) if tool_name else None
-            display_name = metadata_registry.get_display_name(tool_name, summary_args, status=status) if metadata_registry and tool_name else (tool_name or "Unknown").replace("_", " ").title()
+            display_name = metadata_registry.get_display_name(tool_name, summary_args) if metadata_registry and tool_name else (tool_name or "Unknown").replace("_", " ").title()
             
             tool_meta = {
                 "display_name": display_name,
@@ -197,7 +197,7 @@ class MessageBlockFactory:
                     pass
             
             summary_args = {**input_args, **result_meta}
-            display_name = metadata_registry.get_display_name(tool_name, summary_args, status=status)
+            display_name = metadata_registry.get_display_name(tool_name, summary_args)
             
             tool_meta = {
                 "display_name": display_name,

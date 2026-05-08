@@ -82,6 +82,7 @@ async def handle_list(
                     file_limit=50,
                 )
                 tree_output = await generator.generate()
+                tree_count = len([l for l in tree_output.splitlines() if l.strip()])
                 return tree_output, {"count": tree_count}
             except Exception as e:
                 return f"Error generating annotated tree: {e}"

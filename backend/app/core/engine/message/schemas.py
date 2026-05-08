@@ -15,8 +15,7 @@ from typing import Any, Dict, Literal, Optional
 
 from pydantic import Field
 
-from app.infrastructure.pydantic_base import DynamicBaseModel, EventBase
-from app.utils.time import format_iso_timestamp
+from app.infrastructure.pydantic_base import DynamicBaseModel
 
 
 class ToolCall(DynamicBaseModel):

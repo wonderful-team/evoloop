@@ -3,8 +3,29 @@ import time
 from typing import Any
 
 from app.core.evocloud import evocloud_manager
+from app.core.events import SystemEventType
+from app.core.events.decorators import event_register, event_subscribe
 
 logger = logging.getLogger(__name__)
+
+
+# --- Event Subscribers ---
+
+@event_register()
+class BenefitAuthHandler:
+    """Refresh or clear benefit cache on auth state changes."""
+
+    @event_subscribe(SystemEventType.USER_LOGGED_IN)
+    async def on_user_logged_in(self, event):
+        """Clear stale cache so next request fetches fresh entitlements."""
+        logger.info("[BenefitService] User logged in, invalidating benefit cache...")
+        benefit_service.invalidate_cache()
+
+    @event_subscribe(SystemEventType.USER_LOGGED_OUT)
+    async def on_user_logged_out(self, event):
+        """Clear all cached benefits on logout."""
+        logger.info("[BenefitService] User logged out, clearing benefit cache...")
+        benefit_service.invalidate_cache()
 
 
 class BenefitService:

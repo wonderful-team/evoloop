@@ -120,11 +120,24 @@ class ProjectDomainHandler:
 
     @event_subscribe(SystemEventType.APP_STARTED)
     async def on_application_started(self, event) -> None:
-        """Sync current cloud project to local workspace on app start."""
+        """Sync current cloud project to local workspace on app start (if token exists)."""
+        try:
+            from app.core.identity import identity_service
+            if await identity_service.get_access_token():
+                await self._sync_service.sync_cloud_project()
+            else:
+                logger.info("[ProjectHandlers] No token on startup, skipping project sync. Will sync on USER_LOGGED_IN.")
+        except Exception as e:
+            logger.error(f"[ProjectHandlers] Failed to sync cloud project on start: {e}")
+
+    @event_subscribe(SystemEventType.USER_LOGGED_IN)
+    async def on_user_logged_in(self, event) -> None:
+        """Sync current cloud project when user logs in."""
+        logger.info("[ProjectHandlers] User logged in, syncing cloud project...")
         try:
             await self._sync_service.sync_cloud_project()
         except Exception as e:
-            logger.error(f"[ProjectHandlers] Failed to sync cloud project on start: {e}")
+            logger.error(f"[ProjectHandlers] Failed to sync cloud project on login: {e}")
 
     @event_subscribe(ProjectEventType.PROJECT_SWITCHED)
     async def on_project_switched(self, event: ProjectSwitchedEvent) -> None:

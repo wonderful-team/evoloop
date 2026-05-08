@@ -243,6 +243,10 @@ async def git_harvest_task(cwd: str, project_id: int, model: str | None = None):
 
     try:
         # 1. Get Diff
+        if not os.path.exists(cwd):
+            logger.warning(f"[Celery] Skipping git harvest: Directory '{cwd}' does not exist.")
+            return
+
         cmd = ["git", "diff", "HEAD"]
         process = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, timeout=15)
         diff_text = process.stdout

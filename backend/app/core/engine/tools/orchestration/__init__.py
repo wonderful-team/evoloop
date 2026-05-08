@@ -9,5 +9,4 @@ New code should import directly from the sub-modules.
 from app.core.engine.tools.orchestration.planning import decompose_task  # noqa: F401
 from app.core.engine.tools.orchestration.routing import route_to  # noqa: F401
 # Schemas
-from app.core.engine.tools.orchestration.schemas import DecomposeTaskResult, OrchestrationToolResult  # noqa: F401
-from app.core.engine.tools.orchestration.state_tools import manage_session_metadata  # noqa: F401
+from app.core.engine.tools.orchestration.schemas import DecomposeTaskResult  # noqa: F401

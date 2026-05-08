@@ -9,7 +9,6 @@ nodes:
     path: "app.core.engine.nodes.supervisor.SupervisorNode"
     tools:
       - "route_to"
-      - "manage_session_metadata"
       - "decompose_task"
       - "search_skills"
       - "search_history"

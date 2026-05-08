@@ -154,7 +154,6 @@
             "recall_tool_output": "Recall output '{tool_call_id}'",
             "list_forgotten_outputs": "List forgotten outputs",
             "synthesize_skill": "Synthesize skill: {reason}",
-            "manage_session_metadata": "Update session metadata '{key}'",
             "route_to": "Route to '{target}'",
             "decompose_task": "Decompose task: {task_description}",
             "analyze_image": "Analyze image '{image_source}'",

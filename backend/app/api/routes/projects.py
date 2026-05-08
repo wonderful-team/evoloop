@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["projects"])
 
+
 def _extract_projects(response: dict | list) -> tuple[list, dict | None]:
     """
     Extract projects list from API response.
@@ -34,6 +35,7 @@ def _extract_projects(response: dict | list) -> tuple[list, dict | None]:
     elif isinstance(response, list):
         return response, None  # Direct list, update by returning new list
     return [], None
+
 
 def _scan_workspace_projects() -> dict[str, str]:
     """
@@ -67,6 +69,7 @@ def _scan_workspace_projects() -> dict[str, str]:
         logger.warning(f"[ProjectsAPI] Failed to scan workspace: {e}")
 
     return local_projects
+
 
 @router.get("/")
 async def get_projects(
@@ -144,14 +147,18 @@ async def get_projects(
                             "last_indexed_at": repo.last_indexed_at.isoformat() if repo.last_indexed_at else None
                         }
                     elif repo and repo.project_id != project_id:
-                        # Linked to different cloud project - treat as disconnected
-                        logger.warning(f"[ProjectsAPI] Project '{project_name}' linked to different cloud ID: {repo.project_id} vs {project_id}")
+                        # Cloud is authoritative - update local binding to match
+                        logger.info(f"[ProjectsAPI] Updating project '{project_name}' cloud binding: {repo.project_id} -> {project_id}")
+                        repo.project_id = project_id
+                        repo.sync_status = "SYNCED"
+                        repo.imported_at = utcnow()
+                        await session.commit()
                         local_status_map[project_id] = {
-                            "status": "DISCONNECTED",
-                            "exists_locally": False,
-                            "local_path": None,
-                            "indexing_status": "not_linked",
-                            "last_indexed_at": None
+                            "status": "SYNCED",
+                            "exists_locally": True,
+                            "local_path": actual_path,
+                            "indexing_status": repo.indexing_status,
+                            "last_indexed_at": repo.last_indexed_at.isoformat() if repo.last_indexed_at else None
                         }
                     else:
                         # No local repo record - create one and auto-link
@@ -387,6 +394,7 @@ async def get_projects(
         return res
     return projects
 
+
 @router.get("/current")
 async def get_current_project(_token: TokenDep):
     """
@@ -397,6 +405,7 @@ async def get_current_project(_token: TokenDep):
     # Add local context if needed
     # ...
     return cloud_res
+
 
 @router.post("/")
 async def create_project(req: CreateProjectRequest, _token: TokenDep):
@@ -432,6 +441,7 @@ async def create_project(req: CreateProjectRequest, _token: TokenDep):
     except Exception as e:
         logger.error(f"Failed to create project: {e}")
         raise HTTPException(500, str(e))
+
 
 @router.get("/{project_id}/status", response_model=ProjectStatusResponse)
 async def get_project_status(project_id: int):
@@ -469,6 +479,7 @@ async def get_project_status(project_id: int):
         wiki=ProjectStatusActivity.model_validate(parse_act(results[2]))
     )
 
+
 @router.delete("/{project_id}", response_model=ProjectDeleteResponse)
 async def delete_project(project_id: int):
     """Delete a project (Unlink from Member Center)."""
@@ -484,6 +495,7 @@ async def delete_project(project_id: int):
         logger.error(f"Failed to delete project: {e}")
         raise HTTPException(500, str(e))
 
+
 @router.post("/indexing/run", response_model=IndexingRunResponse)
 async def run_indexing_endpoint(req: IndexingRequest):
     """
@@ -491,6 +503,7 @@ async def run_indexing_endpoint(req: IndexingRequest):
     """
     indexing_manager.dispatch_full_index(req.project_id)
     return IndexingRunResponse(status="queued", project_id=req.project_id)
+
 
 # ============================================================================
 # Project Import Management Endpoints
@@ -502,7 +515,7 @@ async def get_detected_projects(_token: TokenDepOptional = None):
     Get all newly detected projects awaiting user confirmation.
 
     Returns projects with sync_status="DETECTED" that need to be imported or ignored.
-    
+
     Note: Returns empty list if project discovery is disabled via configuration.
     """
     from app.domain.project.sync_service import project_sync_service
@@ -531,6 +544,7 @@ async def get_detected_projects(_token: TokenDepOptional = None):
         logger.error(f"Failed to get detected projects: {e}")
         raise HTTPException(500, f"Failed to get detected projects: {str(e)}")
 
+
 @router.post("/{repo_id}/import", response_model=ImportProjectResponse)
 async def import_detected_project(repo_id: int, _token: TokenDep):
     """
@@ -557,6 +571,7 @@ async def import_detected_project(repo_id: int, _token: TokenDep):
         logger.error(f"Failed to import project {repo_id}: {e}")
         raise HTTPException(500, f"Failed to import project: {str(e)}")
 
+
 @router.post("/{repo_id}/ignore", response_model=IgnoreProjectResponse)
 async def ignore_detected_project(repo_id: int, _token: TokenDep):
     """
@@ -574,6 +589,7 @@ async def ignore_detected_project(repo_id: int, _token: TokenDep):
     except Exception as e:
         logger.error(f"Failed to ignore project {repo_id}: {e}")
         raise HTTPException(500, f"Failed to ignore project: {str(e)}")
+
 
 @router.get("/ignored", response_model=ListResponse[DetectedProjectItem])
 async def get_ignored_projects(_token: TokenDep):
@@ -601,6 +617,7 @@ async def get_ignored_projects(_token: TokenDep):
         logger.error(f"Failed to get ignored projects: {e}")
         raise HTTPException(500, f"Failed to get ignored projects: {str(e)}")
 
+
 @router.post("/{repo_id}/unignore", response_model=UnignoreProjectResponse)
 async def unignore_project(repo_id: int, _token: TokenDep):
     """
@@ -623,6 +640,7 @@ async def unignore_project(repo_id: int, _token: TokenDep):
     except Exception as e:
         logger.error(f"Failed to unignore project {repo_id}: {e}")
         raise HTTPException(500, f"Failed to restore project: {str(e)}")
+
 
 @router.post("/batch/import", response_model=BatchImportResponse)
 async def batch_import_projects(req: BatchImportRequest, _token: TokenDep):
@@ -664,6 +682,7 @@ async def batch_import_projects(req: BatchImportRequest, _token: TokenDep):
         summary=f"Imported {len(results['success'])} of {len(req.repo_ids)} projects",
         results=results
     )
+
 
 @router.post("/batch/ignore", response_model=BatchImportResponse)
 async def batch_ignore_projects(req: BatchImportRequest, _token: TokenDep):
