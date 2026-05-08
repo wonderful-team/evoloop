@@ -51,7 +51,6 @@ class MemoryManager:
         config: Optional['MemoryConfig'] = None,
         storage: FileMemoryStorage | None = None,
         short_term: IShortTermMemory | None = None,
-        term_bank=None,
     ):
         """
         Initialize memory manager with appropriate backends.
@@ -97,13 +96,11 @@ class MemoryManager:
         from app.core.memory.auto_extraction import AutoMemoryExtractor
         from app.core.memory.pruning import MemoryPruningService
         from app.core.memory.quality import MemoryQualityAnalyzer
-        from app.core.memory.term_bank_maintenance import TermBankMaintenanceService
 
-        self.extraction = AutoMemoryExtractor(self, config=self.config, term_bank=term_bank)
+        self.extraction = AutoMemoryExtractor(self, config=self.config)
         self.pruning = MemoryPruningService(self._storage)
         self.retrieval = MemoryRetriever(self._storage, config=self.config)
         self.quality = MemoryQualityAnalyzer(self._storage, config=self.config)
-        self._term_bank_maintenance = TermBankMaintenanceService(term_bank) if term_bank else None
         self._two_tier = None
 
     async def initialize(self) -> None:
@@ -385,25 +382,8 @@ class MemoryManager:
     # ========================================================================
 
     async def save_memory(self, entry: MemoryEntry) -> None:
-        """Save a memory entry and discover potential domain terms."""
+        """Save a memory entry."""
         await self._storage.save(entry)
-
-        # Trigger term discovery if bank is available
-        if self.extraction._term_bank and entry.content and entry.project_id:
-            try:
-                project_context = ""
-                if entry.project_id:
-                    try:
-                        project_context = await self.extraction._gather_multi_source_context(entry.project_id)
-                    except Exception as exc:
-                        logger.debug(f"[MemoryManager] Failed to gather project context for term discovery: {exc}")
-                await self.extraction._term_bank.discover(
-                    content=entry.content,
-                    project_id=entry.project_id,
-                    project_context=project_context,
-                )
-            except Exception as e:
-                logger.warning(f"Failed to discover terms from memory {entry.id}: {e}")
 
     async def delete_memory(self, entry_id: str) -> bool:
         """Permanently delete a memory entry by ID."""
@@ -666,19 +646,13 @@ class MemoryManager:
         # 2. Pruning & Semantic Consolidation
         pruning_logs = await self.pruning.run_pruning_cycle(project_id=project_id)
 
-        # 3. Term Bank Decay
-        term_bank_result = {}
-        if self._term_bank_maintenance is not None:
-            term_bank_result = await self._term_bank_maintenance.run(project_id=project_id)
-
-        # 4. Regenerate Hot Memory (MEMORY.md)
+        # 3. Regenerate Hot Memory (MEMORY.md)
         await self.regenerate_memory_md()
 
         return {
             "status": "completed",
             "low_quality_count": low_quality_count,
             "pruning_count": len(pruning_logs),
-            "term_bank": term_bank_result,
             "logs": pruning_logs,
             "timestamp": datetime.utcnow().isoformat()
         }

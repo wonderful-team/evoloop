@@ -23,7 +23,6 @@ class MemoryExtractionPromptBuilder:
         multi_source_context: str = "",
         messages_text: str = "",
         summary: Optional[str] = None,
-        domain_terms: list[str] | None = None,
     ):
         self.readme_summary = readme_summary
         self.pending_todos = pending_todos
@@ -31,7 +30,6 @@ class MemoryExtractionPromptBuilder:
         self.multi_source_context = multi_source_context
         self.messages_text = messages_text
         self.summary = summary
-        self.domain_terms = domain_terms or []
 
     async def build(self) -> List[dict]:
         """Builds standardized message list for extraction."""
@@ -47,7 +45,6 @@ class MemoryExtractionPromptBuilder:
             "multi_source_context": self.multi_source_context,
             "messages_text": self.messages_text,
             "summary": self.summary,
-            "domain_terms": self.domain_terms,
         }
         
         rendered = render_template("core/memory/auto_extraction.prompt.j2", **template_vars)

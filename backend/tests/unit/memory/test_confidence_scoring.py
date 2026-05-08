@@ -11,36 +11,17 @@ from app.core.memory.auto_extraction import AutoMemoryExtractor
 
 
 @pytest.fixture
-def extractor_with_mock_bank():
-    """Create an AutoMemoryExtractor with a mock term bank."""
+def extractor():
+    """Create an AutoMemoryExtractor."""
     mock_manager = AsyncMock()
-    extractor = AutoMemoryExtractor(
-        memory_manager=mock_manager,
-        term_bank=AsyncMock(),
-    )
+    extractor = AutoMemoryExtractor(memory_manager=mock_manager)
     return extractor
 
 
 class TestTieredScoring:
     """Tests for Tier A/B/C mutually-exclusive scoring."""
 
-    async def test_tier_a_high_term_density(self, extractor_with_mock_bank):
-        extractor = extractor_with_mock_bank
-        extractor._term_bank.match.return_value = ["api", "gateway", "jwt"]
-
-        score = await extractor._calculate_confidence(
-            "The API Gateway uses JWT for authentication and authorization. "
-            "This pattern is widely adopted in microservices architecture for secure "
-            "token-based communication between distributed services and clients.",
-            project_id=1,
-        )
-        # Base 0.5 + length 0.2 + Tier A 0.25 = ~0.95
-        assert score >= 0.89
-
-    async def test_tier_a_resource_path(self, extractor_with_mock_bank):
-        extractor = extractor_with_mock_bank
-        extractor._term_bank.match.return_value = []
-
+    async def test_tier_a_resource_path(self, extractor):
         score = await extractor._calculate_confidence(
             "Check app/core/auth.py for details about the JWT verification logic. "
             "This module handles token validation, expiration checks, and user "
@@ -50,22 +31,7 @@ class TestTieredScoring:
         # Base 0.5 + length ~0.2 + Tier A 0.25 = ~0.95
         assert score >= 0.89
 
-    async def test_tier_b_medium_term_density(self, extractor_with_mock_bank):
-        extractor = extractor_with_mock_bank
-        extractor._term_bank.match.return_value = ["api"]
-
-        score = await extractor._calculate_confidence(
-            "The API handles requests from mobile clients and web browsers. "
-            "It supports both REST and GraphQL protocols for flexible data access.",
-            project_id=1,
-        )
-        # Base 0.5 + length 0.2 + Tier B 0.15 = ~0.85
-        assert 0.75 <= score <= 0.9
-
-    async def test_tier_b_specific_indicators(self, extractor_with_mock_bank):
-        extractor = extractor_with_mock_bank
-        extractor._term_bank.match.return_value = []
-
+    async def test_tier_b_specific_indicators(self, extractor):
         score = await extractor._calculate_confidence(
             "Release scheduled for 2026-05-01. Version v2.1.0 includes critical "
             "security patches and performance improvements for the authentication "
@@ -75,10 +41,7 @@ class TestTieredScoring:
         # Base 0.5 + length 0.2 + Tier B 0.15 = ~0.85
         assert score >= 0.8
 
-    async def test_tier_c_structure(self, extractor_with_mock_bank):
-        extractor = extractor_with_mock_bank
-        extractor._term_bank.match.return_value = []
-
+    async def test_tier_c_structure(self, extractor):
         score = await extractor._calculate_confidence(
             "- First step: validate the user input against the schema definition\n"
             "- Second step: process the data through the transformation pipeline\n"
@@ -88,10 +51,7 @@ class TestTieredScoring:
         # Base 0.5 + length 0.2 + Tier C 0.05 = ~0.75
         assert 0.7 <= score <= 0.85
 
-    async def test_tier_c_actionable(self, extractor_with_mock_bank):
-        extractor = extractor_with_mock_bank
-        extractor._term_bank.match.return_value = []
-
+    async def test_tier_c_actionable(self, extractor):
         score = await extractor._calculate_confidence(
             "You must always validate the input before processing. Never trust "
             "client-side data without server-side verification and sanitization.",
@@ -100,52 +60,37 @@ class TestTieredScoring:
         # Base 0.5 + length 0.2 + Tier C 0.05 = ~0.75
         assert score >= 0.7
 
-    async def test_no_tier_no_bonus(self, extractor_with_mock_bank):
-        extractor = extractor_with_mock_bank
-        extractor._term_bank.match.return_value = []
-
+    async def test_no_tier_no_bonus(self, extractor):
         score = await extractor._calculate_confidence(
             "Hello world this is a generic sentence with nothing special.",
             project_id=1,
         )
-        # Base 0.5 + length ~0.2 = ~0.7
-        assert 0.6 <= score <= 0.8
+        # Base 0.5 + length ~0.1 = ~0.6 (no tier bonus)
+        assert 0.55 <= score <= 0.75
 
 
 class TestLengthScoring:
     """Tests for continuous length scoring."""
 
-    async def test_ideal_length(self, extractor_with_mock_bank):
-        extractor = extractor_with_mock_bank
-        extractor._term_bank.match.return_value = []
-
+    async def test_ideal_length(self, extractor):
         content = "x" * 300  # 300 chars, ideal range
         score = await extractor._calculate_confidence(content, project_id=1)
         assert score >= 0.65  # base 0.5 + 0.2 = 0.7 before other factors
 
-    async def test_short_length_penalty(self, extractor_with_mock_bank):
-        extractor = extractor_with_mock_bank
-        extractor._term_bank.match.return_value = []
-
+    async def test_short_length_penalty(self, extractor):
         content = "short"
         score = await extractor._calculate_confidence(content, project_id=1)
         # Base 0.5 - 0.15 = 0.35
         assert score < 0.5
 
-    async def test_very_long_penalty(self, extractor_with_mock_bank):
-        extractor = extractor_with_mock_bank
-        extractor._term_bank.match.return_value = []
-
+    async def test_very_long_penalty(self, extractor):
         content = "x" * 1500
         score = await extractor._calculate_confidence(content, project_id=1)
         # Base 0.5 - 0.1 = 0.4
         assert score < 0.5
 
-    async def test_length_continuity_at_boundary(self, extractor_with_mock_bank):
+    async def test_length_continuity_at_boundary(self, extractor):
         """No断崖跳跃 at 100 chars boundary."""
-        extractor = extractor_with_mock_bank
-        extractor._term_bank.match.return_value = []
-
         score_99 = await extractor._calculate_confidence("x" * 99, project_id=1)
         score_100 = await extractor._calculate_confidence("x" * 100, project_id=1)
         score_101 = await extractor._calculate_confidence("x" * 101, project_id=1)
@@ -158,10 +103,7 @@ class TestLengthScoring:
 class TestLLMConfidenceCeiling:
     """Tests for LLM confidence trust ceiling behavior."""
 
-    async def test_low_llm_confidence_caps_score(self, extractor_with_mock_bank):
-        extractor = extractor_with_mock_bank
-        extractor._term_bank.match.return_value = []
-
+    async def test_low_llm_confidence_caps_score(self, extractor):
         score = await extractor._calculate_confidence(
             "x" * 300,  # Would normally score high
             llm_confidence=0.2,
@@ -169,10 +111,7 @@ class TestLLMConfidenceCeiling:
         )
         assert score <= 0.6
 
-    async def test_high_llm_confidence_boosts_score(self, extractor_with_mock_bank):
-        extractor = extractor_with_mock_bank
-        extractor._term_bank.match.return_value = []
-
+    async def test_high_llm_confidence_boosts_score(self, extractor):
         score = await extractor._calculate_confidence(
             "x" * 300,
             llm_confidence=0.9,
@@ -182,10 +121,7 @@ class TestLLMConfidenceCeiling:
         assert score >= 0.75
         assert score <= 1.0
 
-    async def test_mid_llm_confidence_no_effect(self, extractor_with_mock_bank):
-        extractor = extractor_with_mock_bank
-        extractor._term_bank.match.return_value = []
-
+    async def test_mid_llm_confidence_no_effect(self, extractor):
         score_no_llm = await extractor._calculate_confidence("x" * 300, project_id=1)
         score_mid = await extractor._calculate_confidence(
             "x" * 300,
@@ -198,10 +134,7 @@ class TestLLMConfidenceCeiling:
 class TestVagueWordPenalty:
     """Tests for capped vague-word penalty."""
 
-    async def test_vague_words_capped(self, extractor_with_mock_bank):
-        extractor = extractor_with_mock_bank
-        extractor._term_bank.match.return_value = []
-
+    async def test_vague_words_capped(self, extractor):
         score = await extractor._calculate_confidence(
             "maybe perhaps somehow might could be something",
             project_id=1,
@@ -210,10 +143,7 @@ class TestVagueWordPenalty:
         # Base 0.5 + length ~0.05 - 0.15 = ~0.4
         assert score >= 0.35  # Not driven below 0.3 by extreme penalty
 
-    async def test_no_vague_words_no_penalty(self, extractor_with_mock_bank):
-        extractor = extractor_with_mock_bank
-        extractor._term_bank.match.return_value = []
-
+    async def test_no_vague_words_no_penalty(self, extractor):
         score = await extractor._calculate_confidence(
             "Always validate input strictly.",
             project_id=1,
@@ -224,10 +154,7 @@ class TestVagueWordPenalty:
 class TestResourcePathRegex:
     """Tests for domain-agnostic resource path detection."""
 
-    async def test_code_path_triggers_tier_a(self, extractor_with_mock_bank):
-        extractor = extractor_with_mock_bank
-        extractor._term_bank.match.return_value = []
-
+    async def test_code_path_triggers_tier_a(self, extractor):
         score = await extractor._calculate_confidence(
             "The src/components/Button.tsx file contains the core rendering logic. "
             "It handles user interactions, state updates, and event delegation for "
@@ -236,10 +163,7 @@ class TestResourcePathRegex:
         )
         assert score >= 0.9  # Tier A
 
-    async def test_document_path_triggers_tier_a(self, extractor_with_mock_bank):
-        extractor = extractor_with_mock_bank
-        extractor._term_bank.match.return_value = []
-
+    async def test_document_path_triggers_tier_a(self, extractor):
         score = await extractor._calculate_confidence(
             "The contracts/agreement_v2.pdf file needs legal review before signing. "
             "It contains updated terms for data processing and liability coverage.",
@@ -247,10 +171,7 @@ class TestResourcePathRegex:
         )
         assert score >= 0.9  # Tier A
 
-    async def test_no_path_no_tier_a(self, extractor_with_mock_bank):
-        extractor = extractor_with_mock_bank
-        extractor._term_bank.match.return_value = []
-
+    async def test_no_path_no_tier_a(self, extractor):
         score = await extractor._calculate_confidence(
             "test.py is a common word not a path",  # No slash
             project_id=1,
@@ -262,18 +183,12 @@ class TestResourcePathRegex:
 class TestClamping:
     """Tests for score clamping."""
 
-    async def test_minimum_clamp(self, extractor_with_mock_bank):
-        extractor = extractor_with_mock_bank
-        extractor._term_bank.match.return_value = []
-
+    async def test_minimum_clamp(self, extractor):
         # Extremely bad content: very short + max vague penalty
         score = await extractor._calculate_confidence("maybe", project_id=1)
         assert score >= 0.1
 
-    async def test_maximum_clamp(self, extractor_with_mock_bank):
-        extractor = extractor_with_mock_bank
-        extractor._term_bank.match.return_value = ["t1", "t2", "t3", "t4"]
-
+    async def test_maximum_clamp(self, extractor):
         # Perfect content with high LLM confidence
         score = await extractor._calculate_confidence(
             "x" * 300,
@@ -286,11 +201,8 @@ class TestClamping:
 class TestComplexRealWorldScenarios:
     """Complex scenario-based tests with realistic content."""
 
-    async def test_chinese_technical_document(self, extractor_with_mock_bank):
+    async def test_chinese_technical_document(self, extractor):
         """Real-world Chinese software architecture discussion."""
-        extractor = extractor_with_mock_bank
-        extractor._term_bank.match.return_value = ["微服务", "服务网格", "grpc"]
-
         content = (
             "在微服务架构中，服务网格（Service Mesh）通过 Sidecar 代理模式实现了"
             "流量管理、安全通信和可观测性。Istio 是目前最流行的实现，它使用 Envoy"
@@ -300,14 +212,11 @@ class TestComplexRealWorldScenarios:
             "配置文件位于 k8s/istio/config.yaml，建议参考官方文档进行升级。"
         )
         score = await extractor._calculate_confidence(content, project_id=1)
-        # Should be Tier A (3+ domain terms + resource path) + ideal length
+        # Tier A (resource path) + ideal length
         assert score >= 0.9
 
-    async def test_legal_contract_analysis(self, extractor_with_mock_bank):
+    async def test_legal_contract_analysis(self, extractor):
         """Legal domain content with dates, versions, and actionable terms."""
-        extractor = extractor_with_mock_bank
-        extractor._term_bank.match.return_value = []
-
         content = (
             "根据合同第 3.2 条，乙方须在 2026-06-30 前完成交付。"
             "若因不可抗力导致延期，应在 5 个工作日内提供书面说明。"
@@ -319,11 +228,8 @@ class TestComplexRealWorldScenarios:
         # Tier B (dates + numbers + versions) + ideal length
         assert 0.75 <= score <= 0.95
 
-    async def test_mixed_quality_content(self, extractor_with_mock_bank):
+    async def test_mixed_quality_content(self, extractor):
         """Content with both strong and weak signals — should land in middle."""
-        extractor = extractor_with_mock_bank
-        extractor._term_bank.match.return_value = ["api"]  # Only 1 term → Tier B
-
         content = (
             "The API might need some changes. Perhaps we should consider using"
             " a different approach. The current implementation somehow works but"
@@ -331,15 +237,12 @@ class TestComplexRealWorldScenarios:
             " the next release scheduled for 2026-05-15."
         )
         score = await extractor._calculate_confidence(content, project_id=1)
-        # 3 vague words (capped at 0.15 penalty) + 1 term (Tier B 0.15)
+        # 3 vague words (capped at 0.15 penalty) + date (Tier B 0.15)
         # Base 0.5 + length ~0.2 - 0.15 + 0.15 = ~0.7
         assert 0.6 <= score <= 0.8
 
-    async def test_medical_diagnosis_record(self, extractor_with_mock_bank):
+    async def test_medical_diagnosis_record(self, extractor):
         """Medical content with domain-specific Chinese terms."""
-        extractor = extractor_with_mock_bank
-        extractor._term_bank.match.return_value = ["心室颤动", "心房扑动", "胺碘酮"]
-
         content = (
             "患者入院时表现为心室颤动，心率 180 次/分，血压 80/50 mmHg。"
             "心电图显示心房扑动与心室颤动同时存在，QT 间期延长至 520ms。"
@@ -348,14 +251,11 @@ class TestComplexRealWorldScenarios:
             "建议 1 周后复查动态心电图，评估是否需要射频消融。"
         )
         score = await extractor._calculate_confidence(content, project_id=1)
-        # Tier A (3 terms) + numbers + ideal length
-        assert score >= 0.9
+        # Tier B (numbers) + ideal length
+        assert score >= 0.8
 
-    async def test_extreme_length_boundaries(self, extractor_with_mock_bank):
+    async def test_extreme_length_boundaries(self, extractor):
         """Verify no discontinuities across all length ranges."""
-        extractor = extractor_with_mock_bank
-        extractor._term_bank.match.return_value = []
-
         scores = []
         for length in [10, 29, 30, 31, 50, 99, 100, 101, 300, 500, 501, 999, 1000, 1001]:
             content = "x" * length
@@ -372,11 +272,8 @@ class TestComplexRealWorldScenarios:
         for _, s in scores:
             assert 0.1 <= s <= 1.0
 
-    async def test_llm_confidence_extremes(self, extractor_with_mock_bank):
+    async def test_llm_confidence_extremes(self, extractor):
         """Verify LLM confidence ceiling at all score levels."""
-        extractor = extractor_with_mock_bank
-        extractor._term_bank.match.return_value = []
-
         # Low-quality content with low LLM confidence → should be heavily capped
         low_score = await extractor._calculate_confidence(
             "maybe perhaps somehow",
@@ -395,11 +292,8 @@ class TestComplexRealWorldScenarios:
         assert high_score > low_score
         assert high_score <= 0.7
 
-    async def test_multiple_resource_paths(self, extractor_with_mock_bank):
+    async def test_multiple_resource_paths(self, extractor):
         """Content with multiple file paths — still Tier A, not stacked."""
-        extractor = extractor_with_mock_bank
-        extractor._term_bank.match.return_value = []
-
         content = (
             "Modify src/auth/login.ts, src/auth/token.ts, and"
             " tests/auth/login.spec.ts to support OAuth2 flow."
@@ -410,11 +304,8 @@ class TestComplexRealWorldScenarios:
         assert score >= 0.85
         assert score <= 0.95  # Not over 0.95 since only one Tier bonus
 
-    async def test_cross_language_mixed_content(self, extractor_with_mock_bank):
+    async def test_cross_language_mixed_content(self, extractor):
         """Chinese + English interleaved technical discussion."""
-        extractor = extractor_with_mock_bank
-        extractor._term_bank.match.return_value = ["缓存", "redis", "一致性"]
-
         content = (
             "在实现分布式缓存时，我们选择了 Redis Cluster 作为存储后端。"
             "缓存一致性（Cache Consistency）通过 Cache-Aside 模式保证："
@@ -423,5 +314,5 @@ class TestComplexRealWorldScenarios:
             "相关代码在 src/cache/bloom_filter.py 中实现。"
         )
         score = await extractor._calculate_confidence(content, project_id=1)
-        # Tier A (3+ terms + resource path) + ideal length
+        # Tier A (resource path) + ideal length
         assert score >= 0.9

@@ -38,12 +38,6 @@ Pointers to external systems, persistent configuration keys, or IDs.
 ### MULTI-SOURCE CONTEXT (Truth for Redundancy Check)
 {{ multi_source_context or "No additional context." }}
 
-{% if domain_terms %}
-### PROJECT TERMINOLOGY (Domain Terms)
-The following terms are already recognized in this project:
-{{ domain_terms | join(", ") }}
-{% endif %}
-
 ### RECENT CONVERSATION
 {{ messages_text }}
 

@@ -87,7 +87,6 @@ async def memory_setup(test_memory_root, test_db_path):
     from app.core.memory.config import MemoryConfig
     from app.core.memory.backends.file_backend import FileMemoryStorage
     from app.core.memory.backends.sql_short_term import SqlShortTermMemory
-    from app.core.memory.domain_terms import DomainTermBank
     from app.core.memory.manager import MemoryManager
     from app.core.memory.quality import MemoryQualityAnalyzer
     from app.core.memory.state_tracking import MemoryStateTracker
@@ -105,7 +104,6 @@ async def memory_setup(test_memory_root, test_db_path):
     short_term = SqlShortTermMemory()
     await short_term.initialize()
 
-    term_bank = DomainTermBank(base_path=config.memory_root / "domain_terms")
     state_tracker = MemoryStateTracker()
     quality = MemoryQualityAnalyzer(storage)
 
@@ -113,7 +111,6 @@ async def memory_setup(test_memory_root, test_db_path):
         config=config,
         storage=storage,
         short_term=short_term,
-        term_bank=term_bank,
     )
     await manager.initialize()
 
@@ -122,7 +119,6 @@ async def memory_setup(test_memory_root, test_db_path):
         "manager": manager,
         "storage": storage,
         "short_term": short_term,
-        "term_bank": term_bank,
         "quality": quality,
         "state_tracker": state_tracker,
         "root": test_memory_root,
@@ -482,62 +478,6 @@ class TestPhase6TwoTier:
         mgr = memory_setup["manager"]
         cold = await mgr.search_cold_memory(query="caching", max_results=5)
         assert isinstance(cold, list)
-
-
-# ───────────────────────── Phase 7: Domain Terms ─────────────────────────
-
-class TestPhase7DomainTerms:
-    @pytest.mark.asyncio
-    async def test_term_bank_persists(self, memory_setup, test_memory_root):
-        bank = memory_setup["term_bank"]
-
-        # Mock LLM extraction
-        with patch("app.infrastructure.config.service.SystemConfigService.get_value", return_value="gpt-4"):
-            with patch("app.core.llm.InternalLLMService.invoke", new_callable=AsyncMock) as mock_llm:
-                mock_llm.return_value = MagicMock(content=json.dumps({"terms": ["Kubernetes", "Helm"]}))
-                await bank.discover(
-                    content="We use Kubernetes for orchestration and Helm for packaging.",
-                    project_id=42,
-                    project_context="Test project using cloud-native stack.",
-                )
-
-        term_file = Path(test_memory_root, "domain_terms", "42.json")
-        assert term_file.exists(), f"Term bank file not created at {term_file}"
-
-        data = json.loads(term_file.read_text())
-        assert "terms" in data
-
-    @pytest.mark.asyncio
-    async def test_term_bank_match(self, memory_setup):
-        bank = memory_setup["term_bank"]
-        # Seed terms directly
-        from app.core.memory.domain_terms import TermMeta
-        async with bank._lock:
-            persisted = await bank._load(42)
-            persisted["kubernetes"] = TermMeta(freq=3)
-            persisted["helm"] = TermMeta(freq=2)
-            await bank._save(42, persisted)
-
-        matches = await bank.match("Kubernetes pod scheduling", project_id=42)
-        assert "kubernetes" in matches
-
-    @pytest.mark.asyncio
-    async def test_term_bank_decay(self, memory_setup):
-        bank = memory_setup["term_bank"]
-        from app.core.memory.domain_terms import TermMeta
-        old_term = TermMeta(freq=1, last_seen=datetime(2020, 1, 1, tzinfo=timezone.utc))
-        async with bank._lock:
-            persisted = await bank._load(42)
-            persisted["legacy_term"] = old_term
-            await bank._save(42, persisted)
-
-        await bank.decay(project_id=42)
-
-        async with bank._lock:
-            after = await bank._load(42)
-            if "legacy_term" in after:
-                conf = bank._compute_confidence(after["legacy_term"].freq, after["legacy_term"].last_seen)
-                assert conf < 0.5
 
 
 # ───────────────────────── Phase 8: Rewind Cleanup ─────────────────────────
@@ -1099,7 +1039,6 @@ class TestPhase14Maintenance:
         assert result["status"] == "completed"
         assert "low_quality_count" in result
         assert "pruning_count" in result
-        assert "term_bank" in result
         assert "timestamp" in result
 
     @pytest.mark.asyncio

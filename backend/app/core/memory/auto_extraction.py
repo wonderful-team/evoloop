@@ -53,7 +53,6 @@ class AutoMemoryExtractor:
         extraction_interval: int = None,
         max_turns: int = 5,
         min_messages: int = None,
-        term_bank=None,
     ):
         """
         Initialize auto memory extractor.
@@ -67,7 +66,6 @@ class AutoMemoryExtractor:
         """
         self._memory_manager = memory_manager
         self._config = config
-        self._term_bank = term_bank
 
         # Get values from config if provided, otherwise use settings
         if config is not None:
@@ -155,25 +153,13 @@ class AutoMemoryExtractor:
 
         self._turns_since_extraction[thread_id] = 0
 
-        # Gather project context for term extraction
+        # Gather project context for extraction
         project_context = ""
         if project_id:
             try:
                 project_context = await self._gather_multi_source_context(project_id)
             except Exception as e:
                 logger.debug(f"[AutoExtract] Failed to gather project context: {e}")
-
-        # Discover terms from raw messages regardless of extraction gates
-        if self._term_bank and project_id:
-            try:
-                combined_text = "\n".join([str(m.content) for m in messages])
-                await self._term_bank.discover(
-                    combined_text,
-                    project_id=project_id,
-                    project_context=project_context,
-                )
-            except Exception as e:
-                logger.debug(f"[AutoExtract] Raw message discovery failed: {e}")
 
         # Gate 3: Skip if main agent already wrote memories this turn
         if not force and self._has_memory_writes(messages, thread_id):
@@ -334,16 +320,6 @@ class AutoMemoryExtractor:
         pending_todos = multi_source_context.split("### Pending TODOs")[-1].split("###")[0].strip() if "### Pending TODOs" in multi_source_context else "None"
         existing_memories = await self._get_existing_memory_manifest()
 
-        # Inject discovered domain terms so LLM knows project vocabulary
-        domain_terms = []
-        if self._term_bank is not None:
-            try:
-                domain_terms = await self._term_bank.get_top_terms(
-                    project_id, limit=20
-                )
-            except Exception as e:
-                logger.debug(f"[AutoExtract] Failed to load domain terms: {e}")
-
         builder = MemoryExtractionPromptBuilder(
             readme_summary=readme_summary,
             pending_todos=pending_todos,
@@ -351,7 +327,6 @@ class AutoMemoryExtractor:
             multi_source_context=multi_source_context,
             messages_text=self._format_messages(messages[-15:]),
             summary=summary,
-            domain_terms=domain_terms,
         )
 
         extraction_messages = await builder.build()
@@ -522,12 +497,6 @@ class AutoMemoryExtractor:
             vague_count = min(vague_count, 3)  # Re-apply cap after both langs
         score -= min(vague_count, 3) * 0.05
 
-        # ── Domain-term density (async lookup) ─────────────────────────
-        term_density = 0
-        if self._term_bank is not None:
-            matched = await self._term_bank.match(content, project_id)
-            term_density = len(matched)
-
         # ── Specific indicators ────────────────────────────────────────
         has_resource_path = bool(self._RESOURCE_PATH_RE.search(content))
         has_date = bool(self._DATE_RE.search(content))
@@ -540,9 +509,9 @@ class AutoMemoryExtractor:
             has_actionable = any(w in content for w in ACTION_MARKERS["zh"])
 
         # ── Tiered scoring (mutually exclusive) ────────────────────────
-        if term_density >= 3 or has_resource_path:
+        if has_resource_path:
             score += 0.25  # Tier A
-        elif term_density >= 1 or has_date or has_version or has_number:
+        elif has_date or has_version or has_number:
             score += 0.15  # Tier B
         elif has_list or has_actionable:
             score += 0.05  # Tier C
@@ -715,17 +684,6 @@ class AutoMemoryExtractor:
                 )
 
                 entries.append(entry)
-
-                # Discover domain terms from accepted high-confidence memories
-                if self._term_bank is not None:
-                    try:
-                        await self._term_bank.discover(
-                            content,
-                            project_id=project_id,
-                            project_context=project_context,
-                        )
-                    except Exception as e:
-                        logger.debug(f"[AutoExtract] Term discovery failed: {e}")
 
         except json.JSONDecodeError as e:
             logger.warning(f"[AutoExtract] Failed to parse JSON: {e}")

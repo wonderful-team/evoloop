@@ -14,12 +14,17 @@ import shutil
 from datetime import datetime
 from pathlib import Path
 
+from sqlalchemy import select
+
+from app.core.config import settings
 from app.core.engine.event.schemas import AgentRunCompletedEvent
 from app.core.engine.rewind.event import RewindEventType, RewindRequestedEvent
 from app.core.events import SystemEventType
 from app.core.events.base import AsyncEventBus
 from app.core.events.decorators import event_register, event_subscribe, register_instance_handlers
 from app.core.events.schemas import SessionCompletedEvent
+from app.infrastructure.database.sql.database import session_scope
+from app.models import Message
 
 logger = logging.getLogger(__name__)
 
@@ -213,11 +218,6 @@ class MemoryRewind:
         Returns:
             List of message IDs as strings
         """
-        from sqlalchemy import select
-
-        from app.infrastructure.database.sql.database import session_scope
-        from app.models import Message
-
         async with session_scope() as session:
             # Use sequence_number for standardized ID construction
             stmt = select(Message.id).where(Message.thread_id == thread_id)
@@ -312,14 +312,9 @@ class MemoryRewind:
 
     async def _cleanup_physical_memory(self, event: RewindRequestedEvent) -> None:
         """
-        Cleanup physical memory files (MEMORY.md, context/, domain_terms/)
+        Cleanup physical memory files (MEMORY.md, context/)
         based on the target message time.
         """
-        from app.infrastructure.database.sql.database import session_scope
-        from app.models.conversation import Message
-        from app.core.config import settings
-
-        target_time = None
         async with session_scope() as session:
             if event.target_message_id:
                 from sqlalchemy import select
@@ -351,38 +346,7 @@ class MemoryRewind:
                     except Exception as exc:
                         logger.debug(f"[MemoryRewind] Failed to delete {f.name}: {exc}")
 
-        # 2. Cleanup domain terms (entries in *.json)
-        terms_dir = memory_root / "domain_terms"
-        if terms_dir.exists():
-            for f in terms_dir.glob("*.json"):
-                try:
-                    with open(f, "r", encoding="utf-8") as jf:
-                        data = json.load(jf)
-                    
-                    if "terms" in data:
-                        original_count = len(data["terms"])
-                        # Filter out terms seen after target_time
-                        new_terms = {}
-                        for k, v in data["terms"].items():
-                            term_time = datetime.fromisoformat(v["last_seen"].replace("Z", "+00:00"))
-                            # Ensure both are UTC or both are naive
-                            if term_time.tzinfo and not target_time.tzinfo:
-                                target_time = target_time.replace(tzinfo=term_time.tzinfo)
-                            
-                            if term_time <= target_time:
-                                new_terms[k] = v
-                            else:
-                                logger.debug(f"[MemoryRewind] Pruning term {k}: {term_time} > {target_time}")
-                        
-                        data["terms"] = new_terms
-                        if len(data["terms"]) < original_count:
-                            with open(f, "w", encoding="utf-8") as jf:
-                                json.dump(data, jf, indent=2, ensure_ascii=False)
-                            logger.debug(f"[MemoryRewind] Pruned {original_count - len(data['terms'])} terms from {f.name}")
-                except Exception as e:
-                    logger.warning(f"[MemoryRewind] Failed to prune terms in {f.name}: {e}")
-
-        # 3. Regenerate MEMORY.md (Tier 1)
+        # 2. Regenerate MEMORY.md (Tier 1)
         try:
             from app.core.memory.lifespan import MemoryLifespanManager
             if not MemoryLifespanManager.is_initialized():
