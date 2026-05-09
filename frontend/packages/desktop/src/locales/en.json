@@ -348,7 +348,13 @@
       "tabChats": "Chats",
       "tabFiles": "Files",
       "untitled": "Untitled Chat",
-      "workspaceFiles": "Workspace Files"
+      "workspaceFiles": "Workspace Files",
+      "actions": "Project Actions",
+      "deploy": "Project Analysis & Initialization",
+      "wiki": "Generate Project Wiki",
+      "projectOnly": "Project mode only",
+      "deployStarted": "Project analysis & initialization task started",
+      "wikiStarted": "Project wiki generation task started"
     },
     "skillAttached": "Skill attached",
     "sources": {

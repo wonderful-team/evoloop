@@ -17,6 +17,8 @@ import {
   RefreshCw,
   Search,
   Users,
+  BookOpen,
+  Rocket,
 } from "lucide-react"
 import type React from "react"
 import { useEffect, useState } from "react"
@@ -25,7 +27,10 @@ import {
   ProjectModulesService,
   ProjectProfilesService,
   TasksService,
+  WikiService,
 } from "@/client/sdk.gen"
+import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { toast } from "sonner"
 import { useProjectStore } from "@/stores/projectStore"
 import { DiscoverDialog } from "./DiscoverDialog"
 
@@ -57,6 +62,26 @@ export const ProjectOverview: React.FC = () => {
   const [loading, setLoading] = useState(true)
   const [discoverOpen, setDiscoverOpen] = useState(false)
   const [hasProfile, setHasProfile] = useState(false)
+  const queryClient = useQueryClient()
+
+  const { mutate: handleGenerateWiki, isPending: isWikiPending } = useMutation({
+    mutationFn: async () => {
+      return WikiService.generateWiki({
+        requestBody: {
+          project_id: Number(projectId),
+          topic: t("wiki.topic.full_documentation"),
+          force_regenerate: true
+        }
+      })
+    },
+    onSuccess: () => {
+      toast.success(t('wiki.toast.start'))
+      queryClient.invalidateQueries({ queryKey: ["wiki"] })
+    },
+    onError: (error: any) => {
+      toast.error(t('wiki.toast.error'))
+    },
+  })
 
   useEffect(() => {
     const loadData = async () => {
@@ -241,17 +266,24 @@ export const ProjectOverview: React.FC = () => {
           <CardContent className="space-y-2">
             <Button
               variant="outline"
-              className="w-full justify-start"
+              className="w-full justify-start hover:bg-primary/5 hover:text-primary transition-all border-dashed"
               onClick={() => setDiscoverOpen(true)}
             >
               {hasProfile ? (
-                <RefreshCw className="mr-2 h-4 w-4" />
+                <RefreshCw className="mr-2 h-4 w-4 text-blue-500" />
               ) : (
-                <Search className="mr-2 h-4 w-4" />
+                <Rocket className="mr-2 h-4 w-4 text-primary" />
               )}
-              {hasProfile
-                ? t("projects.profile.rediscover")
-                : t("projects.profile.discover")}
+              {t("chat.sidebar.deploy")}
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full justify-start hover:bg-primary/5 hover:text-primary transition-all"
+              onClick={() => handleGenerateWiki()}
+              disabled={isWikiPending}
+            >
+              <BookOpen className="mr-2 h-4 w-4 text-green-500" />
+              {currentProject?.has_wiki ? t('wiki.regenerate_action') : t('wiki.generate')}
             </Button>
             <Link
               to="/projects/$projectId/profile"

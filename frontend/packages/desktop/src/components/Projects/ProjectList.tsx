@@ -96,7 +96,7 @@ export function ProjectList() {
 
   const handleSelect = (proj: any) => {
     setProject(proj)
-    navigate({ to: `/projects/${proj.id}/tasks` })
+    navigate({ to: `/projects/${proj.id}` })
   }
 
   const isLoading = isListLoading || isScanning

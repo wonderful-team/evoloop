@@ -5,8 +5,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@evoloop/shared/components/ui/card"
+import { Textarea } from "@evoloop/shared/components/ui/textarea"
 import { createFileRoute, useParams } from "@tanstack/react-router"
-import { AlertCircle, FileText, Loader2, RefreshCw } from "lucide-react"
+import { AlertCircle, FileText, Loader2, RefreshCw, Rocket, Edit, Save, X } from "lucide-react"
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import ReactMarkdown from "react-markdown"
@@ -32,6 +33,9 @@ function ProfilePage() {
   const [profile, setProfile] = useState<ProfileData | null>(null)
   const [loading, setLoading] = useState(true)
   const [discoverOpen, setDiscoverOpen] = useState(false)
+  const [isEditing, setIsEditing] = useState(false)
+  const [editContent, setEditContent] = useState("")
+  const [isSaving, setIsSaving] = useState(false)
 
   const fetchProfile = async () => {
     if (!projectId) return
@@ -50,6 +54,41 @@ function ProfilePage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleSave = async () => {
+    if (!projectId) return
+    setIsSaving(true)
+    try {
+      // Manual call to the new endpoint
+      const response = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/v1/project-profiles/${projectId}/profile`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ content: editContent })
+      })
+      
+      if (!response.ok) throw new Error("Failed to update profile")
+      
+      const data = await response.json()
+      setProfile({
+        content: data.content,
+        exists: true
+      })
+      setIsEditing(false)
+      toast.success(t("common.saveSuccess"))
+    } catch (err) {
+      console.error("Failed to save profile", err)
+      toast.error(t("common.saveFailed"))
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const startEditing = () => {
+    setEditContent(profile?.content || "")
+    setIsEditing(true)
   }
 
   useEffect(() => {
@@ -76,16 +115,35 @@ function ProfilePage() {
             {t("projects.profile.title")}
           </h2>
         </div>
-        <Button size="sm" onClick={() => setDiscoverOpen(true)}>
-          {hasProfile ? (
-            <RefreshCw className="h-4 w-4 mr-1" />
+        <div className="flex items-center gap-2">
+          {!isEditing ? (
+            <>
+              <Button variant="outline" size="sm" onClick={startEditing}>
+                <Edit className="h-4 w-4 mr-1" />
+                {t("common.edit")}
+              </Button>
+              <Button size="sm" onClick={() => setDiscoverOpen(true)}>
+                {hasProfile ? (
+                  <RefreshCw className="h-4 w-4 mr-1 text-blue-500" />
+                ) : (
+                  <Rocket className="h-4 w-4 mr-1 text-primary" />
+                )}
+                {t("chat.sidebar.deploy")}
+              </Button>
+            </>
           ) : (
-            <FileText className="h-4 w-4 mr-1" />
+            <>
+              <Button variant="outline" size="sm" onClick={() => setIsEditing(false)} disabled={isSaving}>
+                <X className="h-4 w-4 mr-1" />
+                {t("common.cancel")}
+              </Button>
+              <Button size="sm" onClick={handleSave} disabled={isSaving}>
+                {isSaving ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Save className="h-4 w-4 mr-1" />}
+                {t("common.save")}
+              </Button>
+            </>
           )}
-          {hasProfile
-            ? t("projects.profile.rediscover")
-            : t("projects.profile.discover")}
-        </Button>
+        </div>
       </div>
 
       {/* Content */}
@@ -97,33 +155,42 @@ function ProfilePage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="prose prose-sm dark:prose-invert max-w-none">
-              <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
-                rehypePlugins={[rehypeRaw]}
-                components={{
-                  code({ node, inline, className, children, ...props }: any) {
-                    const match = /language-(\w+)/.exec(className || "")
-                    return !inline && match ? (
-                      <SyntaxHighlighter
-                        style={vscDarkPlus}
-                        language={match[1]}
-                        PreTag="div"
-                        {...props}
-                      >
-                        {String(children).replace(/\n$/, "")}
-                      </SyntaxHighlighter>
-                    ) : (
-                      <code className={className} {...props}>
-                        {children}
-                      </code>
-                    )
-                  },
-                }}
-              >
-                {profile.content!}
-              </ReactMarkdown>
-            </div>
+            {isEditing ? (
+              <Textarea
+                className="min-h-[500px] font-mono text-sm"
+                value={editContent}
+                onChange={(e) => setEditContent(e.target.value)}
+                placeholder={t("projects.profile.editPlaceholder", "Enter project profile in Markdown...")}
+              />
+            ) : (
+              <div className="prose prose-sm dark:prose-invert max-w-none">
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  rehypePlugins={[rehypeRaw]}
+                  components={{
+                    code({ node, inline, className, children, ...props }: any) {
+                      const match = /language-(\w+)/.exec(className || "")
+                      return !inline && match ? (
+                        <SyntaxHighlighter
+                          style={vscDarkPlus}
+                          language={match[1]}
+                          PreTag="div"
+                          {...props}
+                        >
+                          {String(children).replace(/\n$/, "")}
+                        </SyntaxHighlighter>
+                      ) : (
+                        <code className={className} {...props}>
+                          {children}
+                        </code>
+                      )
+                    },
+                  }}
+                >
+                  {profile.content!}
+                </ReactMarkdown>
+              </div>
+            )}
           </CardContent>
         </Card>
       ) : (

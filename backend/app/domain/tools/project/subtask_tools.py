@@ -127,13 +127,13 @@ async def get_task_tree_summary(task_id: str) -> str:
         if len(task_id) < 36:
             # Try to find by prefix
             from sqlalchemy import select
-            from app.domain.project.requirements.models import ProjectRequirementTask
+            from app.models.project import ProjectTask
             from app.infrastructure.database.sql.database import AsyncSessionLocal
             
             async with AsyncSessionLocal() as session:
                 result = await session.execute(
-                    select(ProjectRequirementTask).where(
-                        ProjectRequirementTask.id.like(f"{task_id}%")
+                    select(ProjectTask).where(
+                        ProjectTask.id.like(f"{task_id}%")
                     )
                 )
                 task = result.scalar_one_or_none()
@@ -222,13 +222,13 @@ async def update_task_completion(
         # Handle partial ID
         if len(task_id) < 36:
             from sqlalchemy import select
-            from app.domain.project.requirements.models import ProjectRequirementTask
+            from app.models.project import ProjectTask
             from app.infrastructure.database.sql.database import AsyncSessionLocal
             
             async with AsyncSessionLocal() as session:
                 result = await session.execute(
-                    select(ProjectRequirementTask).where(
-                        ProjectRequirementTask.id.like(f"{task_id}%")
+                    select(ProjectTask).where(
+                        ProjectTask.id.like(f"{task_id}%")
                     )
                 )
                 task = result.scalar_one_or_none()
@@ -322,20 +322,20 @@ async def list_project_tasks(
     """
     try:
         from sqlalchemy import select
-        from app.domain.project.requirements.models import ProjectRequirementTask
+        from app.models.project import ProjectTask
         from app.infrastructure.database.sql.database import AsyncSessionLocal
         
         ctx = ContextManager.current()
         project_id = ctx.project_id or 1
         
         async with AsyncSessionLocal() as session:
-            query = select(ProjectRequirementTask).where(
-                ProjectRequirementTask.project_id == project_id,
-                ProjectRequirementTask.parent_id.is_(None)
-            ).order_by(ProjectRequirementTask.created_at.desc()).limit(limit)
+            query = select(ProjectTask).where(
+                ProjectTask.project_id == project_id,
+                ProjectTask.parent_id.is_(None)
+            ).order_by(ProjectTask.created_at.desc()).limit(limit)
             
             if status_filter != "all":
-                query = query.where(ProjectRequirementTask.status == status_filter)
+                query = query.where(ProjectTask.status == status_filter)
                 
             result = await session.execute(query)
             tasks = result.scalars().all()

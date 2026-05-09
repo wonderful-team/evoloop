@@ -28,13 +28,10 @@ import { Route as LayoutProjectsIndexRouteImport } from './routes/_layout/projec
 import { Route as LayoutProjectsProjectIdRouteImport } from './routes/_layout/projects.$projectId'
 import { Route as LayoutProjectsProjectIdIndexRouteImport } from './routes/_layout/projects.$projectId.index'
 import { Route as LayoutProjectsProjectIdWikiRouteImport } from './routes/_layout/projects.$projectId.wiki'
-import { Route as LayoutProjectsProjectIdTimesheetRouteImport } from './routes/_layout/projects.$projectId.timesheet'
 import { Route as LayoutProjectsProjectIdTasksRouteImport } from './routes/_layout/projects.$projectId.tasks'
-import { Route as LayoutProjectsProjectIdRequirementsRouteImport } from './routes/_layout/projects.$projectId.requirements'
 import { Route as LayoutProjectsProjectIdReportsRouteImport } from './routes/_layout/projects.$projectId.reports'
 import { Route as LayoutProjectsProjectIdProfileRouteImport } from './routes/_layout/projects.$projectId.profile'
 import { Route as LayoutProjectsProjectIdKnowledgeRouteImport } from './routes/_layout/projects.$projectId.knowledge'
-import { Route as LayoutProjectsProjectIdGanttRouteImport } from './routes/_layout/projects.$projectId.gantt'
 import { Route as LayoutProjectsProjectIdFilesRouteImport } from './routes/_layout/projects.$projectId.files'
 import { Route as LayoutLearningSkillsSkillIdEditRouteImport } from './routes/_layout/learning.skills.$skillId.edit'
 
@@ -134,22 +131,10 @@ const LayoutProjectsProjectIdWikiRoute =
     path: '/wiki',
     getParentRoute: () => LayoutProjectsProjectIdRoute,
   } as any)
-const LayoutProjectsProjectIdTimesheetRoute =
-  LayoutProjectsProjectIdTimesheetRouteImport.update({
-    id: '/timesheet',
-    path: '/timesheet',
-    getParentRoute: () => LayoutProjectsProjectIdRoute,
-  } as any)
 const LayoutProjectsProjectIdTasksRoute =
   LayoutProjectsProjectIdTasksRouteImport.update({
     id: '/tasks',
     path: '/tasks',
-    getParentRoute: () => LayoutProjectsProjectIdRoute,
-  } as any)
-const LayoutProjectsProjectIdRequirementsRoute =
-  LayoutProjectsProjectIdRequirementsRouteImport.update({
-    id: '/requirements',
-    path: '/requirements',
     getParentRoute: () => LayoutProjectsProjectIdRoute,
   } as any)
 const LayoutProjectsProjectIdReportsRoute =
@@ -168,12 +153,6 @@ const LayoutProjectsProjectIdKnowledgeRoute =
   LayoutProjectsProjectIdKnowledgeRouteImport.update({
     id: '/knowledge',
     path: '/knowledge',
-    getParentRoute: () => LayoutProjectsProjectIdRoute,
-  } as any)
-const LayoutProjectsProjectIdGanttRoute =
-  LayoutProjectsProjectIdGanttRouteImport.update({
-    id: '/gantt',
-    path: '/gantt',
     getParentRoute: () => LayoutProjectsProjectIdRoute,
   } as any)
 const LayoutProjectsProjectIdFilesRoute =
@@ -207,13 +186,10 @@ export interface FileRoutesByFullPath {
   '/projects/': typeof LayoutProjectsIndexRoute
   '/subscription/': typeof LayoutSubscriptionIndexRoute
   '/projects/$projectId/files': typeof LayoutProjectsProjectIdFilesRoute
-  '/projects/$projectId/gantt': typeof LayoutProjectsProjectIdGanttRoute
   '/projects/$projectId/knowledge': typeof LayoutProjectsProjectIdKnowledgeRoute
   '/projects/$projectId/profile': typeof LayoutProjectsProjectIdProfileRoute
   '/projects/$projectId/reports': typeof LayoutProjectsProjectIdReportsRoute
-  '/projects/$projectId/requirements': typeof LayoutProjectsProjectIdRequirementsRoute
   '/projects/$projectId/tasks': typeof LayoutProjectsProjectIdTasksRoute
-  '/projects/$projectId/timesheet': typeof LayoutProjectsProjectIdTimesheetRoute
   '/projects/$projectId/wiki': typeof LayoutProjectsProjectIdWikiRoute
   '/projects/$projectId/': typeof LayoutProjectsProjectIdIndexRoute
   '/learning/skills/$skillId/edit': typeof LayoutLearningSkillsSkillIdEditRoute
@@ -234,13 +210,10 @@ export interface FileRoutesByTo {
   '/projects': typeof LayoutProjectsIndexRoute
   '/subscription': typeof LayoutSubscriptionIndexRoute
   '/projects/$projectId/files': typeof LayoutProjectsProjectIdFilesRoute
-  '/projects/$projectId/gantt': typeof LayoutProjectsProjectIdGanttRoute
   '/projects/$projectId/knowledge': typeof LayoutProjectsProjectIdKnowledgeRoute
   '/projects/$projectId/profile': typeof LayoutProjectsProjectIdProfileRoute
   '/projects/$projectId/reports': typeof LayoutProjectsProjectIdReportsRoute
-  '/projects/$projectId/requirements': typeof LayoutProjectsProjectIdRequirementsRoute
   '/projects/$projectId/tasks': typeof LayoutProjectsProjectIdTasksRoute
-  '/projects/$projectId/timesheet': typeof LayoutProjectsProjectIdTimesheetRoute
   '/projects/$projectId/wiki': typeof LayoutProjectsProjectIdWikiRoute
   '/projects/$projectId': typeof LayoutProjectsProjectIdIndexRoute
   '/learning/skills/$skillId/edit': typeof LayoutLearningSkillsSkillIdEditRoute
@@ -265,13 +238,10 @@ export interface FileRoutesById {
   '/_layout/projects/': typeof LayoutProjectsIndexRoute
   '/_layout/subscription/': typeof LayoutSubscriptionIndexRoute
   '/_layout/projects/$projectId/files': typeof LayoutProjectsProjectIdFilesRoute
-  '/_layout/projects/$projectId/gantt': typeof LayoutProjectsProjectIdGanttRoute
   '/_layout/projects/$projectId/knowledge': typeof LayoutProjectsProjectIdKnowledgeRoute
   '/_layout/projects/$projectId/profile': typeof LayoutProjectsProjectIdProfileRoute
   '/_layout/projects/$projectId/reports': typeof LayoutProjectsProjectIdReportsRoute
-  '/_layout/projects/$projectId/requirements': typeof LayoutProjectsProjectIdRequirementsRoute
   '/_layout/projects/$projectId/tasks': typeof LayoutProjectsProjectIdTasksRoute
-  '/_layout/projects/$projectId/timesheet': typeof LayoutProjectsProjectIdTimesheetRoute
   '/_layout/projects/$projectId/wiki': typeof LayoutProjectsProjectIdWikiRoute
   '/_layout/projects/$projectId/': typeof LayoutProjectsProjectIdIndexRoute
   '/_layout/learning/skills/$skillId/edit': typeof LayoutLearningSkillsSkillIdEditRoute
@@ -296,13 +266,10 @@ export interface FileRouteTypes {
     | '/projects/'
     | '/subscription/'
     | '/projects/$projectId/files'
-    | '/projects/$projectId/gantt'
     | '/projects/$projectId/knowledge'
     | '/projects/$projectId/profile'
     | '/projects/$projectId/reports'
-    | '/projects/$projectId/requirements'
     | '/projects/$projectId/tasks'
-    | '/projects/$projectId/timesheet'
     | '/projects/$projectId/wiki'
     | '/projects/$projectId/'
     | '/learning/skills/$skillId/edit'
@@ -323,13 +290,10 @@ export interface FileRouteTypes {
     | '/projects'
     | '/subscription'
     | '/projects/$projectId/files'
-    | '/projects/$projectId/gantt'
     | '/projects/$projectId/knowledge'
     | '/projects/$projectId/profile'
     | '/projects/$projectId/reports'
-    | '/projects/$projectId/requirements'
     | '/projects/$projectId/tasks'
-    | '/projects/$projectId/timesheet'
     | '/projects/$projectId/wiki'
     | '/projects/$projectId'
     | '/learning/skills/$skillId/edit'
@@ -353,13 +317,10 @@ export interface FileRouteTypes {
     | '/_layout/projects/'
     | '/_layout/subscription/'
     | '/_layout/projects/$projectId/files'
-    | '/_layout/projects/$projectId/gantt'
     | '/_layout/projects/$projectId/knowledge'
     | '/_layout/projects/$projectId/profile'
     | '/_layout/projects/$projectId/reports'
-    | '/_layout/projects/$projectId/requirements'
     | '/_layout/projects/$projectId/tasks'
-    | '/_layout/projects/$projectId/timesheet'
     | '/_layout/projects/$projectId/wiki'
     | '/_layout/projects/$projectId/'
     | '/_layout/learning/skills/$skillId/edit'
@@ -510,25 +471,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutProjectsProjectIdWikiRouteImport
       parentRoute: typeof LayoutProjectsProjectIdRoute
     }
-    '/_layout/projects/$projectId/timesheet': {
-      id: '/_layout/projects/$projectId/timesheet'
-      path: '/timesheet'
-      fullPath: '/projects/$projectId/timesheet'
-      preLoaderRoute: typeof LayoutProjectsProjectIdTimesheetRouteImport
-      parentRoute: typeof LayoutProjectsProjectIdRoute
-    }
     '/_layout/projects/$projectId/tasks': {
       id: '/_layout/projects/$projectId/tasks'
       path: '/tasks'
       fullPath: '/projects/$projectId/tasks'
       preLoaderRoute: typeof LayoutProjectsProjectIdTasksRouteImport
-      parentRoute: typeof LayoutProjectsProjectIdRoute
-    }
-    '/_layout/projects/$projectId/requirements': {
-      id: '/_layout/projects/$projectId/requirements'
-      path: '/requirements'
-      fullPath: '/projects/$projectId/requirements'
-      preLoaderRoute: typeof LayoutProjectsProjectIdRequirementsRouteImport
       parentRoute: typeof LayoutProjectsProjectIdRoute
     }
     '/_layout/projects/$projectId/reports': {
@@ -550,13 +497,6 @@ declare module '@tanstack/react-router' {
       path: '/knowledge'
       fullPath: '/projects/$projectId/knowledge'
       preLoaderRoute: typeof LayoutProjectsProjectIdKnowledgeRouteImport
-      parentRoute: typeof LayoutProjectsProjectIdRoute
-    }
-    '/_layout/projects/$projectId/gantt': {
-      id: '/_layout/projects/$projectId/gantt'
-      path: '/gantt'
-      fullPath: '/projects/$projectId/gantt'
-      preLoaderRoute: typeof LayoutProjectsProjectIdGanttRouteImport
       parentRoute: typeof LayoutProjectsProjectIdRoute
     }
     '/_layout/projects/$projectId/files': {
@@ -601,13 +541,10 @@ const LayoutSubscriptionRouteWithChildren =
 
 interface LayoutProjectsProjectIdRouteChildren {
   LayoutProjectsProjectIdFilesRoute: typeof LayoutProjectsProjectIdFilesRoute
-  LayoutProjectsProjectIdGanttRoute: typeof LayoutProjectsProjectIdGanttRoute
   LayoutProjectsProjectIdKnowledgeRoute: typeof LayoutProjectsProjectIdKnowledgeRoute
   LayoutProjectsProjectIdProfileRoute: typeof LayoutProjectsProjectIdProfileRoute
   LayoutProjectsProjectIdReportsRoute: typeof LayoutProjectsProjectIdReportsRoute
-  LayoutProjectsProjectIdRequirementsRoute: typeof LayoutProjectsProjectIdRequirementsRoute
   LayoutProjectsProjectIdTasksRoute: typeof LayoutProjectsProjectIdTasksRoute
-  LayoutProjectsProjectIdTimesheetRoute: typeof LayoutProjectsProjectIdTimesheetRoute
   LayoutProjectsProjectIdWikiRoute: typeof LayoutProjectsProjectIdWikiRoute
   LayoutProjectsProjectIdIndexRoute: typeof LayoutProjectsProjectIdIndexRoute
 }
@@ -615,16 +552,11 @@ interface LayoutProjectsProjectIdRouteChildren {
 const LayoutProjectsProjectIdRouteChildren: LayoutProjectsProjectIdRouteChildren =
   {
     LayoutProjectsProjectIdFilesRoute: LayoutProjectsProjectIdFilesRoute,
-    LayoutProjectsProjectIdGanttRoute: LayoutProjectsProjectIdGanttRoute,
     LayoutProjectsProjectIdKnowledgeRoute:
       LayoutProjectsProjectIdKnowledgeRoute,
     LayoutProjectsProjectIdProfileRoute: LayoutProjectsProjectIdProfileRoute,
     LayoutProjectsProjectIdReportsRoute: LayoutProjectsProjectIdReportsRoute,
-    LayoutProjectsProjectIdRequirementsRoute:
-      LayoutProjectsProjectIdRequirementsRoute,
     LayoutProjectsProjectIdTasksRoute: LayoutProjectsProjectIdTasksRoute,
-    LayoutProjectsProjectIdTimesheetRoute:
-      LayoutProjectsProjectIdTimesheetRoute,
     LayoutProjectsProjectIdWikiRoute: LayoutProjectsProjectIdWikiRoute,
     LayoutProjectsProjectIdIndexRoute: LayoutProjectsProjectIdIndexRoute,
   }

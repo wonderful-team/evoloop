@@ -82,14 +82,14 @@ def sync_project_to_cloud_task(_self, repo_id: int):
     retry_backoff_max=300,
     max_retries=3,
 )
-def sync_tasks_to_evocloud_task(_self, analysis_id: str, task_ids: list[str]):
+def sync_tasks_to_evocloud_task(_self, task_ids: list[str], analysis_id: str | None = None):
     """
     Background task to sync requirement tasks to EvoCloud.
     Called automatically after requirement analysis is confirmed.
     """
     import asyncio
 
-    from app.domain.project.requirements.models import ProjectRequirementTask
+    from app.models.project import ProjectTask
     from app.infrastructure.database.sql.database import async_session_factory
 
     async def _sync():
@@ -99,8 +99,8 @@ def sync_tasks_to_evocloud_task(_self, analysis_id: str, task_ids: list[str]):
             from sqlalchemy import select
 
             # Get all tasks to sync
-            stmt = select(ProjectRequirementTask).where(
-                ProjectRequirementTask.id.in_(task_ids)
+            stmt = select(ProjectTask).where(
+                ProjectTask.id.in_(task_ids)
             )
             result = await session.execute(stmt)
             tasks = result.scalars().all()

@@ -348,7 +348,13 @@
       "tabChats": "对话",
       "tabFiles": "文件",
       "untitled": "未命名对话",
-      "workspaceFiles": "工作区文件"
+      "workspaceFiles": "工作区文件",
+      "actions": "项目操作",
+      "deploy": "项目分析与初始化",
+      "wiki": "生成项目百科",
+      "projectOnly": "仅支持项目模式",
+      "deployStarted": "已启动项目分析与初始化任务",
+      "wikiStarted": "已启动项目百科生成任务"
     },
     "skillAttached": "技能已附加",
     "sources": {

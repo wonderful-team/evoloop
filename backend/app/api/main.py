@@ -16,7 +16,6 @@ from app.api.routes import (
     planning,
     project_modules,
     project_profiles,
-    project_requirements,
     projects,
     resources,
     stream,
@@ -39,7 +38,6 @@ api_router.include_router(account.router)
 api_router.include_router(agent.router, tags=["agent"])  # agent.py defines /chat, /webhook
 api_router.include_router(projects.router, prefix="/projects", tags=["projects"])
 api_router.include_router(project_profiles.router, prefix="/projects", tags=["project-profiles"])
-api_router.include_router(project_requirements.router, tags=["project-requirements"])
 api_router.include_router(devices.router, prefix="/devices", tags=["devices"])
 api_router.include_router(mcp.router, prefix="/mcp", tags=["mcp"])
 api_router.include_router(files.router, prefix="/files", tags=["files"])

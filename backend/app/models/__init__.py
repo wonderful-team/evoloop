@@ -24,6 +24,7 @@ from .learning import SynthesisJob as SynthesisJob
 from .learning import TraceEvent as TraceEvent
 from .maintenance import MaintenanceReport as MaintenanceReport
 from .memory import MemoryConcept as MemoryConcept
+from .project import ProjectTask as ProjectTask
 from .planning import Plan as Plan
 from .planning import PlanStep as PlanStep
 from .scheduler import AutonomousTask as AutonomousTask
@@ -71,6 +72,7 @@ __all__ = [
     "TodoPriority",
     "TodoStatus",
     "WikiPage",
+    "ProjectTask",
     "Message",
     "GenericMessage",
     "Token",

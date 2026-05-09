@@ -14,7 +14,7 @@ from typing import Optional
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from app.domain.project.requirements.models import ProjectRequirementTask
+from app.models.project import ProjectTask
 from app.infrastructure.database.sql.database import AsyncSessionLocal
 from app.utils.id import gen_uuid
 from app.utils.time import utcnow
@@ -28,14 +28,14 @@ class SubtaskService:
     @staticmethod
     async def create_task_with_subtasks(
         project_id: int,
-        analysis_id: str,
         title: str,
+        analysis_id: Optional[str] = None,
         description: str = "",
         priority: str = "medium",
         estimated_hours: int = 0,
         subtasks: list[dict] = None,
         created_by: str = "agent"
-    ) -> ProjectRequirementTask:
+    ) -> ProjectTask:
         """
         Create a parent task with optional subtasks.
         
@@ -54,7 +54,7 @@ class SubtaskService:
         """
         async with AsyncSessionLocal() as session:
             # Create parent task
-            parent_task = ProjectRequirementTask(
+            parent_task = ProjectTask(
                 id=gen_uuid(),
                 analysis_id=analysis_id,
                 project_id=project_id,
@@ -77,7 +77,7 @@ class SubtaskService:
             # Create subtasks if provided
             if subtasks:
                 for i, subtask_data in enumerate(subtasks):
-                    subtask = ProjectRequirementTask(
+                    subtask = ProjectTask(
                         id=gen_uuid(),
                         analysis_id=analysis_id,
                         project_id=project_id,
@@ -100,9 +100,9 @@ class SubtaskService:
             
             # Reload with subtasks
             result = await session.execute(
-                select(ProjectRequirementTask)
-                .where(ProjectRequirementTask.id == parent_task.id)
-                .options(selectinload(ProjectRequirementTask.subtasks))
+                select(ProjectTask)
+                .where(ProjectTask.id == parent_task.id)
+                .options(selectinload(ProjectTask.subtasks))
             )
             return result.scalar_one()
 
@@ -123,9 +123,9 @@ class SubtaskService:
         """
         async with AsyncSessionLocal() as session:
             result = await session.execute(
-                select(ProjectRequirementTask)
-                .where(ProjectRequirementTask.id == task_id)
-                .options(selectinload(ProjectRequirementTask.subtasks))
+                select(ProjectTask)
+                .where(ProjectTask.id == task_id)
+                .options(selectinload(ProjectTask.subtasks))
             )
             task = result.scalar_one_or_none()
             
@@ -136,7 +136,7 @@ class SubtaskService:
 
     @staticmethod
     async def _build_tree_recursive(
-        task: ProjectRequirementTask,
+        task: ProjectTask,
         max_depth: int,
         current_depth: int,
         session
@@ -187,7 +187,7 @@ class SubtaskService:
             True if updated successfully
         """
         async with AsyncSessionLocal() as session:
-            task = await session.get(ProjectRequirementTask, task_id)
+            task = await session.get(ProjectTask, task_id)
             if not task:
                 logger.error(f"[SubtaskService] Task {task_id} not found")
                 return False
@@ -219,14 +219,14 @@ class SubtaskService:
     @staticmethod
     async def _update_parent_progress(parent_id: str, session):
         """Update parent progress based on subtasks."""
-        parent = await session.get(ProjectRequirementTask, parent_id)
+        parent = await session.get(ProjectTask, parent_id)
         if not parent:
             return
             
         # Load subtasks
         result = await session.execute(
-            select(ProjectRequirementTask)
-            .where(ProjectRequirementTask.parent_id == parent_id)
+            select(ProjectTask)
+            .where(ProjectTask.parent_id == parent_id)
         )
         subtasks = result.scalars().all()
         
@@ -277,12 +277,12 @@ class SubtaskService:
         async with AsyncSessionLocal() as session:
             # Get all root tasks for project
             result = await session.execute(
-                select(ProjectRequirementTask)
+                select(ProjectTask)
                 .where(
-                    ProjectRequirementTask.project_id == project_id,
-                    ProjectRequirementTask.parent_id.is_(None)
+                    ProjectTask.project_id == project_id,
+                    ProjectTask.parent_id.is_(None)
                 )
-                .order_by(ProjectRequirementTask.created_at)
+                .order_by(ProjectTask.created_at)
             )
             root_tasks = result.scalars().all()
             

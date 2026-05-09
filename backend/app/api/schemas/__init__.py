@@ -14,7 +14,6 @@ from .memory import *  # noqa: F401,F403
 from .planning import *  # noqa: F401,F403
 from .project_modules import *  # noqa: F401,F403
 from .project_profiles import *  # noqa: F401,F403
-from .project_requirements import *  # noqa: F401,F403
 from .projects import *  # noqa: F401,F403
 from .resources import *  # noqa: F401,F403
 from .responses import *  # noqa: F401,F403

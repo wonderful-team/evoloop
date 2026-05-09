@@ -173,17 +173,17 @@ async def list_root_tasks(
 ):
     """List root tasks (parent tasks) for a project."""
     from sqlalchemy import select
-    from app.domain.project.requirements.models import ProjectRequirementTask
+    from app.models.project import ProjectTask
     from app.infrastructure.database.sql.database import AsyncSessionLocal
     
     async with AsyncSessionLocal() as session:
-        query = select(ProjectRequirementTask).where(
-            ProjectRequirementTask.project_id == project_id,
-            ProjectRequirementTask.parent_id.is_(None)
-        ).order_by(ProjectRequirementTask.created_at.desc()).limit(limit)
+        query = select(ProjectTask).where(
+            ProjectTask.project_id == project_id,
+            ProjectTask.parent_id.is_(None)
+        ).order_by(ProjectTask.created_at.desc()).limit(limit)
         
         if status:
-            query = query.where(ProjectRequirementTask.status == status)
+            query = query.where(ProjectTask.status == status)
             
         result = await session.execute(query)
         tasks = result.scalars().all()

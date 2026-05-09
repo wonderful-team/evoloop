@@ -1,5 +1,5 @@
 import { useMutation } from "@tanstack/react-query"
-import { BookOpen, MoreVertical, Trash2 } from "lucide-react"
+import { BookOpen, MoreVertical, Trash2, Rocket, Search } from "lucide-react"
 import { useState } from "react"
 import { Trans, useTranslation } from "react-i18next"
 import { ProjectsService, WikiService } from "@/client"
@@ -24,6 +24,7 @@ import {
 import useCustomToast from "@evoloop/shared/hooks/useCustomToast"
 import { useProjectStore } from "@/stores/projectStore"
 import { handleError } from "@/utils"
+import { DiscoverDialog } from "./Modules/Overview/DiscoverDialog"
 
 interface ProjectActionsProps {
   project: any
@@ -34,6 +35,7 @@ export function ProjectActions({ project }: ProjectActionsProps) {
   const { showSuccessToast, showErrorToast } = useCustomToast()
   const { fetchProjects, currentProject, setProject } = useProjectStore()
   const [deleteOpen, setDeleteOpen] = useState(false)
+  const [discoverOpen, setDiscoverOpen] = useState(false)
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) =>
@@ -83,7 +85,7 @@ export function ProjectActions({ project }: ProjectActionsProps) {
           <DropdownMenuItem
             className="text-destructive focus:text-destructive cursor-pointer"
             onClick={(e) => {
-              e.stopPropagation() // Prevent card click
+              e.stopPropagation()
               setDeleteOpen(true)
             }}
           >
@@ -97,6 +99,15 @@ export function ProjectActions({ project }: ProjectActionsProps) {
             }}
           >
             <BookOpen className="mr-2 h-4 w-4" /> {project.has_wiki ? t('wiki.regenerate_action') : t('wiki.generate')}
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            className="cursor-pointer"
+            onClick={(e) => {
+              e.stopPropagation()
+              setDiscoverOpen(true)
+            }}
+          >
+            <Rocket className="mr-2 h-4 w-4" /> {t("chat.sidebar.deploy")}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -133,6 +144,13 @@ export function ProjectActions({ project }: ProjectActionsProps) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <DiscoverDialog
+        projectId={project.id}
+        open={discoverOpen}
+        onOpenChange={setDiscoverOpen}
+        onDiscovered={() => fetchProjects()}
+      />
     </>
   )
 }

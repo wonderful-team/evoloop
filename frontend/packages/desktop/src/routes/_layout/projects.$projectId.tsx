@@ -10,6 +10,7 @@ import {
   Clock,
   FileCode,
   FileText,
+  LayoutDashboard,
 } from "lucide-react"
 import { useEffect } from "react"
 import { useTranslation } from "react-i18next"
@@ -69,18 +70,11 @@ function ProjectLayout() {
   }
 
   const tabs = [
-    // { id: 'overview', label: t('projects.tabs.overview'), icon: LayoutDashboard, path: '/' },
     {
-      id: "tasks",
-      label: t("projects.tabs.tasks"),
-      icon: CheckSquare,
-      path: "/tasks",
-    },
-    {
-      id: "gantt",
-      label: t("projects.tabs.gantt"),
-      icon: BarChart2,
-      path: "/gantt",
+      id: "overview",
+      label: t("projects.tabs.overview"),
+      icon: LayoutDashboard,
+      path: "",
     },
     {
       id: "files",
@@ -89,16 +83,10 @@ function ProjectLayout() {
       path: "/files",
     },
     {
-      id: "requirements",
-      label: t("projects.tabs.requirements"),
-      icon: ClipboardList,
-      path: "/requirements",
-    },
-    {
-      id: "timesheet",
-      label: t("projects.tabs.timesheet"),
-      icon: Clock,
-      path: "/timesheet",
+      id: "tasks",
+      label: t("projects.tabs.tasks"),
+      icon: CheckSquare,
+      path: "/tasks",
     },
     {
       id: "wiki",

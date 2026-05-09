@@ -243,10 +243,6 @@ export type Body_learning_upload_screenshot = {
     file: (Blob | File);
 };
 
-export type Body_project_requirements_upload_requirement_document = {
-    file: (Blob | File);
-};
-
 export type CacheInvalidateResponse = {
     code?: number;
     message: string;
@@ -905,16 +901,6 @@ export type ListResponse_DetectedProjectItem_ = {
     [key: string]: unknown | boolean | string | DetectedProjectItem | number;
 };
 
-export type ListResponse_RequirementListItem_ = {
-    success?: boolean;
-    message?: string;
-    data?: Array<RequirementListItem>;
-    total?: number;
-    page?: number;
-    page_size?: number;
-    [key: string]: unknown | boolean | string | RequirementListItem | number;
-};
-
 export type LLMApplyResponse = {
     success?: boolean;
     message?: string;
@@ -1395,156 +1381,6 @@ export type RenameRequest = {
     [key: string]: unknown | string;
 };
 
-/**
- * Analysis item in requirement detail.
- */
-export type RequirementAnalysisItem = {
-    id: string;
-    status: string;
-    version: number;
-    data: ({
-    [key: string]: unknown;
-} | null);
-    user_edited: boolean;
-    confirmed_at: (string | null);
-    tasks_count: number;
-    synced_tasks: number;
-    [key: string]: unknown | string | number | boolean;
-};
-
-/**
- * Response after deleting a requirement document.
- */
-export type RequirementDeleteResponse = {
-    success?: boolean;
-    message?: string;
-    status: string;
-    document_id: string;
-    [key: string]: unknown | boolean | string;
-};
-
-/**
- * Response for requirement document detail.
- */
-export type RequirementDetailResponse = {
-    success?: boolean;
-    message?: string;
-    id: string;
-    file_name: string;
-    file_type: string;
-    file_size: number;
-    status: string;
-    raw_content_preview: (string | null);
-    created_at: (string | null);
-    updated_at: (string | null);
-    analyses: Array<RequirementAnalysisItem>;
-    [key: string]: unknown | boolean | string | number | RequirementAnalysisItem;
-};
-
-/**
- * Item in requirement document list.
- */
-export type RequirementListItem = {
-    id: string;
-    file_name: string;
-    file_type: string;
-    status: string;
-    created_at: (string | null);
-    analysis_count: number;
-    [key: string]: unknown | string | number;
-};
-
-/**
- * Requirement to task mapping.
- */
-export type RequirementMapping = {
-    by_requirement: {
-        [key: string]: Array<(string)>;
-    };
-    by_task: {
-        [key: string]: Array<(string)>;
-    };
-    unmapped_tasks: Array<(string)>;
-    [key: string]: unknown | string;
-};
-
-/**
- * Sync progress stats.
- */
-export type RequirementProgress = {
-    total: number;
-    synced: number;
-    failed: number;
-    syncing: number;
-    pending: number;
-    percentage: number;
-    is_complete: boolean;
-    has_failures: boolean;
-    [key: string]: unknown | number | boolean;
-};
-
-/**
- * Response for sync progress.
- */
-export type RequirementSyncProgressResponse = {
-    success?: boolean;
-    message?: string;
-    analysis_id: string;
-    progress: RequirementProgress;
-    last_updated: (string | null);
-    [key: string]: unknown | boolean | string | RequirementProgress;
-};
-
-/**
- * Task item in requirement task list.
- */
-export type RequirementTaskItem = {
-    id: string;
-    title: string;
-    description: string;
-    priority: string;
-    estimated_hours: number;
-    category: string;
-    tags: Array<(string)>;
-    requirement_refs: Array<(string)>;
-    acceptance_criteria: Array<(string)>;
-    sync_status: string;
-    sync_error: (string | null);
-    evocloud_task_id: (string | null);
-    synced_at: (string | null);
-    created_at: (string | null);
-    [key: string]: unknown | string | number;
-};
-
-/**
- * Response for analysis tasks.
- */
-export type RequirementTasksResponse = {
-    success?: boolean;
-    message?: string;
-    analysis_id: string;
-    document_id: string;
-    project_id: number;
-    sync_stats: {
-        [key: string]: (number);
-    };
-    tasks: Array<RequirementTaskItem>;
-    requirement_mapping: RequirementMapping;
-    [key: string]: unknown | boolean | string | number | RequirementTaskItem | RequirementMapping;
-};
-
-/**
- * Response after uploading a requirement document.
- */
-export type RequirementUploadResponse = {
-    success?: boolean;
-    message?: string;
-    document_id: string;
-    thread_id: string;
-    status: string;
-    [key: string]: unknown | boolean | string;
-};
-
 export type ResetKnowledgeResponse = {
     success?: boolean;
     message?: string;
@@ -1799,16 +1635,6 @@ export type SymbolResponse = {
     start_line: number;
     end_line: number;
     [key: string]: unknown | boolean | string | number;
-};
-
-/**
- * Response for symbol wiki generation.
- */
-export type SymbolWikiResponse = {
-    success?: boolean;
-    message?: string;
-    content: string;
-    [key: string]: unknown | boolean | string;
 };
 
 /**
@@ -2176,6 +2002,11 @@ export type UnignoreProjectResponse = {
     repo_id: number;
     name: string;
     [key: string]: unknown | boolean | string | number;
+};
+
+export type UpdateProfileRequest = {
+    content: string;
+    [key: string]: unknown | string;
 };
 
 export type UpdateSkillFromYamlResponse = {
@@ -3423,48 +3254,12 @@ export type ProjectProfilesGetProfileData = {
 
 export type ProjectProfilesGetProfileResponse = (ProfileContentResponse);
 
-export type ProjectRequirementsUploadRequirementDocumentData = {
-    formData: Body_project_requirements_upload_requirement_document;
+export type ProjectProfilesUpdateProfileData = {
     projectId: number;
+    requestBody: UpdateProfileRequest;
 };
 
-export type ProjectRequirementsUploadRequirementDocumentResponse = (RequirementUploadResponse);
-
-export type ProjectRequirementsListProjectRequirementsData = {
-    projectId: number;
-};
-
-export type ProjectRequirementsListProjectRequirementsResponse = (ListResponse_RequirementListItem_);
-
-export type ProjectRequirementsGetRequirementDetailData = {
-    docId: string;
-    projectId: number;
-};
-
-export type ProjectRequirementsGetRequirementDetailResponse = (RequirementDetailResponse);
-
-export type ProjectRequirementsDeleteRequirementDocumentData = {
-    docId: string;
-    projectId: number;
-};
-
-export type ProjectRequirementsDeleteRequirementDocumentResponse = (RequirementDeleteResponse);
-
-export type ProjectRequirementsGetAnalysisTasksData = {
-    analysisId: string;
-    docId: string;
-    projectId: number;
-};
-
-export type ProjectRequirementsGetAnalysisTasksResponse = (RequirementTasksResponse);
-
-export type ProjectRequirementsGetAnalysisSyncProgressData = {
-    analysisId: string;
-    docId: string;
-    projectId: number;
-};
-
-export type ProjectRequirementsGetAnalysisSyncProgressResponse = (RequirementSyncProgressResponse);
+export type ProjectProfilesUpdateProfileResponse = (ProfileContentResponse);
 
 export type ProjectsGetProjectsData = {
     filterType?: (string | null);
@@ -3675,13 +3470,6 @@ export type SymbolsSearchSymbolsData = {
 };
 
 export type SymbolsSearchSymbolsResponse = (Array<SymbolResponse>);
-
-export type SymbolsGenerateSymbolWikiData = {
-    projectId: number;
-    symbolId: number;
-};
-
-export type SymbolsGenerateSymbolWikiResponse = (SymbolWikiResponse);
 
 export type SystemGetSystemStatusResponse = (SystemStatusResponse);
 
