@@ -1,3 +1,4 @@
+import json
 import logging
 from typing import Any
 
@@ -16,6 +17,26 @@ from app.core.tools.manager import tool_manager
 from app.i18n.service import i18n
 
 logger = logging.getLogger(__name__)
+
+
+def _plan_has_pending_steps(plan: str | dict | None) -> bool:
+    """Check if a structured plan has any pending (not done) steps."""
+    if not plan:
+        return False
+    try:
+        if isinstance(plan, str):
+            plan_data = json.loads(plan)
+        else:
+            plan_data = plan
+        # Support multiple plan schema shapes
+        steps = plan_data.get("steps") or plan_data.get("plan", {}).get("steps") or []
+        for step in steps:
+            status = step.get("status", "").lower()
+            if status not in ("done", "completed", "success", "finished"):
+                return True
+        return False
+    except Exception:
+        return False
 
 
 class SupervisorNode(BaseAgentNode):
@@ -62,6 +83,56 @@ class SupervisorNode(BaseAgentNode):
         worker_outcome = StateLifecycleManager.consume_worker_outcome(state)
         if worker_outcome:
             if worker_outcome == "success":
+                # NEW: Plan Completeness Gate — verify plan is fully completed before routing to FINISH
+                progress = blackboard.metadata.plan_progress
+                if progress and not progress.is_complete():
+                    logger.info(
+                        f"[Supervisor] ⚠️ Worker reports success but plan incomplete "
+                        f"({progress.completed_steps}/{progress.total_steps}). Routing to WORKER."
+                    )
+                    return StateUpdate(
+                        next_node=RoutingTarget.WORKER,
+                        blackboard=blackboard,
+                        iteration_count=(state.iteration_count or 0) + 1
+                    )
+                # Fallback: check structured_plan for pending steps
+                plan = state.structured_plan or state.current_plan
+                if plan and _plan_has_pending_steps(plan):
+                    logger.info("[Supervisor] ⚠️ Worker reports success but structured_plan has pending steps. Routing to WORKER.")
+                    return StateUpdate(
+                        next_node=RoutingTarget.WORKER,
+                        blackboard=blackboard,
+                        iteration_count=(state.iteration_count or 0) + 1
+                    )
+                # Fallback 2: query DB for plan steps not completed
+                try:
+                    from app.infrastructure.database.sql.database import session_scope
+                    from sqlalchemy import select
+                    from app.models.planning import Plan as DBPlan, PlanStep as DBPlanStep
+                    thread_id = state.thread_id or config.get("configurable", {}).get("thread_id")
+                    if thread_id:
+                        async with session_scope() as session:
+                            stmt = select(DBPlan).where(DBPlan.thread_id == thread_id, DBPlan.status == "active")
+                            result = await session.execute(stmt)
+                            db_plan = result.scalar_one_or_none()
+                            if db_plan:
+                                stmt_steps = select(DBPlanStep).where(
+                                    DBPlanStep.plan_id == db_plan.id,
+                                    DBPlanStep.status.notin_(["completed", "done", "success"])
+                                )
+                                result_steps = await session.execute(stmt_steps)
+                                pending_db_steps = result_steps.scalars().all()
+                                if pending_db_steps:
+                                    logger.info(
+                                        f"[Supervisor] ⚠️ Worker reports success but DB plan has {len(pending_db_steps)} pending steps. Routing to WORKER."
+                                    )
+                                    return StateUpdate(
+                                        next_node=RoutingTarget.WORKER,
+                                        blackboard=blackboard,
+                                        iteration_count=(state.iteration_count or 0) + 1
+                                    )
+                except Exception as e:
+                    logger.debug(f"[Supervisor] DB plan check skipped: {e}")
                 logger.info("[Supervisor] ✅ Task complete. Routing to FINISH.")
                 return StateUpdate(
                     next_node=RoutingTarget.FINISH,

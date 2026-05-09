@@ -13,6 +13,7 @@ This module has NO runtime side effects at import time (lazy-init pattern).
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import re
 import time
@@ -162,8 +163,17 @@ class LayeredAuditor:
         if verification and verification.status in ("failed", "error"):
             triggers.append("verification_failed")
 
-        if len(messages) > 20:
+        if len(messages) > 50:
             triggers.append("long_conversation")
+
+        # NEW: Check for audit anomalies flagged by intermediate layers
+        anomalies = blackboard.metadata.audit_anomalies if blackboard and blackboard.metadata else []
+        if anomalies:
+            triggers.append("anomalies_detected")
+
+        # NEW: User/system explicitly requested comprehensive audit
+        if blackboard and blackboard.metadata and blackboard.metadata.force_comprehensive_audit:
+            triggers.append("user_requested")
 
         if triggers:
             logger.info(f"[AuditService] 🚩 Comprehensive triggers: {triggers}")
@@ -284,6 +294,50 @@ class LayeredAuditor:
         return summary, {"tier": "standard", "duration_ms": duration}
 
     # ------------------------------------------------------------------
+    # Helpers for structured audit input
+    # ------------------------------------------------------------------
+
+    def _build_audit_input(self, state: "AgentState") -> dict:
+        """Build structured audit input from blackboard instead of full messages."""
+        blackboard = state.blackboard
+        metadata = blackboard.metadata if blackboard else None
+        audit_input_data = metadata.audit_input_data if metadata else None
+
+        if audit_input_data:
+            # Use pre-built structured audit input if available
+            return audit_input_data.model_dump()
+
+        # Fallback: build from blackboard metadata
+        plan_progress = metadata.plan_progress if metadata else None
+
+        # Build tool stats from tool_history
+        tool_stats: dict[str, int] = {}
+        for sig in metadata.tool_history or []:
+            tool_name = sig.split(":")[0] if ":" in sig else sig
+            tool_stats[tool_name] = tool_stats.get(tool_name, 0) + 1
+
+        progress = {
+            "total_steps": plan_progress.total_steps if plan_progress else 0,
+            "completed_steps": plan_progress.completed_steps if plan_progress else 0,
+            "total_deliverables": len(metadata.audit_input_data.deliverables) if metadata and metadata.audit_input_data else 0,
+            "completed_deliverables": 0,
+        }
+
+        return {
+            "original_goal": state.session_goal or "",
+            "plan_summary": {
+                "total": plan_progress.total_steps if plan_progress else 0,
+                "completed": plan_progress.completed_steps if plan_progress else 0,
+                "remaining": (plan_progress.total_steps - plan_progress.completed_steps) if plan_progress else 0,
+            },
+            "progress": progress,
+            "deliverables": [],
+            "tool_stats": tool_stats,
+            "anomalies": [a.model_dump() for a in (metadata.audit_anomalies if metadata else [])],
+            "key_messages_digest": "",
+        }
+
+    # ------------------------------------------------------------------
     # Comprehensive audit — full engine-driven
     # ------------------------------------------------------------------
 
@@ -292,7 +346,12 @@ class LayeredAuditor:
         state: "AgentState",
         config: "RunnableConfig",
     ) -> AuditResult:
-        """Run the full engine-driven comprehensive audit."""
+        """Run the full engine-driven comprehensive audit.
+
+        Phase 1 improvement: Uses structured AuditInputData when available,
+        reducing context from ~18K tokens (full messages) to ~500 tokens.
+        Falls back to legacy full-message mode if structured data is absent.
+        """
         from app.core.engine.prompts import FinishPromptBuilder
         from app.core.config import settings
 
@@ -311,9 +370,18 @@ class LayeredAuditor:
         awakened_state = get_awakened_state()
         telemetry: dict[str, Any] = {}
         if awakened_state:
-            telemetry_snapshot = awakened_state.get_telemetry_snapshot()
-            if telemetry_snapshot:
-                telemetry = telemetry_snapshot.model_dump()
+            try:
+                telemetry_snapshot = awakened_state.get_telemetry_snapshot()
+                if telemetry_snapshot:
+                    telemetry = telemetry_snapshot.model_dump()
+            except Exception as e:
+                logger.warning(f"[AuditService] Telemetry snapshot failed: {e}")
+
+        # Phase 1: Build structured audit input
+        audit_input = self._build_audit_input(state)
+        has_structured_input = bool(
+            blackboard.metadata and blackboard.metadata.audit_input_data
+        )
 
         builder = FinishPromptBuilder(
             current_plan=current_plan,
@@ -329,6 +397,11 @@ class LayeredAuditor:
         system_prompt = builder.build()
         audit_ticket = builder.build_audit_ticket()
 
+        # Phase 1: Inject structured audit input into audit ticket if available
+        if has_structured_input and audit_ticket:
+            audit_input_json = json.dumps(audit_input, indent=2, ensure_ascii=False)
+            audit_ticket = f"{audit_ticket}\n\n---\n📊 Structured Audit Input:\n{audit_input_json}"
+
         from app.core.tools.manager import tool_manager
         tools = await tool_manager.get_node_tools("finish", state)
 
@@ -337,6 +410,13 @@ class LayeredAuditor:
         if audit_ticket:
             from langchain_core.messages import HumanMessage
             messages = [HumanMessage(content=audit_ticket, name="audit_ticket")] + messages
+
+        # Phase 1: If structured input is available, truncate older messages to reduce context
+        if has_structured_input and len(messages) > 25:
+            # Keep audit_ticket + last 10 messages + first 2 messages (for context)
+            preserved = messages[:3] + messages[-12:]
+            logger.info(f"[AuditService] 📉 Truncated audit context: {len(messages)} → {len(preserved)} msgs (structured input available)")
+            messages = preserved
 
         execution_state = state.model_copy(update={"messages": messages})
         model = config.get("configurable", {}).get("model")

@@ -47,6 +47,50 @@ class WorkerNode(BaseAgentNode):
                 "Supervisor must provide a valid agent_config in the ticket."
             )
 
+        # Load plan from DB if state doesn't have one (e.g. after route_to from Supervisor)
+        if not state.structured_plan and not state.current_plan:
+            thread_id = config.get("configurable", {}).get("thread_id")
+            if thread_id:
+                try:
+                    import asyncio
+                    from sqlalchemy import select
+                    from sqlalchemy.orm import Session
+                    from app.infrastructure.database.resource_manager import db_resource_manager
+                    from app.models.planning import Plan as DBPlan
+
+                    def _sync_load_plan(tid: str):
+                        engine = db_resource_manager.sync_engine
+                        if not engine:
+                            return None
+                        with Session(engine) as session:
+                            stmt = select(DBPlan).where(DBPlan.thread_id == tid)
+                            plan = session.execute(stmt).scalar_one_or_none()
+                            if plan and plan.steps:
+                                return {
+                                    "id": plan.id,
+                                    "title": plan.title,
+                                    "status": plan.status,
+                                    "steps": [
+                                        {
+                                            "id": s.id,
+                                            "title": s.title,
+                                            "status": s.status,
+                                            "order": s.order,
+                                        }
+                                        for s in plan.steps
+                                    ],
+                                }
+                            return None
+
+                    plan_dict = await asyncio.to_thread(_sync_load_plan, thread_id)
+                    if plan_dict:
+                        state.structured_plan = plan_dict
+                        logger.info(
+                            f"[Worker] Loaded plan from DB: {plan_dict['title']} ({len(plan_dict['steps'])} steps)"
+                        )
+                except Exception as e:
+                    logger.warning(f"[Worker] Failed to load plan from DB: {e}")
+
         return None
 
     async def build_prompt_pair(self, state: AgentState, config: RunnableConfig) -> tuple[str, str]:

@@ -52,11 +52,21 @@ Execute using available tools. One turn only.
 
 {%- if plan %}
 ## Execution Plan Progress
+{%- if plan is mapping %}
+- **Title**: {{ plan.get('title', 'Untitled') }}
+- **Status**: {{ 'APPROVED' if plan.get('approved') else 'PENDING' }}
+- **Plan ID**: {{ plan.get('id', 'N/A') }}
+- **IMPORTANT**: This plan has ALREADY been created by the Supervisor. DO NOT call `create_plan` again. Use the existing plan_id when calling `update_step_status`.
+  {% for s in plan.get('steps', []) -%}
+  {{ loop.index }}. [{{ s.get('status', 'pending') }}] {{ s.get('title', 'Untitled') }} (step_id: {{ s.get('id', 'N/A') }})
+  {% endfor %}
+{%- else %}
 - **Title**: {{ plan.title }}
 - **Status**: {{ 'APPROVED' if plan.approved else 'PENDING' }}
   {% for s in plan.steps -%}
   {{ s.index }}. [{{ s.status }}] {{ s.title }}
   {% endfor %}
+{%- endif %}
 {%- endif %}
 
 {%- if focus_files %}

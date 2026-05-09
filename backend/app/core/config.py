@@ -428,6 +428,10 @@ class Settings(BaseSettings):
     WORKER_AGENT_MAX_STEPS: int = 50
     FINISH_AGENT_MAX_STEPS: int = 10
 
+    # Long-horizon task limits (e.g. wiki generation, large codebase analysis)
+    LONG_HORIZON_SUPERVISOR_MAX_STEPS: int = 100
+    LONG_HORIZON_RECURSION_LIMIT: int = 250
+
     # --- Protocol Dynamic Loading (Phase 1 Optimization) ---
     # Feature flag for dynamic protocol loading - reduces Worker System Prompt size
     DYNAMIC_PROTOCOL_LOADING: bool = Field(

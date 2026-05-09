@@ -17,7 +17,7 @@ from app.core.engine.nodes.base import BaseNode
 from app.core.engine.routers import RoutingTarget
 from app.core.engine.services.audit_service import AuditService, AuditResult
 from app.core.engine.state import AgentState, StateUpdate
-from app.core.engine.state.blackboard import AuditMeta
+from app.core.engine.state.blackboard import AuditMeta, AuditInputData, ProgressMetrics, TaskDeliverable, AuditAnomaly
 from app.core.engine.context_trimmer import ContextTrimmer, TrimTrigger
 from app.core.events.schemas import SessionCompletedData
 
@@ -42,6 +42,138 @@ class FinishNode(BaseNode):
         except Exception as e:
             logger.exception(f"[Finish] Audit or finalization failed: {e}")
             return await self.handle_error(state, e, config=config)
+
+    async def _sync_plan_progress_from_db(self, state: "AgentState", blackboard, config: "RunnableConfig" = None) -> None:
+        """Sync plan_progress from database to blackboard. Always re-sync to get latest state."""
+        metadata = blackboard.metadata
+        if not metadata:
+            logger.info("[Finish] metadata is None, skipping plan_progress sync")
+            return
+
+        thread_id = state.thread_id
+        if not thread_id and config:
+            thread_id = config.get("configurable", {}).get("thread_id")
+        if not thread_id:
+            logger.info("[Finish] thread_id is None, skipping plan_progress sync")
+            return
+
+        logger.info(f"[Finish] Starting plan_progress sync for thread={thread_id}")
+        try:
+            from sqlalchemy import select
+            from sqlalchemy.orm import Session
+            from app.infrastructure.database.resource_manager import db_resource_manager
+            from app.models.planning import Plan as DBPlan
+            from app.core.engine.state.blackboard import PlanProgress
+
+            def _sync_query(tid: str):
+                engine = db_resource_manager.sync_engine
+                logger.info(f"[Finish] sync_engine={engine is not None}")
+                if not engine:
+                    return None
+                with Session(engine) as session:
+                    stmt = select(DBPlan).where(DBPlan.thread_id == tid)
+                    plan = session.execute(stmt).scalar_one_or_none()
+                    steps_count = len(plan.steps) if plan and plan.steps else 0
+                    logger.info(f"[Finish] DB plan found={plan is not None}, steps={steps_count}")
+                    if plan and plan.steps:
+                        total_steps = len(plan.steps)
+                        completed_steps = sum(1 for s in plan.steps if s.status == "completed")
+                        return {"total": total_steps, "completed": completed_steps, "plan_id": plan.id}
+                    return None
+
+            result = await asyncio.to_thread(_sync_query, thread_id)
+            logger.info(f"[Finish] _sync_query result={result is not None}")
+            if result:
+                metadata.plan_progress = PlanProgress(
+                    total_steps=result["total"],
+                    completed_steps=result["completed"],
+                    plan_id=result["plan_id"],
+                )
+                logger.info(
+                    f"[Finish] Synced plan_progress from DB: {result['completed']}/{result['total']} steps"
+                )
+            else:
+                logger.info("[Finish] No plan found in DB for sync")
+        except Exception as e:
+            logger.warning(f"[Finish] Failed to sync plan_progress from DB: {e}")
+
+    def _prepare_audit_input(self, state: "AgentState", blackboard) -> None:
+        """Build structured AuditInputData from blackboard state for efficient comprehensive audit.
+
+        This replaces the need for AuditService to scan the full message history (~18K tokens)
+        with a compact structured summary (~500 tokens).
+        """
+        from app.core.engine.message.reasoning import extract_tool_calls
+
+        metadata = blackboard.metadata
+        if not metadata:
+            return
+
+        # If audit_input_data already exists and is fresh, skip rebuild
+        if metadata.audit_input_data and metadata.audit_input_data.deliverables:
+            return
+
+        # Build tool stats from tool_history
+        tool_stats: dict[str, int] = {}
+        for sig in metadata.tool_history or []:
+            tool_name = sig.split(":")[0] if ":" in sig else sig
+            tool_stats[tool_name] = tool_stats.get(tool_name, 0) + 1
+
+        # Build plan summary
+        plan_progress = metadata.plan_progress
+        plan_summary = {}
+        if plan_progress:
+            plan_summary = {
+                "total": plan_progress.total_steps,
+                "completed": plan_progress.completed_steps,
+                "remaining": max(0, plan_progress.total_steps - plan_progress.completed_steps),
+            }
+
+        # Build progress metrics
+        progress = ProgressMetrics(
+            total_steps=plan_progress.total_steps if plan_progress else 0,
+            completed_steps=plan_progress.completed_steps if plan_progress else 0,
+            total_deliverables=0,
+            completed_deliverables=0,
+            key_findings=[],
+            issues_encountered=[],
+        )
+
+        # Detect anomalies from state
+        anomalies: list[AuditAnomaly] = list(metadata.audit_anomalies or [])
+        msg_count = len(state.messages or [])
+        if msg_count > 100:
+            anomalies.append(AuditAnomaly(
+                anomaly_type="context_overload",
+                severity="warn",
+                description=f"Message count ({msg_count}) exceeds 100 — possible context saturation",
+                suggested_action="Consider truncating history or using semantic summarization",
+            ))
+
+        # Check if Worker used all steps in single turn (detect via message count vs max_steps)
+        # NOTE: Worker truncation metadata may be stored in blackboard in future phases
+        msg_count = len(state.messages or [])
+        if msg_count > 80:
+            anomalies.append(AuditAnomaly(
+                anomaly_type="single_turn_saturation",
+                severity="info",
+                description=f"High message count ({msg_count}) — may indicate single-turn saturation",
+                suggested_action="Consider multi-turn execution with heartbeat protocol",
+            ))
+
+        audit_input = AuditInputData(
+            original_goal=state.session_goal or "",
+            plan_summary=plan_summary,
+            progress=progress,
+            deliverables=[],  # To be populated by Worker in future phases
+            tool_stats=tool_stats,
+            anomalies=anomalies,
+            key_messages_digest="",
+        )
+
+        metadata.audit_input_data = audit_input
+        metadata.audit_anomalies = anomalies
+        logger.info(f"[Finish] 📊 Prepared structured audit input: {plan_summary.get('completed', 0)}/{plan_summary.get('total', 0)} steps, {len(anomalies)} anomalies")
 
     async def handle_error(self, state: "AgentState", error: Exception, config: "RunnableConfig" = None) -> "StateUpdate":
         """Finish-specific error handling: route to END, not SUPERVISOR."""
@@ -140,6 +272,11 @@ class FinishNode(BaseNode):
         is_shadow_mode = blackboard.metadata.shadow_audit or False
         tool_history = blackboard.metadata.tool_history
 
+        # Phase 1: Prepare structured audit input before calling AuditService
+        # Also sync plan_progress from DB if blackboard doesn't have it
+        await self._sync_plan_progress_from_db(state, blackboard, config)
+        self._prepare_audit_input(state, blackboard)
+
         # --------------------------------------------------------------
         # 1. Audit
         # --------------------------------------------------------------
@@ -179,6 +316,16 @@ class FinishNode(BaseNode):
             final_outcome = outcome_match.group(1).strip()
             blackboard.metadata.final_outcome = final_outcome
             logger.info(f"[Finish] 🎯 Outcome: {final_outcome}")
+
+        # NEW: Enforce audit verdict — INCOMPLETE routes back to Supervisor
+        if final_outcome.upper() == "INCOMPLETE":
+            logger.warning(f"[Finish] 🔄 Audit verdict: INCOMPLETE. Routing back to Supervisor.")
+            blackboard.worker_outcome = "incomplete"
+            return StateUpdate(
+                messages=messages,
+                next_node=RoutingTarget.SUPERVISOR,
+                blackboard=blackboard,
+            )
 
         # Apply summary ONLY for comprehensive tiers to avoid technical log pollution
         if audit_tier == "comprehensive":

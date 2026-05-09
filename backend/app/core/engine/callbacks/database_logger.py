@@ -106,8 +106,8 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
         )
 
         # Store the message_id for subsequent tools/HITL in this turn
-        if result.message_id:
-            self._last_ai_message_id = result.message_id
+        if result.get("message_id"):
+            self._last_ai_message_id = result["message_id"]
             from app.core.context.manager import ContextManager
             try:
                 ctx = ContextManager.current()

@@ -71,8 +71,11 @@ def route_supervisor(state: AgentState) -> str | list[Send]:
 
     # --- Phase 5: Resource Constraints Enforcement ---
     iteration_count = (state.iteration_count or 0)
-    if iteration_count >= settings.SUPERVISOR_AGENT_MAX_STEPS:
-        logger.warning(f"[Router] Hard limit reached ({iteration_count}/{settings.SUPERVISOR_AGENT_MAX_STEPS}). Forcing termination.")
+    max_steps = settings.SUPERVISOR_AGENT_MAX_STEPS
+    if blackboard and blackboard.metadata and blackboard.metadata.max_supervisor_steps:
+        max_steps = blackboard.metadata.max_supervisor_steps
+    if iteration_count >= max_steps:
+        logger.warning(f"[Router] Hard limit reached ({iteration_count}/{max_steps}). Forcing termination.")
         return RoutingTarget.FINISH
 
     # --- Phase 4: Dynamic Subtask Spawning (Blackboard Driven) ---
@@ -130,4 +133,9 @@ def route_finish(state: AgentState) -> str:
     if blackboard and blackboard.metadata and blackboard.metadata.blocked_by_hook:
         logger.info("[Router] Finish blocked by hook. Looping back to supervisor.")
         return RoutingTarget.SUPERVISOR
+    # NEW: Respect audit outcome — INCOMPLETE forces loopback to Supervisor
+    if blackboard and blackboard.metadata and blackboard.metadata.final_outcome:
+        if blackboard.metadata.final_outcome.upper() == "INCOMPLETE":
+            logger.info("[Router] Finish audit: INCOMPLETE. Looping back to supervisor.")
+            return RoutingTarget.SUPERVISOR
     return RoutingTarget.END
