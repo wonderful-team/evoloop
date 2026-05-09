@@ -21,8 +21,8 @@ class VectorMemoryIndex:
         self.db_path = db_path
         self.model_name = model_name
         self._embedder: BaseEmbedder | None = None
-        self._db = None
-        self._table = None
+        self._db: Any = None
+        self._table: Any = None
         self._initialized = False
         self._dimensions: int | None = None
 
@@ -90,6 +90,21 @@ class VectorMemoryIndex:
             logger.info(f"[VectorIndex] Opened existing table '{table_name}'")
             
         self._initialized = True
+
+    async def close(self) -> None:
+        """Release resources."""
+        self._db = None
+        self._table = None
+        self._initialized = False
+
+    async def clear(self) -> None:
+        """Clear all entries from the vector index."""
+        if self._table is not None:
+            try:
+                self._table.delete("true")
+            except Exception as e:
+                logger.warning(f"[VectorIndex] Failed to clear table: {e}")
+        self._initialized = False
 
     async def _get_embedding(self, text: str) -> List[float] | None:
         """Generate embedding for text."""

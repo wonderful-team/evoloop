@@ -8,6 +8,7 @@ from app.models import CodeEntity, Repository
 
 router = APIRouter()
 
+
 @router.get("/projects/{project_id}/symbols", response_model=list[SymbolResponse])
 async def search_symbols(
     project_id: int,

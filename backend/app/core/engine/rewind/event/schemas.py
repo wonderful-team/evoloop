@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Rewind Event Schemas
 ====================
@@ -5,9 +6,11 @@ Rewind Event Schemas
 Pydantic data classes for rewind/rollback events.
 """
 
+from typing import Any
+
 from pydantic import Field, model_validator
 
-from app.core.events.base import BaseEvent
+from app.core.events.base import BaseEvent, EventData
 from .types import RewindEventType
 
 
@@ -30,7 +33,7 @@ class RewindRequestedEvent(RewindEvent):
     revert_files: bool = True
     reset_state: bool = True
     reason: str = "user_request"
-    results: dict[str, int] = Field(default_factory=dict)
+    results: dict[str, Any] = Field(default_factory=dict)
     errors: list[str] = Field(default_factory=list)
     success: bool = True
     # Pre-computed message IDs affected by this rewind.
@@ -41,7 +44,7 @@ class RewindRequestedEvent(RewindEvent):
 
     @model_validator(mode="after")
     def _build_data(self):
-        self.data = {
+        self.data = EventData.model_validate({
             "thread_id": self.thread_id,
             "target_message_id": self.target_message_id,
             "include_target": self.include_target,
@@ -51,7 +54,7 @@ class RewindRequestedEvent(RewindEvent):
             "results": self.results,
             "errors": self.errors,
             "success": self.success,
-        }
+        })
         return self
 
 
@@ -65,13 +68,13 @@ class RewindCompletedEvent(RewindEvent):
 
     @model_validator(mode="after")
     def _build_data(self):
-        self.data = {
+        self.data = EventData.model_validate({
             "thread_id": self.thread_id,
             "removed_message_count": self.removed_message_count,
             "reverted_file_count": self.reverted_file_count,
             "removed_memory_count": self.removed_memory_count,
             "new_checkpoint_id": self.new_checkpoint_id,
-        }
+        })
         return self
 
 
@@ -84,12 +87,12 @@ class RewindFailedEvent(RewindEvent):
 
     @model_validator(mode="after")
     def _build_data(self):
-        self.data = {
+        self.data = EventData.model_validate({
             "thread_id": self.thread_id,
             "error": self.error,
             "failed_step": self.failed_step,
             "partial_results": self.partial_results,
-        }
+        })
         return self
 
 
@@ -101,12 +104,12 @@ class CheckpointCleanupEvent(RewindEvent):
 
     @model_validator(mode="after")
     def _build_data(self):
-        self.data = {
+        self.data = EventData.model_validate({
             "thread_id": self.thread_id,
             "checkpoint_ids": self.checkpoint_ids,
             "min_checkpoint_id": self.min_checkpoint_id,
             "count": len(self.checkpoint_ids),
-        }
+        })
         return self
 
 
@@ -118,9 +121,9 @@ class MessagesCleanupEvent(RewindEvent):
 
     @model_validator(mode="after")
     def _build_data(self):
-        self.data = {
+        self.data = EventData.model_validate({
             "thread_id": self.thread_id,
             "message_ids": self.message_ids,
             "count": len(self.message_ids),
-        }
+        })
         return self

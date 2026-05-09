@@ -86,7 +86,6 @@ async def publish_checkpoint_cleanup(
             thread_id=thread_id,
             checkpoint_ids=checkpoint_ids,
             min_checkpoint_id=min_checkpoint_id,
-            delete_data=True,
         )
     )
 

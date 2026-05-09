@@ -218,7 +218,7 @@ to ensure they are interchangeable and can be used polymorphically.
         return []
 
     @abstractmethod
-    async def get_recent(self, count: int = 5) -> list["MemoryEntry"]:
+    async def get_recent(self, count: int = 5, project_id: int | None = None) -> list["MemoryEntry"]:
         """
         Get most recently updated memory entries.
         

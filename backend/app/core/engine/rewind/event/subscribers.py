@@ -8,6 +8,7 @@ Event-driven cleanup handlers for conversation rewind operations.
 import json
 import logging
 import re
+from typing import Any
 
 from langchain_core.messages import HumanMessage, RemoveMessage
 from sqlalchemy import delete, select, update, func
@@ -312,8 +313,8 @@ class MessageRewind:
             if target_message_id:
                 try:
                     # target_message_id is now a UUID
-                    stmt = select(Message).where(Message.id == target_message_id)
-                    result = await session.execute(stmt)
+                    target_stmt = select(Message).where(Message.id == target_message_id)
+                    result = await session.execute(target_stmt)
                     target_msg = result.scalar_one_or_none()
 
                     if not target_msg:
@@ -543,11 +544,11 @@ class StateRewind:
                     msg_text = self._normalize_for_match(self._extract_text(m.content))
                     if msg_text == target_anchor:
                         found_target = True
-                        if include_target:
+                        if include_target and m.id:
                             graph_updates.append(RemoveMessage(id=m.id))
                         continue
 
-                if found_target:
+                if found_target and m.id:
                     graph_updates.append(RemoveMessage(id=m.id))
 
             if found_target:
@@ -583,7 +584,7 @@ class StateRewind:
         # Apply updates
         # ------------------------------------------------------------------
         if checkpoint_id and base_state:
-            updates = {}
+            updates: dict[str, Any] = {}
             if graph_updates:
                 updates["messages"] = graph_updates
 
@@ -700,6 +701,8 @@ class StateRewind:
                     if text_matches:
                         return "".join(text_matches).strip()
             return content
+
+        return str(content)
 
     def _normalize_for_match(self, text: str) -> str:
         """Final normalization for sequence comparison."""

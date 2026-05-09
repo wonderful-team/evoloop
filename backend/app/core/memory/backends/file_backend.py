@@ -10,9 +10,9 @@ All operations (save, delete, etc.) are orchestrated to maintain consistency acr
 """
 
 import asyncio
-import json
 import logging
 import time
+from collections import defaultdict
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
@@ -254,7 +254,8 @@ class FileMemoryStorage(IMemoryStorage):
 
     async def get(self, entry_id: str) -> Optional[MemoryEntry]:
         """Fetch full memory entry from disk."""
-        if not self._initialized: await self.initialize()
+        if not self._initialized:
+            await self.initialize()
         
         target = self._id_index.get(entry_id)
         if not target:
@@ -285,7 +286,8 @@ class FileMemoryStorage(IMemoryStorage):
                 path.unlink()
             
             # Cleanup indices
-            if entry_id in self._id_index: del self._id_index[entry_id]
+            if entry_id in self._id_index:
+                del self._id_index[entry_id]
             self._hash_index = {h: i for h, i in self._hash_index.items() if i != entry_id}
             
             await self.index_db.delete(entry_id)
@@ -304,13 +306,16 @@ class FileMemoryStorage(IMemoryStorage):
         limit: int = 10,
     ) -> list[MemoryEntry]:
         """Hybrid search combining SQL metadata filtering and Vector semantic search."""
-        if not self._initialized: await self.initialize()
+        if not self._initialized:
+            await self.initialize()
         
         # 1. Metadata-only search (if query is empty)
         if not query:
             sql_filters = filters.copy() if filters else {}
-            if project_id is not None: sql_filters["project_id"] = project_id
-            if privacy: sql_filters["privacy"] = privacy.value
+            if project_id is not None:
+                sql_filters["project_id"] = project_id
+            if privacy:
+                sql_filters["privacy"] = privacy.value
             
             if types:
                 rows = []
@@ -327,8 +332,9 @@ class FileMemoryStorage(IMemoryStorage):
             return [e for e in entries if e is not None]
 
         # 2. Semantic Search (with vector-level filters)
-        v_filters = {"project_id": project_id} if project_id is not None else {}
-        if privacy: v_filters["privacy"] = privacy.value
+        v_filters: dict[str, Any] = {"project_id": project_id} if project_id is not None else {}
+        if privacy:
+            v_filters["privacy"] = privacy.value
         
         v_results = await self.vector_db.search(query, filters=v_filters, limit=limit * 3)
         
@@ -364,10 +370,12 @@ class FileMemoryStorage(IMemoryStorage):
             return results
         
         for v in v_results:
-            if len(results) >= limit: break
+            if len(results) >= limit:
+                break
             entry = await self.get(v["id"])
             if entry:
-                if types and entry.type not in types: continue
+                if types and entry.type not in types:
+                    continue
                 if filters:
                     if not all(getattr(entry, k, None) == val for k, val in filters.items()):
                         continue
@@ -383,12 +391,16 @@ class FileMemoryStorage(IMemoryStorage):
         limit: int | None = None,
     ) -> list[MemorySearchResult]:
         """Fast metadata listing via SQLite index."""
-        if not self._initialized: await self.initialize()
+        if not self._initialized:
+            await self.initialize()
         
-        sql_filters = {}
-        if type_filter: sql_filters["type"] = type_filter.value
-        if privacy_filter: sql_filters["privacy"] = privacy_filter.value
-        if project_id is not None: sql_filters["project_id"] = project_id
+        sql_filters: dict[str, Any] = {}
+        if type_filter:
+            sql_filters["type"] = type_filter.value
+        if privacy_filter:
+            sql_filters["privacy"] = privacy_filter.value
+        if project_id is not None:
+            sql_filters["project_id"] = project_id
         
         rows = await self.index_db.search(sql_filters, limit=limit or 1000)
         
@@ -408,7 +420,8 @@ class FileMemoryStorage(IMemoryStorage):
 
     async def get_recent(self, count: int = 5, project_id: int | None = None) -> list[MemoryEntry]:
         """Get most recent entries via SQL index."""
-        if not self._initialized: await self.initialize()
+        if not self._initialized:
+            await self.initialize()
         
         filters = {"project_id": project_id} if project_id is not None else {}
         rows = await self.index_db.search(filters, limit=count)
@@ -422,10 +435,12 @@ class FileMemoryStorage(IMemoryStorage):
 
     async def find_by_hash(self, content_hash: str, project_id: Optional[int] = None) -> MemoryEntry | None:
         """Lookup memory by its content hash."""
-        if not self._initialized: await self.initialize()
+        if not self._initialized:
+            await self.initialize()
         
         entry_id = self._hash_index.get(content_hash)
-        if not entry_id: return None
+        if not entry_id:
+            return None
         
         entry = await self.get(entry_id)
         if entry and project_id is not None and entry.project_id != project_id:
@@ -437,19 +452,22 @@ class FileMemoryStorage(IMemoryStorage):
         results = {}
         for eid in entry_ids:
             e = await self.get(eid)
-            if e: results[eid] = e
+            if e:
+                results[eid] = e
         return results
 
     async def find_by_source_message_ids(self, message_ids: list[str]) -> list[MemoryEntry]:
         """Find memories linked to specific message IDs via SQL index."""
-        if not self._initialized: await self.initialize()
+        if not self._initialized:
+            await self.initialize()
         
         results = []
         for mid in message_ids:
             rows = await self.index_db.search({"source_message_id": mid})
             for row in rows:
                 e = await self.get(row["id"])
-                if e: results.append(e)
+                if e:
+                    results.append(e)
         return results
 
     async def delete_by_source_message_ids(self, message_ids: list[str]) -> int:
@@ -457,7 +475,8 @@ class FileMemoryStorage(IMemoryStorage):
         entries = await self.find_by_source_message_ids(message_ids)
         count = 0
         for e in entries:
-            if await self.delete(e.id): count += 1
+            if await self.delete(e.id):
+                count += 1
         return count
 
     async def health_check(self) -> StorageHealthCheck:
@@ -480,7 +499,6 @@ class FileMemoryStorage(IMemoryStorage):
         if not checkpoints:
             return CheckpointDedupResult(dry_run=dry_run, total_checkpoints=0, duplicates_removed=0)
 
-        from collections import defaultdict
         groups = defaultdict(list)
         for cp in checkpoints:
             parts = cp.id.split("_")
@@ -489,10 +507,12 @@ class FileMemoryStorage(IMemoryStorage):
 
         total_removed = 0
         for thread_id, group in groups.items():
-            if len(group) <= 1: continue
+            if len(group) <= 1:
+                continue
             group.sort(key=lambda x: x.updated_at, reverse=True)
             for item in group[1:]:
-                if not dry_run: await self.delete(item.id)
+                if not dry_run:
+                    await self.delete(item.id)
                 total_removed += 1
 
         return CheckpointDedupResult(

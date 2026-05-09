@@ -73,7 +73,7 @@ class Neo4jMemoryStorage(IMemoryStorage):
         self._uri = uri
         self._user = user
         self._password = password
-        self._driver = None
+        self._driver: Any = None
 
         if not HAS_NEO4J:
             logger.warning("Neo4j driver not available. Neo4jMemoryStorage will not function.")
@@ -318,7 +318,7 @@ class Neo4jMemoryStorage(IMemoryStorage):
         async with self._driver.session() as session:
             # Build query with filters
             where_clauses = []
-            params = {"limit": limit}
+            params: dict[str, Any] = {"limit": limit}
 
             # Text search (case-insensitive) - only if query is not empty
             if query and query.strip():
@@ -391,7 +391,7 @@ class Neo4jMemoryStorage(IMemoryStorage):
 
         async with self._driver.session() as session:
             where_clauses = []
-            params = {}
+            params: dict[str, Any] = {}
 
             if type_filter:
                 where_clauses.append("m.type = $type")
@@ -437,6 +437,7 @@ class Neo4jMemoryStorage(IMemoryStorage):
                         tier=MemoryTier(record.get("tier", "operational")),
                         utility_score=record.get("utility_score", 0.0),
                         confidence=record.get("confidence", 1.0),
+                        created_at=dt,
                         updated_at=dt,
                     )
                 )
@@ -526,7 +527,7 @@ class Neo4jMemoryStorage(IMemoryStorage):
 
             return entries
 
-    async def get_recent(self, count: int = 5) -> list[MemoryEntry]:
+    async def get_recent(self, count: int = 5, project_id: int | None = None) -> list[MemoryEntry]:
         """Get most recently updated memories from Neo4j."""
         if not self._driver:
             raise StorageError("Neo4j not initialized.")

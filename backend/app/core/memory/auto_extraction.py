@@ -19,6 +19,7 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMe
 
 from app.core.config import settings
 from app.core.memory.models import MemoryEntry, MemoryType, PrivacyLevel
+from app.core.memory.schemas import MemoryMetadata
 from app.core.memory.sentiment_markers import (
     ACTION_MARKERS,
     VAGUE_MARKERS,
@@ -50,9 +51,9 @@ class AutoMemoryExtractor:
         self,
         memory_manager,
         config=None,
-        extraction_interval: int = None,
+        extraction_interval: int | None = None,
         max_turns: int = 5,
-        min_messages: int = None,
+        min_messages: int | None = None,
     ):
         """
         Initialize auto memory extractor.
@@ -674,13 +675,13 @@ class AutoMemoryExtractor:
                     tags=["auto_extracted"],
                     source="auto_extraction",
                     confidence=confidence,
-                    extra={
+                    extra=MemoryMetadata.model_validate({
                         "context": item.get("context", ""),
                         "time_context": item.get("time_context", ""),
                         "mapping_path": item.get("mapping_path", ""),
                         "rationale": rationale,
                         "extracted_at": datetime.utcnow().isoformat(),
-                    },
+                    }),
                 )
 
                 entries.append(entry)

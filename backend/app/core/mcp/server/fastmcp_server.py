@@ -3,7 +3,6 @@ import os
 from mcp.server.fastmcp import FastMCP
 
 from app.domain.codebase.exploration import ask_codebase, find_symbol
-from app.domain.codebase.indexing.tools import index_path
 from app.domain.codebase.retrieval.tools import search_codebase
 from app.domain.tools.execution import execute_command
 from app.domain.tools.files import (
@@ -140,15 +139,6 @@ async def search_semantic(query: str) -> str:
     """Semantic search in the codebase."""
     try:
         return await search_codebase.ainvoke({"query": query})
-    except Exception as e:
-        return f"Error: {e}"
-
-
-@mcp.tool()
-async def index_directory(path: str) -> str:
-    """Index a directory or file."""
-    try:
-        return await index_path.ainvoke({"path": path})
     except Exception as e:
         return f"Error: {e}"
 

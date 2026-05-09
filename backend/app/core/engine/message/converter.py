@@ -34,7 +34,7 @@ class EvoMessageConverter:
     """
 
     @staticmethod
-    def to_langchain(messages: List[Union[dict, Any]]) -> List[BaseMessage]:
+    def to_langchain(messages: list[Any]) -> List[BaseMessage]:
         """
         Convert raw dictionaries or existing message objects to LangChain BaseMessage.
         

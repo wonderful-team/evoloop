@@ -15,7 +15,7 @@ from langchain_core.callbacks import AsyncCallbackHandler
 from langchain_core.outputs import LLMResult
 
 from app.core.engine.callbacks.token_filter import TokenFilter
-from app.core.engine.message.publisher import MessagePublisher
+from app.core.engine.message import MessageHandler, MessagePublisher
 from app.core.engine.message.reasoning import extract_reasoning_from_kwargs
 from app.core.tools.registry import (
     get_tool_affected_paths,
@@ -36,7 +36,7 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
     3. Structured stream event publishing (thinking only)
     """
 
-    def __init__(self, thread_id: str = None):
+    def __init__(self, thread_id: str = ""):
         super().__init__()
         self.thread_id = thread_id
         from app.core.context import tool_state_store
@@ -68,12 +68,10 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
 
     async def emit_thinking(self, content: str):
         """发送 AI 思考过程片段"""
-        if not self.thread_id: return
-        try:
-            from app.core.engine.message.handler import MessageHandler
-            await MessageHandler.stream_thinking(self.thread_id, content)
-        except Exception:
-            pass
+        if not self.thread_id:
+            return
+
+        await MessageHandler.stream_thinking(self.thread_id, content)
 
     # ==============================================================================
     # LangChain Callback Methods
@@ -158,11 +156,7 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
 
         # NEW: Publish the filtered token to the frontend
         if filtered:
-            try:
-                from app.core.engine.message.handler import MessageHandler
-                await MessageHandler.stream_token(self.thread_id, filtered)
-            except Exception as e:
-                logger.warning(f"Failed to stream token: {e}")
+            await MessageHandler.stream_token(self.thread_id, filtered)
 
     async def on_llm_end(self, response: LLMResult, **kwargs: Any) -> None:
         """Run when LLM ends running."""
@@ -183,17 +177,10 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
     async def on_llm_error(self, error: BaseException, **kwargs: Any) -> None:
         """Run when LLM errors."""
         run_id = str(kwargs.get("run_id", ""))
-
         logger.error(f"LLM Error in thread {self.thread_id}: {error}", exc_info=True)
 
         # Flush any buffered tokens before cleanup
         self._token_filter.flush()
-        # Note: We no longer stream AI content tokens to support block-based message delivery.
-        #     try:
-        #         from app.core.engine.message.handler import MessageHandler
-        #         await MessageHandler.stream_token(self.thread_id, buf)
-        #     except Exception:
-        #         pass
 
         if run_id == str(self.active_llm_run_id):
             self.active_llm_run_id = None
@@ -218,7 +205,7 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
         if self.thread_id and self.monitor:
             await self.monitor.check_cancellation(self.thread_id)
 
-        tool_name = serialized.get("name") if serialized else "Unknown Tool"
+        tool_name = serialized.get("name") or "Unknown Tool"
         self._tool_names[run_id] = tool_name
 
         # Get tool metadata
@@ -260,15 +247,11 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
 
         # Stream real-time progress for visible tools
         if self.thread_id and not is_hidden:
-            try:
-                from app.core.engine.message.handler import MessageHandler
-                await MessageHandler.stream_progress(
-                    self.thread_id, 
-                    message=f"Executing {tool_name}...",
-                    metadata={"tool_name": tool_name}
-                )
-            except Exception:
-                pass
+            await MessageHandler.stream_progress(
+                self.thread_id,
+                message=f"Executing {tool_name}...",
+                metadata={"tool_name": tool_name}
+            )
 
         # Handle special tool types (only applies to visible tools)
         if self.thread_id:
@@ -330,15 +313,11 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
         logger.info(f"[Tool End] {tool_name}")
         
         if self.thread_id:
-            try:
-                from app.core.engine.message.handler import MessageHandler
-                await MessageHandler.stream_progress(
-                    self.thread_id, 
-                    message=f"Completed {tool_name}",
-                    status="success"
-                )
-            except Exception:
-                pass
+            await MessageHandler.stream_progress(
+                self.thread_id,
+                message=f"Completed {tool_name}",
+                status="success"
+            )
 
     async def on_tool_error(self, error: BaseException, **kwargs: Any) -> None:
         """Run when tool errors."""
@@ -352,20 +331,14 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
         self._run_metadata.pop(run_id, None)
 
         tool_name = self._tool_names.pop(run_id, "Unknown Tool")
-
-        # Phase 2-3: Step tracking and StreamEvent removed — StepEvent now driven by MessageHandler
         logger.info(f"[Tool Error] {tool_name}: {error}")
 
         if self.thread_id:
-            try:
-                from app.core.engine.message.handler import MessageHandler
-                await MessageHandler.stream_progress(
-                    self.thread_id, 
-                    message=f"Failed {tool_name}: {str(error)}",
-                    status="failed"
-                )
-            except Exception:
-                pass
+            await MessageHandler.stream_progress(
+                self.thread_id,
+                message=f"Failed {tool_name}: {str(error)}",
+                status="failed"
+            )
 
     async def on_chain_start(self, serialized: dict[str, Any], inputs: dict[str, Any], **kwargs: Any) -> None:
         """Run when chain (node) starts running.

@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Shared tool execution logic for AgentEngine.
 
@@ -13,6 +14,8 @@ from langchain_core.messages import ToolMessage
 from pydantic import BaseModel
 
 from app.core.engine.hooks import HookContext, HookEvent, ToolResult, hook_system
+from app.core.engine.hooks.schemas import ToolInput
+from app.core.engine.signals.schemas import AgentSignal
 from app.core.engine.state import AgentState, RunnableConfigMetadata
 from app.infrastructure.queue.factory import get_scheduler
 from app.utils.diff import diff_tracker
@@ -105,7 +108,7 @@ class AgentToolExecutor:
                 user_id=user_id,
                 project_id=project_id,
                 tool_name=tool_name,
-                tool_input=tool_args,
+                tool_input=ToolInput.model_validate(tool_args),
                 tool_use_id=tool_id,
                 blackboard=self.state.blackboard,
             )
@@ -144,7 +147,7 @@ class AgentToolExecutor:
             config = {**(self.config or {})}
             existing_metadata = config.get("metadata") or {}
             config["metadata"] = {**existing_metadata, "_evoloop_tool_call_id": tool_id}
-            content = await self._tool_executor.execute(tool, tool_args, config=config)
+            content = await self._tool_executor.execute(tool, tool_args, config=config)  # type: ignore[arg-type]
 
             # === HOOK: PostToolUse ===
             post_ctx = HookContext(
@@ -152,7 +155,7 @@ class AgentToolExecutor:
                 user_id=user_id,
                 project_id=project_id,
                 tool_name=tool_name,
-                tool_input=tool_args,
+                tool_input=ToolInput.model_validate(tool_args),
                 tool_result=ToolResult(output=content),
                 tool_use_id=tool_id,
                 blackboard=self.state.blackboard,
@@ -188,7 +191,7 @@ class AgentToolExecutor:
                 user_id=user_id,
                 project_id=project_id,
                 tool_name=tool_name,
-                tool_input=tool_args,
+                tool_input=ToolInput.model_validate(tool_args),
                 tool_use_id=tool_id,
                 error=e,
                 error_message=str(e),
@@ -261,7 +264,7 @@ class AgentToolExecutor:
         tool_calls: list[dict],
         local_tool_history: list[str],
         parallel: bool = False,
-    ) -> list[ToolMessage]:
+    ) -> tuple[list[ToolMessage], AgentSignal | None]:
         """
         Execute a batch of tool calls.
 

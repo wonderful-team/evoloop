@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Rewind Orchestrator
 ===================
@@ -12,9 +13,7 @@ import asyncio
 import logging
 from typing import TYPE_CHECKING
 
-from app.core.engine.rewind.exceptions import (
-    RewindError,
-)
+from app.core.engine.rewind.exceptions import RewindError
 from app.core.engine.schemas import RewindResult
 from app.core.events import system_bus
 

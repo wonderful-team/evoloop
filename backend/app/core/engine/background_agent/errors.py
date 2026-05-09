@@ -93,7 +93,6 @@ async def handle_task_exception(thread_id: str, project_id: int, e: Exception, h
                 title=classification.title,
                 message=classification.message,
                 hint=classification.hint,
-                action_text=i18n.get('core_engine.quota_exhausted_action'),
             ).model_dump_json()
         )
         await _push_to_mobile_if_handler(classification)

@@ -15,6 +15,7 @@ from app.core.engine.message.utils import get_message_text
 from app.core.engine.routers import RoutingTarget
 from app.core.engine.schemas import EngineResult
 from app.core.engine.state import AgentState, StateUpdate
+from app.core.engine.state.workspace import WorkspaceContext
 from app.core.engine.state.blackboard import SubtaskResult, VerificationStatus
 from app.core.engine.state.config import ExecutionTicket
 from app.core.tools.registry import get_tool_metadata
@@ -113,7 +114,7 @@ def process_worker_result(
 
     workspace_context = None
     if has_changes:
-        workspace_context = {"structure": None, "structure_updated_at": 0.0}
+        workspace_context = WorkspaceContext(structure=None, structure_updated_at=0.0)
 
     # 5b. Verification Signal Capture
     verification_signals = []

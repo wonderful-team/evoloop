@@ -62,6 +62,7 @@ class FinishNode(BaseNode):
         # Lazy imports to avoid circular deps at module load
         from app.core.context.manager import ContextManager
         from app.core.engine.hooks import HookContext, HookEvent, hook_system
+        from app.core.engine.hooks.schemas import HookMetadata
 
         ctx = ContextManager.current()
         messages = list(state.messages)
@@ -211,12 +212,12 @@ class FinishNode(BaseNode):
                 project_id=ctx.project_id,
                 messages=messages,
                 blackboard=blackboard,
-                metadata={
-                    "summary": summary,
-                    "audit_tier": audit_tier,
-                    "final_outcome": final_outcome,
-                    "duration_ms": total_duration,
-                },
+                metadata=HookMetadata(
+                    summary=summary,
+                    audit_tier=audit_tier,
+                    final_outcome=final_outcome,
+                    duration_ms=total_duration,
+                ),
             )
             stop_result = await hook_system.trigger(HookEvent.STOP, stop_ctx, blocking=True)
             if stop_result.block:

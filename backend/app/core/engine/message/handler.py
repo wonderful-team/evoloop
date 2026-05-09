@@ -243,18 +243,18 @@ class MessageHandler:
         if seq and persist_data.should_persist:
             # UPDATE existing running record
             updated = await self._repository.update(
-                sequence_number=sequence_number,
+                sequence_number=seq,
                 status="completed",
                 content=persist_data.content,
                 # We overwrite meta_data with the full set to ensure it's complete
                 meta_data=metadata,
             )
             if updated:
-                message_id = f"msg-{self.thread_id}-{sequence_number}"
+                message_id = f"msg-{self.thread_id}-{seq}"
                 if category.is_visible_to_user:
                     await self._dispatch_block(
                         role="tool", content=persist_data.content, category=category.value,
-                        status="completed", sequence_number=sequence_number,
+                        status="completed", sequence_number=seq,
                         tool_name=persist_data.tool_name, tool_call_id=persist_data.tool_call_id,
                         metadata=metadata,
                         channels={"mobile"}
@@ -295,7 +295,7 @@ class MessageHandler:
     async def handle_tool_error(
         self,
         tool_name: str,
-        error: Exception,
+        error: BaseException,
         tool_call_id: str | None = None,
         sequence_number: int | None = None,
     ) -> MessageHandlerResult:

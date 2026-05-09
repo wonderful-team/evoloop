@@ -44,7 +44,8 @@ class _FileCacheCore:
 
     def __init__(self, cache_dir: Optional[str] = None):
         if cache_dir is None:
-            cache_dir = os.path.expanduser("~/.evoloop/cache")
+            from app.core.config import settings
+            cache_dir = os.path.join(settings.APP_DATA_DIR, "cache")
         self.cache_dir = Path(cache_dir)
         self._ensure_directories()
 
@@ -396,7 +397,8 @@ class FileCacheLockAdapter(CacheLock):
         if self._locked:
             return True
 
-        lock_dir = Path.home() / ".evoloop" / "cache" / "locks"
+        from app.core.config import settings
+        lock_dir = Path(settings.APP_DATA_DIR) / "cache" / "locks"
         lock_dir.mkdir(parents=True, exist_ok=True)
         self._lock_file = lock_dir / f"{self.name}.lock"
 

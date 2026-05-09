@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["memory"])
 
+
 async def get_memory_manager():
     """Dependency to get memory manager via MemoryLifespanManager (singleton)."""
     from app.core.memory.lifespan import MemoryLifespanManager
@@ -22,6 +23,7 @@ async def get_memory_manager():
         await MemoryLifespanManager.ainitialize()
 
     yield MemoryLifespanManager.get_manager()
+
 
 @router.get("/concepts", response_model=list[ConceptResponse])
 async def list_concepts(project_id: int, manager=Depends(get_memory_manager)):
@@ -48,6 +50,7 @@ async def list_concepts(project_id: int, manager=Depends(get_memory_manager)):
     except Exception as e:
         logger.warning(f"Failed to list concepts: {e}")
         return []
+
 
 @router.get("/concepts/list", response_model=list[ConceptResponse])
 async def list_concepts_with_counts(
@@ -76,6 +79,7 @@ async def list_concepts_with_counts(
     except Exception as e:
         logger.warning(f"Failed to list concepts: {e}")
         return []
+
 
 @router.get("/concepts/{concept_name}", response_model=ConceptResponse)
 async def get_concept(
@@ -108,6 +112,7 @@ async def get_concept(
         logger.error(f"Failed to get concept {concept_name}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @router.post("/concepts", response_model=ConceptOperationResponse)
 async def add_concept(
     project_id: int, req: ConceptCreate, manager=Depends(get_memory_manager)
@@ -117,7 +122,7 @@ async def add_concept(
     """
     try:
         await manager.store_concept(
-            name=req.name,
+            concept=req.name,
             description=req.description,
             project_id=project_id,
             related_files=req.related_files
@@ -126,6 +131,7 @@ async def add_concept(
     except Exception as e:
         logger.error(f"Failed to add concept: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.get("/search", response_model=list[ConceptResponse])
 async def search_memory(
@@ -160,6 +166,7 @@ async def search_memory(
             episode_count=0
         ) for r in results
     ]
+
 
 @router.get("/search/vector", response_model=VectorSearchResponse)
 async def search_memory_vector(
@@ -214,6 +221,7 @@ async def search_memory_vector(
         logger.error(f"Vector search failed: {e}")
         raise HTTPException(status_code=500, detail=f"Vector search failed: {str(e)}")
 
+
 async def _perform_vector_search(
     query: str,
     project_id: int | None = None,
@@ -255,6 +263,7 @@ async def _perform_vector_search(
     )
     
     return results
+
 
 @router.get("/search/hybrid", response_model=HybridSearchResponse)
 async def search_memory_hybrid(
@@ -341,6 +350,7 @@ async def search_memory_hybrid(
             search_type="text_fallback"
         )
 
+
 @router.delete("/concepts/{concept_name}", response_model=ConceptOperationResponse)
 async def delete_concept(
     project_id: int, concept_name: str, manager=Depends(get_memory_manager)
@@ -360,6 +370,7 @@ async def delete_concept(
     except Exception as e:
         logger.error(f"Failed to delete concept {concept_name}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.put("/concepts/{concept_name}", response_model=ConceptOperationResponse)
 async def update_concept(
@@ -394,6 +405,7 @@ async def update_concept(
         logger.error(f"Failed to update concept {concept_name}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @router.get("/episodes/by-concept", response_model=list[EpisodeResponse])
 async def get_episodes_by_concept(
     project_id: int, concept: str, limit: int = 10, manager=Depends(get_memory_manager)
@@ -420,6 +432,7 @@ async def get_episodes_by_concept(
     except Exception as e:
         logger.error(f"Failed to find episodes by concept: {e}")
         return []
+
 
 @router.post("/maintenance/deduplicate-checkpoints")
 async def deduplicate_checkpoints(

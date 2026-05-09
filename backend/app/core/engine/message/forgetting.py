@@ -28,7 +28,7 @@ def apply_forgotten_status(messages: list[BaseMessage], tool_memory: ToolOutputM
     if not tool_memory or not tool_memory.forgotten:
         return messages
 
-    result = []
+    result: list[BaseMessage] = []
     for msg in messages:
         if isinstance(msg, ToolMessage) and tool_memory.is_forgotten(msg.tool_call_id):
             # Get summary and replace content

@@ -88,6 +88,7 @@ class MemoryRetriever:
         query: str,
         context: dict[str, Any] | None = None,
         already_surfaced: set[str] | None = None,
+        max_results: int | None = None,
     ) -> list[MemoryEntry]:
         """
         Find relevant memories using two-stage retrieval.
@@ -96,10 +97,13 @@ class MemoryRetriever:
             query: User query
             context: Additional context including recent_tools
             already_surfaced: Set of memory IDs already shown
+            max_results: Override the instance's max_results for this call
 
         Returns:
             List of relevant memory entries
         """
+        # Allow per-call override of max_results while preserving the instance default
+        limit = max_results if max_results is not None else self.max_results
         total_start = time.time()
         logger.info(f"[MemoryRetriever] 🔍 Starting find_relevant for query: '{query[:50]}...'")
 
@@ -144,7 +148,7 @@ class MemoryRetriever:
         max_score = scored_candidates[0][1] if scored_candidates else 0
 
         if max_score >= self.selection_skip_threshold:
-            selected = [c for c, s in scored_candidates[:self.max_results]]
+            selected = [c for c, s in scored_candidates[:limit]]
             total_elapsed = (time.time() - total_start) * 1000
             logger.info(
                 f"[MemoryRetriever] 🚀 Skipping Stage 2 (LLM): High confidence keyword match "
@@ -153,13 +157,13 @@ class MemoryRetriever:
             return selected
 
         # If few enough, return all
-        if len(fresh_candidates) <= self.max_results:
+        if len(fresh_candidates) <= limit:
             total_elapsed = (time.time() - total_start) * 1000
-            logger.info(f"[MemoryRetriever] ✓ Returning all {len(fresh_candidates)} candidates (<= max_results={self.max_results}) in {total_elapsed:.1f}ms")
+            logger.info(f"[MemoryRetriever] ✓ Returning all {len(fresh_candidates)} candidates (<= max_results={limit}) in {total_elapsed:.1f}ms")
             return fresh_candidates
 
         # Stage 2: LLM selection (if enabled)
-        logger.info(f"[MemoryRetriever] 🧠 Stage 2: Selection mode={'LLM' if self.enable_llm_selection else 'Keyword'}, fresh_candidates={len(fresh_candidates)}, max_results={self.max_results}")
+        logger.info(f"[MemoryRetriever] 🧠 Stage 2: Selection mode={'LLM' if self.enable_llm_selection else 'Keyword'}, fresh_candidates={len(fresh_candidates)}, max_results={limit}")
 
         if self.enable_llm_selection:
             # Check cache
@@ -180,7 +184,7 @@ class MemoryRetriever:
             logger.info(f"[MemoryRetriever] 🧠 Stage 2 (_llm_select): {len(selected)} selected in {stage2_elapsed:.1f}ms")
         else:
             stage2_start = time.time()
-            selected = self._keyword_rank(fresh_candidates, ctx)[:self.max_results]
+            selected = self._keyword_rank(fresh_candidates, ctx)[:limit]
             stage2_elapsed = (time.time() - stage2_start) * 1000
             logger.info(f"[MemoryRetriever] 📈 Stage 2 (_keyword_rank): {len(selected)} selected in {stage2_elapsed:.1f}ms")
 

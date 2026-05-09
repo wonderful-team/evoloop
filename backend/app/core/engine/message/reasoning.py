@@ -83,7 +83,7 @@ def _apply_reasoning_patch() -> None:
             return _get_payload_with_reasoning
 
         # Apply to base class (AdaptiveChatOpenAI will inherit this)
-        ChatOpenAI._get_request_payload = _get_payload_with_reasoning_factory(ChatOpenAI._get_request_payload)
+        ChatOpenAI._get_request_payload = _get_payload_with_reasoning_factory(ChatOpenAI._get_request_payload)  # type: ignore[method-assign]
 
         # Patch 3: Final fallback - intercept httpx.AsyncClient.send
         _original_httpx_send = httpx.AsyncClient.send
@@ -138,7 +138,7 @@ def _apply_reasoning_patch() -> None:
 
             return await _original_httpx_send(self, request, **kwargs)
 
-        httpx.AsyncClient.send = _patched_httpx_send
+        httpx.AsyncClient.send = _patched_httpx_send  # type: ignore[method-assign]
 
         logger.info("[Reasoning] Applied Kimi reasoning_content safety patches")
 

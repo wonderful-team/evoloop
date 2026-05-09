@@ -104,7 +104,7 @@ class AgentEngine:
         trim_result = self._context_trimmer.trim(
             messages=state.messages,
             model=model,
-            node_source=node_source or name.lower(),
+            node_source=node_source or name.lower(),  # type: ignore[arg-type]
             tool_memory=tool_memory,
             is_retry=state.is_retry or False,
         )
@@ -221,7 +221,7 @@ class _ToolExecutorAdapter:
         )
         self._parallel = parallel
 
-    async def execute_batch(self, tool_calls: list[dict], local_tool_history: list[str]) -> list[Any]:
+    async def execute_batch(self, tool_calls: list[dict], local_tool_history: list[str]) -> tuple[list[Any], Any | None]:
         return await self._executor.execute_batch(tool_calls, local_tool_history, parallel=self._parallel)
 
 

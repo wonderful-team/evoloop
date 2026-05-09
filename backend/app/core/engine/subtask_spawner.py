@@ -31,6 +31,8 @@ def build_subtask_sends(state: AgentState, blackboard: BlackboardState) -> list[
     spawn is not re-triggered on the next router pass.
     """
     spawn_plan = blackboard.spawn_plan
+    if spawn_plan is None:
+        return []
     subtasks = spawn_plan.subtasks
     project_id = state.project_id or DEFAULT_PROJECT_ID
     parent_thread_id = state.thread_id or "unknown"
@@ -56,9 +58,9 @@ def build_subtask_sends(state: AgentState, blackboard: BlackboardState) -> list[
             role_name=f"Field Specialist {subtask_id}",
             system_instructions=system_instructions,
             is_subtask=True,
-            subtask_context=subtask.context or {},
+            subtask_context=subtask.context,
             skill_hint=skill_hint,
-            tools=subtask_tools if subtask_tools else None,
+            tools=subtask_tools,
         )
         if subtask_tools:
             logger.info(f"[Router] Subtask {subtask_id} assigned tools: {subtask_tools}")
@@ -84,7 +86,7 @@ def build_subtask_sends(state: AgentState, blackboard: BlackboardState) -> list[
             subtask_id=subtask_id,
             agent_config=agent_config,
             acceptance_criteria=subtask_acceptance_criteria if subtask_acceptance_criteria else None,
-            parameters=subtask_parameters if subtask_parameters else None,
+            parameters=subtask_parameters if subtask_parameters else None,  # type: ignore[arg-type]
             historical_context=parent_ticket.historical_context if parent_ticket else None,
             referenced_tech=parent_ticket.referenced_tech if parent_ticket else None,
             macro_goal=parent_ticket.topic if parent_ticket else None,

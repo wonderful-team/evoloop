@@ -139,7 +139,7 @@ class TwoTierMemoryManager:
         self._storage = storage
         self._config = config
         self._analyzer = analyzer
-        self._retriever = None
+        self._retriever: Any = None
 
         if config is not None:
             self.root = config.memory_root
@@ -373,7 +373,7 @@ class TwoTierMemoryManager:
         scored: list[tuple[MemorySearchResult, float]],
     ) -> dict[str, dict[str, Any]]:
         """Allocate memories to sections based on type."""
-        sections = {
+        sections: dict[str, dict[str, Any]] = {
             name: {"title": title, "entries": []}
             for name, title in self.SECTIONS.items()
         }

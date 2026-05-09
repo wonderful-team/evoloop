@@ -196,7 +196,6 @@
             "kb_list": "列出知识文档 '{path}'[[ (递归: {recursive}) ]]",
             "kb_search": "搜索知识库 '{pattern}'[[ (限制: {limit}) ]]",
             "kb_read": "读取知识文档 '{path}'[[ (版本: {version}) ]]",
-            "index_path": "索引路径 '{path}'[[ (深层: {recursive}) ]]",
             "cancel_command": "取消命令 '{task_id}'",
             "cancel_todo": "取消待办 '{todo_id}'",
             "complete_todo": "完成待办 '{todo_id}'",

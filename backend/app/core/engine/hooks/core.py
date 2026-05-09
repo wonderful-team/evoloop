@@ -38,7 +38,7 @@ import re
 from collections.abc import Awaitable, Callable
 from datetime import datetime
 from enum import Enum, auto
-from typing import Any
+from typing import Any, overload
 
 from app.core.engine.hooks.schemas import HookContext, HookResult
 
@@ -81,6 +81,7 @@ class HookEvent(Enum):
     # Prompt Enrichment
     PROMPT_POLISHING = auto()    # Context-aware prompt polishing (domain expert hook)
 
+
 # Handler type alias
 HookHandler = Callable[[HookContext], HookResult | Awaitable[HookResult]]
 
@@ -112,7 +113,7 @@ class HookSystem:
         handler: HookHandler | None = None,
         priority: int = 100,
         matcher: str | None = None,
-    ) -> Callable | HookHandler:
+    ) -> HookHandler | Callable[[HookHandler], HookHandler]:
         """
         Register a hook handler with optional matcher pattern.
         
@@ -287,7 +288,7 @@ class HookSystem:
 
         # Ensure result is HookResult
         if not isinstance(result, HookResult):
-            result = HookResult(success=True, data=result if result else {})
+            result = HookResult(success=True, data=result if result else {})  # type: ignore[arg-type]
 
         return result
 
@@ -308,10 +309,10 @@ class HookSystem:
             return [h for h in handlers if h._hook_matcher == matcher]
         return handlers.copy()
 
-    def get_metrics(self, event: HookEvent | None = None) -> dict[str, Any]:
+    def get_metrics(self, event: HookEvent | None = None) -> dict[HookEvent, dict[str, Any]]:
         """Get metrics for events."""
         if event:
-            return self._metrics.get(event, {})
+            return {event: self._metrics.get(event, {})}
         return self._metrics.copy()
 
 

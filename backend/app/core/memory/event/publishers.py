@@ -19,7 +19,6 @@ async def publish_memory_context_gather(
     Returns the event instance so callers can read the populated data.
     """
     event = MemoryContextGatherEvent(
-        project_id=project_id,
         data=MemoryContextGatherData(project_id=project_id),
     )
     await system_bus.publish(event, sequential=True)

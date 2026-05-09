@@ -17,10 +17,12 @@ from typing import Any, Optional
 from langchain_core.messages import BaseMessage
 
 from app.core.config import settings
+from app.core.memory.backends import Neo4jMemoryStorage
 from app.core.memory.backends.file_backend import FileMemoryStorage
 from app.core.memory.backends.sql_short_term import SqlShortTermMemory
 from app.core.memory.config import MemoryConfig
 from app.core.memory.interfaces.short_term import IShortTermMemory
+from app.core.memory.interfaces.storage import IMemoryStorage
 from app.core.memory.models import (
     MemoryEntry,
     MemorySearchResult,
@@ -49,7 +51,7 @@ class MemoryManager:
     def __init__(
         self,
         config: Optional['MemoryConfig'] = None,
-        storage: FileMemoryStorage | None = None,
+        storage: IMemoryStorage | None = None,
         short_term: IShortTermMemory | None = None,
     ):
         """
@@ -66,29 +68,24 @@ class MemoryManager:
         self.config = config or MemoryConfig.from_settings()
 
         # Short-term memory (always SQL)
-        if short_term is not None:
-            self.short_term = short_term
-        else:
-            self.short_term: IShortTermMemory = SqlShortTermMemory()
+        self.short_term: IShortTermMemory = short_term if short_term is not None else SqlShortTermMemory()
 
         # Long-term memory backend
+        self._storage: IMemoryStorage
         if storage is not None:
             self._storage = storage
             logger.info("MemoryManager: Using provided storage backend")
         elif settings.EMBEDDED_MODE:
             # File-based storage for embedded mode
-            from app.core.memory.backends.file_backend import FileMemoryStorage
             self._storage = FileMemoryStorage()
             logger.info("MemoryManager: Initialized with FileBackend (embedded mode)")
         else:
             # Neo4j for full mode
             try:
-                from app.core.memory.backends.neo4j_backend import Neo4jMemoryStorage
                 self._storage = Neo4jMemoryStorage()
                 logger.info("MemoryManager: Initialized with Neo4jBackend (full mode)")
             except ImportError:
                 # Fallback to file if Neo4j not available
-                from app.core.memory.backends.file_backend import FileMemoryStorage
                 self._storage = FileMemoryStorage()
                 logger.warning("MemoryManager: Neo4j not available, falling back to FileBackend")
 
@@ -101,7 +98,7 @@ class MemoryManager:
         self.pruning = MemoryPruningService(self._storage)
         self.retrieval = MemoryRetriever(self._storage, config=self.config)
         self.quality = MemoryQualityAnalyzer(self._storage, config=self.config)
-        self._two_tier = None
+        self._two_tier: Any = None
 
     async def initialize(self) -> None:
         """Initialize all memory components."""
@@ -611,12 +608,13 @@ class MemoryManager:
         Returns:
             List of extracted memory entries
         """
-        return await self.extraction.maybe_extract(
+        result = await self.extraction.maybe_extract(
             thread_id=thread_id,
             messages=messages,
             project_id=project_id,
             user_id=user_id,
         )
+        return result or []
 
     async def run_maintenance(self, project_id: int | None = None, force: bool = False) -> dict:
         """

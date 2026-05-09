@@ -66,12 +66,8 @@ class MessageBlockFactory:
                 if tc_meta and tc_meta.is_hidden:
                     continue
 
-                try:
-                    # Convert to ToolCall model to ensure strict validation and correct serialization
-                    serializable_tool_calls.append(ToolCall(**tc))
-                except Exception as e:
-                    logger.warning(f"[MessageBlockFactory] Failed to validate tool call: {e}")
-                    serializable_tool_calls.append(tc) # Fallback to dict
+                # Convert to ToolCall model to ensure strict validation and correct serialization
+                serializable_tool_calls.append(ToolCall(**tc))
 
             return MessageBlock(
                 id=msg_id,

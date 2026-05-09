@@ -9,7 +9,7 @@ from typing import Any
 
 from pydantic import Field, model_validator
 
-from app.core.events.base import BaseEvent
+from app.core.events.base import BaseEvent, EventData
 
 
 class AgentEvent(BaseEvent):
@@ -24,10 +24,10 @@ class AgentSessionStartedEvent(AgentEvent):
     project_id: int | None = None
     
     def model_post_init(self, __context: Any) -> None:
-        self.data = {
+        self.data = EventData.model_validate({
             "thread_id": self.thread_id,
             "project_id": self.project_id
-        }
+        })
 
 
 class AgentRunCompletedEvent(AgentEvent):
@@ -41,12 +41,12 @@ class AgentRunCompletedEvent(AgentEvent):
 
     @model_validator(mode="after")
     def _build_data(self):
-        self.data = {
+        self.data = EventData.model_validate({
             "thread_id": self.thread_id,
             "project_id": self.project_id,
             "goal": self.goal,
             "status": self.status,
-        }
+        })
         return self
 
 

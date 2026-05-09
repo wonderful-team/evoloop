@@ -254,7 +254,6 @@ class EngineCommandSubscriber:
         logger.info(f"[EngineCommand] Processing {action} for thread {thread_id}, target={message_id}")
 
         from app.core.engine.rewind import RewindOrchestrator
-        from app.core.engine.rewind.exceptions import RewindError
         from app.core.events import system_bus
         from app.core.context.manager import ContextManager
 
@@ -296,35 +295,32 @@ class EngineCommandSubscriber:
             retry_content = target_msg.content
             project_id = target_msg.project_id or 1
 
-        try:
-            orchestrator = RewindOrchestrator(event_bus=system_bus)
-            rewind_result = await orchestrator.perform_rewind(
-                thread_id=thread_id,
-                target_message_id=str(target_msg.id),
-                include_target=False,
-                revert_files=revert_files,
-                reset_state=should_redispatch,
-                reason=action,
-            )
+        orchestrator = RewindOrchestrator(event_bus=system_bus)
+        rewind_result = await orchestrator.perform_rewind(
+            thread_id=thread_id,
+            target_message_id=str(target_msg.id),
+            include_target=False,
+            revert_files=revert_files,
+            reset_state=should_redispatch,
+            reason=action,
+        )
 
-            if rewind_result.status != "success":
-                logger.error(f"[EngineCommand] {action} rewind failed: {rewind_result.errors}")
-                return
-
-            logger.info(
-                f"[EngineCommand] {action} rewind completed: "
-                f"{rewind_result.removed_message_count} messages removed"
-            )
-        except RewindError as e:
-            logger.error(f"[EngineCommand] {action} rewind failed: {e}")
+        if rewind_result.status != "success":
+            logger.error(f"[EngineCommand] {action} rewind failed: {rewind_result.errors}")
             return
+
+        logger.info(
+            f"[EngineCommand] {action} rewind completed: "
+            f"{rewind_result.removed_message_count} messages removed"
+        )
 
         if not should_redispatch:
             logger.info("[EngineCommand] Rewind done, no re-dispatch required")
             return
 
         # Retry: re-dispatch the message
-        ctx = ContextManager.create_context(thread_id=thread_id, project_id=project_id)
+        from app.core.context.manager import EvoContext
+        ctx = EvoContext(thread_id=thread_id, project_id=project_id)
         ContextManager.set(ctx)
 
         result = await dispatch_agent_run(

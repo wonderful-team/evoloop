@@ -38,7 +38,7 @@ async def resume_graph_background(
     callback = TransparentCallbackHandler(thread_id=thread_id)
 
     # Extract project_id from config metadata (same pattern as run_agent_background)
-    project_id = config.get("metadata", {}).get("project_id") if config else None
+    project_id = int(config.get("metadata", {}).get("project_id"))
     run_id = config.get("configurable", {}).get("run_id", f"resume-{thread_id}") if config else f"resume-{thread_id}"
 
     db_callback = DatabaseCallbackHandler(

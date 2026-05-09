@@ -70,7 +70,7 @@ class BlockMapper:
             run_id=msg.run_id,
             role=msg.role,  # type: ignore[arg-type]
             category=msg.category or "",
-            content_type=msg.content_type or "text",
+            content_type=msg.content_type or "text",  # type: ignore[arg-type]
             content=msg.content or "",
             thinking=msg.thinking,
             tool_calls=msg.tool_calls,
@@ -247,7 +247,7 @@ class BlockMapper:
                     safe_tool_calls.append(tc)
                 else:
                     safe_tool_calls.append({"id": str(tc), "type": str(type(tc).__name__)})
-            safe_msg.tool_calls = safe_tool_calls
+            safe_msg.tool_calls = safe_tool_calls  # type: ignore[assignment]
 
         data = safe_msg.model_dump(exclude_none=True)
 

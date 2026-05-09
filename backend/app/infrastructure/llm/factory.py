@@ -1,6 +1,7 @@
 import asyncio
 import hashlib
 import logging
+import weakref
 from typing import Dict, Any
 
 import httpx
@@ -110,8 +111,10 @@ class LLMFactory:
     - Thread-safe with asyncio.Lock for concurrent access.
     """
     
-    # Cache: (cache_key) -> LLM instance
-    _instance_cache: Dict[str, any] = {}
+    # Cache: per-event-loop dict of (cache_key) -> LLM instance
+    # WeakKeyDictionary ensures entries are auto-removed when the loop is GC'd,
+    # preventing stale references across asyncio.run() boundaries in worker tasks.
+    _instance_cache: weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, Dict[str, Any]] = weakref.WeakKeyDictionary()
     _cache_lock = asyncio.Lock()
     _cache_hits = 0
     _cache_misses = 0
@@ -159,9 +162,15 @@ class LLMFactory:
         )
         
         async with LLMFactory._cache_lock:
-            if cache_key in LLMFactory._instance_cache:
+            loop = asyncio.get_running_loop()
+            loop_cache = LLMFactory._instance_cache.get(loop)
+            if loop_cache is None:
+                loop_cache = {}
+                LLMFactory._instance_cache[loop] = loop_cache
+
+            if cache_key in loop_cache:
                 LLMFactory._cache_hits += 1
-                return LLMFactory._instance_cache[cache_key]
+                return loop_cache[cache_key]
             
             LLMFactory._cache_misses += 1
             logger.debug(f"[LLMFactory] Creating new LLM instance: {config.model_name} (type={config_type})")
@@ -174,7 +183,7 @@ class LLMFactory:
             else:
                 instance = await LLMFactory._create_platform_llm(config)
             
-            LLMFactory._instance_cache[cache_key] = instance
+            loop_cache[cache_key] = instance
             return instance
 
     @staticmethod
@@ -330,7 +339,7 @@ class LLMFactory:
             cache_hits=LLMFactory._cache_hits,
             cache_misses=LLMFactory._cache_misses,
             hit_rate=f"{hit_rate:.1%}",
-            cached_instances=len(LLMFactory._instance_cache),
+            cached_instances=sum(len(c) for c in LLMFactory._instance_cache.values()),
         )
 
     @staticmethod

@@ -118,7 +118,7 @@ async def harvest_concepts_task(concepts_data: list[dict], project_id: int):
 
         # Use unified MemoryManager interface
         await container.memory_manager.store_concept(
-            name=name,
+            concept=name,
             description=description,
             project_id=project_id,
         )
@@ -282,9 +282,9 @@ async def git_harvest_task(cwd: str, project_id: int, model: str | None = None):
                 await MemoryLifespanManager.ainitialize()
             container = MemoryLifespanManager.get_container()
             
-            from app.core.memory.schemas import Concept as MemConcept
+            from app.core.memory.schemas import Concept
             for concept in result.concepts:
-                mem_concept = MemConcept(
+                mem_concept = Concept(
                     name=concept.name,
                     description=concept.description,
                     project_id=project_id,
@@ -302,7 +302,20 @@ async def reconcile_skill_macro_task(skill_id: int, thread_id: str, model: str |
     Background task to reconcile a broken skill macro.
     """
     from app.core.learning.skill_synthesizer import WorkflowSynthesizer
-    from app.models.learning import LearnedSkill
+    from app.models.learning import LearnedSkill, TraceEvent
+
+    # Pre-check: ensure there are enough trace events to synthesize from
+    async with session_scope() as db:
+        stmt = select(func.count(TraceEvent.id)).where(TraceEvent.thread_id == thread_id)
+        count_res = await db.execute(stmt)
+        event_count = count_res.scalar()
+
+    if not event_count or event_count < 3:
+        logger.warning(
+            f"[Celery] Skipping skill reconciliation for {thread_id}: "
+            f"only {event_count or 0} trace events found (need >= 3)."
+        )
+        return
 
     ctx = EvoContext(thread_id=thread_id, active_model=model)
     token = ContextManager.set(ctx)
@@ -394,6 +407,7 @@ async def run_autonomous_task_execution(task_id: int, project_id: int | None = N
 
             logger.info(f"[Celery] Starting autonomous agent for task {task_id} on {device_id}")
             task.consecutive_failures = 0
-            await run_agent_background(thread_id, result.inputs)
+            if result.inputs:
+                await run_agent_background(thread_id, result.inputs)
     finally:
         await DevicePool.release_device(device_id, task_id=f"task-{task_id}")

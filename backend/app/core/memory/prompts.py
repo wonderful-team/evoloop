@@ -100,7 +100,7 @@ class MemoryRetrievalPromptBuilder:
         self,
         query: str,
         memories: List[dict],
-        recent_tools: List[str] = None,
+        recent_tools: List[str] | None = None,
         max_selections: int = 5
     ):
         self.query = query

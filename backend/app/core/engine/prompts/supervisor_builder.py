@@ -7,6 +7,7 @@ Allows for dynamic context injection and potential LLM-specific adaptations.
 import json
 import logging
 import os
+from typing import Any
 
 from langchain_core.runnables import RunnableConfig
 
@@ -26,7 +27,7 @@ class SupervisorPromptBuilder:
     ):
         self.project_id = project_id
         self.iteration_count = iteration_count
-        self.context = context or {}
+        self.context: Any = context or {}
 
     async def build(self, config: RunnableConfig) -> str:
         """Constructs the STATIC system prompt using Jinja2 templating.

@@ -131,7 +131,3 @@ def route_finish(state: AgentState) -> str:
         logger.info("[Router] Finish blocked by hook. Looping back to supervisor.")
         return RoutingTarget.SUPERVISOR
     return RoutingTarget.END
-
-
-# Backward-compatible re-export for expression-based routing
-from app.core.engine.expression_evaluator import make_expression_router  # noqa: E402,F401

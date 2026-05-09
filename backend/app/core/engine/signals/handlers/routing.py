@@ -56,7 +56,7 @@ class RouteToHandler(SignalHandler[RouteToSignal]):
             agent_config=agent_config,
             namespace_context=inferred_namespace,
             skill_id=signal.skill_id,
-            skill_ids=routing_context.skill_ids,
+            skill_ids=routing_context.skill_ids,  # type: ignore[arg-type]
             workflow_mode=routing_context.workflow_mode or "single",
             macro_goal=routing_context.macro_goal,
             parameters=TicketParameters(**parameters) if parameters else None,

@@ -101,7 +101,7 @@ class MemoryEntry(DynamicBaseModel):
         def _clean(s: str) -> str:
             return ' '.join((s or "").replace('\n', ' ').split()).strip()[:150]
 
-        frontmatter = {
+        frontmatter: dict[str, Any] = {
             "id": self.id,
             "type": self.type.value,
             "tier": self.tier.value,

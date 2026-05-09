@@ -23,6 +23,7 @@ from langchain_core.messages import AIMessage, BaseMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 
 from app.core.engine.context_trimmer import ContextTrimmer, TrimTrigger
+from app.core.engine.error_handler import with_llm_retry
 from app.core.engine.error_handler import LLMErrorHandler
 from app.core.engine.message.reasoning import extract_reasoning_from_message
 from app.infrastructure.llm.factory import LLMFactory
@@ -57,8 +58,6 @@ class InferenceEngine:
         if tools:
             return llm.bind_tools(tools), {t.name: t for t in tools}
         return llm, {}
-
-    from app.core.engine.error_handler import with_llm_retry
 
     @staticmethod
     @with_llm_retry(max_attempts=3)
@@ -115,7 +114,7 @@ class InferenceEngine:
             trim_result = self._context_trimmer.trim(
                 messages=loop_messages,
                 model=model,
-                node_source=name.lower(),
+                node_source=name.lower(),  # type: ignore[arg-type]
                 stages={"window", "repair"},
             )
             if trim_result.trigger != TrimTrigger.NONE:
@@ -269,13 +268,13 @@ class InferenceEngine:
 
         system_messages = self.build_system_messages(system_prompt, provider)
         history_messages = [m for m in messages if not isinstance(m, SystemMessage)]
-        loop_messages = system_messages + history_messages
+        loop_messages: list[BaseMessage] = system_messages + history_messages
 
         if not history_messages:
             logger.error(f"[{name}] No history messages! Returning empty.")
             return {"messages": [], "tool_history": [], "last_response": None, "is_truncated": False, "signal": None}
 
-        new_messages = []
+        new_messages: list[BaseMessage] = []
         local_tool_history = []
         last_response = None
 
@@ -401,7 +400,7 @@ class InferenceEngine:
             sys_hash=sys_hash,
         )
 
-        new_messages = [response]
+        new_messages: list[BaseMessage] = [response]
         local_tool_history = []
 
         if response.tool_calls:

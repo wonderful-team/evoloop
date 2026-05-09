@@ -67,7 +67,6 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
         try:
             # 2. Deserialize & Prepare
             raw_messages = EvoMessageConverter.to_langchain(inputs.messages)
-            evoloop_command_id = inputs.command_id
 
             # Parallel context load
             loaded_ctx = await ContextManager.load(thread_id)
@@ -85,13 +84,17 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
                     project_id=project_id,
                     working_directory=working_dir,
                     active_model=inputs.model,
-                    command_id=evoloop_command_id
+                    command_id=inputs.command_id
                 )
             else:
                 ctx.request_id = f"bg-{thread_id}-{int(time.time())}"
                 ctx.working_directory = working_dir
-                ctx.command_id = evoloop_command_id
+                ctx.command_id = inputs.command_id
                 ctx.active_model = inputs.model or ctx.active_model
+            
+            # Allow tests/metadata to inject user_id for benefit-gated tools
+            if not ctx.user_id and inputs.metadata.get("user_id"):
+                ctx.user_id = inputs.metadata["user_id"]
                 
             ContextManager.set(ctx)
 
@@ -104,7 +107,7 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
             working_dir = ctx.working_directory
 
             # 3. Config Construction
-            config = {
+            config: dict[str, Any] = {
                 "configurable": {
                     "thread_id": thread_id,
                     "working_directory": working_dir,
@@ -148,7 +151,7 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
             await AgentContextHydrator.hydrate(
                 ctx=ctx,
                 blackboard=blackboard,
-                config=config,
+                config=config,  # type: ignore[arg-type]
                 last_human_msg=last_human_msg,
                 is_retry=inputs.is_retry,
                 is_subtask=False,

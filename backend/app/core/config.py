@@ -306,7 +306,7 @@ class Settings(BaseSettings):
     @property
     def APP_DATA_DIR(self) -> str:
         """Centralized application data directory."""
-        return os.path.join(os.path.expanduser("~"), ".evoloop")
+        return os.getenv("EVOLOOP_APP_DATA_DIR", os.path.join(os.path.expanduser("~"), ".evoloop"))
 
     @computed_field
     @property

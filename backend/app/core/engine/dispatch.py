@@ -113,26 +113,20 @@ async def dispatch_agent_run(
     # ------------------------------------------------------------------
     # 2. Process references (images, files, skills)
     # ------------------------------------------------------------------
-    try:
-        # Resolve project root path for file references
-        root_path = None
-        if project_id:
-            project = await evocloud_manager.get_project_by_id(project_id)
-            if project:
-                root_path = project.get("path")
+    root_path = None
+    if project_id:
+        project = await evocloud_manager.get_project_by_id(project_id)
+        if project:
+            root_path = project.get("path")
 
-        async with session_scope() as session:
-            ref_context = await reference_service.process_references(
-                message_text=message_content,
-                attachments=attachments or [],
-                session=session,
-                root_path=root_path,
-            )
-        content_blocks = ref_context.content_blocks
-    except Exception as e:
-        logger.error(f"[Dispatch] Reference processing failed: {e}")
-        # Non-fatal: fall back to plain text
-        content_blocks = message_content
+    async with session_scope() as session:
+        ref_context = await reference_service.process_references(
+            message_text=message_content,
+            attachments=attachments or [],
+            session=session,
+            root_path=root_path,
+        )
+    content_blocks = ref_context.content_blocks
 
     # ------------------------------------------------------------------
     # 2.5 Extract explicit skill_id from attachments for downstream routing
@@ -169,36 +163,30 @@ async def dispatch_agent_run(
     # 4. DB persistence & EvoCloud sync
     # ------------------------------------------------------------------
     persisted_msg_id: str | None = None
+    async with session_scope() as session:
+        # Upsert Conversation
+        conversation = await session.get(Conversation, thread_id)
+        if not conversation:
+            conversation = Conversation(
+                id=thread_id,
+                project_id=project_id,
+                title=message_content[:50],
+            )
+            session.add(conversation)
+        else:
+            conversation.updated_at = datetime.now(timezone.utc)
 
-    try:
-        async with session_scope() as session:
-            # Upsert Conversation
-            conversation = await session.get(Conversation, thread_id)
-            if not conversation:
-                conversation = Conversation(
-                    id=thread_id,
-                    project_id=project_id,
-                    title=message_content[:50],
-                )
-                session.add(conversation)
-            else:
-                conversation.updated_at = datetime.now(timezone.utc)
-
-            if not skip_message_persistence:
-                # New message: persist to DB via Repository to ensure parent_id linkage
-                from app.core.engine.message.repository import MessageRepository
-                repo = MessageRepository(thread_id, project_id)
-                msg_id, seq = await repo.persist(
-                    role="human",
-                    content=message_content,
-                    category="user",
-                    is_visible=True,
-                )
-                persisted_msg_id = msg_id
-
-    except Exception as e:
-        logger.error(f"[Dispatch] Failed to persist: {e}", exc_info=True)
-        return DispatchResult(status="failed", thread_id=thread_id, error=str(e))
+        if not skip_message_persistence:
+            # New message: persist to DB via Repository to ensure parent_id linkage
+            from app.core.engine.message.repository import MessageRepository
+            repo = MessageRepository(thread_id, project_id)
+            msg_id, seq = await repo.persist(
+                role="human",
+                content=message_content,
+                category="user",
+                is_visible=True,
+            )
+            persisted_msg_id = msg_id
 
     # ------------------------------------------------------------------
     # 5. Build BackgroundAgentInputs
@@ -243,27 +231,20 @@ async def persist_user_message(
     Returns the persisted ``Message.id``, or ``None`` if the conversation
     does not exist (caller decides whether to treat this as fatal).
     """
-    try:
-        async with session_scope() as session:
-            conversation = await session.get(Conversation, thread_id)
-            if not conversation:
-                logger.warning(
-                    f"[Dispatch] Cannot persist message: conversation {thread_id} not found"
-                )
-                return None
+    async with session_scope() as session:
+        conversation = await session.get(Conversation, thread_id)
+        if not conversation:
+            logger.warning(f"[Dispatch] Cannot persist message: conversation {thread_id} not found")
+            return None
 
-            conversation.updated_at = datetime.now(timezone.utc)
+        conversation.updated_at = datetime.now(timezone.utc)
 
-            from app.core.engine.message.repository import MessageRepository
-            repo = MessageRepository(thread_id, project_id or conversation.project_id)
-            msg_id, seq = await repo.persist(
-                role="human",
-                content=content,
-                category="user",
-                is_visible=True,
-            )
-            return msg_id
-
-    except Exception as e:
-        logger.error(f"[Dispatch] Failed to persist user message: {e}")
-        return None
+        from app.core.engine.message.repository import MessageRepository
+        repo = MessageRepository(thread_id, project_id or conversation.project_id)
+        msg_id, seq = await repo.persist(
+            role="human",
+            content=content,
+            category="user",
+            is_visible=True,
+        )
+        return msg_id

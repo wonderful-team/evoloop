@@ -34,14 +34,11 @@ class SignalEmitter:
         callback_list = callbacks if isinstance(callbacks, list) else getattr(callbacks, "handlers", [])
         for cb in callback_list:
             if hasattr(cb, "on_tool_start"):
-                try:
-                    await cb.on_tool_start(
-                        serialized={"name": tool_name},
-                        input_str=json.dumps(tool_input, ensure_ascii=False),
-                        run_id=run_id,
-                    )
-                except Exception as e:
-                    logger.error(f"Failed to emit on_tool_start for {tool_name}: {e}")
+                await cb.on_tool_start(
+                    serialized={"name": tool_name},
+                    input_str=json.dumps(tool_input, ensure_ascii=False),
+                    run_id=run_id,
+                )
 
     @staticmethod
     async def emit_tool_end(tool_name: str, output: str, run_id: str, config: RunnableConfig):
@@ -50,10 +47,7 @@ class SignalEmitter:
         callback_list = callbacks if isinstance(callbacks, list) else getattr(callbacks, "handlers", [])
         for cb in callback_list:
             if hasattr(cb, "on_tool_end"):
-                try:
-                    await cb.on_tool_end(output=output, run_id=run_id)
-                except Exception as e:
-                    logger.error(f"Failed to emit on_tool_end for {tool_name}: {e}")
+                await cb.on_tool_end(output=output, run_id=run_id)
 
 
 class ToolCallInterceptor(ABC):

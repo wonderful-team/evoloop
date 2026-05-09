@@ -3,9 +3,10 @@ Pre-compact hook handler — saves checkpoint state before context compression.
 """
 
 import logging
-from datetime import datetime
-
 import yaml
+from datetime import datetime
+from typing import Any
+
 from langchain_core.messages import BaseMessage
 
 from app.core.engine.hooks.core import HookContext, HookResult
@@ -84,7 +85,7 @@ async def pre_compact_save_state(context: HookContext) -> HookResult:
             )
 
         # Create checkpoint data
-        checkpoint = {
+        checkpoint: dict[str, Any] = {
             "timestamp": datetime.utcnow().isoformat(),
             "thread_id": context.thread_id,
             "message_count": len(context.messages),

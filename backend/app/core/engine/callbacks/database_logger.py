@@ -18,6 +18,7 @@ from langchain_core.outputs import LLMResult
 
 from app.core.engine.message import MessageHandler
 from app.core.engine.message.reasoning import extract_reasoning_from_kwargs
+from app.core.engine.message.utils import parse_tool_input
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +36,7 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
     所有分类和策略决策都委托给 message 模块。
     """
 
-    def __init__(self, thread_id: str, project_id: int, run_id: str = None):
+    def __init__(self, thread_id: str, project_id: int, run_id: str = ""):
         self.thread_id = thread_id
         self.project_id = project_id
         self.run_id = run_id
@@ -68,68 +69,66 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
         if not response.generations:
             return
 
-        try:
-            generation = response.generations[0][0]
-            message = generation.message
+        generation = response.generations[0][0]
+        message = getattr(generation, "message", None)
+        if message is None:
+            return
 
-            # 提取内容
-            content = self._extract_content(message.content)
-            if not content:
-                content = ""
+        # 提取内容
+        content = self._extract_content(message.content)
+        if not content:
+            content = ""
 
-            # 提取工具调用
-            tool_calls = None
-            if hasattr(message, "tool_calls") and message.tool_calls:
-                tool_calls = message.tool_calls
-            elif message.additional_kwargs:
-                tool_calls = message.additional_kwargs.get("tool_calls")
+        # 提取工具调用
+        tool_calls = None
+        if hasattr(message, "tool_calls") and message.tool_calls:
+            tool_calls = message.tool_calls
+        elif message.additional_kwargs:
+            tool_calls = message.additional_kwargs.get("tool_calls")
 
-            # 提取元数据
-            metadata = getattr(message, "metadata", None) or {}
+        # 提取元数据
+        metadata = getattr(message, "metadata", None) or {}
 
-            # 提取思考内容（native reasoning_content）
-            additional_kwargs = message.additional_kwargs or {}
-            thinking = extract_reasoning_from_kwargs(additional_kwargs)
-            # 传递 reasoning_content 信息，供 handler 正确标记 thinking_type
-            if additional_kwargs.get("reasoning_content"):
-                metadata = {**metadata, "reasoning_content": additional_kwargs["reasoning_content"]}
+        # 提取思考内容（native reasoning_content）
+        additional_kwargs = message.additional_kwargs or {}
+        thinking = extract_reasoning_from_kwargs(additional_kwargs)
+        # 传递 reasoning_content 信息，供 handler 正确标记 thinking_type
+        if additional_kwargs.get("reasoning_content"):
+            metadata = {**metadata, "reasoning_content": additional_kwargs["reasoning_content"]}
 
-            # 委托给统一处理器
-            result = await self._handler.handle_ai_message(
-                content=content,
-                tool_calls=tool_calls,
-                thinking=thinking,
-                metadata=metadata,
-                parent_id=None, # AI messages usually parents of previous turn's last message (resolved in repo)
-            )
+        # 委托给统一处理器
+        result = await self._handler.handle_ai_message(
+            content=content,
+            tool_calls=tool_calls,
+            thinking=thinking,
+            metadata=metadata,
+            parent_id=None, # AI messages usually parents of previous turn's last message (resolved in repo)
+        )
 
-            # Store the message_id for subsequent tools/HITL in this turn
-            if result.message_id:
-                self._last_ai_message_id = result.message_id
-                from app.core.context.manager import ContextManager
-                try:
-                    ctx = ContextManager.current()
-                    ctx.last_ai_message_id = result.message_id
-                except Exception:
-                    pass
+        # Store the message_id for subsequent tools/HITL in this turn
+        if result.message_id:
+            self._last_ai_message_id = result.message_id
+            from app.core.context.manager import ContextManager
+            try:
+                ctx = ContextManager.current()
+                ctx.last_ai_message_id = result.message_id
+            except Exception:
+                pass
 
-            # 重要：将持久化后的 ID 和序列号回填给消息对象，供后续环节（如 MemoryExtractor）使用
-            if result.get("message_id"):
-                message.id = str(result["message_id"])
-                # 同时回填 sequence_number 到 additional_kwargs，确保 ID 构造的一致性
-                if message.additional_kwargs is None:
-                    message.additional_kwargs = {}
-                message.additional_kwargs["sequence_number"] = result.get("sequence_number", 0)
+        # 重要：将持久化后的 ID 和序列号回填给消息对象，供后续环节（如 MemoryExtractor）使用
+        if result.get("message_id"):
+            message.id = str(result["message_id"])
+            # 同时回填 sequence_number 到 additional_kwargs，确保 ID 构造的一致性
+            if message.additional_kwargs is None:
+                message.additional_kwargs = {}
+            message.additional_kwargs["sequence_number"] = result.get("sequence_number", 0)
 
-            logger.debug(
-                f"[DatabaseCallback] AI message handled: "
-                f"category={result['category']}, "
-                f"persisted={result['persisted']}, "
-                f"id={message.id}, seq={result.get('sequence_number')}"
-            )
-
-        except Exception as e:
-            logger.error(f"[DatabaseCallback] Failed to handle AI message: {e}")
+        logger.debug(
+            f"[DatabaseCallback] AI message handled: "
+            f"category={result['category']}, "
+            f"persisted={result['persisted']}, "
+            f"id={message.id}, seq={result.get('sequence_number')}"
+        )
 
     async def on_tool_end(
         self,
@@ -142,42 +141,33 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
         """
         工具执行结束时调用
         """
-        try:
-            run_id_str = str(run_id)
+        run_id_str = str(run_id)
 
-            # 从存储的映射中获取工具信息
-            tool_info = self._tool_info_by_run_id.pop(run_id_str, {})
-            tool_name = tool_info.get("name")
-            tool_call_id = tool_info.get("tool_call_id")
-            seq = tool_info.get("seq")
+        # 从存储的映射中获取工具信息
+        tool_info = self._tool_info_by_run_id.pop(run_id_str, {})
+        tool_name = tool_info.get("name")
+        tool_call_id = tool_info.get("tool_call_id")
+        seq = tool_info.get("seq")
 
-            if not tool_name:
-                # 回退逻辑
-                tool_name = 'unknown_tool'
-                tool_call_id = run_id_str # 假设 run_id 就是 tool_call_id（符合 Engine 行为）
+        if not tool_name:
+            # 回退逻辑
+            tool_name = 'unknown_tool'
+            tool_call_id = run_id_str # 假设 run_id 就是 tool_call_id（符合 Engine 行为）
 
-            # 委托给统一处理器，传入 sequence_number 以 UPDATE 记录
-            result = await self._handler.handle_tool_output(
-                tool_name=tool_name,
-                output=output,
-                tool_call_id=tool_call_id,
-                sequence_number=seq,
-            )
-
-            # 注意：on_tool_end 并不直接持有 ToolMessage 对象，因此无法直接回填 ID。
-            # 但由于 handle_tool_output 内部使用了 deduplicator，重复调用会被拦截。
-            # 此外，FinishNode 的增量过滤逻辑也会基于内容进行防御。
-
-            logger.debug(
-                f"[DatabaseCallback] Tool output handled: "
-                f"tool={tool_name}, "
-                f"category={result['category']}, "
-                f"persisted={result['persisted']}, "
-                f"id={result.get('message_id')}"
-            )
-
-        except Exception as e:
-            logger.error(f"[DatabaseCallback] Failed to handle tool output: {e}")
+        # 委托给统一处理器，传入 sequence_number 以 UPDATE 记录
+        result = await self._handler.handle_tool_output(
+            tool_name=tool_name,
+            output=output,
+            tool_call_id=tool_call_id,
+            sequence_number=seq,
+        )
+        logger.debug(
+            f"[DatabaseCallback] Tool output handled: "
+            f"tool={tool_name}, "
+            f"category={result['category']}, "
+            f"persisted={result['persisted']}, "
+            f"id={result.get('message_id')}"
+        )
 
     def _extract_content(self, content: Any) -> str:
         """提取文本内容，处理多模态格式"""
@@ -211,53 +201,50 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
         """
         工具执行开始时调用 — 预插入 running 状态记录
         """
-        try:
-            # 提取工具名称
-            tool_name = serialized.get("name") if serialized else "unknown_tool"
-            run_id_str = str(run_id)
-            
-            # 使用传入的 metadata 参数，而不是从 kwargs 中提取（因为它已被参数捕获）
-            effective_metadata = metadata or {}
-            tool_call_id = (
-                effective_metadata.get("_evoloop_tool_call_id") or 
-                kwargs.get("tool_call_id")
-            )
+        # 提取工具名称
+        tool_name = str(serialized.get("name") or "unknown_tool")
+        run_id_str = str(run_id)
 
-            # Parse input data
-            from app.core.engine.message.utils import parse_tool_input
-            input_data = parse_tool_input(input_str)
+        # 使用传入的 metadata 参数，而不是从 kwargs 中提取（因为它已被参数捕获）
+        effective_metadata = metadata or {}
+        tool_call_id = (
+            effective_metadata.get("_evoloop_tool_call_id") or
+            kwargs.get("tool_call_id")
+        )
 
-            # Pre-insert running record via MessageHandler
-            result = await self._handler.handle_tool_start(
-                tool_name=tool_name,
-                tool_call_id=tool_call_id,
-                input_data=input_data,
-                parent_id=self._last_ai_message_id,
-            )
+        # Parse input data
+        input_data = parse_tool_input(input_str)
 
-            # Store in context for HITL tools to access
-            from app.core.context.manager import ContextManager
-            ctx = ContextManager.current()
-            ctx.current_tool_call_id = tool_call_id
+        # Pre-insert running record via MessageHandler
+        result = await self._handler.handle_tool_start(
+            tool_name=tool_name,
+            tool_call_id=tool_call_id,
+            input_data=input_data,
+            parent_id=self._last_ai_message_id,
+        )
 
-            # 存储工具详情（支持并行工具）
-            self._tool_info_by_run_id[run_id_str] = {
-                "name": tool_name,
-                "tool_call_id": tool_call_id,
-                "seq": result.sequence_number,
-            }
+        # Store in context for HITL tools to access
+        from app.core.context.manager import ContextManager
+        ctx = ContextManager.current()
+        ctx.current_tool_call_id = tool_call_id
 
-            logger.debug(f"[DatabaseCallback] Tool started: {tool_name} (tool_call_id={tool_call_id}, seq={result.sequence_number})")
-        except Exception as e:
-            logger.debug(f"[DatabaseCallback] Failed to track tool start: {e}")
+        # 存储工具详情（支持并行工具）
+        self._tool_info_by_run_id[run_id_str] = {
+            "name": tool_name,
+            "tool_call_id": tool_call_id,
+            "seq": result.sequence_number,
+        }
+        logger.debug(f"[DatabaseCallback] Tool started: {tool_name} (tool_call_id={tool_call_id}, seq={result.sequence_number})")
 
     async def on_tool_error(
         self,
-        error: Exception,
+        error: BaseException,
         *,
         run_id: UUID,
+        parent_run_id: UUID | None = None,
+        tags: list[str] | None = None,
         **kwargs: Any,
-    ) -> Any:
+    ) -> None:
         """工具错误 — 将 running 记录标记为 failed"""
         run_id_str = str(run_id)
         tool_info = self._tool_info_by_run_id.pop(run_id_str, {})
@@ -265,13 +252,10 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
         tool_call_id = tool_info.get("tool_call_id", run_id_str)
         seq = tool_info.get("seq")
 
-        try:
-            await self._handler.handle_tool_error(
-                tool_name=tool_name,
-                error=error,
-                tool_call_id=tool_call_id,
-                sequence_number=seq,
-            )
-            logger.debug(f"[DatabaseCallback] Tool error tracked: {tool_name} (seq={seq})")
-        except Exception as e:
-            logger.debug(f"[DatabaseCallback] Failed to track tool error: {e}")
+        await self._handler.handle_tool_error(
+            tool_name=tool_name,
+            error=error,
+            tool_call_id=tool_call_id,
+            sequence_number=seq,
+        )
+        logger.debug(f"[DatabaseCallback] Tool error tracked: {tool_name} (seq={seq})")

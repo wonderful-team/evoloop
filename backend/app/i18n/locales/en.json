@@ -194,7 +194,6 @@
             "kb_list": "Listing knowledge doc '{path}'",
             "kb_search": "Searching knowledge base '{pattern}'",
             "kb_read": "Reading knowledge doc '{path}'",
-            "index_path": "Indexing path '{path}'",
             "cancel_command": "Canceling command '{task_id}'",
             "cancel_todo": "Canceling todo '{todo_id}'",
             "complete_todo": "Completing todo '{todo_id}'",

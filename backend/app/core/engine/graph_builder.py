@@ -87,7 +87,7 @@ class GraphBuilder:
 
                 if edge.conditions:
                     # Expression Router
-                    from app.core.engine.routers import make_expression_router
+                    from app.core.engine.expression_evaluator import make_expression_router
                     router_func = make_expression_router(edge.conditions, edge.default or "")
                     mapping = {c.to: c.to for c in edge.conditions}
                     if edge.default:
@@ -95,7 +95,7 @@ class GraphBuilder:
                     for k, v in mapping.items():
                         if v == "END":
                             mapping[k] = END
-                    workflow.add_conditional_edges(edge.from_node, router_func, mapping)
+                    workflow.add_conditional_edges(edge.from_node, router_func, mapping)  # type: ignore[arg-type]
                 else:
                     # Python Router Function
                     router_func = self._import_obj(edge.router)
@@ -103,7 +103,7 @@ class GraphBuilder:
                     for k, v in mapping.items():
                         if v == "END":
                             mapping[k] = END
-                    workflow.add_conditional_edges(edge.from_node, router_func, mapping)
+                    workflow.add_conditional_edges(edge.from_node, router_func, mapping)  # type: ignore[arg-type]
 
         # 5. Set Entry Point
         node_ids = [n.id for n in agent_config.nodes]
