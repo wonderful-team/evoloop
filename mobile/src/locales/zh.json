@@ -83,6 +83,57 @@
     }
   },
   "chat": {
+    "interrupted": "已打断，请说话",
+    "wakeWordDetected": "已唤醒: 「{{word}}」，请说话",
+    "filesReverted": "{{count}} 个文件已恢复",
+    "rewindSuccess": "已回退到指定位置",
+    "retrying": "正在重试",
+    "sendFailed": "发送失败：",
+    "messageSent": "消息已发送",
+    "forwardSuccess": "转发成功",
+    "forwardFailed": "转发失败",
+    "createThreadFailed": "创建会话失败",
+    "rewindFailed": "回退失败：",
+    "retryFailed": "重试失败：",
+    "globalModeNoMemory": "全局模式下无法添加记忆",
+    "learnFromConversation": "从对话学习",
+    "addedToMemory": "已添加到记忆",
+    "addMemoryFailed": "添加记忆失败：",
+    "fallbackMessage": "消息",
+    "selectDevice": "选择设备",
+    "guestMode": "游客模式 - 点击登录",
+    "connection": {
+      "connecting": "连接中...",
+      "reconnecting": "重连中...",
+      "error": "连接失败",
+      "disconnected": "已断开"
+    },
+    "micPermission": {
+      "title": "需要录音权限",
+      "message": "语音对话需要使用麦克风，请允许访问。",
+      "allow": "允许",
+      "deny": "拒绝"
+    },
+    "voiceLoginRequired": "语音功能需要登录",
+    "voicePermissionDenied": "没有录音权限，无法使用语音功能",
+    "voiceRecognitionError": "语音识别错误：",
+    "rewindDialog": {
+      "title": "确认操作",
+      "description": "此操作将回退后续的文件修改。是否同时恢复文件到之前的状态？",
+      "keepFiles": "保留文件",
+      "restoreFiles": "恢复文件"
+    },
+    "codeBlock": {
+      "copyCode": "复制代码",
+      "copyText": "复制纯文本",
+      "share": "分享",
+      "collapse": "收起",
+      "expandAll": "展开全部 {{count}} 行",
+      "echartsChart": "ECharts 图表",
+      "passed": "通过",
+      "failed": "失败",
+      "skipped": "跳过"
+    },
     "messageList": {
       "initializing": "初始化中...",
       "offline": "设备离线",
@@ -176,6 +227,18 @@
     "threadList": {
       "newConversation": "新对话"
     },
+    "toast": {
+      "loadConversationsFailed": "加载会话列表失败",
+      "getConversationDetailFailed": "获取会话详情失败",
+      "loadMessagesFailed": "加载消息失败",
+      "deleteConversationSuccess": "会话已删除",
+      "deleteConversationFailed": "删除会话失败",
+      "createConversationSuccess": "会话创建成功",
+      "createConversationFailed": "创建会话失败",
+      "sendMessageFailed": "发送消息失败",
+      "stopSuccess": "已停止生成",
+      "stopFailed": "停止失败"
+    },
     "rewindConfirm": {
       "rewindTitle": "确认撤回",
       "retryTitle": "确认重试",
@@ -207,6 +270,14 @@
       "skill": "技能",
       "memory": "记忆",
       "reference": "引用"
+    },
+    "tts": {
+      "cherryDesc": "★ 中文女声，对话感强",
+      "serenaDesc": "★ 英文女声，自然流畅",
+      "apiNoAudioUrl": "API 未返回音频 URL",
+      "downloadFailed": "下载音频失败: {{statusCode}}",
+      "playbackError": "播放失败",
+      "error": "语音合成失败"
     }
   },
   "messageContent": {
@@ -273,7 +344,30 @@
       "sendCodeFirst": "请先获取验证码",
       "codeRequired": "请输入验证码",
       "errorSendingCode": "发送验证码失败",
-      "passwordMismatch": "两次输入的密码不一致"
+      "passwordMismatch": "两次输入的密码不一致",
+      "enterCorrectMobile": "请输入正确的手机号",
+      "enterUsername": "请输入账号",
+      "enterPassword": "请输入密码",
+      "captchaUnavailable": "验证码服务暂时不可用",
+      "sendCodeFailed": "发送验证码失败",
+      "platformRegistrationDisabled": "平台未启用注册!",
+      "enterCaptcha": "请输入图形验证码",
+      "captchaDataIncomplete": "验证码数据不完整",
+      "getCaptchaFailed": "获取验证码失败，请重试",
+      "usernameMinLength": "用户名至少3位",
+      "wechatSdkUnavailable": "微信 SDK 不可用，请使用 Development Build 运行",
+      "wechatSdkInitFailed": "微信 SDK 初始化失败",
+      "wechatNotInstalled": "请先安装微信",
+      "authCodeFailed": "获取授权码失败",
+      "wechatApiError": "微信接口错误: {{message}}",
+      "getTokenFailed": "获取微信 access_token 失败",
+      "appSecretNotConfigured": "微信 App Secret 未配置",
+      "wechatLoginFailed": "微信登录失败",
+      "getCaptchaConfigFailed": "获取验证码配置失败",
+      "captchaResponseEmpty": "验证码响应为空",
+      "getRegisterConfigFailed": "获取注册配置失败",
+      "bindMobileFailed": "绑定手机号失败",
+      "sessionExpired": "登录已过期，请重新登录"
     },
     "login": {
       "captchaNote": "注意：密码登录验证码尚未集成。",
@@ -287,7 +381,15 @@
       "captchaPlaceholder": "图形验证码",
       "tabMobile": "手机号",
       "submit": "登录",
-      "signUp": "注册账号"
+      "signUp": "注册账号",
+      "welcomeBack": "欢迎回来",
+      "mobileLogin": "手机号登录",
+      "accountLogin": "账号密码登录",
+      "captchaLabel": "图形验证码",
+      "smsCodeLabel": "短信验证码",
+      "passwordLabel": "密码",
+      "usernameLabel": "账号/手机号/邮箱",
+      "passwordPlaceholder": "请输入密码"
     },
     "forgotPassword": {
       "next": "下一步",
@@ -318,7 +420,8 @@
       "mobilePlaceholder": "手机号",
       "policy": "《服务协议 & 隐私政策》",
       "usernamePlaceholder": "用户名 (字母/数字)",
-      "getCode": "获取验证码"
+      "getCode": "获取验证码",
+      "usernameMinLength": "用户名至少3位"
     },
     "termsOfService": "《服务协议》",
     "privacyPolicy": "《隐私政策》",
@@ -406,7 +509,11 @@
     "switchToProjectConfirm": "切换到此项目？该项目将在设备「{{deviceName}}」上激活。",
     "selectDeviceFirst": "请先选择设备，再切换项目。",
     "switch": "切换",
-    "backToHome": "返回首页"
+    "backToHome": "返回首页",
+    "unnamedProject": "未命名项目",
+    "fetchFailed": "获取项目列表失败",
+    "notFound": "项目不存在",
+    "globalModeName": "全局模式"
   },
   "projectSwitcher": {
     "noDesc": "暂无描述",
@@ -455,7 +562,9 @@
       "days": "{{count}}天前"
     },
     "cloudModeTitle": "云端智能 (Cloud Mode)",
-    "cloudModeDesc": "不连接本地设备，直接使用云端 AI 进行对话"
+    "cloudModeDesc": "不连接本地设备，直接使用云端 AI 进行对话",
+    "unnamedDevice": "未命名设备",
+    "fetchFailed": "获取设备列表失败"
   },
   "index": {
     "placeholder": "输入指令或问题...",
@@ -478,7 +587,8 @@
     "reject": "拒绝",
     "skip": "跳过",
     "cancelled": "输入已取消",
-    "timeout": "输入等待已超时"
+    "timeout": "输入等待已超时",
+    "defaultPrompt": "需要您的输入"
   },
   "chat_request": {
     "title": "需要输入",
@@ -884,5 +994,141 @@
     "runtimeLogs": "运行日志",
     "logCount": "共 {{count}} 条日志",
     "noLogs": "暂无日志"
+  },
+  "validation": {
+    "mobile": "请输入正确的手机号",
+    "captcha": "验证码格式不正确",
+    "password": "密码长度至少6位",
+    "username": "用户名需为3-20位字母或数字",
+    "email": "邮箱格式不正确",
+    "required": "此项为必填项"
+  },
+  "error": {
+    "unknown": "未知错误"
+  },
+  "share": {
+    "defaultTitle": "分享",
+    "messageTitle": "分享消息",
+    "codeTitle": "分享代码",
+    "codeTitleWithLang": "分享 {{language}} 代码"
+  },
+  "subscription": {
+    "benefits": {
+      "aiQuota": "AI 调用额度",
+      "aiAdvanced": "高级模型",
+      "voice": "语音交互",
+      "projectLimit": "项目数量",
+      "gantt": "甘特图",
+      "timesheet": "工时表",
+      "desktopControl": "桌面控制",
+      "browserControl": "浏览器控制",
+      "mobileControl": "手机控制",
+      "skillLearning": "技能学习",
+      "wikiGeneration": "Wiki 生成",
+      "knowledgeBase": "知识库"
+    },
+    "plans": {
+      "creator": "创作者版",
+      "geek": "极客版",
+      "expert": "专家版",
+      "enterprise": "企业版",
+      "free": "免费版",
+      "explorer": "探索者版"
+    },
+    "errors": {
+      "downgradeNotAllowed": "无法购买",
+      "downgradeMessage": "当前等级更高，到期后可购买此方案",
+      "upgradeRequired": "需要{{planName}}订阅",
+      "upgradeMessage": "「{{benefitName}}」功能需要升级订阅才能使用",
+      "upgradeNow": "立即升级",
+      "genericTitle": "错误",
+      "genericMessage": "操作失败",
+      "thisFeature": "此功能",
+      "higherLevel": "更高等级",
+      "subscribe": "订阅"
+    }
+  },
+  "deviceControl": {
+    "notLoggedIn": "未登录",
+    "notSelectedDevice": "未登录或未选择设备",
+    "quotaExhaustedTitle": "配额已耗尽",
+    "quotaExhaustedHint": "请联系管理员添加配额，或升级您的订阅计划。",
+    "quotaExhaustedMessage": "您的 LLM 配额已耗尽。",
+    "httpErrors": {
+      "quotaInsufficient": "配额不足，请联系管理员或升级套餐",
+      "400": "请求参数错误，请检查后重试",
+      "401": "登录已过期，请重新登录",
+      "403": "没有权限执行此操作",
+      "404": "请求的资源不存在",
+      "408": "请求超时，请检查网络后重试",
+      "429": "请求过于频繁，请稍后再试",
+      "500": "服务器内部错误，请稍后再试",
+      "502": "网关错误，请稍后再试",
+      "503": "服务暂时不可用，请稍后再试",
+      "504": "网关超时，请稍后再试",
+      "default": "请求失败 ({{status}})",
+      "sendFailed": "发送失败"
+    },
+    "hitlCancelReason": "用户取消"
+  },
+  "notifications": {
+    "newMessageTitle": "EvoLoop AI",
+    "newMessageCount": "EvoLoop AI ({{count}}条新消息)",
+    "newMessageBody": "收到新消息",
+    "newMessageChannel": "新消息通知",
+    "wakeWordTitle": "唤醒词监听中",
+    "wakeWordBody": "说出「{{wakeWord}}」唤醒语音助手"
+  },
+  "api": {
+    "errors": {
+      "requestFailed": "请求失败",
+      "invalidResponse": "无效的响应数据",
+      "getConversationsFailed": "获取会话列表失败",
+      "createConversationFailed": "创建会话失败",
+      "getConversationDetailFailed": "获取会话详情失败",
+      "deleteConversationFailed": "删除会话失败",
+      "getMessagesFailed": "获取消息历史失败",
+      "stopFailed": "停止失败",
+      "rewindFailed": "回退失败",
+      "retryFailed": "重试失败",
+      "addMemoryFailed": "添加记忆失败",
+      "getMemoryFailed": "获取记忆失败",
+      "sendMessageFailed": "发送消息失败",
+      "syncMessagesFailed": "同步消息失败",
+      "markAsReadFailed": "标记已读失败",
+      "uploadFailed": "上传失败",
+      "uploadFileFailed": "上传文件失败",
+      "unsupportedFileType": "不支持的文件类型: {{ext}}。支持: {{supportedTypes}}",
+      "sseTimeout": "SSE 请求超时"
+    }
+  },
+  "payment": {
+    "errors": {
+      "sdkUnavailable": "微信 SDK 不可用",
+      "sdkInitFailed": "微信 SDK 初始化失败",
+      "wechatNotInstalled": "请先安装微信",
+      "payFailed": "支付失败，请稍后重试",
+      "userCancelled": "您已取消支付",
+      "payAbnormal": "支付异常，请稍后重试",
+      "payCallFailed": "支付调用失败"
+    }
+  },
+  "nls": {
+    "errors": {
+      "appKeyInvalid": "未获取到有效的 NLS AppKey，请检查 Gateway 配置",
+      "clientRunning": "NLS 客户端已在运行",
+      "wsError": "WebSocket 连接错误",
+      "recognitionError": "识别错误",
+      "recognitionFailed": "识别失败",
+      "tokenInvalid": "Gateway 返回的 Token 无效"
+    }
+  },
+  "audio": {
+    "errors": {
+      "noPermission": "没有录音权限"
+    }
+  },
+  "format": {
+    "currencyUnit": "元"
   }
 }

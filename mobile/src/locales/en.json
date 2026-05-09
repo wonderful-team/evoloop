@@ -83,6 +83,46 @@
     }
   },
   "chat": {
+    "interrupted": "Interrupted, please speak",
+    "wakeWordDetected": "Wake word detected: \"{{word}}\", please speak",
+    "filesReverted": "{{count}} files reverted",
+    "rewindSuccess": "Rewinded to specified position",
+    "retrying": "Retrying",
+    "sendFailed": "Failed to send: ",
+    "messageSent": "Message sent",
+    "forwardSuccess": "Forwarded successfully",
+    "forwardFailed": "Forward failed",
+    "createThreadFailed": "Failed to create conversation",
+    "rewindFailed": "Rewind failed: ",
+    "retryFailed": "Retry failed: ",
+    "globalModeNoMemory": "Cannot add memory in global mode",
+    "learnFromConversation": "Learn from conversation",
+    "addedToMemory": "Added to memory",
+    "addMemoryFailed": "Failed to add memory: ",
+    "fallbackMessage": "Message",
+    "selectDevice": "Select Device",
+    "guestMode": "Guest Mode - Tap to login",
+    "connection": {
+      "connecting": "Connecting...",
+      "reconnecting": "Reconnecting...",
+      "error": "Connection failed",
+      "disconnected": "Disconnected"
+    },
+    "micPermission": {
+      "title": "Microphone Permission Required",
+      "message": "Voice conversation requires microphone access. Please allow access.",
+      "allow": "Allow",
+      "deny": "Deny"
+    },
+    "voiceLoginRequired": "Voice feature requires login",
+    "voicePermissionDenied": "No microphone permission, cannot use voice feature",
+    "voiceRecognitionError": "Voice recognition error: ",
+    "rewindDialog": {
+      "title": "Confirm Action",
+      "description": "This operation will revert subsequent file changes. Do you want to restore files to their previous state?",
+      "keepFiles": "Keep Files",
+      "restoreFiles": "Restore Files"
+    },
     "messageList": {
       "initializing": "Initializing...",
       "offline": "Device Offline",
@@ -201,12 +241,43 @@
       "quote": "Quote",
       "addToMemory": "Add to Memory"
     },
+    "codeBlock": {
+      "copyCode": "Copy Code",
+      "copyText": "Copy Plain Text",
+      "share": "Share",
+      "collapse": "Collapse",
+      "expandAll": "Expand all {{count}} lines",
+      "echartsChart": "ECharts Chart",
+      "passed": "Passed",
+      "failed": "Failed",
+      "skipped": "Skipped"
+    },
+    "toast": {
+      "loadConversationsFailed": "Failed to load conversations",
+      "getConversationDetailFailed": "Failed to get conversation details",
+      "loadMessagesFailed": "Failed to load messages",
+      "deleteConversationSuccess": "Conversation deleted",
+      "deleteConversationFailed": "Failed to delete conversation",
+      "createConversationSuccess": "Conversation created",
+      "createConversationFailed": "Failed to create conversation",
+      "sendMessageFailed": "Failed to send message",
+      "stopSuccess": "Generation stopped",
+      "stopFailed": "Failed to stop"
+    },
     "quote": {
       "message": "Message",
       "file": "File",
       "skill": "Skill",
       "memory": "Memory",
       "reference": "Reference"
+    },
+    "tts": {
+      "cherryDesc": "★ Chinese female voice, conversational",
+      "serenaDesc": "★ English female voice, natural and smooth",
+      "apiNoAudioUrl": "API did not return audio URL",
+      "downloadFailed": "Failed to download audio: {{statusCode}}",
+      "playbackError": "Playback failed",
+      "error": "Speech synthesis failed"
     }
   },
   "conversation": {
@@ -229,7 +300,31 @@
       "sendCodeFirst": "Please send code first",
       "codeRequired": "Code is required",
       "errorSendingCode": "Error sending code",
-      "passwordMismatch": "Passwords do not match"
+      "passwordMismatch": "Passwords do not match",
+      "enterCorrectMobile": "Please enter a valid mobile number",
+      "enterUsername": "Please enter your username",
+      "enterPassword": "Please enter your password",
+      "captchaUnavailable": "Captcha service temporarily unavailable",
+      "sendCodeFailed": "Failed to send verification code",
+      "platformRegistrationDisabled": "Registration is currently disabled!",
+      "enterCaptcha": "Please enter the captcha",
+      "captchaDataIncomplete": "Captcha data incomplete",
+      "getCaptchaFailed": "Failed to get captcha, please try again",
+      "usernameMinLength": "Username must be at least 3 characters",
+      "wechatLoginFailed": "WeChat login failed, please try again",
+      "passwordMinLength": "Password must be at least {{min}} characters",
+      "wechatSdkUnavailable": "WeChat SDK is not available. Please use a Development Build.",
+      "wechatSdkInitFailed": "WeChat SDK initialization failed",
+      "wechatNotInstalled": "Please install WeChat first",
+      "authCodeFailed": "Failed to get authorization code",
+      "wechatApiError": "WeChat API error: {{message}}",
+      "getTokenFailed": "Failed to get WeChat access_token",
+      "appSecretNotConfigured": "WeChat App Secret is not configured",
+      "getCaptchaConfigFailed": "Failed to get captcha configuration",
+      "captchaResponseEmpty": "Captcha response is empty",
+      "getRegisterConfigFailed": "Failed to get registration configuration",
+      "bindMobileFailed": "Failed to bind mobile number",
+      "sessionExpired": "Session expired. Please log in again."
     },
     "login": {
       "captchaNote": "Note: Captcha for password login not fully integrated yet.",
@@ -243,7 +338,18 @@
       "captchaPlaceholder": "Captcha",
       "tabMobile": "Mobile",
       "submit": "Login",
-      "signUp": "Sign Up"
+      "signUp": "Sign Up",
+      "welcomeBack": "Welcome back",
+      "mobileLogin": "Mobile Login",
+      "accountLogin": "Account Login",
+      "captchaLabel": "Captcha",
+      "smsCodeLabel": "SMS Code",
+      "passwordLabel": "Password",
+      "usernameLabel": "Account / Mobile / Email",
+      "passwordPlaceholder": "Enter password",
+      "forgotPassword": "Forgot password?",
+      "noAccount": "No account yet?",
+      "registerNow": "Register now"
     },
     "forgotPassword": {
       "next": "Next",
@@ -257,7 +363,11 @@
       "step1": "Enter verification code",
       "title": "Forgot Password",
       "step0": "Verify your mobile number",
-      "resend": "Resend Code"
+      "resend": "Resend Code",
+      "resetSuccess": "Reset Successful",
+      "resetSuccessDesc": "Your password has been reset successfully. Please login with your new password.",
+      "goLogin": "Go to Login",
+      "noReceived": "Not received?"
     },
     "success": {
       "login": "Login successful",
@@ -274,7 +384,13 @@
       "mobilePlaceholder": "Mobile Number",
       "policy": "Service & Privacy Policy",
       "usernamePlaceholder": "Username (Alphanumeric)",
-      "getCode": "Get Code"
+      "getCode": "Get Code",
+      "usernameMinLength": "Username must be at least 3 characters",
+      "submit": "Register",
+      "hasAccount": "Already have an account?",
+      "loginNow": "Login now",
+      "passwordMinLength": "Password must be at least {{min}} characters",
+      "registerFailed": "Registration failed, please try again"
     },
     "countdownLabel": "{{seconds}}s后重试",
     "wechatLogin": "微信一键登录",
@@ -365,7 +481,11 @@
     "switchToProjectConfirm": "Switch to this project? It will be activated on device \"{{deviceName}}\".",
     "selectDeviceFirst": "Please select a device first before switching projects.",
     "switch": "Switch",
-    "backToHome": "Back to Home"
+    "backToHome": "Back to Home",
+    "unnamedProject": "Unnamed Project",
+    "fetchFailed": "Failed to get project list",
+    "notFound": "Project not found",
+    "globalModeName": "Global Mode"
   },
   "projectSwitcher": {
     "noDesc": "No description",
@@ -414,7 +534,9 @@
       "days": "{{count}} days ago"
     },
     "cloudModeTitle": "Cloud Intelligence (Cloud Mode)",
-    "cloudModeDesc": "Chat directly with cloud AI without connecting local devices"
+    "cloudModeDesc": "Chat directly with cloud AI without connecting local devices",
+    "unnamedDevice": "Unnamed Device",
+    "fetchFailed": "Failed to get device list"
   },
   "index": {
     "placeholder": "Ask anything or command...",
@@ -437,7 +559,8 @@
     "reject": "Reject",
     "skip": "Skip",
     "cancelled": "Input cancelled",
-    "timeout": "Input request timed out"
+    "timeout": "Input request timed out",
+    "defaultPrompt": "Your input is required"
   },
   "chat_request": {
     "title": "Input Required",
@@ -701,6 +824,8 @@
     },
     "retry": "Retry",
     "close": "Close",
+    "tip": "Tip",
+    "gotIt": "Got it",
     "cameraPermissionTitle": "Camera Permission",
     "cameraPermissionMessage": "Camera permission is required to take photos",
     "later": "Ask Later",
@@ -884,5 +1009,141 @@
     "runtimeLogs": "Runtime Logs",
     "logCount": "{{count}} logs",
     "noLogs": "No logs yet"
+  },
+  "validation": {
+    "mobile": "Please enter a valid mobile number",
+    "captcha": "Invalid captcha format",
+    "password": "Password must be at least 6 characters",
+    "username": "Username must be 3-20 alphanumeric characters",
+    "email": "Invalid email format",
+    "required": "This field is required"
+  },
+  "error": {
+    "unknown": "Unknown error"
+  },
+  "share": {
+    "defaultTitle": "Share",
+    "messageTitle": "Share Message",
+    "codeTitle": "Share Code",
+    "codeTitleWithLang": "Share {{language}} Code"
+  },
+  "subscription": {
+    "benefits": {
+      "aiQuota": "AI Quota",
+      "aiAdvanced": "Advanced Models",
+      "voice": "Voice Interaction",
+      "projectLimit": "Project Limit",
+      "gantt": "Gantt Chart",
+      "timesheet": "Timesheet",
+      "desktopControl": "Desktop Control",
+      "browserControl": "Browser Control",
+      "mobileControl": "Mobile Control",
+      "skillLearning": "Skill Learning",
+      "wikiGeneration": "Wiki Generation",
+      "knowledgeBase": "Knowledge Base"
+    },
+    "plans": {
+      "creator": "Creator",
+      "geek": "Geek",
+      "expert": "Expert",
+      "enterprise": "Enterprise",
+      "free": "Free",
+      "explorer": "Explorer"
+    },
+    "errors": {
+      "downgradeNotAllowed": "Cannot Purchase",
+      "downgradeMessage": "Your current tier is higher. You can purchase after expiration.",
+      "upgradeRequired": "{{planName}} Subscription Required",
+      "upgradeMessage": "「{{benefitName}}」requires upgrading your subscription.",
+      "upgradeNow": "Upgrade Now",
+      "genericTitle": "Error",
+      "genericMessage": "Operation failed",
+      "thisFeature": "this feature",
+      "higherLevel": "higher tier",
+      "subscribe": "subscription"
+    }
+  },
+  "deviceControl": {
+    "notLoggedIn": "Not logged in",
+    "notSelectedDevice": "Not logged in or no device selected",
+    "quotaExhaustedTitle": "Quota Exhausted",
+    "quotaExhaustedHint": "Please contact the administrator to add quota, or upgrade your subscription plan.",
+    "quotaExhaustedMessage": "Your LLM quota has been exhausted.",
+    "httpErrors": {
+      "quotaInsufficient": "Insufficient quota. Please contact the administrator or upgrade your plan.",
+      "400": "Invalid request parameters. Please check and try again.",
+      "401": "Session expired. Please log in again.",
+      "403": "You don't have permission to perform this action.",
+      "404": "The requested resource does not exist.",
+      "408": "Request timeout. Please check your network and try again.",
+      "429": "Too many requests. Please try again later.",
+      "500": "Server internal error. Please try again later.",
+      "502": "Gateway error. Please try again later.",
+      "503": "Service temporarily unavailable. Please try again later.",
+      "504": "Gateway timeout. Please try again later.",
+      "default": "Request failed ({{status}})",
+      "sendFailed": "Send failed"
+    },
+    "hitlCancelReason": "User cancelled"
+  },
+  "notifications": {
+    "newMessageTitle": "EvoLoop AI",
+    "newMessageCount": "EvoLoop AI ({{count}} new messages)",
+    "newMessageBody": "You have a new message",
+    "newMessageChannel": "New Message Notifications",
+    "wakeWordTitle": "Wake Word Listening",
+    "wakeWordBody": "Say \"{{wakeWord}}\" to wake up the voice assistant"
+  },
+  "api": {
+    "errors": {
+      "requestFailed": "Request failed",
+      "invalidResponse": "Invalid response data",
+      "getConversationsFailed": "Failed to get conversation list",
+      "createConversationFailed": "Failed to create conversation",
+      "getConversationDetailFailed": "Failed to get conversation details",
+      "deleteConversationFailed": "Failed to delete conversation",
+      "getMessagesFailed": "Failed to get message history",
+      "stopFailed": "Failed to stop",
+      "rewindFailed": "Failed to rewind",
+      "retryFailed": "Failed to retry",
+      "addMemoryFailed": "Failed to add memory",
+      "getMemoryFailed": "Failed to get memory",
+      "sendMessageFailed": "Failed to send message",
+      "syncMessagesFailed": "Failed to sync messages",
+      "markAsReadFailed": "Failed to mark as read",
+      "uploadFailed": "Upload failed",
+      "uploadFileFailed": "Failed to upload file",
+      "unsupportedFileType": "Unsupported file type: {{ext}}. Supported: {{supportedTypes}}",
+      "sseTimeout": "SSE request timed out"
+    }
+  },
+  "payment": {
+    "errors": {
+      "sdkUnavailable": "WeChat SDK is not available",
+      "sdkInitFailed": "WeChat SDK initialization failed",
+      "wechatNotInstalled": "Please install WeChat first",
+      "payFailed": "Payment failed. Please try again later.",
+      "userCancelled": "You have cancelled the payment.",
+      "payAbnormal": "Payment error. Please try again later.",
+      "payCallFailed": "Payment call failed"
+    }
+  },
+  "nls": {
+    "errors": {
+      "appKeyInvalid": "Failed to get valid NLS AppKey. Please check Gateway configuration.",
+      "clientRunning": "NLS client is already running",
+      "wsError": "WebSocket connection error",
+      "recognitionError": "Recognition error",
+      "recognitionFailed": "Recognition failed",
+      "tokenInvalid": "Invalid token returned by Gateway"
+    }
+  },
+  "audio": {
+    "errors": {
+      "noPermission": "No recording permission"
+    }
+  },
+  "format": {
+    "currencyUnit": "CNY"
   }
 }
