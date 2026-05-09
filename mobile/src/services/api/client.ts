@@ -7,6 +7,7 @@ import { handleApiError, isAuthError } from '@/utils/error';
 import { checkIsBenefitError, handleBenefitError, convertToBenefitError } from '@/utils/subscriptionErrors';
 import { showGlobalToast } from '@/contexts/ToastContext';
 import { useAuthStore } from '@/stores/authStore';
+import i18n from '@/locales';
 
 // 权益错误回调（用于全局监听）
 type BenefitErrorCallback = (error: { title: string; message: string; action?: { label: string; onPress: () => void } }) => void;
@@ -113,10 +114,10 @@ apiClient.interceptors.response.use(
         // 清除登录状态并提示用户
         useAuthStore.getState().logout();
         isRefreshing = false;
-        showGlobalToast('登录已过期，请重新登录', 'error');
+        showGlobalToast(i18n.t('auth.errors.sessionExpired'), 'error');
 
         // 返回 rejected promise，让调用方捕获错误
-        return Promise.reject(new Error('登录已过期，请重新登录'));
+        return Promise.reject(new Error(i18n.t('auth.errors.sessionExpired')));
       }
     }
 
@@ -164,12 +165,12 @@ apiClient.interceptors.response.use(
       try {
         // 清除登录状态并提示用户
         useAuthStore.getState().logout();
-        showGlobalToast('登录已过期，请重新登录', 'error');
+        showGlobalToast(i18n.t('auth.errors.sessionExpired'), 'error');
         const appError = handleApiError(error);
         return Promise.reject(appError);
       } catch (refreshError) {
         useAuthStore.getState().logout();
-        showGlobalToast('登录已过期，请重新登录', 'error');
+        showGlobalToast(i18n.t('auth.errors.sessionExpired'), 'error');
         return Promise.reject(handleApiError(refreshError));
       } finally {
         isRefreshing = false;
@@ -344,11 +345,11 @@ async function fetchSSE(url: string, body: any, options: SSEOptions): Promise<vo
     };
 
     xhr.onerror = () => {
-      reject(new Error('SSE 请求失败'));
+      reject(new Error(i18n.t('api.errors.requestFailed')));
     };
 
     xhr.ontimeout = () => {
-      reject(new Error('SSE 请求超时'));
+      reject(new Error(i18n.t('api.errors.sseTimeout')));
     };
 
     xhr.onabort = () => {

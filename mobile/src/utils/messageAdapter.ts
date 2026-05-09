@@ -9,6 +9,7 @@
  * - HTTP 拉取 (PHP API)：create_time 为 Unix 秒级整数 → 乘以 1000 转为毫秒
  */
 
+import i18n from '@/locales';
 import { ChatMessage } from '@/types/conversation';
 import { HumanRequest } from '@/types/hitl';
 import { AgentSyncMessage } from '@/services/gateway/agentMessage';
@@ -128,7 +129,7 @@ export function parseHITLRequest(msg: AgentSyncMessage): HumanRequest | null {
     return {
       id: content.id || msg.id || `hitl-${Date.now()}`,
       type: content.type || 'text',
-      prompt: content.prompt || '需要您的输入',
+      prompt: content.prompt || i18n.t('hitl.defaultPrompt'),
       options: content.options,
       default_value: content.default_value,
       context: content.context,

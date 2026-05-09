@@ -2,6 +2,7 @@
 // 用于检查用户是否有权限使用某个功能
 
 import { useCallback, useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '@/stores/authStore';
 import { useLoading } from './useLoading';
 import { checkBenefit, checkPermission } from '@/services/api/subscription';
@@ -29,38 +30,6 @@ export const BENEFIT_CODES = {
   WIKI_GENERATION: 'wiki_generation',
   KNOWLEDGE_BASE: 'knowledge_base',
 } as const;
-
-// 权益名称映射
-export const BENEFIT_NAMES: Record<string, string> = {
-  [BENEFIT_CODES.AI_QUOTA]: 'AI 调用额度',
-  [BENEFIT_CODES.AI_ADVANCED]: '高级模型',
-  [BENEFIT_CODES.VOICE]: '语音交互',
-  [BENEFIT_CODES.PROJECT_LIMIT]: '项目数量',
-  [BENEFIT_CODES.GANTT]: '甘特图',
-  [BENEFIT_CODES.TIMESHEET]: '工时表',
-  [BENEFIT_CODES.DESKTOP_CONTROL]: '桌面控制',
-  [BENEFIT_CODES.BROWSER_CONTROL]: '浏览器控制',
-  [BENEFIT_CODES.MOBILE_CONTROL]: '手机控制',
-  [BENEFIT_CODES.SKILL_LEARNING]: '技能学习',
-  [BENEFIT_CODES.WIKI_GENERATION]: 'Wiki 生成',
-  [BENEFIT_CODES.KNOWLEDGE_BASE]: '知识库',
-};
-
-// 权益到套餐的映射
-export const BENEFIT_PLAN_MAP: Record<string, string> = {
-  [BENEFIT_CODES.AI_QUOTA]: '探索者版',
-  [BENEFIT_CODES.AI_ADVANCED]: '极客版',
-  [BENEFIT_CODES.VOICE]: '极客版',
-  [BENEFIT_CODES.PROJECT_LIMIT]: '探索者版',
-  [BENEFIT_CODES.GANTT]: '企业版',
-  [BENEFIT_CODES.TIMESHEET]: '企业版',
-  [BENEFIT_CODES.DESKTOP_CONTROL]: '探索者版',
-  [BENEFIT_CODES.BROWSER_CONTROL]: '探索者版',
-  [BENEFIT_CODES.MOBILE_CONTROL]: '极客版',
-  [BENEFIT_CODES.SKILL_LEARNING]: '极客版',
-  [BENEFIT_CODES.WIKI_GENERATION]: '专家版',
-  [BENEFIT_CODES.KNOWLEDGE_BASE]: '专家版',
-};
 
 /**
  * 检查单项权益
@@ -109,6 +78,7 @@ export function useCheckPermission() {
  * 统一封装功能权限检查，支持缓存和批量检查
  */
 export function useFeatureAccess() {
+  const { t } = useTranslation();
   const { isLoggedIn } = useAuthStore();
   const { benefits, isLoading: isLoadingBenefits } = useMemberBenefits();
   const { detail, hasActiveSubscription } = useSubscription();
@@ -116,6 +86,44 @@ export function useFeatureAccess() {
   
   // 本地缓存的权益检查结果
   const [checkCache, setCheckCache] = useState<Record<string, boolean>>({});
+
+  // 权益名称映射
+  const getBenefitName = useCallback((code: string): string => {
+    const map: Record<string, string> = {
+      [BENEFIT_CODES.AI_QUOTA]: t('subscription.benefits.aiQuota'),
+      [BENEFIT_CODES.AI_ADVANCED]: t('subscription.benefits.aiAdvanced'),
+      [BENEFIT_CODES.VOICE]: t('subscription.benefits.voice'),
+      [BENEFIT_CODES.PROJECT_LIMIT]: t('subscription.benefits.projectLimit'),
+      [BENEFIT_CODES.GANTT]: t('subscription.benefits.gantt'),
+      [BENEFIT_CODES.TIMESHEET]: t('subscription.benefits.timesheet'),
+      [BENEFIT_CODES.DESKTOP_CONTROL]: t('subscription.benefits.desktopControl'),
+      [BENEFIT_CODES.BROWSER_CONTROL]: t('subscription.benefits.browserControl'),
+      [BENEFIT_CODES.MOBILE_CONTROL]: t('subscription.benefits.mobileControl'),
+      [BENEFIT_CODES.SKILL_LEARNING]: t('subscription.benefits.skillLearning'),
+      [BENEFIT_CODES.WIKI_GENERATION]: t('subscription.benefits.wikiGeneration'),
+      [BENEFIT_CODES.KNOWLEDGE_BASE]: t('subscription.benefits.knowledgeBase'),
+    };
+    return map[code] || code;
+  }, [t]);
+
+  // 权益到套餐的映射
+  const getBenefitPlan = useCallback((code: string): string => {
+    const map: Record<string, string> = {
+      [BENEFIT_CODES.AI_QUOTA]: t('subscription.plans.explorer'),
+      [BENEFIT_CODES.AI_ADVANCED]: t('subscription.plans.geek'),
+      [BENEFIT_CODES.VOICE]: t('subscription.plans.geek'),
+      [BENEFIT_CODES.PROJECT_LIMIT]: t('subscription.plans.explorer'),
+      [BENEFIT_CODES.GANTT]: t('subscription.plans.enterprise'),
+      [BENEFIT_CODES.TIMESHEET]: t('subscription.plans.enterprise'),
+      [BENEFIT_CODES.DESKTOP_CONTROL]: t('subscription.plans.explorer'),
+      [BENEFIT_CODES.BROWSER_CONTROL]: t('subscription.plans.explorer'),
+      [BENEFIT_CODES.MOBILE_CONTROL]: t('subscription.plans.geek'),
+      [BENEFIT_CODES.SKILL_LEARNING]: t('subscription.plans.geek'),
+      [BENEFIT_CODES.WIKI_GENERATION]: t('subscription.plans.expert'),
+      [BENEFIT_CODES.KNOWLEDGE_BASE]: t('subscription.plans.expert'),
+    };
+    return map[code] || t('subscription.errors.higherLevel');
+  }, [t]);
 
   /**
    * 快速检查功能权限（基于本地缓存的权益数据）
@@ -157,10 +165,10 @@ export function useFeatureAccess() {
     
     return {
       allowed: hasBenefit,
-      benefitName: BENEFIT_NAMES[featureCode] || featureCode,
-      requiredPlan: BENEFIT_PLAN_MAP[featureCode] || '更高等级',
+      benefitName: getBenefitName(featureCode),
+      requiredPlan: getBenefitPlan(featureCode),
     };
-  }, [checkBenefit]);
+  }, [checkBenefit, getBenefitName, getBenefitPlan]);
 
   /**
    * 批量检查功能权限
@@ -217,7 +225,7 @@ export function useFeatureAccess() {
     // 状态
     isLoading: isLoadingBenefits || isLoadingCheck,
     hasActiveSubscription,
-    levelName: detail?.level_name || '免费版',
+    levelName: detail?.level_name || t('subscription.plans.free'),
     remainingDays: detail?.remaining_days || 0,
     expireTime: detail?.expire_time || 0,
     
@@ -230,6 +238,10 @@ export function useFeatureAccess() {
     checkFeatureStrict,
     checkFeaturesBatch,
     checkCache,
+    
+    // 名称映射
+    getBenefitName,
+    getBenefitPlan,
   };
 }
 
@@ -239,7 +251,7 @@ export function useFeatureAccess() {
 export function useFeature(featureCode: string) {
   const [hasAccess, setHasAccess] = useState(false);
   const [isChecking, setIsChecking] = useState(false);
-  const { checkFeatureStrict, canUseFeature } = useFeatureAccess();
+  const { checkFeatureStrict, canUseFeature, getBenefitName, getBenefitPlan } = useFeatureAccess();
 
   useEffect(() => {
     // 先使用本地缓存快速显示
@@ -263,8 +275,8 @@ export function useFeature(featureCode: string) {
   return {
     hasAccess,
     isChecking,
-    benefitName: BENEFIT_NAMES[featureCode] || featureCode,
-    requiredPlan: BENEFIT_PLAN_MAP[featureCode] || '更高等级',
+    benefitName: getBenefitName(featureCode),
+    requiredPlan: getBenefitPlan(featureCode),
   };
 }
 

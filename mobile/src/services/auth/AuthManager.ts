@@ -2,6 +2,7 @@
 
 import { api } from '@/services/api/client';
 import { authApi } from '@/services/api/auth';
+import i18n from '@/locales';
 import {
   ApiResponse,
   LoginResponse,
@@ -20,14 +21,14 @@ function unwrapResponse<T>(response: any): T {
     // 检查是否是标准 ApiResponse 格式 { code, message, data }
     if ('code' in response && 'data' in response) {
       if (response.code !== 0) {
-        throw new Error(response.message || '请求失败');
+        throw new Error(response.message || i18n.t('api.errors.requestFailed'));
       }
       return response.data as T;
     }
     // 如果不是标准格式，直接返回整个响应
     return response as T;
   }
-  throw new Error('无效的响应数据');
+  throw new Error(i18n.t('api.errors.invalidResponse'));
 }
 
 export class AuthManager {

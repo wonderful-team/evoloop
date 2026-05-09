@@ -1,5 +1,7 @@
 // 验证工具函数
 
+import i18n from '@/locales';
+
 export const validate = {
   // 手机号验证 (中国大陆)
   mobile: (value: string): boolean => {
@@ -34,10 +36,10 @@ export const validate = {
 
 // 表单验证错误消息
 export const validateMessages = {
-  mobile: '请输入正确的手机号',
-  captcha: '验证码格式不正确',
-  password: '密码长度至少6位',
-  username: '用户名需为3-20位字母或数字',
-  email: '邮箱格式不正确',
-  required: '此项为必填项',
+  mobile: i18n.t('validation.mobile'),
+  captcha: i18n.t('validation.captcha'),
+  password: i18n.t('validation.password'),
+  username: i18n.t('validation.username'),
+  email: i18n.t('validation.email'),
+  required: i18n.t('validation.required'),
 };

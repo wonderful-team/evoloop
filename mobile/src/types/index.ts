@@ -1,5 +1,7 @@
 // 通用类型定义
 
+import i18n from '@/locales';
+
 // ========== 认证相关类型 ==========
 
 export interface UserInfo {
@@ -121,8 +123,8 @@ export interface Project {
 // 虚拟全局项目（跨项目对话模式）
 export const GLOBAL_PROJECT: Project = {
   id: 0,
-  name: '全局模式',
-  description: '跨项目对话与一般问答',
+  name: i18n.t('projects.globalModeName'),
+  description: i18n.t('projects.globalModeDesc'),
   rootPath: '',
   isActive: false,
   isGlobal: true,

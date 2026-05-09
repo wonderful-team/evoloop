@@ -2,6 +2,7 @@
 // 支持双链路：链路一（Desktop）和链路二（直连 LLM）
 
 import { useCallback, useRef, useState } from 'react';
+import i18n from '@/locales';
 import { useAuthStore } from '@/stores/authStore';
 import { useConversationStore } from '@/stores/conversationStore';
 import { api } from '@/services/api/client';
@@ -11,19 +12,19 @@ import { generateUUID } from '@/utils/uuid';
 
 // 生成用户友好的 HTTP 错误消息
 function getFriendlyErrorMessage(status: number, rawMessage: string): string {
-  if (/quota|额度|配额/i.test(rawMessage)) return '配额不足，请联系管理员或升级套餐';
+  if (/quota|额度|配额/i.test(rawMessage)) return i18n.t('deviceControl.httpErrors.quotaInsufficient');
   switch (status) {
-    case 400: return '请求参数错误，请检查后重试';
-    case 401: return '登录已过期，请重新登录';
-    case 403: return '没有权限执行此操作';
-    case 404: return '请求的资源不存在';
-    case 408: return '请求超时，请检查网络后重试';
-    case 429: return '请求过于频繁，请稍后再试';
-    case 500: return '服务器内部错误，请稍后再试';
-    case 502: return '网关错误，请稍后再试';
-    case 503: return '服务暂时不可用，请稍后再试';
-    case 504: return '网关超时，请稍后再试';
-    default: return rawMessage || `请求失败 (${status})`;
+    case 400: return i18n.t('deviceControl.httpErrors.400');
+    case 401: return i18n.t('deviceControl.httpErrors.401');
+    case 403: return i18n.t('deviceControl.httpErrors.403');
+    case 404: return i18n.t('deviceControl.httpErrors.404');
+    case 408: return i18n.t('deviceControl.httpErrors.408');
+    case 429: return i18n.t('deviceControl.httpErrors.429');
+    case 500: return i18n.t('deviceControl.httpErrors.500');
+    case 502: return i18n.t('deviceControl.httpErrors.502');
+    case 503: return i18n.t('deviceControl.httpErrors.503');
+    case 504: return i18n.t('deviceControl.httpErrors.504');
+    default: return rawMessage || i18n.t('deviceControl.httpErrors.default', { status });
   }
 }
 
@@ -133,7 +134,7 @@ export function useDeviceControl(options: UseDeviceControlOptions = {}): UseDevi
     options?: { conversationId?: string; deviceKey?: string; references?: any[] }
   ) => {
     if (!token || !options?.deviceKey) {
-      throw new Error('未登录或未选择设备');
+      throw new Error(i18n.t('deviceControl.notSelectedDevice'));
     }
 
 
@@ -176,14 +177,14 @@ export function useDeviceControl(options: UseDeviceControlOptions = {}): UseDevi
 
 
     if (data.code !== 0) {
-      const rawMsg = data.message || '发送失败';
+      const rawMsg = data.message || i18n.t('deviceControl.httpErrors.sendFailed');
 
       // 检测配额耗尽错误
       if (data.code === 429 || /quota/i.test(rawMsg)) {
         setQuotaExhaustedInfo({
-          title: '配额已耗尽',
+          title: i18n.t('deviceControl.quotaExhaustedTitle'),
           message: rawMsg,
-          hint: '请联系管理员添加配额，或升级您的订阅计划。',
+          hint: i18n.t('deviceControl.quotaExhaustedHint'),
         });
         const quotaError = new Error(rawMsg);
         (quotaError as any).__quota_exhausted = true;
@@ -213,7 +214,7 @@ export function useDeviceControl(options: UseDeviceControlOptions = {}): UseDevi
     options?: SendMessageOptions
   ) => {
     if (!token) {
-      throw new Error('未登录');
+      throw new Error(i18n.t('deviceControl.notLoggedIn'));
     }
 
     // 构建用户消息内容
@@ -272,9 +273,9 @@ export function useDeviceControl(options: UseDeviceControlOptions = {}): UseDevi
         const rawMsg = error.message || '';
         if (/quota_exhausted|配额/i.test(rawMsg)) {
           setQuotaExhaustedInfo({
-            title: '配额已耗尽',
-            message: rawMsg || '您的 LLM 配额已耗尽。',
-            hint: '请联系管理员添加配额，或升级您的订阅计划。',
+            title: i18n.t('deviceControl.quotaExhaustedTitle'),
+            message: rawMsg || i18n.t('deviceControl.quotaExhaustedMessage'),
+            hint: i18n.t('deviceControl.quotaExhaustedHint'),
           });
           const quotaError = new Error(rawMsg);
           (quotaError as any).__quota_exhausted = true;
@@ -299,7 +300,7 @@ export function useDeviceControl(options: UseDeviceControlOptions = {}): UseDevi
   ) => {
 
     if (!token) {
-      onError?.(new Error('未登录'));
+      onError?.(new Error(i18n.t('deviceControl.notLoggedIn')));
       return;
     }
 
@@ -378,7 +379,7 @@ export function useDeviceControl(options: UseDeviceControlOptions = {}): UseDevi
       await api.post('/gateway/api/v1/hitl/confirm', {
         request_id: hitlRequest.id,
         response: 'cancel',
-        reason: reason || '用户取消',
+        reason: reason || i18n.t('deviceControl.hitlCancelReason'),
       });
 
       setHitlRequest(null);

@@ -11,6 +11,7 @@ const CHECK_INTERVAL_NORMAL = 2 * 60 * 1000; // 2分钟
 const CHECK_INTERVAL_BACKGROUND = 5 * 60 * 1000; // 5分钟
 
 import { syncMessages } from '@/services/api/conversations';
+import i18n from '@/locales';
 
 // 检查新消息
 async function checkNewMessages(): Promise<boolean> {
@@ -41,12 +42,12 @@ async function checkNewMessages(): Promise<boolean> {
       
       let title = 'EvoLoop AI';
       if (messages.length > 1) {
-          title = `EvoLoop AI (${messages.length}条新消息)`;
+          title = i18n.t('notifications.newMessageCount', { count: messages.length });
       }
 
       await showNotification(
         title,
-        latestMessage.content?.substring(0, 100) || '收到新消息'
+        latestMessage.content?.substring(0, 100) || i18n.t('notifications.newMessageBody')
       );
       
       // 获取所有新消息中最大的时间戳
@@ -79,7 +80,7 @@ async function showNotification(title: string, body: string): Promise<void> {
     if (Platform.OS === 'android') {
       await notifee.createChannel({
         id: 'new-message',
-        name: '新消息通知',
+        name: i18n.t('notifications.newMessageChannel'),
         importance: 4, // HIGH
         vibration: true,
         vibrationPattern: [300, 500],

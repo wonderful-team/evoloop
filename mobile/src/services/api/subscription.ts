@@ -2,6 +2,7 @@
 // 链路: Mobile → member-center/backend (PHP)
 
 import { api } from './client';
+import i18n from '@/locales';
 
 // PHP 后端标准响应格式
 interface PHPResponse<T> {
@@ -13,7 +14,7 @@ interface PHPResponse<T> {
 // 提取数据，处理错误
 function extractData<T>(response: PHPResponse<T>): T {
   if (response.code < 0) {
-    throw new Error(response.message || '请求失败');
+    throw new Error(response.message || i18n.t('api.errors.requestFailed'));
   }
   return response.data;
 }

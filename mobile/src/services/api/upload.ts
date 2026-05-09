@@ -1,6 +1,7 @@
 // 文件上传服务
 
 import { api } from './client';
+import i18n from '@/locales';
 
 export interface UploadResponse {
   pic_path: string;
@@ -57,7 +58,7 @@ export async function uploadChatImage(uri: string): Promise<ChatAttachment> {
   const data = response.data || response;
   
   if (data.code !== 0) {
-    throw new Error(data.message || '上传失败');
+    throw new Error(data.message || i18n.t('api.errors.uploadFailed'));
   }
 
   return {
@@ -85,7 +86,7 @@ export async function uploadChatFile(uri: string, name: string): Promise<ChatAtt
   const supportedTypes = ['txt', 'xlsx', 'xls', 'csv', 'pem', 'doc', 'docx', 'pdf', 'md', 'json'];
   
   if (!supportedTypes.includes(ext)) {
-    throw new Error(`不支持的文件类型: ${ext}。支持: ${supportedTypes.join(', ')}`);
+    throw new Error(i18n.t('api.errors.unsupportedFileType', { ext, supportedTypes: supportedTypes.join(', ') }));
   }
 
   formData.append('file', {
@@ -107,7 +108,7 @@ export async function uploadChatFile(uri: string, name: string): Promise<ChatAtt
   const data = response.data || response;
   
   if (data.code !== 0) {
-    throw new Error(data.message || '上传文件失败');
+    throw new Error(data.message || i18n.t('api.errors.uploadFileFailed'));
   }
 
   return {

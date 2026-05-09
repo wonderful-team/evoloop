@@ -9,6 +9,7 @@ import {
   NLSTranscriptionResult 
 } from './types';
 import { generateUUID } from '@/utils/uuid';
+import i18n from '@/locales';
 
 const NLS_DEFAULT_URL = 'wss://nls-gateway.aliyuncs.com/ws/v1';
 
@@ -38,7 +39,7 @@ export class NLSClient extends EventEmitter {
   // 连接并启动识别
   async connect(): Promise<void> {
     if (this.state !== 'idle') {
-      throw new Error('NLS 客户端已在运行');
+      throw new Error(i18n.t('nls.errors.clientRunning'));
     }
 
     this.setState('connecting');
@@ -67,7 +68,7 @@ export class NLSClient extends EventEmitter {
         this.ws.onerror = (error) => {
           console.error('NLS WebSocket 错误:', error);
           this.setState('error');
-          this.callbacks.onError?.(new Error('WebSocket 连接错误'));
+          this.callbacks.onError?.(new Error(i18n.t('nls.errors.wsError')));
           reject(error);
         };
 
@@ -170,7 +171,7 @@ export class NLSClient extends EventEmitter {
           return;
         }
         console.error('NLS 错误:', statusText);
-        this.callbacks.onError?.(new Error(statusText || '识别错误'));
+        this.callbacks.onError?.(new Error(statusText || i18n.t('nls.errors.recognitionError')));
         return;
       }
 
@@ -208,7 +209,7 @@ export class NLSClient extends EventEmitter {
             return;
           }
           console.error('识别任务失败:', taskFailedText);
-          this.callbacks.onError?.(new Error(taskFailedText || '识别失败'));
+          this.callbacks.onError?.(new Error(taskFailedText || i18n.t('nls.errors.recognitionFailed')));
           break;
       }
     } catch (error) {

@@ -2,6 +2,7 @@
 // 用户可在面板上选择微信/钉钉/飞书/邮件/备忘录等任意支持接收文本的应用
 
 import Share from 'react-native-share';
+import i18n from '@/locales';
 
 interface ShareOptions {
   /** 分享标题（部分应用显示） */
@@ -19,7 +20,7 @@ interface ShareOptions {
 export async function shareText(options: ShareOptions): Promise<void> {
   try {
     await Share.open({
-      title: options.title || '分享',
+      title: options.title || i18n.t('share.defaultTitle'),
       message: options.message,
       url: options.url,
       failOnCancel: false, // 用户取消不抛错
@@ -40,13 +41,15 @@ export async function shareChatMessage(content: string, sender?: string): Promis
   const message = sender
     ? `${sender}:\n${content}`
     : content;
-  await shareText({ title: '分享消息', message });
+  await shareText({ title: i18n.t('share.messageTitle'), message });
 }
 
 /**
  * 分享代码块
  */
 export async function shareCodeBlock(code: string, language?: string): Promise<void> {
-  const title = language ? `分享 ${language.toUpperCase()} 代码` : '分享代码';
+  const title = language
+    ? i18n.t('share.codeTitleWithLang', { language: language.toUpperCase() })
+    : i18n.t('share.codeTitle');
   await shareText({ title, message: code });
 }

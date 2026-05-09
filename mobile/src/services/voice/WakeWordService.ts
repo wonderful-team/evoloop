@@ -3,6 +3,7 @@
 
 import { AppState, AppStateStatus, Platform } from 'react-native';
 import notifee, { AndroidImportance } from '@notifee/react-native';
+import i18n from '@/locales';
 import { WakeWordDetector, type WakeWordDetectorConfig } from './WakeWordDetector';
 
 export interface WakeWordServiceOptions extends WakeWordDetectorConfig {
@@ -39,7 +40,7 @@ export class WakeWordService {
       if (Platform.OS === 'android' && !this.channelCreated) {
         await notifee.createChannel({
           id: 'wake-word',
-          name: '唤醒词监听',
+          name: i18n.t('notifications.wakeWordTitle'),
           importance: AndroidImportance.LOW,
           vibration: false,
         });
@@ -147,8 +148,8 @@ export class WakeWordService {
 
     try {
       await notifee.displayNotification({
-        title: '唤醒词监听中',
-        body: `说出「${this.options.wakeWord}」唤醒语音助手`,
+        title: i18n.t('notifications.wakeWordTitle'),
+        body: i18n.t('notifications.wakeWordBody', { wakeWord: this.options.wakeWord }),
         android: {
           channelId: 'wake-word',
           asForegroundService: true,

@@ -1,5 +1,7 @@
 // 通用错误处理工具
 
+import i18n from '@/locales';
+
 export interface QuotaError extends Error {
   __quota_exhausted: boolean;
 }
@@ -11,13 +13,13 @@ export function isQuotaError(error: unknown): error is QuotaError {
 export function getErrorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
   if (typeof error === 'string') return error;
-  return '未知错误';
+  return i18n.t('error.unknown');
 }
 
 export function handleApiError(error: unknown): Error {
   if (error instanceof Error) return error;
   if (typeof error === 'string') return new Error(error);
-  return new Error('未知错误');
+  return new Error(i18n.t('error.unknown'));
 }
 
 export function isAuthError(error: unknown): boolean {

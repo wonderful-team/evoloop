@@ -10,6 +10,7 @@ try {
 }
 
 import { WECHAT_CONFIG, UNIVERSAL_LINK_URL } from '@/constants/config';
+import i18n from '@/locales';
 
 // 检查 WeChat 模块是否可用
 const isWeChatAvailable = (): boolean => {
@@ -101,21 +102,21 @@ export class WechatPay {
     try {
       // 检查 SDK 是否可用
       if (!isWeChatAvailable()) {
-        throw new Error('微信 SDK 不可用');
+        throw new Error(i18n.t('payment.errors.sdkUnavailable'));
       }
 
       // 确保已初始化
       if (!this.isRegistered) {
         const initialized = await this.init();
         if (!initialized) {
-          throw new Error('微信 SDK 初始化失败');
+          throw new Error(i18n.t('payment.errors.sdkInitFailed'));
         }
       }
 
       // 检查微信是否安装
       const isInstalled = await this.isWXAppInstalled();
       if (!isInstalled) {
-        throw new Error('请先安装微信');
+        throw new Error(i18n.t('payment.errors.wechatNotInstalled'));
       }
 
       // 调起微信支付
@@ -136,20 +137,20 @@ export class WechatPay {
         return { 
           success: false, 
           errCode: result.errCode, 
-          errStr: '用户取消支付' 
+          errStr: i18n.t('payment.errors.userCancelled') 
         };
       } else {
         return { 
           success: false, 
           errCode: result.errCode, 
-          errStr: result.errStr || '支付失败' 
+          errStr: result.errStr || i18n.t('payment.errors.payFailed') 
         };
       }
     } catch (error: any) {
       console.error('微信支付失败:', error);
       return {
         success: false,
-        errStr: error.message || '支付调用失败',
+        errStr: error.message || i18n.t('payment.errors.payCallFailed'),
       };
     }
   }
@@ -160,11 +161,11 @@ export class WechatPay {
   static getErrorMessage(errCode?: number): string {
     switch (errCode) {
       case -1:
-        return '支付失败，请稍后重试';
+        return i18n.t('payment.errors.payFailed');
       case -2:
-        return '您已取消支付';
+        return i18n.t('payment.errors.userCancelled');
       default:
-        return '支付异常，请稍后重试';
+        return i18n.t('payment.errors.payAbnormal');
     }
   }
 }

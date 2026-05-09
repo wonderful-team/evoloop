@@ -4,6 +4,7 @@ import { projectApi } from '@/services/api/projects';
 import { Project, GLOBAL_PROJECT, isGlobalProject } from '@/types';
 import { useProjectStore } from '@/stores/projectStore';
 import { useDeviceStore } from '@/stores/deviceStore';
+import i18n from '@/locales';
 
 export class ProjectManager {
   // 获取项目列表
@@ -24,7 +25,7 @@ export class ProjectManager {
       
       return projects;
     } catch (error) {
-      const err = error instanceof Error ? error : new Error('获取项目列表失败');
+      const err = error instanceof Error ? error : new Error(i18n.t('projects.fetchFailed'));
       store.setError(err);
       throw err;
     } finally {
@@ -61,7 +62,7 @@ export class ProjectManager {
       // 从列表中找到目标项目
       const targetProject = (store.projects || []).find(p => p.id === projectId);
       if (!targetProject) {
-        throw new Error('项目不存在');
+        throw new Error(i18n.t('projects.notFound'));
       }
 
       // 更新本地项目状态

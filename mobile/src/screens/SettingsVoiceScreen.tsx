@@ -9,7 +9,7 @@ import { useTheme } from '@/theme';
 import { Header } from '@/components/common/Header';
 import { AudioRecorder } from '@/services/voice/AudioRecorder';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { DEFAULT_VOICES } from '@/hooks/useTTS';
+import { getDefaultVoices } from '@/hooks/useTTS';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { router } from '@/utils/navigation';
 
@@ -185,7 +185,7 @@ export default function VoiceSettingsScreen() {
       {/* TTS 语音合成设置 */}
       <List.Section>
         <List.Subheader>{t('settings.voice.tts')}</List.Subheader>
-        {DEFAULT_VOICES.map((voice) => (
+        {getDefaultVoices(t).map((voice) => (
           <List.Item
             key={voice.id}
             title={voice.name}

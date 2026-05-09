@@ -1,5 +1,6 @@
 // 格式化工具函数
 
+import i18n from '@/locales';
 import { format, formatDistanceToNow } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 
@@ -50,7 +51,7 @@ export const formatMoney = {
   // 简化格式 (元)
   yuan: (amount: number | string): string => {
     const num = typeof amount === 'string' ? parseFloat(amount) : amount;
-    return `${num.toFixed(0)}元`;
+    return `${num.toFixed(0)}${i18n.t('format.currencyUnit')}`;
   },
 };
 
@@ -58,7 +59,7 @@ export const formatMoney = {
 export const formatNumber = {
   // 千分位
   thousand: (num: number): string => {
-    return num.toLocaleString('zh-CN');
+    return num.toLocaleString(i18n.language === 'zh' || i18n.language.startsWith('zh') ? 'zh-CN' : 'en-US');
   },
   
   // 文件大小

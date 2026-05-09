@@ -12,6 +12,7 @@ try {
 import { WECHAT_CONFIG, UNIVERSAL_LINK_URL } from '@/constants/config';
 import { api } from '@/services/api/client';
 import { ApiResponse } from '@/types';
+import i18n from '@/locales';
 
 // 检查 WeChat 模块是否可用
 const isWeChatAvailable = (): boolean => {
@@ -100,26 +101,26 @@ export class WechatAuth {
   static async authorize(): Promise<string> {
     try {
       if (!isWeChatAvailable()) {
-        throw new Error('微信 SDK 不可用，请使用 Development Build 运行');
+        throw new Error(i18n.t('auth.errors.wechatSdkUnavailable'));
       }
 
       if (!this.isRegistered) {
         const initialized = await this.init();
         if (!initialized) {
-          throw new Error('微信 SDK 初始化失败');
+          throw new Error(i18n.t('auth.errors.wechatSdkInitFailed'));
         }
       }
 
       const isInstalled = await this.isWXAppInstalled();
       if (!isInstalled) {
-        throw new Error('请先安装微信');
+        throw new Error(i18n.t('auth.errors.wechatNotInstalled'));
       }
 
       // 发送授权请求，获取 code（snsapi_userinfo 获取用户信息）
       const authResponse = await WeChat.sendAuthRequest('snsapi_userinfo', '');
 
       if (!authResponse.code) {
-        throw new Error('获取授权码失败');
+        throw new Error(i18n.t('auth.errors.authCodeFailed'));
       }
 
       return authResponse.code;
@@ -137,11 +138,11 @@ export class WechatAuth {
     const data: WechatAccessTokenResponse = await response.json();
 
     if (data.errcode) {
-      throw new Error(`微信接口错误: ${data.errmsg || data.errcode}`);
+      throw new Error(i18n.t('auth.errors.wechatApiError', { message: data.errmsg || data.errcode }));
     }
 
     if (!data.access_token || !data.openid) {
-      throw new Error('获取微信 access_token 失败');
+      throw new Error(i18n.t('auth.errors.getTokenFailed'));
     }
 
     return data;
@@ -158,7 +159,7 @@ export class WechatAuth {
     const data: WechatUserInfoResponse = await response.json();
 
     if (data.errcode) {
-      throw new Error(`微信接口错误: ${data.errmsg || data.errcode}`);
+      throw new Error(i18n.t('auth.errors.wechatApiError', { message: data.errmsg || data.errcode }));
     }
 
     return data;
@@ -170,7 +171,7 @@ export class WechatAuth {
     const code = await this.authorize();
 
     if (!WECHAT_CONFIG.appSecret) {
-      throw new Error('微信 App Secret 未配置');
+      throw new Error(i18n.t('auth.errors.appSecretNotConfigured'));
     }
 
     // 步骤2: 用 code 换 access_token + openid + unionid
@@ -206,7 +207,7 @@ export class WechatAuth {
           avatar: authData.headimg,
         } as WechatLoginResult;
       }
-      throw new Error(response.message || '微信登录失败');
+      throw new Error(response.message || i18n.t('auth.errors.wechatLoginFailed'));
     }
 
     return response.data;

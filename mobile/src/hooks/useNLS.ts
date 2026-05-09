@@ -1,6 +1,7 @@
 // 阿里云 NLS 语音识别 Hook
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { NLSClient } from '@/services/nls/NLSClient';
 import { AudioStreamRecorder } from '@/services/audio/AudioStreamRecorder';
 import { nlsTokenManager } from '@/services/nls/NLSTokenManager';
@@ -25,6 +26,7 @@ export interface UseNLSReturn {
 }
 
 export function useNLS(options: UseNLSOptions = {}): UseNLSReturn {
+  const { t } = useTranslation();
   const { onResult, onError, onStateChange } = options;
 
   const [state, setState] = useState<NLSState>('idle');
@@ -55,7 +57,7 @@ export function useNLS(options: UseNLSOptions = {}): UseNLSReturn {
       const appKey = nlsTokenManager.getAppKey();
 
       if (!appKey) {
-        throw new Error('未获取到有效的 NLS AppKey，请检查 Gateway 配置');
+        throw new Error(t('nls.errors.appKeyInvalid'));
       }
 
       // 创建 NLS 客户端

@@ -193,12 +193,12 @@ export default function RegisterScreen() {
 
       if (!captcha) {
         console.error('验证码响应为空');
-        throw new Error('获取验证码失败，请重试');
+        throw new Error(t('auth.errors.getCaptchaFailed'));
       }
 
       if (!captcha.img) {
         console.error('验证码数据不完整:', captcha);
-        throw new Error('验证码数据不完整');
+        throw new Error(t('auth.errors.captchaDataIncomplete'));
       }
 
       setCaptchaId(captcha.id);

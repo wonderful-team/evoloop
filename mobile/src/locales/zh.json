@@ -367,7 +367,9 @@
       "captchaResponseEmpty": "验证码响应为空",
       "getRegisterConfigFailed": "获取注册配置失败",
       "bindMobileFailed": "绑定手机号失败",
-      "sessionExpired": "登录已过期，请重新登录"
+      "sessionExpired": "登录已过期，请重新登录",
+      "enterDynaCode": "请输入短信验证码",
+      "passwordMinLength": "密码长度至少6位"
     },
     "login": {
       "captchaNote": "注意：密码登录验证码尚未集成。",
@@ -389,7 +391,10 @@
       "smsCodeLabel": "短信验证码",
       "passwordLabel": "密码",
       "usernameLabel": "账号/手机号/邮箱",
-      "passwordPlaceholder": "请输入密码"
+      "passwordPlaceholder": "请输入密码",
+      "forgotPassword": "忘记密码？",
+      "noAccount": "还没有账号？",
+      "registerNow": "立即注册"
     },
     "forgotPassword": {
       "next": "下一步",
@@ -403,7 +408,11 @@
       "step1": "输入验证码",
       "title": "找回密码",
       "step0": "验证手机号",
-      "resend": "重新发送"
+      "resend": "重新发送",
+      "noReceived": "没有收到验证码？",
+      "resetSuccess": "密码重置成功",
+      "resetSuccessDesc": "您的密码已成功重置，请使用新密码登录。",
+      "goLogin": "去登录"
     },
     "success": {
       "login": "登录成功",
@@ -421,12 +430,26 @@
       "policy": "《服务协议 & 隐私政策》",
       "usernamePlaceholder": "用户名 (字母/数字)",
       "getCode": "获取验证码",
-      "usernameMinLength": "用户名至少3位"
+      "usernameMinLength": "用户名至少3位",
+      "hasAccount": "已有账号？",
+      "loginNow": "立即登录",
+      "submit": "注册",
+      "passwordMinLength": "密码长度至少6位",
+      "registerFailed": "注册失败"
     },
     "termsOfService": "《服务协议》",
     "privacyPolicy": "《隐私政策》",
     "and": "和",
-    "pleaseAgreeFirst": "请先阅读并同意"
+    "pleaseAgreeFirst": "请先阅读并同意",
+    "bindMobile": {
+      "title": "绑定手机号",
+      "greetingFallback": "欢迎",
+      "hint": "绑定手机号后可以使用更多功能",
+      "dynaCodeLabel": "短信验证码",
+      "save": "保存",
+      "skip": "跳过",
+      "bindFailed": "绑定失败"
+    }
   },
   "search": {
     "deviceLabel": "设备 #{{id}}",
@@ -488,7 +511,8 @@
     "chooseFromAlbum": "从相册选择",
     "avatarUpdated": "头像已更新",
     "avatarUpdateFailed": "头像更新失败，请重试",
-    "avatarImageError": "无法获取图片数据"
+    "avatarImageError": "无法获取图片数据",
+    "confirm": "确认"
   },
   "projects": {
     "guestTitle": "登录查看项目",
@@ -513,7 +537,8 @@
     "unnamedProject": "未命名项目",
     "fetchFailed": "获取项目列表失败",
     "notFound": "项目不存在",
-    "globalModeName": "全局模式"
+    "globalModeName": "全局模式",
+    "selectProject": "选择项目"
   },
   "projectSwitcher": {
     "noDesc": "暂无描述",
@@ -864,7 +889,11 @@
     "cameraError": "拍照失败，请重试",
     "maxAttachments": "最多只能选择 {{count}} 个媒体文件",
     "videoPermissionRequired": "需要相机权限才能录制视频",
-    "videoError": "录制视频失败，请重试"
+    "videoError": "录制视频失败，请重试",
+    "endReached": "已经到底了",
+    "gotIt": "知道了",
+    "reload": "重新加载",
+    "tip": "提示"
   },
   "payConfirm": {
     "payAmount": "支付金额",
