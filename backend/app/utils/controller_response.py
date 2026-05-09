@@ -588,7 +588,7 @@ class ContentFormatter:
             "common/events/todo_list.prompt.j2",
             todos=todo_data,
             title=title
-        )
+        ), {"count": len(todo_data)}
 
     @staticmethod
     def web_search_results(query: str, results: list) -> str:
@@ -598,7 +598,7 @@ class ContentFormatter:
             query=query,
             results=results,
             result_type="web"
-        )
+        ), {"count": len(results)}
 
     @staticmethod
     def chat_search_results(query: str, results: list) -> str:
@@ -615,5 +615,5 @@ class ContentFormatter:
             query=query,
             results=formatted_results,
             result_type="chat"
-        )
+        ), {"count": len(formatted_results)}
 

@@ -1,5 +1,6 @@
 import { create } from "zustand"
 import { ProjectsService, SystemService } from "@/client"
+import { useProjectStore } from "./projectStore"
 
 export interface DetectedProject {
   id: number
@@ -28,6 +29,7 @@ interface ProjectImportState {
   setManualMode: (enabled: boolean) => void
   dismissProject: (id: number) => void // 标记单个项目为已处理
   dismissAllProjects: () => void // 标记所有当前项目为已处理
+  dismissAllAndResetManual: () => void // 标记所有项目为已处理并重置手动模式（一次性原子操作）
 
   batchImportProjects: (ids: number[]) => Promise<{ success: number; failed: number }>
   batchIgnoreProjects: (ids: number[]) => Promise<{ success: number; failed: number }>
@@ -68,7 +70,8 @@ export const useProjectImportStore = create<ProjectImportState>((set, get) => ({
       set({
         detectedProjects: items,
         hasNewDetected: items.length > 0,
-        isManualMode: items.length > 0
+        isManualMode: items.length > 0,
+        dismissedProjectIds: new Set<number>(), // 主动扫描时重置 dismissed 记录
       })
     } catch (error) {
       console.error("[ProjectImport] Failed to scan projects:", error)
@@ -142,10 +145,8 @@ export const useProjectImportStore = create<ProjectImportState>((set, get) => ({
     set({ isLoading: true })
     try {
       await ProjectsService.importDetectedProject({ repoId: id })
-      await get().fetchDetected()
-
-      // @ts-ignore - accessing other store
-      await window.__PROJECT_STORE__?.fetchProjects?.()
+      await get().fetchDetected(true)
+      await useProjectStore.getState().fetchProjects()
     } catch (error) {
       console.error("Failed to import project:", error)
       throw error
@@ -158,12 +159,11 @@ export const useProjectImportStore = create<ProjectImportState>((set, get) => ({
     set({ isLoading: true })
     try {
       await ProjectsService.ignoreDetectedProject({ repoId: id })
-      await get().fetchDetected()
+      await get().fetchDetected(true)
       await get().fetchIgnored()
 
       // Refresh main project list to remove ignored project
-      // @ts-ignore - accessing other store
-      await window.__PROJECT_STORE__?.fetchProjects?.()
+      await useProjectStore.getState().fetchProjects()
     } catch (error) {
       console.error("Failed to ignore project:", error)
       throw error
@@ -180,8 +180,7 @@ export const useProjectImportStore = create<ProjectImportState>((set, get) => ({
       await get().fetchIgnored()
 
       // Refresh main project list to add restored project
-      // @ts-ignore - accessing other store
-      await window.__PROJECT_STORE__?.fetchProjects?.()
+      await useProjectStore.getState().fetchProjects()
     } catch (error) {
       console.error("Failed to unignore project:", error)
       throw error
@@ -211,6 +210,8 @@ export const useProjectImportStore = create<ProjectImportState>((set, get) => ({
       return {
         dismissedProjectIds: newDismissed,
         hasNewDetected: hasNewUnprocessed,
+        // 如果最后一个未处理项目被 dismiss，同时退出手动模式
+        isManualMode: hasNewUnprocessed ? state.isManualMode : false,
       }
     })
   },
@@ -227,6 +228,19 @@ export const useProjectImportStore = create<ProjectImportState>((set, get) => ({
     })
   },
 
+  dismissAllAndResetManual: () => {
+    set((state) => {
+      const newDismissed = new Set(state.dismissedProjectIds)
+      state.detectedProjects.forEach((item) => newDismissed.add(item.id))
+
+      return {
+        dismissedProjectIds: newDismissed,
+        hasNewDetected: false,
+        isManualMode: false,
+      }
+    })
+  },
+
   batchImportProjects: async (ids: number[]) => {
     set({ isLoading: true })
     try {
@@ -236,8 +250,7 @@ export const useProjectImportStore = create<ProjectImportState>((set, get) => ({
 
       await get().fetchDetected()
 
-      // @ts-ignore - accessing other store
-      await window.__PROJECT_STORE__?.fetchProjects?.()
+      await useProjectStore.getState().fetchProjects()
 
       return {
         success: res.results?.success?.length || 0,
@@ -262,8 +275,7 @@ export const useProjectImportStore = create<ProjectImportState>((set, get) => ({
       await get().fetchIgnored()
 
       // Refresh main project list to remove ignored projects
-      // @ts-ignore - accessing other store
-      await window.__PROJECT_STORE__?.fetchProjects?.()
+      await useProjectStore.getState().fetchProjects()
 
       return {
         success: res.results?.success?.length || 0,

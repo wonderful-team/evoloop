@@ -201,21 +201,36 @@ async def search_web(query: str) -> str:
     # 首先尝试 DuckDuckGo
     results = await _search_duckduckgo(query)
     if results:
-        return ContentFormatter.web_search_results(query, results)
+        res = ContentFormatter.web_search_results(query, results)
+        if isinstance(res, tuple):
+            text, meta = res
+            meta["page"] = 1
+            return text, meta
+        return res, {"count": len(results), "page": 1}
 
     # 回退到百度搜索
     results = await _search_baidu(query)
     if results:
-        return ContentFormatter.web_search_results(query, results)
+        res = ContentFormatter.web_search_results(query, results)
+        if isinstance(res, tuple):
+            text, meta = res
+            meta["page"] = 1
+            return text, meta
+        return res, {"count": len(results), "page": 1}
 
     # 回退到 Wikipedia 百科搜索
     results = await _search_wikipedia(query)
     if results:
-        return ContentFormatter.web_search_results(query, results)
+        res = ContentFormatter.web_search_results(query, results)
+        if isinstance(res, tuple):
+            text, meta = res
+            meta["page"] = 1
+            return text, meta
+        return res, {"count": len(results), "page": 1}
 
     # 三个都失败了
     return ControllerResponse.error(
         "Unable to search the web",
         details="Search services are currently unavailable",
         note="Use 'browser_control' to navigate to target sites directly for higher reliability"
-    )
+    ), {"count": 0}

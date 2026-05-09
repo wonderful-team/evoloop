@@ -102,7 +102,7 @@ async def create_todo(
         priority=todo.priority.value.upper(),
         title=todo.title,
         id=todo.id,
-    )
+    ), {"id": todo.id}
 
 
 @evoloop_tool(
@@ -149,7 +149,7 @@ async def list_todos(
     if not todos:
         return i18n.get("domain_tools.manage_todo.no_todos")
     
-    return ContentFormatter.todo_list(todos, title="Todo List")
+    return ContentFormatter.todo_list(todos, title="Todo List"), {"count": len(todos)}
 
 
 @evoloop_tool(
@@ -187,7 +187,7 @@ async def complete_todo(todo_id: str) -> str:
             return i18n.get(
                 "domain_tools.manage_todo.success_update",
                 id=todo.id
-            ) + f" [{todo.status.value}] {todo.title}"
+            ) + f" [{todo.status.value}] {todo.title}", {"id": todo.id, "status": todo.status.value}
         except TodoNotFoundError:
             return i18n.get("domain_tools.manage_todo.error_not_found", id=todo_id)
 
@@ -228,7 +228,7 @@ async def cancel_todo(todo_id: str) -> str:
             return i18n.get(
                 "domain_tools.manage_todo.success_update",
                 id=todo.id
-            ) + f" [{todo.status.value}] {todo.title}"
+            ) + f" [{todo.status.value}] {todo.title}", {"id": todo.id, "status": todo.status.value}
         except TodoNotFoundError:
             return i18n.get("domain_tools.manage_todo.error_not_found", id=todo_id)
 

@@ -109,7 +109,7 @@ async def harvest_concepts_task(concepts_data: list[dict], project_id: int):
                     platform="android",
                     bundle_id=bundle_id,
                     window_title=name.replace("android_layout:", "").split('(')[0].strip(),
-                    elements=elements,
+                    elements=[e.model_dump() for e in elements],
                 )
 
                 # 2. Use dehydrated summary as Concept description

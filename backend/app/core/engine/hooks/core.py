@@ -107,6 +107,24 @@ class HookSystem:
         self._metrics: dict[HookEvent, dict[str, Any]] = {}
         logger.info("[HookSystem] Initialized")
 
+    @overload
+    def register(
+        self,
+        event: HookEvent,
+        handler: None = None,
+        priority: int = 100,
+        matcher: str | None = None,
+    ) -> Callable[[HookHandler], HookHandler]: ...
+
+    @overload
+    def register(
+        self,
+        event: HookEvent,
+        handler: HookHandler,
+        priority: int = 100,
+        matcher: str | None = None,
+    ) -> HookHandler: ...
+
     def register(
         self,
         event: HookEvent,

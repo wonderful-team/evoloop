@@ -67,24 +67,3 @@ async def search_symbols(
         ))
 
     return response
-
-@router.post("/projects/{project_id}/symbols/{symbol_id}/wiki", response_model=SymbolWikiResponse)
-async def generate_symbol_wiki(
-    _project_id: int, symbol_id: int, db: AsyncSession = Depends(get_db)
-):
-    """
-    Generate on-demand Wiki documentation for a specific symbol.
-    """
-    from app.domain.wiki.service import WikiService
-
-    # Verify symbol belongs to project? (Optional security check)
-    # For MVP just generate.
-
-    wiki_service = WikiService(db)
-    try:
-        content = await wiki_service.generate_doc_for_entity(symbol_id)
-        return SymbolWikiResponse(content=content)
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))

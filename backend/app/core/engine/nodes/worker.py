@@ -82,8 +82,12 @@ class WorkerNode(BaseAgentNode):
         actual_cwd = get_mapped_cwd(ctx.working_directory or ctx.metadata.get("cwd", ""))
 
         from app.core.environment import get_awakened_state
-        awakened = get_awakened_state()
-        telemetry = awakened.get_telemetry_snapshot() if awakened else {}
+        awakened_state = get_awakened_state()
+        telemetry: dict[str, Any] = {}
+        if awakened_state:
+            telemetry_snapshot = awakened_state.get_telemetry_snapshot()
+            if telemetry_snapshot:
+                telemetry = telemetry_snapshot.model_dump()
 
         mission_msg = prompt_builder.build_mission_message(
             context_stats=context_stats,
@@ -98,7 +102,10 @@ class WorkerNode(BaseAgentNode):
 
     async def get_tools(self, state: AgentState) -> list[Any]:
         """Load authorized tools based on ticket skills."""
-        return await tool_manager.get_node_tools("worker", state)
+        tools = await tool_manager.get_node_tools("worker", state)
+        tool_names = [t.name for t in tools]
+        logger.info(f"[Worker] Loaded {len(tools)} tools: {tool_names}")
+        return tools
 
     async def _build_fallback_outcome(
         self,

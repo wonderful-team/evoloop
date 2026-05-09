@@ -100,6 +100,12 @@ class ToolManager:
                 allowed = set(dynamic_tools)
                 combined_map = {k: v for k, v in combined_map.items() if k in allowed}
 
+                # 4. Prevent tool-choice ambiguity: when write_wiki_page is explicitly
+                #    authorized, remove write_file so the Agent cannot accidentally
+                #    bypass the wiki system and write raw files instead.
+                if "write_wiki_page" in allowed and "write_file" in combined_map:
+                    combined_map.pop("write_file", None)
+
         return list(combined_map.values())
 
     async def get_all_capabilities(self) -> list[BaseTool]:

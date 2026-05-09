@@ -308,10 +308,12 @@ class LayeredAuditor:
         project_id = ctx.project_id or state.project_id or DEFAULT_PROJECT_ID
 
         from app.core.environment import get_awakened_state
-        env_state = get_awakened_state()
-        telemetry_data = {}
-        if env_state:
-            telemetry_data = env_state.get_telemetry_snapshot()
+        awakened_state = get_awakened_state()
+        telemetry: dict[str, Any] = {}
+        if awakened_state:
+            telemetry_snapshot = awakened_state.get_telemetry_snapshot()
+            if telemetry_snapshot:
+                telemetry = telemetry_snapshot.model_dump()
 
         builder = FinishPromptBuilder(
             current_plan=current_plan,
@@ -320,7 +322,7 @@ class LayeredAuditor:
             action_context=action_context,
             iteration_count=iteration_count,
             project_id=project_id,
-            telemetry=telemetry_data,
+            telemetry=telemetry,
             blackboard=blackboard,
             session_goal=state.session_goal,
         )

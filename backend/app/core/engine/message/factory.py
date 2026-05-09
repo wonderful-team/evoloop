@@ -211,6 +211,13 @@ class MessageBlockFactory:
             clean_meta["input"] = input_args
             clean_meta["tool_meta"] = tool_meta
 
+        # Normalize tool_calls if present
+        validated_tool_calls = None
+        if tool_calls:
+            validated_tool_calls = []
+            for tc in normalize_tool_calls(tool_calls):
+                validated_tool_calls.append(ToolCall(**tc))
+
         return MessageBlock(
             id=f"msg-{thread_id}-{sequence_number}",
             thread_id=thread_id,
@@ -219,7 +226,7 @@ class MessageBlockFactory:
             category=category,
             content=content or "",
             thinking=thinking,
-            tool_calls=tool_calls,
+            tool_calls=validated_tool_calls,
             status=status,  # type: ignore[arg-type]
             is_visible=True,
             sequence_number=sequence_number,

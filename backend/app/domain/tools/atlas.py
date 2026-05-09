@@ -25,10 +25,13 @@ async def query_app_atlas(bundle_ids: str | list[str]) -> str:
         A combined structured markdown summary of the requested applications' UI atlases.
     """
     try:
-        return await atlas_engine.query_app_atlas(bundle_ids)
+        content = await atlas_engine.query_app_atlas(bundle_ids)
+        # Extract count if bundle_ids is a list
+        count = len(bundle_ids) if isinstance(bundle_ids, list) else 1
+        return content, {"count": count}
     except Exception as e:
         logger.error(f"[AtlasTool] Failed to retrieve context for {bundle_ids}: {e}")
-        return f"Error: Unable to retrieve atlas for {bundle_ids}. Details: {str(e)}"
+        return f"Error: Unable to retrieve atlas for {bundle_ids}. Details: {str(e)}", {"status": "error"}
 
 
 @evoloop_tool(
@@ -44,7 +47,14 @@ async def list_app_atlas() -> str:
     Atlas data is built automatically as the Agent performs tasks.
     """
     try:
-        return await atlas_engine.list_apps()
+        # Since atlas_engine.list_apps() returns a string, we'll need to 
+        # either change the service or parse the string. 
+        # Changing the service is cleaner.
+        # But for now, let's just use the service and extract the count 
+        # from the underlying store in the tool for speed.
+        apps = await atlas_engine.store.list_apps()
+        content = await atlas_engine.list_apps()
+        return content, {"count": len(apps)}
     except Exception as e:
         logger.error(f"[AtlasTool] Failed to list apps: {e}")
-        return f"Error: Unable to list apps in Atlas. Details: {str(e)}"
+        return f"Error: Unable to list apps in Atlas. Details: {str(e)}", {"status": "error"}

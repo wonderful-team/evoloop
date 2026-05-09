@@ -136,7 +136,7 @@ async def recall(query: str, limit: int = 5) -> str:
                 if messages:
                     return ContentFormatter.chat_search_results(query, messages)
 
-            return f"No memories found for '{query}'."
+            return f"No memories found for '{query}'.", {"count": 0}
 
         # Format results
         lines = [f"Recalled {len(entries)} memories:\n"]
@@ -145,7 +145,7 @@ async def recall(query: str, limit: int = 5) -> str:
             lines.append(f"   {entry.content[:300]}")
             lines.append("")
 
-        return "\n".join(lines)
+        return "\n".join(lines), {"count": len(entries)}
 
     except Exception as e:
         logger.error(f"[MemoryTool] Recall failed: {e}")
@@ -229,8 +229,10 @@ async def search_history(
         memory = SqlShortTermMemory()
         results = await memory.search_messages(query, target_thread, limit)
         if not results:
-            return f"No messages found for '{query}' in history."
-        return ContentFormatter.chat_search_results(query, results)
+            return f"No messages found for '{query}' in history.", {"count": 0, "top_k": limit}
+        text, meta = ContentFormatter.chat_search_results(query, results)
+        meta["top_k"] = limit
+        return text, meta
 
     except Exception as e:
         logger.error(f"[MemoryTool] History search failed: {e}")
@@ -330,20 +332,18 @@ async def forget_tool_outputs(
         except Exception as e:
             logger.warning(f"[ContextMgmt] Failed to persist tool_memory: {e}")
 
-        return json.dumps({
+        msg = f"Successfully forgot {len(results['forgotten'])} outputs, saved {total_saved} chars."
+        return msg, {
             "status": "success",
-            "message": f"Successfully forgot {len(results['forgotten'])} outputs, saved {total_saved} chars.",
-            "_signal": "forget_tool_outputs",
-            "data": {
-                "forgotten_records": forgotten_records,
-                "total_saved": total_saved,
-                "reason": reason,
-            }
-        }, ensure_ascii=False)
+            "count": len(results['forgotten']),
+            "total_saved": total_saved,
+            "reason": reason,
+            "_signal": "forget_tool_outputs"
+        }
 
     except Exception as e:
         logger.error(f"[ContextMgmt] Forget failed: {e}")
-        return json.dumps({"status": "error", "message": str(e)})
+        return f"Error: {str(e)}", {"status": "error"}
 
 
 @evoloop_tool(
@@ -369,7 +369,7 @@ async def recall_tool_output(
             msg = result.scalar_one_or_none()
 
             if not msg or not msg.content:
-                return json.dumps({"status": "error", "message": "Content not found", "_signal": "recall_tool_output"})
+                return f"Error: Content for {tool_call_id} not found.", {"status": "error", "_signal": "recall_tool_output"}
 
             # Remove from blackboard tool_memory so engine stops replacing with summary
             try:
@@ -383,16 +383,15 @@ async def recall_tool_output(
             except Exception as e:
                 logger.warning(f"[ContextMgmt] Failed to update tool_memory on recall: {e}")
 
-            return json.dumps({
+            return f"Successfully recalled content for {tool_call_id} (Length: {len(msg.content)})", {
                 "status": "success",
-                "message": f"Recalled content for {tool_call_id} (Length: {len(msg.content)})",
-                "_signal": "recall_tool_output",
-                "data": {"tool_call_id": tool_call_id, "found": True, "content": msg.content}
-            }, ensure_ascii=False)
+                "tool_call_id": tool_call_id,
+                "_signal": "recall_tool_output"
+            }
 
     except Exception as e:
         logger.error(f"[ContextMgmt] Recall failed: {e}")
-        return json.dumps({"status": "error", "message": str(e)})
+        return f"Error: {str(e)}", {"status": "error"}
 
 
 @evoloop_tool(
@@ -413,7 +412,7 @@ async def list_forgotten_outputs(
     tool_memory_data = bb_metadata.get("tool_memory")
 
     if not tool_memory_data:
-        return "No forgotten tool outputs in current context."
+        return "No forgotten tool outputs in current context.", {"count": 0}
 
     from app.core.memory.tool_output_memory import ToolOutputMemory
 
@@ -422,7 +421,7 @@ async def list_forgotten_outputs(
         forgotten_records = memory.list_forgotten(limit=limit)
 
         if not forgotten_records:
-            return "No forgotten tool outputs in current context."
+            return "No forgotten tool outputs in current context.", {"count": 0}
 
         lines = [f"### Forgotten Tool Outputs ({len(forgotten_records)})"]
         for record in forgotten_records:
@@ -432,7 +431,7 @@ async def list_forgotten_outputs(
             lines.append(f"  **Summary**: {record.summary[:100]}...")
             lines.append("")
 
-        return "\n".join(lines)
+        return "\n".join(lines), {"count": len(forgotten_records)}
     except Exception as e:
         logger.error(f"[ContextMgmt] List forgotten failed: {e}")
         return f"Error retrieving forgotten outputs: {str(e)}"

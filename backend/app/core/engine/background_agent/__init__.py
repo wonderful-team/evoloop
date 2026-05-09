@@ -125,12 +125,19 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
 
             # Initialize Handlers
             callback = TransparentCallbackHandler(thread_id=thread_id)
-            db_callback = DatabaseCallbackHandler(
-                thread_id=thread_id,
-                project_id=project_id,
-                run_id=run_id,
-            )
-            config["configurable"]["message_handler"] = db_callback._handler
+            
+            # Skip DB persistence for background tasks that don't need conversation history
+            # (e.g. wiki generation, project_profile discovery). This keeps the messages
+            # table clean and avoids accumulating large batch-task transcripts.
+            skip_persistence = inputs.metadata.get("skip_persistence", False)
+            db_callback = None
+            if not skip_persistence:
+                db_callback = DatabaseCallbackHandler(
+                    thread_id=thread_id,
+                    project_id=project_id,
+                    run_id=run_id,
+                )
+                config["configurable"]["message_handler"] = db_callback._handler
 
             # 4. Prepare Workflow Inputs
             inputs_dict = inputs.model_dump()
@@ -162,7 +169,10 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
             inputs_dict["blackboard"] = blackboard.model_dump()
 
             # 5. Execution Setup
-            config["callbacks"] = [callback, db_callback]
+            callbacks = [callback]
+            if db_callback:
+                callbacks.append(db_callback)
+            config["callbacks"] = callbacks
             config["recursion_limit"] = settings.RECURSION_LIMIT
 
             graph_instance = get_graph()
@@ -190,14 +200,17 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
             await ContextManager.save(thread_id)
 
             # Publish AgentRunCompletedEvent for automated learning (Subscribers handle memory)
-            from app.core.engine.event.publishers import publish_agent_run_completed
-            await publish_agent_run_completed(
-                thread_id=thread_id,
-                project_id=project_id,
-                goal=inputs.goal,
-                status="done",
-                payload={"run_id": run_id}
-            )
+            # Skip for headless batch tasks (e.g. wiki generation) to avoid triggering
+            # memory extraction, cloud sync, learning loops, and monitoring finalization.
+            if not skip_persistence:
+                from app.core.engine.event.publishers import publish_agent_run_completed
+                await publish_agent_run_completed(
+                    thread_id=thread_id,
+                    project_id=project_id,
+                    goal=inputs.goal,
+                    status="done",
+                    payload={"run_id": run_id}
+                )
 
         except AgentCancelledException:
             # Expected control flow: user stopped the run.
@@ -212,5 +225,6 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
             # Let handle_task_exception deal with DB/UI reporting
             # run_scope will mark status as "failed"
             from app.core.engine.background_agent.errors import handle_task_exception
-            await handle_task_exception(thread_id, project_id, e, handler=db_callback._handler)
+            handler = db_callback._handler if db_callback else None
+            await handle_task_exception(thread_id, project_id, e, handler=handler)
             raise

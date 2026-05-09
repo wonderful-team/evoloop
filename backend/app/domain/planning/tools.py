@@ -129,7 +129,8 @@ async def create_plan(title: str, steps: list[str], config: RunnableConfig) -> s
             # We return the structure matching domain.planning.models.Plan
             # But populated with the DB IDs so future tools can reference them.
 
-            return json.dumps({
+            # 4. Construct Return Object
+            meta = {
                 "id": plan_id,
                 "title": title,
                 "steps": [
@@ -141,11 +142,20 @@ async def create_plan(title: str, steps: list[str], config: RunnableConfig) -> s
                 ],
                 "current_step_id": db_steps[0].id if db_steps else None,
                 "is_complete": False
-            }, ensure_ascii=False)
+            }
+
+            lines = [f"### Plan Created: {title}", f"**Plan ID**: {plan_id}", ""]
+            lines.append("| Step ID | Title | Status |")
+            lines.append("| :--- | :--- | :--- |")
+            for s in db_steps:
+                lines.append(f"| `{s.id}` | {s.title} | {s.status} |")
+            
+            lines.append("\n*Tip: Use `update_step_status` with the Step ID to track progress.*")
+            return "\n".join(lines), meta
 
     except Exception as e:
         logger.error(f"Failed to create plan in DB: {e}")
-        return json.dumps({"error": str(e)})
+        return f"Error: {str(e)}", {"status": "error"}
 
 
 @evoloop_tool(
@@ -186,18 +196,20 @@ async def update_step_status(
 
                 # session commits automatically on exit
             else:
-                return json.dumps({"error": "Step not found"})
+                return f"Error: Step {step_id} not found.", {"status": "error"}
 
-        return json.dumps({
+        msg = f"Successfully updated step {step_id} status to '{status}'."
+        meta = {
             "action": "update_step",
             "plan_id": plan_id,
             "step_id": step_id,
             "status": status,
             "result": result,
             "execution_run_id": execution_run_id
-        })
+        }
+        return msg, meta
     except Exception as e:
-        return json.dumps({"error": str(e)})
+        return f"Error: {str(e)}", {"status": "error"}
 
 
 @evoloop_tool(

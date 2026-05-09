@@ -8,7 +8,7 @@ from app.core.tools import evoloop_tool
     is_hidden=True,
     summary_template="evoloop.tool_summary.search_native_tools"
 )
-async def search_native_tools(query: str = "") -> dict[str, Any]:
+async def search_native_tools(query: str = "") -> str:
     """
     Search available system tools and capabilities. 
     Use this to find specific 'sensors' (telemetry) or 'actuators' (control tools).
@@ -51,8 +51,14 @@ async def search_native_tools(query: str = "") -> dict[str, Any]:
             "description": desc,
         })
 
-    return {
-        "result_type": "success",
-        "ecosystems": {k: v for k, v in groups.items() if v},
-        "instruction": "Grouped tools by ecosystem. Use specific tools based on your telemetry analysis."
-    }
+    # 构建纯文本输出（Agent 得到的是文本，不是 dict/JSON）
+    lines = []
+    for eco, tools in groups.items():
+        if not tools:
+            continue
+        lines.append(f"\n## {eco.upper()} ({len(tools)} tools)")
+        for t in tools:
+            lines.append(f"- {t['name']}: {t['description']}")
+    
+    total_count = sum(len(t) for t in groups.values())
+    return "\n".join(lines) if lines else "No tools found.", {"count": total_count}

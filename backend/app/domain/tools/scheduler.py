@@ -116,13 +116,13 @@ async def list_autonomous_tasks(project_id: Optional[int] = None) -> str:
             tasks = result.scalars().all()
             
             if not tasks:
-                return "No autonomous tasks found."
+                return "No autonomous tasks found.", {"count": 0}
             
             try:
-                return SystemToolsFormatter.autonomous_tasks(tasks)
+                return SystemToolsFormatter.autonomous_tasks(tasks), {"count": len(tasks)}
             except Exception as e:
                 logger.error(f"Failed to render task list: {e}")
-                return f"Found {len(tasks)} tasks."
+                return f"Found {len(tasks)} tasks.", {"count": len(tasks)}
     except Exception as e:
         logger.error(f"Error in list_autonomous_tasks: {e}")
         return f"Error: Failed to list tasks. {str(e)}"

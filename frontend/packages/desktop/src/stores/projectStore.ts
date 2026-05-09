@@ -142,7 +142,6 @@ interface ProjectState {
   currentProject: Project | null
   isLoading: boolean
   isGlobalMode: boolean
-  _fetchingPromise: Promise<void> | null  // 请求去重锁
 
   fetchProjects: (filterType?: 'switchable' | 'cloud_only' | 'disconnected') => Promise<void>
   setProject: (project: Project) => void
@@ -156,80 +155,52 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   currentProject: null,
   isLoading: false,
   isGlobalMode: false,
-  _fetchingPromise: null,
 
   fetchProjects: async (filterType?: 'switchable' | 'cloud_only' | 'disconnected') => {
-    // 如果已有请求在进行中，复用该 Promise（请求去重）
-    if (get()._fetchingPromise) {
-      return get()._fetchingPromise!
-    }
+    set({ isLoading: true })
+    try {
+      let rawList: any[] = []
+      const resp: any = await ProjectsService.getProjects({ filterType })
 
-    // 创建新的请求 Promise
-    const promise = (async () => {
-      set({ isLoading: true })
-      try {
-        // Backend identifies user via Cookie Session; no localStorage token needed.
-        let rawList: any[] = []
-        const resp: any = await ProjectsService.getProjects({ filterType })
-
-        // Normalize Response (ProjectsListProjectsResponse)
-        if (resp && Array.isArray(resp.list)) {
-          rawList = resp.list
-        } else if (resp && Array.isArray(resp.data?.list)) {
-          rawList = resp.data.list
-        } else if (resp && Array.isArray(resp.projects)) {
-          rawList = resp.projects
-        } else if (Array.isArray(resp)) {
-          rawList = resp
-        }
+      if (resp && Array.isArray(resp.list)) {
+        rawList = resp.list
+      } else if (resp && Array.isArray(resp.data?.list)) {
+        rawList = resp.data.list
+      } else if (resp && Array.isArray(resp.projects)) {
+        rawList = resp.projects
+      } else if (Array.isArray(resp)) {
+        rawList = resp
+      }
 
       const list: Project[] = rawList.map((item: any) => ({
         ...item,
-        // Map to compatibility fields
         id: Number(item.project_id || item.id),
         name: item.project_name || item.title || item.name,
         description: item.project_desc || item.description || "",
         path: item.external_path || item.path || item.local_path || "",
         indexing_status: item.indexing_status || "unknown",
         local_status: item.local_status || null,
-        exists_locally: item.exists_locally === true, // Ensure boolean
+        exists_locally: item.exists_locally === true,
       }))
 
       set({ projects: list, isLoading: false })
 
-      // Auto-select logic with persistence
-      // Filter out disconnected projects (cloud only, no local)
       const localProjects = list.filter((p) => p.exists_locally !== false)
       const current = get().currentProject
       const isGlobal = get().isGlobalMode
-
-      // Check if current project is still valid and not ignored
       const currentInList = current ? list.find((p) => p.id === current.id) : null
-
-      // Get last selected project ID from localStorage
       const lastSelectedId = getLastSelectedProjectId()
       const lastSelectedInList = lastSelectedId !== null
         ? list.find((p) => p.id === lastSelectedId)
         : null
 
-      // Priority 1: Preserve current selection if still valid (session continuity)
       if (isGlobal && current?.id === 0) {
-        // Keep global mode, no changes needed
+        // Keep global mode
       } else if (current && currentInList) {
-        // Current project exists in new list, update it
         set({ currentProject: currentInList })
-      }
-      // Priority 2: Restore last selected project from localStorage (cross-session)
-      else if (lastSelectedInList) {
-        console.log(`[ProjectStore] Restoring last selected project: ${lastSelectedInList.id}`)
-        set({
-          currentProject: lastSelectedInList,
-          isGlobalMode: isGlobalProject(lastSelectedInList)
-        })
-      }
-      // Priority 3: Current project was removed (e.g., ignored) - need to reselect
-      else if (current && !currentInList) {
-        console.log(`[ProjectStore] Current project ${current.id} no longer available, reselecting...`)
+      } else if (lastSelectedInList) {
+        set({ currentProject: lastSelectedInList, isGlobalMode: isGlobalProject(lastSelectedInList) })
+      } else if (current && !currentInList) {
         if (localProjects.length > 0) {
           const firstLocal = localProjects[0]
           saveLastSelectedProjectId(firstLocal.id)
@@ -239,38 +210,24 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
           saveLastSelectedProjectId(first.id)
           set({ currentProject: first, isGlobalMode: false })
         } else {
-          saveLastSelectedProjectId(0) // Save global mode
-          set({ currentProject: GLOBAL_PROJECT, isGlobalMode: true })
-        }
-      }
-        // Priority 4: First time - default to Global Mode (as requested)
-        else if (localProjects.length > 0) {
-          // No previous selection found, default to GLOBAL mode
-          console.log('[ProjectStore] No previous selection, defaulting to Global Mode')
-          saveLastSelectedProjectId(0) // Save global mode
-          set({ currentProject: GLOBAL_PROJECT, isGlobalMode: true })
-        } else if (list.length > 0) {
-          // No local projects but have cloud projects - select first
-          const first = list[0]
-          saveLastSelectedProjectId(first.id)
-          set({ currentProject: first, isGlobalMode: false })
-        } else {
-          // No projects at all - global mode
           saveLastSelectedProjectId(0)
           set({ currentProject: GLOBAL_PROJECT, isGlobalMode: true })
         }
-      } catch (error) {
-        console.error("Failed to fetch projects", error)
-        set({ projects: [], isLoading: false })
-      } finally {
-        // 清除请求锁
-        set({ _fetchingPromise: null })
+      } else if (localProjects.length > 0) {
+        saveLastSelectedProjectId(0)
+        set({ currentProject: GLOBAL_PROJECT, isGlobalMode: true })
+      } else if (list.length > 0) {
+        const first = list[0]
+        saveLastSelectedProjectId(first.id)
+        set({ currentProject: first, isGlobalMode: false })
+      } else {
+        saveLastSelectedProjectId(0)
+        set({ currentProject: GLOBAL_PROJECT, isGlobalMode: true })
       }
-    })()
-
-    // 保存 Promise 到 state
-    set({ _fetchingPromise: promise })
-    return promise
+    } catch (error) {
+      console.error("Failed to fetch projects", error)
+      set({ projects: [], isLoading: false })
+    }
   },
 
   setProject: (project) => {
@@ -334,3 +291,4 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     })
   },
 }))
+

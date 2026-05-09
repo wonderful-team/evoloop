@@ -63,12 +63,12 @@ async def find_symbol(
     # Format based on source
     if source == "graph":
         summaries = [f"{r.get('full_name', name)} ({r.get('type', 'unknown')}) in {r.get('file_path', 'unknown')}" for r in results]
-        return render_template("domain/codebase/codebase_indexing.prompt.j2", summaries=summaries)
+        return render_template("domain/codebase/codebase_indexing.prompt.j2", summaries=summaries), {"count": len(results)}
     elif source == "grep":
         lines = [f"{r.get('file_path')}:{r.get('line')}: {r.get('content', '')}" for r in results]
-        return f"Found '{name}' via text search:\n" + "\n".join(lines[:10])
+        return f"Found '{name}' via text search:\n" + "\n".join(lines[:10]), {"count": len(results)}
     else:
-        return f"Found '{name}': {results}"
+        return f"Found '{name}': {results}", {"count": len(results)}
 
 
 # NOTE: search_code 已合并到 search_files
@@ -119,12 +119,12 @@ async def ask_codebase(
             code_results = await engine.search_code(question, None, get_working_directory(config))
             if code_results:
                 lines = [f"{r.get('file_path')}:{r.get('line')}: {r.get('content', '')}" for r in code_results[:10]]
-                return f"Found relevant code for '{question}':\n" + "\n".join(lines)
+                return f"Found relevant code for '{question}':\n" + "\n".join(lines), {"count": len(code_results)}
             return f"No relevant information found for '{question}'."
         
         # Format concept results
         lines = [f"- {r.get('name')}: {r.get('description', '')}" for r in results[:10]]
-        return f"Relevant concepts for '{question}':\n" + "\n".join(lines)
+        return f"Relevant concepts for '{question}':\n" + "\n".join(lines), {"count": len(results)}
         
     except Exception as e:
         logger.error(f"Ask codebase failed: {e}")

@@ -64,6 +64,13 @@ class BlockMapper:
                 for ref in msg.references
             ]
 
+        # Validate and normalize tool calls
+        validated_tool_calls = None
+        if msg.tool_calls:
+            validated_tool_calls = []
+            for tc in normalize_tool_calls(msg.tool_calls):
+                validated_tool_calls.append(ToolCall(**tc))
+
         return MessageBlock(
             id=f"msg-{msg.thread_id}-{msg.sequence_number}",
             thread_id=msg.thread_id,
@@ -73,7 +80,7 @@ class BlockMapper:
             content_type=msg.content_type or "text",  # type: ignore[arg-type]
             content=msg.content or "",
             thinking=msg.thinking,
-            tool_calls=msg.tool_calls,
+            tool_calls=validated_tool_calls,
             status=msg.status or "completed",  # type: ignore[arg-type]
             is_visible=msg.is_visible,
             created_at=_format_iso(msg.created_at),
@@ -130,17 +137,16 @@ class BlockMapper:
         }
 
         if isinstance(msg, AIMessage):
-            tool_calls: list[dict[str, Any]] = []
-            for tc in (msg.tool_calls or []):
-                if hasattr(tc, "model_dump"):
-                    tool_calls.append(tc.model_dump())
-                elif isinstance(tc, dict):
-                    tool_calls.append(tc)
+            validated_tool_calls: list[ToolCall] | None = None
+            if msg.tool_calls:
+                validated_tool_calls = []
+                for tc in normalize_tool_calls(msg.tool_calls):
+                    validated_tool_calls.append(ToolCall(**tc))
 
             return MessageBlock(
                 role="ai",
                 content=str(msg.content or ""),
-                tool_calls=tool_calls or None,
+                tool_calls=validated_tool_calls,
                 status="completed",
                 **kwargs,
             )

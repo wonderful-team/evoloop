@@ -99,7 +99,7 @@ async def kb_search(
 
     except Exception as e:
         logger.error(f"kb_search failed: {e}")
-        return f"Search error: {str(e)}"
+        return f"Search error: {str(e)}", {"status": "error", "limit": max_results}
 
 
 async def _semantic_search(query: str, collection: str, max_results: int) -> str:
@@ -131,11 +131,11 @@ async def _semantic_search(query: str, collection: str, max_results: int) -> str
                 lines.append(f"   {snippet}...")
             lines.append("")
 
-        return "\n".join(lines)
+        return "\n".join(lines), {"count": len(results), "limit": max_results}
 
     except Exception as e:
         logger.warning(f"Semantic search failed: {e}")
-        return f"Semantic search error: {e}"
+        return f"Semantic search error: {e}", {"status": "error", "limit": max_results}
 
 
 async def _hybrid_search(query: str, collection: str, max_results: int, context_lines: int) -> str:
@@ -251,7 +251,7 @@ async def _hybrid_search(query: str, collection: str, max_results: int, context_
             lines.append(f"   Reason: {rec.reason} (relevance: {rec.relevance:.2f})")
             lines.append("")
 
-    return "\n".join(lines)
+    return "\n".join(lines), {"count": len(ranked), "limit": max_results}
 
 
 def _format_fts_results(results, context_lines: int) -> str:
@@ -280,7 +280,7 @@ def _format_fts_results(results, context_lines: int) -> str:
     if results.total > len(results.results):
         lines.append(f"... and {results.total - len(results.results)} more results")
     
-    return "\n".join(lines)
+    return "\n".join(lines), {"count": results.total, "limit": results.limit}
 
 
 async def _grep_search(
@@ -328,7 +328,7 @@ async def _grep_search(
             total_matches += len(doc_matches)
     
     # Format output
-    return _format_grep_results(matches, pattern, len(documents))
+    return _format_grep_results(matches, pattern, len(documents)), {"count": total_matches, "limit": max_results}
 
 
 def _search_document(store, path: str, regex: re.Pattern, context_lines: int, max_matches: int) -> list[dict]:

@@ -261,9 +261,13 @@ class FinishNode(BaseNode):
         )
 
         from app.core.events.publishers import publish_session_completed
-        logger.info(f"[Finish] 📡 Publishing SessionCompletedEvent for thread {effective_thread_id}...")
-        await publish_session_completed(data=event_data)
-        logger.info(f"[Finish] 📡 SessionCompletedEvent published for thread {effective_thread_id}")
+        # Skip for headless batch tasks (e.g. wiki generation) to avoid triggering
+        # memory extraction, learning loops, and monitoring finalization.
+        if not metadata.get("skip_persistence"):
+            logger.info(f"[Finish] 📡 Publishing SessionCompletedEvent for thread {effective_thread_id}...")
+            await publish_session_completed(data=event_data)
+        else:
+            logger.info(f"[Finish] ⏭️ Skipping SessionCompletedEvent for thread {effective_thread_id} (skip_persistence=True)")
 
         # --------------------------------------------------------------
         # 4. Cleanup pollution (defensive: do NOT mutate original state.messages)

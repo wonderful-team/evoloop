@@ -17,6 +17,7 @@ from pathlib import Path
 from sqlalchemy import select
 
 from app.core.config import settings
+from app.core.engine.event import AgentEventType
 from app.core.engine.event.schemas import AgentRunCompletedEvent
 from app.core.engine.rewind.event import RewindEventType, RewindRequestedEvent
 from app.core.events import SystemEventType
@@ -43,7 +44,7 @@ class MemoryLifecycleHandler:
     # for the same thread_id. Complements the per-thread lock in AutoMemoryExtractor.
     _inflight_tasks: set[str] = set()
 
-    @event_subscribe("agent.run_completed")
+    @event_subscribe(AgentEventType.RUN_COMPLETED)
     async def on_agent_run_completed(self, event: AgentRunCompletedEvent):
         """
         Trigger automatic memory extraction after each successful run attempt.
@@ -66,12 +67,12 @@ class MemoryLifecycleHandler:
             from app.core.context.manager import ContextManager, EvoContext
             from app.core.memory.auto_extraction import trigger_auto_extraction
             from app.core.engine.message.repository import MessageRepository
+            from app.core.engine.message.converter import EvoMessageConverter
 
             # Load history for extraction
             repo = MessageRepository(thread_id=thread_id, project_id=project_id)
             db_messages, _, _ = await repo.get_full_history()
             # Convert ORM Message objects to LangChain BaseMessage for the extractor
-            from app.core.engine.message.converter import EvoMessageConverter
             messages = EvoMessageConverter.to_langchain(db_messages)
 
             # Create a dedicated context for the background extraction task

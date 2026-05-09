@@ -50,9 +50,9 @@ async def list_wiki_pages(
 
     pages = wiki_service.get_pages(project_id)
     if not pages:
-        return ControllerResponse.error(f"No Wiki pages found for project {project_id}.")
+        return ControllerResponse.error(f"No Wiki pages found for project {project_id}."), {"count": 0}
 
-    return PerceptionsFormatter.wiki_pages(pages)
+    return PerceptionsFormatter.wiki_pages(pages), {"count": len(pages)}
 
 
 @evoloop_tool(

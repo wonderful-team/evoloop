@@ -76,7 +76,6 @@
       "refresh": "Refresh",
       "retry": "Retry",
       "scanWithWechat": "Scan with WeChat",
-      "scannedConfirm": "Scanned, please confirm on your phone",
       "signUp": "Sign Up",
       "submit": "Login",
       "wechatInstructions1": "Open WeChat on your phone",
@@ -93,7 +92,6 @@
       "emailPlaceholder": "user@example.com",
       "login": "Log in",
       "notImplemented": "Password recovery not implemented in SDK",
-      "pageTitle": "Recover Password - EvoLoop",
       "rememberPassword": "Remember your password?",
       "submit": "Continue",
       "success": "Password recovery email sent successfully",
@@ -111,7 +109,6 @@
       "fullNamePlaceholder": "User",
       "hasAccount": "Already have an account?",
       "login": "Log in",
-      "pageTitle": "Sign Up - EvoLoop",
       "submit": "Sign Up"
     },
     "reset": {
@@ -119,7 +116,6 @@
       "login": "Log in",
       "newPassword": "New Password",
       "notImplemented": "Password update not implemented in SDK",
-      "pageTitle": "Reset Password - EvoLoop",
       "rememberPassword": "Remember your password?",
       "submit": "Reset Password",
       "success": "Password updated successfully",
@@ -135,9 +131,7 @@
     "tagline": "Personalize Your AI Workforce"
   },
   "chat": {
-    "addLink": "Add Link",
     "addLinkTitle": "Add External Link",
-    "agentStopped": "Chat stopped",
     "artifact": {
       "chart": "Chart",
       "chartError": "Chart Error",
@@ -154,12 +148,8 @@
       "title": "Generated Files"
     },
     "attachSkill": "Attach Skill",
-    "autoSend": "Auto Send",
     "changeset": {
-      "filesChanged": "{{count}} files changed",
-      "moreFiles": "more files",
       "newChanges": "Modified {{count}} files",
-      "viewAll": "View All",
       "viewChanges": "Click to Review",
       "viewed": "{{count}} files reviewed"
     },
@@ -174,37 +164,15 @@
       "globalDesc": "You are in cross-project conversation. Code context and file operations are not available in this mode.",
       "globalTitle": "Global Mode",
       "groupContext": "Context",
-      "groupSystem": "System",
       "memoryTitle": "Project Memory",
       "noConcepts": "No memory concepts found.",
-      "noDescription": "No detailed description for this concept",
       "noEpisodesFound": "No episodes found",
-      "noMatches": "No matches found for some reason.",
       "noPlan": "No active plan for this session.",
-      "noState": "No state data available.",
-      "openImagicBox": "Open IMagicBox",
       "planTitle": "Active Plan",
       "relatedTasksDesc": "Historical episodes linked to this concept",
       "relatedTasksTitle": "Tasks related to \"{{concept}}\"",
       "resourcesTitle": "Files & Resources",
-      "searchPlaceholder": "Search project files...",
-      "searchPrompt": "Search to find code snippets.",
       "selectProject": "Select a project to view context",
-      "starter": {
-        "analyze": "Analyze current codebase structure",
-        "analyzeDesc": "Explore architecture & files",
-        "analyzeLabel": "Analyze Codebase",
-        "help": "Help me understand this project",
-        "helpDesc": "Get guidance on the system",
-        "helpLabel": "Project Help",
-        "plan": "Create a new implementation plan",
-        "planDesc": "Draft a roadmap for changes",
-        "planLabel": "Create Plan",
-        "tasks": "What tasks are currently pending?",
-        "tasksDesc": "Review active todo items",
-        "tasksLabel": "Check Tasks"
-      },
-      "stateTitle": "Agent State",
       "statusActive": "Active",
       "statusIdle": "Idle",
       "statusOffline": "Offline",
@@ -213,23 +181,12 @@
       "title": "Agent Workstation",
       "viewAllMemories": "View all {{count}} memories"
     },
-    "changeset": {
-      "filesChanged": "{{count}} files changed",
-      "viewAll": "View All",
-      "moreFiles": "more files"
-    },
     "diff": {
       "tip": "Tip: Red lines are deletions, green lines are additions."
     },
     "errors": {
-      "cancelFailed": "Failed to cancel operation",
-      "cancelHitl": "Failed to cancel request",
       "connection": "Connection Error: {{error}}",
-      "loadHistory": "Failed to load chat history",
-      "resumeAgent": "Failed to resume agent",
-      "sendFailed": "Send failed",
-      "sendMessage": "Failed to send message",
-      "stopAgent": "Failed to stop agent"
+      "sendFailed": "Send failed"
     },
     "externalLinks": "External Links",
     "goToSettings": "Go to Settings",
@@ -238,7 +195,6 @@
     },
     "interface": {
       "addMemorySuccess": "Added to Memory",
-      "agentThinking": "Agent is thinking...",
       "askGlobal": "Ask anything...",
       "askProject": "Ask {{project}}...",
       "cancel": "Cancel",
@@ -255,12 +211,6 @@
       "memorize": "Memorize",
       "memorizeConfirm": "Save this concept to memory?",
       "messageNotLoaded": "Message for this step not loaded in view",
-      "placeholders": {
-        "askGlobal": "Ask anything...",
-        "askProject": "Ask {{project}}...",
-        "inputDisabled": "Please respond to the active request above...",
-        "selectProject": "Select a project to start chatting"
-      },
       "quote": "Quote",
       "quoteFile": "Quote File",
       "retry": "Retry",
@@ -270,15 +220,13 @@
       "rewindSuccess": "Rewinded",
       "save": "Save",
       "selectProject": "Select a project to start chatting",
-      "startPrompt": "Start a new conversation or choose a task below.",
       "stop": "Stop Generation",
       "stopAgentSuccess": "Stopped",
       "thinkingProcess": "Reasoning Process",
       "toolExecutionSteps": "Tool Execution Steps",
       "uploadError": "Upload failed",
       "uploadFile": "Upload File",
-      "uploadSuccess": "File uploaded successfully",
-      "welcome": "How can I help you today?"
+      "uploadSuccess": "File uploaded successfully"
     },
     "interrupted": {
       "addInput": "Add Instructions",
@@ -316,98 +264,23 @@
     },
     "modelSelector": {
       "customModels": "Custom Models",
-      "default": "Default Model",
       "fetchFailed": "Failed to fetch model list",
       "noModels": "No models available",
       "placeholder": "Select Model",
       "platformModels": "Platform Models",
       "requiresQuota": "Requires Quota",
       "selectModel": "Please select a model",
-      "systemDefault": "System Default",
       "tooltip": "Select AI model for this conversation"
     },
     "noLinks": "No links",
     "noPinnedFiles": "Right click files in file explorer to pin them here.",
     "noSteps": "No execution steps yet.",
     "noThinking": "No thinking recorded.",
-    "noTools": "No runtime tools found.",
-    "notification": {
-      "prefix": "EvoLoop: "
-    },
-    "overlay": {
-      "dragToSelect": "Drag to select area",
-      "errorDeviceInfo": "Unable to get device info, please restart recording",
-      "errorMirrorWindow": "Unable to detect mirror window or insufficient permission. Ensure scrcpy is open and restart.",
-      "escToCancel": "ESC to Cancel",
-      "hint": "Press and drag to select area, release to complete marking",
-      "marked": "Marked",
-      "regionsCount": "{{count}} regions"
-    },
     "pinnedFiles": "Pinned Files",
     "process": {
-      "command": "Command",
-      "executing": "Executing: {{tool}}...",
-      "hide": "Collapse",
       "initializing": "Initializing...",
-      "output": "Output",
       "param": "Param",
       "path": "Path",
-      "query": "Search",
-      "show": "Details",
-      "status": {
-        "matchesCount": "{{count}} matches",
-        "noResults": "No results",
-        "resultsCount": "{{count}} items"
-      },
-      "summary": "Processed {{count}} Steps",
-      "target": "Target",
-      "toolNames": {
-        "analyze_image": "Analyzing Image",
-        "apply_patch_file": "Applying Patch",
-        "ask_confirm": "Asking for Confirmation",
-        "ask_human": "Asking User",
-        "bash_command": "Running Command",
-        "browser_control": "Browser Control",
-        "cancel_command": "Cancelling Command",
-        "consult_architecture": "Consulting Architecture",
-        "create_project_task": "Creating Task",
-        "desktop_control": "Desktop Control",
-        "document_reader": "Reading Document",
-        "edit_file": "Editing File",
-        "execute_command": "Executing Command",
-        "find_element": "Finding Element",
-        "get_app_usage_ranker": "Getting App Usage",
-        "grep_files": "Searching Code",
-        "learn_skill_from_trace": "Learning Skill",
-        "list_directory": "Scanning Directory",
-        "list_files": "Listing Files",
-        "list_project_tasks": "Listing Tasks",
-        "list_wiki_pages": "Listing Wiki Pages",
-        "manage_directory": "Managing Directory",
-        "memory": "Memory Operation",
-        "mobile_control": "Mobile Control",
-        "python_code": "Executing Script",
-        "query_excel": "Querying Excel",
-        "quick_check_screen": "Checking Screen",
-        "read_file": "Reading & Analyzing",
-        "read_url_content": "Reading Webpage",
-        "read_wiki_page": "Reading Wiki Page",
-        "recall": "Recalling",
-        "reconcile_skill": "Reconciling Skill",
-        "remember": "Remembering",
-        "retrieve_from_clipboard": "Retrieving from Clipboard",
-        "run_macro": "Running Macro",
-        "scrape_dynamic": "Dynamic Scraping",
-        "search_files": "Searching Files",
-        "search_history": "Searching History",
-        "search_skills": "Searching Skills",
-        "search_web": "Searching Web",
-        "stash_to_clipboard": "Stashing to Clipboard",
-        "task_boundary": "Task Boundary",
-        "verify_ui_state": "Verifying UI State",
-        "write_file": "Writing File",
-        "write_wiki_page": "Writing Wiki Page"
-      },
       "noResults": "No results",
       "resultCount": "Found {{count}} results"
     },
@@ -419,15 +292,13 @@
       "card": {
         "checkQuota": "Check Quota",
         "continue": "Continue",
-        "hint": "Please contact administrator to add more quota.",
         "info": "After adding quota, you can:",
         "message": "Your LLM quota has been exhausted.",
         "option1": "Click \"Continue\" below",
         "option2": "Or simply send a new message",
         "title": "Quota Exhausted"
       },
-      "continuePrompt": "Continue",
-      "title": "Quota Exhausted"
+      "continuePrompt": "Continue"
     },
     "quotaExhausted": {
       "action": "View Subscription",
@@ -469,9 +340,6 @@
     "sidebar": {
       "agentChanges": "File Changes",
       "copiedPath": "Copied path: {{path}}",
-      "deleteConfirm": "Are you sure you want to delete this chat?",
-      "globalFiles": "Global Mode",
-      "globalNoFiles": "File browsing not available in global mode",
       "newChat": "New Chat",
       "noHistory": "No chat history found.",
       "noProject": "No project selected",
@@ -489,53 +357,20 @@
       "showLess": "Show less",
       "title": "Sources:"
     },
-    "stateContext": "Context",
-    "stateEmpty": "Empty",
-    "stateProject": "Project",
-    "stateScratchpad": "Scratchpad",
-    "stateWorkDir": "Work Dir",
     "status": {
-      "cancelling": "Cancelling request...",
-      "executingTool": "Executing tool...",
       "ready": "Ready",
-      "resuming": "Agent resuming...",
-      "sessionComplete": "Session Complete",
-      "taskSummary": "Task Summary",
-      "thinking": "Thinking...",
-      "userCancelled": "User cancelled",
       "working": "Working..."
     },
     "stepGroupsCount": "{{count}} turns",
     "steps": {
-      "completed": "Completed",
-      "executing": "Executing",
-      "executingCommand": "Executing Command",
       "execution": "Execution",
       "failed": "failed",
-      "initializingPhase": "Initializing phase...",
-      "progress": "Progress",
-      "showLess": "Show Fewer Steps",
       "showMore": "Show More Steps",
-      "steps": "steps",
-      "thoughts": "thoughts",
-      "tools": "tools",
       "unknown": "Unknown Tool"
     },
-    "toolsActive": "{{count}} active",
-    "toolsDynamic": "dynamic",
-    "thinkingTitle": "Thinking",
     "thinkingActive": "thinking...",
+    "thinkingTitle": "Thinking",
     "thinkingWaiting": "Waiting for thinking...",
-    "noThinking": "No thinking recorded.",
-    "liveStepsTitle": "Execution Steps",
-    "stepsRunning": "{{running}}/{{total}} running",
-    "stepsTotal": "{{count}} steps",
-    "stepGroupsCount": "{{count}} turns",
-    "turnLabel": "Turn {{turn}}",
-    "turnRunning": "{{running}}/{{total}} running",
-    "turnDone": "{{done}} done {{failed}} failed",
-    "waitingForSteps": "Waiting for agent to start...",
-    "noSteps": "No execution steps yet.",
     "tts": {
       "autoSpeak": "Auto Speak",
       "autoSpeakOff": "Auto speak disabled",
@@ -549,9 +384,7 @@
       "stop": "Stop",
       "voice": "Voice"
     },
-    "turnDone": "{{done}} done {{failed}} failed",
     "turnLabel": "Turn {{turn}}",
-    "turnRunning": "{{running}}/{{total}} running",
     "voice": {
       "cancelled": "Recording cancelled",
       "expand": "Expand",
@@ -579,11 +412,6 @@
     },
     "waitingForSteps": "Waiting for agent to start...",
     "welcome": {
-      "cloudSynced": "Cloud Synced",
-      "connectedViaAdb": "Connected via ADB",
-      "deviceBridge": "Device Bridge",
-      "globalReady": "Global Mode is active. Ready to start exploring?",
-      "health": "Environment Health",
       "mobileHint": "Click the input box below to start a conversation",
       "mobileSubtitle": "Hello! I am your Wooden Robot assistant",
       "nav": {
@@ -595,32 +423,17 @@
         "skillsDesc": "Train and upgrade agent skills",
         "todos": "To-do Items",
         "todosDesc": "Track progress and automations"
-      },
-      "noDevices": "No devices found",
-      "projectReady": "Project [{{name}}] is ready. Ready to Evolve?",
-      "skillEvolution": "Skill Evolution",
-      "subtitle": "I am your autonomous agent. How can we accelerate our progress today?",
-      "syncDevice": "Sync New Device",
-      "systemAwareness": "System Awareness",
-      "teachMe": "Teach Me a New Skill",
-      "topApps": "High-Context Apps",
-      "totalSkills": "{{count}} Active Skills"
-    },
-    "role": {
-      "assistant": "Assistant",
-      "user": "User"
+      }
     }
   },
   "common": {
     "actions": "Actions",
     "add": "Add",
-    "advanced": "Advanced",
     "approve": "Approve",
     "back": "Back",
     "cancel": "Cancel",
     "confirm": "Confirm",
     "copyCode": "Copy Code",
-    "cpu": "CPU",
     "delete": "Delete",
     "deleting": "Deleting...",
     "discard": "Discard",
@@ -634,13 +447,11 @@
       "unknown": "Unknown error"
     },
     "fullView": "Full view",
-    "global": "Global",
     "ignore": "Ignore",
     "import": "Import",
     "keep": "Keep",
     "later": "Later",
     "loading": "Loading...",
-    "manage": "Manage",
     "name": "Name",
     "next": "Next",
     "no": "No",
@@ -651,19 +462,13 @@
     "preview": "Preview",
     "previous": "Previous",
     "processing": "Processing...",
-    "ram": "RAM",
-    "refresh": "Refresh",
     "reject": "Reject",
-    "restore": "Restore",
     "run": "Run",
     "save": "Save",
     "saveAndClose": "Save & Close",
     "saved": "Saved",
-    "scanning": "Scanning...",
-    "search": "Search",
     "selectFile": "Select File",
     "send": "Send",
-    "simple": "Simple",
     "split": "Split",
     "status": {
       "active": "ACTIVE",
@@ -687,13 +492,9 @@
       "minutesAgo": "{{count}}m ago",
       "unknown": "Unknown time"
     },
-    "tool": {
-      "defaultName": "Tool"
-    },
     "upload": "Upload",
     "uploading": "Uploading...",
     "url": "URL",
-    "viewAll": "View All",
     "yes": "Yes",
     "continue": "Continue"
   },
@@ -705,13 +506,13 @@
     "confirmDelete": "Apply for Deletion",
     "confirmWithdraw": "Confirm Withdraw",
     "deleteButton": "Delete Account",
-    "deleteDescription": "This will submit a request to <strong>permanently delete your account</strong>.<br /><br />This process may require administrator approval. Once approved, all your data will be removed.",
     "deleteTitle": "Delete Account?",
     "loading": "Loading...",
     "pendingReview": "Cancellation request is pending review.",
     "withdrawDescription": "You can withdraw your account deletion request and continue using the service.",
     "withdrawRequest": "Withdraw Request",
-    "withdrawTitle": "Withdraw Cancellation?"
+    "withdrawTitle": "Withdraw Cancellation?",
+    "deleteDescription": "This will submit a request to <strong>permanently delete your account</strong>.<br /><br />This process may require administrator approval. Once approved, all your data will be removed."
   },
   "editor": {
     "column": "Col",
@@ -747,12 +548,8 @@
     "searchResults": "Search Results",
     "selectFileToView": "Select a file to view",
     "selectPrompt": "Select a file to view content",
-    "system": "System",
     "text": "TEXT",
     "title": "Files"
-  },
-  "footer": {
-    "copyright": "Copyright © 2025 EvoLoop. All rights reserved."
   },
   "knowledge": {
     "allDocuments": "All Documents",
@@ -783,7 +580,6 @@
     "filesCount": "{{count}} files",
     "filters": "Filters",
     "lines": "lines",
-    "list": "List",
     "newCollectionPlaceholder": "Enter new collection name...",
     "next": "Next",
     "noDocuments": "No documents",
@@ -797,14 +593,11 @@
     "popular": "Popular",
     "popularRankingInfo": "Ordered by citations (last 30 days)",
     "prev": "Previous",
-    "project": "Project",
     "projectDocs": "Project Documents",
     "projectDocsDescription": "View and manage knowledge base documents associated with this project.",
-    "projects": "Projects",
     "relatedDocs": "Related Documents",
     "results": "results",
     "search": "Search documents...",
-    "searchFts": "Search documents... (FTS5 syntax supported)",
     "singleFile": "Single File",
     "status": {
       "citations": "Cited {{count}} times",
@@ -812,12 +605,9 @@
       "sessions": "{{count}} sessions"
     },
     "subtitle": "Manage and explore your documents",
-    "supportedFormats": "Supported formats",
     "tags": "Tags",
     "title": "Knowledge Base",
     "totalSize": "Total Size",
-    "tree": "Tree",
-    "treeViewComingSoon": "Tree view coming soon",
     "tryDifferentQuery": "Try a different query",
     "upload": "Upload",
     "uploadBulk": "Bulk Upload",
@@ -842,7 +632,6 @@
     "clickToOpenVideo": "Click to open video",
     "confirmCleanupDesc": "This will permanently delete the video file and all recorded events. This action cannot be undone.",
     "confirmCleanupTitle": "Discard Recording?",
-    "confirmDeactivate": "Are you sure you want to deactivate this skill?",
     "confirmError": "Failed to confirm skill: {{message}}",
     "confirmSuccess": "Skill confirmed successfully",
     "createSkill": "Create Skill",
@@ -852,7 +641,6 @@
     "created": "Created",
     "deterministic": "Deterministic",
     "domMode": "App Only (DOM)",
-    "editJson": "Edit JSON",
     "editor": {
       "addParameter": "Add Input Item",
       "addTrigger": "Add phrase...",
@@ -862,9 +650,7 @@
       "descHelp": "Detailed description of what the skill does. Helps AI understand and optimize.",
       "description": "Design the questions the agent should ask you when running this skill. Inputs will be automatically mapped to steps.",
       "expertGuidePlaceholder": "Write markdown instructions for the agent... e.g. \\n1. Go to github.com\\n2. Click the 'New Repository' button",
-      "invalidMacroJson": "Macro script must be valid JSON",
       "invalidMacroYaml": "Macro script must be valid YAML",
-      "macroPlaceholder": "[{ 'event_type': 'click', 'target_selector': '.btn' }]",
       "nameHelp": "Unique display name for this skill.",
       "nameRequired": "Name is required",
       "noActiveStep": "No active step",
@@ -884,7 +670,6 @@
       "saveChanges": "Save Changes",
       "skillDescription": "Description",
       "skillName": "Skill Name",
-      "title": "Edit Skill: {{name}}",
       "triggerHelp": "Phrases that will suggest this skill.",
       "triggerPatterns": "Trigger Patterns",
       "unsavedChangesConfirm": "You have unsaved changes. Are you sure you want to leave?",
@@ -934,32 +719,10 @@
       "description": "Connect and control Android devices to record skills.",
       "deviceId": "Device ID",
       "devices": "Available Devices",
-      "extractMarker": {
-        "clickAnywhere": "Click to Mark",
-        "clickDescription": "After clicking the button, click on the screen where you want to extract data",
-        "clickToCancel": "Click to cancel selection mode",
-        "clickToMark": "Click to Mark Data Point",
-        "clickToMarkData": "Click to mark data extraction point",
-        "dragDescription": "Drag on the scrcpy window to draw a selection box for data extraction",
-        "dragToMark": "Drag to Mark Data Region",
-        "dragToMarkRegion": "Drag to select data region",
-        "dragToMove": "Drag to move button",
-        "dragToSelect": "Drag to Select Region",
-        "markedPoints": "Marked Data Points",
-        "markedRegions": "Marked Data Regions",
-        "pointMarked": "Extraction point marked",
-        "pointsCleared": "All marked points cleared",
-        "regionMarked": "Data region marked",
-        "regionsCleared": "All marked regions cleared",
-        "selecting": "Selecting..."
-      },
-      "failedToSaveExtractPoint": "Failed to save extraction point",
       "failedToStart": "Failed to start mirror",
       "found": "Found",
       "liveOverlay": "Live Overlay Active",
-      "noActiveSession": "No active mirror session",
       "noDevices": "No Android devices found. Please ensure ADB debugging is enabled and USB is connected.",
-      "recordStart": "Start Recording",
       "recordStop": "Stop Recording",
       "recordingAction": "Ready to record",
       "recordingInProgress": "Recording...",
@@ -969,7 +732,6 @@
       "title": "Android Mirror Console",
       "warning": "Warning"
     },
-    "moreSteps": "more steps",
     "noAnnotations": "No annotations",
     "noAnnotationsDesc": "No annotations available for this recording",
     "noEvents": "No events captured, skipping skill creation.",
@@ -984,7 +746,6 @@
     "parameters": "Parameters",
     "performance": "Performance",
     "permissionRequired": "Accessibility permission required for global recording",
-    "persistFailed": "Failed to save recording data",
     "preparingRecording": "Preparing recording...",
     "processing": "Processing...",
     "processingTime": "Processing Time",
@@ -1001,7 +762,6 @@
     "recordingStopped": "Recording stopped, {{count}} events captured",
     "regionAnnotations": "Region Annotations",
     "runSkill": "Run Skill",
-    "saveConfirm": "Skill saved successfully",
     "screenRecordingPermissionTitle": "Screen Recording Permission Required",
     "searchSkills": "Search learned skills...",
     "skillCreated": "Skill Created!",
@@ -1053,30 +813,8 @@
     "videoFile": "Video file",
     "videoMissing": "Screen recording not found",
     "videoNotFound": "File not accessible",
-    "videoReady": "Video recording ready for analysis",
     "videoRecordingFailed": "Video recording failed",
     "viewDetails": "View Details"
-  },
-  "library": {
-    "crossDesc": "Leverage solutions from previous projects to solve current technical challenges.",
-    "crossTitle": "Cross-Project",
-    "docsDesc": "Quickly find relevant snippets from your project documentation and wiki pages.",
-    "docsTitle": "Documentation",
-    "emptySubtitle": "Try broadening your search terms.",
-    "emptyTitle": "No knowledge matches found.",
-    "fileDate": "Added On",
-    "fileName": "Asset Name",
-    "fileStatus": "Indexing Status",
-    "indexed": "SYNCED",
-    "manageSubtitle": "Upload documents, project reports, and visual assets for global retrieval.",
-    "manageTitle": "Knowledge Management",
-    "memoryDesc": "Search through all concepts learned during chat sessions across all projects.",
-    "memoryTitle": "Unified Memory",
-    "noFiles": "No assets uploaded yet.",
-    "searchPlaceholder": "Ask anything about your projects...",
-    "subtitle": "Search across all project memories, documentation, and indexed knowledge.",
-    "title": "Library",
-    "uploadFile": "Upload Asset"
   },
   "macroEditor": {
     "actions": "{{count}} actions",
@@ -1084,7 +822,6 @@
     "addStep": "Add Step",
     "addStepAfter": "Add Step After",
     "addStepTooltip": "Add new step at the end",
-    "apply": "Apply",
     "autoSync": "Auto-sync",
     "cancel": "Cancel",
     "conditionConfig": "Condition Config",
@@ -1201,13 +938,11 @@
     "thenBranch": "Then Steps",
     "timeout": "Timeout (ms)",
     "type": "Type",
-    "unsavedChanges": "Unsaved changes",
     "url": "URL",
     "valid": "Valid",
     "visual": "Visual",
     "waits": "{{count}} waits",
     "yamlConvertError": "YAML conversion error",
-    "yamlMode": "YAML Mode",
     "yamlRootObject": "YAML root must be an object",
     "yamlStepObject": "Step {{index}} must be an object",
     "yamlStepTypeMissing": "Step {{index}} missing type field",
@@ -1215,8 +950,6 @@
   },
   "mcp": {
     "add": "Add Tool",
-    "addDesc": "Connect a new external service so your AI can use its capabilities.",
-    "addTitle": "Add External Tool",
     "argsHelp": "Additional information passed to the tool, such as a folder path to work with",
     "argsLabel": "Extra Parameters",
     "argsPlaceholder": "e.g. /Users/my-folder",
@@ -1227,23 +960,17 @@
     "delete": "Remove",
     "deleteSuccess": "Tool removed successfully",
     "description": "Enable your AI assistant to use more external tools like web search, file operations, database queries, and more. Think of it like installing 'Apps' for your AI to make it more powerful.",
-    "editDesc": "Update the configuration for this external tool.",
-    "editTitle": "Edit Tool",
     "help": {
-      "content": "External tools let your AI assistant perform more tasks, such as:\n\n• Search the web\n• Read and write local files\n• Query databases\n• Send emails\n• Manage calendars\n\nEach tool is like an 'App' - once installed, your AI can use them when needed.",
-      "title": "What are External Tools?"
+      "content": "External tools let your AI assistant perform more tasks, such as:\n\n• Search the web\n• Read and write local files\n• Query databases\n• Send emails\n• Manage calendars\n\nEach tool is like an 'App' - once installed, your AI can use them when needed."
     },
     "nameLabel": "Tool Name",
     "namePlaceholder": "e.g. File Assistant",
     "nameRequired": "Please give the tool a name",
-    "save": "Save",
     "status": {
       "connected": "Ready",
       "disconnected": "Not Connected",
       "error": "Error"
     },
-    "successAdd": "Tool added successfully",
-    "successEdit": "Tool information updated",
     "table": {
       "command": "Run Command",
       "name": "Tool Name",
@@ -1255,7 +982,6 @@
     "title": "External Tools"
   },
   "mermaid": {
-    "renderError": "Failed to render diagram",
     "renderingPartial": "Rendering Partial"
   },
   "overlay": {
@@ -1301,7 +1027,6 @@
     "indexPending": "Pending",
     "indexed": "Indexed",
     "indexing": "Indexing",
-    "indexingTooltip": "Indexing...",
     "lastIndexed": "Last indexed: {{time}}",
     "lastSync": "Last Sync",
     "manage": "Manage",
@@ -1315,7 +1040,6 @@
   },
   "projects": {
     "actions": {
-      "confirmDesc": "This will permanently delete the project <bold>{{name}}</bold>. This action cannot be undone.",
       "confirmTitle": "Are you sure?",
       "delete": "Delete Project",
       "deleteConfirm": "Delete",
@@ -1324,7 +1048,8 @@
       "label": "Actions",
       "logTime": "Log Time",
       "viewGantt": "View Gantt",
-      "viewTasks": "View Tasks"
+      "viewTasks": "View Tasks",
+      "confirmDesc": "This will permanently delete the project <bold>{{name}}</bold>. This action cannot be undone."
     },
     "active": "Active",
     "backToList": "Back to Project List",
@@ -1358,40 +1083,21 @@
       "title": "Timeline & Gantt"
     },
     "import": {
-      "backToProjects": "Back to Projects",
-      "batchIgnore": "Ignore Selected",
-      "batchIgnoreFailed": "Batch ignore failed",
-      "batchIgnoreSuccess": "Ignored {{success}} projects, {{failed}} failed",
-      "batchImport": "Import Selected",
-      "batchImportFailed": "Batch import failed",
-      "batchImportSuccess": "Imported {{success}} projects, {{failed}} failed",
-      "batchMode": "Batch Select",
       "detected": "Detected",
-      "detectedAt": "Detected",
       "detectedDescription": "The following folders were detected in your projects directory. Choose which ones to import.",
       "ignoreFailed": "Failed to ignore project",
       "ignored": "Project ignored",
       "importAll": "Import All ({{count}})",
       "importAllFailed": "{{count}} projects failed",
       "importAllSuccess": "{{count}} projects imported",
+      "importing": "Importing {{count}} projects...",
       "importFailed": "Failed to import project",
       "importSuccess": "Project imported successfully",
       "loading": "Loading detected projects...",
       "manualImport": "Import Projects",
       "newProjectsDetected": "New Projects Detected",
-      "noDetected": "No projects waiting to be imported",
-      "noDetectedDesc": "New folders in your projects directory will appear here",
-      "noIgnored": "No ignored projects",
-      "noIgnoredDesc": "Ignored projects can be restored from here",
       "scanComplete": "Scan complete",
-      "scanFailed": "Scan failed",
-      "selectAll": "Select All",
-      "subtitle": "Manage detected and ignored projects",
-      "tabDetected": "To Import",
-      "tabIgnored": "Ignored",
-      "title": "Project Import",
-      "unignoreFailed": "Failed to restore project",
-      "unignored": "Project restored to detected state"
+      "scanFailed": "Scan failed"
     },
     "loading": "Loading projects...",
     "new": "New Project",
@@ -1404,17 +1110,11 @@
       "title": "Project Overview"
     },
     "profile": {
-      "confirmDelete": "Delete Project Profile?",
-      "confirmDeleteDescription": "This will remove the PROJECT.md file. You can regenerate it anytime.",
-      "deleteFailed": "Failed to delete profile",
-      "deleted": "Profile deleted",
       "discover": "Discover",
       "discoverDescription": "Analyze the project structure and generate a PROJECT.md configuration file.",
       "discoverTitle": "Discover Project Profile",
-      "discovering": "Discovering...",
       "discoveryCompleted": "Discovery completed",
       "discoveryFailed": "Discovery failed",
-      "discoveryStarted": "Discovery started",
       "notFound": "No profile found",
       "notFoundDescription": "This project doesn't have a PROJECT.md yet. Click Discover to generate one.",
       "phase": {
@@ -1428,24 +1128,12 @@
       "recordSecrets": "Record sensitive configuration values",
       "recordSecretsDescNew": "Include actual secret values from .env files directly into PROJECT.md. Secrets will be stored in plaintext.",
       "rediscover": "Rediscover",
-      "setupEnvironment": "Auto-setup environment",
-      "setupEnvironmentDesc": "Detect and install missing infrastructure services (Docker, Redis, DB, etc.) and build/start the project.",
       "startDiscovery": "Start Discovery",
       "startingDiscovery": "Starting discovery...",
       "stream": {
         "connected": "Connected"
       },
-      "discoveryCompleted": "Discovery completed",
-      "startingDiscovery": "Starting discovery...",
       "threadCreated": "Task thread created",
-      "phase": {
-        "starting": "Starting",
-        "exploring": "Exploring project",
-        "installing": "Installing environment",
-        "generating": "Generating document",
-        "completed": "Completed",
-        "error": "Error"
-      },
       "title": "Project Profile"
     },
     "refresh": "Refresh",
@@ -1498,7 +1186,6 @@
       "commentsComingSoon": "Comments coming soon",
       "create": "Create Task",
       "execute": "Confirm & Execute",
-      "executeError": "Failed to start execution",
       "executeFailed": "Execute task failed",
       "failedToLoad": "Failed to load tasks",
       "keyModules": "Key Modules",
@@ -1577,7 +1264,6 @@
       "confirm": "Confirm Analysis",
       "confirmed": "I've confirmed the analysis. Please continue with task breakdown.",
       "confirmedWithModifications": "I've confirmed the analysis with modifications. Please continue with task breakdown.",
-      "dependencies": "Dependencies",
       "edited": "Edited",
       "feedback": "Feedback",
       "feedbackPlaceholder": "Enter modification suggestions...",
@@ -1690,21 +1376,14 @@
       "confirm_switch": "WARNING: Switching embedding models will DELETE all existing knowledge indices (Vectors) and trigger a full re-index. This process cannot be undone. Are you sure?",
       "default_model": "Default Embedding Model",
       "default_model_desc": "Select the default vector model used for semantic search and knowledge processing.",
-      "description": "Configure the embedding model used for Code Search and Memory.",
       "error_connection": "Connection Error",
       "error_update": "Failed to update embedding model",
       "loadError": "Load Error",
-      "selectProvider": "Select a provider",
-      "select_active_model": "Select Active Embedding Model",
       "select_default_placeholder": "Select default model...",
-      "select_model": "Select Model",
       "select_model_placeholder": "Choose a model...",
       "success_connected": "Connected! Dimensions: {{dim}}",
       "success_updated": "Embedding Model Updated & Re-indexing Triggered",
-      "test_connection": "Test Connection",
-      "title": "Embedding Settings",
-      "warning": "Warning",
-      "warning_desc": "Changing this setting will require a full re-index of your codebase."
+      "test_connection": "Test Connection"
     },
     "general": {
       "browse": "Browse",
@@ -1722,9 +1401,6 @@
       "loadError": "Failed to load system settings",
       "projectDiscoveryEnabled": "Enable Project Auto-Discovery",
       "projectDiscoveryEnabledDesc": "Automatically detect new projects in the workspace directory. When disabled, you'll need to import projects manually.",
-      "projectsRoot": "Projects Root Directory",
-      "projectsRootDesc": "The implementation requires read/write access to this directory.",
-      "projectsRootPlaceholder": "/path/to/projects",
       "save": "Save changes",
       "selectLanguage": "Select language",
       "selectLanguageDesc": "Select your preferred interface language.",
@@ -1737,7 +1413,6 @@
     "intro": "Manage your account and EvoLoop configurations.",
     "llm": {
       "apply_btn": "Apply Changes",
-      "autoSelected": "Auto-selected model: {{model}}",
       "configure_provider": "2. Custom Provider Configuration",
       "configure_provider_desc": "Configure your own API keys if you prefer to use a private provider.",
       "connected": "Connected successfully",
@@ -1746,24 +1421,17 @@
       "custom": "Custom (requires config below)",
       "default_model": "1. Default LLM Model",
       "default_model_desc": "Select the default generation model when no specific model is requested.",
-      "description": "Configure the Language Model used by the Agent.",
       "loadError": "Load Error",
-      "provider_placeholder": "Select a provider",
       "save_failed": "Failed to save configuration",
       "saved": "LLM Configuration Saved",
       "select_active_model": "Select Active Model",
-      "select_default_placeholder": "Select default model...",
-      "select_model": "Configure Provider",
       "select_model_placeholder": "Choose a model...",
-      "test_connection": "Test Connection",
-      "title": "LLM Settings"
+      "test_connection": "Test Connection"
     },
     "modelFields": {
       "apiKey": "API Key",
-      "apiKeyDesc": "Key is stored securely. Leave blank if not changing.",
       "baseUrl": "Base URL",
       "dimensions": "Embedding Dimensions",
-      "dimensionsDesc": "Vector dimension size (e.g. 768 for nomic, 1536 for OpenAI).",
       "modelName": "Model Name",
       "provider": "Provider",
       "providerHint": "e.g. openai, anthropic, or any custom provider",
@@ -1782,12 +1450,10 @@
     },
     "profile": {
       "cancel": "Cancel",
-      "confirm": "Confirm",
       "edit": "Edit",
       "email": "Email",
       "na": "N/A",
       "nickname": "Nickname",
-      "processing": "Processing...",
       "save": "Save",
       "success": "Profile updated successfully",
       "title": "User Information"
@@ -1809,8 +1475,6 @@
     "tts": {
       "autoSpeak": "Auto-speak AI responses",
       "autoSpeakDesc": "Automatically read AI messages aloud when they arrive",
-      "autoSpeakOff": "Auto Speak Off",
-      "autoSpeakOn": "Auto Speak On",
       "description": "Configure AI voice output settings",
       "fast": "Fast",
       "normal": "Normal",
@@ -1842,14 +1506,6 @@
       }
     },
     "voice": {
-      "sttTitle": "STT Engine Configuration",
-      "sttDesc": "Configure the model and acceleration device for the local speech-to-text engine.",
-      "sttModel": "Recognition Model",
-      "sttDevice": "Execution Device",
-      "selectSttModel": "Select recognition model...",
-      "selectSttDevice": "Select execution device...",
-      "sttConfigSaved": "STT configuration saved",
-      "sttConfigError": "Failed to save STT configuration",
       "doubleClick": "Double Click",
       "doubleClickHint": "Recommended: Double-click Ctrl is the most convenient",
       "doubleClickInstruction": "Double-click {key} to start recording",
@@ -1892,7 +1548,6 @@
       "testShortcut": "Test Shortcut",
       "testWakeWord": "Test Wake Word",
       "triggerMode": "Trigger Mode",
-      "waiting": "Agent is waiting for your input...",
       "wakeWordDesc": "Set a voice wake word to activate voice input",
       "wakeWordDetected": "Wake word detected!",
       "wakeWordHint": "Recommended: 2-4 character phrase with clear pronunciation",
@@ -1901,20 +1556,6 @@
       "wakeWordSaved": "Wake word saved",
       "wakeWordTitle": "Wake Word Settings"
     }
-  },
-  "sidebar": {
-    "chat": "Chat",
-    "csvPreviewError": "Failed to render CSV table.",
-    "excelPreviewError": "Failed to render Excel preview.",
-    "knowledge": "Knowledge Base",
-    "learning": "Learning Center",
-    "mcpServers": "MCP Servers",
-    "openInSystemApp": "Open in System App",
-    "projects": "Projects",
-    "searchFilesPlaceholder": "Search project files...",
-    "settings": "System Settings",
-    "title": "Settings",
-    "todos": "Todos"
   },
   "startup": {
     "backendReady": "Launching...",
@@ -1956,56 +1597,36 @@
     },
     "errors": {
       "benefitDescription": "The \"{{feature}}\" feature requires a plan upgrade.",
-      "benefitRequired": "{{plan}} Subscription Required",
       "dialogTitle": "Unlock {{feature}}",
       "featureFallback": "this feature",
       "insufficientPermission": "Insufficient Permission",
       "upgradeAction": "Upgrade Now",
       "subscriptionRequired": "Subscription Required"
     },
-    "expired": {
-      "description": "Your subscription has expired, please renew to continue using this feature",
-      "title": "Subscription Expired"
-    },
-    "feature": "Feature",
     "notice": {
       "benefits": "Membership tier determines AI quota and context window size. Pro and above enjoy priority processing. Remaining balance will be refunded when upgrading.",
       "desc": "Please complete the payment to continue using the service"
     },
     "payment": {
-      "countdownHours": "{{hours}}h {{mins}}m until expiration",
-      "countdownMins": "{{mins}}m {{secs}}s until expiration",
-      "countdownSecs": "{{seconds}}s until expiration",
-      "desc": "Complete your payment securely",
-      "durationHint": "Plan duration will be accumulated after upgrade, and additional quota will be automatically adjusted",
       "error": "Payment failed",
-      "expiredHint": "QR code has expired",
       "expiresInHours": "Expires In Hours",
       "expiresInMinutes": "Expires In Minutes",
       "expiresInSeconds": "Expires In Seconds",
       "noRefund": "No Refund",
-      "noRefundHint": "Membership service is a virtual product; no refunds once paid. Thank you for your understanding.",
-      "pollNotice": "Processing payment...",
       "qrExpired": "QR Code Expired",
       "qrInvalid": "Qr Invalid",
       "refresh": "Refresh",
-      "refundHint": "Remaining ¥{{refundAmount}} from old plan will be refunded to your balance after payment",
       "refundToBalance": "¥{{amount}} has been refunded to your account balance",
       "refunded": "Refunded",
       "renewDesc": "Validity period will be extended after renewal",
-      "renewExtension": "Validity period extended and quota stacked after renewal",
-      "renewNoWaste": "Remaining validity will be accumulated, no loss",
       "renewNote1": "Renew Note1",
       "renewNote2": "Renew Note2",
       "renewPrice": "Renewal ¥{{price}}/mo",
       "renewTitle": "Renew {{name}}",
       "subscribePrice": "Subscribe: ¥{{price}}/mo",
-      "subscribeStart": "Validity period starts from the date of successful payment",
       "subscribeTitle": "Subscribe {{name}}",
       "successDesc": "Thank you for your payment",
       "successTitle": "Payment Successful",
-      "thankYou": "Thank you!",
-      "title": "Payment",
       "upgradeDiff": "Upgrade difference: New plan ¥{{payAmount}} - Old plan balance ¥{{refundAmount}}",
       "upgradeNote": "Upgrade Note",
       "validityNote": "Validity Note",
@@ -2022,7 +1643,6 @@
       "discount": "Limited Time Discount",
       "downgrade": "Cannot Downgrade",
       "downgradeHint": "Can be purchased after expiry",
-      "downgradeTooltip": "Please cancel current subscription first. Auto-downgrade after expiry.",
       "featuresInclude": "Features include",
       "free": "Free",
       "gb": "{{value}}GB",
@@ -2030,7 +1650,6 @@
       "startFree": "Start Free",
       "subscribe": "Subscribe Now",
       "unlimited": "Unlimited",
-      "upgrade": "Upgrade",
       "upgradeRefund": "Upgrade with price difference refund"
     },
     "plans": {
@@ -2043,17 +1662,9 @@
       "higher": "Higher Tier",
       "title": "Plans"
     },
-    "privilege": {
-      "advancedModels": "Advanced AI models",
-      "cloudSync": "Cloud synchronization",
-      "codeAnalysis": "Code analysis",
-      "unlimitedChat": "Unlimited chat"
-    },
     "quota": {
       "aiQuota": "Remaining Quota",
-      "description": "Real-time usage tracking",
       "lowBalance": "Low Balance",
-      "title": "AI Quota",
       "unlimited": "Unlimited",
       "usedPercent": "{{percent}}% used"
     },
@@ -2061,14 +1672,8 @@
       "reminder": "Will expire in {{days}} days",
       "urgent": "Only {{days}} days left. Renew now to avoid interruption."
     },
-    "renewalNotice": {
-      "reminder": "Your subscription has {{days}} days remaining.",
-      "urgent": "Your subscription will expire in {{days}} days. Please renew now."
-    },
-    "requiredPlan": "Required Plan",
     "status": {
       "active": "Active",
-      "autoRenewOn": "Auto-renewal on",
       "daysRemaining": " ({{days}} days)",
       "expireAt": "Expires at",
       "expired": "Expired",
@@ -2077,19 +1682,12 @@
       "freeDesc": "You are currently on the free tier, upgrade for more features",
       "freeTitle": "Free Plan",
       "locked": "Feature Locked",
-      "manage": "Manage",
       "renew": "Renew",
       "renewNow": "Renew Now",
       "upgradeNow": "Upgrade Now"
     },
     "subtitle": "Manage your subscription plan and billing",
     "title": "Subscription",
-    "upgrade": {
-      "description": "This feature requires a higher tier subscription",
-      "help": "Use this feature immediately after upgrading",
-      "title": "Upgrade Required"
-    },
-    "upgradeNow": "Upgrade Now",
     "upgradeRequired": "Upgrade Required"
   },
   "system": {
@@ -2174,43 +1772,7 @@
     "prev": "Previous",
     "replayDesc": "View the product feature introduction again",
     "replayTitle": "Replay Tour",
-    "skipAriaLabel": "Skip tour",
-    "step1": {
-      "content": "EvoLoop is your Universal AI Agent, helping you efficiently complete cross-platform orchestration, code writing, and automation tasks. Click the LOGO to expand or collapse the sidebar.",
-      "title": "Welcome to EvoLoop"
-    },
-    "step2": {
-      "content": "Engage in natural language conversations with the Universal Agent. Get cross-platform automation, programming help, and code reviews. Supports multi-turn conversations with context awareness.",
-      "title": "Smart Chat"
-    },
-    "step3": {
-      "content": "Centralized management for all your code projects. Supports project creation, file browsing, code search, and version control integration.",
-      "title": "Projects"
-    },
-    "step4": {
-      "content": "Manage your code knowledge base and learning resources. Store frequently used code snippets, documentation, and best practices for quick reference.",
-      "title": "Library"
-    },
-    "step5": {
-      "content": "Configure LLM models, interface themes, language preferences, and other system options. Customize EvoLoop to match your workflow.",
-      "title": "Settings"
-    },
-    "step6": {
-      "content": "View and manage all conversation sessions. Quickly switch between different topics or create new chat sessions.",
-      "title": "Chat Sidebar"
-    },
-    "step7": {
-      "content": "View your complete conversation history with the AI. Supports code highlighting, file previews, and message quoting.",
-      "title": "Message Area"
-    },
-    "step8": {
-      "content": "Manage context information for the current conversation, including relevant files, references, and execution status. Helps the AI better understand your needs.",
-      "title": "Context Panel"
-    },
-    "step9": {
-      "content": "Type messages to chat with the AI. Supports file attachments, file references, voice input, and quick commands for more efficient communication.",
-      "title": "Input Area"
-    }
+    "skipAriaLabel": "Skip tour"
   },
   "updateNotification": {
     "forceUpdate": {
@@ -2285,18 +1847,8 @@
       "apiKey": "API Key",
       "baseUrl": "API URL",
       "model": "Model Name",
-      "optional": "optional",
-      "provider": "Service Provider",
-      "providers": {
-        "deepseek": "DeepSeek",
-        "generic": "Generic OpenAI Compatible",
-        "ollama": "Ollama (Local)",
-        "openai": "OpenAI",
-        "qwen": "Qwen (Alibaba)"
-      },
       "selectModel": "Select Model",
       "selectModelPlaceholder": "Choose a model...",
-      "selectProvider": "Select a provider",
       "subtitle": "Select and configure your language model service — the core of EvoLoop's capabilities.",
       "testConnection": "Test Connection",
       "testError": "Connection error",

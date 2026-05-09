@@ -95,9 +95,9 @@ Task ID: {task.id}
 Subtasks:
 {subtask_list}
 
-You can track progress by asking "show task tree {task.id[:8]}"""
+You can track progress by asking "show task tree {task.id[:8]}""", {"id": task.id, "count": subtask_count}
         else:
-            return f"Created task \"{title}\"\n\nTask ID: {task.id}"
+            return f"Created task \"{title}\"\n\nTask ID: {task.id}", {"id": task.id}
             
     except json.JSONDecodeError:
         return "Error: subtasks_json is not valid JSON. Format: [{\"title\": \"...\", \"estimated_hours\": n}]"
@@ -341,7 +341,7 @@ async def list_project_tasks(
             tasks = result.scalars().all()
             
             if not tasks:
-                return "No tasks found in this project."
+                return "No tasks found in this project.", {"count": 0}
                 
             lines = [f"Project Tasks ({len(tasks)} total):\n"]
             
@@ -359,7 +359,7 @@ async def list_project_tasks(
                 
             lines.append(f"\nUse get_task_tree_summary with task ID to see subtasks.")
             
-            return "\n".join(lines)
+            return "\n".join(lines), {"count": len(tasks)}
             
     except Exception as e:
         logger.error(f"[SubtaskTool] Failed to list tasks: {e}")

@@ -98,10 +98,9 @@ async def find_element(
         except Exception as e:
             logger.warning(f"Failed to publish UI_TREE_OBSERVED: {e}")
 
-        # Step 3: Return all elements if requested
         if return_all or not target:
             formatted = pipeline_manager.format_for_prompt(elements)
-            return f"Screenshot: {screenshot_path}\n\n{formatted}"
+            return f"Screenshot: {screenshot_path}\n\n{formatted}", {"count": len(elements)}
 
         # Step 4: Find best match
         target_lower = target.lower()
@@ -146,7 +145,7 @@ async def find_element(
                 f"No element matching '{target}' found.\n\n"
                 f"Available elements:\n{formatted}\n\n"
                 f"Screenshot: {screenshot_path}"
-            )
+            ), {"count": 0, "available_count": len(elements)}
 
         # Sort by score
         scored_elements.sort(key=lambda x: x[1], reverse=True)
@@ -176,7 +175,7 @@ async def find_element(
         # Include screenshot path
         result_msg += f"\n\nScreenshot: {screenshot_path}"
 
-        return result_msg
+        return result_msg, {"count": 1, "target": target}
 
     except Exception as e:
         logger.error(f"find_element error: {e}")

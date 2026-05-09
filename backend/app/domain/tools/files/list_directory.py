@@ -68,7 +68,7 @@ async def handle_list(
         output = '\n'.join(lines[:max_entries])
         if len(lines) > max_entries:
             output += f"\n\n... ({len(lines) - max_entries} more entries hidden)\nTip: Use filter=\"*.ext\" to narrow results, or increase max_entries."
-        return output, {"count": len(lines)}
+        return output, {"count": len(lines), "recursive": False}
     else:
         # Tree view using core.file
         # For with_symbols=True, fall back to existing tree generator
@@ -83,7 +83,7 @@ async def handle_list(
                 )
                 tree_output = await generator.generate()
                 tree_count = len([l for l in tree_output.splitlines() if l.strip()])
-                return tree_output, {"count": tree_count}
+                return tree_output, {"count": tree_count, "recursive": True}
             except Exception as e:
                 return f"Error generating annotated tree: {e}"
         else:
@@ -95,7 +95,7 @@ async def handle_list(
                 with_stats=stats,
             )
             tree_count = len([l for l in tree_output.splitlines() if l.strip()])
-            return tree_output, {"count": tree_count}
+            return tree_output, {"count": tree_count, "recursive": max_depth > 1}
 
 
 @evoloop_tool(

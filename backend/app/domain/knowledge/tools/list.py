@@ -84,9 +84,9 @@ async def kb_list(
         
         # Format output
         if tree:
-            return _format_tree(documents, collection)
+            return _format_tree(documents, collection), {"count": total_count, "recursive": True}
         else:
-            return _format_list(documents, total_count, limit)
+            return _format_list(documents, total_count, limit), {"count": total_count, "recursive": False}
     
     except Exception as e:
         logger.error(f"kb_list failed: {e}")

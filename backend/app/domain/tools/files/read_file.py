@@ -139,9 +139,9 @@ Use `read_file(path='{path}', start_line=N, end_line=M)` to read specific line r
             if end < result.metadata.total_lines:
                 meta_str += f"[Use start_line={end + 1} to read more]\n"
 
-            return meta_str + "\n" + result.content
+            return meta_str + "\n" + result.content, {"start_line": start, "end_line": end, "total_lines": result.metadata.total_lines}
 
-        return result.content
+        return result.content, {"start_line": start_line or 1, "end_line": end_line or 1000}
 
     except Exception as e:
         return i18n.get("domain_tools.files.read_error", error=str(e))
@@ -222,11 +222,17 @@ async def read_file(
     else:
         effective_end = e if e is not None else default_end
 
-    result_str = await handle_read(path, effective_start, effective_end, config=config, include_metadata=include_metadata)
+    res = await handle_read(path, effective_start, effective_end, config=config, include_metadata=include_metadata)
+    
+    if isinstance(res, tuple):
+        result_str, meta = res
+    else:
+        result_str = res
+        meta = {"start_line": effective_start, "end_line": effective_end}
 
     if is_truncated:
         warning = f"\n\n... (Output truncated to {MAX_LINES_PER_CALL} lines)\n"
         warning += f"Tip: The requested range was too large. Use start_line={effective_end + 1} to read the next segment."
-        return result_str + warning
+        return result_str + warning, meta
 
-    return result_str
+    return result_str, meta

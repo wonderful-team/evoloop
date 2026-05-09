@@ -33,9 +33,8 @@ export function DetectedProjectAlert() {
     importProject,
     ignoreProject,
     dismissProject,
-    dismissAllProjects,
+    dismissAllAndResetManual,
     checkDiscoveryEnabled,
-    setManualMode,
   } = useProjectImportStore()
 
   // Check discovery config on mount (only when logged in)
@@ -108,11 +107,10 @@ export function DetectedProjectAlert() {
 
   const handleClose = useCallback(() => {
     setIsOpen(false)
-    // 将所有当前项目标记为已处理，这样稍后不会再弹出
-    dismissAllProjects()
-    // 重置手动模式
-    setManualMode(false)
-  }, [dismissAllProjects, setManualMode])
+    // 一次性原子操作：标记所有项目为已处理 + 重置手动模式
+    // 避免两次独立的 store set 导致中间状态触发弹窗 effect
+    dismissAllAndResetManual()
+  }, [dismissAllAndResetManual])
 
   const handleImport = async (id: number) => {
     setImportingIds((prev) => new Set(prev).add(id))
@@ -186,7 +184,7 @@ export function DetectedProjectAlert() {
     }
 
     setIsOpen(false)
-    dismissAllProjects()
+    dismissAllAndResetManual()
   }
 
   // Format relative path for display
@@ -220,7 +218,17 @@ export function DetectedProjectAlert() {
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open) {
+          // 点击蒙层、按 ESC 关闭时，走完整关闭逻辑（清理 store 状态）
+          handleClose()
+        } else {
+          setIsOpen(true)
+        }
+      }}
+    >
       <DialogContent className="sm:max-w-[700px] max-h-[80vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -231,6 +239,13 @@ export function DetectedProjectAlert() {
             {t("projects.import.detectedDescription")}
           </DialogDescription>
         </DialogHeader>
+
+        {importingIds.size > 0 && (
+          <div className="py-2 px-3 bg-muted rounded-md text-sm text-center text-muted-foreground flex items-center justify-center gap-2">
+            <RefreshCw className="h-4 w-4 animate-spin" />
+            {t("projects.import.importing", "Importing {{count}} projects...", { count: importingIds.size })}
+          </div>
+        )}
 
         <div className="py-4 space-y-3">
           {visibleProjects.length === 0 ? (
@@ -291,7 +306,7 @@ export function DetectedProjectAlert() {
         </div>
 
         <DialogFooter className="flex-col sm:flex-row gap-2">
-          <Button variant="outline" onClick={handleClose} className="w-full sm:w-auto">
+          <Button variant="outline" onClick={handleClose} disabled={importingIds.size > 0} className="w-full sm:w-auto">
             <X className="h-4 w-4 mr-1" />
             {t("common.later")}
           </Button>

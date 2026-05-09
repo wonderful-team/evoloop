@@ -29,7 +29,7 @@ class SignalDispatcher:
         state = ensure_state(state)
 
         if signal is None:
-            return None
+            return StateUpdate()
 
         if not isinstance(signal, AgentSignal):
             logger.warning(f"[Dispatcher] Unknown signal type received: {type(signal)}")

@@ -164,19 +164,19 @@ async def dispatch_agent_run(
     # ------------------------------------------------------------------
     persisted_msg_id: str | None = None
     async with session_scope() as session:
-        # Upsert Conversation
-        conversation = await session.get(Conversation, thread_id)
-        if not conversation:
-            conversation = Conversation(
-                id=thread_id,
-                project_id=project_id,
-                title=message_content[:50],
-            )
-            session.add(conversation)
-        else:
-            conversation.updated_at = datetime.now(timezone.utc)
-
         if not skip_message_persistence:
+            # Upsert Conversation (only for interactive sessions that persist messages)
+            conversation = await session.get(Conversation, thread_id)
+            if not conversation:
+                conversation = Conversation(
+                    id=thread_id,
+                    project_id=project_id,
+                    title=message_content[:50],
+                )
+                session.add(conversation)
+            else:
+                conversation.updated_at = datetime.now(timezone.utc)
+
             # New message: persist to DB via Repository to ensure parent_id linkage
             from app.core.engine.message.repository import MessageRepository
             repo = MessageRepository(thread_id, project_id)

@@ -1,3 +1,4 @@
+import asyncio
 import functools
 import json
 import logging
@@ -71,14 +72,7 @@ def evoloop_tool(
 ):
     """
     Decorator that applies standard EvoLoop tool behaviors.
-    Can be used as @evoloop_tool or @evoloop_tool(name="...", is_pollable=True, ...).
-
-    Supports tuple return values from tools: (text, meta_dict)
-    - text: pure text content shown to the Agent
-    - meta_dict: metadata like {"count": 5} for display_name rendering
     """
-    import inspect
-
     # Build config from legacy kwargs when not provided explicitly
     if config is None:
         config = EvoLoopToolConfig(
@@ -95,118 +89,163 @@ def evoloop_tool(
         )
 
     def decorator(func):
-        if inspect.iscoroutinefunction(func):
+        # 1. Permission check logic
+        async def _check_permission(func_name, input_data):
+            if config.required_benefit:
+                from app.core.context.manager import ContextManager
+                from app.services.benefit_service import benefit_service
+                from app.core.config import settings
 
+                ctx = ContextManager.current()
+                if ctx.user_id:
+                    try:
+                        # Try to parse user_id as member_id and check benefit
+                        member_id = int(ctx.user_id)
+                        has_benefit = await benefit_service.has_benefit(
+                            member_id, config.required_benefit
+                        )
+                        if not has_benefit:
+                            from app.api.deps import create_benefit_error_detail
+                            error_detail = create_benefit_error_detail(config.required_benefit)
+                            from app.core.tools.schemas import ToolRegistryMetadata
+                            metadata = ToolRegistryMetadata(summary_template=config.summary_template)
+                            display_name = metadata.get_display_name(func_name, args=input_data)
+                            return ToolResult(
+                                json.dumps(error_detail.model_dump(), ensure_ascii=False),
+                                meta={"status": "error", "error": "permission_denied"},
+                                display_name=display_name
+                            )
+                    except Exception:
+                        # In embedded/test mode, if benefit check fails due to infra,
+                        # allow the tool to proceed (graceful degradation)
+                        if not settings.EMBEDDED_MODE:
+                            raise
+                elif not settings.EMBEDDED_MODE:
+                    from app.api.deps import create_benefit_error_detail
+                    error_detail = create_benefit_error_detail(config.required_benefit)
+                    from app.core.tools.schemas import ToolRegistryMetadata
+                    metadata = ToolRegistryMetadata(summary_template=config.summary_template)
+                    display_name = metadata.get_display_name(func_name, args=input_data)
+                    return ToolResult(
+                        json.dumps(error_detail.model_dump(), ensure_ascii=False),
+                        meta={"status": "error", "error": "permission_denied"},
+                        display_name=display_name
+                    )
+            return None
+
+        # 2. Result processing logic (Standardization)
+        def _process_result(result, func_name, input_data):
+            result_meta = {}
+
+            # Handle (content, meta) tuple
+            if isinstance(result, tuple) and len(result) == 2:
+                content, meta = result
+                if isinstance(meta, dict):
+                    result_meta = meta
+                result = content
+
+            # Extract meta from dict/model if not explicitly provided
+            if not result_meta:
+                if isinstance(result, dict):
+                    for key in ["count", "id", "status", "path", "target"]:
+                        if key in result:
+                            result_meta[key] = result[key]
+                elif hasattr(result, "model_dump"): # Pydantic v2
+                    try:
+                        data = result.model_dump()
+                        for key in ["count", "id", "status", "path", "target"]:
+                            if key in data:
+                                result_meta[key] = data[key]
+                    except Exception:
+                        pass
+
+            # Automatic Serialization to JSON
+            if not isinstance(result, str):
+                if hasattr(result, "model_dump_json"):
+                    result = result.model_dump_json()
+                elif isinstance(result, (dict, list)):
+                    result = json.dumps(result, ensure_ascii=False)
+                else:
+                    result = str(result)
+
+            # Render display_name and Wrap in ToolResult
+            from app.core.tools.schemas import ToolRegistryMetadata
+            metadata = ToolRegistryMetadata(summary_template=config.summary_template)
+            display_name = metadata.get_display_name(func_name, args={**input_data, **result_meta})
+
+            return ToolResult(result, meta=result_meta, display_name=display_name)
+
+        if asyncio.iscoroutinefunction(func):
             @functools.wraps(func)
             async def wrapper(*args_f, **kwargs_f):
-                # 权限检查
-                from app.core.context.manager import ContextManager
-                if config.required_benefit:
-                    from app.api.deps import create_benefit_error_detail
-                    from app.core.identity import identity_service
-
-                    try:
-                        from app.services.benefit_service import benefit_service
-
-                        member_id = await identity_service.get_member_id()
-                        if not member_id:
-                            # Fallback: try resolving from stored access token
-                            access_token = await identity_service.get_access_token()
-                            if access_token:
-                                member_id = await identity_service.resolve_member_id_from_token(access_token)
-                        if not member_id:
-                            return json.dumps({
-                                "error": "Authentication required",
-                                "code": "AUTH_REQUIRED",
-                                "message": f"请先登录后再使用 {func.__name__} 功能"
-                            }, ensure_ascii=False)
-
-                        has_access = await benefit_service.has_benefit(member_id, config.required_benefit)
-                        if not has_access:
-                            # 使用统一的错误格式，与API层保持一致
-                            error_detail = create_benefit_error_detail(config.required_benefit)
-                            return json.dumps({
-                                "error": "Benefit required",
-                                "code": error_detail["code"],
-                                "feature": error_detail["feature"],
-                                "feature_name": error_detail["feature_name"],
-                                "message": error_detail["message"],
-                                "required_plan": error_detail["required_plan"],
-                                "upgrade_url": error_detail["upgrade_url"]
-                            }, ensure_ascii=False)
-                    except (TypeError, ValueError, RuntimeError) as e:
-                        logger.error(f"Permission check failed for {func.__name__}: {e}")
-                        return json.dumps({
-                            "error": "Permission check failed",
-                            "code": "PERMISSION_CHECK_ERROR",
-                            "message": f"权限检查失败: {str(e)}"
-                        }, ensure_ascii=False)
-
                 # 提取 input_data 用于 display_name 渲染
                 input_data = {k: v for k, v in kwargs_f.items() if k != "config" and not k.startswith("_")}
+                
+                # Check permission
+                perm_error = await _check_permission(func.__name__, input_data)
+                if perm_error:
+                    return perm_error
 
                 try:
                     result = await func(*args_f, **kwargs_f)
-
-                    # 支持 tuple 返回值：(text, meta)
-                    result_meta = {}
-                    if isinstance(result, tuple) and len(result) == 2:
-                        text, meta = result
-                        if isinstance(meta, dict):
-                            result_meta = meta
-                        result = text
-
-                    # 渲染 display_name（使用统一的 metadata 渲染器）
+                    return _process_result(result, func.__name__, input_data)
+                except Exception as e:
                     from app.core.tools.schemas import ToolRegistryMetadata
                     metadata = ToolRegistryMetadata(summary_template=config.summary_template)
-                    display_name = metadata.get_display_name(func.__name__, args={**input_data, **result_meta})
-
-                    # 封装成 ToolResult，附带元数据和 display_name
-                    if isinstance(result, str):
-                        result = ToolResult(result, meta=result_meta, display_name=display_name)
-
-                    return result
-                except Exception as e:
-                    return f"Error: {str(e)}"
+                    display_name = metadata.get_display_name(func.__name__, args=input_data)
+                    return ToolResult(f"Error: {str(e)}", meta={"status": "error", "error": str(e)}, display_name=display_name)
         else:
-
             @functools.wraps(func)
             def wrapper(*args_f, **kwargs_f):
-                # 同步函数的权限检查（少见）
-                if config.required_benefit:
-                    return f"Error: {func.__name__} requires benefit {config.required_benefit} but sync tools don't support permission checks"
-
                 # 提取 input_data 用于 display_name 渲染
                 input_data = {k: v for k, v in kwargs_f.items() if k != "config" and not k.startswith("_")}
+                
+                # Check permission (sync wrapper)
+                if config.required_benefit:
+                    # In a sync context, we need to run the async permission check
+                    # We use a helper to ensure it runs correctly in the current event loop or a new one
+                    try:
+                        loop = asyncio.get_event_loop()
+                        if loop.is_running():
+                            # This is risky if called from the main thread, but sync tools are 
+                            # usually called from threads.
+                            # For safety, we use a more robust way if asgiref is available, 
+                            # but here we'll use a simple approach.
+                            import threading
+                            result_container = []
+                            def run_in_thread():
+                                try:
+                                    res = asyncio.run(_check_permission(func.__name__, input_data))
+                                    result_container.append(res)
+                                except Exception as e:
+                                    result_container.append(e)
+                            
+                            t = threading.Thread(target=run_in_thread)
+                            t.start()
+                            t.join()
+                            perm_error = result_container[0]
+                        else:
+                            perm_error = asyncio.run(_check_permission(func.__name__, input_data))
+                    except RuntimeError:
+                        perm_error = asyncio.run(_check_permission(func.__name__, input_data))
+                    
+                    if isinstance(perm_error, Exception):
+                        raise perm_error
+                    if perm_error:
+                        return perm_error
 
                 try:
                     result = func(*args_f, **kwargs_f)
-
-                    # 支持 tuple 返回值：(text, meta)
-                    result_meta = {}
-                    if isinstance(result, tuple) and len(result) == 2:
-                        text, meta = result
-                        if isinstance(meta, dict):
-                            result_meta = meta
-                        result = text
-
-                    # 渲染 display_name
+                    return _process_result(result, func.__name__, input_data)
+                except Exception as e:
                     from app.core.tools.schemas import ToolRegistryMetadata
                     metadata = ToolRegistryMetadata(summary_template=config.summary_template)
-                    display_name = metadata.get_display_name(func.__name__, args={**input_data, **result_meta})
-
-                    if isinstance(result, str):
-                        result = ToolResult(result, meta=result_meta, display_name=display_name)
-
-                    return result
-                except Exception as e:
-                    # Log error
-                    return f"Error: {str(e)}"
+                    display_name = metadata.get_display_name(func.__name__, args=input_data)
+                    return ToolResult(f"Error: {str(e)}", meta={"status": "error", "error": str(e)}, display_name=display_name)
 
         # Mark for Auto-Discovery on the wrapper function
         wrapper.is_evoloop_active = True
         wrapper.evoloop_module = func.__module__
-
         # Apply LangChain's @tool (passing through any arguments)
         tool_instance = langchain_tool(*args, **kwargs)(wrapper)
 

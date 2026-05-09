@@ -35,13 +35,29 @@ class RouteToHandler(SignalHandler[RouteToSignal]):
         # 2. Construct Execution Ticket
         inferred_namespace = routing_context.namespace_context
 
-        agent_config = routing_context.agent_config or AgentRuntimeConfig()
+        # Start with blackboard's preset agent_config (if any), then overlay routing_context
+        preset_config = blackboard.ticket.agent_config if blackboard.ticket and blackboard.ticket.agent_config else None
+        agent_config = preset_config or AgentRuntimeConfig()
+        
+        # Overlay routing_context's agent_config fields
+        if routing_context.agent_config:
+            if routing_context.agent_config.role_name:
+                agent_config.role_name = routing_context.agent_config.role_name
+            if routing_context.agent_config.system_instructions:
+                agent_config.system_instructions = routing_context.agent_config.system_instructions
+            if routing_context.agent_config.namespace_context:
+                agent_config.namespace_context = routing_context.agent_config.namespace_context
+            if routing_context.agent_config.model_override:
+                agent_config.model_override = routing_context.agent_config.model_override
+        
         if not agent_config.namespace_context:
             agent_config.namespace_context = inferred_namespace
         if not agent_config.role_name:
             agent_config.role_name = str(target).replace("_", " ").title()
         if authorized_tools is not None:
-            agent_config.tools = authorized_tools
+            # Merge: preserve tools preset in agent_config while adding Supervisor-authorized ones
+            existing_tools = set(agent_config.tools or [])
+            agent_config.tools = list(existing_tools | set(authorized_tools))
 
         parameters_fields = set(TicketParameters.model_fields.keys())
         parameters = {k: v for k, v in routing_context.model_dump().items() if k in parameters_fields}
