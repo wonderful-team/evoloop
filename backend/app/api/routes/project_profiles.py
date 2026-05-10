@@ -214,3 +214,27 @@ async def get_profile(
         content=content,
         exists=content is not None,
     )
+
+
+@router.patch("/{project_id}/profile", response_model=ProfileContentResponse)
+async def update_profile(
+    project_id: int,
+    req: UpdateProfileRequest,
+    _token: TokenDepOptional = None,
+):
+    """Manually update the PROJECT.md content."""
+    path = await _resolve_project_path(project_id)
+    if not path:
+        raise HTTPException(404, "Project not found or has no local path")
+
+    file_path = os.path.join(path, "PROJECT.md")
+    try:
+        file_utils.write_file(file_path, req.content)
+    except Exception as e:
+        logger.error(f"Failed to write PROJECT.md: {e}")
+        raise HTTPException(500, f"Failed to update profile: {e}")
+
+    return ProfileContentResponse(
+        content=req.content,
+        exists=True,
+    )
