@@ -18,13 +18,8 @@ import {
 
 import { SystemService } from "@/client"
 import { Button } from "@evoloop/shared/components/ui/button"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@evoloop/shared/components/ui/card"
+import { useSettings } from "./SettingsContext"
+import { SettingsCard } from "./SettingsCard"
 import { Label } from "@evoloop/shared/components/ui/label"
 import { Input } from "@evoloop/shared/components/ui/input"
 import {
@@ -62,6 +57,7 @@ export function LLMSettings() {
     success: boolean
     msg: string
   } | null>(null)
+  const { setComponentDirty, registerSaveHandler, unregisterSaveHandler, registerResetHandler } = useSettings()
 
   const [presetModels, setPresetModels] = useState<PresetModel[]>([])
   const [isLoadingModels, setIsLoadingModels] = useState(true)
@@ -74,41 +70,69 @@ export function LLMSettings() {
   const [model, setModel] = useState("")
   const [visionModel, setVisionModel] = useState("")
   const [apiKey, setApiKey] = useState("")
+  
+  const [initialState, setInitialState] = useState<any>(null)
 
-  // Load models and config
-  useEffect(() => {
-    const init = async () => {
-      try {
-        setIsLoadingModels(true)
-        const [modelsRes, configRes] = await Promise.all([
-          SystemService.getLlmModels(),
-          SystemService.getSystemConfig()
-        ])
+  const fetchConfig = async () => {
+    try {
+      setIsLoadingModels(true)
+      const [modelsRes, configRes] = await Promise.all([
+        SystemService.getLlmModels(),
+        SystemService.getSystemConfig()
+      ])
 
-        setPresetModels((modelsRes as any)?.models || [])
+      setPresetModels((modelsRes as any)?.models || [])
 
-        const configMap: Record<string, string> = {}
-        if (Array.isArray(configRes)) {
-          configRes.forEach((item: any) => {
-            configMap[item.key] = item.value
-          })
-        }
-
-        setDefaultModelId(configMap.LLM_MODEL || "")
-        setProvider(configMap.LLM_PROVIDER || "openai")
-        setProviderType(configMap.LLM_PROVIDER_TYPE || "openai")
-        setBaseUrl(configMap.LLM_BASE_URL || "")
-        setModel(configMap.CUSTOM_LLM_MODEL || "")
-        setVisionModel(configMap.VISION_MODEL || "")
-        setApiKey(configMap.LLM_API_KEY || "")
-      } catch (error) {
-        toast.error(t("settings.llm.loadError"))
-      } finally {
-        setIsLoadingModels(false)
+      const configMap: Record<string, string> = {}
+      if (Array.isArray(configRes)) {
+        configRes.forEach((item: any) => {
+          configMap[item.key] = item.value
+        })
       }
+
+      const state = {
+        defaultModelId: configMap.LLM_MODEL || "",
+        provider: configMap.LLM_PROVIDER || "openai",
+        providerType: configMap.LLM_PROVIDER_TYPE || "openai",
+        baseUrl: configMap.LLM_BASE_URL || "",
+        model: configMap.CUSTOM_LLM_MODEL || "",
+        visionModel: configMap.VISION_MODEL || "",
+        apiKey: configMap.LLM_API_KEY || "",
+      }
+      
+      setDefaultModelId(state.defaultModelId)
+      setProvider(state.provider)
+      setProviderType(state.providerType)
+      setBaseUrl(state.baseUrl)
+      setModel(state.model)
+      setVisionModel(state.visionModel)
+      setApiKey(state.apiKey)
+      setInitialState(state)
+    } catch (error) {
+      toast.error(t("settings.llm.loadError"))
+    } finally {
+      setIsLoadingModels(false)
     }
-    init()
-  }, [t])
+  }
+
+  // Track dirty
+  useEffect(() => {
+    if (!initialState) return
+    const isDirty = 
+      defaultModelId !== initialState.defaultModelId ||
+      provider !== initialState.provider ||
+      providerType !== initialState.providerType ||
+      baseUrl !== initialState.baseUrl ||
+      model !== initialState.model ||
+      visionModel !== initialState.visionModel ||
+      apiKey !== initialState.apiKey
+      
+    setComponentDirty("llm", isDirty)
+  }, [defaultModelId, provider, providerType, baseUrl, model, visionModel, apiKey, initialState, setComponentDirty])
+
+  useEffect(() => {
+    fetchConfig()
+  }, [])
 
   const handleTestConnection = async () => {
     setTesting(true)
@@ -130,22 +154,39 @@ export function LLMSettings() {
           msg: `${t("settings.llm.connected")} Reply: ${res.reply || "OK"}`,
         })
         toast.success(t("settings.llm.connected"))
+        return true
       } else {
-        setTestResult({
-          success: false,
-          msg: t("settings.llm.connection_failed"),
-        })
-        toast.error(t("settings.llm.connection_failed"))
+        const msg = t("settings.llm.connection_failed")
+        setTestResult({ success: false, msg })
+        toast.error(msg)
+        return false
       }
     } catch (error) {
-      setTestResult({ success: false, msg: (error as any).message })
-      toast.error(`${t("settings.llm.connection_error")}: ${(error as any).message}`)
+      const msg = `${t("settings.llm.connection_error")}: ${(error as any).message}`
+      setTestResult({ success: false, msg })
+      toast.error(msg)
+      return false
     } finally {
       setTesting(false)
     }
   }
 
   const handleSave = async () => {
+    // 1. If provider settings changed, test connection first
+    const configChanged = 
+      provider !== initialState?.provider ||
+      providerType !== initialState?.providerType ||
+      baseUrl !== initialState?.baseUrl ||
+      model !== initialState?.model ||
+      apiKey !== initialState?.apiKey
+
+    if (configChanged) {
+      const isOk = await handleTestConnection()
+      if (!isOk) {
+        throw new Error("LLM Connection test failed")
+      }
+    }
+
     setLoading(true)
     try {
       await SystemService.applyLlmConfig({
@@ -159,98 +200,119 @@ export function LLMSettings() {
           default_model_id: defaultModelId,
         },
       })
+      // Update initial state to current values
+      setInitialState({
+        defaultModelId,
+        provider,
+        providerType,
+        baseUrl,
+        model,
+        visionModel,
+        apiKey,
+      })
       toast.success(t("settings.llm.saved"))
-      setTestResult(null)
-    } catch (_error) {
+    } catch (error) {
       toast.error(t("settings.llm.save_failed"))
+      throw error
     } finally {
       setLoading(false)
     }
   }
 
+  // Register handlers
+  useEffect(() => {
+    registerSaveHandler("llm", handleSave)
+    registerResetHandler("llm", () => fetchConfig())
+    return () => unregisterSaveHandler("llm")
+  }, [registerSaveHandler, unregisterSaveHandler, registerResetHandler, provider, providerType, baseUrl, model, visionModel, apiKey, defaultModelId, initialState])
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Default Model Card */}
-      <Card className="overflow-hidden border-primary/10 shadow-lg">
-        <CardHeader className="bg-muted/30 pb-4">
-          <div className="flex items-center gap-3">
-            <div className="rounded-lg bg-primary/10 p-2 text-primary">
-              <Brain className="h-5 w-5" />
+      <SettingsCard 
+        icon={Brain} 
+        title={t("settings.llm.default_model")} 
+        description={t("settings.llm.default_model_desc")}
+        headerExtra={
+          loading && (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground animate-pulse">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              {t("common.processing")}
             </div>
-            <div>
-              <CardTitle className="text-xl">{t("settings.llm.default_model")}</CardTitle>
-              <CardDescription>{t("settings.llm.default_model_desc")}</CardDescription>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="pt-6 space-y-4">
-          <div className="space-y-2">
-            <Label className="text-sm font-medium">{t("settings.llm.select_active_model")}</Label>
-            <Select value={defaultModelId} onValueChange={setDefaultModelId}>
-              <SelectTrigger className="w-full h-12">
-                <SelectValue placeholder={t("settings.llm.select_model_placeholder")} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  <SelectLabel className="flex items-center gap-2">
-                    <Globe className="h-3.5 w-3.5" />
-                    {t("chat.modelSelector.platformModels")}
-                  </SelectLabel>
-                  {presetModels
-                    .filter((m) => m.type === "platform")
-                    .map((m) => (
-                      <SelectItem key={m.id} value={m.id}>
-                        <div className="flex items-center gap-2">
-                          <span>{m.name}</span>
-                          <Badge variant="secondary" className="text-[10px] h-4">Platform</Badge>
-                        </div>
-                      </SelectItem>
-                    ))}
-                </SelectGroup>
-                <SelectSeparator />
-                <SelectGroup>
-                  <SelectLabel className="flex items-center gap-2">
-                    <Settings2 className="h-3.5 w-3.5" />
-                    {t("chat.modelSelector.customModels")}
-                  </SelectLabel>
-                  <SelectItem value={`custom-${provider}-${model}`}>
-                    <div className="flex items-center gap-2">
-                      <span>{model || t("settings.llm.custom")}</span>
-                      <Badge variant="outline" className="text-[10px] h-4 border-amber-500/50 text-amber-600">Custom</Badge>
-                    </div>
-                  </SelectItem>
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
+          )
+        }
+      >
+        <div className="space-y-3">
+          <Label className="text-sm font-medium">{t("settings.llm.select_active_model")}</Label>
+          <Select 
+            value={defaultModelId} 
+            onValueChange={setDefaultModelId}
+          >
+            <SelectTrigger className="w-full h-12">
+              <SelectValue placeholder={t("settings.llm.select_model_placeholder")} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                <SelectLabel className="flex items-center gap-2">
+                  <Globe className="h-3.5 w-3.5" />
+                  {t("chat.modelSelector.platformModels")}
+                </SelectLabel>
+                {presetModels
+                  .filter((m) => m.type === "platform")
+                  .map((m) => (
+                    <SelectItem key={m.id} value={m.id}>
+                      <div className="flex items-center gap-2">
+                        <span>{m.name}</span>
+                        <Badge variant="secondary" className="text-[10px] h-4 rounded-none">Platform</Badge>
+                      </div>
+                    </SelectItem>
+                  ))}
+              </SelectGroup>
+              <SelectSeparator />
+              <SelectGroup>
+                <SelectLabel className="flex items-center gap-2">
+                  <Settings2 className="h-3.5 w-3.5" />
+                  {t("chat.modelSelector.customModels")}
+                </SelectLabel>
+                <SelectItem value={`custom-${provider}-${model}`}>
+                  <div className="flex items-center gap-2">
+                    <span>{model || t("settings.llm.custom")}</span>
+                    <Badge variant="outline" className="text-[10px] h-4 border-amber-500/30 text-amber-600 rounded-none">Custom</Badge>
+                  </div>
+                </SelectItem>
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+        </div>
+      </SettingsCard>
 
       {/* Provider Config Card */}
-      <Card className="border-primary/10 shadow-lg">
-        <CardHeader className="bg-muted/30 pb-4">
-          <div className="flex items-center gap-3">
-            <div className="rounded-lg bg-amber-500/10 p-2 text-amber-600">
-              <Network className="h-5 w-5" />
+      <SettingsCard 
+        icon={Network} 
+        title={t("settings.llm.configure_provider")} 
+        description={t("settings.llm.configure_provider_desc")}
+        iconClassName="text-amber-600 bg-amber-600/10"
+        headerExtra={
+          loading && (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground animate-pulse">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              {t("common.processing")}
             </div>
-            <div>
-              <CardTitle className="text-xl">{t("settings.llm.configure_provider")}</CardTitle>
-              <CardDescription>{t("settings.llm.configure_provider_desc")}</CardDescription>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="pt-6 space-y-6">
+          )
+        }
+      >
+        <div className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-2">
+            <div className="space-y-3">
               <Label className="text-sm font-medium">{t("settings.modelFields.provider")}</Label>
               <Input 
                 placeholder="openai" 
                 value={provider || ""} 
                 onChange={(e) => setProvider(e.target.value)}
-                className="h-10 focus:ring-amber-500/20"
+                className="h-10 transition-colors focus:border-primary"
               />
             </div>
-            <div className="space-y-2">
+            <div className="space-y-3">
               <Label className="text-sm font-medium">{t("settings.modelFields.providerType")}</Label>
               <Select value={providerType} onValueChange={setProviderType}>
                 <SelectTrigger className="h-10">
@@ -278,30 +340,30 @@ export function LLMSettings() {
                 placeholder="https://api.openai.com/v1" 
                 value={baseUrl || ""} 
                 onChange={(e) => setBaseUrl(e.target.value)}
-                className="h-10"
+                className="h-10 transition-colors focus:border-primary"
               />
             </div>
-            <div className="space-y-2">
+            <div className="space-y-3">
               <Label className="text-sm font-medium">{t("settings.modelFields.modelName")}</Label>
               <Input 
                 placeholder="gpt-4o" 
                 value={model || ""} 
                 onChange={(e) => setModel(e.target.value)}
-                className="h-10"
+                className="h-10 transition-colors focus:border-primary"
               />
             </div>
-            <div className="space-y-2">
+            <div className="space-y-3">
               <Label className="text-sm font-medium">{t("settings.modelFields.visionModel")}</Label>
               <Input 
                 placeholder="gpt-4o" 
                 value={visionModel || ""} 
                 onChange={(e) => setVisionModel(e.target.value)}
-                className="h-10"
+                className="h-10 transition-colors focus:border-primary"
               />
             </div>
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-3">
             <Label className="text-sm font-medium">{t("settings.modelFields.apiKey")}</Label>
             <div className="relative">
               <Input
@@ -309,7 +371,7 @@ export function LLMSettings() {
                 placeholder="sk-..."
                 value={apiKey || ""}
                 onChange={(e) => setApiKey(e.target.value)}
-                className="pr-10 h-10"
+                className="pr-10 h-10 transition-colors focus:border-primary"
               />
               <Button
                 type="button"
@@ -329,7 +391,7 @@ export function LLMSettings() {
               variant="outline"
               onClick={handleTestConnection}
               disabled={testing}
-              className="w-full hover:bg-amber-500/5 hover:text-amber-600 transition-colors"
+              className="w-full h-11 border-dashed hover:border-amber-500/50 hover:bg-amber-500/5 hover:text-amber-600 transition-all"
             >
               {testing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Shield className="mr-2 h-4 w-4 text-amber-500" />}
               {t("settings.llm.test_connection")}
@@ -337,32 +399,19 @@ export function LLMSettings() {
 
             {testResult && (
               <div
-                className={`flex items-start gap-2 p-4 rounded-lg border text-sm animate-in fade-in slide-in-from-top-2 ${
+                className={`flex items-start gap-3 p-4 rounded-xl border text-sm animate-in fade-in slide-in-from-top-2 duration-300 ${
                   testResult.success 
-                    ? "bg-green-50 text-green-700 border-green-200 dark:bg-green-900/10 dark:text-green-400 dark:border-green-900/30" 
-                    : "bg-red-50 text-red-700 border-red-200 dark:bg-red-900/10 dark:text-red-400 dark:border-red-900/30"
+                    ? "bg-green-500/10 text-green-700 border-green-500/20 dark:text-green-400" 
+                    : "bg-red-500/10 text-red-700 border-red-500/20 dark:text-red-400"
                 }`}
               >
-                {testResult.success ? <CheckCircle2 className="h-4 w-4 mt-0.5" /> : <XCircle className="h-4 w-4 mt-0.5" />}
+                {testResult.success ? <CheckCircle2 className="h-5 w-5 shrink-0 text-green-500" /> : <XCircle className="h-5 w-5 shrink-0 text-red-500" />}
                 <span className="flex-1 leading-relaxed">{testResult.msg}</span>
               </div>
             )}
           </div>
-        </CardContent>
-      </Card>
-
-      {/* Save Button */}
-      <div className="flex justify-end pt-4">
-        <Button 
-          onClick={handleSave} 
-          disabled={loading} 
-          size="lg" 
-          className="px-8 shadow-md hover:shadow-lg transition-all gap-2"
-        >
-          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-          {t("settings.llm.apply_btn")}
-        </Button>
-      </div>
+        </div>
+      </SettingsCard>
     </div>
   )
 }

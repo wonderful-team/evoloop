@@ -9,6 +9,7 @@ import { Button } from "@evoloop/shared/components/ui/button"
 import type { Task } from "@/types/task"
 import { getColumns } from "./columns"
 import { TaskDetail } from "./TaskDetail"
+import { TaskCreate } from "./TaskCreate"
 
 export const TaskList: React.FC = () => {
   const { projectId } = useParams({ from: "/_layout/projects/$projectId" })
@@ -17,6 +18,7 @@ export const TaskList: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false)
   const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null)
   const [isDetailOpen, setIsDetailOpen] = useState(false)
+  const [isCreateOpen, setIsCreateOpen] = useState(false)
 
   const handleRowClick = (task: Task) => {
     // Assuming task has an id or task_id property.
@@ -84,7 +86,7 @@ export const TaskList: React.FC = () => {
               />
               {t("projects.tasks.refresh")}
             </Button>
-            <Button size="sm">
+            <Button size="sm" onClick={() => setIsCreateOpen(true)}>
               <Plus className="w-4 h-4 mr-2" />
               {t("projects.tasks.create")}
             </Button>
@@ -105,6 +107,13 @@ export const TaskList: React.FC = () => {
         open={isDetailOpen}
         onOpenChange={setIsDetailOpen}
         onUpdate={fetchTasks}
+      />
+
+      <TaskCreate
+        projectId={parseInt(projectId, 10)}
+        open={isCreateOpen}
+        onOpenChange={setIsCreateOpen}
+        onSuccess={fetchTasks}
       />
     </div>
   )

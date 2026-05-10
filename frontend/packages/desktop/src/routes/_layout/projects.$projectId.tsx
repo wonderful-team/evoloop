@@ -110,7 +110,7 @@ function ProjectLayout() {
   ]
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] w-full">
+    <div className="flex h-full w-full">
       {/* Project Sidebar */}
       <aside className="w-60 border-r bg-muted/10 flex flex-col shrink-0">
         <div className="h-14 flex items-center gap-2 px-4 border-b">
@@ -136,10 +136,11 @@ function ProjectLayout() {
               <Link
                 key={tab.id}
                 to={fullPath}
-                className="flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors text-muted-foreground hover:text-foreground hover:bg-muted data-[status=active]:bg-primary/10 data-[status=active]:text-primary"
+                className="flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors text-muted-foreground hover:text-foreground hover:bg-muted data-[status=active]:bg-primary data-[status=active]:text-primary-foreground"
                 activeProps={{
                   "data-status": "active",
                 }}
+                activeOptions={{ exact: true }}
               >
                 <tab.icon className="h-4 w-4" />
                 {tab.label}

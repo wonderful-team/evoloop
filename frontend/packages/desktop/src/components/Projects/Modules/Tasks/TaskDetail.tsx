@@ -127,11 +127,13 @@ export const TaskDetail: React.FC<TaskDetailProps> = ({
                     : t("projects.tasks.statusLabel.pending")}
               </Badge>
               <Badge variant="outline">
-                {task?.priority === 3
-                  ? t("projects.tasks.priority.high")
-                  : task?.priority === 4
-                    ? t("projects.tasks.priority.urgent")
-                    : t("projects.tasks.priority.normal")}
+                {task?.priority === 4
+                  ? t("projects.tasks.priorityLabel.urgent")
+                  : task?.priority === 3
+                    ? t("projects.tasks.priorityLabel.high")
+                    : task?.priority === 1
+                      ? t("projects.tasks.priorityLabel.low")
+                      : t("projects.tasks.priorityLabel.normal")}
               </Badge>
             </div>
           </div>

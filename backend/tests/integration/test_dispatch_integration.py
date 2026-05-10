@@ -158,7 +158,7 @@ async def test_dispatch_skip_persistence(mock_scope, mock_ref_service):
 
     # Message.add should NOT be called for the user message
     add_calls = [c for c in mock_scope.add.call_args_list if hasattr(c.args[0], "role")]
-    # In skip mode, no Message object is added, but Conversation upsert still happens
+    # In skip mode, neither Message nor Conversation is persisted
     assert result.message_id is None
 
 

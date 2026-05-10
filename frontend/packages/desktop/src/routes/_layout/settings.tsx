@@ -1,54 +1,65 @@
 import { createFileRoute, redirect } from "@tanstack/react-router"
 import { isLoggedIn } from "@/hooks/useAuth"
 import { useTranslation } from "react-i18next"
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import GeneralSettings from "@/components/Settings/GeneralSettings"
 import { ModelSettings } from "@/components/Settings/ModelSettings"
 import AppearanceSettings from "@/components/UserSettings/AppearanceSettings"
-import ChangePassword from "@/components/UserSettings/ChangePassword"
 import DeleteAccount from "@/components/UserSettings/DeleteAccount"
-import UserInformation from "@/components/UserSettings/UserInformation"
+import { AccountSettings } from "@/components/UserSettings/AccountSettings"
 import { VoiceControlSettings } from "@/components/Settings/VoiceControlSettings"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@evoloop/shared/components/ui/tabs"
+import { 
+  Settings, 
+  Brain, 
+  Mic, 
+  User, 
+  Lock, 
+  Palette, 
+  AlertTriangle 
+} from "lucide-react"
 import useAuth from "@/hooks/useAuth"
+import { cn } from "@evoloop/shared/lib/utils"
+import { Footer } from "@/components/Common/Footer"
 
-const TabsConfig = () => {
+const NavConfig = () => {
   const { t } = useTranslation()
   return [
     {
       value: "general",
       title: t("settings.tabs.general"),
+      icon: Settings,
       component: GeneralSettings,
     },
     {
       value: "models",
       title: t("settings.tabs.models"),
+      icon: Brain,
       component: ModelSettings,
     },
     {
       value: "voice",
       title: t("settings.tabs.voice"),
+      icon: Mic,
       component: VoiceControlSettings,
     },
     {
-      value: "my-profile",
+      value: "account",
       title: t("settings.tabs.profile"),
-      component: UserInformation,
-    },
-    {
-      value: "password",
-      title: t("settings.tabs.password"),
-      component: ChangePassword,
+      icon: User,
+      component: AccountSettings,
     },
     {
       value: "appearance",
       title: t("settings.tabs.appearance"),
+      icon: Palette,
       component: AppearanceSettings,
     },
     {
       value: "danger-zone",
       title: t("settings.tabs.danger"),
+      icon: AlertTriangle,
       component: DeleteAccount,
+      variant: "danger" as const,
     },
   ]
 }
@@ -69,44 +80,76 @@ export const Route = createFileRoute("/_layout/settings")({
   }),
 })
 
+import { SettingsProvider } from "@/components/Settings/SettingsContext"
+import { SettingsActionBar } from "@/components/Settings/SettingsActionBar"
+
 function UserSettings() {
   const { t } = useTranslation()
+  const [activeTab, setActiveTab] = useState("general")
 
   useEffect(() => {
     document.title = t("settings.pageTitle")
   }, [t])
 
   const { user: currentUser } = useAuth()
-  // All users have access to all tabs
-  const finalTabs = TabsConfig()
+  const navItems = NavConfig()
+  const ActiveComponent = navItems.find(item => item.value === activeTab)?.component || GeneralSettings
 
   if (!currentUser) {
     return null
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">
-          {t("settings.title")}
-        </h1>
-        <p className="text-muted-foreground">{t("settings.intro")}</p>
-      </div>
+    <SettingsProvider>
+      <div className="flex h-full flex-col gap-8 relative pb-20">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">
+            {t("settings.title")}
+          </h1>
+          <p className="text-muted-foreground mt-1">{t("settings.intro")}</p>
+        </div>
 
-      <Tabs defaultValue="general">
-        <TabsList>
-          {finalTabs.map((tab) => (
-            <TabsTrigger key={tab.value} value={tab.value}>
-              {tab.title}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-        {finalTabs.map((tab) => (
-          <TabsContent key={tab.value} value={tab.value}>
-            <tab.component />
-          </TabsContent>
-        ))}
-      </Tabs>
-    </div>
+        <div className="flex flex-1 flex-col gap-8 md:flex-row">
+          <aside className="w-full md:w-64 shrink-0">
+            <nav className="flex flex-col gap-1">
+              {navItems.map((item) => {
+                const Icon = item.icon
+                const isActive = activeTab === item.value
+                return (
+                  <button
+                    key={item.value}
+                    onClick={() => setActiveTab(item.value)}
+                    className={cn(
+                      "group flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-all duration-200",
+                      isActive 
+                        ? "bg-primary text-primary-foreground" 
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                      item.variant === "danger" && !isActive && "hover:bg-destructive/10 hover:text-destructive"
+                    )}
+                  >
+                    <Icon className={cn(
+                      "h-4 w-4 transition-transform group-hover:scale-110",
+                      isActive ? "text-primary-foreground" : "text-muted-foreground",
+                      item.variant === "danger" && !isActive && "group-hover:text-destructive"
+                    )} />
+                    {item.title}
+                  </button>
+                )
+              })}
+            </nav>
+          </aside>
+            
+          <main className="flex-1 min-w-0">
+            <div className="animate-in fade-in slide-in-from-right-4 duration-300">
+              <ActiveComponent />
+            </div>
+          </main>
+        </div>
+
+        <SettingsActionBar />
+      </div>
+    </SettingsProvider>
   )
 }
+
+export default UserSettings

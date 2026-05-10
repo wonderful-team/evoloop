@@ -32,8 +32,10 @@ def test_decorator_extracts_dict_to_context():
         # 调用 langchain tool 的 invoke 方法
         result = asyncio.run(mock_list_tool.ainvoke({}))
 
-        # 当前实现直接返回原始 dict，不做转换
-        assert result == {"content": "file1.py\nfile2.py", "count": 2}, f"Expected dict, got: {result}"
+        # 当前实现将 dict 自动序列化为 JSON 字符串
+        expected = json.dumps({"content": "file1.py\nfile2.py", "count": 2}, ensure_ascii=False)
+        assert str(result) == expected, f"Expected JSON string, got: {result}"
+        assert result.meta == {"count": 2}
 
         print("✅ test_decorator_extracts_dict_to_context passed")
     finally:

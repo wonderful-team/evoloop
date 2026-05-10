@@ -1,49 +1,7 @@
 import { useTranslation } from "react-i18next"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@evoloop/shared/components/ui/card"
+import { AlertTriangle, Trash2, RefreshCw } from "lucide-react"
+import { SettingsCard } from "@/components/Settings/SettingsCard"
 import DeleteConfirmation from "./DeleteConfirmation"
-
-const DeleteAccount = () => {
-  const { t } = useTranslation()
-  return (
-    <div className="flex flex-col gap-6 mt-4">
-      <Card className="border-destructive/50">
-        <CardHeader>
-          <CardTitle className="text-destructive">
-            {t("settings.danger.title")}
-          </CardTitle>
-          <CardDescription>{t("settings.danger.description")}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <DeleteConfirmation />
-        </CardContent>
-      </Card>
-
-      <Card className="border-orange-500/50">
-        <CardHeader>
-          <CardTitle className="text-orange-600">
-            {t("settings.danger.kb_reset_title")}
-          </CardTitle>
-          <CardDescription>
-            {t(
-              "settings.danger.kb_reset_desc",
-              "Wipe all indexed code and memory concepts. Use this if the AI seems confused or hallucinations persist.",
-            )}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ResetKnowledgeConfirmation />
-        </CardContent>
-      </Card>
-    </div>
-  )
-}
-
 import { useMutation } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { SystemService } from "@/client"
@@ -59,6 +17,41 @@ import {
   AlertDialogTrigger,
 } from "@evoloop/shared/components/ui/alert-dialog"
 import { Button } from "@evoloop/shared/components/ui/button"
+
+const DeleteAccount = () => {
+  const { t } = useTranslation()
+  return (
+    <div className="flex flex-col gap-8">
+      <SettingsCard 
+        icon={AlertTriangle} 
+        title={t("settings.danger.kb_reset_title")} 
+        description={t("settings.danger.kb_reset_desc", "Wipe all indexed code and memory concepts. Use this if the AI seems confused or hallucinations persist.")}
+        iconClassName="text-orange-600 bg-orange-600/10"
+      >
+        <div className="flex flex-col items-start gap-4">
+          <p className="text-sm text-muted-foreground">
+            {t("settings.danger.kb_reset_warning", "This action will force the system to rebuild its internal mapping of your project. Active chat sessions might lose some local context.")}
+          </p>
+          <ResetKnowledgeConfirmation />
+        </div>
+      </SettingsCard>
+
+      <SettingsCard 
+        icon={Trash2} 
+        title={t("settings.danger.title")} 
+        description={t("settings.danger.description")}
+        iconClassName="text-destructive bg-destructive/10"
+      >
+        <div className="flex flex-col items-start gap-4">
+          <p className="text-sm text-muted-foreground">
+            {t("settings.danger.delete_warning", "Permanently delete your account and all associated data. This action is irreversible.")}
+          </p>
+          <DeleteConfirmation />
+        </div>
+      </SettingsCard>
+    </div>
+  )
+}
 
 const ResetKnowledgeConfirmation = () => {
   const { t } = useTranslation()
@@ -86,8 +79,9 @@ const ResetKnowledgeConfirmation = () => {
       <AlertDialogTrigger asChild>
         <Button
           variant="outline"
-          className="mt-4 border-orange-200 text-orange-700 hover:bg-orange-50 hover:text-orange-800"
+          className="border-orange-200 text-orange-700 hover:bg-orange-50 transition-all gap-2"
         >
+          <RefreshCw className="h-4 w-4" />
           {t("settings.danger.kb_reset_btn")}
         </Button>
       </AlertDialogTrigger>
@@ -121,3 +115,4 @@ const ResetKnowledgeConfirmation = () => {
 }
 
 export default DeleteAccount
+

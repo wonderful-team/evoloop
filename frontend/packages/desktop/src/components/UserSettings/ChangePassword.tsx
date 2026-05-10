@@ -3,6 +3,7 @@ import { useMutation } from "@tanstack/react-query"
 import { useForm } from "react-hook-form"
 import { useTranslation } from "react-i18next"
 import { z } from "zod"
+import { Lock } from "lucide-react"
 
 import { MemberService } from "@/client"
 import {
@@ -17,6 +18,7 @@ import { LoadingButton } from "@evoloop/shared/components/ui/loading-button"
 import { PasswordInput } from "@evoloop/shared/components/ui/password-input"
 import useCustomToast from "@evoloop/shared/hooks/useCustomToast"
 import { handleError } from "@/utils"
+import { SettingsCard } from "@/components/Settings/SettingsCard"
 
 const createSchema = (t: any) =>
   z
@@ -76,82 +78,93 @@ const ChangePassword = () => {
   }
 
   return (
-    <div className="max-w-md">
-      <h3 className="text-lg font-semibold py-4">
-        {t("settings.password.title")}
-      </h3>
+    <SettingsCard 
+      icon={Lock} 
+      title={t("settings.password.title")}
+      description={t("settings.password.description") || t("auth.changePassword.desc")}
+    >
       <Form {...form}>
         <form
           onSubmit={form.handleSubmit(onSubmit)}
-          className="flex flex-col gap-4"
+          className="space-y-6"
         >
-          <FormField
-            control={form.control}
-            name="current_password"
-            render={({ field, fieldState }) => (
-              <FormItem>
-                <FormLabel>{t("settings.password.current")}</FormLabel>
-                <FormControl>
-                  <PasswordInput
-                    data-testid="current-password-input"
-                    placeholder="••••••••"
-                    aria-invalid={fieldState.invalid}
-                    {...field}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+          <div className="grid grid-cols-1 gap-6">
+            <FormField
+              control={form.control}
+              name="current_password"
+              render={({ field, fieldState }) => (
+                <FormItem>
+                  <FormLabel className="text-sm font-medium">{t("settings.password.current")}</FormLabel>
+                  <FormControl>
+                    <PasswordInput
+                      data-testid="current-password-input"
+                      placeholder="••••••••"
+                      aria-invalid={fieldState.invalid}
+                      className="h-11"
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-          <FormField
-            control={form.control}
-            name="new_password"
-            render={({ field, fieldState }) => (
-              <FormItem>
-                <FormLabel>{t("settings.password.new")}</FormLabel>
-                <FormControl>
-                  <PasswordInput
-                    data-testid="new-password-input"
-                    placeholder="••••••••"
-                    aria-invalid={fieldState.invalid}
-                    {...field}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <FormField
+                control={form.control}
+                name="new_password"
+                render={({ field, fieldState }) => (
+                  <FormItem>
+                    <FormLabel className="text-sm font-medium">{t("settings.password.new")}</FormLabel>
+                    <FormControl>
+                      <PasswordInput
+                        data-testid="new-password-input"
+                        placeholder="••••••••"
+                        aria-invalid={fieldState.invalid}
+                        className="h-11"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-          <FormField
-            control={form.control}
-            name="confirm_password"
-            render={({ field, fieldState }) => (
-              <FormItem>
-                <FormLabel>{t("settings.password.confirm")}</FormLabel>
-                <FormControl>
-                  <PasswordInput
-                    data-testid="confirm-password-input"
-                    placeholder="••••••••"
-                    aria-invalid={fieldState.invalid}
-                    {...field}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+              <FormField
+                control={form.control}
+                name="confirm_password"
+                render={({ field, fieldState }) => (
+                  <FormItem>
+                    <FormLabel className="text-sm font-medium">{t("settings.password.confirm")}</FormLabel>
+                    <FormControl>
+                      <PasswordInput
+                        data-testid="confirm-password-input"
+                        placeholder="••••••••"
+                        aria-invalid={fieldState.invalid}
+                        className="h-11"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+          </div>
 
-          <LoadingButton
-            type="submit"
-            loading={mutation.isPending}
-            className="self-start"
-          >
-            {t("settings.password.update")}
-          </LoadingButton>
+          <div className="flex justify-end pt-4 border-t">
+            <LoadingButton
+              type="submit"
+              loading={mutation.isPending}
+              size="lg"
+              className="px-10 h-11 transition-all"
+            >
+              {t("settings.password.update")}
+            </LoadingButton>
+          </div>
         </form>
       </Form>
-    </div>
+    </SettingsCard>
   )
 }
 

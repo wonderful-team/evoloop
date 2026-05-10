@@ -136,10 +136,16 @@ export function DocumentList({
           key={doc.path}
           className="group flex items-start justify-between rounded-lg border p-3 transition-colors hover:bg-muted/50"
         >
-          <button
-            type="button"
+          <div
+            role="button"
+            tabIndex={0}
             onClick={() => onSelect(doc)}
-            className="flex flex-1 items-start gap-3 text-left"
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                onSelect(doc)
+              }
+            }}
+            className="flex flex-1 items-start gap-3 text-left cursor-pointer focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded-md"
           >
             {getFileIcon(doc.path)}
             <div className="min-w-0 flex-1">
@@ -191,7 +197,7 @@ export function DocumentList({
                 </div>
               )}
             </div>
-          </button>
+          </div>
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

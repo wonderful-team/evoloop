@@ -17,13 +17,8 @@ import {
 
 import { SystemService } from "@/client"
 import { Button } from "@evoloop/shared/components/ui/button"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@evoloop/shared/components/ui/card"
+import { useSettings } from "./SettingsContext"
+import { SettingsCard } from "./SettingsCard"
 import { Label } from "@evoloop/shared/components/ui/label"
 import { Input } from "@evoloop/shared/components/ui/input"
 import {
@@ -59,6 +54,7 @@ export function EmbeddingSettings() {
     success: boolean
     msg: string
   } | null>(null)
+  const { setComponentDirty, registerSaveHandler, unregisterSaveHandler, registerResetHandler } = useSettings()
 
   const [presetModels, setPresetModels] = useState<PresetEmbeddingModel[]>([])
   const [isLoadingModels, setIsLoadingModels] = useState(true)
@@ -70,40 +66,66 @@ export function EmbeddingSettings() {
   const [model, setModel] = useState("")
   const [dimensions, setDimensions] = useState("768")
   const [apiKey, setApiKey] = useState("")
+  
+  const [initialState, setInitialState] = useState<any>(null)
 
-  // Load models and config
-  useEffect(() => {
-    const init = async () => {
-      try {
-        setIsLoadingModels(true)
-        const [modelsRes, configRes] = await Promise.all([
-          SystemService.getEmbeddingModels(),
-          SystemService.getSystemConfig()
-        ])
+  const fetchConfig = async () => {
+    try {
+      setIsLoadingModels(true)
+      const [modelsRes, configRes] = await Promise.all([
+        SystemService.getEmbeddingModels(),
+        SystemService.getSystemConfig()
+      ])
 
-        setPresetModels((modelsRes as any)?.models || [])
+      setPresetModels((modelsRes as any)?.models || [])
 
-        const configMap: Record<string, string> = {}
-        if (Array.isArray(configRes)) {
-          configRes.forEach((item: any) => {
-            configMap[item.key] = item.value
-          })
-        }
-
-        setDefaultModelId(configMap.EMBEDDING_MODEL || "")
-        setProvider(configMap.EMBEDDING_PROVIDER || "openai")
-        setBaseUrl(configMap.EMBEDDING_BASE_URL || "")
-        setModel(configMap.CUSTOM_EMBEDDING_MODEL || "")
-        setDimensions(configMap.EMBEDDING_DIMENSIONS || "768")
-        setApiKey(configMap.EMBEDDING_API_KEY || "")
-      } catch (error) {
-        toast.error(t("settings.embedding.loadError"))
-      } finally {
-        setIsLoadingModels(false)
+      const configMap: Record<string, string> = {}
+      if (Array.isArray(configRes)) {
+        configRes.forEach((item: any) => {
+          configMap[item.key] = item.value
+        })
       }
+
+      const state = {
+        defaultModelId: configMap.EMBEDDING_MODEL || "",
+        provider: configMap.EMBEDDING_PROVIDER || "openai",
+        baseUrl: configMap.EMBEDDING_BASE_URL || "",
+        model: configMap.CUSTOM_EMBEDDING_MODEL || "",
+        dimensions: configMap.EMBEDDING_DIMENSIONS || "768",
+        apiKey: configMap.EMBEDDING_API_KEY || "",
+      }
+
+      setDefaultModelId(state.defaultModelId)
+      setProvider(state.provider)
+      setBaseUrl(state.baseUrl)
+      setModel(state.model)
+      setDimensions(state.dimensions)
+      setApiKey(state.apiKey)
+      setInitialState(state)
+    } catch (error) {
+      toast.error(t("settings.embedding.loadError"))
+    } finally {
+      setIsLoadingModels(false)
     }
-    init()
-  }, [t])
+  }
+
+  // Track dirty
+  useEffect(() => {
+    if (!initialState) return
+    const isDirty = 
+      defaultModelId !== initialState.defaultModelId ||
+      provider !== initialState.provider ||
+      baseUrl !== initialState.baseUrl ||
+      model !== initialState.model ||
+      dimensions !== initialState.dimensions ||
+      apiKey !== initialState.apiKey
+      
+    setComponentDirty("embedding", isDirty)
+  }, [defaultModelId, provider, baseUrl, model, dimensions, apiKey, initialState, setComponentDirty])
+
+  useEffect(() => {
+    fetchConfig()
+  }, [])
 
   const handleTestConnection = async () => {
     setTesting(true)
@@ -126,22 +148,69 @@ export function EmbeddingSettings() {
           }),
         })
         toast.success(t("settings.embedding.success_connected", { dim: res.dimensions }))
+        return true
       } else {
-        setTestResult({
-          success: false,
-          msg: t("settings.embedding.error_connection"),
-        })
-        toast.error(t("settings.embedding.error_connection"))
+        const msg = t("settings.embedding.error_connection")
+        setTestResult({ success: false, msg })
+        toast.error(msg)
+        return false
       }
     } catch (error) {
-      setTestResult({ success: false, msg: (error as any).message })
-      toast.error(`${t("settings.embedding.error_connection")}: ${(error as any).message}`)
+      const msg = `${t("settings.embedding.error_connection")}: ${(error as any).message}`
+      setTestResult({ success: false, msg })
+      toast.error(msg)
+      return false
     } finally {
       setTesting(false)
     }
   }
 
   const handleSave = async () => {
+    // 1. Check if config changed and test connection
+    const configChanged = 
+      provider !== initialState?.provider ||
+      baseUrl !== initialState?.baseUrl ||
+      model !== initialState?.model ||
+      apiKey !== initialState?.apiKey
+
+    if (configChanged) {
+      const isOk = await handleTestConnection()
+      if (!isOk) {
+        throw new Error("Embedding Connection test failed")
+      }
+    }
+
+    setLoading(true)
+    try {
+      // Just update parameters, don't trigger re-indexing automatically in the global save
+      // unless the user clicks the explicit button.
+      await Promise.all([
+        SystemService.updateSystemConfig({ requestBody: { key: "EMBEDDING_PROVIDER", value: provider } }),
+        SystemService.updateSystemConfig({ requestBody: { key: "EMBEDDING_BASE_URL", value: baseUrl } }),
+        SystemService.updateSystemConfig({ requestBody: { key: "CUSTOM_EMBEDDING_MODEL", value: model } }),
+        SystemService.updateSystemConfig({ requestBody: { key: "EMBEDDING_DIMENSIONS", value: dimensions } }),
+        SystemService.updateSystemConfig({ requestBody: { key: "EMBEDDING_API_KEY", value: apiKey } }),
+        SystemService.updateSystemConfig({ requestBody: { key: "EMBEDDING_MODEL", value: defaultModelId } }),
+      ])
+      
+      setInitialState({
+        defaultModelId,
+        provider,
+        baseUrl,
+        model,
+        dimensions,
+        apiKey,
+      })
+    } catch (error) {
+      toast.error(t("settings.embedding.error_update"))
+      throw error
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Explicit Activation & Re-index (Manual Action)
+  const handleActivateAndReindex = async () => {
     if (!confirm(t("settings.embedding.confirm_switch"))) {
       return
     }
@@ -159,7 +228,14 @@ export function EmbeddingSettings() {
         },
       })
       toast.success(t("settings.embedding.success_updated"))
-      setTestResult(null)
+      setInitialState({
+        defaultModelId,
+        provider,
+        baseUrl,
+        model,
+        dimensions,
+        apiKey,
+      })
     } catch (_error) {
       toast.error(t("settings.embedding.error_update"))
     } finally {
@@ -167,78 +243,90 @@ export function EmbeddingSettings() {
     }
   }
 
+  // Register handlers
+  useEffect(() => {
+    registerSaveHandler("embedding", handleSave)
+    registerResetHandler("embedding", () => fetchConfig())
+    return () => unregisterSaveHandler("embedding")
+  }, [registerSaveHandler, unregisterSaveHandler, registerResetHandler, provider, baseUrl, model, dimensions, apiKey, defaultModelId, initialState])
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/* Default Model Card */}
-      <Card className="overflow-hidden border-primary/10 shadow-lg">
-        <CardHeader className="bg-muted/30 pb-4">
-          <div className="flex items-center gap-3">
-            <div className="rounded-lg bg-blue-500/10 p-2 text-blue-600">
-              <Database className="h-5 w-5" />
+      <SettingsCard 
+        icon={Database} 
+        title={t("settings.embedding.default_model")} 
+        description={t("settings.embedding.default_model_desc")}
+        iconClassName="text-blue-600 bg-blue-600/10"
+        headerExtra={
+          loading && (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground animate-pulse">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              {t("common.processing")}
             </div>
-            <div>
-              <CardTitle className="text-xl">{t("settings.embedding.default_model")}</CardTitle>
-              <CardDescription>{t("settings.embedding.default_model_desc")}</CardDescription>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="pt-6 space-y-4">
-          <div className="space-y-2">
-            <Label className="text-sm font-medium">{t("settings.embedding.select_default_placeholder")}</Label>
-            <Select value={defaultModelId} onValueChange={setDefaultModelId}>
-              <SelectTrigger className="w-full h-12">
-                <SelectValue placeholder={t("settings.embedding.select_model_placeholder")} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  <SelectLabel className="flex items-center gap-2">
-                    <Globe className="h-3.5 w-3.5" />
-                    {t("chat.modelSelector.platformModels")}
-                  </SelectLabel>
-                  {presetModels
-                    .filter((m) => m.type === "platform")
-                    .map((m) => (
-                      <SelectItem key={m.id} value={m.id}>
-                        <div className="flex items-center gap-2">
-                          <span>{m.name}</span>
-                          <Badge variant="secondary" className="text-[10px] h-4">Platform</Badge>
-                        </div>
-                      </SelectItem>
-                    ))}
-                </SelectGroup>
-                <SelectSeparator />
-                <SelectGroup>
-                  <SelectLabel className="flex items-center gap-2">
-                    <Layers className="h-3.5 w-3.5" />
-                    {t("chat.modelSelector.customModels")}
-                  </SelectLabel>
-                  <SelectItem value={`custom-${provider}-${model}`}>
-                    <div className="flex items-center gap-2">
-                      <span>{model || t("settings.llm.custom")}</span>
-                      <Badge variant="outline" className="text-[10px] h-4 border-blue-500/50 text-blue-600">Custom</Badge>
-                    </div>
-                  </SelectItem>
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
+          )
+        }
+      >
+        <div className="space-y-2">
+          <Label className="text-sm font-medium">{t("settings.embedding.select_default_placeholder")}</Label>
+          <Select 
+            value={defaultModelId} 
+            onValueChange={setDefaultModelId}
+          >
+            <SelectTrigger className="w-full h-12">
+              <SelectValue placeholder={t("settings.embedding.select_model_placeholder")} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                <SelectLabel className="flex items-center gap-2">
+                  <Globe className="h-3.5 w-3.5" />
+                  {t("chat.modelSelector.platformModels")}
+                </SelectLabel>
+                {presetModels
+                  .filter((m) => m.type === "platform")
+                  .map((m) => (
+                    <SelectItem key={m.id} value={m.id}>
+                      <div className="flex items-center gap-2">
+                        <span>{m.name}</span>
+                        <Badge variant="secondary" className="text-[10px] h-4 rounded-none">Platform</Badge>
+                      </div>
+                    </SelectItem>
+                  ))}
+              </SelectGroup>
+              <SelectSeparator />
+              <SelectGroup>
+                <SelectLabel className="flex items-center gap-2">
+                  <Layers className="h-3.5 w-3.5" />
+                  {t("chat.modelSelector.customModels")}
+                </SelectLabel>
+                <SelectItem value={`custom-${provider}-${model}`}>
+                  <div className="flex items-center gap-2">
+                    <span>{model || t("settings.llm.custom")}</span>
+                    <Badge variant="outline" className="text-[10px] h-4 border-blue-500/30 text-blue-600 rounded-none">Custom</Badge>
+                  </div>
+                </SelectItem>
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+        </div>
+      </SettingsCard>
 
       {/* Provider Config Card */}
-      <Card className="border-primary/10 shadow-lg">
-        <CardHeader className="bg-muted/30 pb-4">
-          <div className="flex items-center gap-3">
-            <div className="rounded-lg bg-indigo-500/10 p-2 text-indigo-600">
-              <Network className="h-5 w-5" />
+      <SettingsCard 
+        icon={Network} 
+        title={t("settings.llm.configure_provider")} 
+        description={t("settings.llm.configure_provider_desc")}
+        iconClassName="text-indigo-600 bg-indigo-600/10"
+        headerExtra={
+          loading && (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground animate-pulse">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              {t("common.processing")}
             </div>
-            <div>
-              <CardTitle className="text-xl">{t("settings.llm.configure_provider")}</CardTitle>
-              <CardDescription>{t("settings.llm.configure_provider_desc")}</CardDescription>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="pt-6 space-y-6">
+          )
+        }
+      >
+        <div className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
               <Label className="text-sm font-medium">{t("settings.modelFields.provider")}</Label>
@@ -246,7 +334,7 @@ export function EmbeddingSettings() {
                 placeholder="openai" 
                 value={provider || ""} 
                 onChange={(e) => setProvider(e.target.value)}
-                className="h-10 focus:ring-indigo-500/20"
+                className="h-10 transition-colors focus:border-primary"
               />
             </div>
             <div className="space-y-2">
@@ -256,7 +344,7 @@ export function EmbeddingSettings() {
                 placeholder="1536" 
                 value={dimensions || ""} 
                 onChange={(e) => setDimensions(e.target.value)}
-                className="h-10"
+                className="h-10 transition-colors focus:border-primary"
               />
             </div>
             <div className="space-y-2 md:col-span-2">
@@ -265,7 +353,7 @@ export function EmbeddingSettings() {
                 placeholder="https://api.openai.com/v1" 
                 value={baseUrl || ""} 
                 onChange={(e) => setBaseUrl(e.target.value)}
-                className="h-10"
+                className="h-10 transition-colors focus:border-primary"
               />
             </div>
             <div className="space-y-2 md:col-span-2">
@@ -274,7 +362,7 @@ export function EmbeddingSettings() {
                 placeholder="text-embedding-3-small" 
                 value={model || ""} 
                 onChange={(e) => setModel(e.target.value)}
-                className="h-10"
+                className="h-10 transition-colors focus:border-primary"
               />
             </div>
           </div>
@@ -287,7 +375,7 @@ export function EmbeddingSettings() {
                 placeholder="sk-..."
                 value={apiKey || ""}
                 onChange={(e) => setApiKey(e.target.value)}
-                className="pr-10 h-10"
+                className="pr-10 h-10 transition-colors focus:border-primary"
               />
               <Button
                 type="button"
@@ -302,45 +390,43 @@ export function EmbeddingSettings() {
           </div>
 
           <div className="flex flex-col gap-4">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleTestConnection}
-              disabled={testing}
-              className="w-full hover:bg-indigo-500/5 hover:text-indigo-600 transition-colors"
-            >
-              {testing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Shield className="mr-2 h-4 w-4 text-indigo-500" />}
-              {t("settings.embedding.test_connection")}
-            </Button>
+            <div className="flex gap-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleTestConnection}
+                disabled={testing}
+                className="flex-1 h-11 border-dashed hover:border-indigo-500/50 hover:bg-indigo-500/5 hover:text-indigo-600 transition-all"
+              >
+                {testing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Shield className="mr-2 h-4 w-4 text-indigo-500" />}
+                {t("settings.embedding.test_connection")}
+              </Button>
+
+              <Button 
+                onClick={handleActivateAndReindex} 
+                disabled={loading} 
+                className="flex-1 h-11 transition-all gap-2"
+              >
+                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                {t("settings.embedding.activate_reindex")}
+              </Button>
+            </div>
 
             {testResult && (
               <div
-                className={`flex items-start gap-2 p-4 rounded-lg border text-sm animate-in fade-in slide-in-from-top-2 ${
+                className={`flex items-start gap-3 p-4 rounded-xl border text-sm animate-in fade-in slide-in-from-top-2 duration-300 ${
                   testResult.success 
-                    ? "bg-green-50 text-green-700 border-green-200 dark:bg-green-900/10 dark:text-green-400 dark:border-green-900/30" 
-                    : "bg-red-50 text-red-700 border-red-200 dark:bg-red-900/10 dark:text-red-400 dark:border-red-900/30"
+                    ? "bg-green-500/10 text-green-700 border-green-500/20 dark:text-green-400" 
+                    : "bg-red-500/10 text-red-700 border-red-500/20 dark:text-red-400"
                 }`}
               >
-                {testResult.success ? <CheckCircle2 className="h-4 w-4 mt-0.5" /> : <XCircle className="h-4 w-4 mt-0.5" />}
+                {testResult.success ? <CheckCircle2 className="h-5 w-5 shrink-0 text-green-500" /> : <XCircle className="h-5 w-5 shrink-0 text-red-500" />}
                 <span className="flex-1 leading-relaxed">{testResult.msg}</span>
               </div>
             )}
           </div>
-        </CardContent>
-      </Card>
-
-      {/* Save Button */}
-      <div className="flex justify-end pt-4">
-        <Button 
-          onClick={handleSave} 
-          disabled={loading} 
-          size="lg" 
-          className="px-8 shadow-md hover:shadow-lg transition-all gap-2"
-        >
-          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-          {t("settings.embedding.apply_btn")}
-        </Button>
-      </div>
+        </div>
+      </SettingsCard>
     </div>
   )
 }

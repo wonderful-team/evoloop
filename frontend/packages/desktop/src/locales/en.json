@@ -1200,8 +1200,9 @@
       "noChallenges": "None identified",
       "noModules": "None identified",
       "noSubtasks": "No subtasks",
-      "priority": {
+      "priorityLabel": {
         "high": "High",
+        "low": "Low",
         "normal": "Normal",
         "urgent": "Urgent"
       },
@@ -1378,6 +1379,7 @@
       "title": "Delete Account"
     },
     "embedding": {
+      "activate_reindex": "Activate & Re-index",
       "apply_btn": "Apply & Re-Index",
       "confirm_switch": "WARNING: Switching embedding models will DELETE all existing knowledge indices (Vectors) and trigger a full re-index. This process cannot be undone. Are you sure?",
       "default_model": "Default Embedding Model",
@@ -1389,7 +1391,8 @@
       "select_model_placeholder": "Choose a model...",
       "success_connected": "Connected! Dimensions: {{dim}}",
       "success_updated": "Embedding Model Updated & Re-indexing Triggered",
-      "test_connection": "Test Connection"
+      "test_connection": "Test Connection",
+      "description": "Manage vector models used for knowledge base indexing and semantic search."
     },
     "general": {
       "browse": "Browse",
@@ -1417,6 +1420,9 @@
       "workspaceRootPlaceholder": "/path/to/workspace"
     },
     "intro": "Manage your account and EvoLoop configurations.",
+    "pendingChanges": "You have unsaved changes",
+    "restoreBtn": "Discard Changes",
+    "applyChangesBtn": "Apply Changes",
     "llm": {
       "apply_btn": "Apply Changes",
       "configure_provider": "2. Custom Provider Configuration",
@@ -1432,7 +1438,8 @@
       "saved": "LLM Configuration Saved",
       "select_active_model": "Select Active Model",
       "select_model_placeholder": "Choose a model...",
-      "test_connection": "Test Connection"
+      "test_connection": "Test Connection",
+      "description": "Configure language model providers and default generation models."
     },
     "modelFields": {
       "apiKey": "API Key",
@@ -1452,7 +1459,8 @@
       "new": "New Password",
       "success": "Password updated successfully",
       "title": "Change Password",
-      "update": "Update Password"
+      "update": "Update Password",
+      "description": "Update your password regularly to keep your account secure."
     },
     "profile": {
       "cancel": "Cancel",
@@ -1462,7 +1470,8 @@
       "nickname": "Nickname",
       "save": "Save",
       "success": "Profile updated successfully",
-      "title": "User Information"
+      "title": "User Information",
+      "description": "Manage your public profile information and contact details."
     },
     "providerType": {
       "anthropic": "Anthropic Claude",

@@ -3,6 +3,13 @@
 验证：Agent 得到的都是纯文本(str)，不是 JSON/dict。
 """
 import sys
+import os
+
+# Override app data directory to avoid permission issues with ~/.evoloop
+os.environ["EVOLOOP_APP_DATA_DIR"] = "/Users/huangjinhuan/项目/develop-assistant.cn/evoloop/backend/temp_test_data"
+os.environ["SQLITE_DB_PATH"] = "/Users/huangjinhuan/项目/develop-assistant.cn/evoloop/backend/temp_test_data/test.db"
+os.makedirs(os.environ["EVOLOOP_APP_DATA_DIR"], exist_ok=True)
+
 sys.path.insert(0, '/Users/huangjinhuan/项目/develop-assistant.cn/evoloop/backend')
 
 import asyncio
@@ -269,8 +276,17 @@ async def main():
 
         type_str = " | ".join(type_info) if type_info else type(result).__name__
 
-        print(f"\n✅ {tool_name} ({type_str})")
-        print(f"   → {snippet}")
+        print(f"\n🛠️  Tool: {tool_name}")
+        print(f"   ------------------------------------------------------------")
+        print(f"   👤 Agent View (Content):")
+        print(f"     \"{snippet}\"")
+        print(f"   ")
+        print(f"   ⚙️  System View (Metadata):")
+        print(f"     {json.dumps(meta, ensure_ascii=False) if meta else '{}'}")
+        print(f"   ")
+        print(f"   📱 UI View (Display Name):")
+        print(f"     {display_name or tool_name}")
+        print(f"   ------------------------------------------------------------")
 
     print("\n" + "=" * 80)
 
