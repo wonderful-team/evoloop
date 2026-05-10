@@ -18,6 +18,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     threadId: null,
     projectId: null,
     skillId: null,
+    sessionGoal: null,
     messages: [],
     changeset: [],
     viewedChanges: new Set<string>(),
@@ -51,6 +52,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             ...(currentThreadId !== threadId ? {
                 messages: [],
                 status: "idle",
+                sessionGoal: null,
                 finalOutcome: null,
                 humanRequest: null,
                 changeset: [],
@@ -426,6 +428,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
         set({
             status: normalized,
+            sessionGoal: data.main_goal || get().sessionGoal,
             artifacts: data.artifacts || [],
             finalOutcome: data.final_outcome || null,
             activeMemories: data.active_memories || [],
@@ -573,6 +576,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     _handleRunStart: (ev) => {
         set({ 
             status: "running", 
+            sessionGoal: ev.goal || get().sessionGoal,
             streamingThinking: "", 
             _streamBuffer: "",
             finalOutcome: null 

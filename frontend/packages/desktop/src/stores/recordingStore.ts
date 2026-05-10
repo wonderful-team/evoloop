@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core"
 
 interface RecordingState {
     isRecording: boolean
-    isGlobalMode: boolean
+    isDesktopRecording: boolean
     activeThreadId: string | null
     eventCount: number
     sessionId: string | null
@@ -29,7 +29,7 @@ interface RecordingState {
     stopRecording: () => void
     setEventCount: (count: number) => void
     setSessionId: (id: string | null) => void
-    setIsGlobalMode: (isGlobal: boolean) => void
+    setIsDesktopRecording: (enabled: boolean) => void
     setVideoPath: (path: string | null) => void
     setPostRecordingAction: (action: 'synthesize' | null) => void
     setIsPreparing: (isPreparing: boolean) => void
@@ -46,7 +46,7 @@ const COUNTDOWN_SECONDS = 3
 
 export const useRecordingStore = create<RecordingState>((set, get) => ({
     isRecording: false,
-    isGlobalMode: true,
+    isDesktopRecording: true,
     activeThreadId: null,
     eventCount: 0,
     sessionId: null,
@@ -117,7 +117,7 @@ export const useRecordingStore = create<RecordingState>((set, get) => ({
     setEventCount: (count) => set({ eventCount: count }),
     setSessionId: (id) => set({ sessionId: id }),
     setRecordingSource: (source, deviceId = null) => set({ recordingSource: source, recordingSourceDeviceId: deviceId }),
-    setIsGlobalMode: (isGlobal) => set({ isGlobalMode: isGlobal }),
+    setIsDesktopRecording: (enabled) => set({ isDesktopRecording: enabled }),
     setVideoPath: (path) => set({ videoPath: path }),
     setPostRecordingAction: (action) => set({ postRecordingAction: action }),
     setIsPreparing: (isPreparing) => set({ isPreparing }),

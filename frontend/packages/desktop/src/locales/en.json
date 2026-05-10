@@ -173,6 +173,7 @@
       "relatedTasksTitle": "Tasks related to \"{{concept}}\"",
       "resourcesTitle": "Files & Resources",
       "selectProject": "Select a project to view context",
+      "sessionGoalTitle": "Session Goal",
       "statusActive": "Active",
       "statusIdle": "Idle",
       "statusOffline": "Offline",
@@ -629,8 +630,9 @@
   },
   "learning": {
     "agentic": "Agentic",
-    "annotations": "Annotation data",
-    "centerSubtitle": "Manage your learned skills and train the agent through interactive recording sessions.",
+    "annotations": "Annotations",
+    "appRecording": "App Window Only (DOM)",
+    "centerSubtitle": "Manage learned skills and train agents via interactive recording sessions.",
     "centerTitle": "Learning Center",
     "checkingVideo": "Checking...",
     "cleanupFailed": "Failed to cleanup recording data",
@@ -645,6 +647,7 @@
     "createSkillMultimodal": "Create Skill from Recording",
     "createSkillMultimodalDesc": "AI will analyze your screen recording and actions to create a reusable skill.",
     "created": "Created",
+    "desktopRecording": "Full Desktop Monitoring (Global)",
     "deterministic": "Deterministic",
     "domMode": "App Only (DOM)",
     "editor": {

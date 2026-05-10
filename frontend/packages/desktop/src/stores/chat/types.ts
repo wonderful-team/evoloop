@@ -24,6 +24,7 @@ export interface ChatState {
     threadId: string | null
     projectId: number | null
     skillId: number | null
+    sessionGoal: string | null
     messages: Message[]
 
     // Changeset State

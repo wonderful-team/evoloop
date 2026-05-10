@@ -4,6 +4,7 @@ import { Loader2 } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 import { SmartChatMessageItem, type Message } from "./ChatMessageItem"
 import { ChatWelcome } from "./ChatWelcome"
+import { GoalBanner } from "./GoalBanner"
 
 interface MessageListProps {
     messages: Message[]
@@ -144,6 +145,8 @@ export function MessageList({
                 {messages.length === 0 && !isLoadingHistory && (
                     <ChatWelcome />
                 )}
+
+                <GoalBanner />
 
                 <AnimatePresence initial={false}>
                     {renderItems.map((item) => {

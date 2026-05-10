@@ -29,8 +29,8 @@ export function RecordingButton({
     initiateRecording,
     stopRecording,
     eventCount,
-    isGlobalMode,
-    setIsGlobalMode,
+    isDesktopRecording,
+    setIsDesktopRecording,
     setPostRecordingAction,
   } = useRecordingStore()
 
@@ -41,7 +41,7 @@ export function RecordingButton({
   const { hasPermission: hasVideoPermission, requestPermission: requestVideoPermission } = useScreenRecordingPermission()
 
   const handleStart = useCallback(() => {
-    console.log("[RecordingButton] handleStart clicked", { isGlobalMode, hasAxPermission, hasVideoPermission, threadId })
+    console.log("[RecordingButton] handleStart clicked", { isDesktopRecording, hasAxPermission, hasVideoPermission, threadId })
 
     // 1. Check Video Permission (Always needed)
     if (hasVideoPermission !== true) {
@@ -50,8 +50,8 @@ export function RecordingButton({
       return
     }
 
-    // 2. Check AX Permission (Only if global)
-    if (isGlobalMode && hasAxPermission !== true) {
+    // 2. Check AX Permission (Only if desktop recording)
+    if (isDesktopRecording && hasAxPermission !== true) {
       console.log("[RecordingButton] Requesting AX permission...")
       toast.error(t("learning.permissionRequired", "Permission required. Check system settings."))
       requestAxPermission()
@@ -60,7 +60,7 @@ export function RecordingButton({
 
     // 3. Start countdown (countdown logic is now in store)
     initiateRecording(threadId)
-  }, [hasVideoPermission, hasAxPermission, isGlobalMode, threadId, t, requestVideoPermission, requestAxPermission, initiateRecording])
+  }, [hasVideoPermission, hasAxPermission, isDesktopRecording, threadId, t, requestVideoPermission, requestAxPermission, initiateRecording])
 
   const handleStop = () => {
     // Must set action BEFORE stopping, so GlobalRecorderManager knows to trigger synthesis
@@ -109,22 +109,22 @@ export function RecordingButton({
             <Button
               variant="ghost"
               size="icon"
-              className={`h-8 w-8 ${isGlobalMode ? "text-blue-600 bg-blue-50 hover:bg-blue-100" : "text-muted-foreground"}`}
-              onClick={() => setIsGlobalMode(!isGlobalMode)}
+              className={`h-8 w-8 ${isDesktopRecording ? "text-blue-600 bg-blue-50 hover:bg-blue-100" : "text-muted-foreground"}`}
+              onClick={() => setIsDesktopRecording(!isDesktopRecording)}
             >
               <Monitor className="h-4 w-4" />
             </Button>
           </TooltipTrigger>
           <TooltipContent>
-            {isGlobalMode
-              ? t("learning.globalMode", "System Monitoring Active (Global)")
-              : t("learning.domMode", "App Only (DOM)")}
+            {isDesktopRecording
+              ? t("learning.desktopRecording", "System Monitoring (Desktop)")
+              : t("learning.appRecording", "App Window Only (DOM)")}
           </TooltipContent>
         </Tooltip>
       )}
 
       {/* AX Permission Indicator */}
-      {isGlobalMode && hasAxPermission === false && !isRecording && (
+      {isDesktopRecording && hasAxPermission === false && !isRecording && (
         <div className="flex items-center">
           <Tooltip>
             <TooltipTrigger asChild>

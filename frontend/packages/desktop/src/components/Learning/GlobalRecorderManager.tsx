@@ -18,7 +18,7 @@ export function GlobalRecorderManager() {
     const {
         isRecording,
         activeThreadId,
-        isGlobalMode,
+        isDesktopRecording,
         setEventCount,
         setSessionId,
         setVideoPath,
@@ -121,7 +121,7 @@ export function GlobalRecorderManager() {
     const domRecorder = useActionRecorder({
         threadId: activeThreadId || "global",
         enabled: isDesktopSource,
-        scope: isGlobalMode ? "both" : "dom",
+        scope: isDesktopRecording ? "both" : "dom",
         autoFlushInterval: 500,  // 500ms batch flush
         batchSize: 50
     })
@@ -142,7 +142,7 @@ export function GlobalRecorderManager() {
     const globalRecorder = useGlobalRecorder({
         threadId: activeThreadId || "global",
         sessionId: isDesktopSource ? domRecorder.sessionId : recordingSourceSessionId,
-        enabled: (isDesktopSource && isGlobalMode) || (!isDesktopSource && isRecording),
+        enabled: (isDesktopSource && isDesktopRecording) || (!isDesktopSource && isRecording),
         autoFlushInterval: 500,  // 500ms batch flush
         batchSize: 50,
         startTime: recordingStartTime,
@@ -193,13 +193,13 @@ export function GlobalRecorderManager() {
 
     // Sync event count to store and tray
     useEffect(() => {
-        // [FIX] Avoid double counting: when in global mode, only count global events
+        // [FIX] Avoid double counting: when in desktop mode, only count global events
         // [v3] For mobile, we also rely on globalRecorder for mirror window clicks
-        const totalEvents = (isGlobalMode || recordingSource === 'mobile') ? globalRecorder.eventCount : domRecorder.eventCount
+        const totalEvents = (isDesktopRecording || recordingSource === 'mobile') ? globalRecorder.eventCount : domRecorder.eventCount
         setEventCount(totalEvents)
         // Sync to tray
         invoke("sync_tray_event_count", { count: totalEvents })
-    }, [domRecorder.eventCount, globalRecorder.eventCount, isGlobalMode, recordingSource, setEventCount])
+    }, [domRecorder.eventCount, globalRecorder.eventCount, isDesktopRecording, recordingSource, setEventCount])
 
     // Sync session ID to store (for dialogs)
     useEffect(() => {
@@ -214,7 +214,7 @@ export function GlobalRecorderManager() {
     // Effect to Start/Stop based on store state
     useEffect(() => {
         const manageRecording = async () => {
-            console.log("[GlobalRecorderManager] manageRecording triggered", { isRecording, isGlobalMode, activeThreadId, domRecIsRec: domRecorder.isRecording, isDesktopSource })
+            console.log("[GlobalRecorderManager] manageRecording triggered", { isRecording, isDesktopRecording, activeThreadId, domRecIsRec: domRecorder.isRecording, isDesktopSource })
             // START
             if (isRecording) {
                 if (!domRecorder.isRecording && !busyRef.current) {
@@ -235,7 +235,7 @@ export function GlobalRecorderManager() {
                             await domRecorder.startRecording();
                         }
 
-                        if ((isGlobalMode && isDesktopSource) || !isDesktopSource) {
+                        if ((isDesktopRecording && isDesktopSource) || !isDesktopSource) {
                             // Fetch mirror bounds for coordinate transformation if recording mobile
                             if (!isDesktopSource && recordingSource === 'mobile') {
                                 try {
@@ -309,7 +309,7 @@ export function GlobalRecorderManager() {
                     console.log("[GlobalRecorderManager] Stopping recorders...")
                     try {
                         let totalEventsCount = 0
-                        if (isGlobalMode || recordingSource === 'mobile') {
+                        if (isDesktopRecording || recordingSource === 'mobile') {
                             const res = await globalRecorder.stopRecording()
                             if (res) totalEventsCount += res.eventCount
                         }
@@ -399,7 +399,7 @@ export function GlobalRecorderManager() {
         }
 
         manageRecording()
-    }, [isRecording, isGlobalMode, activeThreadId, postRecordingAction, navigate]) // eslint-disable-line
+    }, [isRecording, isDesktopRecording, activeThreadId, postRecordingAction, navigate]) // eslint-disable-line
 
     return null // Headless
 }

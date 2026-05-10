@@ -81,8 +81,8 @@ export function ChatInterface() {
     const saved = localStorage.getItem("chat.contextPanel.hidden")
     // If user manually closed it before, respect that
     if (saved === "true") return false
-    // Otherwise follow default logic
-    return !isGlobalMode
+    // Otherwise show by default
+    return true
   })
   const scrollRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)

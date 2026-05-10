@@ -57,31 +57,6 @@ export const ContextPanel = memo(
       }
     }, [status])
 
-    // Global mode
-    if (isGlobalMode) {
-      return (
-        <div className="flex flex-col h-full bg-background">
-          <div className="flex items-center justify-between p-3 border-b h-14 shrink-0">
-            <span className="font-semibold text-sm flex items-center gap-2">
-              <Globe className="h-4 w-4 text-blue-500" />
-              {t("chat.context.globalTitle")}
-            </span>
-            {onClose && (
-              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClose}>
-                <X className="h-4 w-4" />
-              </Button>
-            )}
-          </div>
-          <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
-            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center mb-4">
-              <Globe className="h-8 w-8 text-white" />
-            </div>
-            <h3 className="font-semibold text-lg mb-2">{t("chat.context.globalTitle")}</h3>
-            <p className="text-sm text-muted-foreground max-w-[200px]">{t("chat.context.globalDesc")}</p>
-          </div>
-        </div>
-      )
-    }
 
     if (typeof projectId !== "number" || Number.isNaN(projectId)) {
       return (

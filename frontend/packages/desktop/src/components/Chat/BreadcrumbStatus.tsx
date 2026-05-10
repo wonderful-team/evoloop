@@ -28,15 +28,13 @@ export const BreadcrumbStatus = memo(() => {
     // Assuming response structure: { plan: { title, steps: [...] }, ... }
     const typedPlan = planData as any
     const planTitle = typedPlan?.plan?.title
+    const sessionGoal = useChatStore((s) => s.sessionGoal)
     const activeStep = typedPlan?.plan?.steps?.find((s: any) => s.status === "in_progress")
 
     // Decide what to show
-    // Pattern: Project > Plan > Active Step
+    const displayTitle = planTitle || sessionGoal
 
     if (!currentProject) return null
-
-    // If no plan, maybe don't show specific breadcrumb, or just Project
-    // If agent is running, show "Working..."
 
     const isRunning = status === "running" || status === "summarizing"
 
@@ -53,11 +51,11 @@ export const BreadcrumbStatus = memo(() => {
             {/* Separator */}
             <ChevronRight size={12} className="mx-2 opacity-50 shrink-0" />
 
-            {/* Plan / Task */}
-            {planTitle ? (
+            {/* Plan / Goal */}
+            {displayTitle ? (
                 <div className="flex items-center whitespace-nowrap hover:text-foreground transition-colors cursor-default min-w-0">
-                    <span className="truncate max-w-[200px]" title={planTitle}>
-                        {planTitle}
+                    <span className="truncate max-w-[200px]" title={displayTitle}>
+                        {displayTitle}
                     </span>
                 </div>
             ) : (

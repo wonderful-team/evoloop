@@ -163,8 +163,38 @@ export function ActivityTab({ activeThreadId }: ActivityTabProps) {
     if (stepGroups.length > 0) setStepsOpen(true)
   }, [stepGroups])
 
+  const sessionGoal = useChatStore((state) => state.sessionGoal)
+  const [goalOpen, setGoalOpen] = useState(true)
+
   return (
     <div className="h-full flex flex-col bg-muted/5 overflow-hidden">
+        {/* === BLOCK 0: GOAL === */}
+        {sessionGoal && (
+          <Collapsible 
+            open={goalOpen} 
+            onOpenChange={setGoalOpen} 
+            className={`flex flex-col min-h-0 border-b transition-all duration-200 ${goalOpen ? "shrink-0" : "shrink-0"}`}
+          >
+            <CollapsibleTrigger asChild>
+              <div className="flex items-center gap-2 p-2 cursor-pointer hover:bg-muted/50 transition-colors bg-muted/20 shrink-0">
+                {goalOpen ? (
+                  <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                ) : (
+                  <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                )}
+                <BrainCircuit className="h-3.5 w-3.5 text-primary/70" />
+                <span className="text-[10px] font-bold text-muted-foreground flex-1">
+                  {t("chat.context.sessionGoalTitle")}
+                </span>
+              </div>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="min-h-0 overflow-hidden flex flex-col">
+              <div className="p-3 text-xs text-foreground leading-relaxed font-medium bg-background/50 border-b border-border/50">
+                {sessionGoal}
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+        )}
         {/* === BLOCK 1: PLAN === */}
         <Collapsible 
           open={planOpen} 
