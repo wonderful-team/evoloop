@@ -174,20 +174,7 @@ async def run_agent_background(thread_id: str, inputs: BackgroundAgentInputs | d
                 callbacks.append(db_callback)
             config["callbacks"] = callbacks
 
-            # Dynamic limits for long-horizon tasks (e.g. wiki generation)
-            is_long_horizon = inputs.metadata.get("long_horizon", False)
-            config["recursion_limit"] = (
-                settings.LONG_HORIZON_RECURSION_LIMIT
-                if is_long_horizon
-                else settings.RECURSION_LIMIT
-            )
-            # Inject max_supervisor_steps into blackboard metadata for router to read
-            if is_long_horizon:
-                from app.core.engine.state.blackboard import BlackboardMetadata
-                blackboard = BlackboardState.model_validate(inputs_dict.get("blackboard", {}))
-                blackboard.metadata.max_supervisor_steps = settings.LONG_HORIZON_SUPERVISOR_MAX_STEPS
-                inputs_dict["blackboard"] = blackboard.model_dump()
-                logger.info(f"[BackgroundAgent] 🚀 Long-horizon mode: recursion_limit={settings.LONG_HORIZON_RECURSION_LIMIT}, supervisor_max_steps={settings.LONG_HORIZON_SUPERVISOR_MAX_STEPS}")
+            config["recursion_limit"] = settings.RECURSION_LIMIT
 
             graph_instance = get_graph()
             if not graph_instance:

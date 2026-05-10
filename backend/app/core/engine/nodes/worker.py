@@ -33,7 +33,7 @@ class WorkerNode(BaseAgentNode):
         super().__init__(node_name="Worker", max_steps=settings.WORKER_AGENT_MAX_STEPS)
 
     async def prepare_state(self, state: AgentState, config: RunnableConfig) -> StateUpdate | None:
-        """Validation and ticket checks."""
+        """Validation, ticket checks, and plan loading."""
         execution_ticket = state.blackboard.ticket
         if not execution_ticket:
             raise ValueError(

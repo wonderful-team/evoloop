@@ -43,7 +43,7 @@ class AdaptiveChatOpenAI(ChatOpenAI):
     - Lowers 'temperature' on retries for stability.
     """
 
-    retry_max_tokens_base: int = 4096  # Default fallback if not set
+    retry_max_tokens_base: int = 32000  # Default fallback if not set
     adaptive_retries: int = 3
 
     async def _agenerate(
@@ -66,9 +66,10 @@ class AdaptiveChatOpenAI(ChatOpenAI):
             try:
                 request_kwargs = {
                     **kwargs,
-                    "max_tokens": state.current_max_tokens,
                     "temperature": state.current_temperature
                 }
+                if state.current_max_tokens is not None:
+                    request_kwargs["max_tokens"] = state.current_max_tokens
 
                 if state.attempt > 0:
                     logger.info(f"🔄 Adaptive Retry {state.attempt}/{state.max_retries}: {state}")

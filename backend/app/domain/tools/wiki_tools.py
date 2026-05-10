@@ -166,9 +166,18 @@ async def write_wiki_page(
 
         session.commit()
 
+    note = None
+    if action == "Updated":
+        note = (
+            f"WARNING: This page already existed and was OVERWRITTEN. "
+            f"If you did not intend to update '{title}', check your plan and avoid duplicate work. "
+            f"Call list_wiki_pages() to see all existing pages before writing."
+        )
+
     return ControllerResponse.action_result(
         action=action.lower(),
         target=title,
         success=True,
-        details=f"Slug: {slug}"
+        details=f"Slug: {slug}",
+        note=note,
     )

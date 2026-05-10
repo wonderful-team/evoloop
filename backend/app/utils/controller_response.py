@@ -101,7 +101,8 @@ class ControllerResponse:
         action: str,
         target: Optional[str] = None,
         success: bool = True,
-        details: Optional[str] = None
+        details: Optional[str] = None,
+        note: Optional[str] = None,
     ) -> str:
         """
         Render an action result response.
@@ -111,6 +112,7 @@ class ControllerResponse:
             target: The target element/location
             success: Whether the action succeeded
             details: Optional details
+            note: Optional additional note or warning
         """
         if target:
             message = f"Action: {action} on '{target}'"
@@ -118,7 +120,7 @@ class ControllerResponse:
             message = f"Action: {action}"
         
         return ControllerResponse.render(
-            success=success, message=message, details=details
+            success=success, message=message, details=details, note=note
         )
 
     @staticmethod

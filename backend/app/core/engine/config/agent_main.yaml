@@ -18,7 +18,6 @@ nodes:
       - "create_plan"
       - "ask_confirm"
       - "ask_human"
-      # - "delegate_periodic_intent"  # Removed: worker should not create persistent background tasks
 
   - id: "worker"
     path: "app.core.engine.nodes.worker.WorkerNode"

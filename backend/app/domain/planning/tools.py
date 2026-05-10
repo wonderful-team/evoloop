@@ -1,8 +1,9 @@
 import json
 import logging
+from typing import Annotated
 
 from langchain_core.runnables import RunnableConfig
-from langchain_core.tools import BaseTool
+from langchain_core.tools import BaseTool, InjectedToolArg
 from sqlalchemy import delete, select
 
 from app.core.context.manager import ContextManager
@@ -63,7 +64,11 @@ class PlanningTool(BaseTool):
 @evoloop_tool(
     summary_template="evoloop.tool_summary.plan_created",
 )
-async def create_plan(title: str, steps: list[str], config: RunnableConfig) -> str:
+async def create_plan(
+    title: str,
+    steps: list[str],
+    config: Annotated[RunnableConfig, InjectedToolArg] = None,
+) -> str:
     """
     Create a detailed plan for the task and persist it to the database.
     Args:

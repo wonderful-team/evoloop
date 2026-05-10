@@ -62,6 +62,19 @@ class RouteToHandler(SignalHandler[RouteToSignal]):
         parameters_fields = set(TicketParameters.model_fields.keys())
         parameters = {k: v for k, v in routing_context.model_dump().items() if k in parameters_fields}
 
+        # Fix: task_steps may contain dicts from LLM tool calls; coerce to strings
+        if "task_steps" in parameters and isinstance(parameters["task_steps"], list):
+            cleaned_steps = []
+            for s in parameters["task_steps"]:
+                if isinstance(s, str):
+                    cleaned_steps.append(s)
+                elif isinstance(s, dict):
+                    # Extract title or description from dict step
+                    cleaned_steps.append(s.get("title") or s.get("description") or str(s))
+                else:
+                    cleaned_steps.append(str(s))
+            parameters["task_steps"] = cleaned_steps
+
         execution_ticket = ExecutionTicket(
             ticket_type=routing_context.ticket_type or "task",
             priority=routing_context.priority or "normal",

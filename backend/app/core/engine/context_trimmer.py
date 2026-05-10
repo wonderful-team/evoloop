@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 # Node budget ratios: fraction of model context window allocated per node type
 NODE_BUDGET_RATIOS: dict[str, float] = {
     "supervisor": 0.25,   # Routing decisions need less history
-    "worker": 0.45,       # Execution needs moderate context
+    "worker": 0.60,       # Execution needs more context for long-horizon tasks
     "finish": 0.75,       # Summary needs maximum history
     "chat": 0.55,         # Conversation needs more turns
     "default": 0.40,
