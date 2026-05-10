@@ -95,9 +95,6 @@ class ExecutionMetrics:
     pause_turn_count: int = 0
     truncation_count: int = 0
 
-    # Phase 1+2 scale assessment verification
-    survey_project_calls: int = 0
-
     # Errors / Anomalies
     errors: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
@@ -137,9 +134,6 @@ class ExecutionMetrics:
             f"--- Bug-Fix Verification ---",
             f"  pause_turn events:   {self.pause_turn_count}",
             f"  truncation events:   {self.truncation_count}",
-            f"",
-            f"--- Scale Assessment ---",
-            f"  survey_project calls:{self.survey_project_calls}",
             f"",
             f"--- Anomalies ---",
             f"  Large text responses (>1000 chars, no tools): {self.large_text_responses}",
@@ -222,9 +216,6 @@ def _parse_metrics_from_log(log_path: str) -> ExecutionMetrics:
 
     # Truncation detection
     metrics.truncation_count = len(re.findall(r"is_truncated.*True|TRUNCATION|truncated", content))
-
-    # Scale assessment verification
-    metrics.survey_project_calls = len(re.findall(r"🛠️ Call: survey_project", content))
 
     # Worker loop details
     for match in re.finditer(r"Loop finished\. Content len: (\d+), Tools used: (\d+)", content):

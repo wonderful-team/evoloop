@@ -96,9 +96,6 @@ class ExecutionMetrics:
     pause_turn_count: int = 0
     truncation_count: int = 0
 
-    # Phase 1+2 scale assessment verification
-    survey_project_calls: int = 0
-
     # Errors / Anomalies
     errors: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
@@ -138,9 +135,6 @@ class ExecutionMetrics:
             f"--- Bug-Fix Verification ---",
             f"  pause_turn events:   {self.pause_turn_count}",
             f"  truncation events:   {self.truncation_count}",
-            f"",
-            f"--- Scale Assessment ---",
-            f"  survey_project calls:{self.survey_project_calls}",
             f"",
             f"--- Anomalies ---",
             f"  Large text responses (>1000 chars, no tools): {self.large_text_responses}",
@@ -223,9 +217,6 @@ def _parse_metrics_from_log(log_path: str) -> ExecutionMetrics:
 
     # Truncation detection
     metrics.truncation_count = len(re.findall(r"is_truncated.*True|TRUNCATION|truncated", content))
-
-    # Scale assessment verification
-    metrics.survey_project_calls = len(re.findall(r"🛠️ Call: survey_project", content))
 
     # Worker loop details
     for match in re.finditer(r"Loop finished\. Content len: (\d+), Tools used: (\d+)", content):
@@ -403,7 +394,10 @@ async def _run_wiki_agent(project_id: int, project_path: str, skill, timeout: in
         f"The TOC page must list all wiki pages in a hierarchical tree format. Do NOT skip this step. "
         f"You MUST assess project scale FIRST using list_directory and key config files, then propose an appropriate page budget. "
         f"You MUST call create_plan FIRST before writing any pages. The plan step count should match your proposed budget. "
-        f"Update plan progress with update_step_status after each page. Do NOT stop until all plan steps are completed."
+        f"Update plan progress with update_step_status after each page. "
+        f"CRITICAL: Generate pages in batches of 3-5 pages per turn. After each batch, STOP and return to Supervisor. "
+        f"The Supervisor will check progress and dispatch you again for the next batch. "
+        f"Do NOT attempt to write all pages in a single turn — this causes overload and truncation."
     )
 
     message = (
@@ -443,8 +437,7 @@ async def _run_wiki_agent(project_id: int, project_path: str, skill, timeout: in
                 tools=[
                     "write_wiki_page", "read_wiki_page", "list_wiki_pages",
                     "create_plan", "update_step_status",
-                    "list_directory", "read_file", "search_files",
-                    "remember", "recall", "search_history",
+                    "read_file", "search_files",
                 ],
             ),
             parameters=TicketParameters(),
@@ -456,7 +449,6 @@ async def _run_wiki_agent(project_id: int, project_path: str, skill, timeout: in
         result.inputs["metadata"] = {}
     result.inputs["metadata"]["user_id"] = "test-user-1"
     result.inputs["metadata"]["skip_persistence"] = True
-    result.inputs["metadata"]["long_horizon"] = True
 
     logger.info(f"[Test] Running agent (timeout={timeout}s)...")
     start = time.time()
@@ -625,7 +617,7 @@ async def main():
     logger.info(f"  Avg chars/page:    {efficiency['chars_per_page']:.0f}")
     logger.info(f"  pause_turn:        {metrics.pause_turn_count}")
     logger.info(f"  truncation:        {metrics.truncation_count}")
-    logger.info(f"  survey_project:    {metrics.survey_project_calls}")
+    # survey_project tool removed — no longer tracked
     logger.info("=" * 60)
 
     if args.record:
@@ -656,7 +648,7 @@ def _record_result(elapsed: float, pages: int, chars: int, efficiency: dict, met
         f"{efficiency['chars_per_minute']:.0f}\t"
         f"{metrics.pause_turn_count}\t"
         f"{metrics.truncation_count}\t"
-        f"{metrics.survey_project_calls}\t"
+        "0\t"
         f"fixed_budget_v2\n"
     )
 
