@@ -12,14 +12,19 @@ import {
 import { Text, IconButton } from 'react-native-paper';
 import Markdown from 'react-native-markdown-display';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
+import { WebView } from 'react-native-webview';
 import { useTheme } from '@/theme';
+
+import { useTranslation } from 'react-i18next';
 import { CodeBlock } from './CodeBlock';
+
 import { MarkdownTable } from './MarkdownTable';
 import { AutoLinkPreview } from './LinkPreview';
 import { MermaidChart, extractMermaidBlocks } from './MermaidChart';
 import { EChartsChart } from './EChartsChart';
 import { MapChart } from './MapChart';
-import { extractArtifactBlocks } from './artifactUtils';
+import { extractAllSpecialBlocks } from './artifactUtils';
+
 import Video from 'react-native-video';
 
 // 图片查看器
@@ -75,8 +80,10 @@ function ImageMessage({ url }: { url: string }) {
 
 // 文件消息组件
 function FileMessage({ url }: { url: string }) {
+  const { t } = useTranslation();
   const { colors } = useTheme();
   const filename = decodeURIComponent(url.split('/').pop() || 'File');
+
   const ext = filename.split('.').pop()?.toLowerCase() || '';
 
   const getFileIcon = () => {
@@ -204,13 +211,55 @@ export function MessageContent({ content, isUser = false }: MessageContentProps)
   // 定义 Markdown 渲染规则
   const markdownRules = useMemo(() => ({
     // 处理代码块
-    fence: (node: any) => (
-      <CodeBlock
-        key={node.key}
-        code={node.content?.trim() || ''}
-        language={node.attributes?.lang || 'text'}
-      />
-    ),
+    // 处理代码块 (增强版：支持图表和地图分发)
+    fence: (node: any) => {
+      // 兼容性获取语言：优先尝试 sourceInfo，这是 markdown-display 常见的存放位置
+      const language = (node.sourceInfo || node.attributes?.lang || 'text').toLowerCase();
+      const content = node.content?.trim() || '';
+
+
+      if (language === 'echarts') {
+        try {
+          const data = JSON.parse(content);
+          return <EChartsChart key={node.key} data={data} />;
+        } catch (e) {
+          console.error('ECharts JSON 解析失败:', e);
+        }
+      }
+
+      if (language === 'map') {
+        try {
+          const data = JSON.parse(content);
+          return <MapChart key={node.key} data={data} />;
+        } catch (e) {
+          console.error('Map JSON 解析失败:', e);
+        }
+      }
+
+      if (language === 'mermaid') {
+        return <MermaidChart key={node.key} chart={content} />;
+      }
+
+      if (language === 'artifact') {
+        return (
+          <View key={node.key} style={styles.artifactContainer}>
+            <Text style={styles.artifactTitle}>Artifact Preview</Text>
+            <View style={styles.artifactContent}>
+              {/* 这里可以对接具体的 Artifact 渲染逻辑 */}
+              <Text>{content}</Text>
+            </View>
+          </View>
+        );
+      }
+
+      return (
+        <CodeBlock
+          key={node.key}
+          code={content}
+          language={language}
+        />
+      );
+    },
     code_block: (node: any) => (
       <CodeBlock
         key={node.key}
@@ -218,6 +267,7 @@ export function MessageContent({ content, isUser = false }: MessageContentProps)
         language={node.attributes?.lang || 'text'}
       />
     ),
+
     // 禁用默认表格规则，我们目前使用手动解析和自定义组件
     table: () => null,
   }), []);
@@ -245,63 +295,99 @@ export function MessageContent({ content, isUser = false }: MessageContentProps)
           return <AudioMessage key={index} url={url} name={name} />;
         }
 
-        // 渲染 Markdown 文本
-        if (!part.trim()) return null;
-
-        // 先提取 Artifact（如 ECharts 图表）
-        const artifactParts = extractArtifactBlocks(part);
+        // 使用统一拦截器提取所有特殊块 (Mermaid, ECharts, Map, Artifact)
+        const allBlocks = extractAllSpecialBlocks(part);
 
         return (
           <View key={index}>
-            {artifactParts.map((aPart, aIndex) => {
-              if (aPart.type === 'echarts') {
-                return <EChartsChart key={aIndex} data={aPart.data} />;
-              }
-              if (aPart.type === 'map') {
-                return <MapChart key={aIndex} data={aPart.data} />;
+            {allBlocks.map((block, bIndex) => {
+              if (block.type === 'mermaid') {
+                return <MermaidChart key={bIndex} chart={block.content} />;
               }
 
-              // 对文本部分继续提取 Mermaid 图表
-              const mermaidParts = extractMermaidBlocks(aPart.content!);
+              if (block.type === 'echarts') {
+                try {
+                  const data = JSON.parse(block.content);
+                  return <EChartsChart key={bIndex} data={data} />;
+                } catch (e) {
+                  console.error('ECharts 解析失败:', e);
+                }
+              }
 
+              if (block.type === 'map') {
+                try {
+                  const data = JSON.parse(block.content);
+                  return <MapChart key={bIndex} data={data} />;
+                } catch (e) {
+                  console.error('Map 解析失败:', e);
+                }
+              }
+
+              if (block.type === 'artifact') {
+                const artifactHtml = `
+                  <!DOCTYPE html>
+                  <html>
+                    <head>
+                      <meta charset="UTF-8">
+                      <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+                      <style>
+                        body { margin: 0; padding: 12px; font-family: -apple-system, system-ui; }
+                        * { max-width: 100%; box-sizing: border-box; }
+                      </style>
+                    </head>
+                    <body>
+                      ${block.content}
+                    </body>
+                  </html>
+                `;
+
+                return (
+                  <View key={bIndex} style={styles.artifactContainer}>
+                    <View style={styles.artifactTitleContainer}>
+                      <MaterialIcons name="web" size={16} color="#666" />
+                      <Text style={styles.artifactTitle}>Artifact Preview</Text>
+                    </View>
+                    <View style={[styles.artifactContent, { height: 250 }]}>
+                      <WebView
+                        source={{ html: artifactHtml }}
+                        style={{ backgroundColor: 'transparent' }}
+                        scrollEnabled={true}
+                        originWhitelist={['*']}
+                      />
+                    </View>
+                  </View>
+                );
+              }
+
+
+              // 文本部分处理：检查是否有表格
+              const tableData = parseMarkdownTable(block.content);
+              if (tableData && tableData.header.length > 0) {
+                return (
+                  <MarkdownTable
+                    key={bIndex}
+                    header={tableData.header}
+                    rows={tableData.rows}
+                  />
+                );
+              }
+
+              // 最后的兜底：Markdown 渲染
               return (
-                <View key={aIndex}>
-                  {mermaidParts.map((mermaidPart, mIndex) => {
-                    if (mermaidPart.type === 'mermaid') {
-                      return <MermaidChart key={mIndex} chart={mermaidPart.content} />;
-                    }
-
-                    // 检查是否包含表格
-                    const tableData = parseMarkdownTable(mermaidPart.content);
-                    if (tableData && tableData.header.length > 0) {
-                      return (
-                        <MarkdownTable
-                          key={mIndex}
-                          header={tableData.header}
-                          rows={tableData.rows}
-                        />
-                      );
-                    }
-
-                    // 统一使用 Markdown 渲染
-                    return (
-                      <Markdown
-                        key={mIndex}
-                        style={markdownStyles}
-                        rules={markdownRules}
-                      >
-                        {mermaidPart.content}
-                      </Markdown>
-                    );
-                  })}
-
-                  {/* 链接预览 */}
-                  <AutoLinkPreview text={aPart.content!} />
+                <View key={bIndex}>
+                  <Markdown
+                    style={markdownStyles}
+                    rules={markdownRules}
+                  >
+                    {block.content}
+                  </Markdown>
+                  <AutoLinkPreview text={block.content} />
                 </View>
               );
             })}
           </View>
         );
+
       })}
     </View>
   );
@@ -314,9 +400,11 @@ function getMarkdownTheme(isUser: boolean, colors: any) {
   return {
     body: {
       color: textColor,
-      fontSize: 15,
-      lineHeight: 24, // 稍微增加行高提升可读性
+      fontSize: 16,
+      lineHeight: 24, 
     },
+
+
     // 标题样式
     heading1: {
       color: textColor,
@@ -592,4 +680,29 @@ const styles = StyleSheet.create({
     fontSize: 13,
     flex: 1,
   },
+  artifactContainer: {
+    marginVertical: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#eee',
+    overflow: 'hidden',
+    backgroundColor: '#fff',
+  },
+  artifactTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 8,
+    backgroundColor: '#f5f5f5',
+    gap: 6,
+  },
+  artifactTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#666',
+  },
+
+  artifactContent: {
+    padding: 12,
+  },
 });
+

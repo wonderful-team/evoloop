@@ -47,6 +47,9 @@ import Video from 'react-native-video';
 import { generateUUID } from '@/utils/uuid';
 import { ConnectionState } from '@/services/gateway/types';
 import { getErrorMessage, isQuotaError } from '@/utils/error';
+import { debugManager } from '@/utils/debugManager';
+import { Menu, Divider } from 'react-native-paper';
+
 
 export default function ChatScreen() {
   const { t } = useTranslation();
@@ -71,6 +74,8 @@ export default function ChatScreen() {
   const [pendingForwardContent, setPendingForwardContent] = useState<string | null>(null);
   const [isAgentProcessing, setIsAgentProcessing] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [debugMenuVisible, setDebugMenuVisible] = useState(false);
+
 
   // TTS 音频播放器引用
   const ttsPlayerRef = useRef<Video | null>(null);
@@ -363,8 +368,15 @@ export default function ChatScreen() {
 
   // 发送消息（HTTP 版本）
   const handleSendMessage = useCallback(async (text: string, options?: { attachments?: ChatAttachment[]; references?: MessageReference[] }) => {
+    // 权限校验：未登录时拦截并跳转
+    if (!isLoggedIn) {
+      showSnackbar(t('chat.voiceLoginRequired'));
+      router.push('Auth');
+      return;
+    }
 
     // deviceKey 是可选的，如果没有选择设备，直接通过 Gateway 和 LLM 对话
+
     // 不需要强制选择设备
 
     // 注意：不再调用 PHP createConversation API（list() 只是获取列表，不创建会话）
@@ -804,13 +816,55 @@ export default function ChatScreen() {
           </View>
 
           {/* 右侧我的按钮 */}
-          <TouchableOpacity
-            style={styles.iconBtn}
-            onPress={handleGoToProfile}
+          <Menu
+            visible={debugMenuVisible}
+            onDismiss={() => setDebugMenuVisible(false)}
+            anchor={
+              <TouchableOpacity
+                style={styles.iconBtn}
+                onPress={handleGoToProfile}
+                onLongPress={() => setDebugMenuVisible(true)}
+              >
+                <MaterialIcons name="person" size={24} color={colors.primary} />
+              </TouchableOpacity>
+            }
           >
-            <MaterialIcons name="person" size={24} color={colors.primary} />
-          </TouchableOpacity>
+            <Menu.Item 
+              onPress={() => { debugManager.injectInitialData(); setDebugMenuVisible(false); }} 
+              title="注入模拟数据" 
+              leadingIcon="database-plus"
+            />
+            <Menu.Item 
+              onPress={() => { debugManager.simulateAIStreaming(); setDebugMenuVisible(false); }} 
+              title="模拟流式输出" 
+              leadingIcon="waves"
+            />
+            <Menu.Item 
+              onPress={() => { debugManager.simulateHITLRequest('approval'); setDebugMenuVisible(false); }} 
+              title="模拟 HITL (授权)" 
+              leadingIcon="shield-check"
+            />
+            <Menu.Item 
+              onPress={() => { debugManager.simulateHITLRequest('choice'); setDebugMenuVisible(false); }} 
+              title="模拟 HITL (选择)" 
+              leadingIcon="format-list-bulleted"
+            />
+            <Menu.Item 
+              onPress={() => { debugManager.simulateHITLRequest('text'); setDebugMenuVisible(false); }} 
+              title="模拟 HITL (文本)" 
+              leadingIcon="text-short"
+            />
+
+            <Divider />
+            <Menu.Item 
+              onPress={() => { debugManager.clearAll(); setDebugMenuVisible(false); }} 
+              title="清空所有数据" 
+              leadingIcon="delete-sweep"
+              titleStyle={{ color: colors.error }}
+            />
+          </Menu>
         </View>
+
 
         {/* ===== 游客提示（未登录时显示） ===== */}
         {!isLoggedIn && (
@@ -829,10 +883,11 @@ export default function ChatScreen() {
         {isLoggedIn && gatewayConnectionState !== ConnectionState.CONNECTED && (
           <View style={[styles.connectionBanner, {
             backgroundColor:
-              gatewayConnectionState === ConnectionState.ERROR ? '#FFEBEE' :
-              gatewayConnectionState === ConnectionState.RECONNECTING ? '#FFF3E0' :
-              '#F5F5F5',
+              gatewayConnectionState === ConnectionState.ERROR ? colors.errorContainer :
+              gatewayConnectionState === ConnectionState.RECONNECTING ? colors.warningContainer :
+              colors.surfaceVariant,
           }]}>
+
             <MaterialIcons
               name={
                 gatewayConnectionState === ConnectionState.ERROR ? 'error-outline' :
@@ -841,19 +896,21 @@ export default function ChatScreen() {
               }
               size={16}
               color={
-                gatewayConnectionState === ConnectionState.ERROR ? '#D32F2F' :
-                gatewayConnectionState === ConnectionState.RECONNECTING ? '#F57C00' :
-                '#757575'
+                gatewayConnectionState === ConnectionState.ERROR ? colors.error :
+                gatewayConnectionState === ConnectionState.RECONNECTING ? colors.warning :
+                colors.onSurfaceVariant
               }
+
             />
             <Text
               variant="bodySmall"
               style={{
                 marginLeft: 8,
                 color:
-                  gatewayConnectionState === ConnectionState.ERROR ? '#D32F2F' :
-                  gatewayConnectionState === ConnectionState.RECONNECTING ? '#F57C00' :
-                  '#757575',
+                  gatewayConnectionState === ConnectionState.ERROR ? colors.error :
+                  gatewayConnectionState === ConnectionState.RECONNECTING ? colors.warning :
+                  colors.onSurfaceVariant,
+
               }}
             >
               {gatewayConnectionState === ConnectionState.CONNECTING ? t('chat.connection.connecting') :

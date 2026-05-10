@@ -133,7 +133,10 @@
       "me": "Me",
       "thinkingProcess": "Thinking Process",
       "fileChanges": "{{count}} file changes",
+      "agentChanges": "AGENT CHANGES",
+      "more": "more",
       "sending": "Sending",
+
       "sendFailedRetry": "Send failed, tap to retry",
       "aiThinking": "AI is thinking..."
     },

@@ -45,7 +45,16 @@ export interface ExtendedColors {
     success: string;
     info: string;
   };
+  elevation: {
+    level0: string;
+    level1: string;
+    level2: string;
+    level3: string;
+    level4: string;
+    level5: string;
+  };
 }
+
 
 // 扩展主题 Hook
 export function useTheme() {
@@ -69,16 +78,17 @@ export function useTheme() {
     onErrorContainer: theme.colors.onErrorContainer || theme.colors.error,
     warning: '#FFAB00',
     warningContainer: '#FFF3E0',
-    onWarning: '#000000',
+    onWarning: '#FFFFFF',
     onWarningContainer: '#663C00',
     success: '#00C853',
     successContainer: '#E8F5E9',
-    onSuccess: '#000000',
+    onSuccess: '#FFFFFF',
     onSuccessContainer: '#1B5E20',
     info: '#109C8F',
     infoContainer: '#E3F2FD',
-    onInfo: '#000000',
+    onInfo: '#FFFFFF',
     onInfoContainer: '#0D47A1',
+
     text: {
       primary: theme.colors.onSurface,
       secondary: theme.colors.onSurfaceVariant || theme.colors.onSurface,
@@ -93,7 +103,16 @@ export function useTheme() {
       success: '#00C853',
       info: '#109C8F',
     },
+    elevation: theme.colors.elevation || {
+      level0: theme.colors.surface,
+      level1: theme.colors.surface,
+      level2: theme.colors.surface,
+      level3: theme.colors.surface,
+      level4: theme.colors.surface,
+      level5: theme.colors.surface,
+    },
   };
+
 
   return {
     colors,

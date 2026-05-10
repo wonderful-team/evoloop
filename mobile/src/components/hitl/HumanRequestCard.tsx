@@ -181,11 +181,15 @@ export function HumanRequestCard({
       <Button
         mode="contained"
         onPress={() => handleSubmit('yes')}
-        style={[styles.button, { backgroundColor: colors.primary }]}
+        style={styles.button}
+        buttonColor={colors.primary}
         disabled={isSubmitting}
       >
         {t('common.yes')}
       </Button>
+
+
+
     </View>
   );
 
@@ -204,11 +208,15 @@ export function HumanRequestCard({
       <Button
         mode="contained"
         onPress={() => handleSubmit('APPROVED')}
-        style={[styles.button, { backgroundColor: isHighRisk ? colors.error : colors.primary }]}
+        style={styles.button}
+        buttonColor={isHighRisk ? colors.error : colors.primary}
         disabled={isSubmitting}
       >
         {isHighRisk ? `${t('hitl.approve')} (${t('hitl.riskHigh')})` : t('hitl.approve')}
       </Button>
+
+
+
     </View>
   );
 
@@ -217,13 +225,16 @@ export function HumanRequestCard({
     <Button
       mode="contained"
       onPress={() => handleSubmit(value)}
-      style={[styles.submitButton, { backgroundColor: colors.primary }]}
+      style={styles.submitButton}
+      buttonColor={colors.primary}
       disabled={isSubmitting || !value.trim()}
       loading={isSubmitting}
-      icon="send"
     >
       {t('hitl.submit')}
     </Button>
+
+
+
   );
 
   return (

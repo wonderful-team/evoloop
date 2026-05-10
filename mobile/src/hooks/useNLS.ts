@@ -7,6 +7,8 @@ import { AudioStreamRecorder } from '@/services/audio/AudioStreamRecorder';
 import { nlsTokenManager } from '@/services/nls/NLSTokenManager';
 import { NLSState } from '@/services/nls/types';
 import { useNLSStore } from '@/stores/nlsStore';
+import { useAuthStore } from '@/stores/authStore';
+
 
 export interface UseNLSOptions {
   onResult?: (text: string, isFinal: boolean) => void;
@@ -116,10 +118,17 @@ export function useNLS(options: UseNLSOptions = {}): UseNLSReturn {
 
   // 开始识别
   const start = useCallback(async () => {
+    const isLoggedIn = useAuthStore.getState().isLoggedIn;
+    if (!isLoggedIn) {
+      console.warn('用户未登录，无法启动 NLS');
+      return;
+    }
+
     if (state !== 'idle') {
       console.warn('NLS 已经在运行中');
       return;
     }
+
 
     try {
       updateState('connecting');

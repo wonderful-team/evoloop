@@ -12,6 +12,7 @@ const CHECK_INTERVAL_BACKGROUND = 5 * 60 * 1000; // 5分钟
 
 import { syncMessages } from '@/services/api/conversations';
 import i18n from '@/locales';
+import { isAuthError } from '@/utils/error';
 
 // 检查新消息
 async function checkNewMessages(): Promise<boolean> {
@@ -65,10 +66,15 @@ async function checkNewMessages(): Promise<boolean> {
     return false;
 
   } catch (error) {
-    console.error('[BackgroundTask] Check failed:', error);
+    if (isAuthError(error)) {
+      console.log('[BackgroundTask] Session expired or unauthorized, pausing checks');
+    } else {
+      console.error('[BackgroundTask] Check failed due to unexpected error:', error);
+    }
     return false;
   }
 }
+
 
 // 显示本地通知
 async function showNotification(title: string, body: string): Promise<void> {

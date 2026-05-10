@@ -297,8 +297,8 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(({
               editable={!disabled}
             />
 
-            {/* @ 提示 */}
-            {showReferenceHint && (
+            {/* @ 提示 - 暂时关闭引用功能入口 */}
+            {/* {showReferenceHint && (
               <TouchableOpacity
                 style={[styles.atHint, { backgroundColor: colors.primaryContainer }]}
                 onPress={() => {
@@ -311,8 +311,9 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(({
                   {t('voice.input.quoteMessage')}
                 </Text>
               </TouchableOpacity>
-            )}
+            )} */}
           </View>
+
 
           {/* 附件按钮 */}
           <TouchableOpacity
@@ -322,13 +323,14 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(({
             <MaterialIcons name="attach-file" size={22} color={colors.onSurfaceVariant} />
           </TouchableOpacity>
 
-          {/* 引用按钮 */}
-          <TouchableOpacity
+          {/* 引用按钮 - 暂时关闭 */}
+          {/* <TouchableOpacity
             style={styles.iconBtn}
             onPress={() => setShowReferencePicker(true)}
           >
             <MaterialIcons name="alternate-email" size={22} color={colors.primary} />
-          </TouchableOpacity>
+          </TouchableOpacity> */}
+
 
           {/* TTS 自动朗读开关 */}
           {onToggleAutoSpeak && (
@@ -344,22 +346,35 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(({
             </TouchableOpacity>
           )}
 
-          <IconButton
-            icon="send"
-            size={24}
-            iconColor={hasContent ? colors.onPrimary : colors.onSurfaceVariant}
-            onPress={handleSend}
-            disabled={!hasContent || disabled}
-            style={[styles.sendBtn, { backgroundColor: hasContent ? colors.primary : 'transparent' }]}
-          />
+          {/* 发送按钮 - 仅在有内容时显示 */}
+          {hasContent && (
+            <TouchableOpacity
+              onPress={handleSend}
+              disabled={disabled}
+              style={[
+                styles.sendBtn,
+                {
+                  backgroundColor: colors.primary,
+                }
+              ]}
+            >
+              <MaterialIcons
+                name="arrow-upward"
+                size={24}
+                color={colors.onPrimary}
+              />
+            </TouchableOpacity>
+          )}
         </View>
+
+
       ) : (
         // ===== 语音输入模式 =====
         <View style={styles.voiceWrap}>
           {/* 工具栏 */}
           <View style={styles.toolbar}>
-            {/* 引用按钮 */}
-            <TouchableOpacity
+            {/* 引用按钮 - 暂时关闭 */}
+            {/* <TouchableOpacity
               style={styles.toolbarBtn}
               onPress={() => setShowReferencePicker(true)}
             >
@@ -367,7 +382,8 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(({
               <Text variant="bodySmall" style={{ color: colors.primary, marginLeft: 4 }}>
                 {t('voice.input.quote')}
               </Text>
-            </TouchableOpacity>
+            </TouchableOpacity> */}
+
 
             {/* TTS 开关 */}
             {onToggleAutoSpeak && (
@@ -438,20 +454,26 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(({
             >
               <MaterialIcons
                 name="mic"
-                size={36}
-                color={colors.onPrimary}
+                size={28}
+                color={isListening ? colors.onSuccess : colors.onPrimary}
               />
+              <Text
+                variant="titleMedium"
+                style={[
+                  styles.voiceBtnText,
+                  { color: isListening ? colors.onSuccess : colors.onPrimary },
+                ]}
+              >
+                {isListening ? t('voice.input.releaseToSend') : t('voice.input.holdToSpeak')}
+              </Text>
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.sideBtn} onPress={toggleMode}>
               <MaterialIcons name="keyboard" size={28} color={colors.onSurfaceVariant} />
             </TouchableOpacity>
           </View>
-
-          <Text variant="bodySmall" style={[styles.hint, { color: colors.onSurfaceVariant }]}>
-            {isListening ? t('voice.input.releaseToSend') : t('voice.input.holdToSpeak')}
-          </Text>
         </View>
+
       )}
 
       {/* 引用选择器 */}
@@ -520,15 +542,21 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   sendBtn: {
-    margin: 0,
+    width: 40,
+    height: 40,
     borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 4,
   },
+
   // 语音输入
   voiceWrap: {
     alignItems: 'center',
     paddingVertical: 12,
-    paddingBottom: 24,
+    paddingBottom: 16, // 减小底部间距
   },
+
   toolbar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -556,9 +584,10 @@ const styles = StyleSheet.create({
     height: 52,
   },
   voiceBtn: {
-    width: 200,
-    height: 72,
-    borderRadius: 36,
+    width: 220,
+    height: 56, // 降低高度
+    borderRadius: 28,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',
@@ -567,7 +596,9 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 6,
   },
-  hint: {
-    marginTop: 12,
+  voiceBtnText: {
+    marginLeft: 12,
+    fontWeight: 'bold',
   },
+
 });

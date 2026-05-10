@@ -79,6 +79,13 @@ export interface ChatMessage {
   category?: string;
   /** 全局序列号，用于去重和排序 */
   sequence_number?: number;
+  /** 文件变更数量 */
+  changeset_count?: number;
+  /** 文件变更详情 */
+  changeset_files?: Array<{
+    path: string;
+    operation: 'added' | 'modified' | 'deleted' | 'renamed';
+  }>;
 }
 
 

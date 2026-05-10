@@ -18,12 +18,18 @@ export function CountdownButton({
   onPress,
   disabled = false,
   initialSeconds = 120,
-  label = '',
+  label,
   countdownLabel = (seconds) => `${seconds}s`,
 }: CountdownButtonProps) {
   const { colors } = useTheme();
   const { t } = useTranslation();
+  
+  // 如果没有传入 label，使用默认的多语言文案
+  const displayLabel = label || t('auth.login.getCode');
+
+  
   const [countdown, setCountdown] = useState(0);
+
   const [isLoading, setIsLoading] = useState(false);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -84,8 +90,9 @@ export function CountdownButton({
         },
       ]}
     >
-      {countdown > 0 ? countdownLabel(countdown) : label}
+      {countdown > 0 ? countdownLabel(countdown) : displayLabel}
     </Button>
+
   );
 }
 

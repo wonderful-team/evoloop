@@ -144,7 +144,11 @@
       "me": "我",
       "thinkingProcess": "思考过程",
       "fileChanges": "{{count}} 个文件变更",
+      "agentChanges": "文件变更",
+      "more": "更多",
+
       "sending": "发送中",
+
       "sendFailedRetry": "发送失败，点击重试",
       "aiThinking": "AI 思考中..."
     },

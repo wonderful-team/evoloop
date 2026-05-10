@@ -60,7 +60,9 @@ ${chart}
 
 export const MermaidChart = memo(function MermaidChart({ chart }: MermaidChartProps) {
   const { colors, isDark } = useTheme();
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
+
   const [error, setError] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [height, setHeight] = useState(200);

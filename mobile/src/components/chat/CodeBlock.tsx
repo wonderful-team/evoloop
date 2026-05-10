@@ -1,10 +1,19 @@
 // 代码块组件 - 支持语法高亮和复制
 
 import React, { useState, useCallback } from 'react';
-import { View, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, LogBox } from 'react-native';
 import { Text, IconButton, Menu } from 'react-native-paper';
+
+// 屏蔽第三方库陈旧代码导致的警告
+LogBox.ignoreLogs(['NativeSyntaxHighlighter: Support for defaultProps']);
+
 import SyntaxHighlighter from 'react-native-syntax-highlighter';
+
+// 尝试使用更通用的兼容路径
+import { atomOneDark, github } from 'react-syntax-highlighter/dist/styles/hljs';
 import { useTheme } from '@/theme';
+
+
 import Clipboard from '@react-native-clipboard/clipboard';
 import { shareCodeBlock } from '@/utils/share';
 import { useTranslation } from 'react-i18next';
@@ -66,10 +75,12 @@ const SUPPORTED_LANGUAGES = new Set([
 ]);
 
 export function CodeBlock({ code, language = 'text', showLineNumbers = false }: CodeBlockProps) {
+  const { t } = useTranslation();
   const { colors, isDark } = useTheme();
   const [copied, setCopied] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [menuVisible, setMenuVisible] = useState(false);
+
   
   // 防御：language 可能为 undefined 或空字符串
   const safeLanguage = (language || '').toLowerCase();
@@ -170,9 +181,10 @@ export function CodeBlock({ code, language = 'text', showLineNumbers = false }: 
         {normalizedLang ? (
           <SyntaxHighlighter
             language={normalizedLang}
-            style={isDark ? 'atomOneDark' : 'github'}
-            highlighter="prism"
+            style={atomOneDark}
             customStyle={{
+
+
               backgroundColor: 'transparent',
               padding: 0,
               margin: 0,

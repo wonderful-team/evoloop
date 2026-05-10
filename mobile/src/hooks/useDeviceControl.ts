@@ -4,7 +4,9 @@
 import { useCallback, useRef, useState } from 'react';
 import i18n from '@/locales';
 import { useAuthStore } from '@/stores/authStore';
+import { useDeviceStore } from '@/stores/deviceStore';
 import { useConversationStore } from '@/stores/conversationStore';
+
 import { api } from '@/services/api/client';
 import { HumanRequest } from '@/types/hitl';
 import { useHITLStore } from '@/stores/hitlStore';
@@ -356,14 +358,38 @@ export function useDeviceControl(options: UseDeviceControlOptions = {}): UseDevi
   }, [pendingCommand, token, onError]);
 
   // 响应 HITL 请求 - 通过 HTTP
+  // 响应 HITL 请求 - 通过 HTTP
   const respondToHITL = useCallback(async (value: string) => {
     if (!hitlRequest || !token) return;
 
+    const deviceKey = useDeviceStore.getState().currentDevice?.deviceKey;
+    if (!deviceKey) {
+      onError?.(new Error(i18n.t('deviceControl.notSelectedDevice')));
+      return;
+    }
+
     try {
-      await api.post('/gateway/api/v1/hitl/text', {
-        request_id: hitlRequest.id,
-        text: value,
-      });
+      // 根据不同的请求类型调用不同的后端接口
+      if (hitlRequest.type === 'choice') {
+        await api.post('/gateway/api/v1/hitl/choice', {
+          device_key: deviceKey,
+          request_id: hitlRequest.id,
+          choice_id: value,
+        });
+      } else if (hitlRequest.type === 'approval' || hitlRequest.type === 'confirmation') {
+        await api.post('/gateway/api/v1/hitl/confirm', {
+          device_key: deviceKey,
+          request_id: hitlRequest.id,
+          response: value === 'APPROVED' || value === 'yes' ? 'confirm' : 'cancel',
+        });
+      } else {
+        // 默认为 text 类型
+        await api.post('/gateway/api/v1/hitl/text', {
+          device_key: deviceKey,
+          request_id: hitlRequest.id,
+          text: value,
+        });
+      }
 
       setHitlRequest(null);
     } catch (error: any) {
@@ -371,12 +397,17 @@ export function useDeviceControl(options: UseDeviceControlOptions = {}): UseDevi
     }
   }, [hitlRequest, token, onError]);
 
+
+
   // 取消 HITL 请求 - 通过 HTTP
   const cancelHITL = useCallback(async (reason?: string) => {
     if (!hitlRequest || !token) return;
 
+    const deviceKey = useDeviceStore.getState().currentDevice?.deviceKey;
+
     try {
       await api.post('/gateway/api/v1/hitl/confirm', {
+        device_key: deviceKey,
         request_id: hitlRequest.id,
         response: 'cancel',
         reason: reason || i18n.t('deviceControl.hitlCancelReason'),
@@ -387,6 +418,7 @@ export function useDeviceControl(options: UseDeviceControlOptions = {}): UseDevi
       onError?.(error);
     }
   }, [hitlRequest, token, onError]);
+
 
   // 清除配额耗尽状态
   const clearQuotaExhausted = useCallback(() => {

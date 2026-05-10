@@ -26,3 +26,4 @@ export { AutoSpeakHandler } from './AutoSpeakHandler';
 export { AgentProcessingHandler } from './AgentProcessingHandler';
 export { RecognizingBanner } from './RecognizingBanner';
 export { ChatWelcome } from './ChatWelcome';
+export { ChangesetSnapshot } from './ChangesetSnapshot';

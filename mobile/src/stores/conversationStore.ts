@@ -59,9 +59,10 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
   // 当前筛选条件初始为空，首次 loadConversations 时写入
   activeDeviceKey: undefined,
   activeProjectId: undefined,
-
   messages: [],
   isLoadingMessages: false,
+
+
   hasMoreMessages: true,
   firstMessageId: null,
 

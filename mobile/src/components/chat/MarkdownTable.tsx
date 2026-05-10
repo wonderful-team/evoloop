@@ -29,16 +29,12 @@ export function MarkdownTable({ header, rows }: MarkdownTableProps) {
   const { colors } = useTheme();
   const { width: windowWidth } = useWindowDimensions();
   
-  // 计算最小列宽
-  const minColWidth = 80;
-  const maxColWidth = 200;
-  const estimatedColWidth = Math.min(
-    maxColWidth,
-    Math.max(minColWidth, (windowWidth - 48) / header.length)
-  );
-  
-  const tableWidth = header.length * estimatedColWidth;
-  const needsScroll = tableWidth > windowWidth - 32;
+  // 计算列宽：每列最小 100，确保多列时能撑出滚动条
+  const colWidth = 100;
+  const tableWidth = header.length * colWidth;
+  const containerWidth = windowWidth - 48; // 考虑消息气泡的内边距
+  const needsScroll = tableWidth > containerWidth;
+
 
   const renderCell = (content: string, isHeader: boolean, colIndex: number) => (
     <View
@@ -46,7 +42,8 @@ export function MarkdownTable({ header, rows }: MarkdownTableProps) {
       style={[
         styles.cell,
         {
-          width: estimatedColWidth,
+          width: colWidth,
+
           backgroundColor: isHeader ? colors.surfaceVariant : 'transparent',
           borderRightWidth: colIndex < header.length - 1 ? 1 : 0,
           borderRightColor: colors.outline + '40',
@@ -104,19 +101,24 @@ export function MarkdownTable({ header, rows }: MarkdownTableProps) {
 
   return (
     <View style={styles.container}>
-      {needsScroll ? (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={true}
-          contentContainerStyle={styles.scrollContent}
-        >
-          <TableContent />
-        </ScrollView>
-      ) : (
+      <ScrollView
+        horizontal
+        nestedScrollEnabled={true}
+        directionalLockEnabled={true}
+        showsHorizontalScrollIndicator={needsScroll}
+        bounces={true}
+        overScrollMode="always"
+        contentContainerStyle={[
+          styles.scrollContent,
+          { minWidth: '100%' }
+        ]}
+      >
         <TableContent />
-      )}
+      </ScrollView>
     </View>
+
   );
+
 }
 
 // 解析 Markdown 表格文本
@@ -159,7 +161,6 @@ const styles = StyleSheet.create({
   table: {
     borderWidth: 1,
     borderRadius: 8,
-    overflow: 'hidden',
   },
   row: {
     flexDirection: 'row',

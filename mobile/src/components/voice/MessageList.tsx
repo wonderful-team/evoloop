@@ -14,8 +14,9 @@ import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { ChatMessage } from '@/types/conversation';
 import { useTheme } from '@/theme';
 import { useTranslation } from 'react-i18next';
-import { MessageContent } from '@/components/chat/MessageContent';
+import { MessageContent, ChangesetSnapshot } from '@/components/chat';
 import { useConversationStore } from '@/stores/conversationStore';
+
 import { shareChatMessage } from '@/utils/share';
 import Clipboard from '@react-native-clipboard/clipboard';
 
@@ -45,12 +46,13 @@ function getRoleIcon(role: string): string {
 function getRoleColor(role: string, colors: any): string {
   switch (role) {
     case 'human': return colors.primary;
-    case 'ai': return colors.secondary || '#7C4DFF';
+    case 'ai': return colors.secondary;
     case 'system': return colors.onSurfaceVariant;
-    case 'tool': return colors.tertiary || '#00BCD4';
+    case 'tool': return colors.info;
     default: return colors.onSurfaceVariant;
   }
 }
+
 
 // 单条消息组件 - 用 React.memo 包装
 // 自定义比较：忽略 hasFileOperations 变化（它不影响渲染内容，只影响菜单行为）
@@ -79,6 +81,8 @@ const MessageItem = React.memo(function MessageItem({
 }) {
   const [menuVisible, setMenuVisible] = useState(false);
   const [thinkingExpanded, setThinkingExpanded] = useState(false);
+  const { t } = useTranslation();
+
 
   const handleCopy = useCallback(() => {
     Clipboard.setString(message.content);
@@ -126,8 +130,8 @@ const MessageItem = React.memo(function MessageItem({
     return (
       <View style={styles.toolRow}>
         <View style={[styles.toolSpine, { backgroundColor: colors.outline }]} />
-        <View style={[styles.toolDot, { backgroundColor: colors.outline }]} />
         <View style={styles.toolContent}>
+          <View style={[styles.toolDot, { backgroundColor: colors.outline }]} />
           <Text
             numberOfLines={1}
             style={[styles.toolLabel, { color: colors.onSurfaceVariant }]}
@@ -139,6 +143,7 @@ const MessageItem = React.memo(function MessageItem({
           )}
         </View>
       </View>
+
     );
   }
 
@@ -197,17 +202,18 @@ const MessageItem = React.memo(function MessageItem({
 
               <MessageContent content={message.content} isUser={isUser} />
 
-              {/* 文件变更徽章 */}
-              {!isUser && (message as any).changeset_count > 0 && (
-                <View style={styles.changesetRow}>
-                  <View style={[styles.changesetBadge, { backgroundColor: colors.primaryContainer }]}>
-                    <MaterialCommunityIcons name="file-multiple-outline" size={11} color={colors.primary} />
-                    <Text style={[styles.changesetBadgeText, { color: colors.primary }]}>
-                      {t('chat.messageList.fileChanges', { count: (message as any).changeset_count })}
-                    </Text>
-                  </View>
-                </View>
+              {/* 文件变更快照 (Changeset Snapshot) */}
+              {!isUser && (message.changeset_count ?? 0) > 0 && (
+                <ChangesetSnapshot
+                  files={message.changeset_files || []}
+                  totalCount={message.changeset_count || 0}
+                  onViewDetails={(path) => {
+                    // 后续可对接查看 Diff 的逻辑
+                    console.log('View changeset:', path);
+                  }}
+                />
               )}
+
             </View>
 
             {/* 发送状态指示器 */}
@@ -238,24 +244,54 @@ const MessageItem = React.memo(function MessageItem({
         </TouchableOpacity>
       }
     >
-      <Menu.Item onPress={handleCopy} title={t('chat.messageActions.copy')} leadingIcon="content-copy" />
+      <Menu.Item 
+        onPress={handleCopy} 
+        title={t('chat.messageActions.copy')} 
+        leadingIcon={props => <MaterialIcons {...props} name="content-copy" />} 
+      />
       {isUser && onRewind && (
-        <Menu.Item onPress={handleRewind} title={t('chat.messageActions.rewind')} leadingIcon="undo" />
+        <Menu.Item 
+          onPress={handleRewind} 
+          title={t('chat.messageActions.rewind')} 
+          leadingIcon={props => <MaterialIcons {...props} name="undo" />} 
+        />
       )}
       {isUser && onRetry && (
-        <Menu.Item onPress={handleRetry} title={t('chat.messageActions.retry')} leadingIcon="refresh" />
+        <Menu.Item 
+          onPress={handleRetry} 
+          title={t('chat.messageActions.retry')} 
+          leadingIcon={props => <MaterialIcons {...props} name="refresh" />} 
+        />
       )}
       {onQuote && (
-        <Menu.Item onPress={handleQuote} title={t('chat.messageActions.quote')} leadingIcon="format-quote-close" />
+        <Menu.Item 
+          onPress={handleQuote} 
+          title={t('chat.messageActions.quote')} 
+          leadingIcon={props => <MaterialIcons {...props} name="format-quote" />} 
+        />
       )}
       {onForward && (
-        <Menu.Item onPress={handleForward} title={t('chat.messageActions.forward')} leadingIcon="share-variant" />
+        <Menu.Item 
+          onPress={handleForward} 
+          title={t('chat.messageActions.forward')} 
+          leadingIcon={props => <MaterialIcons {...props} name="share" />} 
+        />
       )}
-      <Menu.Item onPress={handleShare} title={t('chat.messageActions.share')} leadingIcon="export-variant" />
+      <Menu.Item 
+        onPress={handleShare} 
+        title={t('chat.messageActions.share')} 
+        leadingIcon={props => <MaterialIcons {...props} name="ios-share" />} 
+      />
       {!isUser && onAddToMemory && (
-        <Menu.Item onPress={handleAddToMemory} title={t('chat.messageActions.addToMemory')} leadingIcon="brain" />
+        <Menu.Item 
+          onPress={handleAddToMemory} 
+          title={t('chat.messageActions.addToMemory')} 
+          leadingIcon={props => <MaterialIcons {...props} name="psychology" />} 
+        />
       )}
     </Menu>
+
+
   );
 }, (prev, next) => {
   // 只比较影响渲染的 props，忽略 hasFileOperations（它只影响菜单行为）
@@ -453,13 +489,15 @@ const styles = StyleSheet.create({
     opacity: 0.3,
   },
   toolDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-    marginRight: 8,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginRight: 10,
     opacity: 0.5,
     zIndex: 1,
+    marginLeft: 4, // 调整位置使其位于 spine 中线上
   },
+
   toolContent: {
     flex: 1,
     flexDirection: 'row',
@@ -467,10 +505,11 @@ const styles = StyleSheet.create({
     gap: 5,
   },
   toolLabel: {
-    flex: 1,
     fontSize: 12,
     opacity: 0.65,
+    lineHeight: 16,
   },
+
   // Thinking 折叠
   thinkingHeader: {
     flexDirection: 'row',
@@ -491,23 +530,8 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     opacity: 0.7,
   },
-  // 文件变更徽章
-  changesetRow: {
-    marginTop: 8,
-    flexDirection: 'row',
-  },
-  changesetBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 10,
-  },
-  changesetBadgeText: {
-    fontSize: 10,
-    fontWeight: '600',
-  },
+  // 文件变更徽章 (已由 ChangesetSnapshot 替代)
+
 
   typingContainer: {
     paddingHorizontal: 16,
