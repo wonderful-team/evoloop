@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 底部高清渐变背景 (允许拉伸填充) -->
+    <item android:drawable="@drawable/splash_bg_premium" />
+    
+    <!-- 居中的矢量 LOGO (固定尺寸，绝对不拉伸) -->
+    <item
+        android:width="150dp"
+        android:height="150dp"
+        android:gravity="center"
+        android:drawable="@drawable/evoloop_logo_vector" />
+</layer-list>

@@ -14,7 +14,7 @@ if linkage != nil
   use_frameworks! :linkage => linkage.to_sym
 end
 
-target 'EvoLoopNative' do
+target 'EvoLoopMobile' do
   config = use_native_modules!
 
   pod 'SherpaOnnxASR', :path => './SherpaOnnxASR'
@@ -25,7 +25,7 @@ target 'EvoLoopNative' do
     :app_path => "#{Pod::Config.instance.installation_root}/.."
   )
 
-  target 'EvoLoopNativeTests' do
+  target 'EvoLoopMobileTests' do
     inherit! :complete
     # Pods for testing
   end

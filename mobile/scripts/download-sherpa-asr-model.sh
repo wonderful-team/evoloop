@@ -29,9 +29,9 @@ echo "   → android/app/src/main/assets/sherpa-asr/$MODEL_NAME"
 
 echo ""
 echo "🍎 复制到 iOS resources..."
-mkdir -p "$PROJECT_ROOT/ios/EvoLoopNative/Resources/sherpa-asr"
-cp -R "$TEMP_DIR/$MODEL_NAME" "$PROJECT_ROOT/ios/EvoLoopNative/Resources/sherpa-asr/"
-echo "   → ios/EvoLoopNative/Resources/sherpa-asr/$MODEL_NAME"
+mkdir -p "$PROJECT_ROOT/ios/EvoLoopMobile/Resources/sherpa-asr"
+cp -R "$TEMP_DIR/$MODEL_NAME" "$PROJECT_ROOT/ios/EvoLoopMobile/Resources/sherpa-asr/"
+echo "   → ios/EvoLoopMobile/Resources/sherpa-asr/$MODEL_NAME"
 
 echo ""
 echo "🧹 清理临时文件..."
