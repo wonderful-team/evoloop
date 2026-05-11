@@ -78,11 +78,11 @@ export interface ChatState {
     _flushTimeout: any
 
     // --- Actions ---
-    setThread: (threadId: string | null, projectId: number, skillId?: number) => Promise<void>
+    setThread: (threadId: string | null, projectId: number | null, skillId?: number | null) => Promise<void>
     fetchHistory: (threadId: string) => Promise<void>
     fetchActivity: (threadId: string) => Promise<void>
     loadMoreHistory: () => Promise<void>
-    sendMessage: (content: string, attachments?: any[], skillId?: number) => Promise<void>
+    sendMessage: (content: string, attachments?: any[], skillId?: number | null) => Promise<void>
     stopAgent: () => Promise<void>
     resumeAgent: (userInput?: string) => Promise<void>
     cancelHumanRequest: (reason?: string) => Promise<void>

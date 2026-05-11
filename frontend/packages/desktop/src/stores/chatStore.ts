@@ -191,7 +191,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     sendMessage: async (content, attachments, skillId) => {
         const { threadId, projectId, skillId: stateSkillId } = get()
-        if (!threadId || !projectId) return
+        if (projectId === null) return
 
         const activeSkillId = skillId || stateSkillId
         // Optimistic update
@@ -216,9 +216,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
         set((state) => ({ messages: [...state.messages, userMsg] }))
 
         try {
-            await AgentService.chatEndpoint({
+            const res: any = await AgentService.chatEndpoint({
                 requestBody: {
-                    thread_id: threadId,
+                    thread_id: threadId || undefined,
                     project_id: projectId,
                     skill_id: activeSkillId || undefined,
                     message: content,
@@ -226,6 +226,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
                     attachments: attachments || undefined,
                 }
             })
+
+            // If this was a new thread, sync the ID and re-init state/SSE
+            if (res && res.thread_id && !threadId) {
+                console.log(`[ChatStore] Syncing new threadId: ${res.thread_id}`)
+                await get().setThread(res.thread_id, projectId, activeSkillId)
+            }
         } catch (e: any) {
             toast.error(i18n.t("chat.errors.sendFailed"))
             set((state) => ({
